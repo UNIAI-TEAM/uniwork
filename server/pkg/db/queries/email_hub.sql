@@ -1,10 +1,12 @@
 -- name: CreateEmailHubAccount :one
+-- A password row passes '' and NULL for the oauth_* columns.
 INSERT INTO email_hub_accounts (
   id, user_id, organization_id, email_address, provider,
   imap_host, imap_port, smtp_host, smtp_port, password_enc,
-  imap_security, smtp_security, username, auth_kind
+  imap_security, smtp_security, username, auth_kind,
+  oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 )
 RETURNING *;
 
@@ -76,7 +78,9 @@ FOR UPDATE;
 -- name: UpdateEmailHubAccountCredentials :one
 -- Reconnect keeps the id. UIDs from another IMAP server mean nothing, so
 -- sync_state resets when host or port change. The version bump fences writes
--- from older snapshots. SET expressions read the old row.
+-- from older snapshots. SET expressions read the old row; RETURNING gives the
+-- new one (the caller holds the old one from its FOR UPDATE read). A password
+-- credential passes '' and NULL for the oauth_* columns.
 UPDATE email_hub_accounts
 SET provider = sqlc.arg('provider'),
     imap_host = sqlc.arg('imap_host'),
@@ -88,9 +92,9 @@ SET provider = sqlc.arg('provider'),
     username = sqlc.arg('username'),
     auth_kind = sqlc.arg('auth_kind'),
     password_enc = sqlc.arg('password_enc'),
-    oauth_refresh_token_enc = '',
-    oauth_access_token_enc = '',
-    oauth_access_expires_at = NULL,
+    oauth_refresh_token_enc = sqlc.arg('oauth_refresh_token_enc'),
+    oauth_access_token_enc = sqlc.arg('oauth_access_token_enc'),
+    oauth_access_expires_at = sqlc.narg('oauth_access_expires_at'),
     auth_failed_at = NULL,
     auth_failed_reason = '',
     sync_state = CASE

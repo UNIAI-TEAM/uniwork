@@ -447,30 +447,35 @@ const createEmailHubAccount = `-- name: CreateEmailHubAccount :one
 INSERT INTO email_hub_accounts (
   id, user_id, organization_id, email_address, provider,
   imap_host, imap_port, smtp_host, smtp_port, password_enc,
-  imap_security, smtp_security, username, auth_kind
+  imap_security, smtp_security, username, auth_kind,
+  oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 )
 RETURNING id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
 `
 
 type CreateEmailHubAccountParams struct {
-	ID             string `json:"id"`
-	UserID         string `json:"user_id"`
-	OrganizationID string `json:"organization_id"`
-	EmailAddress   string `json:"email_address"`
-	Provider       string `json:"provider"`
-	ImapHost       string `json:"imap_host"`
-	ImapPort       int32  `json:"imap_port"`
-	SmtpHost       string `json:"smtp_host"`
-	SmtpPort       int32  `json:"smtp_port"`
-	PasswordEnc    string `json:"password_enc"`
-	ImapSecurity   string `json:"imap_security"`
-	SmtpSecurity   string `json:"smtp_security"`
-	Username       string `json:"username"`
-	AuthKind       string `json:"auth_kind"`
+	ID                   string             `json:"id"`
+	UserID               string             `json:"user_id"`
+	OrganizationID       string             `json:"organization_id"`
+	EmailAddress         string             `json:"email_address"`
+	Provider             string             `json:"provider"`
+	ImapHost             string             `json:"imap_host"`
+	ImapPort             int32              `json:"imap_port"`
+	SmtpHost             string             `json:"smtp_host"`
+	SmtpPort             int32              `json:"smtp_port"`
+	PasswordEnc          string             `json:"password_enc"`
+	ImapSecurity         string             `json:"imap_security"`
+	SmtpSecurity         string             `json:"smtp_security"`
+	Username             string             `json:"username"`
+	AuthKind             string             `json:"auth_kind"`
+	OauthRefreshTokenEnc string             `json:"oauth_refresh_token_enc"`
+	OauthAccessTokenEnc  string             `json:"oauth_access_token_enc"`
+	OauthAccessExpiresAt pgtype.Timestamptz `json:"oauth_access_expires_at"`
 }
 
+// A password row passes ” and NULL for the oauth_* columns.
 func (q *Queries) CreateEmailHubAccount(ctx context.Context, arg CreateEmailHubAccountParams) (EmailHubAccount, error) {
 	row := q.db.QueryRow(ctx, createEmailHubAccount,
 		arg.ID,
@@ -487,6 +492,9 @@ func (q *Queries) CreateEmailHubAccount(ctx context.Context, arg CreateEmailHubA
 		arg.SmtpSecurity,
 		arg.Username,
 		arg.AuthKind,
+		arg.OauthRefreshTokenEnc,
+		arg.OauthAccessTokenEnc,
+		arg.OauthAccessExpiresAt,
 	)
 	var i EmailHubAccount
 	err := row.Scan(
@@ -2652,9 +2660,9 @@ SET provider = $1,
     username = $8,
     auth_kind = $9,
     password_enc = $10,
-    oauth_refresh_token_enc = '',
-    oauth_access_token_enc = '',
-    oauth_access_expires_at = NULL,
+    oauth_refresh_token_enc = $11,
+    oauth_access_token_enc = $12,
+    oauth_access_expires_at = $13,
     auth_failed_at = NULL,
     auth_failed_reason = '',
     sync_state = CASE
@@ -2663,30 +2671,35 @@ SET provider = $1,
     END,
     credential_version = credential_version + 1,
     updated_at = now()
-WHERE id = $11
-  AND organization_id = $12
+WHERE id = $14
+  AND organization_id = $15
   AND disconnected_at IS NULL
 RETURNING id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
 `
 
 type UpdateEmailHubAccountCredentialsParams struct {
-	Provider       string `json:"provider"`
-	ImapHost       string `json:"imap_host"`
-	ImapPort       int32  `json:"imap_port"`
-	ImapSecurity   string `json:"imap_security"`
-	SmtpHost       string `json:"smtp_host"`
-	SmtpPort       int32  `json:"smtp_port"`
-	SmtpSecurity   string `json:"smtp_security"`
-	Username       string `json:"username"`
-	AuthKind       string `json:"auth_kind"`
-	PasswordEnc    string `json:"password_enc"`
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
+	Provider             string             `json:"provider"`
+	ImapHost             string             `json:"imap_host"`
+	ImapPort             int32              `json:"imap_port"`
+	ImapSecurity         string             `json:"imap_security"`
+	SmtpHost             string             `json:"smtp_host"`
+	SmtpPort             int32              `json:"smtp_port"`
+	SmtpSecurity         string             `json:"smtp_security"`
+	Username             string             `json:"username"`
+	AuthKind             string             `json:"auth_kind"`
+	PasswordEnc          string             `json:"password_enc"`
+	OauthRefreshTokenEnc string             `json:"oauth_refresh_token_enc"`
+	OauthAccessTokenEnc  string             `json:"oauth_access_token_enc"`
+	OauthAccessExpiresAt pgtype.Timestamptz `json:"oauth_access_expires_at"`
+	ID                   string             `json:"id"`
+	OrganizationID       string             `json:"organization_id"`
 }
 
 // Reconnect keeps the id. UIDs from another IMAP server mean nothing, so
 // sync_state resets when host or port change. The version bump fences writes
-// from older snapshots. SET expressions read the old row.
+// from older snapshots. SET expressions read the old row; RETURNING gives the
+// new one (the caller holds the old one from its FOR UPDATE read). A password
+// credential passes ” and NULL for the oauth_* columns.
 func (q *Queries) UpdateEmailHubAccountCredentials(ctx context.Context, arg UpdateEmailHubAccountCredentialsParams) (EmailHubAccount, error) {
 	row := q.db.QueryRow(ctx, updateEmailHubAccountCredentials,
 		arg.Provider,
@@ -2699,6 +2712,9 @@ func (q *Queries) UpdateEmailHubAccountCredentials(ctx context.Context, arg Upda
 		arg.Username,
 		arg.AuthKind,
 		arg.PasswordEnc,
+		arg.OauthRefreshTokenEnc,
+		arg.OauthAccessTokenEnc,
+		arg.OauthAccessExpiresAt,
 		arg.ID,
 		arg.OrganizationID,
 	)
