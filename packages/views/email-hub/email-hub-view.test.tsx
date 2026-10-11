@@ -75,7 +75,17 @@ describe("EmailHubView on a mailbox that needs reconnecting", () => {
 });
 
 describe("EmailHubView reconnecting from the banner", () => {
-  it("puts focus on the account menu once the banner it started from is gone", async () => {
+  it.each([
+    ["on the account menu", true, "Hộp thư: ha.do@unicomhub.com"],
+    ["on the list heading when no account menu is on screen", false, "Hộp đến"],
+  ])("puts focus %s once the banner it started from is gone", async (_, triggerShown, focusName) => {
+    // jsdom lays nothing out; give the account menu triggers a box when the case has one on screen.
+    const rects = Element.prototype.getClientRects;
+    vi.spyOn(Element.prototype, "getClientRects").mockImplementation(function (this: Element) {
+      return triggerShown && this.hasAttribute("data-email-hub-account-trigger")
+        ? ([{}] as unknown as DOMRectList)
+        : rects.call(this);
+    });
     let broken = true;
     requestMock.mockImplementation((path: string, init?: { method?: string }) => {
       if (path === "/api/v1/workspaces/ws1/email-hub/accounts") {
@@ -101,6 +111,7 @@ describe("EmailHubView reconnecting from the banner", () => {
     fireEvent.click(submit);
 
     await waitFor(() => expect(screen.queryByText("Hộp thư cần kết nối lại")).toBeNull());
-    await waitFor(() => expect(document.activeElement).toHaveAccessibleName("Hộp thư: ha.do@unicomhub.com"));
+    await waitFor(() => expect(document.activeElement).toHaveAccessibleName(focusName));
+    vi.restoreAllMocks();
   });
 });

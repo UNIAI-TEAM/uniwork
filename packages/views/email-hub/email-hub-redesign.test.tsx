@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
-import { EmailHubAccountMenu } from "./email-hub-account-menu";
+import { EmailHubAccountMenu, focusTargetAfterConnect } from "./email-hub-account-menu";
 import { EmailHubReconnectBanner } from "./email-hub-reconnect-banner";
 import { emailHubThreadCapabilities } from "./email-hub-thread-toolbar";
 import { EmailHubScheduledDetail } from "./email-hub-scheduled-detail";
@@ -144,6 +144,23 @@ describe("EmailHubAccountMenu on mailboxes that need reconnecting", () => {
     expect(mark("binh@outlook.com")).toBe("microsoft");
     expect(mark("chi@unicomhub.vn")).toBe("server");
     expect(mark("dung@yahoo.com")).toBe("mail");
+  });
+});
+
+describe("focusTargetAfterConnect", () => {
+  it("lands on the account menu trigger on screen, else on the list heading, never on a hidden trigger", () => {
+    document.body.innerHTML =
+      '<button data-email-hub-account-trigger="">hidden</button><button data-email-hub-account-trigger="">shown</button>' +
+      '<h1 data-email-hub-list-heading="" tabindex="-1">Hộp đến</h1>';
+    const [hidden, shown] = Array.from(document.querySelectorAll("button"));
+    const heading = document.querySelector("h1");
+    // jsdom lays nothing out: every trigger reads as hidden until one is given a box.
+    expect(focusTargetAfterConnect()).toBe(heading);
+
+    vi.spyOn(shown!, "getClientRects").mockReturnValue([{}] as unknown as DOMRectList);
+    expect(focusTargetAfterConnect()).toBe(shown);
+    expect(focusTargetAfterConnect()).not.toBe(hidden);
+    document.body.innerHTML = "";
   });
 });
 

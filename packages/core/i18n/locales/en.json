@@ -1421,6 +1421,8 @@
     "disconnect_error": "Could not disconnect the mailbox. Try again.",
     "reconnect": {
       "badge": "Needs reconnecting",
+      "other_mailbox": "Signed in with a different mailbox. {{email}} still needs reconnecting.",
+      "other_mailbox_named": "Signed in with {{other}}. {{email}} still needs reconnecting.",
       "menu": "Reconnect {{email}}",
       "action": "Reconnect",
       "banner_title": "This mailbox needs reconnecting",

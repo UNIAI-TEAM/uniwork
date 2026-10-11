@@ -116,15 +116,28 @@ export function ConnectAccountDialog({
   };
 
   /**
-   * After a sign-in, a fresh list says what it connected: a mailbox that was not there before, else the reconnect
-   * target — taken on the popup's word when it said ok, only once fixed when it closed without a message.
+   * After a sign-in, a fresh list says what it connected: the reconnect target once it is no longer refused, else a
+   * mailbox that was not there before. A reconnect that leaves its target refused signed in as another mailbox.
    */
   const settleSignIn = async (reportedOk: boolean) => {
     const { data } = await accounts.refetch();
     const list: EmailHubAccount[] = data?.accounts ?? [];
-    const acc =
-      list.find((a) => knownIds !== null && !knownIds.has(a.id)) ??
-      list.find((a) => a.email_address === reconnectEmail && (reportedOk || !a.needs_reconnect));
+    const added = list.find((a) => knownIds !== null && !knownIds.has(a.id));
+    const fixed = list.find((a) => a.email_address === reconnectEmail && !a.needs_reconnect);
+    if (reconnectEmail !== undefined && !fixed && (reportedOk || added)) {
+      if (added) {
+        setDidConnect(true);
+        onConnected?.(added.id);
+      }
+      toast.info(
+        added
+          ? t("email_hub.reconnect.other_mailbox_named", { other: added.email_address, email: reconnectEmail })
+          : t("email_hub.reconnect.other_mailbox", { email: reconnectEmail }),
+      );
+      onOpenChange(false);
+      return;
+    }
+    const acc = fixed ?? added;
     if (acc) connected(acc);
     if (acc || reportedOk) onOpenChange(false);
     else setOauthClosed(true);

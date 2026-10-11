@@ -46,10 +46,16 @@ function AccountMark({ account }: { account: EmailHubAccount }) {
   }
 }
 
-/** The account menu trigger on screen: the sidebar's at lg, the list header's below it. */
-export function visibleAccountMenuTrigger(): HTMLElement | null {
+/**
+ * Where focus goes after a connect closed the dialog: the account menu trigger on screen (the sidebar's at lg, the
+ * list header's below it), else the list heading. A hidden trigger cannot take focus.
+ */
+export function focusTargetAfterConnect(): HTMLElement | null {
   const triggers = Array.from(document.querySelectorAll<HTMLElement>("[data-email-hub-account-trigger]"));
-  return triggers.find((el) => el.getClientRects().length > 0) ?? triggers[0] ?? null;
+  return (
+    triggers.find((el) => el.getClientRects().length > 0) ??
+    document.querySelector<HTMLElement>("[data-email-hub-list-heading]")
+  );
 }
 
 /**

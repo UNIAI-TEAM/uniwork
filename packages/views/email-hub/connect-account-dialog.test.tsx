@@ -6,7 +6,8 @@ import { requestMock, wrap } from "../test/api-mock";
 import { ConnectAccountDialog } from "./connect-account-dialog";
 
 const toastSuccess = vi.hoisted(() => vi.fn());
-vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: vi.fn() } }));
+const toastInfo = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, info: toastInfo, error: vi.fn() } }));
 
 const accountJSON = {
   id: "acc1",
@@ -69,6 +70,7 @@ function serve(
 beforeEach(() => {
   requestMock.mockReset();
   toastSuccess.mockReset();
+  toastInfo.mockReset();
   serve({ accounts: [] });
 });
 
@@ -515,9 +517,13 @@ describe("ConnectAccountDialog sign-in with Google or Microsoft", () => {
     );
     render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
 
-    await waitFor(() => expect(document.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2));
+    // Each placeholder draws the card it stands for: a mark and two lines of text.
+    await waitFor(() => expect(document.querySelectorAll("[data-oauth-placeholder]")).toHaveLength(2));
+    for (const card of document.querySelectorAll("[data-oauth-placeholder]")) {
+      expect(card.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(3);
+    }
     await act(async () => answer(NO_PROVIDERS));
-    await waitFor(() => expect(document.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0));
+    await waitFor(() => expect(document.querySelectorAll("[data-oauth-placeholder]")).toHaveLength(0));
     expect(googleOption()).toBeNull();
   });
 
@@ -537,19 +543,29 @@ describe("ConnectAccountDialog sign-in with Google or Microsoft", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("holds every way in while the popup is open and can bring the popup back", async () => {
+  it("holds every way in while the popup is open, keeps them in the tab order, and can bring the popup back", async () => {
     serve({ accounts: [] }, undefined, { providers: BOTH });
-    const { popup } = fakePopup();
+    const { popup, open } = fakePopup();
     render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
     await startGoogleSignIn(popup);
 
-    expect(googleOption()).toBeDisabled();
-    expect(microsoftOption()).toBeDisabled();
-    expect(customOption()).toBeDisabled();
-    expect(appPasswordOption()).toBeDisabled();
+    // aria-disabled, not disabled: the clicked card keeps its place, so focus does not fall to the page.
+    for (const option of [googleOption()!, microsoftOption()!, customOption(), appPasswordOption()]) {
+      expect(option).toHaveAttribute("aria-disabled", "true");
+      expect(option).not.toBeDisabled();
+    }
     expect(screen.getByRole("status")).toHaveTextContent("Hoàn tất đăng nhập trong cửa sổ vừa mở.");
+    const showWindow = screen.getByRole("button", { name: "Mở lại cửa sổ" });
+    await waitFor(() => expect(showWindow).toHaveFocus());
 
-    fireEvent.click(screen.getByRole("button", { name: "Mở lại cửa sổ" }));
+    fireEvent.click(microsoftOption()!);
+    fireEvent.click(customOption());
+    fireEvent.click(appPasswordOption());
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(document.getElementById("email-hub-custom-form")).toBeNull();
+    expect(screen.queryByLabelText("App Password")).toBeNull();
+
+    fireEvent.click(showWindow);
     expect(popup.focus).toHaveBeenCalled();
   });
 
@@ -592,6 +608,40 @@ describe("ConnectAccountDialog sign-in with Google or Microsoft", () => {
 
     await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc3"), { timeout: 2000 });
     expect(toastSuccess).toHaveBeenCalledWith("Đã kết nối lan@contoso.vn");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it.each([
+    ["names neither mailbox it cannot identify", [] as unknown[], "Đã đăng nhập bằng một hộp thư khác. lan@contoso.vn vẫn cần kết nối lại.", null],
+    [
+      "names the mailbox it connected instead",
+      [{ ...accountJSON, id: "acc9", email_address: "moi@outlook.com", auth_kind: "oauth_microsoft" }],
+      "Đã đăng nhập bằng moi@outlook.com. lan@contoso.vn vẫn cần kết nối lại.",
+      "acc9",
+    ],
+  ])("says a reconnect signed in as another mailbox and %s, without claiming the target", async (_, added, text, selected) => {
+    const list = { accounts: [microsoftJSON] as unknown[] };
+    serve(list, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onOpenChange = vi.fn();
+    const onConnected = vi.fn();
+    render(
+      wrap(
+        <ConnectAccountDialog wsId="ws1" open reconnectEmail="lan@contoso.vn" onOpenChange={onOpenChange} onConnected={onConnected} />,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /^Đăng nhập bằng Microsoft/ }));
+    await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
+    // Signed in with another mailbox: the one to reconnect is still refused.
+    list.accounts = [microsoftJSON, ...added];
+
+    postResult(popup, true, "connected");
+
+    await waitFor(() => expect(toastInfo).toHaveBeenCalledWith(text));
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(onConnected).not.toHaveBeenCalledWith("acc3");
+    if (selected) expect(onConnected).toHaveBeenCalledWith(selected);
+    else expect(onConnected).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 

@@ -1420,6 +1420,8 @@
     "disconnect_error": "Không ngắt kết nối được hộp thư. Thử lại.",
     "reconnect": {
       "badge": "Cần kết nối lại",
+      "other_mailbox": "Đã đăng nhập bằng một hộp thư khác. {{email}} vẫn cần kết nối lại.",
+      "other_mailbox_named": "Đã đăng nhập bằng {{other}}. {{email}} vẫn cần kết nối lại.",
       "menu": "Kết nối lại {{email}}",
       "action": "Kết nối lại",
       "banner_title": "Hộp thư cần kết nối lại",
