@@ -4,21 +4,7 @@ import { useEffect } from "react";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { useOptionalWS } from "./provider";
-import { WS_SCOPE_MEETING } from "./scopes";
-
-/**
- * Backoff before asking again for a meeting the server could not authorize
- * (`lookup_failed`: its database check timed out or failed). Without a retry
- * the room would stay deaf to its own events until the socket reconnects,
- * which is exactly when the server is busiest.
- */
-const LOOKUP_RETRY_DELAYS_MS = [2_000, 5_000, 10_000, 30_000] as const;
-
-function lookupRetryDelayMs(attempt: number): number {
-  const base = LOOKUP_RETRY_DELAYS_MS[Math.min(attempt, LOOKUP_RETRY_DELAYS_MS.length - 1)] ?? 30_000;
-  // ±20 % jitter so a room that failed together does not retry together.
-  return Math.round(base * (0.8 + Math.random() * 0.4));
-}
+import { WS_SCOPE_MEETING, lookupRetryDelayMs } from "./scopes";
 
 type MeetingHold = {
   count: number;

@@ -20,8 +20,8 @@ func normalizeMessagePriority(priority string) string {
 	}
 }
 
-func priorityFromMetadata(raw []byte) string {
-	return normalizeMessagePriority(decodeChatMessageMetadata(raw).Priority)
+func priorityFromMetadata(meta chatMessageMetadata) string {
+	return normalizeMessagePriority(meta.Priority)
 }
 
 func encodeMessagePriorityMetadata(raw []byte, priority string) ([]byte, error) {
@@ -30,7 +30,7 @@ func encodeMessagePriorityMetadata(raw []byte, priority string) ([]byte, error) 
 	if meta.Priority == "" {
 		meta.Priority = ""
 	}
-	if len(meta.Reactions) == 0 && !meta.Pinned && len(meta.MentionedUserIDs) == 0 &&
+	if len(meta.Reactions) == 0 && !meta.Pinned && len(meta.MentionedUserIDs) == 0 && !meta.MentionsAll &&
 		meta.Poll == nil && meta.Reminder == nil && meta.Note == nil && meta.Post == nil && meta.Priority == "" {
 		return []byte("{}"), nil
 	}

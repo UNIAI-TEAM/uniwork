@@ -30,3 +30,23 @@ func TestEmbeddedVersionsAreInNumericOrder(t *testing.T) {
 		t.Fatalf("Latest() = %q, want %q", Latest(), vs[len(vs)-1])
 	}
 }
+
+// /readyz refuses only a schema older than the binary: a rollout migrates
+// first, so old pods still serving see a newer schema and must stay ready.
+func TestBehindComparesNumerically(t *testing.T) {
+	cases := []struct {
+		applied, latest string
+		want            bool
+	}{
+		{"154_a", "1010_b", true},
+		{"1010_b", "1010_b", false},
+		{"1010_b", "154_a", false},
+		{"9991700000000000_x", "1010_b", false},
+		{"", "001_a", true},
+	}
+	for _, c := range cases {
+		if got := behind(c.applied, c.latest); got != c.want {
+			t.Errorf("behind(%q, %q) = %v, want %v", c.applied, c.latest, got, c.want)
+		}
+	}
+}

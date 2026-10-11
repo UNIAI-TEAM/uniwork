@@ -69,6 +69,18 @@ func errChatThreadAlreadySynced() error {
 	return coded(http.StatusConflict, "chat_thread_already_synced", "thread đã nối với một task khác")
 }
 
+func errChatThreadSyncPrivate() error {
+	return coded(http.StatusBadRequest, "chat_thread_sync_private", "không thể đồng bộ thread của phòng riêng tư sang task")
+}
+
+// chatRoomIsPrivate reports whether a room is narrower than its workspace.
+// A task's comments are read by the whole workspace, so a private room's
+// thread replies must never be mirrored into them.
+func chatRoomIsPrivate(room db.ChatRoom) bool {
+	return room.Kind != chatRoomKindWorkspace &&
+		(room.Kind != chatRoomKindChannel || room.Visibility != chatVisibilityPublic)
+}
+
 func errChatProjectNotFound() error {
 	return coded(http.StatusNotFound, "project_not_found", "không tìm thấy project")
 }
@@ -137,6 +149,10 @@ func (s *ChatService) CreateTaskFromMessage(
 	room, msg, err := s.loadMessageForLink(ctx, userID, workspaceID, messageID)
 	if err != nil {
 		return db.Task{}, err
+	}
+	// Refused before the task exists, so a refusal leaves nothing behind.
+	if in.SyncThread && chatRoomIsPrivate(room) {
+		return db.Task{}, errChatThreadSyncPrivate()
 	}
 	if in.ProjectID != nil && strings.TrimSpace(*in.ProjectID) != "" {
 		ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
@@ -430,6 +446,10 @@ func (s *ChatService) SyncThreadTask(
 	}
 	if task.WorkspaceID != workspaceID {
 		return db.ChatThreadTaskLink{}, errChatLinkTargetNotFound()
+	}
+	// After the task checks, so a foreign task still answers 404 here.
+	if chatRoomIsPrivate(room) {
+		return db.ChatThreadTaskLink{}, errChatThreadSyncPrivate()
 	}
 	if existing, err := s.q.GetChatThreadTaskLinkByThread(ctx, root.ID); err == nil {
 		if existing.TaskID == taskID {

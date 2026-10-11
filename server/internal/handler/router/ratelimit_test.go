@@ -238,3 +238,43 @@ func TestInRoomReadsSkipTheCredentialLimiter(t *testing.T) {
 		}
 	}
 }
+
+// Chat writes are budgeted per signed-in person and per route, not per
+// address and concrete path: an office NAT sending congratulations into one
+// room ran out of a shared 120/min, while one person walking message ids
+// toggled reactions or invited members without any limit at all.
+func TestChatWritesBudgetEachUserPerRoute(t *testing.T) {
+	h, minter := limitedMux(t)
+	const office = "10.20.0.8"
+	ws := "/api/v1/workspaces/w1/chat"
+	for _, tc := range []struct {
+		method string
+		path   func(i int) string
+		budget int
+	}{
+		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r%d/messages", ws, i) }, 120},
+		{http.MethodPost, func(int) string { return ws + "/messages" }, 120},
+		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r1/messages/m%d/reactions", ws, i) }, 60},
+		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r1/messages/m%d/pin", ws, i) }, 60},
+		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r1/messages/m%d/poll/vote", ws, i) }, 60},
+		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r%d/voice/invite", ws, i) }, 20},
+		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r%d/members", ws, i) }, 20},
+		{http.MethodPatch, func(i int) string { return fmt.Sprintf("%s/rooms/r%d", ws, i) }, 20},
+		{http.MethodPatch, func(i int) string { return fmt.Sprintf("%s/rooms/r1/members/u%d", ws, i) }, 20},
+		{http.MethodDelete, func(i int) string { return fmt.Sprintf("%s/rooms/r1/members/u%d", ws, i) }, 20},
+		{http.MethodPatch, func(i int) string { return fmt.Sprintf("%s/channels/c%d", ws, i) }, 20},
+		{http.MethodPost, func(i int) string { return fmt.Sprintf("/api/v1/workspaces/w%d/chat/room", i) }, 20},
+	} {
+		a := caller{ip: office, bearer: mustMint(t, minter, "user-a")}
+		for i := 0; i < tc.budget; i++ {
+			if code := a.send(h, tc.method, tc.path(i)); code == http.StatusTooManyRequests {
+				t.Fatalf("%s %s: request %d of %d refused", tc.method, tc.path(i), i+1, tc.budget)
+			}
+		}
+		a.wantRefused(t, h, tc.method, tc.path(tc.budget), "another id under the same route shares the budget")
+		b := caller{ip: office, bearer: mustMint(t, minter, "user-b")}
+		if code := b.send(h, tc.method, tc.path(tc.budget)); code == http.StatusTooManyRequests {
+			t.Fatalf("%s %s: a second person behind the same address was refused", tc.method, tc.path(tc.budget))
+		}
+	}
+}

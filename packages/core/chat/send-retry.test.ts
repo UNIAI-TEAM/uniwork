@@ -37,6 +37,29 @@ describe("runWithChatSendRetry", () => {
     vi.useRealTimers();
   });
 
+  // H7: the server's Retry-After was parsed, then ignored.
+  it("waits at least as long as the server's Retry-After", async () => {
+    vi.useFakeTimers();
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError("slow down", "rate_limited", 429, undefined, undefined, undefined, 2))
+      .mockResolvedValueOnce("ok");
+
+    const promise = runWithChatSendRetry(fn, { maxAttempts: 2, delaysMs: [100] });
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(fn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(promise).resolves.toBe("ok");
+    vi.useRealTimers();
+  });
+
+  it("hands back a Retry-After longer than a send should hang", async () => {
+    const err = new ApiError("slow down", "rate_limited", 429, undefined, undefined, undefined, 60);
+    const fn = vi.fn().mockRejectedValue(err);
+    await expect(runWithChatSendRetry(fn, { maxAttempts: 3, delaysMs: [10] })).rejects.toBe(err);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
   it("stops after max attempts", async () => {
     vi.useFakeTimers();
     const err = new ApiError("down", "internal", 503);

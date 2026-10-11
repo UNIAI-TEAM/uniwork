@@ -78,7 +78,7 @@ func (s *AdminService) RevokeDesktopDevice(ctx context.Context, actorID, userID,
 		ResourceType:   "device_session", ResourceID: device.ID,
 		Changes:  audit.Diff(before, after),
 		Metadata: map[string]any{"reason": reason, "user_id": userID, "session_family_id": device.SessionFamilyID, "scope": "family"},
-	}); err != nil {
+	}, sessionRevoked(userID, "")); err != nil {
 		return RevokedDesktopDevice{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

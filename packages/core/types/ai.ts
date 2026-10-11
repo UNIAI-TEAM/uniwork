@@ -103,4 +103,6 @@ export interface ChatCatchUpInput {
   room_id: string;
   thread_root_id?: string;
   locale?: string;
+  /** Room read pointer from before the room was opened (opening marks it read). */
+  since?: string;
 }

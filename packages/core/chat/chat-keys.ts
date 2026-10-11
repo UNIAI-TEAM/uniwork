@@ -11,8 +11,9 @@ export const chatKeys = {
   roomMessagesRoot: (wsId: string) => ["chat", "room-messages", wsId] as const,
   /**
    * Older history the room bulletin pages in on request, from a frozen cursor.
-   * Deliberately outside the "room-messages" prefix: those entries are flat
-   * arrays that writers patch in place; these are infinite-query pages.
+   * Deliberately outside the "room-messages" prefix: those entries are each a
+   * room's own timeline (`RoomTimeline`, patched in place by realtime and
+   * mutations); these pages page from a frozen cursor and are never patched.
    */
   roomBulletinOlder: (wsId: string, roomId: string, from: string) =>
     ["chat", "room-bulletin-older", wsId, roomId, from] as const,
@@ -32,8 +33,8 @@ export const chatKeys = {
   /** Prefix for all Follow-up list variants; invalidate with this key only. */
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   /** An attachment's bytes, cached so a remounted row does not fetch them again. */
-  fileBlob: (wsId: string, roomId: string, messageId: string) =>
-    ["chat", "file-blob", wsId, roomId, messageId] as const,
+  fileBlob: (wsId: string, roomId: string, messageId: string, variant: "original" | "thumb" = "original") =>
+    ["chat", "file-blob", wsId, roomId, messageId, variant] as const,
   voiceBlob: (wsId: string, roomId: string, messageId: string) =>
     ["chat", "voice-blob", wsId, roomId, messageId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>

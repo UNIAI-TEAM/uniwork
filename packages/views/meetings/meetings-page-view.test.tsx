@@ -9,7 +9,6 @@ import type { NavigationAdapter } from "../navigation";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingsPageView } from "./meetings-page-view";
 
-vi.mock("@uniwork/core/realtime", () => ({ useWorkspaceEvents: () => {} }));
 vi.mock("./instant-meeting-dialog", () => ({ InstantMeetingDialog: ({ trigger }: { trigger: ReactNode }) => trigger }));
 vi.mock("./new-meeting-dialog", () => ({ NewMeetingDialog: ({ trigger }: { trigger: ReactNode }) => trigger }));
 

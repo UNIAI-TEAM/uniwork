@@ -11,9 +11,21 @@ export type ChatTextSendPayload = {
   client_msg_id: string;
   reply_to_message_id?: string;
   priority?: ComposerMessagePriority;
+  /** Set for a thread reply; without it a queued reply lands in the channel. */
+  thread_root_id?: string;
 };
 
 export async function deliverChatTextMessage(workspaceId: string, payload: ChatTextSendPayload) {
+  const threadRootId = payload.thread_root_id;
+  if (threadRootId) {
+    return runWithChatSendRetry(() =>
+      chat.sendChatThreadMessage(workspaceId, payload.roomId, threadRootId, {
+        body: payload.body,
+        client_msg_id: payload.client_msg_id,
+        priority: payload.priority,
+      }),
+    );
+  }
   return runWithChatSendRetry(() =>
     chat.sendChatRoomMessage(workspaceId, payload.roomId, payload),
   );
@@ -32,6 +44,7 @@ export function outboxEntryFromPayload(
     client_msg_id: payload.client_msg_id,
     reply_to_message_id: payload.reply_to_message_id,
     priority: payload.priority,
+    thread_root_id: payload.thread_root_id,
     queued_at: new Date().toISOString(),
   };
 }
@@ -43,6 +56,7 @@ export function payloadFromOutboxEntry(entry: ChatSendOutboxEntry): ChatTextSend
     client_msg_id: entry.client_msg_id,
     reply_to_message_id: entry.reply_to_message_id,
     priority: entry.priority,
+    thread_root_id: entry.thread_root_id,
   };
 }
 
@@ -68,6 +82,7 @@ export async function flushChatSendOutbox(
       senderId,
       createdAt: Date.parse(entry.queued_at) || Date.now(),
       reply_to_message_id: entry.reply_to_message_id,
+      thread_root_id: entry.thread_root_id,
       priority: entry.priority,
       status: "sending",
     });

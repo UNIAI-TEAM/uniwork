@@ -9,6 +9,7 @@ import { NativeChatMessagePanel } from "./native-chat-message-panel";
 const toggleReaction = vi.fn().mockResolvedValue(undefined);
 const deleteMessage = vi.fn();
 const editMessage = vi.fn();
+const fetchNextPage = vi.fn().mockResolvedValue({ isFetchNextPageError: false });
 
 type Row = {
   id: string;
@@ -45,15 +46,16 @@ let rows: Row[] = BASE_ROWS;
 
 vi.mock("@uniwork/core/chat", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/chat")>()),
-  useChatRoomMessages: () => ({ data: rows, isPending: false }),
+  useChatRoomMessages: () => ({
+    data: rows,
+    isPending: false,
+    hasNextPage: rows.length >= 80,
+    isFetchingNextPage: false,
+    fetchNextPage,
+  }),
   useToggleChatReaction: () => ({ mutateAsync: toggleReaction }),
   useDeleteChatMessage: () => ({ mutateAsync: deleteMessage, isPending: false }),
   useEditChatMessage: () => ({ mutateAsync: editMessage, isPending: false }),
-}));
-
-vi.mock("@uniwork/core/api/endpoints/chat", async (orig) => ({
-  ...(await orig<typeof import("@uniwork/core/api/endpoints/chat")>()),
-  listChatRoomMessages: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
@@ -228,16 +230,30 @@ describe("NativeChatMessagePanel", () => {
     expect(status()?.textContent).toBe("Binh: Mới đây");
   });
 
-  it("offers a button for older history when more exists", () => {
+  it("draws 'Tin mới' above the first message from someone else after the pre-open read pointer", () => {
+    rows = [
+      ...BASE_ROWS,
+      { id: "m3", sender_id: "u2", body: "Later", kind: "text", created_at: "2026-01-01T10:05:00.000Z", reactions: {} },
+    ];
+    render(wrap(panel({ unreadSince: "2026-01-01T10:00:30.000Z" })));
+    const divider = screen.getByRole("separator", { name: "Tin mới" });
+    expect(divider.parentElement?.textContent).toContain("Later");
+    expect(screen.getAllByRole("separator", { name: "Tin mới" })).toHaveLength(1);
+  });
+
+  // The cursor itself is chosen by useChatRoomMessages (core chat-hooks-rooms.test).
+  it("offers a button for older history and asks the room timeline for its next page", async () => {
     rows = Array.from({ length: 80 }, (_, i) => ({
       id: `h${i}`,
       sender_id: "u2",
       body: `msg ${i}`,
       kind: "text",
       created_at: new Date(Date.UTC(2026, 0, 1, 10, i)).toISOString(),
+      cursor: `c${i}`,
       reactions: {},
     }));
     render(wrap(panel()));
-    expect(screen.getByRole("button", { name: "Tải tin cũ hơn" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tải tin cũ hơn" }));
+    await waitFor(() => expect(fetchNextPage).toHaveBeenCalledTimes(1));
   });
 });

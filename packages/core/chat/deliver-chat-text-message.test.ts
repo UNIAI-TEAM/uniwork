@@ -16,6 +16,7 @@ import { resetPendingChatMessagesForTests, usePendingChatMessagesStore } from ".
 
 vi.mock("../api/endpoints/chat", () => ({
   sendChatRoomMessage: vi.fn(),
+  sendChatThreadMessage: vi.fn(),
 }));
 
 describe("deliverChatTextMessage", () => {
@@ -37,6 +38,29 @@ describe("deliverChatTextMessage", () => {
     expect(chat.sendChatRoomMessage).toHaveBeenNthCalledWith(1, "ws1", "room1", payload);
     expect(chat.sendChatRoomMessage).toHaveBeenNthCalledWith(2, "ws1", "room1", payload);
     vi.useRealTimers();
+  });
+});
+
+// H7: a queued thread reply lost its root and was posted to the channel.
+describe("thread replies in the outbox", () => {
+  it("keeps the thread root through the outbox and delivers to the thread", async () => {
+    vi.mocked(chat.sendChatThreadMessage).mockResolvedValueOnce(null);
+    const entry = outboxEntryFromPayload("ws1", "u1", {
+      roomId: "room1",
+      body: "in thread",
+      client_msg_id: "cmid-t",
+      thread_root_id: "root1",
+    });
+    expect(entry.thread_root_id).toBe("root1");
+
+    await deliverChatTextMessage("ws1", payloadFromOutboxEntry(entry));
+
+    expect(chat.sendChatThreadMessage).toHaveBeenCalledWith("ws1", "room1", "root1", {
+      body: "in thread",
+      client_msg_id: "cmid-t",
+      priority: undefined,
+    });
+    expect(chat.sendChatRoomMessage).not.toHaveBeenCalledWith("ws1", "room1", expect.objectContaining({ body: "in thread" }));
   });
 });
 

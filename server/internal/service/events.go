@@ -19,6 +19,9 @@ type EventPublisher interface {
 	Publish(ctx context.Context, workspaceID string, ev Event)
 	PublishToScope(ctx context.Context, scopeType, scopeID string, ev Event)
 	SendToUser(ctx context.Context, userID string, ev Event)
+	// SendToUsers is SendToUser for a room's worth of users. It may return
+	// before delivery, so a large room does not hold up the request.
+	SendToUsers(ctx context.Context, userIDs []string, ev Event)
 }
 
 type NopPublisher struct{}
@@ -28,6 +31,8 @@ func (NopPublisher) Publish(context.Context, string, Event) {}
 func (NopPublisher) PublishToScope(context.Context, string, string, Event) {}
 
 func (NopPublisher) SendToUser(context.Context, string, Event) {}
+
+func (NopPublisher) SendToUsers(context.Context, []string, Event) {}
 
 // RealtimePublisher adapts EventPublisher to the interface the outbox
 // dispatcher expects. The adapter exists so internal/outbox never imports this
@@ -48,4 +53,9 @@ func (r RealtimePublisher) PublishScope(ctx context.Context, scopeType, scopeID,
 // PublishUser delivers to one user's own connections.
 func (r RealtimePublisher) PublishUser(ctx context.Context, userID, topic string, payload map[string]string) {
 	r.Pub.SendToUser(ctx, userID, Event{Type: topic, Payload: payload})
+}
+
+// PublishUsers delivers one event to many users' own connections.
+func (r RealtimePublisher) PublishUsers(ctx context.Context, userIDs []string, topic string, payload map[string]string) {
+	r.Pub.SendToUsers(ctx, userIDs, Event{Type: topic, Payload: payload})
 }

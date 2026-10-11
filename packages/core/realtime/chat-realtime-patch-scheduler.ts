@@ -11,12 +11,17 @@ import {
 import { chatKeys } from "../chat/hooks";
 
 const DEBOUNCE_MS = 250;
+/** Spread the flush so every member online does not fetch in the same instant. */
+const JITTER_MS = 250;
 
-type PendingUpsert = { roomId: string; messageId: string };
+type PendingUpsert = { roomId: string; messageId: string; created: boolean; senderId?: string };
 type PendingDelete = { roomId: string; messageId: string };
 type PendingMention = { roomId: string; senderId: string };
 
-/** Debounced WS chat patches — fetch one message instead of refetching lists. */
+/**
+ * Debounced WS chat patches — fetch one message instead of refetching lists,
+ * and only for rooms whose timeline is loaded (`fetchAndPatchChatMessage`).
+ */
 export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) {
   const upserts = new Map<string, PendingUpsert>();
   const deletes = new Map<string, PendingDelete>();
@@ -42,15 +47,19 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
     for (const entry of mentionBatch) {
       patchChatMentionCreated(qc, wsId, entry.roomId, entry.senderId);
     }
-    await Promise.all(
+    // allSettled: one message gone (404) must not drop the rest of the batch
+    // or the sidebar refresh below.
+    await Promise.allSettled(
       upsertBatch.map((entry) =>
-        fetchAndPatchChatMessage(qc, wsId, entry.roomId, entry.messageId),
+        fetchAndPatchChatMessage(qc, wsId, entry.roomId, entry.messageId, entry.created, entry.senderId),
       ),
     );
     // After preview patches: server unread/mention counts win (avoids +1 then
     // refetch=1 racing into badge=2 when message.created + room.activity both fire).
+    // cancelRefetch: false — a sidebar load already in flight answers this
+    // frame too; aborting it would not stop the server from running it.
     if (refreshRooms) {
-      void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) }, { cancelRefetch: false });
     }
   };
 
@@ -60,13 +69,19 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
       flushInFlight = flush().finally(() => {
         flushInFlight = null;
       });
-    }, DEBOUNCE_MS);
+    }, DEBOUNCE_MS + Math.random() * JITTER_MS);
   };
 
   return {
-    scheduleUpsert(roomId: string, messageId: string) {
+    scheduleUpsert(roomId: string, messageId: string, created = false, senderId?: string) {
       deletes.delete(messageId);
-      upserts.set(messageId, { roomId, messageId });
+      const pending = upserts.get(messageId);
+      upserts.set(messageId, {
+        roomId,
+        messageId,
+        created: created || (pending?.created ?? false),
+        senderId: senderId ?? pending?.senderId,
+      });
       scheduleFlush();
     },
     scheduleDelete(roomId: string, messageId: string) {

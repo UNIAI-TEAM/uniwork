@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -39,10 +38,20 @@ type chatMediaCommand struct {
 	purpose     files.UploadPurpose
 	kind        string // "file" | "voice"
 	filename    string
-	body        io.Reader
+	body        io.ReadSeeker
 	durationMS  int // voice only
 	replyToID   *string
 	clientMsgID string
+}
+
+// AuthorizeMediaSend is the send gate of sendChatMedia, exposed so the upload
+// handlers can refuse a non-member before reading a byte of the body.
+func (s *ChatService) AuthorizeMediaSend(ctx context.Context, userID, workspaceID, roomID string) error {
+	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	if err != nil {
+		return err
+	}
+	return s.requireCanSendMessageInRoom(ctx, userID, room)
 }
 
 // sendChatMedia validates authorization, uploads through FileService and
@@ -82,12 +91,17 @@ func (s *ChatService) sendChatMedia(
 		return ChatMessageRow{}, err
 	}
 
-	// The bytes are read once here so the payload digest can join the upload
+	// The body is hashed once here so the payload digest can join the upload
 	// idempotency key: a voice note's filename is constant, so without the
 	// digest a different recording under the same client_msg_id would look
-	// like the same command and replay instead of conflicting.
-	payload, err := io.ReadAll(in.body)
-	if err != nil {
+	// like the same command and replay instead of conflicting. It is hashed
+	// and rewound rather than read into memory: the handler hands over a
+	// disk-backed part of up to 25 MiB (C7).
+	sum := sha256.New()
+	if _, err := io.Copy(sum, in.body); err != nil {
+		return ChatMessageRow{}, Invalid("không đọc được dữ liệu tệp")
+	}
+	if _, err := in.body.Seek(0, io.SeekStart); err != nil {
 		return ChatMessageRow{}, Invalid("không đọc được dữ liệu tệp")
 	}
 
@@ -97,9 +111,9 @@ func (s *ChatService) sendChatMedia(
 		Actor:          actor,
 		Purpose:        in.purpose,
 		Scope:          scope,
-		IdempotencyKey: chatMediaUploadKey(in.kind, room.ID, userID, in.clientMsgID, payload),
+		IdempotencyKey: chatMediaUploadKey(in.kind, room.ID, userID, in.clientMsgID, sum.Sum(nil)),
 		Filename:       in.filename,
-		Body:           bytes.NewReader(payload),
+		Body:           in.body,
 	})
 	if err != nil {
 		return ChatMessageRow{}, filesError(err)
@@ -126,7 +140,7 @@ func (s *ChatService) sendChatMedia(
 			LastReadAt: pgtype.Timestamptz{Time: msg.CreatedAt.Time, Valid: true},
 		})
 		_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-		s.publishCreatedChatMessage(ctx, room, msg.ID)
+		s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	}
 	return chatMessageRowFromDB(msg, user.DisplayName), nil
 }
@@ -220,6 +234,15 @@ func (s *ChatService) commitChatMediaMessage(
 		}
 		return db.ChatMessage{}, false, err
 	}
+	if in.kind == "file" {
+		// The timeline shows photos as thumbnails (H15); the slow lane makes them.
+		if err := requestFileThumbnail(ctx, q, actor, file, scope); err != nil {
+			return db.ChatMessage{}, false, err
+		}
+	}
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", chatMentions{}); err != nil {
+		return db.ChatMessage{}, false, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.ChatMessage{}, false, err
 	}
@@ -265,14 +288,13 @@ func chatMediaExistingMessage(
 
 // chatMediaUploadKey scopes the FileService idempotency key so the client's
 // per-send key cannot collide across rooms or senders, and binds it to the
-// payload digest: the same key with the same bytes replays, the same key with
-// different bytes is a different command.
-func chatMediaUploadKey(kind, roomID, senderID, clientMsgID string, payload []byte) string {
+// payload's SHA-256: the same key with the same bytes replays, the same key
+// with different bytes is a different command.
+func chatMediaUploadKey(kind, roomID, senderID, clientMsgID string, sum []byte) string {
 	key := clientMsgID
 	if key == "" {
 		key = "auto/" + util.NewID()
 	}
-	sum := sha256.Sum256(payload)
 	return "chat/" + kind + "/" + roomID + "/" + senderID + "/" + key + "/" + hex.EncodeToString(sum[:8])
 }
 
@@ -311,12 +333,14 @@ func (s *ChatService) cancelStagedUpload(ctx context.Context, actor audit.Actor,
 }
 
 // openChatMediaMessage authorizes the read and opens the file bytes through
-// FileService. A pre-migration row still carries an object_key instead of a
+// FileService; variant asks for a derivative (the original when there is
+// none). A pre-migration row still carries an object_key instead of a
 // file_id; it returns an empty Reader so the handler can serve the legacy
 // object until the T9b backfill lands.
 func (s *ChatService) openChatMediaMessage(
 	ctx context.Context,
 	userID, workspaceID, roomID, messageID, wantKind string,
+	variant files.Variant,
 ) (ChatMessageRow, files.Reader, error) {
 	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if err != nil {
@@ -331,11 +355,8 @@ func (s *ChatService) openChatMediaMessage(
 	if err != nil {
 		return ChatMessageRow{}, files.Reader{}, err
 	}
-	u, err := s.q.GetUserByID(ctx, msg.SenderID)
-	if err != nil {
-		return ChatMessageRow{}, files.Reader{}, err
-	}
-	row := chatMessageRowFromDBForViewer(msg, u.DisplayName, userID)
+	// The byte stream never shows the sender, so no user lookup per view.
+	row := chatMessageRowFromDBForViewer(msg, "", userID)
 	var infoOk bool
 	switch wantKind {
 	case "file":
@@ -370,8 +391,9 @@ func (s *ChatService) openChatMediaMessage(
 		return ChatMessageRow{}, files.Reader{}, filesError(files.StorageUnavailable(errChatFilesNotConfigured))
 	}
 	rd, err := s.files.Open(ctx, files.OpenInput{
-		Scope:  chatFileScope(room),
-		FileID: files.FileID(fileID),
+		Scope:   chatFileScope(room),
+		FileID:  files.FileID(fileID),
+		Variant: variant,
 	})
 	if err != nil {
 		return ChatMessageRow{}, files.Reader{}, filesError(err)

@@ -27,6 +27,7 @@ export type ChatSendOutboxEntry = {
   client_msg_id: string;
   reply_to_message_id?: string;
   priority?: ComposerMessagePriority;
+  thread_root_id?: string;
   queued_at: string;
 };
 

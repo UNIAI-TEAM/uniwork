@@ -29,9 +29,9 @@ import {
   useChatSendOutboxFlush,
   useChatSendOutboxCount,
   useSyncChatRoomsOnAuth,
-  chatKeys,
 } from "@uniwork/core/chat";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
+import { refreshRoomTimelineOnOpen } from "@uniwork/core/chat/room-timeline";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useChatRoomScopes } from "@uniwork/core/realtime";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
@@ -225,9 +225,7 @@ export function ChatPageView({
 
   useEffect(() => {
     if (!workspaceId || !activeRoomId) return;
-    void queryClient.invalidateQueries({
-      queryKey: chatKeys.roomMessages(workspaceId, activeRoomId),
-    });
+    refreshRoomTimelineOnOpen(queryClient, workspaceId, activeRoomId);
   }, [workspaceId, activeRoomId, queryClient]);
 
   useChatMentionNotify({ currentUserId, activeRoomId });

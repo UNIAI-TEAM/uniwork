@@ -2,6 +2,7 @@ package outbox
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -12,6 +13,11 @@ type spyPublisher struct {
 	workspace []string
 	user      []string
 	scope     []string
+	batches   []string
+}
+
+func (p *spyPublisher) PublishUsers(_ context.Context, userIDs []string, topic string, _ map[string]string) {
+	p.batches = append(p.batches, strings.Join(userIDs, ",")+"/"+topic)
 }
 
 func (p *spyPublisher) PublishWorkspace(_ context.Context, wsID, topic string, _ map[string]string) {
@@ -107,6 +113,22 @@ func TestRealtimeConsumerRoutesMeetingTopicsToTheMeetingScope(t *testing.T) {
 	}
 	if len(pub.scope) != 1 || pub.scope[0] != "meeting:m1/motion.ballot_cast" {
 		t.Fatalf("scope publishes = %v", pub.scope)
+	}
+}
+
+type fixedMembers []string
+
+func (m fixedMembers) RoomMemberIDs(context.Context, string) ([]string, error) { return m, nil }
+
+// A room row reaches every member in one batched publish, not one per member.
+func TestRealtimeConsumerSendsARoomRowAsOneBatch(t *testing.T) {
+	pub := &spyPublisher{}
+	c := NewRealtimeConsumer(pub).WithMembers(fixedMembers{"u1", "u2", "u3"})
+	if err := c.Handle(context.Background(), row("chat.room.created", `{"room_id":"r1"}`, "ws1")); err != nil {
+		t.Fatal(err)
+	}
+	if len(pub.user) != 0 || len(pub.batches) != 1 || pub.batches[0] != "u1,u2,u3/chat.room.created" {
+		t.Fatalf("user publishes = %v, batches = %v", pub.user, pub.batches)
 	}
 }
 

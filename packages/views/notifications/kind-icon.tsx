@@ -1,4 +1,5 @@
 import {
+  AlarmClock,
   AtSign,
   Bell,
   Bookmark,
@@ -26,9 +27,13 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   role_changed: ShieldCheck,
   audit_export_ready: FileDown,
   chat_follow_up: Bookmark,
+  chat_reminder: AlarmClock,
   email_hub_new_mail: MODULE_ICONS.email,
   document_commented: MessageSquare,
   document_mentioned: AtSign,
+  chat_mentioned: AtSign,
+  chat_dm: MODULE_ICONS.chat,
+  chat_thread_replied: MessageSquare,
 };
 
 /** One glyph per kind; an unknown kind from a newer server gets the bell. */

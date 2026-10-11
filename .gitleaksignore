@@ -12,3 +12,6 @@
 8c08102e88e565457f95ecddff663556989f6e6a:server/internal/ai/provider/byok_test.go:generic-api-key:154
 8c08102e88e565457f95ecddff663556989f6e6a:server/internal/ai/proxy_test.go:generic-api-key:24
 a49c5a133b23d1a4cdc0bed500da54291e42fc57:server/internal/service/ai_credentials_test.go:generic-api-key:28
+# Office frame AI proxy unit-test literal (UNI-1014, branch feature/UNI-1014-office-web-modules):
+# a fixed fake vendor key in a *_test.go, not a credential. CI scans every remote branch.
+6139778154cc87783920938335ea841ae2586bfa:server/internal/handler/office_frame_ai_test.go:generic-api-key:30

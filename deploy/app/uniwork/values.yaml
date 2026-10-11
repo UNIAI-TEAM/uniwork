@@ -32,6 +32,7 @@ be:
   # Prometheus listener. Must match METRICS_ADDR in deploy/app/env/uniwork-be.env
   # (the server only opens it when that variable is set).
   metricsPort: 9090
+  # GOMEMLIMIT in deploy/app/env/uniwork-be.env tracks limits.memory (~80%).
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 500m, memory: 512Mi }

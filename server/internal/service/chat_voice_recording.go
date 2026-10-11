@@ -47,9 +47,9 @@ func (s *ChatService) VoiceRecordingEnabled(ctx context.Context) bool {
 func (s *ChatService) StartVoiceRecording(
 	ctx context.Context, userID, workspaceID, roomID, callID string,
 ) (db.ChatVoiceRecording, error) {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return db.ChatVoiceRecording{}, Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return db.ChatVoiceRecording{}, err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, true)
 	if err != nil {
@@ -145,9 +145,9 @@ func (s *ChatService) StartVoiceRecording(
 func (s *ChatService) StopVoiceRecording(
 	ctx context.Context, userID, workspaceID, roomID, callID string,
 ) (db.ChatVoiceRecording, error) {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return db.ChatVoiceRecording{}, Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return db.ChatVoiceRecording{}, err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, true)
 	if err != nil {
@@ -301,11 +301,10 @@ func (s *ChatService) finishVoiceRecordingFileClaim(ctx context.Context, f files
 }
 
 func (s *ChatService) requireAcceptedVoiceCall(roomID, callID string) error {
-	raw, ok := voiceCallSessions.Load(voiceCallSessionKey(roomID, callID))
+	sess, ok := loadVoiceCallSession(voiceCallSessionKey(roomID, callID))
 	if !ok {
 		return ErrForbidden
 	}
-	sess := raw.(voiceCallSession)
 	if sess.acceptedAt == nil {
 		return coded(http.StatusConflict, "call_not_connected", "chỉ ghi âm sau khi cuộc gọi đã kết nối")
 	}
@@ -352,9 +351,9 @@ func (s *ChatService) attachVoiceRecordingToCallLog(
 func (s *ChatService) ActiveVoiceRecording(
 	ctx context.Context, userID, workspaceID, roomID, callID string,
 ) (db.ChatVoiceRecording, error) {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return db.ChatVoiceRecording{}, Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return db.ChatVoiceRecording{}, err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, true)
 	if err != nil {
@@ -566,24 +565,20 @@ func (s *ChatService) patchVoiceCallLogRecording(ctx context.Context, rec db.Cha
 	if err != nil {
 		return
 	}
-	var meta map[string]any
-	if len(msg.Metadata) > 0 {
-		_ = json.Unmarshal(msg.Metadata, &meta)
-	}
-	if meta == nil {
-		meta = map[string]any{}
-	}
-	meta["recording_id"] = rec.ID
-	meta["recording_status"] = rec.Status
-	if rec.FileUrl.Valid && rec.FileUrl.String != "" {
-		meta["recording_url"] = rec.FileUrl.String
-	}
-	raw, err := json.Marshal(meta)
-	if err != nil {
-		return
-	}
-	updated, err := s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: msg.ID, RoomID: msg.RoomID, WorkspaceID: msg.WorkspaceID, Metadata: raw,
+	updated, err := s.mutateChatMessageMetadata(ctx, msg.ID, msg.RoomID, msg.WorkspaceID, func(locked db.ChatMessage) ([]byte, error) {
+		var meta map[string]any
+		if len(locked.Metadata) > 0 {
+			_ = json.Unmarshal(locked.Metadata, &meta)
+		}
+		if meta == nil {
+			meta = map[string]any{}
+		}
+		meta["recording_id"] = rec.ID
+		meta["recording_status"] = rec.Status
+		if rec.FileUrl.Valid && rec.FileUrl.String != "" {
+			meta["recording_url"] = rec.FileUrl.String
+		}
+		return json.Marshal(meta)
 	})
 	if err != nil {
 		return

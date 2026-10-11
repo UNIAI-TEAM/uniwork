@@ -216,6 +216,43 @@ describe("ChatComposer", () => {
     expect(screen.queryByText("shot.png")).not.toBeInTheDocument();
   });
 
+  // C7: every staged file uploaded at once; a few large ones took the pod
+  // past its memory limit.
+  it("sends staged files one after another", async () => {
+    const pending: (() => void)[] = [];
+    const onSendFile = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          pending.push(resolve);
+        }),
+    );
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          onSendFile={onSendFile}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    const first = new File(["a"], "a.png", { type: "image/png" });
+    const second = new File(["b"], "b.png", { type: "image/png" });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [first, second] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    expect(onSendFile).toHaveBeenCalledExactlyOnceWith(first);
+
+    pending[0]?.();
+    await waitFor(() => expect(onSendFile).toHaveBeenLastCalledWith(second));
+    expect(onSendFile).toHaveBeenCalledTimes(2);
+  });
+
   it("lets a staged file be removed before sending", () => {
     const onSendFile = vi.fn();
     render(

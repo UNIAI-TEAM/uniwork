@@ -14,12 +14,13 @@ function isImageFileMessage(message: ChatMessage): boolean {
 }
 
 /**
- * The quote's thumbnail. There is no thumbnail endpoint, so this is the full
- * image — but read from the same cache the file row fills, so quoting an
- * image already on screen costs no second download.
+ * The quote's thumbnail: the same variant, and so the same cache entry, the
+ * file row shows, so quoting a photo already on screen costs no second
+ * download. A GIF row loads the whole file, so its quote does too.
  */
 function useQuotedImageUrl(workspaceId: string, roomId: string, message: ChatMessage): string | null {
-  return useChatFileObjectUrl(workspaceId, roomId, message.id, isImageFileMessage(message)).url;
+  const variant = message.file?.content_type === "image/gif" ? undefined : "thumb";
+  return useChatFileObjectUrl(workspaceId, roomId, message.id, isImageFileMessage(message), variant).url;
 }
 
 export function replyPreviewLabel(

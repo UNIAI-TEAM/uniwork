@@ -17,8 +17,12 @@ import type {
   WorkspaceChatRoom,
 } from "./chat-schemas";
 
-export async function listChatRooms(workspaceId: string): Promise<ChatRoomRecord[]> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms`);
+export async function listChatRooms(
+  workspaceId: string,
+  signal?: AbortSignal,
+): Promise<ChatRoomRecord[]> {
+  // The signal lets React Query abort a superseded sidebar load on the wire.
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms`, { signal });
   const parsed = parseWithFallback(raw, ChatRoomsListSchema, { rooms: [] }, {
     endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms",
   });

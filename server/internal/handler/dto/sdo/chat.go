@@ -144,6 +144,7 @@ type ChatMessageDTO struct {
 	LastReplyAt       string               `json:"last_reply_at,omitempty" description:"RFC3339 of latest reply on a thread root"`
 	ThreadUnread      bool                 `json:"thread_unread,omitempty" description:"Caller has unread replies in this thread"`
 	CreatedAt         string               `json:"created_at" description:"RFC3339 timestamp" example:"2026-03-26T10:00:00Z"`
+	Cursor            string               `json:"cursor,omitempty" description:"Opaque history position; pass it back verbatim as ?cursor= to list older messages" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 	EditedAt          string               `json:"edited_at,omitempty" description:"RFC3339 timestamp when the message was last edited" example:"2026-03-26T10:05:00Z"`
 	Pinned            bool                 `json:"pinned,omitempty" description:"true when pinned in the room" example:"true"`
 	MentionedUserIDs  []string             `json:"mentioned_user_ids,omitempty" description:"User ids notified by @mention in this message" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
@@ -174,6 +175,7 @@ type ChatRoomDTO struct {
 	PeerEmail             string                        `json:"peer_email,omitempty" description:"DM peer email" example:"peer@example.com"`
 	PeerDisplayName       string                        `json:"peer_display_name,omitempty" description:"DM peer display name" example:"Nguyen Van A"`
 	PeerLastReadAt        string                        `json:"peer_last_read_at,omitempty" description:"RFC3339 DM peer read cursor" example:"2026-03-26T10:00:00Z"`
+	LastReadAt            string                        `json:"last_read_at,omitempty" description:"RFC3339 (sub-second) read cursor of the caller; absent if never read" example:"2026-03-26T10:00:00.123456Z"`
 	LastMessageBody       string                        `json:"last_message_body,omitempty" description:"Plain-text preview of the latest message" example:"@Binh check this"`
 	LastMessageKind       string                        `json:"last_message_kind,omitempty" description:"Kind of the latest message" example:"text"`
 	LastMessageSenderID   string                        `json:"last_message_sender_id,omitempty" description:"Author of the latest message" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`

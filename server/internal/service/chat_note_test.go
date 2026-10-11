@@ -57,7 +57,7 @@ func TestNoteEncodeDecodeMetadata(t *testing.T) {
 	if err != nil || len(meta) == 0 {
 		t.Fatalf("encode pinned: err=%v meta=%s", err, meta)
 	}
-	info := noteFromMetadata(chatMessageKindNote, meta, "  Ghi chú quan trọng  ")
+	info := noteFromMetadata(chatMessageKindNote, decodeChatMessageMetadata(meta), "  Ghi chú quan trọng  ")
 	if info == nil || info.Body != "Ghi chú quan trọng" || !info.PinToTop {
 		t.Fatalf("decode pinned: %+v", info)
 	}
@@ -66,28 +66,28 @@ func TestNoteEncodeDecodeMetadata(t *testing.T) {
 	if err != nil || len(plain) == 0 {
 		t.Fatalf("encode plain: err=%v", err)
 	}
-	info = noteFromMetadata(chatMessageKindNote, plain, "Ghi chú thường")
+	info = noteFromMetadata(chatMessageKindNote, decodeChatMessageMetadata(plain), "Ghi chú thường")
 	if info == nil || info.Body != "Ghi chú thường" || info.PinToTop {
 		t.Fatalf("decode plain: %+v", info)
 	}
 }
 
 func TestNoteFromMetadataBranches(t *testing.T) {
-	if noteFromMetadata("reminder", nil, "x") != nil {
+	if noteFromMetadata("reminder", decodeChatMessageMetadata(nil), "x") != nil {
 		t.Fatal("wrong kind should be nil")
 	}
-	if noteFromMetadata(chatMessageKindNote, nil, "   ") != nil {
+	if noteFromMetadata(chatMessageKindNote, decodeChatMessageMetadata(nil), "   ") != nil {
 		t.Fatal("blank body should be nil")
 	}
-	if noteFromMetadata(chatMessageKindNote, []byte(`{"pinned":true}`), "Pinned cũ") == nil {
+	if noteFromMetadata(chatMessageKindNote, decodeChatMessageMetadata([]byte(`{"pinned":true}`)), "Pinned cũ") == nil {
 		t.Fatal("legacy pinned flag should decode")
-	} else if got := noteFromMetadata(chatMessageKindNote, []byte(`{"pinned":true}`), "Pinned cũ"); !got.PinToTop {
+	} else if got := noteFromMetadata(chatMessageKindNote, decodeChatMessageMetadata([]byte(`{"pinned":true}`)), "Pinned cũ"); !got.PinToTop {
 		t.Fatalf("legacy pinned: %+v", got)
 	}
-	if got := noteFromMetadata(chatMessageKindNote, []byte(`{"note":{"pin_to_top":true}}`), "Ghim"); got == nil || !got.PinToTop {
+	if got := noteFromMetadata(chatMessageKindNote, decodeChatMessageMetadata([]byte(`{"note":{"pin_to_top":true}}`)), "Ghim"); got == nil || !got.PinToTop {
 		t.Fatalf("note payload pin: %+v", got)
 	}
-	if got := noteFromMetadata(chatMessageKindNote, []byte(`not-json`), "Vẫn đọc"); got == nil || got.PinToTop {
+	if got := noteFromMetadata(chatMessageKindNote, decodeChatMessageMetadata([]byte(`not-json`)), "Vẫn đọc"); got == nil || got.PinToTop {
 		t.Fatalf("invalid json: %+v", got)
 	}
 }

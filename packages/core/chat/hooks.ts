@@ -18,3 +18,4 @@ export {
 export { useChatSendOutboxFlush, useChatSendOutboxCount } from "./use-chat-send-outbox-flush";
 export { useClearDeliveredChatSends } from "./use-clear-delivered-chat-sends";
 export { useSyncChatRoomsOnAuth } from "./use-sync-chat-rooms-on-auth";
+export { useMarkChatRoomReadAtLatest } from "./use-mark-chat-room-read-at-latest";

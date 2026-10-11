@@ -43,6 +43,7 @@ function payload(
     slug: "workspace-a",
     itemId: "item-1",
     issueKey: "issue-1",
+    href: "/acme/team/inbox",
     title: "Mentioned you",
     body: "in a comment",
     ...overrides,

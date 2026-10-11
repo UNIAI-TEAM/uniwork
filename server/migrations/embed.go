@@ -390,13 +390,22 @@ func versions() ([]string, error) {
 // plain string sort puts 1010_x between 100_x and 101_x, i.e. before the
 // tables it alters, as soon as the numbering passes 999.
 func sortVersions(vs []string) {
-	sort.Slice(vs, func(i, j int) bool {
-		ni, nj := versionNumber(vs[i]), versionNumber(vs[j])
-		if ni != nj {
-			return ni < nj
-		}
-		return vs[i] < vs[j]
-	})
+	sort.Slice(vs, func(i, j int) bool { return behind(vs[i], vs[j]) })
+}
+
+// behind reports whether version a runs before version b.
+func behind(a, b string) bool {
+	na, nb := versionNumber(a), versionNumber(b)
+	if na != nb {
+		return na < nb
+	}
+	return a < b
+}
+
+// Behind reports whether applied is older than the newest embedded version.
+// A newer schema is fine: a rollout migrates before the old pods drain.
+func Behind(applied string) bool {
+	return behind(applied, Latest())
 }
 
 // versionNumber is the leading digits of a version; -1 when there are none.
@@ -524,8 +533,8 @@ func WaitAdvisoryLock(ctx context.Context, conn *pgxpool.Conn, key int) error {
 }
 
 // Latest is the newest embedded migration version; /readyz compares it with
-// schema_migrations so a node running old code against a newer database, or
-// new code against an unmigrated one, reports itself not ready.
+// schema_migrations so new code against an unmigrated database reports itself
+// not ready (see Behind).
 func Latest() string {
 	vs, err := versions()
 	if err != nil || len(vs) == 0 {

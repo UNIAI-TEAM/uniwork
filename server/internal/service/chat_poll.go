@@ -3,11 +3,10 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strings"
 	"time"
+	"unicode/utf8"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -15,6 +14,14 @@ import (
 )
 
 const chatMessageKindPoll = "poll"
+
+// Poll caps, counted in runes; the composer's (packages/core/chat/poll-utils.ts)
+// must stay at or under them.
+const (
+	maxPollQuestionRunes = 200
+	maxPollOptions       = 20
+	maxPollOptionRunes   = 120
+)
 
 type ChatPollSettings struct {
 	DeadlineAt           *string `json:"deadline_at,omitempty"`
@@ -53,12 +60,8 @@ type SendPollMessageInput struct {
 	ReplyToMessageID *string
 }
 
-func pollFromMetadata(kind string, raw []byte, viewerID string) *ChatPollInfo {
-	if kind != chatMessageKindPoll || len(raw) == 0 {
-		return nil
-	}
-	meta := decodeChatMessageMetadata(raw)
-	if meta.Poll == nil || meta.Poll.Question == "" || len(meta.Poll.Options) < 2 {
+func pollFromMetadata(kind string, meta chatMessageMetadata, viewerID string) *ChatPollInfo {
+	if kind != chatMessageKindPoll || meta.Poll == nil || meta.Poll.Question == "" || len(meta.Poll.Options) < 2 {
 		return nil
 	}
 	viewerKey := strings.ToUpper(strings.TrimSpace(viewerID))
@@ -87,12 +90,18 @@ func encodePollMetadata(payload ChatPollPayload) ([]byte, error) {
 	return json.Marshal(meta)
 }
 
-func normalizePollOptions(labels []string) []ChatPollOption {
-	out := make([]ChatPollOption, 0, len(labels))
+func normalizePollOptions(labels []string) ([]ChatPollOption, error) {
+	out := make([]ChatPollOption, 0, min(len(labels), maxPollOptions))
 	for _, label := range labels {
 		label = strings.TrimSpace(label)
 		if label == "" {
 			continue
+		}
+		if len(out) == maxPollOptions {
+			return nil, Invalid("bình chọn có tối đa 20 lựa chọn")
+		}
+		if utf8.RuneCountInString(label) > maxPollOptionRunes {
+			return nil, Invalid("lựa chọn bình chọn quá dài")
 		}
 		out = append(out, ChatPollOption{
 			ID:    util.NewID(),
@@ -100,7 +109,7 @@ func normalizePollOptions(labels []string) []ChatPollOption {
 			Votes: 0,
 		})
 	}
-	return out
+	return out, nil
 }
 
 func pollIsExpired(settings ChatPollSettings, now time.Time) bool {
@@ -122,14 +131,17 @@ func (s *ChatService) SendPollMessage(
 	ctx context.Context, userID, workspaceID, roomID string, in SendPollMessageInput,
 ) (ChatMessageRow, error) {
 	question := strings.TrimSpace(in.Question)
-	options := normalizePollOptions(in.Options)
+	options, err := normalizePollOptions(in.Options)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
 	if question == "" {
 		return ChatMessageRow{}, Invalid("câu hỏi bình chọn không được để trống")
 	}
 	if len(options) < 2 {
 		return ChatMessageRow{}, Invalid("cần ít nhất 2 lựa chọn")
 	}
-	if len(question) > 200 {
+	if utf8.RuneCountInString(question) > maxPollQuestionRunes {
 		return ChatMessageRow{}, Invalid("câu hỏi bình chọn quá dài")
 	}
 
@@ -202,20 +214,7 @@ func (s *ChatService) SendPollMessage(
 		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	ev := Event{
-		Type: "chat.message.created",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": msg.ID,
-		},
-	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
 }
 
@@ -230,25 +229,36 @@ func (s *ChatService) VoteChatPollMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
-		ID: messageID, RoomID: room.ID, WorkspaceID: anchorWS,
-	})
+	updated, err := s.mutateChatMessageMetadata(ctx, messageID, room.ID, roomAnchorWorkspaceID(room),
+		func(msg db.ChatMessage) ([]byte, error) { return applyPollVote(msg, userID, optionID) })
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ChatMessageRow{}, ErrNotFound
-		}
 		return ChatMessageRow{}, err
 	}
+	u, err := s.q.GetUserByID(ctx, updated.SenderID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	s.publishChatRoomEvent(ctx, room.ID, Event{
+		Type: "chat.message.updated",
+		Payload: map[string]string{
+			"room_id":    room.ID,
+			"message_id": updated.ID,
+		},
+	})
+	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
+}
+
+// applyPollVote toggles userID's vote for optionID and returns the new metadata.
+func applyPollVote(msg db.ChatMessage, userID, optionID string) ([]byte, error) {
 	if msg.Kind != chatMessageKindPoll {
-		return ChatMessageRow{}, Invalid("tin nhắn không phải bình chọn")
+		return nil, Invalid("tin nhắn không phải bình chọn")
 	}
 	meta := decodeChatMessageMetadata(msg.Metadata)
 	if meta.Poll == nil {
-		return ChatMessageRow{}, Invalid("dữ liệu bình chọn không hợp lệ")
+		return nil, Invalid("dữ liệu bình chọn không hợp lệ")
 	}
 	if pollIsExpired(meta.Poll.Settings, time.Now()) {
-		return ChatMessageRow{}, Invalid("bình chọn đã kết thúc")
+		return nil, Invalid("bình chọn đã kết thúc")
 	}
 
 	userKey := strings.ToUpper(strings.TrimSpace(userID))
@@ -264,7 +274,7 @@ func (s *ChatService) VoteChatPollMessage(
 		}
 	}
 	if !optionExists {
-		return ChatMessageRow{}, Invalid("lựa chọn không hợp lệ")
+		return nil, Invalid("lựa chọn không hợp lệ")
 	}
 
 	nextVotes := previous
@@ -312,26 +322,5 @@ func (s *ChatService) VoteChatPollMessage(
 		meta.Poll.VotesByUser[userKey] = nextVotes
 	}
 
-	updatedMeta, err := json.Marshal(meta)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	updated, err := s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: msg.ID, RoomID: room.ID, WorkspaceID: anchorWS, Metadata: updatedMeta,
-	})
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	u, err := s.q.GetUserByID(ctx, msg.SenderID)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	s.publishChatRoomEvent(ctx, room.ID, Event{
-		Type: "chat.message.updated",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": msg.ID,
-		},
-	})
-	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
+	return json.Marshal(meta)
 }

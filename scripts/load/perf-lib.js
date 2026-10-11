@@ -7,15 +7,24 @@ import { check } from "k6";
 const BASE = __ENV.BASE_URL || "http://localhost:8080";
 const USERS = Number(__ENV.SEED_USERS || 5000);
 
+// Login is budgeted per client IP (60/min). Each user gets its own address,
+// which the server honours only when TRUSTED_PROXIES covers the k6 host;
+// without it setup() spends the budget after 60 users and measures 429s.
+function clientIP(i) {
+  return `10.66.${(i >> 8) & 255}.${i & 255}`;
+}
+
 export function login(i) {
+  const u = i % USERS;
+  const base = { "Content-Type": "application/json", "X-Forwarded-For": clientIP(u) };
   const res = http.post(
     `${BASE}/api/v1/auth/login`,
-    JSON.stringify({ email: `user${i % USERS}@perf.local`, password: "password123" }),
-    { headers: { "Content-Type": "application/json" }, tags: { name: "login" } },
+    JSON.stringify({ email: `user${u}@perf.local`, password: "password123" }),
+    { headers: base, tags: { name: "login" } },
   );
   check(res, { "login 200": (r) => r.status === 200 });
   const token = res.json("access_token");
-  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const headers = { ...base, Authorization: `Bearer ${token}` };
   const ws = http.get(`${BASE}/api/v1/workspaces`, { headers, tags: { name: "workspaces" } });
   const workspaceId = ws.json("workspaces.0.id");
   return { headers, workspaceId };
@@ -40,7 +49,7 @@ export function readOnce(s) {
   });
 }
 
-/** Default workspace channel + message page (creates the room on first GET /chat/room). */
+/** Sidebar, default workspace channel and its first message page (the seed creates the channel). */
 export function chatReadOnce(s) {
   const opts = (name) => ({ headers: s.headers, tags: { name, kind: "read" } });
   const ws = s.workspaceId;
@@ -48,14 +57,14 @@ export function chatReadOnce(s) {
     "chat rooms 200": (r) => r.status === 200,
   });
   const roomRes = http.get(`${BASE}/api/v1/workspaces/${ws}/chat/room`, opts("chat_room"));
-  check(roomRes, { "chat room 200": (r) => r.status === 200 });
   const roomId = roomRes.json("room_id");
-  if (roomId) {
-    check(
-      http.get(`${BASE}/api/v1/workspaces/${ws}/chat/rooms/${roomId}/messages?limit=50`, opts("chat_messages")),
-      { "chat messages 200": (r) => r.status === 200 },
-    );
-  }
+  check(roomRes, { "chat room 200": (r) => r.status === 200, "chat room seeded": () => Boolean(roomId) });
+  // Never skipped: a missing room is a broken dataset and must fail the run
+  // (the 404 counts in http_req_failed), not quietly drop the message read.
+  check(
+    http.get(`${BASE}/api/v1/workspaces/${ws}/chat/rooms/${roomId}/messages?limit=50`, opts("chat_messages")),
+    { "chat messages 200": (r) => r.status === 200 },
+  );
 }
 
 export function writeOnce(s) {

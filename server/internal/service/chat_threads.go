@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -155,6 +156,13 @@ func (s *ChatService) SendThreadReply(
 		}
 	}
 
+	// Before the transaction: resolving reads through the pool, and holding a
+	// connection while waiting for another can drain it under load.
+	mentions, err := s.resolveMentionRecipients(ctx, userID, room, body)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+
 	orgID := room.OrganizationID
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -208,12 +216,8 @@ func (s *ChatService) SendThreadReply(
 		return ChatMessageRow{}, err
 	}
 
-	mentionedUserIDs, err := s.resolveMentionRecipients(ctx, userID, room, body)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	if len(mentionedUserIDs) > 0 {
-		meta, err := encodeMentionsMetadata(msg.Metadata, mentionedUserIDs)
+	if len(mentions.Recipients) > 0 {
+		meta, err := encodeMentionsMetadata(msg.Metadata, mentions)
 		if err != nil {
 			return ChatMessageRow{}, err
 		}
@@ -223,7 +227,9 @@ func (s *ChatService) SendThreadReply(
 		if err != nil {
 			return ChatMessageRow{}, err
 		}
-		for _, mid := range mentionedUserIDs {
+		// Only the people named follow the thread: an @all made every member
+		// of the room a follower for good.
+		for _, mid := range mentions.Named {
 			if err := s.ensureThreadFollowerTx(ctx, q, orgID, anchorWS, room.ID, threadRootID, mid, chatThreadFollowMentioned, nil); err != nil {
 				return ChatMessageRow{}, err
 			}
@@ -242,6 +248,9 @@ func (s *ChatService) SendThreadReply(
 		}
 	}
 	_ = q.TouchChatRoomUpdatedAt(ctx, room.ID)
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, threadRootID, mentions); err != nil {
+		return ChatMessageRow{}, err
+	}
 
 	if link, err := q.GetChatThreadTaskLinkByThread(ctx, threadRootID); err == nil {
 		if err := auditRecorder.Emit(ctx, q, Human(userID), audit.Event{
@@ -265,14 +274,14 @@ func (s *ChatService) SendThreadReply(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	s.publishCreatedChatMessage(ctx, room, msg.ID)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	s.publishChatRoomEvent(ctx, room.ID, Event{
 		Type: "chat.thread.replied",
 		Payload: map[string]string{
 			"room_id": room.ID, "thread_root_id": threadRootID, "message_id": msg.ID,
 		},
 	})
-	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentionedUserIDs)
+	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentions.Recipients)
 	s.notifyThreadFollowers(ctx, room, userID, threadRootID, msg.ID)
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
 }
@@ -460,17 +469,13 @@ func (s *ChatService) notifyThreadFollowers(
 	if err != nil {
 		return
 	}
-	for _, id := range ids {
-		if id == "" || id == senderID {
-			continue
-		}
-		s.pub.SendToUser(ctx, id, Event{
-			Type: "chat.thread.replied",
-			Payload: map[string]string{
-				"room_id": room.ID, "thread_root_id": threadRootID, "message_id": messageID,
-			},
-		})
-	}
+	ids = slices.DeleteFunc(ids, func(id string) bool { return id == "" || id == senderID })
+	s.pub.SendToUsers(ctx, ids, Event{
+		Type: "chat.thread.replied",
+		Payload: map[string]string{
+			"room_id": room.ID, "thread_root_id": threadRootID, "message_id": messageID,
+		},
+	})
 }
 
 func chatMessageRowFromThreadListRow(row db.ListChatThreadMessagesRow, viewerID string) ChatMessageRow {

@@ -75,6 +75,9 @@ func TestAdminRevokeDesktopDevice(t *testing.T) {
 	if err != nil || len(rows) != 1 || rows[0].Action != audit.ActionDesktopDeviceRevoked || rows[0].ResourceID != sess.DeviceSessionID || rows[0].ActorKind != "system" || rows[0].ActorID != CLIActor {
 		t.Fatalf("audit row under the action's trace id: %v %+v", err, rows)
 	}
+	if got := outboxPayloads(t, f.pool, "session.revoked"); len(got) != 1 || got[0]["user_id"] != userID || got[0]["session_id"] != "" {
+		t.Fatalf("session.revoked events = %v, want one closing every socket of the user", got)
+	}
 
 	// Idempotent: a second revoke says so and writes nothing.
 	again, err := f.admin.RevokeDesktopDevice(ctx, CLIActor, userID, sess.DeviceSessionID, "lost laptop reported by owner")

@@ -5,11 +5,10 @@ import { mergeOptimisticChatMessages } from "@uniwork/core/chat/merge-optimistic
 import type { ChatMessage } from "./chat-messages";
 import { toChatMessage } from "./native-chat-message-mapping";
 
-/** Main room timeline: optimistic sends minus first-class thread replies. */
+/** Main room timeline (every loaded page): optimistic sends minus first-class thread replies. */
 export function buildMainTimelineMessages(input: {
   anchorMessages: ChatMessage[] | null;
   latestRows: ChatMessageRecord[];
-  olderMessages: ChatMessage[];
   pendingEntries: PendingChatMessage[];
   outboxEntries: ChatSendOutboxEntry[];
   currentUserId: string;
@@ -18,7 +17,6 @@ export function buildMainTimelineMessages(input: {
   const {
     anchorMessages,
     latestRows,
-    olderMessages,
     pendingEntries,
     outboxEntries,
     currentUserId,
@@ -33,19 +31,7 @@ export function buildMainTimelineMessages(input: {
     outboxEntries,
     currentUserId,
   ) as ChatMessage[];
-  const withoutThreadReplies = threadsEnabled
-    ? mergedLatest.filter((message) => !message.threadRootId)
-    : mergedLatest;
-  if (olderMessages.length === 0) return withoutThreadReplies;
-  const seen = new Set<string>();
-  const merged: ChatMessage[] = [];
-  for (const message of [...olderMessages, ...withoutThreadReplies]) {
-    if (seen.has(message.id)) continue;
-    if (threadsEnabled && message.threadRootId) continue;
-    seen.add(message.id);
-    merged.push(message);
-  }
-  return merged.sort((a, b) => a.ts - b.ts);
+  return threadsEnabled ? mergedLatest.filter((message) => !message.threadRootId) : mergedLatest;
 }
 
 /** Active thread panel: server thread rows + matching pending, root first. */

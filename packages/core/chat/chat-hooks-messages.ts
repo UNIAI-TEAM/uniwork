@@ -1,14 +1,19 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
-import type { ChatMessageRecord, ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
+import type { ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
 import { ApiError } from "../api/http";
 import { runWithChatSendRetry } from "./send-retry";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
-import { mergeMessageIntoList, patchRoomSidebarFromMessage } from "./realtime-cache";
+import {
+  applyChatMessageResponse,
+  insertCreatedRoomMessage,
+  patchChatMessageDeleted,
+  patchRoomSidebarFromMessage,
+} from "./realtime-cache";
 
 export function useSendChatRoomMessage(workspaceId: string) {
   const qc = useQueryClient();
@@ -51,10 +56,7 @@ export function useSendChatRoomMessage(workspaceId: string) {
         usePendingChatMessagesStore.getState().remove(variables.client_msg_id);
       }
       if (data) {
-        qc.setQueryData<ChatMessageRecord[]>(
-          chatKeys.roomMessages(workspaceId, variables.roomId),
-          (old) => mergeMessageIntoList(old, data),
-        );
+        insertCreatedRoomMessage(qc, workspaceId, variables.roomId, data);
         qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId), (old) =>
           patchRoomSidebarFromMessage(old, variables.roomId, data),
         );
@@ -79,10 +81,8 @@ export function useSendChatVoiceMessage(workspaceId: string) {
       client_msg_id: string;
       reply_to_message_id?: string;
     }) => chat.sendChatVoiceMessage(workspaceId, input.roomId, input),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
@@ -99,10 +99,8 @@ export function useSendChatFileMessage(workspaceId: string) {
       client_msg_id: string;
       reply_to_message_id?: string;
     }) => chat.sendChatFileMessage(workspaceId, input.roomId, input),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
@@ -114,10 +112,8 @@ export function useVoteChatPollMessage(workspaceId: string) {
   return useMutation({
     mutationFn: (input: { roomId: string; messageId: string; optionId: string }) =>
       chat.voteChatPollMessage(workspaceId, input.roomId, input.messageId, input.optionId),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
     },
   });
 }
@@ -127,10 +123,8 @@ export function useToggleChatReaction(workspaceId: string) {
   return useMutation({
     mutationFn: (input: { roomId: string; messageId: string; emoji: string }) =>
       chat.toggleChatMessageReaction(workspaceId, input.roomId, input.messageId, input.emoji),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
     },
   });
 }
@@ -140,10 +134,8 @@ export function useEditChatMessage(workspaceId: string) {
   return useMutation({
     mutationFn: (input: { roomId: string; messageId: string; body: string }) =>
       chat.editChatRoomMessage(workspaceId, input.roomId, input.messageId, input.body),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
     },
   });
@@ -155,9 +147,7 @@ export function useDeleteChatMessage(workspaceId: string) {
     mutationFn: (input: { roomId: string; messageId: string }) =>
       chat.deleteChatRoomMessage(workspaceId, input.roomId, input.messageId),
     onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+      patchChatMessageDeleted(qc, workspaceId, variables.roomId, variables.messageId);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
@@ -169,10 +159,8 @@ export function useToggleChatMessagePin(workspaceId: string) {
   return useMutation({
     mutationFn: (input: { roomId: string; messageId: string }) =>
       chat.toggleChatMessagePin(workspaceId, input.roomId, input.messageId),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
     },
   });
 }
@@ -184,17 +172,19 @@ const CHAT_BLOB_GC_MS = 5 * 60_000;
  * The bytes of a file message (image or PDF preview, reply thumbnail). Keyed
  * by message, so the timeline rebuilding its rows or the list remounting one
  * reads the cached Blob instead of downloading it again; callers create
- * their own object URL from it and revoke it on unmount.
+ * their own object URL from it and revoke it on unmount. `variant: "thumb"`
+ * is the timeline's photo preview, cached apart from the original.
  */
 export function useChatFileBlob(
   workspaceId: string,
   roomId: string,
   messageId: string,
   enabled = true,
+  variant?: chat.ChatFileVariant,
 ) {
   return useQuery({
-    queryKey: chatKeys.fileBlob(workspaceId, roomId, messageId),
-    queryFn: () => chat.loadChatFileBlob(workspaceId, roomId, messageId),
+    queryKey: chatKeys.fileBlob(workspaceId, roomId, messageId, variant),
+    queryFn: () => chat.loadChatFileBlob(workspaceId, roomId, messageId, variant),
     enabled: !!workspaceId && !!roomId && !!messageId && enabled,
     staleTime: Infinity,
     gcTime: CHAT_BLOB_GC_MS,

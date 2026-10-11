@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -124,6 +125,41 @@ func TestCatchUpEmptyAndUnreadRoom(t *testing.T) {
 	}
 	if again.MessageCount != 0 || fake.Calls != calls {
 		t.Fatalf("after self-send: %+v calls=%d want_calls=%d", again, fake.Calls, calls)
+	}
+}
+
+// Opening the room marks it read before the reader asks for a brief, so the
+// client sends the pointer it saw before opening; the brief covers the most
+// recent messages since then, oldest first, not the oldest twenty.
+func TestCatchUpSummarisesTheBacklogSinceThePreOpenPointer(t *testing.T) {
+	s, fake, ua, ub, w := askFixture(t)
+	ctx := context.Background()
+	addMember(t, s.meetings, w.ID, ub.ID)
+	room, err := s.chat.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now().Add(-time.Second)
+	for i := 0; i < 30; i++ {
+		if _, err := s.chat.SendWorkspaceMessage(ctx, ub.ID, w.ID, SendChatMessageInput{Body: fmt.Sprintf("msg-%02d", i)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.chat.MarkRoomRead(ctx, ua.ID, w.ID, room.RoomID); err != nil {
+		t.Fatal(err)
+	}
+
+	brief, err := s.CatchUp(ctx, ua.ID, w.ID, CatchUpInput{RoomID: room.RoomID, Since: &before})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if brief.MessageCount != 30 || brief.Mode != "unread" || fake.Calls != 1 {
+		t.Fatalf("brief: %+v calls=%d", brief, fake.Calls)
+	}
+	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
+	if strings.Contains(prompt, "msg-09") || !strings.Contains(prompt, "msg-10") ||
+		strings.Index(prompt, "msg-10") > strings.Index(prompt, "msg-29") {
+		t.Fatalf("want msg-10..msg-29 in order:\n%s", prompt)
 	}
 }
 

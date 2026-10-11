@@ -105,6 +105,21 @@ func TestLoadEnableSwaggerDefaultsOffInProduction(t *testing.T) {
 	}
 }
 
+// The relay stays on unless a single-replica deployment says false.
+func TestLoadRealtimeRelayIsOnUnlessFalse(t *testing.T) {
+	setRequired(t)
+	for raw, want := range map[string]bool{"": true, "true": true, "false": false, " FALSE ": false} {
+		t.Setenv("REALTIME_RELAY", raw)
+		c, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.RealtimeRelay != want {
+			t.Fatalf("REALTIME_RELAY=%q: RealtimeRelay = %v, want %v", raw, c.RealtimeRelay, want)
+		}
+	}
+}
+
 func TestLoadEnableSwaggerTruthy(t *testing.T) {
 	setRequired(t)
 	for _, v := range []string{"1", "true", "TRUE", "yes"} {

@@ -14,5 +14,7 @@ export function setup() {
 
 export default function (sessions) {
   chatReadOnce(sessions[__VU % sessions.length]);
-  sleep(2);
+  // Ten VUs share a session, and the global limiter allows 300/min per user
+  // and path: 3 s keeps them at ~200/min so the run measures reads, not 429s.
+  sleep(3);
 }

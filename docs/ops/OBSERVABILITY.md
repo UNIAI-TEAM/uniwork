@@ -73,12 +73,12 @@ request đó bất kể tỷ lệ; từ tài khoản thường bị bỏ qua. Fl
 ## `/healthz` và `/readyz`
 
 - `/healthz`: 200 khi tiến trình còn trả lời. Liveness, không hơn.
-- `/readyz`: JSON `{ready, checks[{name, ok, detail}]}`; 503 khi bất kỳ check
-  nào fail. Check gồm `db` (`SELECT 1`, hạn 500 ms), `migrations`
-  (`schema_migrations` == version embedded trong binary; `detail` ghi hai
-  số khi lệch), `redis` (PING, chỉ khi đặt `REDIS_URL`). **Không kiểm S3** —
-  không có probe rẻ cho bucket, và upload lỗi không nên kéo cả node ra khỏi
-  load balancer. Load balancer/Kubernetes dùng `/readyz`; Prometheus probe nó
+- `/readyz`: JSON `{ready, checks[{name, ok, detail}]}`; 503 chỉ khi `db`
+  hoặc `migrations` fail. `db` là `SELECT 1` (hạn 2 s); `migrations` fail khi
+  `schema_migrations` **cũ hơn** version embedded trong binary (schema mới hơn
+  vẫn ready, vì rollout migrate trước khi pod cũ rút). `redis` (PING, chỉ khi
+  đặt `REDIS_URL`) và `storage` (khi có adapter) chạy với hạn 300 ms và chỉ
+  được báo cáo: lỗi của chúng không kéo node duy nhất ra khỏi Service. Load balancer/Kubernetes dùng `/readyz`; Prometheus probe nó
   qua blackbox (`ReadinessFailing`). Cả hai đường bị `IsHealthProbePath` loại
   khỏi metric HTTP và access log mức info.
 

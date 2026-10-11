@@ -55,6 +55,17 @@ function clearLocalUnread(
   });
 }
 
+/** The room's read pointer from the sidebar, while it still has unread messages. */
+function unreadSinceOf(
+  qc: ReturnType<typeof useQueryClient>,
+  workspaceId: string,
+  roomId: string,
+): { roomId: string; since: string } | null {
+  const room = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId))?.find((entry) => entry.id === roomId);
+  const hasUnread = (room?.unread_count ?? 0) > 0 || (room?.mention_unread_count ?? 0) > 0;
+  return hasUnread && room?.last_read_at ? { roomId, since: room.last_read_at } : null;
+}
+
 /**
  * CatchUp sheet + header button for the active room (C-13.7).
  * Messages load with mark_read=0 so CatchUp can still use the pre-open cursor;
@@ -72,9 +83,13 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<ChatCatchUpResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The read pointer as it was before this room opened (opening marks it
+  // read): where "Tin mới" goes, and where the brief starts.
+  const [unread, setUnread] = useState<{ roomId: string; since: string } | null>(null);
   const prevRoomRef = useRef<string | null>(null);
 
   const enabled = Boolean(caps.data?.enabled && caps.data.ask_uni && roomId);
+  const unreadSince = unread?.roomId === roomId ? unread.since : null;
 
   const flushRead = useCallback((id: string | null) => {
     if (!id) return;
@@ -88,6 +103,7 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
     }
     prevRoomRef.current = roomId;
     if (roomId) {
+      setUnread(unreadSinceOf(qc, workspaceId, roomId));
       clearLocalUnread(qc, workspaceId, roomId);
       flushRead(roomId);
     }
@@ -103,13 +119,14 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
         room_id: roomId,
         thread_root_id: threadRootId || undefined,
         locale: i18n.language?.startsWith("en") ? "en" : "vi",
+        since: !threadRootId && unreadSince ? unreadSince : undefined,
       });
       generatedAtByResult.set(res, Date.now());
       setResult(res);
     } catch (err) {
       setError(errorMessage(err, t));
     }
-  }, [catchUp, i18n.language, roomId, t, threadRootId]);
+  }, [catchUp, i18n.language, roomId, t, threadRootId, unreadSince]);
 
   // Closing counts as "caught up" only when a brief was actually shown; a
   // failed or still-loading summary leaves the unread window for next time.
@@ -130,5 +147,6 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
     result,
     onCatchUp: enabled ? () => void run() : undefined,
     onRetry: () => void run(),
+    unreadSince,
   };
 }

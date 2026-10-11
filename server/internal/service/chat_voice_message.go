@@ -213,17 +213,20 @@ func (s *ChatService) CreateVoiceMessage(
 		LastReadAt: pgtype.Timestamptz{Time: msg.CreatedAt.Time, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, prep.room.ID)
-	s.publishCreatedChatMessage(ctx, prep.room, msg.ID)
+	s.publishCreatedChatMessage(ctx, prep.room, msg.ID, msg.SenderID)
 	return chatMessageRowFromDB(msg, prep.senderName), true, nil
 }
 
-func (s *ChatService) publishCreatedChatMessage(ctx context.Context, room db.ChatRoom, messageID string) {
+// publishCreatedChatMessage carries the sender so a client can tell its own
+// message from one that is unread for it without fetching it (UNI-1079).
+func (s *ChatService) publishCreatedChatMessage(ctx context.Context, room db.ChatRoom, messageID, senderID string) {
 	anchorWS := roomAnchorWorkspaceID(room)
 	ev := Event{
 		Type: "chat.message.created",
 		Payload: map[string]string{
 			"room_id":    room.ID,
 			"message_id": messageID,
+			"sender_id":  senderID,
 		},
 	}
 	if isWorkspaceDefaultRoom(room) {
@@ -241,7 +244,7 @@ func (s *ChatService) publishCreatedChatMessage(ctx context.Context, room db.Cha
 // does not own.
 type SendVoiceMessageInput struct {
 	DurationMS       int
-	Body             io.Reader
+	Body             io.ReadSeeker
 	ReplyToMessageID *string
 	ClientMsgID      string
 }
@@ -283,7 +286,7 @@ func (s *ChatService) OpenChatVoiceMessage(
 	ctx context.Context,
 	userID, workspaceID, roomID, messageID string,
 ) (ChatMessageRow, files.Reader, error) {
-	return s.openChatMediaMessage(ctx, userID, workspaceID, roomID, messageID, "voice")
+	return s.openChatMediaMessage(ctx, userID, workspaceID, roomID, messageID, "voice", "")
 }
 
 // GetVoiceMessage authorizes both room and message and returns private object metadata.

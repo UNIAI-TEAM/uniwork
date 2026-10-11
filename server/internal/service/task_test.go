@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,18 +19,48 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-type capturePublisher struct{ events []Event }
-
-func (c *capturePublisher) Publish(_ context.Context, _ string, ev Event) {
-	c.events = append(c.events, ev)
+type capturePublisher struct {
+	events []Event
+	// sent records where each event went, as "<type> -> <scope>:<id>", so a
+	// test can tell a workspace broadcast from a room or user delivery.
+	sent []string
+	// batches is the type of each SendToUsers call.
+	batches []string
 }
 
-func (c *capturePublisher) PublishToScope(_ context.Context, _, _ string, ev Event) {
+func (c *capturePublisher) Publish(_ context.Context, workspaceID string, ev Event) {
 	c.events = append(c.events, ev)
+	c.sent = append(c.sent, ev.Type+" -> workspace:"+workspaceID)
 }
 
-func (c *capturePublisher) SendToUser(_ context.Context, _ string, ev Event) {
+func (c *capturePublisher) PublishToScope(_ context.Context, scopeType, scopeID string, ev Event) {
 	c.events = append(c.events, ev)
+	c.sent = append(c.sent, ev.Type+" -> "+scopeType+":"+scopeID)
+}
+
+func (c *capturePublisher) SendToUser(_ context.Context, userID string, ev Event) {
+	c.events = append(c.events, ev)
+	c.sent = append(c.sent, ev.Type+" -> user:"+userID)
+}
+
+// SendToUsers records one delivery per user, as SendToUser does, and the
+// batch itself in batches.
+func (c *capturePublisher) SendToUsers(ctx context.Context, userIDs []string, ev Event) {
+	c.batches = append(c.batches, ev.Type)
+	for _, id := range userIDs {
+		c.SendToUser(ctx, id, ev)
+	}
+}
+
+// sentTo lists where events of type typ went, in order.
+func (c *capturePublisher) sentTo(typ string) []string {
+	var out []string
+	for _, s := range c.sent {
+		if dest, ok := strings.CutPrefix(s, typ+" -> "); ok {
+			out = append(out, dest)
+		}
+	}
+	return out
 }
 
 // outboxCapture drains the outbox through the real realtime consumer, so a

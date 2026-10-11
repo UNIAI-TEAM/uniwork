@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { BellOff, BellRing, TriangleAlert } from "lucide-react";
 import { usePushConfig } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
+import { getWebNotificationPermission, requestWebNotificationPermission } from "@uniwork/core/platform";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { NotificationsMatrix, type Channel } from "./notifications-matrix";
 import {
@@ -33,6 +35,9 @@ export function NotificationsTab() {
   const [refused, setRefused] = useState(false);
   const deniedId = useId();
   const denied = push.permission === "denied" || refused;
+  // Without push, the browser can still show a chat banner while the tab is in
+  // the background (WorkspaceChatAttention); it asks only on this click.
+  const [bannerPermission, setBannerPermission] = useState(getWebNotificationPermission);
 
   const channels: Channel[] = push.available ? ["in_app", "push", "email"] : ["in_app", "email"];
   // Only say why once the config has answered; a guess would be a small lie.
@@ -75,6 +80,18 @@ export function NotificationsTab() {
         <li className="flex items-start gap-2">
           <BellOff aria-hidden className="mt-0.5 size-3.5 shrink-0" />
           <span className="text-pretty">{pushMissing}</span>
+        </li>
+      ) : null}
+      {!push.available && bannerPermission === "default" ? (
+        <li className="pl-5.5">
+          <Button
+            variant="link"
+            size="xs"
+            className="h-auto p-0"
+            onClick={() => void requestWebNotificationPermission().then(setBannerPermission)}
+          >
+            {t("browser_banners_allow")}
+          </Button>
         </li>
       ) : null}
     </ul>

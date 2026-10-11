@@ -165,7 +165,7 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 		Action:         audit.ActionAuthSessionRevoked,
 		ResourceType:   "user", ResourceID: t.UserID,
 		Metadata: map[string]any{"scope": "all", "reason": "password_reset"},
-	}); err != nil {
+	}, sessionRevoked(t.UserID, "")); err != nil {
 		return Session{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

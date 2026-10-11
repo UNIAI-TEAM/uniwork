@@ -8,6 +8,9 @@ import {
 } from "../chat/realtime-cache";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 
+/** Debounce plus the largest jitter. */
+const FLUSH_MAX_MS = 500;
+
 vi.mock("../chat/realtime-cache", () => ({
   fetchAndPatchChatMessage: vi.fn(),
   patchChatMessageDeleted: vi.fn(),
@@ -27,13 +30,50 @@ describe("createChatRealtimePatchScheduler", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("flushes upserts via fetchAndPatchChatMessage", async () => {
     const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
     scheduler.scheduleUpsert("room1", "m1");
-    await vi.advanceTimersByTimeAsync(250);
-    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1");
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1", false, undefined);
+    await scheduler.dispose();
+  });
+
+  it("passes on whether the message was created and who sent it, even when a later frame updates it", async () => {
+    const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
+    scheduler.scheduleUpsert("room1", "m1", true, "u2");
+    scheduler.scheduleUpsert("room1", "m1");
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    expect(fetchAndPatchChatMessage).toHaveBeenCalledTimes(1);
+    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1", true, "u2");
+    await scheduler.dispose();
+  });
+
+  it("one failed GET keeps the rest of the batch and the sidebar refresh", async () => {
+    vi.mocked(fetchAndPatchChatMessage).mockImplementation(async (_qc, _ws, _room, id) => {
+      if (id === "gone") throw new Error("404");
+    });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
+    scheduler.scheduleUpsert("room1", "gone");
+    scheduler.scheduleUpsert("room1", "m2");
+    scheduler.scheduleRoomActivity();
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m2", false, undefined);
+    expect(invalidate).toHaveBeenCalled();
+    await scheduler.dispose();
+  });
+
+  it("spreads the flush with jitter so every client does not fetch at once", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
+    scheduler.scheduleUpsert("room1", "m1");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(fetchAndPatchChatMessage).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS - 300);
+    expect(fetchAndPatchChatMessage).toHaveBeenCalled();
     await scheduler.dispose();
   });
 
@@ -41,7 +81,7 @@ describe("createChatRealtimePatchScheduler", () => {
     const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
     scheduler.scheduleUpsert("room1", "m1");
     scheduler.scheduleDelete("room1", "m1");
-    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
     expect(fetchAndPatchChatMessage).not.toHaveBeenCalled();
     expect(patchChatMessageDeleted).toHaveBeenCalledWith(qc, "ws1", "room1", "m1");
     await scheduler.dispose();
@@ -51,16 +91,16 @@ describe("createChatRealtimePatchScheduler", () => {
     const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
     scheduler.scheduleDelete("room1", "m1");
     scheduler.scheduleUpsert("room1", "m1");
-    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
     expect(patchChatMessageDeleted).not.toHaveBeenCalled();
-    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1");
+    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1", false, undefined);
     await scheduler.dispose();
   });
 
   it("flushes mentions via patchChatMentionCreated", async () => {
     const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
     scheduler.scheduleMention("room1", "u2");
-    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
     expect(patchChatMentionCreated).toHaveBeenCalledWith(qc, "ws1", "room1", "u2");
     await scheduler.dispose();
   });
@@ -70,8 +110,8 @@ describe("createChatRealtimePatchScheduler", () => {
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     scheduler.scheduleRoomActivity();
     expect(invalidate).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(250);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") }, { cancelRefetch: false });
     await scheduler.dispose();
   });
 
@@ -87,9 +127,9 @@ describe("createChatRealtimePatchScheduler", () => {
     const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
     scheduler.scheduleUpsert("room1", "m1");
     scheduler.scheduleRoomActivity();
-    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
     expect(order).toEqual(["upsert", "invalidate"]);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") }, { cancelRefetch: false });
     await scheduler.dispose();
   });
 
@@ -107,7 +147,7 @@ describe("createChatRealtimePatchScheduler", () => {
     scheduler.scheduleDelete("room1", "m2");
     scheduler.scheduleMention("room1", "u2");
     await scheduler.dispose();
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(2 * FLUSH_MAX_MS);
     expect(fetchAndPatchChatMessage).not.toHaveBeenCalled();
     expect(patchChatMessageDeleted).not.toHaveBeenCalled();
     expect(patchChatMentionCreated).not.toHaveBeenCalled();

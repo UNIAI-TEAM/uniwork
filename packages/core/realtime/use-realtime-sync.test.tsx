@@ -1,10 +1,11 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver, type QueryKey } from "@tanstack/react-query";
 import { renderHook, act } from "@testing-library/react";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import * as chatApi from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
+import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline";
 import { graphKeys } from "../graph/keys";
 import type { Task } from "../types/task";
 import { useRealtimeSync } from "./use-realtime-sync";
@@ -31,6 +32,12 @@ function fakeClient() {
   return client as unknown as WSClient & typeof client;
 }
 
+/** A chat list a screen shows: realtime only asks the server for those (UNI-1078). */
+function shown(qc: QueryClient, queryKey: QueryKey, data: unknown) {
+  qc.setQueryData(queryKey, data);
+  new QueryObserver(qc, { queryKey, enabled: false }).subscribe(() => {});
+}
+
 function setup() {
   const qc = new QueryClient();
   const invalidate = vi.spyOn(qc, "invalidateQueries");
@@ -40,6 +47,27 @@ function setup() {
   });
   return { qc, invalidate, client };
 }
+
+const timelineRows = (qc: QueryClient, roomId: string) => {
+  const data = qc.getQueryData<RoomTimeline>(chatKeys.roomMessages("ws1", roomId));
+  return data ? flattenRoomTimeline(data) : [];
+};
+
+const messageRow = (id: string): chatApi.ChatMessageRecord => ({
+  id,
+  room_id: "dm1",
+  workspace_id: "ws1",
+  sender_id: "u2",
+  sender_display_name: "Bob",
+  kind: "text",
+  body: id,
+  created_at: "2026-01-01T10:00:00Z",
+  pinned: false,
+  mentioned_user_ids: [],
+  reactions: {},
+  reply_count: 0,
+  thread_unread: false,
+});
 
 const keysCalled = (spy: { mock: { calls: unknown[][] } }) =>
   spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
@@ -534,7 +562,7 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), []);
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [[]], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -542,14 +570,14 @@ describe("useRealtimeSync", () => {
     });
     client.emit({ type: "chat.message.created", payload: { room_id: "dm1", message_id: "m1" } });
     await act(async () => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
     expect(invalidate).toHaveBeenCalledTimes(1);
     expect(keysCalled(invalidate)).toEqual([
       JSON.stringify(chatKeys.voiceRecordings("ws1", "dm1")),
     ]);
-    expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))).toHaveLength(1);
+    expect(timelineRows(qc, "dm1")).toHaveLength(1);
     vi.useRealTimers();
   });
 
@@ -572,7 +600,7 @@ describe("useRealtimeSync", () => {
     });
     const qc = new QueryClient();
     qc.setQueryData(chatKeys.room("ws1"), { workspace_id: "ws1", room_id: "ws-room" });
-    qc.setQueryData(chatKeys.messages("ws1"), []);
+    shown(qc, chatKeys.messages("ws1"), []);
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -580,7 +608,7 @@ describe("useRealtimeSync", () => {
     });
     client.emit({ type: "chat.message.created", payload: { room_id: "ws-room", message_id: "m1" } });
     await act(async () => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
     // The room's own timeline is not loaded here, so it is marked stale for the
@@ -613,8 +641,9 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), [
-      {
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), {
+      pageParams: [null],
+      pages: [[{
         id: "root1",
         room_id: "dm1",
         workspace_id: "ws1",
@@ -628,8 +657,8 @@ describe("useRealtimeSync", () => {
         reactions: {},
         reply_count: 0,
         thread_unread: false,
-      },
-    ]);
+      }]],
+    });
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
       wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
@@ -639,18 +668,33 @@ describe("useRealtimeSync", () => {
       payload: { room_id: "dm1", thread_root_id: "root1", message_id: "r1" },
     });
     await act(async () => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
-    expect(
-      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))?.map((m) => m.id),
-    ).toEqual(["root1"]);
-    expect(
-      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))?.[0]?.reply_count,
-    ).toBe(1);
+    expect(timelineRows(qc, "dm1").map((m) => m.id)).toEqual(["root1"]);
+    expect(timelineRows(qc, "dm1")[0]?.reply_count).toBe(1);
     expect(
       qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.threadMessages("ws1", "dm1", "root1")),
     ).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  // C3: a sidebar refetch costs the server a query per room; a frame must not
+  // abort one in flight (the server keeps running it) to start another.
+  it("sends every sidebar refresh through the chat scheduler without cancelling one in flight", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.created", payload: { room_id: "r1" } } as WSMessage);
+    client.emit({ type: "chat.room.activity", payload: { room_id: "dm1" } });
+    client.reconnect();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    const rooms = JSON.stringify(chatKeys.rooms("ws1"));
+    const roomCalls = invalidate.mock.calls.filter(
+      (call) => JSON.stringify((call[0] as { queryKey: unknown }).queryKey) === rooms,
+    );
+    expect(roomCalls).toEqual([[{ queryKey: chatKeys.rooms("ws1") }, { cancelRefetch: false }]]);
     vi.useRealTimers();
   });
 
@@ -659,9 +703,23 @@ describe("useRealtimeSync", () => {
     const { invalidate, client } = setup();
     client.emit({ type: "chat.room.activity", payload: { room_id: "dm1" } });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(250);
+      await vi.advanceTimersByTimeAsync(500);
     });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["chat", "rooms", "ws1"]));
+    vi.useRealTimers();
+  });
+
+  // C10: one invite is one frame, which refreshes the room list and members.
+  it("refreshes the room list and members on chat.room.members_added", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.members_added", payload: { room_id: "g1" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    const called = keysCalled(invalidate);
+    expect(called).toContain(JSON.stringify(chatKeys.rooms("ws1")));
+    expect(called).toContain(JSON.stringify(chatKeys.roomMembers("ws1", "g1")));
     vi.useRealTimers();
   });
 
@@ -684,7 +742,7 @@ describe("useRealtimeSync", () => {
         thread_unread: false,
       },
     ];
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), messages);
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [messages], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -697,7 +755,7 @@ describe("useRealtimeSync", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: chatKeys.messageLinks("ws1", "m1"),
     });
-    expect(qc.getQueryData(chatKeys.roomMessages("ws1", "dm1"))).toEqual(messages);
+    expect(timelineRows(qc, "dm1")).toEqual(messages);
   });
 
   // Documents frames are ids-only: the workspace root is the prefix of every
@@ -797,12 +855,34 @@ describe("useRealtimeSync", () => {
     );
   });
 
-  it("invalidates workspace keys and open chat timelines after a reconnect", () => {
+  // H5: an open timeline reads what it missed instead of refetching every page.
+  it("catches open chat timelines up after a reconnect and a chat resubscribe", async () => {
+    vi.useFakeTimers();
+    const list = vi.spyOn(chatApi, "listChatRoomMessages").mockResolvedValue([]);
+    const { qc, invalidate, client } = setup();
+    const newest = { ...messageRow("m1"), cursor: "1.m1" };
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [[newest]], pageParams: [null] });
+    client.reconnect();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    client.emit({ type: "subscribe_ack", payload: { scope: "chat", id: "dm1" } } as unknown as WSMessage);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(list).toHaveBeenCalledWith("ws1", "dm1", expect.objectContaining({ after: "1.m1" }));
+    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(chatKeys.roomMessagesRoot("ws1")));
+    vi.useRealTimers();
+  });
+
+  it("invalidates workspace keys and open chat timelines after a reconnect", async () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.reconnect();
-    act(() => {
-      vi.advanceTimersByTime(250);
+    // The sidebar comes through the chat scheduler: debounce plus jitter.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
     });
     expect(keysCalled(invalidate)).toEqual(
       expect.arrayContaining([
@@ -814,7 +894,6 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["projects", "ws1"]),
         JSON.stringify(["chat", "rooms", "ws1"]),
         JSON.stringify(["chat", "room", "ws1"]),
-        JSON.stringify(["chat", "room-messages", "ws1"]),
         JSON.stringify(["chat", "messages", "ws1"]),
         JSON.stringify(["chat", "thread-messages", "ws1"]),
         JSON.stringify(["meetings", "ws1"]),

@@ -11,6 +11,7 @@ import {
   patchChatRoomMember,
   listChatRoomMessages,
   markChatRoomRead,
+  olderThan,
   searchChatRoomMessages,
   listChatRoomMessagesAround,
   listChatRooms,
@@ -106,6 +107,13 @@ describe("chat endpoints", () => {
     expect(await listChatRooms("ws1")).toEqual([]);
   });
 
+  it("listChatRooms hands the query's AbortSignal to fetch", async () => {
+    const controller = new AbortController();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ rooms: [] }));
+    await listChatRooms("ws1", controller.signal);
+    expect(vi.mocked(fetch).mock.calls.at(-1)?.[1]?.signal).toBe(controller.signal);
+  });
+
   it("listChatRooms accepts null member_user_ids from Go", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({
@@ -170,6 +178,20 @@ describe("chat endpoints", () => {
     expect(rooms[0]?.id).toBe("room-dm");
   });
 
+  it("listChatRooms reads the caller's read pointer and degrades a drifted one", async () => {
+    const room = { kind: "dm", name: "Peer", workspace_id: "ws1", member_user_ids: [] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...room, id: "r1", last_read_at: "2026-09-05T00:00:00.123456Z" },
+          { ...room, id: "r2", last_read_at: 42 },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((r) => r.last_read_at)).toEqual(["2026-09-05T00:00:00.123456Z", undefined]);
+  });
+
   it("listChatRoomMessages keeps valid messages when one row is malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({
@@ -221,6 +243,36 @@ describe("chat endpoints", () => {
     const url = String(vi.mocked(fetch).mock.calls[0]?.[0]);
     expect(url).toContain("mark_read=0");
     expect(url).toContain("limit=20");
+  });
+
+  it("listChatRoomMessages sends the cursor back verbatim and degrades a drifted one", async () => {
+    const base = {
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "A",
+      body: "hi",
+      created_at: "2026-09-05T00:00:00Z",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ messages: [{ ...base, id: "m1", cursor: "1788566400123456.m1" }, { ...base, id: "m2", cursor: 7 }] }),
+    );
+    const messages = await listChatRoomMessages("ws1", "room1", { cursor: "1788566400999999.m9" });
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("cursor=1788566400999999.m9");
+    expect(messages.map((m) => m.cursor)).toEqual(["1788566400123456.m1", undefined]);
+  });
+
+  it("listChatRoomMessages reads forward with after and degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: "nope" }));
+    expect(await listChatRoomMessages("ws1", "room1", { after: "1788566400123456.m1", limit: 50 })).toEqual([]);
+    const url = String(vi.mocked(fetch).mock.calls[0]?.[0]);
+    expect(url).toContain("after=1788566400123456.m1");
+    expect(url).not.toContain("cursor=");
+  });
+
+  it("olderThan prefers the opaque cursor and falls back to before without one", () => {
+    expect(olderThan({ cursor: "1.m1", created_at: "2026-09-05T00:00:00Z" })).toEqual({ cursor: "1.m1" });
+    expect(olderThan({ created_at: "2026-09-05T00:00:00Z" })).toEqual({ before: "2026-09-05T00:00:00Z" });
   });
 
   it("markChatRoomRead posts to the room read endpoint", async () => {
@@ -349,6 +401,16 @@ describe("chat endpoints", () => {
     );
     const blob = await loadChatFileBlob("ws1", "room1", "message1");
     expect(blob.type).toBe("application/pdf");
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toMatch(/\/messages\/message1\/file$/);
+  });
+
+  it("loadChatFileBlob asks for the thumbnail variant", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response("jpg", { headers: { "Content-Type": "image/jpeg" } }),
+    );
+    const blob = await loadChatFileBlob("ws1", "room1", "message1", "thumb");
+    expect(blob.type).toBe("image/jpeg");
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toMatch(/\/messages\/message1\/file\?variant=thumb$/);
   });
 
   it("loadChatVoiceBlob returns authenticated binary response", async () => {

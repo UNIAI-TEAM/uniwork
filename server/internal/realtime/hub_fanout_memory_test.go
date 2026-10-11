@@ -5,9 +5,12 @@ import (
 	"time"
 )
 
-func TestBroadcastChatScope200Subscribers(t *testing.T) {
+// TestHubInMemoryFanOut200Subscribers walks the hub's scope map into 200
+// in-process send channels. No socket, database or Redis is involved, so it
+// says nothing about chat under load; that is scripts/load/chat.
+func TestHubInMemoryFanOut200Subscribers(t *testing.T) {
 	if testing.Short() {
-		t.Skip("load test: skipped with -short")
+		t.Skip("in-memory fan-out: skipped with -short")
 	}
 
 	hub := NewHub()

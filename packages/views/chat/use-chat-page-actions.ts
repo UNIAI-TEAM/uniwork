@@ -9,7 +9,7 @@ import {
   type ChatTextSendPayload,
 } from "@uniwork/core/chat/deliver-chat-text-message";
 import { usePendingChatMessagesStore } from "@uniwork/core/chat/pending-messages-store";
-import { isRetriableChatSendError } from "@uniwork/core/chat/send-retry";
+import { isChatSendRateLimited, isRetriableChatSendError } from "@uniwork/core/chat/send-retry";
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
@@ -134,6 +134,7 @@ export function useChatPageActions({
         client_msg_id: newChatClientMsgId(),
         ...(replyTo && !sendingInThread ? { reply_to_message_id: replyTo.id } : {}),
         ...(composerPriority ? { priority: composerPriority } : {}),
+        ...(sendingInThread && activeThreadRootId ? { thread_root_id: activeThreadRootId } : {}),
       };
 
       const queueForLater = () => {
@@ -146,10 +147,6 @@ export function useChatPageActions({
       };
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        if (sendingInThread) {
-          setConnectError(t("chat.send_queued_offline"));
-          return;
-        }
         queueForLater();
         return;
       }
@@ -188,6 +185,10 @@ export function useChatPageActions({
         if (errorCode(err) === "chat_user_blocked") {
           usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
           setConnectError(t("chat.block_send_error"));
+        } else if (isChatSendRateLimited(err)) {
+          // Still online: keep the draft so the sender can send it again.
+          usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
+          setConnectError(t("chat.send_rate_limited"));
         } else if (isRetriableChatSendError(err)) {
           queueForLater();
         } else {

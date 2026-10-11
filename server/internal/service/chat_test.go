@@ -647,8 +647,8 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-log-1"); err != nil {
 		t.Fatalf("accept: %v", err)
 	}
-	duration := 42
-	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "call-log-1", &duration); err != nil {
+	backdateVoiceCallAnswer(t, dm.ID, "call-log-1", 42*time.Second)
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "call-log-1"); err != nil {
 		t.Fatalf("hangup: %v", err)
 	}
 	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, dm.ID, ListChatMessagesInput{})
@@ -664,8 +664,9 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 		if msg.VoiceCall.Outcome != voiceCallOutcomeCompleted {
 			t.Fatalf("outcome: %+v", msg.VoiceCall)
 		}
-		if msg.VoiceCall.DurationSeconds != duration {
-			t.Fatalf("duration: got %d want %d", msg.VoiceCall.DurationSeconds, duration)
+		// Measured by the server from the answer, whatever the client says.
+		if d := msg.VoiceCall.DurationSeconds; d < 42 || d > 44 {
+			t.Fatalf("duration: got %d want ~42", d)
 		}
 		if msg.VoiceCall.CallerID != ua.ID {
 			t.Fatalf("caller: %+v", msg.VoiceCall)
@@ -737,11 +738,10 @@ func TestChannelVoiceCall(t *testing.T) {
 		t.Fatalf("token: %v", err)
 	}
 
-	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, ch.ID, "channel-call-1", nil); err != ErrForbidden {
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, ch.ID, "channel-call-1"); err != ErrForbidden {
 		t.Fatalf("member hangup for all: %v", err)
 	}
-	duration := 55
-	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, ch.ID, "channel-call-1", &duration); err != nil {
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, ch.ID, "channel-call-1"); err != nil {
 		t.Fatalf("caller hangup: %v", err)
 	}
 	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, ch.ID, ListChatMessagesInput{})
@@ -818,8 +818,7 @@ func TestGroupVoiceCallLogParticipants(t *testing.T) {
 	if err := s.SignalVoiceAccept(ctx, uc.ID, w.ID, group.ID, "group-log-1"); err != nil {
 		t.Fatalf("accept uc: %v", err)
 	}
-	duration := 90
-	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, group.ID, "group-log-1", &duration); err != nil {
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, group.ID, "group-log-1"); err != nil {
 		t.Fatalf("hangup: %v", err)
 	}
 	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, group.ID, ListChatMessagesInput{})
@@ -968,10 +967,10 @@ func TestGroupVoiceHangupOnlyCaller(t *testing.T) {
 	}
 	pub.events = nil
 
-	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, group.ID, "group-hangup-1", nil); err != ErrForbidden {
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, group.ID, "group-hangup-1"); err != ErrForbidden {
 		t.Fatalf("member hangup for all: %v", err)
 	}
-	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, group.ID, "group-hangup-1", nil); err != nil {
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, group.ID, "group-hangup-1"); err != nil {
 		t.Fatalf("caller hangup for all: %v", err)
 	}
 	if pub.events[len(pub.events)-1].Type != "chat.voice.hangup" {

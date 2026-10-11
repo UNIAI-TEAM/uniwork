@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 )
 
@@ -59,16 +61,17 @@ func TestReadinessStorageProbeHealthy(t *testing.T) {
 	}
 }
 
-// TestReadinessStorageProbeFailsReadiness: a storage failure makes readiness
-// false and names the check, without failing the other probes.
-func TestReadinessStorageProbeFailsReadiness(t *testing.T) {
+// TestReadinessStorageFailureIsAdvisory: a storage failure is reported by
+// name but leaves the node ready - an S3 blip must not pull the only API pod
+// out of the Service (H14).
+func TestReadinessStorageFailureIsAdvisory(t *testing.T) {
 	pool := testutil.DB(t)
 	prober := &fakeProber{err: errors.New("bucket unreachable")}
 	r := NewReadiness(pool, nil).WithStorageProber(prober)
 
 	rep := r.Check(context.Background())
-	if rep.Ready {
-		t.Fatal("Readiness is ready despite a failed storage probe")
+	if !rep.Ready {
+		t.Fatal("a failed storage probe made the node not ready")
 	}
 	c := checkByName(rep, "storage")
 	if c == nil || c.OK {
@@ -79,6 +82,48 @@ func TestReadinessStorageProbeFailsReadiness(t *testing.T) {
 	}
 	if db := checkByName(rep, "db"); db == nil || !db.OK {
 		t.Fatal("a storage failure must not mark the db check failed")
+	}
+}
+
+// TestReadinessRedisFailureIsAdvisory: Redis down is visible in the report
+// (and to the admin console) without failing readiness.
+func TestReadinessRedisFailureIsAdvisory(t *testing.T) {
+	pool := testutil.DB(t)
+	rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1", MaxRetries: -1})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	gauge := fakeReadinessMetrics{}
+	r := NewReadiness(pool, rdb).WithStorageProber(&fakeProber{})
+	r.SetMetrics(gauge)
+	rep := r.Check(context.Background())
+	if !rep.Ready {
+		t.Fatalf("an unreachable Redis made the node not ready: %+v", rep)
+	}
+	if c := checkByName(rep, "redis"); c == nil || c.OK || c.Detail == "" {
+		t.Fatalf("redis check = %+v, want present and failing with detail", c)
+	}
+	// The gauge is the only alert left for a dead Redis (RedisUnreachable).
+	if up, ok := gauge["redis"]; !ok || up {
+		t.Fatalf("redis dependency gauge = %v (set %v), want down", up, ok)
+	}
+	if up := gauge["storage"]; !up {
+		t.Fatal("storage dependency gauge not up for a healthy prober")
+	}
+	if _, ok := gauge["db"]; ok {
+		t.Fatal("db gates readiness itself; it has no dependency gauge")
+	}
+}
+
+type fakeReadinessMetrics map[string]bool
+
+func (m fakeReadinessMetrics) SetDependencyUp(dependency string, up bool) { m[dependency] = up }
+
+// TestReadinessBudgetOutlastsAGCPause: the db budget is at least 2s so one
+// slow pool acquire under load does not flap the only pod out of rotation;
+// the kubelet probe timeout in deploy/ is set above it.
+func TestReadinessBudgetOutlastsAGCPause(t *testing.T) {
+	if readinessTimeout < 2*time.Second {
+		t.Fatalf("readinessTimeout = %v, want >= 2s", readinessTimeout)
 	}
 }
 
@@ -96,7 +141,7 @@ func TestReadinessStorageProbeSlowHonorsDeadline(t *testing.T) {
 	if c == nil || c.OK {
 		t.Fatalf("storage check = %+v, want failing", c)
 	}
-	if time.Since(start) > readinessTimeout+500*time.Millisecond {
+	if time.Since(start) > storageProbeTimeout+500*time.Millisecond {
 		t.Fatalf("Check ran %v - the probe was not bounded", time.Since(start))
 	}
 }

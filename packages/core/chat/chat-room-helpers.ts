@@ -21,6 +21,13 @@ export function chatRoomToGroup(room: ChatRoomRecord): GroupChat {
   };
 }
 
+/** The Chat nav badge: every unread message, but only the mentions of a room the reader muted. */
+export function chatUnreadBadge(rooms: ChatRoomRecord[], isMuted: (roomId: string) => boolean): number {
+  let total = 0;
+  for (const room of rooms) total += isMuted(room.id) ? room.mention_unread_count : room.unread_count;
+  return total;
+}
+
 export function unreadMapFromRooms(rooms: ChatRoomRecord[]): Record<string, number> {
   const out: Record<string, number> = {};
   for (const room of rooms) {
@@ -61,7 +68,7 @@ export function roomPreviewMapFromRooms(rooms: ChatRoomRecord[]): Record<string,
   return out;
 }
 
-function isDefaultWorkspaceChannel(room: ChatRoomRecord): boolean {
+export function isDefaultWorkspaceChannel(room: ChatRoomRecord): boolean {
   return room.kind === "workspace" || (room.kind === "channel" && Boolean(room.is_default));
 }
 

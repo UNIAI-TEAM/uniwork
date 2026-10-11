@@ -35,8 +35,21 @@ groups:
           severity: "1"
         annotations:
           summary: "/readyz trả 503 quá 2 phút"
-          description: "Blackbox probe GET /readyz của uniwork-api thất bại liên tục 2 phút: DB, Redis hoặc migration đang lệch."
+          description: "Blackbox probe GET /readyz của uniwork-api thất bại liên tục 2 phút: DB không trả lời hoặc schema cũ hơn binary."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/ReadinessFailing.md
+
+      # Redis no longer gates /readyz (H14) and the relay's XREAD counter only
+      # moves with REALTIME_RELAY on, so this gauge - set by every /readyz
+      # probe - is the one signal for a dead Redis.
+      - alert: RedisUnreachable
+        expr: min(uniwork_readiness_dependency_up{dependency="redis"}) == 0
+        for: 2m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "API không tới được Redis quá 2 phút"
+          description: "Check redis của /readyz thất bại liên tục 2 phút. Node vẫn ready, nhưng mọi rate limiter đang bỏ qua giới hạn (fail open), presence chat và cache membership không dùng được."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/RedisUnreachable.md
 
       # Per route, so one throttled path stands out from the total. The global
       # limiter answers before routing, so its 429s carry route="unmatched".

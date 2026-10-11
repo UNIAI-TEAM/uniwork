@@ -66,7 +66,7 @@ describe("ChatFileMessageRow", () => {
     await waitFor(() => {
       expect(screen.getByTitle("Xem trước PDF")).toHaveAttribute("src", "blob:pdf");
     });
-    expect(loadChatFileBlob).toHaveBeenCalledWith("ws1", "room1", "message1");
+    expect(loadChatFileBlob).toHaveBeenCalledWith("ws1", "room1", "message1", undefined);
   });
 
   it("loads and shows an inline image preview", async () => {
@@ -115,7 +115,57 @@ describe("ChatFileMessageRow", () => {
       );
     });
     expect(screen.getByRole("button", { name: "Mở long.png" })).toBeInTheDocument();
-    expect(loadChatFileBlob).toHaveBeenCalledWith("ws1", "room1", "message2");
+    expect(loadChatFileBlob).toHaveBeenCalledWith("ws1", "room1", "message2", "thumb");
+  });
+
+  it("shows the thumbnail and opens the original in a new tab on click", async () => {
+    vi.mocked(loadChatFileBlob).mockImplementation((_ws, _room, _id, variant) =>
+      Promise.resolve(new Blob([variant ?? "original"], { type: "image/jpeg" })),
+    );
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn((blob: Blob) => (blob.size === 5 ? "blob:thumb" : "blob:original")),
+      revokeObjectURL: vi.fn(),
+    });
+    const tab = { opener: {} as unknown, location: { href: "" }, close: vi.fn() };
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+
+    render(
+      wrap(
+        <ChatFileMessageRow
+          workspaceId="ws1"
+          roomId="room1"
+          message={{
+            id: "message3",
+            sender: "user1",
+            body: "photo.jpg",
+            kind: "file",
+            ts: Date.now(),
+            reactions: {},
+            file: { filename: "photo.jpg", content_type: "image/jpeg", size_bytes: 4_000_000 },
+          }}
+          senderLabel="An"
+          isOwn
+          showSenderName={false}
+          compactTop={false}
+          showAvatar={false}
+        />,
+      ),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("img", { name: "photo.jpg" })).toHaveAttribute("src", "blob:thumb");
+    });
+    expect(loadChatFileBlob).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mở photo.jpg" }));
+    // The tab opens inside the click so no popup blocker stops it; the
+    // original arrives afterwards.
+    expect(open).toHaveBeenCalledWith("", "_blank");
+    expect(tab.opener).toBeNull();
+    await waitFor(() => expect(tab.location.href).toBe("blob:original"));
+    expect(loadChatFileBlob).toHaveBeenLastCalledWith("ws1", "room1", "message3");
+    open.mockRestore();
   });
 
   it("exposes message actions when handlers are provided", () => {

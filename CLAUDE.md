@@ -367,7 +367,8 @@ behind its own gate and never reaches content.
   workspace on the span and the log fields. Log lines identify people by id,
   never email or name (`scripts/no-pii-log.test.mjs`; `// log-pii-ok: <why>`
   is the escape hatch).
-- `/healthz` is liveness only; `/readyz` checks DB, schema version and Redis.
+- `/healthz` is liveness only; `/readyz` is gated only by DB and a schema not older than the
+  binary (2s budget); Redis and storage are reported, never gating.
 - Every variable the server reads is listed in `.env.example`
   (`scripts/env-example.test.mjs`). Every alert in `deploy/alerts.yml` has a
   runbook in `docs/runbooks/` with the four sections

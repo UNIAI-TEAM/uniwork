@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useChatFileBlob } from "@uniwork/core/chat";
+import type { ChatFileVariant } from "@uniwork/core/api/endpoints/chat";
 
 export type ChatFilePreviewStatus = "idle" | "loading" | "ready" | "error";
 
@@ -16,8 +17,9 @@ export function useChatFileObjectUrl(
   roomId: string,
   messageId: string,
   enabled: boolean,
+  variant?: ChatFileVariant,
 ): { url: string | null; status: ChatFilePreviewStatus } {
-  const query = useChatFileBlob(workspaceId, roomId, messageId, enabled);
+  const query = useChatFileBlob(workspaceId, roomId, messageId, enabled, variant);
   const blob = query.data ?? null;
   const [url, setUrl] = useState<string | null>(null);
 

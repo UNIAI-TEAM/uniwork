@@ -430,7 +430,8 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 		if _, _, revokeErr := revokeDesktopFamily(ctx, q, device.UserID, device.SessionFamilyID); revokeErr != nil {
 			return DesktopSession{}, revokeErr
 		}
-		if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(device.UserID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: device.ID, Metadata: map[string]any{"reason": "refresh_reuse"}}); err != nil {
+		if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(device.UserID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: device.ID, Metadata: map[string]any{"reason": "refresh_reuse"}},
+			sessionRevoked(device.UserID, "")); err != nil {
 			return DesktopSession{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -601,7 +602,13 @@ func (s *DesktopAuthService) Logout(ctx context.Context, userID, deviceID, deplo
 			return err
 		}
 	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(userID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: deviceID, Metadata: map[string]any{"scope": scope}}); err != nil {
+	// A family logout ends sibling devices this call does not name.
+	revokedSession := deviceID
+	if scope == "family" {
+		revokedSession = ""
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(userID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: deviceID, Metadata: map[string]any{"scope": scope}},
+		sessionRevoked(userID, revokedSession)); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -689,7 +696,8 @@ func (s *DesktopAuthService) RevokeAll(ctx context.Context, userID string) error
 	if err := revokeAllUserSessions(ctx, q, userID); err != nil {
 		return err
 	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(userID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "user", ResourceID: userID, Metadata: map[string]any{"scope": "all"}}); err != nil {
+	if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(userID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "user", ResourceID: userID, Metadata: map[string]any{"scope": "all"}},
+		sessionRevoked(userID, "")); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

@@ -19,4 +19,5 @@ type ChatCatchUpSDI struct {
 	RoomID       string `json:"room_id" minLength:"1" description:"Phòng chat cần bắt kịp" example:"01J8XROOM0000000000000001"`
 	ThreadRootID string `json:"thread_root_id,omitempty" description:"Nếu có: chỉ tóm tắt thread này" example:"01J8XMSG0000000000000001"`
 	Locale       string `json:"locale" description:"vi hoặc en; mặc định en" example:"vi"`
+	Since        string `json:"since,omitempty" description:"RFC3339: con trỏ đã đọc của phòng trước khi mở (mở phòng đã đánh dấu đọc); bỏ trống thì dùng con trỏ đang lưu. Không áp dụng cho thread" example:"2026-03-26T10:00:00.123456Z"`
 }

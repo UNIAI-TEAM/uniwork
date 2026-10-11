@@ -50,7 +50,7 @@ func (h *handlers) signalChatVoiceHangup(w http.ResponseWriter, r *http.Request)
 	}
 	err := h.Chat.SignalVoiceHangup(
 		r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID, in.DurationSeconds,
+		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)

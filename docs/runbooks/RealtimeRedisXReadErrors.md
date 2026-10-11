@@ -25,7 +25,7 @@
 
 - Redis quá tải hoặc hết bộ nhớ: kiểm tra `maxmemory` và dọn stream cũ của các scope không còn dùng. Nâng tài nguyên Redis nếu cần.
 - Pool đọc cạn vì quá nhiều scope: restart BE để đóng các vòng đọc của scope đã nguội (`kubectl -n uniwork rollout restart deploy/uniwork-be`). Cách sửa lâu dài là nối `ShardedStreamRelay` (G10).
-- Redis mất hẳn: realtime trên một replica vẫn chạy nhờ gửi cục bộ. `/readyz` sẽ báo Redis lỗi, nên xử lý theo [ReadinessFailing](ReadinessFailing.md).
+- Redis mất hẳn: realtime trên một replica vẫn chạy nhờ gửi cục bộ. `/readyz` vẫn 200 nhưng báo check `redis` lỗi; xử lý theo [RedisUnreachable](RedisUnreachable.md).
 
 ## Leo thang
 

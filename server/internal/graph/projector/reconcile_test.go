@@ -239,7 +239,9 @@ func TestProjectMeetingAndThreads(t *testing.T) {
 		t.Fatalf("canceled meeting facts = %v (the node stays)", facts)
 	}
 
-	private, err := f.chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{Name: "kin", Visibility: "private"})
+	// A private room refuses a new sync (H12), so the thread is linked while
+	// the channel is public and the channel turns private afterwards.
+	private, err := f.chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{Name: "kin", Visibility: "public"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,6 +256,10 @@ func TestProjectMeetingAndThreads(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := f.chat.SyncThreadTask(f.ctx, f.owner.ID, f.wsID, root.ID, service.SyncThreadTaskInput{TaskID: task.ID, Direction: "both"}); err != nil {
+		t.Fatal(err)
+	}
+	privateVis := "private"
+	if _, err := f.chat.UpdateChannel(f.ctx, f.owner.ID, f.wsID, private.ID, service.UpdateChannelInput{Visibility: &privateVis}); err != nil {
 		t.Fatal(err)
 	}
 	f.sync(t)

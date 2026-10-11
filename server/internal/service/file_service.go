@@ -163,7 +163,9 @@ func NewFileService(opts FileServiceOptions) (*FileService, error) {
 	if opts.Quota != nil && !isNilInterface(opts.Quota) {
 		quota = opts.Quota
 	}
-	refs, err := newFileReferenceRegistry(opts.ReferenceProviders, managedFileReferenceSources())
+	// FileService answers for its own derived files (file_derivatives).
+	providers := append(append([]files.ReferenceProvider{}, opts.ReferenceProviders...), fileDerivativeProvider{})
+	refs, err := newFileReferenceRegistry(providers, managedFileReferenceSources())
 	if err != nil {
 		return nil, err
 	}

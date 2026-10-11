@@ -8,7 +8,7 @@ import (
 )
 
 // registerChatChannels mounts workspace chat channel routes.
-func registerChatChannels(r api, h Routes, chatWriteLimit func(http.Handler) http.Handler) {
+func registerChatChannels(r api, h Routes, chatWriteLimit, chatRoomLimit func(http.Handler) http.Handler) {
 	r.Group(func(ch api) {
 		ch.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/channels", h.CreateChatChannel, apiOp{
 			summary:     "Create chat channel",
@@ -25,7 +25,7 @@ func registerChatChannels(r api, h Routes, chatWriteLimit func(http.Handler) htt
 			sdo:         sdo.ChatChannelListSDO{},
 			auth:        true,
 		})
-		ch.Patch("/workspaces/{workspaceID}/chat/channels/{roomID}", h.UpdateChatChannel, apiOp{
+		ch.With(chatRoomLimit).Patch("/workspaces/{workspaceID}/chat/channels/{roomID}", h.UpdateChatChannel, apiOp{
 			summary:     "Update chat channel",
 			description: "Đổi tên, topic, visibility, project_id (null = gỡ).",
 			tags:        []string{"chat"},
@@ -33,21 +33,21 @@ func registerChatChannels(r api, h Routes, chatWriteLimit func(http.Handler) htt
 			sdo:         sdo.ChatRoomDTO{},
 			auth:        true,
 		})
-		ch.Post("/workspaces/{workspaceID}/chat/channels/{roomID}/join", h.JoinChatChannel, apiOp{
+		ch.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/channels/{roomID}/join", h.JoinChatChannel, apiOp{
 			summary:     "Join public chat channel",
 			description: "Tham gia kênh public; private trả 404.",
 			tags:        []string{"chat"},
 			sdo:         sdo.ChatRoomDTO{},
 			auth:        true,
 		})
-		ch.Post("/workspaces/{workspaceID}/chat/channels/{roomID}/archive", h.ArchiveChatChannel, apiOp{
+		ch.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/channels/{roomID}/archive", h.ArchiveChatChannel, apiOp{
 			summary:     "Archive chat channel",
 			description: "Lưu trữ kênh (không áp dụng kênh mặc định).",
 			tags:        []string{"chat"},
 			sdo:         sdo.StatusSDO{},
 			auth:        true,
 		})
-		ch.Delete("/workspaces/{workspaceID}/chat/channels/{roomID}/archive", h.UnarchiveChatChannel, apiOp{
+		ch.With(chatRoomLimit).Delete("/workspaces/{workspaceID}/chat/channels/{roomID}/archive", h.UnarchiveChatChannel, apiOp{
 			summary:     "Unarchive chat channel",
 			description: "Khôi phục kênh đã lưu trữ.",
 			tags:        []string{"chat"},

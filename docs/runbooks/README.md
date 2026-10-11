@@ -11,6 +11,7 @@ Kiểm tra → Khắc phục → Leo thang**.
 | --- | --- | --- | --- |
 | `ApiErrorRateHigh` | 1 | 5xx / tổng > 2 % trong 5 phút | [ApiErrorRateHigh.md](ApiErrorRateHigh.md) |
 | `ReadinessFailing` | 1 | `/readyz` 503 quá 2 phút | [ReadinessFailing.md](ReadinessFailing.md) |
+| `RedisUnreachable` | 2 | check `redis` của `/readyz` fail quá 2 phút (limiter đang fail open) | [RedisUnreachable.md](RedisUnreachable.md) |
 | `ApiLatencyP95High` | 2 | p95 GET > 400 ms trong 10 phút | [ApiLatencyP95High.md](ApiLatencyP95High.md) |
 | `ApiRateLimitedSpike` | 2 | một route trả 429 > 0,5 req/s trong 5 phút; webhook LiveKit: bất kỳ 429 nào | [ApiRateLimitedSpike.md](ApiRateLimitedSpike.md) |
 | `OutboxLagHigh` | 2 | dòng outbox chờ > 60 s | [OutboxLagHigh.md](OutboxLagHigh.md) |

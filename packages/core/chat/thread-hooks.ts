@@ -4,6 +4,7 @@ import * as chat from "../api/endpoints/chat";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
+import { applyChatMessageResponse } from "./realtime-cache";
 
 export function useChatThreadMessages(
   workspaceId: string,
@@ -33,14 +34,14 @@ export function useSendChatThreadMessage(workspaceId: string, roomId: string) {
         client_msg_id: input.client_msg_id,
         priority: input.priority,
       }),
-    onSuccess: (_data, vars) => {
+    onSuccess: (data, vars) => {
       if (vars.client_msg_id) {
         usePendingChatMessagesStore.getState().remove(vars.client_msg_id);
       }
       void qc.invalidateQueries({
         queryKey: chatKeys.threadMessages(workspaceId, roomId, vars.threadRootId),
       });
-      void qc.invalidateQueries({ queryKey: chatKeys.roomMessages(workspaceId, roomId) });
+      applyChatMessageResponse(qc, workspaceId, roomId, data, true);
       void qc.invalidateQueries({ queryKey: chatKeys.followedThreads(workspaceId) });
     },
   });

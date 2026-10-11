@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -258,6 +259,17 @@ func TestChatRoomMessages(t *testing.T) {
 	if len(out["messages"].([]any)) != 2 {
 		t.Fatalf("messages len = %d", len(out["messages"].([]any)))
 	}
+	// That read moved the caller's pointer, which the room list now carries.
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/rooms", tokA, nil)
+	readAt := ""
+	for _, raw := range out["rooms"].([]any) {
+		if room := raw.(map[string]any); room["id"] == f.groupRoomID {
+			readAt, _ = room["last_read_at"].(string)
+		}
+	}
+	if _, err := time.Parse(time.RFC3339, readAt); res.StatusCode != http.StatusOK || err != nil {
+		t.Fatalf("room last_read_at: %d %q %v", res.StatusCode, readAt, err)
+	}
 
 	res, out = doJSON(t, srv, "GET", base+"?limit=1", tokA, nil)
 	if res.StatusCode != http.StatusOK {
@@ -270,6 +282,34 @@ func TestChatRoomMessages(t *testing.T) {
 	res, out = doJSON(t, srv, "GET", base+"?before=not-a-time", tokA, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("bad before: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "GET", base+"?limit=1", tokA, nil)
+	newest := out["messages"].([]any)[0].(map[string]any)
+	cursor, _ := newest["cursor"].(string)
+	if res.StatusCode != http.StatusOK || cursor == "" {
+		t.Fatalf("newest page cursor: %d %v", res.StatusCode, newest)
+	}
+	res, out = doJSON(t, srv, "GET", base+"?limit=10&cursor="+url.QueryEscape(cursor), tokA, nil)
+	if res.StatusCode != http.StatusOK || len(out["messages"].([]any)) != 1 ||
+		out["messages"].([]any)[0].(map[string]any)["id"] == newest["id"] {
+		t.Fatalf("older page: %d %v", res.StatusCode, out)
+	}
+
+	older := out["messages"].([]any)[0].(map[string]any)
+	res, out = doJSON(t, srv, "GET", base+"?limit=10&after="+url.QueryEscape(older["cursor"].(string)), tokA, nil)
+	if res.StatusCode != http.StatusOK || len(out["messages"].([]any)) != 1 ||
+		out["messages"].([]any)[0].(map[string]any)["id"] != newest["id"] {
+		t.Fatalf("newer page: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", base+"?after="+url.QueryEscape(cursor)+"&cursor="+url.QueryEscape(cursor), tokA, nil)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("after with cursor: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "GET", base+"?cursor=not-a-cursor", tokA, nil)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("bad cursor: %d %v", res.StatusCode, out)
 	}
 
 	res, out = doJSON(t, srv, "GET", base+"/"+msgID, tokA, nil)
@@ -367,10 +407,14 @@ func TestChatMessageActions(t *testing.T) {
 	msgID := f.firstMessageID
 
 	res, out := doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "like"})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("text reaction: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "👍"})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("react: %d %v", res.StatusCode, out)
 	}
-	res, out = doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "like"})
+	res, out = doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "👍"})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("unreact: %d %v", res.StatusCode, out)
 	}

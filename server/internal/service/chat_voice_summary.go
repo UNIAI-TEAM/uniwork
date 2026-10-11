@@ -41,6 +41,31 @@ type VoiceCallSummaryInfo struct {
 
 func (s *ChatService) SetAIGateway(gw *ai.Gateway) { s.ai = gw }
 
+// Hourly caps on queued call summaries (H17): a member cannot spend the
+// organization's AI quota by placing calls in a room of their own.
+const (
+	voiceSummaryCallerCapPerHour = 5
+	voiceSummaryRoomCapPerHour   = 8
+)
+
+// voiceCallSummaryAllowed reports whether a finished call may queue an LLM
+// summary: AI is on and neither the caller nor the room has used its hourly
+// cap. The count and the insert are not atomic, so a burst of simultaneous
+// hangups can overshoot by a few; the caps bound spend, not exact counts.
+func (s *ChatService) voiceCallSummaryAllowed(ctx context.Context, room db.ChatRoom, callerID string) (bool, error) {
+	if s.ai == nil || !s.ai.Enabled() {
+		return false, nil
+	}
+	n, err := s.q.CountQueuedVoiceCallSummaries(ctx, db.CountQueuedVoiceCallSummariesParams{
+		CallerID: callerID, RoomID: room.ID, OrganizationID: room.OrganizationID,
+		Since: pgtype.Timestamptz{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	if err != nil {
+		return false, err
+	}
+	return n.ByCaller < voiceSummaryCallerCapPerHour && n.ByRoom < voiceSummaryRoomCapPerHour, nil
+}
+
 func (s *ChatService) emitVoiceCallCompleted(ctx context.Context, room db.ChatRoom, payload map[string]string) error {
 	if s.ai == nil || !s.ai.Enabled() {
 		return nil
@@ -179,7 +204,7 @@ func (s *ChatService) HandleVoiceCallCompleted(ctx context.Context, payload map[
 	if err != nil {
 		return err
 	}
-	return patchCallLogSummaryMessageID(ctx, s.q, callLogID, roomID, wsID, summaryMsgID)
+	return s.patchCallLogSummaryMessageID(ctx, callLogID, roomID, wsID, summaryMsgID)
 }
 
 func (s *ChatService) chatPathBase(ctx context.Context, workspaceID string) (string, error) {
@@ -222,7 +247,7 @@ func (s *ChatService) postVoiceCallSummaryMessage(
 		return "", err
 	}
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	return msg.ID, nil
 }
 
@@ -318,25 +343,17 @@ func summaryMessageIDFromCallLog(ctx context.Context, q *db.Queries, callLogID s
 	return strings.TrimSpace(meta.SummaryMessageID)
 }
 
-func patchCallLogSummaryMessageID(ctx context.Context, q *db.Queries, callLogID, roomID, wsID, summaryMsgID string) error {
-	msg, err := q.GetChatMessageByID(ctx, callLogID)
-	if err != nil {
-		return err
-	}
-	var meta map[string]any
-	if len(msg.Metadata) > 0 {
-		_ = json.Unmarshal(msg.Metadata, &meta)
-	}
-	if meta == nil {
-		meta = map[string]any{}
-	}
-	meta["summary_message_id"] = summaryMsgID
-	raw, err := json.Marshal(meta)
-	if err != nil {
-		return err
-	}
-	_, err = q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: callLogID, RoomID: roomID, WorkspaceID: wsID, Metadata: raw,
+func (s *ChatService) patchCallLogSummaryMessageID(ctx context.Context, callLogID, roomID, wsID, summaryMsgID string) error {
+	_, err := s.mutateChatMessageMetadata(ctx, callLogID, roomID, wsID, func(msg db.ChatMessage) ([]byte, error) {
+		var meta map[string]any
+		if len(msg.Metadata) > 0 {
+			_ = json.Unmarshal(msg.Metadata, &meta)
+		}
+		if meta == nil {
+			meta = map[string]any{}
+		}
+		meta["summary_message_id"] = summaryMsgID
+		return json.Marshal(meta)
 	})
 	return err
 }

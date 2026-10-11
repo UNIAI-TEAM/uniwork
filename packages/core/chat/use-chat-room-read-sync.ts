@@ -10,7 +10,19 @@ import { chatKeys } from "./chat-keys";
  * Keep sidebar unread + peer read receipts in sync with `chat.room.read`.
  * Own reads clear the local badge immediately (ListRoomMessages already
  * advanced last_read_at server-side; ignoring self left a stuck unread).
+ * Someone else's read changes nothing of mine but a DM's "Seen", so it is
+ * patched locally: refetching the sidebar here cost every reader O(rooms)
+ * queries per read (C3).
  */
+/** The server sets the cursor to the room's latest message, which is our last_message_at. */
+function withPeerRead(room: ChatRoomRecord): ChatRoomRecord {
+  const readAt = room.last_message_at;
+  if (room.kind !== "dm" || !readAt) return room;
+  const prior = room.peer_last_read_at ? Date.parse(room.peer_last_read_at) : Number.NEGATIVE_INFINITY;
+  if (Date.parse(readAt) <= prior) return room;
+  return { ...room, peer_last_read_at: readAt };
+}
+
 export function useChatRoomReadSync(workspaceId: string, currentUserId: string): void {
   const ws = useOptionalWS()?.client ?? null;
   const qc = useQueryClient();
@@ -33,7 +45,9 @@ export function useChatRoomReadSync(workspaceId: string, currentUserId: string):
         });
         return;
       }
-      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId), (old) =>
+        old?.map((room) => (room.id === data.room_id ? withPeerRead(room) : room)),
+      );
     });
 
     return () => {
