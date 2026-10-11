@@ -96,11 +96,12 @@ func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID 
 	if err != nil {
 		return EmailHubAccountView{}, err
 	}
-	row, _, serverChanged, err := s.saveEmailHubConnection(ctx, actor, byAddress, srv,
+	row, prev, serverChanged, err := s.saveEmailHubConnection(ctx, actor, byAddress, srv,
 		emailHubSealedCredential{AuthKind: "password", PasswordEnc: passwordEnc})
 	if err != nil {
 		return EmailHubAccountView{}, err
 	}
+	s.revokeReplacedEmailHubToken(ctx, prev, row)
 	s.afterEmailHubConnect(ctx, row, serverChanged)
 	updated, err := s.q.GetEmailHubAccount(ctx, db.GetEmailHubAccountParams{
 		ID: row.ID, UserID: actor.ID, OrganizationID: ws.OrganizationID,

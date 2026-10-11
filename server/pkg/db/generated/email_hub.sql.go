@@ -287,6 +287,32 @@ func (q *Queries) CountEmailHubInboxConversations(ctx context.Context, arg Count
 	return i, err
 }
 
+const countEmailHubOAuthGrantHolders = `-- name: CountEmailHubOAuthGrantHolders :one
+SELECT count(*)::bigint
+FROM email_hub_accounts
+WHERE auth_kind = $1
+  AND lower(email_address) = lower($2::text)
+  AND disconnected_at IS NULL
+  AND oauth_refresh_token_enc <> ''
+`
+
+type CountEmailHubOAuthGrantHoldersParams struct {
+	AuthKind string `json:"auth_kind"`
+	Email    string `json:"email"`
+}
+
+// tenant: system
+// A Google grant belongs to the Google account and Email Hub's client, and
+// revoking any of its tokens ends it. Before a revoke, count the live rows of
+// any organization or user that still hold a refresh token on it. Only the
+// count leaves this query.
+func (q *Queries) CountEmailHubOAuthGrantHolders(ctx context.Context, arg CountEmailHubOAuthGrantHoldersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEmailHubOAuthGrantHolders, arg.AuthKind, arg.Email)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countEmailHubStarredThreads = `-- name: CountEmailHubStarredThreads :one
 SELECT
   count(*)::bigint AS total,
@@ -791,15 +817,22 @@ func (q *Queries) DeleteEmailHubThreadsNotInUIDs(ctx context.Context, arg Delete
 	return err
 }
 
-const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :execrows
-UPDATE email_hub_accounts
+const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :one
+UPDATE email_hub_accounts a
 SET disconnected_at = now(), password_enc = '',
     oauth_refresh_token_enc = '', oauth_access_token_enc = '', oauth_access_expires_at = NULL,
-    credential_version = credential_version + 1, updated_at = now()
-WHERE id = $1
-  AND user_id = $2
-  AND organization_id = $3
-  AND disconnected_at IS NULL
+    credential_version = a.credential_version + 1, updated_at = now()
+FROM (
+  SELECT o.id, o.auth_kind, o.oauth_refresh_token_enc
+  FROM email_hub_accounts o
+  WHERE o.id = $1
+    AND o.user_id = $2
+    AND o.organization_id = $3
+    AND o.disconnected_at IS NULL
+  FOR UPDATE
+) old
+WHERE a.id = old.id
+RETURNING old.auth_kind, old.oauth_refresh_token_enc
 `
 
 type DisconnectEmailHubAccountParams struct {
@@ -808,25 +841,36 @@ type DisconnectEmailHubAccountParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
+type DisconnectEmailHubAccountRow struct {
+	AuthKind             string `json:"auth_kind"`
+	OauthRefreshTokenEnc string `json:"oauth_refresh_token_enc"`
+}
+
 // A disconnected mailbox is never used again (connecting the address again
-// creates a new row), so its credentials go with it.
-func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) (int64, error) {
-	result, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// creates a new row), so its credentials go with it. RETURNING reads old, the
+// locked row as it was: the caller revokes the refresh token this removed.
+func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) (DisconnectEmailHubAccountRow, error) {
+	row := q.db.QueryRow(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
+	var i DisconnectEmailHubAccountRow
+	err := row.Scan(&i.AuthKind, &i.OauthRefreshTokenEnc)
+	return i, err
 }
 
 const disconnectEmailHubAccountsForUser = `-- name: DisconnectEmailHubAccountsForUser :many
-UPDATE email_hub_accounts
+UPDATE email_hub_accounts a
 SET disconnected_at = now(), password_enc = '',
     oauth_refresh_token_enc = '', oauth_access_token_enc = '', oauth_access_expires_at = NULL,
-    credential_version = credential_version + 1, updated_at = now()
-WHERE user_id = $1
-  AND ($2::text IS NULL OR organization_id = $2)
-  AND disconnected_at IS NULL
-RETURNING id, organization_id
+    credential_version = a.credential_version + 1, updated_at = now()
+FROM (
+  SELECT o.id, o.organization_id, o.auth_kind, o.oauth_refresh_token_enc
+  FROM email_hub_accounts o
+  WHERE o.user_id = $1
+    AND ($2::text IS NULL OR o.organization_id = $2)
+    AND o.disconnected_at IS NULL
+  FOR UPDATE
+) old
+WHERE a.id = old.id
+RETURNING old.id, old.organization_id, old.auth_kind, old.oauth_refresh_token_enc
 `
 
 type DisconnectEmailHubAccountsForUserParams struct {
@@ -835,12 +879,15 @@ type DisconnectEmailHubAccountsForUserParams struct {
 }
 
 type DisconnectEmailHubAccountsForUserRow struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
+	ID                   string `json:"id"`
+	OrganizationID       string `json:"organization_id"`
+	AuthKind             string `json:"auth_kind"`
+	OauthRefreshTokenEnc string `json:"oauth_refresh_token_enc"`
 }
 
 // tenant: self
 // Account deletion (organization_id NULL: every organization) or leaving one.
+// RETURNING reads old: the refresh tokens this statement removed.
 func (q *Queries) DisconnectEmailHubAccountsForUser(ctx context.Context, arg DisconnectEmailHubAccountsForUserParams) ([]DisconnectEmailHubAccountsForUserRow, error) {
 	rows, err := q.db.Query(ctx, disconnectEmailHubAccountsForUser, arg.UserID, arg.OrganizationID)
 	if err != nil {
@@ -850,7 +897,12 @@ func (q *Queries) DisconnectEmailHubAccountsForUser(ctx context.Context, arg Dis
 	items := []DisconnectEmailHubAccountsForUserRow{}
 	for rows.Next() {
 		var i DisconnectEmailHubAccountsForUserRow
-		if err := rows.Scan(&i.ID, &i.OrganizationID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.AuthKind,
+			&i.OauthRefreshTokenEnc,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2477,8 +2529,8 @@ func (q *Queries) ListEmailHubThreadsSearchPage(ctx context.Context, arg ListEma
 	return items, nil
 }
 
-const markEmailHubAccountAuthFailed = `-- name: MarkEmailHubAccountAuthFailed :execrows
-UPDATE email_hub_accounts
+const markEmailHubAccountAuthFailed = `-- name: MarkEmailHubAccountAuthFailed :one
+UPDATE email_hub_accounts a
 SET auth_failed_at = now(),
     auth_failed_reason = $1,
     password_enc = '',
@@ -2486,11 +2538,18 @@ SET auth_failed_at = now(),
     oauth_access_token_enc = '',
     oauth_access_expires_at = NULL,
     updated_at = now()
-WHERE id = $2
-  AND organization_id = $3
-  AND credential_version = $4
-  AND disconnected_at IS NULL
-  AND auth_failed_at IS NULL
+FROM (
+  SELECT o.id, o.auth_kind, o.oauth_refresh_token_enc
+  FROM email_hub_accounts o
+  WHERE o.id = $2
+    AND o.organization_id = $3
+    AND o.credential_version = $4
+    AND o.disconnected_at IS NULL
+    AND o.auth_failed_at IS NULL
+  FOR UPDATE
+) old
+WHERE a.id = old.id
+RETURNING old.auth_kind, old.oauth_refresh_token_enc
 `
 
 type MarkEmailHubAccountAuthFailedParams struct {
@@ -2500,19 +2559,24 @@ type MarkEmailHubAccountAuthFailedParams struct {
 	CredentialVersion int64  `json:"credential_version"`
 }
 
+type MarkEmailHubAccountAuthFailedRow struct {
+	AuthKind             string `json:"auth_kind"`
+	OauthRefreshTokenEnc string `json:"oauth_refresh_token_enc"`
+}
+
 // Only the snapshot that failed may mark the account: a reconnect since then
-// bumped credential_version and its new credential stays.
-func (q *Queries) MarkEmailHubAccountAuthFailed(ctx context.Context, arg MarkEmailHubAccountAuthFailedParams) (int64, error) {
-	result, err := q.db.Exec(ctx, markEmailHubAccountAuthFailed,
+// bumped credential_version and its new credential stays. RETURNING reads old:
+// the refresh token this statement removed. No row comes back otherwise.
+func (q *Queries) MarkEmailHubAccountAuthFailed(ctx context.Context, arg MarkEmailHubAccountAuthFailedParams) (MarkEmailHubAccountAuthFailedRow, error) {
+	row := q.db.QueryRow(ctx, markEmailHubAccountAuthFailed,
 		arg.Reason,
 		arg.ID,
 		arg.OrganizationID,
 		arg.CredentialVersion,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	var i MarkEmailHubAccountAuthFailedRow
+	err := row.Scan(&i.AuthKind, &i.OauthRefreshTokenEnc)
+	return i, err
 }
 
 const markEmailHubScheduledSendFailed = `-- name: MarkEmailHubScheduledSendFailed :execrows

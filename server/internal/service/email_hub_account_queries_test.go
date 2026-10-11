@@ -40,13 +40,16 @@ func TestEmailHubAccountCredentialQueries(t *testing.T) {
 
 	mark := func(version int64) int64 {
 		t.Helper()
-		n, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
+		_, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
 			ID: acc.ID, OrganizationID: org, CredentialVersion: version, Reason: "imap_auth_failed",
 		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
-		return n
+		return 1
 	}
 	if n := mark(1); n != 0 {
 		t.Fatalf("stale credential_version marked %d rows", n)
@@ -104,10 +107,10 @@ func TestEmailHubAccountCredentialQueries(t *testing.T) {
 		t.Fatalf("reconnect to another IMAP server: version=%d sync_state=%s", moved.CredentialVersion, moved.SyncState)
 	}
 
-	if n, err := q.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
+	if _, err := q.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
 		ID: acc.ID, UserID: user.ID, OrganizationID: org,
-	}); err != nil || n != 1 {
-		t.Fatalf("disconnect: n=%d err=%v", n, err)
+	}); err != nil {
+		t.Fatalf("disconnect: %v", err)
 	}
 	gone, err := q.GetEmailHubAccountByID(ctx, acc.ID)
 	if err != nil {
@@ -232,10 +235,10 @@ func TestUpdateEmailHubAccountOAuthTokensConditional(t *testing.T) {
 		t.Fatalf("second write: access=%q refresh=%q version=%d", row.OauthAccessTokenEnc, row.OauthRefreshTokenEnc, row.CredentialVersion)
 	}
 
-	if n, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
+	if _, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
 		ID: acc.ID, OrganizationID: org, CredentialVersion: acc.CredentialVersion, Reason: "oauth_invalid_grant",
-	}); err != nil || n != 1 {
-		t.Fatalf("mark auth failed: n=%d err=%v", n, err)
+	}); err != nil {
+		t.Fatalf("mark auth failed: %v", err)
 	}
 	// Same version, and the expiry is NULL again: only auth_failed_at stops this write.
 	if n := write(acc.ID, acc.CredentialVersion, never, "access-3", second, ""); n != 0 {
@@ -243,13 +246,83 @@ func TestUpdateEmailHubAccountOAuthTokensConditional(t *testing.T) {
 	}
 
 	gone := seedEmailHubAccountAddr(t, q, svc.box, user.ID, org, "gone@gmail.com")
-	if n, err := q.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
+	if _, err := q.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
 		ID: gone.ID, UserID: user.ID, OrganizationID: org,
-	}); err != nil || n != 1 {
-		t.Fatalf("disconnect: n=%d err=%v", n, err)
+	}); err != nil {
+		t.Fatalf("disconnect: %v", err)
 	}
 	// The current version and expiry: only disconnected_at stops this write.
 	if n := write(gone.ID, read(gone.ID).CredentialVersion, never, "access-1", first, ""); n != 0 {
 		t.Fatalf("a disconnected account took a token: %d rows", n)
 	}
+}
+
+// Each statement that removes a refresh token returns the one it removed, so
+// the caller revokes exactly that token after commit (spec §2.3, §5.5).
+func TestDisconnectReturnsPreviousRefreshToken(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	org := ws.OrganizationID
+	assertCleared := func(acc db.EmailHubAccount, wantVersion int64) {
+		t.Helper()
+		row, err := q.GetEmailHubAccountByID(ctx, acc.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if row.OauthRefreshTokenEnc != "" || row.OauthAccessTokenEnc != "" || row.OauthAccessExpiresAt.Valid || row.CredentialVersion != wantVersion {
+			t.Fatalf("%s: refresh=%q access=%q expires=%v version=%d, want tokens cleared at version %d",
+				acc.EmailAddress, row.OauthRefreshTokenEnc, row.OauthAccessTokenEnc, row.OauthAccessExpiresAt.Valid,
+				row.CredentialVersion, wantVersion)
+		}
+	}
+
+	one := seedRevocableEmailHubAccount(t, svc, pool, user.ID, org, "one@gmail.com", "oauth_google", "refresh-one")
+	params := db.DisconnectEmailHubAccountParams{ID: one.ID, UserID: user.ID, OrganizationID: org}
+	got, err := q.DisconnectEmailHubAccount(ctx, params)
+	if err != nil || got.AuthKind != "oauth_google" || got.OauthRefreshTokenEnc != one.OauthRefreshTokenEnc {
+		t.Fatalf("disconnect returned auth_kind=%q same_token=%v err=%v; want the sealed token it removed",
+			got.AuthKind, got.OauthRefreshTokenEnc == one.OauthRefreshTokenEnc, err)
+	}
+	assertCleared(one, one.CredentialVersion+1)
+	if _, err := q.DisconnectEmailHubAccount(ctx, params); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("a second disconnect: err=%v, want pgx.ErrNoRows", err)
+	}
+
+	two := seedRevocableEmailHubAccount(t, svc, pool, user.ID, org, "two@gmail.com", "oauth_google", "refresh-two")
+	three := seedRevocableEmailHubAccount(t, svc, pool, user.ID, org, "three@outlook.com", "oauth_microsoft", "refresh-three")
+	rows, err := q.DisconnectEmailHubAccountsForUser(ctx, db.DisconnectEmailHubAccountsForUserParams{
+		UserID: user.ID, OrganizationID: pgtype.Text{String: org, Valid: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]db.DisconnectEmailHubAccountsForUserRow{
+		two.ID:   {ID: two.ID, OrganizationID: org, AuthKind: "oauth_google", OauthRefreshTokenEnc: two.OauthRefreshTokenEnc},
+		three.ID: {ID: three.ID, OrganizationID: org, AuthKind: "oauth_microsoft", OauthRefreshTokenEnc: three.OauthRefreshTokenEnc},
+	}
+	if len(rows) != len(want) {
+		t.Fatalf("disconnect for user returned %d rows, want %d (the disconnected one is not live)", len(rows), len(want))
+	}
+	for _, r := range rows {
+		if want[r.ID] != r {
+			t.Fatalf("row %s: got auth_kind=%q, want the old auth kind and sealed token", r.ID, r.AuthKind)
+		}
+	}
+	assertCleared(two, two.CredentialVersion+1)
+	assertCleared(three, three.CredentialVersion+1)
+
+	four := seedRevocableEmailHubAccount(t, svc, pool, user.ID, org, "four@gmail.com", "oauth_google", "refresh-four")
+	mark := db.MarkEmailHubAccountAuthFailedParams{
+		ID: four.ID, OrganizationID: org, CredentialVersion: four.CredentialVersion + 1, Reason: "imap_auth_failed",
+	}
+	if _, err := q.MarkEmailHubAccountAuthFailed(ctx, mark); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("a stale snapshot marked the account: err=%v, want pgx.ErrNoRows", err)
+	}
+	mark.CredentialVersion = four.CredentialVersion
+	marked, err := q.MarkEmailHubAccountAuthFailed(ctx, mark)
+	if err != nil || marked.AuthKind != "oauth_google" || marked.OauthRefreshTokenEnc != four.OauthRefreshTokenEnc {
+		t.Fatalf("mark returned auth_kind=%q same_token=%v err=%v; want the sealed token it removed",
+			marked.AuthKind, marked.OauthRefreshTokenEnc == four.OauthRefreshTokenEnc, err)
+	}
+	assertCleared(four, four.CredentialVersion) // only a reconnect bumps the version
 }

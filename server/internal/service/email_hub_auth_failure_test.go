@@ -274,10 +274,10 @@ func TestEmailHubWatchLoopExitsOnceTheAccountNeedsReconnect(t *testing.T) {
 	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
-	if n, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
+	if _, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
 		ID: acc.ID, OrganizationID: acc.OrganizationID, CredentialVersion: acc.CredentialVersion, Reason: "imap_auth_failed",
-	}); err != nil || n != 1 {
-		t.Fatalf("mark: n=%d err=%v", n, err)
+	}); err != nil {
+		t.Fatalf("mark: %v", err)
 	}
 	var attempts atomic.Int32
 	svc.log = slog.New(countingHandler{match: "watcher idle failed", n: &attempts})

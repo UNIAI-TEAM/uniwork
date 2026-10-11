@@ -277,14 +277,14 @@ func (s *EmailHubService) markAuthFailed(ctx context.Context, acc db.EmailHubAcc
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
-	n, err := qtx.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
+	old, err := qtx.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
 		ID: acc.ID, OrganizationID: acc.OrganizationID, CredentialVersion: version, Reason: reason,
 	})
-	if err != nil {
-		s.log.Warn("email hub mark auth failed", "account_id", acc.ID, "err", err)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return false
 	}
-	if n == 0 {
+	if err != nil {
+		s.log.Warn("email hub mark auth failed", "account_id", acc.ID, "err", err)
 		return false
 	}
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
@@ -307,6 +307,11 @@ func (s *EmailHubService) markAuthFailed(ctx context.Context, acc db.EmailHubAcc
 		return false
 	}
 	s.log.Warn("email hub account needs reconnect", "account_id", acc.ID, "reason", reason)
+	if reason != "oauth_invalid_grant" {
+		// invalid_grant: the provider already ended the grant. Any other
+		// refusal leaves a live grant behind that this row no longer holds.
+		s.revokeEmailHubToken(ctx, acc.ID, old.AuthKind, old.OauthRefreshTokenEnc)
+	}
 	s.hubWatch.forceStop(acc.ID) // last: it may cancel ctx when the watcher calls us
 	return true
 }

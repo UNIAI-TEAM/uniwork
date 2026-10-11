@@ -175,13 +175,14 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
-	n, err := qtx.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
+	old, err := qtx.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
 		ID: accountID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
 	})
-	if err != nil {
+	disconnected := err == nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	if n > 0 {
+	if disconnected {
 		if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 			OrganizationID: ws.OrganizationID,
 			Actor:          actor,
@@ -195,7 +196,7 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	if n == 0 {
+	if !disconnected {
 		// Either not the caller's mailbox, or theirs and already disconnected.
 		// The second case runs the cleanup again: the flip and the deletes
 		// are not one transaction, so a cleanup that failed last time must
@@ -212,6 +213,8 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 		}
 	}
 	s.hubWatch.forceStop(accountID)
+	// old is the zero row on a repeated disconnect: no token is left to revoke.
+	s.revokeEmailHubToken(ctx, accountID, old.AuthKind, old.OauthRefreshTokenEnc)
 	return cleanUpDisconnectedEmailHubAccount(ctx, s.q, accountID, ws.OrganizationID)
 }
 
@@ -229,14 +232,18 @@ func cleanUpDisconnectedEmailHubAccount(ctx context.Context, q *db.Queries, acco
 }
 
 // cleanUpEmailHubAccountsAfterCommit cleans up the mailboxes a lifecycle
-// command (leave, account deletion) disconnected; that command already
-// committed, so a failure is logged rather than returned. Nobody can retry it
-// (the caller is gone from the organization), so it outlives the request.
-func cleanUpEmailHubAccountsAfterCommit(ctx context.Context, q *db.Queries, rows []db.DisconnectEmailHubAccountsForUserRow) {
+// command (leave, account deletion) disconnected, and revokes the refresh
+// tokens that command removed when hub is wired (nil: no revoke). That command
+// already committed, so a failure is logged rather than returned. Nobody can
+// retry it (the caller is gone from the organization), so it outlives the request.
+func cleanUpEmailHubAccountsAfterCommit(ctx context.Context, q *db.Queries, hub *EmailHubService, rows []db.DisconnectEmailHubAccountsForUserRow) {
 	ctx = context.WithoutCancel(ctx)
 	for _, r := range rows {
 		if err := cleanUpDisconnectedEmailHubAccount(ctx, q, r.ID, r.OrganizationID); err != nil {
 			slog.Warn("email hub cleanup after disconnect failed", "account_id", r.ID, "err", err)
+		}
+		if hub != nil {
+			hub.revokeEmailHubToken(ctx, r.ID, r.AuthKind, r.OauthRefreshTokenEnc)
 		}
 	}
 }

@@ -32,29 +32,44 @@ SELECT *
 FROM email_hub_accounts
 WHERE id = $1;
 
--- name: DisconnectEmailHubAccount :execrows
+-- name: DisconnectEmailHubAccount :one
 -- A disconnected mailbox is never used again (connecting the address again
--- creates a new row), so its credentials go with it.
-UPDATE email_hub_accounts
+-- creates a new row), so its credentials go with it. RETURNING reads old, the
+-- locked row as it was: the caller revokes the refresh token this removed.
+UPDATE email_hub_accounts a
 SET disconnected_at = now(), password_enc = '',
     oauth_refresh_token_enc = '', oauth_access_token_enc = '', oauth_access_expires_at = NULL,
-    credential_version = credential_version + 1, updated_at = now()
-WHERE id = $1
-  AND user_id = $2
-  AND organization_id = $3
-  AND disconnected_at IS NULL;
+    credential_version = a.credential_version + 1, updated_at = now()
+FROM (
+  SELECT o.id, o.auth_kind, o.oauth_refresh_token_enc
+  FROM email_hub_accounts o
+  WHERE o.id = sqlc.arg('id')
+    AND o.user_id = sqlc.arg('user_id')
+    AND o.organization_id = sqlc.arg('organization_id')
+    AND o.disconnected_at IS NULL
+  FOR UPDATE
+) old
+WHERE a.id = old.id
+RETURNING old.auth_kind, old.oauth_refresh_token_enc;
 
 -- name: DisconnectEmailHubAccountsForUser :many
 -- tenant: self
 -- Account deletion (organization_id NULL: every organization) or leaving one.
-UPDATE email_hub_accounts
+-- RETURNING reads old: the refresh tokens this statement removed.
+UPDATE email_hub_accounts a
 SET disconnected_at = now(), password_enc = '',
     oauth_refresh_token_enc = '', oauth_access_token_enc = '', oauth_access_expires_at = NULL,
-    credential_version = credential_version + 1, updated_at = now()
-WHERE user_id = sqlc.arg('user_id')
-  AND (sqlc.narg('organization_id')::text IS NULL OR organization_id = sqlc.narg('organization_id'))
-  AND disconnected_at IS NULL
-RETURNING id, organization_id;
+    credential_version = a.credential_version + 1, updated_at = now()
+FROM (
+  SELECT o.id, o.organization_id, o.auth_kind, o.oauth_refresh_token_enc
+  FROM email_hub_accounts o
+  WHERE o.user_id = sqlc.arg('user_id')
+    AND (sqlc.narg('organization_id')::text IS NULL OR o.organization_id = sqlc.narg('organization_id'))
+    AND o.disconnected_at IS NULL
+  FOR UPDATE
+) old
+WHERE a.id = old.id
+RETURNING old.id, old.organization_id, old.auth_kind, old.oauth_refresh_token_enc;
 
 -- name: UpdateEmailHubAccountSyncState :exec
 -- A sync holding an older credential snapshot writes nothing: the account may
@@ -108,10 +123,11 @@ WHERE id = sqlc.arg('id')
   AND disconnected_at IS NULL
 RETURNING *;
 
--- name: MarkEmailHubAccountAuthFailed :execrows
+-- name: MarkEmailHubAccountAuthFailed :one
 -- Only the snapshot that failed may mark the account: a reconnect since then
--- bumped credential_version and its new credential stays.
-UPDATE email_hub_accounts
+-- bumped credential_version and its new credential stays. RETURNING reads old:
+-- the refresh token this statement removed. No row comes back otherwise.
+UPDATE email_hub_accounts a
 SET auth_failed_at = now(),
     auth_failed_reason = sqlc.arg('reason'),
     password_enc = '',
@@ -119,11 +135,18 @@ SET auth_failed_at = now(),
     oauth_access_token_enc = '',
     oauth_access_expires_at = NULL,
     updated_at = now()
-WHERE id = sqlc.arg('id')
-  AND organization_id = sqlc.arg('organization_id')
-  AND credential_version = sqlc.arg('credential_version')
-  AND disconnected_at IS NULL
-  AND auth_failed_at IS NULL;
+FROM (
+  SELECT o.id, o.auth_kind, o.oauth_refresh_token_enc
+  FROM email_hub_accounts o
+  WHERE o.id = sqlc.arg('id')
+    AND o.organization_id = sqlc.arg('organization_id')
+    AND o.credential_version = sqlc.arg('credential_version')
+    AND o.disconnected_at IS NULL
+    AND o.auth_failed_at IS NULL
+  FOR UPDATE
+) old
+WHERE a.id = old.id
+RETURNING old.auth_kind, old.oauth_refresh_token_enc;
 
 -- name: UpdateEmailHubAccountOAuthTokens :execrows
 -- A refresh writes only over the token it read. Another pod's refresh moved
@@ -967,3 +990,16 @@ SELECT
       AND t.snoozed_until IS NOT NULL
       AND t.snoozed_until > now()
   ) AS snoozed_total;
+
+-- name: CountEmailHubOAuthGrantHolders :one
+-- tenant: system
+-- A Google grant belongs to the Google account and Email Hub's client, and
+-- revoking any of its tokens ends it. Before a revoke, count the live rows of
+-- any organization or user that still hold a refresh token on it. Only the
+-- count leaves this query.
+SELECT count(*)::bigint
+FROM email_hub_accounts
+WHERE auth_kind = sqlc.arg('auth_kind')
+  AND lower(email_address) = lower(sqlc.arg('email')::text)
+  AND disconnected_at IS NULL
+  AND oauth_refresh_token_enc <> '';

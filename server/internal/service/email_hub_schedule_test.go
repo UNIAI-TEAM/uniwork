@@ -712,6 +712,6 @@ func TestEmailHubCleanupAfterCommitSurvivesACancelledRequest(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	cleanUpEmailHubAccountsAfterCommit(ctx, l.q, rows)
+	cleanUpEmailHubAccountsAfterCommit(ctx, l.q, nil, rows)
 	l.assertRevoked(t)
 }

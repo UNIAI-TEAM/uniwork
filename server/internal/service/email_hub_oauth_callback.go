@@ -145,13 +145,14 @@ func (s *EmailHubService) CompleteOAuth(ctx context.Context, provider, rawState,
 	if cred.AccessEnc, err = s.sealSecret(tok.AccessToken); err != nil {
 		return fail(EmailHubOAuthFailed, "seal")
 	}
-	row, _, serverChanged, err := s.saveEmailHubConnection(ctx, actor, byAddress, srv, cred)
+	row, prev, serverChanged, err := s.saveEmailHubConnection(ctx, actor, byAddress, srv, cred)
 	switch {
 	case errors.Is(err, ErrEmailHubAlreadyConnected):
 		return fail(EmailHubOAuthAlreadyConnected, "duplicate") // a concurrent connect won
 	case err != nil:
 		return fail(EmailHubOAuthFailed, emailHubErrCode(err))
 	}
+	s.revokeReplacedEmailHubToken(ctx, prev, row)
 	s.afterEmailHubConnect(ctx, row, serverChanged)
 	return EmailHubOAuthConnected
 }

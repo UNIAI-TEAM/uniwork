@@ -165,6 +165,6 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, mailboxes)
+	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, mailboxes)
 	return nil
 }

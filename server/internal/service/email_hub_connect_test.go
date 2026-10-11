@@ -135,10 +135,10 @@ func TestEmailHubReconnectKeepsTheAccountAndItsMail(t *testing.T) {
 	ctx := context.Background()
 	acc := seedPresetEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID, "back@gmail.com")
 	seedEmailHubThread(t, q, acc.ID, ws.OrganizationID)
-	if n, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
+	if _, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
 		ID: acc.ID, OrganizationID: ws.OrganizationID, CredentialVersion: acc.CredentialVersion, Reason: "imap_auth_failed",
-	}); err != nil || n != 1 {
-		t.Fatalf("mark auth failed: n=%d err=%v", n, err)
+	}); err != nil {
+		t.Fatalf("mark auth failed: %v", err)
 	}
 	for range emailHubRefusedLoginsBeforeDisconnect - 1 {
 		svc.gov.loginRefused(acc.ID)
@@ -448,10 +448,10 @@ func TestEmailHubReconnectChangedServerFlagsIt(t *testing.T) {
 	moved := seedCustomEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID, "moved@acme.example", "mail.example.com")
 	same := seedCustomEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID, "same@acme.example", "mail.example.com")
 	for _, acc := range []db.EmailHubAccount{moved, same} {
-		if n, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
+		if _, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
 			ID: acc.ID, OrganizationID: ws.OrganizationID, CredentialVersion: acc.CredentialVersion, Reason: "imap_auth_failed",
-		}); err != nil || n != 1 {
-			t.Fatalf("mark auth failed: n=%d err=%v", n, err)
+		}); err != nil {
+			t.Fatalf("mark auth failed: %v", err)
 		}
 	}
 	stubEmailHubDial(svc, nil)
