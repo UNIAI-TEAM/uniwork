@@ -1,11 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -335,5 +337,64 @@ func TestEmailHubNeedsReconnectScheduledSendSMTPDisabled(t *testing.T) {
 	row, err := q.GetEmailHubAccountByID(context.Background(), acc.ID)
 	if err != nil || row.AuthFailedAt.Valid {
 		t.Fatalf("SMTP AUTH disabled must leave the account active: err=%v", err)
+	}
+}
+
+// A due reply whose parent was deleted still answers auth_required: the
+// account's state is checked before the parent lookup (spec §3).
+func TestEmailHubNeedsReconnectScheduledReplyToDeletedParentFailsAuthRequired(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	acc := markSeedAccountAuthFailed(t, q, seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID))
+	id := seedDueEmailHubScheduledSend(t, q, ws, user.ID, acc.ID)
+	if _, err := pool.Exec(context.Background(),
+		`UPDATE email_hub_scheduled_sends SET payload = jsonb_set(payload::jsonb, '{reply_to_thread_id}', to_jsonb($2::text)) WHERE id = $1`,
+		id, util.NewID()); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.runScheduledSendOnce(context.Background())
+
+	if status, lastErr := scheduledSendOutcome(t, pool, id); status != "failed" || lastErr != "auth_required" {
+		t.Fatalf("status=%q last_error=%q, want failed/auth_required", status, lastErr)
+	}
+}
+
+// A refused watch never takes a watch slot on the governor.
+func TestEmailHubNeedsReconnectWatchTakesNoWatchSlot(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	acc := markSeedAccountAuthFailed(t, q, seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID))
+
+	if _, err := svc.WatchInbox(context.Background(), Human(user.ID), ws.ID, acc.ID); !errors.Is(err, ErrEmailHubReauthRequired) {
+		t.Fatalf("err = %v, want ErrEmailHubReauthRequired", err)
+	}
+	svc.gov.mu.Lock()
+	_, registered := svc.gov.gates[acc.ID]
+	svc.gov.mu.Unlock()
+	if registered {
+		t.Fatal("a refused watch registered a watch slot")
+	}
+}
+
+// The send-failed log carries the classified code, never the server's reply.
+func TestEmailHubSendFailureLogsTheClassifiedCode(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	var logs bytes.Buffer
+	svc.log = slog.New(slog.NewTextHandler(&logs, nil))
+	const reply = "535 5.7.8 rejected for seed@gmail.com at smtp.secret.example"
+	for _, sentinel := range []error{smtpclient.ErrAuthFailed, smtpclient.ErrSMTPAuthDisabled} {
+		acc := seedEmailHubAccountAddr(t, q, svc.box, user.ID, ws.OrganizationID, util.NewID()+"@gmail.com")
+		countSMTPSends(svc, fmt.Errorf("%s: %w", reply, sentinel))
+		if _, err := svc.Send(context.Background(), Human(user.ID), ws.ID, SendEmailHubInput{
+			AccountID: acc.ID, To: []string{"dest@example.com"}, Subject: "Hi", BodyText: "Body",
+		}); err == nil {
+			t.Fatalf("%v: send succeeded", sentinel)
+		}
+	}
+	out := logs.String()
+	if strings.Contains(out, "smtp.secret.example") || strings.Contains(out, "seed@gmail.com") {
+		t.Fatalf("the log carries the raw SMTP reply:\n%s", out)
+	}
+	if !strings.Contains(out, "code=auth_failed") || !strings.Contains(out, "code=smtp_disabled") {
+		t.Fatalf("the log must carry the classified codes:\n%s", out)
 	}
 }

@@ -423,13 +423,12 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 		return false, err
 	}
 
-	s.gov.beginWatch(accountID)
-	defer s.gov.endWatch(accountID)
-
-	creds, err := s.credentials(ctx, acc)
+	creds, err := s.credentials(ctx, acc) // refuses needs_reconnect before it takes a watch slot
 	if err != nil {
 		return false, err
 	}
+	s.gov.beginWatch(accountID)
+	defer s.gov.endWatch(accountID)
 	sess, err := imapclient.OpenSessionIdle(creds.IMAP)
 	if err != nil {
 		if s.handleAuthError(ctx, acc, creds.Version, err) {

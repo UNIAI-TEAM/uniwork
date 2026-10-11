@@ -414,7 +414,8 @@ func (s *EmailHubService) sendOutboundMail(
 		BodyText: body, BodyHTML: bodyHTML, Attachments: attachments, InReplyTo: inReplyTo, References: references,
 	})
 	if err != nil {
-		s.log.Warn("email hub send failed", "account_id", acc.ID, "err", err)
+		code, _ := classifyEmailHubConnectError(err) // the raw reply carries hosts and addresses
+		s.log.Warn("email hub send failed", "account_id", acc.ID, "code", code)
 		// Classified before wrapping: the handler maps these sentinels, not ErrEmailHubSendFailed.
 		switch {
 		case errors.Is(err, smtpclient.ErrSMTPAuthDisabled):

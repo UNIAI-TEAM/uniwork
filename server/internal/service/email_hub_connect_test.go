@@ -264,3 +264,19 @@ func TestEmailHubConnectClassifiesVerifyErrorsWithoutLeakingTheHost(t *testing.T
 		t.Fatalf("the log must carry the classified codes:\n%s", logs.String())
 	}
 }
+
+// Membership answers first (spec §5.2): a non-member never learns whether
+// the feature is configured.
+func TestEmailHubConnectChecksMembershipBeforeConfiguration(t *testing.T) {
+	svc, _, user, ws, _ := emailHubFixture(t)
+	svc.box = nil
+	in := ConnectEmailHubInput{EmailAddress: "probe@gmail.com", AppPassword: "app-password-1"}
+
+	_, err := svc.Connect(context.Background(), Human(util.NewID()), ws.ID, in)
+	if !errors.Is(err, ErrForbidden) && !errors.Is(err, ErrNotFound) {
+		t.Fatalf("non-member: err = %v, want the membership answer", err)
+	}
+	if _, err := svc.Connect(context.Background(), Human(user.ID), ws.ID, in); !errors.Is(err, ErrEmailHubNotConfigured) {
+		t.Fatalf("member: err = %v, want ErrEmailHubNotConfigured", err)
+	}
+}

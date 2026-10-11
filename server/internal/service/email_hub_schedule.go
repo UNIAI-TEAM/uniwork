@@ -157,6 +157,10 @@ func (s *EmailHubService) deliverScheduledSend(ctx context.Context, row db.Email
 		markFailed("mailbox disconnected")
 		return
 	}
+	if acc.AuthFailedAt.Valid { // before the reply's parent lookup, which may 404 (spec §3)
+		markFailed("auth_required")
+		return
+	}
 	sendErr := s.deliverScheduledSendOutbound(ctx, acc, row.OrganizationID, SendEmailHubInput{
 		AccountID: row.AccountID, To: payload.To, Cc: payload.Cc, Bcc: payload.Bcc, Subject: payload.Subject,
 		BodyText: payload.BodyText, BodyHTML: payload.BodyHTML, Attachments: attachments,

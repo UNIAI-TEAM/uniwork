@@ -35,12 +35,12 @@ type ConnectEmailHubInput struct {
 // one transaction for the row and its audit. An address that needs a
 // reconnect keeps its id and its cached mail.
 func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID string, in ConnectEmailHubInput) (EmailHubAccountView, error) {
-	if !s.Enabled() {
-		return EmailHubAccountView{}, ErrEmailHubNotConfigured
-	}
 	ws, err := s.workspace(ctx, actor, workspaceID)
 	if err != nil {
 		return EmailHubAccountView{}, err
+	}
+	if !s.Enabled() {
+		return EmailHubAccountView{}, ErrEmailHubNotConfigured
 	}
 	email := strings.ToLower(strings.TrimSpace(in.EmailAddress))
 	password := strings.TrimSpace(in.AppPassword)
@@ -106,11 +106,12 @@ func (s *EmailHubService) verifyEmailHubLogin(ctx context.Context, imap imapclie
 }
 
 // saveEmailHubConnection writes verified credentials and the connected audit
-// row in one transaction. It re-reads the address inside it, because a racing
+// row in one transaction. It re-reads the address FOR UPDATE, because a racing
 // request may have connected or disconnected the mailbox since the pre-dial
-// check. The UPDATE takes the row lock itself (so markAuthFailed with the old
-// credential_version then matches nothing), and a disconnect that committed
-// first shows on the row it returns.
+// check: a live row found there stays locked until commit, so it is updated in
+// place (keeping its id; the credential_version bump makes a markAuthFailed
+// with the old version match nothing); no live row means a fresh insert, and a
+// concurrent insert of the same address loses on the unique index.
 func (s *EmailHubService) saveEmailHubConnection(
 	ctx context.Context, actor Actor, byAddress db.GetActiveEmailHubAccountByAddressParams,
 	prov emailhub.Provider, passwordEnc string,
@@ -137,9 +138,6 @@ func (s *EmailHubService) saveEmailHubConnection(
 			SmtpHost: prov.SMTPHost, SmtpPort: int32(prov.SMTPPort), SmtpSecurity: "starttls",
 			Username: "", AuthKind: "password", PasswordEnc: passwordEnc,
 		})
-		if errors.Is(err, pgx.ErrNoRows) || (err == nil && row.DisconnectedAt.Valid) {
-			return db.EmailHubAccount{}, ErrConflict // disconnected between the read and the write
-		}
 	default:
 		row, err = qtx.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
 			ID: util.NewID(), UserID: byAddress.UserID, OrganizationID: byAddress.OrganizationID,
