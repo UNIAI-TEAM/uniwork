@@ -90,14 +90,19 @@ export function EmailHubAccountMenu({
             compact ? "justify-center px-1.5" : "w-full",
             className,
           )}
-          aria-label={t(active?.needs_reconnect ? "email_hub.account_menu_needs_reconnect" : "email_hub.account_menu", {
-            email: active?.email_address ?? "",
-          })}
+          // The dot stands for any broken mailbox, not only the one in use: the label says which, or how many.
+          aria-label={
+            broken.length === 0
+              ? t("email_hub.account_menu", { email: active?.email_address ?? "" })
+              : broken.length === 1 && active?.needs_reconnect
+                ? t("email_hub.account_menu_needs_reconnect", { email: active.email_address })
+                : t("email_hub.account_menu_broken", { email: active?.email_address ?? "", count: broken.length })
+          }
         >
           {active ? (
             <span className="relative inline-flex shrink-0">
               <EmailSenderAvatar fromAddr={active.email_address} className="size-7 text-caption" />
-              {active.needs_reconnect ? (
+              {broken.length > 0 ? (
                 <span
                   aria-hidden
                   className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-warning-solid ring-2 ring-background"

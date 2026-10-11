@@ -79,7 +79,7 @@ describe("EmailHubAccountMenu", () => {
         onReconnect={onReconnect}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /Hộp thư: ha.do@unicomhub.com/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Hộp thư: ha.do@unicomhub.com — cần kết nối lại" }));
     expect(await screen.findByText("Cần kết nối lại")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: /Kết nối lại ha.do@unicomhub.com/ }));
     expect(onReconnect).toHaveBeenCalledWith("acc1");
@@ -107,14 +107,30 @@ describe("EmailHubAccountMenu on mailboxes that need reconnecting", () => {
       />,
     );
 
-  it("marks the trigger when the mailbox in use needs reconnecting, in words too", () => {
+  it("marks the trigger when the mailbox in use needs reconnecting, counting it with the others", () => {
     const { container } = renderMenu("acc2");
-    expect(screen.getByRole("button", { name: "Hộp thư: binh@outlook.com — cần kết nối lại" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hộp thư: binh@outlook.com — 2 hộp thư cần kết nối lại" })).toBeInTheDocument();
     expect(container.querySelector(".bg-warning-solid")).not.toBeNull();
   });
 
-  it("keeps the trigger plain when the mailbox in use is fine", () => {
+  it("marks the trigger when another mailbox needs reconnecting, and says how many", () => {
     const { container } = renderMenu("acc1");
+    expect(screen.getByRole("button", { name: "Hộp thư: an@gmail.com — 2 hộp thư cần kết nối lại" })).toBeInTheDocument();
+    expect(container.querySelector(".bg-warning-solid")).not.toBeNull();
+  });
+
+  it("keeps the trigger plain when every mailbox is fine", () => {
+    const { container } = render(
+      <EmailHubAccountMenu
+        accounts={[accounts[0]!, accounts[3]!]}
+        activeAccountId="acc1"
+        disconnectPending={false}
+        onSelectAccount={() => {}}
+        onDisconnect={() => {}}
+        onAddAccount={() => {}}
+        onReconnect={() => {}}
+      />,
+    );
     expect(screen.getByRole("button", { name: "Hộp thư: an@gmail.com" })).toBeInTheDocument();
     expect(container.querySelector(".bg-warning-solid")).toBeNull();
   });
@@ -291,6 +307,10 @@ describe("EmailHubReconnectBanner", () => {
     // A standing state, not an event: a remount must not announce it again.
     expect(banner).not.toHaveAttribute("role");
     expect(banner.className).toContain("bg-warning-soft");
+    // Wraps across the full width on a phone: text-balance would break it early and leave a ragged right edge.
+    const body = within(banner).getByText(/Thư đã đồng bộ vẫn đọc được/);
+    expect(body).toHaveClass("text-pretty");
+    expect(body).not.toHaveClass("text-balance");
     fireEvent.click(within(banner).getByRole("button", { name: "Kết nối lại" }));
     expect(onReconnect).toHaveBeenCalled();
   });

@@ -1417,6 +1417,8 @@
     "folder_menu": "Thư mục: {{folder}}",
     "account_menu": "Hộp thư: {{email}}",
     "account_menu_needs_reconnect": "Hộp thư: {{email}} — cần kết nối lại",
+    "account_menu_broken_one": "Hộp thư: {{email}} — {{count}} hộp thư cần kết nối lại",
+    "account_menu_broken_other": "Hộp thư: {{email}} — {{count}} hộp thư cần kết nối lại",
     "disconnect_named": "Ngắt kết nối {{email}}",
     "disconnect_confirm_title": "Ngắt kết nối {{email}}?",
     "disconnect_confirm_body": "Email của hộp thư này sẽ không còn hiện trong UniWork. Thư trên máy chủ thư vẫn giữ nguyên; muốn dùng lại phải đăng nhập hoặc nhập lại mật khẩu.",

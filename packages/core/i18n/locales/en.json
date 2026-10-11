@@ -1418,6 +1418,8 @@
     "folder_menu": "Folder: {{folder}}",
     "account_menu": "Mailbox: {{email}}",
     "account_menu_needs_reconnect": "Mailbox: {{email}} — needs reconnecting",
+    "account_menu_broken_one": "Mailbox: {{email}} — {{count}} mailbox needs reconnecting",
+    "account_menu_broken_other": "Mailbox: {{email}} — {{count}} mailboxes need reconnecting",
     "disconnect_named": "Disconnect {{email}}",
     "disconnect_confirm_title": "Disconnect {{email}}?",
     "disconnect_confirm_body": "Mail from this mailbox stops showing in UniWork. Nothing is deleted on the mail server; reconnecting means signing in or entering the password again.",
