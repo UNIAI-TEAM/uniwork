@@ -61,8 +61,7 @@ async function isolateRuleSetFailures(
  *  to whole entries (a single long entry keeps its latest positions) so it
  *  fits the job error channel (toXlsxFailure keeps 300 characters); sets left
  *  out are named by the next save, so a client that drops the named ops
- *  always converges. The client half is
- *  packages/views/office/xlsx/conditional-format/rule-set-drops.ts. */
+ *  always converges. */
 export const XLSX_RULE_SETS_DROPPED_PREFIX = "xlsx_rule_sets_dropped:";
 const MAX_REASON = 300;
 

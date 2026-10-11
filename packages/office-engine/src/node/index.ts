@@ -1,6 +1,6 @@
 // @uniwork/office-engine/node — the Node-side transport and hashing. This
-// entry may use node: builtins; nothing under src/browser/ or src/index.ts
-// may reach it (enforced by lint and by scripts/office/check-boundaries.mjs).
+// entry may use node: builtins; src/index.ts and src/shared/ may not reach it
+// (enforced by lint).
 //
 // G2-02 owns the real engine service client. This entry provides the pieces
 // that are already contract-bound: a synchronous SHA-256 for envelope

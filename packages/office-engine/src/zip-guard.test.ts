@@ -1,6 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { DocxAdapter } from "./docx/adapter";
-import { PptxAdapter } from "./pptx/adapter";
 import { writeZip } from "./node/convert/zip.ts";
 import { scanZipBomb } from "./shared/zip-central.ts";
 import { XlsxAdapter } from "./xlsx/adapter.ts";
@@ -79,8 +77,6 @@ function parser() {
 }
 
 describe.each([
-  ["docx", (guard: boolean, spy: unknown) => new DocxAdapter({ engine: { parseDocx: spy } as never, ...(guard ? { zipGuard: "proportional" as const } : {}) })],
-  ["pptx", (guard: boolean, spy: unknown) => new PptxAdapter({ engine: { openPptx: spy } as never, ops: {} as never, ...(guard ? { zipGuard: "proportional" as const } : {}) })],
   ["xlsx", (guard: boolean, spy: unknown) => new XlsxAdapter({ engine: { inventory: spy, readWorkbook: spy } as never, ...(guard ? { zipGuard: "proportional" as const } : {}) })],
 ] as const)("%s adapter zip guard", (format, make) => {
   it.each(Object.entries(bombs))("refuses %s before the parser runs when the host asks for the guard", async (_name, bytes) => {

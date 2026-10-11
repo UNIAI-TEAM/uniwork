@@ -18,7 +18,7 @@
 // UNI-1013), or a version directory; see locateModuleBundle.
 //
 // The bundles themselves are NOT checked in (17 MiB each, regenerated per fork
-// build; the repo's own precedent is the git-ignored pdfium wasm). What is
+// build). What is
 // checked in is platform/office-frame/<module>.pin.json: version, fork gitSha,
 // the sha256 of the build's manifest.json (which digests every file), the
 // response headers and the policies of the documents that have their own (the

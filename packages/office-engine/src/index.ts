@@ -1,6 +1,6 @@
 // @uniwork/office-engine — facade. Environment-neutral like the contracts
-// package: every runtime-specific transport lives in ./browser, ./node or
-// ./desktop, and none of that code may be reached from this entry.
+// package: the runtime-specific transport lives in ./node, and none of that
+// code may be reached from this entry.
 
 import {
   ENGINE_CONTRACT_VERSION,
