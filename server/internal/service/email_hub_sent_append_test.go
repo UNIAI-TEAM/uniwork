@@ -250,3 +250,23 @@ func TestEmailHubSendAppendWaitEndsWithContext(t *testing.T) {
 		t.Fatal("the abandoned waiter kept the IMAP lock")
 	}
 }
+
+// The APPEND runs under its own deadline, so a scheduled send (worker context,
+// no deadline) cannot wait on the account's IMAP lock without bound.
+func TestEmailHubSentAppendIsBounded(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	acc := seedSentAppendAccount(t, svc, q, user.ID, ws.OrganizationID, "mail.acme.example")
+	stubSentAppend(svc, 0, nil)
+	var deadline time.Time
+	var ok bool
+	svc.testHookAppendSent = func(ctx context.Context, _ db.EmailHubAccount, _ []byte) (uint32, error) {
+		deadline, ok = ctx.Deadline()
+		return 0, nil
+	}
+	if _, err := svc.Send(context.Background(), Human(user.ID), ws.ID, sentCopyMail(acc.ID)); err != nil {
+		t.Fatal(err)
+	}
+	if !ok || time.Until(deadline) > emailHubAppendTimeout {
+		t.Fatalf("append context deadline = %v (set %v)", deadline, ok)
+	}
+}

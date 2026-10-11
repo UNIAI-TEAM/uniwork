@@ -196,6 +196,19 @@ describe("ConnectAccountDialog", () => {
     });
   });
 
+  it("keeps the reconnect submit disabled when the account list fails to load", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === ACCOUNTS_PATH ? Promise.reject(new ApiError("boom", "internal", 500)) : Promise.resolve({}),
+    );
+    render(wrap(<ConnectAccountDialog wsId="ws1" open reconnectEmail="lan@unicomhub.vn" onOpenChange={() => {}} />));
+
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === ACCOUNTS_PATH)).toBe(true));
+    await act(async () => {}); // let the rejected list settle into the error state
+    fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh ijkl mnop" } });
+    expect(screen.getByRole("button", { name: "Kết nối lại" })).toBeDisabled();
+    expect(requestMock).not.toHaveBeenCalledWith(ACCOUNTS_PATH, expect.objectContaining({ method: "POST" }));
+  });
+
   it("keeps the reconnect title and fixed address while the dialog closes", () => {
     // jsdom has no animations; an exit animation that never ends keeps the popup on screen, as a browser does mid-fade.
     Object.defineProperty(Element.prototype, "getAnimations", {

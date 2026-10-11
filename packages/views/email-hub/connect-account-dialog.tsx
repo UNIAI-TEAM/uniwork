@@ -47,8 +47,8 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   // A reconnect skips the step: a custom-server mailbox reopens its settings; any other (or one not loaded yet) asks for the app password.
   const form: Method =
     reconnectEmail === undefined ? method : reconnectAccount?.provider === "custom" ? "custom" : "app_password";
-  // Until the list loads, a custom mailbox could be showing the wrong form: hold its submit.
-  const reconnectLoading = reconnectEmail !== undefined && accounts.isPending;
+  // Until the account is known (list loading, failed or without it), a custom mailbox could be showing the wrong form: hold the submit.
+  const reconnectLoading = reconnectEmail !== undefined && !reconnectAccount;
   const [email, setEmail] = useState("");
   const address = reconnectEmail ?? email;
   const [password, setPassword] = useState("");

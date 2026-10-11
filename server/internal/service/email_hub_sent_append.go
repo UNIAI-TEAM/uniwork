@@ -9,12 +9,18 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+// emailHubAppendTimeout bounds one APPEND attempt, lock wait included: a scheduled
+// send runs on the worker context, which has no deadline of its own.
+const emailHubAppendTimeout = 2 * time.Minute
+
 // appendSentCopy files the MIME just sent over SMTP in the server's Sent
 // mailbox, for hosts that do not file it themselves (spec §4.5). It returns the
 // APPENDUID when the server gives one that fits imap_uid (INTEGER), otherwise 0
 // and the caller keeps its placeholder UID. A failure is only logged, by code:
 // the recipient already has the mail, so the send never fails and is not retried.
 func (s *EmailHubService) appendSentCopy(ctx context.Context, acc db.EmailHubAccount, raw []byte, at time.Time) uint32 {
+	ctx, cancel := context.WithTimeout(ctx, emailHubAppendTimeout)
+	defer cancel()
 	var uid uint32
 	var err error
 	if s.testHookAppendSent != nil {

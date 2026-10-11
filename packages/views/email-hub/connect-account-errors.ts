@@ -15,7 +15,6 @@ export type ConnectErrorField =
 
 // error.fields.field carries the SDI name (spec §5.2). A Map, so a name like "constructor" cannot hit a prototype key.
 const SERVER_FIELDS = new Map<unknown, ConnectErrorField>([
-  ["email_address", "email"],
   ["username", "username"],
   ["imap_host", "imap_host"],
   ["imap_port", "imap_port"],
