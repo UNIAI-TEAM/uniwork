@@ -47,7 +47,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { CalendarProviderIcon } from "./calendar-provider-icons";
+import { ProviderIcon } from "../common/provider-icons";
 import { useOAuthPopup } from "../integrations/use-oauth-popup";
 
 const PROVIDERS: CalendarProvider[] = ["google", "outlook"];
@@ -201,7 +201,7 @@ export function CalendarConnectionsDialog({ workspaceId }: { workspaceId: string
                       className="gap-3 px-2 py-2"
                       onClick={() => connect(provider)}
                     >
-                      <CalendarProviderIcon provider={provider} className="size-6" />
+                      <ProviderIcon provider={provider} className="size-6" />
                       <span translate="no" className="font-medium">
                         {providerName(t, provider)}
                       </span>
@@ -278,7 +278,7 @@ function ConnectedProviderRow({
   return (
     <section className="py-3">
       <div className="flex min-w-0 items-center gap-3">
-        <CalendarProviderIcon provider={provider} className="size-8 shrink-0" />
+        <ProviderIcon provider={provider} className="size-8 shrink-0" />
         <div className="min-w-0 flex-1">
           <p translate="no" className="truncate text-body font-medium text-foreground">
             {providerName(t, provider)}

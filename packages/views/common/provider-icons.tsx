@@ -1,12 +1,11 @@
-import type { CalendarProvider } from "@uniwork/core/api/endpoints/calendar";
-
 type ProviderIconProps = {
-  provider: CalendarProvider;
+  /** Calendar names Microsoft "outlook", the email sign-in "microsoft": both draw the Outlook mark. */
+  provider: "google" | "outlook" | "microsoft";
   className?: string;
 };
 
 /** Product marks stay inline so every host renders the same trusted artwork. */
-export function CalendarProviderIcon({ provider, className }: ProviderIconProps) {
+export function ProviderIcon({ provider, className }: ProviderIconProps) {
   return provider === "google" ? (
     <GoogleCalendarMark className={className} />
   ) : (

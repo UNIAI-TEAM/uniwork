@@ -3,7 +3,7 @@
 import { useTranslation } from "react-i18next";
 import type { EmailHubOAuthProvider, EmailHubProviders } from "@uniwork/core/types/email-hub";
 import { cn } from "@uniwork/ui/lib/utils";
-import { pickerCardClass } from "../onboarding/components/option-card";
+import { pickerCardClass } from "../common/picker-card";
 
 const OAUTH_PROVIDERS = ["google", "microsoft"] as const satisfies readonly EmailHubOAuthProvider[];
 const cardClass = cn(pickerCardClass(false), "grid gap-0.5 px-4 py-3 disabled:pointer-events-none disabled:opacity-50");
