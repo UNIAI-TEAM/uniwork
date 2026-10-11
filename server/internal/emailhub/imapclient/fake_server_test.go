@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"math/big"
@@ -69,10 +70,15 @@ type fakeIMAP struct {
 	caps     string
 	starttls bool
 	reply    func(w *bufio.Writer, tag, cmd string) bool
+	// authNo is the tagged answer to an XOAUTH2 token other than "good";
+	// empty means Gmail's NO [AUTHENTICATIONFAILED].
+	authNo string
 
-	mu       sync.Mutex
-	cmds     []string
-	literals []string
+	mu               sync.Mutex
+	cmds             []string
+	literals         []string
+	authUsers        []string // XOAUTH2 user= values, decoded
+	challengeReplies []string // what the client answered the error challenge with
 }
 
 func (f *fakeIMAP) start(t *testing.T) Credentials {
@@ -178,6 +184,10 @@ func (f *fakeIMAP) serve(conn net.Conn) {
 			fmt.Fprintf(w, "* BYE bye\r\n%s OK done\r\n", tag)
 			_ = w.Flush()
 			return
+		case "AUTHENTICATE":
+			if !f.authenticate(r, w, tag, cmd) {
+				return
+			}
 		case "APPEND":
 			if strings.Contains(f.caps, "UIDPLUS") {
 				fmt.Fprintf(w, "%s OK [APPENDUID 7 42] APPEND completed\r\n", tag)
@@ -189,6 +199,73 @@ func (f *fakeIMAP) serve(conn net.Conn) {
 		}
 		_ = w.Flush()
 	}
+}
+
+// authenticate answers AUTHENTICATE XOAUTH2 like Gmail: the initial response
+// inline (SASL-IR) or after an empty "+", OK for the token "good", otherwise a
+// base64 JSON error challenge, the client's reply, then a tagged NO.
+func (f *fakeIMAP) authenticate(r *bufio.Reader, w *bufio.Writer, tag, cmd string) bool {
+	fields := strings.Fields(cmd)
+	if len(fields) < 2 || !strings.EqualFold(fields[1], "XOAUTH2") {
+		fmt.Fprintf(w, "%s NO unsupported mechanism\r\n", tag)
+		return true
+	}
+	ir := ""
+	if len(fields) > 2 {
+		ir = fields[2]
+	} else {
+		fmt.Fprint(w, "+ \r\n")
+		_ = w.Flush()
+		line, err := r.ReadString('\n')
+		if err != nil {
+			return false
+		}
+		ir = strings.TrimRight(line, "\r\n")
+	}
+	raw, _ := base64.StdEncoding.DecodeString(ir)
+	user, token := xoauth2Fields(string(raw))
+	f.mu.Lock()
+	f.authUsers = append(f.authUsers, user)
+	f.mu.Unlock()
+	if token == "good" {
+		fmt.Fprintf(w, "%s OK authenticated\r\n", tag)
+		return true
+	}
+	fmt.Fprintf(w, "+ %s\r\n", base64.StdEncoding.EncodeToString([]byte(`{"status":"400","schemes":"Bearer","scope":"https://mail.google.com/"}`)))
+	_ = w.Flush()
+	line, err := r.ReadString('\n')
+	if err != nil {
+		return false
+	}
+	f.mu.Lock()
+	f.challengeReplies = append(f.challengeReplies, strings.TrimRight(line, "\r\n"))
+	f.mu.Unlock()
+	no := f.authNo
+	if no == "" {
+		no = "NO [AUTHENTICATIONFAILED] Invalid credentials (Failure)"
+	}
+	fmt.Fprintf(w, "%s %s\r\n", tag, no)
+	return true
+}
+
+// xoauth2Fields reads user and token from "user=U\x01auth=Bearer T\x01\x01".
+func xoauth2Fields(s string) (user, token string) {
+	for _, kv := range strings.Split(s, "\x01") {
+		if v, ok := strings.CutPrefix(kv, "user="); ok {
+			user = v
+		}
+		if v, ok := strings.CutPrefix(kv, "auth=Bearer "); ok {
+			token = v
+		}
+	}
+	return user, token
+}
+
+// xoauth2Seen returns the XOAUTH2 users and challenge replies, in order.
+func (f *fakeIMAP) xoauth2Seen() (users, replies []string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.authUsers...), append([]string(nil), f.challengeReplies...)
 }
 
 func (f *fakeIMAP) record(cmd string) {

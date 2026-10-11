@@ -255,3 +255,44 @@ func TestParseHelpersFallback(t *testing.T) {
 		t.Fatal("parseInt32 ok")
 	}
 }
+
+// Email Hub's callback sits beside the calendar's, one path per provider; a
+// trailing slash on API_PUBLIC_URL must not double up (providers match byte for byte).
+func TestEmailHubRedirectURL(t *testing.T) {
+	t.Parallel()
+	c := Config{APIPublicURL: "https://api.example.com/"}
+	for provider, want := range map[string]string{
+		"google":    "https://api.example.com/api/v1/email-hub-connections/google/callback",
+		"microsoft": "https://api.example.com/api/v1/email-hub-connections/microsoft/callback",
+	} {
+		if got := c.EmailHubRedirectURL(provider); got != want {
+			t.Errorf("EmailHubRedirectURL(%q) = %q, want %q", provider, got, want)
+		}
+	}
+}
+
+// Load reads Email Hub's own OAuth clients (spec Q3) and sends Microsoft
+// sign-in to the common directory unless a tenant is named.
+func TestLoadEmailHubOAuthClients(t *testing.T) {
+	setRequired(t)
+	t.Setenv("EMAIL_HUB_GOOGLE_CLIENT_ID", "hub-google-id")
+	t.Setenv("EMAIL_HUB_GOOGLE_CLIENT_SECRET", "hub-google-secret")
+	t.Setenv("EMAIL_HUB_MICROSOFT_CLIENT_ID", "hub-ms-id")
+	t.Setenv("EMAIL_HUB_MICROSOFT_CLIENT_SECRET", "hub-ms-secret")
+	t.Setenv("EMAIL_HUB_MICROSOFT_TENANT", "")
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.EmailHubGoogleClientID != "hub-google-id" || c.EmailHubGoogleClientSecret != "hub-google-secret" ||
+		c.EmailHubMicrosoftClientID != "hub-ms-id" || c.EmailHubMicrosoftClientSecret != "hub-ms-secret" {
+		t.Fatalf("email hub clients: %+v", c)
+	}
+	if c.EmailHubMicrosoftTenant != "common" {
+		t.Fatalf("EmailHubMicrosoftTenant = %q, want common", c.EmailHubMicrosoftTenant)
+	}
+	t.Setenv("EMAIL_HUB_MICROSOFT_TENANT", "contoso.onmicrosoft.com")
+	if c, _ = Load(); c.EmailHubMicrosoftTenant != "contoso.onmicrosoft.com" {
+		t.Fatalf("EmailHubMicrosoftTenant = %q, want the named tenant", c.EmailHubMicrosoftTenant)
+	}
+}

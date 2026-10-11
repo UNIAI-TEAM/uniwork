@@ -2,6 +2,8 @@ import { z } from "zod";
 import {
   EmailHubAccountListSchema,
   EmailHubAccountSchema,
+  EmailHubOAuthStartSchema,
+  EmailHubProvidersSchema,
   EmailHubSyncSchema,
   EmailHubSidebarCountsSchema,
   EmailHubUnreadSchema,
@@ -14,6 +16,8 @@ import {
   EmailHubWatchSchema,
   type EmailHubAccount,
   type EmailHubCustomServer,
+  type EmailHubOAuthProvider,
+  type EmailHubProviders,
   type EmailHubThreadSummary,
   type EmailHubInboxWatch,
   type EmailHubSync,
@@ -34,6 +38,7 @@ const EMPTY_INBOX_WATCH: EmailHubInboxWatch = { subscribed: false };
 const EMPTY_SYNC: EmailHubSync = { synced: false };
 const EMPTY_UNREAD = { unread: 0 };
 const EMPTY_SIDEBAR_COUNTS = { inbox_unread: 0, snoozed_total: 0 };
+const EMPTY_PROVIDERS: EmailHubProviders = { google: false, microsoft: false };
 
 export async function getEmailHubUnreadCount(workspaceId: string) {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/unread-count`);
@@ -77,6 +82,30 @@ export async function disconnectEmailHubAccount(workspaceId: string, accountId: 
   await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/accounts/${enc(accountId)}`, {
     method: "DELETE",
   });
+}
+
+export async function getEmailHubProviders(workspaceId: string): Promise<EmailHubProviders> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/providers`);
+  return parseWithFallback(raw, EmailHubProvidersSchema, EMPTY_PROVIDERS, {
+    endpoint: "GET /api/v1/workspaces/{ws}/email-hub/providers",
+  });
+}
+
+/** The provider's sign-in URL for the popup, or null when the answer carries none. */
+export async function startEmailHubOAuth(
+  workspaceId: string,
+  provider: EmailHubOAuthProvider,
+  loginHint?: string,
+): Promise<string | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/oauth/${enc(provider)}/start`, {
+    method: "POST",
+    // Always a JSON object: the handler's decode answers 400 to an empty body.
+    body: loginHint ? { login_hint: loginHint } : {},
+  });
+  const parsed = parseWithFallback<{ authorization_url: string } | null>(raw, EmailHubOAuthStartSchema, null, {
+    endpoint: "POST /api/v1/workspaces/{ws}/email-hub/oauth/{provider}/start",
+  });
+  return parsed?.authorization_url || null;
 }
 
 export async function listEmailHubThreads(

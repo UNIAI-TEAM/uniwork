@@ -37,3 +37,20 @@ func TestServerSavesSent(t *testing.T) {
 		}
 	}
 }
+
+// OAuth names a provider, not a domain: a Workspace or Microsoft 365 mailbox on
+// its own domain still uses the gmail/outlook servers (spec §4.4).
+func TestPresetByName(t *testing.T) {
+	t.Parallel()
+	for name, host := range map[string]string{"gmail": "imap.gmail.com", "outlook": "outlook.office365.com"} {
+		p, ok := Preset(name)
+		if !ok || p.Name != name || p.IMAPHost != host || p.IMAPPort != 993 || p.SMTPPort != 587 {
+			t.Errorf("Preset(%q) = %+v ok=%v", name, p, ok)
+		}
+	}
+	for _, name := range []string{"yahoo", "custom", "", "GMAIL"} {
+		if p, ok := Preset(name); ok {
+			t.Errorf("Preset(%q) = %+v, want none: only the OAuth providers have a preset by name", name, p)
+		}
+	}
+}

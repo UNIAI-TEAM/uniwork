@@ -31,6 +31,7 @@ describe("IntegrationsTab", () => {
     renderTab([]);
     const available = screen.getByRole("list", { name: "Dùng được" });
     expect(within(available).getByText("Email Hub")).toBeInTheDocument();
+    expect(within(available).getByText(/^Đăng nhập bằng Google hoặc Microsoft/)).toBeInTheDocument();
     expect(await within(available).findByText("Bạn chưa kết nối")).toBeInTheDocument();
     expect(within(available).getByRole("link", { name: "Kết nối hộp thư" })).toHaveAttribute("href", "/acme/team/email");
   });
@@ -55,9 +56,10 @@ describe("IntegrationsTab", () => {
   it("shows only documented plans, locked, and prints the description once", () => {
     renderTab([]);
     const planned = screen.getByRole("list", { name: "Trong lộ trình" });
-    expect(within(planned).getAllByText("Sắp có")).toHaveLength(2);
-    expect(within(planned).getByText("Gmail và Microsoft 365")).toBeInTheDocument();
+    expect(within(planned).getAllByText("Sắp có")).toHaveLength(1);
     expect(within(planned).getByText("Webhook")).toBeInTheDocument();
+    // Google and Microsoft sign-in shipped inside Email Hub (GĐ3); it is no longer a plan.
+    expect(within(planned).queryByText("Gmail và Microsoft 365")).toBeNull();
     expect(within(planned).queryByRole("link")).toBeNull();
     expect(within(planned).queryByRole("button")).toBeNull();
     expect(screen.queryByText(/Slack/i)).toBeNull();

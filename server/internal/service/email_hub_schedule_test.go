@@ -384,7 +384,7 @@ func TestEmailHubScheduledSendOnceAcrossTwoWorkers(t *testing.T) {
 		return nil
 	}
 	worker := func(owner string) {
-		w := *svc
+		w := NewEmailHubService(svc.q, svc.ws, svc.box) // not *svc: that would copy refreshLocks
 		w.scheduleWorkerOwnerFn = func() string { return owner }
 		w.testHookScheduledSend = hook
 		for {
@@ -712,6 +712,6 @@ func TestEmailHubCleanupAfterCommitSurvivesACancelledRequest(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	cleanUpEmailHubAccountsAfterCommit(ctx, l.q, rows)
+	cleanUpEmailHubAccountsAfterCommit(ctx, l.q, nil, rows)
 	l.assertRevoked(t)
 }

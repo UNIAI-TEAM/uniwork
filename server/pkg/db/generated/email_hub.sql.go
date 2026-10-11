@@ -287,6 +287,32 @@ func (q *Queries) CountEmailHubInboxConversations(ctx context.Context, arg Count
 	return i, err
 }
 
+const countEmailHubOAuthGrantHolders = `-- name: CountEmailHubOAuthGrantHolders :one
+SELECT count(*)::bigint
+FROM email_hub_accounts
+WHERE auth_kind = $1
+  AND lower(email_address) = lower($2::text)
+  AND disconnected_at IS NULL
+  AND oauth_refresh_token_enc <> ''
+`
+
+type CountEmailHubOAuthGrantHoldersParams struct {
+	AuthKind string `json:"auth_kind"`
+	Email    string `json:"email"`
+}
+
+// tenant: system
+// A Google grant belongs to the Google account and Email Hub's client, and
+// revoking any of its tokens ends it. Before a revoke, count the live rows of
+// any organization or user that still hold a refresh token on it. Only the
+// count leaves this query.
+func (q *Queries) CountEmailHubOAuthGrantHolders(ctx context.Context, arg CountEmailHubOAuthGrantHoldersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEmailHubOAuthGrantHolders, arg.AuthKind, arg.Email)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countEmailHubStarredThreads = `-- name: CountEmailHubStarredThreads :one
 SELECT
   count(*)::bigint AS total,
@@ -447,30 +473,35 @@ const createEmailHubAccount = `-- name: CreateEmailHubAccount :one
 INSERT INTO email_hub_accounts (
   id, user_id, organization_id, email_address, provider,
   imap_host, imap_port, smtp_host, smtp_port, password_enc,
-  imap_security, smtp_security, username, auth_kind
+  imap_security, smtp_security, username, auth_kind,
+  oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 )
 RETURNING id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
 `
 
 type CreateEmailHubAccountParams struct {
-	ID             string `json:"id"`
-	UserID         string `json:"user_id"`
-	OrganizationID string `json:"organization_id"`
-	EmailAddress   string `json:"email_address"`
-	Provider       string `json:"provider"`
-	ImapHost       string `json:"imap_host"`
-	ImapPort       int32  `json:"imap_port"`
-	SmtpHost       string `json:"smtp_host"`
-	SmtpPort       int32  `json:"smtp_port"`
-	PasswordEnc    string `json:"password_enc"`
-	ImapSecurity   string `json:"imap_security"`
-	SmtpSecurity   string `json:"smtp_security"`
-	Username       string `json:"username"`
-	AuthKind       string `json:"auth_kind"`
+	ID                   string             `json:"id"`
+	UserID               string             `json:"user_id"`
+	OrganizationID       string             `json:"organization_id"`
+	EmailAddress         string             `json:"email_address"`
+	Provider             string             `json:"provider"`
+	ImapHost             string             `json:"imap_host"`
+	ImapPort             int32              `json:"imap_port"`
+	SmtpHost             string             `json:"smtp_host"`
+	SmtpPort             int32              `json:"smtp_port"`
+	PasswordEnc          string             `json:"password_enc"`
+	ImapSecurity         string             `json:"imap_security"`
+	SmtpSecurity         string             `json:"smtp_security"`
+	Username             string             `json:"username"`
+	AuthKind             string             `json:"auth_kind"`
+	OauthRefreshTokenEnc string             `json:"oauth_refresh_token_enc"`
+	OauthAccessTokenEnc  string             `json:"oauth_access_token_enc"`
+	OauthAccessExpiresAt pgtype.Timestamptz `json:"oauth_access_expires_at"`
 }
 
+// A password row passes ” and NULL for the oauth_* columns.
 func (q *Queries) CreateEmailHubAccount(ctx context.Context, arg CreateEmailHubAccountParams) (EmailHubAccount, error) {
 	row := q.db.QueryRow(ctx, createEmailHubAccount,
 		arg.ID,
@@ -487,6 +518,9 @@ func (q *Queries) CreateEmailHubAccount(ctx context.Context, arg CreateEmailHubA
 		arg.SmtpSecurity,
 		arg.Username,
 		arg.AuthKind,
+		arg.OauthRefreshTokenEnc,
+		arg.OauthAccessTokenEnc,
+		arg.OauthAccessExpiresAt,
 	)
 	var i EmailHubAccount
 	err := row.Scan(
@@ -783,15 +817,22 @@ func (q *Queries) DeleteEmailHubThreadsNotInUIDs(ctx context.Context, arg Delete
 	return err
 }
 
-const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :execrows
-UPDATE email_hub_accounts
+const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :one
+UPDATE email_hub_accounts a
 SET disconnected_at = now(), password_enc = '',
     oauth_refresh_token_enc = '', oauth_access_token_enc = '', oauth_access_expires_at = NULL,
-    credential_version = credential_version + 1, updated_at = now()
-WHERE id = $1
-  AND user_id = $2
-  AND organization_id = $3
-  AND disconnected_at IS NULL
+    credential_version = a.credential_version + 1, updated_at = now()
+FROM (
+  SELECT o.id, o.auth_kind, o.oauth_refresh_token_enc
+  FROM email_hub_accounts o
+  WHERE o.id = $1
+    AND o.user_id = $2
+    AND o.organization_id = $3
+    AND o.disconnected_at IS NULL
+  FOR UPDATE
+) old
+WHERE a.id = old.id
+RETURNING old.auth_kind, old.oauth_refresh_token_enc
 `
 
 type DisconnectEmailHubAccountParams struct {
@@ -800,25 +841,36 @@ type DisconnectEmailHubAccountParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
+type DisconnectEmailHubAccountRow struct {
+	AuthKind             string `json:"auth_kind"`
+	OauthRefreshTokenEnc string `json:"oauth_refresh_token_enc"`
+}
+
 // A disconnected mailbox is never used again (connecting the address again
-// creates a new row), so its credentials go with it.
-func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) (int64, error) {
-	result, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// creates a new row), so its credentials go with it. RETURNING reads old, the
+// locked row as it was: the caller revokes the refresh token this removed.
+func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) (DisconnectEmailHubAccountRow, error) {
+	row := q.db.QueryRow(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
+	var i DisconnectEmailHubAccountRow
+	err := row.Scan(&i.AuthKind, &i.OauthRefreshTokenEnc)
+	return i, err
 }
 
 const disconnectEmailHubAccountsForUser = `-- name: DisconnectEmailHubAccountsForUser :many
-UPDATE email_hub_accounts
+UPDATE email_hub_accounts a
 SET disconnected_at = now(), password_enc = '',
     oauth_refresh_token_enc = '', oauth_access_token_enc = '', oauth_access_expires_at = NULL,
-    credential_version = credential_version + 1, updated_at = now()
-WHERE user_id = $1
-  AND ($2::text IS NULL OR organization_id = $2)
-  AND disconnected_at IS NULL
-RETURNING id, organization_id
+    credential_version = a.credential_version + 1, updated_at = now()
+FROM (
+  SELECT o.id, o.organization_id, o.auth_kind, o.oauth_refresh_token_enc
+  FROM email_hub_accounts o
+  WHERE o.user_id = $1
+    AND ($2::text IS NULL OR o.organization_id = $2)
+    AND o.disconnected_at IS NULL
+  FOR UPDATE
+) old
+WHERE a.id = old.id
+RETURNING old.id, old.organization_id, old.auth_kind, old.oauth_refresh_token_enc
 `
 
 type DisconnectEmailHubAccountsForUserParams struct {
@@ -827,12 +879,15 @@ type DisconnectEmailHubAccountsForUserParams struct {
 }
 
 type DisconnectEmailHubAccountsForUserRow struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
+	ID                   string `json:"id"`
+	OrganizationID       string `json:"organization_id"`
+	AuthKind             string `json:"auth_kind"`
+	OauthRefreshTokenEnc string `json:"oauth_refresh_token_enc"`
 }
 
 // tenant: self
 // Account deletion (organization_id NULL: every organization) or leaving one.
+// RETURNING reads old: the refresh tokens this statement removed.
 func (q *Queries) DisconnectEmailHubAccountsForUser(ctx context.Context, arg DisconnectEmailHubAccountsForUserParams) ([]DisconnectEmailHubAccountsForUserRow, error) {
 	rows, err := q.db.Query(ctx, disconnectEmailHubAccountsForUser, arg.UserID, arg.OrganizationID)
 	if err != nil {
@@ -842,7 +897,12 @@ func (q *Queries) DisconnectEmailHubAccountsForUser(ctx context.Context, arg Dis
 	items := []DisconnectEmailHubAccountsForUserRow{}
 	for rows.Next() {
 		var i DisconnectEmailHubAccountsForUserRow
-		if err := rows.Scan(&i.ID, &i.OrganizationID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.AuthKind,
+			&i.OauthRefreshTokenEnc,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2469,8 +2529,8 @@ func (q *Queries) ListEmailHubThreadsSearchPage(ctx context.Context, arg ListEma
 	return items, nil
 }
 
-const markEmailHubAccountAuthFailed = `-- name: MarkEmailHubAccountAuthFailed :execrows
-UPDATE email_hub_accounts
+const markEmailHubAccountAuthFailed = `-- name: MarkEmailHubAccountAuthFailed :one
+UPDATE email_hub_accounts a
 SET auth_failed_at = now(),
     auth_failed_reason = $1,
     password_enc = '',
@@ -2478,11 +2538,18 @@ SET auth_failed_at = now(),
     oauth_access_token_enc = '',
     oauth_access_expires_at = NULL,
     updated_at = now()
-WHERE id = $2
-  AND organization_id = $3
-  AND credential_version = $4
-  AND disconnected_at IS NULL
-  AND auth_failed_at IS NULL
+FROM (
+  SELECT o.id, o.auth_kind, o.oauth_refresh_token_enc
+  FROM email_hub_accounts o
+  WHERE o.id = $2
+    AND o.organization_id = $3
+    AND o.credential_version = $4
+    AND o.disconnected_at IS NULL
+    AND o.auth_failed_at IS NULL
+  FOR UPDATE
+) old
+WHERE a.id = old.id
+RETURNING old.auth_kind, old.oauth_refresh_token_enc
 `
 
 type MarkEmailHubAccountAuthFailedParams struct {
@@ -2492,19 +2559,24 @@ type MarkEmailHubAccountAuthFailedParams struct {
 	CredentialVersion int64  `json:"credential_version"`
 }
 
+type MarkEmailHubAccountAuthFailedRow struct {
+	AuthKind             string `json:"auth_kind"`
+	OauthRefreshTokenEnc string `json:"oauth_refresh_token_enc"`
+}
+
 // Only the snapshot that failed may mark the account: a reconnect since then
-// bumped credential_version and its new credential stays.
-func (q *Queries) MarkEmailHubAccountAuthFailed(ctx context.Context, arg MarkEmailHubAccountAuthFailedParams) (int64, error) {
-	result, err := q.db.Exec(ctx, markEmailHubAccountAuthFailed,
+// bumped credential_version and its new credential stays. RETURNING reads old:
+// the refresh token this statement removed. No row comes back otherwise.
+func (q *Queries) MarkEmailHubAccountAuthFailed(ctx context.Context, arg MarkEmailHubAccountAuthFailedParams) (MarkEmailHubAccountAuthFailedRow, error) {
+	row := q.db.QueryRow(ctx, markEmailHubAccountAuthFailed,
 		arg.Reason,
 		arg.ID,
 		arg.OrganizationID,
 		arg.CredentialVersion,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	var i MarkEmailHubAccountAuthFailedRow
+	err := row.Scan(&i.AuthKind, &i.OauthRefreshTokenEnc)
+	return i, err
 }
 
 const markEmailHubScheduledSendFailed = `-- name: MarkEmailHubScheduledSendFailed :execrows
@@ -2652,9 +2724,9 @@ SET provider = $1,
     username = $8,
     auth_kind = $9,
     password_enc = $10,
-    oauth_refresh_token_enc = '',
-    oauth_access_token_enc = '',
-    oauth_access_expires_at = NULL,
+    oauth_refresh_token_enc = $11,
+    oauth_access_token_enc = $12,
+    oauth_access_expires_at = $13,
     auth_failed_at = NULL,
     auth_failed_reason = '',
     sync_state = CASE
@@ -2663,30 +2735,35 @@ SET provider = $1,
     END,
     credential_version = credential_version + 1,
     updated_at = now()
-WHERE id = $11
-  AND organization_id = $12
+WHERE id = $14
+  AND organization_id = $15
   AND disconnected_at IS NULL
 RETURNING id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
 `
 
 type UpdateEmailHubAccountCredentialsParams struct {
-	Provider       string `json:"provider"`
-	ImapHost       string `json:"imap_host"`
-	ImapPort       int32  `json:"imap_port"`
-	ImapSecurity   string `json:"imap_security"`
-	SmtpHost       string `json:"smtp_host"`
-	SmtpPort       int32  `json:"smtp_port"`
-	SmtpSecurity   string `json:"smtp_security"`
-	Username       string `json:"username"`
-	AuthKind       string `json:"auth_kind"`
-	PasswordEnc    string `json:"password_enc"`
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
+	Provider             string             `json:"provider"`
+	ImapHost             string             `json:"imap_host"`
+	ImapPort             int32              `json:"imap_port"`
+	ImapSecurity         string             `json:"imap_security"`
+	SmtpHost             string             `json:"smtp_host"`
+	SmtpPort             int32              `json:"smtp_port"`
+	SmtpSecurity         string             `json:"smtp_security"`
+	Username             string             `json:"username"`
+	AuthKind             string             `json:"auth_kind"`
+	PasswordEnc          string             `json:"password_enc"`
+	OauthRefreshTokenEnc string             `json:"oauth_refresh_token_enc"`
+	OauthAccessTokenEnc  string             `json:"oauth_access_token_enc"`
+	OauthAccessExpiresAt pgtype.Timestamptz `json:"oauth_access_expires_at"`
+	ID                   string             `json:"id"`
+	OrganizationID       string             `json:"organization_id"`
 }
 
 // Reconnect keeps the id. UIDs from another IMAP server mean nothing, so
 // sync_state resets when host or port change. The version bump fences writes
-// from older snapshots. SET expressions read the old row.
+// from older snapshots. SET expressions read the old row; RETURNING gives the
+// new one (the caller holds the old one from its FOR UPDATE read). A password
+// credential passes ” and NULL for the oauth_* columns.
 func (q *Queries) UpdateEmailHubAccountCredentials(ctx context.Context, arg UpdateEmailHubAccountCredentialsParams) (EmailHubAccount, error) {
 	row := q.db.QueryRow(ctx, updateEmailHubAccountCredentials,
 		arg.Provider,
@@ -2699,6 +2776,9 @@ func (q *Queries) UpdateEmailHubAccountCredentials(ctx context.Context, arg Upda
 		arg.Username,
 		arg.AuthKind,
 		arg.PasswordEnc,
+		arg.OauthRefreshTokenEnc,
+		arg.OauthAccessTokenEnc,
+		arg.OauthAccessExpiresAt,
 		arg.ID,
 		arg.OrganizationID,
 	)
@@ -2730,6 +2810,51 @@ func (q *Queries) UpdateEmailHubAccountCredentials(ctx context.Context, arg Upda
 		&i.CredentialVersion,
 	)
 	return i, err
+}
+
+const updateEmailHubAccountOAuthTokens = `-- name: UpdateEmailHubAccountOAuthTokens :execrows
+UPDATE email_hub_accounts
+SET oauth_access_token_enc = $1,
+    oauth_access_expires_at = $2,
+    oauth_refresh_token_enc = COALESCE(NULLIF($3::text, ''), oauth_refresh_token_enc),
+    updated_at = now()
+WHERE id = $4
+  AND organization_id = $5
+  AND credential_version = $6
+  AND oauth_access_expires_at IS NOT DISTINCT FROM $7::timestamptz
+  AND disconnected_at IS NULL
+  AND auth_failed_at IS NULL
+`
+
+type UpdateEmailHubAccountOAuthTokensParams struct {
+	AccessEnc         string             `json:"access_enc"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	RefreshEnc        string             `json:"refresh_enc"`
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	CredentialVersion int64              `json:"credential_version"`
+	PrevExpiresAt     pgtype.Timestamptz `json:"prev_expires_at"`
+}
+
+// A refresh writes only over the token it read. Another pod's refresh moved
+// oauth_access_expires_at, a reconnect bumped credential_version, and a
+// disconnect or auth failure closed the row. A refresh never bumps the
+// version. An empty refresh_enc keeps the stored refresh token (only
+// Microsoft rotates it).
+func (q *Queries) UpdateEmailHubAccountOAuthTokens(ctx context.Context, arg UpdateEmailHubAccountOAuthTokensParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateEmailHubAccountOAuthTokens,
+		arg.AccessEnc,
+		arg.ExpiresAt,
+		arg.RefreshEnc,
+		arg.ID,
+		arg.OrganizationID,
+		arg.CredentialVersion,
+		arg.PrevExpiresAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateEmailHubAccountSyncState = `-- name: UpdateEmailHubAccountSyncState :exec

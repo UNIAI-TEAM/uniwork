@@ -58,3 +58,8 @@ type PatchEmailHubThreadSDI struct {
 	SnoozeUntil *string `json:"snooze_until,omitempty" format:"date-time" example:"2026-09-25T09:00:00Z"`
 	ClearSnooze *bool   `json:"clear_snooze,omitempty" example:"true"`
 }
+
+// StartEmailHubOAuthSDI is POST /api/v1/workspaces/{workspaceID}/email-hub/oauth/{provider}/start.
+type StartEmailHubOAuthSDI struct {
+	LoginHint string `json:"login_hint,omitempty" maxLength:"320" description:"Địa chỉ gợi ý để nhà cung cấp chọn sẵn tài khoản khi kết nối lại" example:"you@gmail.com"`
+}

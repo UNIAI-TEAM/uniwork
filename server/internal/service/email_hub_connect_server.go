@@ -47,10 +47,7 @@ func resolveEmailHubServer(email string, in ConnectEmailHubInput) (emailHubServe
 		if !ok {
 			return emailHubServer{}, ErrEmailHubUnsupported
 		}
-		return emailHubServer{
-			Provider: prov.Name, IMAPHost: prov.IMAPHost, IMAPPort: prov.IMAPPort, IMAPSecurity: "tls",
-			SMTPHost: prov.SMTPHost, SMTPPort: prov.SMTPPort, SMTPSecurity: "starttls",
-		}, nil
+		return presetEmailHubServer(prov), nil
 	}
 	imapHost, err := resolveEmailHubEndpoint("imap", in.IMAPHost, in.IMAPPort, in.IMAPSecurity)
 	if err != nil {
@@ -68,6 +65,15 @@ func resolveEmailHubServer(email string, in ConnectEmailHubInput) (emailHubServe
 		Provider: "custom", IMAPHost: imapHost, IMAPPort: in.IMAPPort, IMAPSecurity: in.IMAPSecurity,
 		SMTPHost: smtpHost, SMTPPort: in.SMTPPort, SMTPSecurity: in.SMTPSecurity, Username: username,
 	}, nil
+}
+
+// presetEmailHubServer is a provider preset as the server a connect stores:
+// implicit TLS for IMAP, STARTTLS for SMTP, the address as the login.
+func presetEmailHubServer(prov emailhub.Provider) emailHubServer {
+	return emailHubServer{
+		Provider: prov.Name, IMAPHost: prov.IMAPHost, IMAPPort: prov.IMAPPort, IMAPSecurity: "tls",
+		SMTPHost: prov.SMTPHost, SMTPPort: prov.SMTPPort, SMTPSecurity: "starttls",
+	}
 }
 
 // resolveEmailHubEndpoint checks one side (prefix "imap" or "smtp") in form

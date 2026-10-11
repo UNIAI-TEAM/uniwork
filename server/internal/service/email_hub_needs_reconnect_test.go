@@ -25,11 +25,10 @@ import (
 func markSeedAccountAuthFailed(t *testing.T, q *db.Queries, acc db.EmailHubAccount) db.EmailHubAccount {
 	t.Helper()
 	ctx := context.Background()
-	n, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
+	if _, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
 		ID: acc.ID, OrganizationID: acc.OrganizationID, CredentialVersion: acc.CredentialVersion, Reason: "imap_auth_failed",
-	})
-	if err != nil || n != 1 {
-		t.Fatalf("mark auth failed: n=%d err=%v", n, err)
+	}); err != nil {
+		t.Fatalf("mark auth failed: %v", err)
 	}
 	row, err := q.GetEmailHubAccountByID(ctx, acc.ID)
 	if err != nil || !row.AuthFailedAt.Valid {

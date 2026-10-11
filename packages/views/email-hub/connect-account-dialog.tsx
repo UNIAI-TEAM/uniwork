@@ -1,50 +1,79 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { useConnectEmailHubAccount, useEmailHubAccounts } from "@uniwork/core/email-hub/hooks";
+import {
+  emailHubKeys,
+  useConnectEmailHubAccount,
+  useEmailHubAccounts,
+  useEmailHubProviders,
+  useStartEmailHubOAuth,
+} from "@uniwork/core/email-hub/hooks";
+import type { EmailHubOAuthProvider } from "@uniwork/core/types/email-hub";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { cn } from "@uniwork/ui/lib/utils";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { pickerCardClass } from "../onboarding/components/option-card";
+import { useOAuthPopup, type OAuthPopupOutcome } from "../integrations/use-oauth-popup";
 import { EMAIL_RE } from "../workspace/email-chips-input";
 import { ConnectAppPasswordGuideDialog } from "./connect-app-password-guide-dialog";
-import { connectError } from "./connect-account-errors";
+import { connectError, oauthResultKey } from "./connect-account-errors";
 import { ConnectCustomServerForm } from "./connect-custom-server-form";
+import { ConnectMethodStep, OAuthProviderButton } from "./connect-method-step";
 
 interface ConnectAccountDialogProps {
   wsId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConnected?: (accountId: string) => void;
-  /** Reconnect this mailbox: the address is fixed; the dialog picks the form by the account's provider. */
+  /** Reconnect this mailbox: the address is fixed; the dialog picks the way back in by the account's auth_kind and provider. */
   reconnectEmail?: string;
 }
 
 const FORM_ID = "email-hub-connect-form";
 const CUSTOM_FORM_ID = "email-hub-custom-form";
-const METHODS = ["custom", "app_password"] as const;
-type Method = "choose" | (typeof METHODS)[number];
+type Method = "choose" | "custom" | "app_password";
+
+/** The provider an OAuth mailbox signs in again with; null for a password mailbox. */
+function oauthProviderOf(authKind: string | undefined): EmailHubOAuthProvider | null {
+  switch (authKind) {
+    case "oauth_google":
+      return "google";
+    case "oauth_microsoft":
+      return "microsoft";
+    default:
+      return null;
+  }
+}
 
 export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, reconnectEmail: reconnectProp }: ConnectAccountDialogProps) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   // Hosts clear the address as they close; keep the reconnect form on screen until the exit animation ends.
   const [reconnectEmail, setReconnectEmail] = useState(reconnectProp);
   if (open && reconnectProp !== reconnectEmail) setReconnectEmail(reconnectProp);
+  // An i18n key: the OAuth result comes from the popup, outside any mutation's error state.
+  const [oauthError, setOauthError] = useState<string | null>(null);
   // Reset the step as the dialog opens, not as it closes, so the closing dialog keeps the form it showed.
   const [method, setMethod] = useState<Method>("choose");
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setMethod("choose");
+    if (open) {
+      setMethod("choose");
+      setOauthError(null);
+    }
   }
   const accounts = useEmailHubAccounts(wsId);
+  const providers = useEmailHubProviders(wsId);
+  const startOAuth = useStartEmailHubOAuth(wsId);
   const reconnectAccount =
     reconnectEmail === undefined ? undefined : accounts.data?.accounts.find((acc) => acc.email_address === reconnectEmail);
-  // A reconnect skips the step: a custom-server mailbox reopens its settings; any other (or one not loaded yet) asks for the app password.
+  // A reconnect skips the step: an OAuth mailbox signs in again with its provider, a custom-server one reopens its
+  // settings; any other (or one not loaded yet) asks for the app password.
+  const reconnectProvider = oauthProviderOf(reconnectAccount?.auth_kind);
   const form: Method =
     reconnectEmail === undefined ? method : reconnectAccount?.provider === "custom" ? "custom" : "app_password";
   // Until the account is known (list loading, failed or without it), a custom mailbox could be showing the wrong form: hold the submit.
@@ -56,6 +85,39 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const [guideOpen, setGuideOpen] = useState(false);
   const connect = useConnectEmailHubAccount(wsId);
 
+  const refetchAccounts = () => {
+    void queryClient.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
+  };
+
+  const onOAuthOutcome = (outcome: OAuthPopupOutcome) => {
+    switch (outcome.kind) {
+      case "message":
+        if (outcome.ok) {
+          refetchAccounts();
+          onOpenChange(false);
+        } else {
+          setOauthError(oauthResultKey(outcome.code));
+        }
+        return;
+      case "closed":
+        // Closed without a message (cancelled, or the message was lost): the list says whether it connected.
+        refetchAccounts();
+        return;
+      case "blocked":
+        setOauthError("email_hub.connect.error_popup_blocked");
+        return;
+      default:
+        setOauthError("email_hub.connect.error_oauth_failed");
+    }
+  };
+  const popup = useOAuthPopup({ name: "uniwork-email-oauth", messageType: "uniwork:email-hub-oauth", onOutcome: onOAuthOutcome });
+
+  const signIn = (provider: EmailHubOAuthProvider) => {
+    setOauthError(null);
+    // login_hint preselects the mailbox being reconnected; the server connects whichever account the user actually picks.
+    popup.open(() => startOAuth.mutateAsync({ provider, loginHint: reconnectEmail }));
+  };
+
   const serverError = connect.isError ? connectError(connect.error) : null;
   const emailError = emailInvalid
     ? t("email_hub.connect.error_email_format")
@@ -65,6 +127,11 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const passwordError = serverError?.field === "password" ? t(serverError.key) : null;
   // The app-password form has no server fields; any other field's error reads for the whole form.
   const formError = serverError && serverError.field !== "email" && serverError.field !== "password" ? t(serverError.key) : null;
+  const oauthAlert = oauthError ? (
+    <p className="rounded-md bg-destructive/10 px-3 py-2 text-caption text-destructive" role="alert">
+      {t(oauthError)}
+    </p>
+  ) : null;
 
   const close = (next: boolean) => {
     if (connect.isPending) return;
@@ -81,6 +148,7 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
     // An error from one form must not show up on the other.
     connect.reset();
     setEmailInvalid(false);
+    setOauthError(null);
     setMethod(next);
   };
 
@@ -113,9 +181,11 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
       ? t("email_hub.connect.custom.title")
       : t("email_hub.connect.title");
   const description = reconnectEmail
-    ? form === "custom"
-      ? t("email_hub.reconnect.dialog_description_custom")
-      : t("email_hub.reconnect.dialog_description")
+    ? reconnectProvider
+      ? t("email_hub.reconnect.dialog_description_oauth")
+      : form === "custom"
+        ? t("email_hub.reconnect.dialog_description_custom")
+        : t("email_hub.reconnect.dialog_description")
     : form === "custom"
       ? t("email_hub.connect.custom.description")
       : form === "app_password"
@@ -129,19 +199,17 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
           <FormDialogHeader title={title} description={description} />
           {form === "choose" ? (
             <FormDialogBody>
-              <div className="grid gap-2">
-                {METHODS.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    className={cn(pickerCardClass(false), "grid gap-0.5 px-4 py-3")}
-                    onClick={() => pick(m)}
-                  >
-                    <span className="text-body font-medium">{t(`email_hub.connect.method_${m}`)}</span>
-                    <span className="text-caption text-pretty text-muted-foreground">{t(`email_hub.connect.method_${m}_hint`)}</span>
-                  </button>
-                ))}
-              </div>
+              <ConnectMethodStep providers={providers.data} pending={popup.pending} onPick={pick} onOAuth={signIn} />
+              {oauthAlert}
+            </FormDialogBody>
+          ) : reconnectProvider ? (
+            <FormDialogBody>
+              <OAuthProviderButton
+                provider={reconnectProvider}
+                pending={popup.pending}
+                onClick={() => signIn(reconnectProvider)}
+              />
+              {oauthAlert}
             </FormDialogBody>
           ) : form === "custom" ? (
             <ConnectCustomServerForm

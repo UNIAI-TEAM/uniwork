@@ -490,6 +490,7 @@ func main() {
 		log.Warn("email hub disabled", "err", err)
 	}
 	emailHubSvc := service.NewEmailHubService(q, wsSvc, emailHubBox)
+	emailHubSvc.ConfigureOAuth(cfg)
 	if store != nil {
 		emailHubSvc.SetObjectStorage(store)
 	}
@@ -506,6 +507,9 @@ func main() {
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
+	// Leave and account deletion revoke the Google grants of the mailboxes they disconnect.
+	orgMemberSvc.SetEmailHub(emailHubSvc)
+	authSvc.SetEmailHub(emailHubSvc)
 	go emailHubSvc.RunWorkers(runCtx)
 	go emailHubSvc.RunHubWatchers(runCtx)
 	graphSvc := service.NewGraphService(q, orgSvc, wsSvc, chatSvc)

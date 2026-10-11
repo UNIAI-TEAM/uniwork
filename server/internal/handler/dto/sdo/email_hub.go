@@ -19,6 +19,13 @@ type EmailHubAccountSDO struct {
 	Username         string `json:"username" description:"Tên đăng nhập; rỗng nghĩa là dùng địa chỉ email" example:"you"`
 }
 
+// EmailHubProvidersSDO is GET .../email-hub/providers: the sign-in buttons the
+// connect dialog shows.
+type EmailHubProvidersSDO struct {
+	Google    bool `json:"google" description:"Có thể kết nối bằng đăng nhập Google" example:"true"`
+	Microsoft bool `json:"microsoft" description:"Có thể kết nối bằng đăng nhập Microsoft" example:"false"`
+}
+
 // EmailHubWatchSDO is POST .../email-hub/watch.
 type EmailHubWatchSDO struct {
 	Changed bool   `json:"changed" example:"true"`
@@ -143,4 +150,9 @@ type EmailHubThreadSummarySDO struct {
 	Model        string                 `json:"model,omitempty"`
 	Cached       bool                   `json:"cached"`
 	SummarizedAt string                 `json:"summarized_at,omitempty" format:"date-time"`
+}
+
+// EmailHubOAuthStartSDO is POST .../email-hub/oauth/{provider}/start.
+type EmailHubOAuthStartSDO struct {
+	AuthorizationURL string `json:"authorization_url" description:"URL đăng nhập của nhà cung cấp, mở trong cửa sổ bật lên" example:"https://accounts.google.com/o/oauth2/v2/auth?client_id=..."`
 }

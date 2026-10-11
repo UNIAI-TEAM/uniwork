@@ -54,6 +54,9 @@ type OrganizationMemberService struct {
 	// files is optional: with FileService wired, member avatars stored as
 	// file ids resolve to presigned URLs (UNI-744).
 	files files.Service
+	// emailHub is optional: wired, Leave revokes the OAuth grants of the
+	// mailboxes it disconnects (spec §5.5).
+	emailHub *EmailHubService
 }
 
 func NewOrganizationMemberService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService) *OrganizationMemberService {
@@ -62,6 +65,10 @@ func NewOrganizationMemberService(pool *pgxpool.Pool, q *db.Queries, orgs *Organ
 
 // SetFiles selects the FileService path for avatar URL emission.
 func (s *OrganizationMemberService) SetFiles(f files.Service) { s.files = f }
+
+// SetEmailHub lets Leave revoke the refresh tokens it removes; main wires it
+// once EmailHubService exists.
+func (s *OrganizationMemberService) SetEmailHub(h *EmailHubService) { s.emailHub = h }
 
 // MemberPage is one keyset page of the organization's membership.
 type MemberPage struct {
@@ -400,7 +407,7 @@ func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID st
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, mailboxes)
+	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, mailboxes)
 	return nil
 }
 

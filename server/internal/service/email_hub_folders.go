@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -33,23 +34,30 @@ type emailHubCreds struct {
 }
 
 // credentials is the one place a mailbox credential is opened. An account
-// that needs reconnect answers ErrEmailHubReauthRequired before any dial.
-func (s *EmailHubService) credentials(_ context.Context, acc db.EmailHubAccount) (emailHubCreds, error) {
+// that needs reconnect answers ErrEmailHubReauthRequired before any dial; an
+// oauth_* account carries a fresh access token and no password.
+func (s *EmailHubService) credentials(ctx context.Context, acc db.EmailHubAccount) (emailHubCreds, error) {
 	if acc.AuthFailedAt.Valid {
 		return emailHubCreds{}, ErrEmailHubReauthRequired
 	}
-	password, err := s.openPassword(acc.PasswordEnc)
+	var password, accessToken string
+	var err error
+	if strings.HasPrefix(acc.AuthKind, "oauth_") {
+		accessToken, err = s.oauthAccessToken(ctx, acc)
+	} else {
+		password, err = s.openPassword(acc.PasswordEnc)
+	}
 	if err != nil {
 		return emailHubCreds{}, err
 	}
 	return emailHubCreds{
 		IMAP: imapclient.Credentials{
-			Host: acc.ImapHost, Port: int(acc.ImapPort), Email: acc.EmailAddress,
-			Username: acc.Username, Password: password, Security: acc.ImapSecurity,
+			Host: acc.ImapHost, Port: int(acc.ImapPort), Email: acc.EmailAddress, Username: acc.Username,
+			Password: password, AccessToken: accessToken, Security: acc.ImapSecurity,
 		},
 		SMTP: smtpclient.Credentials{
-			Host: acc.SmtpHost, Port: int(acc.SmtpPort), Email: acc.EmailAddress,
-			Username: acc.Username, Password: password, Security: acc.SmtpSecurity,
+			Host: acc.SmtpHost, Port: int(acc.SmtpPort), Email: acc.EmailAddress, Username: acc.Username,
+			Password: password, AccessToken: accessToken, Security: acc.SmtpSecurity,
 		},
 		Version: acc.CredentialVersion,
 	}, nil

@@ -48,6 +48,9 @@ type Credentials struct {
 	Username string // LOGIN user; empty means Email
 	Password string
 	Security string // "tls" or "starttls"; empty means "tls"
+	// AccessToken is an OAuth access token; when set, AUTHENTICATE XOAUTH2
+	// replaces LOGIN and Password is ignored.
+	AccessToken string
 }
 
 // ThreadMeta is the metadata cached for one mailbox message.
@@ -207,7 +210,12 @@ func dial(c Credentials) (*client.Client, error) {
 	if user == "" {
 		user = c.Email
 	}
-	if err := login(cl, user, c.Password); err != nil {
+	if c.AccessToken != "" {
+		err = authenticateXOAUTH2(cl, user, c.AccessToken)
+	} else {
+		err = login(cl, user, c.Password)
+	}
+	if err != nil {
 		_ = cl.Logout()
 		return nil, fmt.Errorf("imap login: %w", err)
 	}
@@ -251,6 +259,12 @@ func (c *deadlineHeldConn) SetDeadline(t time.Time) error {
 // connections, [UNAVAILABLE]) that is worth retrying later.
 func login(cl *client.Client, user, password string) error {
 	status, err := cl.Execute(&commands.Login{Username: user, Password: password}, nil)
+	return finishLogin(cl, status, err)
+}
+
+// finishLogin classifies a LOGIN or AUTHENTICATE status and, on OK, moves the
+// client to the authenticated state.
+func finishLogin(cl *client.Client, status *imap.StatusResp, err error) error {
 	if err != nil {
 		return err
 	}
