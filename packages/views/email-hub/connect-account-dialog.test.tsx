@@ -52,6 +52,27 @@ describe("ConnectAccountDialog", () => {
     });
   });
 
+  it("keeps the reconnect title and fixed address while the dialog closes", () => {
+    // jsdom has no animations; an exit animation that never ends keeps the popup on screen, as a browser does mid-fade.
+    Object.defineProperty(Element.prototype, "getAnimations", {
+      configurable: true,
+      value: () => [{ finished: new Promise(() => {}) }],
+    });
+    try {
+      const { rerender } = render(
+        wrap(<ConnectAccountDialog wsId="ws1" open reconnectEmail="ha.do@unicomhub.com" onOpenChange={() => {}} />),
+      );
+      // The host clears the address together with open.
+      rerender(wrap(<ConnectAccountDialog wsId="ws1" open={false} onOpenChange={() => {}} />));
+
+      expect(screen.getByText("Kết nối lại ha.do@unicomhub.com")).toBeInTheDocument();
+      expect(screen.getByLabelText("Email")).toHaveAttribute("readonly");
+    } finally {
+      // @ts-expect-error -- jsdom does not define it; drop the stub so other tests unmount at once.
+      delete Element.prototype.getAnimations;
+    }
+  });
+
   it("puts an already-connected mailbox next to the email field", async () => {
     requestMock.mockRejectedValueOnce(new ApiError("already connected", "email_hub_already_connected", 409));
     render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));

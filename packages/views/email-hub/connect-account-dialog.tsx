@@ -46,8 +46,11 @@ function connectError(code: string | undefined): { field: "email" | "password" |
   }
 }
 
-export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, reconnectEmail }: ConnectAccountDialogProps) {
+export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, reconnectEmail: reconnectProp }: ConnectAccountDialogProps) {
   const { t } = useTranslation();
+  // Hosts clear the address as they close; keep the reconnect form on screen until the exit animation ends.
+  const [reconnectEmail, setReconnectEmail] = useState(reconnectProp);
+  if (open && reconnectProp !== reconnectEmail) setReconnectEmail(reconnectProp);
   const [email, setEmail] = useState("");
   const address = reconnectEmail ?? email;
   const [password, setPassword] = useState("");
