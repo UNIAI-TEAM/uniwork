@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -71,5 +71,36 @@ describe("EmailHubView on a mailbox that needs reconnecting", () => {
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("Hộp thư này cần kết nối lại. Kết nối lại hộp thư rồi thử lại."));
     expect(requestMock.mock.calls.some(isPatch)).toBe(true);
     await waitFor(() => expect(requestMock.mock.calls.filter(isAccounts).length).toBeGreaterThan(1));
+  });
+});
+
+describe("EmailHubView reconnecting from the banner", () => {
+  it("puts focus on the account menu once the banner it started from is gone", async () => {
+    let broken = true;
+    requestMock.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path === "/api/v1/workspaces/ws1/email-hub/accounts") {
+        if (init?.method === "POST") {
+          broken = false;
+          return Promise.resolve(account(false));
+        }
+        return Promise.resolve({ accounts: [account(broken)] });
+      }
+      if (path.startsWith("/api/v1/workspaces/ws1/email-hub/threads?")) {
+        return Promise.resolve({ threads: [unreadRow], counts: { total: 1, unread: 1 } });
+      }
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={user}><EmailHubView /></WorkspaceProvider>));
+
+    const banner = (await screen.findByText("Hộp thư cần kết nối lại")).closest<HTMLElement>("[data-slot=alert]")!;
+    fireEvent.click(within(banner).getByRole("button", { name: "Kết nối lại" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("App Password"), { target: { value: "abcd efgh ijkl mnop" } });
+    const submit = within(dialog).getByRole("button", { name: "Kết nối lại" });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(screen.queryByText("Hộp thư cần kết nối lại")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toHaveAccessibleName("Hộp thư: ha.do@unicomhub.com"));
   });
 });

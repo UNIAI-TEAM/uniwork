@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
@@ -36,15 +36,19 @@ export function FormDialogContent({
   size = "md",
   className,
   children,
+  finalFocus,
 }: {
   size?: keyof typeof WIDTH;
   className?: string;
   children: ReactNode;
+  /** Where focus lands on close; the default is the opener. */
+  finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
 }) {
   const { t } = useTranslation();
   return (
     <DialogContent
       className={cn("gap-0 overflow-hidden p-0", WIDTH[size], className)}
+      finalFocus={finalFocus}
       showCloseButton
       closeLabel={t("common.close")}
     >

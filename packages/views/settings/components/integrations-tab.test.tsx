@@ -31,7 +31,9 @@ describe("IntegrationsTab", () => {
     renderTab([]);
     const available = screen.getByRole("list", { name: "Dùng được" });
     expect(within(available).getByText("Email Hub")).toBeInTheDocument();
-    expect(within(available).getByText(/^Đăng nhập bằng Google hoặc Microsoft/)).toBeInTheDocument();
+    expect(
+      within(available).getByText("Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"),
+    ).toBeInTheDocument();
     expect(await within(available).findByText("Bạn chưa kết nối")).toBeInTheDocument();
     expect(within(available).getByRole("link", { name: "Kết nối hộp thư" })).toHaveAttribute("href", "/acme/team/email");
   });
@@ -40,6 +42,15 @@ describe("IntegrationsTab", () => {
     renderTab([{ id: "a1", email_address: "an@gmail.com", provider: "gmail", connected_at: "2026-09-01T00:00:00Z" }]);
     expect(await screen.findByText("Bạn đã kết nối 1 hộp thư")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Mở Email Hub" })).toBeInTheDocument();
+  });
+
+  it("adds how many of the reader's mailboxes need reconnecting", async () => {
+    const mailbox = { provider: "gmail", connected_at: "2026-09-01T00:00:00Z" };
+    renderTab([
+      { ...mailbox, id: "a1", email_address: "an@gmail.com", needs_reconnect: true },
+      { ...mailbox, id: "a2", email_address: "binh@gmail.com" },
+    ]);
+    expect(await screen.findByText("Bạn đã kết nối 2 hộp thư · 1 hộp thư cần kết nối lại")).toBeInTheDocument();
   });
 
   it("says the count failed to load and offers a neutral way in, not \"connect\"", async () => {

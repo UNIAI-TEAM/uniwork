@@ -4,6 +4,7 @@ import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { ComposeEmailDialog } from "./compose-email-dialog";
 import type { ComposeMode } from "./compose-recipients";
 import { ConnectAccountDialog } from "./connect-account-dialog";
+import { visibleAccountMenuTrigger } from "./email-hub-account-menu";
 
 export function EmailHubViewDialogs({
   wsId,
@@ -39,6 +40,7 @@ export function EmailHubViewDialogs({
           if (!open) onConnectEmailChange(null);
         }}
         onConnected={onConnected}
+        focusAfterConnect={visibleAccountMenuTrigger}
       />
       <ComposeEmailDialog
         wsId={wsId}

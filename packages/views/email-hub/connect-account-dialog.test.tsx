@@ -77,7 +77,7 @@ afterEach(() => {
 });
 
 const customOption = () => screen.getByRole("button", { name: /^Tên miền riêng \(IMAP\/SMTP\)/ });
-const appPasswordOption = () => screen.getByRole("button", { name: /^Dùng mật khẩu ứng dụng/ });
+const appPasswordOption = () => screen.getByRole("button", { name: /^Dùng App Password/ });
 const googleOption = () => screen.queryByRole("button", { name: /^Đăng nhập bằng Google/ });
 const microsoftOption = () => screen.queryByRole("button", { name: /^Đăng nhập bằng Microsoft/ });
 
@@ -493,7 +493,7 @@ describe("ConnectAccountDialog sign-in with Google or Microsoft", () => {
     expect(screen.getByText(/^Đăng nhập lại bằng đúng tài khoản này/)).toBeInTheDocument();
     expect(googleOption()).toBeNull();
     expect(screen.queryByRole("button", { name: /^Tên miền riêng/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Dùng mật khẩu ứng dụng/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Dùng App Password/ })).toBeNull();
     expect(screen.queryByLabelText("App Password")).toBeNull();
 
     fireEvent.click(microsoft);

@@ -28,6 +28,8 @@ interface ConnectAccountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConnected?: (accountId: string) => void;
+  /** Where focus goes once a connect closed the dialog: its opener (a reconnect banner) may be gone with the state it showed. */
+  focusAfterConnect?: () => HTMLElement | null;
   /** Reconnect this mailbox: the address is fixed; the dialog picks the way back in by the account's auth_kind and provider. */
   reconnectEmail?: string;
 }
@@ -52,7 +54,14 @@ function oauthProviderOf(authKind: string | undefined): EmailHubOAuthProvider | 
   }
 }
 
-export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, reconnectEmail: reconnectProp }: ConnectAccountDialogProps) {
+export function ConnectAccountDialog({
+  wsId,
+  open,
+  onOpenChange,
+  onConnected,
+  focusAfterConnect,
+  reconnectEmail: reconnectProp,
+}: ConnectAccountDialogProps) {
   const { t } = useTranslation();
   // Hosts clear the address as they close; keep the reconnect form on screen until the exit animation ends.
   const [reconnectEmail, setReconnectEmail] = useState(reconnectProp);
@@ -67,10 +76,12 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const [guideOpen, setGuideOpen] = useState(false);
   // The ids in the first list loaded after the dialog opens: the one that is new after a sign-in is what it connected.
   const [knownIds, setKnownIds] = useState<Set<string> | null>(null);
+  const [didConnect, setDidConnect] = useState(false);
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
+      setDidConnect(false);
       setMethod("choose");
       setGuideOpen(false);
       setKnownIds(null);
@@ -99,6 +110,7 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
 
   /** Every successful connect, whichever way: select the mailbox and say which one. */
   const connected = (acc: { id: string; email_address: string }) => {
+    setDidConnect(true);
     onConnected?.(acc.id);
     toast.success(t("email_hub.connect.connected_toast", { email: acc.email_address }));
   };
@@ -252,7 +264,7 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <FormDialogContent>
+      <FormDialogContent finalFocus={didConnect && focusAfterConnect ? () => focusAfterConnect() ?? true : undefined}>
         <FormDialogHeader title={title} description={description} />
         {form === "choose" ? (
           <>
