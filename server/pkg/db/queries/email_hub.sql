@@ -121,6 +121,24 @@ WHERE id = sqlc.arg('id')
   AND disconnected_at IS NULL
   AND auth_failed_at IS NULL;
 
+-- name: UpdateEmailHubAccountOAuthTokens :execrows
+-- A refresh writes only over the token it read. Another pod's refresh moved
+-- oauth_access_expires_at, a reconnect bumped credential_version, and a
+-- disconnect or auth failure closed the row. A refresh never bumps the
+-- version. An empty refresh_enc keeps the stored refresh token (only
+-- Microsoft rotates it).
+UPDATE email_hub_accounts
+SET oauth_access_token_enc = sqlc.arg('access_enc'),
+    oauth_access_expires_at = sqlc.narg('expires_at'),
+    oauth_refresh_token_enc = COALESCE(NULLIF(sqlc.arg('refresh_enc')::text, ''), oauth_refresh_token_enc),
+    updated_at = now()
+WHERE id = sqlc.arg('id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND credential_version = sqlc.arg('credential_version')
+  AND oauth_access_expires_at IS NOT DISTINCT FROM sqlc.narg('prev_expires_at')::timestamptz
+  AND disconnected_at IS NULL
+  AND auth_failed_at IS NULL;
+
 -- name: UpsertEmailHubThread :one
 -- tenant: parent account_id
 INSERT INTO email_hub_threads (

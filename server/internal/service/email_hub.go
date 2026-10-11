@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -48,6 +49,9 @@ type EmailHubService struct {
 	log      *slog.Logger
 	gov      *emailHubGovernor
 	hubWatch *emailHubHubWatcher
+
+	// refreshLocks holds one *sync.Mutex per account id (refreshLock).
+	refreshLocks sync.Map
 	// AI and Tasks are wired from main after construction; nil disables summarize → task.
 	AI    *ai.Gateway
 	Tasks *TaskService

@@ -5,8 +5,10 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -161,5 +163,93 @@ func TestUpdateEmailHubAccountSyncStateIgnoresAStaleVersion(t *testing.T) {
 	write(moved.CredentialVersion, `{"INBOX":{"uidvalidity":9,"last_uid":3}}`)
 	if got := parseEmailHubSyncState(read().SyncState).folder(emailHubFolderInbox); got.UIDValidity != 9 || got.LastUID != 3 {
 		t.Fatalf("the current snapshot must write its cursor, got %+v", got)
+	}
+}
+
+// A refresh writes only over the token it read (spec §2.3, §4.4): a stale
+// version or expiry, a failed or a disconnected row takes nothing, NULL
+// matches NULL, and an empty refresh_enc keeps the stored refresh token.
+func TestUpdateEmailHubAccountOAuthTokensConditional(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	org := ws.OrganizationID
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, org)
+	if _, err := pool.Exec(ctx, `UPDATE email_hub_accounts
+		SET auth_kind = 'oauth_google', password_enc = '', oauth_refresh_token_enc = 'refresh-old'
+		WHERE id = $1`, acc.ID); err != nil {
+		t.Fatal(err)
+	}
+	at := func(d time.Duration) pgtype.Timestamptz {
+		return pgtype.Timestamptz{Time: time.Now().Add(d).UTC().Truncate(time.Microsecond), Valid: true}
+	}
+	var never pgtype.Timestamptz // NULL: no access token yet
+	write := func(id string, version int64, prev pgtype.Timestamptz, access string, expires pgtype.Timestamptz, refresh string) int64 {
+		t.Helper()
+		n, err := q.UpdateEmailHubAccountOAuthTokens(ctx, db.UpdateEmailHubAccountOAuthTokensParams{
+			ID: id, OrganizationID: org, CredentialVersion: version, PrevExpiresAt: prev,
+			AccessEnc: access, ExpiresAt: expires, RefreshEnc: refresh,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	read := func(id string) db.EmailHubAccount {
+		t.Helper()
+		row, err := q.GetEmailHubAccountByID(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return row
+	}
+
+	first := at(time.Hour)
+	if n := write(acc.ID, acc.CredentialVersion+1, never, "access-1", first, ""); n != 0 {
+		t.Fatalf("a stale credential_version wrote %d rows", n)
+	}
+	if n := write(acc.ID, acc.CredentialVersion, first, "access-1", first, ""); n != 0 {
+		t.Fatalf("a prev expiry the row does not hold wrote %d rows", n)
+	}
+	if n := write(acc.ID, acc.CredentialVersion, never, "access-1", first, ""); n != 1 {
+		t.Fatalf("a NULL prev must match a NULL expiry, wrote %d rows", n)
+	}
+	row := read(acc.ID)
+	if row.OauthAccessTokenEnc != "access-1" || !row.OauthAccessExpiresAt.Time.Equal(first.Time) ||
+		row.OauthRefreshTokenEnc != "refresh-old" || row.CredentialVersion != acc.CredentialVersion {
+		t.Fatalf("first write: access=%q expires=%v refresh=%q version=%d",
+			row.OauthAccessTokenEnc, row.OauthAccessExpiresAt.Time, row.OauthRefreshTokenEnc, row.CredentialVersion)
+	}
+
+	second := at(2 * time.Hour)
+	if n := write(acc.ID, acc.CredentialVersion, never, "access-2", second, ""); n != 0 {
+		t.Fatalf("the NULL this pod read no longer holds, yet %d rows were written", n)
+	}
+	if n := write(acc.ID, acc.CredentialVersion, first, "access-2", second, "refresh-new"); n != 1 {
+		t.Fatalf("a rotated refresh token over the read expiry wrote %d rows", n)
+	}
+	if row := read(acc.ID); row.OauthAccessTokenEnc != "access-2" || row.OauthRefreshTokenEnc != "refresh-new" ||
+		row.CredentialVersion != acc.CredentialVersion {
+		t.Fatalf("second write: access=%q refresh=%q version=%d", row.OauthAccessTokenEnc, row.OauthRefreshTokenEnc, row.CredentialVersion)
+	}
+
+	if n, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
+		ID: acc.ID, OrganizationID: org, CredentialVersion: acc.CredentialVersion, Reason: "oauth_invalid_grant",
+	}); err != nil || n != 1 {
+		t.Fatalf("mark auth failed: n=%d err=%v", n, err)
+	}
+	// Same version, and the expiry is NULL again: only auth_failed_at stops this write.
+	if n := write(acc.ID, acc.CredentialVersion, never, "access-3", second, ""); n != 0 {
+		t.Fatalf("an account that needs reconnect took a token: %d rows", n)
+	}
+
+	gone := seedEmailHubAccountAddr(t, q, svc.box, user.ID, org, "gone@gmail.com")
+	if n, err := q.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
+		ID: gone.ID, UserID: user.ID, OrganizationID: org,
+	}); err != nil || n != 1 {
+		t.Fatalf("disconnect: n=%d err=%v", n, err)
+	}
+	// The current version and expiry: only disconnected_at stops this write.
+	if n := write(gone.ID, read(gone.ID).CredentialVersion, never, "access-1", first, ""); n != 0 {
+		t.Fatalf("a disconnected account took a token: %d rows", n)
 	}
 }

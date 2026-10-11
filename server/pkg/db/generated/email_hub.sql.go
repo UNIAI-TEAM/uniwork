@@ -2732,6 +2732,51 @@ func (q *Queries) UpdateEmailHubAccountCredentials(ctx context.Context, arg Upda
 	return i, err
 }
 
+const updateEmailHubAccountOAuthTokens = `-- name: UpdateEmailHubAccountOAuthTokens :execrows
+UPDATE email_hub_accounts
+SET oauth_access_token_enc = $1,
+    oauth_access_expires_at = $2,
+    oauth_refresh_token_enc = COALESCE(NULLIF($3::text, ''), oauth_refresh_token_enc),
+    updated_at = now()
+WHERE id = $4
+  AND organization_id = $5
+  AND credential_version = $6
+  AND oauth_access_expires_at IS NOT DISTINCT FROM $7::timestamptz
+  AND disconnected_at IS NULL
+  AND auth_failed_at IS NULL
+`
+
+type UpdateEmailHubAccountOAuthTokensParams struct {
+	AccessEnc         string             `json:"access_enc"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	RefreshEnc        string             `json:"refresh_enc"`
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	CredentialVersion int64              `json:"credential_version"`
+	PrevExpiresAt     pgtype.Timestamptz `json:"prev_expires_at"`
+}
+
+// A refresh writes only over the token it read. Another pod's refresh moved
+// oauth_access_expires_at, a reconnect bumped credential_version, and a
+// disconnect or auth failure closed the row. A refresh never bumps the
+// version. An empty refresh_enc keeps the stored refresh token (only
+// Microsoft rotates it).
+func (q *Queries) UpdateEmailHubAccountOAuthTokens(ctx context.Context, arg UpdateEmailHubAccountOAuthTokensParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateEmailHubAccountOAuthTokens,
+		arg.AccessEnc,
+		arg.ExpiresAt,
+		arg.RefreshEnc,
+		arg.ID,
+		arg.OrganizationID,
+		arg.CredentialVersion,
+		arg.PrevExpiresAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateEmailHubAccountSyncState = `-- name: UpdateEmailHubAccountSyncState :exec
 UPDATE email_hub_accounts
 SET sync_state = $2, updated_at = now()

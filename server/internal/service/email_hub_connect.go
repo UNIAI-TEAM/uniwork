@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"golang.org/x/oauth2"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
@@ -251,12 +252,17 @@ func classifyEmailHubConnectError(err error) (string, error) {
 // TLS errors and server replies can carry the host, so logs carry this instead.
 func emailHubErrCode(err error) string {
 	var pgErr *pgconn.PgError
+	var retrieveErr *oauth2.RetrieveError
 	switch {
 	// Before the classifier: context.DeadlineExceeded is also a net.Error.
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return "timeout"
 	case errors.Is(err, ErrEmailHubReauthRequired):
 		return "auth_failed"
+	case errors.Is(err, errEmailHubOAuthNotConfigured):
+		return "oauth_not_configured"
+	case errors.Is(err, errEmailHubOAuthRefreshFailed), errors.As(err, &retrieveErr):
+		return "oauth_refresh_failed"
 	case errors.As(err, &pgErr):
 		return "db"
 	}
