@@ -468,6 +468,31 @@ WHERE account_id = $1
   AND organization_id = $2
   AND folder = $3;
 
+-- name: AdoptEmailHubSentCopy :execrows
+-- The Sent row the send path cached under a placeholder UID takes the UID of
+-- the server's copy (same Message-ID), keeping its id, cached body and AI
+-- summary. One row at most; a no-op when a row already owns that UID.
+UPDATE email_hub_threads t
+SET imap_uid = sqlc.arg('imap_uid')
+WHERE t.id = (
+    SELECT cur.id
+    FROM email_hub_threads cur
+    WHERE cur.account_id = sqlc.arg('account_id')
+      AND cur.organization_id = sqlc.arg('organization_id')
+      AND cur.folder = sqlc.arg('folder')
+      AND lower(cur.message_id) = lower(sqlc.arg('message_id')::text)
+      AND cur.imap_uid <> sqlc.arg('imap_uid')
+    ORDER BY cur.id
+    LIMIT 1
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM email_hub_threads o
+    WHERE o.account_id = sqlc.arg('account_id')
+      AND o.folder = sqlc.arg('folder')
+      AND o.imap_uid = sqlc.arg('imap_uid')
+  );
+
 -- name: DeleteEmailHubThreadsNotInUIDs :exec
 DELETE FROM email_hub_threads
 WHERE account_id = $1

@@ -11,6 +11,54 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const adoptEmailHubSentCopy = `-- name: AdoptEmailHubSentCopy :execrows
+UPDATE email_hub_threads t
+SET imap_uid = $1
+WHERE t.id = (
+    SELECT cur.id
+    FROM email_hub_threads cur
+    WHERE cur.account_id = $2
+      AND cur.organization_id = $3
+      AND cur.folder = $4
+      AND lower(cur.message_id) = lower($5::text)
+      AND cur.imap_uid <> $1
+    ORDER BY cur.id
+    LIMIT 1
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM email_hub_threads o
+    WHERE o.account_id = $2
+      AND o.folder = $4
+      AND o.imap_uid = $1
+  )
+`
+
+type AdoptEmailHubSentCopyParams struct {
+	ImapUid        int32  `json:"imap_uid"`
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+	Folder         string `json:"folder"`
+	MessageID      string `json:"message_id"`
+}
+
+// The Sent row the send path cached under a placeholder UID takes the UID of
+// the server's copy (same Message-ID), keeping its id, cached body and AI
+// summary. One row at most; a no-op when a row already owns that UID.
+func (q *Queries) AdoptEmailHubSentCopy(ctx context.Context, arg AdoptEmailHubSentCopyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, adoptEmailHubSentCopy,
+		arg.ImapUid,
+		arg.AccountID,
+		arg.OrganizationID,
+		arg.Folder,
+		arg.MessageID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const cancelEmailHubScheduledSend = `-- name: CancelEmailHubScheduledSend :execrows
 UPDATE email_hub_scheduled_sends
 SET status = 'cancelled'
