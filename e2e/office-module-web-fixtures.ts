@@ -83,6 +83,21 @@ export async function expectDesktopOpenInstallerMenu(page: Page, shot?: (name: s
   await expect(page.getByRole("dialog")).toHaveCount(0);
 }
 
+/**
+ * The notice the host shows when a document cannot open in its frame: the
+ * failure kind, its copy, Download, and Retry only where trying again can help
+ * (a load failure, never an unavailable frame). No editor mounts beside it.
+ */
+export async function expectFrameNotice(page: Page, kind: "unavailable" | "load", text?: string | RegExp): Promise<void> {
+  const notice = page.getByTestId("office-docs-frame-failed");
+  await expect(notice).toBeVisible({ timeout: 60_000 });
+  await expect(notice).toHaveAttribute("data-failure-kind", kind);
+  if (text) await expect(notice).toContainText(text);
+  await expect(notice.getByRole("button", { name: /^(Tải xuống|Download)$/ })).toBeVisible();
+  await expect(notice.getByRole("button", { name: /^(Thử lại|Try again)$/ })).toHaveCount(kind === "load" ? 1 : 0);
+  await expect(page.getByTestId("office-docs-frame-loading")).toHaveCount(0);
+}
+
 /** Where the GD3 desktop-open evidence screenshots land (committed under reports/). */
 export function evidencePath(name: string): string {
   return resolve(repoRoot, "reports/uni-1014-evidence/desktop-open", `${name}.png`);

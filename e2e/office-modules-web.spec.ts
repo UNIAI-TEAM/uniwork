@@ -5,7 +5,7 @@ import JSZip from "jszip";
 import { e2eBaseUrl } from "./api-url";
 import { listVersions, seedDocument, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
 import {
-  moduleFrameBase, moduleFrameHost, moduleFrameInstalled, readModulePin, signInAs, versionBytes, type FrameModule, type ModulePin,
+  expectFrameNotice, moduleFrameBase, moduleFrameHost, moduleFrameInstalled, readModulePin, signInAs, versionBytes, type FrameModule, type ModulePin,
 } from "./office-module-web-fixtures";
 
 /**
@@ -169,25 +169,22 @@ for (const c of CASES) {
       await expect(frame).toBeVisible({ timeout: 60_000 });
       expect(await frame.getAttribute("src")).toContain(`${moduleFrameBase(c.module, pin!)}/`);
       await expect(moduleFrameHost(page, c.module)).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
-      // The G3 host is not mounted next to it.
-      await expect(page.locator("[data-office-editor-host]").first()).toBeHidden();
       await page.screenshot({ path: test.info().outputPath(`01-${c.module}-opened.png`) });
       expect(violations).toEqual([]);
     });
 
-    test(`a ${c.module} frame bundle that answers 404 falls back to the G3 host, not an endless skeleton`, async ({ page }) => {
+    test(`a ${c.module} frame bundle that answers 404 shows the load failure, not an endless skeleton`, async ({ page }) => {
       // A bundle missing on the server: the iframe fires no error for an HTTP 404, so the host probes it.
       await page.route(`**/office-frame/${c.module}/**/index.html`, (route) => route.fulfill({ status: 404, contentType: "text/plain", body: "not found" }));
       await signInAs(page, seeded.account.email);
       await page.goto(seeded.documentUrl);
-      await expect(page.locator("[data-office-editor-host]").first()).toBeVisible({ timeout: 60_000 });
-      await expect(moduleFrameHost(page, c.module)).toHaveCount(0);
-      await expect(page.getByTestId("office-docs-frame-loading")).toHaveCount(0);
-      await page.screenshot({ path: test.info().outputPath(`03-${c.module}-bundle-missing-g3.png`) });
+      await expectFrameNotice(page, "load");
+      await expect(page.locator(`iframe[src*="/office-frame/${c.module}/"]`)).toHaveCount(0);
+      await page.screenshot({ path: test.info().outputPath(`03-${c.module}-bundle-missing.png`) });
     });
 
     if (c.module === "pdf") {
-      test("a frame whose script is blocked falls back to the G3 host at once and says why", async ({ page, context }) => {
+      test("a frame whose script is blocked shows the load failure at once and says why", async ({ page, context }) => {
         // The frame document loads but its bundle script never does: no error reaches the page, so the
         // host probes the scripts once the frame has loaded instead of waiting out the boot timer.
         await context.addCookies([{ name: "uniwork-locale", value: "en", url: baseUrl }]);
@@ -195,11 +192,10 @@ for (const c of CASES) {
         await signInAs(page, seeded.account.email);
         const startedAt = Date.now();
         await page.goto(seeded.documentUrl);
-        await expect(page.locator("[data-office-editor-host]").first()).toBeVisible({ timeout: 20_000 });
-        expect(Date.now() - startedAt, "the switch must not wait for the 25 s boot timer").toBeLessThan(20_000);
-        await expect(moduleFrameHost(page, c.module)).toHaveCount(0);
-        await expect(page.getByTestId("office-frame-fallback-notice")).toContainText("The new editor could not load; you are using the standard editor.");
-        await page.screenshot({ path: test.info().outputPath(`04-${c.module}-script-blocked-g3.png`) });
+        await expect(page.getByTestId("office-docs-frame-failed")).toBeVisible({ timeout: 20_000 });
+        expect(Date.now() - startedAt, "the host must not wait for the 25 s boot timer").toBeLessThan(20_000);
+        await expectFrameNotice(page, "load", "The editor files did not load");
+        await page.screenshot({ path: test.info().outputPath(`04-${c.module}-script-blocked.png`) });
       });
     }
 
