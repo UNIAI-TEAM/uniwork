@@ -4,7 +4,7 @@ import { paths } from "@uniwork/core/paths";
 import { DocumentsPageView } from "@uniwork/views/documents";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
-import { useDocumentsTabTitle } from "@/platform/office/tab-title";
+import { useDocumentsTabTitle } from "@/platform/office-frame/tab-title";
 
 /** Route wiring only: the shell already provides auth, workspace and nav. */
 export default function DocumentsPage() {

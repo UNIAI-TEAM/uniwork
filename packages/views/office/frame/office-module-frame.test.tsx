@@ -15,6 +15,7 @@ import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/heade
 import { leaveGuardAllows } from "../../navigation/leave-guard";
 import { OfficeModuleFrame } from "./office-module-frame";
 import { OfficeModuleOpenSwitch } from "./office-module-open-switch";
+import { OfficeTooLargeProvider } from "../too-large-notice";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -32,11 +33,14 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false }: { inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false }: { inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean } = {}) {
   requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : Promise.reject(new Error(`unexpected ${path}`))));
   lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const framed = <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} />;
+  const bare = <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} />;
+  const framed = fileActions
+    ? <OfficeTooLargeProvider value={{ desktopAction: <button type="button">Mở trong UniWork Office</button>, onDownload: vi.fn() }}>{bare}</OfficeTooLargeProvider>
+    : bare;
   render(
     <QueryClientProvider client={client}>
       <ThemeProvider defaultTheme="light" enableSystem={false}>
@@ -214,12 +218,14 @@ describe("OfficeModuleFrame", () => {
     expect(resolveAssets).not.toHaveBeenCalled();
   });
 
-  it("hands the document to the G3 editor when the server minted another module than the frame", async () => {
+  it("fails with a retry, and no init, when the server minted another module than the frame", async () => {
     const refuse = vi.fn();
     const frame = mountFrame("markdown", { refuse, tokenModule: "sheets" });
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
     await frame.ready({ module: "markdown" });
-    await waitFor(() => expect(refuse).toHaveBeenCalled());
+    expect(await screen.findByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "failed");
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    expect(refuse).not.toHaveBeenCalled();
     expect(frame.inits()).toHaveLength(0);
   });
 
@@ -241,7 +247,7 @@ describe("OfficeModuleFrame", () => {
     const refuse = vi.fn();
     mountFrame("sheets", { refuse, mint: () => Promise.reject(new ApiError("document is too large for the web frame", "too_large", 413)) });
     // "size" makes the switch show the open-in-the-app notice instead of an editor.
-    await waitFor(() => expect(refuse).toHaveBeenCalledWith("size"));
+    await waitFor(() => expect(refuse).toHaveBeenCalledTimes(1));
   });
 
   it("asks the switch for the too-large notice when the Sheets frame refuses a workbook as too_large", async () => {
@@ -251,10 +257,10 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
     expect(refuse).not.toHaveBeenCalled();
     await frame.event("error", { error: { code: "too_large", message: "worksheet XML over 40 MB" }, fatal: true });
-    await waitFor(() => expect(refuse).toHaveBeenCalledWith("size"));
+    await waitFor(() => expect(refuse).toHaveBeenCalledTimes(1));
   });
 
-  it("does not fall back for too_large in a module without a size cap", async () => {
+  it("does not ask for the too-large notice for too_large in a module without a size cap", async () => {
     const refuse = vi.fn();
     mountFrame("pdf", { refuse, mint: () => Promise.reject(new ApiError("too large", "too_large", 413)) });
     expect(await screen.findByTestId("office-docs-frame-failed")).toBeTruthy();
@@ -278,32 +284,25 @@ describe("OfficeModuleFrame", () => {
   describe("a frame bundle that never loads (404/5xx on index.html)", () => {
     afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
-    it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("fails fast and hands %s to the G3 editor when the bundle answers 404", async (module) => {
+    it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("fails fast with the load error for %s when the bundle answers 404, never the switch", async (module) => {
       vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 404 })));
       const refuse = vi.fn();
       mountFrame(module, { refuse });
-      await waitFor(() => expect(refuse).toHaveBeenCalled());
       expect(await screen.findByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "load");
       expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull();
+      expect(refuse).not.toHaveBeenCalled();
     });
 
-    it("shows a styled retryable error, not the skeleton, when no G3 editor is wired", async () => {
+    it("shows a styled retryable error, not the skeleton, with the host's open-in-app and download", async () => {
       vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 503 })));
-      mountFrame("slides");
+      mountFrame("slides", { fileActions: true });
       const failed = await screen.findByTestId("office-docs-frame-failed");
       expect(failed).toHaveTextContent("Không tải được trình soạn thảo");
+      expect(failed).toHaveTextContent("Hãy thử lại, mở tệp trong UniWork Office hoặc tải xuống.");
       expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Mở bằng trình soạn thảo tiêu chuẩn" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Mở trong UniWork Office" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Tải xuống" })).toBeInTheDocument();
       expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "failed");
-    });
-
-    it("offers both the retry and the standard editor when a G3 editor exists", async () => {
-      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 500 })));
-      const refuse = vi.fn();
-      mountFrame("pdf", { refuse });
-      await screen.findByTestId("office-docs-frame-failed");
-      expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Mở bằng trình soạn thảo tiêu chuẩn" })).toBeInTheDocument();
     });
 
     it("keeps booting when the probe answers 200 or cannot run", async () => {
@@ -324,11 +323,11 @@ describe("OfficeModuleFrame", () => {
       expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
       await act(async () => { vi.advanceTimersByTime(2_000); });
       expect(screen.getByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "load");
-      expect(refuse).toHaveBeenCalledWith("load");
+      expect(refuse).not.toHaveBeenCalled();
     });
 
     describe("an open that takes longer than usual", () => {
-      it("explains the wait after 8 s and offers the standard editor where the page has one", async () => {
+      it("explains the wait after 8 s and offers a retry that restarts it", async () => {
         vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
         const refuse = vi.fn();
@@ -340,19 +339,8 @@ describe("OfficeModuleFrame", () => {
         const slow = screen.getByTestId("office-docs-frame-slow");
         expect(slow).toHaveTextContent("Trình soạn thảo đang mở lâu hơn bình thường");
         expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull();
-        expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
-        act(() => { screen.getByRole("button", { name: "Dùng trình soạn thảo tiêu chuẩn" }).click(); });
-        // The reader's own choice: no explanation needed in the G3 host.
-        expect(refuse).toHaveBeenCalledWith();
-      });
-
-      it("offers a retry that restarts the wait where there is no standard editor", async () => {
-        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
-        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-        mountFrame("slides");
-        await act(async () => { vi.advanceTimersByTime(9_000); });
-        expect(screen.queryByRole("button", { name: "Dùng trình soạn thảo tiêu chuẩn" })).toBeNull();
         act(() => { screen.getByRole("button", { name: "Thử lại" }).click(); });
+        expect(refuse).not.toHaveBeenCalled();
         expect(screen.queryByTestId("office-docs-frame-slow")).toBeNull();
         expect(screen.getByTestId("office-docs-frame-loading")).toBeInTheDocument();
       });
@@ -382,12 +370,11 @@ describe("OfficeModuleFrame", () => {
       it.each([
         ["a 404", () => Promise.resolve({ status: 404 })],
         ["a blocked request", () => Promise.reject(new TypeError("Failed to fetch"))],
-      ])("hands the document to the G3 editor at once on %s", async (_name, answer) => {
+      ])("fails at once with the load error on %s", async (_name, answer) => {
         vi.stubGlobal("fetch", vi.fn((url: string) => (url.endsWith("index.html") ? Promise.resolve({ status: 200 }) : answer())));
-        const refuse = vi.fn();
-        const frame = mountFrame("pdf", { refuse });
+        const frame = mountFrame("pdf");
         loadFrameWithScript(frame);
-        await waitFor(() => expect(refuse).toHaveBeenCalledWith("load"));
+        await waitFor(() => expect(screen.queryByTestId("office-docs-frame-failed")).not.toBeNull());
         expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/office-frame/pdf/1.0.0/assets/index-abc.js"), expect.objectContaining({ cache: "force-cache" }));
         expect(await screen.findByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "load");
       });
@@ -436,39 +423,20 @@ function answer(flags: unknown) {
 }
 
 describe("OfficeModuleOpenSwitch", () => {
-  const refusedFrame = (reason?: "load" | "size") => function RefusedFrame() {
+  function SizeRefusedFrame() {
     const refuse = useDocsFrameRefusal();
-    useEffect(() => { refuse?.(reason); }, [refuse]);
+    useEffect(() => { refuse?.(); }, [refuse]);
     return <p>pdf frame</p>;
-  };
-  const Frame = ({ reason }: { reason?: "load" | "size" }) => {
-    const Refused = refusedFrame(reason);
-    return <Refused />;
-  };
+  }
 
-  it("explains the switch in the G3 host when the frame could not load", async () => {
+  it("shows the too-large notice and no frame when the file is over the module's size cap", async () => {
     answer({ office_engine: true, office_pdf_web: true });
-    render(wrap(<OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<Frame reason="load" />} fallback={<p>g3 editor</p>} />));
-    expect(await screen.findByText("g3 editor")).toBeTruthy();
-    expect(screen.getByTestId("office-frame-fallback-notice")).toHaveTextContent("Không tải được trình soạn thảo mới; bạn đang dùng trình soạn thảo tiêu chuẩn.");
-  });
-
-  it("shows the too-large notice and no editor when the file is over the module's size cap", async () => {
-    answer({ office_engine: true, office_pdf_web: true });
-    render(wrap(<OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<Frame reason="size" />} fallback={<p>g3 editor</p>} tooLarge={<p>too large notice</p>} />));
+    render(wrap(<OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<SizeRefusedFrame />} tooLarge={<p>too large notice</p>} />));
     expect(await screen.findByText("too large notice")).toBeTruthy();
-    expect(screen.queryByText("g3 editor")).toBeNull();
-    expect(screen.queryByTestId("office-frame-fallback-notice")).toBeNull();
+    expect(screen.queryByText("pdf frame")).toBeNull();
   });
 
-  it("switches without a notice for a flag or the reader's own choice", async () => {
-    answer({ office_engine: true, office_pdf_web: true });
-    render(wrap(<OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<Frame />} fallback={<p>g3 editor</p>} />));
-    expect(await screen.findByText("g3 editor")).toBeTruthy();
-    expect(screen.queryByTestId("office-frame-fallback-notice")).toBeNull();
-  });
-
-  const ui = <OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<p>pdf frame</p>} fallback={<p>g3 editor</p>} />;
+  const ui = <OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<p>pdf frame</p>} />;
 
   it("opens the module's frame when its flag is on or absent (default on, CONTRACT C14)", async () => {
     answer({ office_engine: true, office_pdf_web: true });
@@ -476,22 +444,20 @@ describe("OfficeModuleOpenSwitch", () => {
     expect(await screen.findByText("pdf frame")).toBeTruthy();
   });
 
-  it("keeps the G3 editor when the module's own flag is overridden off, whatever the other modules say", async () => {
+  it("shows the unavailable notice, no retry, when the module's own flag is overridden off", async () => {
     answer({ office_engine: true, office_pdf_web: false, office_docs_web: true, office_slides_web: true });
     render(wrap(ui));
-    expect(await screen.findByText("g3 editor")).toBeTruthy();
+    const failed = await screen.findByTestId("office-docs-frame-failed");
+    expect(failed).toHaveAttribute("data-failure-kind", "unavailable");
+    expect(failed).toHaveTextContent("Tổ chức của bạn chưa bật chỉnh sửa loại tệp này trên web.");
+    expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
     expect(screen.queryByText("pdf frame")).toBeNull();
   });
 
-  it("falls back when the server refuses the module's token", async () => {
-    answer({ office_engine: true, office_pdf_web: true });
-    function RefusedFrame() {
-      const refuse = useDocsFrameRefusal();
-      useEffect(() => { refuse?.(); }, [refuse]);
-      return <p>pdf frame</p>;
-    }
-    render(wrap(<OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<RefusedFrame />} fallback={<p>g3 editor</p>} />));
-    expect(await screen.findByText("g3 editor")).toBeTruthy();
+  it("mounts the frame when the organization's answer could not be read: the server decides", async () => {
+    requestMock.mockImplementation(() => Promise.reject(new Error("config down")));
+    render(wrap(ui));
+    expect(await screen.findByText("pdf frame")).toBeTruthy();
   });
 });
 
@@ -501,14 +467,14 @@ describe("Open in desktop app in the module frame", () => {
   });
   const action = () => document.querySelector("[data-office-desktop-action]");
 
-  it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("shows the G3 action for %s once the frame is ready", async (module) => {
+  it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("shows the action for %s once the frame is ready", async (module) => {
     const frame = mountFrame(module, { desktopOpen: desktopOpen() });
     expect(action()).toBeNull();
     await frame.ready(module === "docs" ? {} : { module });
     await waitFor(() => expect(action()).not.toBeNull());
   });
 
-  it("asks before handing off unsaved frame edits, like the G3 host", async () => {
+  it("asks before handing off unsaved frame edits", async () => {
     const launch = vi.fn(async () => "launched" as const);
     const frame = mountFrame("sheets", { desktopOpen: { ...desktopOpen(), launch } });
     await frame.ready({ module: "sheets" });
@@ -520,7 +486,7 @@ describe("Open in desktop app in the module frame", () => {
     expect(launch).not.toHaveBeenCalled();
   });
 
-  it("is hidden for a user who may only view, as in the G3 host", async () => {
+  it("is hidden for a user who may only view", async () => {
     const frame = mountFrame("pdf", { desktopOpen: desktopOpen(), readonly: true });
     await frame.ready({ module: "pdf" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));

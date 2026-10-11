@@ -9,7 +9,7 @@ import { useOfficeEnabled, type OfficeEnabledState } from "@uniwork/core/documen
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
-import { useOfficeFormatName } from "../office/editor-slot";
+import { useOfficeFormatName } from "../office/format-name";
 import { HeaderActionsFill } from "../layout/header-actions-slot";
 import { leaveGuardAllows } from "../navigation";
 import { DocumentFileMenuItems, useDocumentFileActions } from "./document-file-actions";

@@ -7,7 +7,7 @@ import { paths } from "@uniwork/core/paths";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { DocumentOfficeEditorHost } from "@/platform/office-frame/document-host";
-import { useDocumentsTabTitle } from "@/platform/office/tab-title";
+import { useDocumentsTabTitle } from "@/platform/office-frame/tab-title";
 
 // The detail view owns the lazy editor chunk; this route only reads params.
 const DocumentDetailView = lazy(() =>

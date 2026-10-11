@@ -3,8 +3,7 @@
 import { useMemo, useRef, type MutableRefObject } from "react";
 import type { SaveCoordinatorState } from "@uniwork/core/office";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
-import { DesktopOpenAction, type DesktopOpenActionProps, type DesktopOpenOutcome } from "../desktop-open-action";
-import type { OfficeSaveCoordinatorLike } from "../office-shell";
+import { DesktopOpenAction, type DesktopOpenActionProps, type DesktopOpenOutcome, type OfficeSaveCoordinatorLike } from "../desktop-open-action";
 
 /** What the page hands the frame for "Open in desktop app": the same wiring the G3 host uses. */
 export type FrameDesktopOpenProps = Omit<DesktopOpenActionProps, "documentId" | "dirty" | "saveCoordinator" | "placement">;

@@ -1,11 +1,7 @@
 // Shared vitest setup for apps/web.
 //
-// The web Office host suites import the shared pptx view graph, whose per-panel
-// i18n modules register their bundles at module-import time through
-// react-i18next's getI18n(). Those modules evaluate before a test file's body
-// runs, so initI18n() must happen here - in a setup file Vitest runs before the
-// test module - or getI18n() is undefined and registration throws before any
-// assertion can execute.
+// The host suites assert the shared i18n copy, so the shared instance starts
+// before any test module evaluates.
 import { initI18n } from "@uniwork/core/i18n";
 
 initI18n();

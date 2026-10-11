@@ -8097,10 +8097,8 @@
       "retry": "Try again",
       "slow": {
         "title": "The editor is taking longer than usual",
-        "description": "Your document is still opening. This can happen on a slow connection.",
-        "use_standard": "Use the standard editor"
+        "description": "Your document is still opening. This can happen on a slow connection."
       },
-      "fallback_notice": "The new editor could not load; you are using the standard editor.",
       "save_conflict": {
         "title": "Someone saved a newer version",
         "description": "Your changes were not saved. Reload to see the latest version, which replaces what you have open here, or keep your edits open so you can copy them out first.",
@@ -8110,13 +8108,12 @@
       },
       "failure": {
         "unavailable": {
-          "title": "The new document editor is not available",
-          "description": "This UniWork server is not set up for it yet.",
-          "use_standard": "Open in the standard editor"
+          "title": "This document cannot open on the web yet",
+          "description": "This UniWork server is not set up to open documents on the web. Open the file in UniWork Office or download it."
         },
         "load": {
           "title": "The editor could not load",
-          "description": "The editor files did not load, so the document could not open. Try again, or open it in the standard editor."
+          "description": "The editor files did not load, so the document could not open. Try again, open the file in UniWork Office, or download it."
         },
         "network": {
           "title": "Could not connect to UniWork",
@@ -8144,7 +8141,7 @@
         "unsupported": "This action is not available on the web yet.",
         "timeout": "UniWork took too long to answer. Try again.",
         "busy": "Another save of this document is still running. Try again in a moment.",
-        "feature_disabled": "The new document editor is not turned on for your organization.",
+        "feature_disabled": "Your organization has not turned on editing this file type on the web. Open the file in UniWork Office or download it.",
         "internal": "Something went wrong in the document editor."
       }
     },

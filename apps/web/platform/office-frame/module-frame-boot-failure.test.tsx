@@ -15,8 +15,7 @@ vi.mock("@uniwork/core/api/http", async (orig) => ({
   request: (...a: unknown[]) => mocks.request(...a),
 }));
 
-import { DocxFrameOrG3Host } from "./docs-frame-host";
-import { ModuleFrameOrG3Host } from "./module-frame-host";
+import { OfficeModuleHost } from "./module-frame-host";
 
 const doc = { id: "doc-1", title: "Deck", organization_id: "org-1", workspace_id: "ws-1" } as Document;
 const workspace = { id: "ws-1", organization_slug: "acme", slug: "ops" } as Workspace;
@@ -61,36 +60,29 @@ const render = async (host: ReactNode) => {
   });
   await settle();
 };
-const fallback = createElement("b", { "data-testid": "g3" });
-const g3 = () => container.querySelector('[data-testid="g3"]');
+const failed = () => container.querySelector('[data-testid="office-docs-frame-failed"]');
+const host = (module: "docs" | "pdf" | "markdown" | "html" | "slides" | "sheets") =>
+  createElement(OfficeModuleHost, { module, document: doc, wsId: "ws-1", readonly: false });
 
 describe("a module whose frame bundle answers an HTTP error", () => {
-  it.each(["pdf", "markdown", "html", "slides", "sheets"] as const)("%s falls back to the G3 host instead of staying on the loading skeleton", async (module) => {
+  it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("%s shows the load failure with Retry and open-in-app instead of staying on the loading skeleton", async (module) => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 404 })));
-    await render(createElement(ModuleFrameOrG3Host, { module, document: doc, wsId: "ws-1", readonly: false, fallback }));
-    await until(() => g3() !== null);
-    expect(g3()).not.toBeNull();
-    expect(container.querySelector("[data-office-docs-frame]")).toBeNull();
+    await render(host(module));
+    await until(() => failed() !== null);
+    expect(failed()?.getAttribute("data-failure-kind")).toBe("load");
     expect(container.querySelector('[data-testid="office-docs-frame-loading"]')).toBeNull();
+    const labels = Array.from(container.querySelectorAll("button")).map((button) => button.textContent ?? "");
+    expect(labels.some((label) => label.includes("Try again"))).toBe(true);
+    expect(labels.some((label) => label.includes("Download"))).toBe(true);
     expect(fetch).toHaveBeenCalledWith(`/office-frame/${module}/1.0.0/index.html`, expect.anything());
-  });
-
-  it("docs falls back to the G3 editor the same way", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 503 })));
-    await render(createElement(DocxFrameOrG3Host, {
-      document: doc, wsId: "ws-1", readonly: false, frameVersion: "1.0.0", documentHref: (id: string) => `/d/${id}`, fallback,
-    }));
-    await until(() => g3() !== null);
-    expect(g3()).not.toBeNull();
-    expect(container.querySelector('[data-testid="office-docs-frame-loading"]')).toBeNull();
   });
 
   it("keeps the frame mounted, still booting, while the bundle answers", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
-    await render(createElement(ModuleFrameOrG3Host, { module: "slides", document: doc, wsId: "ws-1", readonly: false, fallback }));
+    await render(host("slides"));
     await until(() => container.querySelector("[data-office-docs-frame]") !== null);
     await settle();
     expect(container.querySelector("[data-office-docs-frame]")?.getAttribute("data-state")).toBe("booting");
-    expect(g3()).toBeNull();
+    expect(failed()).toBeNull();
   });
 });

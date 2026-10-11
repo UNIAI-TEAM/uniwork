@@ -14,14 +14,14 @@ const savedDocument = { id: "doc-1", organization_id: "org-1", workspace_id: "ws
 
 afterEach(() => { request.mockReset(); });
 
-describe("desktop open rule shared by the G3 host and the module frames", () => {
+describe("desktop open rule of the module frames", () => {
   it("shows the action only for an open editor and a user who may edit", () => {
     expect(desktopOpenAllowed({ open: true, readonly: false })).toBe(true);
     expect(desktopOpenAllowed({ open: true, readonly: true })).toBe(false);
     expect(desktopOpenAllowed({ open: false, readonly: false })).toBe(false);
   });
 
-  it("wires a frame with the G3 launch and the saved version, and reads the committed version back after a frame save", async () => {
+  it("wires a frame with the deep-link launch and the saved version, and reads the committed version back after a frame save", async () => {
     const props = frameDesktopOpen({ id: "doc-1", organization_id: "org-1", current_version: 4 }, "dep-1");
     expect(props).toMatchObject({ deploymentId: "dep-1", savedVersion: 4, channel: "stable", launch: launchOfficeDeepLink });
     request.mockResolvedValueOnce({ document: { ...savedDocument, current_version: 5 } });

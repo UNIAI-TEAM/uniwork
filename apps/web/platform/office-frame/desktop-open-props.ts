@@ -9,9 +9,8 @@ import type { DesktopOpenActionProps, FrameDesktopOpenProps, OfficeChannel, Offi
 import { launchOfficeDeepLink } from "./desktop-handoff";
 
 /**
- * "Open in desktop app" on the document page, one rule for every web host:
- * the G3 editor (editor-host.tsx) and the genoffice module frames
- * (platform/office-frame). The action shows only once the editor is open and
+ * "Open in desktop app" on the document page, for the genoffice module frames
+ * and their too-large / failure surfaces. The action shows only once the editor is open and
  * only for a user who may edit; everything else (installers, platform hint,
  * the uniwork:// launch) is the same wiring.
  */
@@ -25,7 +24,7 @@ export function desktopOpenAllowed({ open, readonly }: { open: boolean; readonly
  * requests never go out with a guessed channel; it is read when a request
  * is made, not when the wiring is built.
  */
-export function desktopOpenWiring(
+function desktopOpenWiring(
   document: Pick<Document, "id" | "organization_id">,
   channel: OfficeChannel,
   channelReady: () => Promise<OfficeChannel> = () => Promise.resolve(channel),
@@ -100,13 +99,13 @@ interface OfficeConfigBinding {
 
 /**
  * The one public-config read behind "Open in desktop app" for every web host
- * (the G3 editor and the module/docs frames): which channel publishes
+ * (the module frames and their notices): which channel publishes
  * installers and which deployment the launch ticket binds to. A pinned channel
  * or deployment id wins and is not read from the config. Requests that name a
  * channel wait on `channelReady`; if the config is unavailable they ask for
  * stable and show the "no installer" state.
  */
-export function useOfficeConfigBinding(organizationId: string, pinned: { channel?: OfficeChannel; deploymentId?: string } = {}): OfficeConfigBinding {
+function useOfficeConfigBinding(organizationId: string, pinned: { channel?: OfficeChannel; deploymentId?: string } = {}): OfficeConfigBinding {
   const { channel: pinnedChannel, deploymentId: pinnedDeploymentId } = pinned;
   const [publishedChannel, setPublishedChannel] = useState<OfficeChannel | null>(null);
   const [configDeploymentId, setConfigDeploymentId] = useState<string | undefined>(undefined);

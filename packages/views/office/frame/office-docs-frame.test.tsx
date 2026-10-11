@@ -13,6 +13,7 @@ import { leaveGuardAllows } from "../../navigation/leave-guard";
 import { requestMock } from "../../test/api-mock";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DocsFrameRefusalContext } from "./docs-frame-refusal";
+import { OfficeTooLargeProvider } from "../too-large-notice";
 import { OfficeDocsFrame, type OfficeDocsFrameProps } from "./office-docs-frame";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 
@@ -363,11 +364,11 @@ describe("OfficeDocsFrame", () => {
     serveTokens(() => Promise.reject(new ApiError("feature is disabled", "feature_disabled", status)));
     mount({}, fakeApi(), false);
     const alert = await screen.findByTestId("office-docs-frame-failed");
-    expect(alert.textContent).toContain("Trình soạn thảo tài liệu mới chưa được bật cho tổ chức của bạn.");
+    expect(alert.textContent).toContain("Tổ chức của bạn chưa bật chỉnh sửa loại tệp này trên web.");
     expect(alert.textContent).not.toContain("không còn tồn tại");
   });
 
-  it("tells the switch around it to fall back when the mint is refused with feature_disabled", async () => {
+  it("shows its own unavailable notice on feature_disabled, and asks the switch for nothing", async () => {
     serveTokens(() => Promise.reject(new ApiError("feature is disabled", "feature_disabled", 403)));
     const refuse = vi.fn();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -378,7 +379,9 @@ describe("OfficeDocsFrame", () => {
         </DocsFrameRefusalContext.Provider>
       </QueryClientProvider>,
     );
-    await waitFor(() => expect(refuse).toHaveBeenCalledTimes(1));
+    const alert = await screen.findByTestId("office-docs-frame-failed");
+    expect(alert.getAttribute("data-failure-kind")).toBe("unavailable");
+    expect(refuse).not.toHaveBeenCalled();
   });
 
   it("exposes save and print controls to the hosting page", async () => {
@@ -567,24 +570,24 @@ describe("OfficeDocsFrame", () => {
     await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
   });
 
-  it("says the editor is unavailable on this server (no retry) and offers the standard editor", async () => {
+  it("says the editor is unavailable on this server (no retry) and offers the host's open-in-app and download", async () => {
     serveTokens(() => Promise.reject(new ApiError("office frame is not configured", "storage_unavailable", 501)));
-    const refuse = vi.fn();
+    const onDownload = vi.fn();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
-        <DocsFrameRefusalContext.Provider value={refuse}>
+        <OfficeTooLargeProvider value={{ desktopAction: <button type="button">Mở trong UniWork Office</button>, onDownload }}>
           <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
-        </DocsFrameRefusalContext.Provider>
+        </OfficeTooLargeProvider>
       </QueryClientProvider>,
     );
     const alert = await screen.findByTestId("office-docs-frame-failed");
     expect(alert.getAttribute("data-failure-kind")).toBe("unavailable");
-    expect(alert.textContent).toContain("Chưa dùng được trình soạn thảo tài liệu mới");
+    expect(alert.textContent).toContain("Chưa mở được tài liệu trên web");
     expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
-    expect(refuse).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Mở bằng trình soạn thảo tiêu chuẩn" }));
-    expect(refuse).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Mở trong UniWork Office" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Tải xuống" }));
+    await waitFor(() => expect(onDownload).toHaveBeenCalledTimes(1));
   });
 
   it("tells a dropped connection apart from a failure, with a retry", async () => {

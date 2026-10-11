@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { ChevronDown, Download, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { OfficeSaveCoordinatorLike } from "./office-shell";
-import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, DESKTOP_INSTALLER_KINDS, DESKTOP_PLATFORMS, type DesktopPlatform, type DesktopPlatformGuess, type OfficeInstallerOption, type OfficeChannel, type OfficeLaunchOutcome } from "@uniwork/core/office";
+import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, DESKTOP_INSTALLER_KINDS, DESKTOP_PLATFORMS, type DesktopPlatform, type DesktopPlatformGuess, type OfficeInstallerOption, type OfficeChannel, type OfficeLaunchOutcome, type SaveCoordinatorState } from "@uniwork/core/office";
 import {
   createOfficeLaunchSession,
   type OfficeLaunchSessionResponse,
@@ -49,6 +48,13 @@ export type OfficeLaunchSessionFactory = (
   documentId: string,
   body: { operation: "edit"; version?: number; deployment_id: string; client_id: string; return_hint: "office" },
 ) => Promise<OfficeLaunchSessionResponse | null>;
+
+/** What "Open in desktop app" needs of the editor's save coordinator: save first when there are unsaved edits. */
+export interface OfficeSaveCoordinatorLike {
+  save(entryPoint?: "button" | "menu" | "shortcut" | "dialog" | "retry"): Promise<unknown>;
+  getState(): SaveCoordinatorState;
+  subscribe?(listener: (state: SaveCoordinatorState) => void): () => void;
+}
 
 export interface DesktopOpenActionProps {
   documentId: string;
