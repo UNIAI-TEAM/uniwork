@@ -187,6 +187,10 @@ const (
 	ActionSignatureCreated = "signature.created"
 	ActionSignatureDeleted = "signature.deleted"
 
+	// Email Hub (UNI-1109): the system disconnects a mailbox whose IMAP LOGIN
+	// the provider refused, so no node keeps retrying a revoked password.
+	ActionEmailHubAccountDisconnected = "email_hub_account.disconnected"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended   = "organization.suspended"

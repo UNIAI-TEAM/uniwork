@@ -37,17 +37,21 @@ export function buildSummaryTaskItems(
     });
 }
 
+// Folds case and Vietnamese diacritics like the server's normalizePersonName.
+const foldName = (s: string): string =>
+  s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/gi, "d").toLowerCase().trim().split(/\s+/).join(" ");
+
 /** Best-effort client preview: match AI owner string to a workspace member display name. */
 export function previewAssigneeId(
   owner: string | undefined,
   members: { user_id: string; display_name: string }[],
 ): string | undefined {
-  const needle = owner?.trim().toLowerCase();
+  const needle = owner ? foldName(owner) : "";
   if (!needle) return undefined;
-  const exact = members.filter((m) => m.display_name.trim().toLowerCase() === needle);
+  const exact = members.filter((m) => foldName(m.display_name) === needle);
   if (exact.length === 1) return exact[0]?.user_id;
   const fuzzy = members.filter((m) => {
-    const name = m.display_name.trim().toLowerCase();
+    const name = foldName(m.display_name);
     return name.includes(needle) || needle.includes(name);
   });
   return fuzzy.length === 1 ? fuzzy[0]?.user_id : undefined;

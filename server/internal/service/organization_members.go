@@ -375,6 +375,12 @@ func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID st
 	}); err != nil {
 		return err
 	}
+	mailboxes, err := q.DisconnectEmailHubAccountsForUser(ctx, db.DisconnectEmailHubAccountsForUserParams{
+		UserID: actorID, OrganizationID: pgtype.Text{String: orgID, Valid: true},
+	})
+	if err != nil {
+		return err
+	}
 	if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
 		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: -1, Actor: Human(actorID),
 	}); err != nil {
@@ -391,7 +397,11 @@ func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID st
 	}}); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, mailboxes)
+	return nil
 }
 
 // requireAdmin is the gate every administrative command starts with.

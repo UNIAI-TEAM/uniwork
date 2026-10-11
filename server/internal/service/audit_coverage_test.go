@@ -14,6 +14,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
@@ -1276,6 +1277,15 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-1109: the provider refused the mailbox's IMAP LOGIN.
+		audit.ActionEmailHubAccountDisconnected: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewEmailHubService(f.q, f.ws, testEmailHubBox(t))
+			acc := seedEmailHubAccount(t, f.q, svc.box, f.owner.ID, f.orgID)
+			if !svc.disconnectOnAuthFailure(f.ctx, acc, imapclient.ErrAuthFailed) {
+				t.Fatal("expected the account to be disconnected")
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -1408,6 +1418,7 @@ func auditActions() []string {
 		audit.ActionDocumentAssetPurged,
 		audit.ActionSignatureCreated,
 		audit.ActionSignatureDeleted,
+		audit.ActionEmailHubAccountDisconnected,
 	}
 }
 

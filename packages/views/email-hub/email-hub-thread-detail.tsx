@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Forward, RefreshCw, Reply, ReplyAll } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,7 +14,6 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { identityTint } from "../people/identity-tint";
 import { EmailHubConversationMessage } from "./email-hub-conversation-message";
-import { useEmailHubRemoteImagesPref } from "./use-email-hub-remote-images-pref";
 import { emailHubLocale, formatEmailFullDate, senderDisplayName } from "./email-hub-format";
 import {
   emailHubThreadCapabilities,
@@ -75,13 +74,10 @@ export function EmailHubThreadDetail({
   const can = emailHubThreadCapabilities(thread, browserFolder);
   const labels = thread.imap_labels ?? [];
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [alwaysShowRemoteImages, setAlwaysShowRemoteImages] = useEmailHubRemoteImagesPref();
-  const [allowRemoteImages, setAllowRemoteImages] = useState(alwaysShowRemoteImages);
   const conversationCount =
     detailData?.conversation_message_count ?? activeThread.conversation_message_count ?? 1;
   const needsConversation = conversationCount > 1;
   const conversation = useEmailHubConversation(wsId, accountId, needsConversation ? activeThread.id : null);
-  const allowRemote = alwaysShowRemoteImages || allowRemoteImages;
   const refetchFromMailbox = emailHubBodyAwaitingMailboxRefetch(detailData ?? activeThread, bodyLoading);
 
   const messages = useMemo(() => {
@@ -91,10 +87,6 @@ export function EmailHubThreadDetail({
   }, [activeThread, conversation.data?.messages]);
 
   const multiMessage = messages.length > 1;
-
-  useEffect(() => {
-    setAllowRemoteImages(alwaysShowRemoteImages);
-  }, [activeThread.id, alwaysShowRemoteImages]);
 
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
@@ -186,11 +178,6 @@ export function EmailHubThreadDetail({
                   message={msg}
                   detailOverride={msg.id === activeThread.id ? detailData : null}
                   bodyFetchPriority={msg.id === activeThread.id}
-                  allowRemote={allowRemote}
-                  onAllowRemote={() => {
-                    setAllowRemoteImages(true);
-                    setAlwaysShowRemoteImages(true);
-                  }}
                   locale={locale}
                 />
               ))}
@@ -207,15 +194,11 @@ export function EmailHubThreadDetail({
             </div>
           ) : (
             <EmailHubConversationMessage
+              key={activeThread.id}
               wsId={wsId}
               accountId={accountId}
               message={activeThread}
               detailOverride={readableBody ? detailData : null}
-              allowRemote={allowRemote}
-              onAllowRemote={() => {
-                setAllowRemoteImages(true);
-                setAlwaysShowRemoteImages(true);
-              }}
               locale={locale}
               showHeader={false}
             />

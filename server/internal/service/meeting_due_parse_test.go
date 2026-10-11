@@ -19,6 +19,10 @@ func TestParseMeetingDueSpoken(t *testing.T) {
 		{"thứ Sáu", "2026-09-04"},
 		{"Friday", "2026-09-04"},
 		{"tuần sau", "2026-09-10"},
+		{"thứ Bảy", "2026-09-05"},
+		{"thứ 7", "2026-09-05"},
+		{"thứ Ba", "2026-09-08"},
+		{"Saturday", "2026-09-05"},
 	}
 	for _, tc := range cases {
 		got := parseMeetingDueSpoken(tc.in, anchor)

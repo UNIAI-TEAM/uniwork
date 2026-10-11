@@ -19,14 +19,11 @@ func ListMailboxMap(cl *client.Client, defaults MailboxMap) (MailboxMap, error) 
 	for k, v := range defaults {
 		out[k] = v
 	}
-	ch := make(chan *imap.MailboxInfo, 64)
-	if err := cl.List("", "*", ch); err != nil {
+	infos, err := listMailboxes(cl, "*")
+	if err != nil {
 		return out, fmt.Errorf("imap list: %w", err)
 	}
-	for info := range ch {
-		if info == nil {
-			continue
-		}
+	for _, info := range infos {
 		for _, attr := range info.Attributes {
 			switch attr {
 			case imap.SentAttr:
@@ -43,6 +40,22 @@ func ListMailboxMap(cl *client.Client, defaults MailboxMap) (MailboxMap, error) 
 		}
 	}
 	return out, nil
+}
+
+// listMailboxes runs LIST while draining its channel. go-imap sends each row
+// from its reader goroutine and blocks on a full channel, so collecting only
+// after List returns hangs once a mailbox has more folders than the buffer.
+func listMailboxes(cl *client.Client, name string) ([]*imap.MailboxInfo, error) {
+	ch := make(chan *imap.MailboxInfo, 16)
+	done := make(chan error, 1)
+	go func() { done <- cl.List("", name, ch) }() // List closes ch when it returns
+	var infos []*imap.MailboxInfo
+	for info := range ch {
+		if info != nil {
+			infos = append(infos, info)
+		}
+	}
+	return infos, <-done
 }
 
 func (m MailboxMap) Resolve(logicalFolder string) string {

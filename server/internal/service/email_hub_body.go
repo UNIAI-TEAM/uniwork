@@ -100,6 +100,12 @@ func (s *EmailHubService) scheduleBodyPrefetch(acc db.EmailHubAccount, folder st
 	}
 	go func() {
 		defer s.gov.endBodyPrefetch(acc.ID, folder)
+		// A background goroutine panic kills the process; one bad message must not.
+		defer func() {
+			if r := recover(); r != nil {
+				s.log.Error("email hub body prefetch panic", "account_id", acc.ID, "folder", folder, "recovered", r)
+			}
+		}()
 		ctx, cancel := context.WithTimeout(context.Background(), emailHubPrefetchMaxDuration)
 		defer cancel()
 		for ctx.Err() == nil {

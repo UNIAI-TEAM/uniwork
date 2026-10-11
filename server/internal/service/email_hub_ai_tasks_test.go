@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,5 +51,32 @@ func TestCreateTasksFromThreadSummaryRefusesOtherMembers(t *testing.T) {
 		[]SummaryTaskItem{{Title: "Không được"}})
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("other member err = %v, want ErrNotFound", err)
+	}
+}
+
+// The confirm dialog is the human decision (ADR 0010): an item sent without
+// assignee_id or due_date stays unassigned and undated, even when the AI's
+// owner text names a member and its due text parses. The AI text survives in
+// the description.
+func TestCreateTasksFromThreadSummaryKeepsTheHumanChoice(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	svc.Tasks = NewTaskService(pool, q, svc.ws, nil)
+	account := seedEmailHubAccount(t, q, testEmailHubBox(t), user.ID, ws.OrganizationID)
+	thread := seedEmailHubThread(t, q, account.ID, ws.OrganizationID)
+
+	tasks, err := svc.CreateTasksFromThreadSummary(ctx, Human(user.ID), ws.ID, account.ID, thread.ID,
+		[]SummaryTaskItem{{Title: "Gửi báo giá", Owner: "EH User", DueSpoken: "thu sau"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := tasks[0]
+	if got.AssigneeID.Valid || got.DueDate.Valid {
+		t.Fatalf("assignee = %+v, due = %+v; want both empty", got.AssigneeID, got.DueDate)
+	}
+	for _, want := range []string{"Người phụ trách (AI): EH User", "Hạn (AI): thu sau"} {
+		if !strings.Contains(got.Description, want) {
+			t.Fatalf("description %q lacks %q", got.Description, want)
+		}
 	}
 }

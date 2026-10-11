@@ -22,6 +22,14 @@ func (s *EmailHubService) SetThreadSnooze(
 	if err != nil {
 		return EmailHubThreadView{}, err
 	}
+	if _, err := s.q.GetEmailHubAccount(ctx, db.GetEmailHubAccountParams{
+		ID: accountID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return EmailHubThreadView{}, ErrNotFound
+		}
+		return EmailHubThreadView{}, err
+	}
 	row, err := s.q.GetEmailHubThread(ctx, db.GetEmailHubThreadParams{
 		ID: threadID, AccountID: accountID, OrganizationID: ws.OrganizationID,
 	})
@@ -41,11 +49,21 @@ func (s *EmailHubService) SetThreadSnooze(
 		}
 		snooze = pgtype.Timestamptz{Time: until.UTC(), Valid: true}
 	}
-	updated, err := s.q.UpdateEmailHubThreadSnooze(ctx, db.UpdateEmailHubThreadSnoozeParams{
-		ID: threadID, AccountID: accountID, OrganizationID: ws.OrganizationID, SnoozedUntil: snooze,
-	})
+	rows, err := s.inboxConversationRows(ctx, row)
 	if err != nil {
 		return EmailHubThreadView{}, err
+	}
+	updated := row
+	for _, r := range rows {
+		u, err := s.q.UpdateEmailHubThreadSnooze(ctx, db.UpdateEmailHubThreadSnoozeParams{
+			ID: r.ID, AccountID: accountID, OrganizationID: ws.OrganizationID, SnoozedUntil: snooze,
+		})
+		if err != nil {
+			return EmailHubThreadView{}, err
+		}
+		if r.ID == threadID {
+			updated = u
+		}
 	}
 	return threadView(updated), nil
 }

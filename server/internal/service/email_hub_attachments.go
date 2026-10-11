@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
@@ -88,10 +87,12 @@ func (s *EmailHubService) listThreadAttachments(ctx context.Context, threadID, a
 	return out, nil
 }
 
-// OpenAttachment streams one attachment from IMAP after verifying ownership.
+// OpenAttachment reads one attachment from IMAP after verifying ownership. The
+// IMAP session holds a global slot only while fetching: it is closed before the
+// bytes reach a client that may read slowly.
 func (s *EmailHubService) OpenAttachment(
 	ctx context.Context, actor Actor, workspaceID, accountID, threadID, attachmentID string,
-) (EmailHubAttachmentView, io.ReadCloser, error) {
+) (EmailHubAttachmentView, []byte, error) {
 	if !s.Enabled() {
 		return EmailHubAttachmentView{}, nil, ErrEmailHubNotConfigured
 	}
@@ -129,13 +130,12 @@ func (s *EmailHubService) OpenAttachment(
 	if row.SizeBytes > maxEmailHubAttachmentBytes {
 		return EmailHubAttachmentView{}, nil, Invalid("attachment too large")
 	}
-	password, err := s.openPassword(acc.PasswordEnc)
+	sess, mailboxes, err := s.openIMAPInteractive(acc)
 	if err != nil {
 		return EmailHubAttachmentView{}, nil, err
 	}
-	meta, r, err := imapclient.FetchAttachment(imapclient.Credentials{
-		Host: acc.ImapHost, Port: int(acc.ImapPort), Email: acc.EmailAddress, Password: password,
-	}, s.mailboxFor(acc, thread.Folder), uint32(thread.ImapUid), row.PartID)
+	meta, data, err := sess.FetchAttachment(mailboxes.Resolve(thread.Folder), uint32(thread.ImapUid), row.PartID)
+	_ = sess.Close()
 	if err != nil {
 		return EmailHubAttachmentView{}, nil, err
 	}
@@ -146,5 +146,5 @@ func (s *EmailHubService) OpenAttachment(
 	if view.MimeType == "" && meta.MimeType != "" {
 		view.MimeType = meta.MimeType
 	}
-	return view, r, nil
+	return view, data, nil
 }

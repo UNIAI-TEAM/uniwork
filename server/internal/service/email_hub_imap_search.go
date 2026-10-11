@@ -9,15 +9,22 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+// indexSearchResults runs IMAP SEARCH (which matches bodies the cache may not
+// hold) and caches the hits; the returned ids keep those rows in the result.
 func (s *EmailHubService) indexSearchResults(
 	ctx context.Context, acc db.EmailHubAccount, folder, query string,
-) error {
+) ([]string, error) {
 	query = strings.TrimSpace(query)
 	if !s.Enabled() || query == "" {
-		return nil
+		return nil, nil
 	}
-	if s.gov.interactiveActive(acc.ID) || !s.gov.shouldIndexSearch(acc.ID, folder, query) {
-		return nil
+	hits, run := s.gov.shouldIndexSearch(acc.ID, folder, query)
+	if !run {
+		return hits, nil // cached hits cost no IMAP, so they hold while a thread opens
+	}
+	if s.gov.interactiveActive(acc.ID) {
+		s.gov.forgetSearch(acc.ID, folder, query)
+		return nil, nil
 	}
 
 	var searchErr error
@@ -43,12 +50,14 @@ func (s *EmailHubService) indexSearchResults(
 		if len(result.Items) == 0 {
 			return nil
 		}
-		searchErr = s.upsertThreadItems(ctx, acc, cacheFolder, result.Items)
+		hits, searchErr = s.upsertThreadItems(ctx, acc, cacheFolder, result.Items)
 		return searchErr
 	}) {
-		return nil
+		s.gov.forgetSearch(acc.ID, folder, query)
+		return nil, nil
 	}
-	return searchErr
+	s.gov.rememberSearchHits(acc.ID, folder, query, hits)
+	return hits, searchErr
 }
 
 func searchFolderPlan(folder string) (searchFolder, cacheFolder string, opts imapclient.SearchOptions) {

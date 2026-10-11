@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ImageOff, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -35,8 +36,6 @@ export function EmailHubConversationMessage({
   accountId,
   message,
   detailOverride,
-  allowRemote,
-  onAllowRemote,
   locale,
   showHeader = true,
   bodyFetchPriority = false,
@@ -45,8 +44,6 @@ export function EmailHubConversationMessage({
   accountId: string;
   message: EmailHubThread;
   detailOverride?: EmailHubThread | null;
-  allowRemote: boolean;
-  onAllowRemote: () => void;
   locale: string;
   showHeader?: boolean;
   /** Open thread in reading pane — fetch body immediately, not gated by viewport. */
@@ -54,6 +51,8 @@ export function EmailHubConversationMessage({
 }) {
   const { t } = useTranslation();
   const { ref: visibilityRef, visible } = useEmailHubWhenVisible();
+  // Never persisted: "Show images" lets this one message's tracking pixels through, nothing else.
+  const [allowRemote, setAllowRemote] = useState(false);
   const override =
     detailOverride?.id === message.id && emailHubHasReadableBody(detailOverride) ? detailOverride : null;
   const needsBody = !emailHubHasReadableBody(override ?? message);
@@ -106,7 +105,7 @@ export function EmailHubConversationMessage({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted px-3 py-2 text-caption text-muted-foreground">
               <ImageOff className="size-4 shrink-0" aria-hidden />
               <span className="min-w-0 flex-1 text-pretty">{t("email_hub.remote_blocked")}</span>
-              <Button type="button" variant="outline" size="sm" onClick={onAllowRemote}>
+              <Button type="button" variant="outline" size="sm" onClick={() => setAllowRemote(true)}>
                 {t("email_hub.remote_show")}
               </Button>
             </div>

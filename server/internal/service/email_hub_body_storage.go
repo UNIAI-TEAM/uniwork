@@ -67,9 +67,6 @@ func (s *EmailHubService) hydrateThreadBodyFromObject(ctx context.Context, view 
 	}
 	view.BodyText = text
 	view.BodyHTML = html
-	repaired := imapclient.RepairThreadBodyContent(view.BodyText, view.BodyHTML)
-	view.BodyText = repaired.Text
-	view.BodyHTML = repaired.HTML
 	return nil
 }
 

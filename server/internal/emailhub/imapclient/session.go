@@ -30,14 +30,12 @@ func OpenSessionInteractive(c Credentials) (*Session, error) {
 }
 
 // OpenSessionIdle dials IMAP for long-lived IDLE watch without consuming a global work slot.
-// Read timeout is disabled: IDLE has no server traffic until mail arrives; the caller's
-// context bounds how long one watch round lasts (see emailHubWatchTimeout).
+// Commands keep the normal timeout; WatchFolder lifts it only while IDLE is open.
 func OpenSessionIdle(c Credentials) (*Session, error) {
 	cl, err := dial(c)
 	if err != nil {
 		return nil, err
 	}
-	cl.Timeout = 0
 	return &Session{cl: cl, globalSlot: false}, nil
 }
 
@@ -115,6 +113,9 @@ func (s *Session) MarkStarred(mailbox string, uid uint32, starred bool) error {
 }
 
 // WatchFolder blocks until the server reports a mailbox change or ctx ends.
+// It always finishes IDLE (DONE sent, tagged OK read) before returning, so the
+// session is ready for its next command (RFC 2177) and go-imap's reader never
+// blocks on a full Updates channel.
 func (s *Session) WatchFolder(ctx context.Context, mailbox string) (bool, error) {
 	if s.cl == nil {
 		return false, fmt.Errorf("imap: session closed")
@@ -125,29 +126,41 @@ func (s *Session) WatchFolder(ctx context.Context, mailbox string) (bool, error)
 
 	updates := make(chan client.Update, 8)
 	s.cl.Updates = updates
-
+	timeout := s.cl.Timeout
+	s.cl.Timeout = 0 // IDLE is silent until mail arrives; ctx bounds the round
 	stop := make(chan struct{})
-	go func() {
-		<-ctx.Done()
-		close(stop)
-	}()
-
 	done := make(chan error, 1)
 	go func() { done <- s.cl.Idle(stop, nil) }()
 
+	var changed bool
+	var ctxErr error
+	ctxDone := ctx.Done()
+	var giveUp <-chan time.Time
+	stopIdle := func() {
+		close(stop)
+		ctxDone = nil
+		giveUp = time.After(imapClientTimeout)
+	}
 	for {
 		select {
-		case <-ctx.Done():
-			return false, ctx.Err()
+		case <-ctxDone:
+			ctxErr = ctx.Err()
+			stopIdle()
 		case update := <-updates:
-			if update != nil {
-				return true, nil
+			// Keep draining after DONE so the reader can deliver IDLE's OK.
+			if update != nil && !changed && ctxErr == nil {
+				changed = true
+				stopIdle()
 			}
+		case <-giveUp:
+			_ = s.cl.Terminate() // the server never answered DONE
 		case err := <-done:
-			if err != nil {
-				return false, err
+			s.cl.Updates = nil
+			s.cl.Timeout = timeout
+			if ctxErr != nil {
+				return false, ctxErr
 			}
-			return false, nil
+			return changed, err
 		}
 	}
 }

@@ -80,3 +80,22 @@ func (s *EmailHubService) enrichInboxConversationList(ctx context.Context, rows 
 	}
 	return out, nil
 }
+
+// inboxConversationRows is what an action on row touches: an INBOX message
+// stands for every INBOX message of its conversation (the inbox lists one row
+// per conversation), any other row only for itself (UNI-1124).
+func (s *EmailHubService) inboxConversationRows(ctx context.Context, row db.EmailHubThread) ([]db.EmailHubThread, error) {
+	if row.Folder != emailhub.FolderInbox || row.ConversationKey == "" {
+		return []db.EmailHubThread{row}, nil
+	}
+	rows, err := s.q.ListEmailHubInboxConversationMembers(ctx, db.ListEmailHubInboxConversationMembersParams{
+		AccountID: row.AccountID, OrganizationID: row.OrganizationID, ConversationKey: row.ConversationKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return []db.EmailHubThread{row}, nil
+	}
+	return rows, nil
+}
