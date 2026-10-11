@@ -25,10 +25,7 @@
         "k6",
         "sharp",
         "jszip",
-        "esbuild",
-        "@univerjs/core",
-        "@univerjs/sheets",
-        "@univerjs/preset-sheets-core"
+        "esbuild"
       ]
     },
     "apps/web": {
