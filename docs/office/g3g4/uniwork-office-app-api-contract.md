@@ -30,15 +30,20 @@ consent, mã một lần, thu hồi thiết bị) ở [desktop-auth-contract.md]
 | Làm mới | `POST /auth/desktop/refresh` |
 | Đăng xuất / thiết bị | `POST /auth/desktop/logout`, `GET /auth/desktop/devices`, `DELETE /auth/desktop/devices/{deviceSessionID}` |
 
-`client_id` là `uniwork-office`, `deployment_id` là `default` và callback là
-`uniwork-office://auth/callback` (allowlist trong `desktop-auth-contract.md`).
+`deployment_id` là `default`. Server nhận nhiều client desktop cùng lúc (UNI-1006, PR #214):
+biến `DESKTOP_AUTH_CLIENTS` (`client_id=redirect[|redirect...]`, cách nhau bởi dấu phẩy) là toàn
+bộ allowlist, và một redirect chỉ hợp lệ cho đúng client khai báo nó. `deploy/app/env/uniwork-be.env`
+khai báo cả `uniwork-office` (`uniwork-office://auth/callback`) và `uniwork-office-dev`
+(`uniwork-office-dev://auth/callback`). Khi biến này không đặt, cặp `DESKTOP_AUTH_CLIENT_ID` +
+`DESKTOP_AUTH_REDIRECT_URIS` chạy như trước (một client). Mã đổi phiên chỉ dùng được với đúng
+client và redirect đã bắt đầu nó; mở app từ web nhận mọi client đã cấu hình, còn hồ sơ tải bộ
+cài yêu cầu client của kênh tương ứng phải có trong allowlist. Chi tiết ở `desktop-auth-contract.md`.
 Fork (`appId` `com.uniwork.office`) đăng ký, từ GO-A5 (UNI-1006), hai scheme đăng nhập bên
 cạnh `uniwork://` (vẫn dùng cho `uniwork://office/app` và `uniwork://agent/intent`):
 `uniwork-office://auth/callback` (`client_id` `uniwork-office`, kênh stable/beta) và
 `uniwork-office-dev://auth/callback` (`client_id` `uniwork-office-dev`, kênh dev). App chỉ đăng
 ký scheme của kênh đang chạy; cả hai được khai báo trong `protocols` của electron-builder.
-Đăng nhập dùng đúng allowlist hiện có, server không đổi (`DESKTOP_AUTH_REDIRECT_URIS` giữ
-nguyên). Callback đến qua argv khi khởi động, lần mở thứ hai trên Windows hoặc `open-url`
+Cả hai client phải có trong `DESKTOP_AUTH_CLIENTS` của server (xem trên). Callback đến qua argv khi khởi động, lần mở thứ hai trên Windows hoặc `open-url`
 trên macOS (kể cả trước khi app sẵn sàng) và được chuyển cho phần đăng nhập trước bộ định
 tuyến office. Địa chỉ server lấy từ `deployment-profile.json` (thư mục resources, rồi
 userData; bộ cài NSIS chép file này cạnh bộ cài vào resources), sau đó mới tới
