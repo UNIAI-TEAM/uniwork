@@ -157,9 +157,29 @@ async function deactivateOrgMember(email: string): Promise<void> {
   }
 }
 
+/**
+ * Fixture-only setup: the scene seats six people in organization A, past the
+ * Starter members.max of 5, so A runs on Team (every feature, 30 seats).
+ */
+async function moveOrgToTeamPlan(orgId: string): Promise<void> {
+  const c = new Client({ connectionString: e2eDatabaseUrl() });
+  await c.connect();
+  try {
+    const r = await c.query(
+      `UPDATE subscriptions s SET plan_id = p.id
+         FROM plans p WHERE p.code = 'team' AND s.organization_id = $1 AND s.status <> 'canceled'`,
+      [orgId],
+    );
+    if (r.rowCount !== 1) throw new Error(`moveOrgToTeamPlan: expected 1 live subscription for ${orgId}, got ${r.rowCount}`);
+  } finally {
+    await c.end();
+  }
+}
+
 /** Builds the whole scene. One call per test file, in `beforeAll`. */
 export async function documentMatrix(page: Page, api: string, tag: string): Promise<DocumentMatrix> {
   const aOwner = await createDocsAccount(page, api, `${tag}-a-owner`);
+  await moveOrgToTeamPlan(aOwner.orgId);
   const aWS2Id = await createWorkspaceInOrg(
     page,
     api,
