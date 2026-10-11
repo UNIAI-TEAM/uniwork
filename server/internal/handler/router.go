@@ -280,6 +280,7 @@ func New(d Deps) http.Handler {
 		GetEmailHubUnreadCount:        h.getEmailHubUnreadCount,
 		GetEmailHubSidebarCounts:      h.getEmailHubSidebarCounts,
 		ConnectEmailHubAccount:        h.connectEmailHubAccount,
+		StartEmailHubOAuth:            h.startEmailHubOAuth,
 		GetEmailHubProviders:          h.getEmailHubProviders,
 		DisconnectEmailHubAccount:     h.disconnectEmailHubAccount,
 		ListEmailHubImapLabels:        h.listEmailHubImapLabels,

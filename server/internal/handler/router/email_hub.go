@@ -13,6 +13,7 @@ import (
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/providers
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/accounts
 //	POST   /api/v1/workspaces/{workspaceID}/email-hub/accounts
+//	POST   /api/v1/workspaces/{workspaceID}/email-hub/oauth/{provider}/start
 //	DELETE /api/v1/workspaces/{workspaceID}/email-hub/accounts/{accountID}
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/threads
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}
@@ -62,6 +63,18 @@ func registerEmailHub(r api, h Routes, connectLimit func(http.Handler) http.Hand
 		tags: []string{"email-hub"},
 		sdi:  sdi.ConnectEmailHubAccountSDI{},
 		sdo:  sdo.EmailHubAccountSDO{},
+		auth: true,
+	})
+	r.With(connectLimit).Post("/workspaces/{workspaceID}/email-hub/oauth/{provider}/start", h.StartEmailHubOAuth, apiOp{
+		summary: "Start Google or Microsoft sign-in for a mailbox",
+		description: "provider is google or microsoft; one without an Email Hub OAuth client answers 404. " +
+			"Returns the provider's authorization URL (offline access, PKCE S256) and sets the HttpOnly " +
+			"uniwork_email_oauth nonce cookie on /api/v1/email-hub-connections/ for the callback, so the web " +
+			"app and the API must be same-site. login_hint pre-selects the account on a reconnect. " +
+			"10 requests per 10 minutes per user.",
+		tags: []string{"email-hub"},
+		sdi:  sdi.StartEmailHubOAuthSDI{},
+		sdo:  sdo.EmailHubOAuthStartSDO{},
 		auth: true,
 	})
 	r.Delete("/workspaces/{workspaceID}/email-hub/accounts/{accountID}", h.DisconnectEmailHubAccount, apiOp{

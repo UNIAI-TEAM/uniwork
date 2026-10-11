@@ -129,7 +129,7 @@ func pathParamSDI(path string) any {
 		}{}
 	case "provider":
 		return struct {
-			Provider string `path:"provider" description:"Calendar provider: google hoặc outlook" example:"google"`
+			Provider string `path:"provider" description:"Nhà cung cấp OAuth: google hoặc outlook (lịch), google hoặc microsoft (Email Hub)" example:"google"`
 		}{}
 	case "capability,assetID":
 		return struct {
@@ -139,7 +139,7 @@ func pathParamSDI(path string) any {
 	case "workspaceID,provider":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-			Provider    string `path:"provider" description:"Calendar provider: google hoặc outlook" example:"google"`
+			Provider    string `path:"provider" description:"Nhà cung cấp OAuth: google hoặc outlook (lịch), google hoặc microsoft (Email Hub)" example:"google"`
 		}{}
 	case "conversationID":
 		return struct {

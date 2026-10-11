@@ -151,3 +151,8 @@ type EmailHubThreadSummarySDO struct {
 	Cached       bool                   `json:"cached"`
 	SummarizedAt string                 `json:"summarized_at,omitempty" format:"date-time"`
 }
+
+// EmailHubOAuthStartSDO is POST .../email-hub/oauth/{provider}/start.
+type EmailHubOAuthStartSDO struct {
+	AuthorizationURL string `json:"authorization_url" description:"URL đăng nhập của nhà cung cấp, mở trong cửa sổ bật lên" example:"https://accounts.google.com/o/oauth2/v2/auth?client_id=..."`
+}

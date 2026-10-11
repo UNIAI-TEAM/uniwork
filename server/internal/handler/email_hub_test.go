@@ -45,12 +45,15 @@ func jsonArrayAt(t *testing.T, out map[string]any, key string) []any {
 	return arr
 }
 
-func setupEmailHubHTTP(t *testing.T) (*httptest.Server, string, string, string, *secretbox.Box) {
+func setupEmailHubHTTP(t *testing.T, configure ...func(*Deps)) (*httptest.Server, string, string, string, *secretbox.Box) {
 	t.Helper()
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	box := testEmailHubSecretBox(t)
 	q := db.New(pool)
 	d.EmailHub = service.NewEmailHubService(q, d.Workspaces, box)
+	for _, c := range configure {
+		c(&d)
+	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 
