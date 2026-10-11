@@ -105,9 +105,10 @@ sync, watcher IDLE, tải body và attachment, tìm IMAP, chuyển thư mục, �
 `unreachable`, `host_not_allowed`, `tls_required`, `auth_failed`, `smtp_disabled`,
 `connect_failed`, `timeout`, `db`.
 
-Host, email, tên đăng nhập và phản hồi thô của máy chủ không có trong log. Lỗi trả lên handler
-cũng đã được rút gọn thành `email hub mail server: <code>`, nên log 500 mặc định cũng không
-chứa host.
+Host, email, tên đăng nhập và phản hồi thô của máy chủ không có trong log. Lỗi kết nối, sync
+và các đường khác trả lên handler được rút gọn thành `email hub mail server: <code>`. Ngoại lệ
+là gửi (Send): nó trả `ErrEmailHubSendFailed` kèm văn bản lỗi SMTP thô, handler trả 502 chung và không
+ghi lỗi thô đó vào log.
 
 Khi log có `host_not_allowed` mà API trả `email_hub_unreachable`, hostname đã phân giải ra IP
 bị chặn. Khi IP literal bị chặn, API trả thẳng `email_hub_host_not_allowed`.
@@ -170,12 +171,17 @@ tên miền riêng) không APPEND, vì máy chủ tự lưu thư đã gửi.
   gửi vẫn thành công (201) và không thử lại. Thư tới người nhận nhưng không có bản trong Sent
   trên máy chủ, và dòng Sent cục bộ (UID tạm) biến mất ở lần làm mới Sent kế tiếp.
   - `auth_failed` đi qua luồng *cần kết nối lại* như mọi lỗi xác thực khác.
-  - Lý do khác thường là hộp thư đầy quota, hoặc máy chủ không khai báo SPECIAL-USE
-    (RFC 6154). Khi đó tên dự phòng là đúng chữ `SENT` (cũng vậy với `TRASH`, `SPAM`,
-    `ARCHIVE`, `DRAFTS`), và Dovecot phân biệt hoa thường, nên thư mục `Sent`,
-    `INBOX.Sent` hay `Sent Items` có sẵn không được dùng: APPEND, sync Sent và chuyển thư
-    vào Thùng rác/Spam/Lưu trữ cùng lỗi. Cách xử lý: bật SPECIAL-USE trên máy chủ, hoặc tạo
-    thư mục tên đúng `SENT`. Nếu là quota thì giải phóng dung lượng trong webmail.
+  - Lý do khác thường là hộp thư đầy quota, hoặc không tìm thấy thư mục Sent. Thư mục lấy
+    theo SPECIAL-USE (RFC 6154) trước; khóa nào máy chủ không khai báo thì lấy thư mục đầu
+    tiên trong danh sách LIST có tên cuối cấp (tách theo dấu phân cách của máy chủ), không
+    phân biệt hoa thường, là một tên quen thuộc: Sent / Sent Items / Sent Messages / Sent
+    Mail (Sent), Trash / Deleted Items / Deleted Messages (Trash), Junk / Spam / Junk E-mail /
+    Junk Email (Spam), Drafts, Archive. Nên `Sent`, `INBOX.Sent`, `Sent Items` được nhận dạng
+    dù không có SPECIAL-USE. Chỉ khi không có thư mục nào khớp thì tên dự phòng là đúng chữ
+    `SENT` (cũng vậy với `TRASH`, `SPAM`, `ARCHIVE`, `DRAFTS`), và Dovecot phân biệt hoa
+    thường nên APPEND, sync Sent và chuyển thư vào Thùng rác/Spam/Lưu trữ cùng lỗi (ví dụ
+    thư mục tên `Đã gửi`). Cách xử lý: bật SPECIAL-USE trên máy chủ, hoặc tạo thư mục tên
+    đúng `SENT`. Nếu là quota thì giải phóng dung lượng trong webmail.
 
 ### Migration dedupe và unique index
 
