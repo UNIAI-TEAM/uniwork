@@ -212,7 +212,7 @@ describe("OfficeModuleHost", () => {
     await until(() => failed() !== null);
     expect(frame()).toBeNull();
     expect(failed()?.getAttribute("data-failure-kind")).toBe("unavailable");
-    expect(failed()?.textContent).toContain("Your organization has not turned on editing this file type on the web.");
+    expect(failed()?.textContent).toContain("Your organization has not turned on opening this file type on the web.");
     expect(buttonByText("Download")).toBeDefined();
   });
 

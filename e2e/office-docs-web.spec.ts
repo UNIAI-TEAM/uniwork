@@ -255,7 +255,7 @@ test.describe("open, edit, save", () => {
     }));
     await signInAs(page, seeded.account.email);
     await page.goto(seeded.documentUrl);
-    await expectFrameNotice(page, "unavailable", "chưa bật chỉnh sửa loại tệp này trên web");
+    await expectFrameNotice(page, "unavailable", "chưa bật mở loại tệp này trên web");
     await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
   });
 
@@ -264,7 +264,7 @@ test.describe("open, edit, save", () => {
     try {
       await signInAs(page, seeded.account.email);
       await page.goto(seeded.documentUrl);
-      await expectFrameNotice(page, "unavailable", "chưa bật chỉnh sửa loại tệp này trên web");
+      await expectFrameNotice(page, "unavailable", "chưa bật mở loại tệp này trên web");
       await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
     } finally {
       await setFlag("office_docs_web", seeded.organizationId, true);

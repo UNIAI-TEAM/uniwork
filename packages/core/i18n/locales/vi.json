@@ -7685,8 +7685,9 @@
       "reason_restore": "khôi phục",
       "reason_agent": "agent",
       "unknown_reason": "khác",
-      "no_web_editor_title": "Chưa sửa được trong web",
-      "no_web_editor_description": "UniWork Office mở định dạng này ở bản sau. Hiện tại bạn tải về để xem hoặc tải lên phiên bản mới.",
+      "no_web_editor_title": "Không sửa được trên web",
+      "no_web_editor_description": "Định dạng này không mở được trên trình duyệt. Bạn tải về để mở bằng ứng dụng trên máy tính, hoặc tải lên phiên bản mới.",
+      "no_web_editor_description_readonly": "Định dạng này không mở được trên trình duyệt. Bạn tải về để mở bằng ứng dụng trên máy tính.",
       "office_off_title": "Chỉnh sửa {{format}} đang tắt",
       "office_off_description": "Tổ chức này đang tắt chỉnh sửa tệp {{format}}. Bạn vẫn tải tệp về hoặc tải lên phiên bản mới được.",
       "office_checking": "Đang kiểm tra tổ chức này có bật chỉnh sửa {{format}} không…",
@@ -8126,7 +8127,7 @@
           "title": "Không mở được tài liệu",
           "description": "UniWork gặp sự cố khi mở tài liệu này. Hãy thử lại sau giây lát."
         },
-        "feature_disabled_download_only": "Tổ chức của bạn chưa bật chỉnh sửa loại tệp này trên web. Hãy tải tệp xuống."
+        "feature_disabled_download_only": "Tổ chức của bạn chưa bật mở loại tệp này trên web. Hãy tải tệp xuống."
       },
       "errors": {
         "unauthorized": "Phiên chỉnh sửa đã hết hạn. Hãy thử lại.",
@@ -8139,7 +8140,7 @@
         "unsupported": "Thao tác này chưa có trên bản web.",
         "timeout": "UniWork phản hồi quá lâu. Hãy thử lại.",
         "busy": "Một lần lưu khác của tài liệu này vẫn đang chạy. Hãy thử lại sau giây lát.",
-        "feature_disabled": "Tổ chức của bạn chưa bật chỉnh sửa loại tệp này trên web. Hãy mở tệp trong UniWork Office hoặc tải xuống.",
+        "feature_disabled": "Tổ chức của bạn chưa bật mở loại tệp này trên web. Hãy mở tệp trong UniWork Office hoặc tải xuống.",
         "internal": "Trình soạn thảo tài liệu gặp lỗi."
       }
     },
