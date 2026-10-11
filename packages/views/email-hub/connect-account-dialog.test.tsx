@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
+import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { requestMock, wrap } from "../test/api-mock";
 import { ConnectAccountDialog } from "./connect-account-dialog";
 
@@ -31,11 +32,32 @@ const customJSON = {
   username: "",
 };
 
-const ACCOUNTS_PATH = "/api/v1/workspaces/ws1/email-hub/accounts";
+const microsoftJSON = {
+  id: "acc3",
+  email_address: "lan@contoso.vn",
+  provider: "outlook",
+  connected_at: "2026-09-01T00:00:00Z",
+  auth_kind: "oauth_microsoft",
+  needs_reconnect: true,
+  auth_failed_reason: "oauth_invalid_grant",
+};
 
-/** The dialog reads the account list (GET) and connects with a POST to the same path. */
-function serve(list: unknown, connect: () => Promise<unknown> = () => Promise.resolve(accountJSON)) {
+const ACCOUNTS_PATH = "/api/v1/workspaces/ws1/email-hub/accounts";
+const PROVIDERS_PATH = "/api/v1/workspaces/ws1/email-hub/providers";
+const startPath = (provider: string) => `/api/v1/workspaces/ws1/email-hub/oauth/${provider}/start`;
+const AUTH_URL = "https://login.example.test/authorize?state=s";
+const NO_PROVIDERS = { google: false, microsoft: false };
+const BOTH = { google: true, microsoft: true };
+
+/** The dialog reads the account list (GET) and connects with a POST to the same path; OAuth reads providers and posts start. */
+function serve(
+  list: unknown,
+  connect: () => Promise<unknown> = () => Promise.resolve(accountJSON),
+  oauth: { providers?: unknown; start?: () => Promise<unknown> } = {},
+) {
   requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+    if (path === PROVIDERS_PATH) return Promise.resolve(oauth.providers ?? NO_PROVIDERS);
+    if (path.endsWith("/start")) return oauth.start ? oauth.start() : Promise.resolve({ authorization_url: AUTH_URL });
     if (path !== ACCOUNTS_PATH) return Promise.resolve({});
     return opts?.method === "POST" ? connect() : Promise.resolve(list);
   });
@@ -46,13 +68,57 @@ beforeEach(() => {
   serve({ accounts: [] });
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 const customOption = () => screen.getByRole("button", { name: /^Tên miền riêng \(IMAP\/SMTP\)/ });
 const appPasswordOption = () => screen.getByRole("button", { name: /^Dùng mật khẩu ứng dụng/ });
+const googleOption = () => screen.queryByRole("button", { name: /^Đăng nhập bằng Google/ });
+const microsoftOption = () => screen.queryByRole("button", { name: /^Đăng nhập bằng Microsoft/ });
 
 function fillAndSubmit(email: string | null, submitName: string) {
   if (email !== null) fireEvent.change(screen.getByLabelText("Email"), { target: { value: email } });
   fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh ijkl mnop" } });
   fireEvent.click(screen.getByRole("button", { name: submitName }));
+}
+
+type FakePopup = { closed: boolean; close: () => void; location: { href: string } };
+
+/** window.open answers a fake popup; the dialog only points it at a URL or closes it. */
+function fakePopup() {
+  const popup: FakePopup = {
+    closed: false,
+    close: vi.fn(() => {
+      popup.closed = true;
+    }),
+    location: { href: "" },
+  };
+  const open = vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+  return { popup, open };
+}
+
+type RequestCall = [string, { method?: string; body?: { login_hint?: string } }?];
+const calls = () => requestMock.mock.calls as RequestCall[];
+const startCall = (provider: string) => calls().find(([path]) => path === startPath(provider));
+const accountListReads = () => calls().filter(([path, opts]) => path === ACCOUNTS_PATH && opts?.method !== "POST").length;
+
+/** What the callback page posts to its opener (spec §5.4), from the API origin and the popup the hook trusts. */
+function postResult(popup: FakePopup, ok: boolean, code: string) {
+  const event = new MessageEvent("message", {
+    origin: new URL(runtimeConfig().apiUrl, window.location.href).origin,
+    data: { type: "uniwork:email-hub-oauth", ok, code },
+  });
+  // jsdom refuses a non-Window MessageEventInit.source; the hook checks event.source === popup.
+  Object.defineProperty(event, "source", { value: popup });
+  act(() => {
+    window.dispatchEvent(event);
+  });
+}
+
+async function startGoogleSignIn(popup: FakePopup) {
+  fireEvent.click(await screen.findByRole("button", { name: /^Đăng nhập bằng Google/ }));
+  await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
 }
 
 describe("ConnectAccountDialog", () => {
@@ -256,5 +322,133 @@ describe("ConnectAccountDialog", () => {
     fillAndSubmit("an@gmail.com", "Kết nối");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(text);
+  });
+});
+
+describe("ConnectAccountDialog sign-in with Google or Microsoft", () => {
+  it.each([
+    ["neither", NO_PROVIDERS, false, false],
+    ["Google only", { google: true, microsoft: false }, true, false],
+    ["both", BOTH, true, true],
+  ])("offers %s on the method step, as the server enables them", async (_, providers, google, microsoft) => {
+    serve({ accounts: [] }, undefined, { providers });
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === PROVIDERS_PATH)).toBe(true));
+    await act(async () => {});
+    await waitFor(() => {
+      expect(googleOption() !== null).toBe(google);
+      expect(microsoftOption() !== null).toBe(microsoft);
+    });
+    // The password ways stay either way: the own-domain card, and the app password demoted to a text link.
+    expect(customOption()).toBeInTheDocument();
+    expect(appPasswordOption()).toHaveClass("underline");
+  });
+
+  it("opens the popup on the click, before start answers, and sends no login_hint for a new mailbox", async () => {
+    let answer: (value: unknown) => void = () => {};
+    serve({ accounts: [] }, undefined, {
+      providers: BOTH,
+      start: () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    });
+    const { popup, open } = fakePopup();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Đăng nhập bằng Google/ }));
+
+    // In the click's own task, so the browser counts it as user-initiated and does not block it.
+    expect(open.mock.calls[0]?.slice(0, 2)).toEqual(["about:blank", "uniwork-email-oauth"]);
+    await waitFor(() => expect(startCall("google")).toBeDefined());
+    expect(popup.location.href).toBe("");
+    expect(startCall("google")?.[1]?.method).toBe("POST");
+    expect(startCall("google")?.[1]?.body?.login_hint).toBeUndefined();
+
+    await act(async () => answer({ authorization_url: AUTH_URL }));
+    await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
+  });
+
+  it("closes the dialog and refetches the accounts when the popup reports connected", async () => {
+    serve({ accounts: [] }, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onOpenChange = vi.fn();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={onOpenChange} />));
+    await startGoogleSignIn(popup);
+    const reads = accountListReads();
+
+    postResult(popup, true, "connected");
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    await waitFor(() => expect(accountListReads()).toBeGreaterThan(reads));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("refetches the accounts without an error when the popup closes with no message", async () => {
+    serve({ accounts: [] }, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onOpenChange = vi.fn();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={onOpenChange} />));
+    await startGoogleSignIn(popup);
+    const reads = accountListReads();
+
+    popup.closed = true;
+
+    // The real 400ms poll: no fake timers needed.
+    await waitFor(() => expect(accountListReads()).toBeGreaterThan(reads), { timeout: 2000 });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["imap_not_enabled", "Đăng nhập được nhưng hộp thư này đang tắt IMAP"],
+    ["denied", "quản trị viên của tổ chức cần duyệt UniWork"],
+    ["a_code_from_a_newer_server", "Không hoàn tất được việc đăng nhập."],
+  ])("reads the %s result out as a sentence and keeps the dialog open", async (code, text) => {
+    serve({ accounts: [] }, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onOpenChange = vi.fn();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={onOpenChange} />));
+    await startGoogleSignIn(popup);
+
+    postResult(popup, false, code);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(text);
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("says the popup was blocked, without calling start or staying busy", async () => {
+    serve({ accounts: [] }, undefined, { providers: BOTH });
+    vi.spyOn(window, "open").mockReturnValue(null);
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+    const google = await screen.findByRole("button", { name: /^Đăng nhập bằng Google/ });
+
+    fireEvent.click(google);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Trình duyệt đã chặn cửa sổ đăng nhập");
+    expect(startCall("google")).toBeUndefined();
+    expect(google).toBeEnabled();
+  });
+
+  it("reconnects a Microsoft mailbox with one sign-in button that hints its address", async () => {
+    serve({ accounts: [microsoftJSON] }, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open reconnectEmail="lan@contoso.vn" onOpenChange={() => {}} />));
+
+    const microsoft = await screen.findByRole("button", { name: /^Đăng nhập bằng Microsoft/ });
+    expect(screen.getByText("Kết nối lại lan@contoso.vn")).toBeInTheDocument();
+    expect(screen.getByText(/^Đăng nhập lại bằng đúng tài khoản này/)).toBeInTheDocument();
+    expect(googleOption()).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Tên miền riêng/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Dùng mật khẩu ứng dụng/ })).toBeNull();
+    expect(screen.queryByLabelText("App Password")).toBeNull();
+
+    fireEvent.click(microsoft);
+
+    await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
+    expect(startCall("microsoft")?.[1]).toEqual(
+      expect.objectContaining({ method: "POST", body: expect.objectContaining({ login_hint: "lan@contoso.vn" }) }),
+    );
   });
 });

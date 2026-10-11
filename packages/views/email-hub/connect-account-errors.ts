@@ -57,3 +57,25 @@ export function connectError(err: unknown): { field: ConnectErrorField; key: str
       return { field: "form", key: "email_hub.connect.error" };
   }
 }
+
+/** The sentence for an OAuth callback result (spec §5.4). "connected" closes the dialog and never reaches here. */
+export function oauthResultKey(code: string): string {
+  switch (code) {
+    case "denied":
+      return "email_hub.connect.error_oauth_denied";
+    case "state_invalid":
+      return "email_hub.connect.error_oauth_state_invalid";
+    case "email_unavailable":
+      return "email_hub.connect.error_oauth_email_unavailable";
+    case "imap_not_enabled":
+      return "email_hub.connect.error_oauth_imap_not_enabled";
+    case "smtp_disabled":
+      return "email_hub.connect.error_smtp_disabled";
+    case "already_connected":
+      return "email_hub.connect.error_already_connected";
+    case "consent_required":
+      return "email_hub.connect.error_oauth_consent_required";
+    default:
+      return "email_hub.connect.error_oauth_failed";
+  }
+}

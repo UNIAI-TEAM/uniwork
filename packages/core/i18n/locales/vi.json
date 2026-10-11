@@ -449,17 +449,13 @@
       "coming_soon": "Sắp có",
       "email_hub": {
         "title": "Email Hub",
-        "meta": "Gmail, Outlook, Yahoo hoặc máy chủ thư của tên miền riêng · mỗi người tự kết nối",
+        "meta": "Đăng nhập bằng Google hoặc Microsoft, hoặc dùng mật khẩu cho Yahoo và máy chủ tên miền riêng · mỗi người tự kết nối",
         "connected_one": "Bạn đã kết nối {{count}} hộp thư",
         "connected_other": "Bạn đã kết nối {{count}} hộp thư",
         "not_connected": "Bạn chưa kết nối",
         "open": "Mở Email Hub",
         "connect": "Kết nối hộp thư",
         "load_error": "Không tải được"
-      },
-      "mail_oauth": {
-        "title": "Gmail và Microsoft 365",
-        "meta": "Đăng nhập bằng tài khoản Google hoặc Microsoft, gắn thread email vào việc và dự án"
       },
       "webhooks": {
         "title": "Webhook",
@@ -1355,12 +1351,22 @@
       "error_email_format": "Email chưa đúng định dạng, ví dụ ban@gmail.com.",
       "submitting": "Đang kết nối…",
       "error_already_connected": "Hộp thư này đã được kết nối. Chọn hộp thư trong mục Tài khoản, hoặc nhập địa chỉ khác.",
-      "method_description": "Mỗi người tự kết nối hộp thư của mình. Mật khẩu được mã hóa trước khi lưu.",
+      "method_description": "Mỗi người tự kết nối hộp thư của mình. Thông tin đăng nhập được mã hóa trước khi lưu.",
       "method_custom": "Tên miền riêng (IMAP/SMTP)",
       "method_custom_hint": "Thư trên máy chủ riêng của công ty, kèm cài đặt IMAP và SMTP",
       "method_app_password": "Dùng mật khẩu ứng dụng",
-      "method_app_password_hint": "Gmail, Outlook hoặc Yahoo, bằng App Password tạo trong cài đặt tài khoản",
-      "error_reauth_required": "Hộp thư này cần kết nối lại. Nhập mật khẩu mới rồi thử lại.",
+      "method_app_password_hint": "Gmail, Outlook và Yahoo cũng kết nối được bằng App Password.",
+      "method_google": "Đăng nhập bằng Google",
+      "method_google_hint": "Gmail hoặc Google Workspace, không cần App Password",
+      "method_microsoft": "Đăng nhập bằng Microsoft",
+      "method_microsoft_hint": "Outlook.com hoặc Microsoft 365, không cần App Password",
+      "error_popup_blocked": "Trình duyệt đã chặn cửa sổ đăng nhập. Cho phép cửa sổ bật lên (pop-up) với UniWork rồi thử lại.",
+      "error_oauth_denied": "Bạn đã hủy đăng nhập hoặc chưa cấp quyền cho UniWork. Với Microsoft 365, có thể quản trị viên của tổ chức cần duyệt UniWork trước.",
+      "error_oauth_state_invalid": "Phiên đăng nhập đã hết hạn hoặc được mở ở trình duyệt khác. Thử lại từ cửa sổ này.",
+      "error_oauth_email_unavailable": "Tài khoản này không cho biết địa chỉ email đã xác minh. Đăng nhập bằng tài khoản sở hữu hộp thư.",
+      "error_oauth_imap_not_enabled": "Đăng nhập được nhưng hộp thư này đang tắt IMAP. Bật IMAP trong cài đặt hộp thư, hoặc nhờ quản trị viên bật, rồi thử lại.",
+      "error_oauth_consent_required": "Google hoặc Microsoft chưa cấp quyền truy cập lâu dài. Thử lại và cho phép mọi quyền UniWork yêu cầu.",
+      "error_oauth_failed": "Không hoàn tất được việc đăng nhập. Thử lại.",      "error_reauth_required": "Hộp thư này cần kết nối lại. Nhập mật khẩu mới rồi thử lại.",
       "error_smtp_disabled": "Đăng nhập được nhưng máy chủ đã tắt gửi thư qua SMTP cho hộp thư này. Nhờ quản trị viên bật SMTP AUTH rồi thử lại.",
       "error_tls_required": "Máy chủ thư không hỗ trợ kết nối mã hóa nên UniWork không kết nối. Kiểm tra cài đặt máy chủ rồi thử lại.",
       "error_unreachable": "Không kết nối được tới máy chủ thư. Với máy chủ riêng, kiểm tra địa chỉ, cổng, kiểu bảo mật và chứng chỉ có khớp với địa chỉ đó không. Với hộp thư khác, thử lại sau.",
@@ -1393,7 +1399,7 @@
     "account_menu": "Hộp thư: {{email}}",
     "disconnect_named": "Ngắt kết nối {{email}}",
     "disconnect_confirm_title": "Ngắt kết nối {{email}}?",
-    "disconnect_confirm_body": "Email của hộp thư này sẽ không còn hiện trong UniWork. Thư trên máy chủ thư vẫn giữ nguyên; muốn dùng lại phải nhập lại mật khẩu.",
+    "disconnect_confirm_body": "Email của hộp thư này sẽ không còn hiện trong UniWork. Thư trên máy chủ thư vẫn giữ nguyên; muốn dùng lại phải đăng nhập hoặc nhập lại mật khẩu.",
     "disconnect_error": "Không ngắt kết nối được hộp thư. Thử lại.",
     "reconnect": {
       "badge": "Cần kết nối lại",
@@ -1404,7 +1410,7 @@
       "dialog_title": "Kết nối lại {{email}}",
       "dialog_description": "Nhập App Password mới cho hộp thư này. Thư đã đồng bộ được giữ nguyên.",
       "dialog_description_custom": "Nhập lại mật khẩu hoặc sửa cài đặt máy chủ. Thư đã đồng bộ được giữ nguyên, trừ khi bạn đổi máy chủ IMAP.",
-      "error": "Hộp thư này cần kết nối lại. Kết nối lại hộp thư rồi thử lại."
+      "dialog_description_oauth": "Đăng nhập lại bằng đúng tài khoản này; chọn tài khoản khác sẽ kết nối thêm một hộp thư khác. Thư đã đồng bộ được giữ nguyên.",      "error": "Hộp thư này cần kết nối lại. Kết nối lại hộp thư rồi thử lại."
     },
     "search_label": "Tìm email",
     "search_clear": "Xóa tìm kiếm",
@@ -1468,7 +1474,7 @@
     },
     "onboarding": {
       "title": "Kết nối hộp thư để bắt đầu",
-      "body": "Email Hub đọc và gửi thư qua IMAP, bằng App Password hoặc máy chủ thư của tên miền riêng. Mỗi hộp thư chỉ cần thiết lập một lần.",
+      "body": "Email Hub đọc và gửi thư qua IMAP: đăng nhập bằng Google hoặc Microsoft, hoặc dùng App Password hay máy chủ thư của tên miền riêng. Mỗi hộp thư chỉ cần thiết lập một lần.",
       "point_read": "Đọc, trả lời, lưu trữ và tạm hoãn email ngay trong UniWork.",
       "point_schedule": "Hẹn giờ gửi và theo dõi thư đã lên lịch.",
       "point_ai": "UNI tóm tắt email và gợi ý việc cần làm để tạo nhanh.",

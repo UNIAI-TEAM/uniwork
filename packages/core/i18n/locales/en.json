@@ -450,17 +450,13 @@
       "coming_soon": "Coming soon",
       "email_hub": {
         "title": "Email Hub",
-        "meta": "Gmail, Outlook, Yahoo or a mail server on your own domain · each person connects their own",
+        "meta": "Sign in with Google or Microsoft, or use a password for Yahoo and your own domain's server · each person connects their own",
         "connected_one": "You connected {{count}} mailbox",
         "connected_other": "You connected {{count}} mailboxes",
         "not_connected": "You haven't connected a mailbox",
         "open": "Open Email Hub",
         "connect": "Connect a mailbox",
         "load_error": "Couldn't load"
-      },
-      "mail_oauth": {
-        "title": "Gmail and Microsoft 365",
-        "meta": "Sign in with a Google or Microsoft account and attach email threads to tasks and projects"
       },
       "webhooks": {
         "title": "Webhooks",
@@ -1356,12 +1352,22 @@
       "error_email_format": "That email isn't valid, e.g. you@gmail.com.",
       "submitting": "Connecting…",
       "error_already_connected": "This mailbox is already connected. Pick it under Accounts, or enter another address.",
-      "method_description": "Each person connects their own mailbox. The password is encrypted before it's stored.",
+      "method_description": "Each person connects their own mailbox. Sign-in details are encrypted before they're stored.",
       "method_custom": "Own domain (IMAP/SMTP)",
       "method_custom_hint": "Mail on your company's own server, with its IMAP and SMTP settings",
       "method_app_password": "Use an app password",
-      "method_app_password_hint": "Gmail, Outlook or Yahoo, with an app password from your account settings",
-      "error_reauth_required": "This mailbox needs reconnecting. Enter a new password and try again.",
+      "method_app_password_hint": "Gmail, Outlook and Yahoo also connect with an app password.",
+      "method_google": "Sign in with Google",
+      "method_google_hint": "Gmail or Google Workspace, no app password needed",
+      "method_microsoft": "Sign in with Microsoft",
+      "method_microsoft_hint": "Outlook.com or Microsoft 365, no app password needed",
+      "error_popup_blocked": "Your browser blocked the sign-in window. Allow pop-ups for UniWork, then try again.",
+      "error_oauth_denied": "Sign-in was cancelled or UniWork wasn't given access. On Microsoft 365, your organization's admin may need to approve UniWork first.",
+      "error_oauth_state_invalid": "The sign-in expired or was opened in another browser. Try again from this window.",
+      "error_oauth_email_unavailable": "This account didn't share a verified email address. Sign in with the account that owns the mailbox.",
+      "error_oauth_imap_not_enabled": "Signed in, but IMAP is turned off for this mailbox. Turn it on in the mailbox settings, or ask your admin, then try again.",
+      "error_oauth_consent_required": "Google or Microsoft didn't grant lasting access. Try again and allow every permission UniWork asks for.",
+      "error_oauth_failed": "Couldn't finish signing in. Try again.",      "error_reauth_required": "This mailbox needs reconnecting. Enter a new password and try again.",
       "error_smtp_disabled": "Signed in, but the server has SMTP sending turned off for this mailbox. Ask your admin to enable SMTP AUTH, then try again.",
       "error_tls_required": "The mail server doesn't support an encrypted connection, so UniWork won't connect. Check the server settings and try again.",
       "error_unreachable": "Couldn't reach the mail server. On your own server, check the address, port, security, and that its certificate matches that address. For other mailboxes, try again later.",
@@ -1394,7 +1400,7 @@
     "account_menu": "Mailbox: {{email}}",
     "disconnect_named": "Disconnect {{email}}",
     "disconnect_confirm_title": "Disconnect {{email}}?",
-    "disconnect_confirm_body": "Mail from this mailbox stops showing in UniWork. Nothing is deleted on the mail server; reconnecting needs the password again.",
+    "disconnect_confirm_body": "Mail from this mailbox stops showing in UniWork. Nothing is deleted on the mail server; reconnecting means signing in or entering the password again.",
     "disconnect_error": "Could not disconnect the mailbox. Try again.",
     "reconnect": {
       "badge": "Needs reconnecting",
@@ -1405,7 +1411,7 @@
       "dialog_title": "Reconnect {{email}}",
       "dialog_description": "Enter a new App Password for this mailbox. Mail already synced stays as it is.",
       "dialog_description_custom": "Enter the password again, or fix the server settings. Mail already synced stays unless you change the IMAP server.",
-      "error": "This mailbox needs reconnecting. Reconnect it, then try again."
+      "dialog_description_oauth": "Sign in again with this same account; picking a different one connects it as another mailbox. Mail already synced stays as it is.",      "error": "This mailbox needs reconnecting. Reconnect it, then try again."
     },
     "search_label": "Search email",
     "search_clear": "Clear search",
@@ -1469,7 +1475,7 @@
     },
     "onboarding": {
       "title": "Connect a mailbox to get started",
-      "body": "Email Hub reads and sends through IMAP, with an app password or your own domain's mail server. Each mailbox is set up once.",
+      "body": "Email Hub reads and sends through IMAP: sign in with Google or Microsoft, or use an app password or your own domain's mail server. Each mailbox is set up once.",
       "point_read": "Read, reply, archive and snooze email without leaving UniWork.",
       "point_schedule": "Schedule sends and keep track of what is queued.",
       "point_ai": "UNI summarizes email and suggests tasks you can create in one step.",
