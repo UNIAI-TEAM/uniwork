@@ -1,16 +1,16 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
-  emailHubKeys,
   useConnectEmailHubAccount,
   useEmailHubAccounts,
   useEmailHubProviders,
   useStartEmailHubOAuth,
 } from "@uniwork/core/email-hub/hooks";
-import type { EmailHubOAuthProvider } from "@uniwork/core/types/email-hub";
+import type { EmailHubAccount, EmailHubOAuthProvider } from "@uniwork/core/types/email-hub";
+import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -21,7 +21,7 @@ import { EMAIL_RE } from "../workspace/email-chips-input";
 import { ConnectAppPasswordGuideDialog } from "./connect-app-password-guide-dialog";
 import { connectError, oauthResultKey } from "./connect-account-errors";
 import { ConnectCustomServerForm } from "./connect-custom-server-form";
-import { ConnectMethodStep, OAuthProviderButton } from "./connect-method-step";
+import { ConnectMethodStep, inlineLinkClass, OAuthPendingStatus, OAuthProviderButton } from "./connect-method-step";
 
 interface ConnectAccountDialogProps {
   wsId: string;
@@ -50,12 +50,13 @@ function oauthProviderOf(authKind: string | undefined): EmailHubOAuthProvider | 
 
 export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, reconnectEmail: reconnectProp }: ConnectAccountDialogProps) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   // Hosts clear the address as they close; keep the reconnect form on screen until the exit animation ends.
   const [reconnectEmail, setReconnectEmail] = useState(reconnectProp);
   if (open && reconnectProp !== reconnectEmail) setReconnectEmail(reconnectProp);
   // An i18n key: the OAuth result comes from the popup, outside any mutation's error state.
   const [oauthError, setOauthError] = useState<string | null>(null);
+  // The popup closed with no message and the list shows nothing connected: a note, not an error.
+  const [oauthClosed, setOauthClosed] = useState(false);
   // Reset the step as the dialog opens, not as it closes, so the closing dialog keeps the form it showed.
   const [method, setMethod] = useState<Method>("choose");
   const [wasOpen, setWasOpen] = useState(open);
@@ -64,6 +65,7 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
     if (open) {
       setMethod("choose");
       setOauthError(null);
+      setOauthClosed(false);
     }
   }
   const accounts = useEmailHubAccounts(wsId);
@@ -85,23 +87,40 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const [guideOpen, setGuideOpen] = useState(false);
   const connect = useConnectEmailHubAccount(wsId);
 
-  const refetchAccounts = () => {
-    void queryClient.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
+  // The ids on screen as a sign-in starts: the one that is new afterwards is the mailbox it connected.
+  const knownIds = useRef<Set<string> | null>(null);
+
+  /** Every successful connect, whichever way: select the mailbox and say which one. */
+  const connected = (acc: { id: string; email_address: string }) => {
+    onConnected?.(acc.id);
+    toast.success(t("email_hub.connect.connected_toast", { email: acc.email_address }));
+  };
+
+  /**
+   * After a sign-in, a fresh list says what it connected: a mailbox that was not there before, else the reconnect
+   * target — taken on the popup's word when it said ok, only once fixed when it closed without a message.
+   */
+  const settleSignIn = async (reportedOk: boolean) => {
+    const { data } = await accounts.refetch();
+    const list: EmailHubAccount[] = data?.accounts ?? [];
+    const known = knownIds.current;
+    const acc =
+      list.find((a) => known !== null && !known.has(a.id)) ??
+      list.find((a) => a.email_address === reconnectEmail && (reportedOk || !a.needs_reconnect));
+    if (acc) connected(acc);
+    if (acc || reportedOk) onOpenChange(false);
+    else setOauthClosed(true);
   };
 
   const onOAuthOutcome = (outcome: OAuthPopupOutcome) => {
     switch (outcome.kind) {
       case "message":
-        if (outcome.ok) {
-          refetchAccounts();
-          onOpenChange(false);
-        } else {
-          setOauthError(oauthResultKey(outcome.code));
-        }
+        if (outcome.ok) void settleSignIn(true);
+        else setOauthError(oauthResultKey(outcome.code));
         return;
       case "closed":
         // Closed without a message (cancelled, or the message was lost): the list says whether it connected.
-        refetchAccounts();
+        void settleSignIn(false);
         return;
       case "blocked":
         setOauthError("email_hub.connect.error_popup_blocked");
@@ -114,6 +133,8 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
 
   const signIn = (provider: EmailHubOAuthProvider) => {
     setOauthError(null);
+    setOauthClosed(false);
+    knownIds.current = accounts.data ? new Set(accounts.data.accounts.map((a) => a.id)) : null;
     // login_hint preselects the mailbox being reconnected; the server connects whichever account the user actually picks.
     popup.open(() => startOAuth.mutateAsync({ provider, loginHint: reconnectEmail }));
   };
@@ -127,10 +148,16 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const passwordError = serverError?.field === "password" ? t(serverError.key) : null;
   // The app-password form has no server fields; any other field's error reads for the whole form.
   const formError = serverError && serverError.field !== "email" && serverError.field !== "password" ? t(serverError.key) : null;
-  const oauthAlert = oauthError ? (
+  const oauthNotice = popup.pending ? (
+    <OAuthPendingStatus onShowWindow={popup.focus} />
+  ) : oauthError ? (
     <p className="rounded-md bg-destructive/10 px-3 py-2 text-caption text-destructive" role="alert">
       {t(oauthError)}
     </p>
+  ) : oauthClosed ? (
+    <Alert role="status">
+      <AlertDescription className="text-caption">{t("email_hub.connect.oauth_closed")}</AlertDescription>
+    </Alert>
   ) : null;
 
   const close = (next: boolean) => {
@@ -149,13 +176,14 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
     connect.reset();
     setEmailInvalid(false);
     setOauthError(null);
+    setOauthClosed(false);
     setMethod(next);
   };
 
   const run = (input: Parameters<typeof connect.mutate>[0]) =>
     connect.mutate(input, {
       onSuccess: (acc) => {
-        if (acc) onConnected?.(acc.id);
+        if (acc) connected(acc);
         setEmail("");
         setPassword("");
         onOpenChange(false);
@@ -198,19 +226,31 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
         <FormDialogContent>
           <FormDialogHeader title={title} description={description} />
           {form === "choose" ? (
-            <FormDialogBody>
-              <ConnectMethodStep providers={providers.data} pending={popup.pending} onPick={pick} onOAuth={signIn} />
-              {oauthAlert}
-            </FormDialogBody>
+            <>
+              <FormDialogBody>
+                <ConnectMethodStep
+                  providers={providers.data}
+                  providersLoading={providers.isPending}
+                  pending={popup.pending}
+                  onPick={pick}
+                  onOAuth={signIn}
+                />
+                {oauthNotice}
+              </FormDialogBody>
+              <FormDialogFooter onCancel={() => close(false)} />
+            </>
           ) : reconnectProvider ? (
-            <FormDialogBody>
-              <OAuthProviderButton
-                provider={reconnectProvider}
-                pending={popup.pending}
-                onClick={() => signIn(reconnectProvider)}
-              />
-              {oauthAlert}
-            </FormDialogBody>
+            <>
+              <FormDialogBody>
+                <OAuthProviderButton
+                  provider={reconnectProvider}
+                  pending={popup.pending}
+                  onClick={() => signIn(reconnectProvider)}
+                />
+                {oauthNotice}
+              </FormDialogBody>
+              <FormDialogFooter onCancel={() => close(false)} />
+            </>
           ) : form === "custom" ? (
             <ConnectCustomServerForm
               // initial is read at mount: a different mailbox, or a fresh connect, starts a fresh form.
@@ -271,11 +311,7 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
                     ) : (
                       <p id="email-hub-password-hint" className="text-caption text-pretty text-muted-foreground">
                         {t("email_hub.connect.hint")}{" "}
-                        <button
-                          type="button"
-                          className="font-medium text-foreground underline underline-offset-4 hover:text-brand-subtle-foreground"
-                          onClick={() => setGuideOpen(true)}
-                        >
+                        <button type="button" className={inlineLinkClass} onClick={() => setGuideOpen(true)}>
                           {t("email_hub.connect.guide.link")}
                         </button>
                       </p>

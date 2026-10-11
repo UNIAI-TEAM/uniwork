@@ -5,6 +5,9 @@ import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { requestMock, wrap } from "../test/api-mock";
 import { ConnectAccountDialog } from "./connect-account-dialog";
 
+const toastSuccess = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: vi.fn() } }));
+
 const accountJSON = {
   id: "acc1",
   email_address: "ha.do@unicomhub.com",
@@ -65,6 +68,7 @@ function serve(
 
 beforeEach(() => {
   requestMock.mockReset();
+  toastSuccess.mockReset();
   serve({ accounts: [] });
 });
 
@@ -83,7 +87,7 @@ function fillAndSubmit(email: string | null, submitName: string) {
   fireEvent.click(screen.getByRole("button", { name: submitName }));
 }
 
-type FakePopup = { closed: boolean; close: () => void; location: { href: string } };
+type FakePopup = { closed: boolean; close: () => void; focus: () => void; location: { href: string } };
 
 /** window.open answers a fake popup; the dialog only points it at a URL or closes it. */
 function fakePopup() {
@@ -92,6 +96,7 @@ function fakePopup() {
     close: vi.fn(() => {
       popup.closed = true;
     }),
+    focus: vi.fn(),
     location: { href: "" },
   };
   const open = vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
@@ -256,6 +261,7 @@ describe("ConnectAccountDialog", () => {
     fireEvent.click(submit);
 
     await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc1"));
+    expect(toastSuccess).toHaveBeenCalledWith("Đã kết nối ha.do@unicomhub.com");
     expect(requestMock).toHaveBeenCalledWith(ACCOUNTS_PATH, {
       method: "POST",
       body: { email_address: "ha.do@unicomhub.com", app_password: "abcdefghijklmnop" },
@@ -450,5 +456,113 @@ describe("ConnectAccountDialog sign-in with Google or Microsoft", () => {
     expect(startCall("microsoft")?.[1]).toEqual(
       expect.objectContaining({ method: "POST", body: expect.objectContaining({ login_hint: "lan@contoso.vn" }) }),
     );
+  });
+
+  it("holds two placeholder cards while the providers load, then none when neither is enabled", async () => {
+    let answer: (value: unknown) => void = () => {};
+    requestMock.mockImplementation((path: string) =>
+      path === PROVIDERS_PATH
+        ? new Promise((resolve) => {
+            answer = resolve;
+          })
+        : Promise.resolve({ accounts: [] }),
+    );
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+
+    await waitFor(() => expect(document.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2));
+    await act(async () => answer(NO_PROVIDERS));
+    await waitFor(() => expect(document.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0));
+    expect(googleOption()).toBeNull();
+  });
+
+  it("closes from a Cancel-only footer on the method step and on the OAuth reconnect", async () => {
+    const onOpenChange = vi.fn();
+    const { unmount } = render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={onOpenChange} />));
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("button", { name: "Kết nối" })).toBeNull();
+    unmount();
+
+    serve({ accounts: [microsoftJSON] }, undefined, { providers: BOTH });
+    render(wrap(<ConnectAccountDialog wsId="ws1" open reconnectEmail="lan@contoso.vn" onOpenChange={onOpenChange} />));
+    await screen.findByRole("button", { name: /^Đăng nhập bằng Microsoft/ });
+    onOpenChange.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("holds every way in while the popup is open and can bring the popup back", async () => {
+    serve({ accounts: [] }, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+    await startGoogleSignIn(popup);
+
+    expect(googleOption()).toBeDisabled();
+    expect(microsoftOption()).toBeDisabled();
+    expect(customOption()).toBeDisabled();
+    expect(appPasswordOption()).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Hoàn tất đăng nhập trong cửa sổ vừa mở.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mở lại cửa sổ" }));
+    expect(popup.focus).toHaveBeenCalled();
+  });
+
+  it("selects the new mailbox, says so and closes when the popup reports connected", async () => {
+    const list = { accounts: [accountJSON] as unknown[] };
+    serve(list, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onOpenChange = vi.fn();
+    const onConnected = vi.fn();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={onOpenChange} onConnected={onConnected} />));
+    await screen.findByRole("button", { name: /^Đăng nhập bằng Google/ });
+    await waitFor(() => expect(accountListReads()).toBeGreaterThan(0));
+    await act(async () => {});
+    await startGoogleSignIn(popup);
+    list.accounts = [accountJSON, { ...accountJSON, id: "acc9", email_address: "moi@gmail.com", auth_kind: "oauth_google" }];
+
+    postResult(popup, true, "connected");
+
+    await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc9"));
+    expect(toastSuccess).toHaveBeenCalledWith("Đã kết nối moi@gmail.com");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("selects the reconnected mailbox when its popup closes without a message but the list shows it fixed", async () => {
+    const list = { accounts: [microsoftJSON] as unknown[] };
+    serve(list, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onOpenChange = vi.fn();
+    const onConnected = vi.fn();
+    render(
+      wrap(
+        <ConnectAccountDialog wsId="ws1" open reconnectEmail="lan@contoso.vn" onOpenChange={onOpenChange} onConnected={onConnected} />,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /^Đăng nhập bằng Microsoft/ }));
+    await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
+    list.accounts = [{ ...microsoftJSON, needs_reconnect: false, auth_failed_reason: "" }];
+
+    popup.closed = true;
+
+    await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc3"), { timeout: 2000 });
+    expect(toastSuccess).toHaveBeenCalledWith("Đã kết nối lan@contoso.vn");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("notes, without an error, that the popup closed before connecting", async () => {
+    serve({ accounts: [accountJSON] }, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onConnected = vi.fn();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} onConnected={onConnected} />));
+    await startGoogleSignIn(popup);
+
+    popup.closed = true;
+
+    expect(
+      await screen.findByText("Cửa sổ đăng nhập đã đóng trước khi kết nối xong. Thử lại.", undefined, { timeout: 2000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(onConnected).not.toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 });

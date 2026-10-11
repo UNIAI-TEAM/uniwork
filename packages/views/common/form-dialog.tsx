@@ -69,7 +69,8 @@ export function FormDialogBody({ className, children }: { className?: string; ch
 /**
  * Cancel, then the primary action. While the action runs its label becomes
  * the "…ing" form and both buttons hold still, so a second click cannot
- * send twice.
+ * send twice. Without a submitLabel the footer is Cancel alone: a step whose
+ * choices act on their own (pick a method, sign in in a popup).
  */
 export function FormDialogFooter({
   onCancel,
@@ -86,7 +87,7 @@ export function FormDialogFooter({
 }: {
   onCancel: () => void;
   cancelLabel?: string;
-  submitLabel: string;
+  submitLabel?: string;
   submittingLabel?: string;
   submitting?: boolean;
   submitDisabled?: boolean;
@@ -105,16 +106,18 @@ export function FormDialogFooter({
       <Button type="button" variant="outline" disabled={submitting} onClick={onCancel}>
         {cancelLabel ?? t("common.cancel")}
       </Button>
-      <Button
-        type={submitType}
-        form={form}
-        variant={destructive ? "destructive" : "default"}
-        disabled={submitDisabled || submitting}
-        aria-busy={submitting || undefined}
-        onClick={onSubmit}
-      >
-        {submitting && submittingLabel ? submittingLabel : submitLabel}
-      </Button>
+      {submitLabel ? (
+        <Button
+          type={submitType}
+          form={form}
+          variant={destructive ? "destructive" : "default"}
+          disabled={submitDisabled || submitting}
+          aria-busy={submitting || undefined}
+          onClick={onSubmit}
+        >
+          {submitting && submittingLabel ? submittingLabel : submitLabel}
+        </Button>
+      ) : null}
     </DialogFooter>
   );
 }

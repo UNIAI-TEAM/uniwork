@@ -7,7 +7,7 @@ const API = "https://api.uniwork.test";
 const TYPE = "uniwork:email-hub-oauth";
 const AUTH_URL = "https://accounts.google.test/o/oauth2/v2/auth?state=s";
 
-type FakePopup = { closed: boolean; close: () => void; location: { href: string } };
+type FakePopup = { closed: boolean; close: () => void; focus: () => void; location: { href: string } };
 type Start = () => Promise<string | null | undefined>;
 
 function fakePopup(): FakePopup {
@@ -16,6 +16,7 @@ function fakePopup(): FakePopup {
     close: vi.fn(() => {
       popup.closed = true;
     }),
+    focus: vi.fn(),
     location: { href: "" },
   };
   return popup;
@@ -175,5 +176,19 @@ describe("useOAuthPopup", () => {
     expect(popup.location.href).toBe("");
     expect(onOutcome).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("brings the open popup to the front, and does nothing once it has reported", async () => {
+    const { hook } = setup();
+    hook.result.current.focus();
+
+    await openWith(hook, () => Promise.resolve(AUTH_URL));
+    hook.result.current.focus();
+    expect(popup.focus).toHaveBeenCalledTimes(1);
+
+    popup.closed = true;
+    tick();
+    hook.result.current.focus();
+    expect(popup.focus).toHaveBeenCalledTimes(1);
   });
 });
