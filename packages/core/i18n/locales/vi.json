@@ -1366,7 +1366,8 @@
       "error_oauth_email_unavailable": "Tài khoản này không cho biết địa chỉ email đã xác minh. Đăng nhập bằng tài khoản sở hữu hộp thư.",
       "error_oauth_imap_not_enabled": "Đăng nhập được nhưng hộp thư này đang tắt IMAP. Bật IMAP trong cài đặt hộp thư, hoặc nhờ quản trị viên bật, rồi thử lại.",
       "error_oauth_consent_required": "Google hoặc Microsoft chưa cấp quyền truy cập lâu dài. Thử lại và cho phép mọi quyền UniWork yêu cầu.",
-      "error_oauth_failed": "Không hoàn tất được việc đăng nhập. Thử lại.",      "error_reauth_required": "Hộp thư này cần kết nối lại. Nhập mật khẩu mới rồi thử lại.",
+      "error_oauth_failed": "Không hoàn tất được việc đăng nhập. Thử lại.",
+      "error_reauth_required": "Hộp thư này cần kết nối lại. Nhập mật khẩu mới rồi thử lại.",
       "error_smtp_disabled": "Đăng nhập được nhưng máy chủ đã tắt gửi thư qua SMTP cho hộp thư này. Nhờ quản trị viên bật SMTP AUTH rồi thử lại.",
       "error_tls_required": "Máy chủ thư không hỗ trợ kết nối mã hóa nên UniWork không kết nối. Kiểm tra cài đặt máy chủ rồi thử lại.",
       "error_unreachable": "Không kết nối được tới máy chủ thư. Với máy chủ riêng, kiểm tra địa chỉ, cổng, kiểu bảo mật và chứng chỉ có khớp với địa chỉ đó không. Với hộp thư khác, thử lại sau.",
@@ -1410,7 +1411,8 @@
       "dialog_title": "Kết nối lại {{email}}",
       "dialog_description": "Nhập App Password mới cho hộp thư này. Thư đã đồng bộ được giữ nguyên.",
       "dialog_description_custom": "Nhập lại mật khẩu hoặc sửa cài đặt máy chủ. Thư đã đồng bộ được giữ nguyên, trừ khi bạn đổi máy chủ IMAP.",
-      "dialog_description_oauth": "Đăng nhập lại bằng đúng tài khoản này; chọn tài khoản khác sẽ kết nối thêm một hộp thư khác. Thư đã đồng bộ được giữ nguyên.",      "error": "Hộp thư này cần kết nối lại. Kết nối lại hộp thư rồi thử lại."
+      "dialog_description_oauth": "Đăng nhập lại bằng đúng tài khoản này; chọn tài khoản khác sẽ kết nối thêm một hộp thư khác. Thư đã đồng bộ được giữ nguyên.",
+      "error": "Hộp thư này cần kết nối lại. Kết nối lại hộp thư rồi thử lại."
     },
     "search_label": "Tìm email",
     "search_clear": "Xóa tìm kiếm",

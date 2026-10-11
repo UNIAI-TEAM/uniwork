@@ -1367,7 +1367,8 @@
       "error_oauth_email_unavailable": "This account didn't share a verified email address. Sign in with the account that owns the mailbox.",
       "error_oauth_imap_not_enabled": "Signed in, but IMAP is turned off for this mailbox. Turn it on in the mailbox settings, or ask your admin, then try again.",
       "error_oauth_consent_required": "Google or Microsoft didn't grant lasting access. Try again and allow every permission UniWork asks for.",
-      "error_oauth_failed": "Couldn't finish signing in. Try again.",      "error_reauth_required": "This mailbox needs reconnecting. Enter a new password and try again.",
+      "error_oauth_failed": "Couldn't finish signing in. Try again.",
+      "error_reauth_required": "This mailbox needs reconnecting. Enter a new password and try again.",
       "error_smtp_disabled": "Signed in, but the server has SMTP sending turned off for this mailbox. Ask your admin to enable SMTP AUTH, then try again.",
       "error_tls_required": "The mail server doesn't support an encrypted connection, so UniWork won't connect. Check the server settings and try again.",
       "error_unreachable": "Couldn't reach the mail server. On your own server, check the address, port, security, and that its certificate matches that address. For other mailboxes, try again later.",
@@ -1411,7 +1412,8 @@
       "dialog_title": "Reconnect {{email}}",
       "dialog_description": "Enter a new App Password for this mailbox. Mail already synced stays as it is.",
       "dialog_description_custom": "Enter the password again, or fix the server settings. Mail already synced stays unless you change the IMAP server.",
-      "dialog_description_oauth": "Sign in again with this same account; picking a different one connects it as another mailbox. Mail already synced stays as it is.",      "error": "This mailbox needs reconnecting. Reconnect it, then try again."
+      "dialog_description_oauth": "Sign in again with this same account; picking a different one connects it as another mailbox. Mail already synced stays as it is.",
+      "error": "This mailbox needs reconnecting. Reconnect it, then try again."
     },
     "search_label": "Search email",
     "search_clear": "Clear search",
