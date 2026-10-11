@@ -130,7 +130,7 @@ func (s *EmailHubService) OpenAttachment(
 	if row.SizeBytes > maxEmailHubAttachmentBytes {
 		return EmailHubAttachmentView{}, nil, Invalid("attachment too large")
 	}
-	sess, mailboxes, err := s.openIMAPInteractive(acc)
+	sess, mailboxes, err := s.openIMAPInteractive(ctx, acc)
 	if err != nil {
 		return EmailHubAttachmentView{}, nil, err
 	}

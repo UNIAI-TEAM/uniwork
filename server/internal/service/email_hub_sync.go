@@ -103,15 +103,15 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 		}
 	}
 	state := parseEmailHubSyncState(acc.SyncState)
+	creds, err := s.credentials(ctx, acc)
+	if err != nil {
+		return false, 0, err
+	}
 	var lastErr error
 	inboxOK := false
 	newUnread := 0
 	if err := s.gov.withIMAP(acc.ID, func() error {
-		creds, _, err := s.accountCredentials(acc)
-		if err != nil {
-			return err
-		}
-		sess, err := imapclient.OpenSession(creds)
+		sess, err := imapclient.OpenSession(creds.IMAP)
 		if err != nil {
 			return err
 		}
@@ -141,8 +141,12 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 		}
 		return nil
 	}); err != nil {
+		if s.handleAuthError(ctx, acc, creds.Version, err) {
+			err = ErrEmailHubReauthRequired
+		}
 		return false, 0, err
 	}
+	s.gov.loginSucceeded(acc.ID)
 	if !inboxOK {
 		return false, 0, lastErr
 	}
@@ -284,13 +288,13 @@ func (s *EmailHubService) syncSingleFolder(
 	}
 	defer release()
 
+	creds, err := s.credentials(ctx, acc)
+	if err != nil {
+		return false, 0, err
+	}
 	newUnread := 0
 	runSync := func() error {
-		creds, _, err := s.accountCredentials(acc)
-		if err != nil {
-			return err
-		}
-		sess, err := imapclient.OpenSession(creds)
+		sess, err := imapclient.OpenSession(creds.IMAP)
 		if err != nil {
 			return err
 		}
@@ -312,7 +316,6 @@ func (s *EmailHubService) syncSingleFolder(
 		state, newUnread, syncErr = s.syncAccountFolderSession(ctx, acc, logicalFolder, state, reconcile, sess, mailboxes)
 		return syncErr
 	}
-	var err error
 	if blockIMAP {
 		err = s.gov.withIMAP(acc.ID, runSync)
 	} else if !s.gov.tryWithIMAP(acc.ID, func() error { err = runSync(); return err }) {
@@ -320,7 +323,9 @@ func (s *EmailHubService) syncSingleFolder(
 		return false, 0, nil
 	}
 	if err != nil {
-		s.disconnectOnAuthFailure(ctx, acc, err)
+		if s.handleAuthError(ctx, acc, creds.Version, err) {
+			err = ErrEmailHubReauthRequired
+		}
 		return false, 0, err
 	}
 	s.gov.loginSucceeded(acc.ID)
@@ -401,12 +406,15 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 	s.gov.beginWatch(accountID)
 	defer s.gov.endWatch(accountID)
 
-	creds, _, err := s.accountCredentials(acc)
+	creds, err := s.credentials(ctx, acc)
 	if err != nil {
 		return false, err
 	}
-	sess, err := imapclient.OpenSessionIdle(creds)
+	sess, err := imapclient.OpenSessionIdle(creds.IMAP)
 	if err != nil {
+		if s.handleAuthError(ctx, acc, creds.Version, err) {
+			err = ErrEmailHubReauthRequired
+		}
 		return false, err
 	}
 	defer sess.Close()

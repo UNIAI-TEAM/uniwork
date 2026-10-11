@@ -1277,13 +1277,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
-		// UNI-1109: the provider refused the mailbox's IMAP LOGIN.
+		// The owner disconnects the mailbox (UNI-1237: an auth failure no longer does).
 		audit.ActionEmailHubAccountDisconnected: func(t *testing.T, f *auditFixture) {
+			workspace := f.build(t)
+			svc := NewEmailHubService(f.q, f.ws, testEmailHubBox(t))
+			acc := seedEmailHubAccount(t, f.q, svc.box, f.owner.ID, f.orgID)
+			if err := svc.Disconnect(f.ctx, Human(f.owner.ID), workspace.ID, acc.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1237: the provider refused the mailbox's credential; it needs reconnect.
+		audit.ActionEmailHubAccountAuthFailed: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			svc := NewEmailHubService(f.q, f.ws, testEmailHubBox(t))
 			acc := seedEmailHubAccount(t, f.q, svc.box, f.owner.ID, f.orgID)
-			if !svc.disconnectOnAuthFailure(f.ctx, acc, imapclient.ErrAuthFailed) {
-				t.Fatal("expected the account to be disconnected")
+			if !svc.handleAuthError(f.ctx, acc, acc.CredentialVersion, imapclient.ErrAuthFailed) {
+				t.Fatal("expected the account to be marked needs-reconnect")
 			}
 		},
 	}
@@ -1419,6 +1428,7 @@ func auditActions() []string {
 		audit.ActionSignatureCreated,
 		audit.ActionSignatureDeleted,
 		audit.ActionEmailHubAccountDisconnected,
+		audit.ActionEmailHubAccountAuthFailed,
 	}
 }
 
