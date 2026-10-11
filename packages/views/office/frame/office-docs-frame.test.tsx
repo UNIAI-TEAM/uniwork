@@ -427,8 +427,9 @@ describe("OfficeDocsFrame", () => {
       expect(dialog).toHaveTextContent("Có người vừa lưu phiên bản mới hơn");
       expect(dialog).not.toHaveTextContent(SERVER_SENTENCE);
       expect(screen.getByRole("button", { name: "Tải bản mới nhất" })).toBeInTheDocument();
-      // The safe choice holds focus.
-      expect(screen.getByRole("button", { name: "Giữ thay đổi của tôi" })).toHaveFocus();
+      // The safe choice holds focus. The dialog moves focus after it opens, so wait for it rather than
+      // asserting in the same tick (a loaded CI box lands it later than a quiet one).
+      await waitFor(() => expect(screen.getByRole("button", { name: "Giữ thay đổi của tôi" })).toHaveFocus());
       expect(toastError).not.toHaveBeenCalled();
     });
 
