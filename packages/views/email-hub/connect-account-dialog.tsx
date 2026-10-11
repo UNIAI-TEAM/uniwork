@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { errorCode } from "@uniwork/core/api/http";
 import { useConnectEmailHubAccount } from "@uniwork/core/email-hub/hooks";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -10,6 +9,7 @@ import { Label } from "@uniwork/ui/components/ui/label";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 import { EMAIL_RE } from "../workspace/email-chips-input";
 import { ConnectAppPasswordGuideDialog } from "./connect-app-password-guide-dialog";
+import { connectError } from "./connect-account-errors";
 
 interface ConnectAccountDialogProps {
   wsId: string;
@@ -21,30 +21,6 @@ interface ConnectAccountDialogProps {
 }
 
 const FORM_ID = "email-hub-connect-form";
-
-/** Which field a server error belongs to, so it is read out next to the thing to fix. */
-function connectError(code: string | undefined): { field: "email" | "password" | "form"; key: string } {
-  switch (code) {
-    case "email_hub_connect_failed":
-      return { field: "password", key: "email_hub.connect.error_connect_failed" };
-    case "email_hub_unsupported":
-      return { field: "email", key: "email_hub.connect.error_unsupported" };
-    case "email_hub_not_configured":
-      return { field: "form", key: "email_hub.connect.error_not_configured" };
-    case "email_hub_already_connected":
-      return { field: "email", key: "email_hub.connect.error_already_connected" };
-    case "email_hub_reauth_required":
-      return { field: "form", key: "email_hub.connect.error_reauth_required" };
-    case "email_hub_smtp_disabled":
-      return { field: "form", key: "email_hub.connect.error_smtp_disabled" };
-    case "email_hub_tls_required":
-      return { field: "form", key: "email_hub.connect.error_tls_required" };
-    case "email_hub_unreachable":
-      return { field: "form", key: "email_hub.connect.error_unreachable" };
-    default:
-      return { field: "form", key: "email_hub.connect.error" };
-  }
-}
 
 export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, reconnectEmail: reconnectProp }: ConnectAccountDialogProps) {
   const { t } = useTranslation();
@@ -58,14 +34,16 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const [guideOpen, setGuideOpen] = useState(false);
   const connect = useConnectEmailHubAccount(wsId);
 
-  const serverError = connect.isError ? connectError(errorCode(connect.error)) : null;
+  const serverError = connect.isError ? connectError(connect.error) : null;
   const emailError = emailInvalid
     ? t("email_hub.connect.error_email_format")
     : serverError?.field === "email"
       ? t(serverError.key)
       : null;
   const passwordError = serverError?.field === "password" ? t(serverError.key) : null;
-  const formError = serverError?.field === "form" ? t(serverError.key) : null;
+  // The app-password form has no server inputs: any error not about the email or password reads out for the whole form.
+  const formError =
+    serverError && serverError.field !== "email" && serverError.field !== "password" ? t(serverError.key) : null;
 
   const close = (next: boolean) => {
     if (connect.isPending) return;
