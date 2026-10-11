@@ -41,6 +41,7 @@ function sendShortcutLabel() {
 const QUICK_EMOJIS = ["😀", "😊", "👍", "🙏", "❤️", "🎉", "✅", "🔥", "😂", "🤔", "👋", "💡"];
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_ATTACHMENT_COUNT = 10;
+const MAX_ATTACHMENT_TOTAL_BYTES = 15 * 1024 * 1024;
 
 export type ComposeDraftAttachment = {
   id: string;
@@ -211,6 +212,7 @@ export function ComposeEmailToolbar({
   const addAttachments = (files: FileList | null) => {
     if (!files?.length) return;
     const next = [...attachments];
+    let total = next.reduce((sum, item) => sum + item.file.size, 0);
     for (const file of files) {
       if (next.length >= MAX_ATTACHMENT_COUNT) {
         toast.error(t("email_hub.compose.attach_limit"));
@@ -222,7 +224,13 @@ export function ComposeEmailToolbar({
       }
       const id = `${file.name}-${file.size}-${file.lastModified}`;
       // The same file picked twice is one attachment, not a duplicate row with a clashing key.
-      if (!next.some((item) => item.id === id)) next.push({ id, file });
+      if (next.some((item) => item.id === id)) continue;
+      if (total + file.size > MAX_ATTACHMENT_TOTAL_BYTES) {
+        toast.error(t("email_hub.compose.attach_total_too_large", { name: file.name }));
+        continue;
+      }
+      total += file.size;
+      next.push({ id, file });
     }
     onAttachmentsChange(next);
   };

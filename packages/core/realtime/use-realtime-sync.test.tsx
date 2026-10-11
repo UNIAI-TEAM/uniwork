@@ -5,6 +5,7 @@ import * as chatApi from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
+import { emailHubKeys } from "../email-hub/hooks";
 import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline";
 import { graphKeys } from "../graph/keys";
 import type { Task } from "../types/task";
@@ -205,6 +206,12 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["project", "ws1", "p1"]),
       ]),
     );
+  });
+
+  it("refreshes the mailbox list on email_hub.inbox_changed, so an auto-disconnected mailbox drops out", () => {
+    const { invalidate, client } = setup();
+    client.emit({ type: "email_hub.inbox_changed", payload: { account_id: "a1", user_id: "u1" } });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(emailHubKeys.accounts("ws1")));
   });
 
   it("invalidates catalog statuses on task_status.created", () => {

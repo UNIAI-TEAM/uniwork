@@ -14,11 +14,7 @@ import { chatKeys } from "../chat/hooks";
 import { catchUpLoadedRoomTimelines, catchUpOnChatSubscribeAck } from "../chat/room-timeline";
 import { documentKeys } from "../documents/keys";
 import { graphKeys } from "../graph/keys";
-import {
-  invalidateEmailHubReadingCachesForAccount,
-  invalidateEmailHubThreadsForAccount,
-  invalidateEmailHubUnread,
-} from "../email-hub/hooks";
+import { invalidateEmailHubForRealtime } from "../email-hub/query-cache";
 import { homeKeys } from "../home/keys";
 import { meetingKeys } from "../meetings/hooks";
 import { MOTION_TALLY_INVALIDATE_MS, motionKeys } from "../meetings/motion-hooks";
@@ -537,12 +533,12 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         (eventType === "email_hub.inbox_changed" || eventType === "email_hub.new_mail") &&
         payload.account_id
       ) {
-        invalidateEmailHubThreadsForAccount(qc, wsId, payload.account_id);
-        invalidateEmailHubReadingCachesForAccount(qc, wsId, payload.account_id);
-        invalidateEmailHubUnread(qc, wsId);
-        void qc.invalidateQueries({
-          queryKey: ["email-hub", wsId, "sidebar-counts", payload.account_id],
-        });
+        invalidateEmailHubForRealtime(
+          qc,
+          wsId,
+          payload.account_id,
+          eventType === "email_hub.inbox_changed",
+        );
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {
