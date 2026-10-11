@@ -1,15 +1,19 @@
 "use client";
 
-import { useState, type ComponentProps, type FormEvent } from "react";
+import { Fragment, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubAccount, EmailHubCustomServer } from "@uniwork/core/types/email-hub";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
+import { Separator } from "@uniwork/ui/components/ui/separator";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
 import { FormDialogBody, FormDialogFooter } from "../common/form-dialog";
 import { EMAIL_RE } from "../workspace/email-chips-input";
 import { connectError, type ConnectErrorField } from "./connect-account-errors";
+import { ErrorAlert, TextField } from "./connect-form-parts";
+import { inlineLinkClass } from "./connect-method-step";
 
 type EmailHubServerSecurity = EmailHubCustomServer["imap_security"];
 type Side = "imap" | "smtp";
@@ -46,32 +50,6 @@ function initialDraft(side: Side, account: EmailHubAccount | undefined): ServerD
   return { host, port: String(port), security, portEdited: false };
 }
 
-function TextField({
-  field,
-  label,
-  error,
-  hint,
-  ...input
-}: { field: ConnectErrorField; label: string; error?: string; hint?: string } & ComponentProps<typeof Input>) {
-  const id = fieldId(field);
-  const noteId = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
-  return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} aria-invalid={error ? true : undefined} aria-describedby={noteId} {...input} />
-      {error ? (
-        <p id={noteId} className="text-caption text-destructive">
-          {error}
-        </p>
-      ) : hint ? (
-        <p id={noteId} className="text-caption text-pretty text-muted-foreground">
-          {hint}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 function ServerFieldset({
   side,
   draft,
@@ -92,11 +70,11 @@ function ServerFieldset({
   const securityId = fieldId(security);
   const securityError = errorFor(security);
   return (
-    <fieldset className="grid gap-3 rounded-lg border border-border px-3 pt-1 pb-3">
-      <legend className="px-1 text-label font-medium">{t(`email_hub.connect.custom.${side}_heading`)}</legend>
+    <fieldset className="grid gap-3">
+      <legend className="mb-3 text-label font-medium">{t(`email_hub.connect.custom.${side}_heading`)}</legend>
       <div className="grid gap-3 sm:grid-cols-[1fr_6rem]">
         <TextField
-          field={host}
+          id={fieldId(host)}
           label={t("email_hub.connect.custom.host")}
           error={errorFor(host)}
           autoCapitalize="none"
@@ -109,7 +87,7 @@ function ServerFieldset({
           }}
         />
         <TextField
-          field={port}
+          id={fieldId(port)}
           label={t("email_hub.connect.custom.port")}
           error={errorFor(port)}
           inputMode="numeric"
@@ -126,7 +104,7 @@ function ServerFieldset({
         </p>
         <RadioGroup
           aria-labelledby={`${securityId}-label`}
-          aria-describedby={securityError ? `${securityId}-error` : undefined}
+          aria-describedby={securityError ? `${securityId}-error` : `${securityId}-hint`}
           value={draft.security}
           onValueChange={(value) => {
             const mode = SECURITIES.find((m) => m === value);
@@ -146,7 +124,11 @@ function ServerFieldset({
           <p id={`${securityId}-error`} className="text-caption text-destructive">
             {securityError}
           </p>
-        ) : null}
+        ) : (
+          <p id={`${securityId}-hint`} className="text-caption text-pretty text-muted-foreground">
+            {t("email_hub.connect.custom.security_hint")}
+          </p>
+        )}
       </div>
     </fieldset>
   );
@@ -181,6 +163,7 @@ export function ConnectCustomServerForm({
     smtp: initialDraft("smtp", initial),
   }));
   const [invalid, setInvalid] = useState<FieldErrors>({});
+  const [usernameOpen, setUsernameOpen] = useState(Boolean(initial?.username));
 
   const server = error ? connectError(error) : null;
   const errorFor = (field: ConnectErrorField) => {
@@ -189,6 +172,8 @@ export function ConnectCustomServerForm({
   };
   const clear = (field: ConnectErrorField) => setInvalid((prev) => ({ ...prev, [field]: undefined }));
   const formError = server?.field === "form" ? t(server.key) : null;
+  // A refused login name must be on screen to be fixed.
+  if (server?.field === "username" && !usernameOpen) setUsernameOpen(true);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -228,7 +213,7 @@ export function ConnectCustomServerForm({
       <FormDialogBody>
         <form id={formId} className="grid gap-4" noValidate onSubmit={submit}>
           <TextField
-            field="email"
+            id={fieldId("email")}
             label={t("email_hub.connect.email")}
             error={errorFor("email")}
             type="email"
@@ -245,19 +230,7 @@ export function ConnectCustomServerForm({
             }}
           />
           <TextField
-            field="username"
-            label={t("email_hub.connect.custom.username")}
-            error={errorFor("username")}
-            hint={t("email_hub.connect.custom.username_hint")}
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            placeholder={email.trim() || undefined}
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-          <TextField
-            field="password"
+            id={fieldId("password")}
             label={t("email_hub.connect.custom.password")}
             error={errorFor("password")}
             type="password"
@@ -265,22 +238,55 @@ export function ConnectCustomServerForm({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          {SIDES.map((side) => (
-            <ServerFieldset
-              key={side}
-              side={side}
-              draft={drafts[side]}
-              onChange={(next) => setDrafts((prev) => ({ ...prev, [side]: next }))}
-              errorFor={errorFor}
-              clear={clear}
-            />
+          <div className="grid gap-2">
+            <button
+              type="button"
+              className={cn(inlineLinkClass, "justify-self-start text-caption")}
+              aria-expanded={usernameOpen}
+              aria-controls={usernameOpen ? fieldId("username") : undefined}
+              onClick={() => {
+                // A hidden login name must not be sent.
+                if (usernameOpen) setUsername("");
+                setUsernameOpen(!usernameOpen);
+              }}
+            >
+              {t("email_hub.connect.custom.username_toggle")}
+            </button>
+            {usernameOpen ? (
+              <TextField
+                id={fieldId("username")}
+                label={t("email_hub.connect.custom.username")}
+                error={errorFor("username")}
+                hint={t("email_hub.connect.custom.username_hint")}
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder={email.trim() || undefined}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            ) : null}
+          </div>
+          {SIDES.map((side, i) => (
+            <Fragment key={side}>
+              {i > 0 ? <Separator /> : null}
+              <ServerFieldset
+                side={side}
+                draft={drafts[side]}
+                onChange={(next) => setDrafts((prev) => ({ ...prev, [side]: next }))}
+                errorFor={errorFor}
+                clear={clear}
+              />
+            </Fragment>
           ))}
-          {formError ? (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-caption text-destructive" role="alert">
-              {formError}
-            </p>
-          ) : null}
+          <ErrorAlert message={formError} focus />
         </form>
+        {pending ? (
+          <p role="status" className="flex items-center gap-2 text-caption text-muted-foreground">
+            <Spinner />
+            {t("email_hub.connect.custom.checking")}
+          </p>
+        ) : null}
       </FormDialogBody>
       <FormDialogFooter
         leading={

@@ -142,7 +142,7 @@ describe("ConnectAccountDialog", () => {
 
     fireEvent.click(appPasswordOption());
     expect(screen.getByLabelText("App Password")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Xem hướng dẫn từng bước kèm minh họa" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hướng dẫn cho Gmail" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Quay lại" }));
     expect(screen.queryByLabelText("App Password")).not.toBeInTheDocument();
     expect(customOption()).toBeInTheDocument();
@@ -231,8 +231,13 @@ describe("ConnectAccountDialog", () => {
     // Until the list says the mailbox is not custom, the app-password form must not submit.
     fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh" } });
     const submit = screen.getByRole("button", { name: "Kết nối lại" });
-    if (blocked) expect(submit).toBeDisabled();
-    else await waitFor(() => expect(submit).toBeEnabled());
+    if (blocked) {
+      expect(submit).toBeDisabled();
+      expect(screen.getByRole("status")).toHaveTextContent("Đang tải hộp thư…");
+    } else {
+      await waitFor(() => expect(submit).toBeEnabled());
+      expect(screen.queryByRole("status")).toBeNull();
+    }
   });
 
   it("reconnects the named mailbox with a new app password, without letting the address change", async () => {
@@ -279,6 +284,11 @@ describe("ConnectAccountDialog", () => {
     fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh ijkl mnop" } });
     expect(screen.getByRole("button", { name: "Kết nối lại" })).toBeDisabled();
     expect(requestMock).not.toHaveBeenCalledWith(ACCOUNTS_PATH, expect.objectContaining({ method: "POST" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Không tải được thông tin hộp thư. Thử lại.");
+
+    const reads = accountListReads();
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(accountListReads()).toBeGreaterThan(reads));
   });
 
   it("keeps the reconnect title and fixed address while the dialog closes", () => {
@@ -327,7 +337,43 @@ describe("ConnectAccountDialog", () => {
 
     fillAndSubmit("an@gmail.com", "Kết nối");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(text);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(text);
+    // A long form may have scrolled it out of view: focus brings it back and reads it out.
+    await waitFor(() => expect(alert).toHaveFocus());
+  });
+
+  it("opens the Gmail guide inside the dialog and comes back with the typed values", () => {
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+    fireEvent.click(appPasswordOption());
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "an@gmail.com" } });
+    fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Hướng dẫn cho Gmail" }));
+
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByText("Cách lấy App Password cho Gmail")).toBeInTheDocument();
+    expect(screen.queryByLabelText("App Password")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Quay lại" }));
+
+    expect(screen.getByLabelText("Email")).toHaveValue("an@gmail.com");
+    expect(screen.getByLabelText("App Password")).toHaveValue("abcd efgh");
+  });
+
+  it("gives an example app password and help for Outlook and Yahoo too", () => {
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+    fireEvent.click(appPasswordOption());
+
+    expect(screen.getByLabelText("App Password")).toHaveAttribute("placeholder", "abcd efgh ijkl mnop");
+    for (const [name, href] of [
+      ["Outlook", "https://support.microsoft.com/account-billing/how-to-get-and-use-app-passwords-5896ed9b-4263-e681-128a-a6f2979a7944"],
+      ["Yahoo", "https://help.yahoo.com/kb/SLN15241.html"],
+    ] as const) {
+      const link = screen.getByRole("link", { name: new RegExp(`^${name}`) });
+      expect(link).toHaveAttribute("href", href);
+      expect(link).toHaveAttribute("target", "_blank");
+    }
   });
 });
 
@@ -547,6 +593,38 @@ describe("ConnectAccountDialog sign-in with Google or Microsoft", () => {
     await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc3"), { timeout: 2000 });
     expect(toastSuccess).toHaveBeenCalledWith("Đã kết nối lan@contoso.vn");
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("finds the new mailbox when the list was still loading as the sign-in started", async () => {
+    let firstList: (value: unknown) => void = () => {};
+    const list = { accounts: [accountJSON] as unknown[] };
+    let listReads = 0;
+    requestMock.mockImplementation((path: string) => {
+      if (path === PROVIDERS_PATH) return Promise.resolve(BOTH);
+      if (path.endsWith("/start")) return Promise.resolve({ authorization_url: AUTH_URL });
+      if (path !== ACCOUNTS_PATH) return Promise.resolve({});
+      listReads += 1;
+      return listReads === 1
+        ? new Promise((resolve) => {
+            firstList = resolve;
+          })
+        : Promise.resolve(list);
+    });
+    const { popup } = fakePopup();
+    const onConnected = vi.fn();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} onConnected={onConnected} />));
+    await startGoogleSignIn(popup);
+    // The list lands while the popup is open; a short wait lets the parsed answer reach the screen.
+    await act(async () => {
+      firstList({ accounts: [accountJSON] });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    list.accounts = [accountJSON, { ...accountJSON, id: "acc9", email_address: "moi@gmail.com", auth_kind: "oauth_google" }];
+
+    postResult(popup, true, "connected");
+
+    await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc9"));
+    expect(toastSuccess).toHaveBeenCalledWith("Đã kết nối moi@gmail.com");
   });
 
   it("notes, without an error, that the popup closed before connecting", async () => {

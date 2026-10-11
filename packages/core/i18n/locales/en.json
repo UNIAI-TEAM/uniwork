@@ -20,7 +20,9 @@
     "date_clear": "No date",
     "hour": "Hour",
     "minute": "Minute",
-    "opens_new_tab": " (opens in a new tab)"
+    "opens_new_tab": " (opens in a new tab)",
+    "show_password": "Show password",
+    "hide_password": "Hide password"
   },
   "entitlement": {
     "toast": {
@@ -1320,9 +1322,13 @@
       "description": "For Gmail, Outlook or Yahoo. Use an app password, not your usual password. It's encrypted before it's stored.",
       "email": "Email",
       "app_password": "App Password",
-      "hint": "Gmail needs 2-Step Verification on to create an app password.",
+      "hint": "Create an app password in your Gmail, Outlook or Yahoo account's security settings.",
+      "help_outlook": "Outlook",
+      "help_yahoo": "Yahoo",
+      "reconnect_loading": "Loading the mailbox…",
+      "reconnect_load_failed": "Couldn't load this mailbox's details. Try again.",
       "guide": {
-        "link": "Step-by-step guide with illustrations",
+        "link": "Guide for Gmail",
         "title": "How to get a Gmail App Password",
         "description": "Follow these steps in your Google Account. You only need to do this once per mailbox.",
         "step1_title": "Turn on 2-Step Verification",
@@ -1348,7 +1354,7 @@
       "error_connect_failed": "The mail server didn't accept the sign-in. Check the password, and the login name if you entered one.",
       "error_unsupported": "There's no preset for this email domain. Go back and choose Own domain (IMAP/SMTP).",
       "email_placeholder": "you@gmail.com",
-      "app_password_placeholder": "16 characters, spaces are fine",
+      "app_password_placeholder": "abcd efgh ijkl mnop",
       "error_email_format": "That email isn't valid, e.g. you@gmail.com.",
       "submitting": "Connecting…",
       "error_already_connected": "This mailbox is already connected. Pick it under Accounts, or enter another address.",
@@ -1388,6 +1394,9 @@
         "email_placeholder": "you@yourcompany.com",
         "username": "Username",
         "username_hint": "Leave empty if it's the same as the email address",
+        "username_toggle": "Different login name?",
+        "security_hint": "SSL/TLS: port 993 (IMAP), 465 (SMTP). STARTTLS: 143, 587. The port follows your choice unless you've edited it.",
+        "checking": "Checking the mail server. This can take up to 30 seconds.",
         "password": "Password",
         "imap_heading": "Incoming mail (IMAP)",
         "smtp_heading": "Outgoing mail (SMTP)",

@@ -5,13 +5,17 @@ import type { EmailHubAccount } from "@uniwork/core/types/email-hub";
 import { wrap } from "../test/api-mock";
 import { ConnectCustomServerForm } from "./connect-custom-server-form";
 
-function renderForm({ error = null, initial }: { error?: unknown; initial?: EmailHubAccount } = {}) {
+function renderForm({
+  error = null,
+  initial,
+  pending = false,
+}: { error?: unknown; initial?: EmailHubAccount; pending?: boolean } = {}) {
   const onSubmit = vi.fn();
   render(
     wrap(
       <ConnectCustomServerForm
         formId="custom-form"
-        pending={false}
+        pending={pending}
         error={error}
         initial={initial}
         onCancel={() => {}}
@@ -28,6 +32,7 @@ const smtp = () => within(screen.getByRole("group", { name: "Thư đi (SMTP)" })
 const TLS = 0;
 const STARTTLS = 1;
 const radio = (side: typeof imap, index: number) => side().getAllByRole("radio")[index]!;
+const usernameToggle = () => screen.getByRole("button", { name: "Tên đăng nhập khác email?" });
 
 function fillRequired() {
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: "  ha.do@congty.vn " } });
@@ -80,6 +85,7 @@ describe("ConnectCustomServerForm", () => {
   it("sends numbers for the ports, the password as typed, and a username only when one is given", () => {
     const onSubmit = renderForm();
     fillRequired();
+    fireEvent.click(usernameToggle());
     expect(screen.getByLabelText("Tên đăng nhập")).toHaveAttribute("placeholder", "ha.do@congty.vn");
 
     fireEvent.click(screen.getByRole("button", { name: "Kết nối" }));
@@ -159,10 +165,58 @@ describe("ConnectCustomServerForm", () => {
     [new ApiError("slow down", "rate_limited", 429), "Chờ vài phút rồi thử lại."],
     // A field name the form does not show must not match a prototype key; it reads out for the whole form.
     [new ApiError("invalid", "email_hub_invalid_server", 400, undefined, { field: "constructor" }), "Thông tin máy chủ thư này chưa đúng."],
-  ])("reads %s out for the whole form", (error, text) => {
+  ])("reads %s out for the whole form, and moves focus there", (error, text) => {
     renderForm({ error });
 
-    expect(screen.getByRole("alert")).toHaveTextContent(text);
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(text);
+    expect(alert).toHaveFocus();
+  });
+
+  it("keeps the login name behind a disclosure until asked for", () => {
+    renderForm();
+    expect(screen.queryByLabelText("Tên đăng nhập")).toBeNull();
+    expect(usernameToggle()).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(usernameToggle());
+
+    expect(usernameToggle()).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Tên đăng nhập")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a saved login name", { initial: customAccount }],
+    ["a refused login name", { error: new ApiError("invalid", "email_hub_invalid_server", 400, undefined, { field: "username" }) }],
+  ])("opens the login name for %s", (_, props) => {
+    renderForm(props);
+
+    expect(usernameToggle()).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Tên đăng nhập")).toBeInTheDocument();
+  });
+
+  it("explains which port goes with which security mode under each choice", () => {
+    renderForm();
+    const hint = "SSL/TLS: cổng 993 (IMAP), 465 (SMTP). STARTTLS: 143, 587. Cổng tự đổi theo lựa chọn nếu bạn chưa sửa tay.";
+
+    expect(imap().getByRole("radiogroup")).toHaveAccessibleDescription(hint);
+    expect(smtp().getByRole("radiogroup")).toHaveAccessibleDescription(hint);
+  });
+
+  it("says a slow server check is expected while connecting", () => {
+    renderForm({ pending: true });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Đang kiểm tra máy chủ thư. Có thể mất tới 30 giây.");
+  });
+
+  it("shows and hides the password on request", () => {
+    renderForm();
+    const password = screen.getByLabelText("Mật khẩu");
+    expect(password).toHaveAttribute("type", "password");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hiện mật khẩu" }));
+
+    expect(password).toHaveAttribute("type", "text");
+    expect(screen.getByRole("button", { name: "Ẩn mật khẩu" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("fills a custom mailbox's servers for reconnecting, but never its password", () => {

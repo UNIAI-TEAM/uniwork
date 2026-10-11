@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -13,14 +13,14 @@ import type { EmailHubAccount, EmailHubOAuthProvider } from "@uniwork/core/types
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
-import { Input } from "@uniwork/ui/components/ui/input";
-import { Label } from "@uniwork/ui/components/ui/label";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 import { useOAuthPopup, type OAuthPopupOutcome } from "../integrations/use-oauth-popup";
 import { EMAIL_RE } from "../workspace/email-chips-input";
-import { ConnectAppPasswordGuideDialog } from "./connect-app-password-guide-dialog";
+import { ConnectAppPasswordGuideSteps } from "./connect-app-password-guide-dialog";
 import { connectError, oauthResultKey } from "./connect-account-errors";
 import { ConnectCustomServerForm } from "./connect-custom-server-form";
+import { ErrorAlert, TextField } from "./connect-form-parts";
 import { ConnectMethodStep, inlineLinkClass, OAuthPendingStatus, OAuthProviderButton } from "./connect-method-step";
 
 interface ConnectAccountDialogProps {
@@ -35,6 +35,10 @@ interface ConnectAccountDialogProps {
 const FORM_ID = "email-hub-connect-form";
 const CUSTOM_FORM_ID = "email-hub-custom-form";
 type Method = "choose" | "custom" | "app_password";
+const HELP_LINKS = [
+  ["help_outlook", "https://support.microsoft.com/account-billing/how-to-get-and-use-app-passwords-5896ed9b-4263-e681-128a-a6f2979a7944"],
+  ["help_yahoo", "https://help.yahoo.com/kb/SLN15241.html"],
+] as const;
 
 /** The provider an OAuth mailbox signs in again with; null for a password mailbox. */
 function oauthProviderOf(authKind: string | undefined): EmailHubOAuthProvider | null {
@@ -59,16 +63,23 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const [oauthClosed, setOauthClosed] = useState(false);
   // Reset the step as the dialog opens, not as it closes, so the closing dialog keeps the form it showed.
   const [method, setMethod] = useState<Method>("choose");
+  // The Gmail guide shows in place of the app-password form, which keeps what was typed.
+  const [guideOpen, setGuideOpen] = useState(false);
+  // The ids in the first list loaded after the dialog opens: the one that is new after a sign-in is what it connected.
+  const [knownIds, setKnownIds] = useState<Set<string> | null>(null);
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
       setMethod("choose");
+      setGuideOpen(false);
+      setKnownIds(null);
       setOauthError(null);
       setOauthClosed(false);
     }
   }
   const accounts = useEmailHubAccounts(wsId);
+  if (open && knownIds === null && accounts.data) setKnownIds(new Set(accounts.data.accounts.map((a) => a.id)));
   const providers = useEmailHubProviders(wsId);
   const startOAuth = useStartEmailHubOAuth(wsId);
   const reconnectAccount =
@@ -84,11 +95,7 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const address = reconnectEmail ?? email;
   const [password, setPassword] = useState("");
   const [emailInvalid, setEmailInvalid] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
   const connect = useConnectEmailHubAccount(wsId);
-
-  // The ids on screen as a sign-in starts: the one that is new afterwards is the mailbox it connected.
-  const knownIds = useRef<Set<string> | null>(null);
 
   /** Every successful connect, whichever way: select the mailbox and say which one. */
   const connected = (acc: { id: string; email_address: string }) => {
@@ -103,9 +110,8 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const settleSignIn = async (reportedOk: boolean) => {
     const { data } = await accounts.refetch();
     const list: EmailHubAccount[] = data?.accounts ?? [];
-    const known = knownIds.current;
     const acc =
-      list.find((a) => known !== null && !known.has(a.id)) ??
+      list.find((a) => knownIds !== null && !knownIds.has(a.id)) ??
       list.find((a) => a.email_address === reconnectEmail && (reportedOk || !a.needs_reconnect));
     if (acc) connected(acc);
     if (acc || reportedOk) onOpenChange(false);
@@ -134,7 +140,6 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const signIn = (provider: EmailHubOAuthProvider) => {
     setOauthError(null);
     setOauthClosed(false);
-    knownIds.current = accounts.data ? new Set(accounts.data.accounts.map((a) => a.id)) : null;
     // login_hint preselects the mailbox being reconnected; the server connects whichever account the user actually picks.
     popup.open(() => startOAuth.mutateAsync({ provider, loginHint: reconnectEmail }));
   };
@@ -151,9 +156,7 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
   const oauthNotice = popup.pending ? (
     <OAuthPendingStatus onShowWindow={popup.focus} />
   ) : oauthError ? (
-    <p className="rounded-md bg-destructive/10 px-3 py-2 text-caption text-destructive" role="alert">
-      {t(oauthError)}
-    </p>
+    <ErrorAlert message={t(oauthError)} />
   ) : oauthClosed ? (
     <Alert role="status">
       <AlertDescription className="text-caption">{t("email_hub.connect.oauth_closed")}</AlertDescription>
@@ -203,148 +206,163 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, re
     run({ email: trimmed, appPassword: password.replace(/\s+/g, "") });
   };
 
-  const title = reconnectEmail
-    ? t("email_hub.reconnect.dialog_title", { email: reconnectEmail })
-    : form === "custom"
-      ? t("email_hub.connect.custom.title")
-      : t("email_hub.connect.title");
-  const description = reconnectEmail
-    ? reconnectProvider
-      ? t("email_hub.reconnect.dialog_description_oauth")
+  // Only the app-password form links to the guide; an OAuth reconnect shows none.
+  const guide = guideOpen && form === "app_password" && !reconnectProvider;
+  const title = guide
+    ? t("email_hub.connect.guide.title")
+    : reconnectEmail
+      ? t("email_hub.reconnect.dialog_title", { email: reconnectEmail })
       : form === "custom"
-        ? t("email_hub.reconnect.dialog_description_custom")
-        : t("email_hub.reconnect.dialog_description")
-    : form === "custom"
-      ? t("email_hub.connect.custom.description")
-      : form === "app_password"
-        ? t("email_hub.connect.description")
-        : t("email_hub.connect.method_description");
+        ? t("email_hub.connect.custom.title")
+        : t("email_hub.connect.title");
+  const description = guide
+    ? t("email_hub.connect.guide.description")
+    : reconnectEmail
+      ? reconnectProvider
+        ? t("email_hub.reconnect.dialog_description_oauth")
+        : form === "custom"
+          ? t("email_hub.reconnect.dialog_description_custom")
+          : t("email_hub.reconnect.dialog_description")
+      : form === "custom"
+        ? t("email_hub.connect.custom.description")
+        : form === "app_password"
+          ? t("email_hub.connect.description")
+          : t("email_hub.connect.method_description");
+  const backButton = (onClick: () => void) => (
+    <Button type="button" variant="ghost" size="sm" disabled={connect.isPending} onClick={onClick}>
+      {t("email_hub.connect.back")}
+    </Button>
+  );
+  // A reconnect holds its submit until the list names the mailbox: say why, and offer a retry when the list failed.
+  const reconnectNotice = !reconnectLoading ? null : accounts.isError ? (
+    <Alert variant="destructive">
+      <AlertDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption">
+        {t("email_hub.connect.reconnect_load_failed")}
+        <Button type="button" variant="outline" size="sm" onClick={() => void accounts.refetch()}>
+          {t("common.retry")}
+        </Button>
+      </AlertDescription>
+    </Alert>
+  ) : accounts.isPending ? (
+    <p role="status" className="flex items-center gap-2 text-caption text-muted-foreground">
+      <Spinner />
+      {t("email_hub.connect.reconnect_loading")}
+    </p>
+  ) : null;
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={close}>
-        <FormDialogContent>
-          <FormDialogHeader title={title} description={description} />
-          {form === "choose" ? (
-            <>
-              <FormDialogBody>
-                <ConnectMethodStep
-                  providers={providers.data}
-                  providersLoading={providers.isPending}
-                  pending={popup.pending}
-                  onPick={pick}
-                  onOAuth={signIn}
+    <Dialog open={open} onOpenChange={close}>
+      <FormDialogContent>
+        <FormDialogHeader title={title} description={description} />
+        {form === "choose" ? (
+          <>
+            <FormDialogBody>
+              <ConnectMethodStep
+                providers={providers.data}
+                providersLoading={providers.isPending}
+                pending={popup.pending}
+                onPick={pick}
+                onOAuth={signIn}
+              />
+              {oauthNotice}
+            </FormDialogBody>
+            <FormDialogFooter onCancel={() => close(false)} />
+          </>
+        ) : reconnectProvider ? (
+          <>
+            <FormDialogBody>
+              <OAuthProviderButton
+                provider={reconnectProvider}
+                pending={popup.pending}
+                onClick={() => signIn(reconnectProvider)}
+              />
+              {oauthNotice}
+            </FormDialogBody>
+            <FormDialogFooter onCancel={() => close(false)} />
+          </>
+        ) : form === "custom" ? (
+          <ConnectCustomServerForm
+            // initial is read at mount: a different mailbox, or a fresh connect, starts a fresh form.
+            key={reconnectAccount?.id ?? "new"}
+            formId={CUSTOM_FORM_ID}
+            initial={reconnectAccount}
+            pending={connect.isPending}
+            error={connect.isError ? connect.error : null}
+            onCancel={() => close(false)}
+            onBack={reconnectEmail === undefined ? () => pick("choose") : undefined}
+            onSubmit={run}
+          />
+        ) : guide ? (
+          <>
+            <FormDialogBody>
+              <ConnectAppPasswordGuideSteps />
+            </FormDialogBody>
+            <FormDialogFooter leading={backButton(() => setGuideOpen(false))} onCancel={() => close(false)} />
+          </>
+        ) : (
+          <>
+            <FormDialogBody>
+              {reconnectNotice}
+              <form id={FORM_ID} className="grid gap-4" noValidate onSubmit={submit}>
+                <TextField
+                  id="email-hub-email"
+                  label={t("email_hub.connect.email")}
+                  error={emailError}
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={address}
+                  readOnly={reconnectEmail !== undefined}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailInvalid(false);
+                  }}
+                  placeholder={t("email_hub.connect.email_placeholder")}
                 />
-                {oauthNotice}
-              </FormDialogBody>
-              <FormDialogFooter onCancel={() => close(false)} />
-            </>
-          ) : reconnectProvider ? (
-            <>
-              <FormDialogBody>
-                <OAuthProviderButton
-                  provider={reconnectProvider}
-                  pending={popup.pending}
-                  onClick={() => signIn(reconnectProvider)}
-                />
-                {oauthNotice}
-              </FormDialogBody>
-              <FormDialogFooter onCancel={() => close(false)} />
-            </>
-          ) : form === "custom" ? (
-            <ConnectCustomServerForm
-              // initial is read at mount: a different mailbox, or a fresh connect, starts a fresh form.
-              key={reconnectAccount?.id ?? "new"}
-              formId={CUSTOM_FORM_ID}
-              initial={reconnectAccount}
-              pending={connect.isPending}
-              error={connect.isError ? connect.error : null}
-              onCancel={() => close(false)}
-              onBack={reconnectEmail === undefined ? () => pick("choose") : undefined}
-              onSubmit={run}
-            />
-          ) : (
-            <>
-              <FormDialogBody>
-                <form id={FORM_ID} className="grid gap-4" noValidate onSubmit={submit}>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="email-hub-email">{t("email_hub.connect.email")}</Label>
-                    <Input
-                      id="email-hub-email"
-                      type="email"
-                      autoComplete="email"
-                      inputMode="email"
-                      autoCapitalize="none"
-                      spellCheck={false}
-                      value={address}
-                      readOnly={reconnectEmail !== undefined}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        setEmailInvalid(false);
-                      }}
-                      placeholder={t("email_hub.connect.email_placeholder")}
-                      aria-invalid={emailError ? true : undefined}
-                      aria-describedby={emailError ? "email-hub-email-error" : undefined}
-                    />
-                    {emailError ? (
-                      <p id="email-hub-email-error" className="text-caption text-destructive">
-                        {emailError}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="email-hub-password">{t("email_hub.connect.app_password")}</Label>
-                    <Input
-                      id="email-hub-password"
-                      type="password"
-                      autoComplete="off"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder={t("email_hub.connect.app_password_placeholder")}
-                      aria-invalid={passwordError ? true : undefined}
-                      aria-describedby={passwordError ? "email-hub-password-error" : "email-hub-password-hint"}
-                    />
-                    {passwordError ? (
-                      <p id="email-hub-password-error" className="text-caption text-destructive">
-                        {passwordError}
-                      </p>
-                    ) : (
-                      <p id="email-hub-password-hint" className="text-caption text-pretty text-muted-foreground">
-                        {t("email_hub.connect.hint")}{" "}
+                <TextField
+                  id="email-hub-password"
+                  label={t("email_hub.connect.app_password")}
+                  error={passwordError}
+                  type="password"
+                  autoComplete="off"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={t("email_hub.connect.app_password_placeholder")}
+                  hint={
+                    <>
+                      <p>{t("email_hub.connect.hint")}</p>
+                      <p className="flex flex-wrap gap-x-4">
                         <button type="button" className={inlineLinkClass} onClick={() => setGuideOpen(true)}>
                           {t("email_hub.connect.guide.link")}
                         </button>
+                        {HELP_LINKS.map(([key, href]) => (
+                          <a key={key} href={href} target="_blank" rel="noreferrer" className={inlineLinkClass}>
+                            {t(`email_hub.connect.${key}`)}
+                            <span className="sr-only">{t("common.opens_new_tab")}</span>
+                          </a>
+                        ))}
                       </p>
-                    )}
-                  </div>
-                  {formError ? (
-                    <p className="rounded-md bg-destructive/10 px-3 py-2 text-caption text-destructive" role="alert">
-                      {formError}
-                    </p>
-                  ) : null}
-                </form>
-              </FormDialogBody>
-              <FormDialogFooter
-                leading={
-                  reconnectEmail === undefined ? (
-                    <Button type="button" variant="ghost" size="sm" disabled={connect.isPending} onClick={() => pick("choose")}>
-                      {t("email_hub.connect.back")}
-                    </Button>
-                  ) : undefined
-                }
-                onCancel={() => close(false)}
-                submitType="submit"
-                form={FORM_ID}
-                submitLabel={reconnectEmail ? t("email_hub.reconnect.action") : t("email_hub.connect.submit")}
-                submittingLabel={t("email_hub.connect.submitting")}
-                submitting={connect.isPending}
-                submitDisabled={!address.trim() || !password.trim() || reconnectLoading}
-              />
-            </>
-          )}
-        </FormDialogContent>
-      </Dialog>
-      <ConnectAppPasswordGuideDialog open={guideOpen} onOpenChange={setGuideOpen} />
-    </>
+                    </>
+                  }
+                />
+                <ErrorAlert message={formError} focus />
+              </form>
+            </FormDialogBody>
+            <FormDialogFooter
+              leading={reconnectEmail === undefined ? backButton(() => pick("choose")) : undefined}
+              onCancel={() => close(false)}
+              submitType="submit"
+              form={FORM_ID}
+              submitLabel={reconnectEmail ? t("email_hub.reconnect.action") : t("email_hub.connect.submit")}
+              submittingLabel={t("email_hub.connect.submitting")}
+              submitting={connect.isPending}
+              submitDisabled={!address.trim() || !password.trim() || reconnectLoading}
+            />
+          </>
+        )}
+      </FormDialogContent>
+    </Dialog>
   );
 }

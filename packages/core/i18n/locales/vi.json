@@ -20,7 +20,9 @@
     "date_clear": "Bỏ chọn ngày",
     "hour": "Giờ",
     "minute": "Phút",
-    "opens_new_tab": " (mở tab mới)"
+    "opens_new_tab": " (mở tab mới)",
+    "show_password": "Hiện mật khẩu",
+    "hide_password": "Ẩn mật khẩu"
   },
   "entitlement": {
     "toast": {
@@ -1319,9 +1321,13 @@
       "description": "Cho Gmail, Outlook hoặc Yahoo. Dùng App Password, không dùng mật khẩu thường. Mật khẩu được mã hóa trước khi lưu.",
       "email": "Email",
       "app_password": "App Password",
-      "hint": "Gmail cần bật xác minh 2 bước để tạo App Password.",
+      "hint": "Tạo App Password trong phần bảo mật của tài khoản Gmail, Outlook hoặc Yahoo.",
+      "help_outlook": "Outlook",
+      "help_yahoo": "Yahoo",
+      "reconnect_loading": "Đang tải hộp thư…",
+      "reconnect_load_failed": "Không tải được thông tin hộp thư. Thử lại.",
       "guide": {
-        "link": "Xem hướng dẫn từng bước kèm minh họa",
+        "link": "Hướng dẫn cho Gmail",
         "title": "Cách lấy App Password cho Gmail",
         "description": "Làm theo các bước sau trong Google Account. Mỗi hộp thư chỉ cần làm một lần.",
         "step1_title": "Bật xác minh 2 bước",
@@ -1347,7 +1353,7 @@
       "error_connect_failed": "Máy chủ thư không chấp nhận đăng nhập. Kiểm tra mật khẩu, và tên đăng nhập nếu bạn có nhập.",
       "error_unsupported": "Chưa có cài đặt sẵn cho tên miền email này. Quay lại và chọn Tên miền riêng (IMAP/SMTP).",
       "email_placeholder": "ban@gmail.com",
-      "app_password_placeholder": "16 ký tự, có thể dán cả khoảng trắng",
+      "app_password_placeholder": "abcd efgh ijkl mnop",
       "error_email_format": "Email chưa đúng định dạng, ví dụ ban@gmail.com.",
       "submitting": "Đang kết nối…",
       "error_already_connected": "Hộp thư này đã được kết nối. Chọn hộp thư trong mục Tài khoản, hoặc nhập địa chỉ khác.",
@@ -1387,6 +1393,9 @@
         "email_placeholder": "ban@congty.vn",
         "username": "Tên đăng nhập",
         "username_hint": "Để trống nếu giống địa chỉ email",
+        "username_toggle": "Tên đăng nhập khác email?",
+        "security_hint": "SSL/TLS: cổng 993 (IMAP), 465 (SMTP). STARTTLS: 143, 587. Cổng tự đổi theo lựa chọn nếu bạn chưa sửa tay.",
+        "checking": "Đang kiểm tra máy chủ thư. Có thể mất tới 30 giây.",
         "password": "Mật khẩu",
         "imap_heading": "Thư đến (IMAP)",
         "smtp_heading": "Thư đi (SMTP)",
