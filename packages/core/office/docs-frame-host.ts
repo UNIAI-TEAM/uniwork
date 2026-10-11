@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at b60d5ff628a537657d99c55c1a58a6d824ad23b6
-// (fork branch feature/UNI-1232-web-polish, the lane head b60d5ff, protocol unchanged since 0e384f8: DR1 draft recovery, the modal event, SP1, H2, the AI1
+// web/docs/protocol/host.ts at d5553a04e06593b03d453f509ca0c5862320e192
+// (fork branch feature/UNI-1232-web-polish, the lane head d5553a0, protocol unchanged since 0e384f8: DR1 draft recovery, the modal event, SP1, H2, the AI1
 // capability keys, the C18a key wording, app.open (A7) and api.assets.resolve (A1b) in one lineage). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change
 // the fork, re-vendor, update this SHA.
