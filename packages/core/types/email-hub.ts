@@ -10,6 +10,15 @@ export const EmailHubAccountSchema = z.object({
   auth_kind: z.string().default("password"),
   needs_reconnect: z.boolean().default(false),
   auth_failed_reason: z.string().default(""),
+  // The mail server, so reconnecting a custom account can prefill its form. Each field
+  // degrades alone: a drifted value drops that field, never the whole account.
+  imap_host: z.string().optional().catch(undefined),
+  imap_port: z.number().optional().catch(undefined),
+  imap_security: z.string().optional().catch(undefined),
+  smtp_host: z.string().optional().catch(undefined),
+  smtp_port: z.number().optional().catch(undefined),
+  smtp_security: z.string().optional().catch(undefined),
+  username: z.string().optional().catch(undefined),
 });
 
 export const EmailHubWatchSchema = z.object({
@@ -114,6 +123,20 @@ export interface EmailHubThreadFilters {
   label?: string;
   unreadOnly?: boolean;
   hasAttachmentsOnly?: boolean;
+}
+
+type EmailHubServerSecurity = "tls" | "starttls";
+
+/** A custom IMAP/SMTP server for connect. Keys are the request's JSON names; the password travels beside it. */
+export interface EmailHubCustomServer {
+  imap_host: string;
+  imap_port: number;
+  imap_security: EmailHubServerSecurity;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_security: EmailHubServerSecurity;
+  /** Login name when it is not the address; empty or absent means the address. */
+  username?: string;
 }
 
 export type EmailHubAccount = z.infer<typeof EmailHubAccountSchema>;

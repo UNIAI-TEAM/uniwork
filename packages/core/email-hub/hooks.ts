@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type { EmailHubThread, EmailHubThreadFilters } from "../types/email-hub";
+import type { EmailHubCustomServer, EmailHubThread, EmailHubThreadFilters } from "../types/email-hub";
 import * as api from "../api/endpoints/email-hub";
 import {
   emailHubKeys,
@@ -220,8 +220,8 @@ export function prefetchEmailHubThread(
 export function useConnectEmailHubAccount(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { email: string; appPassword: string }) =>
-      api.connectEmailHubAccount(wsId, input.email, input.appPassword),
+    mutationFn: (input: { email: string; appPassword: string; server?: EmailHubCustomServer }) =>
+      api.connectEmailHubAccount(wsId, input.email, input.appPassword, input.server),
     onSuccess: (acc) => {
       void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
       if (acc?.id) {
