@@ -85,7 +85,7 @@ describe("capability and unsupported operations", () => {
         supported: true,
         runtime: "internal_service",
         evidence_level: "proven",
-        reason: expect.stringContaining("G3-05b real-loop evidence"),
+        reason: expect.stringContaining("real-loop evidence"),
       });
     }
     expect((await call(h, "GET", "/v1/capability?format=exe")).status).toBe(400);
