@@ -1375,7 +1375,8 @@
       "banner_title": "Hộp thư cần kết nối lại",
       "banner_body": "UniWork không đăng nhập được vào hộp thư này nên chưa nhận hay gửi được thư mới. Thư đã đồng bộ vẫn đọc được.",
       "dialog_title": "Kết nối lại {{email}}",
-      "dialog_description": "Nhập App Password mới cho hộp thư này. Thư đã đồng bộ được giữ nguyên."
+      "dialog_description": "Nhập App Password mới cho hộp thư này. Thư đã đồng bộ được giữ nguyên.",
+      "error": "Hộp thư này cần kết nối lại. Kết nối lại hộp thư rồi thử lại."
     },
     "search_label": "Tìm email",
     "search_clear": "Xóa tìm kiếm",

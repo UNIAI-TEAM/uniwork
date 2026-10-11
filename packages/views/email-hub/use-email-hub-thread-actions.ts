@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { EmailHubMoveTarget } from "@uniwork/core/api/endpoints/email-hub";
+import { errorCode } from "@uniwork/core/api/http";
 import {
+  emailHubKeys,
   useDownloadEmailHubAttachment,
   useMarkEmailHubRead,
   useMoveEmailHubThread,
@@ -72,6 +75,7 @@ export function useEmailHubThreadActions({
   refetchDetail,
 }: Options) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const moveThread = useMoveEmailHubThread(wsId);
   const toggleStar = useToggleEmailHubStar(wsId);
   const markRead = useMarkEmailHubRead(wsId);
@@ -79,7 +83,14 @@ export function useEmailHubThreadActions({
   const downloadAttachment = useDownloadEmailHubAttachment(wsId);
   const [snoozeDialogOpen, setSnoozeDialogOpen] = useState(false);
 
-  const fail = useCallback((err: unknown) => toastApiError(err, t("email_hub.action_error")), [t]);
+  const fail = useCallback(
+    (err: unknown) => {
+      toastApiError(err, t("email_hub.action_error"));
+      // A cached account list that missed the change shows no reconnect banner; refetch it.
+      if (errorCode(err) === "email_hub_reauth_required") void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
+    },
+    [qc, t, wsId],
+  );
   const closeIfOpen = useCallback(
     (threadId: string) => setSelectedId((cur) => (cur === threadId ? null : cur)),
     [setSelectedId],

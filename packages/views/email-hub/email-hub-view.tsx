@@ -228,9 +228,10 @@ export function EmailHubView() {
       if (!accountId) return;
       void qc.cancelQueries({ queryKey: emailHubKeys.thread(wsId, accountId, threadId) });
       const row = rows.find((item) => item.id === threadId);
-      if (row && !row.is_read) threadActions.setRead(threadId, true);
+      // The detail GET marks it read; a reconnect-needed mailbox would refuse the PATCH with 409.
+      if (row && !row.is_read && !activeAccount?.needs_reconnect) threadActions.setRead(threadId, true);
     },
-    [accountId, qc, rows, threadActions, wsId],
+    [accountId, activeAccount?.needs_reconnect, qc, rows, threadActions, wsId],
   );
 
   const analyzeFromList = useCallback(

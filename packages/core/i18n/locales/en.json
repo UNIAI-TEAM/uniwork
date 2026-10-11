@@ -1376,7 +1376,8 @@
       "banner_title": "This mailbox needs reconnecting",
       "banner_body": "UniWork can't sign in to this mailbox, so new mail isn't arriving and nothing can be sent. Mail already synced is still readable.",
       "dialog_title": "Reconnect {{email}}",
-      "dialog_description": "Enter a new App Password for this mailbox. Mail already synced stays as it is."
+      "dialog_description": "Enter a new App Password for this mailbox. Mail already synced stays as it is.",
+      "error": "This mailbox needs reconnecting. Reconnect it, then try again."
     },
     "search_label": "Search email",
     "search_clear": "Clear search",

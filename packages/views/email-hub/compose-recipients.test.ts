@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildForwardBody,
   buildReplyAllRecipients,
+  composeSendErrorKey,
   forwardSubject,
   replySubject,
 } from "./compose-recipients";
@@ -55,5 +56,14 @@ describe("compose recipients", () => {
     expect(body).toContain("Sender <sender@example.com>");
     expect(body).toContain("Project update");
     expect(body).toContain("Hello team");
+  });
+});
+
+describe("composeSendErrorKey", () => {
+  it("says what a retry cannot fix instead of \"check the connection and retry\"", () => {
+    expect(composeSendErrorKey("email_hub_not_configured")).toBe("email_hub.connect.error_not_configured");
+    expect(composeSendErrorKey("email_hub_reauth_required")).toBe("email_hub.reconnect.error");
+    expect(composeSendErrorKey("email_hub_smtp_disabled")).toBe("email_hub.connect.error_smtp_disabled");
+    expect(composeSendErrorKey(undefined)).toBe("email_hub.compose.error");
   });
 });

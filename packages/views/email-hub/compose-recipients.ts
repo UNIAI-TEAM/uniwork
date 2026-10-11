@@ -70,6 +70,20 @@ export function composeModeTitleKey(mode: ComposeMode) {
   }
 }
 
+/** A send refused for a reason a retry cannot fix says so, instead of "check the connection and retry". */
+export function composeSendErrorKey(code: string | undefined) {
+  switch (code) {
+    case "email_hub_not_configured":
+      return "email_hub.connect.error_not_configured";
+    case "email_hub_reauth_required":
+      return "email_hub.reconnect.error";
+    case "email_hub_smtp_disabled":
+      return "email_hub.connect.error_smtp_disabled";
+    default:
+      return "email_hub.compose.error";
+  }
+}
+
 export function composeModeDescriptionKey(mode: ComposeMode) {
   switch (mode) {
     case "reply":

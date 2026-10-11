@@ -5,7 +5,7 @@ import { getI18n } from "react-i18next";
  * Server error codes the UI words itself, so the toast follows the reader's
  * language instead of the server's Vietnamese sentence. The codes are the ones
  * `server/internal/service` emits (errors.go, meeting_attendance.go,
- * meeting_duties.go, meeting_participant_media.go). provider_unavailable is
+ * meeting_duties.go, meeting_participant_media.go, email_hub*.go). provider_unavailable is
  * also meeting_admission.go's, so its copy stays generic.
  */
 const API_ERROR_KEYS: Readonly<Record<string, string>> = {
@@ -18,6 +18,8 @@ const API_ERROR_KEYS: Readonly<Record<string, string>> = {
   cannot_mute_host: "meetings.moderationErrors.cannot_mute_host",
   participant_not_active: "meetings.moderationErrors.participant_not_active",
   provider_unavailable: "meetings.moderationErrors.provider_unavailable",
+  email_hub_reauth_required: "email_hub.reconnect.error",
+  email_hub_smtp_disabled: "email_hub.connect.error_smtp_disabled",
 };
 
 /** The localized sentence for a known code, else the server's own message. */
