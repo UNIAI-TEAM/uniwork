@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "version": "0.1.0-2df3391",
-  "gitSha": "2df3391",
+  "version": "0.1.0-b60d5ff",
+  "gitSha": "b60d5ff",
   "entry": "index.html",
-  "manifestSha256": "dc510e0a3aacb622da335b9f4f9993452a9da8021f9eed165042eb91ec69554a",
+  "manifestSha256": "5b89660eeba7e269b850e2d88a65f02b09e819d7600df6fda9df6cb828d5d694",
   "headers": {
     "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
   },
