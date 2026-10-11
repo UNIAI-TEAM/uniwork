@@ -29,7 +29,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertMatchesPin, assertModule, buildPin, OFFICE_MODULES } from "../platform/office-frame/frame-bundle.mjs";
-import { assertHeadersMatchPin, checkInstalled, install, loadBundle, locateModuleBundle, materialize } from "../platform/office-frame/frame-install.mjs";
+import { assertHeadersMatchPin, checkInstalled, install, loadBundle, locateModuleBundle, materialize, redactSourceUrl } from "../platform/office-frame/frame-install.mjs";
 import { assertFrameComplete, isProductionBuild } from "../platform/office-frame/frame-production.mjs";
 import { pinPath, readPin } from "../platform/office-frame/frame-headers.mjs";
 
@@ -47,8 +47,8 @@ async function sync({ source, modules, named, repin, allowDirty }) {
     for (const module of modules) {
       const dir = locateModuleBundle(root, module);
       if (!dir) {
-        if (named) throw new Error(`${source} has no ${module} build`);
-        console.warn(`office-frame: ${source} has no ${module} build; ${module} is not installed`);
+        if (named) throw new Error(`${redactSourceUrl(source)} has no ${module} build`);
+        console.warn(`office-frame: ${redactSourceUrl(source)} has no ${module} build; ${module} is not installed`);
         continue;
       }
       const bundle = loadBundle(dir, { allowDirty });
