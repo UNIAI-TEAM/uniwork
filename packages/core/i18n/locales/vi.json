@@ -8103,7 +8103,6 @@
         "reload": "Tải bản mới nhất",
         "close": "Đóng"
       },
-      "fallback_notice_size": "Tệp này quá lớn cho trình soạn thảo web, nên được mở bằng trình soạn thảo tiêu chuẩn.",
       "failure": {
         "unavailable": {
           "title": "Chưa dùng được trình soạn thảo tài liệu mới",

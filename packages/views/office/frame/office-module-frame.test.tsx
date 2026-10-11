@@ -237,14 +237,14 @@ describe("OfficeModuleFrame", () => {
     expect(frame.inits()).toHaveLength(0);
   });
 
-  it("hands a workbook the server refused as too large (413) to the G3 editor", async () => {
+  it("asks the switch for the too-large notice when the server refuses a workbook as too large (413)", async () => {
     const refuse = vi.fn();
     mountFrame("sheets", { refuse, mint: () => Promise.reject(new ApiError("document is too large for the web frame", "too_large", 413)) });
-    // "size" makes the switch explain the change of editor in one sentence.
+    // "size" makes the switch show the open-in-the-app notice instead of an editor.
     await waitFor(() => expect(refuse).toHaveBeenCalledWith("size"));
   });
 
-  it("hands a workbook the Sheets frame refused to open as too_large to the G3 editor", async () => {
+  it("asks the switch for the too-large notice when the Sheets frame refuses a workbook as too_large", async () => {
     const refuse = vi.fn();
     const frame = mountFrame("sheets", { refuse });
     await frame.ready({ module: "sheets" });
@@ -453,13 +453,12 @@ describe("OfficeModuleOpenSwitch", () => {
     expect(screen.getByTestId("office-frame-fallback-notice")).toHaveTextContent("Không tải được trình soạn thảo mới; bạn đang dùng trình soạn thảo tiêu chuẩn.");
   });
 
-  it("explains the switch in the G3 host when the file is over the module's size cap", async () => {
+  it("shows the too-large notice and no editor when the file is over the module's size cap", async () => {
     answer({ office_engine: true, office_pdf_web: true });
-    render(wrap(<OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<Frame reason="size" />} fallback={<p>g3 editor</p>} />));
-    expect(await screen.findByText("g3 editor")).toBeTruthy();
-    const notice = screen.getByTestId("office-frame-fallback-notice");
-    expect(notice).toHaveAttribute("data-reason", "size");
-    expect(notice).toHaveTextContent("Tệp này quá lớn cho trình soạn thảo web, nên được mở bằng trình soạn thảo tiêu chuẩn.");
+    render(wrap(<OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<Frame reason="size" />} fallback={<p>g3 editor</p>} tooLarge={<p>too large notice</p>} />));
+    expect(await screen.findByText("too large notice")).toBeTruthy();
+    expect(screen.queryByText("g3 editor")).toBeNull();
+    expect(screen.queryByTestId("office-frame-fallback-notice")).toBeNull();
   });
 
   it("switches without a notice for a flag or the reader's own choice", async () => {

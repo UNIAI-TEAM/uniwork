@@ -7,7 +7,7 @@ import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { DocsFrameRefusalContext } from "./docs-frame-refusal";
-import { FrameFallbackNotice, type FrameFallbackReason } from "./frame-fallback-notice";
+import { FrameFallbackNotice } from "./frame-fallback-notice";
 
 export interface OfficeModuleOpenSwitchProps {
   module: OfficeModule;
@@ -16,6 +16,11 @@ export interface OfficeModuleOpenSwitchProps {
   frame: ReactNode;
   /** The G3 editor, the default until the frame is accepted. */
   fallback: ReactNode;
+  /**
+   * Shown instead of the G3 editor when the frame says the file is over the module's size cap
+   * (the too-large / open-in-the-app notice). A module without a size cap never asks for it.
+   */
+  tooLarge?: ReactNode;
 }
 
 /**
@@ -28,26 +33,27 @@ export interface OfficeModuleOpenSwitchProps {
  * frame is up a later flag change does not swap editors under unsaved edits;
  * the next open reads the new answer.
  */
-export function OfficeModuleOpenSwitch({ module, organizationId, frame, fallback }: OfficeModuleOpenSwitchProps) {
+export function OfficeModuleOpenSwitch({ module, organizationId, frame, fallback, tooLarge }: OfficeModuleOpenSwitchProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const state = useOfficeWebFlagEnabled(officeModuleSpec(module).flag, organizationId);
   const [frameMounted, setFrameMounted] = useState(false);
-  // The frame was refused (flag off, size cap) or could not load: the G3 editor takes over, and
-  // says why when the cause is a frame that did not load or a file over the size cap.
-  const [refused, setRefused] = useState<{ explain: FrameFallbackReason | null } | null>(null);
+  // The frame was refused (flag off, size cap) or could not load: the G3 editor takes over and says
+  // why when the frame did not load; a file over the size cap shows `tooLarge` and no editor.
+  const [refused, setRefused] = useState<{ reason: "load" | "size" | null } | null>(null);
   if (state === "on" && !frameMounted) setFrameMounted(true);
 
   if (refused) {
-    if (!refused.explain) return fallback;
+    if (refused.reason === "size" && tooLarge) return <>{tooLarge}</>;
+    if (refused.reason !== "load") return fallback;
     return (
       <>
-        <FrameFallbackNotice reason={refused.explain} module={module} />
+        <FrameFallbackNotice module={module} />
         {fallback}
       </>
     );
   }
   if (frameMounted || state === "on") {
-    return <DocsFrameRefusalContext.Provider value={(reason) => setRefused({ explain: reason ?? null })}>{frame}</DocsFrameRefusalContext.Provider>;
+    return <DocsFrameRefusalContext.Provider value={(reason) => setRefused({ reason: reason ?? null })}>{frame}</DocsFrameRefusalContext.Provider>;
   }
   if (state === "loading") {
     return (
