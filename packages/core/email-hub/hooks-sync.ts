@@ -199,6 +199,8 @@ export function useEmailHubLiveSync(
   readingEmail = false,
 ) {
   const qc = useQueryClient();
+  // The server stops the watch on DELETE and keeps it while heartbeats renew
+  // its lease, so this effect must not re-run when the reader opens a message.
   useEffect(() => {
     if (!enabled || !accountId) return;
     let cancelled = false;
@@ -211,6 +213,23 @@ export function useEmailHubLiveSync(
         /* retry on next heartbeat */
       }
     };
+
+    void subscribe();
+    const heartbeat = window.setInterval(() => {
+      if (!cancelled) void subscribe();
+    }, emailHubLivePollMs);
+    const onVisible = () => void subscribe();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", onVisible);
+      void api.unsubscribeEmailHubInboxWatch(wsId, accountId).catch(() => {});
+    };
+  }, [wsId, accountId, enabled]);
+
+  useEffect(() => {
+    if (!enabled || !accountId) return;
 
     const pullInbox = async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
@@ -225,31 +244,18 @@ export function useEmailHubLiveSync(
       }
     };
 
-    void subscribe();
     void pullInbox();
-
-    const heartbeat = window.setInterval(() => {
-      if (!cancelled) void subscribe();
-    }, emailHubLivePollMs);
-
     let fallbackTimer: number | undefined;
     if (!readingEmail) {
       fallbackTimer = window.setInterval(() => {
         void pullInbox();
       }, emailHubSafetyPollMs);
     }
-
-    const onVisible = () => {
-      void subscribe();
-      void pullInbox();
-    };
+    const onVisible = () => void pullInbox();
     document.addEventListener("visibilitychange", onVisible);
     return () => {
-      cancelled = true;
-      window.clearInterval(heartbeat);
       if (fallbackTimer !== undefined) window.clearInterval(fallbackTimer);
       document.removeEventListener("visibilitychange", onVisible);
-      void api.unsubscribeEmailHubInboxWatch(wsId, accountId).catch(() => {});
     };
   }, [wsId, accountId, enabled, readingEmail, qc]);
 }

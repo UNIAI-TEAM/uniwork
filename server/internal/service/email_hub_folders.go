@@ -120,17 +120,23 @@ func (s *EmailHubService) MoveThread(
 	if err != nil {
 		return err
 	}
-	fromMailbox := s.mailboxFor(acc, row.Folder)
-	toMailbox := s.mailboxFor(acc, targetFolder)
-	if err := imapclient.MoveMessage(creds, fromMailbox, uint32(row.ImapUid), toMailbox); err != nil {
-		s.log.Warn("email hub move failed", "thread_id", threadID, "target", targetFolder, "err", err)
+	rows, err := s.inboxConversationRows(ctx, row)
+	if err != nil {
 		return err
 	}
-	_ = s.q.DeleteEmailHubAttachmentsForThread(ctx, threadID)
-	if err := s.q.DeleteEmailHubThread(ctx, db.DeleteEmailHubThreadParams{
-		ID: threadID, AccountID: accountID, OrganizationID: ws.OrganizationID,
-	}); err != nil {
-		return err
+	toMailbox := s.mailboxFor(acc, targetFolder)
+	// shortcut: one IMAP connection per message; fine for conversation-sized sets.
+	for _, r := range rows {
+		if err := imapclient.MoveMessage(creds, s.mailboxFor(acc, r.Folder), uint32(r.ImapUid), toMailbox); err != nil {
+			s.log.Warn("email hub move failed", "thread_id", r.ID, "target", targetFolder, "err", err)
+			return err
+		}
+		_ = s.q.DeleteEmailHubAttachmentsForThread(ctx, r.ID)
+		if err := s.q.DeleteEmailHubThread(ctx, db.DeleteEmailHubThreadParams{
+			ID: r.ID, AccountID: accountID, OrganizationID: ws.OrganizationID,
+		}); err != nil {
+			return err
+		}
 	}
 	_, _, err = s.syncSingleFolder(ctx, acc, targetFolder, false, true, false, true)
 	return err

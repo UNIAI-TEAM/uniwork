@@ -176,7 +176,7 @@ func TestEmailHubUpsertThreadItems(t *testing.T) {
 	ctx := context.Background()
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
 
-	err := svc.upsertThreadItems(ctx, acc, emailhub.FolderInbox, []imapclient.ThreadMeta{
+	_, err := svc.upsertThreadItems(ctx, acc, emailhub.FolderInbox, []imapclient.ThreadMeta{
 		{
 			UID: 11, Subject: "Invoice", Snippet: "please pay", FromAddr: "billing@example.com",
 			ToAddrs: []string{acc.EmailAddress}, SentAt: time.Now().UTC(), HasAttachments: true,
@@ -488,8 +488,9 @@ func TestEmailHubInboxConversationList(t *testing.T) {
 	if err != nil || len(page.Threads) != 1 {
 		t.Fatalf("inbox list: err=%v len=%d", err, len(page.Threads))
 	}
-	if page.Threads[0].Folder != emailhub.FolderSent || page.Threads[0].Snippet != "reply" {
-		t.Fatalf("expected latest sent in inbox row: %+v", page.Threads[0])
+	// Inbox actions act on the row, so it must be the inbox message, not the reply.
+	if page.Threads[0].Folder != emailhub.FolderInbox || page.Threads[0].Snippet != "first" {
+		t.Fatalf("expected the inbox message as the inbox row: %+v", page.Threads[0])
 	}
 	if page.Threads[0].ConversationMessageCount != 2 {
 		t.Fatalf("count: %+v", page.Threads[0])

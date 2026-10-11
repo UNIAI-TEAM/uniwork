@@ -1,6 +1,7 @@
 package imapclient
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/emersion/go-imap"
@@ -18,24 +19,32 @@ func TestDecodeBodyContentQuotedPrintable(t *testing.T) {
 	}
 }
 
-func TestDecodeBodyContentDetectsQuotedPrintableWithoutEncoding(t *testing.T) {
+func TestDecodeBodyContentWithoutEncodingIsVerbatim(t *testing.T) {
 	t.Parallel()
-	raw := []byte("TR=C6=AF=E1=BB=9CNG TRUNG C=E1=BA=A4P")
+	// No declared encoding means 7bit: "=XX" in a URL or attribute is content.
+	raw := []byte(`<a href="?id=12345">`)
 	got, err := decodeBodyContent(raw, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != "TRƯỜNG TRUNG CẤP" {
+	if string(got) != string(raw) {
 		t.Fatalf("unexpected decode: %q", got)
 	}
 }
 
-func TestRepairThreadBodyContent(t *testing.T) {
+func TestParseBodyDecodesQuotedPrintableOnce(t *testing.T) {
 	t.Parallel()
-	raw := "TR=C6=AF=E1=BB=9CNG"
-	repaired := RepairThreadBodyContent(raw, "")
-	if repaired.Text != "TRƯỜNG" {
-		t.Fatalf("repaired text: %q", repaired.Text)
+	raw := "Content-Type: text/html; charset=utf-8\r\n" +
+		"Content-Transfer-Encoding: quoted-printable\r\n\r\n" +
+		`<a href=3D"https://shop.vn/o?id=3D12345">Xin ch=C3=A0o</a>` +
+		`<td width=3D600 bgcolor=3D000000>?utm_campaign=3D2026</td>`
+	got, err := parseBody(strings.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `<a href="https://shop.vn/o?id=12345">Xin chào</a><td width=600 bgcolor=000000>?utm_campaign=2026</td>`
+	if got.HTML != want {
+		t.Fatalf("unexpected html:\n got %q\nwant %q", got.HTML, want)
 	}
 }
 

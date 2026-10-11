@@ -11,14 +11,41 @@ import (
 func TestEmailHubGovernorSearchIndexTTL(t *testing.T) {
 	t.Parallel()
 	gov := newEmailHubGovernor()
-	if !gov.shouldIndexSearch("acc-1", "INBOX", "invoice") {
+	if _, run := gov.shouldIndexSearch("acc-1", "INBOX", "invoice"); !run {
 		t.Fatal("expected first search index to run")
 	}
-	if gov.shouldIndexSearch("acc-1", "INBOX", "invoice") {
-		t.Fatal("expected duplicate search to be skipped within TTL")
+	gov.rememberSearchHits("acc-1", "INBOX", "invoice", []string{"thr-1"})
+	if hits, run := gov.shouldIndexSearch("acc-1", "INBOX", "invoice"); run || len(hits) != 1 || hits[0] != "thr-1" {
+		t.Fatalf("expected duplicate search to be skipped within TTL with its hits, got run=%v hits=%v", run, hits)
 	}
-	if !gov.shouldIndexSearch("acc-1", "INBOX", "payroll") {
+	if hits, run := gov.shouldIndexSearch("acc-1", "INBOX", "payroll"); !run || hits != nil {
 		t.Fatal("expected different query to run")
+	}
+	gov.rememberSearchHits("acc-1", "INBOX", "invoice", []string{"stale"})
+	if hits, _ := gov.shouldIndexSearch("acc-1", "INBOX", "payroll"); hits != nil {
+		t.Fatalf("hits of a superseded search leaked: %v", hits)
+	}
+}
+
+// One text search covers three folders; each keeps its own run so the next
+// page does not repeat three IMAP searches (UNI-1129).
+func TestEmailHubGovernorSearchIndexPerFolder(t *testing.T) {
+	t.Parallel()
+	gov := newEmailHubGovernor()
+	for _, f := range []string{"INBOX", "SENT", "ARCHIVE"} {
+		if _, run := gov.shouldIndexSearch("acc-1", f, "invoice"); !run {
+			t.Fatalf("%s: expected first search to run", f)
+		}
+		gov.rememberSearchHits("acc-1", f, "invoice", []string{"thr-" + f})
+	}
+	for _, f := range []string{"INBOX", "SENT", "ARCHIVE"} {
+		if hits, run := gov.shouldIndexSearch("acc-1", f, "invoice"); run || len(hits) != 1 || hits[0] != "thr-"+f {
+			t.Fatalf("%s: repeat within TTL got run=%v hits=%v", f, run, hits)
+		}
+	}
+	gov.forgetSearch("acc-1", "SENT", "invoice")
+	if _, run := gov.shouldIndexSearch("acc-1", "SENT", "invoice"); !run {
+		t.Fatal("a search that never reached IMAP must run again")
 	}
 }
 

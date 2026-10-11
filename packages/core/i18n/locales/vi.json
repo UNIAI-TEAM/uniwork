@@ -1238,6 +1238,7 @@
       "discard": "Bỏ bản nháp",
       "attach_limit": "Tối đa 10 tệp đính kèm.",
       "attach_too_large": "{{name}} lớn hơn 5 MB.",
+      "attach_total_too_large": "{{name}} vượt tổng dung lượng 15 MB.",
       "remove_attachment": "Gỡ tệp đính kèm",
       "image_plain_hint": "Dán URL ảnh trực tiếp (đuôi .png, .jpg, …). Ảnh sẽ hiển thị inline khi gửi.",
       "image_url_placeholder": "URL ảnh",
@@ -1454,8 +1455,7 @@
     },
     "remote_blocked": "Ảnh từ máy chủ bên ngoài đang tắt, để người gửi không biết bạn đã mở email này.",
     "remote_show": "Hiện ảnh",
-    "conversation_count": "{{count}} tin trong cuộc hội thoại",
-    "remote_always": "Luôn hiện ảnh ngoài (trên trình duyệt này)"
+    "conversation_count": "{{count}} tin trong cuộc hội thoại"
   },
   "tasks": {
     "title": "Công việc",

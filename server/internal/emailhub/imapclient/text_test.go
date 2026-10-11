@@ -71,3 +71,29 @@ func TestBodyNeedsRefetchCSSNoise(t *testing.T) {
 		t.Fatal("html body should not refetch")
 	}
 }
+
+func TestSanitizeUTF8DropsNUL(t *testing.T) {
+	t.Parallel()
+	// Postgres TEXT rejects 0x00 (SQLSTATE 22021); a decoded subject may carry it.
+	if got := sanitizeUTF8("Hi\x00there"); got != "Hithere" {
+		t.Fatalf("expected NUL dropped, got %q", got)
+	}
+	if got := sanitizeUTF8("\ufeffA\x00B"); got != "AB" {
+		t.Fatalf("expected BOM and NUL dropped, got %q", got)
+	}
+}
+
+func TestStripHTMLSurvivesCaseFoldingThatChangesByteLength(t *testing.T) {
+	t.Parallel()
+	// strings.ToLower turns 'Ⱥ' (2 bytes) into 'ⱥ' (3 bytes); indexes must stay aligned.
+	hostile := strings.Repeat("Ⱥ", 20) + "<style"
+	_ = normalizeThreadBody(ThreadBody{HTML: hostile})
+	_ = SnippetFromBody("", hostile)
+	_ = BodyWorthCaching(hostile, "")
+	if got := stripHTML("Ⱥ<STYLE>x</style>y"); got != "Ⱥy" {
+		t.Fatalf("expected style block removed case-insensitively, got %q", got)
+	}
+	if got := stripHTML("K<script>x</SCRIPT>ok"); got != "Kok" {
+		t.Fatalf("expected script block removed after Kelvin sign, got %q", got)
+	}
+}

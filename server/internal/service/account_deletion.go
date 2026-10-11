@@ -112,6 +112,10 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err := qtx.RevokeAllPushSubscriptionsForUser(ctx, userID); err != nil {
 		return err
 	}
+	mailboxes, err := qtx.DisconnectEmailHubAccountsForUser(ctx, db.DisconnectEmailHubAccountsForUserParams{UserID: userID})
+	if err != nil {
+		return err
+	}
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: audit.NoOrganization, Actor: audit.User(userID),
 		Action: audit.ActionUserDeleted, ResourceType: "user", ResourceID: userID,
@@ -158,5 +162,9 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, mailboxes)
+	return nil
 }

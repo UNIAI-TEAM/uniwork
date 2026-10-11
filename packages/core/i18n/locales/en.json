@@ -1239,6 +1239,7 @@
       "discard": "Discard draft",
       "attach_limit": "You can attach up to 10 files.",
       "attach_too_large": "{{name}} is larger than 5 MB.",
+      "attach_total_too_large": "{{name}} would take attachments past 15 MB in total.",
       "remove_attachment": "Remove attachment",
       "image_plain_hint": "Paste a direct image URL (ending in .png, .jpg, …). It will render inline when sent.",
       "image_url_placeholder": "Image URL",
@@ -1455,8 +1456,7 @@
     },
     "remote_blocked": "Images from outside servers are off, so the sender can't tell you opened this email.",
     "remote_show": "Show images",
-    "conversation_count": "{{count}} messages in this conversation",
-    "remote_always": "Always show external images (this browser)"
+    "conversation_count": "{{count}} messages in this conversation"
   },
   "tasks": {
     "title": "Tasks",

@@ -22,6 +22,14 @@ func (s *EmailHubService) ListConversationMessages(
 	if err != nil {
 		return nil, err
 	}
+	if _, err := s.q.GetEmailHubAccount(ctx, db.GetEmailHubAccountParams{
+		ID: accountID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
 	anchor, err := s.q.GetEmailHubThread(ctx, db.GetEmailHubThreadParams{
 		ID: threadID, AccountID: accountID, OrganizationID: ws.OrganizationID,
 	})

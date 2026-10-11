@@ -105,6 +105,21 @@ export function invalidateEmailHubReadingCachesForAccount(
   });
 }
 
+/** Applies one realtime email_hub.inbox_changed or email_hub.new_mail frame. */
+export function invalidateEmailHubForRealtime(
+  qc: QueryClient,
+  wsId: string,
+  accountId: string,
+  inboxChanged: boolean,
+) {
+  invalidateEmailHubThreadsForAccount(qc, wsId, accountId);
+  invalidateEmailHubReadingCachesForAccount(qc, wsId, accountId);
+  invalidateEmailHubUnread(qc, wsId);
+  void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "sidebar-counts", accountId] });
+  // inbox_changed also announces a mailbox the server disconnected after refused logins.
+  if (inboxChanged) void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
+}
+
 export function patchEmailHubThreadInLists(
   qc: QueryClient,
   wsId: string,

@@ -130,8 +130,8 @@ type SummaryTaskItemSDI struct {
 	ProjectID   *string `json:"project_id" description:"Dự án workspace; tùy chọn"`
 	Priority    string  `json:"priority,omitempty" description:"none | low | medium | high | urgent"`
 	DueDate     *string `json:"due_date" description:"YYYY-MM-DD" example:"2026-09-05"`
-	Owner       string  `json:"owner" description:"Tên người phụ trách do AI gợi ý; server resolve sang assignee_id"`
-	DueSpoken   string  `json:"due_spoken" description:"Hạn nói trong họp; server parse sang due_date"`
+	Owner       string  `json:"owner" description:"Tên người phụ trách do AI gợi ý; họp: server resolve sang assignee_id khi thiếu; Email Hub: chỉ ghi vào mô tả"`
+	DueSpoken   string  `json:"due_spoken" description:"Hạn AI trích ra; họp: server parse sang due_date khi thiếu; Email Hub: chỉ ghi vào mô tả"`
 }
 
 // SummaryTasksSDI is POST /api/v1/meetings/{meetingID}/summary/tasks.

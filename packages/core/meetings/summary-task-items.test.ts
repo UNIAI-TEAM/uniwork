@@ -38,4 +38,9 @@ describe("previewAssigneeId", () => {
     expect(previewAssigneeId("An", members)).toBe("u1");
     expect(previewAssigneeId("Unknown", members)).toBeUndefined();
   });
+
+  it("matches across Vietnamese diacritics, as the server does", () => {
+    expect(previewAssigneeId("an nguyen", members)).toBe("u1");
+    expect(previewAssigneeId("Đức", [{ user_id: "u3", display_name: "Duc" }])).toBe("u3");
+  });
 });

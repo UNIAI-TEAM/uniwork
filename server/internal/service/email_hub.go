@@ -230,12 +230,33 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 		}
 	}
 	s.hubWatch.forceStop(accountID)
-	scope := db.DeleteEmailHubAttachmentsForAccountParams{AccountID: accountID, OrganizationID: ws.OrganizationID}
+	return cleanUpDisconnectedEmailHubAccount(ctx, s.q, accountID, ws.OrganizationID)
+}
+
+// cleanUpDisconnectedEmailHubAccount cancels a disconnected mailbox's queued
+// sends and drops its cached mail. It is safe to run again, and runs after the
+// disconnect commits: a large mailbox would hold that transaction's locks.
+func cleanUpDisconnectedEmailHubAccount(ctx context.Context, q *db.Queries, accountID, organizationID string) error {
+	scope := db.DeleteEmailHubAttachmentsForAccountParams{AccountID: accountID, OrganizationID: organizationID}
 	return errors.Join(
-		s.q.DeleteEmailHubAttachmentsForAccount(ctx, scope),
-		s.q.DeleteEmailHubThreadAiSummariesForAccount(ctx, db.DeleteEmailHubThreadAiSummariesForAccountParams(scope)),
-		s.q.DeleteEmailHubThreadsForAccount(ctx, db.DeleteEmailHubThreadsForAccountParams(scope)),
+		q.CancelEmailHubScheduledSendsForAccount(ctx, db.CancelEmailHubScheduledSendsForAccountParams(scope)),
+		q.DeleteEmailHubAttachmentsForAccount(ctx, scope),
+		q.DeleteEmailHubThreadAiSummariesForAccount(ctx, db.DeleteEmailHubThreadAiSummariesForAccountParams(scope)),
+		q.DeleteEmailHubThreadsForAccount(ctx, db.DeleteEmailHubThreadsForAccountParams(scope)),
 	)
+}
+
+// cleanUpEmailHubAccountsAfterCommit cleans up the mailboxes a lifecycle
+// command (leave, account deletion) disconnected; that command already
+// committed, so a failure is logged rather than returned. Nobody can retry it
+// (the caller is gone from the organization), so it outlives the request.
+func cleanUpEmailHubAccountsAfterCommit(ctx context.Context, q *db.Queries, rows []db.DisconnectEmailHubAccountsForUserRow) {
+	ctx = context.WithoutCancel(ctx)
+	for _, r := range rows {
+		if err := cleanUpDisconnectedEmailHubAccount(ctx, q, r.ID, r.OrganizationID); err != nil {
+			slog.Warn("email hub cleanup after disconnect failed", "account_id", r.ID, "err", err)
+		}
+	}
 }
 
 func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceID, accountID, threadID string, fetchBody, markRead bool) (EmailHubThreadView, error) {
@@ -267,7 +288,8 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 		return EmailHubThreadView{}, err
 	}
 	view.Attachments = attachments
-	if view.BodyCached && shouldInvalidateCachedBody(view) {
+	// An object-stored body is not hydrated yet and was vetted before upload.
+	if view.BodyCached && strings.TrimSpace(row.BodyObjectKey) == "" && shouldInvalidateCachedBody(view) {
 		key, invErr := s.q.InvalidateEmailHubThreadBody(ctx, threadID)
 		if invErr == nil {
 			s.deleteEmailHubBodyObjects(ctx, []string{key})
@@ -277,7 +299,7 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 		view.BodyHTML = ""
 	}
 	if markRead {
-		view = s.markThreadReadIfNeeded(ctx, acc, row, view, attachments)
+		view = s.markThreadReadIfNeeded(ctx, acc, row, view)
 	}
 	if !fetchBody {
 		return view, nil
@@ -310,9 +332,6 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 	view.BodyText = body.Text
 	view.BodyHTML = body.HTML
 	view.BodyCached = true
-	if markRead {
-		view = s.markThreadReadIfNeeded(ctx, acc, row, view, attachments)
-	}
 	return view, nil
 }
 
@@ -321,20 +340,29 @@ func (s *EmailHubService) markThreadReadIfNeeded(
 	acc db.EmailHubAccount,
 	row db.EmailHubThread,
 	view EmailHubThreadView,
-	attachments []EmailHubAttachmentView,
 ) EmailHubThreadView {
-	if view.IsRead || !s.Enabled() {
+	if !s.Enabled() {
 		return view
 	}
-	updated, err := s.q.UpdateEmailHubThreadRead(ctx, db.UpdateEmailHubThreadReadParams{
-		ID: row.ID, IsRead: true, AccountID: acc.ID, OrganizationID: acc.OrganizationID,
-	})
+	// Opening an inbox conversation reads all of it, not only the row opened.
+	rows, err := s.inboxConversationRows(ctx, row)
 	if err != nil {
 		return view
 	}
-	view = threadView(updated)
-	view.Attachments = attachments
-	go s.syncMarkReadOnIMAP(acc, row, row.ID)
+	for _, r := range rows {
+		if r.IsRead {
+			continue
+		}
+		if _, err := s.q.UpdateEmailHubThreadRead(ctx, db.UpdateEmailHubThreadReadParams{
+			ID: r.ID, IsRead: true, AccountID: acc.ID, OrganizationID: acc.OrganizationID,
+		}); err != nil {
+			continue
+		}
+		go s.syncMarkReadOnIMAP(acc, r, r.ID)
+		if r.ID == row.ID {
+			view.IsRead = true // keep the view's body and attachments as they are
+		}
+	}
 	return view
 }
 
@@ -395,24 +423,17 @@ func (s *EmailHubService) sendOutboundMail(
 			}
 			return EmailHubThreadView{}, err
 		}
-		if parent.MessageID.Valid && parent.MessageID.String != "" {
-			inReplyTo = emailhub.NormalizeMessageID(parent.MessageID.String)
-			references = emailhub.ReferencesHeader(parent.MessageID.String, "")
-		}
+		inReplyTo, references = replyThreading(parent)
 		convKey = strings.TrimSpace(parent.ConversationKey)
 		if convKey == "" {
-			parentMID := ""
-			if parent.MessageID.Valid {
-				parentMID = parent.MessageID.String
-			}
-			convKey = emailhub.ConversationKey(acc.ID, parent.Subject, parentMID, inReplyTo)
+			convKey = emailhub.ConversationKey(acc.ID, parent.Subject, "", inReplyTo, "")
 		}
 		if subject == "" {
 			subject = replySubject(parent.Subject)
 		}
 	}
 	if convKey == "" {
-		convKey = emailhub.ConversationKey(acc.ID, subject, "", "")
+		convKey = emailhub.ConversationKey(acc.ID, subject, "", "", "")
 	}
 	if subject == "" {
 		return EmailHubThreadView{}, Invalid("subject required")
@@ -470,6 +491,19 @@ func (s *EmailHubService) sendOutboundMail(
 	return view, nil
 }
 
+// replyThreading derives In-Reply-To and References for a reply to parent.
+// The parent's own References are not stored; its "mid:" key is the root.
+func replyThreading(parent db.EmailHubThread) (inReplyTo, references string) {
+	if !parent.MessageID.Valid || parent.MessageID.String == "" {
+		return "", ""
+	}
+	root, ok := strings.CutPrefix(parent.ConversationKey, "mid:")
+	if !ok {
+		root = ""
+	}
+	return emailhub.NormalizeMessageID(parent.MessageID.String), emailhub.ReferencesHeader(parent.MessageID.String, root)
+}
+
 func (s *EmailHubService) MarkThreadRead(ctx context.Context, actor Actor, workspaceID, accountID, threadID string, read bool) (EmailHubThreadView, error) {
 	ws, err := s.workspace(ctx, actor, workspaceID)
 	if err != nil {
@@ -493,20 +527,30 @@ func (s *EmailHubService) MarkThreadRead(ctx context.Context, actor Actor, works
 		}
 		return EmailHubThreadView{}, err
 	}
-	updated, err := s.q.UpdateEmailHubThreadRead(ctx, db.UpdateEmailHubThreadReadParams{
-		ID: threadID, IsRead: read, AccountID: accountID, OrganizationID: ws.OrganizationID,
-	})
+	rows, err := s.inboxConversationRows(ctx, row)
 	if err != nil {
 		return EmailHubThreadView{}, err
 	}
-	if s.Enabled() {
-		accCopy := acc
-		rowCopy := row
-		switch {
-		case read && !row.IsRead:
-			go s.syncMarkReadOnIMAP(accCopy, rowCopy, threadID)
-		case !read && row.IsRead:
-			go s.syncMarkUnreadOnIMAP(accCopy, rowCopy, threadID)
+	updated := row
+	for _, r := range rows {
+		if r.IsRead == read && r.ID != threadID {
+			continue
+		}
+		u, err := s.q.UpdateEmailHubThreadRead(ctx, db.UpdateEmailHubThreadReadParams{
+			ID: r.ID, IsRead: read, AccountID: accountID, OrganizationID: ws.OrganizationID,
+		})
+		if err != nil {
+			return EmailHubThreadView{}, err
+		}
+		if r.ID == threadID {
+			updated = u
+		}
+		if s.Enabled() && r.IsRead != read {
+			if read {
+				go s.syncMarkReadOnIMAP(acc, r, r.ID)
+			} else {
+				go s.syncMarkUnreadOnIMAP(acc, r, r.ID)
+			}
 		}
 	}
 	return threadView(updated), nil
@@ -742,8 +786,5 @@ func threadView(r db.EmailHubThread) EmailHubThreadView {
 	if r.BodyHtml.Valid {
 		v.BodyHTML = r.BodyHtml.String
 	}
-	repaired := imapclient.RepairThreadBodyContent(v.BodyText, v.BodyHTML)
-	v.BodyText = repaired.Text
-	v.BodyHTML = repaired.HTML
 	return v
 }

@@ -53,12 +53,17 @@ func (s *EmailHubService) ListThreads(
 	}
 
 	query := strings.TrimSpace(in.Query)
-	if query != "" && in.BeforeID == "" {
+	// Every page searches IMAP (the governor caches a repeat): the hits are the
+	// rows matched by body text the cache does not hold, so the SQL keeps them.
+	var hitIDs []string
+	if query != "" {
 		for _, searchFolder := range searchScopeFolders(folder) {
-			if indexErr := s.indexSearchResults(ctx, acc, searchFolder, query); indexErr != nil {
+			ids, indexErr := s.indexSearchResults(ctx, acc, searchFolder, query)
+			if indexErr != nil {
 				s.log.Warn("email hub imap search failed",
 					"account_id", acc.ID, "folder", searchFolder, "err", indexErr)
 			}
+			hitIDs = append(hitIDs, ids...)
 		}
 	}
 
@@ -82,12 +87,12 @@ func (s *EmailHubService) ListThreads(
 		}
 		beforeSent = pgtype.Timestamptz{Time: cursor.SentAt.Time, Valid: true}
 		beforeID = cursor.ID
-		if cursor.ImapUid > 0 {
+		if cursor.ImapUid > 0 && cursor.Folder == folder { // another folder's UID is no backfill bound
 			cursorUID = uint32(cursor.ImapUid)
 		}
 	}
 
-	rows, err := s.listThreadRows(ctx, in, ws.OrganizationID, folder, beforeSent, beforeID, limit)
+	rows, err := s.listThreadRows(ctx, in, ws.OrganizationID, folder, hitIDs, beforeSent, beforeID, limit)
 	if err != nil {
 		return ListEmailHubThreadsResult{}, err
 	}
@@ -97,7 +102,7 @@ func (s *EmailHubService) ListThreads(
 			s.log.Warn("email hub backfill failed",
 				"account_id", acc.ID, "folder", folder, "before_uid", cursorUID, "err", backfillErr)
 		} else {
-			rows, err = s.listThreadRows(ctx, in, ws.OrganizationID, folder, beforeSent, beforeID, limit)
+			rows, err = s.listThreadRows(ctx, in, ws.OrganizationID, folder, hitIDs, beforeSent, beforeID, limit)
 			if err != nil {
 				return ListEmailHubThreadsResult{}, err
 			}
@@ -111,7 +116,7 @@ func (s *EmailHubService) ListThreads(
 				AccountID: in.AccountID, OrganizationID: ws.OrganizationID,
 				Folders: searchScopeFolders(folder), Query: pgtype.Text{String: query, Valid: true},
 				FromFilter: strings.TrimSpace(in.FromFilter), UnreadOnly: in.UnreadOnly,
-				HasAttachmentsOnly: in.HasAttachmentsOnly,
+				HasAttachmentsOnly: in.HasAttachmentsOnly, HitIds: hitIDs,
 			})
 			if err != nil {
 				return ListEmailHubThreadsResult{}, err
@@ -171,6 +176,7 @@ func (s *EmailHubService) listThreadRows(
 	ctx context.Context,
 	in ListEmailHubThreadsInput,
 	organizationID, folder string,
+	hitIDs []string,
 	beforeSent pgtype.Timestamptz,
 	beforeID string,
 	limit int32,
@@ -181,7 +187,7 @@ func (s *EmailHubService) listThreadRows(
 			AccountID: in.AccountID, OrganizationID: organizationID,
 			Folders: searchScopeFolders(folder), Query: pgtype.Text{String: query, Valid: true},
 			UnreadOnly: in.UnreadOnly, HasAttachmentsOnly: in.HasAttachmentsOnly,
-			FromFilter:   strings.TrimSpace(in.FromFilter),
+			FromFilter: strings.TrimSpace(in.FromFilter), HitIds: hitIDs,
 			BeforeSentAt: beforeSent, BeforeID: beforeID, LimitVal: limit,
 		})
 	}
@@ -192,8 +198,8 @@ func (s *EmailHubService) listThreadRows(
 		AccountID: in.AccountID, OrganizationID: organizationID, Folder: folder,
 		LabelFilter: strings.TrimSpace(in.LabelFilter),
 		UnreadOnly:  in.UnreadOnly, HasAttachmentsOnly: in.HasAttachmentsOnly,
-		FromFilter:   strings.TrimSpace(in.FromFilter),
-		Query:        query,
+		FromFilter: strings.TrimSpace(in.FromFilter),
+		Query:      query, HitIds: hitIDs,
 		BeforeSentAt: beforeSent, BeforeID: beforeID, LimitVal: limit,
 	})
 }

@@ -91,3 +91,13 @@ func TestAttachmentFilenameFromParams(t *testing.T) {
 		t.Fatalf("filename from params: %q", got)
 	}
 }
+
+func TestAttachmentFilenameDropsNUL(t *testing.T) {
+	t.Parallel()
+	// go-imap decodes encoded-word params, so a filename can carry 0x00, which
+	// Postgres TEXT rejects and which would stall the sync cursor.
+	bs := &imap.BodyStructure{DispositionParams: map[string]string{"filename": "a\x00b.pdf"}}
+	if got := attachmentFilename(bs); got != "ab.pdf" {
+		t.Fatalf("expected NUL dropped from filename, got %q", got)
+	}
+}

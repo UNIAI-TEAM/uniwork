@@ -150,6 +150,10 @@ func (s *EmailHubService) deliverScheduledSend(ctx context.Context, row db.Email
 		markFailed("account missing")
 		return
 	}
+	if acc.DisconnectedAt.Valid { // disconnected after the claim
+		markFailed("mailbox disconnected")
+		return
+	}
 	sendErr := s.deliverScheduledSendOutbound(ctx, acc, row.OrganizationID, SendEmailHubInput{
 		AccountID: row.AccountID, To: payload.To, Cc: payload.Cc, Bcc: payload.Bcc, Subject: payload.Subject,
 		BodyText: payload.BodyText, BodyHTML: payload.BodyHTML, Attachments: attachments,
