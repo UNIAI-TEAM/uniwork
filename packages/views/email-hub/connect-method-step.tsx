@@ -8,7 +8,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { pickerCardClass } from "../common/picker-card";
-import { ProviderIcon } from "../common/provider-icons";
+import { SignInMark } from "../common/provider-icons";
 
 const OAUTH_PROVIDERS = ["google", "microsoft"] as const satisfies readonly EmailHubOAuthProvider[];
 const cardClass = cn(
@@ -42,7 +42,7 @@ export function OAuthProviderButton({
   const { t } = useTranslation();
   return (
     <button type="button" className={cardClass} disabled={pending} aria-busy={pending || undefined} onClick={onClick}>
-      <ProviderIcon provider={provider} className={cardIconClass} />
+      <SignInMark provider={provider} className={cardIconClass} />
       <CardText title={t(`email_hub.connect.method_${provider}`)} hint={t(`email_hub.connect.method_${provider}_hint`)} />
     </button>
   );
