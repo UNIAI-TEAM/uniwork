@@ -140,6 +140,8 @@ UPDATE email_hub_accounts SET updated_at = now()
 WHERE id IN (
   SELECT id FROM email_hub_accounts
   WHERE disconnected_at IS NULL
+    -- A mailbox that needs reconnect has no credential to sync with.
+    AND auth_failed_at IS NULL
     -- The owner must still pass both membership gates (UNI-1106).
     AND EXISTS (
       SELECT 1 FROM organization_members m
@@ -153,7 +155,7 @@ WHERE id IN (
   LIMIT $1
   FOR UPDATE SKIP LOCKED
 )
-RETURNING id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at
+RETURNING id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
 `
 
 // tenant: system
@@ -183,6 +185,16 @@ func (q *Queries) ClaimEmailHubAccountsForSync(ctx context.Context, limit int32)
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DisconnectedAt,
+			&i.AuthKind,
+			&i.ImapSecurity,
+			&i.SmtpSecurity,
+			&i.Username,
+			&i.OauthRefreshTokenEnc,
+			&i.OauthAccessTokenEnc,
+			&i.OauthAccessExpiresAt,
+			&i.AuthFailedAt,
+			&i.AuthFailedReason,
+			&i.CredentialVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -386,11 +398,12 @@ func (q *Queries) CountEmailHubThreadsSearch(ctx context.Context, arg CountEmail
 const createEmailHubAccount = `-- name: CreateEmailHubAccount :one
 INSERT INTO email_hub_accounts (
   id, user_id, organization_id, email_address, provider,
-  imap_host, imap_port, smtp_host, smtp_port, password_enc
+  imap_host, imap_port, smtp_host, smtp_port, password_enc,
+  imap_security, smtp_security, username, auth_kind
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
-RETURNING id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at
+RETURNING id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
 `
 
 type CreateEmailHubAccountParams struct {
@@ -404,6 +417,10 @@ type CreateEmailHubAccountParams struct {
 	SmtpHost       string `json:"smtp_host"`
 	SmtpPort       int32  `json:"smtp_port"`
 	PasswordEnc    string `json:"password_enc"`
+	ImapSecurity   string `json:"imap_security"`
+	SmtpSecurity   string `json:"smtp_security"`
+	Username       string `json:"username"`
+	AuthKind       string `json:"auth_kind"`
 }
 
 func (q *Queries) CreateEmailHubAccount(ctx context.Context, arg CreateEmailHubAccountParams) (EmailHubAccount, error) {
@@ -418,6 +435,10 @@ func (q *Queries) CreateEmailHubAccount(ctx context.Context, arg CreateEmailHubA
 		arg.SmtpHost,
 		arg.SmtpPort,
 		arg.PasswordEnc,
+		arg.ImapSecurity,
+		arg.SmtpSecurity,
+		arg.Username,
+		arg.AuthKind,
 	)
 	var i EmailHubAccount
 	err := row.Scan(
@@ -435,6 +456,16 @@ func (q *Queries) CreateEmailHubAccount(ctx context.Context, arg CreateEmailHubA
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DisconnectedAt,
+		&i.AuthKind,
+		&i.ImapSecurity,
+		&i.SmtpSecurity,
+		&i.Username,
+		&i.OauthRefreshTokenEnc,
+		&i.OauthAccessTokenEnc,
+		&i.OauthAccessExpiresAt,
+		&i.AuthFailedAt,
+		&i.AuthFailedReason,
+		&i.CredentialVersion,
 	)
 	return i, err
 }
@@ -706,7 +737,9 @@ func (q *Queries) DeleteEmailHubThreadsNotInUIDs(ctx context.Context, arg Delete
 
 const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :execrows
 UPDATE email_hub_accounts
-SET disconnected_at = now(), password_enc = '', updated_at = now()
+SET disconnected_at = now(), password_enc = '',
+    oauth_refresh_token_enc = '', oauth_access_token_enc = '', oauth_access_expires_at = NULL,
+    credential_version = credential_version + 1, updated_at = now()
 WHERE id = $1
   AND user_id = $2
   AND organization_id = $3
@@ -719,8 +752,8 @@ type DisconnectEmailHubAccountParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-// A disconnected mailbox is never used again (a reconnect gets a new id), so
-// its app password goes with it.
+// A disconnected mailbox is never used again (connecting the address again
+// creates a new row), so its credentials go with it.
 func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) (int64, error) {
 	result, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
 	if err != nil {
@@ -731,7 +764,9 @@ func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectE
 
 const disconnectEmailHubAccountsForUser = `-- name: DisconnectEmailHubAccountsForUser :many
 UPDATE email_hub_accounts
-SET disconnected_at = now(), password_enc = '', updated_at = now()
+SET disconnected_at = now(), password_enc = '',
+    oauth_refresh_token_enc = '', oauth_access_token_enc = '', oauth_access_expires_at = NULL,
+    credential_version = credential_version + 1, updated_at = now()
 WHERE user_id = $1
   AND ($2::text IS NULL OR organization_id = $2)
   AND disconnected_at IS NULL
@@ -877,8 +912,59 @@ func (q *Queries) FailExpiredEmailHubScheduledSendLeases(ctx context.Context, no
 	return result.RowsAffected(), nil
 }
 
+const getActiveEmailHubAccountByAddress = `-- name: GetActiveEmailHubAccountByAddress :one
+SELECT id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
+FROM email_hub_accounts
+WHERE organization_id = $1
+  AND user_id = $2
+  AND lower(email_address) = lower($3::text)
+  AND disconnected_at IS NULL
+FOR UPDATE
+`
+
+type GetActiveEmailHubAccountByAddressParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+	Email          string `json:"email"`
+}
+
+// The live row for an address, including one that needs reconnect. lower()
+// matches idx_email_hub_accounts_active_address; FOR UPDATE holds the row
+// through a reconnect transaction.
+func (q *Queries) GetActiveEmailHubAccountByAddress(ctx context.Context, arg GetActiveEmailHubAccountByAddressParams) (EmailHubAccount, error) {
+	row := q.db.QueryRow(ctx, getActiveEmailHubAccountByAddress, arg.OrganizationID, arg.UserID, arg.Email)
+	var i EmailHubAccount
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.OrganizationID,
+		&i.EmailAddress,
+		&i.Provider,
+		&i.ImapHost,
+		&i.ImapPort,
+		&i.SmtpHost,
+		&i.SmtpPort,
+		&i.PasswordEnc,
+		&i.SyncState,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DisconnectedAt,
+		&i.AuthKind,
+		&i.ImapSecurity,
+		&i.SmtpSecurity,
+		&i.Username,
+		&i.OauthRefreshTokenEnc,
+		&i.OauthAccessTokenEnc,
+		&i.OauthAccessExpiresAt,
+		&i.AuthFailedAt,
+		&i.AuthFailedReason,
+		&i.CredentialVersion,
+	)
+	return i, err
+}
+
 const getEmailHubAccount = `-- name: GetEmailHubAccount :one
-SELECT id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at
+SELECT id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
 FROM email_hub_accounts
 WHERE id = $1
   AND user_id = $2
@@ -910,12 +996,22 @@ func (q *Queries) GetEmailHubAccount(ctx context.Context, arg GetEmailHubAccount
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DisconnectedAt,
+		&i.AuthKind,
+		&i.ImapSecurity,
+		&i.SmtpSecurity,
+		&i.Username,
+		&i.OauthRefreshTokenEnc,
+		&i.OauthAccessTokenEnc,
+		&i.OauthAccessExpiresAt,
+		&i.AuthFailedAt,
+		&i.AuthFailedReason,
+		&i.CredentialVersion,
 	)
 	return i, err
 }
 
 const getEmailHubAccountByID = `-- name: GetEmailHubAccountByID :one
-SELECT id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at
+SELECT id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
 FROM email_hub_accounts
 WHERE id = $1
 `
@@ -939,6 +1035,16 @@ func (q *Queries) GetEmailHubAccountByID(ctx context.Context, id string) (EmailH
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DisconnectedAt,
+		&i.AuthKind,
+		&i.ImapSecurity,
+		&i.SmtpSecurity,
+		&i.Username,
+		&i.OauthRefreshTokenEnc,
+		&i.OauthAccessTokenEnc,
+		&i.OauthAccessExpiresAt,
+		&i.AuthFailedAt,
+		&i.AuthFailedReason,
+		&i.CredentialVersion,
 	)
 	return i, err
 }
@@ -1175,7 +1281,7 @@ func (q *Queries) InvalidateEmailHubThreadBody(ctx context.Context, id string) (
 }
 
 const listEmailHubAccountsByUser = `-- name: ListEmailHubAccountsByUser :many
-SELECT id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at
+SELECT id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
 FROM email_hub_accounts
 WHERE user_id = $1
   AND organization_id = $2
@@ -1212,6 +1318,16 @@ func (q *Queries) ListEmailHubAccountsByUser(ctx context.Context, arg ListEmailH
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DisconnectedAt,
+			&i.AuthKind,
+			&i.ImapSecurity,
+			&i.SmtpSecurity,
+			&i.Username,
+			&i.OauthRefreshTokenEnc,
+			&i.OauthAccessTokenEnc,
+			&i.OauthAccessExpiresAt,
+			&i.AuthFailedAt,
+			&i.AuthFailedReason,
+			&i.CredentialVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -2305,6 +2421,44 @@ func (q *Queries) ListEmailHubThreadsSearchPage(ctx context.Context, arg ListEma
 	return items, nil
 }
 
+const markEmailHubAccountAuthFailed = `-- name: MarkEmailHubAccountAuthFailed :execrows
+UPDATE email_hub_accounts
+SET auth_failed_at = now(),
+    auth_failed_reason = $1,
+    password_enc = '',
+    oauth_refresh_token_enc = '',
+    oauth_access_token_enc = '',
+    oauth_access_expires_at = NULL,
+    updated_at = now()
+WHERE id = $2
+  AND organization_id = $3
+  AND credential_version = $4
+  AND disconnected_at IS NULL
+  AND auth_failed_at IS NULL
+`
+
+type MarkEmailHubAccountAuthFailedParams struct {
+	Reason            string `json:"reason"`
+	ID                string `json:"id"`
+	OrganizationID    string `json:"organization_id"`
+	CredentialVersion int64  `json:"credential_version"`
+}
+
+// Only the snapshot that failed may mark the account: a reconnect since then
+// bumped credential_version and its new credential stays.
+func (q *Queries) MarkEmailHubAccountAuthFailed(ctx context.Context, arg MarkEmailHubAccountAuthFailedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markEmailHubAccountAuthFailed,
+		arg.Reason,
+		arg.ID,
+		arg.OrganizationID,
+		arg.CredentialVersion,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const markEmailHubScheduledSendFailed = `-- name: MarkEmailHubScheduledSendFailed :execrows
 UPDATE email_hub_scheduled_sends
 SET status = 'failed',
@@ -2436,6 +2590,98 @@ func (q *Queries) SumEmailHubInboxUnreadByUser(ctx context.Context, arg SumEmail
 	var unread int64
 	err := row.Scan(&unread)
 	return unread, err
+}
+
+const updateEmailHubAccountCredentials = `-- name: UpdateEmailHubAccountCredentials :one
+UPDATE email_hub_accounts
+SET provider = $1,
+    imap_host = $2,
+    imap_port = $3,
+    imap_security = $4,
+    smtp_host = $5,
+    smtp_port = $6,
+    smtp_security = $7,
+    username = $8,
+    auth_kind = $9,
+    password_enc = $10,
+    oauth_refresh_token_enc = '',
+    oauth_access_token_enc = '',
+    oauth_access_expires_at = NULL,
+    auth_failed_at = NULL,
+    auth_failed_reason = '',
+    sync_state = CASE
+      WHEN imap_host <> $2 OR imap_port <> $3 THEN '{}'::jsonb
+      ELSE sync_state
+    END,
+    credential_version = credential_version + 1,
+    updated_at = now()
+WHERE id = $11
+  AND organization_id = $12
+  AND disconnected_at IS NULL
+RETURNING id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at, auth_kind, imap_security, smtp_security, username, oauth_refresh_token_enc, oauth_access_token_enc, oauth_access_expires_at, auth_failed_at, auth_failed_reason, credential_version
+`
+
+type UpdateEmailHubAccountCredentialsParams struct {
+	Provider       string `json:"provider"`
+	ImapHost       string `json:"imap_host"`
+	ImapPort       int32  `json:"imap_port"`
+	ImapSecurity   string `json:"imap_security"`
+	SmtpHost       string `json:"smtp_host"`
+	SmtpPort       int32  `json:"smtp_port"`
+	SmtpSecurity   string `json:"smtp_security"`
+	Username       string `json:"username"`
+	AuthKind       string `json:"auth_kind"`
+	PasswordEnc    string `json:"password_enc"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Reconnect keeps the id. UIDs from another IMAP server mean nothing, so
+// sync_state resets when host or port change. The version bump fences writes
+// from older snapshots. SET expressions read the old row.
+func (q *Queries) UpdateEmailHubAccountCredentials(ctx context.Context, arg UpdateEmailHubAccountCredentialsParams) (EmailHubAccount, error) {
+	row := q.db.QueryRow(ctx, updateEmailHubAccountCredentials,
+		arg.Provider,
+		arg.ImapHost,
+		arg.ImapPort,
+		arg.ImapSecurity,
+		arg.SmtpHost,
+		arg.SmtpPort,
+		arg.SmtpSecurity,
+		arg.Username,
+		arg.AuthKind,
+		arg.PasswordEnc,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	var i EmailHubAccount
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.OrganizationID,
+		&i.EmailAddress,
+		&i.Provider,
+		&i.ImapHost,
+		&i.ImapPort,
+		&i.SmtpHost,
+		&i.SmtpPort,
+		&i.PasswordEnc,
+		&i.SyncState,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DisconnectedAt,
+		&i.AuthKind,
+		&i.ImapSecurity,
+		&i.SmtpSecurity,
+		&i.Username,
+		&i.OauthRefreshTokenEnc,
+		&i.OauthAccessTokenEnc,
+		&i.OauthAccessExpiresAt,
+		&i.AuthFailedAt,
+		&i.AuthFailedReason,
+		&i.CredentialVersion,
+	)
+	return i, err
 }
 
 const updateEmailHubAccountSyncState = `-- name: UpdateEmailHubAccountSyncState :exec

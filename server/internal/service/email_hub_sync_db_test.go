@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -19,7 +20,7 @@ func TestEmailHubClaimAccountsRotatesPastFailingAccounts(t *testing.T) {
 	ctx := context.Background()
 	var last db.EmailHubAccount
 	for i := 0; i < 21; i++ {
-		last = seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+		last = seedEmailHubAccountAddr(t, q, svc.box, user.ID, ws.OrganizationID, fmt.Sprintf("seed%d@gmail.com", i))
 	}
 	// The first 20 are the oldest: with a list query they would head the queue forever.
 	if _, err := pool.Exec(ctx, `UPDATE email_hub_accounts SET updated_at = now() - interval '1 day' WHERE id <> $1`, last.ID); err != nil {
@@ -42,7 +43,7 @@ func TestEmailHubClaimAccountsIsDisjointAcrossTransactions(t *testing.T) {
 	svc, q, user, ws, pool := emailHubFixture(t)
 	ctx := context.Background()
 	for i := 0; i < 6; i++ {
-		seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+		seedEmailHubAccountAddr(t, q, svc.box, user.ID, ws.OrganizationID, fmt.Sprintf("seed%d@gmail.com", i))
 	}
 	tx1, err := pool.Begin(ctx)
 	if err != nil {

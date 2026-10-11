@@ -179,8 +179,9 @@ func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID 
 	row, err := s.q.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
 		ID: id, UserID: actor.ID, OrganizationID: ws.OrganizationID,
 		EmailAddress: email, Provider: prov.Name,
-		ImapHost: prov.IMAPHost, ImapPort: int32(prov.IMAPPort),
-		SmtpHost: prov.SMTPHost, SmtpPort: int32(prov.SMTPPort),
+		ImapHost: prov.IMAPHost, ImapPort: int32(prov.IMAPPort), ImapSecurity: "tls",
+		SmtpHost: prov.SMTPHost, SmtpPort: int32(prov.SMTPPort), SmtpSecurity: "starttls",
+		AuthKind:    "password",
 		PasswordEnc: base64.StdEncoding.EncodeToString(sealed),
 	})
 	if err != nil {

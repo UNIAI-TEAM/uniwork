@@ -686,7 +686,8 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 	}
 	acc, err := w.q.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
 		ID: util.NewID(), UserID: tn.userID, OrganizationID: tn.orgID, EmailAddress: strings.ToLower(m) + "-mailbox@example.com",
-		Provider: "gmail", ImapHost: "imap.example.com", ImapPort: 993, SmtpHost: "smtp.example.com", SmtpPort: 465,
+		Provider: "gmail", ImapHost: "imap.example.com", ImapPort: 993, ImapSecurity: "tls",
+		SmtpHost: "smtp.example.com", SmtpPort: 465, SmtpSecurity: "starttls", AuthKind: "password",
 		PasswordEnc: base64.StdEncoding.EncodeToString(enc),
 	})
 	if err != nil {

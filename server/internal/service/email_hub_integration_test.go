@@ -57,15 +57,23 @@ func emailHubFixture(t *testing.T) (*EmailHubService, *db.Queries, db.User, db.W
 
 func seedEmailHubAccount(t *testing.T, q *db.Queries, box *secretbox.Box, userID, orgID string) db.EmailHubAccount {
 	t.Helper()
+	return seedEmailHubAccountAddr(t, q, box, userID, orgID, "seed@gmail.com")
+}
+
+// seedEmailHubAccountAddr seeds a live mailbox at email; an owner's live
+// addresses are unique (idx_email_hub_accounts_active_address).
+func seedEmailHubAccountAddr(t *testing.T, q *db.Queries, box *secretbox.Box, userID, orgID, email string) db.EmailHubAccount {
+	t.Helper()
 	sealed, err := box.Seal([]byte("app-password"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	row, err := q.CreateEmailHubAccount(context.Background(), db.CreateEmailHubAccountParams{
 		ID: util.NewID(), UserID: userID, OrganizationID: orgID,
-		EmailAddress: "seed@gmail.com", Provider: "gmail",
-		ImapHost: "127.0.0.1", ImapPort: 1,
-		SmtpHost: "127.0.0.1", SmtpPort: 1,
+		EmailAddress: email, Provider: "gmail",
+		ImapHost: "127.0.0.1", ImapPort: 1, ImapSecurity: "tls",
+		SmtpHost: "127.0.0.1", SmtpPort: 1, SmtpSecurity: "starttls",
+		AuthKind:    "password",
 		PasswordEnc: base64.StdEncoding.EncodeToString(sealed),
 	})
 	if err != nil {

@@ -205,8 +205,9 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	if _, err := q.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
 		ID: accID, UserID: userID, OrganizationID: orgID,
 		EmailAddress: "seed@gmail.com", Provider: "gmail",
-		ImapHost: "127.0.0.1", ImapPort: 1,
-		SmtpHost: "127.0.0.1", SmtpPort: 1,
+		ImapHost: "127.0.0.1", ImapPort: 1, ImapSecurity: "tls",
+		SmtpHost: "127.0.0.1", SmtpPort: 1, SmtpSecurity: "starttls",
+		AuthKind:    "password",
 		PasswordEnc: base64.StdEncoding.EncodeToString(sealed),
 	}); err != nil {
 		t.Fatal(err)
