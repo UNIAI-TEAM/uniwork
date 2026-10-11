@@ -15,12 +15,17 @@ import (
 // caller's own, scoped to one organization; no answer ever carries a key, only
 // its hint. A non-member of the organization sees 404 from the service.
 
-// maxAICredentialBody caps a credential PUT: a key, a URL and a label.
+// maxAICredentialBody caps a credential PUT: a key, a URL, a label and a model.
 const maxAICredentialBody = 16 << 10
 
 func aiCredentialDTO(c service.AICredential) sdo.AICredentialSDO {
+	modelUpdatedAt := ""
+	if !c.ModelUpdatedAt.IsZero() {
+		modelUpdatedAt = c.ModelUpdatedAt.UTC().Format(time.RFC3339)
+	}
 	return sdo.AICredentialSDO{
 		Provider: c.Provider, Label: c.Label, BaseURL: c.BaseURL, KeyHint: c.KeyHint,
+		Model: c.Model, ModelUpdatedAt: modelUpdatedAt,
 		CreatedAt: c.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt: c.UpdatedAt.UTC().Format(time.RFC3339),
 	}
@@ -79,7 +84,7 @@ func (h *aiHandlers) saveAICredential(w http.ResponseWriter, r *http.Request) {
 	}
 	cred, created, err := h.AICredentials.SaveAICredential(r.Context(), service.Human(userID),
 		orgID, chi.URLParam(r, "aiProvider"), service.SaveAICredentialInput{
-			APIKey: in.APIKey, BaseURL: in.BaseURL, Label: in.Label,
+			APIKey: in.APIKey, BaseURL: in.BaseURL, Label: in.Label, Model: in.Model,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)

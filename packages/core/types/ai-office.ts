@@ -19,6 +19,10 @@ export const AiCredentialSchema = z.object({
   label: z.string().optional().default(""),
   base_url: z.string().optional().default(""),
   key_hint: z.string().optional().default(""),
+  /** The model chosen for this provider; "" when none (an older server omits it). */
+  model: z.string().optional().default(""),
+  /** When `model` was last set (RFC 3339), "" when never; the latest one is the default provider. */
+  model_updated_at: z.string().optional().default(""),
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
 });
@@ -36,6 +40,11 @@ export interface SaveAiCredentialInput {
   base_url?: string;
   /** <= 80 chars. */
   label?: string;
+  /**
+   * <= 200 chars of letters, digits and `. _ : / @ + -`; "" clears it. A body with only
+   * `model` switches the model of a stored credential without the key.
+   */
+  model?: string;
 }
 
 export const AiCloudToolsSchema = z.object({

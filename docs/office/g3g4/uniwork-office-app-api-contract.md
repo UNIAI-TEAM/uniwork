@@ -107,17 +107,21 @@ dạng `{ "code": ..., "message": ... }`.
 | Việc | Route | Ghi chú |
 | --- | --- | --- |
 | Liệt kê khóa + bảng nhà cung cấp | `GET /orgs/{orgID}/ai/credentials` | `{ items: [Credential], providers: [{ id, protocol, requires_base_url, default_base_url }] }` |
-| Tạo / cập nhật | `PUT /orgs/{orgID}/ai/credentials/{aiProvider}` | body `{ api_key?, base_url?, label? }`; `api_key` bắt buộc khi tạo, ≤ 4096; `label` ≤ 80; **201** khi tạo, **200** khi cập nhật |
+| Tạo / cập nhật | `PUT /orgs/{orgID}/ai/credentials/{aiProvider}` | body `{ api_key?, base_url?, label?, model? }`; `api_key` bắt buộc khi tạo, ≤ 4096; `label` ≤ 80; `model` ≤ 200 (chữ, số, `. _ : / @ + -`); **201** khi tạo, **200** khi cập nhật |
 | Xóa | `DELETE /orgs/{orgID}/ai/credentials/{aiProvider}` | **204**; **404** nếu chưa có |
 
 `PUT` giữ nguyên `base_url` / `label` đã lưu khi body **bỏ qua** trường đó; chỉ chuỗi rỗng
 tường minh mới xóa (`base_url` rỗng = về endpoint mặc định). Bỏ qua `api_key` trên dòng đã có
 thì giữ khóa cũ.
 
-`Credential` = `{ provider, label, base_url, key_hint, created_at, updated_at }`. API **không
+`Credential` = `{ provider, label, base_url, key_hint, model, model_updated_at, created_at, updated_at }`.
+`model` là model người dùng chọn cho nhà cung cấp đó (rỗng = chưa chọn; UNI-1240), lưu trên máy chủ
+để trình duyệt khác của cùng tài khoản dùng lại; body chỉ có `model` đổi model mà không nhập lại
+khóa. `model_updated_at` (RFC 3339, rỗng khi chưa chọn) là lần chọn gần nhất: nhà cung cấp có
+`model` khác rỗng và `model_updated_at` mới nhất là mặc định khi trình duyệt chưa có lựa chọn riêng. API **không
 bao giờ** trả khóa; `key_hint` là "…" + 4 ký tự cuối. Chỉ `PUT` cần entitlement
 `office.ai_byok`; `GET` và `DELETE` **không** bị chặn bởi entitlement (người dùng hạ plan vẫn xem và gỡ được khóa của mình). Cả `PUT` và `DELETE` ghi audit `ai.credential.saved` / `ai.credential.deleted` (payload chỉ có id +
-provider) cùng transaction. Nhà cung cấp có sẵn: anthropic, openai, gemini, openrouter,
+provider, thêm `model` và `model_changed` khi lưu) cùng transaction. Nhà cung cấp có sẵn: anthropic, openai, gemini, openrouter,
 deepseek, xai, mistral, qwen, kimi, glm, doubao, hunyuan, minimax, custom; UI lấy danh sách từ
 `providers`, không chép lại.
 

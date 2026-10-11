@@ -26,7 +26,7 @@ func registerAICredentials(r api, h Routes, limit func(http.Handler) http.Handle
 	})
 	r.With(limit).Put("/orgs/{orgID}/ai/credentials/{aiProvider}", h.SaveAICredential, apiOp{
 		summary:     "Save my AI provider key",
-		description: "Tạo (201) hoặc thay (200) khóa của một nhà cung cấp. Cần quyền gói office.ai_byok (403 entitlement_required); 400 provider_not_supported, 400 base_url_refused.",
+		description: "Tạo (201) hoặc thay (200) khóa của một nhà cung cấp; trường bỏ qua giữ giá trị đã lưu, nên body chỉ có model đổi model mà không nhập lại khóa (400 invalid_request khi chưa lưu khóa hoặc model sai định dạng). Cần quyền gói office.ai_byok (403 entitlement_required); 400 provider_not_supported, 400 base_url_refused.",
 		tags:        []string{"ai-credentials"},
 		sdi:         sdi.SaveAICredentialSDI{},
 		sdo:         sdo.AICredentialSDO{},

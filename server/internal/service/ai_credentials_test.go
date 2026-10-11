@@ -296,7 +296,99 @@ func TestAICredentialRefusesBadInput(t *testing.T) {
 	}
 }
 
+// UNI-1240: the chosen model travels with the credential, so another browser
+// of the same account starts from it. A model-only PUT switches it without
+// the key, a PUT that leaves model out keeps it, "" clears it, choosing a
+// model moves model_updated_at (the latest one is the default provider), and
+// the audit row names the model.
+func TestAICredentialModelIsSavedWithoutTheKey(t *testing.T) {
+	f := newAICredentialFixture(t)
+	owner := Human(f.owner.ID)
+
+	cred, created, err := f.svc.SaveAICredential(f.ctx, owner, f.orgID, "openai", SaveAICredentialInput{APIKey: strPtr(testAIKey)})
+	if err != nil || !created || cred.Model != "" || !cred.ModelUpdatedAt.IsZero() {
+		t.Fatalf("save without model = %+v, created %v, %v", cred, created, err)
+	}
+	if _, _, err := f.svc.SaveAICredential(f.ctx, owner, f.orgID, "anthropic", SaveAICredentialInput{
+		APIKey: strPtr(testAIKey), Model: strPtr(" claude-sonnet-4-5 "),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A model-only PUT keeps the key, label and base URL.
+	cred, created, err = f.svc.SaveAICredential(f.ctx, owner, f.orgID, "openai", SaveAICredentialInput{Model: strPtr("gpt-4.1-mini")})
+	if err != nil || created || cred.Model != "gpt-4.1-mini" || cred.KeyHint != "…cdef" || cred.ModelUpdatedAt.IsZero() {
+		t.Fatalf("model-only PUT = %+v, created %v, %v", cred, created, err)
+	}
+	if got, err := f.svc.Resolve(f.ctx, f.owner.ID, f.orgID, "openai"); err != nil || got.APIKey != testAIKey {
+		t.Fatalf("resolve after model change: %v", err)
+	}
+	modelSetAt := cred.ModelUpdatedAt
+
+	// A key rotation or a rename keeps the model and its time.
+	cred, _, err = f.svc.SaveAICredential(f.ctx, owner, f.orgID, "openai", SaveAICredentialInput{APIKey: strPtr("sk-rotated-key-4321"), Label: strPtr("Work")})
+	if err != nil || cred.Model != "gpt-4.1-mini" || !cred.ModelUpdatedAt.Equal(modelSetAt) {
+		t.Fatalf("rotation = %+v, %v", cred, err)
+	}
+
+	list, err := f.svc.ListAICredentials(f.ctx, owner, f.orgID)
+	if err != nil || len(list) != 2 {
+		t.Fatalf("list = %+v, %v", list, err)
+	}
+	byProvider := map[string]AICredential{}
+	for _, c := range list {
+		byProvider[c.Provider] = c
+	}
+	if byProvider["anthropic"].Model != "claude-sonnet-4-5" || byProvider["openai"].Model != "gpt-4.1-mini" {
+		t.Fatalf("listed models = %+v", byProvider)
+	}
+	if !byProvider["openai"].ModelUpdatedAt.After(byProvider["anthropic"].ModelUpdatedAt) {
+		t.Fatalf("the model chosen last must carry the latest time: %+v", byProvider)
+	}
+
+	// Choosing the same model again still makes that provider the latest.
+	cred, _, err = f.svc.SaveAICredential(f.ctx, owner, f.orgID, "anthropic", SaveAICredentialInput{Model: strPtr("claude-sonnet-4-5")})
+	if err != nil || !cred.ModelUpdatedAt.After(modelSetAt) {
+		t.Fatalf("re-choose = %+v, %v", cred, err)
+	}
+
+	// "" clears it.
+	cred, _, err = f.svc.SaveAICredential(f.ctx, owner, f.orgID, "openai", SaveAICredentialInput{Model: strPtr("")})
+	if err != nil || cred.Model != "" || cred.KeyHint != "…4321" {
+		t.Fatalf("clear model = %+v, %v", cred, err)
+	}
+
+	// A model alone cannot create a credential, and a bad id is refused.
+	var ve ValidationError
+	if _, _, err := f.svc.SaveAICredential(f.ctx, owner, f.orgID, "gemini", SaveAICredentialInput{Model: strPtr("gemini-2.5-pro")}); !errors.As(err, &ve) {
+		t.Fatalf("model without a stored key = %v, want ValidationError", err)
+	}
+	if _, _, err := f.svc.SaveAICredential(f.ctx, owner, f.orgID, "openai", SaveAICredentialInput{Model: strPtr("gpt 4")}); !errors.As(err, &ve) {
+		t.Fatalf("bad model id = %v, want ValidationError", err)
+	}
+
+	var n int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM audit_events
+		WHERE action = 'ai.credential.saved' AND organization_id = $1
+		  AND metadata::jsonb ->> 'model' = 'gpt-4.1-mini' AND metadata::jsonb ->> 'model_changed' = 'true'`, f.orgID).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("audit rows naming the model change = %d, %v", n, err)
+	}
+}
+
 // The validators need no database.
+
+func TestAICredentialModelValidation(t *testing.T) {
+	for _, good := range []string{"", "gpt-4.1-mini", "models/gemini-2.5-pro", "anthropic/claude-3.5-sonnet:beta", "meta-llama/Llama-3.3-70B-Instruct", "a@b+c_d"} {
+		if got, err := validAICredentialModel("  " + good + " "); err != nil || got != good {
+			t.Errorf("validAICredentialModel(%q) = %q, %v", good, got, err)
+		}
+	}
+	for _, bad := range []string{"gpt 4", "gpt-4\nmini", "model?x=1", "mô-hình", "a;b", strings.Repeat("m", maxAICredentialModel+1)} {
+		if _, err := validAICredentialModel(bad); err == nil {
+			t.Errorf("validAICredentialModel(%q) accepted", bad)
+		}
+	}
+}
 
 func TestAICredentialKeyValidation(t *testing.T) {
 	for _, bad := range []string{"", "   ", "sk with space", "sk-\x01ctl", "sk-ключ", strings.Repeat("k", maxAICredentialKey+1)} {

@@ -52,6 +52,8 @@ const (
 	maxAICredentialLabel = 80
 	// maxAICredentialBaseURL bounds a custom endpoint.
 	maxAICredentialBaseURL = 2048
+	// maxAICredentialModel bounds a chosen model id (UNI-1240).
+	maxAICredentialModel = 200
 	// aiCredentialHintMinKey is the shortest key whose last four characters
 	// are shown; a shorter one would show most of itself.
 	aiCredentialHintMinKey = 12
@@ -94,20 +96,26 @@ func aiProvider(id string) (AIProviderInfo, bool) {
 // AICredential is one stored credential as a response may show it: never the
 // key, only its hint.
 type AICredential struct {
-	Provider  string
-	Label     string
-	BaseURL   string
-	KeyHint   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Provider string
+	Label    string
+	BaseURL  string
+	KeyHint  string
+	// Model is the model the person chose for this provider, "" when none
+	// (UNI-1240); ModelUpdatedAt is when it was last set, zero when never.
+	Model          string
+	ModelUpdatedAt time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // SaveAICredentialInput is one PUT. APIKey nil keeps the stored key (an
-// update of label or base URL); it is required when nothing is stored yet.
+// update of label, base URL or model); it is required when nothing is stored
+// yet.
 type SaveAICredentialInput struct {
 	APIKey  *string
 	BaseURL *string
 	Label   *string
+	Model   *string
 }
 
 func errAICredentialsUnavailable() error {
@@ -175,6 +183,7 @@ func (s *AICredentialService) ListAICredentials(ctx context.Context, actor Actor
 	out := make([]AICredential, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, AICredential{Provider: r.Provider, Label: r.Label, BaseURL: r.BaseUrl, KeyHint: r.KeyHint,
+			Model: r.Model, ModelUpdatedAt: r.ModelUpdatedAt.Time,
 			CreatedAt: r.CreatedAt.Time, UpdatedAt: r.UpdatedAt.Time})
 	}
 	return out, nil
@@ -215,6 +224,14 @@ func (s *AICredentialService) SaveAICredential(ctx context.Context, actor Actor,
 		}
 		baseURL = &b
 	}
+	var model *string
+	if in.Model != nil {
+		m, err := validAICredentialModel(*in.Model)
+		if err != nil {
+			return cred, false, err
+		}
+		model = &m
+	}
 	var key string
 	if in.APIKey != nil {
 		if key, err = validAICredentialKey(*in.APIKey); err != nil {
@@ -244,6 +261,13 @@ func (s *AICredentialService) SaveAICredential(ctx context.Context, actor Actor,
 		b := stored.BaseUrl
 		baseURL = &b
 	}
+	// model_set moves model_updated_at even when the same model is chosen
+	// again: choosing it makes this provider the default one.
+	modelSet := model != nil
+	if model == nil {
+		m := stored.Model
+		model = &m
+	}
 	if info.RequiresBaseURL && *baseURL == "" {
 		return cred, false, errBaseURLRefused("base_url is required for this provider")
 	}
@@ -256,6 +280,7 @@ func (s *AICredentialService) SaveAICredential(ctx context.Context, actor Actor,
 		}
 		row, err := q.UpdateProviderCredentialSettings(ctx, db.UpdateProviderCredentialSettingsParams{
 			OrganizationID: organizationID, UserID: actor.ID, Provider: provider, Label: *label, BaseUrl: *baseURL,
+			Model: *model, ModelSet: modelSet,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return cred, false, Invalid("api_key is required")
@@ -265,6 +290,7 @@ func (s *AICredentialService) SaveAICredential(ctx context.Context, actor Actor,
 		}
 		id = row.ID
 		cred = AICredential{Provider: row.Provider, Label: row.Label, BaseURL: row.BaseUrl, KeyHint: row.KeyHint,
+			Model: row.Model, ModelUpdatedAt: row.ModelUpdatedAt.Time,
 			CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time}
 	} else {
 		sealed, err := s.box.Seal([]byte(key))
@@ -274,20 +300,24 @@ func (s *AICredentialService) SaveAICredential(ctx context.Context, actor Actor,
 		row, err := q.UpsertProviderCredential(ctx, db.UpsertProviderCredentialParams{
 			ID: util.NewID(), OrganizationID: organizationID, UserID: actor.ID, Provider: provider,
 			Label: *label, BaseUrl: *baseURL, SecretCiphertext: sealed, KeyHint: aiCredentialKeyHint(key),
-			CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
+			CreatedBy: actor.ID, CreatedByKind: string(actor.Kind), Model: *model, ModelSet: modelSet,
 		})
 		if err != nil {
 			return cred, false, err
 		}
 		id, created = row.ID, row.Created
 		cred = AICredential{Provider: row.Provider, Label: row.Label, BaseURL: row.BaseUrl, KeyHint: row.KeyHint,
+			Model: row.Model, ModelUpdatedAt: row.ModelUpdatedAt.Time,
 			CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time}
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: organizationID,
 		Actor:          actor, Action: audit.ActionAICredentialSaved,
 		ResourceType: "ai_credential", ResourceID: id,
-		Metadata: map[string]any{"provider": provider, "key_replaced": key != ""},
+		Metadata: map[string]any{
+			"provider": provider, "key_replaced": key != "",
+			"model": *model, "model_changed": *model != stored.Model,
+		},
 	}); err != nil {
 		return cred, false, err
 	}
@@ -410,4 +440,22 @@ func normalizeAICredentialBaseURL(raw string) (string, error) {
 		return "", errBaseURLRefused("base_url must not carry a query or fragment")
 	}
 	return strings.TrimRight(u.String(), "/"), nil
+}
+
+// validAICredentialModel trims a chosen model id; "" clears it. There is no
+// allow-list: vendor model lists change and a custom endpoint serves any id,
+// so the id is bounded in length and to the characters vendor ids use
+// (gpt-4.1-mini, models/gemini-2.5-pro, anthropic/claude-3.5-sonnet:beta).
+func validAICredentialModel(raw string) (string, error) {
+	m := strings.TrimSpace(raw)
+	if len(m) > maxAICredentialModel {
+		return "", Invalid(fmt.Sprintf("model must be at most %d characters", maxAICredentialModel))
+	}
+	for _, r := range m {
+		ok := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._:/@+-", r)
+		if !ok {
+			return "", Invalid("model may only contain letters, digits and . _ : / @ + -")
+		}
+	}
+	return m, nil
 }

@@ -5,12 +5,14 @@ package sdo
 
 // AICredentialSDO is one stored credential of the caller.
 type AICredentialSDO struct {
-	Provider  string `json:"provider" description:"Mã nhà cung cấp" example:"openai"`
-	Label     string `json:"label" description:"Nhãn người dùng đặt" example:"Khóa công việc"`
-	BaseURL   string `json:"base_url" description:"Endpoint riêng; rỗng = endpoint mặc định của nhà cung cấp" example:"https://api.example.com/v1"`
-	KeyHint   string `json:"key_hint" description:"Dấu … và tối đa 4 ký tự cuối của khóa" example:"…cdef"`
-	CreatedAt string `json:"created_at" description:"Thời điểm lưu lần đầu (RFC 3339)" example:"2026-10-09T08:00:00Z"`
-	UpdatedAt string `json:"updated_at" description:"Thời điểm cập nhật gần nhất (RFC 3339)" example:"2026-10-09T08:00:00Z"`
+	Provider       string `json:"provider" description:"Mã nhà cung cấp" example:"openai"`
+	Label          string `json:"label" description:"Nhãn người dùng đặt" example:"Khóa công việc"`
+	BaseURL        string `json:"base_url" description:"Endpoint riêng; rỗng = endpoint mặc định của nhà cung cấp" example:"https://api.example.com/v1"`
+	KeyHint        string `json:"key_hint" description:"Dấu … và tối đa 4 ký tự cuối của khóa" example:"…cdef"`
+	Model          string `json:"model" description:"Model người dùng đã chọn cho nhà cung cấp này; rỗng = chưa chọn" example:"gpt-4.1-mini"`
+	ModelUpdatedAt string `json:"model_updated_at" description:"Lần chọn model gần nhất (RFC 3339), rỗng khi chưa chọn; nhà cung cấp có model chọn gần nhất là mặc định" example:"2026-10-11T08:00:00Z"`
+	CreatedAt      string `json:"created_at" description:"Thời điểm lưu lần đầu (RFC 3339)" example:"2026-10-09T08:00:00Z"`
+	UpdatedAt      string `json:"updated_at" description:"Thời điểm cập nhật gần nhất (RFC 3339)" example:"2026-10-09T08:00:00Z"`
 }
 
 // AIProviderSDO is one provider a credential may be saved for.

@@ -5,44 +5,57 @@
 -- may only call Ai* queries, and it must never read a stored key itself.
 
 -- name: ListProviderCredentials :many
-SELECT id, provider, label, base_url, key_hint, created_at, updated_at
+SELECT id, provider, label, base_url, key_hint, model, model_updated_at, created_at, updated_at
 FROM ai_provider_credentials
 WHERE organization_id = $1
   AND user_id = $2
 ORDER BY provider;
 
 -- name: GetProviderCredential :one
-SELECT id, provider, label, base_url, secret_ciphertext, key_hint, created_at, updated_at
+SELECT id, provider, label, base_url, secret_ciphertext, key_hint, model, model_updated_at, created_at, updated_at
 FROM ai_provider_credentials
 WHERE organization_id = $1
   AND user_id = $2
   AND provider = $3;
 
 -- Create or replace one provider's credential. xmax = 0 is true only for a
--- freshly inserted row, so the caller can answer 201 or 200.
+-- freshly inserted row, so the caller can answer 201 or 200. model_set says
+-- the request named a model (UNI-1240): model_updated_at moves only then.
 -- name: UpsertProviderCredential :one
 INSERT INTO ai_provider_credentials (
-  id, organization_id, user_id, provider, label, base_url, secret_ciphertext, key_hint, created_by, created_by_kind
+  id, organization_id, user_id, provider, label, base_url, secret_ciphertext, key_hint, created_by, created_by_kind,
+  model, model_updated_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+  sqlc.arg('id'), sqlc.arg('organization_id'), sqlc.arg('user_id'), sqlc.arg('provider'), sqlc.arg('label'),
+  sqlc.arg('base_url'), sqlc.arg('secret_ciphertext'), sqlc.arg('key_hint'), sqlc.arg('created_by'),
+  sqlc.arg('created_by_kind'), sqlc.arg('model'),
+  CASE WHEN sqlc.arg('model_set')::boolean THEN now() END
 )
 ON CONFLICT (organization_id, user_id, provider) DO UPDATE SET
   label = EXCLUDED.label,
   base_url = EXCLUDED.base_url,
   secret_ciphertext = EXCLUDED.secret_ciphertext,
   key_hint = EXCLUDED.key_hint,
+  model = EXCLUDED.model,
+  model_updated_at = CASE WHEN sqlc.arg('model_set')::boolean THEN now()
+                          ELSE ai_provider_credentials.model_updated_at END,
   updated_at = now()
-RETURNING id, provider, label, base_url, key_hint, created_at, updated_at, (xmax = 0)::boolean AS created;
+RETURNING id, provider, label, base_url, key_hint, model, model_updated_at, created_at, updated_at,
+  (xmax = 0)::boolean AS created;
 
--- Update label and base URL and keep the stored key: a PUT without api_key on
--- an existing credential.
+-- Update label, base URL and model and keep the stored key: a PUT without
+-- api_key on an existing credential.
 -- name: UpdateProviderCredentialSettings :one
 UPDATE ai_provider_credentials
-SET label = $4, base_url = $5, updated_at = now()
-WHERE organization_id = $1
-  AND user_id = $2
-  AND provider = $3
-RETURNING id, provider, label, base_url, key_hint, created_at, updated_at;
+SET label = sqlc.arg('label'),
+    base_url = sqlc.arg('base_url'),
+    model = sqlc.arg('model'),
+    model_updated_at = CASE WHEN sqlc.arg('model_set')::boolean THEN now() ELSE model_updated_at END,
+    updated_at = now()
+WHERE organization_id = sqlc.arg('organization_id')
+  AND user_id = sqlc.arg('user_id')
+  AND provider = sqlc.arg('provider')
+RETURNING id, provider, label, base_url, key_hint, model, model_updated_at, created_at, updated_at;
 
 -- name: DeleteProviderCredential :one
 DELETE FROM ai_provider_credentials

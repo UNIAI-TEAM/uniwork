@@ -33,7 +33,7 @@ func (q *Queries) DeleteProviderCredential(ctx context.Context, arg DeleteProvid
 }
 
 const getProviderCredential = `-- name: GetProviderCredential :one
-SELECT id, provider, label, base_url, secret_ciphertext, key_hint, created_at, updated_at
+SELECT id, provider, label, base_url, secret_ciphertext, key_hint, model, model_updated_at, created_at, updated_at
 FROM ai_provider_credentials
 WHERE organization_id = $1
   AND user_id = $2
@@ -53,6 +53,8 @@ type GetProviderCredentialRow struct {
 	BaseUrl          string             `json:"base_url"`
 	SecretCiphertext []byte             `json:"secret_ciphertext"`
 	KeyHint          string             `json:"key_hint"`
+	Model            string             `json:"model"`
+	ModelUpdatedAt   pgtype.Timestamptz `json:"model_updated_at"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
@@ -67,6 +69,8 @@ func (q *Queries) GetProviderCredential(ctx context.Context, arg GetProviderCred
 		&i.BaseUrl,
 		&i.SecretCiphertext,
 		&i.KeyHint,
+		&i.Model,
+		&i.ModelUpdatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -75,7 +79,7 @@ func (q *Queries) GetProviderCredential(ctx context.Context, arg GetProviderCred
 
 const listProviderCredentials = `-- name: ListProviderCredentials :many
 
-SELECT id, provider, label, base_url, key_hint, created_at, updated_at
+SELECT id, provider, label, base_url, key_hint, model, model_updated_at, created_at, updated_at
 FROM ai_provider_credentials
 WHERE organization_id = $1
   AND user_id = $2
@@ -88,13 +92,15 @@ type ListProviderCredentialsParams struct {
 }
 
 type ListProviderCredentialsRow struct {
-	ID        string             `json:"id"`
-	Provider  string             `json:"provider"`
-	Label     string             `json:"label"`
-	BaseUrl   string             `json:"base_url"`
-	KeyHint   string             `json:"key_hint"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID             string             `json:"id"`
+	Provider       string             `json:"provider"`
+	Label          string             `json:"label"`
+	BaseUrl        string             `json:"base_url"`
+	KeyHint        string             `json:"key_hint"`
+	Model          string             `json:"model"`
+	ModelUpdatedAt pgtype.Timestamptz `json:"model_updated_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Per-user AI provider credentials (UNI-1008 GO-A7, ADR 0029). Rows are
@@ -117,6 +123,8 @@ func (q *Queries) ListProviderCredentials(ctx context.Context, arg ListProviderC
 			&i.Label,
 			&i.BaseUrl,
 			&i.KeyHint,
+			&i.Model,
+			&i.ModelUpdatedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -132,40 +140,50 @@ func (q *Queries) ListProviderCredentials(ctx context.Context, arg ListProviderC
 
 const updateProviderCredentialSettings = `-- name: UpdateProviderCredentialSettings :one
 UPDATE ai_provider_credentials
-SET label = $4, base_url = $5, updated_at = now()
-WHERE organization_id = $1
-  AND user_id = $2
-  AND provider = $3
-RETURNING id, provider, label, base_url, key_hint, created_at, updated_at
+SET label = $1,
+    base_url = $2,
+    model = $3,
+    model_updated_at = CASE WHEN $4::boolean THEN now() ELSE model_updated_at END,
+    updated_at = now()
+WHERE organization_id = $5
+  AND user_id = $6
+  AND provider = $7
+RETURNING id, provider, label, base_url, key_hint, model, model_updated_at, created_at, updated_at
 `
 
 type UpdateProviderCredentialSettingsParams struct {
+	Label          string `json:"label"`
+	BaseUrl        string `json:"base_url"`
+	Model          string `json:"model"`
+	ModelSet       bool   `json:"model_set"`
 	OrganizationID string `json:"organization_id"`
 	UserID         string `json:"user_id"`
 	Provider       string `json:"provider"`
-	Label          string `json:"label"`
-	BaseUrl        string `json:"base_url"`
 }
 
 type UpdateProviderCredentialSettingsRow struct {
-	ID        string             `json:"id"`
-	Provider  string             `json:"provider"`
-	Label     string             `json:"label"`
-	BaseUrl   string             `json:"base_url"`
-	KeyHint   string             `json:"key_hint"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID             string             `json:"id"`
+	Provider       string             `json:"provider"`
+	Label          string             `json:"label"`
+	BaseUrl        string             `json:"base_url"`
+	KeyHint        string             `json:"key_hint"`
+	Model          string             `json:"model"`
+	ModelUpdatedAt pgtype.Timestamptz `json:"model_updated_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
-// Update label and base URL and keep the stored key: a PUT without api_key on
-// an existing credential.
+// Update label, base URL and model and keep the stored key: a PUT without
+// api_key on an existing credential.
 func (q *Queries) UpdateProviderCredentialSettings(ctx context.Context, arg UpdateProviderCredentialSettingsParams) (UpdateProviderCredentialSettingsRow, error) {
 	row := q.db.QueryRow(ctx, updateProviderCredentialSettings,
+		arg.Label,
+		arg.BaseUrl,
+		arg.Model,
+		arg.ModelSet,
 		arg.OrganizationID,
 		arg.UserID,
 		arg.Provider,
-		arg.Label,
-		arg.BaseUrl,
 	)
 	var i UpdateProviderCredentialSettingsRow
 	err := row.Scan(
@@ -174,6 +192,8 @@ func (q *Queries) UpdateProviderCredentialSettings(ctx context.Context, arg Upda
 		&i.Label,
 		&i.BaseUrl,
 		&i.KeyHint,
+		&i.Model,
+		&i.ModelUpdatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -182,17 +202,25 @@ func (q *Queries) UpdateProviderCredentialSettings(ctx context.Context, arg Upda
 
 const upsertProviderCredential = `-- name: UpsertProviderCredential :one
 INSERT INTO ai_provider_credentials (
-  id, organization_id, user_id, provider, label, base_url, secret_ciphertext, key_hint, created_by, created_by_kind
+  id, organization_id, user_id, provider, label, base_url, secret_ciphertext, key_hint, created_by, created_by_kind,
+  model, model_updated_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+  $1, $2, $3, $4, $5,
+  $6, $7, $8, $9,
+  $10, $11,
+  CASE WHEN $12::boolean THEN now() END
 )
 ON CONFLICT (organization_id, user_id, provider) DO UPDATE SET
   label = EXCLUDED.label,
   base_url = EXCLUDED.base_url,
   secret_ciphertext = EXCLUDED.secret_ciphertext,
   key_hint = EXCLUDED.key_hint,
+  model = EXCLUDED.model,
+  model_updated_at = CASE WHEN $12::boolean THEN now()
+                          ELSE ai_provider_credentials.model_updated_at END,
   updated_at = now()
-RETURNING id, provider, label, base_url, key_hint, created_at, updated_at, (xmax = 0)::boolean AS created
+RETURNING id, provider, label, base_url, key_hint, model, model_updated_at, created_at, updated_at,
+  (xmax = 0)::boolean AS created
 `
 
 type UpsertProviderCredentialParams struct {
@@ -206,21 +234,26 @@ type UpsertProviderCredentialParams struct {
 	KeyHint          string `json:"key_hint"`
 	CreatedBy        string `json:"created_by"`
 	CreatedByKind    string `json:"created_by_kind"`
+	Model            string `json:"model"`
+	ModelSet         bool   `json:"model_set"`
 }
 
 type UpsertProviderCredentialRow struct {
-	ID        string             `json:"id"`
-	Provider  string             `json:"provider"`
-	Label     string             `json:"label"`
-	BaseUrl   string             `json:"base_url"`
-	KeyHint   string             `json:"key_hint"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-	Created   bool               `json:"created"`
+	ID             string             `json:"id"`
+	Provider       string             `json:"provider"`
+	Label          string             `json:"label"`
+	BaseUrl        string             `json:"base_url"`
+	KeyHint        string             `json:"key_hint"`
+	Model          string             `json:"model"`
+	ModelUpdatedAt pgtype.Timestamptz `json:"model_updated_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Created        bool               `json:"created"`
 }
 
 // Create or replace one provider's credential. xmax = 0 is true only for a
-// freshly inserted row, so the caller can answer 201 or 200.
+// freshly inserted row, so the caller can answer 201 or 200. model_set says
+// the request named a model (UNI-1240): model_updated_at moves only then.
 func (q *Queries) UpsertProviderCredential(ctx context.Context, arg UpsertProviderCredentialParams) (UpsertProviderCredentialRow, error) {
 	row := q.db.QueryRow(ctx, upsertProviderCredential,
 		arg.ID,
@@ -233,6 +266,8 @@ func (q *Queries) UpsertProviderCredential(ctx context.Context, arg UpsertProvid
 		arg.KeyHint,
 		arg.CreatedBy,
 		arg.CreatedByKind,
+		arg.Model,
+		arg.ModelSet,
 	)
 	var i UpsertProviderCredentialRow
 	err := row.Scan(
@@ -241,6 +276,8 @@ func (q *Queries) UpsertProviderCredential(ctx context.Context, arg UpsertProvid
 		&i.Label,
 		&i.BaseUrl,
 		&i.KeyHint,
+		&i.Model,
+		&i.ModelUpdatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Created,

@@ -103,6 +103,39 @@ func TestAICredentialHTTPNeverReturnsTheKey(t *testing.T) {
 	}
 }
 
+// UNI-1240: the chosen model is part of the credential. A model-only PUT
+// switches it without the key, GET returns it with model_updated_at, and a
+// malformed id is a 400.
+func TestAICredentialHTTPSavesTheModel(t *testing.T) {
+	w := newAICredentialWorld(t)
+	base := "/api/v1/orgs/" + w.orgID + "/ai/credentials"
+
+	status, raw := rawCall(t, w.srv, "PUT", base+"/openai", w.token, `{"api_key":"`+testHandlerAIKey+`"}`)
+	if status != http.StatusCreated || !strings.Contains(raw, `"model":""`) || !strings.Contains(raw, `"model_updated_at":""`) {
+		t.Fatalf("create = %d %s", status, raw)
+	}
+	status, raw = rawCall(t, w.srv, "PUT", base+"/openai", w.token, `{"model":"gpt-4.1-mini"}`)
+	if status != http.StatusOK || !strings.Contains(raw, `"model":"gpt-4.1-mini"`) || !strings.Contains(raw, `"key_hint":"…wxyz"`) {
+		t.Fatalf("model-only PUT = %d %s", status, raw)
+	}
+	res, out := doJSON(t, w.srv, "GET", base, w.token, nil)
+	items, _ := out["items"].([]any)
+	if res.StatusCode != 200 || len(items) != 1 {
+		t.Fatalf("list = %d %v", res.StatusCode, out)
+	}
+	item := items[0].(map[string]any)
+	if item["model"] != "gpt-4.1-mini" || item["model_updated_at"] == "" {
+		t.Fatalf("item = %v", item)
+	}
+	if status, raw = rawCall(t, w.srv, "PUT", base+"/openai", w.token, `{"model":"gpt 4; drop"}`); status != http.StatusBadRequest {
+		t.Fatalf("bad model = %d %s", status, raw)
+	}
+	// Another member never sees the owner's model.
+	if _, out := doJSON(t, w.srv, "GET", base, w.member, nil); len(out["items"].([]any)) != 0 {
+		t.Fatalf("member list = %v", out)
+	}
+}
+
 func TestAICredentialHTTPIsPersonal(t *testing.T) {
 	w := newAICredentialWorld(t)
 	base := "/api/v1/orgs/" + w.orgID + "/ai/credentials"
