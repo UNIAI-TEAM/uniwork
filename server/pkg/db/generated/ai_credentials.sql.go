@@ -77,6 +77,56 @@ func (q *Queries) GetProviderCredential(ctx context.Context, arg GetProviderCred
 	return i, err
 }
 
+const getProviderCredentialForUpdate = `-- name: GetProviderCredentialForUpdate :one
+SELECT id, provider, label, base_url, secret_ciphertext, key_hint, model, model_updated_at, created_at, updated_at
+FROM ai_provider_credentials
+WHERE organization_id = $1
+  AND user_id = $2
+  AND provider = $3
+FOR UPDATE
+`
+
+type GetProviderCredentialForUpdateParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+	Provider       string `json:"provider"`
+}
+
+type GetProviderCredentialForUpdateRow struct {
+	ID               string             `json:"id"`
+	Provider         string             `json:"provider"`
+	Label            string             `json:"label"`
+	BaseUrl          string             `json:"base_url"`
+	SecretCiphertext []byte             `json:"secret_ciphertext"`
+	KeyHint          string             `json:"key_hint"`
+	Model            string             `json:"model"`
+	ModelUpdatedAt   pgtype.Timestamptz `json:"model_updated_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+// The same row, locked until the transaction ends: a save reads it to fill the
+// fields its request leaves out and writes them back, so two saves of one
+// credential (another tab, another browser) must queue instead of one writing
+// back what the other just replaced.
+func (q *Queries) GetProviderCredentialForUpdate(ctx context.Context, arg GetProviderCredentialForUpdateParams) (GetProviderCredentialForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getProviderCredentialForUpdate, arg.OrganizationID, arg.UserID, arg.Provider)
+	var i GetProviderCredentialForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Label,
+		&i.BaseUrl,
+		&i.SecretCiphertext,
+		&i.KeyHint,
+		&i.Model,
+		&i.ModelUpdatedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listProviderCredentials = `-- name: ListProviderCredentials :many
 
 SELECT id, provider, label, base_url, key_hint, model, model_updated_at, created_at, updated_at
