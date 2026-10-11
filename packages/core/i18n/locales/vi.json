@@ -8146,13 +8146,6 @@
       "download": "Tải xuống",
       "download_failed": "Không thể tải tệp xuống. Hãy thử lại."
     },
-    "status": {
-      "label": "Thanh trạng thái",
-      "zoomIn": "Phóng to",
-      "zoomOut": "Thu nhỏ",
-      "zoomReset": "Đặt lại thu phóng",
-      "zoomValue": "{{value}}%"
-    },
     "shell": {
       "save": "Lưu",
       "save_to_cloud": "Lưu vào UniWork"

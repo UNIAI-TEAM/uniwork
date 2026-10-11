@@ -8151,13 +8151,6 @@
       "download": "Download",
       "download_failed": "The file could not be downloaded. Try again."
     },
-    "status": {
-      "label": "Status bar",
-      "zoomIn": "Zoom in",
-      "zoomOut": "Zoom out",
-      "zoomReset": "Reset zoom",
-      "zoomValue": "{{value}}%"
-    },
     "shell": {
       "save": "Save",
       "save_to_cloud": "Save to UniWork"

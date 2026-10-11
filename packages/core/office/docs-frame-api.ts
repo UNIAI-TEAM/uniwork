@@ -174,7 +174,7 @@ export type DocsFrameApiOptions = Pick<OfficeFrameClientOptions, "apiUrl" | "fet
 /**
  * The DocsFrameApi on the UniWork office-frame routes (W6): every call is made
  * with the frame token only (Bearer, `credentials: 'omit'`), never the session.
- * `OfficeDocsFrame` uses one by default, so the web host mounts it inside
+ * `OfficeModuleFrame` uses one by default, so the web host mounts it inside
  *   `<OfficeModuleOpenSwitch module="docs" organizationId={…} frame={…} />`
  * and passes `api={createDocsFrameApi({ apiUrl })}` only for another API origin.
  * It keeps no per-document state, so one instance serves every frame.
