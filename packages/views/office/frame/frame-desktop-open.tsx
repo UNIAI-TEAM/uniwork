@@ -10,7 +10,6 @@ export type FrameDesktopOpenProps = Omit<DesktopOpenActionProps, "documentId" | 
 interface FrameDesktopOpenActionProps {
   desktopOpen: FrameDesktopOpenProps;
   documentId: string;
-  workspaceId: string;
   dirty: boolean;
   /** The frame's own save; resolves true once the bytes are a new version. */
   save: () => Promise<boolean>;
@@ -24,17 +23,18 @@ interface FrameDesktopOpenActionProps {
  * has no header slot). The frame has no save coordinator, so a small adapter
  * stands in for one: only its dirty fields and `save` are read by the action.
  */
-export function FrameDesktopOpenAction({ desktopOpen, documentId, workspaceId, dirty, save, requestRef }: FrameDesktopOpenActionProps) {
+export function FrameDesktopOpenAction({ desktopOpen, documentId, dirty, save, requestRef }: FrameDesktopOpenActionProps) {
   const headerSlot = useHeaderActionsSlotAvailable();
   const latest = useRef({ dirty, save });
   latest.current = { dirty, save };
+  // Reads the latest dirty/save through the ref, so one adapter serves every render.
   const coordinator = useMemo<OfficeSaveCoordinatorLike>(() => ({
     getState: (): OfficeSaveStateLike => {
       const isDirty = latest.current.dirty;
       return { state: isDirty ? "dirty" : "saved", dirtyGeneration: isDirty ? 1 : 0, lastSavedGeneration: 0 };
     },
     save: async () => ({ accepted: await latest.current.save() }),
-  }), [documentId, workspaceId]);
+  }), []);
   const action = <DesktopOpenAction {...desktopOpen} documentId={documentId} dirty={dirty} saveCoordinator={coordinator} requestRef={requestRef} />;
   if (headerSlot) return <HeaderActionsFill actions={action} />;
   return (
