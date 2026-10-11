@@ -1,6 +1,8 @@
 package imapclient
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -8,8 +10,15 @@ import (
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
+	"github.com/emersion/go-imap/commands"
+	"github.com/emersion/go-message"
+	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
+	"github.com/emersion/go-message/textproto"
 )
+
+// Importing go-message/charset registers it for bodies; IMAP envelopes need it too.
+func init() { imap.CharsetReader = charset.Reader }
 
 const (
 	initialSyncLimit       = 50
@@ -36,6 +45,7 @@ type ThreadMeta struct {
 	UID            uint32
 	MessageID      string
 	InReplyTo      string
+	References     string
 	Subject        string
 	Snippet        string
 	BodyText       string
@@ -93,7 +103,7 @@ func SyncINBOX(c Credentials) ([]ThreadMeta, error) {
 	items := []imap.FetchItem{
 		imap.FetchUid, imap.FetchFlags, imap.FetchEnvelope,
 		imap.FetchInternalDate, imap.FetchBodyStructure,
-		section.FetchItem(),
+		section.FetchItem(), referencesSection.FetchItem(),
 	}
 
 	ch := make(chan *imap.Message, initialSyncLimit)
@@ -122,22 +132,79 @@ func FetchBody(c Credentials, mailbox string, uid uint32) (ThreadBody, error) {
 	return fetchBodyOnClient(cl, mailbox, uid)
 }
 
+// ErrAuthFailed marks a LOGIN the server refused with AUTHENTICATIONFAILED:
+// retrying the same password cannot succeed, so callers stop instead of retrying.
+var ErrAuthFailed = errors.New("imap: authentication failed")
+
+// ErrLoginRefused marks a LOGIN refused with a bare NO. Outlook answers a wrong
+// password that way, but so may a provider that is throttling or locked the
+// account for a while, so callers give up only when it repeats.
+var ErrLoginRefused = errors.New("imap: login refused")
+
+// dialIMAP is replaced by package tests with a plain-TCP dial to a fake server.
+var dialIMAP = func(addr string) (*client.Client, error) { return client.DialTLS(addr, nil) }
+
 func dial(c Credentials) (*client.Client, error) {
 	addr := fmt.Sprintf("%s:%d", c.Host, c.Port)
-	cl, err := client.DialTLS(addr, nil)
+	cl, err := dialIMAP(addr)
 	if err != nil {
 		return nil, fmt.Errorf("imap dial: %w", err)
 	}
-	if err := cl.Login(c.Email, c.Password); err != nil {
+	cl.Timeout = imapClientTimeout
+	if err := login(cl, c.Email, c.Password); err != nil {
 		_ = cl.Logout()
 		return nil, fmt.Errorf("imap login: %w", err)
 	}
-	cl.Timeout = imapClientTimeout
 	return cl, nil
 }
 
+// login runs LOGIN by hand because client.Login keeps only the response text,
+// and the response code is what tells a refused password (AUTHENTICATIONFAILED;
+// no code at all is ambiguous) from a busy server ([ALERT] too many
+// connections, [UNAVAILABLE]) that is worth retrying later.
+func login(cl *client.Client, user, password string) error {
+	status, err := cl.Execute(&commands.Login{Username: user, Password: password}, nil)
+	if err != nil {
+		return err
+	}
+	if status.Type == imap.StatusRespNo {
+		switch status.Code {
+		case "AUTHENTICATIONFAILED":
+			return fmt.Errorf("%w: %s", ErrAuthFailed, status.Info)
+		case "":
+			return fmt.Errorf("%w: %s", ErrLoginRefused, status.Info)
+		}
+	}
+	if err := status.Err(); err != nil {
+		return err
+	}
+	cl.SetState(imap.AuthenticatedState, nil)
+	// Capabilities change at login; refresh them as client.Login would.
+	_, err = cl.Capability()
+	return err
+}
+
+// referencesSection fetches the References header, which the envelope lacks;
+// its first id is the conversation root.
+var referencesSection = &imap.BodySectionName{
+	BodyPartName: imap.BodyPartName{Specifier: imap.HeaderSpecifier, Fields: []string{"REFERENCES"}},
+	Peek:         true,
+}
+
+func messageReferences(msg *imap.Message) string {
+	r := msg.GetBody(referencesSection)
+	if r == nil {
+		return ""
+	}
+	h, err := textproto.ReadHeader(bufio.NewReader(r))
+	if err != nil {
+		return ""
+	}
+	return sanitizeUTF8(h.Get("References"))
+}
+
 func messageMeta(cl *client.Client, msg *imap.Message, section *imap.BodySectionName) ThreadMeta {
-	meta := ThreadMeta{UID: msg.Uid}
+	meta := ThreadMeta{UID: msg.Uid, References: messageReferences(msg)}
 	for _, f := range msg.Flags {
 		switch f {
 		case imap.SeenFlag:
@@ -214,8 +281,9 @@ func parseBody(r io.Reader) (ThreadBody, error) {
 }
 
 func collectBodyParts(r io.Reader) (ThreadBody, error) {
+	// An unknown charset is a soft error: the part stays readable as raw bytes.
 	entity, err := mail.CreateReader(r)
-	if err != nil {
+	if err != nil && !message.IsUnknownCharset(err) {
 		return ThreadBody{}, err
 	}
 	var out ThreadBody
@@ -224,7 +292,7 @@ func collectBodyParts(r io.Reader) (ThreadBody, error) {
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
+		if err != nil && !message.IsUnknownCharset(err) {
 			return out, err
 		}
 		part, err := readBodyPart(p)
@@ -281,7 +349,6 @@ func threadBodyHasContent(out ThreadBody) bool {
 }
 
 func normalizeThreadBody(out ThreadBody) ThreadBody {
-	out = repairQuotedPrintableBody(out.Text, out.HTML)
 	out.Text = sanitizeUTF8(out.Text)
 	out.HTML = sanitizeUTF8(out.HTML)
 	if out.HTML == "" && strings.Contains(strings.ToLower(out.Text), "<html") {
@@ -303,9 +370,9 @@ func SnippetFromBody(text, html string) string {
 func snippetFromSubject(subject string) string {
 	s := strings.Join(strings.Fields(strings.TrimSpace(subject)), " ")
 	if len(s) > 200 {
-		return s[:200]
+		s = s[:200]
 	}
-	return s
+	return sanitizeUTF8(s) // drops a rune split by the byte cut, and NUL
 }
 
 func snippet(text, html string) string {
@@ -321,9 +388,9 @@ func snippet(text, html string) string {
 	}
 	s = strings.Join(strings.Fields(s), " ")
 	if len(s) > 200 {
-		return s[:200]
+		s = s[:200]
 	}
-	return s
+	return sanitizeUTF8(s) // drops a rune split by the byte cut, and NUL
 }
 
 // MarkRead sets \\Seen on one message in the given mailbox.
@@ -394,7 +461,15 @@ func stripHTML(s string) string {
 }
 
 func stripHTMLBlock(s, tag string) string {
-	lower := strings.ToLower(s)
+	// Lower ASCII only: strings.ToLower can change byte length ('Ⱥ' 2 -> 3 bytes),
+	// and indexes found in lower are used to slice s.
+	b := []byte(s)
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			b[i] = c + 'a' - 'A'
+		}
+	}
+	lower := string(b)
 	open := "<" + tag
 	close := "</" + tag + ">"
 	for {
@@ -408,6 +483,6 @@ func stripHTMLBlock(s, tag string) string {
 		}
 		end := start + endRel + len(close)
 		s = s[:start] + s[end:]
-		lower = strings.ToLower(s)
+		lower = lower[:start] + lower[end:]
 	}
 }

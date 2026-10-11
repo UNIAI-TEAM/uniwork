@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -113,7 +115,9 @@ func TestEmailHubScheduledSendBatchSMTPFailureMarksFailed(t *testing.T) {
 	}
 }
 
-func TestEmailHubScheduledSendBatchMissingAccountMarksFailed(t *testing.T) {
+// A row whose mailbox is gone is never claimed: the worker sends only from a
+// connected mailbox whose owner still passes the membership gates (UNI-1106).
+func TestEmailHubScheduledSendBatchSkipsMissingAccount(t *testing.T) {
 	svc, q, user, ws, pool := emailHubFixture(t)
 	ctx := context.Background()
 	payload, err := json.Marshal(scheduledSendPayload{
@@ -137,8 +141,8 @@ func TestEmailHubScheduledSendBatchMissingAccountMarksFailed(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT status FROM email_hub_scheduled_sends WHERE id=$1`, id).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status != "failed" {
-		t.Fatalf("status = %q, want failed for missing account", status)
+	if status != "pending" {
+		t.Fatalf("status = %q, want pending (unclaimed) for missing account", status)
 	}
 }
 
@@ -500,4 +504,214 @@ func TestEmailHubScheduledSendExpiredLeaseMarksFailedNotPending(t *testing.T) {
 	if status != "failed" || lastErr != "worker lease expired" {
 		t.Fatalf("status=%q last_error=%q, want failed / worker lease expired", status, lastErr)
 	}
+}
+
+// emailHubLifecycle is a plain member's mailbox (not the owner's, so it can be
+// deactivated, leave or be deleted) with one cached thread and one due
+// scheduled send, plus a send hook that counts what would go out (UNI-1106).
+type emailHubLifecycle struct {
+	svc     *EmailHubService
+	q       *db.Queries
+	pool    *pgxpool.Pool
+	auth    *AuthService
+	members *OrganizationMemberService
+	owner   db.User
+	member  db.User
+	ws      db.Workspace
+	acc     db.EmailHubAccount
+	sendID  string
+	sends   *atomic.Int32
+}
+
+func newEmailHubLifecycle(t *testing.T) emailHubLifecycle {
+	t.Helper()
+	svc, q, owner, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	member := registerVerified(t, q, as, "eh-member@example.com", "EH Member")
+	addOrgMember(t, q, ws.OrganizationID, member.ID)
+	addWorkspaceMember(t, q, ws.ID, member.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, member.ID, ws.OrganizationID)
+	seedEmailHubThread(t, q, acc.ID, ws.OrganizationID)
+	sent, err := svc.ScheduleSend(ctx, Human(member.ID), ws.ID, SendEmailHubInput{
+		AccountID: acc.ID, To: []string{"client@example.com"}, Subject: "Tomorrow 9:00", BodyText: "Hi",
+	}, time.Now().UTC().Add(2*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE email_hub_scheduled_sends SET send_at = now() - interval '1 minute' WHERE id = $1`, sent.ID); err != nil {
+		t.Fatal(err)
+	}
+	sends := &atomic.Int32{}
+	svc.testHookScheduledSend = func(context.Context, db.EmailHubAccount, string, SendEmailHubInput) error {
+		sends.Add(1)
+		return nil
+	}
+	return emailHubLifecycle{
+		svc: svc, q: q, pool: pool, auth: as, members: NewOrganizationMemberService(pool, q, svc.ws.orgs),
+		owner: owner, member: member, ws: ws, acc: acc, sendID: sent.ID, sends: sends,
+	}
+}
+
+// tick runs the send-later worker once and reports how many mails went out.
+func (l emailHubLifecycle) tick(t *testing.T) int32 {
+	t.Helper()
+	before := l.sends.Load()
+	l.svc.runScheduledSendOnce(context.Background())
+	return l.sends.Load() - before
+}
+
+func (l emailHubLifecycle) column(t *testing.T, query string) string {
+	t.Helper()
+	var v string
+	if err := l.pool.QueryRow(context.Background(), query, l.acc.ID).Scan(&v); err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+func (l emailHubLifecycle) sendStatus(t *testing.T) string {
+	t.Helper()
+	return l.column(t, `SELECT status FROM email_hub_scheduled_sends WHERE account_id = $1`)
+}
+
+func (l emailHubLifecycle) passwordEnc(t *testing.T) string {
+	t.Helper()
+	return l.column(t, `SELECT password_enc FROM email_hub_accounts WHERE id = $1`)
+}
+
+func (l emailHubLifecycle) cachedThreads(t *testing.T) string {
+	t.Helper()
+	return l.column(t, `SELECT count(*)::text FROM email_hub_threads WHERE account_id = $1`)
+}
+
+// syncPicksUp reports whether the sync worker would log in to the mailbox.
+func (l emailHubLifecycle) syncPicksUp(t *testing.T) bool {
+	t.Helper()
+	rows, err := l.q.ClaimEmailHubAccountsForSync(context.Background(), 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rows {
+		if r.ID == l.acc.ID {
+			return true
+		}
+	}
+	return false
+}
+
+// assertRevoked is the state a mailbox is left in once its owner disconnected,
+// left the organization or deleted their account.
+func (l emailHubLifecycle) assertRevoked(t *testing.T) {
+	t.Helper()
+	if n := l.tick(t); n != 0 {
+		t.Fatalf("%d scheduled mails went out from a revoked mailbox", n)
+	}
+	if got := l.sendStatus(t); got != "cancelled" {
+		t.Fatalf("scheduled send status = %q, want cancelled", got)
+	}
+	if got := l.passwordEnc(t); got != "" {
+		t.Fatalf("app password still stored: %q", got)
+	}
+	if got := l.cachedThreads(t); got != "0" {
+		t.Fatalf("cached threads = %s, want 0", got)
+	}
+	if l.syncPicksUp(t) {
+		t.Fatal("the sync worker still picks the mailbox up")
+	}
+}
+
+func TestEmailHubDisconnectCancelsScheduledSendsAndWipesThePassword(t *testing.T) {
+	l := newEmailHubLifecycle(t)
+	if err := l.svc.Disconnect(context.Background(), Human(l.member.ID), l.ws.ID, l.acc.ID); err != nil {
+		t.Fatal(err)
+	}
+	l.assertRevoked(t)
+}
+
+// A deactivated member or a suspended organization keeps the mailbox and its
+// queue as they are; the workers skip them, and lifting the block resumes both
+// with no further code.
+func TestEmailHubWorkersSkipDeactivatedMembersAndSuspendedOrganizations(t *testing.T) {
+	ctx := context.Background()
+	for _, how := range []string{"deactivate", "suspend"} {
+		t.Run(how, func(t *testing.T) {
+			l := newEmailHubLifecycle(t)
+			block, unblock := func() error {
+				_, err := l.members.Deactivate(ctx, l.owner.ID, l.ws.OrganizationID, l.member.ID)
+				return err
+			}, func() error {
+				_, err := l.members.Reactivate(ctx, l.owner.ID, l.ws.OrganizationID, l.member.ID)
+				return err
+			}
+			if how == "suspend" {
+				setStatus := func(status string) func() error {
+					return func() error {
+						_, err := l.pool.Exec(ctx, `UPDATE organizations SET status = $2 WHERE id = $1`, l.ws.OrganizationID, status)
+						return err
+					}
+				}
+				block, unblock = setStatus("suspended"), setStatus("active")
+			}
+			if err := block(); err != nil {
+				t.Fatal(err)
+			}
+			if n := l.tick(t); n != 0 {
+				t.Fatalf("%d scheduled mails went out while blocked", n)
+			}
+			if got := l.sendStatus(t); got != "pending" {
+				t.Fatalf("scheduled send status = %q, want pending (not claimed)", got)
+			}
+			if l.syncPicksUp(t) {
+				t.Fatal("the sync worker picks up a blocked mailbox")
+			}
+			if err := unblock(); err != nil {
+				t.Fatal(err)
+			}
+			if !l.syncPicksUp(t) {
+				t.Fatal("sync did not resume once the block was lifted")
+			}
+			if n := l.tick(t); n != 1 {
+				t.Fatalf("after unblocking %d mails went out, want 1", n)
+			}
+		})
+	}
+}
+
+// A row claimed just before the disconnect committed still does not go out.
+func TestEmailHubScheduledSendClaimedBeforeDisconnectFails(t *testing.T) {
+	l := newEmailHubLifecycle(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	rows, err := l.q.ClaimDueEmailHubScheduledSends(ctx, db.ClaimDueEmailHubScheduledSendsParams{
+		LeaseOwner: fileText("w"), LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(emailHubScheduleLease), Valid: true},
+		Now: pgtype.Timestamptz{Time: now, Valid: true}, LimitN: 1,
+	})
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("claim: %v len=%d", err, len(rows))
+	}
+	if err := l.svc.Disconnect(ctx, Human(l.member.ID), l.ws.ID, l.acc.ID); err != nil {
+		t.Fatal(err)
+	}
+	l.svc.deliverScheduledSend(ctx, rows[0], "w")
+	if n := l.sends.Load(); n != 0 {
+		t.Fatalf("%d mails went out after the disconnect", n)
+	}
+	if got := l.sendStatus(t); got != "failed" {
+		t.Fatalf("status = %q, want failed", got)
+	}
+}
+
+// Leave and account deletion cannot be retried by their caller, so their
+// after-commit cleanup outlives a request whose client already went away.
+func TestEmailHubCleanupAfterCommitSurvivesACancelledRequest(t *testing.T) {
+	l := newEmailHubLifecycle(t)
+	rows, err := l.q.DisconnectEmailHubAccountsForUser(context.Background(), db.DisconnectEmailHubAccountsForUserParams{UserID: l.member.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	cleanUpEmailHubAccountsAfterCommit(ctx, l.q, rows)
+	l.assertRevoked(t)
 }

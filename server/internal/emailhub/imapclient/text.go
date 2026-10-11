@@ -102,7 +102,8 @@ func sanitizeUTF8(s string) string {
 	if s == "" {
 		return s
 	}
-	s = strings.TrimPrefix(s, "\ufeff")
+	// NUL is valid UTF-8 but Postgres TEXT rejects it (SQLSTATE 22021).
+	s = strings.ReplaceAll(strings.TrimPrefix(s, "\ufeff"), "\x00", "")
 	if utf8.ValidString(s) {
 		return s
 	}

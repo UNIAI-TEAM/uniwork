@@ -59,12 +59,14 @@ func parseWeekdayDue(lower string, anchor time.Time) *string {
 		phrase string
 		day    time.Weekday
 	}
+	// Saturday comes first: "thu ba" (Tuesday) is a prefix of "thu bay".
 	phrases := []wdPhrase{
+		{"thu bay", time.Saturday}, {"thu 7", time.Saturday}, {"saturday", time.Saturday},
 		{"thu hai", time.Monday}, {"thu 2", time.Monday}, {"monday", time.Monday},
 		{"thu ba", time.Tuesday}, {"thu 3", time.Tuesday}, {"tuesday", time.Tuesday},
 		{"thu tu", time.Wednesday}, {"thu 4", time.Wednesday}, {"wednesday", time.Wednesday},
 		{"thu nam", time.Thursday}, {"thu 5", time.Thursday}, {"thursday", time.Thursday},
-		{"thu sau", time.Friday}, {"thu 6", time.Friday}, {"thu bay", time.Friday}, {"friday", time.Friday},
+		{"thu sau", time.Friday}, {"thu 6", time.Friday}, {"friday", time.Friday},
 		{"chu nhat", time.Sunday}, {"cn", time.Sunday}, {"sunday", time.Sunday},
 	}
 	for _, p := range phrases {

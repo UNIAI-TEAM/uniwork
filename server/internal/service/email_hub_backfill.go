@@ -54,7 +54,7 @@ func (s *EmailHubService) backfillOlderThreads(
 		if len(result.Items) == 0 {
 			return nil
 		}
-		if err := s.upsertThreadItems(ctx, acc, logical, result.Items); err != nil {
+		if _, err := s.upsertThreadItems(ctx, acc, logical, result.Items); err != nil {
 			return err
 		}
 		s.enforceEmailHubFolderRetention(ctx, acc, logical)

@@ -31,22 +31,26 @@ func NormalizeMessageID(raw string) string {
 }
 
 // ConversationKey groups messages in one mailbox account into a conversation.
-// Prefer the root Message-ID chain; fall back to normalized subject per account.
-func ConversationKey(accountID, subject, messageID, inReplyTo string) string {
-	if root := conversationRootMessageID(messageID, inReplyTo); root != "" {
+// The key is the root Message-ID: the first References entry, else In-Reply-To,
+// else the message's own id; normalized subject per account is the fallback.
+func ConversationKey(accountID, subject, messageID, inReplyTo, references string) string {
+	if root := conversationRootMessageID(messageID, inReplyTo, references); root != "" {
 		return "mid:" + root
 	}
 	subj := NormalizeSubject(subject)
 	if subj != "" && accountID != "" {
 		return "subj:" + accountID + ":" + subj
 	}
-	if id := NormalizeMessageID(messageID); id != "" {
-		return "mid:" + id
-	}
 	return ""
 }
 
-func conversationRootMessageID(messageID, inReplyTo string) string {
+func conversationRootMessageID(messageID, inReplyTo, references string) string {
+	// The first <...> of References is the root; ids may be unspaced ("<a><b>").
+	if start := strings.IndexByte(references, '<'); start >= 0 {
+		if end := strings.IndexByte(references[start:], '>'); end > 1 {
+			return NormalizeMessageID(references[start : start+end+1])
+		}
+	}
 	if parent := NormalizeMessageID(inReplyTo); parent != "" {
 		return parent
 	}

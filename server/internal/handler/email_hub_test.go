@@ -310,6 +310,24 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 		t.Fatalf("send without SMTP: %d %v", res.StatusCode, out)
 	}
 
+	// A real-sized attachment (2 MB, ~2.7 MB as base64) reaches the service
+	// instead of tripping the generic 1 MiB JSON cap.
+	pdf := base64.StdEncoding.EncodeToString(make([]byte, 2<<20))
+	res, out = doJSON(t, srv, "POST", base+"/send", token, map[string]any{
+		"account_id": accID, "to": []string{"dest@example.com"}, "subject": "Hi", "body_text": "Hello",
+		"attachments": []map[string]string{{"filename": "a.pdf", "content_type": "application/pdf", "content_base64": pdf}},
+	})
+	if res.StatusCode != http.StatusBadGateway || errorCode(out) != "email_hub_send_failed" {
+		t.Fatalf("send with 2 MB attachment: %d %v", res.StatusCode, out)
+	}
+	res, _ = doJSON(t, srv, "POST", base+"/send", token, map[string]any{
+		"account_id": accID, "to": []string{"dest@example.com"}, "subject": "Hi",
+		"body_text": strings.Repeat("x", 22<<20),
+	})
+	if res.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("send over the body cap: %d", res.StatusCode)
+	}
+
 	sendAt := time.Now().UTC().Add(3 * time.Minute).Format(time.RFC3339)
 	res, out = doJSON(t, srv, "POST", base+"/send", token, map[string]any{
 		"account_id": accID, "to": []string{"later@example.com"}, "subject": "Later", "body_text": "Queued",

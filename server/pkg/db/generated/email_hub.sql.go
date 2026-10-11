@@ -41,6 +41,25 @@ func (q *Queries) CancelEmailHubScheduledSend(ctx context.Context, arg CancelEma
 	return result.RowsAffected(), nil
 }
 
+const cancelEmailHubScheduledSendsForAccount = `-- name: CancelEmailHubScheduledSendsForAccount :exec
+UPDATE email_hub_scheduled_sends
+SET status = 'cancelled'
+WHERE account_id = $1
+  AND organization_id = $2
+  AND status IN ('pending', 'failed')
+`
+
+type CancelEmailHubScheduledSendsForAccountParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// A disconnected mailbox's queue: nobody can reach it again to send or retry.
+func (q *Queries) CancelEmailHubScheduledSendsForAccount(ctx context.Context, arg CancelEmailHubScheduledSendsForAccountParams) error {
+	_, err := q.db.Exec(ctx, cancelEmailHubScheduledSendsForAccount, arg.AccountID, arg.OrganizationID)
+	return err
+}
+
 const claimDueEmailHubScheduledSends = `-- name: ClaimDueEmailHubScheduledSends :many
 UPDATE email_hub_scheduled_sends SET
   status = 'sending',
@@ -51,6 +70,17 @@ WHERE id IN (
   FROM email_hub_scheduled_sends
   WHERE email_hub_scheduled_sends.status = 'pending'
     AND email_hub_scheduled_sends.send_at <= $3
+    -- Only from a connected mailbox whose owner still passes both membership
+    -- gates (UNI-1106); a lifted block lets the row go out on a later tick.
+    AND EXISTS (
+      SELECT 1 FROM email_hub_accounts a
+      JOIN organization_members m ON m.user_id = a.user_id AND m.organization_id = a.organization_id
+      JOIN organizations o ON o.id = a.organization_id
+      WHERE a.id = email_hub_scheduled_sends.account_id
+        AND a.disconnected_at IS NULL
+        AND m.deactivated_at IS NULL
+        AND o.status = 'active'
+    )
   ORDER BY email_hub_scheduled_sends.send_at ASC, email_hub_scheduled_sends.id ASC
   LIMIT $4
   FOR UPDATE SKIP LOCKED
@@ -94,6 +124,65 @@ func (q *Queries) ClaimDueEmailHubScheduledSends(ctx context.Context, arg ClaimD
 			&i.SentAt,
 			&i.LeaseOwner,
 			&i.LeaseExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const claimEmailHubAccountsForSync = `-- name: ClaimEmailHubAccountsForSync :many
+UPDATE email_hub_accounts SET updated_at = now()
+WHERE id IN (
+  SELECT id FROM email_hub_accounts
+  WHERE disconnected_at IS NULL
+    -- The owner must still pass both membership gates (UNI-1106).
+    AND EXISTS (
+      SELECT 1 FROM organization_members m
+      JOIN organizations o ON o.id = m.organization_id
+      WHERE m.user_id = email_hub_accounts.user_id
+        AND m.organization_id = email_hub_accounts.organization_id
+        AND m.deactivated_at IS NULL
+        AND o.status = 'active'
+    )
+  ORDER BY updated_at ASC
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at
+`
+
+// tenant: system
+// Bumping updated_at on every attempt rotates failing accounts to the back of
+// the queue, and SKIP LOCKED hands concurrent nodes disjoint batches.
+func (q *Queries) ClaimEmailHubAccountsForSync(ctx context.Context, limit int32) ([]EmailHubAccount, error) {
+	rows, err := q.db.Query(ctx, claimEmailHubAccountsForSync, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmailHubAccount{}
+	for rows.Next() {
+		var i EmailHubAccount
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.OrganizationID,
+			&i.EmailAddress,
+			&i.Provider,
+			&i.ImapHost,
+			&i.ImapPort,
+			&i.SmtpHost,
+			&i.SmtpPort,
+			&i.PasswordEnc,
+			&i.SyncState,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DisconnectedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -262,6 +351,8 @@ WHERE t.account_id = $1
     OR t.from_addr ILIKE '%' || $7 || '%'
     OR COALESCE(t.from_name, '') ILIKE '%' || $7 || '%'
     OR COALESCE(t.body_text, '') ILIKE '%' || $7 || '%'
+    -- IMAP SEARCH matched these by a body the cache does not hold.
+    OR t.id = ANY($8::text[])
   )
 `
 
@@ -273,6 +364,7 @@ type CountEmailHubThreadsSearchParams struct {
 	HasAttachmentsOnly interface{} `json:"has_attachments_only"`
 	FromFilter         interface{} `json:"from_filter"`
 	Query              pgtype.Text `json:"query"`
+	HitIds             []string    `json:"hit_ids"`
 }
 
 func (q *Queries) CountEmailHubThreadsSearch(ctx context.Context, arg CountEmailHubThreadsSearchParams) (int64, error) {
@@ -284,6 +376,7 @@ func (q *Queries) CountEmailHubThreadsSearch(ctx context.Context, arg CountEmail
 		arg.HasAttachmentsOnly,
 		arg.FromFilter,
 		arg.Query,
+		arg.HitIds,
 	)
 	var total int64
 	err := row.Scan(&total)
@@ -588,6 +681,7 @@ DELETE FROM email_hub_threads
 WHERE account_id = $1
   AND organization_id = $2
   AND folder = $3
+  AND imap_uid >= $5
   AND NOT (imap_uid = ANY($4::integer[]))
 `
 
@@ -596,6 +690,7 @@ type DeleteEmailHubThreadsNotInUIDsParams struct {
 	OrganizationID string  `json:"organization_id"`
 	Folder         string  `json:"folder"`
 	Column4        []int32 `json:"column_4"`
+	MinUid         int32   `json:"min_uid"`
 }
 
 func (q *Queries) DeleteEmailHubThreadsNotInUIDs(ctx context.Context, arg DeleteEmailHubThreadsNotInUIDsParams) error {
@@ -604,13 +699,14 @@ func (q *Queries) DeleteEmailHubThreadsNotInUIDs(ctx context.Context, arg Delete
 		arg.OrganizationID,
 		arg.Folder,
 		arg.Column4,
+		arg.MinUid,
 	)
 	return err
 }
 
 const disconnectEmailHubAccount = `-- name: DisconnectEmailHubAccount :execrows
 UPDATE email_hub_accounts
-SET disconnected_at = now(), updated_at = now()
+SET disconnected_at = now(), password_enc = '', updated_at = now()
 WHERE id = $1
   AND user_id = $2
   AND organization_id = $3
@@ -623,12 +719,55 @@ type DisconnectEmailHubAccountParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
+// A disconnected mailbox is never used again (a reconnect gets a new id), so
+// its app password goes with it.
 func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) (int64, error) {
 	result, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const disconnectEmailHubAccountsForUser = `-- name: DisconnectEmailHubAccountsForUser :many
+UPDATE email_hub_accounts
+SET disconnected_at = now(), password_enc = '', updated_at = now()
+WHERE user_id = $1
+  AND ($2::text IS NULL OR organization_id = $2)
+  AND disconnected_at IS NULL
+RETURNING id, organization_id
+`
+
+type DisconnectEmailHubAccountsForUserParams struct {
+	UserID         string      `json:"user_id"`
+	OrganizationID pgtype.Text `json:"organization_id"`
+}
+
+type DisconnectEmailHubAccountsForUserRow struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// tenant: self
+// Account deletion (organization_id NULL: every organization) or leaving one.
+func (q *Queries) DisconnectEmailHubAccountsForUser(ctx context.Context, arg DisconnectEmailHubAccountsForUserParams) ([]DisconnectEmailHubAccountsForUserRow, error) {
+	rows, err := q.db.Query(ctx, disconnectEmailHubAccountsForUser, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DisconnectEmailHubAccountsForUserRow{}
+	for rows.Next() {
+		var i DisconnectEmailHubAccountsForUserRow
+		if err := rows.Scan(&i.ID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const emailHubAccountSidebarCounts = `-- name: EmailHubAccountSidebarCounts :one
@@ -670,17 +809,23 @@ func (q *Queries) EmailHubAccountSidebarCounts(ctx context.Context, arg EmailHub
 }
 
 const expireEmailHubThreadBodiesBefore = `-- name: ExpireEmailHubThreadBodiesBefore :many
-UPDATE email_hub_threads
+UPDATE email_hub_threads t
 SET body_text = NULL,
     body_html = NULL,
     body_object_key = '',
     body_cached = false,
     synced_at = now()
-WHERE account_id = $1
-  AND organization_id = $2
-  AND body_cached = true
-  AND sent_at < $3
-RETURNING body_object_key
+FROM (
+  SELECT cur.id, cur.body_object_key
+  FROM email_hub_threads cur
+  WHERE cur.account_id = $1
+    AND cur.organization_id = $2
+    AND cur.body_cached = true
+    AND cur.sent_at < $3
+  FOR UPDATE
+) prev
+WHERE t.id = prev.id
+RETURNING prev.body_object_key
 `
 
 type ExpireEmailHubThreadBodiesBeforeParams struct {
@@ -689,6 +834,7 @@ type ExpireEmailHubThreadBodiesBeforeParams struct {
 	SentAt         pgtype.Timestamptz `json:"sent_at"`
 }
 
+// RETURNING sees the updated row, so the object key to delete comes from prev.
 func (q *Queries) ExpireEmailHubThreadBodiesBefore(ctx context.Context, arg ExpireEmailHubThreadBodiesBeforeParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, expireEmailHubThreadBodiesBefore, arg.AccountID, arg.OrganizationID, arg.SentAt)
 	if err != nil {
@@ -965,16 +1111,22 @@ func (q *Queries) InvalidateEmailHubEmptyBodies(ctx context.Context, arg Invalid
 }
 
 const invalidateEmailHubThreadBodiesByIDs = `-- name: InvalidateEmailHubThreadBodiesByIDs :many
-UPDATE email_hub_threads
+UPDATE email_hub_threads t
 SET body_text = NULL,
     body_html = NULL,
     body_object_key = '',
     body_cached = false,
     synced_at = now()
-WHERE account_id = $1
-  AND organization_id = $2
-  AND id = ANY($3::text[])
-RETURNING body_object_key
+FROM (
+  SELECT cur.id, cur.body_object_key
+  FROM email_hub_threads cur
+  WHERE cur.account_id = $1
+    AND cur.organization_id = $2
+    AND cur.id = ANY($3::text[])
+  FOR UPDATE
+) prev
+WHERE t.id = prev.id
+RETURNING prev.body_object_key
 `
 
 type InvalidateEmailHubThreadBodiesByIDsParams struct {
@@ -1004,13 +1156,14 @@ func (q *Queries) InvalidateEmailHubThreadBodiesByIDs(ctx context.Context, arg I
 }
 
 const invalidateEmailHubThreadBody = `-- name: InvalidateEmailHubThreadBody :one
-UPDATE email_hub_threads
+UPDATE email_hub_threads t
 SET body_text = NULL,
     body_html = NULL,
     body_object_key = '',
     body_cached = false
-WHERE id = $1
-RETURNING body_object_key
+FROM (SELECT cur.id, cur.body_object_key FROM email_hub_threads cur WHERE cur.id = $1 FOR UPDATE) prev
+WHERE t.id = prev.id
+RETURNING prev.body_object_key
 `
 
 // tenant: by-id
@@ -1037,50 +1190,6 @@ type ListEmailHubAccountsByUserParams struct {
 
 func (q *Queries) ListEmailHubAccountsByUser(ctx context.Context, arg ListEmailHubAccountsByUserParams) ([]EmailHubAccount, error) {
 	rows, err := q.db.Query(ctx, listEmailHubAccountsByUser, arg.UserID, arg.OrganizationID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []EmailHubAccount{}
-	for rows.Next() {
-		var i EmailHubAccount
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.OrganizationID,
-			&i.EmailAddress,
-			&i.Provider,
-			&i.ImapHost,
-			&i.ImapPort,
-			&i.SmtpHost,
-			&i.SmtpPort,
-			&i.PasswordEnc,
-			&i.SyncState,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DisconnectedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listEmailHubAccountsConnected = `-- name: ListEmailHubAccountsConnected :many
-SELECT id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at
-FROM email_hub_accounts
-WHERE disconnected_at IS NULL
-ORDER BY updated_at ASC
-LIMIT $1
-`
-
-// tenant: system
-func (q *Queries) ListEmailHubAccountsConnected(ctx context.Context, limit int32) ([]EmailHubAccount, error) {
-	rows, err := q.db.Query(ctx, listEmailHubAccountsConnected, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1339,40 +1448,83 @@ func (q *Queries) ListEmailHubDistinctImapLabels(ctx context.Context, arg ListEm
 	return items, nil
 }
 
+const listEmailHubInboxConversationMembers = `-- name: ListEmailHubInboxConversationMembers :many
+SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND folder = 'INBOX'
+  AND conversation_key = $3
+  AND conversation_key <> ''
+ORDER BY sent_at ASC, id ASC
+`
+
+type ListEmailHubInboxConversationMembersParams struct {
+	AccountID       string `json:"account_id"`
+	OrganizationID  string `json:"organization_id"`
+	ConversationKey string `json:"conversation_key"`
+}
+
+// Inbox triage acts on every INBOX message of a conversation (UNI-1124).
+func (q *Queries) ListEmailHubInboxConversationMembers(ctx context.Context, arg ListEmailHubInboxConversationMembersParams) ([]EmailHubThread, error) {
+	rows, err := q.db.Query(ctx, listEmailHubInboxConversationMembers, arg.AccountID, arg.OrganizationID, arg.ConversationKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmailHubThread{}
+	for rows.Next() {
+		var i EmailHubThread
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.OrganizationID,
+			&i.Folder,
+			&i.ImapUid,
+			&i.MessageID,
+			&i.Subject,
+			&i.Snippet,
+			&i.FromAddr,
+			&i.FromName,
+			&i.ToAddrs,
+			&i.SentAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.HasAttachments,
+			&i.BodyText,
+			&i.BodyHtml,
+			&i.BodyCached,
+			&i.SyncedAt,
+			&i.ImapLabels,
+			&i.SnoozedUntil,
+			&i.ConversationKey,
+			&i.BodyObjectKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEmailHubInboxConversationPage = `-- name: ListEmailHubInboxConversationPage :many
 SELECT t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id, t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at, t.is_read, t.is_starred, t.has_attachments, t.body_text, t.body_html, t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key, t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = $1
   AND t.organization_id = $2
+  -- The row stands for its conversation and inbox actions hit it, so it is the
+  -- newest INBOX message, never a reply in Sent (UNI-1124).
   AND t.id IN (
-    SELECT DISTINCT ON (partition_key) s.id
-    FROM (
-      SELECT
-        t2.id,
-        CASE WHEN t2.conversation_key = '' THEN t2.id ELSE t2.conversation_key END AS partition_key,
-        t2.sent_at
-      FROM email_hub_threads t2
-      WHERE t2.account_id = $1
-        AND t2.organization_id = $2
-        AND (
-          (
-            t2.folder = 'INBOX'
-            AND (t2.snoozed_until IS NULL OR t2.snoozed_until <= now())
-            AND t2.conversation_key = ''
-          )
-          OR (
-            CASE WHEN t2.conversation_key = '' THEN t2.id ELSE t2.conversation_key END IN (
-              SELECT CASE WHEN conversation_key = '' THEN id ELSE conversation_key END
-              FROM email_hub_threads
-              WHERE account_id = $1
-                AND organization_id = $2
-                AND folder = 'INBOX'
-                AND (snoozed_until IS NULL OR snoozed_until <= now())
-            )
-          )
-        )
-    ) s
-    ORDER BY s.partition_key, s.sent_at DESC, s.id DESC
+    SELECT DISTINCT ON (CASE WHEN t2.conversation_key = '' THEN t2.id ELSE t2.conversation_key END) t2.id
+    FROM email_hub_threads t2
+    WHERE t2.account_id = $1
+      AND t2.organization_id = $2
+      AND t2.folder = 'INBOX'
+      AND (t2.snoozed_until IS NULL OR t2.snoozed_until <= now())
+    ORDER BY CASE WHEN t2.conversation_key = '' THEN t2.id ELSE t2.conversation_key END, t2.sent_at DESC, t2.id DESC
   )
   AND (NOT $3 OR EXISTS (
     SELECT 1 FROM email_hub_threads u
@@ -1595,7 +1747,7 @@ WHERE account_id = $1
   AND organization_id = $2
   AND folder = $3
   AND body_cached = true
-ORDER BY sent_at ASC, id ASC
+ORDER BY sent_at DESC, id DESC
 OFFSET $4::int
 LIMIT $5::int
 `
@@ -1608,6 +1760,7 @@ type ListEmailHubThreadIDsExcessBodyCacheParams struct {
 	BatchLimit     int32  `json:"batch_limit"`
 }
 
+// Keep the newest keep_count bodies; the rest (oldest) are stripped.
 func (q *Queries) ListEmailHubThreadIDsExcessBodyCache(ctx context.Context, arg ListEmailHubThreadIDsExcessBodyCacheParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, listEmailHubThreadIDsExcessBodyCache,
 		arg.AccountID,
@@ -1822,20 +1975,21 @@ WHERE t.account_id = $1
     OR t.from_addr ILIKE '%' || $8 || '%'
     OR COALESCE(t.from_name, '') ILIKE '%' || $8 || '%'
     OR COALESCE(t.body_text, '') ILIKE '%' || $8 || '%'
+    OR t.id = ANY($9::text[])
   )
   AND (
-    $9::timestamptz IS NULL
-    OR t.sent_at < $9::timestamptz
+    $10::timestamptz IS NULL
+    OR t.sent_at < $10::timestamptz
     OR (
-      t.sent_at = $9::timestamptz
-      AND t.id < $10
+      t.sent_at = $10::timestamptz
+      AND t.id < $11
     )
   )
 ORDER BY
   CASE WHEN $4 = 'SNOOZED' THEN t.snoozed_until END ASC NULLS LAST,
   t.sent_at DESC,
   t.id DESC
-LIMIT $11
+LIMIT $12
 `
 
 type ListEmailHubThreadsPageParams struct {
@@ -1847,6 +2001,7 @@ type ListEmailHubThreadsPageParams struct {
 	HasAttachmentsOnly interface{}        `json:"has_attachments_only"`
 	FromFilter         interface{}        `json:"from_filter"`
 	Query              interface{}        `json:"query"`
+	HitIds             []string           `json:"hit_ids"`
 	BeforeSentAt       pgtype.Timestamptz `json:"before_sent_at"`
 	BeforeID           string             `json:"before_id"`
 	LimitVal           int32              `json:"limit_val"`
@@ -1862,6 +2017,7 @@ func (q *Queries) ListEmailHubThreadsPage(ctx context.Context, arg ListEmailHubT
 		arg.HasAttachmentsOnly,
 		arg.FromFilter,
 		arg.Query,
+		arg.HitIds,
 		arg.BeforeSentAt,
 		arg.BeforeID,
 		arg.LimitVal,
@@ -2064,17 +2220,19 @@ WHERE t.account_id = $1
     OR t.from_addr ILIKE '%' || $7 || '%'
     OR COALESCE(t.from_name, '') ILIKE '%' || $7 || '%'
     OR COALESCE(t.body_text, '') ILIKE '%' || $7 || '%'
+    -- IMAP SEARCH matched these by a body the cache does not hold.
+    OR t.id = ANY($8::text[])
   )
   AND (
-    $8::timestamptz IS NULL
-    OR t.sent_at < $8::timestamptz
+    $9::timestamptz IS NULL
+    OR t.sent_at < $9::timestamptz
     OR (
-      t.sent_at = $8::timestamptz
-      AND t.id < $9
+      t.sent_at = $9::timestamptz
+      AND t.id < $10
     )
   )
 ORDER BY t.sent_at DESC, t.id DESC
-LIMIT $10
+LIMIT $11
 `
 
 type ListEmailHubThreadsSearchPageParams struct {
@@ -2085,6 +2243,7 @@ type ListEmailHubThreadsSearchPageParams struct {
 	HasAttachmentsOnly interface{}        `json:"has_attachments_only"`
 	FromFilter         interface{}        `json:"from_filter"`
 	Query              pgtype.Text        `json:"query"`
+	HitIds             []string           `json:"hit_ids"`
 	BeforeSentAt       pgtype.Timestamptz `json:"before_sent_at"`
 	BeforeID           string             `json:"before_id"`
 	LimitVal           int32              `json:"limit_val"`
@@ -2099,6 +2258,7 @@ func (q *Queries) ListEmailHubThreadsSearchPage(ctx context.Context, arg ListEma
 		arg.HasAttachmentsOnly,
 		arg.FromFilter,
 		arg.Query,
+		arg.HitIds,
 		arg.BeforeSentAt,
 		arg.BeforeID,
 		arg.LimitVal,
@@ -2564,7 +2724,11 @@ ON CONFLICT (account_id, folder, imap_uid) DO UPDATE SET
     ELSE email_hub_threads.conversation_key
   END,
   subject = EXCLUDED.subject,
-  snippet = EXCLUDED.snippet,
+  -- A cached body wrote the snippet; IMAP metadata (search) only has the subject.
+  snippet = CASE
+    WHEN email_hub_threads.body_cached THEN email_hub_threads.snippet
+    ELSE EXCLUDED.snippet
+  END,
   from_addr = EXCLUDED.from_addr,
   from_name = EXCLUDED.from_name,
   to_addrs = EXCLUDED.to_addrs,

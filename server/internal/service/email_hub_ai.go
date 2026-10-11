@@ -173,26 +173,13 @@ func (s *EmailHubService) CreateTasksFromThreadSummary(
 	if err != nil {
 		return nil, err
 	}
-	candidates, err := s.loadWorkspaceAssigneeCandidates(ctx, ws.ID)
-	if err != nil {
-		return nil, err
-	}
-	anchor := view.SentAt
-	if anchor.IsZero() {
-		anchor = time.Now().UTC()
-	}
 	threadOrigin := threadID
 	subject := strings.TrimSpace(view.Subject)
 	out := make([]db.Task, 0, len(items))
 	for _, it := range items {
-		assigneeID := it.AssigneeID
-		if assigneeID == nil && strings.TrimSpace(it.Owner) != "" {
-			assigneeID = candidates.resolve(it.Owner)
-		}
-		dueDate := it.DueDate
-		if dueDate == nil && strings.TrimSpace(it.DueSpoken) != "" {
-			dueDate = parseMeetingDueSpoken(it.DueSpoken, anchor)
-		}
+		// The confirm dialog is the human decision (ADR 0010): an empty assignee
+		// or due date means "none", never "let the server guess from the AI text".
+		assigneeID, dueDate := it.AssigneeID, it.DueDate
 		desc := strings.TrimSpace(it.Description)
 		var extra []string
 		if strings.TrimSpace(it.Owner) != "" && assigneeID == nil {
@@ -224,24 +211,6 @@ func (s *EmailHubService) CreateTasksFromThreadSummary(
 			return out, err
 		}
 		out = append(out, t)
-	}
-	return out, nil
-}
-
-func (s *EmailHubService) loadWorkspaceAssigneeCandidates(ctx context.Context, workspaceID string) (assigneeCandidates, error) {
-	out := assigneeCandidates{byExact: make(map[string]string)}
-	members, err := s.q.ListWorkspaceMembers(ctx, workspaceID)
-	if err != nil {
-		return out, err
-	}
-	for _, m := range members {
-		name := strings.TrimSpace(m.DisplayName)
-		if name == "" {
-			continue
-		}
-		c := assigneeCandidate{UserID: m.UserID, Name: name}
-		out.all = append(out.all, c)
-		out.byExact[normalizePersonName(name)] = m.UserID
 	}
 	return out, nil
 }

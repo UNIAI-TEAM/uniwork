@@ -144,6 +144,28 @@ func TestLeavingOrBeingDeactivatedLeavesEveryRoomInTheOrganization(t *testing.T)
 	}
 }
 
+// Leaving the organization or deleting the account ends the person's Email Hub
+// mailboxes there for good: no more sync, no scheduled mail, no stored app
+// password, no cached mail (UNI-1106).
+func TestLeavingOrDeletingTheAccountDisconnectsEmailHub(t *testing.T) {
+	ctx := context.Background()
+	for _, how := range []string{"leave", "delete"} {
+		t.Run(how, func(t *testing.T) {
+			l := newEmailHubLifecycle(t)
+			var err error
+			if how == "leave" {
+				err = l.members.Leave(ctx, l.member.ID, l.ws.OrganizationID)
+			} else {
+				err = l.auth.DeleteAccount(ctx, l.member.ID, DeleteAccountInput{Password: "password123"})
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			l.assertRevoked(t)
+		})
+	}
+}
+
 func TestEndingASessionAnnouncesWhichOneToDisconnect(t *testing.T) {
 	desk, as := newDesktopTestServices(t)
 	ctx := context.Background()

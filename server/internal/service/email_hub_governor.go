@@ -28,16 +28,22 @@ type emailHubSearchIndexKey struct {
 	query  string
 }
 
+type emailHubSearchRun struct {
+	at   time.Time
+	hits []string
+}
+
 type emailHubAccountGate struct {
 	syncMu        sync.Mutex
 	imapMu        sync.Mutex
 	searchMu      sync.Mutex
 	watching      int32
 	interactive   int32
+	refusedLogins int32 // bare-NO LOGINs in a row on this node
 	lastInboxSync time.Time
 	lastFullSync  time.Time
-	lastSearchKey emailHubSearchIndexKey
-	lastSearchAt  time.Time
+	// One run per folder/query: a text search spans several folders at once.
+	searches map[emailHubSearchIndexKey]emailHubSearchRun
 }
 
 type emailHubGovernor struct {
@@ -91,6 +97,15 @@ func (g *emailHubGovernor) endWatch(accountID string) {
 
 func (g *emailHubGovernor) isWatching(accountID string) bool {
 	return atomic.LoadInt32(&g.gate(accountID).watching) > 0
+}
+
+// loginRefused counts one more bare-NO LOGIN and returns the run so far.
+func (g *emailHubGovernor) loginRefused(accountID string) int32 {
+	return atomic.AddInt32(&g.gate(accountID).refusedLogins, 1)
+}
+
+func (g *emailHubGovernor) loginSucceeded(accountID string) {
+	atomic.StoreInt32(&g.gate(accountID).refusedLogins, 0)
 }
 
 func (g *emailHubGovernor) beginInteractive(accountID string) {
@@ -178,18 +193,48 @@ func (g *emailHubGovernor) tryWithIMAP(accountID string, fn func() error) bool {
 	return true
 }
 
-// shouldIndexSearch reports whether an IMAP search should run for this folder/query pair.
-func (g *emailHubGovernor) shouldIndexSearch(accountID, folder, query string) bool {
+// shouldIndexSearch reports whether an IMAP search should run for this folder/query
+// pair; when it should not, it returns the thread ids the fresh run found.
+func (g *emailHubGovernor) shouldIndexSearch(accountID, folder, query string) ([]string, bool) {
 	key := emailHubSearchIndexKey{folder: folder, query: query}
 	gt := g.gate(accountID)
 	gt.searchMu.Lock()
 	defer gt.searchMu.Unlock()
-	if key == gt.lastSearchKey && !gt.lastSearchAt.IsZero() && time.Since(gt.lastSearchAt) < emailHubSearchIndexTTL {
-		return false
+	now := time.Now().UTC()
+	for k, r := range gt.searches {
+		if now.Sub(r.at) >= emailHubSearchIndexTTL {
+			delete(gt.searches, k)
+		}
 	}
-	gt.lastSearchKey = key
-	gt.lastSearchAt = time.Now().UTC()
-	return true
+	if r, ok := gt.searches[key]; ok {
+		return r.hits, false
+	}
+	if gt.searches == nil {
+		gt.searches = make(map[emailHubSearchIndexKey]emailHubSearchRun)
+	}
+	gt.searches[key] = emailHubSearchRun{at: now}
+	return nil, true
+}
+
+// rememberSearchHits keeps the hits of the run shouldIndexSearch let through, so a
+// repeat inside the TTL still lists the messages only IMAP could match.
+func (g *emailHubGovernor) rememberSearchHits(accountID, folder, query string, hits []string) {
+	key := emailHubSearchIndexKey{folder: folder, query: query}
+	gt := g.gate(accountID)
+	gt.searchMu.Lock()
+	defer gt.searchMu.Unlock()
+	if r, ok := gt.searches[key]; ok {
+		r.hits = hits
+		gt.searches[key] = r
+	}
+}
+
+// forgetSearch drops a run that never reached IMAP, so the next call retries it.
+func (g *emailHubGovernor) forgetSearch(accountID, folder, query string) {
+	gt := g.gate(accountID)
+	gt.searchMu.Lock()
+	defer gt.searchMu.Unlock()
+	delete(gt.searches, emailHubSearchIndexKey{folder: folder, query: query})
 }
 
 // trySync serializes sync per account and debounces unless force is set.

@@ -7,10 +7,7 @@ import (
 	"strings"
 
 	"github.com/emersion/go-imap"
-	"github.com/emersion/go-imap/client"
 )
-
-const maxAttachmentBytes = 25 << 20
 
 // AttachmentMeta describes one downloadable IMAP body part.
 type AttachmentMeta struct {
@@ -20,21 +17,22 @@ type AttachmentMeta struct {
 	Size     uint32
 }
 
-// FetchAttachment streams one attachment part for a UID in a mailbox.
-func FetchAttachment(c Credentials, mailbox string, uid uint32, partID string) (AttachmentMeta, io.ReadCloser, error) {
-	part, err := parsePartID(partID)
-	if err != nil {
-		return AttachmentMeta{}, nil, err
+// FetchAttachment reads one attachment part of a UID on this session and
+// returns its original bytes (Content-Transfer-Encoding decoded). It reads the
+// whole part so the caller can close the session, and free its global slot,
+// before streaming to a client that may be slow.
+func (s *Session) FetchAttachment(mailbox string, uid uint32, partID string) (AttachmentMeta, []byte, error) {
+	if s.cl == nil {
+		return AttachmentMeta{}, nil, fmt.Errorf("imap: session closed")
 	}
-	cl, err := dial(c)
+	part, err := parsePartID(partID)
 	if err != nil {
 		return AttachmentMeta{}, nil, err
 	}
 	if mailbox == "" {
 		mailbox = "INBOX"
 	}
-	if _, err := cl.Select(mailbox, false); err != nil {
-		_ = cl.Logout()
+	if _, err := s.cl.Select(mailbox, false); err != nil {
 		return AttachmentMeta{}, nil, fmt.Errorf("imap select %s: %w", mailbox, err)
 	}
 	seqset := new(imap.SeqSet)
@@ -42,54 +40,33 @@ func FetchAttachment(c Credentials, mailbox string, uid uint32, partID string) (
 	section := &imap.BodySectionName{BodyPartName: imap.BodyPartName{Path: part}}
 	items := []imap.FetchItem{section.FetchItem(), imap.FetchBodyStructure}
 	ch := make(chan *imap.Message, 1)
-	if err := cl.UidFetch(seqset, items, ch); err != nil {
-		_ = cl.Logout()
+	if err := s.cl.UidFetch(seqset, items, ch); err != nil {
 		return AttachmentMeta{}, nil, fmt.Errorf("imap uid fetch: %w", err)
 	}
 	msg, ok := <-ch
 	if !ok || msg == nil {
-		_ = cl.Logout()
 		return AttachmentMeta{}, nil, fmt.Errorf("imap: message not found")
 	}
-	meta := AttachmentMeta{PartID: partID}
-	if msg.BodyStructure != nil {
-		if bs := bodyPartAt(msg.BodyStructure, part); bs != nil {
-			meta.Filename = attachmentFilename(bs)
-			meta.MimeType = mimeType(bs)
-			meta.Size = bs.Size
+	meta := AttachmentMeta{PartID: partID, Filename: "attachment"}
+	encoding := ""
+	if bs := bodyPartAt(msg.BodyStructure, part); bs != nil {
+		if fn := attachmentFilename(bs); fn != "" {
+			meta.Filename = fn
 		}
-	}
-	if meta.Size > maxAttachmentBytes {
-		_ = cl.Logout()
-		return AttachmentMeta{}, nil, fmt.Errorf("attachment exceeds %d bytes", maxAttachmentBytes)
+		meta.MimeType = mimeType(bs)
+		meta.Size = bs.Size
+		encoding = bs.Encoding
 	}
 	r := msg.GetBody(section)
 	if r == nil {
-		_ = cl.Logout()
 		return AttachmentMeta{}, nil, fmt.Errorf("imap: empty attachment body")
 	}
-	if meta.Filename == "" {
-		meta.Filename = "attachment"
+	// BODY[part] keeps the transfer encoding (RFC 3501); the user wants the file.
+	data, err := io.ReadAll(decodeTransferEncoding(r, encoding))
+	if err != nil {
+		return AttachmentMeta{}, nil, fmt.Errorf("imap attachment decode: %w", err)
 	}
-	return meta, &fetchReadCloser{client: cl, reader: r}, nil
-}
-
-type fetchReadCloser struct {
-	client *client.Client
-	reader io.Reader
-	closed bool
-}
-
-func (f *fetchReadCloser) Read(p []byte) (int, error) {
-	return f.reader.Read(p)
-}
-
-func (f *fetchReadCloser) Close() error {
-	if f.closed {
-		return nil
-	}
-	f.closed = true
-	return f.client.Logout()
+	return meta, data, nil
 }
 
 func collectAttachments(bs *imap.BodyStructure, path []int, out *[]AttachmentMeta) {
@@ -128,17 +105,10 @@ func attachmentFilename(bs *imap.BodyStructure) string {
 	if bs == nil {
 		return ""
 	}
-	if bs.DispositionParams != nil {
-		if fn := bs.DispositionParams["filename"]; fn != "" {
-			return fn
-		}
-		if fn := bs.DispositionParams["name"]; fn != "" {
-			return fn
-		}
-	}
-	if bs.Params != nil {
-		if fn := bs.Params["name"]; fn != "" {
-			return fn
+	// Params are decoded encoded-words: NUL or bad bytes would fail the insert.
+	for _, fn := range []string{bs.DispositionParams["filename"], bs.DispositionParams["name"], bs.Params["name"]} {
+		if fn != "" {
+			return sanitizeUTF8(fn)
 		}
 	}
 	return ""

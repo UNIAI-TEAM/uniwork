@@ -43,7 +43,7 @@ func (b bytesReader) Read(p []byte) (int, error) {
 func TestHydrateThreadBodyFromObject(t *testing.T) {
 	mem := &memStorageGet{memStorage: *newMemStorage()}
 	key := bodystore.ObjectKey("acc", "thr")
-	data, err := bodystore.Encode("text", "<b>x</b>")
+	data, err := bodystore.Encode("text ?id=12345", "<b width=600>x</b>")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestHydrateThreadBodyFromObject(t *testing.T) {
 	if err := svc.hydrateThreadBodyFromObject(context.Background(), &view, row); err != nil {
 		t.Fatal(err)
 	}
-	if view.BodyText != "text" || view.BodyHTML != "<b>x</b>" {
+	if view.BodyText != "text ?id=12345" || view.BodyHTML != "<b width=600>x</b>" {
 		t.Fatalf("got text=%q html=%q", view.BodyText, view.BodyHTML)
 	}
 }

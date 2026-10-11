@@ -4,6 +4,10 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgtype"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestParseSendAttachmentsEmpty(t *testing.T) {
@@ -134,5 +138,25 @@ func TestValidateSendInput(t *testing.T) {
 	}
 	if err := validateSendInput(SendEmailHubInput{To: base.To, BodyText: "b", ReplyToThreadID: "th1"}); err != nil {
 		t.Fatal("reply may omit subject")
+	}
+}
+
+// A reply to M3 of M1 -> M2 -> M3 names the root and the parent, so the
+// recipient's client (and our own key) keeps the chain together.
+func TestReplyThreadingCarriesRootAndParent(t *testing.T) {
+	parent := db.EmailHubThread{
+		MessageID:       pgtype.Text{String: "<M3@x>", Valid: true},
+		ConversationKey: "mid:<m1@x>",
+	}
+	inReplyTo, refs := replyThreading(parent)
+	if inReplyTo != "<m3@x>" || refs != "<m1@x> <m3@x>" {
+		t.Fatalf("in-reply-to=%q references=%q", inReplyTo, refs)
+	}
+	parent.ConversationKey = "subj:acc:hi"
+	if _, refs := replyThreading(parent); refs != "<m3@x>" {
+		t.Fatalf("subject key: references=%q", refs)
+	}
+	if a, b := replyThreading(db.EmailHubThread{ConversationKey: "mid:<m1@x>"}); a != "" || b != "" {
+		t.Fatalf("parent without id: %q %q", a, b)
 	}
 }

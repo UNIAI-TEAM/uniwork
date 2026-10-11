@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -154,17 +153,15 @@ func (h *handlers) downloadEmailHubAttachment(w http.ResponseWriter, r *http.Req
 		h.mapServiceError(w, err)
 		return
 	}
-	defer body.Close()
 	filename := view.Filename
 	if filename == "" {
 		filename = "attachment"
 	}
 	w.Header().Set("Content-Type", view.MimeType)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
-	if view.SizeBytes > 0 {
-		w.Header().Set("Content-Length", strconv.FormatInt(view.SizeBytes, 10))
-	}
-	if _, err := io.Copy(w, body); err != nil {
+	// The decoded length: SizeBytes is the encoded size IMAP reported.
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	if _, err := w.Write(body); err != nil {
 		h.Log.Warn("email hub attachment stream", "err", err)
 	}
 }
@@ -204,9 +201,13 @@ func (h *handlers) getEmailHubThread(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, toEmailHubThreadSDO(thread))
 }
 
+// emailHubSendMaxBody fits 15 MiB of attachments grown by 4/3 as base64, plus
+// headers and body text; the service still caps each file and the total.
+const emailHubSendMaxBody = 21 << 20
+
 func (h *handlers) sendEmailHub(w http.ResponseWriter, r *http.Request) {
 	var in sdi.SendEmailHubSDI
-	if !decode(w, r, &in, maxJSONBody) {
+	if !decode(w, r, &in, emailHubSendMaxBody) {
 		return
 	}
 	attachments, err := parseSendEmailHubAttachments(in.Attachments)

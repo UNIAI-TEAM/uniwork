@@ -30,12 +30,24 @@ FROM email_hub_accounts
 WHERE id = $1;
 
 -- name: DisconnectEmailHubAccount :execrows
+-- A disconnected mailbox is never used again (a reconnect gets a new id), so
+-- its app password goes with it.
 UPDATE email_hub_accounts
-SET disconnected_at = now(), updated_at = now()
+SET disconnected_at = now(), password_enc = '', updated_at = now()
 WHERE id = $1
   AND user_id = $2
   AND organization_id = $3
   AND disconnected_at IS NULL;
+
+-- name: DisconnectEmailHubAccountsForUser :many
+-- tenant: self
+-- Account deletion (organization_id NULL: every organization) or leaving one.
+UPDATE email_hub_accounts
+SET disconnected_at = now(), password_enc = '', updated_at = now()
+WHERE user_id = sqlc.arg('user_id')
+  AND (sqlc.narg('organization_id')::text IS NULL OR organization_id = sqlc.narg('organization_id'))
+  AND disconnected_at IS NULL
+RETURNING id, organization_id;
 
 -- name: UpdateEmailHubAccountSyncState :exec
 UPDATE email_hub_accounts
@@ -58,7 +70,11 @@ ON CONFLICT (account_id, folder, imap_uid) DO UPDATE SET
     ELSE email_hub_threads.conversation_key
   END,
   subject = EXCLUDED.subject,
-  snippet = EXCLUDED.snippet,
+  -- A cached body wrote the snippet; IMAP metadata (search) only has the subject.
+  snippet = CASE
+    WHEN email_hub_threads.body_cached THEN email_hub_threads.snippet
+    ELSE EXCLUDED.snippet
+  END,
   from_addr = EXCLUDED.from_addr,
   from_name = EXCLUDED.from_name,
   to_addrs = EXCLUDED.to_addrs,
@@ -140,17 +156,24 @@ OFFSET sqlc.arg('keep_count')::int
 LIMIT sqlc.arg('batch_limit')::int;
 
 -- name: ExpireEmailHubThreadBodiesBefore :many
-UPDATE email_hub_threads
+-- RETURNING sees the updated row, so the object key to delete comes from prev.
+UPDATE email_hub_threads t
 SET body_text = NULL,
     body_html = NULL,
     body_object_key = '',
     body_cached = false,
     synced_at = now()
-WHERE account_id = $1
-  AND organization_id = $2
-  AND body_cached = true
-  AND sent_at < $3
-RETURNING body_object_key;
+FROM (
+  SELECT cur.id, cur.body_object_key
+  FROM email_hub_threads cur
+  WHERE cur.account_id = $1
+    AND cur.organization_id = $2
+    AND cur.body_cached = true
+    AND cur.sent_at < $3
+  FOR UPDATE
+) prev
+WHERE t.id = prev.id
+RETURNING prev.body_object_key;
 
 -- name: ListEmailHubThreadIDsExcessBodyCache :many
 SELECT id
@@ -159,21 +182,28 @@ WHERE account_id = sqlc.arg('account_id')
   AND organization_id = sqlc.arg('organization_id')
   AND folder = sqlc.arg('folder')
   AND body_cached = true
-ORDER BY sent_at ASC, id ASC
+-- Keep the newest keep_count bodies; the rest (oldest) are stripped.
+ORDER BY sent_at DESC, id DESC
 OFFSET sqlc.arg('keep_count')::int
 LIMIT sqlc.arg('batch_limit')::int;
 
 -- name: InvalidateEmailHubThreadBodiesByIDs :many
-UPDATE email_hub_threads
+UPDATE email_hub_threads t
 SET body_text = NULL,
     body_html = NULL,
     body_object_key = '',
     body_cached = false,
     synced_at = now()
-WHERE account_id = $1
-  AND organization_id = $2
-  AND id = ANY($3::text[])
-RETURNING body_object_key;
+FROM (
+  SELECT cur.id, cur.body_object_key
+  FROM email_hub_threads cur
+  WHERE cur.account_id = $1
+    AND cur.organization_id = $2
+    AND cur.id = ANY($3::text[])
+  FOR UPDATE
+) prev
+WHERE t.id = prev.id
+RETURNING prev.body_object_key;
 
 -- name: DeleteEmailHubAttachmentsForThreads :exec
 -- tenant: parent thread_id
@@ -230,13 +260,14 @@ WHERE id = $1
 
 -- name: InvalidateEmailHubThreadBody :one
 -- tenant: by-id
-UPDATE email_hub_threads
+UPDATE email_hub_threads t
 SET body_text = NULL,
     body_html = NULL,
     body_object_key = '',
     body_cached = false
-WHERE id = $1
-RETURNING body_object_key;
+FROM (SELECT cur.id, cur.body_object_key FROM email_hub_threads cur WHERE cur.id = $1 FOR UPDATE) prev
+WHERE t.id = prev.id
+RETURNING prev.body_object_key;
 
 -- name: InvalidateEmailHubEmptyBodies :exec
 UPDATE email_hub_threads
@@ -340,13 +371,28 @@ WHERE id = sqlc.arg('id')
   AND organization_id = sqlc.arg('organization_id')
 RETURNING *;
 
--- name: ListEmailHubAccountsConnected :many
+-- name: ClaimEmailHubAccountsForSync :many
 -- tenant: system
-SELECT *
-FROM email_hub_accounts
-WHERE disconnected_at IS NULL
-ORDER BY updated_at ASC
-LIMIT $1;
+-- Bumping updated_at on every attempt rotates failing accounts to the back of
+-- the queue, and SKIP LOCKED hands concurrent nodes disjoint batches.
+UPDATE email_hub_accounts SET updated_at = now()
+WHERE id IN (
+  SELECT id FROM email_hub_accounts
+  WHERE disconnected_at IS NULL
+    -- The owner must still pass both membership gates (UNI-1106).
+    AND EXISTS (
+      SELECT 1 FROM organization_members m
+      JOIN organizations o ON o.id = m.organization_id
+      WHERE m.user_id = email_hub_accounts.user_id
+        AND m.organization_id = email_hub_accounts.organization_id
+        AND m.deactivated_at IS NULL
+        AND o.status = 'active'
+    )
+  ORDER BY updated_at ASC
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
 
 -- name: ListEmailHubThreadUIDsByFolder :many
 SELECT imap_uid
@@ -360,6 +406,7 @@ DELETE FROM email_hub_threads
 WHERE account_id = $1
   AND organization_id = $2
   AND folder = $3
+  AND imap_uid >= sqlc.arg('min_uid')
   AND NOT (imap_uid = ANY($4::integer[]));
 
 -- name: DeleteEmailHubThreadsInFolder :exec
@@ -397,35 +444,16 @@ SELECT t.*
 FROM email_hub_threads t
 WHERE t.account_id = sqlc.arg('account_id')
   AND t.organization_id = sqlc.arg('organization_id')
+  -- The row stands for its conversation and inbox actions hit it, so it is the
+  -- newest INBOX message, never a reply in Sent (UNI-1124).
   AND t.id IN (
-    SELECT DISTINCT ON (partition_key) s.id
-    FROM (
-      SELECT
-        t2.id,
-        CASE WHEN t2.conversation_key = '' THEN t2.id ELSE t2.conversation_key END AS partition_key,
-        t2.sent_at
-      FROM email_hub_threads t2
-      WHERE t2.account_id = sqlc.arg('account_id')
-        AND t2.organization_id = sqlc.arg('organization_id')
-        AND (
-          (
-            t2.folder = 'INBOX'
-            AND (t2.snoozed_until IS NULL OR t2.snoozed_until <= now())
-            AND t2.conversation_key = ''
-          )
-          OR (
-            CASE WHEN t2.conversation_key = '' THEN t2.id ELSE t2.conversation_key END IN (
-              SELECT CASE WHEN conversation_key = '' THEN id ELSE conversation_key END
-              FROM email_hub_threads
-              WHERE account_id = sqlc.arg('account_id')
-                AND organization_id = sqlc.arg('organization_id')
-                AND folder = 'INBOX'
-                AND (snoozed_until IS NULL OR snoozed_until <= now())
-            )
-          )
-        )
-    ) s
-    ORDER BY s.partition_key, s.sent_at DESC, s.id DESC
+    SELECT DISTINCT ON (CASE WHEN t2.conversation_key = '' THEN t2.id ELSE t2.conversation_key END) t2.id
+    FROM email_hub_threads t2
+    WHERE t2.account_id = sqlc.arg('account_id')
+      AND t2.organization_id = sqlc.arg('organization_id')
+      AND t2.folder = 'INBOX'
+      AND (t2.snoozed_until IS NULL OR t2.snoozed_until <= now())
+    ORDER BY CASE WHEN t2.conversation_key = '' THEN t2.id ELSE t2.conversation_key END, t2.sent_at DESC, t2.id DESC
   )
   AND (NOT sqlc.arg('unread_only') OR EXISTS (
     SELECT 1 FROM email_hub_threads u
@@ -461,6 +489,17 @@ WHERE t.account_id = sqlc.arg('account_id')
   )
 ORDER BY t.sent_at DESC, t.id DESC
 LIMIT sqlc.arg('limit_val');
+
+-- name: ListEmailHubInboxConversationMembers :many
+-- Inbox triage acts on every INBOX message of a conversation (UNI-1124).
+SELECT *
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND folder = 'INBOX'
+  AND conversation_key = $3
+  AND conversation_key <> ''
+ORDER BY sent_at ASC, id ASC;
 
 -- name: CountEmailHubInboxConversations :one
 SELECT
@@ -531,6 +570,7 @@ WHERE t.account_id = sqlc.arg('account_id')
     OR t.from_addr ILIKE '%' || sqlc.arg('query') || '%'
     OR COALESCE(t.from_name, '') ILIKE '%' || sqlc.arg('query') || '%'
     OR COALESCE(t.body_text, '') ILIKE '%' || sqlc.arg('query') || '%'
+    OR t.id = ANY(sqlc.arg('hit_ids')::text[])
   )
   AND (
     sqlc.narg('before_sent_at')::timestamptz IS NULL
@@ -565,6 +605,8 @@ WHERE t.account_id = sqlc.arg('account_id')
     OR t.from_addr ILIKE '%' || sqlc.arg('query') || '%'
     OR COALESCE(t.from_name, '') ILIKE '%' || sqlc.arg('query') || '%'
     OR COALESCE(t.body_text, '') ILIKE '%' || sqlc.arg('query') || '%'
+    -- IMAP SEARCH matched these by a body the cache does not hold.
+    OR t.id = ANY(sqlc.arg('hit_ids')::text[])
   )
   AND (
     sqlc.narg('before_sent_at')::timestamptz IS NULL
@@ -596,6 +638,8 @@ WHERE t.account_id = sqlc.arg('account_id')
     OR t.from_addr ILIKE '%' || sqlc.arg('query') || '%'
     OR COALESCE(t.from_name, '') ILIKE '%' || sqlc.arg('query') || '%'
     OR COALESCE(t.body_text, '') ILIKE '%' || sqlc.arg('query') || '%'
+    -- IMAP SEARCH matched these by a body the cache does not hold.
+    OR t.id = ANY(sqlc.arg('hit_ids')::text[])
   );
 
 -- name: DeleteEmailHubAttachmentsForThread :exec
@@ -663,6 +707,17 @@ WHERE id IN (
   FROM email_hub_scheduled_sends
   WHERE email_hub_scheduled_sends.status = 'pending'
     AND email_hub_scheduled_sends.send_at <= sqlc.arg('now')
+    -- Only from a connected mailbox whose owner still passes both membership
+    -- gates (UNI-1106); a lifted block lets the row go out on a later tick.
+    AND EXISTS (
+      SELECT 1 FROM email_hub_accounts a
+      JOIN organization_members m ON m.user_id = a.user_id AND m.organization_id = a.organization_id
+      JOIN organizations o ON o.id = a.organization_id
+      WHERE a.id = email_hub_scheduled_sends.account_id
+        AND a.disconnected_at IS NULL
+        AND m.deactivated_at IS NULL
+        AND o.status = 'active'
+    )
   ORDER BY email_hub_scheduled_sends.send_at ASC, email_hub_scheduled_sends.id ASC
   LIMIT sqlc.arg('limit_n')
   FOR UPDATE SKIP LOCKED
@@ -712,6 +767,14 @@ WHERE id = $1
   AND workspace_id = $2
   AND account_id = $3
   AND user_id = $4
+  AND status IN ('pending', 'failed');
+
+-- name: CancelEmailHubScheduledSendsForAccount :exec
+-- A disconnected mailbox's queue: nobody can reach it again to send or retry.
+UPDATE email_hub_scheduled_sends
+SET status = 'cancelled'
+WHERE account_id = $1
+  AND organization_id = $2
   AND status IN ('pending', 'failed');
 
 -- name: RetryEmailHubScheduledSend :execrows

@@ -62,6 +62,12 @@ func TestAccountAndThreadViews(t *testing.T) {
 		t.Fatalf("thread view: %+v", thread)
 	}
 
+	// Cached bodies are already decoded; "=XX" in attributes is content, not quoted-printable.
+	html := `<td width=600 bgcolor=000000><a href="?id=12345">x</a></td>`
+	if got := threadView(db.EmailHubThread{BodyHtml: pgtype.Text{String: html, Valid: true}}); got.BodyHTML != html {
+		t.Fatalf("thread view rewrote cached html: %q", got.BodyHTML)
+	}
+
 	att := attachmentView(db.EmailHubAttachment{
 		ID: "att-1", ThreadID: "t1", Filename: "doc.pdf", MimeType: "application/pdf", SizeBytes: 42, PartID: "1",
 	})

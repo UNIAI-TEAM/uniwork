@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -205,7 +206,7 @@ func (s *EmailHubService) syncAccountFolderSession(
 		}
 	}
 
-	if err := s.upsertThreadItems(ctx, acc, logicalFolder, result.Items); err != nil {
+	if _, err := s.upsertThreadItems(ctx, acc, logicalFolder, result.Items); err != nil {
 		return state, 0, err
 	}
 	s.enforceEmailHubFolderRetention(ctx, acc, logicalFolder)
@@ -240,8 +241,11 @@ func (s *EmailHubService) pruneReconciledFolderCache(
 		})
 	}
 	keep := emailHubReconcileKeepUIDs(items)
+	// The window is the newest UIDs only; rows below it (backfilled, starred,
+	// snoozed) were not checked, so retention decides about them, not this prune.
 	return s.q.DeleteEmailHubThreadsNotInUIDs(ctx, db.DeleteEmailHubThreadsNotInUIDsParams{
 		AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: logicalFolder, Column4: keep,
+		MinUid: slices.Min(keep),
 	})
 }
 
@@ -316,8 +320,10 @@ func (s *EmailHubService) syncSingleFolder(
 		return false, 0, nil
 	}
 	if err != nil {
+		s.disconnectOnAuthFailure(ctx, acc, err)
 		return false, 0, err
 	}
+	s.gov.loginSucceeded(acc.ID)
 	raw, err := json.Marshal(state)
 	if err != nil {
 		return false, 0, err
@@ -333,14 +339,16 @@ func (s *EmailHubService) syncSingleFolder(
 	return true, newUnread, nil
 }
 
-func (s *EmailHubService) upsertThreadItems(ctx context.Context, acc db.EmailHubAccount, logicalFolder string, items []imapclient.ThreadMeta) error {
+// upsertThreadItems caches items and returns the ids of the rows it wrote.
+func (s *EmailHubService) upsertThreadItems(ctx context.Context, acc db.EmailHubAccount, logicalFolder string, items []imapclient.ThreadMeta) ([]string, error) {
 	var lastErr error
+	ids := make([]string, 0, len(items))
 	for _, it := range items {
 		toAddrs := it.ToAddrs
 		if toAddrs == nil {
 			toAddrs = []string{}
 		}
-		convKey := emailhub.ConversationKey(acc.ID, it.Subject, it.MessageID, it.InReplyTo)
+		convKey := emailhub.ConversationKey(acc.ID, it.Subject, it.MessageID, it.InReplyTo, it.References)
 		row, err := s.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
 			ID: util.NewID(), AccountID: acc.ID, OrganizationID: acc.OrganizationID,
 			Folder: logicalFolder, ImapUid: int32(it.UID), MessageID: pgtype.Text{String: it.MessageID, Valid: it.MessageID != ""},
@@ -356,6 +364,7 @@ func (s *EmailHubService) upsertThreadItems(ctx context.Context, acc db.EmailHub
 			lastErr = err
 			continue
 		}
+		ids = append(ids, row.ID)
 		if len(it.Attachments) > 0 {
 			if err := s.replaceThreadAttachments(ctx, acc, row.ID, it.Attachments); err != nil {
 				s.log.Warn("email hub attachments upsert failed",
@@ -367,7 +376,7 @@ func (s *EmailHubService) upsertThreadItems(ctx context.Context, acc db.EmailHub
 			s.maybeCacheBodyFromSync(ctx, row, imapclient.ThreadBody{Text: it.BodyText, HTML: it.BodyHTML})
 		}
 	}
-	return lastErr
+	return ids, lastErr
 }
 
 // WatchInbox waits for an IMAP IDLE signal on INBOX and syncs when needed.
@@ -471,9 +480,9 @@ func (s *EmailHubService) RunWorkers(ctx context.Context) {
 }
 
 func (s *EmailHubService) runWorkerBatch(ctx context.Context, reconcile bool) {
-	rows, err := s.q.ListEmailHubAccountsConnected(ctx, emailHubWorkerBatch)
+	rows, err := s.q.ClaimEmailHubAccountsForSync(ctx, emailHubWorkerBatch)
 	if err != nil {
-		s.log.Warn("email hub worker list accounts", "err", err)
+		s.log.Warn("email hub worker claim accounts", "err", err)
 		return
 	}
 	sem := make(chan struct{}, emailHubWorkerParallel)
@@ -491,6 +500,12 @@ func (s *EmailHubService) runWorkerBatch(ctx context.Context, reconcile bool) {
 		acc := acc
 		go func() {
 			defer wg.Done()
+			// A background goroutine panic kills the process; one bad message must not.
+			defer func() {
+				if r := recover(); r != nil {
+					s.log.Error("email hub worker sync panic", "account_id", acc.ID, "recovered", r)
+				}
+			}()
 			select {
 			case sem <- struct{}{}:
 				defer func() { <-sem }()

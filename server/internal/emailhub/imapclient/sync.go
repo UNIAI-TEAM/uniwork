@@ -119,7 +119,7 @@ func fetchMessages(cl *client.Client, seqset *imap.SeqSet, byUID bool, withBody,
 	var section *imap.BodySectionName
 	items := []imap.FetchItem{
 		imap.FetchUid, imap.FetchFlags, imap.FetchEnvelope,
-		imap.FetchInternalDate, imap.FetchBodyStructure,
+		imap.FetchInternalDate, imap.FetchBodyStructure, referencesSection.FetchItem(),
 	}
 	if gmailLabels {
 		items = append(items, fetchGmailLabels)
