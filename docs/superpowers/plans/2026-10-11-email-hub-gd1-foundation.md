@@ -1,6 +1,6 @@
 # Email Hub GĐ1 — nền tảng xác thực, TLS, chống SSRF và "cần kết nối lại" (UNI-1237)
 
-> **Trạng thái:** in-progress — plan GĐ1 của spec OAuth/máy chủ tùy chỉnh; thực thi bằng subagent-driven-development trên nhánh `feature/UNI-1237-email-hub-gd1-nen-tang-migration-netguar` (2026-10-11).
+> **Trạng thái:** in-progress — GĐ1 đã triển khai và kiểm chứng trên nhánh `feature/UNI-1237-email-hub-gd1-nen-tang-migration-netguar` (2026-10-11); PR chờ review toàn nhánh.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

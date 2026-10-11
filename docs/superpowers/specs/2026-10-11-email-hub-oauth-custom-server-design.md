@@ -1,9 +1,9 @@
 # Email Hub mở rộng: OAuth Google/Microsoft và máy chủ IMAP/SMTP tùy chỉnh
 
-> **Trạng thái:** in-progress — thiết kế đã duyệt từng phần trong phiên brainstorm (2026-10-11, quangpd); spec đã qua một vòng review đối kháng (độ chính xác so với mã, bảo mật, quy tắc repo) và chờ duyệt. Chưa có kế hoạch thực thi.
+> **Trạng thái:** in-progress — spec đã duyệt (2026-10-11, quangpd). GĐ1 (UNI-1237) triển khai theo plan GĐ1 trong `docs/superpowers/plans/`, PR mở vào `develop`; GĐ2 (máy chủ tùy chỉnh) và GĐ3 (OAuth) chưa bắt đầu.
 
 **Module:** Email Hub (ADR 0022 — cache thư trong Postgres/S3).
-**Issue:** chưa tạo — cần một issue cha và ba sub-issue (GĐ1–GĐ3, §9). Gộp vào đây UNI-1130, UNI-1132, UNI-1197, UNI-1202 vì cùng chạm `Connect` và tầng dial.
+**Issue:** GĐ1 = UNI-1237; GĐ2, GĐ3 chưa có issue. Gộp vào đây UNI-1130, UNI-1132, UNI-1197, UNI-1202 vì cùng chạm `Connect` và tầng dial.
 
 ## 1. Mục tiêu
 
