@@ -30,7 +30,11 @@ describe("email hub html wrapper", () => {
     const html = '<p>Hi</p><img src="https://track.example.com/p.gif">';
     expect(wrapEmailHtml(html)).toContain("Content-Security-Policy");
     expect(wrapEmailHtml(html)).toMatch(/img-src data: cid:/);
-    expect(wrapEmailHtml(html, { allowRemote: true })).not.toContain("Content-Security-Policy");
+    const allowed = wrapEmailHtml(html, { allowRemote: true });
+    expect(allowed).toMatch(/img-src \* data: cid: blob:/);
+    // Letting images through must not let anything else run: the sandbox is not the only guard.
+    expect(allowed).toMatch(/default-src 'none'/);
+    expect(allowed).not.toMatch(/script-src|frame-src|connect-src/);
   });
 
   it("puts the policy before the email's own head content", () => {

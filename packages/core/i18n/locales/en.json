@@ -1452,6 +1452,13 @@
     },
     "remote_blocked": "Images from outside servers are off, so the sender can't tell you opened this email.",
     "remote_show": "Show images",
+    "remote_trust": "Always show images from this sender",
+    "remote_trusted": "Showing images because you trust {{email}}.",
+    "remote_untrust": "Stop trusting",
+    "trusted_senders": "Senders with images on",
+    "trusted_senders_description": "Images in email from these addresses show on their own, so the sender can tell you opened it. The list is kept on this device only.",
+    "trusted_senders_empty": "No senders yet. Choose \"Always show images from this sender\" on an email to add one.",
+    "trusted_senders_remove": "Remove {{email}}",
     "conversation_count": "{{count}} messages in this conversation"
   },
   "tasks": {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronsUpDown, Plus, Unplug } from "lucide-react";
+import { ChevronsUpDown, Images, Plus, Unplug } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubAccount } from "@uniwork/core/types/email-hub";
 import {
@@ -17,6 +17,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
+import { EmailHubTrustedSendersDialog } from "./email-hub-trusted-senders-dialog";
 import { EmailSenderAvatar } from "./email-hub-view-parts";
 
 export interface EmailHubAccountMenuProps {
@@ -45,6 +46,7 @@ export function EmailHubAccountMenu({
 }: EmailHubAccountMenuProps & { className?: string; compact?: boolean }) {
   const { t } = useTranslation();
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [trustedOpen, setTrustedOpen] = useState(false);
   const active = accounts.find((acc) => acc.id === activeAccountId) ?? null;
   const confirming = accounts.find((acc) => acc.id === confirmId) ?? null;
 
@@ -95,6 +97,12 @@ export function EmailHubAccountMenu({
             {t("email_hub.add_account")}
           </DropdownMenuItem>
           {active ? (
+            <DropdownMenuItem onClick={() => setTrustedOpen(true)}>
+              <Images aria-hidden />
+              {t("email_hub.trusted_senders")}
+            </DropdownMenuItem>
+          ) : null}
+          {active ? (
             <DropdownMenuItem variant="destructive" onClick={() => setConfirmId(active.id)}>
               <Unplug aria-hidden />
               {t("email_hub.disconnect_named", { email: active.email_address })}
@@ -102,6 +110,9 @@ export function EmailHubAccountMenu({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      {active ? (
+        <EmailHubTrustedSendersDialog accountId={active.id} open={trustedOpen} onOpenChange={setTrustedOpen} />
+      ) : null}
       <ConfirmDialog
         open={!!confirming}
         onOpenChange={(open) => {
