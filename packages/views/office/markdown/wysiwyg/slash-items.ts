@@ -14,8 +14,8 @@
  */
 import type { Editor, Range } from "@tiptap/core";
 import {
-  AlignLeft,
-  Code2,
+  TextAlignStart,
+  CodeXml,
   Heading1,
   Heading2,
   Heading3,
@@ -71,7 +71,7 @@ export interface MarkdownSlashItem {
 
 /** Every item the Markdown slash menu offers, in the brief's order. */
 export const MARKDOWN_SLASH_ITEMS: readonly MarkdownSlashItem[] = [
-  { id: "paragraph", icon: AlignLeft, aliases: ["text", "body"] },
+  { id: "paragraph", icon: TextAlignStart, aliases: ["text", "body"] },
   { id: "heading1", icon: Heading1, aliases: ["h1", "title"] },
   { id: "heading2", icon: Heading2, aliases: ["h2"] },
   { id: "heading3", icon: Heading3, aliases: ["h3"] },
@@ -79,7 +79,7 @@ export const MARKDOWN_SLASH_ITEMS: readonly MarkdownSlashItem[] = [
   { id: "orderedList", icon: ListOrdered, aliases: ["numbered", "ordered", "ol"] },
   { id: "taskList", icon: ListTodo, aliases: ["task", "todo", "checkbox", "checklist"] },
   { id: "quote", icon: Quote, aliases: ["blockquote", "citation"] },
-  { id: "codeBlock", icon: Code2, aliases: ["code", "fence", "pre"] },
+  { id: "codeBlock", icon: CodeXml, aliases: ["code", "fence", "pre"] },
   { id: "table", icon: Table2, aliases: ["grid"] },
   { id: "hr", icon: Minus, aliases: ["divider", "rule", "separator"] },
   { id: "math", icon: Sigma, aliases: ["formula", "latex", "katex", "equation"] },

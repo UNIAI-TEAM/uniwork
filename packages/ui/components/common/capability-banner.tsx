@@ -55,7 +55,7 @@ export function CapabilityBanner({
         className,
       )}
     >
-      <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <Lock className="size-3.5 shrink-0" aria-hidden />
       <span>{message}</span>
     </div>
   );

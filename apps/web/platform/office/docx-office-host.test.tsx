@@ -70,11 +70,24 @@ describe("DOCX web host", () => {
     expect(container.querySelector("[data-warnings='']")).not.toBeNull();
   });
 
-  it("does not bind an editing adapter for a readonly document", async () => {
+  it("binds a read-only viewer for a readonly document so the member sees the content", async () => {
     await mount("doc-1", true);
-    expect(mocks.adapter).not.toHaveBeenCalled();
-    expect(container.querySelector("[data-bound=false]")).not.toBeNull();
+    // A viewer needs a view: the adapter is bound, and its capability row is readonly, never available.
+    expect(mocks.adapter).toHaveBeenCalledTimes(1);
+    expect(mocks.adapter).toHaveBeenCalledWith(expect.objectContaining({
+      capability: expect.objectContaining({ format: "docx", operation: "serialize", status: "readonly" }),
+    }));
+    expect(container.querySelector("[data-bound=true]")).not.toBeNull();
     expect(container.querySelector("[data-capability=readonly]")).not.toBeNull();
+    await act(async () => root.unmount());
+    expect(mocks.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the unavailable row when the DOCX viewer cannot load for a readonly document", async () => {
+    mocks.adapter.mockImplementation(() => { throw new Error("engine_load_failed"); });
+    await mount("doc-1", true);
+    expect(container.querySelector("[data-bound=false]")).not.toBeNull();
+    expect(container.querySelector("[data-capability=unavailable]")).not.toBeNull();
   });
 
   it("fails closed when the browser engine module cannot load", async () => {

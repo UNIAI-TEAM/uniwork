@@ -160,7 +160,8 @@ export function DocxEditor<TSnapshot = unknown>({
     setFailure(null);
 
     const run = async () => {
-      if (activeCapability?.operation !== "serialize" || activeCapability.status !== "available") {
+      // A readonly row opens the document read-only (view-only member): `readOnly` above keeps every edit and Save closed.
+      if (activeCapability?.operation !== "serialize" || (activeCapability.status !== "available" && activeCapability.status !== "readonly")) {
         const blocked: DocxOpenFailure = {
           outcome: "failed",
           document_id: documentKey,

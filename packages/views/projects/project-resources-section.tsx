@@ -18,13 +18,16 @@ import { resourceDisplayLabel } from "./resource-display-label";
  * Project resources sidebar: list + rename/delete for existing rows.
  * GitHub / local_directory *add* controls stay capability-gated stubs
  * (`tasks.vcs` / `tasks.local_workdir`) — no GitHub SDK or local daemon.
+ * `readOnly` lists the resources without any control that changes them.
  */
 export function ProjectResourcesSection({
   workspaceId,
   projectId,
+  readOnly = false,
 }: {
   workspaceId: string;
   projectId: string;
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const { data } = useProjectResources(workspaceId, projectId);
@@ -77,28 +80,33 @@ export function ProjectResourcesSection({
               <ResourceRow
                 key={resource.id}
                 resource={resource}
+                readOnly={readOnly}
                 onRemove={() => void handleRemove(resource)}
                 onRename={(label) => void handleRename(resource, label)}
               />
             ))}
           </div>
         )}
-        <CapabilityDisabledControl
-          capabilityKey="tasks.vcs"
-          label={t("projects.resources.add_github")}
-          testId="project-resources-add-github"
-        >
-          <FolderGit className="size-3" aria-hidden />
-          {t("projects.resources.add_github")}
-        </CapabilityDisabledControl>
-        <CapabilityDisabledControl
-          capabilityKey="tasks.local_workdir"
-          label={t("projects.resources.add_local_directory")}
-          testId="project-resources-add-local-directory"
-        >
-          <FolderOpen className="size-3" aria-hidden />
-          {t("projects.resources.add_local_directory")}
-        </CapabilityDisabledControl>
+        {readOnly ? null : (
+          <>
+            <CapabilityDisabledControl
+              capabilityKey="tasks.vcs"
+              label={t("projects.resources.add_github")}
+              testId="project-resources-add-github"
+            >
+              <FolderGit className="size-3" aria-hidden />
+              {t("projects.resources.add_github")}
+            </CapabilityDisabledControl>
+            <CapabilityDisabledControl
+              capabilityKey="tasks.local_workdir"
+              label={t("projects.resources.add_local_directory")}
+              testId="project-resources-add-local-directory"
+            >
+              <FolderOpen className="size-3" aria-hidden />
+              {t("projects.resources.add_local_directory")}
+            </CapabilityDisabledControl>
+          </>
+        )}
       </div>
     </SidebarSection>
   );
@@ -106,10 +114,12 @@ export function ProjectResourcesSection({
 
 function ResourceRow({
   resource,
+  readOnly,
   onRemove,
   onRename,
 }: {
   resource: ProjectResource;
+  readOnly: boolean;
   onRemove: () => void;
   onRename: (label: string) => void;
 }) {
@@ -162,7 +172,7 @@ function ResourceRow({
       ) : (
         <span className="min-w-0 flex-1 truncate">{display}</span>
       )}
-      {!editing ? (
+      {readOnly ? null : !editing ? (
         <button
           type="button"
           onClick={startEdit}
@@ -172,14 +182,16 @@ function ResourceRow({
           <Pencil className="size-3 text-muted-foreground" />
         </button>
       ) : null}
-      <button
-        type="button"
-        onClick={onRemove}
-        className="rounded-sm p-0.5 opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100"
-        title={t("projects.resources.remove")}
-      >
-        <Trash2 className="size-3 text-muted-foreground" />
-      </button>
+      {readOnly ? null : (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="rounded-sm p-0.5 opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100"
+          title={t("projects.resources.remove")}
+        >
+          <Trash2 className="size-3 text-muted-foreground" />
+        </button>
+      )}
     </div>
   );
 }

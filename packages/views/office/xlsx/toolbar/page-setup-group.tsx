@@ -7,7 +7,7 @@
 // mounted grid, a handler or edit rights, like every other group; Print is
 // not rendered at all without a handler (a host that cannot print).
 
-import { FileDown, Printer, Settings2 } from "lucide-react";
+import { FileDown, Printer, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -38,7 +38,7 @@ export function XlsxPageSetupGroup({
         data-testid="xlsx-page-setup-open"
         onClick={() => { if (!readOnly && onOpenPageSetup) onOpenPageSetup(); }}
       >
-        <Settings2 aria-hidden />
+        <Settings aria-hidden />
         <XlsxLargeLabel>{t("office.xlsx.pageSetup.open")}</XlsxLargeLabel>
       </XlsxLargeButton>
       <XlsxGroupRows>

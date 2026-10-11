@@ -192,7 +192,6 @@ describe("DocxEditor", () => {
 
   it.each([
     ["absent", undefined],
-    ["readonly", { status: "readonly" as const, operation: "serialize" }],
     ["unavailable", { status: "unavailable" as const, operation: "serialize" }],
     ["unknown", { status: "unknown" as const, operation: "serialize" }],
     ["non-serialize", { status: "available" as const, operation: "open" }],
@@ -254,7 +253,7 @@ describe("DocxEditor", () => {
     expect(handle.open).toHaveBeenCalledTimes(1);
   });
 
-  it("closes an active session when serialize becomes readonly", async () => {
+  it("closes an active session when serialize becomes unavailable", async () => {
     const handle = editor();
     const open = vi.fn(async () => opened());
     const coordinatorInstance = coordinator();
@@ -267,7 +266,7 @@ describe("DocxEditor", () => {
       editor={handle}
       open={{ open }}
       coordinator={coordinatorInstance}
-      capability={{ ...available, status: "readonly" }}
+      capability={{ ...available, status: "unavailable" }}
     />);
     await waitFor(() => expect(screen.getByTestId("docx-error-state")).toBeInTheDocument());
     expect(open).toHaveBeenCalledTimes(1);
@@ -275,6 +274,21 @@ describe("DocxEditor", () => {
     expect(handle.cancel).toHaveBeenCalledWith("document_changed");
     expect(handle.dispose).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("docx-save")).not.toBeInTheDocument();
+  });
+
+  it("opens the document read-only for a readonly serialize row: content shown, no Save (view-only member)", async () => {
+    const handle = editor();
+    const open = vi.fn(async () => opened());
+    const onOpen = vi.fn();
+    const capability = { format: "docx" as const, operation: "serialize", host: "web", engineBuild: "test", contractRevision: "test", status: "readonly" as const, reason: "view permission", fidelityWarnings: [] };
+    render(<DocxEditor documentKey="doc-v1" editor={handle} open={{ open }} coordinator={coordinator()} capability={capability} onOpen={onOpen} />);
+    await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
+    expect(screen.queryByTestId("docx-error-state")).not.toBeInTheDocument();
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(handle.open).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ outcome: "opened" }));
+    // The standalone header keeps Save visible but closed: aria-disabled blocks the action.
+    expect(screen.getByTestId("docx-save")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("bounds the editor height and makes the canvas the scroller (M-5b)", async () => {

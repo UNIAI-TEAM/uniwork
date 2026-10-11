@@ -454,3 +454,34 @@ func (q *Queries) ListChatMessageLinksByRoomMessages(ctx context.Context, arg Li
 	}
 	return items, nil
 }
+
+const unlinkChatThreadTask = `-- name: UnlinkChatThreadTask :one
+DELETE FROM chat_thread_task_links
+WHERE thread_root_id = $1 AND workspace_id = $2
+RETURNING id, organization_id, workspace_id, room_id, thread_root_id, task_id, direction, created_by, created_by_kind, created_at
+`
+
+type UnlinkChatThreadTaskParams struct {
+	ThreadRootID string `json:"thread_root_id"`
+	WorkspaceID  string `json:"workspace_id"`
+}
+
+// C-11: the unsync command returns the link it removed, for its audit row
+// and its chat.thread.unlinked event.
+func (q *Queries) UnlinkChatThreadTask(ctx context.Context, arg UnlinkChatThreadTaskParams) (ChatThreadTaskLink, error) {
+	row := q.db.QueryRow(ctx, unlinkChatThreadTask, arg.ThreadRootID, arg.WorkspaceID)
+	var i ChatThreadTaskLink
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.RoomID,
+		&i.ThreadRootID,
+		&i.TaskID,
+		&i.Direction,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+	)
+	return i, err
+}

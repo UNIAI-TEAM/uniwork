@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, ChevronRight, ScrollText } from "lucide-react";
+import { CircleAlert, ChevronRight, ScrollText } from "lucide-react";
 import { useAuditEvents, type AuditQuery } from "@uniwork/core/audit";
 import { useDebouncedValue } from "@uniwork/core/hooks/use-debounced-value";
 import type { AuditEvent } from "@uniwork/core/types";
@@ -134,7 +134,7 @@ export function AuditLog({
           <SettingsCard><LogSkeleton /></SettingsCard>
         ) : failedWithoutData ? (
           <CollectionPageState
-            icon={AlertCircle}
+            icon={CircleAlert}
             tone="destructive"
             role="alert"
             headingLevel={3}

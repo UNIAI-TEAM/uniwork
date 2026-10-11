@@ -8,10 +8,8 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
-  ListChecks,
-  RotateCw,
   Search,
-  SquareCheckBig,
+  RefreshCw,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -33,6 +31,7 @@ import {
 } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { CalendarViewMode } from "./calendar-view-mode";
+import { MODULE_ICONS } from "../layout/module-icons";
 
 export type CalendarSearchTask = {
   id: string;
@@ -201,7 +200,7 @@ export function CalendarFloatingSearch({
         id: "refresh",
         label: t("calendar.refresh"),
         keywords: "refresh reload lam moi",
-        icon: RotateCw,
+        icon: RefreshCw,
         action: onRefresh,
       },
     ],
@@ -360,7 +359,7 @@ export function CalendarFloatingSearch({
                     className="[&_[cmdk-group-items]]:space-y-0.5"
                   >
                     {visibleEvents.map((event) => {
-                      const Icon = event.kind === "task" ? SquareCheckBig : CalendarClock;
+                      const Icon = event.kind === "task" ? MODULE_ICONS.tasks : MODULE_ICONS.meetings;
                       return (
                         <CommandItem
                           key={event.id}
@@ -408,7 +407,7 @@ export function CalendarFloatingSearch({
                             run(() => onOpenTask(task.id, triggerRef.current ?? undefined))
                           }
                         >
-                          <ListChecks aria-hidden />
+                          <MODULE_ICONS.tasks aria-hidden />
                           <span className="min-w-0 flex-1">
                             <span className="flex min-w-0 items-center gap-2">
                               {task.identifier ? (

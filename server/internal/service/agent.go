@@ -113,7 +113,9 @@ func createAgent(ctx context.Context, q *db.Queries, orgID, name, handle, descri
 		Action:         audit.ActionAgentCreated,
 		ResourceType:   "agent", ResourceID: a.ID,
 		Changes: audit.Diff(nil, agentAuditFields(a)),
-	}); err != nil {
+	}, audit.Event{Topic: "agent.created", Payload: map[string]string{
+		"organization_id": orgID, "agent_id": a.ID,
+	}}); err != nil {
 		return db.Agent{}, err
 	}
 	return a, nil
@@ -168,13 +170,21 @@ func (s *AgentService) Update(ctx context.Context, userID, agentID string, in Up
 	if err != nil {
 		return db.Agent{}, err
 	}
+	// Archiving is a status change; it gets its own topic so a consumer that
+	// only cares about an agent leaving need not diff the row (C-11).
+	topic := "agent.updated"
+	if before.Status != "archived" && a.Status == "archived" {
+		topic = "agent.archived"
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: a.OrganizationID,
 		Actor:          Human(userID),
 		Action:         audit.ActionAgentUpdated,
 		ResourceType:   "agent", ResourceID: a.ID,
 		Changes: audit.Diff(agentAuditFields(before), agentAuditFields(a)),
-	}); err != nil {
+	}, audit.Event{Topic: topic, Payload: map[string]string{
+		"organization_id": a.OrganizationID, "agent_id": a.ID,
+	}}); err != nil {
 		return db.Agent{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

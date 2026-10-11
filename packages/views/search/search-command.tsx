@@ -1,9 +1,8 @@
 "use client";
 
-import { CalendarDays, File, FileText, History, Monitor, Moon, Settings, SquareCheckBig, Sun } from "lucide-react";
+import { File, FileText, RotateCcwClock, Monitor, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { useDocumentList, useRecentDocuments } from "@uniwork/core/documents/hooks-collections";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { useDebouncedValue } from "@uniwork/core/hooks/use-debounced-value";
@@ -24,6 +23,8 @@ import {
 } from "@uniwork/ui/components/ui/command";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
+import { MODULE_ICONS } from "../layout/module-icons";
+import { usePreferenceSavedToast } from "../layout/preference-toast";
 
 /** How many recent tasks the palette lists; the store keeps more. */
 const RECENT_TASKS_SHOWN = 5;
@@ -40,6 +41,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
   const { setTheme } = useTheme();
   const localeAdapter = useLocaleAdapter();
   const { t, i18n } = useTranslation();
+  const notifySaved = usePreferenceSavedToast();
   const recentTasks = useRecentTasks(workspace.id);
   const documentsEnabled = useFlag("documents", false);
 
@@ -101,7 +103,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
     document.documentElement.lang = next;
     // The toast text resolves after the language switched, in the new language.
     void setLocale(next).then(() => {
-      toast.success(i18n.t("settings.preferences.toastSaved", { lng: next }), { id: "settings-auto-save" });
+      notifySaved("language", next);
     });
   };
 
@@ -124,7 +126,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
                   value={`recent ${task.id} ${task.identifier} ${task.title}`}
                   onSelect={() => run(() => push(ws.task(task.id)))}
                 >
-                  <History />
+                  <RotateCcwClock />
                   <span className="shrink-0 text-muted-foreground">{task.identifier}</span>
                   <span className="truncate">{task.title || t("tasks.detail.title_placeholder")}</span>
                 </CommandItem>
@@ -157,21 +159,21 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               value={`${t("search.pages.tasks")} tasks cong viec`}
               onSelect={() => run(() => push(ws.tasks()))}
             >
-              <SquareCheckBig />
+              <MODULE_ICONS.tasks />
               {t("search.pages.tasks")}
             </CommandItem>
             <CommandItem
               value={`${t("search.pages.meetings")} meetings cuoc hop`}
               onSelect={() => run(() => push(ws.meetings()))}
             >
-              <CalendarDays />
+              <MODULE_ICONS.meetings />
               {t("search.pages.meetings")}
             </CommandItem>
             <CommandItem
               value={`${t("search.pages.settings")} settings cai dat`}
               onSelect={() => run(() => push(ws.settings()))}
             >
-              <Settings />
+              <MODULE_ICONS.settings />
               {t("search.pages.settings")}
             </CommandItem>
           </CommandGroup>
@@ -180,7 +182,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               value={`${t("search.commands.createTask")} new task tao viec`}
               onSelect={() => run(onCreateTask)}
             >
-              <SquareCheckBig />
+              <MODULE_ICONS.tasks />
               {t("search.commands.createTask")}
             </CommandItem>
             <CommandItem
@@ -188,7 +190,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               onSelect={() =>
                 run(() => {
                   setTheme("light");
-                  toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
+                  notifySaved("theme");
                 })
               }
             >
@@ -200,7 +202,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               onSelect={() =>
                 run(() => {
                   setTheme("dark");
-                  toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
+                  notifySaved("theme");
                 })
               }
             >
@@ -212,7 +214,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               onSelect={() =>
                 run(() => {
                   setTheme("system");
-                  toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
+                  notifySaved("theme");
                 })
               }
             >

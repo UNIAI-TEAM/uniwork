@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { CollectionPageState } from "../../layout/collection-page";
@@ -10,7 +10,7 @@ export function TableLoadErrorState({ onRetry }: { onRetry: () => void }) {
   const { t } = useTranslation();
   return (
     <CollectionPageState
-      icon={AlertCircle}
+      icon={CircleAlert}
       tone="destructive"
       role="alert"
       className="flex-1"

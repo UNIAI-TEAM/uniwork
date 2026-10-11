@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight, BookOpen, Bot, CalendarDays, Check, CheckCheck, CircleCheck, Clock3, FileText, GitBranch, Hash, Link2, LockKeyhole, Mail, MessageSquare, Mic, MoreHorizontal, Search, ShieldCheck, Sparkles, Star, Users, Video } from "lucide-react";
+import { ArrowRight, BookOpen, Bot, CalendarDays, Check, CheckCheck, CircleCheck, Clock3, FileText, GitBranch, Hash, Link2, LockKeyhole, Mail, MessageSquare, Mic, Ellipsis, Search, ShieldCheck, Sparkles, Star, Users, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { FeaturePageKey } from "./feature-page-catalog";
 
@@ -56,7 +56,7 @@ export function FeatureIllustration({ featureKey, index = 0, decorative = false 
         {scene === "overview" && <><div className="feature-art-tabs"><strong>{subject}</strong>{people}</div><div className="feature-art-overview"><div><span>{copy("progress")}</span><strong>12 / 18</strong><div className="feature-art-progress"><i /></div><small>{copy("sampleProgress")}</small></div><div className="feature-art-bars">{[42, 68, 52, 84, 67].map((height, n) => <div key={n}><i style={{ height: `${height}%` }} /><small>{n + 21}</small></div>)}</div></div><div className="feature-art-overview-list">{row("design", 0)}{row("content", 1, "todo")}</div></>}
         </>}
       </div>
-      <div className="feature-art-foot"><Link2 /><span>{copy("context")}</span><MoreHorizontal /></div>
+      <div className="feature-art-foot"><Link2 /><span>{copy("context")}</span><Ellipsis /></div>
     </div>
   </div>;
 }

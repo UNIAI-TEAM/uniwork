@@ -56,6 +56,10 @@ describe("OfficeInstallPrompt", () => {
     expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Windows" })).toHaveAttribute("aria-checked", "true");
   });
+  it("says the download is a ZIP holding the installer (GOA9-r1-09)", () => {
+    render(<OfficeInstallPrompt {...props({ installers: [option("win32-x64")] })} />);
+    expect(screen.getByText("Downloads as a ZIP that contains the installer.")).toBeInTheDocument();
+  });
   it("shows a supported OS with no channel artifact as an unavailable selectable card", () => {
     render(<OfficeInstallPrompt {...props({ installers: [option("win32-x64")], platformHint: { platform: "darwin-arm64", confidence: "uncertain" } })} />);
     expect(screen.getByRole("radio", { name: "macOS" })).toHaveAttribute("aria-disabled", "true");
@@ -138,6 +142,29 @@ describe("OfficeInstallPrompt", () => {
     expect(within(list).getByText(first)).toBeInTheDocument();
     expect(within(list).getAllByText(second).length).toBeGreaterThan(0);
   });
+  it("offers the unsigned Mac quarantine fix with the real file name, copyable, only for macOS", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const item = { ...option("darwin-arm64"), url: "https://downloads.test/UniWork%20Office_0.1.0.dmg" };
+    const view = render(<OfficeInstallPrompt {...props({ installers: [item, option("win32-x64")], platformHint: { platform: "darwin-arm64", confidence: "certain" } })} />);
+    fireEvent.click(screen.getByRole("button", { name: "After downloading" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Can't open on Mac?" }));
+    expect(await screen.findByText(/Open Anyway/)).toBeInTheDocument();
+    expect(screen.getByText("xattr -d com.apple.quarantine ~/Downloads/'UniWork Office_0.1.0.dmg'")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Copy command" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("xattr -d com.apple.quarantine ~/Downloads/'UniWork Office_0.1.0.dmg'"));
+    fireEvent.click(screen.getByRole("radio", { name: "Windows" }));
+    fireEvent.click(screen.getByRole("button", { name: "After downloading" }));
+    await screen.findByRole("list");
+    expect(screen.queryByRole("button", { name: "Can't open on Mac?" })).not.toBeInTheDocument();
+    view.unmount();
+  });
+  it("hides the Mac quarantine note for a signed macOS build", async () => {
+    render(<OfficeInstallPrompt {...props({ installers: [{ ...option("darwin-arm64"), unsigned: false }], platformHint: { platform: "darwin-arm64", confidence: "certain" } })} />);
+    fireEvent.click(screen.getByRole("button", { name: "After downloading" }));
+    await screen.findByRole("list");
+    expect(screen.queryByRole("button", { name: "Can't open on Mac?" })).not.toBeInTheDocument();
+  });
   it("resets the artifact, guide and status when the dialog opens again", async () => {
     const p = props();
     const view = render(<OfficeInstallPrompt {...p} />);
@@ -161,6 +188,10 @@ describe("OfficeInstallPrompt", () => {
     expect(screen.queryByText(/Size:/)).not.toBeInTheDocument();
     expect(screen.getByText(/Version 0.1.0-dev.1/)).toBeInTheDocument();
     expect(screen.getByText("unsigned")).toBeInTheDocument();
+    // A filled warning chip (semantic soft tokens, defined in :root and .dark), not an outline chip whose border vanishes on the muted panel in dark mode.
+    const pill = screen.getByTestId("installer-unsigned");
+    expect(pill).toHaveClass("bg-warning-soft", "text-warning-soft-foreground");
+    expect(pill).not.toHaveClass("bg-primary", "text-primary-foreground");
     fireEvent.click(screen.getByRole("button", { name: "After downloading" }));
     fireEvent.click(await screen.findByRole("button", { name: "Copy command" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("sudo apt install ./'a file.deb'"));

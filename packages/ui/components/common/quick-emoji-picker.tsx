@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, lazy, Suspense } from "react";
-import { SmilePlus } from "lucide-react";
+import { FaceSlightlySmilingPlus } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@uniwork/ui/components/ui/popover";
 
 const EmojiPicker = lazy(() =>
@@ -40,7 +40,7 @@ function QuickEmojiPicker({ onSelect, align = "start", className }: QuickEmojiPi
             aria-label="Add reaction"
             className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground transition-colors ${className ?? ""}`}
           >
-            <SmilePlus className="h-3.5 w-3.5" aria-hidden="true" />
+            <FaceSlightlySmilingPlus className="size-3.5" aria-hidden="true" />
           </button>
         }
       />

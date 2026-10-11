@@ -19,8 +19,10 @@ const billingWebhookBatch = int32(20)
 func (s *BillingService) RunWorkers(ctx context.Context) {
 	webhookTick := time.NewTicker(time.Second)
 	lapseTick := time.NewTicker(billingLapseInterval)
+	refundReconcileTick := time.NewTicker(billingRefundReconcileInterval)
 	defer webhookTick.Stop()
 	defer lapseTick.Stop()
+	defer refundReconcileTick.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -32,6 +34,13 @@ func (s *BillingService) RunWorkers(ctx context.Context) {
 		case <-lapseTick.C:
 			if err := s.ProcessSubscriptionLapse(ctx); err != nil {
 				s.billingLogWarn("billing subscription lapse tick", err)
+			}
+		case <-refundReconcileTick.C:
+			if err := s.ProcessRefundPendingReconcile(ctx); err != nil {
+				s.billingLogWarn("billing refund reconcile tick", err)
+			}
+			if err := s.ProcessIntentProviderMetaBackfill(ctx); err != nil {
+				s.billingLogWarn("billing intent meta backfill tick", err)
 			}
 		}
 	}

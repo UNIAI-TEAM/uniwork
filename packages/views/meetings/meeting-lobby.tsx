@@ -9,10 +9,10 @@ import {
   Link2Off,
   Lock,
   ServerCog,
-  TriangleAlert,
   UserCheck,
   UserX,
   type LucideIcon,
+  CircleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
@@ -161,10 +161,10 @@ function lobbyGate(decision: string | undefined, error: unknown): { icon: Lucide
       return { icon: ServerCog, tone: "warning", action: "retry" };
     default:
       if (code && INVALID_LINK_CODES.has(code)) return { icon: Link2Off, tone: "destructive", action: null };
-      if (code) return { icon: TriangleAlert, tone: "destructive", action: "retry" };
+      if (code) return { icon: CircleAlert, tone: "destructive", action: "retry" };
       return decision === "DENY"
         ? { icon: Lock, tone: "muted", action: null }
-        : { icon: TriangleAlert, tone: "destructive", action: "retry" };
+        : { icon: CircleAlert, tone: "destructive", action: "retry" };
   }
 }
 

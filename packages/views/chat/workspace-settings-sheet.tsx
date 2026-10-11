@@ -3,7 +3,7 @@
 import {
   Bell,
   BellOff,
-  Home,
+  House,
   Pin,
   Search,
   Settings,
@@ -102,7 +102,7 @@ export function WorkspaceSettingsSheet({
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <ChatSettingsTitleRow
             title={displayName}
-            leading={<ChatRoomMark icon={Home} size="header" />}
+            leading={<ChatRoomMark icon={House} size="header" />}
             editAriaLabel={t("chat.settings_edit_name")}
             onEdit={roomPermissions.canChangeProfile ? () => setRenameOpen(true) : undefined}
           />
@@ -235,7 +235,7 @@ export function WorkspaceChatToolbar({
   const { t } = useTranslation();
   return (
     <ChatConversationToolbar
-      avatar={<ChatRoomMark icon={Home} />}
+      avatar={<ChatRoomMark icon={House} />}
       title={title}
       subtitle={t("chat.group_member_count", { count: memberCount })}
       backAriaLabel={backAriaLabel}

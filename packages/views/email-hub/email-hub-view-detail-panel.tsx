@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, RefreshCw, TriangleAlert } from "lucide-react";
+import { ArrowLeft, RefreshCw, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubScheduledSendItem } from "@uniwork/core/api/endpoints/email-hub";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
@@ -71,7 +71,7 @@ export function EmailHubViewDetailPanel(props: EmailHubViewDetailPanelProps) {
   } else if (props.activeThread && props.detailError && !props.detailData) {
     content = (
       <EmailHubEmptyState
-        icon={TriangleAlert}
+        icon={CircleAlert}
         message={t("email_hub.load_error")}
         action={
           <div className="flex gap-2">
@@ -109,7 +109,7 @@ export function EmailHubViewDetailPanel(props: EmailHubViewDetailPanelProps) {
   } else {
     content = (
       <EmailHubEmptyState
-        icon={TriangleAlert}
+        icon={CircleAlert}
         message={t("email_hub.load_error")}
         action={
           <div className="flex gap-2">

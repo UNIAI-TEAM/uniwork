@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Filter, SlidersHorizontal } from "lucide-react";
+import { Funnel, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TableFacetsResult } from "@uniwork/core/api/endpoints/tasks-table";
 import type { TaskDateFilter } from "@uniwork/core/tasks/stores/view-store-types";
@@ -87,7 +87,7 @@ export function TaskDisplayControls({
             aria-label={filterLabel}
             data-testid="task-filter-add"
           >
-            <Filter className="size-3.5" aria-hidden />
+            <Funnel className="size-3.5" aria-hidden />
             <span className="hidden md:inline">{filterLabel}</span>
           </Button>
         }

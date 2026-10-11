@@ -25,7 +25,7 @@
  * document is unchanged). The document is only ever mutated by `onSelect`.
  */
 import { useCallback, useRef, useState } from "react";
-import { FileAudio, FileVideo, ImagePlus, RefreshCw, Trash2 } from "lucide-react";
+import { FileHeadphone, FilePlay, ImagePlus, RefreshCw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -297,7 +297,7 @@ export function PptxMediaPanel({
             data-pptx-media-action="video"
             onClick={() => videoRef.current?.click()}
           >
-            <FileVideo aria-hidden="true" />
+            <FilePlay aria-hidden="true" />
             <span className="text-label">{t("media.video.insert")}</span>
           </Button>
           <Button
@@ -310,7 +310,7 @@ export function PptxMediaPanel({
             data-pptx-media-action="audio"
             onClick={() => audioRef.current?.click()}
           >
-            <FileAudio aria-hidden="true" />
+            <FileHeadphone aria-hidden="true" />
             <span className="text-label">{t("media.audio.insert")}</span>
           </Button>
         </div>

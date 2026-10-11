@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { History, ListFilter } from "lucide-react";
+import { RotateCcwClock, ListFilter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentAccessLogs } from "@uniwork/core/documents/hooks-sharing";
 import type { Document, DocumentAccessLogList } from "@uniwork/core/types/document";
@@ -178,7 +178,7 @@ export function AccessLogSheet({ open, onOpenChange, wsId, doc }: AccessLogSheet
                         {logs.isFetchingNextPage ? (
                           <Spinner aria-hidden role="presentation" />
                         ) : (
-                          <History aria-hidden className="size-3.5" />
+                          <RotateCcwClock aria-hidden className="size-3.5" />
                         )}
                         {t("documents.accessLog.load_more")}
                       </Button>

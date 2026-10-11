@@ -5,11 +5,11 @@ import {
   ChevronDown,
   Image,
   Link2,
-  MoreVertical,
+  EllipsisVertical,
   Paperclip,
   PenLine,
   Printer,
-  Smile,
+  FaceSlightlySmiling,
   Trash2,
   Type,
   X,
@@ -419,7 +419,7 @@ export function ComposeEmailToolbar({
             <PopoverTrigger
               render={
                 <ToolbarIconButton label={t("email_hub.compose.emoji")}>
-                  <Smile className="size-5" aria-hidden />
+                  <FaceSlightlySmiling className="size-5" aria-hidden />
                 </ToolbarIconButton>
               }
             />
@@ -472,7 +472,7 @@ export function ComposeEmailToolbar({
             <DropdownMenuTrigger
               render={
                 <ToolbarIconButton label={t("email_hub.compose.more")}>
-                  <MoreVertical className="size-5" aria-hidden />
+                  <EllipsisVertical className="size-5" aria-hidden />
                 </ToolbarIconButton>
               }
             />

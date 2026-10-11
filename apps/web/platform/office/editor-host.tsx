@@ -13,7 +13,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
 import { downloadDocumentFile } from "@uniwork/core/api/endpoints/documents";
-import { desktopOpenAllowed, desktopOpenWiring } from "./desktop-open-props";
+import { desktopOpenAllowed, desktopOpenWiring, useOfficeConfigBinding } from "./desktop-open-props";
 export * from "./editor-host-core";
 
 export interface OfficeEditorHostProps<TSnapshot = unknown> {
@@ -98,11 +98,14 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   onRecoverSnapshot,
   breadcrumbs = [],
   className,
-  officeChannel = "stable",
+  officeChannel: officeChannelOverride,
   installers,
   officeDeploymentId,
 }: OfficeEditorHostProps<TSnapshot>) {
   const { t } = useTranslation();
+  // The installer channel and deployment binding are one shared read (the
+  // module frames use it too); an explicit prop wins.
+  const { channel: officeChannel, channelReady, deploymentId: boundDeploymentId } = useOfficeConfigBinding(document.organization_id, { channel: officeChannelOverride, deploymentId: officeDeploymentId });
   const formatName = useOfficeFormatName();
   const activeSession = formatAdapter?.session ?? session;
   const activeEditorView = formatAdapter?.editorView ?? editorView;
@@ -273,12 +276,12 @@ export function OfficeEditorHost<TSnapshot = unknown>({
     <DesktopOpenAction
       placement={placement}
       documentId={document.id}
-      deploymentId={officeDeploymentId}
+      deploymentId={boundDeploymentId}
       savedVersion={document.current_version}
       dirty={dirty}
       saveCoordinator={activeSession.coordinator}
       installers={installers}
-      {...desktopOpenWiring(document, officeChannel)}
+      {...desktopOpenWiring(document, officeChannel, channelReady)}
     />
   ) : null;
   const downloadDocument = async () => {
@@ -313,8 +316,10 @@ export function OfficeEditorHost<TSnapshot = unknown>({
               : t("office.editor.capability_hint")}</AlertDescription>
           </Alert>
         )}
-        saveCoordinator={activeSession?.coordinator}
-        saveState={coordinatorState}
+        // A view-only member has nothing to save, and the page's own banner already says so: the
+        // coordinator's "readonly" state would add a red permission alert on top of the viewer.
+        saveCoordinator={readonly ? undefined : activeSession?.coordinator}
+        saveState={readonly ? null : coordinatorState}
         editorReady={Boolean(activeSession && viewReady && !readonly && effectiveCapability.status === "available")}
         // A viewer reads the document page's one view-only notice; the shell adds no second one.
         viewOnly={readonly}

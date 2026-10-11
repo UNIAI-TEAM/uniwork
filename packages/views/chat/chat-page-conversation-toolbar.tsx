@@ -1,6 +1,6 @@
 "use client";
 
-import { Hash, Home, Lock, UserPlus, Users } from "lucide-react";
+import { Hash, House, Lock, UserPlus, Users } from "lucide-react";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -203,7 +203,7 @@ export function ChatPageConversationIntro({
   const inviteHref = workspace
     ? `${paths.workspace(workspace.organization_slug, workspace.slug).settings()}?tab=members`
     : undefined;
-  const tile = (icon: typeof Home) => (
+  const tile = (icon: typeof House) => (
     <IconTile icon={icon} tone={moduleTone("chat")} size="lg" className="size-14 rounded-2xl [&_svg]:size-7" />
   );
   if (target.kind === "workspace") {
@@ -221,7 +221,7 @@ export function ChatPageConversationIntro({
     ) : null;
     return (
       <ChatConversationIntro
-        mark={tile(Home)}
+        mark={tile(House)}
         title={t("chat.intro_workspace_title", { name: headerTitle })}
         description={
           alone

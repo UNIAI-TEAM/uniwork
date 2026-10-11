@@ -1,12 +1,13 @@
 "use client";
 
 import { lazy, Suspense, useState, type ReactNode } from "react";
-import { CalendarPlus, ChevronRight, ListPlus, UserPlus, type LucideIcon } from "lucide-react";
+import { ChevronRight, UserPlus, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { usePeoplePermissions } from "@uniwork/core/permissions";
 import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { useWorkspace } from "../layout/workspace-context";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { AppLink, useNavigation } from "../navigation";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
@@ -70,12 +71,12 @@ export function HomeStart() {
       <ul className="divide-y divide-border">
         <li>
           <button type="button" className={ROW} aria-haspopup="dialog" onClick={() => setCreating(true)}>
-            <StartRow icon={ListPlus} tone={moduleTone("tasks")} title={t("home.start.create_task")} hint={t("home.start.create_task_hint")} />
+            <StartRow icon={MODULE_ICONS.tasks} tone={moduleTone("tasks")} title={t("home.start.create_task")} hint={t("home.start.create_task_hint")} />
           </button>
         </li>
         <li>
           <button type="button" className={ROW} aria-haspopup="dialog" onClick={schedule}>
-            <StartRow icon={CalendarPlus} tone={moduleTone("meetings")} title={t("home.start.meeting")} hint={t("home.start.meeting_hint")} />
+            <StartRow icon={MODULE_ICONS.meetings} tone={moduleTone("meetings")} title={t("home.start.meeting")} hint={t("home.start.meeting_hint")} />
           </button>
         </li>
         {canManageMembers.allowed ? (

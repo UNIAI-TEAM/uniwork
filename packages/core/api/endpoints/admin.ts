@@ -274,6 +274,57 @@ export async function listAdminInvoices(query: AdminBillingQuery = {}): Promise<
   };
 }
 
+const InvoiceResponse = z.object({ invoice: AdminInvoiceSchema });
+
+/** Minimal invoice for parseWithFallback; must not throw when building the fallback arg (evaluated eagerly). */
+function adminInvoiceCommandFallback(invoiceId: string): { invoice: AdminInvoice } {
+  return {
+    invoice: AdminInvoiceSchema.parse({
+      id: invoiceId,
+      organization_id: "",
+    }),
+  };
+}
+
+export type AdminInvoiceRefundInput = {
+  invoiceId: string;
+  reason: string;
+  provider_reference?: string;
+  refund_amount?: number;
+};
+
+export async function refundAdminInvoice(input: AdminInvoiceRefundInput): Promise<AdminInvoice> {
+  const raw = await request(`/api/v1/admin/invoices/${encodeURIComponent(input.invoiceId)}/refund`, {
+    method: "POST",
+    body: {
+      reason: input.reason,
+      provider_reference: input.provider_reference,
+      refund_amount: input.refund_amount,
+    },
+  });
+  const parsed = parseWithFallback(
+    raw,
+    InvoiceResponse,
+    adminInvoiceCommandFallback(input.invoiceId),
+    { endpoint: "POST /api/v1/admin/invoices/{invoiceID}/refund" },
+  );
+  return parsed.invoice;
+}
+
+export async function confirmAdminInvoiceRefund(invoiceId: string, reason: string): Promise<AdminInvoice> {
+  const raw = await request(`/api/v1/admin/invoices/${encodeURIComponent(invoiceId)}/confirm-refund`, {
+    method: "POST",
+    body: { reason },
+  });
+  const parsed = parseWithFallback(
+    raw,
+    InvoiceResponse,
+    adminInvoiceCommandFallback(invoiceId),
+    { endpoint: "POST /api/v1/admin/invoices/{invoiceID}/confirm-refund" },
+  );
+  return parsed.invoice;
+}
+
 export async function listAdminPaymentIntents(query: AdminBillingQuery = {}): Promise<AdminPaymentIntentPage> {
   const raw = await request(`/api/v1/admin/billing/payment-intents${billingQueryString(query)}`);
   const parsed = parseWithFallback<{

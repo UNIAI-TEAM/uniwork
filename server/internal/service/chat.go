@@ -148,22 +148,7 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 
 	room, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
-		roomID := util.NewID()
-		room, err = s.q.CreateChatRoom(ctx, db.CreateChatRoomParams{
-			ID:              roomID,
-			Kind:            chatRoomKindChannel,
-			WorkspaceID:     pgtype.Text{String: workspaceID, Valid: true},
-			OrganizationID:  w.OrganizationID,
-			Name:            w.Name,
-			MemberSetKey:    pgtype.Text{},
-			LivekitRoomName: liveKitRoomFromChatID(roomID),
-			CreatedBy:       userID,
-			CreatedByKind:   string(audit.KindHuman),
-			Visibility:      chatVisibilityPublic,
-			ProjectID:       pgtype.Text{},
-			Topic:           "",
-			IsDefault:       true,
-		})
+		room, err = s.createWorkspaceRoom(ctx, userID, w)
 		if err != nil {
 			return WorkspaceChat{}, err
 		}
@@ -175,6 +160,40 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 		return WorkspaceChat{}, err
 	}
 	return WorkspaceChat{RoomID: room.ID, WorkspaceID: workspaceID}, nil
+}
+
+// createWorkspaceRoom creates the default workspace channel with its audit
+// row and chat.room.created in one transaction (ADR 0009); the Work Graph
+// projects the room from that event (C-11).
+func (s *ChatService) createWorkspaceRoom(ctx context.Context, userID string, w db.Workspace) (db.ChatRoom, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.ChatRoom{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	roomID := util.NewID()
+	room, err := q.CreateChatRoom(ctx, db.CreateChatRoomParams{
+		ID: roomID, Kind: chatRoomKindChannel, WorkspaceID: pgtype.Text{String: w.ID, Valid: true},
+		OrganizationID: w.OrganizationID, Name: w.Name, MemberSetKey: pgtype.Text{},
+		LivekitRoomName: liveKitRoomFromChatID(roomID), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
+		Visibility: chatVisibilityPublic, ProjectID: pgtype.Text{}, Topic: "", IsDefault: true,
+	})
+	if err != nil {
+		return db.ChatRoom{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
+		Actor: audit.User(userID), Action: audit.ActionChatRoomCreated,
+		ResourceType: "chat_room", ResourceID: roomID,
+		Changes:  audit.Diff(nil, map[string]any{"kind": chatRoomKindChannel}),
+		Metadata: map[string]any{"default": true},
+	}, audit.Event{Topic: "chat.room.created", Payload: map[string]string{
+		"room_id": roomID, "workspace_id": w.ID,
+	}}); err != nil {
+		return db.ChatRoom{}, err
+	}
+	return room, tx.Commit(ctx)
 }
 
 func (s *ChatService) syncWorkspaceRoomMembers(ctx context.Context, room db.ChatRoom, workspaceID string) error {

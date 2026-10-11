@@ -262,6 +262,10 @@ func pathParamSDI(path string) any {
 		return struct {
 			AgentID string `path:"agentID" description:"ULID agent" example:"01J8X4AGENT0N1P2Q3R4S5T6"`
 		}{}
+	case "invoiceID":
+		return struct {
+			InvoiceID string `path:"invoiceID" description:"ULID hóa đơn" example:"01J8X4INV0N1P2Q3R4S5T6U7V"`
+		}{}
 	case "orgID":
 		return struct {
 			OrgID string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
@@ -308,6 +312,12 @@ func pathParamSDI(path string) any {
 			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			ResourceType string `path:"resourceType" description:"Loại tài nguyên: task hoặc meeting" example:"task"`
 			ResourceID   string `path:"resourceID" description:"ULID tài nguyên" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+		}{}
+	case "workspaceID,nodeType,nodeID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			NodeType    string `path:"nodeType" description:"Loại node viết hoa: TASK, MEETING, PROJECT, ACTOR, TEAM, THREAD" example:"TASK"`
+			NodeID      string `path:"nodeID" description:"ULID bản ghi nguồn của node" example:"01J8X4TASKN1P2Q3R4S5T6U7V8"`
 		}{}
 	case "workspaceID,id":
 		return struct {

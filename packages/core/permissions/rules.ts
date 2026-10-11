@@ -1,4 +1,5 @@
 import type { Agent } from "../types/agent";
+import type { Project } from "../types/project";
 import type { Task } from "../types/task";
 import { ALLOW, deny, isAdminLike, type Decision, type PermissionContext } from "./types";
 
@@ -241,6 +242,32 @@ export function canClerkMeeting(
   );
   if (secretary) return ALLOW;
   return deny("not_resource_owner", "Only the host, a secretary or a workspace admin can run attendance and votes.");
+}
+
+// ---- Projects -----------------------------------------------------------------
+
+/**
+ * Edit or delete a project and its resources: a workspace owner/admin, the
+ * project's creator, or its member lead (UNI-898). Reading stays open to every
+ * member. Backend: TaskService.authorizeProjectEdit → 403 not_project_editor
+ * (server/internal/service/project.go). The creator and the lead are
+ * (kind, id) pairs there, so an agent's id never stands for the user's.
+ */
+export function canEditProject(
+  project: Pick<Project, "created_by" | "created_by_kind" | "lead_type" | "lead_id"> | null,
+  ctx: PermissionContext,
+): Decision {
+  const gate = requireWorkspaceMember(ctx);
+  if (gate) return gate;
+  if (isAdminLike(ctx.wsRole)) return ALLOW;
+  if (project && ctx.userId) {
+    if (project.created_by === ctx.userId && project.created_by_kind === "human") return ALLOW;
+    if (project.lead_type === "member" && project.lead_id === ctx.userId) return ALLOW;
+  }
+  return deny(
+    "not_resource_owner",
+    "Only the creator, the lead or a workspace admin can edit this project.",
+  );
 }
 
 // ---- Comments (policy; not wired to Tasks UI yet) ---------------------------

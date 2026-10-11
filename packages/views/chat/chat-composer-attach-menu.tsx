@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import {
-  BarChart3,
+  ChartColumn,
   Bell,
   CircleAlert,
   Clock,
@@ -39,14 +39,14 @@ export type ComposerAttachAction =
 type ComposerAttachMenuItem =
   | {
       id: ComposerAttachAction;
-      icon: typeof BarChart3;
+      icon: typeof ChartColumn;
       labelKey: string;
     }
   | { separator: true };
 
 const ATTACH_MENU_ITEMS: ComposerAttachMenuItem[] = [
   { id: "attach_file", icon: FileUp, labelKey: "composer_attach_file" },
-  { id: "create_poll", icon: BarChart3, labelKey: "composer_create_poll" },
+  { id: "create_poll", icon: ChartColumn, labelKey: "composer_create_poll" },
   { id: "create_reminder", icon: Clock, labelKey: "composer_create_reminder" },
   { id: "create_note", icon: StickyNote, labelKey: "composer_create_note" },
   { id: "create_post", icon: Megaphone, labelKey: "composer_create_post" },

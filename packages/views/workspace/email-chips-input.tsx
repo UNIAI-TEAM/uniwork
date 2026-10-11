@@ -1,5 +1,5 @@
 "use client";
-import { TriangleAlert, X } from "lucide-react";
+import { X, CircleAlert } from "lucide-react";
 import { useEffect, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -131,7 +131,7 @@ export function EmailChipsInput({
                 một nhãn nói rõ vấn đề. */}
             {ok ? null : (
               <>
-                <TriangleAlert aria-hidden className="size-3 shrink-0" />
+                <CircleAlert aria-hidden className="size-3 shrink-0" />
                 <span className="sr-only">{t("workspace.invite_invalid_email")}: </span>
               </>
             )}

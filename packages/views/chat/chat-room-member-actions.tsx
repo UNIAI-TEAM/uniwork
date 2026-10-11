@@ -3,7 +3,7 @@
 import {
   MessageSquareOff,
   MessageSquarePlus,
-  MoreHorizontal,
+  Ellipsis,
   Shield,
   ShieldOff,
   UserMinus,
@@ -71,7 +71,7 @@ export function ChatRoomMemberActions({
           />
         }
       >
-        <MoreHorizontal aria-hidden />
+        <Ellipsis aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
         {canPromote ? (

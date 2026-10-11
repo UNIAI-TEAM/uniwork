@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, RotateCw, SearchX, UserPlus, Users } from "lucide-react";
+import { Download, SearchX, UserPlus, Users, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { exportPeopleCsv } from "@uniwork/core/api/endpoints/people";
@@ -14,6 +14,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { toast } from "sonner";
 import { Notice } from "../common/notice";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
@@ -159,7 +160,7 @@ export function PeopleView() {
     // narrow zone on the same width, and the column switches go with it.
     <div className="@container/people flex min-h-0 flex-1 flex-col">
       <CollectionPageHeader
-        icon={Users}
+        icon={MODULE_ICONS.people}
         tone={moduleTone("people")}
         title={t("people.title")}
         count={isError ? undefined : totalActive}
@@ -208,7 +209,7 @@ export function PeopleView() {
           description={t("people.error_description")}
           actions={
             <Button variant="outline" onClick={() => void refetch()} aria-busy={isRefetching || undefined}>
-              <RotateCw aria-hidden="true" className={isRefetching ? "motion-safe:animate-spin" : undefined} />
+              <RefreshCw aria-hidden="true" className={isRefetching ? "motion-safe:animate-spin" : undefined} />
               {t("common.retry")}
             </Button>
           }
@@ -226,7 +227,7 @@ export function PeopleView() {
         </div>
       ) : people.length === 0 && !shownNarrowed ? (
         <CollectionPageState
-          icon={Users}
+          icon={MODULE_ICONS.people}
           tone={moduleTone("people")}
           title={t("people.empty_title")}
           description={t("people.empty_description")}

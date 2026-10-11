@@ -1,5 +1,5 @@
 "use client";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
@@ -105,7 +105,7 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
               not on the resend button below. */}
           {verify.isPending ? (
             <p role="status" className="flex items-center gap-2 text-label text-muted-foreground">
-              <Loader2 aria-hidden className="size-3.5 animate-spin" />
+              <Spinner className="size-3.5" />
               {t("auth.verify.verifying")}
             </p>
           ) : resent && !errorMsg ? (
@@ -130,7 +130,7 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
                 whose click sends a new code. */}
             {resend.isPending ? (
               <>
-                <Loader2 aria-hidden className="animate-spin" />
+                <Spinner />
                 {t("auth.verify.resending")}
               </>
             ) : cooldown > 0 ? (

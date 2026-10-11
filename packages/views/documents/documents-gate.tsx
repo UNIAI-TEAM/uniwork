@@ -1,6 +1,6 @@
 "use client";
 
-import { FileWarning, RotateCw } from "lucide-react";
+import { FileExclamationPoint, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFlag, usePublicConfig } from "@uniwork/core/feature-flags";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -29,20 +29,20 @@ export function useDocumentsGate(): { gate: DocumentsGate; retry: () => void } {
 export function DocumentsGateState({ gate, retry, className }: { gate: Exclude<DocumentsGate, "on">; retry: () => void; className?: string }) {
   const { t } = useTranslation();
   if (gate === "checking") {
-    return <CollectionPageState className={className} icon={FileWarning} title={t("documents.page.checking_title")} role="status" />;
+    return <CollectionPageState className={className} icon={FileExclamationPoint} title={t("documents.page.checking_title")} role="status" />;
   }
   if (gate === "unknown") {
     return (
       <CollectionPageState
         className={className}
-        icon={FileWarning}
+        icon={FileExclamationPoint}
         tone="warning"
         title={t("documents.page.unknown_title")}
         description={t("documents.page.unknown_description")}
         role="alert"
-        actions={<Button type="button" variant="outline" size="sm" onClick={retry}><RotateCw className="size-4" aria-hidden="true" />{t("documents.page.unknown_retry")}</Button>}
+        actions={<Button type="button" variant="outline" size="sm" onClick={retry}><RefreshCw className="size-4" aria-hidden="true" />{t("documents.page.unknown_retry")}</Button>}
       />
     );
   }
-  return <CollectionPageState className={className} icon={FileWarning} title={t("documents.page.off_title")} description={t("documents.page.off_description")} role="status" />;
+  return <CollectionPageState className={className} icon={FileExclamationPoint} title={t("documents.page.off_title")} description={t("documents.page.off_description")} role="status" />;
 }

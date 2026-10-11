@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode, type Ref } from "react";
-import { AlertTriangle, X } from "lucide-react";
+import { TriangleAlert, X, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -259,9 +259,9 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, canvasRef, sel
   const notices = errorKey || skipped || fontReport?.missing.length || hint || banner ? (
     <div className="flex shrink-0 flex-col gap-2 border-b border-border bg-office-band px-3 py-2" data-testid="pdf-surface-notices">
       {banner}
-      {errorKey ? <Notice tone="destructive" icon={AlertTriangle} live="assertive">{t(errorKey)}</Notice> : null}
-      {skipped ? <Notice tone="warning" icon={AlertTriangle} live="polite">{t(skipped)}</Notice> : null}
-      {fontReport?.missing.length ? <div data-testid="pdf-font-warning"><Notice tone="warning" icon={AlertTriangle} live="polite">{t("office.pdf.fonts.missing", { fonts: fontReport.missing.join(", ") })}</Notice></div> : null}
+      {errorKey ? <Notice tone="destructive" icon={CircleAlert} live="assertive">{t(errorKey)}</Notice> : null}
+      {skipped ? <Notice tone="warning" icon={TriangleAlert} live="polite">{t(skipped)}</Notice> : null}
+      {fontReport?.missing.length ? <div data-testid="pdf-font-warning"><Notice tone="warning" icon={TriangleAlert} live="polite">{t("office.pdf.fonts.missing", { fonts: fontReport.missing.join(", ") })}</Notice></div> : null}
       {hint ? <p className="text-caption text-muted-foreground" role="status" data-testid="pdf-surface-hint">{hint}</p> : null}
     </div>
   ) : null;

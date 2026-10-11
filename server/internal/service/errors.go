@@ -133,3 +133,7 @@ func errNotHost() error {
 func errNotClerk() error {
 	return coded(http.StatusForbidden, "not_meeting_clerk", "chỉ chủ tọa, thư ký hoặc quản trị workspace mới được thực hiện")
 }
+
+func errNotProjectEditor() error {
+	return coded(http.StatusForbidden, "not_project_editor", "chỉ người tạo, người phụ trách hoặc quản trị workspace mới được sửa dự án")
+}

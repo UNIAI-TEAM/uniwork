@@ -1,5 +1,5 @@
 "use client";
-import { CheckCircle2 } from "lucide-react";
+import { CircleCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MeetingMotion } from "@uniwork/core/types/meeting";
 import { ToneBadge } from "./meeting-status-badge";
@@ -54,7 +54,7 @@ export function MeetingDecisionsBlock({
         <ul className="space-y-1.5">
           {aiDecisions.map((d, i) => (
             <li key={i} className="flex items-start gap-2 text-body text-foreground">
-              <CheckCircle2 aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+              <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
               <span className="min-w-0">{d}</span>
             </li>
           ))}

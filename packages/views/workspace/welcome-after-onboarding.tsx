@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight, ListChecks } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { dismissWelcome, useSeedWelcomeTask, useWelcomeSignal } from "@uniwork/core/onboarding";
@@ -11,6 +11,7 @@ import { Dialog,
   DialogContent,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 
 /** Một lần sau onboarding: seed task hướng dẫn (server idempotent) rồi dialog chào mừng. */
@@ -91,7 +92,7 @@ function GuideCard({ onOpen }: { onOpen?: () => void }) {
         (idle ? " cursor-not-allowed opacity-60" : " cursor-pointer hover:bg-tint-green")
       }
     >
-      <IconTile icon={ListChecks} tone={moduleTone("tasks")} variant="solid" size="md" />
+      <IconTile icon={MODULE_ICONS.tasks} tone={moduleTone("tasks")} variant="solid" size="md" />
       {/* Thời lượng nằm cùng dòng mô tả, không phải chip riêng: ở 375px một chip
           cạnh tiêu đề bị đẩy xuống dòng lẻ, làm thẻ cao lên và lệch nhịp. */}
       <span className="min-w-0 flex-1">

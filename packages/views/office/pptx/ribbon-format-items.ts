@@ -11,10 +11,10 @@
  * handler never calls `apply`.
  */
 import {
-  AlignCenter,
-  AlignJustify,
-  AlignLeft,
-  AlignRight,
+  TextAlignCenter,
+  TextAlignJustify,
+  TextAlignStart,
+  TextAlignEnd,
   Baseline,
   Bold,
   BringToFront,
@@ -284,10 +284,10 @@ export function pptxFontGroupItems(o: PptxTextGroupOptions): RibbonItem[] {
 }
 
 const ALIGNS: ReadonlyArray<{ align: PptxTextAlign; icon: RibbonIcon }> = [
-  { align: "left", icon: AlignLeft },
-  { align: "center", icon: AlignCenter },
-  { align: "right", icon: AlignRight },
-  { align: "justify", icon: AlignJustify },
+  { align: "left", icon: TextAlignStart },
+  { align: "center", icon: TextAlignCenter },
+  { align: "right", icon: TextAlignEnd },
+  { align: "justify", icon: TextAlignJustify },
 ];
 
 const LINE_SPACING_LABELS: Readonly<Record<number, string>> = { 100: "1.0", 115: "1.15", 150: "1.5", 200: "2.0" };

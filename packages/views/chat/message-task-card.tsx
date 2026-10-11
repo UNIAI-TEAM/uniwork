@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ListTodo, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUnlinkChatMessage } from "@uniwork/core/chat";
 import { taskLinksOf } from "@uniwork/core/chat/message-links";
@@ -10,6 +10,7 @@ import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { StatusIcon } from "../tasks/icons/status-icon";
 import { ConfirmDialog } from "../common/form-dialog";
@@ -44,7 +45,7 @@ function MessageTaskLinkRow({
       {/* A linked task reads as a task everywhere: the tasks tint on its glyph,
           its identifier, and its status in the status's own words and icon. */}
       <div className="flex w-full max-w-full items-center gap-2 rounded-lg border border-border bg-surface py-1 pr-1 pl-2.5">
-        <ListTodo className={cn("size-3.5 shrink-0", tintForegroundClass[moduleTone("tasks")])} aria-hidden />
+        <MODULE_ICONS.tasks className={cn("size-3.5 shrink-0", tintForegroundClass[moduleTone("tasks")])} aria-hidden />
         {task ? (
           <button
             type="button"

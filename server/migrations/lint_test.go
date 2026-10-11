@@ -309,6 +309,7 @@ var tenantExemptTables = map[string]string{
 	"file_backfill_items":       "files-backfill per-row mapping ledger: the tenant a row resolved is data, not a scope the table enforces (T9b/UNI-747)",
 	"meeting_guests":            "anonymous guest identity minted by the signed guest cookie before any meeting is known (MeetingService.EnsureGuestCookie); one guest may join meetings of several organizations, so like users it sits above every organization — its tenant-scoped trace is the meeting_participants row",
 	"meeting_provider_events":   "provider-webhook idempotency ledger keyed by (provider_key, provider_event_id), like webhook_inbox and notification_deliveries; the event is attributed to a meeting downstream",
+	"graph_edge_types":          "the global Work Graph edge catalogue, shared by every tenant (C-11)",
 }
 
 // Tables whose organization_id column must exist but may accept NULL on

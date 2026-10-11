@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Ban } from "lucide-react";
+import { CircleAlert, Ban } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Notice } from "../common/notice";
@@ -32,7 +32,7 @@ export function ChatConversationNotices({
       {workspaceLoadFailed ? (
         <Notice
           tone="destructive"
-          icon={AlertCircle}
+          icon={CircleAlert}
           live="off"
           action={
             <Button type="button" variant="outline" size="sm" onClick={onRetryWorkspace}>
@@ -44,7 +44,7 @@ export function ChatConversationNotices({
         </Notice>
       ) : null}
       {connectError ? (
-        <Notice tone="destructive" icon={AlertCircle} live="assertive">
+        <Notice tone="destructive" icon={CircleAlert} live="assertive">
           {connectError}
         </Notice>
       ) : null}

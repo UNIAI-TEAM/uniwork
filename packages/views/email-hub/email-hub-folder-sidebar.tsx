@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Keyboard, Lock, Mail, PenSquare, Tag } from "lucide-react";
+import { ChevronDown, Keyboard, Lock, SquarePen, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { EmailHubAccountMenu, type EmailHubAccountMenuProps } from "./email-hub-account-menu";
 import {
@@ -104,7 +105,7 @@ export function EmailHubFolderSidebar({
       <div className="space-y-3 px-3 pt-4 pb-3">
         {/* The page's h1 is the folder (list) or the subject (reading); this is the module name. */}
         <p className="flex items-center gap-2.5 px-1 text-title font-semibold">
-          <IconTile icon={Mail} tone={moduleTone("email")} size="sm" />
+          <IconTile icon={MODULE_ICONS.email} tone={moduleTone("email")} size="sm" />
           {t("email_hub.title")}
         </p>
         <EmailHubAccountMenu {...accountMenu} />
@@ -115,7 +116,7 @@ export function EmailHubFolderSidebar({
           disabled={composeDisabled}
           onClick={onCompose}
         >
-          <PenSquare aria-hidden />
+          <SquarePen aria-hidden />
           {t("email_hub.compose_label")}
           {shortcutsOn ? <Kbd className="ml-auto bg-brand-foreground/15 text-brand-foreground">C</Kbd> : null}
         </Button>

@@ -8,6 +8,7 @@ import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MODULE_ICONS } from "../../layout/module-icons";
 import { moduleTone } from "../../layout/module-tones";
 import { useWorkspace } from "../../layout/workspace-context";
 import { AppLink } from "../../navigation";
@@ -53,7 +54,7 @@ function EmailHubRow() {
 
   return (
     <SettingsListItem
-      leading={<IconTile icon={Mail} tone={moduleTone("email")} size="sm" />}
+      leading={<IconTile icon={MODULE_ICONS.email} tone={moduleTone("email")} size="sm" />}
       title={t("email_hub.title")}
       meta={t("email_hub.meta")}
       badge={badge}

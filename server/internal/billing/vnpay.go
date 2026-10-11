@@ -26,6 +26,8 @@ type VNPayConfig struct {
 	HashSecret string
 	PaymentURL string
 	IPNURL     string
+	// QueryURL is the merchant querydr/refund endpoint. Empty uses the sandbox default.
+	QueryURL string
 }
 
 // VNPay implements Provider for VNPay Payment Gateway v2.
@@ -165,7 +167,11 @@ func vnpEncode(s string) string {
 }
 
 func vnpSign(params map[string]string, secret string) string {
-	data := vnpHashData(params)
+	return vnpSignString(vnpHashData(params), secret)
+}
+
+// vnpSignString is HMAC-SHA512 over a prebuilt checksum (querydr and refund use a pipe-joined string).
+func vnpSignString(data, secret string) string {
 	mac := hmac.New(sha512.New, []byte(secret))
 	_, _ = mac.Write([]byte(data))
 	return hex.EncodeToString(mac.Sum(nil))

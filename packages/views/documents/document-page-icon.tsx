@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SmilePlus } from "lucide-react";
+import { FaceSlightlySmilingPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
@@ -30,7 +30,7 @@ export function DocumentPageIcon({ icon, onChange }: { icon: string; onChange: (
                 ? "mb-4 size-16 justify-center p-0 text-display"
                 : "mb-3 h-9 px-2 text-caption text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100"} />
           }>
-            {icon ? <span aria-hidden>{icon}</span> : <><SmilePlus aria-hidden className="size-4" />{label}</>}
+            {icon ? <span aria-hidden>{icon}</span> : <><FaceSlightlySmilingPlus aria-hidden className="size-4" />{label}</>}
           </PopoverTrigger>
         } />
         <TooltipContent>{label}</TooltipContent>

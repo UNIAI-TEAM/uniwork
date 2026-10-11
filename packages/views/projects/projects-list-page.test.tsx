@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -181,6 +181,29 @@ beforeEach(() => {
 });
 
 describe("ProjectsListPage", () => {
+  it("lets a member edit their own project inline but not a peer's (UNI-898)", async () => {
+    listedProjects = [
+      { ...launch, created_by: "u1", created_by_kind: "human" },
+      { ...tet, created_by: "u2", created_by_kind: "human" },
+    ];
+    const fallback = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string; body?: unknown }) =>
+      String(path).endsWith("/workspaces/w1/me")
+        ? Promise.resolve({ membership: { user_id: "u1", role: "member", source: "membership" } })
+        : fallback(path, init),
+    );
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Đang làm" })).toBeInTheDocument();
+    const peerRow = screen.getByText("Dự án Tết").closest("[role='row']") as HTMLElement;
+    expect(within(peerRow).getByText("Đã lên kế hoạch")).toBeInTheDocument();
+    expect(within(peerRow).queryByRole("button", { name: "Đã lên kế hoạch" })).not.toBeInTheDocument();
+    expect(within(peerRow).getByRole("button", { name: /^Phụ trách/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
   it("shows project titles from listProjects", async () => {
     renderPage();
     expect(await screen.findByText("Q3 launch")).toBeInTheDocument();

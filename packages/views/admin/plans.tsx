@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, CreditCard, Pencil, Plus } from "lucide-react";
+import { CircleAlert, CreditCard, Pencil, Plus } from "lucide-react";
 import {
   useAdminPlans,
   useCreateAdminPlan,
@@ -370,7 +370,7 @@ export function AdminPlansView() {
         </div>
       ) : plans.isError ? (
         <CollectionPageState
-          icon={AlertCircle}
+          icon={CircleAlert}
           tone="destructive"
           role="alert"
           title={t("error_title")}

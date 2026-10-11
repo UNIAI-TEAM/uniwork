@@ -1,5 +1,6 @@
 "use client";
-import { ArrowRight, Building2, LayoutGrid, ListChecks, Loader2, MessagesSquare, UserPlus, UserRound, Video, type LucideIcon } from "lucide-react";
+import { ArrowRight, Building2, LayoutGrid, UserPlus, UserRound, type LucideIcon } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ONBOARDING_STEP_ORDER } from "@uniwork/core/onboarding";
@@ -9,6 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AUTH_PILL } from "../../auth/auth-controls";
 import { Bezel, Rise } from "../../layout/brand-surface";
+import { MODULE_ICONS } from "../../layout/module-icons";
 import { MODULE_TONES } from "../../layout/module-tones";
 
 type PlanStep = (typeof ONBOARDING_STEP_ORDER)[number];
@@ -76,9 +78,9 @@ function SetupPlan() {
  * the plan alone already runs long.
  */
 const MODULES: { icon: LucideIcon; tone: (typeof MODULE_TONES)[keyof typeof MODULE_TONES] }[] = [
-  { icon: ListChecks, tone: MODULE_TONES.tasks },
-  { icon: Video, tone: MODULE_TONES.meetings },
-  { icon: MessagesSquare, tone: MODULE_TONES.chat },
+  { icon: MODULE_ICONS.tasks, tone: MODULE_TONES.tasks },
+  { icon: MODULE_ICONS.meetings, tone: MODULE_TONES.meetings },
+  { icon: MODULE_ICONS.chat, tone: MODULE_TONES.chat },
 ];
 
 function ModuleSheet() {
@@ -183,7 +185,7 @@ export function StepWelcome({
                     className="flex size-9 items-center justify-center rounded-full bg-primary-foreground text-primary transition-transform duration-(--duration-standard) ease-out-quart group-hover/start:translate-x-0.5 group-hover/start:-translate-y-px motion-reduce:transition-none"
                   >
                     {pending === "next" ? (
-                      <Loader2 className="size-4 animate-spin" strokeWidth={1.75} />
+                      <Spinner strokeWidth={1.75} />
                     ) : (
                       <ArrowRight className="size-4" strokeWidth={1.75} />
                     )}
@@ -198,7 +200,7 @@ export function StepWelcome({
                     aria-disabled={pending !== null || undefined}
                     className={cn(AUTH_PILL, "px-6 sm:w-auto")}
                   >
-                    {pending === "skip" ? <Loader2 className="size-4 animate-spin" strokeWidth={1.75} /> : null}
+                    {pending === "skip" ? <Spinner strokeWidth={1.75} /> : null}
                     {t("onboarding.welcome.skip_existing")}
                   </Button>
                 ) : null}

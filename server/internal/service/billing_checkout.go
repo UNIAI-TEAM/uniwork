@@ -79,6 +79,7 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 	var intentID string
 	var amount int64
 	var currency string
+	orderInfo := "UniWork " + plan.Code
 	existing, err := q.GetPendingBillingPaymentIntentForPlan(ctx, db.GetPendingBillingPaymentIntentForPlanParams{
 		OrganizationID: orgID, PlanID: plan.ID,
 	})
@@ -86,6 +87,9 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 		intentID = existing.ID
 		amount = existing.Amount
 		currency = existing.Currency
+		if s := strings.TrimSpace(pgTextString(existing.ProviderOrderInfo)); s != "" {
+			orderInfo = s
+		}
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		if err := q.ExpirePendingBillingPaymentIntents(ctx, orgID); err != nil {
 			return billing.CheckoutSession{}, err
@@ -99,9 +103,10 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 			ID: intentID, OrganizationID: orgID, SubscriptionID: sub.ID, PlanID: plan.ID,
 			Provider: s.provider.Name(), ProviderTxnRef: intentID,
 			Amount: amount, Currency: currency,
-			ExpiresAt:     pgtype.Timestamptz{Time: expires, Valid: true},
-			CreatedBy:     pgtype.Text{String: checkoutActor.ID, Valid: true},
-			CreatedByKind: pgtype.Text{String: string(checkoutActor.Kind), Valid: true},
+			ExpiresAt:         pgtype.Timestamptz{Time: expires, Valid: true},
+			CreatedBy:         pgtype.Text{String: checkoutActor.ID, Valid: true},
+			CreatedByKind:     pgtype.Text{String: string(checkoutActor.Kind), Valid: true},
+			ProviderOrderInfo: pgtype.Text{String: orderInfo, Valid: true},
 		})
 		if err != nil {
 			return billing.CheckoutSession{}, err
@@ -117,7 +122,7 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 		OrganizationID: orgID, PlanCode: planCode, CustomerEmail: u.Email,
 		SuccessURL: successURL, CancelURL: cancelURL,
 		IntentID: intentID, Amount: amount, Currency: currency,
-		OrderInfo: "UniWork " + plan.Code, ClientIP: clientIP,
+		OrderInfo: orderInfo, ClientIP: clientIP,
 	})
 	if err != nil {
 		_ = s.q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{

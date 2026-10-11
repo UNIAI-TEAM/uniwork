@@ -410,7 +410,7 @@ it("limits documents to eight and supports cycling and numeric shortcuts", async
   fireEvent.click(screen.getAllByRole("button", { name: i18n.t("officeDesktop.library.open") })[8]!);
   expect(await screen.findByText(i18n.t("officeDesktop.tabs.limit"))).toBeInTheDocument();
   expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:office-open")).toHaveLength(8);
-}, 30_000);
+});
 
 it("unmounts every tab on an account change and preserves tabs when logout fails", async () => {
   const h = harness({ failLogout: true });

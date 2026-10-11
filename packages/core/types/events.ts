@@ -14,6 +14,9 @@ import { z } from "zod";
  * catalogue but not here: nothing on the client listens for them.
  */
 export const WS_EVENT_TYPES = [
+  "agent.archived",
+  "agent.created",
+  "agent.updated",
   "ai.usage.updated",
   "audit.exported",
   "chat.channel.archived",
@@ -37,6 +40,7 @@ export const WS_EVENT_TYPES = [
   "chat.room.updated",
   "chat.thread.linked",
   "chat.thread.replied",
+  "chat.thread.unlinked",
   "chat.typing",
   "chat.voice.accept",
   "chat.voice.hangup",

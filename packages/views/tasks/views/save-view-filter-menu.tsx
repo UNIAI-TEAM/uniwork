@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import {
   CircleDot,
-  Filter,
+  Funnel,
   FolderKanban,
   ListFilter,
   SignalHigh,
@@ -265,7 +265,7 @@ export function SaveViewFilterMenu({
             />
           }
         >
-          <Filter className="size-3.5" aria-hidden />
+          <Funnel className="size-3.5" aria-hidden />
           <span>{t("tasks.save_view.add_filter")}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">

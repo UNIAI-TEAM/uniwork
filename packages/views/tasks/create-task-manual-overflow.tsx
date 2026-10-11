@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import type { TaskProperty } from "@uniwork/core/types";
-import { ArrowUp, CalendarClock, CalendarDays, Milestone, MoreHorizontal } from "lucide-react";
+import { ArrowUp, CalendarClock, CalendarDays, Milestone, Ellipsis } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -171,7 +171,7 @@ export function CreateTaskManualOverflow({
       {menuItems.length > 0 ? (
         <DropdownMenu>
           <DropdownMenuTrigger render={<PillButton aria-label={moreFieldsLabel} />}>
-            <MoreHorizontal className="size-3.5" aria-hidden />
+            <Ellipsis className="size-3.5" aria-hidden />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-44">
             {menuItems.map((item) => (

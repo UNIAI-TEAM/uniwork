@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Activity, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { CircleAlert, Activity, CircleCheck, RefreshCw, CircleX } from "lucide-react";
 import { useAdminSystem } from "@uniwork/core/admin";
 import type { AdminSystem } from "@uniwork/core/types";
 import { Badge } from "@uniwork/ui/components/ui/badge";
@@ -43,9 +43,9 @@ function SystemBody({ system }: { system: AdminSystem }) {
           <Row key={c.name} label={c.name}>
             <span className="inline-flex items-center gap-1.5">
               {c.ok ? (
-                <CheckCircle2 aria-hidden="true" className="size-3.5 text-success" />
+                <CircleCheck aria-hidden="true" className="size-3.5 text-success" />
               ) : (
-                <XCircle aria-hidden="true" className="size-3.5 text-destructive" />
+                <CircleX aria-hidden="true" className="size-3.5 text-destructive" />
               )}
               <span className="sr-only">{c.ok ? t("check_ok") : t("check_failed")}</span>
               {c.detail}
@@ -96,7 +96,7 @@ export function AdminSystemView() {
         <Skeleton className="m-4 h-64" />
       ) : system.isError || !system.data ? (
         <CollectionPageState
-          icon={AlertCircle}
+          icon={CircleAlert}
           tone="destructive"
           role="alert"
           title={t("error_title")}

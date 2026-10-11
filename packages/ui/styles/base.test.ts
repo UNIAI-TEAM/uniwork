@@ -44,3 +44,30 @@ describe("border-beam", () => {
     );
   });
 });
+
+/** Body of the first `@media (prefers-reduced-motion: reduce)` block. */
+function reducedMotionBlock(): string {
+  const start = styles.indexOf("@media (prefers-reduced-motion: reduce)");
+  const open = styles.indexOf("{", start);
+  let depth = 0;
+  for (let i = open; i < styles.length; i++) {
+    if (styles[i] === "{") depth++;
+    else if (styles[i] === "}" && --depth === 0) return styles.slice(open + 1, i);
+  }
+  return "";
+}
+
+describe("reduced motion", () => {
+  // The blanket rule cuts every animation to one fast iteration. A spinner
+  // cut that way turns once and freezes, which reads as "done" while the
+  // work is still running; it keeps turning, slower, instead.
+  it("keeps spinners turning, slowly, past the one-iteration cap", () => {
+    const block = reducedMotionBlock();
+    expect(block).toMatch(/\*, \*::before, \*::after \{[^}]*animation-iteration-count: 1 !important;/);
+    const spin = block.match(/\.animate-spin\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(spin).toMatch(/animation-iteration-count:\s*infinite !important;/);
+    const seconds = Number(spin.match(/animation-duration:\s*([\d.]+)s !important;/)?.[1]);
+    // Tailwind's spin is one turn a second; reduced motion turns slower.
+    expect(seconds).toBeGreaterThan(1);
+  });
+});

@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, Bot, BrainCircuit, Building2, Calculator, Cloud, Database, FileCheck2, FileSignature, FileSpreadsheet, FileText, FolderKanban, Globe, GraduationCap, LayoutGrid, Mail, MessageSquare, Network, Presentation, Receipt, Scale, Server, ShieldCheck, Sparkles, Users, Video } from "lucide-react";
+import { ChartColumn, BookOpen, Bot, BrainCircuit, Building2, Calculator, Cloud, Database, FileCheckCorner, FilePenLine, FileSpreadsheet, FileText, FolderKanban, Globe, GraduationCap, LayoutGrid, Mail, MessageSquare, Network, Presentation, Receipt, Scale, Server, ShieldCheck, Sparkles, Users, Video } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 type CapabilityStatus = "available" | "configured" | "foundation" | "development" | "planned";
@@ -22,7 +22,7 @@ export const BUSINESS_OS_LAYERS: BusinessOsLayer[] = [
       { key: "memory", icon: BookOpen, status: "planned" },
       { key: "skills", icon: GraduationCap, status: "planned" },
       { key: "workforce", icon: Bot, status: "foundation" },
-      { key: "executive", icon: BarChart3, status: "planned" },
+      { key: "executive", icon: ChartColumn, status: "planned" },
     ] }],
   },
   {
@@ -31,7 +31,7 @@ export const BUSINESS_OS_LAYERS: BusinessOsLayer[] = [
       { key: "organization", icon: Building2 },
       { key: "people", icon: Users },
       { key: "projects", icon: FolderKanban },
-      { key: "tasks", icon: FileCheck2 },
+      { key: "tasks", icon: FileCheckCorner },
       { key: "chat", icon: MessageSquare, status: "configured" },
       { key: "meetings", icon: Video, status: "configured" },
       { key: "email", icon: Mail, status: "configured" },
@@ -46,7 +46,7 @@ export const BUSINESS_OS_LAYERS: BusinessOsLayer[] = [
       { key: "word", icon: FileText },
       { key: "excel", icon: FileSpreadsheet },
       { key: "powerpoint", icon: Presentation },
-      { key: "pdf", icon: FileCheck2 },
+      { key: "pdf", icon: FileCheckCorner },
       { key: "templates", icon: LayoutGrid },
       { key: "collaboration", icon: Users },
       { key: "aiDocument", icon: Sparkles },
@@ -68,9 +68,9 @@ export const BUSINESS_OS_LAYERS: BusinessOsLayer[] = [
         { key: "businessEmail", icon: Mail },
         { key: "hosting", icon: Server },
         { key: "cloud", icon: Cloud },
-        { key: "signature", icon: FileSignature },
+        { key: "signature", icon: FilePenLine },
         { key: "invoice", icon: Receipt },
-        { key: "contract", icon: FileCheck2 },
+        { key: "contract", icon: FileCheckCorner },
       ] },
     ],
   },

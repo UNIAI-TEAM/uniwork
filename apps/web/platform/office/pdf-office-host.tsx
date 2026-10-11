@@ -65,10 +65,6 @@ export function PdfOfficeEditorHost(props: OfficeEditorHostProps) {
       } catch {
         // A capability fetch failure is not an editor failure: no warnings.
       }
-      if (readonly) {
-        if (active) setLoaded({ key, capability });
-        return;
-      }
       try {
         const { createPdfFormatAdapter } = await import("./pdf-adapter");
         if (!active) return;

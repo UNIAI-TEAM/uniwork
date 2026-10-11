@@ -54,6 +54,13 @@ type PlanFeatureSDI struct {
 	Reason     string `json:"reason" minLength:"10" description:"Lý do chỉnh hạn mức" example:"Giảm quota AI trên Starter theo B1"`
 }
 
+// AdminInvoiceRefundSDI is POST /api/v1/admin/invoices/{invoiceID}/refund.
+type AdminInvoiceRefundSDI struct {
+	Reason            string `json:"reason" minLength:"10" description:"Lý do hoàn tiền (≥ 10 ký tự)" example:"Khách yêu cầu hoàn theo ticket CS-1024"`
+	ProviderReference string `json:"provider_reference,omitempty" description:"Mã tham chiếu VNPay/portal (tùy chọn)" example:"REF14399999"`
+	RefundAmount      *int64 `json:"refund_amount,omitempty" description:"Số tiền hoàn VND; bỏ trống = hoàn toàn phần" example:"499000"`
+}
+
 // FlagOverrideDeleteSDI is DELETE /api/v1/admin/flags/{key}/overrides.
 type FlagOverrideDeleteSDI struct {
 	ScopeType string `json:"scope_type" enum:"organization,user,global" description:"Phạm vi override" example:"organization"`

@@ -1,9 +1,9 @@
 "use client";
 
-import { SquareCheckBig } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
 import { CollectionPageState } from "../layout/collection-page";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { PageHeader } from "../layout/page-header";
 import { TaskSurface } from "./surface/task-surface";
@@ -32,7 +32,7 @@ export function TaskSurfacePage({
   return (
     <div className="flex h-full flex-col">
       <PageHeader>
-        <SquareCheckBig className="size-4 text-muted-foreground" aria-hidden />
+        <MODULE_ICONS.tasks className="size-4 text-muted-foreground" aria-hidden />
         <h1 className="text-body font-medium">{t("tasks.title")}</h1>
       </PageHeader>
 
@@ -45,7 +45,7 @@ export function TaskSurfacePage({
         onOpenTask={onOpenTask}
         renderEmpty={() => (
           <CollectionPageState
-            icon={SquareCheckBig}
+            icon={MODULE_ICONS.tasks}
             tone={moduleTone("tasks")}
             title={t("tasks.empty_title")}
             description={t("tasks.empty_description")}

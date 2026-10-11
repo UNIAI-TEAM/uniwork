@@ -65,6 +65,7 @@ func New(d Deps, h Routes) http.Handler {
 	r.Use(mw.ClientMetadata)
 	r.Use(mw.RequestLogger)
 	r.Use(chimw.Recoverer)
+	r.Use(mw.IdempotencyKeyFormat)
 	r.Use(mw.ContentSecurityPolicy)
 	if d.HTTPMetrics != nil {
 		r.Use(d.HTTPMetrics.Middleware)
@@ -170,6 +171,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerCalendar(authed, h)
 			registerEmailHub(authed, h)
 			registerAudit(authed, h)
+			registerGraph(authed, h)
 			registerMeetings(authed, h)
 			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
 			// Presence beats from every shell page and typing: per signed-in

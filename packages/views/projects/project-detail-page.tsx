@@ -2,6 +2,7 @@
 
 import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useProjectPermissions } from "@uniwork/core/permissions";
 import { useProject } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -47,6 +48,7 @@ export function ProjectDetailPage({
 }) {
   const { t } = useTranslation();
   const { data: project, isLoading } = useProject(workspaceId, projectId);
+  const { decideEdit } = useProjectPermissions(workspaceId);
   const sidebarController = useAnimatedRightSidebar(true);
 
   const backLeading = (
@@ -90,6 +92,10 @@ export function ProjectDetailPage({
       </div>
     );
   }
+
+  // Peers read each other's projects; only the creator, the lead and
+  // workspace admins edit them (UNI-898).
+  const readOnly = !decideEdit(project).allowed;
 
   // The breadcrumb lives in the content column so the sidebar runs the full
   // page height beside it.
@@ -151,13 +157,26 @@ export function ProjectDetailPage({
             className={`h-full overflow-y-auto py-4 ${PAGE_GUTTER}`}
           >
             <div className="space-y-5">
-              <ProjectDetailHeader workspaceId={workspaceId} project={project} />
-              <ProjectProperties workspaceId={workspaceId} project={project} />
+              <ProjectDetailHeader
+                workspaceId={workspaceId}
+                project={project}
+                readOnly={readOnly}
+              />
+              <ProjectProperties
+                workspaceId={workspaceId}
+                project={project}
+                readOnly={readOnly}
+              />
               <ProjectProgressSection project={project} />
-              <ProjectDescriptionSection workspaceId={workspaceId} project={project} />
+              <ProjectDescriptionSection
+                workspaceId={workspaceId}
+                project={project}
+                readOnly={readOnly}
+              />
               <ProjectResourcesSection
                 workspaceId={workspaceId}
                 projectId={projectId}
+                readOnly={readOnly}
               />
             </div>
           </aside>

@@ -6,7 +6,7 @@
 // group's), so the editor shell is untouched.
 
 import { useState } from "react";
-import { ArrowDownWideNarrow, ArrowUpWideNarrow, ArrowLeftRight, Copy, Eraser, Fingerprint, Highlighter, ListChecks, Trash2, Type, type LucideIcon } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, ArrowLeftRight, Copy, Eraser, FingerprintPattern, Highlighter, ListChecks, Trash2, Type, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
@@ -39,7 +39,7 @@ const PRESET_ICONS: Record<XlsxCfPreset, LucideIcon> = {
   between: ArrowLeftRight,
   containsText: Type,
   duplicateValues: Copy,
-  uniqueValues: Fingerprint,
+  uniqueValues: FingerprintPattern,
 };
 
 export function XlsxConditionalFormatGroup({

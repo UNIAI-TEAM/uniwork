@@ -27,6 +27,7 @@ function ProjectCard({
   project,
   pinned,
   canDelete,
+  canEdit,
   onOpenProject,
   locale,
   leadOptions,
@@ -35,6 +36,7 @@ function ProjectCard({
   project: Project;
   pinned: boolean;
   canDelete: boolean;
+  canEdit: boolean;
   onOpenProject: OpenProject;
   locale: string;
   leadOptions: AssigneeOption[];
@@ -78,6 +80,7 @@ function ProjectCard({
             project={project}
             onUpdate={handleUpdate}
             triggerClassName="shrink-0"
+            disabled={!canEdit}
           />
         </div>
 
@@ -102,6 +105,7 @@ function ProjectCard({
           onChange={handleUpdate}
           triggerClassName="-mx-1 max-w-full flex-1 shrink overflow-hidden"
           labelClassName="max-w-[96px]"
+          disabled={!canEdit}
         />
         <div
           data-slot="project-card-metadata"
@@ -112,6 +116,7 @@ function ProjectCard({
             onUpdate={handleUpdate}
             align="start"
             triggerClassName="min-w-0 overflow-hidden [&>span]:truncate"
+            disabled={!canEdit}
           />
           <span
             data-slot="project-card-date"
@@ -130,6 +135,7 @@ export function ProjectsListGrid({
   projects,
   pinnedIds,
   canDelete,
+  canEdit,
   onOpenProject,
   locale,
   leadOptions,
@@ -139,6 +145,7 @@ export function ProjectsListGrid({
   projects: Project[];
   pinnedIds: Set<string>;
   canDelete: boolean;
+  canEdit: (project: Project) => boolean;
   onOpenProject: OpenProject;
   locale: string;
   leadOptions: AssigneeOption[];
@@ -163,6 +170,7 @@ export function ProjectsListGrid({
             project={project}
             pinned={pinnedIds.has(project.id)}
             canDelete={canDelete}
+            canEdit={canEdit(project)}
             onOpenProject={onOpenProject}
             locale={locale}
             leadOptions={leadOptions}

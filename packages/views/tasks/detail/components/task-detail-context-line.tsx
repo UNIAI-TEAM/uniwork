@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CircleDot } from "lucide-react";
+import { CircleCheck, CircleDot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { useChildTaskProgress, useTask } from "@uniwork/core/tasks";
@@ -37,7 +37,7 @@ export function TaskDetailContextLine({ workspaceId, task }: { workspaceId: stri
       ) : null}
       {total > 0 ? (
         <span className="inline-flex items-center gap-1.5 tabular-nums">
-          <CheckCircle2 className="size-3.5" aria-hidden />
+          <CircleCheck className="size-3.5" aria-hidden />
           {t("tasks.detail.subtasks_progress", { done, total })}
         </span>
       ) : null}

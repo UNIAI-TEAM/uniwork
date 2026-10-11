@@ -23,8 +23,9 @@ import (
 type Lane string
 
 const (
-	// LaneRealtime carries topics whose consumers only touch memory, Redis or
-	// one indexed read: socket fan-out and cache invalidation. It also claims
+	// LaneRealtime carries topics whose consumers only touch memory, Redis,
+	// one indexed read, or one keyed upsert: socket fan-out, cache
+	// invalidation and the Work Graph marker. It also claims
 	// every topic no other lane owns, so a topic nobody consumes yet is
 	// completed rather than left pending, and it is the lane that sweeps
 	// expired claims, because it is the one that never waits on a downstream.

@@ -82,3 +82,66 @@ its HTTP p95 is an upper bound. Time the query itself with
 (`server/pkg/db/queries/usage.sql`) for the organization id of `perf-org-1`.
 Record the host, versions and dataset beside the numbers; a local run says
 nothing about another machine.
+
+## Work Graph (C-11 §9)
+
+Run by hand, not in CI or the nightly. Two databases, because the load set and
+the rebuild checks cannot share an organization: `graph-seed.sql` writes
+synthetic edges that no source row backs, so `graph-rebuild --verify` counts
+them as drift and a plain `graph-rebuild` closes them.
+
+**Neighbors p95 at 1M edges** (target p95 < 200 ms). `graph-seed.sql` puts
+~5 edges on every real task of one organization (OWNED_BY to a member,
+BELONGS_TO and three DEPENDS_ON to other tasks), so 200k tasks give ~1M edges
+and layer 2 still reads real tasks. The API needs `graph_ui` on for that
+organization: `FF_GRAPH_UI=true` at start, or a global `graph_ui` override.
+The requests spread over 500 task paths and the global rate limit counts per
+user and path (300/min), so the run stays under it without `TRUSTED_PROXIES`.
+
+```sh
+# fresh database, migrations applied (cd server && go run ./cmd/migrate up), then:
+(cd server && DATABASE_URL=… go run ./cmd/seed --orgs 1 --users 200 --tasks 200000)
+psql "$DATABASE_URL" -v org_id=<perf-org-0 id> -v tag=graphload -f scripts/load/graph-seed.sql
+FF_GRAPH_UI=true server/bin/server &
+BASE_URL=http://localhost:8080 k6 run scripts/load/graph-neighbors.k6.js
+# without a local k6:
+docker run --rm -v "$PWD/scripts/load:/load:ro" -e BASE_URL=http://host.docker.internal:8080 \
+  grafana/k6 run /load/graph-neighbors.k6.js
+```
+
+**Rebuild, verify and origin** run on a second database with no
+`graph-seed.sql`:
+
+1. `go run ./cmd/seed --orgs 1 --tasks 100000` (from `server/`), then time
+   `go run ./cmd/graph-rebuild --org <id>` (the first full projection).
+2. Start the API with `FF_GRAPH=true FF_GRAPH_UI=true` and make real changes
+   through it: a meeting, tasks from it (`POST /meetings/{id}/summary/tasks`),
+   reassignments, status, due dates and dependencies. Wait until
+   `SELECT count(*) FROM graph_dirty` is 0.
+3. `go run ./cmd/graph-rebuild --org <id> --verify` must print `drift=0`.
+4. Every task made from a meeting has an open `ORIGINATED_FROM` edge to it;
+   this must count 0:
+
+```sql
+SELECT count(*) FROM tasks t
+WHERE t.organization_id = :'org_id' AND t.origin_type = 'meeting'
+  AND EXISTS (SELECT 1 FROM meetings m WHERE m.id = t.origin_id)
+  AND NOT EXISTS (
+    SELECT 1 FROM graph_nodes n
+    JOIN graph_edges e ON e.from_node = n.id AND e.edge_type = 'ORIGINATED_FROM' AND e.valid_to IS NULL
+    JOIN graph_nodes p ON p.id = e.to_node AND p.node_type = 'MEETING' AND p.source_id = t.origin_id
+    WHERE n.organization_id = t.organization_id AND n.node_type = 'TASK' AND n.source_id = t.id);
+```
+
+`cmd/seed` writes no member profiles and no workspace status catalog, and puts
+every organization on the default plan. Before step 1, add the profiles (the
+`INSERT` at the end of `server/migrations/134_organization_member_profiles.up.sql`;
+read paths assume every member has one). Before step 2, add the status catalog
+(`server/migrations/131_seed_task_status_catalog.up.sql`; without it a task
+create answers 400 `status không hợp lệ`) and lift the task cap, which the
+default plan sets at 200 (a create answers 403 `quota_exceeded`):
+
+```sql
+UPDATE subscriptions SET plan_id = (SELECT id FROM plans WHERE code = 'business')
+WHERE organization_id = :'org_id';
+```

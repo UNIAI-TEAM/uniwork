@@ -31,6 +31,9 @@ import {
 import { OfficeInstallPrompt } from "./install-prompt";
 
 const EMPTY_INSTALLERS: OfficeInstallerOption[] = [];
+/** A browser protocol prompt can be answered long after the launch timeout;
+ * the app then takes the focus, which closes a not-installed prompt this soon. */
+const LATE_HANDOFF_GRACE_MS = 60_000;
 const UNKNOWN_PLATFORM: DesktopPlatformGuess = { platform: null, confidence: "unsupported" };
 
 /** How one "open in the desktop app" request ended; the frame `app.open` answer carries it. */
@@ -44,7 +47,7 @@ export interface OfficeSaveOutcome {
 
 export type OfficeLaunchSessionFactory = (
   documentId: string,
-  body: { operation: "edit"; version: number; deployment_id: string; client_id: string; return_hint: "office" },
+  body: { operation: "edit"; version?: number; deployment_id: string; client_id: string; return_hint: "office" },
 ) => Promise<OfficeLaunchSessionResponse | null>;
 
 export interface DesktopOpenActionProps {
@@ -134,6 +137,7 @@ export function DesktopOpenAction({
     pendingRequest.current = null;
     resolve?.(outcome);
   };
+  const launchedAt = useRef(0);
   const headerSlot = useHeaderActionsSlotAvailable();
   const inline = placement === "inline";
   const inPageHeader = headerSlot && !inline;
@@ -146,6 +150,20 @@ export function DesktopOpenAction({
     setCoordinatorState(saveCoordinator.getState());
     return saveCoordinator.subscribe(setCoordinatorState);
   }, [saveCoordinator]);
+  // The page cannot tell whether the browser's protocol prompt was accepted, so
+  // a focus or visibility change soon after a failed launch means the app did
+  // answer: drop the "did not respond" prompt instead of contradicting it.
+  useEffect(() => {
+    if (!installOpen || installReason !== "not-installed") return;
+    const onHandoff = () => { if (Date.now() - launchedAt.current < LATE_HANDOFF_GRACE_MS) setInstallOpen(false); };
+    const onVisibility = () => { if (document.visibilityState === "hidden") onHandoff(); };
+    window.addEventListener("blur", onHandoff);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("blur", onHandoff);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [installOpen, installReason]);
   useEffect(() => setResolvedInstallers(installers), [installers]);
   useEffect(() => setResolvedPlatforms(supportedPlatforms), [supportedPlatforms]);
   useEffect(() => setResolvedHint(platformHint), [platformHint]);
@@ -165,8 +183,12 @@ export function DesktopOpenAction({
     setWorking(true);
     setError(null);
     try {
+      // `version` names a HISTORICAL version and makes the server force a
+      // read-only session; the committed version being handed off is the
+      // current one, so the body leaves it out. The check above only proves
+      // the editor knows what it is handing off.
       const session = await createSession(documentId, {
-        operation: "edit", version, deployment_id: deploymentId, client_id: clientId, return_hint: "office",
+        operation: "edit", deployment_id: deploymentId, client_id: clientId, return_hint: "office",
       });
       if (!session) {
         setError(t("ticket_failed"));
@@ -179,6 +201,7 @@ export function DesktopOpenAction({
         setError(t("ticket_failed"));
         return "unavailable";
       }
+      launchedAt.current = Date.now();
       const outcome = launch ? await launch(url) : "not-installed";
       if (outcome === "launched") return "launched";
       await openInstallPrompt(outcome === "expired" ? "expired" : outcome === "error" ? "error" : "not-installed");

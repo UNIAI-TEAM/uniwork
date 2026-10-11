@@ -347,6 +347,24 @@ describe("HtmlEditor view modes", () => {
     expect(view()).toBe("split");
   });
 
+  it("opens the document read-only for a readonly serialize row: shell shown, no Save (view-only member)", async () => {
+    let source = SOURCE;
+    const editor: HtmlEditorHandle = {
+      format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
+      captureSnapshot: vi.fn(async () => ({ generation: 1, fingerprint: "fp", value: { source } })),
+      undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), cancel: vi.fn(),
+      source: { getText: () => source, setText: (next) => { source = next; } },
+      getAssetManifest: () => ({ entries: [] }),
+    };
+    const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
+    const open = vi.fn(async () => outcome);
+    render(<HtmlEditor documentKey="doc" editor={editor} open={{ open }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "web", engineBuild: "test", contractRevision: "test", status: "readonly", reason: "view permission", fidelityWarnings: [] }} />);
+    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("html-open-state")).toBeNull();
+    expect(screen.queryByTestId("html-save")).toBeNull();
+  });
+
   it("never draws an inner header, title or Save row (F1/F2)", async () => {
     // The page header cluster owns Save and the title; the surface mounts only
     // the shared frame, whether or not a header-actions slot exists above it.

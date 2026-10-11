@@ -2,23 +2,43 @@
 
 import { useTranslation } from "react-i18next";
 import type { Project } from "@uniwork/core/types/project";
-import { ContentEditor, TitleEditor } from "../editor";
+import { ContentEditor, ReadonlyContent, TitleEditor } from "../editor";
 import { SidebarSection } from "../common/sidebar-section";
+import { ProjectIcon } from "./components/project-icon";
 import { ProjectIconField } from "./create-project-fields";
 import { useProjectFieldSave } from "./use-project-field-save";
 
 const DESCRIPTION_SAVE_DEBOUNCE_MS = 1500;
 
-/** Icon + title at the top of the project detail sidebar; the title saves on blur. */
+/**
+ * Icon + title at the top of the project detail sidebar; the title saves on
+ * blur. `readOnly` shows them as text for a project the viewer may not edit.
+ */
 export function ProjectDetailHeader({
   workspaceId,
   project,
+  readOnly = false,
 }: {
   workspaceId: string;
   project: Project;
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const save = useProjectFieldSave(workspaceId, project);
+
+  if (readOnly) {
+    return (
+      <div>
+        <ProjectIcon project={project} size="lg" className="text-display-sm" />
+        <h2 className="mt-2 w-full text-title-sm leading-snug font-semibold tracking-tight break-words">
+          {project.title}
+        </h2>
+        <p className="mt-1 text-caption text-muted-foreground">
+          {t("projects.detail.read_only")}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -48,12 +68,30 @@ export function ProjectDetailHeader({
 export function ProjectDescriptionSection({
   workspaceId,
   project,
+  readOnly = false,
 }: {
   workspaceId: string;
   project: Project;
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const save = useProjectFieldSave(workspaceId, project);
+
+  if (readOnly) {
+    return (
+      <SidebarSection title={t("projects.detail.section_description")}>
+        <div className="pl-2">
+          {project.description.trim() ? (
+            <ReadonlyContent content={project.description} className="text-body" />
+          ) : (
+            <p className="text-caption text-muted-foreground">
+              {t("projects.detail.description_empty")}
+            </p>
+          )}
+        </div>
+      </SidebarSection>
+    );
+  }
 
   return (
     <SidebarSection title={t("projects.detail.section_description")}>

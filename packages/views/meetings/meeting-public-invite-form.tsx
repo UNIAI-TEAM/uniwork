@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from "react";
-import { CalendarDays, Loader2, ShieldCheck, Video, Zap } from "lucide-react";
+import { CalendarDays, ShieldCheck, Video, Zap } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@uniwork/ui/components/ui/field";
@@ -235,7 +236,7 @@ export function MeetingPublicInviteForm({
           >
             {joinPending ? (
               <>
-                <Loader2 aria-hidden className="animate-spin" />
+                <Spinner />
                 {t("meetings.joining")}
               </>
             ) : (

@@ -131,6 +131,16 @@ groups:
           description: "Redis relay gặp {{ $value | printf \"%.0f\" }} lỗi XREAD trong 5 phút, kéo dài 10 phút: Redis quá tải, mất kết nối hoặc pool đọc đã cạn."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/RealtimeRedisXReadErrors.md
 
+      - alert: GraphProjectorLagHigh
+        expr: max(uniwork_graph_dirty_oldest_seconds) > 120
+        for: 10m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Work Graph đang trễ nguồn hơn 2 phút"
+          description: "Sự kiện cũ nhất chờ chiếu đã đợi {{ $value | humanizeDuration }}. Panel Liên quan hiển thị dữ liệu cũ."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/GraphProjectorLagHigh.md
+
   - name: uniwork-ai
     rules:
       - alert: AiCostSpike

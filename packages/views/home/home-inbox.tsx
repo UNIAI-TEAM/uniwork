@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Inbox } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useReadHomeNotification } from "@uniwork/core/home";
 import { paths } from "@uniwork/core/paths";
@@ -8,6 +8,7 @@ import type { HomeSummary } from "@uniwork/core/types/home";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
@@ -45,7 +46,7 @@ export function HomeInbox({
     <PanelCard
       id="home-inbox"
       title={t("home.section.inbox")}
-      icon={Inbox}
+      icon={MODULE_ICONS.inbox}
       iconTone={moduleTone("inbox")}
       flush
       className="shadow-none"

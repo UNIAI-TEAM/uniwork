@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ListChecks, Sparkles, Video, type LucideIcon } from "lucide-react";
+import { Sparkles, type LucideIcon } from "lucide-react";
 import { Logo } from "@uniwork/ui/brand";
 import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { BrandRailAside, RAIL_COLUMN, RAIL_GUTTER, RAIL_WIDTH_AUTH } from "../layout/brand-rail";
 import { Bezel, Rise } from "../layout/brand-surface";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { MODULE_TONES } from "../layout/module-tones";
 import { LocaleSwitch } from "./locale-switch";
 
@@ -16,8 +17,8 @@ import { LocaleSwitch } from "./locale-switch";
  * do not answer the pointer.
  */
 const RAIL_POINTS: { key: "tasks" | "meetings" | "ai"; icon: LucideIcon; tone: IconTileTone; place: string }[] = [
-  { key: "tasks", icon: ListChecks, tone: MODULE_TONES.tasks, place: "ml-0 -rotate-2" },
-  { key: "meetings", icon: Video, tone: MODULE_TONES.meetings, place: "-mt-4 ml-14 rotate-[1.5deg]" },
+  { key: "tasks", icon: MODULE_ICONS.tasks, tone: MODULE_TONES.tasks, place: "ml-0 -rotate-2" },
+  { key: "meetings", icon: MODULE_ICONS.meetings, tone: MODULE_TONES.meetings, place: "-mt-4 ml-14 rotate-[1.5deg]" },
   { key: "ai", icon: Sparkles, tone: "brand", place: "-mt-4 ml-6 -rotate-1" },
 ];
 

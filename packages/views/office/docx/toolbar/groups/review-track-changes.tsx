@@ -5,7 +5,7 @@
 // all, the same commands the old toolbar entry exposed. The pane is mounted by
 // the toolbar-level `RibbonDialogHosts` (F7) so folding the group cannot destroy
 // it; the kept sr-only trigger is an anchor only (F9).
-import { CheckCheck, History, XCircle } from "lucide-react";
+import { CheckCheck, RotateCcwClock, CircleX } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -29,7 +29,7 @@ export function reviewTrackChangesRibbonItems(context: DocxToolbarGroupContext):
       kind: "split",
       id: "review-track-changes",
       labelKey: "office.docx.toolbar.groups.trackChanges",
-      icon: History,
+      icon: RotateCcwClock,
       size: "large",
       collapseAs: "small",
       disabled,
@@ -45,7 +45,7 @@ export function reviewTrackChangesRibbonItems(context: DocxToolbarGroupContext):
         {
           id: "review-track-changes-reject-all",
           labelKey: "office.docx.review.rejectAll",
-          icon: XCircle,
+          icon: CircleX,
           disabled: disabled || !hasChanges,
           onSelect: () => commands?.rejectAllReviewChanges(),
         },
@@ -91,7 +91,7 @@ export function ReviewTrackChangesGroup({ format, commands, readOnly, saving, do
           />
         }
       >
-        <History aria-hidden />
+        <RotateCcwClock aria-hidden />
         {count > 0 ? <span className="text-caption text-muted-foreground">{count}</span> : null}
       </PopoverTrigger>
       {/* keepMounted: the panel hosts the bulk confirmation dialog, and the

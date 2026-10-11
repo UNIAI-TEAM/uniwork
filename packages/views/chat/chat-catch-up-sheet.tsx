@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { AlertCircle, CheckCircle2, History, ListChecks, MessageSquareText, Sparkles } from "lucide-react";
+import { CircleAlert, CircleCheck, RotateCcwClock, ListChecks, MessageSquareText, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChatCatchUpActionItem, ChatCatchUpResponse } from "@uniwork/core/types";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
@@ -116,7 +116,7 @@ export function ChatCatchUpSheet({
         >
           <SheetHeader className="border-b border-border px-4 py-3">
             <SheetTitle className="flex items-center gap-2">
-              <History aria-hidden className="size-4 text-muted-foreground" />
+              <RotateCcwClock aria-hidden className="size-4 text-muted-foreground" />
               {t("chat.ai.catch_up_title")}
             </SheetTitle>
             <SheetDescription>
@@ -129,7 +129,7 @@ export function ChatCatchUpSheet({
           {!loading && error ? (
             <Notice
               tone="destructive"
-              icon={AlertCircle}
+              icon={CircleAlert}
               live="assertive"
               action={
                 onRetry ? (
@@ -152,7 +152,7 @@ export function ChatCatchUpSheet({
                 className="flex flex-1 flex-col items-center justify-center gap-3 text-center"
                 role="status"
               >
-                <IconTile icon={CheckCircle2} size="lg" tone="success" />
+                <IconTile icon={CircleCheck} size="lg" tone="success" />
                 <div className="flex max-w-[36ch] flex-col gap-1">
                   <p className="text-body font-medium text-foreground">{t("chat.ai.catch_up_empty_title")}</p>
                   <p className="text-caption text-muted-foreground">{t("chat.ai.catch_up_empty")}</p>

@@ -336,3 +336,44 @@ func TestDetectParentCyclePropagatesLookupError(t *testing.T) {
 		t.Fatalf("lookup failure must not be treated as cycle/no-cycle success: %v", err)
 	}
 }
+
+// A dependency relates two tasks, and the Work Graph edge of blocks(a, b) is
+// b→a, projected from b alone: adding or removing one names both tasks.
+func TestDependencyChangesNameBothTasks(t *testing.T) {
+	s, events, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	a, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := len(events.drain(t))
+	named := func(what string) {
+		t.Helper()
+		all := events.drain(t)
+		got := map[string]int{}
+		for _, e := range all[seen:] {
+			if e.Type == "task.updated" {
+				got[e.Payload["task_id"]]++
+			}
+		}
+		seen = len(all)
+		if len(got) != 2 || got[a.ID] != 1 || got[b.ID] != 1 {
+			t.Fatalf("%s: task.updated per task = %v, want one for %s and one for %s", what, got, a.ID, b.ID)
+		}
+	}
+
+	if _, err := s.SetDependency(ctx, actor, a.ID, SetDependencyInput{DependsOnTaskID: b.ID, Type: "blocks"}); err != nil {
+		t.Fatal(err)
+	}
+	named("set")
+	if err := s.RemoveDependency(ctx, actor, a.ID, b.ID, "blocks"); err != nil {
+		t.Fatal(err)
+	}
+	named("remove")
+}

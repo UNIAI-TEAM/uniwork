@@ -21,7 +21,7 @@
  */
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Lock, LockOpen, RotateCcw } from "lucide-react";
+import { TextAlignCenter, TextAlignJustify, TextAlignStart, TextAlignEnd, Lock, LockOpen, RotateCcw } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
@@ -49,11 +49,11 @@ import {
   type HtmlStyleValues,
 } from "./model";
 
-const ALIGN_ICONS: Record<HtmlStyleAlign, typeof AlignLeft> = {
-  left: AlignLeft,
-  center: AlignCenter,
-  right: AlignRight,
-  justify: AlignJustify,
+const ALIGN_ICONS: Record<HtmlStyleAlign, typeof TextAlignStart> = {
+  left: TextAlignStart,
+  center: TextAlignCenter,
+  right: TextAlignEnd,
+  justify: TextAlignJustify,
 };
 
 const WEIGHT_KEYS: Record<HtmlStyleFontWeight, string> = {

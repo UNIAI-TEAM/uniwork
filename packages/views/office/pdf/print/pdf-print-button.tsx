@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Info, Printer } from "lucide-react";
+import { Info, Printer, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
@@ -71,7 +71,7 @@ export function PdfPrintNotice({ controller }: PdfPrintEntryProps) {
   }
   if (controller.status === "failed" || controller.status === "tooLarge") {
     const message = controller.status === "tooLarge" ? PDF_PRINT_KEYS.tooLarge : PDF_PRINT_KEYS.failed;
-    return <div data-testid="pdf-print-error"><Notice tone="destructive" icon={AlertTriangle} live="assertive">{t(message)}</Notice></div>;
+    return <div data-testid="pdf-print-error"><Notice tone="destructive" icon={CircleAlert} live="assertive">{t(message)}</Notice></div>;
   }
   return null;
 }

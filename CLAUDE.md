@@ -10,10 +10,11 @@ one that is not, fix the rule or the file.
 
 ## Conventions
 
-The source of truth for code naming, the vi–en i18n glossary, and the
-Vietnamese voice guide is `docs/conventions.md`. Read it before naming a
-route/package/file/DB column/type, before editing
-`packages/core/i18n/locales/`, and before writing Vietnamese UI copy.
+The source of truth for code naming, the vi–en i18n glossary, the
+Vietnamese voice guide and icon use is `docs/conventions.md`. Read it before
+naming a route/package/file/DB column/type, before editing
+`packages/core/i18n/locales/`, before writing Vietnamese UI copy, and before
+picking an icon.
 HTTP API + Swagger (SDI/SDO, Chi `apiOp`, `pathParamSDI`) is
 `docs/api-sdi-sdo.md`. The *why* behind every "never" / "only" below is an
 ADR in `docs/adr/` — read it before arguing with the rule, and write one
@@ -284,6 +285,13 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   organization/workspace clause, and only `internal/service/task_table*.go`
   imports it — `TestTableQueryOnlyFromTaskTableService` and the builder tests
   in that package hold it.
+- The Work Graph tables (`graph_nodes`, `graph_edges`, `graph_node_facts`,
+  `graph_dirty`) are a projection of the business tables (ADR 0019): only
+  `server/internal/graph/projector` writes them. The marker on the realtime
+  lane marks dirty nodes, the worker re-reads the sources, and
+  `cmd/graph-rebuild` (`--verify` counts drift) reproduces them, so a wrong
+  row is fixed by a rebuild, never by hand. `TestGraphTablesWrittenOnlyByProjector`
+  (`server/internal/arch_test.go`) holds it.
 
 ## Audit and Events
 
@@ -305,8 +313,9 @@ Every command that changes business state writes an `audit_events` row and its
 - The dispatcher runs one claim loop per lane (`server/internal/outbox/lane.go`:
   realtime, notify, provider, push, slow). `Dispatcher.Register` puts a
   consumer on the realtime lane, which is only for consumers that touch
-  memory, Redis or one indexed read; a consumer that waits on a third party or
-  fans out across tables uses `RegisterLane`. A topic runs on the slowest lane
+  memory, Redis, one indexed read, or one keyed upsert (the Work Graph
+  marker); a consumer that waits on a third party or fans out across tables
+  uses `RegisterLane`. A topic runs on the slowest lane
   among its consumers, and one row's consumers run concurrently.
   `TestSlowLaneDoesNotDelayARealtimeRow` and
   `TestLanesDeliverEachRowOnceAcrossNodes` hold it.
@@ -511,6 +520,12 @@ When adding a shared screen:
   (`mcp.frontendchecklist.io` — it sends the file's source to that service)
   as an advisory review; it is not a gate and its regex findings are verified
   against the code before being acted on.
+- Icons follow `docs/conventions.md` › Icons. Import canonical lucide names
+  (`no-restricted-imports` names the replacement; regenerate the list with
+  `pnpm generate:lucide-aliases`), draw a module with `MODULE_ICONS` from
+  `packages/views/layout/module-icons.ts`, and show loading with `<Spinner />`.
+  `scripts/lucide-aliases.test.mjs` fails on an alias import or a raw
+  `LoaderCircle` at every gate level.
 - The semantic slots are the only tokens. `scripts/no-legacy-tokens.test.mjs`
   fails on any `--uw-*` reference or pre-port utility (`bg-canvas`,
   `text-tertiary`, `border-line`, …); `cn()` in `packages/ui/lib/utils.ts`

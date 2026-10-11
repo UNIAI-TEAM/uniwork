@@ -7,7 +7,7 @@ import {
   Maximize2,
   Minimize2,
   Search,
-  Smile,
+  FaceSlightlySmiling,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChatGifs, useChatStickers } from "@uniwork/core/chat";
@@ -354,7 +354,7 @@ export function ChatExpressionPicker({
             disabled={disabled}
             className={className}
           >
-            <Smile className="size-5" aria-hidden />
+            <FaceSlightlySmiling className="size-5" aria-hidden />
           </ComposerToolbarButton>
         }
       />

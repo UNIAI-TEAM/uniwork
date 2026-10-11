@@ -8,3 +8,4 @@ export * from "./draft-key-port";
 export * from "./desktop-platform";
 export * from "./format-flags";
 export * from "./too-large";
+export * from "./installer-channel";

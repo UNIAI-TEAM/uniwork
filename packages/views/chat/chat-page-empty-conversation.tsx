@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronLeft, MessageSquare, PanelLeft } from "lucide-react";
+import { ChevronLeft, PanelLeft } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { CollectionPageState } from "../layout/collection-page";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 
 /**
@@ -49,7 +50,7 @@ export function ChatPageEmptyConversation({
   return (
     <div className="flex flex-1 items-center justify-center">
       <CollectionPageState
-        icon={MessageSquare}
+        icon={MODULE_ICONS.chat}
         tone={moduleTone("chat")}
         title={t("chat.no_conversation_title")}
         description={listHidden ? t("chat.no_conversation_hint_hidden") : t("chat.no_conversation_hint")}

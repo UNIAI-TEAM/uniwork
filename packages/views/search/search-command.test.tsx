@@ -306,7 +306,7 @@ describe("SearchCommand", () => {
     render(wrapWithNav(paletteTree(workspace)));
     fireEvent.click(screen.getByText("Ngôn ngữ: English"));
     await waitFor(() => expect(success).toHaveBeenCalled());
-    expect(success.mock.calls[0]?.[0]).toBe("Saved");
+    expect(success.mock.calls[0]?.[0]).toBe("Language preference saved");
     success.mockRestore();
     await setLocale("vi");
   });

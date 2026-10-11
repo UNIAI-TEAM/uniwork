@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowRight, ListTodo } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useCompleteHomeTasks, useReopenHomeTasks } from "@uniwork/core/home";
@@ -15,6 +15,7 @@ import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
 import { CollectionPageState } from "../layout/collection-page";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
@@ -180,7 +181,7 @@ export function HomeMyWork({
     <PanelCard
       id="home-mywork"
       title={t("home.section.mywork")}
-      icon={ListTodo}
+      icon={MODULE_ICONS.my_tasks}
       iconTone={moduleTone("my_tasks")}
       flush
       // The card is a size container: its width depends on the chosen density,
@@ -236,7 +237,7 @@ export function HomeMyWork({
       ) : tasks.length === 0 && failed ? null : tasks.length === 0 ? (
         <CollectionPageState
           className="py-6"
-          icon={ListTodo}
+          icon={MODULE_ICONS.my_tasks}
           tone={moduleTone("my_tasks")}
           title={t("home.mywork.empty_title")}
           description={t("home.mywork.empty_description")}

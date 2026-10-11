@@ -1,5 +1,5 @@
 "use client";
-import { Check, CircleHelp, X, type LucideIcon } from "lucide-react";
+import { Check, CircleQuestionMark, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useRespondInvitation } from "@uniwork/core/meetings";
 import type { MeetingInvitation } from "@uniwork/core/types/meeting";
@@ -11,7 +11,7 @@ type Answer = "ACCEPTED" | "TENTATIVE" | "DECLINED";
 
 const ANSWERS: { value: Answer; labelKey: string; icon: LucideIcon }[] = [
   { value: "ACCEPTED", labelKey: "meetings.accept", icon: Check },
-  { value: "TENTATIVE", labelKey: "meetings.tentative", icon: CircleHelp },
+  { value: "TENTATIVE", labelKey: "meetings.tentative", icon: CircleQuestionMark },
   { value: "DECLINED", labelKey: "meetings.decline", icon: X },
 ];
 

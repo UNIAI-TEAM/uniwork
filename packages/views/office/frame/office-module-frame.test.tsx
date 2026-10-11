@@ -596,7 +596,9 @@ describe("the frame's app.open request (A7)", () => {
     await waitFor(() => expect(document.querySelector("[data-office-desktop-action]")).not.toBeNull());
     const answer = await ask(frame);
     expect(answer.payload).toEqual({ outcome: "launched" });
-    expect(createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "edit", version: 3, deployment_id: "dep-1" }));
+    // The committed version is the current one, so the body leaves `version` out (it would force a read-only session).
+    expect(createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "edit", deployment_id: "dep-1" }));
+    expect(createSession).toHaveBeenCalledWith("doc-1", expect.not.objectContaining({ version: expect.anything() }));
     expect(launch).toHaveBeenCalledWith(expect.stringContaining("://open?ticket="));
   });
 

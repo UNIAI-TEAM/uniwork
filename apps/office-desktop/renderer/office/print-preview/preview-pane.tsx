@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import type { DesktopPrintGeometry } from "../../../shared/ipc";
 import { PreviewPages } from "./preview-pages";
 import type { PreviewState } from "./use-print-data";
-
-/** Inline: the desktop package does not depend on the icon set directly. */
-function Chevron({ direction }: { direction: "left" | "right" }) {
-  return <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={direction === "left" ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6"} /></svg>;
-}
 
 /** The right half of the dialog: how many pages, which one is shown, and the
  * thumbnails. The failure copy lives here; whether printing is still allowed is
@@ -48,10 +44,10 @@ export function PreviewPane({ state, busy, geometry, current, onCurrentChange }:
     <div className="flex items-center justify-between gap-2 text-label text-muted-foreground">
       <span>{ready ? t("pageCount", { count: pageCount }) : null}</span>
       {ready ? <div className="flex items-center gap-1">
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={t("previousPage")} title={t("previousPage")} disabled={current <= 0} onClick={() => go(current - 1)}><Chevron direction="left" /></Button>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={t("previousPage")} title={t("previousPage")} disabled={current <= 0} onClick={() => go(current - 1)}><ChevronLeft className="size-4 shrink-0" aria-hidden /></Button>
         <span>{t("pageOf", { current: current + 1, total: pageCount })}</span>
         <span className="sr-only" aria-live="polite">{announcement}</span>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={t("nextPage")} title={t("nextPage")} disabled={current >= pageCount - 1} onClick={() => go(current + 1)}><Chevron direction="right" /></Button>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={t("nextPage")} title={t("nextPage")} disabled={current >= pageCount - 1} onClick={() => go(current + 1)}><ChevronRight className="size-4 shrink-0" aria-hidden /></Button>
       </div> : null}
     </div>
     {ready ? <div className={busy ? "flex min-h-0 flex-1 flex-col opacity-60 transition-opacity" : "flex min-h-0 flex-1 flex-col transition-opacity"}>

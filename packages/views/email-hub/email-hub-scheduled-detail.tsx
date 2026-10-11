@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, CalendarClock, RotateCw, TriangleAlert, X } from "lucide-react";
+import { ArrowLeft, CalendarClock, X, RefreshCw, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubScheduledSendItem } from "@uniwork/core/api/endpoints/email-hub";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -38,7 +38,7 @@ export function EmailHubScheduledDetail({
   const subject = item.subject || t("email_hub.no_subject");
   const failed = isScheduledSendFailed(item.status);
   const when = formatEmailFullDate(item.send_at, locale);
-  const Icon = failed ? TriangleAlert : CalendarClock;
+  const Icon = failed ? CircleAlert : CalendarClock;
   const busy = cancelPending || retryPending;
 
   return (
@@ -86,7 +86,7 @@ export function EmailHubScheduledDetail({
           <div className="flex flex-wrap gap-2">
             {failed ? (
               <Button type="button" variant="brand" size="lg" disabled={busy} onClick={onRetry}>
-                <RotateCw aria-hidden />
+                <RefreshCw aria-hidden />
                 {retryPending ? t("email_hub.scheduled.retrying") : t("email_hub.scheduled.retry")}
               </Button>
             ) : null}

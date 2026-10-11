@@ -178,6 +178,8 @@ describe("OfficeEditorHost composition", () => {
     expect(grid).toBeTruthy();
     expect(rendered.container.querySelector('[data-testid="office-host-unbound"]')).toBeNull();
     expect(rendered.container.querySelector('button[aria-label="Save to UniWork"]')).toBeNull();
+    // The viewer is not wrapped in a permission alert: the page banner already says view-only.
+    expect(rendered.container.querySelector('[role="alert"]')).toBeNull();
     act(() => { grid!.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true })); });
     expect(coordinator.save).not.toHaveBeenCalled();
     expect(session.checkpoint).not.toHaveBeenCalled();

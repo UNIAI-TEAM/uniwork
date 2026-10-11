@@ -209,7 +209,7 @@ func TestAuditAndOutboxWritesGoThroughTheAuditPackage(t *testing.T) {
 // fail-closed formula, so the sqlc queries on plans, subscriptions and
 // usage_* are callable from those two files only.
 func TestBillingQueriesStayInBillingServices(t *testing.T) {
-	billing := regexp.MustCompile(`\.(ListActivePlans|ListAllPlans|GetPlanByCode|GetPlanByID|GetDefaultPlan|GetFeatureByKey|ListFeatures|ListPlanFeatures|ListAllPlanFeatures|ListActivePlanFeatures|InsertPlanCatalog|UpdatePlanCatalog|UpsertPlanFeatureRow|GetLiveSubscription|LockLiveSubscription|CreateSubscription|ChangeSubscriptionPlan|SetSubscriptionCancelAt|InsertUsageEvent|GetUsageCounter|ListUsageCounters|AddUsageWithinLimit|MarkUsageThresholdNotified|InsertBillingPaymentIntent|ExpirePendingBillingPaymentIntents|GetPendingBillingPaymentIntentForPlan|GetBillingPaymentIntentByTxnRef|GetBillingPaymentIntentByID|MarkBillingPaymentIntentCompleted|MarkBillingPaymentIntentFailed|ApplyPaidSubscriptionFromProvider|InsertInvoice|ListInvoicesByOrganization|ListSubscriptionsDueForCancelLapse|ListSubscriptionsDueForPastDue|RevertSubscriptionToDefaultAtCancel|MarkSubscriptionPastDue|ClaimPendingBillingWebhookInbox)\(`)
+	billing := regexp.MustCompile(`\.(ListActivePlans|ListAllPlans|GetPlanByCode|GetPlanByID|GetDefaultPlan|GetFeatureByKey|ListFeatures|ListPlanFeatures|ListAllPlanFeatures|ListActivePlanFeatures|InsertPlanCatalog|UpdatePlanCatalog|UpsertPlanFeatureRow|GetLiveSubscription|LockLiveSubscription|CreateSubscription|ChangeSubscriptionPlan|SetSubscriptionCancelAt|InsertUsageEvent|GetUsageCounter|ListUsageCounters|AddUsageWithinLimit|MarkUsageThresholdNotified|InsertBillingPaymentIntent|ExpirePendingBillingPaymentIntents|GetPendingBillingPaymentIntentForPlan|GetBillingPaymentIntentByTxnRef|GetBillingPaymentIntentByID|GetBillingPaymentIntentForInvoice|MarkBillingPaymentIntentCompleted|MarkBillingPaymentIntentFailed|ApplyPaidSubscriptionFromProvider|InsertInvoice|ListInvoicesByOrganization|ListSubscriptionsDueForCancelLapse|ListSubscriptionsDueForPastDue|RevertSubscriptionToDefaultAtCancel|RevertSubscriptionToDefaultAfterInvoiceRefund|MarkSubscriptionPastDue|ClaimPendingBillingWebhookInbox)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
@@ -312,13 +312,13 @@ func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
 // fenced: only service/admin.go calls Admin* queries, and admin.go never
 // reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
 func TestAdminQueriesStayInAdminService(t *testing.T) {
-	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride|AdminListInvoices|AdminCountInvoices|AdminListPaymentIntents|AdminCountPaymentIntents)\(`)
+	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride|AdminListInvoices|AdminCountInvoices|AdminListPaymentIntents|AdminCountPaymentIntents|AdminGetInvoiceByID|AdminMarkInvoiceRefunded|AdminRequestInvoiceRefund|AdminRequestPartialInvoiceRefund|AdminConfirmInvoiceRefund|AdminRevertInvoiceRefundRequest|AdminPatchInvoiceRefundProviderRef)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
 		slash := filepath.ToSlash(path)
-		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.HasSuffix(slash, "internal/service/admin_billing.go") || strings.HasSuffix(slash, "internal/service/admin_plans.go") || strings.Contains(slash, "pkg/db/generated/") {
+		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.HasSuffix(slash, "internal/service/admin_billing.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund_vnpay.go") || strings.HasSuffix(slash, "internal/service/admin_plans.go") || strings.Contains(slash, "pkg/db/generated/") {
 			return nil
 		}
 		src, err := os.ReadFile(path)
@@ -452,5 +452,35 @@ func TestFilesContractIsALeafCalledOnlyFromTheServiceTier(t *testing.T) {
 				t.Errorf("%s imports %s; only internal/service calls files.Service (FS-C1 section 2)", pkg, imp)
 			}
 		}
+	}
+}
+
+// The Work Graph is a projection (ADR 0019): only internal/graph/projector
+// writes its tables, so rebuilding from the business tables reproduces it.
+func TestGraphTablesWrittenOnlyByProjector(t *testing.T) {
+	calls := regexp.MustCompile(`\.(Graph(Upsert|Open|Close|Mark|Claim|Done|Release|Fail|Lock)\w*)\(`)
+	rawSQL := regexp.MustCompile(`(?i)\b(insert\s+into|update|delete\s+from)\s+graph_`)
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") || strings.Contains(slash, "internal/graph/projector/") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if m := calls.FindStringSubmatch(string(src)); m != nil {
+			t.Errorf("%s calls %s; only internal/graph/projector writes the Work Graph (ADR 0019)", slash, m[1])
+		}
+		if rawSQL.Match(src) {
+			t.Errorf("%s writes a graph_ table in SQL; only internal/graph/projector may (ADR 0019)", slash)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

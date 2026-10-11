@@ -439,10 +439,6 @@ function TextOfficeEditorHost({ format, ...props }: OfficeEditorHostProps & { fo
         // A capability fetch failure is not an editor failure: no warnings.
       }
       if (!active) return;
-      if (readonly) {
-        if (active) setLoaded({ key, capability });
-        return;
-      }
       try {
         adapter = createTextFormatAdapter({
           identity,

@@ -193,6 +193,20 @@ export const AdminInvoiceSchema = z.object({
   user_id: z.string().optional().default(""),
   user_display_name: z.string().optional().default(""),
   user_email: z.string().optional().default(""),
+  plan_code: z.string().optional().default(""),
+  plan_name: z.string().optional().default(""),
+  refund_requested_at: z.string().optional().default(""),
+  refunded_at: z.string().optional().default(""),
+  refund_provider_ref: z.string().optional().default(""),
+  refund_reason: z.string().optional().default(""),
+  refund_confirm_reason: z.string().optional().default(""),
+  amount_refunded: z.number().optional().default(0),
+  partial_refund_amount: z.number().optional().default(0),
+  provider_bank_code: z.string().optional().default(""),
+  provider_transaction_no: z.string().optional().default(""),
+  provider_invoice_id: z.string().optional().default(""),
+  provider_txn_ref: z.string().optional().default(""),
+  payment_intent_id: z.string().optional().default(""),
 });
 export type AdminInvoice = z.infer<typeof AdminInvoiceSchema>;
 
@@ -213,6 +227,8 @@ export const AdminPaymentIntentSchema = z.object({
   user_id: z.string().optional().default(""),
   user_display_name: z.string().optional().default(""),
   user_email: z.string().optional().default(""),
+  provider_bank_code: z.string().optional().default(""),
+  provider_transaction_no: z.string().optional().default(""),
 });
 export type AdminPaymentIntent = z.infer<typeof AdminPaymentIntentSchema>;
 

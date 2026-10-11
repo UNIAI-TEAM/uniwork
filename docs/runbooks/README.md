@@ -1,6 +1,6 @@
 # Runbooks theo alert
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-05 · **Nguồn alert:** `deploy/alerts.yml` · **Hướng dẫn chung:** [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md)
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-08 · **Nguồn alert:** `deploy/alerts.yml` · **Hướng dẫn chung:** [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md)
 
 Mỗi rule trong `deploy/alerts.yml` có `runbook_url` trỏ tới đúng một file ở
 đây; `scripts/alerts-runbooks.test.mjs` fail khi thiếu file, thiếu mục hoặc có
@@ -22,6 +22,7 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `RealtimePublishSlow` | 3 | p95 commit → frame > 1 s | [RealtimePublishSlow.md](RealtimePublishSlow.md) |
 | `RealtimeSlowEvictions` | 3 | > 25 client WebSocket bị đuổi trong 10 phút | [RealtimeSlowEvictions.md](RealtimeSlowEvictions.md) |
 | `RealtimeRedisXReadErrors` | 3 | > 30 lỗi XREAD Redis trong 5 phút, kéo dài 10 phút | [RealtimeRedisXReadErrors.md](RealtimeRedisXReadErrors.md) |
+| `GraphProjectorLagHigh` | 3 | Work Graph chiếu chậm hơn nguồn | [GraphProjectorLagHigh.md](GraphProjectorLagHigh.md) |
 | `WebVitalsLCPPoor` | 3 | p75 LCP > 2,5 s trong 30 phút | [WebVitalsLCPPoor.md](WebVitalsLCPPoor.md) |
 
 Hướng dẫn chung (chạy stack, env, sampling, `/readyz`): [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md).

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, CalendarClock, CreditCard, ShieldAlert, TriangleAlert } from "lucide-react";
+import { CircleAlert, CalendarClock, CreditCard, ShieldAlert, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import {
   useCancelSubscription,
@@ -154,7 +154,7 @@ export function BillingTab() {
     return (
       <SettingsTab title={t("title")}>
         <CollectionPageState
-          icon={AlertCircle}
+          icon={CircleAlert}
           tone="destructive"
           role="alert"
           headingLevel={3}

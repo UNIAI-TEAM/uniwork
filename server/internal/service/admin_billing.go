@@ -95,3 +95,8 @@ func (s *AdminService) ListPaymentIntents(ctx context.Context, in AdminBillingLi
 	out.Total, err = s.q.AdminCountPaymentIntents(ctx, db.AdminCountPaymentIntentsParams{Provider: provider, Status: status, Q: q})
 	return out, err
 }
+
+// GetInvoiceMeta loads list-style metadata for one invoice (handler DTO mapping).
+func (s *AdminService) GetInvoiceMeta(ctx context.Context, invoiceID string) (db.AdminGetInvoiceByIDRow, error) {
+	return s.q.AdminGetInvoiceByID(ctx, invoiceID)
+}

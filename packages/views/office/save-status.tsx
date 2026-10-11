@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { TriangleAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import type { OfficeState, SaveCoordinatorState } from "@uniwork/core/office";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -126,7 +126,7 @@ export function SaveStatus({
       data-testid="office-save-error"
       data-error-code={errorCodeAttr}
     >
-      <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+      <CircleAlert aria-hidden className="size-3.5 shrink-0" />
       <span className="shrink-0 font-medium">{title}</span>
       <span id={descriptionId} className="min-w-0 truncate" data-testid="office-save-error-reason">
         {body}
@@ -147,7 +147,7 @@ export function SaveStatus({
       className={cn("flex min-w-0 max-w-full items-center gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-caption text-destructive", className)}
       data-testid={`office-save-${normalized}-compact`}
     >
-      <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+      <CircleAlert aria-hidden className="size-3.5 shrink-0" />
       <span className="min-w-0 truncate">{title}</span>
       <span id={descriptionId} className="sr-only">
         {body}

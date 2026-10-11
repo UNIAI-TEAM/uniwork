@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useAuthStore, useDeleteAccount } from "@uniwork/core/auth";
@@ -113,7 +113,7 @@ export function DeleteAccountDialog() {
               aria-disabled={del.isPending || undefined}
               aria-busy={del.isPending || undefined}
             >
-              {del.isPending ? <Loader2 aria-hidden className="animate-spin" /> : null}
+              {del.isPending ? <Spinner /> : null}
               {t("confirm")}
             </Button>
           </DialogFooter>

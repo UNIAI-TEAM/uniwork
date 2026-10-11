@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Info, LockKeyhole, WifiOff, type LucideIcon } from "lucide-react";
+import { TriangleAlert, Info, LockKeyhole, WifiOff, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ProtocolErrorShape } from "@uniwork/core/office/docs-frame-protocol";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -32,10 +32,10 @@ function docsFrameFailureKind(failure: ProtocolErrorShape | null): DocsFrameFail
 
 const VIEW: Record<DocsFrameFailureKind, { icon: LucideIcon; tone: NoticeTone }> = {
   unavailable: { icon: Info, tone: "info" },
-  load: { icon: AlertTriangle, tone: "destructive" },
+  load: { icon: TriangleAlert, tone: "destructive" },
   network: { icon: WifiOff, tone: "destructive" },
   denied: { icon: LockKeyhole, tone: "destructive" },
-  failed: { icon: AlertTriangle, tone: "destructive" },
+  failed: { icon: TriangleAlert, tone: "destructive" },
 };
 
 export interface DocsFrameFailureProps {

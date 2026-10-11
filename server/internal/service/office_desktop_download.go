@@ -106,7 +106,7 @@ func (s *OfficeDesktopDownloadService) Get(ctx context.Context, userID, organiza
 	if channel == "dev" {
 		clientID += "-dev"
 	}
-	if s.cfg.DesktopAuthClientID != clientID || len(s.cfg.DesktopAuthDeploymentIDs) != 1 || strings.TrimSpace(s.cfg.DesktopAuthDeploymentIDs[0]) == "" {
+	if !s.desktopClientConfigured(clientID) || len(s.cfg.DesktopAuthDeploymentIDs) != 1 || strings.TrimSpace(s.cfg.DesktopAuthDeploymentIDs[0]) == "" {
 		return out, coded(http.StatusServiceUnavailable, "office_download_unavailable", "desktop client or deployment binding is ambiguous")
 	}
 	deploymentID := s.cfg.DesktopAuthDeploymentIDs[0]
@@ -127,6 +127,17 @@ func (s *OfficeDesktopDownloadService) Get(ctx context.Context, userID, organiza
 		return OfficeDesktopDownload{}, err
 	}
 	return out, nil
+}
+
+// desktopClientConfigured reports whether the channel's client is one of the
+// desktop auth clients, so the profile never names a client that cannot sign in.
+func (s *OfficeDesktopDownloadService) desktopClientConfigured(clientID string) bool {
+	for _, c := range s.cfg.DesktopClients() {
+		if c.ID == clientID {
+			return true
+		}
+	}
+	return false
 }
 
 func asciiAlphaNumeric(c byte) bool {

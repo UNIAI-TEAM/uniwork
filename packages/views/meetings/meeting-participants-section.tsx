@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ArrowRightLeft, Crown, MoreHorizontal, UserMinus, UserPlus, Users } from "lucide-react";
+import { ArrowRightLeft, Crown, Ellipsis, UserMinus, UserPlus, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
 import { useAttendanceFinalized } from "@uniwork/core/meetings/attendance";
@@ -160,7 +160,7 @@ export function MeetingParticipantsSection({
                           />
                         }
                       >
-                        <MoreHorizontal aria-hidden className="size-4" />
+                        <Ellipsis aria-hidden className="size-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="min-w-44">
                         {offerHost ? (

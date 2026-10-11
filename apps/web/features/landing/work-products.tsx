@@ -1,10 +1,10 @@
 "use client";
-import { FileCheck2, FileStack, Network, Sparkles } from "lucide-react";
+import { FileCheckCorner, FileStack, Network, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AccordionContent, AccordionItem, AccordionTrigger } from "@uniwork/ui/components/ui/accordion";
 import { ANCHORS } from "./anchors";
 
-const VALUES = [Network, Sparkles, FileCheck2, FileStack] as const;
+const VALUES = [Network, Sparkles, FileCheckCorner, FileStack] as const;
 
 /** Product vision belongs inside the roadmap, not among shipped features. */
 export function WorkProducts() {

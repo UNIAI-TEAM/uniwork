@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { ChevronDown, Folder, Library, Plus, X } from "lucide-react";
 import { Logo } from "@uniwork/ui/brand";
 import { Avatar, AvatarFallback } from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -31,9 +32,11 @@ interface DesktopTabStripProps {
   onSignOut: () => void;
 }
 
-function ChromeIcon({ kind }: { kind: "library" | "home" | "plus" | "down" | "close" }) {
-  const paths = { library: "M4 4h4v16H4zM11 4h3v16h-3zM17 4l3-1 4 16-3 1z", home: "M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z", plus: "M12 5v14M5 12h14", down: "m6 9 6 6 6-6", close: "m6 6 12 12M18 6 6 18" };
-  return <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[kind]} /></svg>;
+const CHROME_ICONS = { library: Library, local: Folder, plus: Plus, down: ChevronDown, close: X };
+
+function ChromeIcon({ kind }: { kind: keyof typeof CHROME_ICONS }) {
+  const Icon = CHROME_ICONS[kind];
+  return <Icon className="size-4 shrink-0" aria-hidden />;
 }
 
 export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate, onOpenLocal, createDisabled = false, busy = false, signedOut = false, mode = "cloud", onSignIn, accountName, accountEmail, onSwitchWorkspace, onSignOut }: DesktopTabStripProps) {
@@ -48,7 +51,6 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
   const homeTabId = `desktop-tab-${homeKind}`;
   const homePanelId = `desktop-panel-${homeKind}`;
   const homeLabel = t(homeKind);
-  const homeIcon = mode === "local" ? "home" as const : "library" as const;
   const displayName = accountName?.trim() || t("accountUnknown");
   const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 
@@ -135,7 +137,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
       <div className="desktop-logo-cell"><Logo variant="mark" size={20} /></div>
       <div role="tablist" aria-label={t("label")} className="desktop-tablist">
         <button type="button" role="tab" id={homeTabId} aria-controls={homePanelId} aria-selected={activeTabId === null} tabIndex={activeTabId === null ? 0 : -1} className="desktop-library-tab desktop-tab-select text-caption" onClick={() => onSelect(null)} onKeyDown={(event) => onTabKey(event, null)}>
-          <ChromeIcon kind={homeIcon} /><span>{homeLabel}</span>
+          <ChromeIcon kind={homeKind} /><span>{homeLabel}</span>
         </button>
         <div ref={scrollRef} className="desktop-tab-scroll" data-desktop-tab-scroll>
           {tabs.map((tab) => (
@@ -161,7 +163,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
           <PopoverTrigger className="desktop-chrome-button" aria-label={t("allTabs")} title={t("allTabs")}><ChromeIcon kind="down" /></PopoverTrigger>
           <PopoverContent align="end" className="desktop-chrome-popup max-h-96 overflow-y-auto">
             <PopoverTitle>{t("allTabs")}</PopoverTitle>
-            <Button variant="ghost" className="justify-start" aria-pressed={activeTabId === null} onClick={() => { onSelect(null); setAllOpen(false); }}><ChromeIcon kind={homeIcon} />{homeLabel}</Button>
+            <Button variant="ghost" className="justify-start" aria-pressed={activeTabId === null} onClick={() => { onSelect(null); setAllOpen(false); }}><ChromeIcon kind={homeKind} />{homeLabel}</Button>
             {tabs.map((tab) => <Button key={tab.id} variant="ghost" className="justify-start" title={tab.title} aria-pressed={activeTabId === tab.id} onClick={() => { onSelect(tab.id); setAllOpen(false); }}><DocumentTypeIcon format={tab.format} className="size-4 shrink-0" /><span className="truncate">{tab.title}</span>{state(tab) ? <span className="sr-only">{state(tab)}</span> : null}</Button>)}
           </PopoverContent>
         </Popover>

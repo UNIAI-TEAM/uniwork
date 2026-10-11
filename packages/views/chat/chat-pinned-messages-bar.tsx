@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  BarChart3,
+  ChartColumn,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -55,7 +55,7 @@ function kindIcon(kind: string | undefined): LucideIcon {
   if (kind === "note") return StickyNote;
   if (kind === "post") return Megaphone;
   if (kind === "reminder") return Clock;
-  if (kind === "poll") return BarChart3;
+  if (kind === "poll") return ChartColumn;
   if (kind === "voice_call_log") return Phone;
   return Pin;
 }

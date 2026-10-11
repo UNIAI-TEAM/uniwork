@@ -7,7 +7,7 @@ import {
   Clock,
   Inbox,
   MailOpen,
-  MoreHorizontal,
+  Ellipsis,
   Reply,
   ShieldAlert,
   Sparkles,
@@ -109,7 +109,7 @@ function TriageOverflowMenu({
           />
         }
       >
-        <MoreHorizontal className="size-4.5" aria-hidden />
+        <Ellipsis className="size-4.5" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
         {can.canTriage ? (

@@ -1,5 +1,5 @@
-import { forwardRef, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
+import { Folder } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { DocumentTypeIcon } from "@uniwork/views/documents/document-type-icon";
@@ -9,10 +9,6 @@ import type { RecentFile } from "../shared/ipc";
 import { CreateDocumentMenu } from "./create-document-menu";
 import { supportedFormatsLabel } from "./supported-formats";
 
-const HomeIcon: ComponentProps<typeof CollectionPageHeader>["icon"] = forwardRef((props, ref) => (
-  <svg ref={ref} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /></svg>
-));
-HomeIcon.displayName = "LocalHomeIcon";
 
 export interface LocalHomeViewProps {
   files: readonly RecentFile[] | null;
@@ -35,7 +31,7 @@ export function LocalHomeView({ files, error = false, busy = false, onOpen, onCr
   const time = (value: number) => new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-local-home="true">
-      <CollectionPageHeader icon={HomeIcon} title={t("title")} count={loading || error ? undefined : rows.length} countLabel={t("count", { count: rows.length })} actions={rows.length > 0 || loading || error ? actions : undefined} className="flex-wrap" />
+      <CollectionPageHeader icon={Folder} title={t("title")} count={loading || error ? undefined : rows.length} countLabel={t("count", { count: rows.length })} actions={rows.length > 0 || loading || error ? actions : undefined} className="flex-wrap" />
       <div className="flex min-h-0 flex-1 flex-col gap-4 px-6 pb-6">
         {error ? (
           <div className="flex flex-col items-start gap-3" role="alert">

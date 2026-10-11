@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, ShieldCheck } from "lucide-react";
+import { CircleAlert, ShieldCheck } from "lucide-react";
 import { useAdminMe } from "@uniwork/core/admin";
 import { ApiError } from "@uniwork/core/api";
 import { useSession } from "@uniwork/core/auth";
@@ -71,7 +71,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   if (me.isError) {
     return (
       <CollectionPageState
-        icon={AlertCircle}
+        icon={CircleAlert}
         tone="destructive"
         role="alert"
         title={t("guard.error_title")}

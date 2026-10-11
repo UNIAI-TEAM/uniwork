@@ -24,6 +24,24 @@ function InstallerCommand({ command }: { command: string }) {
   </div>;
 }
 
+/** Browsers quarantine the unsigned dmg, and macOS then reports it as damaged. */
+function MacQuarantineNote({ command }: { command: string }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "office.desktop.install" });
+  return <Collapsible className="mt-2">
+    <CollapsibleTrigger render={<Button variant="ghost" className="group -ml-2 justify-start text-body" />}>
+      <ChevronRight aria-hidden className="size-4 transition-transform group-data-panel-open:rotate-90 motion-reduce:transition-none" />{t("mac_blocked")}
+    </CollapsibleTrigger>
+    <CollapsibleContent>
+      <div className="space-y-2 pl-2 pt-1 text-body text-foreground">
+        <p>{t("mac_blocked_intro")}</p>
+        <p>{t("mac_blocked_terminal")}</p>
+        <InstallerCommand command={command} />
+        <p>{t("mac_blocked_settings")}</p>
+      </div>
+    </CollapsibleContent>
+  </Collapsible>;
+}
+
 export function InstallerInstructions({ installer, file, open, onOpenChange }: {
   installer: OfficeInstallerOption; file: string; open: boolean; onOpenChange: (open: boolean) => void;
 }) {
@@ -42,6 +60,9 @@ export function InstallerInstructions({ installer, file, open, onOpenChange }: {
           {DESKTOP_INSTALLER_COMMANDS[key] ? <InstallerCommand command={DESKTOP_INSTALLER_COMMANDS[key].replaceAll("{{file}}", quoted)} /> : null}
         </li>)}
       </ol>
+      {DESKTOP_INSTALLER_KINDS[installer.platform].os === "macos" && installer.unsigned
+        && DESKTOP_INSTALLER_COMMANDS.mac_quarantine
+        ? <MacQuarantineNote command={DESKTOP_INSTALLER_COMMANDS.mac_quarantine.replaceAll("{{file}}", quoted)} /> : null}
     </CollapsibleContent>
   </Collapsible>;
 }

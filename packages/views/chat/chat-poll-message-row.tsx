@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
-import { BarChart3 } from "lucide-react";
+import { ChartColumn } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useVoteChatPollMessage } from "@uniwork/core/chat";
@@ -110,7 +110,7 @@ export function ChatPollMessageRow({
   return (
     <>
       <ChatCard
-        icon={BarChart3}
+        icon={ChartColumn}
         tone="blue"
         label={t("chat.poll_message_badge")}
         senderLabel={senderLabel}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { TASK_PAGE_SIZE } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -46,7 +46,7 @@ export function LoadMoreControls({
       >
         {isLoading ? (
           <>
-            <Loader2 className="size-3 animate-spin" aria-hidden />
+            <Spinner className="size-3" />
             {t("tasks.pagination.loading_more")}
           </>
         ) : showError ? (

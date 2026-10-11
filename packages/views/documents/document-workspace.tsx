@@ -1,7 +1,7 @@
 "use client";
 
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { ArrowLeft, Eye, FileWarning } from "lucide-react";
+import { ArrowLeft, Eye, FileExclamationPoint } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -20,6 +20,7 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
+import { QuietPreferenceToast } from "../layout/preference-toast";
 import type { BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
@@ -449,6 +450,8 @@ export function DocumentWorkspace({
 
   return (
     <HeaderActionsSlotProvider>
+      {/* Nothing here can be saved, so a theme or language change must not toast "Saved". */}
+      <QuietPreferenceToast quiet={!canEdit} />
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <BreadcrumbHeader
         leading={
@@ -500,7 +503,7 @@ export function DocumentWorkspace({
         </Notice>
       ) : null}
       {recoveryNotice ? (
-        <Notice tone="warning" icon={FileWarning} live={recoveryNoticeLive} className="[&>div]:min-w-0">
+        <Notice tone="warning" icon={FileExclamationPoint} live={recoveryNoticeLive} className="[&>div]:min-w-0">
           {saveIndicator}
         </Notice>
       ) : null}
@@ -588,7 +591,7 @@ export function DocumentWorkspace({
             <DialogDescription>{t("documents.leave.description")}</DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2 text-caption text-muted-foreground">
-            <FileWarning aria-hidden className="size-4" />
+            <FileExclamationPoint aria-hidden className="size-4" />
             {leaveCaption}
           </div>
           <DialogFooter>

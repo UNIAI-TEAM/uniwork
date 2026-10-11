@@ -282,14 +282,7 @@ func (s *TaskService) GetProject(ctx context.Context, actor Actor, workspaceID, 
 }
 
 func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceID, projectID string, in UpdateProjectInput) (db.Project, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return db.Project{}, err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return db.Project{}, err
-	}
-	current, err := s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID)
+	ws, current, err := s.authorizeProjectEdit(ctx, actor, workspaceID, projectID)
 	if err != nil {
 		return db.Project{}, err
 	}
@@ -457,14 +450,8 @@ func (s *TaskService) guardDuplicateProjectTitle(
 }
 
 func (s *TaskService) DeleteProject(ctx context.Context, actor Actor, workspaceID, projectID string) error {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	ws, _, err := s.authorizeProjectEdit(ctx, actor, workspaceID, projectID)
 	if err != nil {
-		return err
-	}
-	if _, err := s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID); err != nil {
 		return err
 	}
 
@@ -587,6 +574,53 @@ func (s *TaskService) loadProject(ctx context.Context, q *db.Queries, orgID, wor
 		return db.Project{}, ErrNotFound
 	}
 	return p, err
+}
+
+// authorizeProjectEdit is the write gate for a project and its resources
+// (UNI-898). Membership lets anyone in the workspace read a project; changing
+// or deleting it takes a workspace owner/admin, the project's creator or its
+// lead, so one member cannot rewrite a peer's project.
+func (s *TaskService) authorizeProjectEdit(ctx context.Context, actor Actor, workspaceID, projectID string) (db.Workspace, db.Project, error) {
+	adminLike := false
+	if actor.Kind == audit.KindHuman {
+		m, err := s.ws.RequireMember(ctx, workspaceID, actor.ID)
+		if err != nil {
+			return db.Workspace{}, db.Project{}, err
+		}
+		adminLike = adminLikeRole(m.Role)
+	} else if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+		return db.Workspace{}, db.Project{}, err
+	}
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return db.Workspace{}, db.Project{}, err
+	}
+	p, err := s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID)
+	if err != nil {
+		return db.Workspace{}, db.Project{}, err
+	}
+	if !adminLike && !projectOwnedBy(p, actor) {
+		return db.Workspace{}, db.Project{}, errNotProjectEditor()
+	}
+	return ws, p, nil
+}
+
+// projectOwnedBy reports whether actor created p or is its lead. Both are
+// (kind, id) pairs: a lead_type "member" is a human, "agent" an agent.
+func projectOwnedBy(p db.Project, actor Actor) bool {
+	if p.CreatedBy == actor.ID && p.CreatedByKind == string(actor.Kind) {
+		return true
+	}
+	if !p.LeadID.Valid || p.LeadID.String != actor.ID {
+		return false
+	}
+	switch p.LeadType.String {
+	case "member":
+		return actor.Kind == audit.KindHuman
+	case "agent":
+		return actor.Kind == audit.KindAgent
+	}
+	return false
 }
 
 // requireProjectLead holds a project's lead to the rule a task's assignee

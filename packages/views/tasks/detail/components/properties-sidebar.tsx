@@ -18,6 +18,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { DatePill } from "../../../common/date-pill";
 import { PropRow } from "../../../common/prop-row";
 import { SidebarSection } from "../../../common/sidebar-section";
+import { RelatedSection } from "../../../graph/related-section";
 import { PAGE_GUTTER } from "../../../layout/page-header";
 import { toastApiError } from "../../../toast-api-error";
 import { PriorityIcon } from "../../icons/priority-icon";
@@ -192,6 +193,8 @@ export function TaskDetailPropertiesSidebar({
       </SidebarSection>
 
       <TaskParentSection workspaceId={workspaceId} task={task} />
+
+      <RelatedSection workspaceId={workspaceId} nodeType="TASK" nodeId={task.id} />
 
       <TaskDetailMetadata
         creatorId={task.created_by}

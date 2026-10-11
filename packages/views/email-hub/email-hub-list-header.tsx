@@ -1,7 +1,7 @@
 "use client";
 
 import type { Ref } from "react";
-import { Archive, Keyboard, MailOpen, Mail, Paperclip, PenSquare, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { Archive, Keyboard, MailOpen, Mail, Paperclip, SquarePen, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
@@ -202,7 +202,7 @@ export function EmailHubListHeader({
             disabled={composeDisabled}
             onClick={onCompose}
           >
-            <PenSquare aria-hidden />
+            <SquarePen aria-hidden />
           </Button>
         </div>
       </div>

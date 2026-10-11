@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { ListTodo, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
@@ -32,6 +32,7 @@ import { TaskSurfaceActionsProvider } from "./actions-context";
 import { TaskSurfaceSelectionProvider } from "./selection-context";
 import type { TaskSurfaceMode, TaskSurfaceProps } from "./types";
 import { useTaskSurfaceController } from "./use-task-surface-controller";
+import { MODULE_ICONS } from "../../layout/module-icons";
 
 export type { TaskSurfaceProps } from "./types";
 export type { TaskSurfaceController } from "./use-task-surface-controller";
@@ -315,7 +316,7 @@ function DefaultEmpty({ onCreate }: { onCreate: () => void }) {
       data-testid="task-surface-empty"
       className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground"
     >
-      <ListTodo className="h-10 w-10 text-muted-foreground" aria-hidden />
+      <MODULE_ICONS.tasks className="size-10 text-muted-foreground" aria-hidden />
       <p className="text-body">{t("tasks.empty_title")}</p>
       <p className="text-caption">{t("tasks.empty_description")}</p>
       <Button variant="outline" size="sm" className="mt-1" onClick={onCreate}>

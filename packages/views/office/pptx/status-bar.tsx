@@ -13,7 +13,7 @@
  * buttons (Normal / Slide sorter / Slide show); each shows only when wired.
  */
 import { Fragment, type ReactNode } from "react";
-import { CircleHelp, LayoutGrid, Monitor, Presentation, StickyNote } from "lucide-react";
+import { CircleQuestionMark, LayoutGrid, Monitor, Presentation, StickyNote } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -170,7 +170,7 @@ export function PptxStatusHelpButton({ onOpen }: { onOpen: () => void }) {
   const label = t("office.pptx.shortcuts.help");
   return (
     <Button type="button" variant="ghost" size="icon-xs" aria-label={label} title={label} data-pptx-status-help onClick={onOpen}>
-      <CircleHelp aria-hidden />
+      <CircleQuestionMark aria-hidden />
     </Button>
   );
 }

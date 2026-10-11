@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileWarning, History } from "lucide-react";
+import { FileExclamationPoint, RotateCcwClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -173,7 +173,7 @@ export function DocumentConflictDialog({
                 {keepMinePending ? (
                   <Spinner aria-hidden role="presentation" />
                 ) : (
-                  <FileWarning aria-hidden className="size-4" />
+                  <FileExclamationPoint aria-hidden className="size-4" />
                 )}
                 {t("documents.conflict.keep_mine")}
               </span>
@@ -189,7 +189,7 @@ export function DocumentConflictDialog({
               onClick={() => setConfirmLoad(true)}
             >
               <span className="flex items-center gap-2 text-body font-medium">
-                <History aria-hidden className="size-4" />
+                <RotateCcwClock aria-hidden className="size-4" />
                 {t("documents.conflict.load_server")}
               </span>
               <span className="text-caption font-normal text-muted-foreground">

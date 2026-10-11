@@ -7,7 +7,7 @@
 // the toolbar's one command port; the renderer policy stays the savability
 // gate.
 
-import { Filter, FunnelX, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Funnel, FunnelX, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { XlsxToolbarGroupProps } from "./types";
@@ -41,7 +41,7 @@ export function XlsxFilterGroup({
         data-testid="xlsx-filter-toggle"
         onClick={() => run(XLSX_FILTER_TOGGLE_COMMAND)}
       >
-        <Filter aria-hidden />
+        <Funnel aria-hidden />
         <XlsxLargeLabel>{t("office.xlsx.filter.toggle")}</XlsxLargeLabel>
       </XlsxLargeButton>
       <XlsxGroupRows>

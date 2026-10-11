@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, RotateCw, Settings2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, SlidersHorizontal } from "lucide-react";
 import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -169,7 +169,7 @@ export function CalendarToolbar({
             aria-disabled={isRefreshing}
             onClick={onRefresh}
           >
-            <RotateCw
+            <RefreshCw
               aria-hidden
               className={cn("size-4", isRefreshing ? "motion-safe:animate-spin" : undefined)}
             />
@@ -188,7 +188,7 @@ export function CalendarToolbar({
                       variant="toolbar"
                       aria-label={t("calendar.settings")}
                     >
-                      <Settings2 aria-hidden className="size-4" />
+                      <SlidersHorizontal aria-hidden className="size-4" />
                     </Button>
                   }
                 />

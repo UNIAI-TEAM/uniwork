@@ -1,4 +1,5 @@
 import reactConfig from "@uniwork/eslint-config/react";
+import { lucideAliasPaths } from "@uniwork/eslint-config/base";
 import i18next from "eslint-plugin-i18next";
 
 // Global i18n protection: every JSX text node in this package must go through
@@ -48,10 +49,13 @@ export default [
         // views ships to the browser and the sandboxed desktop renderer; OS
         // access belongs to the host (apps/office-desktop/main) behind an
         // adapter, never to a shared screen.
-        paths: ["fs", "fs/promises", "path", "path/posix", "path/win32", "child_process", "electron"].map((name) => ({
-          name,
-          message: "packages/views runs in the browser and the sandboxed renderer. Reach the OS through a host adapter, not a Node built-in or electron.",
-        })),
+        paths: [
+          ...["fs", "fs/promises", "path", "path/posix", "path/win32", "child_process", "electron"].map((name) => ({
+            name,
+            message: "packages/views runs in the browser and the sandboxed renderer. Reach the OS through a host adapter, not a Node built-in or electron.",
+          })),
+          ...lucideAliasPaths,
+        ],
         patterns: [
           {
             group: ["node:*"],

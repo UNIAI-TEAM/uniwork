@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderX, RotateCw, ShieldAlert, XCircle } from "lucide-react";
+import { FolderX, ShieldAlert, CircleX, RefreshCw } from "lucide-react";
 import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { useDocument } from "@uniwork/core/documents/hooks";
@@ -88,7 +88,7 @@ export function DocumentDetailView({
     return (
       <CollectionPageState
         className="mx-auto w-full max-w-3xl"
-        icon={XCircle}
+        icon={CircleX}
         title={t("documents.detail.revoked_title")}
         description={t("documents.detail.revoked_description")}
         tone="destructive"
@@ -120,7 +120,7 @@ export function DocumentDetailView({
                 size="sm"
                 onClick={() => void query.refetch()}
               >
-                <RotateCw aria-hidden className="size-3.5" />
+                <RefreshCw aria-hidden className="size-3.5" />
                 {t("documents.detail.retry")}
               </Button>
             ) : null}

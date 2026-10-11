@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
-import { Download, FileText, History, Upload } from "lucide-react";
+import { Download, FileText, RotateCcwClock, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
@@ -254,7 +254,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
 
       <section aria-labelledby="document-versions-heading" className="rounded-lg border border-border">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <History aria-hidden className="size-4 text-muted-foreground" />
+          <RotateCcwClock aria-hidden className="size-4 text-muted-foreground" />
           <h2 id="document-versions-heading" className="text-title-sm font-medium text-foreground">
             {t("documents.file.history_title")}
           </h2>

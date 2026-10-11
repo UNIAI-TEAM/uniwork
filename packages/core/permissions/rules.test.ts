@@ -11,6 +11,7 @@ import {
   canEditComment,
   canEditEmploymentFields,
   canEditProfile,
+  canEditProject,
   canEditTask,
   canExportPeople,
   canInviteMembers,
@@ -151,6 +152,39 @@ describe("task and meeting rules — membership only, as the backend gates today
   it("denies outside the workspace", () => {
     expect(canDeleteTask(null, ctx({ wsRole: null })).reason).toBe("not_member");
     expect(canDeleteMeeting(null, ctx({ userId: null })).reason).toBe("not_authenticated");
+  });
+});
+
+describe("canEditProject — mirrors TaskService.authorizeProjectEdit (project.go)", () => {
+  const project = (over: Partial<Parameters<typeof canEditProject>[0] & object>) => ({
+    created_by: "u2",
+    created_by_kind: "human",
+    lead_type: null,
+    lead_id: null,
+    ...over,
+  });
+  it("lets the creator and the member lead edit, not a peer (UNI-898)", () => {
+    expect(canEditProject(project({ created_by: "u1" }), ctx({ wsRole: "member" })).allowed).toBe(true);
+    expect(
+      canEditProject(project({ lead_type: "member", lead_id: "u1" }), ctx({ wsRole: "member" })).allowed,
+    ).toBe(true);
+    expect(canEditProject(project({}), ctx({ wsRole: "member" })).reason).toBe("not_resource_owner");
+  });
+  it("does not take an agent's id for the user's", () => {
+    expect(
+      canEditProject(project({ created_by: "u1", created_by_kind: "agent" }), ctx({ wsRole: "member" })).allowed,
+    ).toBe(false);
+    expect(
+      canEditProject(project({ lead_type: "agent", lead_id: "u1" }), ctx({ wsRole: "member" })).allowed,
+    ).toBe(false);
+  });
+  it("lets a workspace owner or admin edit any project", () => {
+    expect(canEditProject(project({}), ctx({ wsRole: "admin" })).allowed).toBe(true);
+    expect(canEditProject(project({}), ctx({ wsRole: "owner" })).allowed).toBe(true);
+  });
+  it("denies outside the workspace and while the project is unknown", () => {
+    expect(canEditProject(project({ created_by: "u1" }), ctx({ wsRole: null })).reason).toBe("not_member");
+    expect(canEditProject(null, ctx({ wsRole: "member" })).allowed).toBe(false);
   });
 });
 

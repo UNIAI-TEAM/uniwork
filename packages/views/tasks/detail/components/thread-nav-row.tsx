@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, MessageSquare } from "lucide-react";
+import { CircleCheck, MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { TaskActorAvatar } from "./task-actor-avatar";
@@ -85,7 +85,7 @@ export function ThreadNavRow({
           ) : null}
           {thread.resolved ? (
             <span className="flex shrink-0 items-center gap-0.5 text-success">
-              <CheckCircle2 className="size-3" aria-hidden />
+              <CircleCheck className="size-3" aria-hidden />
               {t("tasks.detail.comment_resolved")}
             </span>
           ) : null}

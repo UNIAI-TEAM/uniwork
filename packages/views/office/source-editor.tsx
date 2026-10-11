@@ -179,7 +179,8 @@ export function SourceEditor<TSnapshot = unknown>({
     setManifest(sourceManifest(activeEditor, manifestPropRef.current ?? null));
 
     const run = async () => {
-      if (activeCapability?.operation !== "serialize" || activeCapability.status !== "available" || !canWrite(activeEditor)) {
+      // A readonly row opens the document read-only (view-only member): `readOnly` above keeps every edit and Save closed.
+      if (activeCapability?.operation !== "serialize" || (activeCapability.status !== "available" && activeCapability.status !== "readonly") || !canWrite(activeEditor)) {
         const blocked = failureFor(documentKey, format, new Error(activeCapability?.reason ?? translate("capabilityUnavailable")));
         setFailure(blocked);
         setViewState("error");

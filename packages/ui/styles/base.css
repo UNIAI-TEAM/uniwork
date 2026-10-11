@@ -183,6 +183,13 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
     transition-duration: var(--duration-fast) !important;
   }
   html { scroll-behavior: auto !important; }
+  /* A spinner cut to one iteration turns once and freezes, which reads as
+     "done" while the work still runs. It keeps turning, at half speed; the
+     class outranks the blanket rule above. */
+  .animate-spin {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
   /* Glyph pop là chuyển động không gian thuần tuý — thay bằng hiện dần. */
   .animate-welcome-glyph-pop,
   .animate-reaction-pop { animation-name: onboarding-enter; }

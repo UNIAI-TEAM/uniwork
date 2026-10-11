@@ -1,5 +1,5 @@
 import { cn } from "@uniwork/ui/lib/utils"
-import { Loader2Icon } from "lucide-react"
+import { LoaderCircleIcon } from "lucide-react"
 
 /**
  * Decorative by default: the text beside it says what is loading, and a
@@ -16,7 +16,7 @@ function Spinner({
     ? { role: "status", "aria-label": name }
     : { "aria-hidden": true as const }
   return (
-    <Loader2Icon className={cn("size-4 animate-spin", className)} {...a11y} {...props} />
+    <LoaderCircleIcon className={cn("size-4 animate-spin", className)} {...a11y} {...props} />
   )
 }
 

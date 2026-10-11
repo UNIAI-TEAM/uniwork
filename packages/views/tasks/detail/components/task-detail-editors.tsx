@@ -25,6 +25,7 @@ import {
   useFileDropZone,
   useLazyEditor,
 } from "../../../editor";
+import { NodeHistorySection } from "../../../graph/node-history-section";
 import { toastApiError } from "../../../toast-api-error";
 import { TaskDetailAttachmentsSlot } from "./task-detail-attachments-slot";
 import { TaskDetailContextLine } from "./task-detail-context-line";
@@ -200,6 +201,7 @@ export function TaskDetailEditors({
           content={attachmentReferences}
         />
         <TaskDetailSubtasksSection workspaceId={workspaceId} taskId={task.id} />
+        <NodeHistorySection workspaceId={workspaceId} nodeType="TASK" nodeId={task.id} />
         <TaskDetailTimelineSlot workspaceId={workspaceId} taskId={task.id} />
       </div>
     </div>

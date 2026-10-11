@@ -166,6 +166,15 @@ describe("AppSidebar", () => {
     expect(tasks.querySelector('[data-slot="icon-tile"]')).toHaveClass("size-5");
   });
 
+  it("puts the workspace switcher on the top bar's horizon, expanded and collapsed", () => {
+    renderSidebar("/acme/team/tasks");
+    const header = document.querySelector('[data-slot="sidebar-header"]');
+    // 48px switcher from the card's 8px inset; the 32px collapsed one 8px lower.
+    expect(header).toHaveClass("lg:pt-0", "lg:group-data-[collapsible=icon]:pt-2");
+    const tile = screen.getByRole("link", { name: "Công việc" }).querySelector('[data-slot="icon-tile"]');
+    expect(tile?.className).not.toContain("stroke-");
+  });
+
   it("names the navigation landmark so a screen reader can jump to it", () => {
     renderSidebar("/acme/team/tasks");
     expect(screen.getByRole("navigation", { name: "Điều hướng workspace" })).toBeInTheDocument();

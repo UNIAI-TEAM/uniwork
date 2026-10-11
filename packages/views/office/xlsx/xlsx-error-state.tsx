@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, FileWarning, LockKeyhole, ShieldAlert } from "lucide-react";
+import { FileExclamationPoint, LockKeyhole, ShieldAlert, CircleAlert } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { createLogger } from "@uniwork/core/logger";
@@ -13,12 +13,12 @@ import type { XlsxOpenFailure } from "./types";
 const logger = createLogger("xlsx-error-state");
 
 const FAILURE_ICON = {
-  corrupted: FileWarning,
+  corrupted: FileExclamationPoint,
   password_cancelled: LockKeyhole,
   password_required: LockKeyhole,
   unsupported_feature: ShieldAlert,
-  not_office_file: FileWarning,
-  engine_error: AlertTriangle,
+  not_office_file: FileExclamationPoint,
+  engine_error: CircleAlert,
   engine_unavailable: ShieldAlert,
 } as const;
 

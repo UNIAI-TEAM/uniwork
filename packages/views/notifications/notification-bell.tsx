@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, CheckCheck, TriangleAlert } from "lucide-react";
+import { Bell, CheckCheck, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { paths } from "@uniwork/core/paths";
@@ -47,12 +47,12 @@ export function NotificationBell() {
             <PopoverTrigger
               render={
                 // 32px in the bar; a 44px target under a finger (pointer-coarse), which the 48px bar still holds.
-                <Button type="button" variant="ghost" size="icon" className="relative pointer-coarse:size-11" aria-label={label} />
+                <Button type="button" variant="ghost" size="icon" className="relative text-muted-foreground pointer-coarse:size-11" aria-label={label} />
               }
             />
           }
         >
-          <Bell aria-hidden className="size-4 text-muted-foreground" />
+          <Bell aria-hidden />
           {count > 0 ? (
             <span
               aria-hidden
@@ -113,7 +113,7 @@ export function NotificationBell() {
         ) : list.isError ? (
           <div role="alert" className="flex flex-col items-center gap-3 px-3 py-6 text-center">
             <p className="flex items-center gap-2 text-caption text-destructive">
-              <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+              <CircleAlert aria-hidden className="size-3.5 shrink-0" />
               {t("notifications.error_title")}
             </p>
             <Button

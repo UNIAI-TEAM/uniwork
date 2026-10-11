@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Compass, Hash, Lock, Plus, Search } from "lucide-react";
+import { CircleAlert, Compass, Hash, Lock, Plus, Search } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -143,7 +143,7 @@ export function ChannelDirectorySheet({
     body = (
       <Notice
         tone="destructive"
-        icon={AlertCircle}
+        icon={CircleAlert}
         layout="inline"
         live="assertive"
         action={

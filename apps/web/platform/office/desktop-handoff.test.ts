@@ -27,6 +27,19 @@ describe("desktop handoff browser binding", () => {
     expect(open).toHaveBeenCalledWith("uniwork-office-dev://open?ticket=x");
   });
 
+  it("recognises a handoff when the page loses focus while waiting, even if it stays visible (GOA9-r4-05)", async () => {
+    const wait = async () => { window.dispatchEvent(new Event("blur")); };
+    await expect(launchOfficeDeepLink("uniwork-office://open?ticket=x", { open: vi.fn(), wait, isHidden: () => false })).resolves.toBe("launched");
+  });
+
+  it("stops listening once the wait is over", async () => {
+    await launchOfficeDeepLink("uniwork-office://open?ticket=x", { open: vi.fn(), wait: async () => undefined, isHidden: () => false });
+    const remove = vi.spyOn(window, "removeEventListener");
+    await launchOfficeDeepLink("uniwork-office://open?ticket=x", { open: vi.fn(), wait: async () => undefined, isHidden: () => false });
+    expect(remove).toHaveBeenCalledWith("blur", expect.any(Function));
+    remove.mockRestore();
+  });
+
   it("recognises a handoff when the browser becomes hidden", async () => {
     await expect(launchOfficeDeepLink("uniwork-office://open?ticket=x", { open: vi.fn(), wait: async () => undefined, isHidden: () => true })).resolves.toBe("launched");
   });

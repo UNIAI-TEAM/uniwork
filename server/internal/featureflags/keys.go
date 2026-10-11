@@ -52,6 +52,8 @@ var catalogue = []Flag{
 	{Key: "office_html_web", Description: "Mở tệp HTML trên web bằng module genoffice trong iframe cùng origin, token khung theo một tài liệu (UNI-1014; mặc định bật từ 2026-10-09, override tổ chức/người dùng tắt được; chưa cài bundle thì vẫn mở trình soạn G3)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
 	{Key: "office_slides_web", Description: "Mở tệp PPTX trên web bằng module genoffice trong iframe cùng origin, token khung theo một tài liệu (UNI-1015; mặc định bật từ 2026-10-09, override tổ chức/người dùng tắt được; chưa cài bundle thì vẫn mở trình soạn G3)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
 	{Key: "office_sheets_web", Description: "Mở tệp XLSX trên web bằng module genoffice trong iframe cùng origin, token khung theo một tài liệu (UNI-1016; mặc định bật từ 2026-10-09, override tổ chức/người dùng tắt được; chưa cài bundle thì vẫn mở trình soạn G3)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
+	{Key: "graph", Description: "Work Graph: marker đánh dấu node bẩn cho tổ chức này, worker chiếu (C-11). Bật rồi chạy graph-rebuild --org", Default: false, Public: false, Owner: "graph", ReviewAt: day(2027, 1, 31)},
+	{Key: "graph_ui", Description: "Work Graph: section Liên quan và dòng thời gian trên trang việc (C-11)", Default: false, Public: true, Owner: "graph", ReviewAt: day(2027, 1, 31)},
 }
 
 // Catalogue returns a copy of the declared flags.
