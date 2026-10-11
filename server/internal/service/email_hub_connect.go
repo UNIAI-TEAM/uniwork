@@ -28,6 +28,15 @@ var (
 type ConnectEmailHubInput struct {
 	EmailAddress string
 	AppPassword  string
+	// Server fields name a custom IMAP/SMTP server (spec §5.2); all zero
+	// means the preset for the address domain.
+	IMAPHost     string
+	IMAPPort     int
+	IMAPSecurity string
+	SMTPHost     string
+	SMTPPort     int
+	SMTPSecurity string
+	Username     string
 }
 
 // Connect verifies a mailbox and stores it in the order spec §5.2 fixes:
