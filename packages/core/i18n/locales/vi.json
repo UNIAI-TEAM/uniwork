@@ -3110,6 +3110,7 @@
     "disconnect_description": "Các sự kiện sẽ biến mất khỏi UniWork. Không có dữ liệu nào bị xóa trên nhà cung cấp lịch.",
     "not_connected": "Chưa kết nối",
     "connection_error": "Không thể cập nhật kết nối lịch. Vui lòng thử lại.",
+    "connection_popup_blocked": "Trình duyệt đã chặn cửa sổ đăng nhập lịch. Cho phép cửa sổ bật lên (pop-up) với UniWork rồi thử lại.",
     "calendars_load_error": "Không tải được danh sách lịch. Có thể tài khoản cần được xác thực lại.",
     "view_day": "Ngày",
     "view_work_week": "Tuần làm việc",
