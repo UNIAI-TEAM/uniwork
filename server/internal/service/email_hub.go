@@ -55,6 +55,10 @@ type EmailHubService struct {
 	scheduleWorkerOwnerFn func() string
 	testHookScheduledSend func(context.Context, db.EmailHubAccount, string, SendEmailHubInput) error
 	testHookSMTPSend      func(context.Context, smtpclient.Credentials, smtpclient.Message) (string, error)
+	// testHookVerify replaces the IMAP+SMTP login check and testHookInitialSync
+	// the first sync after Connect; both are set only in tests.
+	testHookVerify      func(ctx context.Context, imap imapclient.Credentials, smtp smtpclient.Credentials) error
+	testHookInitialSync func(ctx context.Context, acc db.EmailHubAccount)
 }
 
 func NewEmailHubService(q *db.Queries, ws *WorkspaceService, box *secretbox.Box) *EmailHubService {
@@ -132,81 +136,6 @@ func (s *EmailHubService) ListAccounts(ctx context.Context, actor Actor, workspa
 		out = append(out, accountView(r))
 	}
 	return out, nil
-}
-
-type ConnectEmailHubInput struct {
-	EmailAddress string
-	AppPassword  string
-}
-
-func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID string, in ConnectEmailHubInput) (EmailHubAccountView, error) {
-	if !s.Enabled() {
-		return EmailHubAccountView{}, ErrEmailHubNotConfigured
-	}
-	ws, err := s.workspace(ctx, actor, workspaceID)
-	if err != nil {
-		return EmailHubAccountView{}, err
-	}
-	email := strings.ToLower(strings.TrimSpace(in.EmailAddress))
-	password := strings.TrimSpace(in.AppPassword)
-	if email == "" || password == "" {
-		return EmailHubAccountView{}, Invalid("email and app password required")
-	}
-	prov, ok := emailhub.ProviderForEmail(email)
-	if !ok {
-		return EmailHubAccountView{}, ErrEmailHubUnsupported
-	}
-	creds := imapclient.Credentials{
-		Host: prov.IMAPHost, Port: prov.IMAPPort, Email: email, Password: password,
-	}
-	if err := imapclient.VerifyLogin(creds); err != nil {
-		s.log.Warn("email hub connect failed", "provider", prov.Name, "user_id", actor.ID, "err", err)
-		return EmailHubAccountView{}, fmt.Errorf("%w: %v", ErrEmailHubConnectFailed, err)
-	}
-	if err := smtpclient.VerifyLogin(smtpclient.Credentials{
-		// shortcut: every preset submits on 587 STARTTLS; the Connect rewrite (UNI-1237 GD1) verifies through credentials() instead.
-		Host: prov.SMTPHost, Port: prov.SMTPPort, Email: email, Password: password, Security: "starttls",
-	}); err != nil {
-		s.log.Warn("email hub smtp verify failed", "provider", prov.Name, "user_id", actor.ID, "err", err)
-		return EmailHubAccountView{}, fmt.Errorf("%w: %v", ErrEmailHubConnectFailed, err)
-	}
-	existing, err := s.q.ListEmailHubAccountsByUser(ctx, db.ListEmailHubAccountsByUserParams{
-		UserID: actor.ID, OrganizationID: ws.OrganizationID,
-	})
-	if err != nil {
-		return EmailHubAccountView{}, err
-	}
-	for _, row := range existing {
-		if row.EmailAddress == email {
-			return EmailHubAccountView{}, Invalid("this email is already connected")
-		}
-	}
-	sealed, err := s.box.Seal([]byte(password))
-	if err != nil {
-		return EmailHubAccountView{}, err
-	}
-	id := util.NewID()
-	row, err := s.q.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
-		ID: id, UserID: actor.ID, OrganizationID: ws.OrganizationID,
-		EmailAddress: email, Provider: prov.Name,
-		ImapHost: prov.IMAPHost, ImapPort: int32(prov.IMAPPort), ImapSecurity: "tls",
-		SmtpHost: prov.SMTPHost, SmtpPort: int32(prov.SMTPPort), SmtpSecurity: "starttls",
-		AuthKind:    "password",
-		PasswordEnc: base64.StdEncoding.EncodeToString(sealed),
-	})
-	if err != nil {
-		return EmailHubAccountView{}, err
-	}
-	if _, _, syncErr := s.syncAccount(ctx, row, false, true); syncErr != nil {
-		s.log.Warn("email hub initial sync failed", "account_id", id, "err", syncErr)
-	}
-	updated, err := s.q.GetEmailHubAccount(ctx, db.GetEmailHubAccountParams{
-		ID: id, UserID: actor.ID, OrganizationID: ws.OrganizationID,
-	})
-	if err != nil {
-		return accountView(row), nil
-	}
-	return accountView(updated), nil
 }
 
 func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspaceID, accountID string) error {

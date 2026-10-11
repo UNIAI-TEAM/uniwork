@@ -91,6 +91,12 @@ func (h *handlers) connectEmailHubAccount(w http.ResponseWriter, r *http.Request
 			respondError(w, http.StatusBadRequest, "email_hub_unsupported", "Email provider is not supported")
 		case errors.Is(err, service.ErrEmailHubConnectFailed):
 			respondError(w, http.StatusBadRequest, "email_hub_connect_failed", "Could not connect to the mailbox")
+		case errors.Is(err, service.ErrEmailHubAlreadyConnected):
+			respondError(w, http.StatusConflict, "email_hub_already_connected", "This mailbox is already connected")
+		case errors.Is(err, service.ErrEmailHubTLSRequired):
+			respondError(w, http.StatusBadRequest, "email_hub_tls_required", "The mail server does not offer the required TLS mode")
+		case errors.Is(err, service.ErrEmailHubUnreachable):
+			respondError(w, http.StatusBadRequest, "email_hub_unreachable", "Could not reach the mail server")
 		default:
 			h.mapServiceError(w, err)
 		}

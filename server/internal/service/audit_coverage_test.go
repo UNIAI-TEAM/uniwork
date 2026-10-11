@@ -1277,6 +1277,17 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-1132: the owner connects a mailbox.
+		audit.ActionEmailHubAccountConnected: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := NewEmailHubService(f.q, f.ws, testEmailHubBox(t))
+			stubEmailHubDial(svc, nil)
+			if _, err := svc.Connect(f.ctx, Human(f.owner.ID), w.ID, ConnectEmailHubInput{
+				EmailAddress: "audit-mailbox@gmail.com", AppPassword: "app-password-1",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// The owner disconnects the mailbox (UNI-1237: an auth failure no longer does).
 		audit.ActionEmailHubAccountDisconnected: func(t *testing.T, f *auditFixture) {
 			workspace := f.build(t)
@@ -1427,6 +1438,7 @@ func auditActions() []string {
 		audit.ActionDocumentAssetPurged,
 		audit.ActionSignatureCreated,
 		audit.ActionSignatureDeleted,
+		audit.ActionEmailHubAccountConnected,
 		audit.ActionEmailHubAccountDisconnected,
 		audit.ActionEmailHubAccountAuthFailed,
 	}

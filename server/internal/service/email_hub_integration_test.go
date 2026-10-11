@@ -98,13 +98,23 @@ func seedEmailHubThread(t *testing.T, q *db.Queries, accountID, orgID string) db
 }
 
 func TestEmailHubConnectValidation(t *testing.T) {
-	svc, _, user, ws, _ := emailHubFixture(t)
+	svc, q, user, ws, pool := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
+	calls := stubEmailHubDial(svc, nil)
 
-	_, err := svc.Connect(ctx, actor, ws.ID, ConnectEmailHubInput{})
-	if err == nil {
-		t.Fatal("expected empty connect to fail")
+	// Membership is decided first: an outsider learns nothing about the input.
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	outsider := registerVerified(t, q, as, "eh-outsider@example.com", "Outsider")
+	_, err := svc.Connect(ctx, Human(outsider.ID), ws.ID, ConnectEmailHubInput{})
+	if !errors.Is(err, ErrForbidden) && !errors.Is(err, ErrNotFound) {
+		t.Fatalf("non-member must be refused before validation, got %v", err)
+	}
+
+	_, err = svc.Connect(ctx, actor, ws.ID, ConnectEmailHubInput{})
+	var ve ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected empty connect to fail validation, got %v", err)
 	}
 
 	_, err = svc.Connect(ctx, actor, ws.ID, ConnectEmailHubInput{
@@ -112,6 +122,9 @@ func TestEmailHubConnectValidation(t *testing.T) {
 	})
 	if !errors.Is(err, ErrEmailHubUnsupported) {
 		t.Fatalf("expected unsupported provider, got %v", err)
+	}
+	if n := calls.Load(); n != 0 {
+		t.Fatalf("refused input must never reach the login check, verify ran %d times", n)
 	}
 }
 
