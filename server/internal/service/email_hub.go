@@ -51,10 +51,12 @@ type EmailHubService struct {
 	AI    *ai.Gateway
 	Tasks *TaskService
 
-	// scheduleWorkerOwnerFn, testHookScheduledSend and testHookSMTPSend are set only in tests.
+	// scheduleWorkerOwnerFn, testHookScheduledSend, testHookSMTPSend and
+	// testHookAppendSent are set only in tests.
 	scheduleWorkerOwnerFn func() string
 	testHookScheduledSend func(context.Context, db.EmailHubAccount, string, SendEmailHubInput) error
-	testHookSMTPSend      func(context.Context, smtpclient.Credentials, smtpclient.Message) (string, error)
+	testHookSMTPSend      func(context.Context, smtpclient.Credentials, smtpclient.Message) (string, []byte, error)
+	testHookAppendSent    func(ctx context.Context, acc db.EmailHubAccount, raw []byte) (uint32, error)
 	// testHookVerify replaces the IMAP+SMTP login check and testHookInitialSync
 	// the first sync after Connect; both are set only in tests.
 	testHookVerify      func(ctx context.Context, imap imapclient.Credentials, smtp smtpclient.Credentials) error
@@ -417,7 +419,7 @@ func (s *EmailHubService) sendOutboundMail(
 	if s.testHookSMTPSend != nil {
 		send = s.testHookSMTPSend
 	}
-	msgID, err := send(ctx, creds.SMTP, smtpclient.Message{
+	msgID, raw, err := send(ctx, creds.SMTP, smtpclient.Message{
 		To: to, Cc: cleanEmailList(in.Cc), Bcc: cleanEmailList(in.Bcc), Subject: subject,
 		BodyText: body, BodyHTML: bodyHTML, Attachments: attachments, InReplyTo: inReplyTo, References: references,
 	})
@@ -435,10 +437,17 @@ func (s *EmailHubService) sendOutboundMail(
 		return EmailHubThreadView{}, fmt.Errorf("%w: %v", ErrEmailHubSendFailed, err)
 	}
 	now := time.Now().UTC()
+	// Placeholder until the Sent sync adopts the server's copy by Message-ID.
+	uid := int32(now.Unix() & 0x7fffffff)
+	if acc.Provider == "custom" && !emailhub.ServerSavesSent(acc.ImapHost) {
+		if appended := s.appendSentCopy(ctx, acc, raw, now); appended != 0 {
+			uid = int32(appended)
+		}
+	}
 	snippet := imapclient.CleanSnippet(imapclient.SnippetFromBody(body, bodyHTML))
 	row, err := s.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
 		ID: util.NewID(), AccountID: acc.ID, OrganizationID: organizationID,
-		Folder: emailhub.FolderSent, ImapUid: int32(now.Unix() & 0x7fffffff),
+		Folder: emailhub.FolderSent, ImapUid: uid,
 		MessageID: pgtype.Text{String: msgID, Valid: true},
 		Subject:   subject, Snippet: snippet, FromAddr: acc.EmailAddress,
 		ToAddrs: to, SentAt: pgtype.Timestamptz{Time: now, Valid: true},

@@ -68,12 +68,12 @@ func scheduledSendOutcome(t *testing.T, pool *pgxpool.Pool, id string) (status, 
 
 func countSMTPSends(svc *EmailHubService, err error) *atomic.Int32 {
 	var calls atomic.Int32
-	svc.testHookSMTPSend = func(context.Context, smtpclient.Credentials, smtpclient.Message) (string, error) {
+	svc.testHookSMTPSend = func(context.Context, smtpclient.Credentials, smtpclient.Message) (string, []byte, error) {
 		calls.Add(1)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
-		return "<sent@example.com>", nil
+		return "<sent@example.com>", nil, nil
 	}
 	return &calls
 }

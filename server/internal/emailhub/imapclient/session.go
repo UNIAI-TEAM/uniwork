@@ -1,11 +1,14 @@
 package imapclient
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
+	"github.com/emersion/go-imap/commands"
 )
 
 // Session is a logged-in IMAP client reused across mailbox operations.
@@ -110,6 +113,29 @@ func (s *Session) MarkStarred(mailbox string, uid uint32, starred bool) error {
 		return fmt.Errorf("imap: session closed")
 	}
 	return markStarredOnClient(s.cl, mailbox, uid, starred)
+}
+
+// Append stores raw in mailbox (RFC 3501 §6.3.11) and returns the UID the
+// server reports through APPENDUID (RFC 4315), or 0 when it reports none.
+func (s *Session) Append(mailbox string, flags []string, date time.Time, raw []byte) (uint32, error) {
+	if s.cl == nil {
+		return 0, fmt.Errorf("imap: session closed")
+	}
+	// client.Append drops the response code, so the command runs directly.
+	status, err := s.cl.Execute(&commands.Append{
+		Mailbox: mailbox, Flags: flags, Date: date, Message: bytes.NewBuffer(raw),
+	}, nil)
+	if err != nil {
+		return 0, err
+	}
+	if err := status.Err(); err != nil {
+		return 0, fmt.Errorf("imap append: %w", err)
+	}
+	if status.Code != "APPENDUID" || len(status.Arguments) < 2 {
+		return 0, nil
+	}
+	uid, _ := imap.ParseNumber(status.Arguments[1]) // a malformed code means no UID, not a failed APPEND
+	return uid, nil
 }
 
 // WatchFolder blocks until the server reports a mailbox change or ctx ends.

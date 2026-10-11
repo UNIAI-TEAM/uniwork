@@ -63,7 +63,7 @@ func TestEncodeHeaderStripsNewlines(t *testing.T) {
 
 func TestSendRequiresRecipients(t *testing.T) {
 	t.Parallel()
-	_, err := Send(context.Background(), Credentials{}, Message{Subject: "Hi", BodyText: "x"})
+	_, _, err := Send(context.Background(), Credentials{}, Message{Subject: "Hi", BodyText: "x"})
 	if err == nil || !strings.Contains(err.Error(), "recipient") {
 		t.Fatalf("expected recipient error, got %v", err)
 	}
@@ -73,7 +73,7 @@ func TestSendCancelledContext(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := Send(ctx, Credentials{Host: "127.0.0.1", Port: 1, Email: "a@b.co", Password: "x"}, Message{
+	_, _, err := Send(ctx, Credentials{Host: "127.0.0.1", Port: 1, Email: "a@b.co", Password: "x"}, Message{
 		To: []string{"c@d.co"}, Subject: "Hi", BodyText: "body",
 	})
 	if err == nil {
@@ -85,7 +85,7 @@ func TestSendDialFailure(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_, err := Send(ctx, Credentials{
+	_, _, err := Send(ctx, Credentials{
 		Host: "127.0.0.1", Port: 1, Email: "user@gmail.com", Password: "secret",
 	}, Message{
 		To: []string{"dest@example.com"}, Subject: "Hi", BodyText: "Hello",

@@ -22,3 +22,18 @@ func TestProviderForEmail(t *testing.T) {
 		t.Fatal("expected unknown provider")
 	}
 }
+
+func TestServerSavesSent(t *testing.T) {
+	t.Parallel()
+	for host, want := range map[string]bool{
+		"imap.gmail.com":        true,
+		"OUTLOOK.office365.com": true,
+		"imap.mail.yahoo.com":   false,
+		"mail.example.com":      false,
+		"":                      false,
+	} {
+		if got := ServerSavesSent(host); got != want {
+			t.Errorf("ServerSavesSent(%q) = %v, want %v", host, got, want)
+		}
+	}
+}

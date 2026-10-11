@@ -9,8 +9,10 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -68,8 +70,9 @@ type fakeIMAP struct {
 	starttls bool
 	reply    func(w *bufio.Writer, tag, cmd string) bool
 
-	mu   sync.Mutex
-	cmds []string
+	mu       sync.Mutex
+	cmds     []string
+	literals []string
 }
 
 func (f *fakeIMAP) start(t *testing.T) Credentials {
@@ -128,6 +131,21 @@ func (f *fakeIMAP) serve(conn net.Conn) {
 			_ = w.Flush()
 			continue
 		}
+		if n, ok := literalSize(line); ok {
+			// A synchronizing literal (APPEND): invite it, then read it and the CRLF ending the command.
+			fmt.Fprint(w, "+ go\r\n")
+			_ = w.Flush()
+			lit := make([]byte, n)
+			if _, err := io.ReadFull(r, lit); err != nil {
+				return
+			}
+			if _, err := r.ReadString('\n'); err != nil {
+				return
+			}
+			f.mu.Lock()
+			f.literals = append(f.literals, string(lit))
+			f.mu.Unlock()
+		}
 		tag, cmd, _ := strings.Cut(line, " ")
 		f.record(cmd)
 		verb, _, _ := strings.Cut(strings.ToUpper(cmd), " ")
@@ -160,6 +178,12 @@ func (f *fakeIMAP) serve(conn net.Conn) {
 			fmt.Fprintf(w, "* BYE bye\r\n%s OK done\r\n", tag)
 			_ = w.Flush()
 			return
+		case "APPEND":
+			if strings.Contains(f.caps, "UIDPLUS") {
+				fmt.Fprintf(w, "%s OK [APPENDUID 7 42] APPEND completed\r\n", tag)
+			} else {
+				fmt.Fprintf(w, "%s OK done\r\n", tag)
+			}
 		default:
 			fmt.Fprintf(w, "%s OK done\r\n", tag)
 		}
@@ -181,4 +205,21 @@ func (f *fakeIMAP) sent(prefix string) bool {
 		}
 	}
 	return false
+}
+
+// appended returns the literals the fake received, in order.
+func (f *fakeIMAP) appended() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.literals...)
+}
+
+// literalSize parses a trailing synchronizing literal "{N}" (RFC 3501 §4.3).
+func literalSize(line string) (int, bool) {
+	open := strings.LastIndexByte(line, '{')
+	if open < 0 || !strings.HasSuffix(line, "}") {
+		return 0, false
+	}
+	n, err := strconv.Atoi(line[open+1 : len(line)-1])
+	return n, err == nil
 }
