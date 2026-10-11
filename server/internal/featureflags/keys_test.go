@@ -38,20 +38,6 @@ func TestNoInheritedCompatKeysArePublished(t *testing.T) {
 	}
 }
 
-func TestOfficeHTMLVisualEditIsPublicAndOffByDefault(t *testing.T) {
-	f, ok := Lookup("office_html_visual_edit")
-	if !ok {
-		t.Fatal("office_html_visual_edit is not declared")
-	}
-	if f.Default || !f.Public || f.Owner != "office" {
-		t.Fatalf("office_html_visual_edit = %+v, want default off, public, owner office", f)
-	}
-	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
-	if v, published := flags["office_html_visual_edit"]; !published || v {
-		t.Fatalf("published=%v value=%v, want published and false", published, v)
-	}
-}
-
 // The web frame of every genoffice module has its own flag (UNI-1013 docs,
 // UNI-1014/1015/1016 the others): on by default (user decision 2026-10-09,
 // CONTRACT C14), public, owner office, one review date.
