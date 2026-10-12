@@ -116,7 +116,12 @@ export function useLibraryRowDialogs({
           if (!next) setMoving(null);
         }}
         title={t("documents.home.move.title")}
-        description={t("documents.home.move.description", { name: moving?.title || t("documents.detail.untitled") })}
+        description={
+          // Only a folder takes its contents along; a file or a page moves alone.
+          t(moving?.kind === "folder" ? "documents.home.move.folder_description" : "documents.home.move.description", {
+            name: moving?.title || t("documents.detail.untitled"),
+          })
+        }
         submitLabel={t("documents.home.move.submit")}
         tree={tree}
         initialFolderId={moving?.parent_id ?? null}
