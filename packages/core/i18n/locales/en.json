@@ -7544,6 +7544,11 @@
         "sub": "AI office apps for macOS, Windows and Linux. Sign in with your UniWork account, open files from your team's workspace and save them back as a new version.",
         "downloadFor": "Download for {{os}}",
         "variants": "{{os}} installers",
+        "downloadBoth": {
+          "mac_arm": "Download for Mac (Apple Silicon)",
+          "mac_intel": "Download for Mac (Intel)"
+        },
+        "macChipHelp": "Not sure which chip your Mac has? Open the Apple menu › About This Mac.",
         "demo": "See the six editors",
         "unavailable": "The installers are being prepared. Meanwhile you can still open and edit Office files on the web, in Documents.",
         "trustAccount": "Uses your UniWork account",
@@ -7634,15 +7639,15 @@
         }
       },
       "ai": {
-        "title": "AI built in, your data stays in your workspace",
-        "sub": "UniWork Office shares its account and permissions with UniWork, so AI and files follow the same rules.",
+        "title": "AI built in, your files stay in your team's workspace",
+        "sub": "UniWork Office shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
         "account": {
           "title": "AI through your UniWork account",
-          "description": "Cloud AI comes with your organization's UniWork plan, or you can use your own API key. Pick the model right in the AI panel."
+          "description": "Cloud AI tools, such as web search and image generation, run through UniWork under your organization's plan. If you use your own API key, the app calls the provider you choose directly, without going through UniWork servers."
         },
         "files": {
-          "title": "Files live in your team's workspace",
-          "description": "Open from Documents, save as a new version, share and comment in UniWork. Files stored on your computer can be edited offline."
+          "title": "Team files are saved in the workspace",
+          "description": "Files you save to the workspace live in your team's UniWork workspace: open from Documents, save as a new version, share and comment. Files stored on your computer stay on your computer and can be edited offline."
         },
         "link": "See how UniWork handles permissions"
       },
@@ -7655,7 +7660,7 @@
         "q3": "Does it work offline?",
         "a3": "Editing a file stored on your computer needs no connection. Opening files from the workspace, saving a new version and using AI need one.",
         "q4": "How is my data handled?",
-        "a4": "Your team's files live in the UniWork workspace under your organization's permissions. A file's content is only sent to AI when you ask AI to work on it.",
+        "a4": "Files you save to the workspace live in the UniWork workspace under your organization's permissions; files stored on your computer stay on your computer. When you use AI, the content to work on is sent to the model provider: through UniWork for tools that run under your organization's plan, or straight from your computer if you use your own API key.",
         "q5": "Do I need a separate account for Office?",
         "a5": "No. You sign in with your UniWork account, with the same permissions and workspaces as on the web.",
         "q6": "How do I open a file from UniWork on the web?",
@@ -7684,6 +7689,8 @@
           "description": "Your team still sees the file, its comments and its access in UniWork."
         }
       },
+      "installersError": "We couldn't load the list of installers. Check your connection and try again.",
+      "retry": "Try again",
       "closing": "Bring the office apps home to your team's workspace."
     }
   },

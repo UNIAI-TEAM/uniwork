@@ -71,7 +71,18 @@
 .office-download-column ul { display: grid; gap: 10px; }
 .office-download-column li { display: grid; gap: 6px; }
 .office-download-column li a { justify-content: flex-start; gap: 10px; }
-.office-hero-downloads[aria-busy] { min-height: 84px; }
+/* Loading shell, notices and the loaded buttons all fill the same row height (button 52 + gap 10 + variants 32). */
+.office-hero-downloads { min-height: 94px; }
+@media (pointer: coarse) { .office-hero-downloads { min-height: 106px; } }
+.office-hero-downloads > .office-unavailable { margin: 0; }
+.office-os-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.office-os-help { display: flex; align-items: center; min-height: 32px; max-width: 36ch; text-align: center; color: var(--muted-foreground); font-size: var(--text-caption); line-height: 1.4; }
+.office-skeleton { background: var(--muted); border-color: transparent; color: transparent; pointer-events: none; }
+.office-skeleton-variants { display: block; width: 120px; min-height: 32px; border-radius: 8px; background: var(--muted); }
+@media (pointer: coarse) { .office-skeleton-variants { min-height: 44px; } }
+.office-download-column h3.office-skeleton, .office-download-column p.office-skeleton { border-radius: 8px; }
+.office-download-columns > .office-unavailable { grid-column: 1 / -1; margin: 0 auto; }
+.office-installers-error { display: grid; justify-items: center; gap: 12px; text-align: center; }
 .office-download-column small { color: var(--muted-foreground); font-size: var(--text-caption); line-height: 1.6; }
 .office-world .marketing-actions { justify-content: center; margin-top: 36px; }
 
@@ -84,7 +95,7 @@
   .office-hero { padding-block: 8px 40px; }
   .office-tasks, .office-works, .office-download-columns, .office-ai-points { grid-template-columns: minmax(0,1fr); }
   .office-os { width: 100%; }
-  .office-os-button { width: 100%; }
+  .office-os-button, .office-os-buttons { width: 100%; }
   .office-hero > .office-shot { margin-top: 32px; padding: 6px; border-radius: 12px; }
   .office-section { padding-block: 40px 48px; }
   .office-blocks { margin-top: 40px; }

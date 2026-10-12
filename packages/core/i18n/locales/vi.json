@@ -7539,6 +7539,11 @@
         "sub": "Bộ ứng dụng văn phòng có AI cho macOS, Windows và Linux. Đăng nhập bằng tài khoản UniWork, mở file từ workspace của nhóm và lưu lại thành phiên bản mới.",
         "downloadFor": "Tải cho {{os}}",
         "variants": "Bản cài cho {{os}}",
+        "downloadBoth": {
+          "mac_arm": "Tải cho Mac Apple Silicon",
+          "mac_intel": "Tải cho Mac Intel"
+        },
+        "macChipHelp": "Không rõ máy Mac dùng chip nào? Mở menu Apple › Giới thiệu về máy Mac.",
         "demo": "Xem sáu trình soạn thảo",
         "unavailable": "Bản cài đặt đang được chuẩn bị. Trong lúc chờ, bạn vẫn mở và sửa file Office ngay trên web, trong mục Tài liệu.",
         "trustAccount": "Dùng chung tài khoản UniWork",
@@ -7629,15 +7634,15 @@
         }
       },
       "ai": {
-        "title": "AI có sẵn, dữ liệu vẫn ở workspace của bạn",
-        "sub": "UniWork Office dùng chung tài khoản và phân quyền với UniWork, nên AI và file đi theo cùng một quy tắc.",
+        "title": "AI có sẵn, file vẫn nằm trong workspace của nhóm",
+        "sub": "UniWork Office dùng chung tài khoản và phân quyền với UniWork, nên file của nhóm vẫn theo quyền truy cập của tổ chức.",
         "account": {
           "title": "AI qua tài khoản UniWork",
-          "description": "AI trên cloud đi cùng gói UniWork của tổ chức, hoặc bạn dùng khóa API của riêng mình. Chọn mô hình ngay trong bảng AI."
+          "description": "Công cụ AI trên cloud, như tìm kiếm web hay tạo ảnh, chạy qua UniWork theo gói của tổ chức. Nếu dùng khóa API của riêng bạn, ứng dụng gọi thẳng nhà cung cấp bạn chọn mà không qua máy chủ UniWork."
         },
         "files": {
-          "title": "File nằm trong workspace của nhóm",
-          "description": "Mở từ Tài liệu, lưu thành phiên bản mới, chia sẻ và bình luận trong UniWork. File lưu trên máy thì sửa được khi không có mạng."
+          "title": "File của nhóm lưu trong workspace",
+          "description": "File lưu vào workspace nằm trong workspace UniWork của nhóm: mở từ Tài liệu, lưu thành phiên bản mới, chia sẻ và bình luận. File lưu trên máy thì ở lại trên máy và sửa được khi không có mạng."
         },
         "link": "Xem cách UniWork phân quyền"
       },
@@ -7650,7 +7655,7 @@
         "q3": "Có dùng được khi không có mạng không?",
         "a3": "Sửa file lưu trên máy không cần mạng. Mở file từ workspace, lưu thành phiên bản mới và dùng AI thì cần kết nối.",
         "q4": "Dữ liệu của tôi được xử lý thế nào?",
-        "a4": "File của nhóm nằm trong workspace UniWork và theo phân quyền của tổ chức. Nội dung file chỉ được gửi cho AI khi bạn yêu cầu AI xử lý.",
+        "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được gửi tới nhà cung cấp mô hình: qua UniWork với công cụ chạy theo gói của tổ chức, hoặc thẳng từ máy bạn nếu dùng khóa API riêng.",
         "q5": "Tôi có cần tài khoản riêng cho Office không?",
         "a5": "Không. Bạn đăng nhập bằng tài khoản UniWork, với cùng quyền và workspace như trên web.",
         "q6": "Làm sao mở file từ UniWork trên web?",
@@ -7679,6 +7684,8 @@
           "description": "Cả nhóm vẫn thấy file, bình luận và quyền truy cập của file ngay trong UniWork."
         }
       },
+      "installersError": "Không tải được danh sách bản cài đặt. Kiểm tra kết nối rồi thử lại.",
+      "retry": "Thử lại",
       "closing": "Đưa bộ ứng dụng văn phòng về cùng workspace của nhóm."
     }
   },
