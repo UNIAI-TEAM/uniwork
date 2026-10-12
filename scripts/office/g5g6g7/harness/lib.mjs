@@ -167,6 +167,41 @@ export function ticketFromLaunchUrl(url) {
   }
 }
 
+/** How long `--wait-signin` waits for a desktop sign-in when it is given no number. */
+export const DEFAULT_SIGNIN_WAIT_SECONDS = 300;
+
+/**
+ * The seconds `--wait-signin [seconds]` asks for, or null when the flag is
+ * absent. A flag without a (positive whole) number waits the default.
+ */
+export function parseWaitSignin(argv) {
+  const at = argv.indexOf("--wait-signin");
+  if (at < 0) return null;
+  const next = argv[at + 1];
+  return typeof next === "string" && /^[1-9][0-9]*$/.test(next) ? Number(next) : DEFAULT_SIGNIN_WAIT_SECONDS;
+}
+
+/**
+ * The account's live native device session for one client and deployment, from
+ * `GET /api/v1/auth/desktop/devices` (sdo.DesktopDeviceDTO), or null. "Live" is
+ * what the server says: not revoked and not past `expires_at`. This is the
+ * server's own record that the desktop app is signed in as that account — the
+ * session itself sits encrypted in the app's userData and is never read.
+ */
+export function activeDesktopDevice(devices, { clientId, deploymentId, now = Date.now() }) {
+  if (!Array.isArray(devices)) return null;
+  return (
+    devices.find(
+      (device) =>
+        device &&
+        device.client_id === clientId &&
+        device.deployment_id === deploymentId &&
+        !device.revoked_at &&
+        (!device.expires_at || Date.parse(device.expires_at) > now),
+    ) ?? null
+  );
+}
+
 /**
  * What the document step can conclude about one launch, given the ticket the D
  * server issued, the deep link it built, and whether the app left a working
@@ -241,6 +276,7 @@ export function harnessPaths(runDir) {
     pidFile: join(runDir, "pids"),
     blockedFile: join(runDir, "blocked.json"),
     startStatus: join(runDir, "start-status.json"),
+    docUser: join(runDir, "doc-user.json"),
     serverCwd: serverCwd(runDir),
     evidenceFile: join(runDir, "evidence.jsonl"),
     logDir: join(runDir, "logs"),

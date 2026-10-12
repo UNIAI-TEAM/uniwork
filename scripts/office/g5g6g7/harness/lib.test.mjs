@@ -4,13 +4,13 @@
 // to the server, the web and the app.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -737,8 +737,10 @@ test("start.sh names the failing step and its args when lib.mjs errors", () => {
 // without a stack.
 
 /** A fake D server for the document step; resolves with its origin and a stop(). */
-function mkFakeDocumentServer({ mintLink = true } = {}) {
+function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls = 0, loginPassword = "" } = {}) {
   return new Promise((resolveServer) => {
+    const calls = [];
+    let devicePolls = 0;
     const server = createHttpServer((req, res) => {
       const chunks = [];
       req.on("data", (c) => chunks.push(c));
@@ -748,7 +750,16 @@ function mkFakeDocumentServer({ mintLink = true } = {}) {
           res.end(JSON.stringify(body));
         };
         const url = new URL(req.url, "http://127.0.0.1");
+        calls.push(url.pathname);
         if (url.pathname === "/healthz") return send(200, { status: "ok" });
+        if (url.pathname === "/api/v1/auth/login") {
+          const sent = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+          return sent.password === loginPassword ? send(200, { access_token: "tok", user: { id: "u1" } }) : send(401, { error: "invalid_credentials" });
+        }
+        if (url.pathname === "/api/v1/auth/desktop/devices") {
+          devicePolls += 1;
+          return send(200, { devices: devicePolls > devicesAfterPolls ? devices : [], next_cursor: null });
+        }
         if (url.pathname === "/api/v1/auth/register") return send(201, { access_token: "tok", user: { id: "u1" } });
         if (url.pathname === "/api/v1/me/email/verify") return send(200, { user: { id: "u1" } });
         if (url.pathname === "/api/v1/orgs") return send(201, { organization: { id: "o1", slug: "o1" } });
@@ -763,7 +774,7 @@ function mkFakeDocumentServer({ mintLink = true } = {}) {
     });
     server.listen(0, "127.0.0.1", () => {
       const { port } = server.address();
-      resolveServer({ origin: `http://127.0.0.1:${port}`, stop: () => new Promise((r) => server.close(r)) });
+      resolveServer({ origin: `http://127.0.0.1:${port}`, calls, stop: () => new Promise((r) => server.close(r)) });
     });
   });
 }
@@ -933,3 +944,150 @@ for (const [name, script] of [["sample-ac", SAMPLE_AC], ["document-step", DOC_ST
     assert.match(line.blocker, /no network to the fork/);
   });
 }
+
+// ---- desktop mode: reuse an account, wait for its sign-in ---------------------
+
+const LIVE_DEVICE = { id: "d1", client_id: DEV_CLIENT_ID, deployment_id: "default", expires_at: "2999-01-01T00:00:00Z", revoked_at: null };
+const REUSED = { HARNESS_DOC_EMAIL: "advisor@example.com", HARNESS_DOC_PASSWORD: "s3cret-Pass-Word" };
+
+/** Everything a run left that could carry a secret: stdout, stderr, the report and the ledger. */
+function everythingWritten(run, result) {
+  const files = ["document-step.json", "evidence.jsonl"].map((name) => (existsSync(join(run.runDir, name)) ? readFileSync(join(run.runDir, name), "utf8") : ""));
+  return [result.stdout, result.stderr, ...files].join("\n");
+}
+
+test("parseWaitSignin reads the flag, with or without a number", () => {
+  assert.equal(parseWaitSignin(["node", "x"]), null);
+  assert.equal(parseWaitSignin(["--wait-signin"]), 300);
+  assert.equal(parseWaitSignin(["--wait-signin", "45", "--run-dir", "r"]), 45);
+  assert.equal(parseWaitSignin(["--wait-signin", "--run-dir", "r"]), 300);
+  assert.equal(parseWaitSignin(["--wait-signin", "0"]), 300);
+});
+
+test("activeDesktopDevice wants the dev client, this deployment, not revoked, not expired", () => {
+  const ask = { clientId: DEV_CLIENT_ID, deploymentId: "default", now: Date.parse("2026-10-12T00:00:00Z") };
+  assert.equal(activeDesktopDevice([LIVE_DEVICE], ask)?.id, "d1");
+  assert.equal(activeDesktopDevice([{ ...LIVE_DEVICE, client_id: "uniwork-office" }], ask), null);
+  assert.equal(activeDesktopDevice([{ ...LIVE_DEVICE, deployment_id: "other" }], ask), null);
+  assert.equal(activeDesktopDevice([{ ...LIVE_DEVICE, revoked_at: "2026-10-11T00:00:00Z" }], ask), null);
+  assert.equal(activeDesktopDevice([{ ...LIVE_DEVICE, expires_at: "2026-10-01T00:00:00Z" }], ask), null);
+  assert.equal(activeDesktopDevice(undefined, ask), null);
+});
+
+test("document-step reuses an account from the environment and writes no secret anywhere", async () => {
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"], REUSED);
+    assert.equal(result.status, 0, `document-step exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.ok(server.calls.includes("/api/v1/auth/login"));
+    assert.ok(!server.calls.includes("/api/v1/auth/register"), "a reused account must not be seeded");
+    const written = everythingWritten(run, result);
+    for (const secret of [REUSED.HARNESS_DOC_PASSWORD, "ticket_abc"]) assert.ok(!written.includes(secret), `${secret} leaked into the output or the evidence`);
+    assert.ok(!/"tok"|bearer/i.test(written), "no token in the output or the evidence");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("document-step is BLOCKED, and delivers nothing, when the reused account has no desktop session", async () => {
+  const server = await mkFakeDocumentServer({ devices: [], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"], REUSED);
+    assert.equal(result.status, 77, `expected BLOCKED (77), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /no live uniwork-office-dev desktop session for advisor@example\.com/);
+    assert.match(result.stderr, /--wait-signin/);
+    assert.ok(!existsSync(linkFile), "no link may be delivered to an app that is not signed in as the account");
+    assert.ok(!server.calls.some((path) => path.endsWith("/office/sessions")), "no ticket may be minted");
+    assert.ok(!everythingWritten(run, result).includes(REUSED.HARNESS_DOC_PASSWORD));
+  } finally {
+    await server.stop();
+  }
+});
+
+test("--wait-signin prints the steps, waits for the sign-in, then opens the document", async () => {
+  // the account is signed out for the first two polls, then the app signs in
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], devicesAfterPolls: 2, loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi", "--wait-signin", "30"], REUSED);
+    assert.equal(result.status, 0, `document-step exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /waiting up to 30s for a desktop sign-in as advisor@example\.com/);
+    assert.match(result.stdout, /Sign in/);
+    assert.match(result.stdout, /document step: PASS/);
+    assert.ok(!everythingWritten(run, result).includes(REUSED.HARNESS_DOC_PASSWORD));
+  } finally {
+    await server.stop();
+  }
+});
+
+test("--wait-signin that never sees a sign-in is BLOCKED with the wait in the reason", async () => {
+  const server = await mkFakeDocumentServer({ devices: [], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--wait-signin", "2"], REUSED);
+    assert.equal(result.status, 77);
+    assert.match(result.stderr, /within 2s/);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("--wait-signin with a seeded account keeps its random password in a 0600 file, never in the output", async () => {
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE] });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--wait-signin", "20"]);
+    assert.equal(result.status, 0, `document-step exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.ok(server.calls.includes("/api/v1/auth/register"), "no account given: one is seeded");
+    const file = harnessPaths(run.runDir).docUser;
+    assert.equal(statSync(file).mode & 0o777, 0o600);
+    const { email, password } = JSON.parse(readFileSync(file, "utf8"));
+    assert.match(email, /^g7-01-harness-\d+@example\.com$/);
+    assert.ok(password.length >= 16 && password !== "password123", "a waited sign-in gets its own random password");
+    assert.match(result.stdout, new RegExp(`as ${email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    assert.ok(result.stdout.includes(file), "the output points at the credentials file");
+    assert.ok(!everythingWritten(run, result).includes(password), "the seeded password stays out of the output and the evidence");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("the unattended cloud run seeds with no sign-in check and no credentials file", async () => {
+  const server = await mkFakeDocumentServer();
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\nprintf '%s\\n' "\${!#}" >> ${JSON.stringify(linkFile)}\nexit 0\n` });
+  try {
+    rmSync(join(run.userData, "uniwork-auth", "session.bin"), { force: true });
+    const result = await runDocumentStep(["--run-dir", run.runDir]);
+    assert.equal(result.status, 77);
+    assert.ok(!server.calls.includes("/api/v1/auth/desktop/devices"), "the cloud run does not poll for a sign-in");
+    assert.ok(!existsSync(harnessPaths(run.runDir).docUser));
+  } finally {
+    await server.stop();
+  }
+});
+
+test("an email without a password (or the reverse) is a usage error, not a guess", async () => {
+  const run = mkDocumentRun({ origin: "http://127.0.0.1:1", electronBody: "#!/usr/bin/env bash\nexit 0\n" });
+  const result = await runDocumentStep(["--run-dir", run.runDir], { HARNESS_DOC_EMAIL: "a@example.com", HARNESS_DOC_PASSWORD: "" });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /go together/);
+});
+
+test("a wrong password for a reused account is a FAIL", async () => {
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], loginPassword: "something-else" });
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir], { ...REUSED, HARNESS_DOC_WAIT_MS: "500" });
+    assert.equal(result.status, 1, `expected FAIL (1), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.ok(!everythingWritten(run, result).includes(REUSED.HARNESS_DOC_PASSWORD));
+  } finally {
+    await server.stop();
+  }
+});
