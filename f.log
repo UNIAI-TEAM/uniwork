@@ -1,0 +1,4 @@
+$ F="$HOME/.cache/uniwork-office-harness/uniwork-office-cb76dde"; ls -d "$F" && git -C "$F" fetch -q origin feature/UNI-1378-g7-06-extractor && git -C "$F" show FETCH_HEAD:scripts/genoffice-tools-extract.mjs > /tmp/g706-extractor.mjs && git -C "$F" rev-parse FETCH_HEAD && sha256sum /tmp/g706-extractor.mjs
+/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde
+4d7cf63e23f4d14094d5c9592cee06e7106fea49
+65dd8ec7369ee14ae19daa222ea1a03b94350c04396866adefa6c316ba256314  /tmp/g706-extractor.mjs
