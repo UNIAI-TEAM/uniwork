@@ -465,6 +465,7 @@ type Routes struct {
 	GetOfficeJobOutput      http.HandlerFunc
 	CancelOfficeJob         http.HandlerFunc
 	OfficeCapability        http.HandlerFunc
+	OfficeAppCapabilities   http.HandlerFunc
 	CreateOfficeLaunch      http.HandlerFunc
 	ExchangeOfficeLaunch    http.HandlerFunc
 	RevokeOfficeLaunch      http.HandlerFunc
