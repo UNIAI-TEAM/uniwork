@@ -8,6 +8,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
+	"github.com/unicomhub/uniwork/server/internal/graph/projector"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -101,6 +102,7 @@ func TestPrivacyDeletionRemovesContentAndKeepsAudit(t *testing.T) {
 	}
 	consumer := NewPrivacyDeletionConsumer(f.svc.pool, f.q)
 	consumer.SetFileService(filesfake.New(filesfake.Options{}))
+	consumer.SetGraphForget(projector.ForgetOrganization)
 	ev := outbox.Row{ID: "ev-privacy-delete", Topic: "privacy.deletion_requested", Payload: `{"request_id":"` + row.ID + `","organization_id":"` + f.orgA + `"}`}
 	if err := consumer.Handle(f.ctx, ev); err != nil {
 		t.Fatal(err)
@@ -192,6 +194,7 @@ func TestPrivacyDeletionWaitsFiveDaysAndCanBeCancelled(t *testing.T) {
 	}
 	consumer := NewPrivacyDeletionConsumer(f.svc.pool, f.q)
 	consumer.SetFileService(filesfake.New(filesfake.Options{}))
+	consumer.SetGraphForget(projector.ForgetOrganization)
 	ev := outbox.Row{ID: "ev-privacy-cancel", Topic: "privacy.deletion_requested", Payload: `{"request_id":"` + row.ID + `","organization_id":"` + f.orgA + `"}`}
 	if err := consumer.Handle(f.ctx, ev); err != nil {
 		t.Fatal(err)
@@ -249,6 +252,7 @@ func TestPrivacyDeletionResumesAfterARolledBackAttempt(t *testing.T) {
 
 	again := NewPrivacyDeletionConsumer(f.svc.pool, f.q)
 	again.SetFileService(filesfake.New(filesfake.Options{}))
+	again.SetGraphForget(projector.ForgetOrganization)
 	if err := again.Handle(f.ctx, ev); err != nil {
 		t.Fatal(err)
 	}

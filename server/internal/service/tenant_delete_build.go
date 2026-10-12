@@ -14,7 +14,6 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
-	"github.com/unicomhub/uniwork/server/internal/graph/projector"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -22,10 +21,13 @@ import (
 const privacyDeleteActor = "privacy-delete"
 
 // PrivacyDeletionConsumer erases one organization on the slow outbox lane.
+// graphForget is projector.ForgetOrganization, wired from main. This package
+// cannot import projector: the projector tests already import service.
 type PrivacyDeletionConsumer struct {
-	pool  *pgxpool.Pool
-	q     *db.Queries
-	files files.Service
+	pool        *pgxpool.Pool
+	q           *db.Queries
+	files       files.Service
+	graphForget func(ctx context.Context, q *db.Queries, organizationID string) error
 }
 
 func NewPrivacyDeletionConsumer(pool *pgxpool.Pool, q *db.Queries) *PrivacyDeletionConsumer {
@@ -33,6 +35,11 @@ func NewPrivacyDeletionConsumer(pool *pgxpool.Pool, q *db.Queries) *PrivacyDelet
 }
 
 func (c *PrivacyDeletionConsumer) SetFileService(fs files.Service) { c.files = fs }
+
+// SetGraphForget wires the Work Graph wipe. main passes projector.ForgetOrganization.
+func (c *PrivacyDeletionConsumer) SetGraphForget(fn func(ctx context.Context, q *db.Queries, organizationID string) error) {
+	c.graphForget = fn
+}
 
 func (*PrivacyDeletionConsumer) Name() string { return "privacy-deletion" }
 
@@ -170,7 +177,10 @@ func (c *PrivacyDeletionConsumer) erase(ctx context.Context, row db.DataSubjectR
 	if err := releaseOrganizationFiles(ctx, c.files, q, ids); err != nil {
 		return err
 	}
-	if err := projector.ForgetOrganization(ctx, q, row.OrganizationID); err != nil {
+	if c.graphForget == nil {
+		return fmt.Errorf("privacy delete: graph forget is not wired")
+	}
+	if err := c.graphForget(ctx, q, row.OrganizationID); err != nil {
 		return err
 	}
 	count := int32(removed)

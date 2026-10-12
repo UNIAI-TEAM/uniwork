@@ -364,6 +364,7 @@ func main() {
 	dispatcher.RegisterLane(outbox.LaneSlow, privacyExports)
 	privacyDeletion := service.NewPrivacyDeletionConsumer(pool, q)
 	privacyDeletion.SetFileService(fileSvc)
+	privacyDeletion.SetGraphForget(projector.ForgetOrganization)
 	dispatcher.RegisterLane(outbox.LaneSlow, privacyDeletion)
 	dispatcher.RegisterLane(outbox.LaneSlow, outbox.WebhookConsumer{})
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
