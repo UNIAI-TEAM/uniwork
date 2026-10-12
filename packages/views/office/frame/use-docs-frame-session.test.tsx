@@ -229,6 +229,140 @@ describe("useDocsFrameSession: a Save the page sends to the frame", () => {
   });
 });
 
+describe("useDocsFrameSession: a Save whose frame stops being usable", () => {
+  const cancelled = (frame: ReturnType<typeof setup>, id: string) =>
+    frame.received.some((m) => m.kind === "event" && m.type === "cancel" && (m.payload as { id?: string }).id === id);
+
+  it("gives up the Save when the frame document goes away, with no replacement load", async () => {
+    const frame = setup();
+    const { saving, request } = await startSave(frame, "navigate");
+    await frame.event("modal", { open: true });
+    expect(frame.hook.result.current.modal).toBe(true);
+    // The old document is torn down; nothing replaces it (yet).
+    act(() => { frame.iframe.contentWindow!.dispatchEvent(new Event("pagehide")); });
+    await expect(saving).resolves.toBe("failed");
+    await settle();
+    expect(cancelled(frame, request.id)).toBe(true);
+    expect(frame.hook.result.current.modal).toBe(false);
+    expect(frame.hook.result.current.saveState).toBe("error");
+    expect(frame.onError).toHaveBeenCalledTimes(1);
+    expect(frame.onError.mock.calls[0]![0]).toMatchObject({ code: "internal", details: { reason: "frame_unloaded" } });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("reads a single replacement load as the old document gone when the first load was never seen", async () => {
+    const frame = setup();
+    const { saving, request } = await startSave(frame);
+    await frame.event("modal", { open: true });
+    // The document that shook hands loaded before the host listened; the next load is a new document.
+    const replacement = document.implementation.createHTMLDocument("next");
+    Object.defineProperty(frame.iframe, "contentDocument", { configurable: true, get: () => replacement });
+    act(() => { frame.iframe.dispatchEvent(new Event("load")); });
+    await expect(saving).resolves.toBe("failed");
+    await settle();
+    expect(cancelled(frame, request.id)).toBe(true);
+    expect(frame.hook.result.current.modal).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not read the first load of the document that shook hands as an unload", async () => {
+    const frame = setup();
+    await startSave(frame);
+    await frame.event("modal", { open: true });
+    act(() => { frame.iframe.dispatchEvent(new Event("load")); });
+    await settle();
+    expect(frame.hook.result.current.modal).toBe(true);
+    expect(frame.hook.result.current.saveState).toBe("saving");
+  });
+
+  it("settles the Save on a fatal frame error: failed with that error, one onError, no timer left", async () => {
+    const frame = setup();
+    const { saving, request } = await startSave(frame, "navigate");
+    await frame.event("modal", { open: true });
+    await frame.event("error", { error: { code: "internal", message: "editor crashed" }, fatal: true });
+    await expect(saving).resolves.toBe("failed");
+    await settle();
+    expect(cancelled(frame, request.id)).toBe(true);
+    expect(frame.hook.result.current.status).toBe("failed");
+    expect(frame.hook.result.current.saveState).toBe("error");
+    expect(frame.onError).toHaveBeenCalledTimes(1);
+    expect(frame.onError.mock.calls[0]![0]).toMatchObject({ code: "internal", message: "editor crashed" });
+    // A late dialog event from the dead frame cannot re-arm anything.
+    await frame.event("modal", { open: false });
+    await advance(5 * 60_000);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(frame.onError).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles the Save when a new frame instance fails its handshake", async () => {
+    const frame = setup();
+    const { saving, request } = await startSave(frame, "navigate");
+    await frame.event("modal", { open: true });
+    await frame.event("ready", { protocolVersion: 99, capabilities: {}, module: "docs", instanceId: "i-2" });
+    await expect(saving).resolves.toBe("failed");
+    await settle();
+    expect(cancelled(frame, request.id)).toBe(true);
+    expect(frame.hook.result.current.status).toBe("failed");
+    expect(frame.hook.result.current.failure).toMatchObject({ code: "version_mismatch" });
+    expect(frame.hook.result.current.saveState).toBe("error");
+    expect(frame.hook.result.current.modal).toBe(false);
+    expect(frame.onError).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not re-arm the watchdog when the frame's api.save ends after the Save was answered", async () => {
+    let finish!: (value: unknown) => void;
+    const save = vi.fn(() => new Promise((resolve) => { finish = resolve; }));
+    const frame = setup({ api: { save } as unknown as Partial<DocsFrameApi> });
+    const { saving, request } = await startSave(frame);
+    frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4) });
+    await settle();
+    expect(save).toHaveBeenCalled();
+    await frame.respond(request, { ok: true, file: FILE, versionId: "v6" });
+    await expect(saving).resolves.toBe("saved");
+    await act(async () => { finish({ ok: true, file: FILE, versionId: "v6" }); });
+    await settle();
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(60_000);
+    expect(frame.onError).not.toHaveBeenCalled();
+  });
+
+  it("does not re-arm the watchdog or touch the next session when api.save ends after a retry", async () => {
+    let finish!: (value: unknown) => void;
+    const save = vi.fn(() => new Promise((resolve) => { finish = resolve; }));
+    const frame = setup({ api: { save } as unknown as Partial<DocsFrameApi> });
+    const { saving } = await startSave(frame);
+    frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4) });
+    await settle();
+    act(() => { frame.hook.result.current.retry(); });
+    await expect(saving).resolves.toBe("cancelled");
+    await settle();
+    expect(frame.hook.result.current.saveState).toBe("ready");
+    // The new session's own boot timers run; the old upload must not add a watchdog to them.
+    const timers = vi.getTimerCount();
+    await act(async () => { finish({ ok: true, file: FILE, versionId: "v7" }); });
+    await settle();
+    expect(vi.getTimerCount()).toBe(timers);
+    // The new session never saw that upload: its header still reads clean.
+    expect(frame.hook.result.current.saveState).toBe("ready");
+    expect(frame.onError).not.toHaveBeenCalled();
+  });
+
+  it("does not re-arm the watchdog when api.save ends after unmount", async () => {
+    let finish!: (value: unknown) => void;
+    const save = vi.fn(() => new Promise((resolve) => { finish = resolve; }));
+    const frame = setup({ api: { save } as unknown as Partial<DocsFrameApi> });
+    const { saving } = await startSave(frame);
+    frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4) });
+    await settle();
+    frame.hook.unmount();
+    await expect(saving).resolves.toBe("cancelled");
+    await act(async () => { finish({ ok: true, file: FILE, versionId: "v8" }); });
+    await settle();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
 describe("useDocsFrameSession: api.download", () => {
   async function ready(opts: Parameters<typeof setup>[0] = {}) {
     const frame = setup(opts);

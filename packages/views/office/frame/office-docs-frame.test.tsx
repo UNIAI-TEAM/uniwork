@@ -466,6 +466,42 @@ describe("OfficeDocsFrame", () => {
       await expect(leaving).resolves.toBe(true);
     });
 
+    describe("when the frame's dialog closes before its answer", () => {
+      async function closedBeforeAnswer() {
+        const held = await leavingWithSave();
+        await held.frame.event("modal", { open: true });
+        await held.frame.event("modal", { open: false });
+        // The answer is still on its way: the leave controls must not come back meanwhile.
+        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(screen.queryByRole("button", { name: "Lưu lên UniWork" })).toBeNull();
+        return held;
+      }
+
+      it("keeps the leave dialog closed, then leaves on saved", async () => {
+        const { frame, save, leaving } = await closedBeforeAnswer();
+        await frame.respond(save, { ok: true, file: FILE, versionId: "v10" });
+        await expect(leaving).resolves.toBe(true);
+        expect(screen.queryByRole("dialog")).toBeNull();
+      });
+
+      it("keeps the leave dialog closed, then stays on cancelled without reopening it", async () => {
+        const { frame, save, leaving } = await closedBeforeAnswer();
+        await frame.respond(save, { ok: false, error: { code: "cancelled", message: "user cancelled" } });
+        await expect(leaving).resolves.toBe(false);
+        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(toastError).not.toHaveBeenCalled();
+      });
+
+      it("reopens the leave dialog with its failure line only on a failed answer", async () => {
+        const { frame, save, leaving } = await closedBeforeAnswer();
+        await frame.respond(save, { ok: false, error: { code: "internal", message: "refused", status: 500 } });
+        expect(await screen.findByRole("dialog")).toHaveTextContent("Không thể xác nhận thao tác");
+        expect(screen.getByRole("button", { name: "Lưu lên UniWork" })).not.toBeDisabled();
+        fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+        await expect(leaving).resolves.toBe(false);
+      });
+    });
+
     it("leaves once Reload latest answered", async () => {
       const { frame, save, leaving } = await leavingWithSave();
       await frame.event("modal", { open: true });
@@ -516,6 +552,19 @@ describe("OfficeDocsFrame", () => {
       await expect(saving).resolves.toBe(false);
       expect(flip()).not.toHaveAttribute("inert");
       expect(toastError).toHaveBeenCalledTimes(1);
+    });
+
+    it("lifts the inert page and gives up a leave save when the frame document goes away with nothing loaded after it", async () => {
+      const { frame, save, leaving } = await leavingWithSave();
+      await frame.event("modal", { open: true });
+      expect(flip()).toHaveAttribute("inert");
+      act(() => { frame.win.dispatchEvent(new Event("pagehide")); });
+      await waitFor(() => expect(flip()).not.toHaveAttribute("inert"));
+      await waitFor(() => expect(frame.received.some((m) => m.kind === "event" && m.type === "cancel" && (m.payload as { id?: string }).id === save.id)).toBe(true));
+      // The leave is not decided behind the user's back: the leave dialog comes back with its failure line.
+      expect(await screen.findByRole("dialog")).toHaveTextContent("Không thể xác nhận thao tác");
+      fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+      await expect(leaving).resolves.toBe(false);
     });
   });
 
