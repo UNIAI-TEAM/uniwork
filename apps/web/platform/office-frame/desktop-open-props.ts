@@ -133,3 +133,16 @@ export function useFrameDesktopOpen(document: Pick<Document, "id" | "organizatio
   const { channel, channelReady, deploymentId } = useOfficeConfigBinding(document.organization_id);
   return frameDesktopOpen(document, deploymentId, channel, channelReady);
 }
+
+/**
+ * The same wiring for the Documents library, where every file row carries its
+ * own "Open in UniWork Office": one config read for the organization, then a
+ * pure per-row builder (rows are not hooks).
+ */
+export function useDocumentsDesktopOpen(organizationId: string): (document: Pick<Document, "id" | "organization_id" | "current_version">) => FrameDesktopOpenProps {
+  const { channel, channelReady, deploymentId } = useOfficeConfigBinding(organizationId);
+  return useCallback(
+    (document: Pick<Document, "id" | "organization_id" | "current_version">) => frameDesktopOpen(document, deploymentId, channel, channelReady),
+    [deploymentId, channel, channelReady],
+  );
+}

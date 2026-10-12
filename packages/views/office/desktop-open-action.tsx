@@ -46,7 +46,7 @@ export interface OfficeSaveOutcome {
 
 export type OfficeLaunchSessionFactory = (
   documentId: string,
-  body: { operation: "edit"; version?: number; deployment_id: string; client_id: string; return_hint: "office" },
+  body: { operation: "edit" | "view"; version?: number; deployment_id: string; client_id: string; return_hint: "office" },
 ) => Promise<OfficeLaunchSessionResponse | null>;
 
 /** What "Open in desktop app" needs of the editor's save coordinator: save first when there are unsaved edits. */
@@ -89,8 +89,13 @@ export interface DesktopOpenActionProps {
   /** Filled with the same flow the button runs, for a caller that is not the button (a frame's `app.open`). */
   requestRef?: MutableRefObject<(() => Promise<DesktopOpenOutcome>) | null>;
   /** `header` (default) fills the page header slot and its compact menu;
-   * `inline` renders in place, always visible, with no header-slot behaviour. */
-  placement?: "header" | "inline";
+   * `inline` renders in place, always visible, with no header-slot behaviour;
+   * `row` is one compact button for a list row (no installer split menu — the
+   * install prompt still opens when the app does not answer). */
+  placement?: "header" | "inline" | "row";
+  /** `view` asks for a read-only session (a viewer, or a file the caller may
+   * not change); the server still decides and never upgrades it. */
+  operation?: "edit" | "view";
 }
 
 function isAccepted(outcome: unknown): outcome is OfficeSaveOutcome & { accepted: true } {
@@ -131,6 +136,7 @@ export function DesktopOpenAction({
   className,
   requestRef,
   placement = "header",
+  operation = "edit",
 }: DesktopOpenActionProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.desktop" });
   const [coordinatorState, setCoordinatorState] = useState(() => saveCoordinator?.getState() ?? null);
@@ -152,7 +158,7 @@ export function DesktopOpenAction({
   };
   const launchedAt = useRef(0);
   const headerSlot = useHeaderActionsSlotAvailable();
-  const inline = placement === "inline";
+  const inline = placement !== "header";
   const inPageHeader = headerSlot && !inline;
   const currentlyDirty = dirty || stateDirty(coordinatorState);
   const canOpenSaved = savedVersion !== null && Number.isSafeInteger(savedVersion) && savedVersion > 0;
@@ -201,7 +207,7 @@ export function DesktopOpenAction({
       // current one, so the body leaves it out. The check above only proves
       // the editor knows what it is handing off.
       const session = await createSession(documentId, {
-        operation: "edit", deployment_id: deploymentId, client_id: clientId, return_hint: "office",
+        operation, deployment_id: deploymentId, client_id: clientId, return_hint: "office",
       });
       if (!session) {
         setError(t("ticket_failed"));
@@ -300,28 +306,35 @@ export function DesktopOpenAction({
   return (
     <>
       {compactMenuItems ? <HeaderActionsFill menuItems={compactMenuItems} /> : null}
-      <ButtonGroup className={cn(inPageHeader && "hidden sm:flex", className)} data-office-desktop-action>
-        <Button type="button" variant={inline ? "default" : "outline"} size="sm" onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
+      {placement === "row" ? (
+        <Button type="button" variant="outline" size="xs" className={className} data-office-desktop-action onClick={onAction} aria-disabled={working || undefined} title={label}>
           <MonitorUp aria-hidden />
-          <span className={inline ? undefined : "sr-only lg:not-sr-only"}>{working ? t("working") : label}</span>
+          {working ? t("working") : t("row_action")}
         </Button>
-        <DropdownMenu onOpenChange={requestHint}>
-          <DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon-sm" aria-label={t("menu")} title={t("menu")} />}>
-            <ChevronDown aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-56">
-            <DropdownMenuItem className="gap-2 px-2 py-2" onClick={onAction}>
-              <MonitorUp aria-hidden className="size-3.5" />
-              {label}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 px-2 py-2" onClick={openDownload}>
-              <Download aria-hidden className="size-3.5" />
-              {downloadLabel}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </ButtonGroup>
+      ) : (
+        <ButtonGroup className={cn(inPageHeader && "hidden sm:flex", className)} data-office-desktop-action>
+          <Button type="button" variant={inline ? "default" : "outline"} size="sm" onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
+            <MonitorUp aria-hidden />
+            <span className={inline ? undefined : "sr-only lg:not-sr-only"}>{working ? t("working") : label}</span>
+          </Button>
+          <DropdownMenu onOpenChange={requestHint}>
+            <DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon-sm" aria-label={t("menu")} title={t("menu")} />}>
+              <ChevronDown aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+              <DropdownMenuItem className="gap-2 px-2 py-2" onClick={onAction}>
+                <MonitorUp aria-hidden className="size-3.5" />
+                {label}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2 px-2 py-2" onClick={openDownload}>
+                <Download aria-hidden className="size-3.5" />
+                {downloadLabel}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </ButtonGroup>
+      )}
       {error ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
       <Dialog open={choiceOpen} onOpenChange={(open) => { if (working) return; setChoiceOpen(open); if (!open) settleRequest("unavailable"); }}>
         <DialogContent className="sm:max-w-md" aria-describedby="office-desktop-choice-description">

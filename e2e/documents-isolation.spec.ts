@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { documentMatrix, type DocumentMatrix } from "./documents-fixtures";
 import { loginViaUi } from "./meeting-recording-fixture";
+import { newPageCard } from "./documents-onboard";
 
 /**
  * Cross-cutting §7 matrix rows of G1-09 on the flows already on the root:
@@ -163,7 +164,7 @@ test("a plain member creates, types and reloads a page in the browser", async ({
   await page.goto(`/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents`);
   await expect(page.getByRole("heading", { name: "Tài liệu", level: 1 })).toBeVisible({ timeout: 60_000 });
 
-  await page.getByRole("button", { name: "Trang mới" }).first().click();
+  await newPageCard(page).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
   const surface = page.getByRole("textbox", { name: "Nội dung tài liệu" });
   await expect(surface).toBeVisible({ timeout: 60_000 });

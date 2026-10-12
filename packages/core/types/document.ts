@@ -14,7 +14,7 @@ import { CommentReactionSchema } from "./task-collaboration";
 // type: a server that ships a new enum value degrades through a `default`
 // branch, never a failed parse.
 
-export const DOCUMENT_KINDS = ["page", "file"] as const;
+export const DOCUMENT_KINDS = ["page", "file", "folder"] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
 export const DOCUMENT_VISIBILITIES = ["workspace", "restricted"] as const;
