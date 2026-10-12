@@ -99,6 +99,9 @@ type Deps struct {
 	// (UNI-1013). When omitted, New derives it from Documents and JWT_SECRET.
 	OfficeFrame           *service.OfficeFrameService
 	OfficeDesktopDownload *service.OfficeDesktopDownloadService
+	// OfficeCapabilities answers the app capability route (X-03): which
+	// Office features are enabled for one organization. nil answers 503.
+	OfficeCapabilities *service.OfficeCapabilitiesService
 
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
@@ -141,6 +144,9 @@ type handlers struct {
 func New(d Deps) http.Handler {
 	if d.OfficeDesktopDownload == nil && d.Organizations != nil {
 		d.OfficeDesktopDownload = service.NewOfficeDesktopDownloadService(d.Organizations, d.Cfg)
+	}
+	if d.OfficeCapabilities == nil && d.Organizations != nil {
+		d.OfficeCapabilities = service.NewOfficeCapabilitiesService(d.Organizations, d.FeatureFlags)
 	}
 	if d.OfficeLaunch == nil && d.Documents != nil {
 		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
@@ -624,6 +630,7 @@ func New(d Deps) http.Handler {
 		GetOfficeJobOutput:      h.getOfficeJobOutput,
 		CancelOfficeJob:         h.cancelOfficeJob,
 		OfficeCapability:        h.officeCapability,
+		OfficeAppCapabilities:   h.officeAppCapabilities,
 		CreateOfficeLaunch:      h.createOfficeLaunch,
 		ExchangeOfficeLaunch:    h.exchangeOfficeLaunch,
 		RevokeOfficeLaunch:      h.revokeOfficeLaunch,
