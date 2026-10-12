@@ -254,6 +254,34 @@ test("--update-goldens with a missing capture blocks instead of inventing it", (
   assert.deepEqual(updated.reasons, [`capture_missing:desktop/${ONE}`]);
 });
 
+test("--update-goldens refuses a pair the brand check fails", () => {
+  const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
+  writeFileSync(join(captures, "desktop", `${ONE}.txt`), "GenOffice — báo cáo doanh thu quý một của khu vực.\n");
+  const updated = updateGoldens({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, outDir: outDir("golden-update-brand") });
+  assert.equal(updated.status, "BLOCKED");
+  assert.deepEqual(updated.reasons, [`brand_text:desktop/${ONE}`]);
+});
+
+test("--update-goldens refuses a pair under the no_rendered_text threshold", () => {
+  const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
+  writeFileSync(join(captures, "desktop", `${ONE}.txt`), "quá ngắn");
+  const updated = updateGoldens({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, outDir: outDir("golden-update-short") });
+  assert.equal(updated.status, "BLOCKED");
+  assert.deepEqual(updated.reasons, [`no_rendered_text:desktop/${ONE}`]);
+});
+
+test("--update-goldens refuses a pair without rendered text or with a failed capture", () => {
+  const noText = fx.mkCaptures(tmpDir("g7-06-captures-"));
+  rmSync(join(noText, "desktop", `${ONE}.txt`));
+  const missing = updateGoldens({ capturesDir: noText, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, outDir: outDir("golden-update-notext") });
+  assert.equal(missing.status, "BLOCKED");
+  assert.deepEqual(missing.reasons, [`rendered_text_missing:desktop/${ONE}`]);
+  const failedWorld = goldenWorld({ metaStatus: { fixture: ONE, status: "failed" } });
+  const failed = updateGoldens({ capturesDir: failedWorld.captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, outDir: outDir("golden-update-failed") });
+  assert.equal(failed.status, "BLOCKED");
+  assert.ok(failed.reasons.includes(`capture_failed:desktop/${ONE}`), JSON.stringify(failed.reasons));
+});
+
 test("the job's fixtures are the six the G7-A04 row names", () => {
   const matrix = readJson(join(REPO_ROOT, "docs", "office", "g5g6g7", "acceptance-rows.json"));
   const row = matrix.rows.find((candidate) => candidate.id === "G7-A04");

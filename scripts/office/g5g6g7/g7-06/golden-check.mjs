@@ -19,6 +19,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { sha256Hex } from "../../../../apps/web/platform/office-frame/frame-bundle.mjs";
+import { brandHits, MIN_VISIBLE_CHARS, visibleChars } from "./brand-check.mjs";
 import { capturePairBlocker, DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonState, relativeToOut } from "./job-lib.mjs";
 
 export const DEFAULT_TOLERANCE = Object.freeze({ channel: 16, ratio: 0.001 });
@@ -241,7 +242,10 @@ export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, 
 /**
  * `--update-goldens`: copy the captures into the goldens dir and rewrite
  * <goldensDir>/manifest.json. Masks stay hand-owned: an entry keeps the masks
- * it had; a capture that is missing leaves its entry alone and blocks the run.
+ * it had. Only a pair that could pass the checks may be blessed (FS-2): the
+ * capture must be `ok`, its text must carry no brand hit and must have enough
+ * visible characters. A pair that fails any of that keeps its old entry (or
+ * none) and blocks the run — a screenshot never waives a missing render.
  * @param {{ capturesDir: string | null, goldensDir?: string, fixtures?: string[], hosts?: string[], pinVersion?: string | null, forkSha?: string | null, outDir: string }} options
  */
 export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, fixtures = fixtureIds(), hosts = HOSTS, pinVersion = null, forkSha = null, outDir }) {
@@ -269,8 +273,28 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
         continue;
       }
       const capturePath = join(capturesDir, host, `${fixture}.png`);
-      if (!existsSync(capturePath) || captureStatus(metaState, fixture) !== "ok") {
+      if (!existsSync(capturePath)) {
         blocked.push(`capture_missing:${host}/${fixture}`);
+        continue;
+      }
+      const status = captureStatus(metaState, fixture);
+      if (status !== "ok") {
+        const reason = status === "failed" ? "capture_failed" : status === "blocked" ? "capture_blocked" : "capture_status_unknown";
+        blocked.push(`${reason}:${host}/${fixture}`);
+        continue;
+      }
+      const textPath = join(capturesDir, host, `${fixture}.txt`);
+      if (!existsSync(textPath)) {
+        blocked.push(`rendered_text_missing:${host}/${fixture}`);
+        continue;
+      }
+      const text = readFileSync(textPath, "utf8");
+      if (visibleChars(text) < MIN_VISIBLE_CHARS) {
+        blocked.push(`no_rendered_text:${host}/${fixture}`);
+        continue;
+      }
+      if (brandHits(text).length > 0) {
+        blocked.push(`brand_text:${host}/${fixture}`);
         continue;
       }
       const target = join(goldensDir, host, `${fixture}.png`);

@@ -9,6 +9,8 @@ import { capturePairBlocker, HOSTS, fixtureIds, readJsonState, relativeToOut } f
 
 const BRANDS = [/genoffice/g, /genspark/g];
 const VISIBLE = /[^\s\p{Cc}\p{Cf}\p{Mn}]/gu;
+/** A render under this many visible characters is a failure, not a check (2.4). */
+export const MIN_VISIBLE_CHARS = 20;
 
 /** How the check reads the text; exported so a test can pin the transform. */
 export function normalizeBrandText(text) {
@@ -66,7 +68,7 @@ export function runBrandCheck({ capturesDir, outDir, fixtures = fixtureIds(), ho
       }
       const text = readFileSync(textPath, "utf8");
       const visible = visibleChars(text);
-      if (visible < 20) {
+      if (visible < MIN_VISIBLE_CHARS) {
         pairs.push({ ...pair, status: "FAIL", reasons: ["no_rendered_text"], hits: [], visible });
         continue;
       }
