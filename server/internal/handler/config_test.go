@@ -17,6 +17,7 @@ import (
 func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 	h := New(Deps{Cfg: config.Config{
 		FrontendOrigin:           "http://localhost:3000",
+		APIPublicURL:             "https://api.example.test/",
 		OfficeInstallerDevURL:    "https://downloads.test/dev.exe",
 		OfficeInstallerBetaURL:   "https://downloads.test/beta.exe",
 		OfficeInstallerStableURL: "",
@@ -36,6 +37,7 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 			Stable string `json:"stable"`
 		} `json:"office_installer_urls"`
 		OfficeDeploymentID string `json:"office_deployment_id"`
+		OfficeAPIOrigin    string `json:"office_api_origin"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
@@ -64,6 +66,25 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 	}
 	if out.OfficeDeploymentID != "default" {
 		t.Fatalf("office deployment id = %q, want default fallback", out.OfficeDeploymentID)
+	}
+	if out.OfficeAPIOrigin != "https://api.example.test" {
+		t.Fatalf("office api origin = %q, want the bare public origin", out.OfficeAPIOrigin)
+	}
+}
+
+func TestOfficeAPIOriginOnlyBareOrigins(t *testing.T) {
+	for raw, want := range map[string]string{
+		"https://api.example.test":      "https://api.example.test",
+		"http://localhost:8080/":        "http://localhost:8080",
+		"https://api.example.test/v1":   "",
+		"https://u:p@api.example.test":  "",
+		"https://api.example.test/?x=1": "",
+		"ftp://api.example.test":        "",
+		"":                              "",
+	} {
+		if got := officeAPIOrigin(raw); got != want {
+			t.Errorf("officeAPIOrigin(%q) = %q, want %q", raw, got, want)
+		}
 	}
 }
 

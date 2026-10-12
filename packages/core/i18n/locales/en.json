@@ -8620,7 +8620,7 @@
       "download": "Download UniWork Office",
       "install": {
         "download_failed": "Download failed. Please try again.",
-        "downloading": "Downloading…",
+        "downloading": "Preparing…",
         "title": "Get UniWork Office for desktop",
         "not_installed": "The desktop app didn't respond. Install the right version, then select Open again.",
         "expired": "That desktop handoff expired. Try opening it again.",
@@ -8638,7 +8638,6 @@
         "size": "Size: {{value}}",
         "size_mb": "{{value}} MB",
         "version_line": "Version {{version}} · {{channel}} channel",
-        "zip_note": "Downloads as a ZIP that contains the installer.",
         "version_unknown": "unknown",
         "unsigned": "unsigned",
         "mac_chip_help": "Not sure which chip? Check Apple menu → About This Mac.",
@@ -8647,7 +8646,7 @@
         "after_download": "After downloading",
         "not_in_channel": "No {{os}} build in this channel yet.",
         "unsupported": "UniWork Office doesn't support this device yet. You can still download it for another computer.",
-        "started": "Download started: <filename>{{file}}</filename>.",
+        "started": "Downloading in your browser: <filename>{{file}}</filename>. Follow the progress in the browser's downloads bar.",
         "description_unavailable": "This channel has no installer yet. Try again later.",
         "retry": "Try again",
         "copy_command": "Copy command",
@@ -8683,18 +8682,18 @@
           "linux": "Linux"
         },
         "steps": {
-          "extract": "Extract the ZIP you downloaded.",
           "win_exe_run": "Run {{file}}.",
           "win_exe_unsigned": "If Windows shows \"Windows protected your PC\", select More info → Run anyway (unsigned internal build).",
-          "win_zip_extract": "Extract {{file}} inside the downloaded folder.",
+          "win_zip_extract": "Extract {{file}} you downloaded.",
           "win_zip_run": "Run uniwork-office*.exe in the extracted folder.",
-          "mac_open": "Extract the ZIP, then open {{file}}.",
+          "mac_open": "Open {{file}} you downloaded.",
           "mac_drag": "Drag UniWork Office into Applications.",
           "mac_unsigned": "On first launch: right-click the app → Open → Open (unsigned internal build).",
           "deb_install": "Open {{file}} in App Center, or run the following command.",
           "deb_open": "Open UniWork Office from your applications. gnome-keyring (included with Ubuntu) is required to store your login.",
           "appimage_run": "Make {{file}} executable, then launch it with the following command.",
-          "appimage_fuse": "Ubuntu 22.04 / 24.04 requires libfuse2. If it is missing, run the following command."
+          "appimage_fuse": "Ubuntu 22.04 / 24.04 requires libfuse2. If it is missing, run the following command.",
+          "connect": "Once installed, come back to this page and choose Open in app. UniWork Office then connects to your UniWork."
         }
       },
       "row_action": "Open in app"

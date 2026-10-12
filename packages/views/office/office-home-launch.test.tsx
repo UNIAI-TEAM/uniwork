@@ -18,7 +18,7 @@ function props(over: Partial<OfficeHomeLaunchProps> = {}): OfficeHomeLaunchProps
     launch: vi.fn(async (): Promise<OfficeLaunchOutcome> => "launched"),
     loadInstallers: vi.fn(async () => ({ installers: [] })),
     loadPlatformHint: vi.fn(async () => windows),
-    downloadInstaller: vi.fn(async () => undefined),
+    downloadInstaller: vi.fn(async () => "UniWork-Office.exe"),
     ...over,
   };
 }
@@ -28,7 +28,7 @@ describe("OfficeHomeLaunch", () => {
     const p = props();
     render(<OfficeHomeLaunch {...p} />);
     fireEvent.click(await screen.findByRole("button", { name: "Open UniWork Office" }));
-    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office://"));
+    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office://home"));
     expect(p.loadInstallers).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -37,7 +37,14 @@ describe("OfficeHomeLaunch", () => {
     const p = props({ channel: "dev" });
     render(<OfficeHomeLaunch {...p} />);
     fireEvent.click(await screen.findByRole("button", { name: "Open UniWork Office" }));
-    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office-dev://"));
+    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office-dev://home"));
+  });
+
+  it("carries the public deployment profile on the home link", async () => {
+    const p = props({ channel: "dev", deploymentId: "dev-deploy", apiOrigin: "https://dev.uniwork.test" });
+    render(<OfficeHomeLaunch {...p} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open UniWork Office" }));
+    await waitFor(() => expect(p.launch).toHaveBeenCalledWith("uniwork-office-dev://home?deploymentId=dev-deploy&apiOrigin=https%3A%2F%2Fdev.uniwork.test&clientId=uniwork-office-dev&channel=dev"));
   });
 
   it("falls back to the installer dialog when the app does not answer, and Open again launches again", async () => {

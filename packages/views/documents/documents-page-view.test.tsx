@@ -602,11 +602,11 @@ describe("DocumentsPageView", () => {
         launch,
         loadInstallers: vi.fn(async () => ({ installers: [] })),
         loadPlatformHint: vi.fn(async () => ({ platform: "win32-x64" as const, confidence: "certain" as const })),
-        downloadInstaller: vi.fn(async () => undefined),
+        downloadInstaller: vi.fn(async () => "UniWork-Office.exe"),
       },
     });
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.open_office") }));
-    await waitFor(() => expect(launch).toHaveBeenCalledWith("uniwork-office://"));
+    await waitFor(() => expect(launch).toHaveBeenCalledWith("uniwork-office://home"));
     expect(postCall("POST")).toBeUndefined();
   });
 

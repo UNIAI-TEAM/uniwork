@@ -20,10 +20,13 @@ import { OfficeInstallPrompt } from "./install-prompt";
 /** Host wiring of "Open UniWork Office" (no document, no launch ticket). */
 export interface OfficeHomeLaunchProps {
   channel: OfficeChannel;
+  /** The public deployment profile the link carries; without both, the link has none. */
+  deploymentId?: string;
+  apiOrigin?: string;
   launch: (url: string) => Promise<OfficeLaunchOutcome>;
   loadInstallers: () => Promise<{ installers: OfficeInstallerOption[]; supportedPlatforms?: readonly DesktopPlatform[] }>;
   loadPlatformHint: () => Promise<DesktopPlatformGuess>;
-  downloadInstaller: (platform: DesktopPlatform) => Promise<void>;
+  downloadInstaller: (platform: DesktopPlatform) => Promise<string>;
   className?: string;
 }
 
@@ -34,7 +37,7 @@ export interface OfficeHomeLaunchProps {
  * opens. Hidden until the platform is known, and for good on a device no
  * installer exists for (phones, tablets).
  */
-export function OfficeHomeLaunch({ channel, launch, loadInstallers, loadPlatformHint, downloadInstaller, className }: OfficeHomeLaunchProps) {
+export function OfficeHomeLaunch({ channel, deploymentId, apiOrigin, launch, loadInstallers, loadPlatformHint, downloadInstaller, className }: OfficeHomeLaunchProps) {
   const { t } = useTranslation();
   const [hint, setHint] = useState<DesktopPlatformGuess | null>(null);
   const [installers, setInstallers] = useState<OfficeInstallerOption[]>([]);
@@ -66,7 +69,8 @@ export function OfficeHomeLaunch({ channel, launch, loadInstallers, loadPlatform
     busy.current = true;
     setLaunching(true);
     try {
-      const outcome = await launch(buildOfficeHomeLink(channel)).catch((): OfficeLaunchOutcome => "error");
+      const profile = deploymentId && apiOrigin ? { deploymentId, apiOrigin } : undefined;
+      const outcome = await launch(buildOfficeHomeLink(channel, profile)).catch((): OfficeLaunchOutcome => "error");
       if (outcome === "launched") return;
       setReason(outcome === "not-installed" ? "not-installed" : "error");
       try {

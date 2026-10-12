@@ -48,6 +48,7 @@ type ConfigSDO struct {
 	OfficeInstallerURLs        OfficeInstallerURLsSDO          `json:"office_installer_urls" description:"Installer URL per deployment channel; empty means unavailable"`
 	OfficeInstallers           OfficeInstallerChannelsSDO      `json:"office_installers" description:"Platform installer catalogue per deployment channel"`
 	OfficeDeploymentID         string                          `json:"office_deployment_id" description:"Configured deployment binding for Office launch sessions" example:"default"`
+	OfficeAPIOrigin            string                          `json:"office_api_origin" description:"Public API origin the desktop app signs in to; empty when not a bare http(s) origin" example:"https://api.uniwork.app"`
 }
 
 type OfficeInstallerURLsSDO struct {

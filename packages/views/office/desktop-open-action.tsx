@@ -68,6 +68,10 @@ export interface DesktopOpenActionProps {
   /** Undefined when the server config never advertised a deployment binding;
    * the action then fails closed instead of guessing one. */
   deploymentId: string | undefined;
+  /** The deployment's public API origin. With `deploymentId` it rides on the
+   * open link so the app connects to (or follows) this server; absent, the
+   * link carries no profile and the app keeps the server it has. */
+  apiOrigin?: string;
   /** The selected version must be a server version ordinal, never a file id. */
   savedVersion: number | null;
   dirty?: boolean;
@@ -84,7 +88,8 @@ export interface DesktopOpenActionProps {
   platformHint?: DesktopPlatformGuess;
   loadInstallers?: () => Promise<{ installers: OfficeInstallerOption[]; supportedPlatforms?: readonly DesktopPlatform[] }>;
   loadPlatformHint?: () => Promise<DesktopPlatformGuess>;
-  downloadInstaller?: (platform: DesktopPlatform) => Promise<void>;
+  /** Hands the browser the installer URL and resolves with its file name. */
+  downloadInstaller?: (platform: DesktopPlatform) => Promise<string>;
   className?: string;
   /** Filled with the same flow the button runs, for a caller that is not the button (a frame's `app.open`). */
   requestRef?: MutableRefObject<(() => Promise<DesktopOpenOutcome>) | null>;
@@ -119,6 +124,7 @@ function stateDirty(state: ReturnType<OfficeSaveCoordinatorLike["getState"]> | n
 export function DesktopOpenAction({
   documentId,
   deploymentId,
+  apiOrigin,
   savedVersion,
   dirty = false,
   saveCoordinator,
@@ -214,9 +220,11 @@ export function DesktopOpenAction({
         return "unavailable";
       }
       // Rebuild from the ticket even when the server included a URL. This
-      // keeps the scheme/channel binding and excludes title/path/token/bytes.
-      const url = safeOfficeDeepLink(session, channel);
-      if (!url || url !== buildOfficeDeepLink(session.launch_ticket, channel)) {
+      // keeps the scheme/channel binding and excludes title/path/token/bytes;
+      // only the public deployment profile is added.
+      const profile = apiOrigin ? { deploymentId, apiOrigin } : undefined;
+      const url = safeOfficeDeepLink(session, channel, profile);
+      if (!url || url !== buildOfficeDeepLink(session.launch_ticket, channel, profile)) {
         setError(t("ticket_failed"));
         return "unavailable";
       }
