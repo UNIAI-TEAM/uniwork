@@ -1,0 +1,1 @@
+$ npx eslint scripts/genoffice-tools-extract.mjs scripts/genoffice-tools-extract.test.mjs

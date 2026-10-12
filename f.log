@@ -1,0 +1,288 @@
+$ git show e6862e53:scripts/genoffice-tools-extract.mjs > scripts/genoffice-tools-extract.mjs; node --test scripts/genoffice-tools-extract.test.mjs; RED=$?; git checkout HEAD -- scripts/genoffice-tools-extract.mjs; git status --short scripts; echo "RED_EXIT=$RED"; test $RED -ne 0 && echo RED_AS_EXPECTED
+TAP version 13
+# Subtest: extract
+    # Subtest: prints the exact table for the fixture
+    ok 1 - prints the exact table for the fixture
+      ---
+      duration_ms: 41.482063
+      type: 'test'
+      ...
+    # Subtest: resolves spread and shared-const schemas, and refuses to guess the rest
+    ok 2 - resolves spread and shared-const schemas, and refuses to guess the rest
+      ---
+      duration_ms: 29.364124
+      type: 'test'
+      ...
+    # Subtest: finds tools reachable only through a capability-keyed getter
+    ok 3 - finds tools reachable only through a capability-keyed getter
+      ---
+      duration_ms: 28.23928
+      type: 'test'
+      ...
+    # Subtest: keeps both rows of a duplicate (module, tool) pair
+    ok 4 - keeps both rows of a duplicate (module, tool) pair
+      ---
+      duration_ms: 28.449697
+      type: 'test'
+      ...
+    # Subtest: hashes are independent of key order, at every nesting level
+    ok 5 - hashes are independent of key order, at every nesting level
+      ---
+      duration_ms: 50.194906
+      type: 'test'
+      ...
+    # Subtest: derives editor_write from declarations only
+    ok 6 - derives editor_write from declarations only
+      ---
+      duration_ms: 31.300598
+      type: 'test'
+      ...
+    # Subtest: is byte-identical across two runs
+    ok 7 - is byte-identical across two runs
+      ---
+      duration_ms: 32.682178
+      type: 'test'
+      ...
+    # Subtest: sorts by module, then tool, then source
+    ok 8 - sorts by module, then tool, then source
+      ---
+      duration_ms: 30.900526
+      type: 'test'
+      ...
+    1..8
+ok 1 - extract
+  ---
+  duration_ms: 273.477532
+  type: 'suite'
+  ...
+# Subtest: CLI
+    # Subtest: exits 0 and prints the same table as the API
+    ok 1 - exits 0 and prints the same table as the API
+      ---
+      duration_ms: 75.219742
+      type: 'test'
+      ...
+    # Subtest: is byte-identical across two CLI runs
+    ok 2 - is byte-identical across two CLI runs
+      ---
+      duration_ms: 125.247788
+      type: 'test'
+      ...
+    # Subtest: reads an explicit --rev and --repo
+    ok 3 - reads an explicit --rev and --repo
+      ---
+      duration_ms: 28230.994256
+      type: 'test'
+      ...
+    # Subtest: exits non-zero with a message on a bad rev
+    ok 4 - exits non-zero with a message on a bad rev
+      ---
+      duration_ms: 53.374479
+      type: 'test'
+      ...
+    1..4
+ok 2 - CLI
+  ---
+  duration_ms: 28485.1036
+  type: 'suite'
+  ...
+# Subtest: editor_write routing
+    # Subtest: credits only the guard branch the named tool takes (R1-1)
+    ok 1 - credits only the guard branch the named tool takes (R1-1)
+      ---
+      duration_ms: 30.817974
+      type: 'test'
+      ...
+    # Subtest: keeps same-named local helpers distinct by position (R1-2)
+    ok 2 - keeps same-named local helpers distinct by position (R1-2)
+      ---
+      duration_ms: 37.836533
+      type: 'test'
+      ...
+    # Subtest: reports a tool object without inputSchema as unresolved:missing (R1-3)
+    ok 3 - reports a tool object without inputSchema as unresolved:missing (R1-3)
+      ---
+      duration_ms: 30.457649
+      type: 'test'
+      ...
+    # Subtest: ignores non-tool {name, description} arrays (R2-1)
+    ok 4 - ignores non-tool {name, description} arrays (R2-1)
+      ---
+      duration_ms: 29.546954
+      type: 'test'
+      ...
+    # Subtest: follows a mutating helper that only mentions call.name in a ternary (R2-2)
+    ok 5 - follows a mutating helper that only mentions call.name in a ternary (R2-2)
+      ---
+      duration_ms: 1147.798052
+      type: 'test'
+      ...
+    1..5
+ok 3 - editor_write routing
+  ---
+  duration_ms: 1276.657717
+  type: 'suite'
+  ...
+# Subtest: name anchor hardening (N1/N2)
+    # Subtest: ignores {name, description} elements of AgentToolCall[]/AgentToolResult[] (N1)
+    not ok 1 - ignores {name, description} elements of AgentToolCall[]/AgentToolResult[] (N1)
+      ---
+      duration_ms: 39.876616
+      type: 'test'
+      location: '/home/ubuntu/work/uniwork-office/scripts/genoffice-tools-extract.test.mjs:716:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly deep-equal:
+        + actual - expected
+        
+          [
+        +   'call_like',
+            'real_schemaless',
+            'real_tool',
+        +   'result_like'
+          ]
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+        0: 'real_schemaless'
+        1: 'real_tool'
+      actual:
+        0: 'call_like'
+        1: 'real_schemaless'
+        2: 'real_tool'
+        3: 'result_like'
+      operator: 'deepStrictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///home/ubuntu/work/uniwork-office/scripts/genoffice-tools-extract.test.mjs:720:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        node:internal/test_runner/test:1440:71
+        node:internal/per_context/primordials:466:82
+        new Promise (<anonymous>)
+        new SafePromise (node:internal/per_context/primordials:435:3)
+        node:internal/per_context/primordials:466:9
+        Array.map (<anonymous>)
+      ...
+    # Subtest: still finds a schema-less member of an AgentToolDef[] list (N1)
+    ok 2 - still finds a schema-less member of an AgentToolDef[] list (N1)
+      ---
+      duration_ms: 26.61958
+      type: 'test'
+      ...
+    # Subtest: reports a schema-less tool in a `get tools()` returned literal (N2)
+    not ok 3 - reports a schema-less tool in a `get tools()` returned literal (N2)
+      ---
+      duration_ms: 28.861144
+      type: 'test'
+      location: '/home/ubuntu/work/uniwork-office/scripts/genoffice-tools-extract.test.mjs:763:3'
+      failureType: 'testCodeFailure'
+      error: 'the schema-less tool must get a row'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///home/ubuntu/work/uniwork-office/scripts/genoffice-tools-extract.test.mjs:767:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)
+        Test.postRun (node:internal/test_runner/test:1173:19)
+        Test.run (node:internal/test_runner/test:1101:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: reports a schema-less tool in a `tools: [...]` field (N2)
+    not ok 4 - reports a schema-less tool in a `tools: [...]` field (N2)
+      ---
+      duration_ms: 28.188788
+      type: 'test'
+      location: '/home/ubuntu/work/uniwork-office/scripts/genoffice-tools-extract.test.mjs:790:3'
+      failureType: 'testCodeFailure'
+      error: 'the schema-less tool must get a row'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///home/ubuntu/work/uniwork-office/scripts/genoffice-tools-extract.test.mjs:794:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)
+        Test.postRun (node:internal/test_runner/test:1173:19)
+        Test.run (node:internal/test_runner/test:1101:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: ignores non-tools returned/`options:` arrays (N2 negative)
+    ok 5 - ignores non-tools returned/`options:` arrays (N2 negative)
+      ---
+      duration_ms: 51.301796
+      type: 'test'
+      ...
+    # Subtest: finds a returned tool past a brace inside a string (N2)
+    not ok 6 - finds a returned tool past a brace inside a string (N2)
+      ---
+      duration_ms: 29.554981
+      type: 'test'
+      location: '/home/ubuntu/work/uniwork-office/scripts/genoffice-tools-extract.test.mjs:871:3'
+      failureType: 'testCodeFailure'
+      error: 'the schema-less tool must still get a row'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///home/ubuntu/work/uniwork-office/scripts/genoffice-tools-extract.test.mjs:875:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)
+        Test.postRun (node:internal/test_runner/test:1173:19)
+        Test.run (node:internal/test_runner/test:1101:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    1..6
+not ok 4 - name anchor hardening (N1/N2)
+  ---
+  duration_ms: 204.760527
+  type: 'suite'
+  location: '/home/ubuntu/work/uniwork-office/scripts/genoffice-tools-extract.test.mjs:676:1'
+  failureType: 'subtestsFailed'
+  error: '4 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: real repo
+    # Subtest: produces rows for each of the six apps at HEAD
+    ok 1 - produces rows for each of the six apps at HEAD
+      ---
+      duration_ms: 475.519103
+      type: 'test'
+      ...
+    # Subtest: reports the two blocked rows as read-only at the pin (R1-1, R1-2)
+    ok 2 - reports the two blocked rows as read-only at the pin (R1-1, R1-2)
+      ---
+      duration_ms: 84.585915
+      type: 'test'
+      ...
+    # Subtest: is deterministic and keeps every hash well formed at HEAD
+    ok 3 - is deterministic and keeps every hash well formed at HEAD
+      ---
+      duration_ms: 165.665797
+      type: 'test'
+      ...
+    1..3
+ok 5 - real repo
+  ---
+  duration_ms: 725.902025
+  type: 'suite'
+  ...
+1..5
+# tests 26
+# suites 5
+# pass 22
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 31273.794217
+RED_EXIT=1
+RED_AS_EXPECTED

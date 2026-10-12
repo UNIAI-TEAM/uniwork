@@ -1,0 +1,4 @@
+$ git show e6862e53:scripts/genoffice-tools-extract.mjs > /tmp/base-ext.mjs; node /tmp/base-ext.mjs --repo "$PWD" --rev e6862e53 > /tmp/t-base.md; node scripts/genoffice-tools-extract.mjs --rev e6862e53 > /tmp/t-head.md; cmp /tmp/t-base.md /tmp/t-head.md && echo PIN_IDENTICAL; sha256sum /tmp/t-base.md /tmp/t-head.md
+PIN_IDENTICAL
+34877e54f23e2b3fcb0a1901d5783fef27218718ae498f08e5307e8e40a085d2  /tmp/t-base.md
+34877e54f23e2b3fcb0a1901d5783fef27218718ae498f08e5307e8e40a085d2  /tmp/t-head.md

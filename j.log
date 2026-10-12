@@ -1,0 +1,3 @@
+$ git fetch -q origin 0d03b185 2>/dev/null; git cat-file -e 0d03b185^{commit} && node scripts/genoffice-tools-extract.mjs --rev 0d03b185 > /tmp/t-0d03.md && sha256sum /tmp/t-0d03.md && sha256sum /tmp/t-0d03.md | grep -q ^0df682539473c28ffb1f978a81e62828c0d81a6116dc1c4bdf1d55703931e1c9 && echo G6_01_PIN_0D03_IDENTICAL
+0df682539473c28ffb1f978a81e62828c0d81a6116dc1c4bdf1d55703931e1c9  /tmp/t-0d03.md
+G6_01_PIN_0D03_IDENTICAL

@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -5
+4c4f4f58cd810c307e5d115494a4fe9fe2ab4aec
+e6862e5302805bd6a25893e6ff2c082a2dca3a34
+4c4f4f58 fix(tools): clear the extractor's eslint errors
+2e02cb2b fix(tools): skip non-punct tokens in the accessor brace walk (UNI-1366)
+725f295b test(tools): pin the N2 brace-in-string edge case (UNI-1366)
+5cf7a0b1 fix(tools): exact tool-def type and tools-list literal forms (UNI-1366)
+5939661f test(tools): pin the N1/N2 name-anchor shapes (UNI-1366)
