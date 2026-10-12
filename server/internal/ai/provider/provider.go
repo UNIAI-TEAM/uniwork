@@ -47,14 +47,25 @@ func (e *StatusError) Error() string {
 
 func (e *StatusError) Unwrap() error { return e.Err }
 
-// retryAfter reads a Retry-After header given in seconds; the HTTP-date form
-// and anything unreadable count as absent.
-func retryAfter(h http.Header) time.Duration {
-	n, err := strconv.Atoi(strings.TrimSpace(h.Get("Retry-After")))
-	if err != nil || n < 0 {
+// retryAfter reads a Retry-After header in either RFC 7231 form: delay-seconds,
+// or an HTTP-date whose wait lasts until that instant. Already past, negative,
+// or unreadable is no wait at all.
+func retryAfter(h http.Header, now time.Time) time.Duration {
+	v := strings.TrimSpace(h.Get("Retry-After"))
+	if n, err := strconv.Atoi(v); err == nil {
+		if n < 0 {
+			return 0
+		}
+		return time.Duration(n) * time.Second
+	}
+	when, err := http.ParseTime(v)
+	if err != nil {
 		return 0
 	}
-	return time.Duration(n) * time.Second
+	if d := when.Sub(now); d > 0 {
+		return d
+	}
+	return 0
 }
 
 // snippet caps a vendor body for an error message.

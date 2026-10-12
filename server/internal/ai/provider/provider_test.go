@@ -369,6 +369,43 @@ func TestProviderStatusError(t *testing.T) {
 	if _, err := f.Complete(context.Background(), CompletionRequest{}); !errors.As(err, &se) || se.RetryAfter != 7*time.Second {
 		t.Fatalf("fake: %v", err)
 	}
+	// The HTTP-date form too (BE13-2): the wait is the time until that instant,
+	// so a moment in the near future is a positive RetryAfter.
+	when := time.Now().Add(30 * time.Second).UTC().Format(http.TimeFormat)
+	dateSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", when)
+		w.WriteHeader(429)
+		_, _ = w.Write([]byte(`{"error":"slow down"}`))
+	}))
+	_, err = NewOpenAI(dateSrv.URL, "", time.Second).Complete(context.Background(), CompletionRequest{Model: "m"})
+	dateSrv.Close()
+	if !errors.As(err, &se) || se.RetryAfter <= 0 || se.RetryAfter > 30*time.Second {
+		t.Fatalf("HTTP-date Retry-After %q: %#v", when, err)
+	}
+}
+
+// TestProviderStatusErrorHTTPDate pins retryAfter for both RFC 7231 forms: the
+// delay in seconds and the HTTP-date, read as the time until that instant; a
+// date already past and an unreadable value are no wait at all.
+func TestProviderStatusErrorHTTPDate(t *testing.T) {
+	now := time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		header string
+		want   time.Duration
+	}{
+		{now.Add(45 * time.Second).Format(http.TimeFormat), 45 * time.Second},
+		{now.Add(-time.Minute).Format(http.TimeFormat), 0},
+		{"", 0},
+		{"soon", 0},
+	} {
+		h := http.Header{}
+		if tc.header != "" {
+			h.Set("Retry-After", tc.header)
+		}
+		if got := retryAfter(h, now); got != tc.want {
+			t.Fatalf("Retry-After %q: got %v, want %v", tc.header, got, tc.want)
+		}
+	}
 }
 
 // TestAnthropicParallelToolResults: two calls in one assistant turn are

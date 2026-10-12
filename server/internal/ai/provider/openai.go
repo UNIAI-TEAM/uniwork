@@ -203,7 +203,7 @@ func postJSON(ctx context.Context, client *http.Client, url, bearer string, body
 		return err
 	}
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		return &StatusError{Status: res.StatusCode, RetryAfter: retryAfter(res.Header), URL: url, Detail: snippet(data)}
+		return &StatusError{Status: res.StatusCode, RetryAfter: retryAfter(res.Header, time.Now()), URL: url, Detail: snippet(data)}
 	}
 	return json.Unmarshal(data, out)
 }

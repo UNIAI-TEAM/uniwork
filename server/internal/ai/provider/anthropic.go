@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -85,7 +86,7 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 		if errors.As(err, &apiErr) {
 			se := &StatusError{Status: apiErr.StatusCode, Detail: snippet([]byte(apiErr.RawJSON())), Err: err}
 			if apiErr.Response != nil {
-				se.RetryAfter = retryAfter(apiErr.Response.Header)
+				se.RetryAfter = retryAfter(apiErr.Response.Header, time.Now())
 			}
 			return CompletionResponse{}, se
 		}
