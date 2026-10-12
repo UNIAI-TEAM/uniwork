@@ -1,12 +1,8 @@
 package handler
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -66,53 +62,6 @@ func TestOfficeDesktopDownloadRoute(t *testing.T) {
 	}
 }
 
-func TestOfficeDesktopDownloadPlatformBundle(t *testing.T) {
-	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/office_unsigned.deb" {
-			t.Errorf("wrong selected installer: %s", r.URL.Path)
-		}
-		if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
-			t.Error("account credentials sent to release provider")
-		}
-		_, _ = w.Write([]byte("unsigned deb fixture"))
-	}))
-	defer provider.Close()
-	d, _ := newTestDeps(t, nil, discardOutbox{})
-	d.Cfg.APIPublicURL = "http://localhost:18584"
-	d.Cfg.DesktopAuthClientID = "uniwork-office-dev"
-	d.Cfg.DesktopAuthDeploymentIDs = []string{"default"}
-	d.Cfg.OfficeInstallerDevURLs = fmt.Sprintf(`{"linux-x64-deb":%q}`, provider.URL+"/office_unsigned.deb")
-	srv := httptest.NewServer(New(d))
-	defer srv.Close()
-	token, _ := filesRegister(t, srv, "desktop-download-deb@example.test")
-	res, body := doJSON(t, srv, "POST", "/api/v1/orgs", token, map[string]string{"name": "Platform", "slug": "platform"})
-	if res.StatusCode != 201 {
-		t.Fatalf("org: %d %v", res.StatusCode, body)
-	}
-	orgID := body["organization"].(map[string]any)["id"].(string)
-	request, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/office/desktop/download?organization_id="+orgID+"&channel=dev&platform=linux-x64-deb&bundle=true", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Authorization", "Bearer "+token)
-	response, err := srv.Client().Do(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer response.Body.Close()
-	data, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response.StatusCode != 200 || response.Header.Get("Content-Type") != "application/zip" {
-		t.Fatalf("bundle response: %d %s", response.StatusCode, data)
-	}
-	archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil || len(archive.File) != 2 || archive.File[0].Name != "office_unsigned.deb" || archive.File[1].Name != "deployment-profile.json" {
-		t.Fatalf("platform bundle: %+v %v", archive, err)
-	}
-}
-
 func TestOfficeDesktopDownloadOpenAPI(t *testing.T) {
 	h := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true}, Log: slog.Default()})
 	r := httptest.NewRecorder()
@@ -133,9 +82,12 @@ func TestOfficeDesktopDownloadOpenAPI(t *testing.T) {
 	for _, p := range spec.Paths["/api/v1/office/desktop/download"].Get.Parameters {
 		params[p.Name] = true
 	}
-	for _, name := range []string{"organization_id", "channel", "bundle", "platform"} {
+	for _, name := range []string{"organization_id", "channel", "platform"} {
 		if !params[name] {
 			t.Errorf("missing query parameter %s", name)
 		}
+	}
+	if params["bundle"] {
+		t.Error("the ZIP bundle parameter is gone; the browser downloads the installer itself")
 	}
 }

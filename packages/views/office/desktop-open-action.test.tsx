@@ -75,7 +75,7 @@ describe("DesktopOpenAction", () => {
 
   it("reuses the install prompt for Download without saving or minting a launch ticket", async () => {
     const createSession = vi.fn();
-    const downloadInstaller = vi.fn(async () => undefined);
+    const downloadInstaller = vi.fn(async () => "installer.exe");
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty createSession={createSession} downloadInstaller={downloadInstaller} loadInstallers={async () => ({ installers: [{ platform: "win32-x64", channel: "stable", url: "https://downloads.test/installer.exe", kind: ".exe" }] })} />);
     await openDownload();
     await screen.findByRole("dialog");
@@ -89,6 +89,13 @@ describe("DesktopOpenAction", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Download for Windows" }));
     await screen.findByText("Download failed. Please try again.");
     expect(screen.getByRole("button", { name: "Try again" })).not.toBeDisabled();
+  });
+  it("carries the public deployment profile on the open link when the origin is known", async () => {
+    const launch = vi.fn(async () => "launched" as const);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" apiOrigin="https://api.test" channel="dev" savedVersion={2} createSession={async () => session} launch={launch} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
+    await waitFor(() => expect(launch).toHaveBeenCalledOnce());
+    expect(launch).toHaveBeenCalledWith(`uniwork-office-dev://open?ticket=${ticket}&deploymentId=dep&apiOrigin=https%3A%2F%2Fapi.test&clientId=uniwork-office-dev&channel=dev`);
   });
   it("opens the committed version without leaking document metadata", async () => {
     const createSession = vi.fn(async (_id: string, body: { version?: number }) => { expect(body).toEqual(expect.objectContaining({ operation: "edit" })); expect(body).not.toHaveProperty("version"); expect(JSON.stringify(body)).not.toMatch(/title|path|token|bytes/i); return session; });

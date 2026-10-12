@@ -8617,7 +8617,7 @@
       "download": "Tải UniWork Office",
       "install": {
         "download_failed": "Không thể tải bộ cài. Vui lòng thử lại.",
-        "downloading": "Đang tải…",
+        "downloading": "Đang chuẩn bị…",
         "title": "Tải UniWork Office cho máy tính",
         "not_installed": "Ứng dụng máy tính chưa phản hồi. Cài bản phù hợp rồi bấm Mở lại.",
         "expired": "Lượt mở trên máy tính đã hết hạn. Hãy thử mở lại.",
@@ -8635,7 +8635,6 @@
         "size": "Dung lượng: {{value}}",
         "size_mb": "{{value}} MB",
         "version_line": "Phiên bản {{version}} · kênh {{channel}}",
-        "zip_note": "Tải về dưới dạng tệp ZIP chứa bộ cài.",
         "version_unknown": "chưa rõ",
         "unsigned": "chưa ký",
         "mac_chip_help": "Không chắc loại chip? Xem tại menu Apple → Giới thiệu máy Mac này.",
@@ -8644,7 +8643,7 @@
         "after_download": "Sau khi tải",
         "not_in_channel": "Chưa có bản cho {{os}} ở kênh này.",
         "unsupported": "UniWork Office chưa hỗ trợ thiết bị này. Bạn vẫn có thể tải cho máy khác.",
-        "started": "Đã bắt đầu tải <filename>{{file}}</filename>.",
+        "started": "Đang tải xuống trong trình duyệt: <filename>{{file}}</filename>. Theo dõi tiến độ ở thanh tải xuống của trình duyệt.",
         "description_unavailable": "Kênh này chưa có bản cài đặt. Bạn có thể thử lại sau.",
         "retry": "Thử lại",
         "copy_command": "Sao chép lệnh",
@@ -8680,18 +8679,18 @@
           "linux": "Linux"
         },
         "steps": {
-          "extract": "Giải nén tệp ZIP vừa tải.",
           "win_exe_run": "Chạy tệp {{file}}.",
           "win_exe_unsigned": "Nếu Windows báo \"Windows protected your PC\", chọn More info → Run anyway (bản nội bộ chưa ký).",
-          "win_zip_extract": "Giải nén tiếp tệp {{file}} trong thư mục vừa tải.",
+          "win_zip_extract": "Giải nén tệp {{file}} vừa tải.",
           "win_zip_run": "Chạy uniwork-office*.exe trong thư mục vừa giải nén.",
-          "mac_open": "Giải nén tệp ZIP, rồi mở tệp {{file}}.",
+          "mac_open": "Mở tệp {{file}} vừa tải.",
           "mac_drag": "Kéo UniWork Office vào Applications.",
           "mac_unsigned": "Lần đầu mở: chuột phải vào app → Open → Open (bản nội bộ chưa ký).",
           "deb_install": "Mở tệp {{file}} bằng App Center, hoặc chạy lệnh sau.",
           "deb_open": "Mở UniWork Office từ danh sách ứng dụng. Cần gnome-keyring (mặc định trên Ubuntu) để lưu đăng nhập.",
           "appimage_run": "Cho phép chạy tệp {{file}}, rồi mở bằng lệnh sau.",
-          "appimage_fuse": "Ubuntu 22.04 / 24.04 cần libfuse2. Nếu chưa có, chạy lệnh sau."
+          "appimage_fuse": "Ubuntu 22.04 / 24.04 cần libfuse2. Nếu chưa có, chạy lệnh sau.",
+          "connect": "Cài xong, quay lại trang này và bấm Mở bằng app. UniWork Office sẽ tự kết nối với UniWork của bạn."
         }
       },
       "row_action": "Mở bằng app"
