@@ -249,15 +249,66 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 		return DocumentFileResult{}, NormalizeIdempotencyError(err)
 	}
 	if replay != nil {
+		s.intentCounters().IncOfficeIdempotentReplay()
 		return replayWithAccess(replay.Body, current)
+	}
+	// office_sync_write hides new commits only (G5-07, X-03): a replay above
+	// and the intent lookup keep answering while it is off.
+	if !s.syncWriteEnabled(ctx, actor, doc.OrganizationID) {
+		return DocumentFileResult{}, errOfficeCapabilityOff(officeSyncWriteCapability)
+	}
+	// The logical intent is claimed before the transaction, in its own, so a
+	// lookup sees this attempt in flight (document_commit_intent.go).
+	var claim *commitIntentClaim
+	if in.IdempotencyKey != "" {
+		c, committed, err := s.claimCommitIntent(ctx, actor, doc, in.IdempotencyKey, opts.Fingerprint)
+		if err != nil {
+			return DocumentFileResult{}, err
+		}
+		if committed {
+			// Another attempt committed after the peek: its ledger answer
+			// is the one to replay.
+			replay, err := PeekIdempotent(ctx, s.q, doc.OrganizationID, doc.WorkspaceID, idempotencyScopeDocumentVersionCommit, in.IdempotencyKey, actor.ID, opts)
+			if err != nil {
+				return DocumentFileResult{}, NormalizeIdempotencyError(err)
+			}
+			if replay == nil {
+				return DocumentFileResult{}, NormalizeIdempotencyError(ErrIdempotencyInFlight)
+			}
+			s.intentCounters().IncOfficeIdempotentReplay()
+			return replayWithAccess(replay.Body, current)
+		}
+		claim = &c
+	}
+	res, replayed, err := s.commitClaimedFileVersion(ctx, actor, doc, scope, file, in, opts, claim)
+	if err != nil && claim != nil {
+		s.releaseCommitIntent(ctx, doc, *claim)
+	}
+	if err == nil && replayed {
+		s.intentCounters().IncOfficeIdempotentReplay()
+	}
+	return res, err
+}
+
+// commitClaimedFileVersion is the commit after the intent claim: the format
+// check and the one transaction. replayed reports a ledger answer found
+// inside the transaction.
+func (s *DocumentService) commitClaimedFileVersion(
+	ctx context.Context, actor Actor, doc db.Document, scope files.Scope, file files.File,
+	in CommitFileVersionInput, opts IdempotencyOptions, claim *commitIntentClaim,
+) (DocumentFileResult, bool, error) {
+	fs, err := s.fileService()
+	if err != nil {
+		return DocumentFileResult{}, false, err
 	}
 	// The editor format check streams the bytes, so it runs before the
 	// transaction opens (FS-C1 §5.5).
 	if _, err := s.checkStoredFile(ctx, fs, scope, file); err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
 
 	var res DocumentFileResult
+	replayed := false
 	err = s.withDocumentMutation(ctx, actor, doc.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, access DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
 			return errDocumentDeleted()
@@ -267,8 +318,24 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 			return NormalizeIdempotencyError(err)
 		}
 		if replay != nil {
-			res, err = replayWithAccess(replay.Body, access)
-			return err
+			replayed = true
+			if res, err = replayWithAccess(replay.Body, access); err != nil {
+				return err
+			}
+			// A ledger answer with no committed intent (a commit from before
+			// the intents existed) settles this attempt's intent on it, so a
+			// lookup does not report in_flight or not_committed for it.
+			if claim != nil && fenceCommitIntent(ctx, q, locked, in.IdempotencyKey, *claim) == nil {
+				return s.markCommitIntentCommitted(ctx, q, locked, *claim, res)
+			}
+			return nil
+		}
+		// The fence: this attempt commits only while it still holds a live
+		// claim; the row stays locked until the transaction ends.
+		if claim != nil {
+			if err := fenceCommitIntent(ctx, q, locked, in.IdempotencyKey, *claim); err != nil {
+				return err
+			}
 		}
 		job, err := officeJobForOutput(ctx, q, locked, file.ID)
 		if err != nil {
@@ -377,12 +444,17 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 				return err
 			}
 		}
+		if claim != nil {
+			if err := s.markCommitIntentCommitted(ctx, q, locked, *claim, res); err != nil {
+				return err
+			}
+		}
 		return storeDocumentFileResult(commit, http.StatusOK, res)
 	})
 	if err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
-	return res, nil
+	return res, replayed, nil
 }
 
 // RestoreFileVersionInput restores an earlier file version on a base
