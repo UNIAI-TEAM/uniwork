@@ -1,0 +1,16 @@
+$ npm run typecheck -w @genoffice/slides; echo "TC_SLIDES_EXIT=$?"
+
+> @genoffice/slides@0.1.0 typecheck
+> tsc --noEmit
+
+tests/comment-author.test.ts(93,3): error TS2322: Type '(next: UniworkDocumentPolicy | null) => void' is not assignable to type '(policy: unknown) => void'.
+  Types of parameters 'next' and 'policy' are incompatible.
+    Type 'unknown' is not assignable to type 'UniworkDocumentPolicy | null'.
+npm error Lifecycle script `typecheck` failed with error:
+npm error code 2
+npm error path /home/ubuntu/work/uniwork-office/apps/slides
+npm error workspace @genoffice/slides@0.1.0
+npm error location /home/ubuntu/work/uniwork-office/apps/slides
+npm error command failed
+npm error command sh -c tsc --noEmit
+TC_SLIDES_EXIT=2
