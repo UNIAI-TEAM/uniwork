@@ -67,6 +67,18 @@ set +a
 if [ "$SKIP_APP" != "1" ]; then
   command -v xvfb-run > /dev/null 2>&1 \
     || blocked "xvfb-run is not installed" "apt-get install -y --no-install-recommends xvfb xauth dbus-x11 (provision delta in the harness README)"
+  # Electron needs the Chromium shared libraries. The office profile gets them
+  # from `playwright install-deps chromium` (install-office.sh); a uniwork VM
+  # does not, and without this check the app dies later with an obscure loader
+  # error. ldconfig knows every library the VM has.
+  libs_missing=()
+  for lib in libnss3.so libatk-1.0.so.0 libgbm.so.1 libasound.so.2 libcups.so.2; do
+    ldconfig -p 2> /dev/null | grep -q "$lib" || libs_missing+=("$lib")
+  done
+  if [ "${#libs_missing[@]}" -gt 0 ]; then
+    blocked "the Electron runtime libraries are missing: ${libs_missing[*]}" \
+      "(cd /tmp && npx --yes --package=playwright@1.62.1 -- playwright install-deps chromium) — provision delta in the harness README"
+  fi
 fi
 
 # ---- fresh ports -------------------------------------------------------------
@@ -251,4 +263,6 @@ echo "  D server  $API_ORIGIN"
 echo "  D web     $WEB_ORIGIN"
 echo "  fork      $FORK_DIR @ $FORK_SHA"
 echo "  pids      $RUN_DIR/pids"
-echo "  next      xvfb-run -a node scripts/office/g5g6g7/harness/sample-ac.mjs"
+echo "  next      OFFICE_FORK_SHA=$FORK_SHA HARNESS_RUN_DIR=$RUN_DIR node scripts/office/g5g6g7/evidence.mjs run \\"
+echo "              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \\"
+echo "              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir $RUN_DIR"

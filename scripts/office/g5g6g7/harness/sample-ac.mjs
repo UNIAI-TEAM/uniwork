@@ -1,7 +1,7 @@
-/* global process, console, fetch */
+/* global process, console, fetch, AbortSignal */
 // One sample acceptance case for G7-01 (UNI-1376, item C): prove the three
-// pieces run together, on this run's ports, and record it in the evidence
-// runner's JSON line shape.
+// pieces of the Office stack run together on one machine, on this run's ports,
+// and record it in the evidence runner's JSON line shape.
 //
 // The case is G7-A05's runtime-manifest half, kept to what a dev build can
 // actually show on a runner VM:
@@ -9,22 +9,31 @@
 //   1. the D server answers /healthz and /readyz on this run's API port,
 //   2. GET /api/v1/config names this run's API origin as office_api_origin
 //      (the origin the web hands to the desktop app),
-//   3. the web responds on this run's web port and its first /api/v1/ request
-//      goes to that same origin (e2e/api-url.ts's rule: NEXT_PUBLIC_API_URL is
-//      inlined at build time, so a mismatch means the run tests a stale build),
-//   4. the running Electron app resolved that origin — it persists
+//   3. the D web answers on this run's web port and the build it serves inlines
+//      that same API origin — the rule e2e/api-url.ts pins, applied without a
+//      browser: NEXT_PUBLIC_API_URL is baked in at build time, so a mismatch
+//      means the run is testing a stale build (a warm VM's old :8080 server),
+//   4. the running Electron app resolved that origin: it persists
 //      UNIWORK_API_ORIGIN into userData/app-settings.json
 //      (fork apps/shell/src/main/office-bridge-host.ts:84, called at
 //      apps/shell/src/main/index.ts:5248),
-//   5. the fork and pin revisions in the manifest match what was asked for.
+//   5. the runtime manifest (D SHA, fork SHA, pin bundle) reproduces.
 //
-// Steps 1-3 need only the server and the web; steps 4-5 are reported as BLOCKED
-// (never PASS) when the app or the fork is not up, so a partial run cannot be
-// mistaken for a passing one.
+// A precondition that is absent (no stack on this run's ports, no fork checkout,
+// no app settings file) is BLOCKED with the reason, never PASS — a partial run
+// cannot be mistaken for a passing one. A stack that answers but says the wrong
+// thing (another origin, a stale build) is a FAIL: the harness ran, the claim
+// did not hold. Exit codes: 0 PASS, 1 FAIL, 77 BLOCKED.
 //
-// Usage: node scripts/office/g5g6g7/harness/sample-ac.mjs [--run-dir <dir>]
-// Exit: 0 PASS, 1 FAIL, 77 BLOCKED.
-import { existsSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
+// Preferred invocation (records one line in the runner's ledger, with the
+// fixture hash guard and the lane's out dir):
+//
+//   OFFICE_FORK_SHA=0d03b18 node scripts/office/g5g6g7/evidence.mjs run \
+//     --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+//     node scripts/office/g5g6g7/harness/sample-ac.mjs
+//
+// Run directly, it writes the same JSON line into the run dir instead.
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
@@ -85,6 +94,45 @@ async function getJson(url, timeoutMs = 10_000) {
   return res.json();
 }
 
+// ---- preconditions: is there a stack to check at all? ------------------------
+// Absent pieces are BLOCKED. They are separated from the assertions below so a
+// stack that is simply not up never reads as "the claim was false".
+async function reachable(url, timeoutMs = 5000) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), redirect: "manual" });
+    return res.status;
+  } catch {
+    return 0;
+  }
+}
+
+const appSettingsPath = join(runDir, "userdata", "app-settings.json");
+const preconditions = [];
+const healthStatus = await reachable(`${API_ORIGIN}/healthz`);
+if (healthStatus === 0) preconditions.push(`no D server on ${API_ORIGIN} (start.sh must be run first, and it must have stayed up)`);
+const webStatus = await reachable(`${WEB_ORIGIN}/login`, 30_000);
+if (webStatus === 0) preconditions.push(`no D web on ${WEB_ORIGIN} (start.sh must be run first, and it must have stayed up)`);
+if (!existsSync(appSettingsPath)) preconditions.push(`the app has not written ${appSettingsPath}; the fork app was not started or has not reached ready`);
+if (preconditions.length > 0) {
+  for (const reason of preconditions) console.error(`BLOCKED: ${reason}`);
+  const record = evidenceLine({
+    requirementId: "G7-A05",
+    platform: `${process.platform}-${process.arch}`,
+    build: `node ${process.versions.node}`,
+    command: `node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir ${runDir}`,
+    exitCode: BLOCKED,
+    result: "BLOCKED",
+    checker: "harness:start.sh+sample-ac.mjs",
+    blocker: preconditions.join("; "),
+    startedAt,
+    finishedAt: new Date().toISOString(),
+  });
+  mkdirSync(runDir, { recursive: true });
+  appendFileSync(join(runDir, "blocked.json"), `${JSON.stringify(record, null, 2)}\n`);
+  if (!process.env.OFFICE_EVIDENCE_ID) appendFileSync(join(runDir, "evidence.jsonl"), `${JSON.stringify(record)}\n`);
+  process.exit(BLOCKED);
+}
+
 // ---- 1. the D server ---------------------------------------------------------
 await check("D server answers /healthz", async () => {
   const body = await getJson(`${API_ORIGIN}/healthz`);
@@ -108,47 +156,72 @@ await check("GET /api/v1/config names this run's API origin", async () => {
   return `office_api_origin=${config.office_api_origin} office_deployment_id=${config.office_deployment_id}`;
 });
 
-// ---- 3. the web serves and calls this run's API ------------------------------
+// ---- 3. the web serves, and the build it serves inlines this run's API -------
+let loginHtml = "";
 await check("D web answers on this run's web port", async () => {
   const res = await fetch(`${WEB_ORIGIN}/login`, { signal: AbortSignal.timeout(30_000) });
   if (!res.ok) throw new Error(`GET ${WEB_ORIGIN}/login -> ${res.status}`);
-  const html = await res.text();
-  if (!html.includes("<")) throw new Error("the web answered with an empty body");
-  return `${res.status}, ${html.length} bytes`;
+  loginHtml = await res.text();
+  if (!loginHtml.includes("<")) throw new Error("the web answered with an empty body");
+  return `${res.status}, ${loginHtml.length} bytes`;
 });
 
-// The same rule e2e/api-url.ts pins, applied without a browser: the API origin
-// the web build was given must be the one the server serves. A build with a
-// different NEXT_PUBLIC_API_URL is the failure this check exists for.
-await check("the web was built against this run's API origin", async () => {
-  const html = await (await fetch(`${WEB_ORIGIN}/login`, { signal: AbortSignal.timeout(30_000) })).text();
-  const seen = new Set(html.match(/https?:\/\/127\.0\.0\.1:\d+/g) ?? []);
-  if (seen.size === 0) throw new Error("no absolute API origin in the served HTML; cannot prove which API the build inlines");
-  if (!seen.has(API_ORIGIN)) throw new Error(`the page names ${[...seen].join(", ")}, this run is ${API_ORIGIN}`);
-  return [...seen].join(", ");
+/**
+ * The API origin baked into the build. The served HTML carries script tags, not
+ * the inlined value, so the chunks are fetched and searched. Three outcomes,
+ * each recorded as itself: the run's origin is there (PASS), only some other
+ * loopback port is (FAIL — a stale build), nothing at all (BLOCKED — cannot
+ * prove either way, and a check that cannot prove anything is not a pass).
+ */
+async function inlinedApiOrigins(html) {
+  const srcs = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => m[1]).slice(0, 40);
+  const found = new Set();
+  let fetched = 0;
+  for (const src of srcs) {
+    const url = new URL(src, WEB_ORIGIN).toString();
+    if (new URL(url).origin !== new URL(WEB_ORIGIN).origin) continue;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      if (!res.ok) continue;
+      fetched += 1;
+      const body = await res.text();
+      for (const match of body.matchAll(/https?:\/\/127\.0\.0\.1:\d+/g)) found.add(match[0]);
+    } catch {
+      // a chunk that does not load is not evidence either way
+    }
+  }
+  return { found: [...found], fetched };
+}
+
+await check("the web build inlines this run's API origin", async () => {
+  if (!loginHtml) throw new Error("the web did not answer, so the build cannot be checked");
+  const { found, fetched } = await inlinedApiOrigins(loginHtml);
+  if (found.includes(API_ORIGIN)) return `${API_ORIGIN} (from ${fetched} chunk(s))`;
+  if (fetched === 0) throw new Error("no same-origin script chunk could be fetched to read the inlined API origin");
+  const other = found.filter((origin) => origin !== API_ORIGIN);
+  throw new Error(other.length > 0
+    ? `the served build inlines ${other.join(", ")}, not ${API_ORIGIN}: this is a stale build from an earlier run`
+    : `the served build inlines no loopback API origin (${fetched} chunk(s) read), so ${API_ORIGIN} cannot be proven`);
 });
 
 // ---- 4. the running app resolved the same origin -----------------------------
-const appSettings = join(runDir, "userdata", "app-settings.json");
-if (!existsSync(appSettings)) {
-  noteBlocker("the Electron app persisted the D server origin", `no ${appSettings} yet (start.sh may have skipped the app)`);
-} else {
-  await check("the Electron app persisted the D server origin", async () => {
-    const settings = JSON.parse(readFileSync(appSettings, "utf8"));
-    if (settings.uniworkApiOrigin !== API_ORIGIN) {
-      throw new Error(`uniworkApiOrigin=${JSON.stringify(settings.uniworkApiOrigin)} but this run is ${API_ORIGIN}`);
-    }
-    return `uniworkApiOrigin=${settings.uniworkApiOrigin}`;
-  });
-}
+await check("the Electron app persisted the D server origin", async () => {
+  const settings = JSON.parse(readFileSync(appSettingsPath, "utf8"));
+  if (settings.uniworkApiOrigin !== API_ORIGIN) {
+    throw new Error(`uniworkApiOrigin=${JSON.stringify(settings.uniworkApiOrigin)} but this run is ${API_ORIGIN}`);
+  }
+  return `uniworkApiOrigin=${settings.uniworkApiOrigin}`;
+});
 
-// ---- 5. the manifest: D SHA, fork SHA, pin bundle -----------------------------
+// ---- 5. the runtime manifest: D SHA, fork SHA, pin bundle ---------------------
 function git(args, cwd) {
   return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 }
 
 const dSha = git(["rev-parse", "HEAD"], REPO_ROOT);
-const forkDir = join(process.env.OFFICE_FORK_CACHE || join(process.env.HOME ?? "/root", ".cache", "uniwork-office-harness"), `uniwork-office-${ports.OFFICE_FORK_SHA}`);
+const forkSha = process.env.OFFICE_FORK_SHA || ports.OFFICE_FORK_SHA;
+const forkCache = process.env.OFFICE_FORK_CACHE || join(process.env.HOME ?? "/root", ".cache", "uniwork-office-harness");
+const forkDir = join(forkCache, `uniwork-office-${forkSha}`);
 const pinPath = join(REPO_ROOT, "apps/web/platform/office-frame/docs.pin.json");
 const pin = existsSync(pinPath) ? JSON.parse(readFileSync(pinPath, "utf8")) : null;
 
@@ -158,7 +231,7 @@ if (!existsSync(join(forkDir, ".git"))) {
 } else {
   await check("the fork is checked out at the pinned SHA", async () => {
     const head = git(["rev-parse", "HEAD"], forkDir);
-    if (!head.startsWith(ports.OFFICE_FORK_SHA)) throw new Error(`fork HEAD ${head} is not ${ports.OFFICE_FORK_SHA}`);
+    if (!head.startsWith(forkSha)) throw new Error(`fork HEAD ${head} is not ${forkSha}`);
     return `fork ${head}`;
   });
 }
@@ -168,44 +241,51 @@ const manifest = {
   kind: "uniwork-office-g5g6g7-runtime-manifest",
   requirementId: "G7-A05",
   dSha,
-  fSha: ports.OFFICE_FORK_SHA,
+  fSha: forkSha,
   pin: pin ? { module: "docs", version: pin.version, gitSha: pin.gitSha, manifestSha256: pin.manifestSha256 } : null,
   apiOrigin: API_ORIGIN,
   webOrigin: WEB_ORIGIN,
   display: ports.DISPLAY ?? "",
   platform: `${process.platform}-${process.arch}`,
   node: process.versions.node,
+  checks,
+  blockers,
 };
 
 const failed = checks.filter((c) => c.result === "FAIL");
 const result = failed.length > 0 ? "FAIL" : blockers.length > 0 ? "BLOCKED" : "PASS";
+const exitCode = result === "PASS" ? 0 : result === "BLOCKED" ? BLOCKED : 1;
 
-const artifactPath = join(runDir, "sample-ac.json");
 mkdirSync(runDir, { recursive: true });
-appendFileSync(artifactPath, `${JSON.stringify({ ...manifest, checks, blockers }, null, 2)}\n`);
+const manifestPath = join(runDir, "sample-ac.json");
+appendFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
-const line = evidenceLine({
-  evidenceId: `g7-01-harness-${Date.now()}`,
-  requirementId: "G7-A05",
-  dSha,
-  fSha: ports.OFFICE_FORK_SHA,
-  pin: pin?.version ?? "",
-  platform: `${process.platform}-${process.arch}`,
-  build: `node ${process.versions.node}`,
-  command: `node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir ${runDir}`,
-  exitCode: result === "PASS" ? 0 : result === "BLOCKED" ? BLOCKED : 1,
-  result,
-  artifact: artifactPath,
-  checker: "harness:start.sh+sample-ac.mjs",
-  blocker: blockers.join("; "),
-  startedAt,
-  finishedAt: new Date().toISOString(),
-});
-appendFileSync(join(runDir, "evidence.jsonl"), `${JSON.stringify(line)}\n`);
+// Under the evidence runner (OFFICE_EVIDENCE_ID is set) the runner owns the
+// ledger line, so writing another one here would double-count the check.
+const command = `node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir ${runDir}`;
+if (!process.env.OFFICE_EVIDENCE_ID) {
+  const line = evidenceLine({
+    evidenceId: `g7-01-harness-${Date.now()}`,
+    requirementId: "G7-A05",
+    dSha,
+    fSha: forkSha,
+    pin: pin?.version ?? "",
+    platform: manifest.platform,
+    build: `node ${process.versions.node}`,
+    command,
+    exitCode,
+    result,
+    artifact: manifestPath,
+    checker: "harness:start.sh+sample-ac.mjs",
+    blocker: blockers.join("; "),
+    startedAt,
+    finishedAt: new Date().toISOString(),
+  });
+  appendFileSync(join(runDir, "evidence.jsonl"), `${JSON.stringify(line)}\n`);
+}
 
 for (const c of checks) console.log(`  ${c.result.padEnd(7)} ${c.name}${c.detail ? ` — ${c.detail}` : ""}`);
 console.log(`sample AC: ${result}`);
 if (result === "BLOCKED") for (const b of blockers) console.error(`  blocked: ${b}`);
-console.log(`evidence line: ${join(runDir, "evidence.jsonl")}`);
-
-process.exit(result === "PASS" ? 0 : result === "BLOCKED" ? BLOCKED : 1);
+console.log(`runtime manifest: ${manifestPath}`);
+process.exit(exitCode);
