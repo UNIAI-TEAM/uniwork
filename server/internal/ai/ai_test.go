@@ -98,6 +98,21 @@ func TestFromEnv(t *testing.T) {
 func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)
+		if p.Sections != nil {
+			// The office pack (G6-14) is the exception: its System is the
+			// common section and the module section is appended per turn, so
+			// the assembled variants are what must close with the footer. It
+			// is free-text (no OutputSchema) and has no Render: the façade
+			// sends the conversation itself. prompts_office_test.go pins its
+			// goldens, caps and version pins.
+			for _, m := range officeModuleSections {
+				got, err := OfficeSystemPrompt(m.module)
+				if err != nil || !strings.HasSuffix(got, UntrustedFooter) {
+					t.Errorf("%s: %s variant does not end with the untrusted footer: %v", k, m.module, err)
+				}
+			}
+			continue
+		}
 		if !strings.HasSuffix(p.System, UntrustedFooter) {
 			t.Errorf("%s: system prompt does not end with the untrusted footer", k)
 		}
@@ -160,6 +175,13 @@ func TestPromptSnapshots(t *testing.T) {
 	}
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)
+		if p.Sections != nil {
+			// The office pack has one System per module and no Render: its
+			// goldens (testdata/office_uniwork_ai_v1_*.golden) and their test
+			// live in prompts_office_test.go, which keeps this snapshot's
+			// one-SYSTEM-one-USER shape for every other prompt.
+			continue
+		}
 		got := "SYSTEM:\n" + p.System + "\n\nUSER:\n" + p.Render(fixtures[k])
 		path := filepath.Join("testdata", strings.ReplaceAll(k, "@", "_v")+".golden")
 		if *update {
