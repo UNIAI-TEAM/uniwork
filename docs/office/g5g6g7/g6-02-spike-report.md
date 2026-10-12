@@ -105,8 +105,11 @@ Bằng chứng và lý do:
 - Model chọn bằng override có sẵn `AI_MODEL_OFFICE_UNIWORK_AI` (`policy.go:84`), phải nằm trong `allowedModels`
   (`policy.go:61-65`) hoặc `AI_MODEL_ALLOW` (`config.go:34-38`). Dev: tên model lấy từ `/v1/models` của upstream dev,
   thêm vào `AI_MODEL_ALLOW` (pending W1 measurement: tên model).
-- `Temperature: 0` theo spec §8.1; `openai.go:48` chỉ gửi `temperature` khi > 0, tức upstream dùng mặc định của nó —
-  ghi rủi ro ở §8 (một số host mặc định 1.0). Đề xuất G6-13 gửi `temperature: 0` tường minh cho capability này.
+- `Temperature: 0` theo spec §8.1; `openai.go:48` và `anthropic.go:30` chỉ gửi `temperature` khi > 0, tức upstream dùng
+  mặc định của nó. **Giữ hành vi đó** (không gửi `temperature: 0` tường minh): lớp openai-compatible của Anthropic trả 400
+  cho `temperature` < 1 trên Claude 4.7+ (notes-upstream-candidates §3), nên gửi tường minh sẽ làm hỏng một ứng viên
+  G6-D2. Giá trị temperature/max_tokens client gửi luôn bị façade bỏ qua (fork gửi `temperature: 0.3`,
+  `protocols/openai-compatible.ts:199`); server sở hữu policy.
 
 ### 4.2 Trần token của instruction pack
 
@@ -129,7 +132,11 @@ Lý do: một tác vụ XLSX điển hình là đọc vùng → tính → ghi �
 model = 1 lượt đầu + 8 vòng + 1 dự phòng cho request bị upstream từ chối giữa chừng mà client gửi lại cùng bước. 429 do
 limiter UniWork trả **không** đếm (request không tới Gateway); 429/5xx của upstream có đếm vì Gateway đã ghi dòng usage
 (`gateway.go:135` insert `pending` trước khi gọi provider). Mỗi lượt model là một dòng `ai_usage_events` có tính credit
-(spec §6.2). Số thật cho latency mỗi lượt: pending W1 measurement; nếu p95 một lượt > 20 giây thì 10 lượt vượt 3 phút
+(spec §6.2). Vòng agent của fork tự dừng ở `DEFAULT_MAX_TURNS = 100` (`packages/agent-core/src/loop.ts:89`), nên
+trần server (10) luôn tới trước và fork chưa có hành vi cho `run_limit_reached` (G6-05 thêm). Fork tự gửi lại cùng
+request trong ba trường hợp — stream rỗng (2 lần, `loop.ts:965-985`), stream đứt giữa tham số công cụ (1 lần,
+`loop.ts:342-343`), lỗi trần `max_tokens` (1 lần, `output-cap.ts:38-55`) — mỗi lần là một lượt model ở server; lượt
+"dự phòng" trong số 10 dành cho chúng (notes-fork-adapter §5). Số thật cho latency mỗi lượt: pending W1 measurement; nếu p95 một lượt > 20 giây thì 10 lượt vượt 3 phút
 và cần xem lại cùng G7-D1.
 
 ### 4.4 Rate limit nhóm `ai-uniwork`
@@ -151,7 +158,9 @@ người. Limiter toàn cục 300/phút theo bearer (`router.go:81`) không ch�
 EXPERIENCE.md (OQ-UX2, `docs/office/g5g6g7/ux/EXPERIENCE.md:496,1006`), G6-02 xác nhận. Server luôn gửi `Retry-After`
 bằng giây trên 429 của nó (`ratelimit.go:160` đã làm cho limiter; trần đồng thời §4.10 cũng phải làm). 429 của upstream
 được chuyển thành 429 có `Retry-After` của server (giá trị upstream nếu đọc được, kẹp 300; thiếu → 30), không bao giờ
-là 502.
+là 502. Phía fork đây là việc mới: đường desktop không đọc `Retry-After` ở đâu cả, 429 kết thúc lượt bằng lỗi
+`overloaded`; web parse `retryAfterSec` (`web/modules/shared/ai/errors.ts:121-127`) nhưng không ai chờ theo nó
+(notes-fork-adapter §5). G6-05 cài vòng chờ trước khi lỗi được ném (`protocols/openai-compatible.ts:206-210`).
 
 ### 4.6 Trần body và tool-result
 
@@ -233,6 +242,7 @@ Gateway dùng `Turns` thay cho `History` + câu user render, giữ nguyên đư�
 | Hạn tuyệt đối | 24 giờ kể từ `created_at` (transcript chứa nội dung chưa lưu, spec §8.3) |
 | Lượt giữ | 20 lượt người dùng (§4.7) |
 | Dọn | worker TTL đăng ký vào chuỗi shutdown của `server/cmd/server/main.go` (plan §4), xóa theo lô; consumer outbox cho `document.deleted`, `member.removed`, `member.left`, `member.deactivated` (`docs/events/CATALOGUE.md:127-164`); kiểm lười ở mỗi request (§5); đăng xuất xóa conversation của phiên không tài liệu; "hội thoại mới" xóa conversation cũ của cùng (user, document, module); `office_ai_uniwork` tắt cho tổ chức → worker xóa theo `organization_id` ở vòng kế và request mới bị từ chối |
+| Lịch sử lệch với client | fork xóa khỏi lịch sử của nó mọi lượt của run lỗi (`rollbackFailedRun`, `loop.ts:645-650`); server làm cùng: run kết thúc bằng lỗi (không có câu trả lời assistant cuối) thì các lượt của run đó **không** vào transcript dùng cho run sau, nên model và panel thấy cùng một lịch sử. Server không bao giờ đọc lịch sử client gửi |
 | Tenant | `organization_id TEXT NOT NULL`; query `Ai*` có `organization_id = $n` hoặc `-- tenant:`; hàng trong `TestIsolationMatrix` |
 | Metric | `uniwork_ai_uniwork_conversations_swept_total{reason}`, gauge số conversation sống; runbook mục "UniWork AI transcript" |
 
@@ -274,8 +284,16 @@ trong body.
 Lý do: body giữ đúng openai-compatible (`messages`, `tools`, `stream`), nên adapter fork dùng lại bộ dựng body sẵn có
 và chỉ thêm header; SSE gửi header trước chunk đầu nên id có ngay cả khi stream bị cắt giữa chừng; id do server cấp,
 không bao giờ lấy từ input người dùng hoặc model (spec §8.2). Việc kèm theo: thêm hai header vào CORS `AllowedHeaders`
-(`router.go:95`) và `ExposedHeaders` (`router.go:111`), nếu không frame web không đọc được id. Phụ thuộc fork:
-adapter đọc được response header (pending: xác nhận ở `notes-fork-adapter.md`, §7).
+(`router.go:95`) và `ExposedHeaders` (`router.go:111`), nếu không frame web không đọc được id.
+
+Kiểm ở fork (notes-fork-adapter §3): header đi ra có tiền lệ `opencodeSessionHeaders(baseUrl, cb.sessionId)`
+(`packages/ai-provider/src/providers.ts:18-25`, chèn ở `protocols/openai-compatible.ts:179-184`), và proxy web chỉ bỏ
+`authorization`/`x-api-key`/`x-goog-api-key`/`user-agent` (`web/modules/shared/ai/transport.ts:29-37`), nên header
+tự đặt đi qua. Đọc header trả về **chưa có**: `StreamCallbacks` không có hook header (`protocols/shared.ts:253-265`) —
+G6-05 thêm một `onResponseHeaders` (~10-20 dòng). Trường body thì `bodyExtras` tĩnh theo endpoint
+(`registry.ts:17-28`), phải đục thêm tham số qua `streamForProvider` và `runTurn` web — xâm lấn hơn. Header thắng.
+`cb.sessionId` của fork là id theo transport, không theo tài liệu, nên **không** dùng làm conversation id; conversation
+id luôn do server cấp.
 
 ### 4.12 Wire extension `x_uniwork` hay `finish_reason`
 
@@ -300,6 +318,14 @@ Lý do: client openai-compatible chuẩn bỏ qua trường lạ ở top-level n
 `tool_calls`. Ở stream thật (v1.1) delta tool call được giữ theo index tới khi biết tên (plan G6-03a). Panel map
 `view_only` → `aiErrViewOnlyEdit`, `not_allowlisted` → `aiErrUnsupported` (plan G6-05u).
 
+Kiểm ở fork (notes-fork-adapter §4): object top-level lạ bị parser bỏ qua ở cả SSE và JSON
+(`protocols/openai-compatible.ts:250-266`, `:81-92`), nên `x_uniwork` an toàn; `finish_reason` lạ bị nuốt im lặng khi
+lượt đã có nội dung và thành lỗi "model returned no content" khi lượt rỗng (`:312-314`, `:336-338`) — thêm một lý do
+không dùng `tool_not_allowed`. Hai bẫy phải tránh: **không bao giờ** dùng khóa `error` cho dữ liệu không fatal (mọi
+`event.error` truthy làm hủy lượt, `:267`, `:97`), và giá trị `reason` chỉ là mã (`view_only`, `not_allowlisted`),
+không câu chữ. Fork hiện không có chỗ hiển thị call bị bỏ (`StreamCallbacks`, `AiStreamChunk.type`): G6-05 thêm một
+loại chunk/callback `notice`, G6-05u vẽ chip.
+
 ### 4.13 Streaming thật hay SSE một chunk ở v1
 
 **Đề xuất (draft, pending X-01):** **SSE một chunk** ở v1: khi client gửi `stream: true`, façade trả
@@ -312,6 +338,18 @@ khi stream đứt — rủi ro lớn hơn lợi ích khi latency một lượt c
 giây thì UX "đang nghĩ" của EXPERIENCE `uwTipWaitAiLong` 30 giây phải hiện sớm hơn). Adapter `uniwork` của fork vẫn
 phải chịu stream thật (spec §6.2) để v1.1 bật bằng server mà không phát hành lại app. Kết quả probe stream thô của
 upstream dev (chunk usage cuối có hay không) quyết định v1.1 có tính credit đúng được không: pending W1 measurement.
+
+Ràng buộc từ fork (notes-fork-adapter §2, §4, uniwork-office `0d03b185`):
+- Mỗi phần tử `tool_calls` trong chunk **phải có `index`** (bộ gộp delta khóa theo `tc.index`,
+  `protocols/openai-compatible.ts:284-307`; thiếu `index` thì mọi call gộp làm một), cùng `id`, `function.name`,
+  `function.arguments` đầy đủ và `finish_reason` trong **cùng** chunk, rồi `[DONE]`.
+- Watchdog của fork chờ header tối đa 60 giây, im lặng tối đa 180 giây (`watchdog.ts:8-15`), bằng đúng timeout
+  Gateway 60 giây (`config.go:28`). Façade vì vậy **gửi header SSE ngay** khi nhận request (sau kiểm quyền/quota), rồi
+  gửi comment keep-alive `: ping` mỗi 15 giây cho tới khi có chunk.
+- Luôn trả SSE khi client gửi `stream: true` (fork luôn gửi `stream: true`): đường JSON của fork quét **mọi chuỗi** trong
+  body và ném `AiCreditsError` khi gặp cụm như "credit … exhausted/balance" (`throwIfCreditsNotice`,
+  `protocols/shared.ts:352-382`), nên một câu trả lời về bảng tính có chữ "credit balance" sẽ thành lỗi tín dụng giả.
+  SSE không bị quét. Usage trong chunk vô hại: fork không đọc `usage` (notes §2).
 
 ### 4.14 Entitlement
 
@@ -398,12 +436,27 @@ mang tenant row; cập nhật `uniwork-office-app-api-contract.md` §3.
 
 ## 6. Ứng viên upstream production cho G6-D2
 
-pending: `reports/g6-ai_server/notes-upstream-candidates.md` (W3). Bảng điền từ ghi chú đó, mọi dòng có nguồn công khai;
-báo cáo không tự kết luận vendor. Khung:
+Nguồn: `reports/g6-ai_server/notes-upstream-candidates.md` (W3), chỉ tài liệu công khai, đọc 2026-10-12. Đây là dữ
+kiện, không phải khuyến nghị: G6-D2 là quyết định của người dùng. "unverified" = W3 không xác nhận được từ trang đã đọc.
 
-| Ứng viên | Hosting / region | Retention mặc định | Tắt log nội dung? | ZDR / hợp đồng | Nguồn |
-| --- | --- | --- | --- | --- | --- |
-| pending W3 | | | | | |
+| Ứng viên | Hosting / region | Retention mặc định | Tắt log nội dung? | ZDR / hợp đồng | Khớp provider có sẵn | Nguồn |
+| --- | --- | --- | --- | --- | --- | --- |
+| OpenAI API | xử lý + lưu ở US/EU/UAE; Singapore **chỉ lưu, không xử lý** trong vùng | log giám sát lạm dụng ≤ 30 ngày; không train từ 2023-03-01 | ZDR hoặc Modified Abuse Monitoring sau khi sales duyệt | vùng ngoài US cần MAM/ZDR + Modified Retention amendment; giá vùng +10% với model từ 2026-03-05 | `openai.go` nguyên trạng (đổi `OPENAI_BASE_URL`) | https://developers.openai.com/api/docs/guides/your-data |
+| Azure OpenAI (Foundry) | theo geography của resource; Global/DataZone có thể xử lý ngoài geography; Southeast Asia: khả dụng model **unverified** | không lưu prompt/completion trong model; mẫu bị gắn cờ vào kho giám sát lạm dụng, thời hạn **unverified** | xin "modified abuse monitoring" (Limited Access); kiểm `ContentLogging = false` | DPA Microsoft; không train | API mặt OpenAI; đường dẫn/khóa Azure cần kiểm với `openai.go` (unverified) | https://learn.microsoft.com/en-us/legal/cognitive-services/openai/data-privacy , https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/abuse-monitoring |
+| Anthropic API | `inference_geo` chỉ `global`/`us`; **không có vùng châu Á** | xóa trong 30 ngày (ngoại lệ vi phạm chính sách) | ZDR theo thỏa thuận với sales, theo tổ chức | không train dữ liệu thương mại | dùng `anthropic.go` (Messages API gốc); lớp openai-compatible được Anthropic ghi "không sẵn sàng production" | https://privacy.claude.com/en/articles/7996866 , https://privacy.claude.com/en/articles/8956058 , https://platform.claude.com/docs/en/manage-claude/data-residency |
+| Google Vertex AI (Gemini) | `asia-southeast1` có Gemini; endpoint global không bảo đảm vùng | cache trong bộ nhớ 24 giờ (tắt được theo project); log giám sát lạm dụng | logging request-response tắt mặc định; ZDR = xin ngoại lệ + tắt cache | không train | endpoint openai-compatible có tools/stream/usage, nhưng auth OAuth hết hạn 1 giờ — **không khớp** `OPENAI_API_KEY` tĩnh nếu không có proxy làm mới token | https://docs.cloud.google.com/vertex-ai/generative-ai/docs/data-governance , https://docs.cloud.google.com/vertex-ai/generative-ai/docs/learn/locations |
+| AWS Bedrock | `ap-southeast-1`: Claude 5.5 chỉ cross-region global (xử lý có thể rời Singapore) | mặc định không lưu input/output; một số model giữ traffic bị gắn cờ (hoặc toàn bộ, Claude Fable) ≤ 30 ngày | `data_retention_mode = none` theo vùng/tài khoản; model đòi mức cao hơn thì không dùng được | ZDR từng model qua account manager | Chat Completions `bedrock-runtime …/openai/v1`; round trip `tool_call_id` **unverified**; không có `GET /models` | https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html , https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions.html |
+| Tự host vLLM + model open-weight | nơi ta đặt (DC FPT/Viettel ở Việt Nam có; năng lực 2026 **unverified**) | do ta cấu hình; vLLM không log request mặc định, prompt chỉ ở DEBUG | có, ta kiểm soát | không có vendor; giấy phép weights **unverified** (chưa chọn model) | `/v1/chat/completions` openai-compatible; tools cần `--enable-auto-tool-choice` + parser; usage stream cần `--enable-force-include-usage`/`stream_options` | https://docs.vllm.ai/en/latest/features/tool_calling/ , https://docs.vllm.ai/en/latest/cli/serve/ |
+
+Ghi chú cho G6-D2:
+- **Pháp lý (không phải tư vấn luật):** Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15 và Nghị định 356/2025/NĐ-CP hiệu lực
+  2026-01-01; gửi nội dung tài liệu khách hàng tới upstream ngoài Việt Nam là chuyển dữ liệu cá nhân xuyên biên giới
+  (hồ sơ đánh giá tác động, Bộ Công an xem xét). Chỉ phương án tự host tại Việt Nam tránh được việc chuyển này.
+  Nguồn tóm tắt: EY Vietnam legal alert 03/2026, Vietnam Briefing (W3 §7; văn bản gốc chưa đọc).
+- Ứng viên phải nói được tool calling với id hai chiều (§4.8) và trả `usage` (§4.15); bộ đo của W1 chạy lại được trên
+  ứng viên được chọn chỉ bằng biến môi trường.
+- Việc còn cần người/vendor trả lời: W3 §8 (khả dụng model ở Đông Nam Á của Azure/Bedrock, quy trình ZDR từng vendor,
+  sizing GPU tự host, DPIA/CTIA).
 
 Tiêu chí G6-D2 (spec §8.3, §13.1): nội dung chưa lưu tới upstream; phải có retention và tắt log nội dung chứng minh
 được trước dữ liệu thật; tương thích openai-compatible với tool calling (để chỉ đổi `OPENAI_BASE_URL`, spec §8.1) hoặc
@@ -411,27 +464,42 @@ anthropic (provider có sẵn).
 
 ## 7. Ảnh hưởng tới adapter `uniwork` phía fork
 
-pending: `reports/g6-ai_server/notes-fork-adapter.md` (W3, uniwork-office tại pin `0d03b18`). Những điểm báo cáo cần
-xác nhận từ ghi chú:
-- adapter openai-compatible của `packages/ai-provider` gửi/nhận `tool_calls[].id` và message `tool` + `tool_call_id`;
-- đọc được response header (`X-UniWork-AI-Run`, `X-UniWork-AI-Conversation`) ở cả desktop và frame web;
-- bộ đọc SSE chịu một chunk đầy đủ + `[DONE]` và stream thật;
-- trường top-level lạ (`x_uniwork`) không làm parser lỗi;
-- adapter chỉ gửi câu hỏi mới + tool-result (không gửi mảng `messages` đầy đủ của agent genoffice).
+Nguồn: `reports/g6-ai_server/notes-fork-adapter.md` (W3, đọc uniwork-office tại pin `0d03b185`, chỉ đọc). Đường dẫn
+dưới đây tương đối với gốc fork.
+
+| Điểm | Hiện trạng ở fork | Việc cho G6-05 |
+| --- | --- | --- |
+| Tool-call id hai chiều | đã nói `role:'tool'` + `tool_call_id` và gửi lại đúng id đọc từ response (`protocols/openai-compatible.ts:46-74`); **thiếu id thì tự sinh UUID** (`:122`, `:287-292`) | server luôn trả `id` cho mọi tool call; server từ chối `tool_call_id` không thuộc run (luật 2) — UUID tự sinh sẽ bị từ chối, đúng ý |
+| Gửi lịch sử | vòng agent gửi **toàn bộ** `history` mỗi lượt (`agent-core/src/loop.ts:904-921`, tối đa 40 message) | adapter tự cắt: run mới = message `user` cuối; vòng tool = các message `tool` sau assistant cuối (§4.6 giữ body nhỏ nhờ việc này) |
+| Run id / conversation id | header ra có tiền lệ (`providers.ts:18-25`); không có hook đọc header về (`protocols/shared.ts:253-265`) | thêm `onResponseHeaders`; `cb.sessionId` không phải conversation id (§4.11) |
+| SSE một chunk / JSON | chịu cả một chunk đủ + `finish_reason`, thiếu `[DONE]` vẫn được (`:242-332`); chịu JSON khi `stream:true` (`shared.ts:329-337`) | server luôn có `index` trong `tool_calls`, header SSE sớm + keep-alive (§4.13) |
+| `x_uniwork` | bị bỏ qua, không lỗi; chưa có chỗ hiển thị | thêm chunk/callback `notice` + chip (G6-05u) |
+| 429 / `Retry-After` | desktop không đọc; web parse nhưng không chờ | vòng chờ tối đa 3 lần, kẹp 300 giây (§4.5) |
+| Trần run | client 100 lượt; tự gửi lại 3 trường hợp | xử lý `run_limit_reached` (§4.3) |
+| Provider không khóa | handler main của docs/sheets/slides **từ chối provider không có `apiKey`** (`apps/docs/src/main/docs-main.ts:3842`, `apps/slides/src/main/ai-ipc.ts:182`, `apps/sheets/src/main/sheets-main.ts:3743,3779`); pdf/html/markdown chưa định vị handler | G6-05 sửa handler main của mọi module, không chỉ `packages/ai-provider` |
+| Web | `toProxyRequest` chỉ nhận URL `/byok/…` (`web/modules/shared/ai/transport.ts:45-87`); `proxyConfig` cứng `byok` (`stream.ts:68-79`); `WEB_PROVIDER_IDS` và `settings()` chỉ dựng từ khóa BYOK đã lưu (`web-ai.ts:71-73`, `:359-409`) | đường riêng cho `…/ai/uniwork/chat/completions` và mục provider không khóa |
+| Seam cloud | `UNIWORK_CLOUD_TOOLS` chưa có `chat` (`uniwork-cloud.ts:17-26`) | thêm `chat` (plan G6-05) |
+| Usage | fork không đọc `usage` | không đổi; usage hoàn toàn ở server (G6-03b) |
+| Lỗi có sẵn của fork | `throwIfCreditsNotice` quét toàn body JSON (`protocols/shared.ts:352-382`) | báo upstream/sửa ở fork; façade tránh bằng SSE (§4.13) |
+
+Phạm vi sửa ở fork (notes §6): `packages/ai-provider/src/{types,providers,registry,stream,uniwork-cloud,fetch,ai-notice}.ts`,
+`protocols/{openai-compatible,shared}.ts` (hoặc `protocols/uniwork.ts` mới), handler `ai:stream` của từng app,
+`packages/ui` (picker, logo), `web/modules/shared/ai/*`, map capability web và khóa frame `uniworkAi` (thay đổi hai repo,
+spec §3 bất biến 9). Sự kiện `aiRun` (X-02) chưa có ở pin này.
 
 ## 8. Rủi ro và việc còn mở
 
 | Rủi ro / việc | Ảnh hưởng | Xử lý đề xuất |
 | --- | --- | --- |
 | Upstream dev không trả `usage` | credit tính sai | `usage_unknown` + đối soát (§4.15); pending W1 measurement |
-| `temperature` không gửi khi 0 (`openai.go:48`) | upstream dùng mặc định riêng, kết quả không xác định | G6-13 gửi `temperature: 0` tường minh cho `office_uniwork_ai` |
+| `temperature` không gửi khi 0 (`openai.go:48`) | upstream dùng mặc định riêng, kết quả kém xác định | chấp nhận ở v1 (gửi tường minh làm Claude qua lớp compat trả 400, §4.1); G6-08 đo độ ổn định trên dev set |
 | Schema công cụ module lớn | ăn ngân sách 48 000 | G6-01 đo kích thước schema; G6-14 báo nếu > 8000 token |
 | Khóa `AI_CONVERSATION_KEY` mới | thêm secret phải quản lý | ADR 0029 Hệ quả: secret manager; không có xoay khóa v1, đổi khóa = mọi transcript thành `conversation_expired` (chấp nhận được vì TTL 30 phút) |
 | Lease Redis đồng thời | không Redis → chỉ trần mỗi pod | chấp nhận (plan G6-03a); số chốt ở G7-D1 |
 | Gateway một provider cho cả server (spec §8.1) | đổi upstream UniWork AI đổi luôn Ask UNI | ngoài v1, cần ADR |
 | Số trong bảng tóm tắt | chưa ký | G6-D1 (AI Platform + owner F), G7-D1 cho trần đồng thời |
 
-Việc còn mở trong báo cáo: §3 (số đo W1), §4.8 (SHA commit W1), §6 và §7 (ghi chú W3).
+Việc còn mở trong báo cáo: §3 (số đo W1), §4.8 (SHA commit W1).
 
 ## 9. Tham chiếu
 
