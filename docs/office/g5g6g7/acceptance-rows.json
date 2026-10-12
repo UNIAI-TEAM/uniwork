@@ -679,6 +679,8 @@
         "A comment created in an editor must not be stored in the bytes of the file or duplicated as a second server row."
       ],
       "tasks": ["G8-02", "G8-08", "G8-12", "G8-13", "G8-14", "G8-15", "G8-19", "G8-20"],
+      "command": "F vitest tác giả G8-02 (grep-test `userInfo(`/`USERNAME`/`LOGNAME` + đọc lại phần bình luận tệp) · F vitest adapter G8-12..15 (AI tool không gọi `comments.create` trước Gửi) · harness G8-19 bốn fixture",
+      "artifact": "`reports/g8-fork_host/cloud-test-*.md`, `reports/g8-fork_editors/cloud-test-*.md`, `reports/g7-qa/g8-a01/` (dòng server + phần tệp đọc lại + log request)",
       "gate": null,
       "blocker": null,
       "evidence": [],
@@ -707,6 +709,8 @@
         "A lost or stale anchor must open its own thread only and must not open or reveal another comment."
       ],
       "tasks": ["G8-04", "G8-12", "G8-13", "G8-14", "G8-15", "G8-19"],
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentCommentAnchors|IsolationMatrix'` · F vitest neo G8-12..15 (Lưu → neo mới, xóa → `lost`, reveal) · harness G8-19",
+      "artifact": "`reports/g8-server/cloud-test-*.md`, `reports/g8-fork_editors/cloud-test-*.md`, `reports/g7-qa/g8-a02/` (receipt neo + ba thân 400)",
       "gate": "G8-D2",
       "blocker": null,
       "evidence": [],
@@ -733,6 +737,8 @@
         "A purged document must not leave a row in any of the four comment tables, and a copy must not carry the comments of its source."
       ],
       "tasks": ["G8-03", "G8-10", "G8-11", "G8-20"],
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentComment(Kind|Tombstone|Revision|Purge|Copy)'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents` · F vitest panel G8-11",
+      "artifact": "`reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md` + ảnh S13 light/dark vi/en, `reports/g8-fork_editors/cloud-test-*.md`",
       "gate": "G8-D5",
       "blocker": null,
       "evidence": [],
@@ -759,6 +765,8 @@
         "An unavailable server or a reload must not discard the draft being composed, and a reply to a thread deleted meanwhile must keep the text with the message \"Bình luận này đã bị xóa.\""
       ],
       "tasks": ["G8-08", "G8-10", "G8-11", "G8-19", "G8-04", "G8-20"],
+      "command": "`pnpm vitest run packages/core/office packages/views/office/frame packages/core/realtime/use-realtime-sync.test.tsx` · `node --test scripts/office/frame-protocol-vendor.test.mjs` · F vitest protocol G8-08 · harness G8-19 hai host",
+      "artifact": "`reports/g8-fork_host/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md`, `reports/g7-qa/g8-a04/` (ghi hình web ↔ desktop)",
       "gate": "G8-D1",
       "blocker": null,
       "evidence": [],
@@ -784,6 +792,8 @@
         "A mention in a body that is not a valid member token must not create a notification or grant access."
       ],
       "tasks": ["G8-05", "G8-06", "G8-10", "G8-20"],
+      "command": "`go test ./internal/notification ./internal/service ./internal/mentions -run 'DocumentMention|MentionCandidates|Claim|TokenIDs'` · `pnpm vitest run packages/core/api/endpoints/document-comments.test.ts packages/views/documents`",
+      "artifact": "`reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md`",
       "gate": "G8-D4",
       "blocker": null,
       "evidence": [],
@@ -809,6 +819,8 @@
         "The actor of an event must not receive a notification of it."
       ],
       "tasks": ["G8-05"],
+      "command": "`go test ./internal/notification -run 'DocumentComment|Titles|Kinds'` · `pnpm vitest run packages/core/types packages/views/notifications packages/core/i18n`",
+      "artifact": "`reports/g8-server/cloud-test-*.md` (bảng người nhận UNI-1337 từng hàng)",
       "gate": "G8-D4",
       "blocker": null,
       "evidence": [],
@@ -835,6 +847,8 @@
         "A push link and a web link for the same notification must agree, and a page of 100 document notifications must not issue an unbounded number of permission queries."
       ],
       "tasks": ["G8-07", "G8-08", "G8-19"],
+      "command": "`go test ./internal/notification ./internal/service -run 'ResourceURL|FilterReadableDocuments|NotificationList|OfficeLaunch'` · `pnpm vitest run packages/views/notifications/resource-href.test.ts packages/views/documents packages/core/api/endpoints/notifications.test.ts` · harness G8-19 deep link web + desktop",
+      "artifact": "`reports/g8-web/cloud-test-*.md`, `reports/g8-server/cloud-test-*.md`, `reports/g7-qa/g8-a07/` (ảnh S15 năm ngoại lệ)",
       "gate": null,
       "blocker": null,
       "evidence": [],
@@ -860,6 +874,8 @@
         "A log line of a comment route must not contain an email address or a display name."
       ],
       "tasks": ["G8-03", "G8-04", "G8-06", "G8-08"],
+      "command": "`go test ./internal/handler -run 'IsolationMatrix|IsolationRealtime|EveryBodyIDFieldHasAReferenceCase'` · `go test ./internal/service -run AuditCoverage` · `node --test scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs`",
+      "artifact": "`reports/g8-server/cloud-test-*.md`",
       "gate": null,
       "blocker": null,
       "evidence": [],
@@ -885,6 +901,8 @@
         "A deactivated member or a suspended organization must not read the library and must see the locked state with its explanation."
       ],
       "tasks": ["G8-16", "G8-17", "G8-19"],
+      "command": "F vitest `uniwork-auth`/`uniwork-docs` G8-16/G8-17 · harness G8-19 đăng nhập nhiều tổ chức + tạo/đổi tên/lưu trữ",
+      "artifact": "`reports/g8-fork_host/cloud-test-*.md`, `reports/g7-qa/g8-a09/` + ảnh S16–S18",
       "gate": null,
       "blocker": null,
       "evidence": [],
@@ -909,6 +927,8 @@
         "A mention must never create a share or raise the level of the mentioned person."
       ],
       "tasks": ["G8-18"],
+      "command": "BLOCKED(G8-D3): lệnh do G8-18 đặt khi luật ký; dự kiến `go test ./internal/service -run 'DocumentMention.*NoAccess'` + F vitest composer",
+      "artifact": "`reports/g8-server/…`, `reports/g8-fork_editors/…` khi gỡ chặn",
       "gate": "G8-D3",
       "blocker": {
         "gate": "G8-D3",
