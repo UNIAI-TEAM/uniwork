@@ -13,6 +13,19 @@ import (
 // server only states the number.
 const OfficeCapabilitiesTTLSeconds = 300
 
+// The registry keys this route evaluates (plan X-03). They are named once here
+// so Get and its contract test read the same list: the test derives the keys
+// from these constants and the format list below, so a key renamed in
+// featureflags/keys.go fails it instead of silently evaluating the caller's
+// default and dropping a capability the app asked about.
+const (
+	officeSyncFeedFlag          = "office_sync_feed"
+	officeSyncWriteFlag         = "office_sync_write"
+	officeOfflineLibraryFlag    = "office_offline_library"
+	officeAIUniworkFlag         = "office_ai_uniwork"
+	officeAIUniworkFormatPrefix = "office_ai_uniwork_"
+)
+
 // officeAIUniworkFormats is the per-format AI capability set, in the fixed
 // order the wire list uses. Each token is the suffix of its flag key, so the
 // list and the registry never drift: docx -> office_ai_uniwork_docx.
@@ -55,10 +68,10 @@ func (s *OfficeCapabilitiesService) Get(ctx context.Context, userID, orgID strin
 	}
 	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: userID, OrganizationID: orgID})
 	out := OfficeAppCapabilities{
-		SyncFeed:       s.enabled(ctx, "office_sync_feed"),
-		SyncWrite:      s.enabled(ctx, "office_sync_write"),
-		OfflineLibrary: s.enabled(ctx, "office_offline_library"),
-		AIUniwork:      s.enabled(ctx, "office_ai_uniwork"),
+		SyncFeed:       s.enabled(ctx, officeSyncFeedFlag),
+		SyncWrite:      s.enabled(ctx, officeSyncWriteFlag),
+		OfflineLibrary: s.enabled(ctx, officeOfflineLibraryFlag),
+		AIUniwork:      s.enabled(ctx, officeAIUniworkFlag),
 		TTLSeconds:     OfficeCapabilitiesTTLSeconds,
 	}
 	// A format is listed only when UniWork AI is on as a whole and that
@@ -67,7 +80,7 @@ func (s *OfficeCapabilitiesService) Get(ctx context.Context, userID, orgID strin
 	out.AIUniworkFormats = []string{}
 	if out.AIUniwork {
 		for _, format := range officeAIUniworkFormats {
-			if s.enabled(ctx, "office_ai_uniwork_"+format) {
+			if s.enabled(ctx, officeAIUniworkFormatPrefix+format) {
 				out.AIUniworkFormats = append(out.AIUniworkFormats, format)
 			}
 		}
