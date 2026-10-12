@@ -4,6 +4,8 @@
   "fixtureSha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
   "synthetic": true,
   "revenueFormula": "Doanh thu = X * Y * (1 - Z); Z stored as 10 means 10 percent, as 10% means 0.1; blank means 0.",
+  "zRuleNote": "The discount rule is IF(Z>1, Z/100, Z): a stored Z above 1 is a percentage written as a number, so 10 means 10 percent. A Z of exactly 1 would therefore be read as 100 percent, which is why no cell stores 1; a blank Z is no discount. The same rule is what the workbook column G encodes.",
+  "shareBasisNote": "Tổng hợp column E (\"Tỷ trọng\") is each region share of Q1+Q2 revenue, while the DOCX/PPTX/MD/HTML \"Tỷ trọng\" column is the Q1-only share; the two are deliberately different bases and a cross-format comparison must not read them as a mismatch.",
   "sheets": {
     "Doanh thu Q1": {
       "dataRows": "2-7",
@@ -231,7 +233,38 @@
         "q1": 22060000,
         "q2": 18510000
       },
-      "grandTotalRow": 5
+      "grandTotalRow": 5,
+      "shareColumn": {
+        "column": "E",
+        "header": "Tỷ trọng",
+        "basis": "Q1+Q2",
+        "formula": "D{r}/$D$5",
+        "denominator": 40570000,
+        "rows": [
+          {
+            "cell": "E2",
+            "region": "Bắc",
+            "total": 20160000,
+            "share": 0.4969189055952674,
+            "shareText": "49,7%"
+          },
+          {
+            "cell": "E3",
+            "region": "Nam",
+            "total": 11250000,
+            "share": 0.27729849642593046,
+            "shareText": "27,7%"
+          },
+          {
+            "cell": "E4",
+            "region": "Trung",
+            "total": 9160000,
+            "share": 0.22578259797880207,
+            "shareText": "22,6%"
+          }
+        ],
+        "totalCell": "E5"
+      }
     }
   },
   "sheetNames": [

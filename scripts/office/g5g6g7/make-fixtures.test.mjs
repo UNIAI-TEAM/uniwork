@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -79,10 +80,29 @@ test('manifest lists the six required formats and matches the files byte for byt
     const bytes = read(entry.path);
     assert.equal(sha256(bytes), entry.sha256, `${entry.path} hash differs from the manifest`);
     assert.equal(bytes.length, entry.bytes, `${entry.path} size differs from the manifest`);
-    const oracle = JSON.parse(read(entry.oracle).toString('utf8'));
+    const oracleBytes = read(entry.oracle);
+    const oracle = JSON.parse(oracleBytes.toString('utf8'));
     assert.equal(oracle.fixtureId, entry.id);
     assert.equal(oracle.fixtureSha256, entry.sha256);
+    // The sidecar is committed too, so AC-3's hash listing has to cover it.
+    assert.match(entry.oracleSha256, /^[0-9a-f]{64}$/, `${entry.id} has no oracleSha256`);
+    assert.equal(sha256(oracleBytes), entry.oracleSha256, `${entry.oracle} hash differs from the manifest`);
   }
+});
+
+test('--list prints the sha256 of every committed fixture AND its oracle sidecar', () => {
+  const listed = spawnSync(process.execPath, [path.join(repoRoot, 'scripts/office/g5g6g7/make-fixtures.mjs'), '--list'], { encoding: 'utf8' });
+  assert.equal(listed.status, 0, listed.stderr);
+  const lines = listed.stdout.split('\n').filter(Boolean).map((line) => line.split('  '));
+  assert.equal(lines.length, manifest.fixtures.length * 2, 'every fixture and its sidecar is listed');
+  for (const entry of manifest.fixtures) {
+    assert.ok(lines.some(([hash, file]) => hash === entry.sha256 && file === entry.path), `${entry.path} is not listed`);
+    assert.ok(lines.some(([hash, file]) => hash === entry.oracleSha256 && file === entry.oracle), `${entry.oracle} is not listed`);
+    // What is printed is what is on disk, so a reader can diff it against sha256sum.
+    assert.equal(sha256(read(entry.path)), entry.sha256);
+    assert.equal(sha256(read(entry.oracle)), entry.oracleSha256);
+  }
+  assert.equal(new Set(lines.map(([, file]) => file)).size, lines.length, 'no path is listed twice');
 });
 
 test('OOXML fixtures are valid STORE zips with fixed metadata and sorted entries', () => {
@@ -124,6 +144,26 @@ test('XLSX carries every trait the spec requires', () => {
   assert.equal(oracle.sheets['Doanh thu Q1'].totals.withHiddenRows.revenue, 22060000);
   assert.equal(oracle.sheets['Doanh thu Q1'].totals.withoutHiddenRows.revenue, 18660000);
   assert.deepEqual(oracle.errorCells.map((c) => c.error), ['#DIV/0!', '#N/A', '#REF!']);
+});
+
+test('the XLSX oracle documents the share basis of Tổng hợp column E and the Z > 1 rule', () => {
+  const oracle = JSON.parse(read(`${FIXTURE_DIR}/fx-xlsx-revenue-xyz.oracle.json`).toString('utf8'));
+  const share = oracle.sheets['Tổng hợp'].shareColumn;
+  assert.equal(share.column, 'E');
+  assert.equal(share.basis, 'Q1+Q2', 'column E shares over Q1+Q2, unlike the Q1-only share in the text formats');
+  assert.equal(share.denominator, oracle.sheets['Tổng hợp'].grandTotals.q1 + oracle.sheets['Tổng hợp'].grandTotals.q2);
+  // 20.160.000 / 40.570.000 = 49,7% — the workbook figures the reviewer recomputed.
+  assert.deepEqual(share.rows.map((r) => r.shareText), ['49,7%', '27,7%', '22,6%']);
+  assert.deepEqual(share.rows.map((r) => r.cell), ['E2', 'E3', 'E4']);
+  assert.ok(share.rows.every((r) => Math.abs(r.share - r.total / share.denominator) < 1e-12));
+  assert.equal(share.totalCell, 'E5');
+  assert.match(share.formula, /\$D\$5/, 'column E divides the row total by the grand total');
+  // The E column is a share, so it must not be confused with the raw totals column D.
+  assert.equal(share.rows[0].total, oracle.sheets['Tổng hợp'].regions[0].total);
+  // F10: the Z > 1 threshold is stated, so a future Z of exactly 1 is a known trap.
+  assert.match(oracle.zRuleNote, /Z>1/, 'the oracle states the discount rule it encodes');
+  assert.match(oracle.zRuleNote, /exactly 1/);
+  assert.match(oracle.shareBasisNote, /Q1\+Q2/);
 });
 
 test('PDF has a text layer, one page and embedded fonts; MD/HTML carry their markers', () => {

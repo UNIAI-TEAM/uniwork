@@ -21,7 +21,8 @@
         "error cells: #DIV/0! (Doanh thu Q2!H5), #N/A (Doanh thu Q2!I2), #REF! (Tổng hợp!B7)",
         "cross-sheet SUMIF summary with a percent-format share column"
       ],
-      "oracle": "docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.oracle.json"
+      "oracle": "docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.oracle.json",
+      "oracleSha256": "7ecbbe369a5395e87bcc5f501f6ef0f6e64fc40929d5cb7f19730029902b0e32"
     },
     {
       "id": "fx-docx-report-vi",
@@ -38,7 +39,8 @@
         "no comments",
         "A4 page"
       ],
-      "oracle": "docs/office/g5g6g7/fixtures/fx-docx-report-vi.oracle.json"
+      "oracle": "docs/office/g5g6g7/fixtures/fx-docx-report-vi.oracle.json",
+      "oracleSha256": "d3055d0577a3e47f0fd67d241f6ed6ac490c656f2016ab1cd7be187eb3865709"
     },
     {
       "id": "fx-pptx-deck-vi",
@@ -55,7 +57,8 @@
         "table graphic frame",
         "16:9"
       ],
-      "oracle": "docs/office/g5g6g7/fixtures/fx-pptx-deck-vi.oracle.json"
+      "oracle": "docs/office/g5g6g7/fixtures/fx-pptx-deck-vi.oracle.json",
+      "oracleSha256": "4ecc1fd7635074ce4fd763702c3aae6ccfe8050b14b00185ffc883fad3502697"
     },
     {
       "id": "fx-pdf-invoice-vi",
@@ -71,7 +74,8 @@
         "embedded TrueType subsets (OFL Noto Sans)",
         "line-item table drawn with rules"
       ],
-      "oracle": "docs/office/g5g6g7/fixtures/fx-pdf-invoice-vi.oracle.json"
+      "oracle": "docs/office/g5g6g7/fixtures/fx-pdf-invoice-vi.oracle.json",
+      "oracleSha256": "484f2c3fde649fea6fc244ed900f78adfb829513f1d4b9eb32b9bfc68f552cfb"
     },
     {
       "id": "fx-md-notes-vi",
@@ -88,7 +92,8 @@
         "task list",
         "UTF-8, LF line endings"
       ],
-      "oracle": "docs/office/g5g6g7/fixtures/fx-md-notes-vi.oracle.json"
+      "oracle": "docs/office/g5g6g7/fixtures/fx-md-notes-vi.oracle.json",
+      "oracleSha256": "878bd37758dafd3e2f7eb12da5c8c37bd15f8262ea346cbc15e0bd6091e326b2"
     },
     {
       "id": "fx-html-page-vi",
@@ -105,7 +110,8 @@
         "no external resources",
         "UTF-8"
       ],
-      "oracle": "docs/office/g5g6g7/fixtures/fx-html-page-vi.oracle.json"
+      "oracle": "docs/office/g5g6g7/fixtures/fx-html-page-vi.oracle.json",
+      "oracleSha256": "f5a56d708059ec979840d33be0caa9e6ee983deb98b0e91eade0f703315c3988"
     }
   ]
 }

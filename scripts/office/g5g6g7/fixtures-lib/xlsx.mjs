@@ -257,8 +257,13 @@ export function buildXlsx() {
       revenueByRow: orders.map((o, i) => ({ row: sheet.first + i, id: o.id, revenue: revenueOf(o) })),
     };
   };
+  const grand = regionTotals().reduce((a, r) => a + r.total, 0);
   const oracle = {
     revenueFormula: 'Doanh thu = X * Y * (1 - Z); Z stored as 10 means 10 percent, as 10% means 0.1; blank means 0.',
+    zRuleNote:
+      'The discount rule is IF(Z>1, Z/100, Z): a stored Z above 1 is a percentage written as a number, so 10 means 10 percent. A Z of exactly 1 would therefore be read as 100 percent, which is why no cell stores 1; a blank Z is no discount. The same rule is what the workbook column G encodes.',
+    shareBasisNote:
+      'Tổng hợp column E ("Tỷ trọng") is each region share of Q1+Q2 revenue, while the DOCX/PPTX/MD/HTML "Tỷ trọng" column is the Q1-only share; the two are deliberately different bases and a cross-format comparison must not read them as a mismatch.',
     sheets: {
       [SHEET_Q1]: orderLayout(q1, SHEET_Q1),
       [SHEET_Q2]: orderLayout(q2, SHEET_Q2),
@@ -266,6 +271,22 @@ export function buildXlsx() {
         regions: regionTotals().map((r) => ({ ...r, cells: { q1Formula: 'SUMIF over Doanh thu Q1', q2Formula: 'SUMIF over Doanh thu Q2' } })),
         grandTotals: { q1: regionTotals().reduce((a, r) => a + r.q1, 0), q2: regionTotals().reduce((a, r) => a + r.q2, 0) },
         grandTotalRow: 5,
+        // Column E: each region share of Q1+Q2, unlike the Q1-only share in the text formats.
+        shareColumn: {
+          column: 'E',
+          header: 'Tỷ trọng',
+          basis: 'Q1+Q2',
+          formula: 'D{r}/$D$5',
+          denominator: grand,
+          rows: regionTotals().map((r, i) => ({
+            cell: `E${i + 2}`,
+            region: r.region,
+            total: r.total,
+            share: r.total / grand,
+            shareText: `${((r.total / grand) * 100).toFixed(1).replace('.', ',')}%`,
+          })),
+          totalCell: 'E5',
+        },
       },
     },
     sheetNames: sheets.map(([name]) => name),
