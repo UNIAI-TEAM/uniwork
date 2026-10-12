@@ -10,7 +10,7 @@ import { readPins } from "../../../../../apps/web/platform/office-frame/frame-he
 import { blocked, failed, ok } from "./meta.mjs";
 import { COLOR_SCHEME, DEVICE_SCALE_FACTOR, LOCALE, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORT } from "./constants.mjs";
 import { notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
-import { collectRenderedText } from "./text.mjs";
+import { collectRenderedText, frameSubtree } from "./text.mjs";
 import { REPO_ROOT } from "./playwright.mjs";
 import { cleanupSeed, seedWorkspace } from "./seed.mjs";
 import { signIn } from "./signin.mjs";
@@ -78,8 +78,16 @@ export async function captureOpenFrame(page, module, { settleOptions = SETTLE, s
     ...settleOptions,
   });
   if (result.status !== "settled") return failed(notSettledReason(result));
-  const { text } = await collectRenderedText(page);
-  return ok({ png: result.frame, text });
+  // `.txt` is the module frame's own text (and the frames inside it): the host page around it
+  // always has words (sidebar, breadcrumb, the file name), so counting it would let a blank
+  // frame pass the job's no_rendered_text. The host text goes to `.host.txt` for the brand check.
+  const iframe = host.locator("iframe").first();
+  const moduleFrame = (await host.locator("iframe").count()) > 0 ? await (await iframe.elementHandle()).contentFrame() : null;
+  const moduleFrames = moduleFrame ? frameSubtree(page, moduleFrame) : [];
+  const hostFrames = page.frames().filter((frame) => !moduleFrames.includes(frame));
+  const { text, canvasOnly } = await collectRenderedText(page, moduleFrames);
+  const { text: hostText } = await collectRenderedText(page, hostFrames);
+  return ok({ png: result.frame, text, hostText, canvasOnly });
 }
 
 /** Everything blocked/failed the same way: the result map for a host that cannot start. */

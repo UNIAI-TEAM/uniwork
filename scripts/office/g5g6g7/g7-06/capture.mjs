@@ -5,8 +5,10 @@
 //
 //   node scripts/office/g5g6g7/g7-06/capture.mjs --host desktop|web --out <captures> [--fixtures a,b] [--run-dir <dir>]
 //
-// Writes <captures>/<host>/<fixture>.{png,txt} for each ok fixture and
-// <captures>/<host>/meta.json. Exit 0 every fixture ok, 1 any failed, 77 a
+// Writes <captures>/<host>/<fixture>.{png,txt} for each ok fixture (txt = the
+// module's rendered text only), <fixture>.host.txt (web: the page around the
+// module frame) or <fixture>.shell.txt (desktop: the shell window's title and
+// text, the tab strip), and <captures>/<host>/meta.json. Exit 0 every fixture ok, 1 any failed, 77 a
 // precondition is missing (harness not up, no display, Playwright or a browser
 // not installed, no sign-in). BLOCKED is for a precondition that is really
 // absent; a render that is wrong or never settles is a failed fixture.
@@ -14,7 +16,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { EXIT_BLOCKED, EXIT_FAILED, EXIT_USAGE, HOSTS } from "./capture/constants.mjs";
 import { readFixtures, selectFixtures } from "./capture/fixtures.mjs";
-import { blocked, buildMeta, clearCapture, exitCodeFor, writeCapture, writeMeta } from "./capture/meta.mjs";
+import { blocked, buildMeta, clearCapture, exitCodeFor, pngSize, writeCapture, writeMeta } from "./capture/meta.mjs";
 import { loadPlaywright } from "./capture/playwright.mjs";
 import { defaultRunDir, readRun } from "./capture/run-dir.mjs";
 import { captureDesktop } from "./capture/desktop.mjs";
@@ -53,9 +55,10 @@ export async function runCapture({ host, out, fixtures, runDir, env = process.en
     for (const fixture of chosen) {
       const result = results[fixture.id] ?? blocked("not attempted");
       if (result.status === "ok") {
-        writeCapture(out, host, fixture.id, { png: result.png, text: result.text });
+        writeCapture(out, host, fixture.id, { png: result.png, text: result.text, hostText: result.hostText, shellText: result.shellText });
         const chars = visibleChars(result.text);
-        entries[fixture.id] = { status: "ok", reason: chars === 0 ? "rendered text is empty (the brand check will fail it as no_rendered_text)" : "" };
+        const reason = chars === 0 ? "rendered text is empty (the brand check will fail it as no_rendered_text)" : "";
+        entries[fixture.id] = { status: "ok", reason, size: pngSize(result.png) ?? undefined, canvasOnly: result.canvasOnly ?? false };
       } else {
         clearCapture(out, host, fixture.id);
         entries[fixture.id] = { status: result.status, reason: result.reason };

@@ -15,15 +15,16 @@ import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseArgs, runCapture } from "./capture.mjs";
 import { SETTLE } from "./capture/constants.mjs";
-import { desktopEnv, desktopPrecondition } from "./capture/desktop.mjs";
+import { ELECTRON_ARGS, collectShellText, desktopEnv, desktopPrecondition } from "./capture/desktop.mjs";
 import { readFixtures, selectFixtures } from "./capture/fixtures.mjs";
-import { blocked, buildMeta, clearCapture, exitCodeFor, failed, ok, writeCapture } from "./capture/meta.mjs";
+import { blocked, buildMeta, clearCapture, exitCodeFor, failed, ok, pngSize, writeCapture } from "./capture/meta.mjs";
 import { loadPlaywright } from "./capture/playwright.mjs";
 import { readRun } from "./capture/run-dir.mjs";
 import { cleanupSeed, seedWorkspace } from "./capture/seed.mjs";
-import { PROGRESS_TEXT, frameHash, notSettledReason, settle } from "./capture/settle.mjs";
-import { frameBlock, joinBlocks, visibleChars } from "./capture/text.mjs";
+import { PROGRESS_TEXT, frameHash, notSettledReason, pageIsBusy, settle } from "./capture/settle.mjs";
+import { collectRenderedText, frameBlock, joinBlocks, visibleChars } from "./capture/text.mjs";
 import { redactUrl, signIn } from "./capture/signin.mjs";
+import { loadPngjs } from "./job-lib.mjs";
 import { frameInstallState, captureOpenFrame, readFrameState } from "./capture/web.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -180,6 +181,31 @@ describe("arguments and exit codes", () => {
     clearCapture(out, "web", "fx"); // idempotent
   });
 
+  test("the web host's text around the frame goes to <id>.host.txt, the desktop shell's to <id>.shell.txt, and a failed fixture clears both", () => {
+    const out = scratch();
+    writeCapture(out, "web", "fx", { png: Buffer.from("p"), text: "module", hostText: "host page" });
+    writeCapture(out, "desktop", "fx", { png: Buffer.from("p"), text: "module", shellText: "shell window" });
+    assert.equal(readFileSync(join(out, "web", "fx.txt"), "utf8"), "module");
+    assert.equal(readFileSync(join(out, "web", "fx.host.txt"), "utf8"), "host page");
+    assert.ok(!existsSync(join(out, "web", "fx.shell.txt")));
+    assert.equal(readFileSync(join(out, "desktop", "fx.shell.txt"), "utf8"), "shell window");
+    clearCapture(out, "web", "fx");
+    clearCapture(out, "desktop", "fx");
+    for (const host of ["web", "desktop"]) for (const ext of ["png", "txt", "host.txt", "shell.txt"]) assert.ok(!existsSync(join(out, host, `fx.${ext}`)), `${host}/fx.${ext}`);
+  });
+
+  test("meta records each shot's real size and whether its frame is canvas only", () => {
+    const png = Buffer.alloc(33);
+    png.write("\x89PNG\r\n\x1a\n", 0, "latin1");
+    png.writeUInt32BE(1440, 16);
+    png.writeUInt32BE(861, 20);
+    assert.deepEqual(pngSize(png), { w: 1440, h: 861 });
+    assert.equal(pngSize(Buffer.from("not a png at all, really, no")), null);
+    const meta = buildMeta({ host: "desktop", forkSha: "x", pinVersion: "y", fixtures: { a: { status: "ok", reason: "", size: { w: 1440, h: 861 }, canvasOnly: true }, b: { status: "failed", reason: "r" } } });
+    assert.deepEqual(meta.fixtures.a, { status: "ok", reason: "", size: { w: 1440, h: 861 }, canvasOnly: true });
+    assert.deepEqual(meta.fixtures.b, { status: "failed", reason: "r" });
+  });
+
   test("the SETTLE budget needs two identical frames", () => {
     assert.ok(SETTLE.identicalFrames >= 2);
   });
@@ -283,6 +309,25 @@ describe("desktop host", () => {
     assert.equal(env.UNIWORK_API_ORIGIN, "http://127.0.0.1:9");
     assert.equal(env.GENOFFICE_USER_DATA, "/ud");
     for (const key of ["DATABASE_URL", "JWT_SECRET", "OPENAI_API_KEY"]) assert.ok(!(key in env), `${key} leaked`);
+  });
+
+  test("the desktop instance pins the device scale factor instead of trusting the display's DPI", () => {
+    assert.ok(ELECTRON_ARGS.includes("--force-device-scale-factor=1"));
+  });
+
+  test("the shell text is every window title plus the text of every shell page, never the module view", async () => {
+    const pageOf = (title, body, attrs = []) => ({ frames: () => [{ evaluate: async () => ({ title: "", body, attrs, canvasRatio: 0 }) }], _t: title });
+    const moduleView = pageOf("m", "module text");
+    const app = {
+      evaluate: async () => ["UniWork Office — Báo cáo", "UniWork Office"],
+      windows: () => [pageOf("s", "Tab: Báo cáo.docx", ["Đóng tab"]), moduleView],
+    };
+    const text = await collectShellText(app, moduleView);
+    assert.match(text, /UniWork Office — Báo cáo/);
+    assert.match(text, /Tab: Báo cáo\.docx/);
+    assert.ok(!text.includes("module text"));
+    const noTitles = await collectShellText({ evaluate: async () => { throw new Error("no electron"); }, windows: () => [pageOf("s", "Menu")] }, moduleView);
+    assert.match(noTitles, /Menu/);
   });
 
   test("with no reusable app every fixture is blocked and nothing is launched", async () => {
@@ -483,8 +528,8 @@ describe("browser-backed capture", { skip: browserSkip || false }, () => {
     );
     const r = await withPage(page, (p) => captureOpenFrame(p, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
     assert.equal(r.status, "ok", r.reason);
-    assert.match(r.text, /Đã tải đầy đủ sổ làm việc\./);
-    assert.ok(!/Đang tải theo luồng/.test(r.text), r.text);
+    assert.match(r.hostText, /Đã tải đầy đủ sổ làm việc\./);
+    assert.ok(!/Đang tải theo luồng/.test(r.hostText), r.hostText);
   });
 
   test("captureOpenFrame: a toast that fades is waited out, not masked: the shot is the one without it", async () => {
@@ -492,8 +537,14 @@ describe("browser-backed capture", { skip: browserSkip || false }, () => {
     const clean = await withPage(timed("", ""), (p) => captureOpenFrame(p, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
     const r = await withPage(page, (p) => captureOpenFrame(p, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
     assert.equal(r.status, "ok", r.reason);
-    assert.ok(!r.text.includes("Đã mở tài liệu"), r.text);
-    assert.equal(frameHash(r.png), frameHash(clean.png), "the shot taken after the toast went equals the shot of a page that never had one");
+    assert.ok(!r.hostText.includes("Đã mở tài liệu"), r.hostText);
+    // two page loads can differ by a few anti-aliased glyph pixels (the job's golden tolerance exists for that); a toast would be a block
+    const { PNG } = loadPngjs();
+    const [x, y] = [PNG.sync.read(r.png), PNG.sync.read(clean.png)];
+    assert.deepEqual([x.width, x.height], [y.width, y.height]);
+    let changed = 0;
+    for (let i = 0; i < x.data.length; i += 4) if (Math.abs(x.data[i] - y.data[i]) > 16 || Math.abs(x.data[i + 1] - y.data[i + 1]) > 16 || Math.abs(x.data[i + 2] - y.data[i + 2]) > 16) changed += 1;
+    assert.ok(changed / (x.width * x.height) < 0.001, `the shot taken after the toast went differs from a page that never had one by ${changed} px`);
   });
 
   test("captureOpenFrame: a notification that never goes fails the fixture and says which", async () => {
@@ -512,6 +563,68 @@ describe("browser-backed capture", { skip: browserSkip || false }, () => {
   test("PROGRESS_TEXT reads Vietnamese and English in-progress messages, not finished ones", () => {
     for (const busy of ["Đang tải theo luồng a.xlsx: 9 hàng khả dụng.", "Đang mở sổ làm việc", "Loading workbook", "Đang lập chỉ mục a: 3 hàng đã sẵn sàng.", "Saving…"]) assert.ok(PROGRESS_TEXT.test(busy), busy);
     for (const done of ["Đã tải đầy đủ sổ làm việc — công thức tính toán trực tiếp.", "Sẵn sàng", "Đã lưu", "Tổng cộng 12 hàng"]) assert.ok(!PROGRESS_TEXT.test(done), done);
+  });
+
+  test("web: the .txt is the module frame's text only; a blank frame under a busy host page has no rendered text (FS-1)", async () => {
+    const shell = '<nav>Thư viện tài liệu</nav><h2>Báo cáo quý I.docx</h2><p>Trang chủ / Tài liệu / Báo cáo quý I</p>';
+    const blankFrame = `<!doctype html><html><body><main>${shell}
+<section data-office-docs-frame data-office-module="docs" data-state="ready"><iframe title="Khung tài liệu" srcdoc="<!doctype html><html><body></body></html>"></iframe></section></main></body></html>`;
+    const blank = await withPage(blankFrame, (page) => captureOpenFrame(page, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
+    assert.equal(blank.status, "ok", blank.reason);
+    assert.ok(visibleChars(blank.text) < 20, `a blank frame must read as blank, got ${JSON.stringify(blank.text)}`);
+    assert.match(blank.hostText, /Thư viện tài liệu/);
+    assert.match(blank.hostText, /Báo cáo quý I\.docx/);
+    const full = await withPage(FRAME_HOST("ready"), (page) => captureOpenFrame(page, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
+    assert.match(full.text, /Báo cáo quý I/);
+    const fullWithShell = await withPage(`${shell}${FRAME_HOST("ready")}`, (page) => captureOpenFrame(page, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
+    assert.ok(!fullWithShell.text.includes("Thư viện tài liệu"), "host text must not be in the module .txt");
+    assert.ok(fullWithShell.hostText.includes("Thư viện tài liệu"));
+  });
+
+  const EXOTIC = `<!doctype html><html><head><meta charset="utf-8"><style>
+.tag::before{content:"Trước-"} .tag::after{content:" -sau"} .art::before{content:attr(data-x) "Chữ giả "}
+</style></head><body>
+<p class="tag">giữa</p>
+<div id="host"></div>
+<input value="Giá trị ô nhập" aria-label="ô"><input type="password" value="matkhau-bi-mat"><textarea>Nội dung vùng văn bản</textarea>
+<select><option>Một</option><option selected>Lựa chọn hai</option></select>
+<svg width="200" height="40"><text x="5" y="20">Nhãn SVG</text></svg>
+<script>
+const root = document.getElementById("host").attachShadow({ mode: "open" });
+root.innerHTML = '<p>Chữ trong shadow</p><button aria-label="Nút shadow">x</button><div id="inner"></div>';
+root.getElementById("inner").attachShadow({ mode: "open" }).innerHTML = "<span>Shadow lồng</span>";
+</script></body></html>`;
+
+  test("collects open shadow roots (nested too), ::before / ::after content, input / textarea / select values and SVG text; never a password (FS-4)", async () => {
+    const { text } = await withPage(EXOTIC, collectRenderedText);
+    for (const wanted of ["Trước-", "-sau", "Giá trị ô nhập", "Nội dung vùng văn bản", "Lựa chọn hai", "Nhãn SVG", "Chữ trong shadow", "Nút shadow", "Shadow lồng", "giữa"]) {
+      assert.ok(text.includes(wanted), `missing ${wanted} in ${JSON.stringify(text)}`);
+    }
+    assert.ok(!text.includes("matkhau-bi-mat"), "a password value must never be recorded");
+  });
+
+  test("brand text that only exists in a shadow root, a pseudo-element or an input value reaches the text (what the brand check reads)", async () => {
+    const page = `<!doctype html><style>.p::after{content:"GenOffice"}</style><p class="p">a</p><input value="GenSpark"><div id="h"></div><script>document.getElementById("h").attachShadow({mode:"open"}).innerHTML="<b>Gen Office</b>"</script>`;
+    const { text } = await withPage(page, collectRenderedText);
+    for (const brand of ["GenOffice", "GenSpark", "Gen Office"]) assert.ok(text.includes(brand), brand);
+  });
+
+  test("a frame that paints mainly into a canvas says so (canvasOnly); an ordinary page does not (FS-9)", async () => {
+    const canvasPage = '<!doctype html><body style="margin:0"><canvas width="780" height="500" style="display:block"></canvas></body>';
+    const canvas = await withPage(canvasPage, collectRenderedText);
+    assert.equal(canvas.canvasOnly, true);
+    assert.ok(canvas.canvasRatio >= 0.5);
+    const plain = await withPage(STATIC_PAGE, collectRenderedText);
+    assert.equal(plain.canvasOnly, false);
+    const small = await withPage('<!doctype html><p>chữ</p><canvas width="40" height="40"></canvas>', collectRenderedText);
+    assert.equal(small.canvasOnly, false);
+  });
+
+  test("a spinner inside a shadow root counts as busy (FS-6)", async () => {
+    const page = '<!doctype html><div id="h"></div><script>document.getElementById("h").attachShadow({mode:"open"}).innerHTML=\'<div role="progressbar" style="width:20px;height:20px">...</div>\'</script>';
+    const busy = await withPage(page, (p) => pageIsBusy(p));
+    assert.match(String(busy), /spinner progressbar/);
+    assert.equal(await withPage("<!doctype html><p>xong</p>", (p) => pageIsBusy(p)), false);
   });
 
   test("readFrameState reports the module's own host only", async () => {
