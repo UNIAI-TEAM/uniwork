@@ -52,6 +52,20 @@ blocked() { # blocked <what is missing> <what would fix it>
 }
 fail() { echo "FAILED: $1" >&2; exit 1; }
 
+# The Electron runtime libraries are probed from `ldconfig -p` captured once,
+# then matched with bash's own substring test — never a `ldconfig -p | grep -q`
+# pipeline. Under `set -o pipefail` a `grep -q` exits at the first match,
+# ldconfig takes SIGPIPE (141) and the pipeline's status is 141, so a PRESENT
+# library is recorded as missing and the run goes BLOCKED (reviewer_be r2 N3).
+LIBCACHE=""
+missing_libs() { # missing_libs <lib>...: prints each lib ldconfig does not list
+  [ -n "$LIBCACHE" ] || LIBCACHE="$(ldconfig -p 2> /dev/null || true)"
+  local lib
+  for lib in "$@"; do
+    case "$LIBCACHE" in *"$lib"*) ;; *) printf '%s\n' "$lib" ;; esac
+  done
+}
+
 # Every component writes its own log under the run dir, and a cloud round has to
 # be able to read the failure from those logs alone — the r1 round died on an
 # exit nobody explained and left nothing but the last stdout line. So any
@@ -184,9 +198,9 @@ NEED_XVFB=0
 LIBS_MISSING=()
 if [ "$SKIP_APP" != "1" ]; then
   command -v xvfb-run > /dev/null 2>&1 || NEED_XVFB=1
-  for lib in libnss3.so libatk-1.0.so.0 libgbm.so.1 libasound.so.2 libcups.so.2; do
-    ldconfig -p 2> /dev/null | grep -q "$lib" || LIBS_MISSING+=("$lib")
-  done
+  while IFS= read -r lib; do
+    [ -n "$lib" ] && LIBS_MISSING+=("$lib")
+  done < <(missing_libs libnss3.so libatk-1.0.so.0 libgbm.so.1 libasound.so.2 libcups.so.2)
 fi
 
 APT=""
@@ -251,9 +265,9 @@ if [ "${#LIBS_MISSING[@]}" -gt 0 ]; then
       || blocked "the Electron runtime libraries are missing and could not be installed: ${LIBS_MISSING[*]}" "run as root or with passwordless sudo; see $RUN_DIR/logs/apt.log"
   fi
   libs_still=()
-  for lib in libnss3.so libatk-1.0.so.0 libgbm.so.1 libasound.so.2 libcups.so.2; do
-    ldconfig -p 2> /dev/null | grep -q "$lib" || libs_still+=("$lib")
-  done
+  while IFS= read -r lib; do
+    [ -n "$lib" ] && libs_still+=("$lib")
+  done < <(missing_libs libnss3.so libatk-1.0.so.0 libgbm.so.1 libasound.so.2 libcups.so.2)
   [ "${#libs_still[@]}" -eq 0 ] \
     || blocked "the Electron runtime libraries are still missing: ${libs_still[*]}" "see $RUN_DIR/logs/apt.log"
 fi

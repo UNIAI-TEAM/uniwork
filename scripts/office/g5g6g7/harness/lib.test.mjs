@@ -220,7 +220,7 @@ test("the lib.mjs CLI modes answer and name the mode on a bad call", () => {
  * on the path start.sh execs, pnpm/electron sleep) — this is the "dry-run with a
  * fake server/web" the fix asks for, not a stand-in for the real stack.
  */
-function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true } = {}) {
+function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), "harness-start-"));
   const bin = join(root, "bin");
   const harness = join(root, "scripts", "office", "g5g6g7", "harness");
@@ -251,7 +251,23 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true 
   shim("curl", network
     ? "#!/usr/bin/env bash\nexit 0\n"
     : "#!/usr/bin/env bash\nfor a in \"$@\"; do case \"$a\" in */info/refs*) exit 7 ;; esac; done\nexit 0\n");
-  shim("ldconfig", "#!/usr/bin/env bash\nprintf 'libnss3.so\\nlibatk-1.0.so.0\\nlibgbm.so.1\\nlibasound.so.2\\nlibcups.so.2\\n'\n");
+  // The default stub lists the five libraries at once. `libsSigpipe` mimics the
+  // real `ldconfig -p` (hundreds of lines): it names the five first and then
+  // writes far more than a pipe buffer, so a reader that exits at the first
+  // match (`grep -q`) leaves it writing into a closed pipe and it dies of
+  // SIGPIPE (141). start.sh must not read ldconfig that way (reviewer_be r2 N3).
+  if (libsSigpipe) {
+    shim("ldconfig", [
+      "#!/usr/bin/env bash",
+      "printf 'libnss3.so\\nlibatk-1.0.so.0\\nlibgbm.so.1\\nlibasound.so.2\\nlibcups.so.2\\n'",
+      "# an external writer: it dies of SIGPIPE when the reader exits early, the",
+      "# way the real ldconfig does (a bash builtin would swallow EPIPE instead)",
+      "seq 1 100000",
+      "",
+    ].join("\n"));
+  } else {
+    shim("ldconfig", "#!/usr/bin/env bash\nprintf 'libnss3.so\\nlibatk-1.0.so.0\\nlibgbm.so.1\nlibasound.so.2\nlibcups.so.2\n'\n");
+  }
   shim("git", "#!/usr/bin/env bash\ncase \"$1\" in rev-parse) echo 1111111111111111111111111111111111111111; exit 0 ;; esac\nexit 0\n");
   shim("xvfb-run", "#!/usr/bin/env bash\nwhile [ \"$#\" -gt 0 ]; do case \"$1\" in --*) shift ;; --*=*) shift ;; *) break ;; esac; done\nexport DISPLAY=:99\nexec \"$@\"\n");
   shim("fake-electron", "#!/usr/bin/env bash\nsleep 600\n");
@@ -357,6 +373,26 @@ test("start.sh reaches up through the real lib.mjs fork-dir call (fake stack)", 
     for (const name of ["server-build.log", "migrate.log", "server.log", "web.log", "app.log"]) {
       assert.ok(existsSync(join(stack.runDir, "logs", name)), `missing ${name}`);
     }
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("a present library is not reported missing when ldconfig writes past a pipe buffer", () => {
+  // reviewer_be r2 N3: `ldconfig -p 2>/dev/null | grep -q "$lib"` under
+  // `set -o pipefail` reports a PRESENT library as missing — grep -q exits at
+  // the first match, ldconfig takes SIGPIPE (141), and 141 is the pipeline's
+  // status, so start.sh went BLOCKED (77) on a host where the libraries are
+  // there. The stub writes the five names first and then far more than a pipe
+  // buffer, so a first-match reader is guaranteed to leave it writing.
+  const stack = mkFakeStack({ libsSigpipe: true });
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status} (expected 0; a present library must not read as missing)\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /harness: up/);
+    // The "libraries are missing" notice is start.sh's own stdout line; on the
+    // old pipeline it appeared even though the stub lists all five libraries.
+    assert.doesNotMatch(result.stdout, /the Electron runtime libraries are missing/);
   } finally {
     stopFakeStack(stack);
   }
