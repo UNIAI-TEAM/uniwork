@@ -130,3 +130,24 @@ SELECT * FROM audit_events
 WHERE correlation_id = $1 AND action = $2 AND resource_id = $3
 ORDER BY occurred_at DESC
 LIMIT 1;
+
+-- name: InsertAuditEventsBatch :exec
+-- tenant: system
+-- Chỉ package internal/audit được gọi câu này (arch_test.go giữ luật): the
+-- multi-row form of InsertAuditEvent for one command that touches many rows
+-- (a folder archive). rows is a JSON array with one object per audit row; an
+-- empty workspace_id / request_id / ip_address / user_agent is NULL.
+INSERT INTO audit_events (
+  id, organization_id, workspace_id, actor_kind, actor_id, action,
+  resource_type, resource_id, changes, metadata, correlation_id,
+  request_id, ip_address, user_agent, occurred_at
+)
+SELECT
+  t.id, t.organization_id, NULLIF(t.workspace_id, ''), t.actor_kind, t.actor_id, t.action,
+  t.resource_type, t.resource_id, t.changes, t.metadata, t.correlation_id,
+  NULLIF(t.request_id, ''), NULLIF(t.ip_address, ''), NULLIF(t.user_agent, ''), now()
+FROM jsonb_to_recordset(sqlc.arg(rows)::jsonb) AS t(
+  id text, organization_id text, workspace_id text, actor_kind text, actor_id text, action text,
+  resource_type text, resource_id text, changes text, metadata text, correlation_id text,
+  request_id text, ip_address text, user_agent text
+);

@@ -47,7 +47,120 @@ const (
 	// compaction drops automatic snapshots above it; manual, restore and
 	// upload versions are always kept.
 	documentVersionKeep = 500
+	// documentArchiveMaxNodes bounds one archive or restore: the command holds
+	// the workspace tree lock and writes one audit and outbox row per node, so
+	// a subtree past this is archived in parts.
+	documentArchiveMaxNodes = 1000
 )
+
+// archiveBound is the node bound one archive or restore accepts.
+func (s *DocumentService) archiveBound() int {
+	if s.archiveMaxNodes > 0 {
+		return s.archiveMaxNodes
+	}
+	return documentArchiveMaxNodes
+}
+
+func errFolderTooLarge(verb string) error {
+	return coded(http.StatusUnprocessableEntity, "folder_too_large",
+		"thư mục có quá nhiều mục để "+verb+" một lần (tối đa 1000): hãy "+verb+" từng phần")
+}
+
+// requireManageOnSubtree refuses (ErrForbidden) unless the actor holds manage
+// on every live node of the subtree. One query names the nodes a human actor
+// does not trivially manage (workspace owner/admin, ACL owner, a user or
+// organization manage share); only those get the full effectiveLevel, and the
+// first refusal ends the walk. Anyone else is checked node by node, bounded by
+// documentArchiveMaxNodes.
+func (s *DocumentService) requireManageOnSubtree(ctx context.Context, q *db.Queries, actor Actor, root db.Document, live []string) error {
+	check := live
+	if actor.Kind == audit.KindHuman {
+		isMember, isAdmin, err := s.workspaceManageHints(ctx, q, root.WorkspaceID, actor.ID)
+		if err != nil {
+			return err
+		}
+		check, err = q.ListDocumentSubtreeNeedingAccessCheck(ctx, db.ListDocumentSubtreeNeedingAccessCheckParams{
+			IsWsAdmin: isAdmin, IsWsMember: isMember, ActorID: actor.ID,
+			OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, RootID: root.ID,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	for _, id := range check {
+		node, err := q.GetDocument(ctx, db.GetDocumentParams{
+			ID: id, OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID,
+		})
+		if err != nil {
+			return err
+		}
+		if err := s.requireManageOn(ctx, q, actor, node); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// requireManageOnArchived is the restore twin: the batch members are already
+// loaded, so the trivial paths are read off the rows themselves.
+func (s *DocumentService) requireManageOnArchived(ctx context.Context, q *db.Queries, actor Actor, members []db.Document) error {
+	var isMember, isAdmin bool
+	if actor.Kind == audit.KindHuman && len(members) > 0 {
+		var err error
+		isMember, isAdmin, err = s.workspaceManageHints(ctx, q, members[0].WorkspaceID, actor.ID)
+		if err != nil {
+			return err
+		}
+	}
+	for _, m := range members {
+		if !m.ArchivedAt.Valid {
+			continue
+		}
+		if !m.OwnerKind.Valid && (isAdmin || (isMember && m.AclOwnerID.Valid && m.AclOwnerID.String == actor.ID)) {
+			continue
+		}
+		lvl, err := s.effectiveLevel(ctx, q, actor, m)
+		if err != nil {
+			return err
+		}
+		if !lvl.Level.AtLeast(DocumentLevelManage) {
+			return ErrForbidden
+		}
+	}
+	return nil
+}
+
+// requireManageOn is the per-node answer: manage, or ErrForbidden (a node the
+// caller cannot even read is a refusal of the whole command, never a 404 that
+// would hide the orphan it would leave).
+func (s *DocumentService) requireManageOn(ctx context.Context, q *db.Queries, actor Actor, node db.Document) error {
+	lvl, err := s.effectiveLevel(ctx, q, actor, node)
+	if err != nil {
+		return err
+	}
+	if err := decideDocumentAccess(node, lvl, DocumentLevelManage); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ErrForbidden
+		}
+		return err
+	}
+	return nil
+}
+
+// workspaceManageHints reads the actor's workspace membership once: whether
+// they are a member and whether the role (organization owners/admins count as
+// workspace admins in RequireMember) gives manage on every non-owned document.
+func (s *DocumentService) workspaceManageHints(ctx context.Context, q *db.Queries, workspaceID, userID string) (isMember, isAdmin bool, err error) {
+	m, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID)
+	switch {
+	case err == nil:
+		return true, m.Role == "owner" || m.Role == "admin", nil
+	case errors.Is(err, ErrForbidden):
+		return false, false, nil
+	default:
+		return false, false, closedTenantOrNil(err)
+	}
+}
 
 // DocumentOwnerPurger is the §13.6 seam the purge sweep delegates to first:
 // the owning service purges its own expired rows inside whatever
@@ -95,36 +208,22 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 			}
 			return DocumentArchiveResult{View: view, BatchID: doc.ArchiveBatchID.String}, nil
 		}
-		subtree, err := q.ListDocumentSubtree(ctx, db.ListDocumentSubtreeParams{
+		// One bounded read of the live subtree: a huge folder is refused before
+		// any lock-holding work, and the access check below is one query.
+		live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
+			MaxRows: int32(s.archiveBound()) + 1,
 		})
 		if err != nil {
 			return DocumentArchiveResult{}, err
 		}
-		var live []string
-		for _, n := range subtree {
-			if n.ArchivedAt.Valid {
-				continue
-			}
-			node, err := q.GetDocument(ctx, db.GetDocumentParams{
-				ID: n.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-			})
-			if err != nil {
-				return DocumentArchiveResult{}, err
-			}
-			lvl, err := s.effectiveLevel(ctx, q, actor, node)
-			if err != nil {
-				return DocumentArchiveResult{}, err
-			}
-			// Never archive a restricted child the caller cannot manage:
-			// refuse the whole command, never leave the child orphaned live.
-			if err := decideDocumentAccess(node, lvl, DocumentLevelManage); err != nil {
-				if errors.Is(err, ErrNotFound) {
-					return DocumentArchiveResult{}, ErrForbidden
-				}
-				return DocumentArchiveResult{}, err
-			}
-			live = append(live, node.ID)
+		if len(live) > s.archiveBound() {
+			return DocumentArchiveResult{}, errFolderTooLarge("lưu trữ")
+		}
+		// Never archive a restricted child the caller cannot manage: refuse the
+		// whole command, never leave the child orphaned live.
+		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
+			return DocumentArchiveResult{}, err
 		}
 		batch := util.NewID()
 		stamped, err := q.ArchiveDocumentBatch(ctx, db.ArchiveDocumentBatchParams{
@@ -135,20 +234,27 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 		if err != nil {
 			return DocumentArchiveResult{}, err
 		}
+		// One audit row and one outbox row per node, written in one statement
+		// per table: the trail stays per document, the round trips do not.
+		recs := make([]audit.Recorded, 0, len(stamped))
 		for _, id := range stamped {
-			if err := auditRecorder.Record(ctx, q, audit.Entry{
-				OrganizationID: doc.OrganizationID,
-				WorkspaceID:    doc.WorkspaceID,
-				Actor:          actor,
-				Action:         audit.ActionDocumentArchived,
-				ResourceType:   "document",
-				ResourceID:     id,
-				Metadata:       map[string]any{"archive_batch_id": batch},
-			}, audit.Event{Topic: "document.archived", Payload: map[string]string{
-				"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
-			}}); err != nil {
-				return DocumentArchiveResult{}, err
-			}
+			recs = append(recs, audit.Recorded{
+				Entry: audit.Entry{
+					OrganizationID: doc.OrganizationID,
+					WorkspaceID:    doc.WorkspaceID,
+					Actor:          actor,
+					Action:         audit.ActionDocumentArchived,
+					ResourceType:   "document",
+					ResourceID:     id,
+					Metadata:       map[string]any{"archive_batch_id": batch},
+				},
+				Events: []audit.Event{{Topic: "document.archived", Payload: map[string]string{
+					"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
+				}}},
+			})
+		}
+		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
+			return DocumentArchiveResult{}, err
 		}
 		doc.ArchiveBatchID = pgtype.Text{String: batch, Valid: true}
 		doc.ArchivedAt = pgtype.Timestamptz{Time: s.now(), Valid: true}
@@ -182,19 +288,13 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 			}
 			members = rows
 		}
+		if len(members) > s.archiveBound() {
+			return DocumentArchiveResult{}, errFolderTooLarge("khôi phục")
+		}
 		// Manage on every member still archived: a batch comes back whole or
 		// not at all.
-		for _, m := range members {
-			if !m.ArchivedAt.Valid {
-				continue
-			}
-			lvl, err := s.effectiveLevel(ctx, q, actor, m)
-			if err != nil {
-				return DocumentArchiveResult{}, err
-			}
-			if !lvl.Level.AtLeast(DocumentLevelManage) {
-				return DocumentArchiveResult{}, ErrForbidden
-			}
+		if err := s.requireManageOnArchived(ctx, q, actor, members); err != nil {
+			return DocumentArchiveResult{}, err
 		}
 		var restored []string
 		if batch != "" {
@@ -250,20 +350,25 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 				return DocumentArchiveResult{}, err
 			}
 		}
+		recs := make([]audit.Recorded, 0, len(restored))
 		for _, id := range restored {
-			if err := auditRecorder.Record(ctx, q, audit.Entry{
-				OrganizationID: doc.OrganizationID,
-				WorkspaceID:    doc.WorkspaceID,
-				Actor:          actor,
-				Action:         audit.ActionDocumentRestored,
-				ResourceType:   "document",
-				ResourceID:     id,
-				Metadata:       map[string]any{"archive_batch_id": batch},
-			}, audit.Event{Topic: "document.restored", Payload: map[string]string{
-				"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
-			}}); err != nil {
-				return DocumentArchiveResult{}, err
-			}
+			recs = append(recs, audit.Recorded{
+				Entry: audit.Entry{
+					OrganizationID: doc.OrganizationID,
+					WorkspaceID:    doc.WorkspaceID,
+					Actor:          actor,
+					Action:         audit.ActionDocumentRestored,
+					ResourceType:   "document",
+					ResourceID:     id,
+					Metadata:       map[string]any{"archive_batch_id": batch},
+				},
+				Events: []audit.Event{{Topic: "document.restored", Payload: map[string]string{
+					"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
+				}}},
+			})
+		}
+		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
+			return DocumentArchiveResult{}, err
 		}
 		fresh, err := q.GetDocument(ctx, db.GetDocumentParams{
 			ID: doc.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,

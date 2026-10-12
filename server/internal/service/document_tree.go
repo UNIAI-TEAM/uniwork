@@ -191,15 +191,18 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 		if parent.OwnerKind.Valid || parent.ArchivedAt.Valid {
 			return DocumentView{}, ErrNotFound
 		}
-		if !childKindAllowed(parent.Kind, doc.Kind) {
-			return DocumentView{}, errDocumentParentKind()
-		}
 		paccess, err := s.effectiveLevel(ctx, q, actor, parent)
 		if err != nil {
 			return DocumentView{}, err
 		}
 		if err := decideDocumentAccess(parent, paccess, DocumentLevelEdit); err != nil {
 			return DocumentView{}, err
+		}
+		// After the access gate, like lockPageParent: a parent the caller
+		// cannot read answers 404 whatever its kind, so the 422 never says
+		// whether a restricted document is a folder.
+		if !childKindAllowed(parent.Kind, doc.Kind) {
+			return DocumentView{}, errDocumentParentKind()
 		}
 		if inSubtree[parent.ID] {
 			return DocumentView{}, errDocumentCycle()
@@ -224,6 +227,9 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 			return DocumentView{}, err
 		}
 	}
+	// Visibility is deliberately untouched: it is inherited only when a document
+	// is created (CreatePage, CreateFileDocument), never on a move, so a
+	// restricted folder is not a boundary around what is moved into it.
 	updated, err := q.MoveDocument(ctx, db.MoveDocumentParams{
 		ParentID:         nullText(in.ParentID),
 		Position:         position,

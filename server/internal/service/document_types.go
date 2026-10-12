@@ -118,6 +118,10 @@ type DocumentService struct {
 	ownerLevelSet bool
 	ownerPurger   DocumentOwnerPurger
 
+	// archiveMaxNodes overrides documentArchiveMaxNodes; tests set it so the
+	// bound needs a handful of rows, not a thousand. Zero means the default.
+	archiveMaxNodes int
+
 	// clock is the service's time source; tests inject it so the retention
 	// and auto-version workers never wait for real time.
 	clock func() time.Time
