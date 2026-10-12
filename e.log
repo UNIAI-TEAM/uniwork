@@ -1,0 +1,6 @@
+$ npm run check:english-comments
+
+> genoffice@0.1.0 check:english-comments
+> node tools/check-english-comments.mjs
+
+check-english-comments: OK

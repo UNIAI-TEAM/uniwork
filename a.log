@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -7
+956556c7cddf10e059e9e3ea3d0548a0ed5a87eb
+0d03b185c8060bafc4e2afe7173e0a10260465bd
+956556c7 feat(office): bundle manifest records protocolSha256 of the frame protocol
+9d8b049b feat(office): editorDirtyStates and detached windows report aiRunning
+737ea454 feat(office): docs, sheets, slides, markdown and html preloads expose reportAiRun
+354b3cda feat(office): AI run signal registry in shell main + pdf preload bridge
+ed580a53 feat(office): every frame claims download; uniworkAi stays unclaimed
+d81a2536 feat(office): frame protocol messages for new versions, downloads and AI turns
+0d03b185 fix(shell): prettier on the G files; the signed-out reopen test waits for the save instead of sleeping 20 ms
