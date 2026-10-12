@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4
+c939a37c73a6cedd695a2001cd7329326d7b8d21
+e6862e5302805bd6a25893e6ff2c082a2dca3a34
+c939a37c test(markdown): pin the SSRF guard and size cap on AI image URL fetches
+8e8ed499 test(docs): pin the SSRF guard and size cap on AI image URL fetches
+7e1bf4c0 feat(markdown): add ask_clarification with a questionnaire card (C-ASK)
+188b9139 test(markdown): pin ask_clarification for the markdown AI (C-ASK)

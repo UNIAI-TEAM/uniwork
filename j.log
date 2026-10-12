@@ -1,0 +1,383 @@
+$ git checkout e6862e53 -- apps/docs/src apps/markdown/src && (cd apps/docs && npx vitest run tests/g6-12-field-allowlist.test.ts tests/g6-12-create-document-bound.test.ts tests/g6-12-mutated-flags.test.ts tests/g6-12-side-state-rollback.test.ts tests/g6-12-define-style-description.test.ts tests/g6-12-ask-clarification.test.ts); RD=$?; (cd apps/markdown && npx vitest run tests/g6-12-ask-clarification.test.ts); RM=$?; git checkout HEAD -- apps/docs/src apps/markdown/src; git status --short apps/docs/src apps/markdown/src; echo "RED_EXIT docs=$RD markdown=$RM"; test $RD -ne 0 -a $RM -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ❯ tests/g6-12-ask-clarification.test.ts (7 tests | 6 failed) 177ms
+     × has html’s input schema and a docs-specific description 4ms
+     × blocks on the card and returns the answers, mutated: false 70ms
+     × returns the skipped result when the card is cancelled 18ms
+     × errors without a card host or without usable questions 23ms
+     × is offered by the skill when the panel hosts the card, also on a view-only document 17ms
+     × has its strings in every locale 1ms
+ ❯ tests/g6-12-field-allowlist.test.ts (16 tests | 12 failed) 255ms
+     × rejects DDE (also in lower case) and leaves the document unchanged 73ms
+     × rejects DDEAUTO (also in lower case) and leaves the document unchanged 18ms
+     × rejects LINK (also in lower case) and leaves the document unchanged 11ms
+     × rejects IMPORT (also in lower case) and leaves the document unchanged 14ms
+     × rejects INCLUDE (also in lower case) and leaves the document unchanged 11ms
+     × rejects DATABASE (also in lower case) and leaves the document unchanged 11ms
+     × rejects MACROBUTTON (also in lower case) and leaves the document unchanged 12ms
+     × rejects AUTOTEXT (also in lower case) and leaves the document unchanged 8ms
+     × rejects ASK (also in lower case) and leaves the document unchanged 12ms
+     × rejects FILLIN (also in lower case) and leaves the document unchanged 7ms
+     × rejects SOMEUNKNOWNFIELD (also in lower case) and leaves the document unchanged 8ms
+     × does not mark existing DDE / INCLUDE / LINK fields dirty, but still marks safe ones 13ms
+ ❯ tests/g6-12-define-style-description.test.ts (2 tests | 2 failed) 7ms
+     × names no tool that does not exist 5ms
+     × names the real path: the applyStyle op of apply_ops 1ms
+ ❯ tests/g6-12-mutated-flags.test.ts (5 tests | 5 failed) 125ms
+     × resolve_comment 75ms
+     × set_header_footer 13ms
+     × define_style 12ms
+     × set_page_setup 12ms
+     × set_watermark 11ms
+ ❯ tests/g6-12-create-document-bound.test.ts (3 tests | 2 failed) 94ms
+     × is not offered to the model 66ms
+     × refuses a call without touching the bridge 17ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 27 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ask_clarification tool (docs) > has html’s input schema and a docs-specific description
+AssertionError: expected undefined to be defined
+ ❯ tests/g6-12-ask-clarification.test.ts:95:17
+     93|   it('has html’s input schema and a docs-specific description', () => {
+     94|     const def = AGENT_TOOLS.find((t) => t.name === 'ask_clarification')
+     95|     expect(def).toBeDefined()
+       |                 ^
+     96|     expect(JSON.stringify(def!.inputSchema)).toBe(JSON.stringify(HTML_…
+     97|     expect(def!.description).not.toContain('plan_page')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/27]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ask_clarification tool (docs) > blocks on the card and returns the answers, mutated: false
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+ ❯ tests/g6-12-ask-clarification.test.ts:108:17
+    106|     const { out, unchanged } = run(QUESTIONS, ask)
+    107|     const exec = await out
+    108|     expect(ask).toHaveBeenCalledTimes(1)
+       |                 ^
+    109|     expect(seen).toHaveLength(1)
+    110|     expect(seen[0]!.options).toEqual(['Intro', 'Whole document', 'a', …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/27]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ask_clarification tool (docs) > returns the skipped result when the card is cancelled
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-12-ask-clarification.test.ts:121:26
+    119|   it('returns the skipped result when the card is cancelled', async ()…
+    120|     const exec = await run(QUESTIONS, async () => ({ answers: '', canc…
+    121|     expect(exec.isError).toBeFalsy()
+       |                          ^
+    122|     expect(exec.mutated).toBe(false)
+    123|     expect(exec.output).toBe(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/27]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ask_clarification tool (docs) > errors without a card host or without usable questions
+AssertionError: expected 'unknown tool: ask_clarification' to be 'questions must be non-empty and every…' // Object.is equality
+
+Expected: "questions must be non-empty and every question needs options"
+Received: "unknown tool: ask_clarification"
+
+ ❯ tests/g6-12-ask-clarification.test.ts:136:24
+    134|     })).out
+    135|     expect(bad.isError).toBe(true)
+    136|     expect(bad.output).toBe('questions must be non-empty and every que…
+       |                        ^
+    137|   })
+    138|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/27]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ask_clarification tool (docs) > is offered by the skill when the panel hosts the card, also on a view-only document
+AssertionError: expected [ 'get_document_context', …(35) ] to include 'ask_clarification'
+ ❯ tests/g6-12-ask-clarification.test.ts:159:50
+    157|         () => ask,
+    158|       )
+    159|     expect(args(false).tools.map((t) => t.name)).toContain('ask_clarif…
+       |                                                  ^
+    160|     expect(args(true).tools.map((t) => t.name)).toContain('ask_clarifi…
+    161|     expect(READ_ONLY_TOOLS.has('ask_clarification')).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/27]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ClarifyCard (docs) > has its strings in every locale
+AssertionError: zh.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-ask-clarification.test.ts:215:67
+    213|     const keys = ['aiClarifyTitle', 'aiClarifySkip', 'aiClarifySubmit'…
+    214|     for (const [lang, dict] of Object.entries(dicts))
+    215|       for (const key of keys) expect(dict[key], `${lang}.${key}`).toBe…
+       |                                                                   ^
+    216|     expect(dicts.vi!.aiClarifyTitle).not.toBe(dicts.en!.aiClarifyTitle)
+    217|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/27]⎯
+
+ FAIL  tests/g6-12-create-document-bound.test.ts > create_document on a UniWork-bound document > is not offered to the model
+AssertionError: expected [ 'get_document_context', …(35) ] to not include 'create_document'
+ ❯ tests/g6-12-create-document-bound.test.ts:54:23
+     52|     const skill = skillFor(createEditor(), true)
+     53|     const names = skill.tools.map((t) => t.name)
+     54|     expect(names).not.toContain('create_document')
+       |                       ^
+     55|     expect(names).toContain('insert_content')
+     56|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/27]⎯
+
+ FAIL  tests/g6-12-create-document-bound.test.ts > create_document on a UniWork-bound document > refuses a call without touching the bridge
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-create-document-bound.test.ts:69:28
+     67|         input: { type: 'docx', title: 'Leak', content: '<p>secret</p>'…
+     68|       })
+     69|       expect(exec.isError).toBe(true)
+       |                            ^
+     70|       expect(exec.mutated).toBe(false)
+     71|       expect(exec.output).toMatch(/UniWork/)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/27]⎯
+
+ FAIL  tests/g6-12-define-style-description.test.ts > define_style description > names no tool that does not exist
+AssertionError: expected 'Create a style or change the definiti…' not to contain 'apply_style'
+
+Expected: "apply_style"
+Received: "Create a style or change the definition of an existing one (paragraph, character or table style in styles.xml). Only the fields given change; everything else the style already defines is kept. Paragraphs using the style pick the change up automatically. Use apply_style (or the applyStyle op) to put a style on paragraphs. Existing style ids are listed by list_styles / in the tool output."
+
+ ❯ tests/g6-12-define-style-description.test.ts:12:33
+     10|   it('names no tool that does not exist', () => {
+     11|     expect(names.has('apply_style')).toBe(false)
+     12|     expect(def.description).not.toContain('apply_style')
+       |                                 ^
+     13|   })
+     14|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/27]⎯
+
+ FAIL  tests/g6-12-define-style-description.test.ts > define_style description > names the real path: the applyStyle op of apply_ops
+AssertionError: expected 'Create a style or change the definiti…' to contain 'apply_ops'
+
+Expected: "apply_ops"
+Received: "Create a style or change the definition of an existing one (paragraph, character or table style in styles.xml). Only the fields given change; everything else the style already defines is kept. Paragraphs using the style pick the change up automatically. Use apply_style (or the applyStyle op) to put a style on paragraphs. Existing style ids are listed by list_styles / in the tool output."
+
+ ❯ tests/g6-12-define-style-description.test.ts:17:29
+     15|   it('names the real path: the applyStyle op of apply_ops', () => {
+     16|     expect(names.has('apply_ops')).toBe(true)
+     17|     expect(def.description).toContain('apply_ops')
+       |                             ^
+     18|     expect(def.description).toContain('applyStyle')
+     19|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/27]⎯
+
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects DDE (also in lower case) and leaves the document unchanged
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects DDEAUTO (also in lower case) and leaves the document unchanged
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects LINK (also in lower case) and leaves the document unchanged
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects IMPORT (also in lower case) and leaves the document unchanged
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects INCLUDE (also in lower case) and leaves the document unchanged
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects DATABASE (also in lower case) and leaves the document unchanged
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects MACROBUTTON (also in lower case) and leaves the document unchanged
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects AUTOTEXT (also in lower case) and leaves the document unchanged
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects ASK (also in lower case) and leaves the document unchanged
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects FILLIN (also in lower case) and leaves the document unchanged
+ FAIL  tests/g6-12-field-allowlist.test.ts > insertField allowlist > rejects SOMEUNKNOWNFIELD (also in lower case) and leaves the document unchanged
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-12-field-allowlist.test.ts:81:28
+     79|           { op: 'insertField', target: at(0), type: t, args: 'x', resu…
+     80|         ])
+     81|         expect(outcome.ok).toBe(false)
+       |                            ^
+     82|         expect(outcome.error).toMatch(/cannot be inserted/)
+     83|       }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/27]⎯
+
+ FAIL  tests/g6-12-field-allowlist.test.ts > updateFields scope "all" and external-fetch fields > does not mark existing DDE / INCLUDE / LINK fields dirty, but still marks safe ones
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-12-field-allowlist.test.ts:117:57
+    115|     expect(outcome.ok, outcome.error).toBe(true)
+    116|     const dirty = dirtyByInstr(editor)
+    117|     expect(dirty['DDEAUTO excel "C:\\\\x.xls" "R1C1"']).toBe(false)
+       |                                                         ^
+    118|     expect(dirty['DDE excel x R1C1']).toBe(false)
+    119|     expect(dirty['INCLUDETEXT "http://evil.example/x.docx"']).toBe(fal…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/27]⎯
+
+ FAIL  tests/g6-12-mutated-flags.test.ts > side-state tools declare mutated: true > resolve_comment
+ FAIL  tests/g6-12-mutated-flags.test.ts > side-state tools declare mutated: true > set_header_footer
+ FAIL  tests/g6-12-mutated-flags.test.ts > side-state tools declare mutated: true > define_style
+ FAIL  tests/g6-12-mutated-flags.test.ts > side-state tools declare mutated: true > set_page_setup
+ FAIL  tests/g6-12-mutated-flags.test.ts > side-state tools declare mutated: true > set_watermark
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-12-mutated-flags.test.ts:15:28
+     13|       const exec = await call(createEditor(), name, input, access)
+     14|       expect(exec.isError, exec.output).toBeFalsy()
+     15|       expect(exec.mutated).toBe(true)
+       |                            ^
+     16|     })
+     17|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/27]⎯
+
+
+ Test Files  5 failed | 1 passed (6)
+      Tests  27 failed | 9 passed (36)
+   Start at  14:43:15
+   Duration  4.74s (transform 5.58s, setup 0ms, import 10.24s, tests 774ms, environment 2.31s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ❯ tests/g6-12-ask-clarification.test.ts (7 tests | 6 failed) 156ms
+     × has html’s input schema and a markdown-specific description 4ms
+     × blocks on the card and returns the answers, mutated: false 84ms
+     × returns the skipped result when the card is cancelled 19ms
+     × errors without a card host or without usable questions 11ms
+     × is offered by the skill when the panel hosts the card, also on a view-only document 11ms
+     × has its strings in every locale 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ask_clarification tool (markdown) > has html’s input schema and a markdown-specific description
+AssertionError: expected undefined to be defined
+ ❯ tests/g6-12-ask-clarification.test.ts:90:17
+     88|   it('has html’s input schema and a markdown-specific description', ()…
+     89|     const def = AGENT_TOOLS.find((t) => t.name === 'ask_clarification')
+     90|     expect(def).toBeDefined()
+       |                 ^
+     91|     expect(JSON.stringify(def!.inputSchema)).toBe(JSON.stringify(HTML_…
+     92|     expect(def!.description).not.toContain('plan_page')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ask_clarification tool (markdown) > blocks on the card and returns the answers, mutated: false
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+ ❯ tests/g6-12-ask-clarification.test.ts:103:17
+    101|     const { out, unchanged } = run(QUESTIONS, ask)
+    102|     const exec = await out
+    103|     expect(ask).toHaveBeenCalledTimes(1)
+       |                 ^
+    104|     expect(seen).toHaveLength(1)
+    105|     expect(seen[0]!.options).toEqual(['Intro', 'Whole document', 'a', …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ask_clarification tool (markdown) > returns the skipped result when the card is cancelled
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-12-ask-clarification.test.ts:116:26
+    114|   it('returns the skipped result when the card is cancelled', async ()…
+    115|     const exec = await run(QUESTIONS, async () => ({ answers: '', canc…
+    116|     expect(exec.isError).toBeFalsy()
+       |                          ^
+    117|     expect(exec.mutated).toBe(false)
+    118|     expect(exec.output).toBe(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ask_clarification tool (markdown) > errors without a card host or without usable questions
+AssertionError: expected undefined to be false // Object.is equality
+
+- Expected:
+false
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-ask-clarification.test.ts:126:26
+    124|     const none = await run(QUESTIONS).out
+    125|     expect(none.isError).toBe(true)
+    126|     expect(none.mutated).toBe(false)
+       |                          ^
+    127|     const bad = await run({ questions: [{ id: 'x', label: 'L', options…
+    128|       answers: '',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ask_clarification tool (markdown) > is offered by the skill when the panel hosts the card, also on a view-only document
+AssertionError: expected [ 'get_document_context', …(7) ] to include 'ask_clarification'
+ ❯ tests/g6-12-ask-clarification.test.ts:146:51
+    144|         withAsk ? () => ask : undefined,
+    145|       )
+    146|     expect(skill(false).tools.map((t) => t.name)).toContain('ask_clari…
+       |                                                   ^
+    147|     expect(skill(true).tools.map((t) => t.name)).toContain('ask_clarif…
+    148|     expect(skill(false, false).tools.map((t) => t.name)).not.toContain…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > ClarifyCard (markdown) > has its strings in every locale
+AssertionError: zh.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-ask-clarification.test.ts:208:67
+    206|     const keys = ['aiClarifyTitle', 'aiClarifySkip', 'aiClarifySubmit'…
+    207|     for (const [lang, dict] of Object.entries(dicts))
+    208|       for (const key of keys) expect(dict[key], `${lang}.${key}`).toBe…
+       |                                                                   ^
+    209|     expect(dicts.vi!.aiClarifyTitle).not.toBe(dicts.en!.aiClarifyTitle)
+    210|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 1 passed (7)
+   Start at  14:43:20
+   Duration  1.42s (transform 610ms, setup 0ms, import 843ms, tests 156ms, environment 326ms)
+
+RED_EXIT docs=1 markdown=1
+RED_AS_EXPECTED
