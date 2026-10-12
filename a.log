@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -9
+2207b9e825ae556f43ce514a2fd773585cd509e5
+0d03b185c8060bafc4e2afe7173e0a10260465bd
+2207b9e8 test(shell): runtime parity and brand scan for the cloud shard
+e46b7dec feat(office): web AI workbook-too-large key and an ai-web shard test
+5cdf4302 feat(office): sheets AI cells summary key from the U-02 catalogue
+46453570 feat(office): shared UniWork AI panel shard with the U-02 catalogue copy
+6783990b feat(office): conflict body and Overwrite… copy as the U-01 catalogue signs it
+5b1a3f06 feat(office): web frame conflict and new-version keys from the U-02 catalogue
+82421e21 feat(office): merge the sync shard into the shell translator
+e0dd083c feat(office): desktop sync shard with the closed U-01 string catalogue
+0d03b185 fix(shell): prettier on the G files; the signed-out reopen test waits for the save instead of sleeping 20 ms
