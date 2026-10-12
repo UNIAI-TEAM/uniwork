@@ -8389,7 +8389,8 @@
       },
       "move": {
         "title": "Move",
-        "description": "Pick a new folder for {{name}}. Everything inside it moves too.",
+        "description": "Pick a new folder for {{name}}.",
+        "folder_description": "Pick a new folder for {{name}}. Everything inside it moves too.",
         "submit": "Move",
         "moved": "Moved."
       },

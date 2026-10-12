@@ -8384,7 +8384,8 @@
       },
       "move": {
         "title": "Di chuyển",
-        "description": "Chọn thư mục mới cho {{name}}. Mọi thứ bên trong đi cùng.",
+        "description": "Chọn thư mục mới cho {{name}}.",
+        "folder_description": "Chọn thư mục mới cho {{name}}. Mọi thứ bên trong đi cùng.",
         "submit": "Di chuyển",
         "moved": "Đã di chuyển."
       },

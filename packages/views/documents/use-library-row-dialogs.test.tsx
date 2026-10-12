@@ -26,11 +26,11 @@ const doc = { id: "d1", workspace_id: WS, kind: "page", title: "Kế hoạch", r
 const source = { id: "chat:m1", name: "Đề xuất.pdf" } as DocumentSourceFile;
 const sourceRow = { type: "source" as const, id: "source:chat:m1", source };
 
-function Harness({ folderId = null }: { folderId?: string | null }) {
+function Harness({ folderId = null, item = doc }: { folderId?: string | null; item?: DocumentSummaryRow }) {
   const row = useLibraryRowDialogs({ wsId: WS, tree, folderId });
   return (
     <>
-      <button type="button" onClick={() => row.onMove(doc)}>cmd-move</button>
+      <button type="button" onClick={() => row.onMove(item)}>cmd-move</button>
       <button type="button" onClick={() => row.onSaveSource(sourceRow)}>cmd-save</button>
       <button type="button" onClick={() => row.onArchive(doc)}>cmd-archive</button>
       {row.dialogs}
@@ -104,6 +104,26 @@ describe("move", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledOnce());
     expect(within(dialog).queryByText(t("documents.errors.document_too_deep"))).toBeNull();
+  });
+
+  it.each([
+    ["a file", "file", "Báo cáo.pdf"],
+    ["a page", "page", "Kế hoạch"],
+  ])("moves %s alone: the dialog does not say the contents move too", async (_label, kind, name) => {
+    const item = { ...doc, id: "x1", kind, title: name } as unknown as DocumentSummaryRow;
+    render(wrap(<Harness item={item} />));
+    fireEvent.click(screen.getByText("cmd-move"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(t("documents.home.move.description", { name }))).toBeInTheDocument();
+    expect(dialog).not.toHaveTextContent(t("documents.home.move.folder_description", { name }));
+  });
+
+  it("says the contents move too when the item moved is a folder", async () => {
+    const item = { ...doc, id: "f9", kind: "folder", title: "Dự án mới" } as unknown as DocumentSummaryRow;
+    render(wrap(<Harness item={item} />));
+    fireEvent.click(screen.getByText("cmd-move"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(t("documents.home.move.folder_description", { name: "Dự án mới" }))).toBeInTheDocument();
   });
 
   it("closes without moving when cancelled", async () => {
