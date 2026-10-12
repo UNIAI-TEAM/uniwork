@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { verify } from "../evidence.mjs";
 import { bashSyntaxError, shBlocks } from "./readme-sh-blocks.mjs";
 import { routeCatalogue, routeMatches } from "./server-contract.helper.mjs";
-import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, appOrigin, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, appOrigin, loopbackOriginsIn, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -565,6 +565,19 @@ test("start.sh reaches up through the real lib.mjs fork-dir call (fake stack)", 
   } finally {
     stopFakeStack(stack);
   }
+});
+
+test("the chunk fallback of the sample AC reads loopback origins as the build spells them, so it follows API_ORIGIN (R2-4)", () => {
+  const apiPort = 18080;
+  const body = `a="${appOrigin(apiPort)}",b="http://127.0.0.1:3000",c='https://localhost:9',d="http://example.com:8080"`;
+  const found = loopbackOriginsIn(body);
+  assert.deepEqual([...found].sort(), ["http://127.0.0.1:3000", "https://localhost:9", "http://localhost:18080"].sort());
+  // a localhost API_ORIGIN is found as is; the old scan rewrote it to 127.0.0.1 and reported a stale build
+  assert.ok(found.includes(appOrigin(apiPort)), JSON.stringify(found));
+  assert.ok(!found.includes(`http://127.0.0.1:${apiPort}`), "localhost is not rewritten to 127.0.0.1");
+  // a build that still inlines the old spelling is not this run's origin: it stays visible as another one
+  assert.deepEqual(loopbackOriginsIn(`x="http://127.0.0.1:${apiPort}"`), [`http://127.0.0.1:${apiPort}`]);
+  assert.deepEqual(loopbackOriginsIn("no origin here"), []);
 });
 
 test("start.sh puts the localhost WebSocket URL on the web's command line, the same host as the API origin (d8115227b)", () => {

@@ -66,6 +66,18 @@ export function appOrigin(port, scheme = "http") {
 }
 
 /**
+ * The loopback origins a served client chunk inlines (`http://localhost:8080`,
+ * `http://127.0.0.1:3000`), each as the build spells it. The sample AC compares
+ * them with the run's API_ORIGIN, which is `localhost`; rewriting one spelling
+ * into the other here made a correct build read as stale.
+ * @param {string} body
+ * @returns {string[]}
+ */
+export function loopbackOriginsIn(body) {
+  return [...new Set(String(body).matchAll(/https?:\/\/(?:127\.0\.0\.1|localhost):\d+/g).map((match) => match[0]))];
+}
+
+/**
  * The environment the D server is started with, on the command line. Everything
  * is derived from the run's ports, so a run can never talk to a stale server on
  * the default :8080. `apiOrigin` is also the value the web build inlines
