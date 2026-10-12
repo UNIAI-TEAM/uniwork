@@ -53,6 +53,15 @@ const (
 	DefaultCommitIntentRetention = 7 * 24 * time.Hour
 )
 
+// A retry that finds the same payload's claim live waits up to
+// commitIntentAwait for it to settle - the duplicate of a slow first request,
+// which used to queue behind it on the ledger row - polling every
+// commitIntentPoll, then answers idempotency_in_flight.
+const (
+	commitIntentAwait = 5 * time.Second
+	commitIntentPoll  = 50 * time.Millisecond
+)
+
 // commitIntentSweepBatch bounds one sweep statement; a pass repeats it until
 // a batch comes back short. commitIntentSweepTick is the pass cadence.
 const (
@@ -78,6 +87,9 @@ const officeSyncWriteCapability = "sync_write"
 type CommitIntentPolicy struct {
 	ClaimTTL  time.Duration
 	Retention time.Duration
+	// Await bounds how long a retry waits on a live claim of the same
+	// payload (commitIntentAwait when zero; tests shorten it).
+	Await time.Duration
 }
 
 func (p CommitIntentPolicy) claimTTL() time.Duration {
@@ -98,6 +110,13 @@ func (p CommitIntentPolicy) retention() time.Duration {
 		r = p.claimTTL()
 	}
 	return r
+}
+
+func (p CommitIntentPolicy) await() time.Duration {
+	if p.Await <= 0 {
+		return commitIntentAwait
+	}
+	return p.Await
 }
 
 // SetCommitIntentPolicy sets the claim TTL and the resume window.
@@ -261,6 +280,27 @@ func (s *DocumentService) claimCommitIntent(ctx context.Context, actor Actor, do
 		return commitIntentClaim{}, false, NormalizeIdempotencyError(err)
 	}
 	return claim, committed, nil
+}
+
+// claimOrAwaitCommitIntent claims the intent, waiting a bounded time while
+// another attempt of the same payload holds a live claim: that attempt
+// either commits (the caller then replays) or ends its claim (the caller
+// takes the intent over).
+func (s *DocumentService) claimOrAwaitCommitIntent(ctx context.Context, actor Actor, doc db.Document, key, fingerprint string) (commitIntentClaim, bool, error) {
+	deadline := time.Now().Add(s.intentPolicy.await())
+	for {
+		claim, committed, err := s.claimCommitIntent(ctx, actor, doc, key, fingerprint)
+		if !errors.Is(err, ErrIdempotencyInFlight) || !time.Now().Before(deadline) {
+			return claim, committed, err
+		}
+		t := time.NewTimer(commitIntentPoll)
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return commitIntentClaim{}, false, err
+		case <-t.C:
+		}
+	}
 }
 
 // fenceCommitIntent is the commit transaction's proof that this attempt may

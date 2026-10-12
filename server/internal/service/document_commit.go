@@ -267,7 +267,7 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 	// lookup sees this attempt in flight (document_commit_intent.go).
 	var claim *commitIntentClaim
 	if in.IdempotencyKey != "" {
-		c, committed, err := s.claimCommitIntent(ctx, actor, doc, in.IdempotencyKey, opts.Fingerprint)
+		c, committed, err := s.claimOrAwaitCommitIntent(ctx, actor, doc, in.IdempotencyKey, opts.Fingerprint)
 		if err != nil {
 			return DocumentFileResult{}, err
 		}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
@@ -63,6 +64,8 @@ func newIntentEnv(t *testing.T) *intentEnv {
 	env := newFakeDocStorageEnv(t)
 	m := newCountingIntentMetrics()
 	env.svc.SetIntentMetrics(m)
+	// A retry on a live claim waits briefly before in_flight; keep it short.
+	env.svc.SetCommitIntentPolicy(CommitIntentPolicy{Await: 100 * time.Millisecond})
 	return &intentEnv{docStorageEnv: env, m: m}
 }
 
