@@ -1,0 +1,162 @@
+$ git checkout e386e9b13 -- packages/views/office/frame/use-docs-frame-session.ts packages/views/office/frame/office-module-frame.tsx; (cd packages/views && pnpm vitest run office/frame/use-docs-frame-session.test.tsx office/frame/office-docs-frame.test.tsx); RED=$?; git checkout HEAD -- packages/views; git status --short packages; echo "RED_EXIT_FIX2=$RED"; test $RED -ne 0 && echo RED_AS_EXPECTED_FIX2
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:218:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:225:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+ ❯ office/frame/use-docs-frame-session.test.tsx (31 tests | 1 failed) 2097ms
+     × ignores a dialog the frame reports after its document went away, and starts a new handshake with none open 65ms
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:218:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:225:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a leave that is pending when the frame fails for good > refuses the leave when a fatal error ends its Save under the frame's dialog
+The current testing environment is not configured to support act(...)
+
+stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a leave that is pending when the frame fails for good > refuses the leave when a fatal error ends its Save under the frame's dialog
+The current testing environment is not configured to support act(...)
+
+stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a leave that is pending when the frame fails for good > refuses the leave when a new frame instance fails its handshake during the Save
+The current testing environment is not configured to support act(...)
+
+stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a leave that is pending when the frame fails for good > refuses the leave when a new frame instance fails its handshake during the Save
+The current testing environment is not configured to support act(...)
+
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:218:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:225:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+ ❯ office/frame/office-docs-frame.test.tsx (46 tests | 5 failed) 121918ms
+       × refuses the leave when a fatal error ends its Save under the frame's dialog 30011ms
+       × refuses the leave when a new frame instance fails its handshake during the Save 30005ms
+       × refuses the leave a user is still reading when the frame fails 30007ms
+       × does not hold a later leave behind a failure screen that has no editor to save 30003ms
+       × keeps the page usable when the frame reports a dialog after its document went away 29ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a leave that is pending when the frame fails for good > refuses the leave when a fatal error ends its Save under the frame's dialog
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ office/frame/office-docs-frame.test.tsx:718:5
+    716|     }
+    717|
+    718|     it("refuses the leave when a fatal error ends its Save under the f…
+       |     ^
+    719|       const { frame, leaving } = await leavingWithSave();
+    720|       await frame.event("error", FATAL);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a leave that is pending when the frame fails for good > refuses the leave when a new frame instance fails its handshake during the Save
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ office/frame/office-docs-frame.test.tsx:727:5
+    725|     });
+    726|
+    727|     it("refuses the leave when a new frame instance fails its handshak…
+       |     ^
+    728|       const { frame, leaving } = await leavingWithSave();
+    729|       await frame.event("ready", { protocolVersion: 99, capabilities: …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a leave that is pending when the frame fails for good > refuses the leave a user is still reading when the frame fails
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ office/frame/office-docs-frame.test.tsx:735:5
+    733|     });
+    734|
+    735|     it("refuses the leave a user is still reading when the frame fails…
+       |     ^
+    736|       const frame = await dirtyFrame();
+    737|       const leaving = leaveGuardAllows("/elsewhere");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a leave that is pending when the frame fails for good > does not hold a later leave behind a failure screen that has no editor to save
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ office/frame/office-docs-frame.test.tsx:744:5
+    742|     });
+    743|
+    744|     it("does not hold a later leave behind a failure screen that has n…
+       |     ^
+    745|       const frame = await dirtyFrame();
+    746|       await frame.event("error", FATAL);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a leave that is pending when the frame fails for good > keeps the page usable when the frame reports a dialog after its document went away
+Error: expect(element).not.toHaveAttribute("inert") // element.hasAttribute("inert")
+
+Expected the element not to have attribute:
+  inert
+Received:
+  inert=""
+ ❯ office/frame/office-docs-frame.test.tsx:757:26
+    755|       await waitFor(() => expect(flip()).not.toHaveAttribute("inert"));
+    756|       await frame.event("modal", { open: true });
+    757|       expect(flip()).not.toHaveAttribute("inert");
+       |                          ^
+    758|       expect(document.querySelector("[data-office-docs-frame]")).not.t…
+    759|       // A replacement load lifts nothing and leaves the page as usabl…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > ignores a dialog the frame reports after its document went away, and starts a new handshake with none open
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ office/frame/use-docs-frame-session.test.tsx:323:45
+    321|     // A message queued before the teardown arrives late: nothing is l…
+    322|     await frame.event("modal", { open: true });
+    323|     expect(frame.hook.result.current.modal).toBe(false);
+       |                                             ^
+    324|     expect(vi.getTimerCount()).toBe(0);
+    325|     // A replacement load lifts nothing and restores nothing.
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  6 failed | 71 passed (77)
+   Start at  21:05:23
+   Duration  123.45s (transform 902ms, setup 694ms, import 1.08s, tests 124.02s, environment 565ms)
+
+RED_EXIT_FIX2=1
+RED_AS_EXPECTED_FIX2

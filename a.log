@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -3
+e5c6f8099c25ff68aff25a0793bd6091bf3b44ea
+50fc0f17403ef5441e778fad20cb8f6676eadc39
+e5c6f8099 fix(office): settle a pending leave when the frame fails, and ignore dialogs of a gone frame document
+f1485dcc4 test(office): pin how a pending leave and a late dialog end when the frame fails or goes away
+e386e9b13 docs(office): list the web conflict download in the section 8.3 copy inventory
