@@ -9,7 +9,16 @@ export const EXIT_BLOCKED = 77;
 
 export const HOSTS = ["desktop", "web"];
 
-export const VIEWPORT = { w: 1440, h: 900 };
+/**
+ * The page/window viewport per host (contract Amendment 4). Web is wider so the
+ * module frame region (about 1456x868 inside the shell) is as wide as the
+ * desktop module view (about 1440x860): at 1440x900 the web frame was 1176 px
+ * wide and cut the xlsx sheet's column G.
+ */
+export const VIEWPORTS = { desktop: { w: 1440, h: 900 }, web: { w: 1720, h: 980 } };
+
+/** A web module frame narrower than this fails the fixture as `frame_too_small` (the shell's chrome ate the width). */
+export const MIN_FRAME_WIDTH = 1400;
 export const DEVICE_SCALE_FACTOR = 1;
 export const LOCALE = "vi-VN";
 export const TIMEZONE = "Asia/Ho_Chi_Minh";

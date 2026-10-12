@@ -14,7 +14,7 @@ import { dirname, join, resolve } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseArgs, runCapture } from "./capture.mjs";
-import { SETTLE } from "./capture/constants.mjs";
+import { HOSTS, MIN_FRAME_WIDTH, SETTLE, VIEWPORTS } from "./capture/constants.mjs";
 import { ELECTRON_ARGS, collectShellText, desktopEnv, desktopPrecondition } from "./capture/desktop.mjs";
 import { readFixtures, selectFixtures } from "./capture/fixtures.mjs";
 import { blocked, buildMeta, clearCapture, exitCodeFor, failed, ok, pngSize, writeCapture } from "./capture/meta.mjs";
@@ -162,7 +162,7 @@ describe("arguments and exit codes", () => {
   test("meta carries the contract fields and the fixed shot settings", () => {
     const meta = buildMeta({ host: "web", forkSha: "cb76dde", pinVersion: "0.1.0-cb76dde", fixtures: { f: { status: "ok", reason: "", png: Buffer.alloc(1) } }, now: new Date("2026-10-12T18:00:00Z") });
     assert.deepEqual(Object.keys(meta).slice(0, 7), ["host", "forkSha", "pinVersion", "viewport", "deviceScaleFactor", "capturedAt", "fixtures"]);
-    assert.deepEqual(meta.viewport, { w: 1440, h: 900 });
+    assert.deepEqual(meta.viewport, { w: 1720, h: 980 });
     assert.equal(meta.deviceScaleFactor, 1);
     assert.deepEqual(meta.fixtures.f, { status: "ok", reason: "" });
     assert.equal(meta.settings.locale, "vi-VN");
@@ -204,6 +204,16 @@ describe("arguments and exit codes", () => {
     const meta = buildMeta({ host: "desktop", forkSha: "x", pinVersion: "y", fixtures: { a: { status: "ok", reason: "", size: { w: 1440, h: 861 }, canvasOnly: true }, b: { status: "failed", reason: "r" } } });
     assert.deepEqual(meta.fixtures.a, { status: "ok", reason: "", size: { w: 1440, h: 861 }, canvasOnly: true });
     assert.deepEqual(meta.fixtures.b, { status: "failed", reason: "r" });
+  });
+
+  test("the viewport is per host (Amendment 4): desktop 1440x900, web 1720x980 so the module frame is as wide as the desktop view", () => {
+    assert.deepEqual(VIEWPORTS, { desktop: { w: 1440, h: 900 }, web: { w: 1720, h: 980 } });
+    for (const host of HOSTS) {
+      const meta = buildMeta({ host, forkSha: "x", pinVersion: "y", fixtures: {} });
+      assert.deepEqual(meta.viewport, VIEWPORTS[host], host);
+      assert.notEqual(meta.viewport, VIEWPORTS[host], "meta carries a copy, not the shared constant");
+    }
+    assert.equal(MIN_FRAME_WIDTH, 1400);
   });
 
   test("the SETTLE budget needs two identical frames", () => {
@@ -461,8 +471,8 @@ const STATIC_PAGE = `<!doctype html><html lang="vi"><head><meta charset="utf-8">
 </body></html>`;
 
 describe("browser-backed capture", { skip: browserSkip || false }, () => {
-  async function withPage(html, fn) {
-    const context = await browser.newContext({ viewport: { width: 800, height: 600 }, locale: "vi-VN", timezoneId: "Asia/Ho_Chi_Minh", colorScheme: "light", reducedMotion: "reduce" });
+  async function withPage(html, fn, viewport = { width: 1720, height: 980 }) {
+    const context = await browser.newContext({ viewport, locale: "vi-VN", timezoneId: "Asia/Ho_Chi_Minh", colorScheme: "light", reducedMotion: "reduce" });
     try {
       const page = await context.newPage();
       await page.setContent(html, { waitUntil: "load" });
@@ -500,6 +510,16 @@ describe("browser-backed capture", { skip: browserSkip || false }, () => {
     assert.equal(r.status, "ok", r.reason);
     assert.equal(r.png.subarray(1, 4).toString(), "PNG");
     assert.match(r.text, /Báo cáo quý I/);
+  });
+
+  test("captureOpenFrame: a frame narrower than 1400 px fails frame_too_small (web at 1176 px cut the xlsx sheet's column G), never a shot", async () => {
+    const narrow = await withPage(FRAME_HOST("ready"), (page) => captureOpenFrame(page, "docs", { timeoutMs: 5_000, settleOptions: QUICK }), { width: 1200, height: 800 });
+    assert.equal(narrow.status, "failed");
+    assert.match(narrow.reason, /^frame_too_small: .*1[0-9]{3}x[0-9]+ px.*1400/);
+    assert.equal(narrow.png, undefined);
+    const wide = await withPage(FRAME_HOST("ready"), (page) => captureOpenFrame(page, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
+    assert.equal(wide.status, "ok", wide.reason);
+    assert.ok(pngSize(wide.png).w >= MIN_FRAME_WIDTH, JSON.stringify(pngSize(wide.png)));
   });
 
   test("captureOpenFrame: the same page twice gives byte-identical shots (determinism of the settle + clip path)", async () => {
@@ -627,12 +647,13 @@ root.getElementById("inner").attachShadow({ mode: "open" }).innerHTML = "<span>S
 
   test("a frame that paints mainly into a canvas says so (canvasOnly); an ordinary page does not (FS-9)", async () => {
     const canvasPage = '<!doctype html><body style="margin:0"><canvas width="780" height="500" style="display:block"></canvas></body>';
-    const canvas = await withPage(canvasPage, collectRenderedText);
+    const SMALL = { width: 800, height: 600 };
+    const canvas = await withPage(canvasPage, collectRenderedText, SMALL);
     assert.equal(canvas.canvasOnly, true);
     assert.ok(canvas.canvasRatio >= 0.5);
-    const plain = await withPage(STATIC_PAGE, collectRenderedText);
+    const plain = await withPage(STATIC_PAGE, collectRenderedText, SMALL);
     assert.equal(plain.canvasOnly, false);
-    const small = await withPage('<!doctype html><p>chữ</p><canvas width="40" height="40"></canvas>', collectRenderedText);
+    const small = await withPage('<!doctype html><p>chữ</p><canvas width="40" height="40"></canvas>', collectRenderedText, SMALL);
     assert.equal(small.canvasOnly, false);
   });
 

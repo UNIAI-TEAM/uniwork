@@ -4,8 +4,14 @@
   "forkSha": "cb76dde5",
   "capturedOn": "",
   "viewport": {
-    "w": 1440,
-    "h": 900
+    "desktop": {
+      "w": 1440,
+      "h": 900
+    },
+    "web": {
+      "w": 1720,
+      "h": 980
+    }
   },
   "deviceScaleFactor": 1,
   "tolerance": {

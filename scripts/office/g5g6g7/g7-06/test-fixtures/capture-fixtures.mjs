@@ -19,7 +19,7 @@ export function mkCaptures(dir) {
 }
 
 /** Goldens built from the captures; `transform` may replace one pair's bytes. */
-export function writeGoldens(dir, { capturesDir, fixtures, hosts, masks = {}, tolerance = null, maskLimits = null, transform = (_key, bytes) => bytes } = {}) {
+export function writeGoldens(dir, { capturesDir, fixtures, hosts, masks = {}, tolerance = null, maskLimits = null, viewport = { desktop: { w: 64, h: 48 }, web: { w: 64, h: 48 } }, transform = (_key, bytes) => bytes } = {}) {
   const entries = {};
   for (const host of hosts) {
     for (const fixture of fixtures) {
@@ -35,7 +35,7 @@ export function writeGoldens(dir, { capturesDir, fixtures, hosts, masks = {}, to
     pinVersion: "0.1.0-fake",
     forkSha: "f".repeat(7),
     capturedOn: "2026-10-12T00:00:00.000Z",
-    viewport: { w: 64, h: 48 },
+    viewport,
     deviceScaleFactor: 1,
     ...(tolerance ? { tolerance } : {}),
     ...(maskLimits ? { maskLimits } : {}),

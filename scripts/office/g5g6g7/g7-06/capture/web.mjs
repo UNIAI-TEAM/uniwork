@@ -7,8 +7,8 @@
 import { join } from "node:path";
 import { offerableFrameVersion } from "../../../../../apps/web/platform/office-frame/frame-install.mjs";
 import { readPins } from "../../../../../apps/web/platform/office-frame/frame-headers.mjs";
-import { blocked, failed, ok } from "./meta.mjs";
-import { COLOR_SCHEME, DEVICE_SCALE_FACTOR, LOCALE, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORT } from "./constants.mjs";
+import { blocked, failed, ok, pngSize } from "./meta.mjs";
+import { COLOR_SCHEME, DEVICE_SCALE_FACTOR, LOCALE, MIN_FRAME_WIDTH, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORTS } from "./constants.mjs";
 import { notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
 import { collectRenderedText, frameSubtree } from "./text.mjs";
 import { REPO_ROOT } from "./playwright.mjs";
@@ -65,7 +65,7 @@ async function hideHostChrome(page) {
  * Screenshot and text of the open frame region of one document page. The
  * outcome is `ok` (with png and text), `blocked` or `failed` with a reason.
  */
-export async function captureOpenFrame(page, module, { settleOptions = SETTLE, sleep = realSleep, now = Date.now, timeoutMs = OPEN_TIMEOUT_MS } = {}) {
+export async function captureOpenFrame(page, module, { settleOptions = SETTLE, sleep = realSleep, now = Date.now, timeoutMs = OPEN_TIMEOUT_MS, minFrameWidth = MIN_FRAME_WIDTH } = {}) {
   const state = await waitForFrame(page, module, { timeoutMs, sleep, now });
   if (state.state === "failed") return { ...failed(`frame_failed:${state.kind || "unknown"}: ${state.detail}`) };
   if (state.state !== "ready") {
@@ -82,6 +82,9 @@ export async function captureOpenFrame(page, module, { settleOptions = SETTLE, s
     ...settleOptions,
   });
   if (result.status !== "settled") return failed(notSettledReason(result));
+  // a frame the shell squeezed narrower than the desktop view cuts the document (round 1: column G of the xlsx at 1176 px): never a golden
+  const size = pngSize(result.frame);
+  if (!size || size.w < minFrameWidth) return failed(`frame_too_small: the module frame region is ${size ? `${size.w}x${size.h}` : "unreadable"} px, under the ${minFrameWidth} px width the web viewport ${VIEWPORTS.web.w}x${VIEWPORTS.web.h} is meant to give it`);
   // `.txt` is the module frame's own text (and the frames inside it): the host page around it
   // always has words (sidebar, breadcrumb, the file name), so counting it would let a blank
   // frame pass the job's no_rendered_text. The host text goes to `.host.txt` for the brand check.
@@ -147,7 +150,7 @@ export async function captureWeb({ ports, fixtures, playwright, log = () => {}, 
       return { ...base, results };
     }
     const context = await browser.newContext({
-      viewport: { width: VIEWPORT.w, height: VIEWPORT.h },
+      viewport: { width: VIEWPORTS.web.w, height: VIEWPORTS.web.h },
       deviceScaleFactor: DEVICE_SCALE_FACTOR,
       locale: LOCALE,
       timezoneId: TIMEZONE,

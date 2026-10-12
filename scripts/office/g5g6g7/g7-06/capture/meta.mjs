@@ -1,7 +1,7 @@
 // Per-fixture outcomes and the files a capture run leaves (contract section 3).
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { COLOR_SCHEME, DEVICE_SCALE_FACTOR, EXIT_BLOCKED, EXIT_FAILED, EXIT_OK, LOCALE, TIMEZONE, VIEWPORT } from "./constants.mjs";
+import { COLOR_SCHEME, DEVICE_SCALE_FACTOR, EXIT_BLOCKED, EXIT_FAILED, EXIT_OK, LOCALE, TIMEZONE, VIEWPORTS } from "./constants.mjs";
 
 export const ok = (extra = {}) => ({ status: "ok", reason: "", ...extra });
 export const blocked = (reason) => ({ status: "blocked", reason });
@@ -27,7 +27,7 @@ export function buildMeta({ host, forkSha, pinVersion, fixtures, settings = {}, 
     host,
     forkSha,
     pinVersion,
-    viewport: { ...VIEWPORT },
+    viewport: { ...VIEWPORTS[host] },
     deviceScaleFactor: DEVICE_SCALE_FACTOR,
     capturedAt: now.toISOString(),
     fixtures: Object.fromEntries(

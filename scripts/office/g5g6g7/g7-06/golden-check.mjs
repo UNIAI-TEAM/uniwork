@@ -19,6 +19,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { sha256Hex } from "../../../../apps/web/platform/office-frame/frame-bundle.mjs";
+import { VIEWPORTS } from "./capture/constants.mjs";
 import { brandHits, MIN_VISIBLE_CHARS, visibleChars } from "./brand-check.mjs";
 import { capturePairBlocker, DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonState, relativeToOut } from "./job-lib.mjs";
 
@@ -73,6 +74,29 @@ export function maskProblem(masks, { width, height, pair, limits }) {
     return `invalid_mask (${pair}: the masks cover ${((covered / frame) * 100).toFixed(1)}% of the frame, over ${(limits.maxAreaSharePerEntry * 100).toFixed(1)}%)`;
   }
   return null;
+}
+
+const isSize = (value) => Boolean(value) && Number.isInteger(value.w) && Number.isInteger(value.h) && value.w > 0 && value.h > 0;
+
+/**
+ * The reason a manifest's viewport cannot be trusted, or null. Amendment 4: it
+ * is one size per host, `{desktop:{w,h}, web:{w,h}}`. The old flat `{w,h}` is
+ * not read as "the same for both hosts": it BLOCKS the run (invalid_manifest),
+ * so a manifest written before the split cannot quietly compare a 1720 px web
+ * capture against a 1440 px one.
+ */
+export function viewportProblem(manifest) {
+  const viewport = manifest?.viewport;
+  if (!viewport || typeof viewport !== "object") return "invalid_manifest (viewport is missing; it must be {desktop:{w,h}, web:{w,h}})";
+  const bad = HOSTS.filter((host) => !isSize(viewport[host]));
+  if (bad.length > 0) return `invalid_manifest (viewport must be {desktop:{w,h}, web:{w,h}} with whole-pixel sizes; ${bad.join(", ")} ${bad.length > 1 ? "are" : "is"} not)`;
+  return null;
+}
+
+/** BLOCKED reason when a capture was not taken at its host's manifest viewport (meta.json records the one really used), else null. */
+function viewportBlocker(metaState, expected) {
+  const used = metaState?.value?.viewport;
+  return isSize(used) && used.w === expected.w && used.h === expected.h ? null : "captures_at_another_viewport";
 }
 
 /** The per-fixture status the capture provider recorded, when its meta.json parsed. */
@@ -164,7 +188,9 @@ export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, 
   if (manifestState.error) {
     return { status: "BLOCKED", reasons: [`goldens_manifest_unreadable (${manifestState.error})`], artifacts: [] };
   }
-  let manifest = manifestState.value ?? {};
+  const manifest = manifestState.value ?? {};
+  const manifestProblem = viewportProblem(manifest);
+  if (manifestProblem) return { status: "BLOCKED", reasons: [manifestProblem], artifacts: [] };
   const tolerance = tolerancesOf(manifest);
   const maskLimits = maskLimitsOf(manifest);
   const entries = manifest.entries ?? {};
@@ -178,7 +204,7 @@ export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, 
       const capturePath = join(capturesDir, host, `${fixture}.png`);
       const goldenPath = join(goldensDir, host, `${fixture}.png`);
       const entry = entries[`${host}/${fixture}`] ?? null;
-      const blocker = capturePairBlocker(metaState, fixture, { forkSha, pinVersion });
+      const blocker = capturePairBlocker(metaState, fixture, { forkSha, pinVersion }) ?? viewportBlocker(metaState, manifest.viewport[host]);
       let report;
       if (blocker) report = pairBlocked(pair, blocker);
       else if (!existsSync(capturePath)) report = pairBlocked(pair, "capture_missing");
@@ -309,12 +335,20 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
     }
   }
   const meta = [...metaStates.values()].map((state) => state.value).find((value) => value && value.viewport) ?? {};
+  // one viewport per host: this run's capture of that host, else the previous manifest's, else the provider's fixed one
+  const viewport = Object.fromEntries(
+    HOSTS.map((host) => {
+      const used = metaStates.get(host)?.value?.viewport;
+      const before = viewportProblem(previous) ? null : previous.viewport[host];
+      return [host, isSize(used) ? { w: used.w, h: used.h } : before ?? { ...VIEWPORTS[host] }];
+    }),
+  );
   const manifest = {
     schema: 1,
     pinVersion: pinVersion ?? meta.pinVersion ?? previous.pinVersion ?? null,
     forkSha: forkSha ?? meta.forkSha ?? previous.forkSha ?? null,
     capturedOn: meta.capturedAt ?? previous.capturedOn ?? new Date().toISOString(),
-    viewport: meta.viewport ?? previous.viewport ?? { w: 1440, h: 900 },
+    viewport,
     deviceScaleFactor: meta.deviceScaleFactor ?? previous.deviceScaleFactor ?? 1,
     tolerance: tolerancesOf(previous),
     entries,

@@ -24,9 +24,9 @@ function patchMeta(captures, patch) {
   }
 }
 
-function goldenWorld({ fixtures = [ONE], mutateCapture = null, transform = null, masks = {}, tolerance = null, maskLimits = null, removeGolden = null, metaStatus = null, meta = null } = {}) {
+function goldenWorld({ fixtures = [ONE], mutateCapture = null, transform = null, masks = {}, tolerance = null, maskLimits = null, viewport = undefined, removeGolden = null, metaStatus = null, meta = null } = {}) {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
-  const goldens = fx.writeGoldens(tmpDir("g7-06-goldens-"), { capturesDir: captures, fixtures, hosts: HOSTS, masks, tolerance, maskLimits, transform: transform ?? undefined });
+  const goldens = fx.writeGoldens(tmpDir("g7-06-goldens-"), { capturesDir: captures, fixtures, hosts: HOSTS, masks, tolerance, maskLimits, viewport, transform: transform ?? undefined });
   if (mutateCapture) mutateCapture(captures);
   if (removeGolden) rmSync(join(goldens, removeGolden), { force: true });
   if (metaStatus) {
@@ -46,7 +46,9 @@ function goldenRun(
 ) {
   const dir = outDir(name);
   const check = runGoldenCheck({ capturesDir: captures, goldensDir: goldens, fixtures, outDir: dir, forkSha, pinVersion });
-  return { check, summary: readJson(join(dir, "golden", "summary.json")) };
+  // a run blocked before any pair (manifest problems) writes no summary
+  const summaryPath = join(dir, "golden", "summary.json");
+  return { check, summary: existsSync(summaryPath) ? readJson(summaryPath) : null };
 }
 
 test("golden: identical captures pass on both hosts", () => {
@@ -257,6 +259,8 @@ test("--update-goldens copies the captures, keeps the masks and passes afterward
   assert.deepEqual(manifest.entries[`desktop/${ONE}`].masks, [{ x: 1, y: 1, w: 2, h: 2, reason: "old mask" }]);
   assert.equal(manifest.entries[`desktop/${ONE}`].sha256, sha256Hex(readFileSync(join(goldens, "desktop", `${ONE}.png`))));
   assert.deepEqual(manifest.tolerance, { channel: 16, ratio: 0.001 });
+  // one viewport per host, each from that host's capture meta
+  assert.deepEqual(manifest.viewport, { desktop: { w: 64, h: 48 }, web: { w: 64, h: 48 } });
   const { check } = goldenRun({ captures, goldens });
   assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
 });
@@ -310,5 +314,40 @@ test("the committed goldens manifest is the schema, with no entries yet", () => 
   assert.deepEqual(manifest.entries, {});
   assert.deepEqual(manifest.tolerance, { channel: 16, ratio: 0.001 });
   assert.deepEqual(manifest.maskLimits, { maxAreaSharePerMask: 0.05, maxAreaSharePerEntry: 0.1 });
-  assert.deepEqual(manifest.viewport, { w: 1440, h: 900 });
+  assert.deepEqual(manifest.viewport, { desktop: { w: 1440, h: 900 }, web: { w: 1720, h: 980 } });
+});
+
+test("golden: the old flat viewport shape in manifest.json is BLOCKED invalid_manifest, never read as one for both hosts", () => {
+  for (const [label, viewport] of [
+    ["flat", { w: 1440, h: 900 }],
+    ["one host", { desktop: { w: 64, h: 48 } }],
+    ["not whole pixels", { desktop: { w: 64, h: 48 }, web: { w: "wide", h: 48 } }],
+    ["absent", null],
+  ]) {
+    const world = goldenWorld({ viewport });
+    if (viewport === null) {
+      const manifest = readJson(join(world.goldens, "manifest.json"));
+      delete manifest.viewport;
+      writeFileSync(join(world.goldens, "manifest.json"), JSON.stringify(manifest));
+    }
+    const { check } = goldenRun(world, { name: "golden-invalid-manifest" });
+    assert.equal(check.status, "BLOCKED", label);
+    assert.match(check.reasons[0], /^invalid_manifest \(viewport/, label);
+  }
+});
+
+test("golden: each pair is compared at its host's viewport; a capture taken at another one is BLOCKED, the other host still passes", () => {
+  const world = goldenWorld({ viewport: { desktop: { w: 64, h: 48 }, web: { w: 128, h: 96 } } });
+  const { check, summary } = goldenRun(world, { name: "golden-viewport" });
+  assert.equal(check.status, "BLOCKED");
+  assert.deepEqual(check.reasons, ["captures_at_another_viewport"]);
+  const byHost = Object.fromEntries(summary.pairs.map((pair) => [pair.host, pair.status]));
+  assert.deepEqual(byHost, { desktop: "PASS", web: "BLOCKED" });
+});
+
+test("golden: a capture meta without a viewport cannot prove its host's viewport and is BLOCKED", () => {
+  const world = goldenWorld({ meta: (meta) => { delete meta.viewport; return meta; } });
+  const { check } = goldenRun(world, { name: "golden-no-viewport" });
+  assert.equal(check.status, "BLOCKED");
+  assert.deepEqual(check.reasons, ["captures_at_another_viewport"]);
 });

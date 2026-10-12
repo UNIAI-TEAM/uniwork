@@ -19,7 +19,7 @@ import { basename, join } from "node:path";
 import { readPins } from "../../../../../apps/web/platform/office-frame/frame-headers.mjs";
 import { appEnv } from "../../harness/lib.mjs";
 import { blocked, failed, ok } from "./meta.mjs";
-import { COLOR_SCHEME, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORT } from "./constants.mjs";
+import { COLOR_SCHEME, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORTS } from "./constants.mjs";
 import { notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
 import { collectRenderedText, joinBlocks } from "./text.mjs";
 
@@ -143,7 +143,7 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
     await app.evaluate(({ BrowserWindow, nativeTheme }, size) => {
       nativeTheme.themeSource = "light";
       for (const win of BrowserWindow.getAllWindows()) win.setContentSize(size.w, size.h);
-    }, VIEWPORT).then(() => applied.push("theme+size"), () => {});
+    }, VIEWPORTS.desktop).then(() => applied.push("theme+size"), () => {});
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: COLOR_SCHEME }).then(() => applied.push("media"), () => {});
     log(`desktop: ${fixture.id} -> ${fixture.module} view open (${applied.join(", ") || "no emulation applied"})`);
     for (const frame of page.frames()) await frame.addStyleTag({ content: "*{caret-color:transparent!important}" }).catch(() => {});
