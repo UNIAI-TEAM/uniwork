@@ -188,3 +188,67 @@ func TestDocumentContentRevision(t *testing.T) {
 		})
 	})
 }
+
+// TestDocumentsContentRevisionGuard (BE-I1-4): the DB trigger closes the
+// rolling-deploy window. An old-binary content write names neither
+// content_revision nor the trigger, so the trigger moves the column with its
+// revision bump and a commit on the base it superseded is
+// document_version_conflict; a metadata-only bump leaves the column; and the
+// current binary's explicit SET is assigned the same value, never bumped
+// twice.
+func TestDocumentsContentRevisionGuard(t *testing.T) {
+	forEachDocStorageBackend(t, func(t *testing.T, env *docStorageEnv) {
+		ctx := context.Background()
+		member := human(env.tn.member)
+
+		t.Run("an old-binary content write moves content_revision", func(t *testing.T) {
+			created := env.createFile(t, member, "guard.pdf", pdfBody("guard-v1"))
+			// The previous binary's SetDocumentFileVersion shape: the pointer
+			// and the revision, no content_revision.
+			if _, err := env.f.pool.Exec(ctx, `
+				UPDATE documents SET file_version_id = $1, current_version = current_version + 1, revision = revision + 1
+				WHERE id = $2`, util.NewID(), created.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			d := env.doc(t, created.Document.ID)
+			if d.Revision != created.Document.Revision+1 || d.ContentRevision != d.Revision {
+				t.Fatalf("after the old-binary write: revision %d content_revision %d, want both %d",
+					d.Revision, d.ContentRevision, created.Document.Revision+1)
+			}
+			up := env.upload(t, member, created.Document.ID, "guard-v2.pdf", pdfBody("guard-v2"))
+			_, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
+			wantCode(t, err, "document_version_conflict")
+		})
+
+		t.Run("a metadata-only bump leaves content_revision", func(t *testing.T) {
+			created := env.createFile(t, member, "guard-meta.pdf", pdfBody("meta-v1"))
+			if _, err := env.f.pool.Exec(ctx,
+				`UPDATE documents SET title = 'Báo cáo guard', revision = revision + 1 WHERE id = $1`, created.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			d := env.doc(t, created.Document.ID)
+			if d.ContentRevision != created.Document.ContentRevision {
+				t.Fatalf("a metadata bump moved content_revision: %d -> %d", created.Document.ContentRevision, d.ContentRevision)
+			}
+			up := env.upload(t, member, created.Document.ID, "guard-meta-v2.pdf", pdfBody("meta-v2"))
+			_, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
+			mustf(t, err, "commit on the pre-metadata base")
+		})
+
+		t.Run("the explicit content_revision SET is not double bumped", func(t *testing.T) {
+			created := env.createFile(t, member, "guard-new.pdf", pdfBody("new-v1"))
+			up := env.upload(t, member, created.Document.ID, "guard-new-v2.pdf", pdfBody("new-v2"))
+			res, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
+			mustf(t, err, "commit")
+			if res.Document.ContentRevision != res.Document.Revision {
+				t.Fatalf("file commit: content_revision %d revision %d (double bump?)", res.Document.ContentRevision, res.Document.Revision)
+			}
+			p := env.page(t, member, json.RawMessage(`{"type":"doc","content":[]}`))
+			saved := env.save(t, member, p.Document.ID, p.Document.Revision,
+				json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"hai"}]}]}`))
+			if saved.Document.ContentRevision != saved.Document.Revision {
+				t.Fatalf("page PATCH: content_revision %d revision %d (double bump?)", saved.Document.ContentRevision, saved.Document.Revision)
+			}
+		})
+	})
+}
