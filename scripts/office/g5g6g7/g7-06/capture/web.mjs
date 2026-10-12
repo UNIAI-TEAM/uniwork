@@ -13,6 +13,7 @@ import { pageIsBusy, realSleep, settle } from "./settle.mjs";
 import { collectRenderedText } from "./text.mjs";
 import { REPO_ROOT } from "./playwright.mjs";
 import { cleanupSeed, seedWorkspace } from "./seed.mjs";
+import { signIn } from "./signin.mjs";
 
 const FRAME_ROOT = join(REPO_ROOT, "apps", "web", "public", "office-frame");
 /** Chromium flags that make glyph rasterisation the same on every VM. */
@@ -79,14 +80,6 @@ export async function captureOpenFrame(page, module, { settleOptions = SETTLE, s
   if (result.status !== "settled") return failed(`not_settled:${result.reason} after ${result.waitedMs}ms (${result.frames} frames)`);
   const { text } = await collectRenderedText(page);
   return ok({ png: result.frame, text });
-}
-
-async function signIn(page, webOrigin, seed) {
-  await page.goto(`${webOrigin}/login`, { waitUntil: "domcontentloaded" });
-  await page.getByLabel("Email").fill(seed.email);
-  await page.getByLabel(/^(Mật khẩu|Password)$/).fill(seed.password);
-  await page.getByRole("button", { name: /^(Đăng nhập|Log in)$/ }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 60_000 });
 }
 
 /** Everything blocked/failed the same way: the result map for a host that cannot start. */

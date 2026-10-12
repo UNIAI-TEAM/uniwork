@@ -33,3 +33,7 @@ export const OPEN_TIMEOUT_MS = 90_000;
 
 /** Text under this many visible characters is the job's `no_rendered_text`; the provider reports it but still writes the file. */
 export const MIN_VISIBLE_CHARS = 20;
+
+/** How long the login form has to hydrate (a cold `next dev` compiles /login on first hit), and how long the sign-in may take after the click. */
+export const HYDRATE_TIMEOUT_MS = 45_000;
+export const SIGN_IN_TIMEOUT_MS = 60_000;

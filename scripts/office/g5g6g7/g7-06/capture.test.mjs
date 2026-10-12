@@ -23,6 +23,7 @@ import { readRun } from "./capture/run-dir.mjs";
 import { cleanupSeed, seedWorkspace } from "./capture/seed.mjs";
 import { frameHash, settle } from "./capture/settle.mjs";
 import { frameBlock, joinBlocks, visibleChars } from "./capture/text.mjs";
+import { redactUrl, signIn } from "./capture/signin.mjs";
 import { frameInstallState, captureOpenFrame, readFrameState } from "./capture/web.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -451,5 +452,90 @@ describe("browser-backed capture", { skip: browserSkip || false }, () => {
   test("readFrameState reports the module's own host only", async () => {
     const state = await withPage(FRAME_HOST("ready"), (page) => page.evaluate(readFrameState, "sheets"));
     assert.equal(state.state, "none");
+  });
+});
+
+// ---- web sign-in (round 1: every web fixture failed on waitForURL) -----------
+/**
+ * A login page like D's: server-rendered inputs, a submit handler that exists
+ * only once the page "hydrates" (React marks the input with __reactProps$...).
+ * Before that a click is a native GET submit, which is what the unhydrated
+ * `next dev` page did in the cloud round.
+ */
+function fakeLoginSite({ hydrateAfterMs, handler = "home" }) {
+  const wire = hydrateAfterMs === null ? "" : `setTimeout(function () {
+    document.getElementById("e").__reactProps$x = {};
+    ${handler === "native" ? "" : `document.getElementById("f").addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      ${handler === "reject" ? 'document.getElementById("msg").textContent = "Email hoặc mật khẩu không đúng";' : 'location.href = "/home";'}
+    });`}
+  }, ${hydrateAfterMs});`;
+  const login = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Đăng nhập</title></head><body><main><h1>Đăng nhập UniWork</h1>
+<form id="f" method="get" action="/login"><label for="e">Email</label><input id="e" name="email" type="email">
+<label for="p">Mật khẩu</label><input id="p" name="password" type="password"><button type="submit">Đăng nhập</button></form>
+<div id="msg" role="alert"></div></main><script>${wire}</script></body></html>`;
+  const server = createServer((req, res) => {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end(req.url.startsWith("/home") ? "<!doctype html><title>Trang chủ</title><h1>Trang chủ</h1>" : login);
+  });
+  return new Promise((resolveListen) => server.listen(0, "127.0.0.1", () => resolveListen({ server, origin: `http://127.0.0.1:${server.address().port}` })));
+}
+
+describe("web sign-in", () => {
+  test("redactUrl keeps the path and the names of the query fields, never their values", () => {
+    assert.equal(redactUrl("http://x/login?email=a%40b.c&password=hunter2"), "/login?email=…&password=…");
+    assert.equal(redactUrl("http://x/vi/ws"), "/vi/ws");
+    assert.equal(redactUrl("not a url"), "(unreadable url)");
+  });
+});
+
+describe("web sign-in in a browser", { skip: browserSkip || false }, () => {
+  const seed = { email: "g7-06-capture@example.com", password: "hunter2-secret" };
+  async function withLogin(options, fn) {
+    const site = await fakeLoginSite(options);
+    const context = await browser.newContext({ locale: "vi-VN" });
+    try {
+      return await fn(await context.newPage(), site.origin);
+    } finally {
+      await context.close();
+      site.server.close();
+    }
+  }
+
+  test("waits for the form to hydrate before it fills and clicks (a click before it is a native GET, the round 1 failure)", async () => {
+    await withLogin({ hydrateAfterMs: 1_500 }, async (page, origin) => {
+      await signIn(page, origin, seed, { hydrateTimeoutMs: 10_000, loginTimeoutMs: 5_000 });
+      assert.equal(new URL(page.url()).pathname, "/home");
+    });
+  });
+
+  test("a page that never hydrates fails fast, names why, and the message carries the URL and heading", async () => {
+    await withLogin({ hydrateAfterMs: null }, async (page, origin) => {
+      await assert.rejects(signIn(page, origin, seed, { hydrateTimeoutMs: 600, loginTimeoutMs: 600 }), (error) => {
+        assert.match(error.message, /did not hydrate within 0\.6s/);
+        assert.match(error.message, /127\.0\.0\.1.*localhost/);
+        assert.match(error.message, /url \/login,/);
+        assert.match(error.message, /heading "Đăng nhập UniWork"/);
+        assert.ok(!error.message.includes("\n"), "one line, the reason of a meta.json entry");
+        return true;
+      });
+    });
+  });
+
+  test("a form that hydrated but still submits natively reports the URL reached with the query values hidden", async () => {
+    await withLogin({ hydrateAfterMs: 0, handler: "native" }, async (page, origin) => {
+      await assert.rejects(signIn(page, origin, seed, { hydrateTimeoutMs: 5_000, loginTimeoutMs: 800 }), (error) => {
+        assert.match(error.message, /url \/login\?email=…&password=…,/);
+        assert.ok(!error.message.includes(seed.password), "the password must not leak into a reason");
+        assert.ok(!error.message.includes(encodeURIComponent(seed.email)), "nor the email");
+        return true;
+      });
+    });
+  });
+
+  test("a rejected login reports the alert text the page shows", async () => {
+    await withLogin({ hydrateAfterMs: 0, handler: "reject" }, async (page, origin) => {
+      await assert.rejects(signIn(page, origin, seed, { hydrateTimeoutMs: 5_000, loginTimeoutMs: 800 }), /url \/login, heading "Đăng nhập UniWork", notice "Email hoặc mật khẩu không đúng"/);
+    });
   });
 });
