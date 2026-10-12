@@ -198,6 +198,9 @@ var isoRoutes = map[string]isoSpec{
 	"POST /oauth/token":                             {class: isoPublic, reason: "authentication: the one-time code with its PKCE verifier, or a refresh token, is the credential"},
 	"POST /oauth/revoke":                            {class: isoPublic, reason: "authentication: the token is the credential; another client's token is left untouched (RFC 7009)"},
 	"POST /oauth/register":                          {class: isoPublic, reason: "dynamic client registration: a client is a program, not tenant data"},
+	"POST /mcp":                                     {class: isoPublic, reason: "MCP: the bearer is an opaque MCP token bound to one grant's organization, never a session; TestIsolationMCP holds it"},
+	"GET /mcp":                                      {class: isoPublic, reason: "MCP: stateless transport answers 405 after the token check; TestIsolationMCP holds the tenant"},
+	"DELETE /mcp":                                   {class: isoPublic, reason: "MCP: stateless transport answers 405 after the token check; TestIsolationMCP holds the tenant"},
 
 	"GET /uploads/*": {class: isoPublic, reason: "legacy local-disk objects by unguessable key; FileService objects (v1/) are refused - TestServeFileRefusesFileServiceObjects and the uploads subtest"},
 

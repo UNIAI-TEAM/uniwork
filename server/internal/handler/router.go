@@ -28,6 +28,7 @@ type Deps struct {
 	Auth          *service.AuthService
 	DesktopAuth   *service.DesktopAuthService
 	McpAuth       *service.McpAuthService
+	McpTools      *service.McpToolService
 	Verification  *service.VerificationService
 	PasswordReset *service.PasswordResetService
 	GoogleAuth    *service.GoogleAuthService
@@ -130,6 +131,9 @@ type handlers struct {
 	// proxies is TRUSTED_PROXIES parsed once; sessions record the client
 	// address the same way the rate limiter keys on it.
 	proxies []*net.IPNet
+	// mcpHandler is the go-sdk server behind /mcp, built once; nil when the
+	// connector is not wired (McpAuth or McpTools missing).
+	mcpHandler http.Handler
 }
 
 // New builds the HTTP handler. Routes live in package router, split by
@@ -145,6 +149,9 @@ func New(d Deps) http.Handler {
 		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
 	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
+	if d.McpAuth != nil && d.McpTools != nil {
+		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), d.Log)
+	}
 	aiMount := h.aiMountable(sessionAIActor)
 	frameAI := h.aiMountable(h.frameAIActor)
 	return rt.New(rt.Deps{
@@ -198,6 +205,7 @@ func New(d Deps) http.Handler {
 		McpToken:               h.mcpToken,
 		McpRegister:            h.mcpRegister,
 		McpRevoke:              h.mcpRevoke,
+		McpServe:               h.mcpServe,
 
 		Register:              h.register,
 		Login:                 h.login,

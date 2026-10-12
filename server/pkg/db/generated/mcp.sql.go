@@ -937,10 +937,14 @@ func (q *Queries) RevokeMcpTokenByID(ctx context.Context, id string) (int64, err
 }
 
 const revokeMcpTokenFamily = `-- name: RevokeMcpTokenFamily :execrows
-UPDATE mcp_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL
+UPDATE mcp_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL AND expires_at > now()
 `
 
 // tenant: parent family_id
+// Tokens that already expired are skipped for the same reason as in
+// RevokeMcpGrantTokens: the cleanup sweep deletes them, and two statements
+// waiting on the same old rows in different orders end in 40P01. An expired
+// token is refused whether or not it is marked revoked.
 func (q *Queries) RevokeMcpTokenFamily(ctx context.Context, familyID string) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeMcpTokenFamily, familyID)
 	if err != nil {

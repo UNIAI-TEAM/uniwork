@@ -89,6 +89,9 @@ func TestMCPOAuthRoutesAreMountedOutsideTheAPIWrapper(t *testing.T) {
 		"POST /oauth/token":                             "McpToken",
 		"POST /oauth/revoke":                            "McpRevoke",
 		"POST /oauth/register":                          "McpRegister",
+		"POST /mcp":                                     "McpServe",
+		"GET /mcp":                                      "McpServe",
+		"DELETE /mcp":                                   "McpServe",
 	}
 	for route, field := range want {
 		if got := bound[route]; got != field {

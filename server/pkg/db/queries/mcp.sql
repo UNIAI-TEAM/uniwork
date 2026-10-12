@@ -181,7 +181,11 @@ UPDATE mcp_tokens SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL;
 
 -- name: RevokeMcpTokenFamily :execrows
 -- tenant: parent family_id
-UPDATE mcp_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL;
+-- Tokens that already expired are skipped for the same reason as in
+-- RevokeMcpGrantTokens: the cleanup sweep deletes them, and two statements
+-- waiting on the same old rows in different orders end in 40P01. An expired
+-- token is refused whether or not it is marked revoked.
+UPDATE mcp_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL AND expires_at > now();
 
 -- name: GetOrganizationMcpPolicy :one
 SELECT id, mcp_enabled_at, mcp_enabled_by FROM organizations WHERE id = $1;

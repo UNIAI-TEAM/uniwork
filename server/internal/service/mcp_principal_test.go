@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/audit"
 )
 
 func TestMcpAuthenticateAcceptsLiveAccessToken(t *testing.T) {
@@ -156,5 +158,17 @@ func TestMcpAuthenticateResumesWhenSwitchedBackOn(t *testing.T) {
 	}
 	if _, err := w.svc.Authenticate(w.ctx, pair.AccessToken); err != nil {
 		t.Fatalf("switched back on: %v", err)
+	}
+}
+
+// The tool registry reads the actor and organization from the ToolContext the
+// transport builds; the workspace is always the tool's own input.
+func TestMcpPrincipalToolContextIsTheConsentingHuman(t *testing.T) {
+	tc := McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1", ClientID: "c1"}.ToolContext()
+	if tc.ActorID != "u1" || tc.ActorKind != audit.KindHuman || tc.OrganizationID != "o1" || tc.WorkspaceID != "" {
+		t.Fatalf("ToolContext = %+v", tc)
+	}
+	if p := principalOf(tc); p.UserID != "u1" || p.OrganizationID != "o1" {
+		t.Fatalf("principalOf(ToolContext) = %+v", p)
 	}
 }

@@ -6,12 +6,21 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 )
 
 // McpPrincipal is who a /mcp request acts for: the person who consented,
 // inside the one organization the grant names.
 type McpPrincipal struct {
 	UserID, OrganizationID, GrantID, ClientID string
+}
+
+// ToolContext is the actor every MCP tool runs as: the human who consented,
+// inside the grant's organization. The workspace comes from tool input.
+func (p McpPrincipal) ToolContext() ai.ToolContext {
+	return ai.ToolContext{ActorID: p.UserID, ActorKind: audit.KindHuman, OrganizationID: p.OrganizationID}
 }
 
 // Authenticate is the whole gate of spec §7.2 except rate limiting: token,

@@ -32,10 +32,21 @@ const (
 
 func newMcpTestServer(t *testing.T) (*httptest.Server, Deps) {
 	t.Helper()
+	return newMcpTestServerWith(t, nil)
+}
+
+// newMcpTestServerWith lets a test change the wiring (metrics, a missing
+// service) before the router is built from it.
+func newMcpTestServerWith(t *testing.T, tune func(*Deps)) (*httptest.Server, Deps) {
+	t.Helper()
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	d.Cfg.APIPublicURL = mcpTestIssuer
 	d.McpAuth = service.NewMcpAuthService(pool, db.New(pool), d.Organizations, d.Cfg)
 	d.McpAuth.SetFlags(mcpTestFlags(true))
+	d.McpTools = service.NewMcpToolService(db.New(pool), d.AskUNI, d.Home, d.Workspaces, d.Cfg.FrontendOrigin)
+	if tune != nil {
+		tune(&d)
+	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 	return srv, d

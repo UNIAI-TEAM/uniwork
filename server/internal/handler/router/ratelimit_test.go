@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -328,6 +329,9 @@ func TestMCPOAuthRoutesWorkWithoutRedis(t *testing.T) {
 		{http.MethodPost, "/oauth/token", "McpToken"},
 		{http.MethodPost, "/oauth/revoke", "McpRevoke"},
 		{http.MethodPost, "/oauth/register", "McpRegister"},
+		{http.MethodPost, "/mcp", "McpServe"},
+		{http.MethodGet, "/mcp", "McpServe"},
+		{http.MethodDelete, "/mcp", "McpServe"},
 	} {
 		for i := 0; i < 70; i++ {
 			rec := httptest.NewRecorder()
@@ -335,6 +339,79 @@ func TestMCPOAuthRoutesWorkWithoutRedis(t *testing.T) {
 			if rec.Code != http.StatusOK || rec.Body.String() != c.want {
 				t.Fatalf("%s %s #%d = %d %q, want 200 %s", c.method, c.path, i, rec.Code, rec.Body.String(), c.want)
 			}
+		}
+	}
+}
+
+// /mcp budgets each access token, 120 a minute, and is off the global limiter.
+// The global limiter names only session JWTs, so an MCP token would fall back
+// to its client address, and every team behind one AI vendor's egress address
+// would share 300 a minute. Four tokens from one address spend 480 here.
+func TestMCPBudgetsEachAccessTokenAndSkipsTheGlobalLimiter(t *testing.T) {
+	h, _ := limitedMux(t)
+	vendor := "10.30.0.1"
+	teams := []string{"uwm_at_team-a", "uwm_at_team-b", "uwm_at_team-c", "uwm_at_team-d"}
+	for _, token := range teams {
+		caller{ip: vendor, bearer: token}.spend(t, h, http.MethodPost, "/mcp", 120)
+	}
+	caller{ip: vendor, bearer: teams[0]}.wantRefused(t, h, http.MethodPost, "/mcp", "per-token budget: 120 a minute")
+	caller{ip: vendor, bearer: "uwm_at_team-e"}.spend(t, h, http.MethodPost, "/mcp", 1)
+
+	// 480 requests did not touch the address's global budget either.
+	rest := caller{ip: vendor}
+	rest.spend(t, h, http.MethodGet, "/api/v1/meetings/m1/motions", 300)
+	rest.wantRefused(t, h, http.MethodGet, "/api/v1/meetings/m1/motions", "the global limiter still covers every other route")
+}
+
+// Whatever cannot be one of our tokens shares its address's budget: nobody
+// mints a fresh one by changing the bearer, and a session JWT is not an MCP
+// token.
+func TestMCPCredentialsThatAreNotAccessTokensShareTheAddressBudget(t *testing.T) {
+	h, minter := limitedMux(t)
+	ip := "10.30.0.2"
+	caller{ip: ip}.spend(t, h, http.MethodPost, "/mcp", 40)
+	caller{ip: ip, bearer: "junk-1"}.spend(t, h, http.MethodPost, "/mcp", 40)
+	caller{ip: ip, bearer: mustMint(t, minter, "user-a")}.spend(t, h, http.MethodPost, "/mcp", 40)
+	caller{ip: ip, bearer: "junk-2"}.wantRefused(t, h, http.MethodPost, "/mcp", "no token of ours: the address's 120 a minute is spent")
+	caller{ip: ip, bearer: mustMint(t, minter, "user-b")}.wantRefused(t, h, http.MethodPost, "/mcp", "a session JWT is not an access token")
+
+	// Another address, and a real token from the spent one, are unaffected.
+	caller{ip: "10.30.0.3"}.spend(t, h, http.MethodPost, "/mcp", 1)
+	caller{ip: ip, bearer: "uwm_at_someone"}.spend(t, h, http.MethodPost, "/mcp", 1)
+}
+
+// POST, GET and DELETE are one connection's traffic: one budget.
+func TestMCPMethodsShareOneBudget(t *testing.T) {
+	h, _ := limitedMux(t)
+	c := caller{ip: "10.30.0.4", bearer: "uwm_at_methods"}
+	c.spend(t, h, http.MethodPost, "/mcp", 100)
+	c.spend(t, h, http.MethodGet, "/mcp", 20)
+	c.wantRefused(t, h, http.MethodDelete, "/mcp", "one budget for every method")
+}
+
+func TestMCPBearerKey(t *testing.T) {
+	req := func(authorization string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		if authorization != "" {
+			r.Header.Set("Authorization", authorization)
+		}
+		return r
+	}
+	a := mcpBearer(req("Bearer uwm_at_aaa"))
+	if a == "" || a != mcpBearer(req("bearer uwm_at_aaa")) || a != mcpBearer(req("BEARER  uwm_at_aaa ")) {
+		t.Fatalf("the same token must key the same whatever the scheme's case or the spacing: %q", a)
+	}
+	if b := mcpBearer(req("Bearer uwm_at_bbb")); b == "" || b == a {
+		t.Fatalf("another token must key differently: %q vs %q", b, a)
+	}
+	if strings.Contains(a, "uwm_at_aaa") {
+		t.Fatalf("the key must not carry the token: %q", a)
+	}
+	for name, header := range map[string]string{
+		"none": "", "scheme only": "Bearer", "empty": "Bearer ", "Basic": "Basic uwm_at_aaa", "refresh token": "Bearer uwm_rt_aaa", "jwt": "Bearer eyJhbGciOiJIUzI1NiJ9.e30.x",
+	} {
+		if got := mcpBearer(req(header)); got != "" {
+			t.Errorf("%s: key = %q, want the address fallback", name, got)
 		}
 	}
 }

@@ -70,6 +70,9 @@ func (s *McpAuthService) SetMetrics(m McpMetrics) {
 	s.metrics = m
 }
 
+// Metrics is the port the /mcp transport counts tool calls on.
+func (s *McpAuthService) Metrics() McpMetrics { return s.metrics }
+
 // Issuer is the OAuth issuer and the origin every MCP URL hangs off.
 func (s *McpAuthService) Issuer() string { return strings.TrimRight(s.cfg.APIPublicURL, "/") }
 
