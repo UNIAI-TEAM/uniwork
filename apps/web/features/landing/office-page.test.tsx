@@ -135,6 +135,8 @@ describe("the Office page", () => {
       await setLocale(language);
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
       expect(container.textContent).not.toMatch(/github|genspark|genoffice|open[- ]source|mã nguồn mở|miễn phí|ad-free|không quảng cáo/i);
+      // Image generation is off today: the page names only the cloud tools that ship.
+      expect(container.textContent).not.toMatch(/image generation|generate images?|generated images?|ai image|tạo ảnh|sinh ảnh|ảnh bằng ai|ảnh do ai/i);
       // Content does go to a model provider when AI is used, so neither "stays in your workspace" nor "only when you ask" may come back.
       expect(container.textContent).not.toMatch(/data stays in your workspace|dữ liệu vẫn ở workspace|only sent to AI|chỉ được gửi cho AI/i);
     }
@@ -149,6 +151,17 @@ describe("the Office page", () => {
     expect(container.querySelector("#office-ai-title")?.textContent).toBe("AI built in, your files stay in your team's workspace");
     expect(container.querySelector("[data-faq]")?.textContent).toContain("your own API key");
     expect(container.querySelector(".office-ai-points")?.textContent).toContain("without going through UniWork servers");
+  });
+
+  it("names the cloud tools that ship and states the offline claim with its limits, in both languages", async () => {
+    await render({ flags: {}, office_installers: installers });
+    expect(container.querySelector(".office-ai-points")?.textContent).toContain("tìm kiếm web, tìm kiếm ảnh và chuyển giọng nói thành văn bản");
+    expect(container.querySelector(".office-trust")?.textContent).toContain("Sửa file trên máy không cần kết nối; AI cloud và tài liệu UniWork cần kết nối");
+    await setLocale("en");
+    await tick();
+    expect(container.querySelector(".office-ai-points")?.textContent).toContain("web search, image search and transcription");
+    expect(container.querySelector(".office-trust")?.textContent).toContain("Edit files on your computer without a connection; cloud AI and UniWork documents need one");
+    expect(container.querySelector("[data-faq]")?.textContent).toContain("Cloud AI and UniWork documents");
   });
 
   it.each([

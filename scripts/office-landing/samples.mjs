@@ -1,6 +1,10 @@
 // Sample files for the Office page screenshots (scripts/office-landing/capture.mjs): short, realistic
 // working documents about a made-up Vietnamese company, in Vietnamese and in English. Nothing here is a
-// customer's data, and no file names a product other than UniWork.
+// customer's data, and no file names a product other than UniWork. The Slides deck lives in deck.mjs and the
+// PDF report in report.mjs; both are re-exported here so capture.mjs keeps one import.
+
+export { buildPptx } from "./deck.mjs";
+export { REPORT_PDF_OPTIONS, reportHtml as pdfHtml } from "./report.mjs";
 
 const esc = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -17,10 +21,6 @@ export const COPY = {
     sheetName: "Doanh thu",
     sheetHead: ["Tháng", "Doanh thu (triệu đồng)", "Chi phí (triệu đồng)", "Lợi nhuận (triệu đồng)"],
     sheetMonths: ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8"],
-    // One list per slide of the fixture deck, in the order its text runs appear.
-    slides: [["Kết quả kinh doanh quý 3", "Năm tài chính 2026"], ["Nội dung", "Kết quả tài chính", "Cập nhật sản phẩm", "Lộ trình"], ["Kết quả chính"], ["Doanh thu theo khu vực", "Khu vực", "Quý 3", "So với cùng kỳ", "Miền Bắc", "12,3 tỷ", "+8%", "Miền Nam", "7,1 tỷ", "+12%"], ["Cảm ơn", "Hỏi đáp?"]],
-    pdfTitle: "Báo cáo vận hành tháng 9",
-    pdfLines: ["Tổng quan", "Số đơn xử lý trong tháng tăng 12% so với tháng 8, thời gian phản hồi trung bình giảm còn 6 giờ.", "Điểm cần cải thiện", "Hai kho phía Nam còn chậm cập nhật tồn kho; đề xuất đồng bộ hằng ngày.", "Đề xuất", "Duy trì buổi rà soát tuần và giao chủ sở hữu cho từng chỉ số."],
     htmlTitle: "Hội thảo khách hàng 2026",
     htmlLead: "Một buổi chiều chia sẻ cách các nhóm vận hành làm việc cùng nhau.",
     htmlCta: "Đăng ký tham dự",
@@ -40,9 +40,6 @@ export const COPY = {
     sheetName: "Revenue",
     sheetHead: ["Month", "Revenue (VND million)", "Cost (VND million)", "Profit (VND million)"],
     sheetMonths: ["January", "February", "March", "April", "May", "June", "July", "August"],
-    slides: [["Q3 business results", "Fiscal year 2026"], ["Agenda", "Financial results", "Product updates", "Roadmap"], ["Key results"], ["Revenue by region", "Region", "Q3", "YoY", "North", "VND 12.3bn", "+8%", "South", "VND 7.1bn", "+12%"], ["Thank you", "Questions?"]],
-    pdfTitle: "September operations report",
-    pdfLines: ["Overview", "Orders processed rose 12% over August, and the average response time fell to 6 hours.", "Where to improve", "Two southern warehouses are slow to update stock; we suggest a daily sync.", "Recommendation", "Keep the weekly review and give each metric an owner."],
     htmlTitle: "Customer summit 2026",
     htmlLead: "An afternoon on how operations teams work together.",
     htmlCta: "Register to attend",
@@ -89,25 +86,6 @@ export async function buildXlsx(JSZip, lang) {
   });
   zip.file("xl/worksheets/sheet1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="4" width="26" customWidth="1"/></cols><sheetData>${rows.join("")}</sheetData></worksheet>`);
   return zip.generateAsync({ type: "nodebuffer" });
-}
-
-/** The business fixture deck with each slide's text replaced in reading order. */
-export async function buildPptx(JSZip, fixture, lang) {
-  const zip = await JSZip.loadAsync(fixture);
-  for (const [index, texts] of COPY[lang].slides.entries()) {
-    const name = `ppt/slides/slide${index + 1}.xml`;
-    const queue = [...texts];
-    const xml = await zip.file(name).async("string");
-    zip.file(name, xml.replace(/<a:t>[^<]*<\/a:t>/g, (run) => `<a:t>${esc(queue.shift() ?? run.slice(5, -6))}</a:t>`));
-  }
-  return zip.generateAsync({ type: "nodebuffer" });
-}
-
-/** A printable page; capture.mjs prints it to PDF through the browser it already runs. */
-export function pdfHtml(lang) {
-  const c = COPY[lang];
-  const blocks = c.pdfLines.map((line, i) => (i % 2 === 0 ? `<h2>${esc(line)}</h2>` : `<p>${esc(line)}</p>`)).join("");
-  return `<!doctype html><html lang="${lang}"><meta charset="utf-8"><style>body{font:14px/1.7 Arial,sans-serif;margin:40px;color:#1d2433}h1{font-size:26px}h2{font-size:17px;margin-top:28px}</style><h1>${esc(c.pdfTitle)}</h1>${blocks}</html>`;
 }
 
 export function htmlPage(lang) {

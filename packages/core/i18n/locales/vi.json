@@ -7548,7 +7548,7 @@
         "unavailable": "Bản cài đặt đang được chuẩn bị. Trong lúc chờ, bạn vẫn mở và sửa file Office ngay trên web, trong mục Tài liệu.",
         "trustAccount": "Dùng chung tài khoản UniWork",
         "trustAi": "AI theo gói UniWork hoặc khóa riêng",
-        "trustOffline": "Sửa file trên máy không cần mạng"
+        "trustOffline": "Sửa file trên máy không cần kết nối; AI cloud và tài liệu UniWork cần kết nối"
       },
       "editors": {
         "title": "Sáu trình soạn thảo. Một workspace.",
@@ -7638,11 +7638,11 @@
         "sub": "UniWork Office dùng chung tài khoản và phân quyền với UniWork, nên file của nhóm vẫn theo quyền truy cập của tổ chức.",
         "account": {
           "title": "AI qua tài khoản UniWork",
-          "description": "Công cụ AI trên cloud, như tìm kiếm web hay tạo ảnh, chạy qua UniWork theo gói của tổ chức. Nếu dùng khóa API của riêng bạn, ứng dụng gọi thẳng nhà cung cấp bạn chọn mà không qua máy chủ UniWork."
+          "description": "Công cụ AI trên cloud hiện có là tìm kiếm web, tìm kiếm ảnh và chuyển giọng nói thành văn bản, chạy qua UniWork theo gói của tổ chức. Nếu dùng khóa API của riêng bạn, ứng dụng gọi thẳng nhà cung cấp bạn chọn mà không qua máy chủ UniWork."
         },
         "files": {
           "title": "File của nhóm lưu trong workspace",
-          "description": "File lưu vào workspace nằm trong workspace UniWork của nhóm: mở từ Tài liệu, lưu thành phiên bản mới, chia sẻ và bình luận. File lưu trên máy thì ở lại trên máy và sửa được khi không có mạng."
+          "description": "File lưu vào workspace nằm trong workspace UniWork của nhóm: mở từ Tài liệu, lưu thành phiên bản mới, chia sẻ và bình luận. File lưu trên máy thì ở lại trên máy và sửa được khi không có kết nối; AI cloud và tài liệu UniWork cần kết nối."
         },
         "link": "Xem cách UniWork phân quyền"
       },
@@ -7653,7 +7653,7 @@
         "q2": "Mở được những định dạng nào?",
         "a2": "DOCX, XLSX, PPTX, PDF, HTML và Markdown. Với file Office định dạng cũ, hãy mở từ Tài liệu trên web để UniWork chuyển đổi.",
         "q3": "Có dùng được khi không có mạng không?",
-        "a3": "Sửa file lưu trên máy không cần mạng. Mở file từ workspace, lưu thành phiên bản mới và dùng AI thì cần kết nối.",
+        "a3": "Sửa file trên máy không cần kết nối. AI cloud và tài liệu UniWork (mở từ workspace, lưu thành phiên bản mới) cần kết nối.",
         "q4": "Dữ liệu của tôi được xử lý thế nào?",
         "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được gửi tới nhà cung cấp mô hình: qua UniWork với công cụ chạy theo gói của tổ chức, hoặc thẳng từ máy bạn nếu dùng khóa API riêng.",
         "q5": "Tôi có cần tài khoản riêng cho Office không?",
