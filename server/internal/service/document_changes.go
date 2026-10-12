@@ -64,16 +64,30 @@ type DocumentChangesService struct {
 	deployment string
 	ttl        time.Duration
 	now        func() time.Time
-	// afterScopeHook is a test seam (BE-F1-4): it runs right after openSnapshot
-	// resolved the gates inside its transaction, so a test can revoke a role
-	// mid-construction and pin that the gates are re-read inside the snapshot.
-	// Never set in production.
-	afterScopeHook func()
-	// pageItemHook is a test seam (BE-F1-3): it runs after a page read its
-	// snapshot row (so the transaction snapshot is fixed) and before it reads
-	// the items, so a test can commit a sweep in that window and pin that the
-	// answer is a complete page, never a short one. Never set in production.
+	// The fields below are test seams, set only from _test.go files of this
+	// package (unexported, so no other package can reach them) and never by
+	// NewDocumentChangesService: their zero values are the production path.
+	//
+	// midBuildHook runs inside openSnapshot after the gates and the high-water
+	// mark were read and before the items are (BE-F2-1, BE-F2-2), so a test can
+	// commit a writer or a revocation in the middle of the build.
+	midBuildHook func()
+	// pageItemHook runs inside page after the snapshot row passed its expiry
+	// check and before the items are read (BE-F2-3), so a test can commit a
+	// sweep in that window.
 	pageItemHook func()
+	// isoOverride, when set, replaces REPEATABLE READ in openSnapshot and
+	// page, so a guard can prove it turns red under READ COMMITTED.
+	isoOverride pgx.TxIsoLevel
+}
+
+// isoLevel is the isolation of the snapshot and page transactions:
+// REPEATABLE READ, unless a test overrides it.
+func (s *DocumentChangesService) isoLevel() pgx.TxIsoLevel {
+	if s.isoOverride != "" {
+		return s.isoOverride
+	}
+	return pgx.RepeatableRead
 }
 
 // NewDocumentChangesService signs cursors with a key derived from JWT_SECRET
@@ -213,7 +227,7 @@ func clampChangeLimit(n int) int32 {
 // The returned organization id is the one read inside the transaction, so the
 // cursor binds the same tenant the snapshot carries.
 func (s *DocumentChangesService) openSnapshot(ctx context.Context, actor Actor, workspaceID string) (string, string, error) {
-	tx, err := s.docs.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	tx, err := s.docs.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: s.isoLevel()})
 	if err != nil {
 		return "", "", err
 	}
@@ -235,12 +249,12 @@ func (s *DocumentChangesService) openSnapshot(ctx context.Context, actor Actor, 
 	if !scope.seeAll && !scope.memberVisible {
 		return "", "", ErrForbidden
 	}
-	if s.afterScopeHook != nil {
-		s.afterScopeHook()
-	}
 	highWater, err := q.CurrentChangeHighWater(ctx)
 	if err != nil {
 		return "", "", err
+	}
+	if s.midBuildHook != nil {
+		s.midBuildHook()
 	}
 	id := util.NewID()
 	if err := q.InsertDocumentChangeSnapshot(ctx, db.InsertDocumentChangeSnapshotParams{
@@ -280,7 +294,7 @@ func nonNilStrings(v []string) []string {
 // REPEATABLE READ transaction and the sweeper deletes both in one
 // transaction, so a page is either whole or the answer is 410 - never short.
 func (s *DocumentChangesService) page(ctx context.Context, cs changeCursorScope, snapshotID, after string, limit int32) (DocumentChangePage, error) {
-	tx, err := s.docs.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	tx, err := s.docs.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: s.isoLevel(), AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return DocumentChangePage{}, err
 	}
@@ -305,9 +319,6 @@ func (s *DocumentChangesService) page(ctx context.Context, cs changeCursorScope,
 		return DocumentChangePage{}, ErrChangeCursorExpired
 	}
 	if s.pageItemHook != nil {
-		// The transaction snapshot is fixed by the snapshot-row read above, so
-		// a test can now commit a sweep and assert the item read still sees
-		// the whole page (BE-F1-3). Never set in production.
 		s.pageItemHook()
 	}
 	rows, err := q.ListDocumentChangeSnapshotItems(ctx, db.ListDocumentChangeSnapshotItemsParams{
