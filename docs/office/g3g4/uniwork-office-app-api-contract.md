@@ -304,6 +304,6 @@ Grant và flag). Không nhầm với `GET /documents/{documentID}/office/capabil
 - **Mã lỗi:** route feed/intent/lease/AI về sau **tự từ chối bằng `office_capability_off`
   (403, `fields.capability`)** khi flag tắt — server là nguồn thật, client cũ vẫn bị chặn.
   Bốn mã mới của phase đăng ký **không lớp** `error_class` (contract-p0 §4):
-  `change_cursor_expired` (410), `change_cursor_invalid` (400), `run_limit_reached` (429),
+  `change_cursor_expired` (410), `change_cursor_invalid` (400), `run_limit_reached` (409),
   `office_capability_off` (403). Tên `commit_intent_unknown` (410) **mới chỉ được giữ chỗ
   trong tài liệu, chưa phát** cho tới khi G5-D2 chốt retention intent.

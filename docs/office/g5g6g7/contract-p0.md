@@ -1,6 +1,6 @@
 # UniWork Office G5/G6/G7 — Gói hợp đồng P0 (X-01)
 
-> **Trạng thái:** in-progress — người dùng đã ký lô #1 ngày 2026-10-12 (U-15, "duyệt theo gợi ý": mọi khuyến nghị ở đây có hiệu lực); còn chờ điền N′ (bản dev đầu tiên có G5-04g), lệnh harness (g7-qa) và số G6-D1 (báo cáo G6-02)
+> **Trạng thái:** in-progress — người dùng đã ký lô #1 ngày 2026-10-12 (U-15, "duyệt theo gợi ý": mọi khuyến nghị ở đây có hiệu lực); lô #2 (G6-D1) đã ký ngày 2026-10-13 00:35 UTC+7 ("duyệt theo gợi ý": số A1–A16, Q1–Q6; A17 chuyển G6-D2); còn chờ điền N′ (bản dev đầu tiên có G5-04g) và lệnh harness (g7-qa)
 
 **Issue:** UNI-1338 (X-01), parent UNI-660 (`Refs: UNI-635, UNI-661`), tài liệu UNI-923.
 **Nguồn ràng buộc:** [spec v1.2](../../superpowers/specs/2026-10-02-office-g5-g6-g7-design.md) (duyệt U-13),
@@ -33,7 +33,7 @@ Bản cài đang phục vụ (`0.11.0-dev.7`) trùng tag mới nhất của fork
 | C5 | Handoff packet §10.3 (SHA D/F, pin, bản cài, tag) | **Đạt bằng bảng trên** | mục 1 này; bảng công cụ AI theo module do G6-01 giao |
 
 Chỗ lưu "My AI"/model theo tài khoản (UNI-1240, đầu vào G6 theo spec §1.4): đi cùng PR #219 (`fc171d4a2`); G6-02/G6-03c
-xác minh đường dẫn cụ thể khi dùng.
+xác minh đường dẫn cụ thể khi dùng; owner việc kiểm tra đường dẫn này là G6-03c (lô #2, Q5).
 
 ## 2. Owner
 
@@ -119,11 +119,18 @@ Lớp có sẵn: `conflict`, `gone` ("dừng thử lại và rời", `:24-25`), 
 | --- | --- | --- | --- | --- |
 | `change_cursor_expired` | 410 | không lớp | `gone` dạy client "rời đi", trái với full resync; parser feed riêng của G5-04 tự switch theo mã (plan G5-04) | X-03 |
 | `change_cursor_invalid` | 400 | không lớp | Cursor giả/sai scope; không lộ phạm vi | X-03 |
-| `run_limit_reached` | 429 | không lớp | Như `ai_rate_limited` | X-03 |
+| `run_limit_reached` | 409 | không lớp | Lô #2 (Q2): 429 khiến fork phân loại thành "AI bận"; dùng 409 như `conversation_expired`, client rẽ nhánh theo mã | X-03 |
 | `office_capability_off` | 403, `fields.capability` | không lớp | Flag ẩn capability, không là từ chối quyền (CLAUDE.md › Platform Admin); không nhập vào `permission` để client không chạy đường mất quyền | X-03 |
 | `commit_intent_unknown` | 410 | không lớp | Kết quả intent đã bị dọn: "không biết", không giả "chưa commit" (plan G5-07) | X-03 thêm khi G5-D2 chốt retention; tên chốt ngay |
 | `offline_lease_expired`, `offline_lease_revoked` | 403 | `permission` cho `revoked`; `expired` không lớp | Đề xuất | owner registry khi **G5-D1** đóng |
-| `conversation_expired` | 409 | không lớp | Theo plan G6-03a | owner registry khi **G6-D1** đóng |
+| `conversation_expired` | 409 | không lớp | Theo plan G6-03a | G6-D1 đã chốt (lô #2 ký 2026-10-13); G6-03a đăng ký |
+| `ai_tool_result_too_large` | 413 | không lớp | Tool result vượt trần 64 KiB/lần hoặc 256 KiB/request (A6; Q4) | G6-03a/G6-03b khi giao |
+| `ai_uniwork_busy` | 429 (`Retry-After: 5`) | không lớp | Vượt trần đồng thời 32/pod, 64 toàn cục, 8/org (A11; Q4) | G6-03a/G6-03b khi giao |
+| `ai_provider_timeout` | 504 | không lớp | Quá hạn 55 s chờ upstream (A14; Q4) | G6-03a/G6-03b khi giao |
+
+Ghi chú lô #2: (Q1) `office_capability_off` của UniWork AI mang `fields.capability` = `ai_uniwork` hoặc
+`ai_uniwork_<format>`. (Q6) nhóm giới hạn `ai-uniwork` phát `ai_rate_limited`; G6-03b thêm tham số mã lỗi cho
+`RateLimitByIdentityBucket`.
 
 Route capability của app: `{sync_feed, sync_write, offline_library, ai_uniwork, ai_uniwork_formats[], ttl_seconds}`,
 `ttl_seconds` mặc định 300, đánh giá override user > org > global (plan X-03).
@@ -142,7 +149,7 @@ lệch thứ tự, đổi tên khi rebase để thứ tự chuỗi = thứ tự 
 | 2 | G5-07 | `999<ms>_document_commit_intents`; nếu OQ-P1 chọn (a1): `999<ms>_documents_content_revision` | G5-D2 |
 | 3 | G5-08s | `999<ms>_office_offline_leases` | G5-D1 |
 | 4 | G6-03a | `999<ms>_ai_uniwork_conversations` | nếu G6-02 chọn Postgres |
-| 5 | G6-03b | `999<ms>_ai_uniwork_runs` | nếu G6-02 xếp run là business state |
+| 5 | G6-03b | `999<ms>_ai_uniwork_runs` | luôn áp dụng (lô #2, Q3) |
 | 6 | G6-03c | `999<ms>_<entitlement>` | chỉ khi G6-D1 chọn nhánh entitlement mới (U-13: dùng lại `office.ai_cloud`, nên mặc định không có) |
 
 Bảng mới: không FK, id ULID `TEXT`, `organization_id TEXT NOT NULL`, `created_by` + `created_by_kind`; bảng có TTL có
@@ -261,8 +268,28 @@ Dữ kiện: `.env.example:354-365` đã có `AI_PROVIDER`, `OPENAI_BASE_URL`, `
 nào trên deployment `AI_PROVIDER=fake` (spec §12.3).
 
 Số G6-D1 (`ModelPolicy` của `office_uniwork_ai`, trần instruction pack, trần vòng tool, req/phút nhóm `ai-uniwork`, số lần
-chờ 429, trần body/tool-result, hội thoại phía server, đồng thời, run id, wire extension, streaming): **pending G6-02 (lane
-g6-ai_server)**.
+chờ 429, trần body/tool-result, hội thoại phía server, đồng thời, run id, wire extension, streaming): **đã ký ở lô #2
+(2026-10-13 00:35 UTC+7, "duyệt theo gợi ý")**; nguồn `decisions/batch-2.md` A1–A16, bằng chứng `g6-02-spike-report.md` §1/§8.1.
+A17 (upstream production) chuyển sang G6-D2.
+
+| # | Số đã ký |
+| --- | --- |
+| A1 | `ModelPolicy` `office_uniwork_ai`: cùng map flagship với `policy.go:39` (anthropic claude-opus-5, openai gpt-4o, fake); không ollama; MaxTokens 4096; Temperature 0; model dev qua `AI_MODEL_OFFICE_UNIWORK_AI` + `AI_MODEL_ALLOW` |
+| A2 | Instruction pack ≤ 2000 token (chung ≤ 800 + module ≤ 1200) |
+| A3 | 8 vòng tool-result, 10 lần gọi model mỗi lượt; vượt → `run_limit_reached` (409) |
+| A4 | `ai-uniwork`: 60 req/phút mỗi identity, bucket riêng |
+| A5 | 3 lần chờ 429 mỗi lượt; `Retry-After` kẹp 300 s |
+| A6 | Body 1 MiB; tool result ≤ 64 KiB/lần, ≤ 256 KiB/request; vượt → 413 `ai_tool_result_too_large` |
+| A7 | Lịch sử ≤ 48 000 token input mỗi lần gọi, bỏ cả cặp cũ nhất, ≤ 20 lượt người dùng |
+| A8 | Mở rộng provider: `ToolCall{ID}`, role user/assistant/tool + `ToolCalls`/`ToolCallID`, `UsagePresent`; ollama từ chối |
+| A9 | Hội thoại lưu Postgres 2 bảng, AES-256-GCM secretbox, idle 30 phút / tuyệt đối 24 h / 20 lượt; hết hạn → 409 `conversation_expired` |
+| A10 | OQ-P2: desktop dùng `POST /api/v1/documents/{documentID}/ai/uniwork/chat/completions` (document session), kiểm quyền mỗi request |
+| A11 | Đồng thời: LoadShed miễn trừ theo route; 32/pod, 64 toàn cục (Redis lease), 8/org; vượt → 429 `ai_uniwork_busy`, `Retry-After: 5` |
+| A12 | Run id: header `X-UniWork-AI-Run`, `X-UniWork-AI-Conversation` (+ CORS) |
+| A13 | Wire extension `x_uniwork` {`dropped_tool_calls`, `step`, `limit`, terminal dự trữ}; `finish_reason` chuẩn, không có `tool_not_allowed` |
+| A14 | Streaming v1: SSE một chunk sau khi biết câu trả lời upstream; lỗi là HTTP status thật; hạn 55 s; không bao giờ 200 rỗng; streaming thật ở v1.1 |
+| A15 | Entitlement dùng lại `office.ai_cloud` (U-13) |
+| A16 | Run/usage ở bảng hạ tầng AI (`Ai*`), không audit/outbox; thiếu usage → `usage_unknown` |
 
 ## 9. Harness G7-01 và đường dự phòng
 
@@ -321,7 +348,7 @@ light/dark vi/en cho task UI.
 | G5-D1 | Giá trị chính sách: lease ≤ 24 h, gia hạn khi online, revoke hiệu lực khi máy nhận revoke hoặc lease hết hạn, logout khóa ngay | Amendment DOC-005 + threat model | Lô ký #2; người dùng (vai Auth) |
 | G5-D2 | — (giao đội chốt) | Retention feed/snapshot/idempotency, tra intent, fencing, claim refresh | Lô #2; người dùng (vai G1/FileService); dev dùng giá trị tạm của G5-01a/G5-07 |
 | G5-D3 | Một intent chưa giải quyết mỗi Document; số giới hạn queue/cache/nháp (OQ-UX2) | — | Đóng bởi U-01 apply (U-15, 2026-10-12): số đã ký ở `ux/EXPERIENCE.md` › Open questions |
-| G6-D1 | Entitlement dùng lại `office.ai_cloud` | Façade route/wire/run id, streaming, vòng tool-result, `ModelPolicy`, trần pack/lượt/đồng thời, quota semantics | Báo cáo G6-02 → lô #2; người dùng |
+| G6-D1 | Entitlement dùng lại `office.ai_cloud`; façade route/wire/run id, streaming, vòng tool-result, `ModelPolicy`, trần pack/lượt/đồng thời, quota semantics (lô #2) | — | **Đã ký** lô #2 2026-10-13 (A1–A16, Q1–Q6); A17 → G6-D2 |
 | G6-D2 | — (người dùng quyết khi lên production) | Upstream production, region, retention/log, secrets, transcript | Người dùng; tới đó chỉ fixture tổng hợp trên upstream dev |
 | G6-D3 | Đóng (spec §13.1) | — | — |
 | G6-D4 | — (giao đội chốt) | Ma trận §6.5 theo bảng G6-01, cách hiển thị thay đổi AI | Lô #3; người dùng |
