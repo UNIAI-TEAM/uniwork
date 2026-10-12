@@ -64,20 +64,25 @@ ran, the claim was false).
 | `HARNESS_DRY_RUN` | `0` | `1` = ports and preconditions only |
 | `HARNESS_SKIP_APP` | `0` | `1` = server + web only |
 
-The harness never installs system packages and never resets the shared database:
-`start.sh` reports what is missing and exits 77.
+The harness fills the gap the VM's profile left, as the Advisor's rule requires:
+it installs `xvfb`/`xauth`/`dbus-x11` and the Electron runtime libraries itself
+when they are missing (`apt-get`, or `sudo -n` when that works; `playwright
+install-deps chromium` first for the library set), and exits 77 BLOCKED with the
+exact reason when it may not install. It never resets the shared database.
 
-## Provision delta (needs the Advisor's permission — `provision.sh` is not ours)
+## Provision delta (proposed to the Advisor — `provision.sh` is not ours)
 
-The cloud runner's `uniwork` profile (`~/.cloud-runner/.cursor/cloud/provision.sh`)
-already installs `xvfb`, `xauth` and `dbus-x11` for the desktop Linux proof, so
-the harness can run under xvfb on a `uniwork` VM. What it does **not** install is
-the Chromium/Electron runtime library set — the `office` profile gets those from
-`npx playwright install-deps chromium` in `install-office.sh`, the `uniwork`
-profile never does. The fork is also not fetched by any provision script; the
-harness clones it itself at `OFFICE_FORK_SHA` into `OFFICE_FORK_CACHE`.
+The harness installs its own gap, so it does not depend on this landing. It is
+still worth doing once per VM instead of once per round, and it is the only
+change any provision script would need:
 
-The proposed delta (one line, `install.sh`, after `pnpm install --frozen-lockfile`):
+- `provision.sh` (uniwork profile) already installs `xvfb`, `xauth` and
+  `dbus-x11` for the desktop Linux proof — nothing to add there.
+- The **Electron runtime libraries** only reach the *office* profile, from
+  `npx playwright install-deps chromium` in `install-office.sh`. The `uniwork`
+  profile never installs them, so `start.sh` does it per VM (once; the packages
+  survive). Proposed delta, one line in `install.sh` after
+  `pnpm install --frozen-lockfile`:
 
 ```diff
 --- a/.cursor/cloud/install.sh
@@ -89,10 +94,9 @@ The proposed delta (one line, `install.sh`, after `pnpm install --frozen-lockfil
 +(cd /tmp && npx --yes --package="playwright@${PLAYWRIGHT_VERSION}" -- playwright install-deps chromium)
 ```
 
-Until that lands, `start.sh` checks `ldconfig` for `libnss3.so`, `libatk-1.0.so.0`,
-`libgbm.so.1`, `libasound.so.2` and `libcups.so.2` and fails BLOCKED (exit 77)
-naming the missing libraries and the exact apt command, instead of letting the
-Electron loader fail obscurely later.
+- The fork is not fetched by any provision script. The harness clones it at
+  `OFFICE_FORK_SHA` into `OFFICE_FORK_CACHE` (~2 minutes once per SHA). A
+  provision step could pre-clone it, but that is optional.
 
 ## What is still open (item C follow-up)
 

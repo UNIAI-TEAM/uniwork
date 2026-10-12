@@ -30,6 +30,8 @@ FORK_CACHE="${OFFICE_FORK_CACHE:-$HOME/.cache/uniwork-office-harness}"
 DRY_RUN="${HARNESS_DRY_RUN:-0}"
 SKIP_APP="${HARNESS_SKIP_APP:-0}"
 
+mkdir -p "$RUN_DIR/logs" "$RUN_DIR/userdata"
+
 blocked() { # blocked <what is missing> <what would fix it>
   echo "BLOCKED: $1" >&2
   echo "  fix: $2" >&2
@@ -64,28 +66,44 @@ set +a
 : "${DATABASE_URL:?DATABASE_URL must be set in $ENV_FILE}"
 : "${REDIS_URL:?REDIS_URL must be set in $ENV_FILE}"
 
+# ---- what this run needs on top of the provisioned VM ------------------------
+# The cloud runner's uniwork profile installs xvfb for the desktop Linux proof,
+# but the Electron runtime libraries only reach the *office* profile (through
+# `playwright install-deps chromium` in install-office.sh). The Advisor's rule is
+# that the harness installs what it needs itself, so the gap is filled here — and
+# a gap that cannot be filled is BLOCKED with the reason, never an obscure
+# loader failure later. Detection only: the install runs after --dry-run.
+NEED_XVFB=0
+command -v xvfb-run > /dev/null 2>&1 || NEED_XVFB=1
+LIBS_MISSING=()
 if [ "$SKIP_APP" != "1" ]; then
-  command -v xvfb-run > /dev/null 2>&1 \
-    || blocked "xvfb-run is not installed" "apt-get install -y --no-install-recommends xvfb xauth dbus-x11 (provision delta in the harness README)"
-  # Electron needs the Chromium shared libraries. The office profile gets them
-  # from `playwright install-deps chromium` (install-office.sh); a uniwork VM
-  # does not, and without this check the app dies later with an obscure loader
-  # error. ldconfig knows every library the VM has.
-  libs_missing=()
   for lib in libnss3.so libatk-1.0.so.0 libgbm.so.1 libasound.so.2 libcups.so.2; do
-    ldconfig -p 2> /dev/null | grep -q "$lib" || libs_missing+=("$lib")
+    ldconfig -p 2> /dev/null | grep -q "$lib" || LIBS_MISSING+=("$lib")
   done
-  if [ "${#libs_missing[@]}" -gt 0 ]; then
-    blocked "the Electron runtime libraries are missing: ${libs_missing[*]}" \
-      "(cd /tmp && npx --yes --package=playwright@1.62.1 -- playwright install-deps chromium) — provision delta in the harness README"
+fi
+
+APT=""
+if command -v apt-get > /dev/null 2>&1; then
+  if [ "$(id -u)" -eq 0 ]; then APT="apt-get"
+  elif command -v sudo > /dev/null 2>&1 && sudo -n true 2> /dev/null; then APT="sudo apt-get"
   fi
 fi
+apt_update_once() {
+  [ -n "$APT" ] || return 1
+  [ -f "$RUN_DIR/logs/.apt-updated" ] && return 0
+  # shellcheck disable=SC2086
+  $APT update -q >> "$RUN_DIR/logs/apt.log" 2>&1 && : > "$RUN_DIR/logs/.apt-updated"
+}
+apt_install() { # apt_install <packages...>
+  [ -n "$APT" ] || return 1
+  # shellcheck disable=SC2086
+  $APT install -y -q --no-install-recommends "$@" >> "$RUN_DIR/logs/apt.log" 2>&1
+}
 
 # ---- fresh ports and the environment derived from them -----------------------
 # Ports and the server's environment come from lib.mjs (buildServerEnv), the same
 # function scripts/office/g5g6g7/harness/lib.test.mjs pins, so the web, the app
 # and the sample AC cannot drift from what the server was started with.
-mkdir -p "$RUN_DIR/logs" "$RUN_DIR/userdata"
 rm -f "$RUN_DIR/BLOCKED"
 : > "$RUN_DIR/pids"
 D_SHA="$(git rev-parse HEAD)"
@@ -103,8 +121,34 @@ echo "harness: D web     $WEB_ORIGIN"
 echo "harness: fork      $FORK_SHA"
 
 if [ "$DRY_RUN" = "1" ]; then
+  [ "$NEED_XVFB" = 0 ] || echo "harness: --dry-run would install xvfb xauth dbus-x11"
+  [ "${#LIBS_MISSING[@]}" -eq 0 ] || echo "harness: --dry-run would install the Electron runtime libraries (${LIBS_MISSING[*]})"
   echo "harness: --dry-run, stopping before anything is started"
   exit 0
+fi
+
+# ---- fill the gap the VM's profile left --------------------------------------
+if [ "$NEED_XVFB" = 1 ]; then
+  echo "harness: xvfb-run is missing; installing xvfb, xauth, dbus-x11..."
+  apt_update_once && apt_install xvfb xauth dbus-x11 \
+    || blocked "xvfb-run is missing and could not be installed" "run as root or with passwordless sudo, or install: apt-get install -y --no-install-recommends xvfb xauth dbus-x11"
+  command -v xvfb-run > /dev/null 2>&1 \
+    || blocked "xvfb-run is still missing after the install attempt" "see $RUN_DIR/logs/apt.log"
+fi
+if [ "${#LIBS_MISSING[@]}" -gt 0 ]; then
+  echo "harness: the Electron runtime libraries are missing (${LIBS_MISSING[*]}); installing them..."
+  # npx first: it follows the Playwright version and knows the whole set on this
+  # Ubuntu release; the explicit list is the fallback when npx cannot run.
+  if ! (cd /tmp && npx --yes --package="playwright@1.62.1" -- playwright install-deps chromium) >> "$RUN_DIR/logs/apt.log" 2>&1; then
+    apt_update_once && apt_install libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libgbm1 libasound2t64 libcups2t64 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libpango-1.0-0 libcairo2 libdrm2 \
+      || blocked "the Electron runtime libraries are missing and could not be installed: ${LIBS_MISSING[*]}" "run as root or with passwordless sudo; see $RUN_DIR/logs/apt.log"
+  fi
+  libs_still=()
+  for lib in libnss3.so libatk-1.0.so.0 libgbm.so.1 libasound.so.2 libcups.so.2; do
+    ldconfig -p 2> /dev/null | grep -q "$lib" || libs_still+=("$lib")
+  done
+  [ "${#libs_still[@]}" -eq 0 ] \
+    || blocked "the Electron runtime libraries are still missing: ${libs_still[*]}" "see $RUN_DIR/logs/apt.log"
 fi
 
 # ---- D server ----------------------------------------------------------------
