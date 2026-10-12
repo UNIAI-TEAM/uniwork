@@ -635,7 +635,11 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	if req.Format != "" && req.Format != string(format) {
 		return db.OfficeJob{}, ErrOfficeJobInvalid
 	}
-	if req.HasBaseRevision && req.BaseRevision != doc.Revision {
+	// OQ-P1 (a1): a caller's base behind a rename or move still describes the
+	// same content (content_revision <= base <= revision), so it starts a job
+	// on the document's current revision; a base behind a content change stays
+	// base_version_mismatch.
+	if req.HasBaseRevision && !contentBaseCurrent(doc, req.BaseRevision) {
 		return db.OfficeJob{}, officeErr("base_version_mismatch", "revision")
 	}
 	if !doc.FileVersionID.Valid || doc.FileVersionID.String == "" {

@@ -315,7 +315,11 @@ func (s *DocumentOfficeService) loadBase(ctx context.Context, in OfficeJobInput)
 	if err != nil {
 		return officeInput{}, "", err
 	}
-	if doc.Revision != in.BaseRevision {
+	// OQ-P1 (a1) reaches the submit path too: a base behind a rename or move
+	// still describes the same content (content_revision <= base <= revision).
+	// A base behind a content change stays base_version_mismatch, and the
+	// file_version_id check below is the same-bytes guard.
+	if !contentBaseCurrent(doc, in.BaseRevision) {
 		return officeInput{}, "", officeErr("base_version_mismatch", "revision")
 	}
 	ver, err := s.q.GetOfficeJobBaseVersion(ctx, db.GetOfficeJobBaseVersionParams{

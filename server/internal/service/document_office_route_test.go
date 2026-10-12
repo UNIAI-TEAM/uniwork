@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/office"
@@ -106,6 +107,78 @@ func TestDocumentOfficeLifecycleThroughTheDocumentRoute(t *testing.T) {
 		}
 		if c, err := svc.CancelOfficeJobForDocument(ctx, f.actor, other, row.ID); err != nil || c.State != "cancelled" {
 			t.Fatalf("cancel via its own document: %+v %v", c, err)
+		}
+	})
+}
+
+// OQ-P1 (a1) reaches the office job submission - both the document-scoped
+// wrapper (StartOfficeJobForDocument) and loadBase (StartOfficeJob): a base
+// behind a rename still describes the same bytes, so the job starts on the
+// document's current revision; a base behind a content change is still
+// base_version_mismatch and writes no job row.
+func TestDocumentOfficeSubmitAcceptsAMetadataBase(t *testing.T) {
+	ctx := context.Background()
+	serialize := func(key string) OfficeJobRequest {
+		return OfficeJobRequest{Operation: string(office.OperationSerialize), IdempotencyKey: key}
+	}
+
+	t.Run("the document-scoped submit takes the base rule", func(t *testing.T) {
+		f := newOfficeFixture(t, "rename base\n")
+		svc := f.service(newScriptedEngine())
+		title := "Tài liệu đổi tên"
+		renamed, err := f.docs.UpdateDocument(ctx, f.actor, f.doc, UpdateDocumentInput{Revision: f.rev, Title: &title})
+		mustf(t, err, "rename")
+		if renamed.Document.Revision <= f.rev || renamed.Document.ContentRevision != f.rev {
+			t.Fatalf("rename: revision %d content_revision %d, want a metadata bump", renamed.Document.Revision, renamed.Document.ContentRevision)
+		}
+		req := serialize("k-route-rename")
+		req.HasBaseRevision, req.BaseRevision = true, f.rev
+		row, err := svc.StartOfficeJobForDocument(ctx, f.actor, f.doc, req)
+		mustf(t, err, "job on the pre-rename base")
+		if row.BaseRevision != renamed.Document.Revision {
+			t.Fatalf("job base = %d, want the current revision %d", row.BaseRevision, renamed.Document.Revision)
+		}
+		// A content change moves content_revision: the pre-change base is refused.
+		up, err := f.docs.UploadDocumentFile(ctx, f.actor, f.doc, DocumentUploadInput{Filename: "note-v2.md", Body: strings.NewReader("v2\n")})
+		mustf(t, err, "upload")
+		if _, err := f.docs.CommitFileVersion(ctx, f.actor, f.doc, CommitFileVersionInput{UploadID: up.UploadID, BaseRevision: row.BaseRevision}); err != nil {
+			t.Fatalf("commit: %v", err)
+		}
+		before := f.officeJobCount(t, f.doc)
+		req.IdempotencyKey = "k-route-rename-stale"
+		req.BaseRevision = renamed.Document.Revision
+		if _, err := svc.StartOfficeJobForDocument(ctx, f.actor, f.doc, req); office.ErrorCode(err) != "base_version_mismatch" {
+			t.Fatalf("job on a base behind a content change: %v", err)
+		}
+		if n := f.officeJobCount(t, f.doc); n != before {
+			t.Fatalf("the stale submit wrote %d job rows", n-before)
+		}
+	})
+
+	t.Run("loadBase takes the base rule", func(t *testing.T) {
+		f := newOfficeFixture(t, "rename job\n")
+		svc := f.service(newScriptedEngine())
+		title := "Tài liệu job"
+		renamed, err := f.docs.UpdateDocument(ctx, f.actor, f.doc, UpdateDocumentInput{Revision: f.rev, Title: &title})
+		mustf(t, err, "rename")
+		in := f.input("k-loadbase-rename")
+		in.BaseRevision = f.rev // the pre-rename base; the version id is unchanged
+		row, err := svc.StartOfficeJob(ctx, f.actor, in)
+		mustf(t, err, "job on the pre-rename base")
+		if row.BaseRevision != renamed.Document.Revision {
+			t.Fatalf("job base = %d, want %d", row.BaseRevision, renamed.Document.Revision)
+		}
+		// A base behind a content change is still refused.
+		other, ver, rev := f.seedDocument(t, "loadbase other\n")
+		up, err := f.docs.UploadDocumentFile(ctx, f.actor, other, DocumentUploadInput{Filename: "other-v2.md", Body: strings.NewReader("v2\n")})
+		mustf(t, err, "upload")
+		if _, err := f.docs.CommitFileVersion(ctx, f.actor, other, CommitFileVersionInput{UploadID: up.UploadID, BaseRevision: rev}); err != nil {
+			t.Fatalf("commit: %v", err)
+		}
+		bad := f.input("k-loadbase-stale")
+		bad.DocumentID, bad.BaseVersionID, bad.BaseRevision = other, ver, rev
+		if _, err := svc.StartOfficeJob(ctx, f.actor, bad); office.ErrorCode(err) != "base_version_mismatch" {
+			t.Fatalf("job on a base behind a content change: %v", err)
 		}
 	})
 }
