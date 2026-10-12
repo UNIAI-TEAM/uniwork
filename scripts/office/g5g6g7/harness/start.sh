@@ -267,9 +267,21 @@ for d in "$FORK_DIR/node_modules/electron" "$FORK_DIR/apps/shell/node_modules/el
     || blocked "the Electron binary could not be downloaded" "network to the Electron release host (see $RUN_DIR/logs/fork-electron.log)"
 done
 
-echo "harness: building the fork apps (this is the slow step)..."
-(cd "$FORK_DIR" && npm run build:all) > "$RUN_DIR/logs/fork-build.log" 2>&1 \
-  || { tail -20 "$RUN_DIR/logs/fork-build.log" >&2; fail "npm run build:all failed in the fork"; }
+# The build is the slow step, and the cache is one directory per SHA, so a build
+# already made from this revision is reused. The marker lives inside the
+# checkout, which is never committed to.
+BUILD_MARKER="$FORK_DIR/.harness-built"
+SHELL_MAIN="$FORK_DIR/apps/shell/out/main/index.js"
+if [ -f "$BUILD_MARKER" ] && [ "$(cat "$BUILD_MARKER" 2> /dev/null)" = "$FORK_SHA" ] && [ -f "$SHELL_MAIN" ]; then
+  echo "harness: the fork is already built at $FORK_SHA; skipping build:all"
+else
+  echo "harness: building the fork apps (this is the slow step)..."
+  (cd "$FORK_DIR" && npm run build:all) > "$RUN_DIR/logs/fork-build.log" 2>&1 \
+    || { tail -20 "$RUN_DIR/logs/fork-build.log" >&2; fail "npm run build:all failed in the fork"; }
+  printf '%s\n' "$FORK_SHA" > "$BUILD_MARKER"
+fi
+[ -f "$SHELL_MAIN" ] \
+  || fail "the fork built but has no $SHELL_MAIN (build:all did not produce the shell)"
 
 # ---- the fork's Electron app under xvfb -------------------------------------
 # The app is pointed at this run's server through UNIWORK_API_ORIGIN, which the
