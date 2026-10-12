@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useEmailHubTrustedSendersStore } from "@uniwork/core/email-hub/trusted-senders";
 import { initI18n } from "@uniwork/core/i18n";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { wrap } from "../test/api-mock";
@@ -7,6 +8,8 @@ import { EmailHubThreadDetail } from "./email-hub-thread-detail";
 import type { EmailHubThreadActions } from "./email-hub-thread-toolbar";
 
 initI18n();
+
+beforeEach(() => useEmailHubTrustedSendersStore.setState({ senders: {} }));
 
 function thread(id: string): EmailHubThread {
   return {
@@ -68,5 +71,27 @@ describe("EmailHubThreadDetail remote images", () => {
     rerender(<></>);
     render(detail(thread("c")));
     expect(screen.getByRole("button", { name: "Hiện ảnh" })).toBeInTheDocument();
+  });
+
+  it("shows images from a trusted sender without asking, until the reader stops trusting them", () => {
+    const { rerender } = render(detail(thread("a")));
+    fireEvent.click(screen.getByRole("button", { name: "Luôn hiện ảnh từ người gửi này" }));
+    expect(frameDoc()).not.toContain("img-src data: cid:");
+    expect(screen.getByText(/Đang hiện ảnh vì bạn tin news@example\.com/)).toBeInTheDocument();
+    // Focus moves to the button that replaced the pressed one, not to <body>.
+    expect(screen.getByRole("button", { name: "Thôi tin" })).toHaveFocus();
+
+    rerender(detail(thread("b")));
+    expect(screen.queryByRole("button", { name: "Hiện ảnh" })).not.toBeInTheDocument();
+    expect(frameDoc()).not.toContain("img-src data: cid:");
+
+    rerender(detail({ ...thread("c"), from_addr: "stranger@phish.example" }));
+    expect(screen.getByRole("button", { name: "Hiện ảnh" })).toBeInTheDocument();
+    expect(frameDoc()).toContain("img-src data: cid:");
+
+    rerender(detail(thread("d")));
+    fireEvent.click(screen.getByRole("button", { name: "Thôi tin" }));
+    expect(screen.getByRole("button", { name: "Hiện ảnh" })).toBeInTheDocument();
+    expect(frameDoc()).toContain("img-src data: cid:");
   });
 });

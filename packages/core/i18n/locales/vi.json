@@ -1529,6 +1529,14 @@
     },
     "remote_blocked": "Ảnh từ máy chủ bên ngoài đang tắt, để người gửi không biết bạn đã mở email này.",
     "remote_show": "Hiện ảnh",
+    "remote_trust": "Luôn hiện ảnh từ người gửi này",
+    "remote_trusted": "Đang hiện ảnh vì bạn tin {{email}}.",
+    "remote_untrust": "Thôi tin",
+    "trusted_senders": "Người gửi được hiện ảnh",
+    "trusted_senders_description": "Ảnh trong email từ những địa chỉ này tự hiện. Người gửi sẽ biết bạn đã mở email. Danh sách chỉ lưu trên thiết bị này.",
+    "trusted_senders_empty": "Chưa có người gửi nào",
+    "trusted_senders_empty_hint": "Bấm \"Luôn hiện ảnh từ người gửi này\" trên một email để thêm.",
+    "trusted_senders_remove": "Bỏ {{email}}",
     "conversation_count": "{{count}} tin trong cuộc hội thoại"
   },
   "tasks": {
