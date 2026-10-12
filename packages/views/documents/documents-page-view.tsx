@@ -163,9 +163,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const scope: ScopeTab | null = view.kind === "home" || view.kind === "recent" || view.kind === "shared" || view.kind === "archived" ? view.kind : null;
   const filtered = chip !== "all" && library.unfilteredCount > 0;
   const state = library.state;
-  // The header counts documents only: not the folders and not the files that
-  // other modules list here as links.
-  const documentCount = state.rows.filter((row) => row.type === "document" && row.doc.kind !== "folder").length;
+  // The header and the active tab count the same thing: the rows this list
+  // shows (folders and linked files included), so the two numbers and the
+  // group totals always add up.
+  const listedCount = state.rows.length;
   const emptyCopy =
     view.kind === "home"
       ? {
@@ -202,7 +203,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         icon={MODULE_ICONS.documents}
         tone={moduleTone("documents")}
         title={t("documents.page.title")}
-        count={enabled && view.kind === "home" && !folderId && !state.loading && !state.hasMore ? documentCount : undefined}
+        count={enabled && view.kind === "home" && !folderId && !state.loading && !state.hasMore ? listedCount : undefined}
         actions={
           enabled ? (
             <div className="flex items-center gap-2">
@@ -228,7 +229,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
             <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
               <div className="flex items-start justify-between gap-3">
                 {view.kind === "home" ? (
-                  <DocumentsGreeting name={context?.user.display_name ?? null} folderTitle={folderDoc?.title ?? null} />
+                  <DocumentsGreeting name={context?.user.display_name ?? null} folderTitle={folderDoc?.title ?? null} readOnly={!canCreate} />
                 ) : (
                   <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind}`)}</h2>
                 )}
@@ -276,7 +277,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                 handlers={handlers}
                 empty={emptyCopy}
               />
-              {canCreate && view.kind === "home" ? (
+              {canCreate && view.kind === "home" && !state.loading && state.rows.length > 0 ? (
                 <p className="text-caption text-muted-foreground">{t("documents.home.drop_hint")}</p>
               ) : null}
             </div>

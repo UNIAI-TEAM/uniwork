@@ -8191,7 +8191,15 @@
         "evening": "Chào buổi tối. Hôm nay bạn muốn tạo gì?",
         "evening_named": "Chào buổi tối, {{name}}. Hôm nay bạn muốn tạo gì?",
         "hint_root": "File mới nằm ở thư mục gốc của workspace và mở ngay trong trình soạn thảo.",
-        "hint_folder": "File mới nằm trong thư mục {{folder}} và mở ngay trong trình soạn thảo."
+        "hint_folder": "File mới nằm trong thư mục {{folder}} và mở ngay trong trình soạn thảo.",
+        "morning_read_only": "Chào buổi sáng.",
+        "morning_read_only_named": "Chào buổi sáng, {{name}}.",
+        "afternoon_read_only": "Chào buổi chiều.",
+        "afternoon_read_only_named": "Chào buổi chiều, {{name}}.",
+        "evening_read_only": "Chào buổi tối.",
+        "evening_read_only_named": "Chào buổi tối, {{name}}.",
+        "hint_read_only": "Bạn chỉ có quyền xem thư mục {{folder}}: mở file để đọc, không tạo hay sửa được.",
+        "hint_read_only_plain": "Bạn chỉ có quyền xem ở đây: mở file để đọc, không tạo hay sửa được."
       },
       "create": {
         "label": "Tạo mới",

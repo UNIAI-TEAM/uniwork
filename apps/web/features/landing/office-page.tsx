@@ -70,7 +70,7 @@ export function OfficePage() {
       <Link className="chapter-link" href={paths.enterprise()}>{t("landing.office.ai.link")}<ArrowRight aria-hidden /></Link>
     </section>
 
-    <div className="office-faq"><Faq namespace="landing.office.faq" count={6} title="landing.office.faq.title" /></div>
+    <div className="office-faq"><Faq namespace="landing.office.faq" count={6} title="landing.office.faq.title" className="bg-surface office-faq-section" /></div>
 
     <section id="office-download" className="office-section chapter-soft" aria-labelledby="office-download-title"><div className="chapter-width">
       <div className="office-heading"><h2 id="office-download-title">{t("landing.office.download.title")}</h2>{status === "ready" && version && <p>{t("landing.office.download.version", { version })}</p>}</div>

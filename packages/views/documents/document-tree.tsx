@@ -123,7 +123,7 @@ function TreeRowItem({
             event.stopPropagation();
             onToggle();
           }}
-          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground pointer-coarse:size-11"
+          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground pointer-coarse:-mx-2.5 pointer-coarse:size-11"
         >
           <ChevronRight
             aria-hidden
@@ -131,7 +131,7 @@ function TreeRowItem({
           />
         </button>
       ) : (
-        <span aria-hidden className="size-6 shrink-0 pointer-coarse:size-11" />
+        <span aria-hidden className="size-6 shrink-0" />
       )}
       <span aria-hidden className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
         {row.node.icon ? (

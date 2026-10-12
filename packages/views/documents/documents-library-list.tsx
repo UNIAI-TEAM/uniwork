@@ -130,13 +130,20 @@ export function DocumentsLibraryList({
     <div className="flex flex-col">
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.page.title")}>
+          {/*
+            Below `md` only Name and Actions exist: the other four columns are
+            display:none, so the group header spans two columns there and six
+            from `md` (a colSpan wider than the visible columns would add
+            implicit columns that squeeze Name to nothing). Name takes what the
+            fixed columns leave.
+          */}
           <colgroup>
             <col />
-            <col className="hidden w-32 md:table-column" />
-            <col className="hidden w-40 md:table-column" />
             <col className="hidden w-28 md:table-column" />
-            <col className="hidden w-28 md:table-column" />
-            <col className="w-28 md:w-44" />
+            <col className="hidden w-36 md:table-column" />
+            <col className="hidden w-24 md:table-column" />
+            <col className="hidden w-24 md:table-column" />
+            <col className="w-14 md:w-24" />
           </colgroup>
           <thead className="hidden bg-muted/50 md:table-header-group">
             <tr className="border-b border-border text-caption text-muted-foreground">
@@ -152,10 +159,11 @@ export function DocumentsLibraryList({
             <tbody key={group.key}>
               {showGroups ? (
                 <tr className="border-b border-border bg-muted/40">
-                  <th scope="rowgroup" colSpan={6} data-library-group className="px-3 py-1.5 text-caption font-medium text-foreground">
+                  <th scope="rowgroup" colSpan={2} data-library-group className="whitespace-nowrap px-3 py-1.5 text-left text-caption font-medium text-foreground">
                     {groupTitle(group)}
                     <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
                   </th>
+                  <th aria-hidden colSpan={4} className="hidden md:table-cell" />
                 </tr>
               ) : null}
               {group.rows.map((row) => (

@@ -26,25 +26,33 @@ export interface DocumentsGreetingProps {
   name: string | null;
   /** The open folder's title; null at the workspace root. */
   folderTitle: string | null;
+  /** The viewer cannot create here (a view-only folder): no "what to create" line. */
+  readOnly?: boolean;
   /** Injected in tests; defaults to the current hour. */
   now?: Date;
 }
 
 /** "Good morning, An. What would you like to create today?" (user decision 5). */
-export function DocumentsGreeting({ name, folderTitle, now }: DocumentsGreetingProps) {
+export function DocumentsGreeting({ name, folderTitle, readOnly = false, now }: DocumentsGreetingProps) {
   const { t } = useTranslation();
   const part = greetingPart((now ?? new Date()).getHours());
   return (
     <div className="flex flex-col gap-1">
       <h2 className="text-title font-semibold text-foreground">
-        {name
-          ? t(`documents.home.greeting.${part}_named`, { name })
-          : t(`documents.home.greeting.${part}`)}
+        {readOnly
+          ? t(name ? `documents.home.greeting.${part}_read_only_named` : `documents.home.greeting.${part}_read_only`, { name })
+          : name
+            ? t(`documents.home.greeting.${part}_named`, { name })
+            : t(`documents.home.greeting.${part}`)}
       </h2>
       <p className="text-body text-muted-foreground">
-        {folderTitle
-          ? t("documents.home.greeting.hint_folder", { folder: folderTitle })
-          : t("documents.home.greeting.hint_root")}
+        {readOnly
+          ? folderTitle
+            ? t("documents.home.greeting.hint_read_only", { folder: folderTitle })
+            : t("documents.home.greeting.hint_read_only_plain")
+          : folderTitle
+            ? t("documents.home.greeting.hint_folder", { folder: folderTitle })
+            : t("documents.home.greeting.hint_root")}
       </p>
     </div>
   );

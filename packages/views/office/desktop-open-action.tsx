@@ -322,9 +322,8 @@ export function DesktopOpenAction({
     <>
       {compactMenuItems ? <HeaderActionsFill menuItems={compactMenuItems} /> : null}
       {placement === "row" ? (
-        // Icon-only in the narrow column (below `md`) and on touch, per the
-        // design; the visible text stays in the accessible name and the title
-        // is the tooltip. A failure goes to a toast (see the effect above), so
+        // Icon-only, per the design: the Name column keeps the width, the text
+        // stays in the accessible name and the title is the tooltip. A failure goes to a toast (see the effect above), so
         // nothing wide lands in the row cell.
         <Button
           type="button"
@@ -337,7 +336,7 @@ export function DesktopOpenAction({
           title={label}
         >
           <MonitorUp aria-hidden />
-          <span className="max-md:sr-only pointer-coarse:sr-only">{working ? t("working") : t("row_action")}</span>
+          <span className="sr-only">{working ? t("working") : t("row_action")}</span>
         </Button>
       ) : (
         <ButtonGroup className={cn(inPageHeader && "hidden sm:flex", className)} data-office-desktop-action>

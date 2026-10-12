@@ -29,11 +29,11 @@ async function openDownload() {
 }
 
 describe("DesktopOpenAction", () => {
-  it("draws the row button icon-only in the narrow column and on touch, named and with a tooltip", () => {
+  it("draws the row button icon-only, named and with a tooltip", () => {
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} placement="row" />);
     const button = screen.getByRole("button", { name: "Open in app" });
     expect(button).toHaveAttribute("title", "Open in UniWork Office");
-    expect(button.querySelector("span")).toHaveClass("max-md:sr-only", "pointer-coarse:sr-only");
+    expect(button.querySelector("span")).toHaveClass("sr-only");
   });
 
   it("reports a failed row launch as a toast, not inside the row cell", async () => {

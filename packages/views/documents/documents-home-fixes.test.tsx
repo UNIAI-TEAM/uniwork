@@ -219,8 +219,8 @@ describe("folder rename (m4)", () => {
   });
 });
 
-describe("header count (m9)", () => {
-  it("counts documents only, not folders nor files from other modules", async () => {
+describe("header count (m9, visual r1)", () => {
+  it("counts the rows the list shows, folders and linked files included, like the tab", async () => {
     route({
       list: () => [summary(), summary({ id: "d2", title: "Biên bản" }), summary({ id: "fo1", kind: "folder", title: "Hợp đồng" })],
       sources: () => [source()],
@@ -228,7 +228,7 @@ describe("header count (m9)", () => {
     renderView();
     await screen.findByText("Đề xuất ngân sách.pdf");
     const heading = screen.getByRole("heading", { level: 1, name: t("documents.page.title") });
-    expect(heading.parentElement).toHaveTextContent(new RegExp(`${t("documents.page.title")}2$`));
+    expect(heading.parentElement).toHaveTextContent(new RegExp(`${t("documents.page.title")}4$`));
   });
 });
 
