@@ -1,0 +1,16 @@
+$ bash scripts/office/g5g6g7/harness/start.sh
+harness: node 22.22.2 from nvm (/home/ubuntu/.nvm/versions/node/v22.22.2/bin/node)
+harness: run dir /workspace/.harness-run
+harness: D server  http://127.0.0.1:43919 (metrics 127.0.0.1:34185)
+harness: D web     http://127.0.0.1:33099
+harness: fork      0d03b18
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+FAILED: the D server died while starting (see /workspace/.harness-run/logs/server.log)
+harness: exit 1; component log tails (/workspace/.harness-run/logs):
+harness: ---- tail -40 migrate.log ----
+15:22:55.825 INF migrate done component=server dir=up
+harness: ---- tail -40 server-build.log ----
+harness: ---- tail -40 server.log ----
+15:22:55.840 ERR config component=server err="set either DESKTOP_AUTH_CLIENTS or DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both"
