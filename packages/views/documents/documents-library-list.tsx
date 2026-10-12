@@ -3,33 +3,22 @@
 import type { ReactNode } from "react";
 import { FolderOpen, Search, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { DocumentList } from "@uniwork/core/types/document";
-import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
-import { DocumentTypeIcon } from "./document-type-icon";
-
-/** A list row as the wire schema parses it (server enums stay lenient). */
-export type DocumentLibraryRow = DocumentList["documents"][number];
-
-/** Compact date of the last update; empty when the server sent nothing usable. */
-function formatUpdatedAt(iso: string | undefined, locale: string): string {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(locale || undefined, { dateStyle: "medium" }).format(date);
-}
+import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
+import type { RowGroup } from "./library-rows";
 
 export interface DocumentsLibraryListProps {
-  rows: DocumentLibraryRow[];
+  groups: RowGroup[];
   /** First page still loading: skeleton rows, never fake counts or rows. */
   loading: boolean;
   /** The query failed and no rows are cached; `permission` is a 403 tab. */
   failure: "error" | "permission" | null;
   /** The rows are empty because a filter is on, not because the library is. */
   filtered: boolean;
+  /** The create cards sit above the list, so the no-match hint may point at them. */
+  cardsShown?: boolean;
   /** Show the archive badge on every row (the archive tab). */
   archived?: boolean;
   hasMore: boolean;
@@ -37,36 +26,37 @@ export interface DocumentsLibraryListProps {
   onLoadMore: () => void;
   onRetry: () => void;
   onClearFilters: () => void;
-  onOpen: (documentId: string) => void;
-  /** Create page / upload file, offered when the library is truly empty. */
-  emptyActions?: ReactNode;
+  handlers: LibraryRowHandlers;
+  /** The empty state's copy and actions, which depend on the open view. */
+  empty: { title: string; description: string; actions?: ReactNode };
 }
 
 /**
  * The library body: loading skeleton, empty/error states and the rows the
- * server returned. It is deliberately presentational — the page view owns the
- * queries and the tabs, so every row on screen comes from a server answer and
- * nothing is optimistically inserted.
+ * server returned, grouped. Presentational — the page view owns the queries,
+ * so every row on screen comes from a server answer and nothing is
+ * optimistically inserted.
  */
 export function DocumentsLibraryList({
-  rows,
+  groups,
   loading,
   failure,
   filtered,
+  cardsShown = false,
   archived = false,
   hasMore,
   loadingMore,
   onLoadMore,
   onRetry,
   onClearFilters,
-  onOpen,
-  emptyActions,
+  handlers,
+  empty,
 }: DocumentsLibraryListProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   if (loading) {
     return (
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4" aria-busy="true" aria-label={t("documents.library.loading")}>
+      <div className="space-y-2" aria-busy="true" aria-label={t("documents.library.loading")}>
         {Array.from({ length: 6 }).map((_, index) => (
           <Skeleton key={index} className="h-11 w-full rounded-md" />
         ))}
@@ -74,13 +64,15 @@ export function DocumentsLibraryList({
     );
   }
 
-  if (failure === "permission") {
+  if (failure) {
+    const permission = failure === "permission";
     return (
       <CollectionPageState
         icon={ShieldAlert}
-        title={t("documents.library.permission_title")}
-        description={t("documents.library.permission_description")}
-        role="status"
+        title={t(permission ? "documents.library.permission_title" : "documents.library.error_title")}
+        description={t(permission ? "documents.library.permission_description" : "documents.library.error_description")}
+        tone={permission ? undefined : "destructive"}
+        role={permission ? "status" : "alert"}
         actions={
           <Button type="button" variant="outline" size="sm" onClick={onRetry}>
             {t("documents.library.retry")}
@@ -90,101 +82,100 @@ export function DocumentsLibraryList({
     );
   }
 
-  if (failure === "error") {
-    return (
-      <CollectionPageState
-        icon={ShieldAlert}
-        title={t("documents.library.error_title")}
-        description={t("documents.library.error_description")}
-        tone="destructive"
-        role="alert"
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-            {t("documents.library.retry")}
-          </Button>
-        }
-      />
-    );
-  }
-
-  if (rows.length === 0) {
+  const total = groups.reduce((sum, group) => sum + group.rows.length, 0);
+  if (total === 0) {
     if (filtered) {
+      // The type filter runs on the pages already loaded; while the server has
+      // more, "no matches" is not an answer yet, so offer the next page.
       return (
         <CollectionPageState
           icon={Search}
           title={t("documents.library.no_matches_title")}
-          description={t("documents.library.no_matches_description")}
+          description={t(
+            hasMore
+              ? "documents.home.no_matches_more_description"
+              : cardsShown
+                ? "documents.home.no_matches_description"
+                : "documents.home.no_matches_plain_description",
+          )}
           role="status"
           actions={
-            <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
-              {t("documents.library.clear_filters")}
-            </Button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {hasMore ? (
+                <Button type="button" variant="outline" size="sm" aria-disabled={loadingMore || undefined} aria-busy={loadingMore || undefined} onClick={() => { if (!loadingMore) onLoadMore(); }}>
+                  {loadingMore ? t("documents.library.loading_more") : t("documents.library.load_more")}
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
+                {t("documents.library.clear_filters")}
+              </Button>
+            </div>
           }
         />
       );
     }
-    return (
-      <CollectionPageState
-        icon={FolderOpen}
-        title={t("documents.library.empty_title")}
-        description={t("documents.library.empty_description")}
-        role="status"
-        actions={emptyActions}
-      />
-    );
+    return <CollectionPageState icon={FolderOpen} title={empty.title} description={empty.description} role="status" actions={empty.actions} />;
   }
 
+  const showGroups = !(groups.length === 1 && groups[0]?.key === "all");
+  const groupTitle = (group: RowGroup): string => {
+    if (group.title) return group.title;
+    if (group.key === "unfiled") return t("documents.home.groups.unfiled");
+    if (group.key.startsWith("origin:")) return t(`documents.home.origin.${group.key.slice(7)}`);
+    if (group.key.startsWith("type:")) return t(`documents.home.groups.type.${group.key.slice(5)}`, { defaultValue: t("documents.home.groups.type.other") });
+    return "";
+  };
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <ul aria-label={t("documents.page.title")}>
-        {rows.map((doc) => (
-          <li key={doc.id} className="border-b border-border last:border-b-0">
-            <button
-              type="button"
-              onClick={() => onOpen(doc.id)}
-              className={cn(
-                "flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-accent/50",
-              )}
-            >
-              <span className="flex size-8 shrink-0 items-center justify-center text-primary">
-                {doc.icon ? (
-                  <span className="text-body leading-none">{doc.icon}</span>
-                ) : <DocumentTypeIcon format={doc.kind === "file" ? doc.title.split(".").at(-1) : "file"} className="size-4" />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="truncate text-body">{doc.title || t("documents.detail.untitled")}</span>
-                  {archived || doc.archived_at ? (
-                    <Badge variant="secondary" className="shrink-0">
-                      {t("documents.library.archived_badge")}
-                    </Badge>
-                  ) : null}
-                </span>
-                {doc.snippet ? (
-                  <span className="mt-0.5 block truncate text-caption text-muted-foreground">{doc.snippet}</span>
-                ) : null}
-              </span>
-              <span className="shrink-0 text-caption text-muted-foreground">
-                {doc.updated_at
-                  ? t("documents.library.row_meta", {
-                      time: formatUpdatedAt(doc.updated_at, i18n.language),
-                    })
-                  : null}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+    <div className="flex flex-col">
+      <div className="overflow-hidden rounded-lg border border-border">
+        <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.page.title")}>
+          {/*
+            Below `md` only Name and Actions exist: the other four columns are
+            display:none, so the group header spans two columns there and six
+            from `md` (a colSpan wider than the visible columns would add
+            implicit columns that squeeze Name to nothing). Name takes what the
+            fixed columns leave.
+          */}
+          <colgroup>
+            <col />
+            <col className="hidden w-28 md:table-column" />
+            <col className="hidden w-36 md:table-column" />
+            <col className="hidden w-24 md:table-column" />
+            <col className="hidden w-24 md:table-column" />
+            <col className="w-14 md:w-24" />
+          </colgroup>
+          <thead className="hidden bg-muted/50 md:table-header-group">
+            <tr className="border-b border-border text-caption text-muted-foreground">
+              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.name")}</th>
+              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.source")}</th>
+              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.editor")}</th>
+              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.updated")}</th>
+              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.size")}</th>
+              <th scope="col" className="px-3 py-2"><span className="sr-only">{t("documents.home.columns.actions")}</span></th>
+            </tr>
+          </thead>
+          {groups.map((group) => (
+            <tbody key={group.key}>
+              {showGroups ? (
+                <tr className="border-b border-border bg-muted/40">
+                  <th scope="rowgroup" colSpan={2} data-library-group className="whitespace-nowrap px-3 py-1.5 text-left text-caption font-medium text-foreground">
+                    {groupTitle(group)}
+                    <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
+                  </th>
+                  <th aria-hidden colSpan={4} className="hidden md:table-cell" />
+                </tr>
+              ) : null}
+              {group.rows.map((row) => (
+                <LibraryRowView key={row.id} row={row} handlers={handlers} archived={archived} />
+              ))}
+            </tbody>
+          ))}
+        </table>
+      </div>
       {hasMore ? (
         <div className="flex justify-center p-4">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={loadingMore}
-            aria-busy={loadingMore}
-            onClick={onLoadMore}
-          >
+          <Button type="button" variant="outline" size="sm" aria-disabled={loadingMore || undefined} aria-busy={loadingMore} onClick={() => { if (!loadingMore) onLoadMore(); }}>
             {loadingMore ? t("documents.library.loading_more") : t("documents.library.load_more")}
           </Button>
         </div>

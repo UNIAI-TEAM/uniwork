@@ -202,6 +202,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerChatFollowUps(authed, h, chatWriteLimit)
 			registerFiles(authed, h)
 			registerDocuments(authed, h, d.FeatureFlags)
+			registerDocumentSources(authed, h, d.FeatureFlags)
 			registerSignatures(authed, h)
 			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).
 			registerAICredentials(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, bearerUser(d.Minter)))

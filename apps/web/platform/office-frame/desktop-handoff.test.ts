@@ -17,6 +17,22 @@ describe("desktop handoff browser binding", () => {
     expect(() => buildOfficeDeepLink(`${ticket}&title=secret`, "dev")).toThrow();
   });
 
+  it("carries the public deployment profile, all four values or none", () => {
+    const profile = { deploymentId: "uniwork-prod", apiOrigin: "https://api.uniwork.test/" };
+    expect(buildOfficeDeepLink(ticket, "stable", profile)).toBe(`uniwork-office://open?ticket=${ticket}&deploymentId=uniwork-prod&apiOrigin=https%3A%2F%2Fapi.uniwork.test&clientId=uniwork-office&channel=stable`);
+    expect(buildOfficeDeepLink(ticket, "dev", { deploymentId: "dev", apiOrigin: "http://localhost:8080" })).toContain("&apiOrigin=http%3A%2F%2Flocalhost%3A8080&clientId=uniwork-office-dev&channel=dev");
+    // A profile the app would refuse is left off, never sent half-valid.
+    for (const bad of [
+      { deploymentId: "dep", apiOrigin: "http://localhost:8080" },
+      { deploymentId: "dep", apiOrigin: "http://api.uniwork.test" },
+      { deploymentId: "dep", apiOrigin: "https://api.uniwork.test/v1" },
+      { deploymentId: "dep", apiOrigin: "https://u:p@api.uniwork.test" },
+      { deploymentId: "-bad", apiOrigin: "https://api.uniwork.test" },
+      { deploymentId: "dep", apiOrigin: "not a url" },
+    ]) expect(buildOfficeDeepLink(ticket, "stable", bad)).toBe(`uniwork-office://open?ticket=${ticket}`);
+    expect(safeOfficeDeepLink({ launch_ticket: ticket, launch_url: `uniwork-office://open?ticket=${ticket}` }, "stable", profile)).toBe(buildOfficeDeepLink(ticket, "stable", profile));
+  });
+
   it("does not trust a drifted server URL", () => {
     expect(safeOfficeDeepLink({ launch_ticket: ticket, launch_url: "https://evil.test/?title=x" }, "dev")).toBe(`uniwork-office-dev://open?ticket=${ticket}`);
   });

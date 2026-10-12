@@ -177,6 +177,48 @@ describe("documents-collections endpoints", () => {
   // A list that cannot degrade safely throws so its query lands in the error
   // state; a mutation that cannot prove the write resolves null.
 
+  it("listDocuments reads size and origin, and a drifted value as absent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "f1", kind: "file", size_bytes: 325632, origin: "upload" }),
+            summary({ id: "f2", kind: "file", size_bytes: "big", origin: 7 }),
+            summary({ id: "p1" }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocuments("w1");
+    expect(out.documents.map((d) => [d.id, d.size_bytes, d.origin])).toEqual([
+      ["f1", 325632, "upload"],
+      ["f2", undefined, undefined],
+      ["p1", undefined, undefined],
+    ]);
+  });
+
+  it("list rows carry the viewer's level, and a drifted level reads as absent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "a", my_level: "manage" }),
+            summary({ id: "b", my_level: "view" }),
+            summary({ id: "c", my_level: 3 }),
+            summary({ id: "d" }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocuments("w1");
+    expect(out.documents.map((d) => [d.id, d.my_level])).toEqual([
+      ["a", "manage"],
+      ["b", "view"],
+      ["c", undefined],
+      ["d", undefined],
+    ]);
+  });
+
   it.each(malformedBodies)("listDocuments throws rather than fake-empty %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(listDocuments("w1")).rejects.toThrow("document_list_invalid");

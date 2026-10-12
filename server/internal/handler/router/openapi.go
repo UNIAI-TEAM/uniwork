@@ -413,6 +413,11 @@ func pathParamSDI(path string) any {
 			Token   string `path:"token" description:"Token liên kết công khai tài liệu" example:"pU7c9jIcDtOFv3S9yKtRsQdLYh1vWnJm2Xk4aB6eZ0g"`
 			AssetID string `path:"assetID" description:"ULID asset nhúng trong trang" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "workspaceID,sourceFileID":
+		return struct {
+			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			SourceFileID string `path:"sourceFileID" description:"Id tệp nguồn <source>:<ULID dòng gốc> (chat, task, meeting, email)" example:"chat:01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "documentID":
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`

@@ -1,10 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { OfficeSaveCoordinatorLike } from "./desktop-open-action";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DesktopOpenAction } from "./desktop-open-action";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 initI18n();
 
@@ -26,6 +29,32 @@ async function openDownload() {
 }
 
 describe("DesktopOpenAction", () => {
+  it("draws the row button icon-only, named and with a tooltip", () => {
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} placement="row" />);
+    const button = screen.getByRole("button", { name: "Open in app" });
+    expect(button).toHaveAttribute("title", "Open in UniWork Office");
+    expect(button.querySelector("span")).toHaveClass("sr-only");
+  });
+
+  it("reports a failed row launch as a toast, not inside the row cell", async () => {
+    const createSession = vi.fn(async () => null);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} placement="row" createSession={createSession} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in app" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("toasts again when the same row launch fails twice in a row", async () => {
+    vi.mocked(toast.error).mockClear();
+    const createSession = vi.fn(async () => null);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} placement="row" createSession={createSession} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in app" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Open in app" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(toast.error).mock.calls[1]).toEqual(vi.mocked(toast.error).mock.calls[0]);
+  });
+
   it("renders one split button whose label stays accessible below lg", () => {
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} />);
     const edit = screen.getByRole("button", { name: "Open in UniWork Office" });
@@ -75,7 +104,7 @@ describe("DesktopOpenAction", () => {
 
   it("reuses the install prompt for Download without saving or minting a launch ticket", async () => {
     const createSession = vi.fn();
-    const downloadInstaller = vi.fn(async () => undefined);
+    const downloadInstaller = vi.fn(async () => "installer.exe");
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty createSession={createSession} downloadInstaller={downloadInstaller} loadInstallers={async () => ({ installers: [{ platform: "win32-x64", channel: "stable", url: "https://downloads.test/installer.exe", kind: ".exe" }] })} />);
     await openDownload();
     await screen.findByRole("dialog");
@@ -89,6 +118,13 @@ describe("DesktopOpenAction", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Download for Windows" }));
     await screen.findByText("Download failed. Please try again.");
     expect(screen.getByRole("button", { name: "Try again" })).not.toBeDisabled();
+  });
+  it("carries the public deployment profile on the open link when the origin is known", async () => {
+    const launch = vi.fn(async () => "launched" as const);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" apiOrigin="https://api.test" channel="dev" savedVersion={2} createSession={async () => session} launch={launch} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
+    await waitFor(() => expect(launch).toHaveBeenCalledOnce());
+    expect(launch).toHaveBeenCalledWith(`uniwork-office-dev://open?ticket=${ticket}&deploymentId=dep&apiOrigin=https%3A%2F%2Fapi.test&clientId=uniwork-office-dev&channel=dev`);
   });
   it("opens the committed version without leaking document metadata", async () => {
     const createSession = vi.fn(async (_id: string, body: { version?: number }) => { expect(body).toEqual(expect.objectContaining({ operation: "edit" })); expect(body).not.toHaveProperty("version"); expect(JSON.stringify(body)).not.toMatch(/title|path|token|bytes/i); return session; });

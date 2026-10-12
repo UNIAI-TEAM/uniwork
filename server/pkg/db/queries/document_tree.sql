@@ -194,3 +194,81 @@ WHERE id = sqlc.arg(id)
   AND owner_id IS NOT NULL
   AND archived_at IS NOT NULL
 RETURNING id;
+
+-- The live (not archived) ids of a subtree, at most max_rows of them: the
+-- archive command asks for one row past its bound to learn the subtree is too
+-- big without walking all of it. The recursion walks through archived nodes
+-- like ListDocumentSubtree and only the output is filtered.
+-- name: ListLiveDocumentSubtreeIDs :many
+WITH RECURSIVE sub AS (
+  SELECT r.id, 1 AS lvl
+  FROM documents r
+  WHERE r.organization_id = sqlc.arg(organization_id)
+    AND r.workspace_id = sqlc.arg(workspace_id)
+    AND r.id = sqlc.arg(root_id)
+  UNION ALL
+  SELECT d.id, sub.lvl + 1
+  FROM documents d
+  JOIN sub ON d.parent_id = sub.id
+  WHERE d.organization_id = sqlc.arg(organization_id)
+    AND d.workspace_id = sqlc.arg(workspace_id)
+    AND sub.lvl < 10
+)
+SELECT d.id
+FROM sub
+JOIN documents d ON d.id = sub.id
+WHERE d.archived_at IS NULL
+ORDER BY d.id
+LIMIT sqlc.arg(max_rows);
+
+-- The live nodes of a subtree the actor does not hold manage on through a path
+-- plain SQL can read: a workspace owner/admin (is_ws_admin), the ACL owner
+-- (a workspace member only, is_ws_member), or a live user/organization share at
+-- manage. A node it returns is not refused - it still needs the full
+-- effectiveLevel (workspace-principal shares, work-product owners); a node it
+-- omits is manageable, so one query replaces a per-node access loop for the
+-- common archive. Owned documents are always returned: the owner resolver
+-- decides them, never these columns.
+-- name: ListDocumentSubtreeNeedingAccessCheck :many
+WITH RECURSIVE sub AS (
+  SELECT r.id, 1 AS lvl
+  FROM documents r
+  WHERE r.organization_id = sqlc.arg(organization_id)
+    AND r.workspace_id = sqlc.arg(workspace_id)
+    AND r.id = sqlc.arg(root_id)
+  UNION ALL
+  SELECT d.id, sub.lvl + 1
+  FROM documents d
+  JOIN sub ON d.parent_id = sub.id
+  WHERE d.organization_id = sqlc.arg(organization_id)
+    AND d.workspace_id = sqlc.arg(workspace_id)
+    AND sub.lvl < 10
+)
+SELECT d.id
+FROM sub
+JOIN documents d ON d.id = sub.id
+WHERE d.archived_at IS NULL
+  AND (
+    d.owner_kind IS NOT NULL
+    OR NOT (
+      sqlc.arg(is_ws_admin)::boolean
+      -- acl_owner_id is NULL for agent/system-created documents: without the
+      -- IS NOT NULL guard the comparison is NULL, NOT NULL stays NULL and the
+      -- row would drop out of the result as if it were manageable.
+      OR (sqlc.arg(is_ws_member)::boolean AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id)::text)
+      OR EXISTS (
+        SELECT 1
+        FROM document_shares s
+        WHERE s.organization_id = d.organization_id
+          AND s.workspace_id = d.workspace_id
+          AND s.document_id = d.id
+          AND s.revoked_at IS NULL
+          AND s.level = 'manage'
+          AND (
+            (s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id)::text)
+            OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
+          )
+      )
+    )
+  )
+ORDER BY d.id;

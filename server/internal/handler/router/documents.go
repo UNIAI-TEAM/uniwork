@@ -61,8 +61,8 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 
 	d.Post("/workspaces/{workspaceID}/documents", h.CreateDocument, apiOp{
-		summary: "Create a page document",
-		description: "Tạo trang trong workspace. Body JSON (≤ 2 MiB content + envelope): title, kind=page, parent_id, icon, content ProseMirror {type:\"doc\"} (server sanitize), visibility workspace|restricted. " +
+		summary: "Create a page or folder document",
+		description: "Tạo trang hoặc thư mục trong workspace. Body JSON (≤ 2 MiB content + envelope): title, kind=page|folder, parent_id (trang/thư mục; thư mục chỉ nằm ở gốc hoặc trong thư mục, sai -> 422 document_parent_kind), thư mục không nhận content (-> 422 folder_not_supported), icon, content ProseMirror {type:\"doc\"} (server sanitize), visibility workspace|restricted. " +
 			"Idempotency-Key ràng create với fingerprint payload: replay trả lại trang đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentSDI{},
@@ -257,7 +257,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/workspaces/{workspaceID}/documents/files/blank", h.CreateBlankDocumentFile, apiOp{
 		summary: "Create a blank file document",
 		description: "Tạo tài liệu mới với bytes do engine sinh: server chọn seed, engine serialize, FileService xác minh, rồi đường create G1 tạo document + version 1. " +
-			"Chỉ định dạng có blank generator (md, html) được nhận; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. Idempotency-Key replay trả tài liệu đã tạo.",
+			"Chỉ định dạng có blank generator (md, html, xlsx, docx, pptx, pdf) được nhận; docx/pptx là gói OOXML tối thiểu server tạo sẵn (1 đoạn trống / 1 slide 16:9 trống), pdf là 1 trang A4 trống; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. Idempotency-Key replay trả tài liệu đã tạo.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateBlankDocumentFileSDI{},
 		sdo:    sdo.DocumentSDO{},
@@ -401,7 +401,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/move", h.MoveDocument, apiOp{
 		summary:     "Move a document",
-		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình -> 422 document_cycle, quá 5 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
+		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình (kể cả thư mục vào chính nó hoặc thư mục con) -> 422 document_cycle, cha sai loại -> 422 document_parent_kind, quá 5 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
 		tags:        []string{"documents"},
 		sdi:         sdi.MoveDocumentSDI{},
 		sdo:         sdo.DocumentSDO{},
@@ -409,14 +409,14 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/archive", h.ArchiveDocument, apiOp{
 		summary:     "Archive a document subtree",
-		description: "Đưa tài liệu và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh. Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Đưa tài liệu (hoặc thư mục) và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh; quá 1000 node sống -> 422 folder_too_large (hãy lưu trữ từng phần). Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/restore", h.RestoreDocument, apiOp{
 		summary:     "Restore an archived document",
-		description: "Khôi phục đúng các node của một đợt archive (batch_id); node bị archive bởi đợt khác không tự sống lại. Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Khôi phục đúng các node của một đợt archive (batch_id); node bị archive bởi đợt khác không tự sống lại; không giới hạn số node (đợt cũ quá 1000 node vẫn khôi phục được).Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
@@ -446,7 +446,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/links", h.CreateDocumentLink, apiOp{
 		summary:     "Create a public link",
-		description: "Liên kết xem ẩn danh: cần entitlement documents.public_links và công tắc tổ chức; tối đa 5 liên kết sống -> 422 document_link_limit. Token chỉ trả một lần cùng url trang chia sẻ; server chỉ giữ SHA-256.",
+		description: "Liên kết xem ẩn danh: cần entitlement documents.public_links và công tắc tổ chức; tối đa 5 liên kết sống -> 422 document_link_limit; thư mục không có liên kết công khai -> 422 folder_not_supported. Token chỉ trả một lần cùng url trang chia sẻ; server chỉ giữ SHA-256.",
 		tags:        []string{"documents"},
 		sdi:         sdi.CreateDocumentLinkSDI{},
 		sdo:         sdo.DocumentLinkSDO{},
