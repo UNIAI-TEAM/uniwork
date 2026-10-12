@@ -16,9 +16,6 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// privacyExportLinkTTL is how long a finished zip stays downloadable.
-const privacyExportLinkTTL = 24 * time.Hour
-
 // PrivacyExportService is the owner-facing dossier of organization exports.
 type PrivacyExportService struct {
 	pool  *pgxpool.Pool
