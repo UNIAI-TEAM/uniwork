@@ -4,12 +4,13 @@
 // to the server, the web and the app.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { BLOCKED_EXIT, DEFAULT_FORK_SHA, buildServerEnv, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, origin, writeRunEnv } from "./lib.mjs";
+import { BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -71,6 +72,59 @@ test("buildServerEnv keeps the API origin identical everywhere it is inlined", (
   assert.equal(env.API_PUBLIC_URL, env.LOCAL_UPLOAD_BASE_URL);
 });
 
+test("the launch deep link is the dev scheme both ends agree on", () => {
+  // server/internal/handler/office_launch.go:50 builds `<client_id>://open?ticket=`;
+  // the fork's parseOfficeDeepLink reads the same host and query, and only the
+  // dev channel registers `uniwork-office-dev` (deployment.ts:31-33).
+  assert.equal(DEV_CLIENT_ID, "uniwork-office-dev");
+  assert.equal(officeDeepLink(DEV_CLIENT_ID, "ticket_abc"), "uniwork-office-dev://open?ticket=ticket_abc");
+  // the server percent-encodes the ticket, so a reserved character survives
+  assert.equal(officeDeepLink(DEV_CLIENT_ID, "ticket_a+b/c="), "uniwork-office-dev://open?ticket=ticket_a%2Bb%2Fc%3D");
+  const url = new URL(officeDeepLink(DEV_CLIENT_ID, "ticket_x"));
+  assert.equal(url.protocol, "uniwork-office-dev:");
+  assert.equal(url.hostname, "open");
+  assert.equal(url.searchParams.get("ticket"), "ticket_x");
+});
+
+test("the working-copy dir is the fork's own layout", () => {
+  // fork binding-store.ts:14-19,165-167
+  assert.equal(HARNESS_DEPLOYMENT_ID, "default");
+  // The app builds its profile from UNIWORK_API_ORIGIN with no UNIWORK_DEPLOYMENT_ID,
+  // so it claims deployment "default" (deployment.ts:161-167). A launch session and
+  // a desktop session must name the same deployment or the exchange refuses
+  // (office_launch.go exchange: device.DeploymentID != in.DeploymentID -> 403).
+  assert.equal(buildServerEnv({ apiPort: 1, webPort: 2, metricsPort: 3, previewPort: 4, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" }).DESKTOP_AUTH_DEPLOYMENT_IDS, "default");
+  assert.equal(
+    workingCopyDir("/run/userdata", "default", "user_1", "doc_1"),
+    join("/run/userdata", "uniwork-documents", "default", "user_1", "doc_1"),
+  );
+});
+
+test("ticketFromLaunchUrl reads the ticket out of the server's link, or null", () => {
+  assert.equal(ticketFromLaunchUrl("uniwork-office-dev://open?ticket=ticket_abc"), "ticket_abc");
+  assert.equal(ticketFromLaunchUrl("uniwork-office-dev://open"), null);
+  assert.equal(ticketFromLaunchUrl("not a url"), null);
+  assert.equal(ticketFromLaunchUrl(null), null);
+});
+
+test("documentStepOutcome decides from the app's own working copy", () => {
+  const base = { launchUrl: "uniwork-office-dev://open?ticket=ticket_abc", ticket: "ticket_abc", documentId: "doc_1", signedIn: true };
+  // the working copy names the fixture document: the app opened it
+  assert.equal(documentStepOutcome({ ...base, workingCopyDocumentId: "doc_1" }).result, "PASS");
+  // a ticket but no working copy, with a session: the app was handed the link and did not open it
+  const failed = documentStepOutcome({ ...base, workingCopyDocumentId: null });
+  assert.equal(failed.result, "FAIL");
+  assert.equal(failed.blocker, null);
+  // a working copy for ANOTHER document is not this document opened
+  assert.equal(documentStepOutcome({ ...base, workingCopyDocumentId: "doc_2" }).result, "FAIL");
+  // no desktop session: the app had nothing to redeem with — BLOCKED, not FAIL
+  const blocked = documentStepOutcome({ ...base, workingCopyDocumentId: null, signedIn: false });
+  assert.equal(blocked.result, "BLOCKED");
+  assert.match(blocked.blocker, /keyring|session/i);
+  // the server refused the session (no ticket): a FAIL, the claim did not hold
+  assert.equal(documentStepOutcome({ ...base, launchUrl: "", ticket: null, workingCopyDocumentId: null }).result, "FAIL");
+});
+
 test("origin builds a loopback origin for a port", () => {
   assert.equal(origin(8080), "http://127.0.0.1:8080");
   assert.equal(origin(8080, "ws"), "ws://127.0.0.1:8080");
@@ -97,6 +151,16 @@ test("evidenceLine carries every field the runner contract checks, empty when un
   assert.equal(line.result, "PASS");
   assert.equal(line.exitCode, 0);
   assert.equal(line.pin, "");
+});
+
+test("evidenceLine defaults argv to the command that ran, never an empty vector", () => {
+  // The runner's verify reports an empty argv as an empty required field
+  // (reviewer_be r2 N1), so a harness-written line must carry the real vector.
+  const line = evidenceLine({ requirementId: "G7-A05", result: "BLOCKED", exitCode: 77 });
+  assert.ok(Array.isArray(line.argv) && line.argv.length > 0, "argv must not be empty");
+  assert.deepEqual(line.argv, [...process.argv]);
+  // an explicit argv is kept as given
+  assert.deepEqual(evidenceLine({ argv: ["node", "x.mjs"] }).argv, ["node", "x.mjs"]);
 });
 
 test("evidenceLine defaults to BLOCKED, never to PASS", () => {
@@ -192,7 +256,7 @@ test("the lib.mjs CLI modes answer and name the mode on a bad call", () => {
  * on the path start.sh execs, pnpm/electron sleep) — this is the "dry-run with a
  * fake server/web" the fix asks for, not a stand-in for the real stack.
  */
-function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true } = {}) {
+function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), "harness-start-"));
   const bin = join(root, "bin");
   const harness = join(root, "scripts", "office", "g5g6g7", "harness");
@@ -223,7 +287,23 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true 
   shim("curl", network
     ? "#!/usr/bin/env bash\nexit 0\n"
     : "#!/usr/bin/env bash\nfor a in \"$@\"; do case \"$a\" in */info/refs*) exit 7 ;; esac; done\nexit 0\n");
-  shim("ldconfig", "#!/usr/bin/env bash\nprintf 'libnss3.so\\nlibatk-1.0.so.0\\nlibgbm.so.1\\nlibasound.so.2\\nlibcups.so.2\\n'\n");
+  // The default stub lists the five libraries at once. `libsSigpipe` mimics the
+  // real `ldconfig -p` (hundreds of lines): it names the five first and then
+  // writes far more than a pipe buffer, so a reader that exits at the first
+  // match (`grep -q`) leaves it writing into a closed pipe and it dies of
+  // SIGPIPE (141). start.sh must not read ldconfig that way (reviewer_be r2 N3).
+  if (libsSigpipe) {
+    shim("ldconfig", [
+      "#!/usr/bin/env bash",
+      "printf 'libnss3.so\\nlibatk-1.0.so.0\\nlibgbm.so.1\\nlibasound.so.2\\nlibcups.so.2\\n'",
+      "# an external writer: it dies of SIGPIPE when the reader exits early, the",
+      "# way the real ldconfig does (a bash builtin would swallow EPIPE instead)",
+      "seq 1 100000",
+      "",
+    ].join("\n"));
+  } else {
+    shim("ldconfig", "#!/usr/bin/env bash\nprintf 'libnss3.so\\nlibatk-1.0.so.0\\nlibgbm.so.1\nlibasound.so.2\nlibcups.so.2\n'\n");
+  }
   shim("git", "#!/usr/bin/env bash\ncase \"$1\" in rev-parse) echo 1111111111111111111111111111111111111111; exit 0 ;; esac\nexit 0\n");
   shim("xvfb-run", "#!/usr/bin/env bash\nwhile [ \"$#\" -gt 0 ]; do case \"$1\" in --*) shift ;; --*=*) shift ;; *) break ;; esac; done\nexport DISPLAY=:99\nexec \"$@\"\n");
   shim("fake-electron", "#!/usr/bin/env bash\nsleep 600\n");
@@ -329,6 +409,35 @@ test("start.sh reaches up through the real lib.mjs fork-dir call (fake stack)", 
     for (const name of ["server-build.log", "migrate.log", "server.log", "web.log", "app.log"]) {
       assert.ok(existsSync(join(stack.runDir, "logs", name)), `missing ${name}`);
     }
+
+    // The document step needs the app's launch inputs in ports.env, not a
+    // screenshot: the Electron binary, the app dir, the userData and the
+    // deployment the server and the app must agree on.
+    const ports = readFileSync(join(stack.runDir, "ports.env"), "utf8");
+    for (const key of ["UNIWORK_USER_DATA", "ELECTRON_BIN", "SHELL_APP_DIR", "OFFICE_FORK_DIR", "HARNESS_DEPLOYMENT_ID"]) {
+      assert.match(ports, new RegExp(`^${key}=`, "m"), `ports.env is missing ${key}`);
+    }
+    assert.match(ports, /^HARNESS_DEPLOYMENT_ID=default$/m);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("a present library is not reported missing when ldconfig writes past a pipe buffer", () => {
+  // reviewer_be r2 N3: `ldconfig -p 2>/dev/null | grep -q "$lib"` under
+  // `set -o pipefail` reports a PRESENT library as missing — grep -q exits at
+  // the first match, ldconfig takes SIGPIPE (141), and 141 is the pipeline's
+  // status, so start.sh went BLOCKED (77) on a host where the libraries are
+  // there. The stub writes the five names first and then far more than a pipe
+  // buffer, so a first-match reader is guaranteed to leave it writing.
+  const stack = mkFakeStack({ libsSigpipe: true });
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status} (expected 0; a present library must not read as missing)\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /harness: up/);
+    // The "libraries are missing" notice is start.sh's own stdout line; on the
+    // old pipeline it appeared even though the stub lists all five libraries.
+    assert.doesNotMatch(result.stdout, /the Electron runtime libraries are missing/);
   } finally {
     stopFakeStack(stack);
   }
@@ -430,5 +539,168 @@ test("start.sh names the failing step and its args when lib.mjs errors", () => {
     assert.match(result.stderr, /---- tail -\d+ server\.log ----/);
   } finally {
     stopFakeStack(stack);
+  }
+});
+
+// ---- the document step (priority 2): the app opens a fixture document --------
+// A fake D server (the seven endpoints the step seeds through) and a fake
+// Electron that records the deep link it was handed and leaves the working copy
+// the step reads. The real document-step.mjs runs against them, so its seeding,
+// its deep-link delivery and its decision from binding.json are all exercised
+// without a stack.
+
+/** A fake D server for the document step; resolves with its origin and a stop(). */
+function mkFakeDocumentServer({ mintLink = true } = {}) {
+  return new Promise((resolveServer) => {
+    const server = createHttpServer((req, res) => {
+      const chunks = [];
+      req.on("data", (c) => chunks.push(c));
+      req.on("end", () => {
+        const send = (code, body) => {
+          res.writeHead(code, { "content-type": "application/json" });
+          res.end(JSON.stringify(body));
+        };
+        const url = new URL(req.url, "http://127.0.0.1");
+        if (url.pathname === "/healthz") return send(200, { status: "ok" });
+        if (url.pathname === "/api/v1/auth/register") return send(201, { access_token: "tok", user: { id: "u1" } });
+        if (url.pathname === "/api/v1/me/email/verify") return send(200, { user: { id: "u1" } });
+        if (url.pathname === "/api/v1/orgs") return send(201, { organization: { id: "o1", slug: "o1" } });
+        if (/^\/api\/v1\/orgs\/[^/]+\/workspaces$/.test(url.pathname)) return send(201, { workspace: { id: "w1" } });
+        if (/^\/api\/v1\/workspaces\/[^/]+\/documents\/files$/.test(url.pathname)) return send(201, { document: { id: "doc_fixture" } });
+        if (/^\/api\/v1\/documents\/[^/]+\/office\/sessions$/.test(url.pathname)) {
+          if (!mintLink) return send(500, { error: "no_launch" });
+          return send(201, { launch_ticket: "ticket_abc", launch_url: "uniwork-office-dev://open?ticket=ticket_abc", document_id: "doc_fixture" });
+        }
+        return send(404, { error: "not_found" });
+      });
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      resolveServer({ origin: `http://127.0.0.1:${port}`, stop: () => new Promise((r) => server.close(r)) });
+    });
+  });
+}
+
+/**
+ * A run dir with a ports.env the document step reads, and a fake Electron binary
+ * that writes the app's working copy when it is handed the deep link. `recordLink`
+ * receives the URL; `openDocumentId` is what the binding will name.
+ */
+function mkDocumentRun({ origin, electronBody, session = false }) {
+  const runDir = mkdtempSync(join(tmpdir(), "harness-doc-"));
+  const userData = join(runDir, "userdata");
+  mkdirSync(join(userData, "uniwork-auth"), { recursive: true });
+  // the app's own record of a desktop session; no file = no session (the
+  // precondition that decides BLOCKED vs FAIL in documentStepOutcome)
+  if (session) writeFileSync(join(userData, "uniwork-auth", "session.bin"), "encrypted");
+  const bin = join(runDir, "electron-bin");
+  writeFileSync(bin, electronBody);
+  chmodSync(bin, 0o755);
+  writeFileSync(
+    join(runDir, "ports.env"),
+    [
+      `API_ORIGIN=${origin}`,
+      `WEB_ORIGIN=${origin}`,
+      `OFFICE_FORK_SHA=0d03b18`,
+      `DISPLAY=:99`,
+      `UNIWORK_USER_DATA=${userData}`,
+      `ELECTRON_BIN=${bin}`,
+      `SHELL_APP_DIR=/fake/shell`,
+      `OFFICE_FORK_DIR=/fake/fork`,
+      `HARNESS_DEPLOYMENT_ID=default`,
+      "",
+    ].join("\n"),
+  );
+  return { runDir, userData, bin };
+}
+
+/** A fake Electron that writes a working copy naming `documentId` when handed a link. */
+function electronWriting(documentId, linkFile) {
+  return [
+    "#!/usr/bin/env bash",
+    "# last arg is the deep link; record it and leave the app's working copy",
+    `url="\${!#}"`,
+    `printf '%s\\n' "$url" >> ${JSON.stringify(linkFile)}`,
+    `dir="$GENOFFICE_USER_DATA/uniwork-documents/default/u1/${documentId}"`,
+    'mkdir -p "$dir"',
+    `printf '{"schema":1,"documentId":"${documentId}","workspaceId":"w1","orgId":"o1","title":"t","filename":"f.md","format":"md","access":"edit","baseRevision":"1","baseVersion":1,"baseChecksum":"","state":"ready"}\\n' > "$dir/binding.json"`,
+    "exit 0",
+    "",
+  ].join("\n");
+}
+
+const DOC_STEP = join(HERE, "document-step.mjs");
+
+/**
+ * Runs document-step as a child and waits for it WITHOUT blocking this process's
+ * event loop — the fake server above lives in this process, so `spawnSync` (which
+ * blocks the loop) would deadlock the child's request against an unanswered
+ * server.
+ */
+function runDocumentStep(args, extraEnv = {}) {
+  return new Promise((resolveRun) => {
+    const child = spawn(process.execPath, [DOC_STEP, ...args], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...extraEnv } });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => (stdout += d));
+    child.stderr.on("data", (d) => (stderr += d));
+    const timer = setTimeout(() => child.kill("SIGKILL"), 90_000);
+    child.on("close", (status) => {
+      clearTimeout(timer);
+      resolveRun({ status, stdout, stderr });
+    });
+  });
+}
+
+test("document-step PASSes when the app leaves a working copy for the fixture document", async () => {
+  const server = await mkFakeDocumentServer();
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"]);
+    assert.equal(result.status, 0, `document-step exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /document step: PASS/);
+    // the deep link the app was handed is the dev-channel one the server minted
+    assert.equal(readFileSync(linkFile, "utf8").trim(), "uniwork-office-dev://open?ticket=ticket_abc");
+    // and the ledger line it wrote carries a real argv, never an empty one
+    const lines = readFileSync(join(run.runDir, "evidence.jsonl"), "utf8").trim().split("\n");
+    const line = JSON.parse(lines.at(-1));
+    assert.equal(line.result, "PASS");
+    assert.equal(line.requirementId, "G7-A01");
+    assert.equal(line.fixtureId, "fx-docx-report-vi");
+    assert.ok(Array.isArray(line.argv) && line.argv.length > 0, "argv must not be empty");
+    assert.ok(existsSync(join(run.runDir, "document-step.json")));
+  } finally {
+    await server.stop();
+  }
+});
+
+test("document-step is BLOCKED when the app has no desktop session and left no working copy", async () => {
+  const server = await mkFakeDocumentServer();
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  // an Electron that records the link but writes nothing: no session, no copy
+  const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\nprintf '%s\\n' "\${!#}" >> ${JSON.stringify(linkFile)}\nexit 0\n` });
+  try {
+    // no session.bin: the app had nothing to redeem with
+    rmSync(join(run.userData, "uniwork-auth", "session.bin"), { force: true });
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"]);
+    assert.equal(result.status, 77, `expected BLOCKED (77), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /document step: BLOCKED/);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("document-step FAILs when a signed-in app is handed the link and does not open it", async () => {
+  const server = await mkFakeDocumentServer();
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\nprintf '%s\\n' "\${!#}" >> ${JSON.stringify(linkFile)}\nexit 0\n`, session: true });
+  try {
+    // a session exists (the step's precondition), yet no working copy appears
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"], { HARNESS_DOC_WAIT_MS: "2000" });
+    assert.equal(result.status, 1, `expected FAIL (1), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /document step: FAIL/);
+  } finally {
+    await server.stop();
   }
 });

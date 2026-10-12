@@ -25,13 +25,17 @@ OFFICE_FORK_SHA=0d03b18 \
   node scripts/office/g5g6g7/evidence.mjs run \
     --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
     node scripts/office/g5g6g7/harness/sample-ac.mjs
+OFFICE_FORK_SHA=0d03b18 \
+  node scripts/office/g5g6g7/evidence.mjs run \
+    --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+    node scripts/office/g5g6g7/harness/document-step.mjs
 bash scripts/office/g5g6g7/harness/stop.sh           # down: only this run's PIDs
 ```
 
-`start.sh` prints the exact evidence-runner command for the run it just brought
-up (with the run dir and SHA filled in). Running `sample-ac.mjs` directly works
-too and writes the same JSON line into the run dir; under the evidence runner it
-defers to the runner's ledger so one check is never counted twice.
+`start.sh` prints the exact evidence-runner commands for the run it just brought
+up (with the run dir and SHA filled in). Running either script directly works
+too and writes the same JSON line into the run dir; under the evidence runner
+each defers to the runner's ledger so one check is never counted twice.
 
 Flags (each has an environment form too, for the spec line):
 
@@ -42,8 +46,10 @@ Flags (each has an environment form too, for the spec line):
 
 Every artifact lands in `.harness-run/` (override with `HARNESS_RUN_DIR`, and
 that directory is gitignored): `ports.env` (this run's ports, origins, SHAs,
-`DISPLAY`), `pids`, `logs/`, `userdata/`, `sample-ac.json`, `blocked.json` when
-a precondition was absent, and `evidence.jsonl` when run directly. The layout
+`DISPLAY`, and the app's launch inputs — `UNIWORK_USER_DATA`, `ELECTRON_BIN`,
+`SHELL_APP_DIR`, `OFFICE_FORK_DIR`, `HARNESS_DEPLOYMENT_ID`), `pids`, `logs/`,
+`userdata/`, `sample-ac.json`, `document-step.json`, `blocked.json` when a
+precondition was absent, and `evidence.jsonl` when run directly. The layout
 itself comes from `harnessPaths` in `lib.mjs`, so a rename cannot split the
 writer from the reader.
 
@@ -85,6 +91,7 @@ ran, the claim was false).
 | `HARNESS_DRY_RUN` | `0` | `1` = ports and preconditions only |
 | `HARNESS_SKIP_APP` | `0` | `1` = server + web only |
 | `HARNESS_LOG_TAIL_LINES` | `40` | lines of each component log printed on failure |
+| `HARNESS_DOC_WAIT_MS` | `60000` | how long `document-step.mjs` waits for the app's working copy |
 
 The harness fills the gap the VM's profile left, as the Advisor's rule requires:
 it installs `xvfb`/`xauth`/`dbus-x11` and the Electron runtime libraries itself
@@ -120,26 +127,54 @@ change any provision script would need:
   `OFFICE_FORK_SHA` into `OFFICE_FORK_CACHE` (~2 minutes once per SHA). A
   provision step could pre-clone it, but that is optional.
 
-## What is still open (item C follow-up)
+## The document step (priority 2)
 
-`sample-ac.mjs` step 4 reads `userData/app-settings.json`, which the app writes
-only after it reaches `app.whenReady` (fork `apps/shell/src/main/index.ts:5248`,
-`persistUniWorkApiOriginFromEnv` in `apps/shell/src/main/office-bridge-host.ts:84`).
-Driving a **document** through the bridge needs a signed-in session and an office
-launch ticket, and the two ends of that link do not meet yet — this is the X-02
-seam (frame protocol rev / deep-link shape), not a harness defect:
+`document-step.mjs` drives one **document** through the launch link and records
+its own evidence line (separate from the G7-A05 runtime-manifest sample above; it
+serves the G7-A01 row the contract assigns to the document open). The two ends
+agree on the fork's launch deep link `uniwork-office[-dev]://open?ticket=<ticket>`
+(fork `apps/shell/src/main/uniwork-auth/callback.ts`: `isOfficeLaunchUrl` /
+`extractOfficeLaunchFromArgv`, `routing.ts` `startLaunch`, bound at
+`index.ts:6443`). The older `uniwork://office/open?token=` parser is a fallback
+and is **not** used here. The dev build registers `uniwork-office-dev`
+(`deployment.ts`: `callbackSchemeForChannel`), so the harness asks the D server
+for the dev client's link and the deep link is addressed to the dev scheme.
 
-| Side | What it builds / expects | Where |
-| --- | --- | --- |
-| D | `POST /api/v1/documents/{documentID}/office/sessions` returns `launch_url` = `<client_id>://open?ticket=<ticket>` | `server/internal/handler/office_launch.go:44`, router `router/documents.go:90` |
-| F | `parseOfficeLaunchUrl` accepts only `uniwork://office/open?token=<opaque>` | `packages/office-bridge/src/protocol.ts:40`, `packages/office-bridge-contracts/src/constants.ts:8` |
-| D | `POST /api/v1/office/sessions/exchange` (a **device**-session bearer, `device_session_id` must equal the bearer's session) | `server/internal/handler/router/office_launch.go:12`, `dto/sdi/office_launch.go:14` |
-| F | `handleOfficeLaunchUrl` exchanges the token and downloads the bytes | `apps/shell/src/main/office-bridge-host.ts:104` |
+What it does, in order:
 
-TODO(item C follow-up, after X-02 settles the link shape): seed a user plus a
-device session, drive that path, and add it as a second sample AC (G7-A01's
-"web edit-save → open in the app" half). The current case deliberately stops at
-"the three pieces run together and the app resolved the D server".
+1. seed a user, an organization and a workspace through the H1 API,
+2. upload the fixture as a **file** document (the launch service refuses page
+   and folder documents: `service/office_launch.go` `refuseFolder` / `Kind !=
+   DocumentFile`),
+3. mint a launch session for it (`POST /api/v1/documents/{id}/office/sessions`)
+   with `client_id=uniwork-office-dev` and the deployment the app claims
+   (`HARNESS_DEPLOYMENT_ID`, default `default` — the id the fork's dev build
+   derives from `UNIWORK_API_ORIGIN` when no `UNIWORK_DEPLOYMENT_ID` is set),
+4. hand the deep link to the running app as a **second instance with the URL in
+   argv**, the way the fork's own suite does (`e2e/helpers.ts`
+   `handoffUrlToRunningApp`; the fork reads argv in
+   `createAuthCallbackRouter(process.argv)` and `extractOfficeLaunchFromArgv`),
+5. read the app's **own** record that it opened the document: the working copy
+   and `binding.json` under `<userData>/uniwork-documents/<deployment>/…`
+   (fork `uniwork-docs/binding-store.ts`) — never a screenshot.
+
+The decision is `documentStepOutcome` in `lib.mjs`, pinned by a test:
+
+| What is seen | Result |
+| --- | --- |
+| no ticket / no deep link from the D server | **FAIL** — the harness ran, the claim "D issues a ticket" is false |
+| a ticket, a desktop session, no working copy for the document | **FAIL** — the app was handed the link and did not open it |
+| a ticket, **no** desktop session (no OS keyring on the VM) | **BLOCKED** — the same precondition the fork's own suite skips on (`hasOsKeyring`, `NO_KEYRING_SKIP`) |
+| a working copy whose `binding.json` names the fixture document | **PASS** |
+
+A harness bug (a bad path, a wrong client id, a link the app cannot parse) is a
+FAIL, never BLOCKED. Exit codes are the same as everywhere: `0` PASS, `1` FAIL,
+`77` BLOCKED.
+
+The link the server builds is checked against `officeDeepLink(clientId, ticket)`
+before it is delivered, and the ticket is read out of the server's own
+`launch_url` rather than assumed — so a link-shape drift is a named FAIL, not a
+silent no-op.
 
 The fork's `npm run build:all` is the slow step (several minutes on a fresh VM)
 and its Rust xlsx sidecar needs `cargo`; `--skip-app` isolates the server + web
