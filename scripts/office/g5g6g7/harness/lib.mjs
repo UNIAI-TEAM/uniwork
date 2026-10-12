@@ -70,7 +70,7 @@ export function buildServerEnv({
   jwtSecret = "harness-dev-secret",
   uploadDir,
   previewCapabilitySecret = "harness-preview-capability-secret-32b",
-  deploymentId = "harness",
+  deploymentId = "default",
   verificationCode = "123456",
 }) {
   const apiOrigin = origin(apiPort);
@@ -99,6 +99,16 @@ export function buildServerEnv({
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
     DESKTOP_AUTH_DEPLOYMENT_IDS: deploymentId,
+    // The fork's dev channel registers `uniwork-office-dev` and the D server
+    // addresses its launch links with that client id, so the dev client must be
+    // allow-listed alongside the stable default (config.go:192-218; the office
+    // launch service refuses a client id outside the allowlist, office_launch.go:76-82).
+    // DESKTOP_AUTH_CLIENTS and the single-client pair are mutually exclusive at
+    // startup (config.go:306-310), so the pair is cleared: the VM's .env may
+    // carry it, and both together is a boot error.
+    DESKTOP_AUTH_CLIENTS: `uniwork-office=uniwork-office://auth/callback,${DEV_CLIENT_ID}=${DEV_CLIENT_ID}://auth/callback`,
+    DESKTOP_AUTH_CLIENT_ID: "",
+    DESKTOP_AUTH_REDIRECT_URIS: "",
     // No LiveKit on the VM. The server wires a conference provider only when
     // LIVEKIT_URL/KEY/SECRET are all set (cmd/server/main.go:203); they are
     // cleared explicitly, because the VM's .env carries .env.example's
@@ -107,6 +117,102 @@ export function buildServerEnv({
     LIVEKIT_URL: "",
     LIVEKIT_API_KEY: "",
     LIVEKIT_API_SECRET: "",
+  };
+}
+
+/**
+ * The dev-channel client id the fork registers and the D server allow-lists
+ * (`DESKTOP_AUTH_CLIENT_ID`/`DESKTOP_AUTH_CLIENTS`, config.go:232-234). A dev
+ * build claims `uniwork-office-dev` and the server addresses its links with the
+ * same id, so a dev run is never handed to the stable app's protocol handler
+ * (server/internal/handler/office_launch.go:47-52, fork deployment.ts:19-33).
+ */
+export const DEV_CLIENT_ID = "uniwork-office-dev";
+
+/** The deployment id the harness server is started with (buildServerEnv's default). */
+export const HARNESS_DEPLOYMENT_ID = "default";
+
+/**
+ * The deep link D returns for a launch session: `<client_id>://open?ticket=…`
+ * (server/internal/handler/office_launch.go:50). The ticket is percent-encoded,
+ * so a ticket with any reserved character survives the round trip; the fork's
+ * `parseOfficeDeepLink` reads the same query (apps/shell/src/main/uniwork-docs/launch.ts).
+ */
+export function officeDeepLink(clientId, ticket) {
+  return `${String(clientId).trim()}://open?ticket=${encodeURIComponent(String(ticket))}`;
+}
+
+/**
+ * Where the fork keeps one document's working copy:
+ * `<userData>/uniwork-documents/<deploymentId>/<userId>/<documentKey>/<file>`
+ * plus `binding.json` next to it (fork binding-store.ts:14-19,165-167). This is
+ * the app's own record that it opened a UniWork document, which is why the
+ * document step reads it instead of trusting a screenshot.
+ */
+export function workingCopyDir(userDataDir, deploymentId, userId, documentKey) {
+  return join(userDataDir, "uniwork-documents", deploymentId, userId, documentKey);
+}
+
+/**
+ * The `attempt_id` of a desktop-auth consent URL
+ * (`<api>/auth/desktop/consent?attempt_id=…`), the id the D server needs back to
+ * approve the attempt (handler/dto/sdi/desktop_auth.go). Null when the URL
+ * carries none, so a caller reports that rather than approving the wrong one.
+ */
+export function attemptIdFromConsentUrl(url) {
+  try {
+    return new URL(String(url)).searchParams.get("attempt_id");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The launch ticket of a `uniwork-office[-dev]://open?ticket=…` deep link, or
+ * null. The harness never assumes the shape: it reads the ticket the server
+ * returned and only then builds the argv it hands to the app.
+ */
+export function ticketFromLaunchUrl(url) {
+  try {
+    const parsed = new URL(String(url));
+    return parsed.searchParams.get("ticket");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What the document step can conclude about one launch, given the ticket the D
+ * server issued, the deep link it built, and whether the app left a working
+ * copy. Kept pure so the three outcomes are pinned by a test without an app:
+ *
+ *   * no deep link / no ticket -> the D server refused the session: FAIL (the
+ *     harness ran; the claim "D issues a ticket for a fixture document" is false)
+ *   * a ticket but no working copy -> the app did not open it. `signedIn` says
+ *     whether a desktop session existed at all: with no session the app had
+ *     nothing to redeem with and the precondition is missing (BLOCKED, the same
+ *     "no OS keyring" precondition the fork's own suite skips on); with a
+ *     session the app was handed a ticket and did not open the document (FAIL).
+ *   * a working copy naming the fixture document -> PASS.
+ */
+export function documentStepOutcome({ launchUrl, ticket, workingCopyDocumentId, documentId, signedIn }) {
+  if (!launchUrl || !ticket) {
+    return { result: "FAIL", blocker: null, detail: "the D server returned no launch ticket/deep link for the fixture document" };
+  }
+  if (workingCopyDocumentId === documentId) {
+    return { result: "PASS", blocker: null, detail: `the app opened ${documentId}` };
+  }
+  if (!signedIn) {
+    return {
+      result: "BLOCKED",
+      blocker: "the app has no desktop session to redeem the launch ticket (no OS keyring on this VM; the fork's own suite skips on the same precondition)",
+      detail: "no signed-in session in the app",
+    };
+  }
+  return {
+    result: "FAIL",
+    blocker: null,
+    detail: `the app was handed the deep link but left no working copy for ${documentId}${workingCopyDocumentId ? ` (it opened ${workingCopyDocumentId})` : ""}`,
   };
 }
 

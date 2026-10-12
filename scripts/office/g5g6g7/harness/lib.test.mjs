@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { BLOCKED_EXIT, DEFAULT_FORK_SHA, buildServerEnv, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, origin, writeRunEnv } from "./lib.mjs";
+import { BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, buildServerEnv, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -69,6 +69,34 @@ test("buildServerEnv keeps the API origin identical everywhere it is inlined", (
   const env = buildServerEnv({ apiPort: 12345, webPort: 12300, metricsPort: 12400, previewPort: 12301, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" });
   assert.equal(env.API_PUBLIC_URL, env.NEXT_PUBLIC_API_URL);
   assert.equal(env.API_PUBLIC_URL, env.LOCAL_UPLOAD_BASE_URL);
+});
+
+test("the launch deep link is the dev scheme both ends agree on", () => {
+  // server/internal/handler/office_launch.go:50 builds `<client_id>://open?ticket=`;
+  // the fork's parseOfficeDeepLink reads the same host and query, and only the
+  // dev channel registers `uniwork-office-dev` (deployment.ts:31-33).
+  assert.equal(DEV_CLIENT_ID, "uniwork-office-dev");
+  assert.equal(officeDeepLink(DEV_CLIENT_ID, "ticket_abc"), "uniwork-office-dev://open?ticket=ticket_abc");
+  // the server percent-encodes the ticket, so a reserved character survives
+  assert.equal(officeDeepLink(DEV_CLIENT_ID, "ticket_a+b/c="), "uniwork-office-dev://open?ticket=ticket_a%2Bb%2Fc%3D");
+  const url = new URL(officeDeepLink(DEV_CLIENT_ID, "ticket_x"));
+  assert.equal(url.protocol, "uniwork-office-dev:");
+  assert.equal(url.hostname, "open");
+  assert.equal(url.searchParams.get("ticket"), "ticket_x");
+});
+
+test("the working-copy dir is the fork's own layout", () => {
+  // fork binding-store.ts:14-19,165-167
+  assert.equal(HARNESS_DEPLOYMENT_ID, "default");
+  // The app builds its profile from UNIWORK_API_ORIGIN with no UNIWORK_DEPLOYMENT_ID,
+  // so it claims deployment "default" (deployment.ts:161-167). A launch session and
+  // a desktop session must name the same deployment or the exchange refuses
+  // (office_launch.go exchange: device.DeploymentID != in.DeploymentID -> 403).
+  assert.equal(buildServerEnv({ apiPort: 1, webPort: 2, metricsPort: 3, previewPort: 4, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" }).DESKTOP_AUTH_DEPLOYMENT_IDS, "default");
+  assert.equal(
+    workingCopyDir("/run/userdata", "default", "user_1", "doc_1"),
+    join("/run/userdata", "uniwork-documents", "default", "user_1", "doc_1"),
+  );
 });
 
 test("origin builds a loopback origin for a port", () => {
