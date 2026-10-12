@@ -552,6 +552,21 @@ test('the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code', () => {
   assert.match(badMode.stderr, /usage/);
 });
 
+test('a FAIL or BLOCKED run echoes the tail of its output to stderr, a PASS stays quiet', () => {
+  const script = "console.log('seeding'); console.error('FAILED: seed — POST /api/v1/orgs/x/workspaces -> 403'); process.exit(CODE)";
+  const fail = run([...baseArgs(tempDir()), process.execPath, '-e', script.replace('CODE', '1')]);
+  assert.equal(fail.status, 1);
+  assert.match(fail.stderr, /evidence: ev-g5-a01-0001 FAIL; last 2 line\(s\) of /);
+  assert.match(fail.stderr, /\| FAILED: seed — POST \/api\/v1\/orgs\/x\/workspaces -> 403/);
+  assert.match(fail.stdout, /^\{"evidenceId"/, 'stdout still carries only the record');
+  const blocked = run([...baseArgs(tempDir()), process.execPath, '-e', script.replace('CODE', String(SKIP_EXIT_CODE))]);
+  assert.equal(blocked.status, SKIP_EXIT_CODE);
+  assert.match(blocked.stderr, /BLOCKED; last 2 line/);
+  const pass = run([...baseArgs(tempDir()), process.execPath, '-e', script.replace('CODE', '0')]);
+  assert.equal(pass.status, 0);
+  assert.equal(pass.stderr, '');
+});
+
 test('an absolute --out is honoured as given, never nested under the repo', () => {
   const outDir = tempDir();
   assert.ok(path.isAbsolute(outDir));
