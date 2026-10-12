@@ -630,6 +630,17 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		filename: strings.ToLower(m) + "-v2.md", contentType: "text/markdown", content: []byte("# " + m + " staged body\n"),
 	})
 	tn.ids["docUpload"] = isoString(t, out, "upload_id")
+	// A commit intent (G5-07) without moving the file document: a commit on
+	// a stale base claims the intent, is refused 409 and leaves it not
+	// committed, so the base_revision the commit route sends stays valid.
+	out = w.upload(t, "/api/v1/documents/"+tn.ids["fileDocument"]+"/uploads", tn.token, isoMultipart{
+		filename: strings.ToLower(m) + "-intent.md", contentType: "text/markdown", content: []byte("# " + m + " intent body\n"),
+	})
+	status, raw = w.do(t, http.MethodPost, "/api/v1/documents/"+tn.ids["fileDocument"]+"/versions/commit", tn.token, isoBody{
+		json:    map[string]any{"upload_id": isoString(t, out, "upload_id"), "base_revision": "999"},
+		headers: map[string]string{"Idempotency-Key": "iso-intent-" + tn.tag},
+	})
+	isoExpect(t, http.MethodPost, "stale commit intent", status, raw, http.StatusConflict)
 }
 
 func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
