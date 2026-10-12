@@ -12,6 +12,32 @@ function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+const emailDateTimeFormatOptions = {
+  listTime: { hour: "2-digit", minute: "2-digit" },
+  listMonthDay: { day: "numeric", month: "short" },
+  listFullDate: { day: "2-digit", month: "2-digit", year: "numeric" },
+  fullDate: { weekday: "short", day: "numeric", month: "short", year: "numeric" },
+  fullTime: { hour: "2-digit", minute: "2-digit" },
+} satisfies Record<string, Intl.DateTimeFormatOptions>;
+
+type EmailDateTimeFormatKey = keyof typeof emailDateTimeFormatOptions;
+
+const emailDateTimeFormatters = new Map<string, Map<EmailDateTimeFormatKey, Intl.DateTimeFormat>>();
+
+function formatEmailDateTime(date: Date, locale: string, key: EmailDateTimeFormatKey): string {
+  let localeFormatters = emailDateTimeFormatters.get(locale);
+  if (!localeFormatters) {
+    localeFormatters = new Map();
+    emailDateTimeFormatters.set(locale, localeFormatters);
+  }
+  let formatter = localeFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, emailDateTimeFormatOptions[key]);
+    localeFormatters.set(key, formatter);
+  }
+  return formatter.format(date);
+}
+
 /**
  * The list column: today's mail shows only the time, this year's the day and
  * month, anything older the full date — the same scale a mail client uses, so
@@ -21,12 +47,12 @@ export function formatEmailListDate(iso: string, locale: string, now = new Date(
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   if (sameDay(d, now)) {
-    return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    return formatEmailDateTime(d, locale, "listTime");
   }
   if (d.getFullYear() === now.getFullYear()) {
-    return d.toLocaleDateString(locale, { day: "numeric", month: "short" });
+    return formatEmailDateTime(d, locale, "listMonthDay");
   }
-  return d.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
+  return formatEmailDateTime(d, locale, "listFullDate");
 }
 
 /**
@@ -36,8 +62,8 @@ export function formatEmailListDate(iso: string, locale: string, now = new Date(
 export function formatEmailFullDate(iso: string, locale: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const date = d.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
-  const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  const date = formatEmailDateTime(d, locale, "fullDate");
+  const time = formatEmailDateTime(d, locale, "fullTime");
   return `${date} · ${time}`;
 }
 
