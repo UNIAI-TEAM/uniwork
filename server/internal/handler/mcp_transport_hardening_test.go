@@ -102,7 +102,7 @@ func TestMcpRefusesBatchRequests(t *testing.T) {
 		"leading spaces":                {nil, "   " + mcpTwoCallBatch},
 		"leading newline and tab":       {nil, "\n\t" + mcpTwoCallBatch},
 		"leading CRLF":                  {nil, "\r\n\r\n" + mcpTwoCallBatch},
-		"a megabyte of blanks first":    {nil, strings.Repeat(" ", 1<<19) + mcpTwoCallBatch},
+		"512 KiB of blanks first":       {nil, strings.Repeat(" ", 1<<19) + mcpTwoCallBatch},
 		"one-call batch":                {nil, `[{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"my_work","arguments":{}}}]`},
 		"batch of notifications":        {nil, `[{"jsonrpc":"2.0","method":"notifications/initialized"}]`},
 		"empty batch":                   {nil, `[]`},
@@ -177,20 +177,44 @@ func TestMcpRefusesBatchRequests(t *testing.T) {
 	}
 }
 
-// What a body that is neither an object nor a batch gets is the SDK's own 400;
-// the gate must hand the body on untouched (nothing swallowed, nothing read
-// twice) so a malformed request is answered, not hung.
-func TestMcpGateHandsTheBodyOnIntact(t *testing.T) {
+// A body that is not one JSON-RPC message gets a 400 from the guard, and the
+// ones around it are not harmed. (More than 1 MiB of blanks in front is a 413.)
+func TestMcpMalformedBodiesAreRefusedAndHarmless(t *testing.T) {
 	srv, d := newMcpTestServer(t)
 	pair, _ := mcpTestPair(t, srv, d, "mcp-intact@example.com", "mcp-intact")
 	auth := map[string]string{"Authorization": "Bearer " + pair.AccessToken, "MCP-Protocol-Version": "2025-06-18"}
-	for name, body := range map[string]string{"empty": "", "blanks only": " \n ", "truncated": `{"jsonrpc":"2.0","id":1,"meth`, "not json": `nope`} {
+	for name, body := range map[string]string{
+		"empty": "", "blanks only": " \n ", "truncated": `{"jsonrpc":"2.0","id":1,"meth`, "not json": `nope`,
+		"scalar": `5`, "string": `"tools/list"`, "null": `null`, "no method (a response)": `{"jsonrpc":"2.0","id":1,"result":{}}`,
+		"method is not a string":    `{"jsonrpc":"2.0","id":1,"method":5}`,
+		"method is null":            `{"jsonrpc":"2.0","id":1,"method":null}`,
+		"two messages":              `{"jsonrpc":"2.0","id":1,"method":"ping"} {"jsonrpc":"2.0","id":2,"method":"subscriptions/listen"}`,
+		"data after the message":    `{"jsonrpc":"2.0","id":1,"method":"ping"}x`,
+		"method twice":              `{"jsonrpc":"2.0","id":1,"method":"tools/list","method":"subscriptions/listen"}`,
+		"method twice, other order": `{"jsonrpc":"2.0","id":1,"method":"subscriptions/listen","method":"tools/list"}`,
+		"method in another case":    `{"jsonrpc":"2.0","id":1,"Method":"subscriptions/listen","method":"tools/list"}`,
+		"method only in capitals":   `{"jsonrpc":"2.0","id":1,"METHOD":"tools/list"}`,
+		"id twice":                  `{"jsonrpc":"2.0","id":1,"id":2,"method":"ping"}`,
+		"id in another case":        `{"jsonrpc":"2.0","ID":1,"method":"ping"}`,
+	} {
+		started := time.Now()
 		res, raw := mcpRawPOST(t, srv, auth, body)
-		if res.StatusCode != http.StatusBadRequest {
-			t.Errorf("%s: %d %s, want 400", name, res.StatusCode, raw)
+		var out struct {
+			ID    any            `json:"id"`
+			Error map[string]any `json:"error"`
+		}
+		_ = json.Unmarshal(raw, &out)
+		if res.StatusCode != http.StatusBadRequest || out.Error["code"] != float64(-32600) || out.ID != nil || time.Since(started) > 2*time.Second {
+			t.Errorf("%s: %d %.200s, want a quick 400 with JSON-RPC error -32600 and id null", name, res.StatusCode, raw)
 		}
 	}
-	res, raw := mcpRawPOST(t, srv, auth, `{"jsonrpc":"2.0","id":9,"method":"ping"}`)
+	// More than the cap of blanks in front of the message is refused as too
+	// large, before anything of it is judged.
+	res, raw := mcpRawPOST(t, srv, auth, strings.Repeat(" ", 1<<20+16)+`{"jsonrpc":"2.0","id":1,"method":"ping"}`)
+	if res.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Errorf("more than 1 MiB of blanks: %d %.200s, want 413", res.StatusCode, raw)
+	}
+	res, raw = mcpRawPOST(t, srv, auth, `{"jsonrpc":"2.0","id":9,"method":"ping"}`)
 	if res.StatusCode != http.StatusOK || !strings.Contains(string(raw), `"id":9`) {
 		t.Errorf("ping after the malformed ones: %d %s", res.StatusCode, raw)
 	}
@@ -212,8 +236,8 @@ func TestMcpProtocolVersionFloor(t *testing.T) {
 	listen := `{"jsonrpc":"2.0","id":1,"method":"subscriptions/listen","params":{"_meta":` + meta2026 + `,"notifications":{"toolsListChanged":true}}}`
 	started := time.Now()
 	res, raw := mcpRawPOST(t, srv, map[string]string{"Authorization": auth, "MCP-Protocol-Version": "2026-07-28", "Mcp-Method": "subscriptions/listen"}, listen)
-	if res.StatusCode < 400 || res.StatusCode >= 500 || strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
-		t.Errorf("subscriptions/listen on 2026-07-28: %d %q %s, want a 4xx that is not a stream", res.StatusCode, res.Header.Get("Content-Type"), raw)
+	if strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") || !strings.Contains(string(raw), `"error"`) {
+		t.Errorf("subscriptions/listen on 2026-07-28: %d %q %s, want a JSON error that is not a stream", res.StatusCode, res.Header.Get("Content-Type"), raw)
 	}
 	if took := time.Since(started); took > 2*time.Second {
 		t.Errorf("subscriptions/listen took %s to be refused", took)
@@ -261,6 +285,11 @@ func TestMcpRealClientFlowStillWorksOnTheFloor(t *testing.T) {
 	result, _ := out["result"].(map[string]any)
 	if status != http.StatusOK || result["protocolVersion"] != "2025-06-18" {
 		t.Fatalf("initialize 2025-06-18 without a header: %d %v", status, out)
+	}
+	// The server advertises tools and nothing it cannot deliver: no list-changed
+	// notification (a stateless server has no stream for one), no logging.
+	if caps, _ := json.Marshal(result["capabilities"]); string(caps) != `{"tools":{}}` {
+		t.Errorf("capabilities = %s, want {\"tools\":{}}", caps)
 	}
 	negotiated, _ := result["protocolVersion"].(string)
 	header := map[string]string{"Authorization": auth, "MCP-Protocol-Version": negotiated}
@@ -477,5 +506,103 @@ func TestMcpClientDisconnectStopsTheTool(t *testing.T) {
 	}
 	if got := counts.joined(); got != "slow/cancelled" {
 		t.Errorf("metrics = %q, want slow/cancelled", got)
+	}
+}
+
+// subscriptions/listen is a stream the SDK holds open until the client cancels,
+// on every revision (it forces SSE even with JSONResponse), and a held stream
+// per request is how one token fills HTTP_MAX_IN_FLIGHT for every tenant. It
+// is not a method this server serves.
+func TestMcpSubscriptionsListenNeverOpensAStream(t *testing.T) {
+	srv, d := newMcpTestServer(t)
+	pair, _ := mcpTestPair(t, srv, d, "mcp-listen@example.com", "mcp-listen")
+	listen := `{"jsonrpc":"2.0","id":1,"method":"subscriptions/listen","params":{"notifications":{"toolsListChanged":true}}}`
+	for name, version := range map[string]string{"2025-06-18": "2025-06-18", "2025-11-25": "2025-11-25", "no header": ""} {
+		headers := map[string]string{"Authorization": "Bearer " + pair.AccessToken}
+		if version != "" {
+			headers["MCP-Protocol-Version"] = version
+		}
+		started := time.Now()
+		res, raw := mcpRawPOST(t, srv, headers, listen)
+		var out struct {
+			ID    any            `json:"id"`
+			Error map[string]any `json:"error"`
+		}
+		_ = json.Unmarshal(raw, &out)
+		if took := time.Since(started); took > 2*time.Second {
+			t.Errorf("%s: answered after %s", name, took)
+		}
+		if strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
+			t.Errorf("%s: answered as a stream: %.200s", name, raw)
+		}
+		if res.StatusCode != http.StatusOK || out.ID != float64(1) || out.Error["code"] != float64(-32601) {
+			t.Errorf("%s: %d %.200s, want a JSON-RPC error -32601 for id 1", name, res.StatusCode, raw)
+		}
+	}
+}
+
+// The SDK registers every method of the protocol; the guard lets through the
+// five this server serves and nothing else, so a method a later release adds
+// (a new kind of subscription, a streaming call) cannot reopen what is closed.
+func TestMcpOnlyServesItsAllowListedMethods(t *testing.T) {
+	rec := &mcpRecordedMetrics{}
+	srv, d := newMcpTestServerWith(t, func(d *Deps) { d.McpAuth.SetMetrics(rec) })
+	pair, _ := mcpTestPair(t, srv, d, "mcp-allow@example.com", "mcp-allow")
+	headers := map[string]string{"Authorization": "Bearer " + pair.AccessToken, "MCP-Protocol-Version": "2025-06-18"}
+
+	for _, method := range []string{
+		"resources/list", "resources/templates/list", "resources/read", "resources/subscribe", "resources/unsubscribe",
+		"prompts/list", "prompts/get", "completion/complete", "logging/setLevel", "server/discover",
+		"subscriptions/listen", "sampling/createMessage", "roots/list", "elicitation/create", "tasks/list", "no/such/method", "",
+	} {
+		// The id comes back as the client sent it, number or string.
+		for _, id := range []string{`7`, `"abc"`} {
+			res, raw := mcpRawPOST(t, srv, headers, `{"jsonrpc":"2.0","id":`+id+`,"method":"`+method+`","params":{}}`)
+			var out struct {
+				JSONRPC string          `json:"jsonrpc"`
+				ID      json.RawMessage `json:"id"`
+				Error   map[string]any  `json:"error"`
+				Result  any             `json:"result"`
+			}
+			if err := json.Unmarshal(raw, &out); err != nil || res.StatusCode != http.StatusOK || out.JSONRPC != "2.0" || string(out.ID) != id ||
+				out.Error["code"] != float64(-32601) || out.Error["message"] != "method not found" || out.Result != nil {
+				t.Errorf("%q id %s: %d %.200s, want 200 with JSON-RPC error -32601 \"method not found\" for the same id", method, id, res.StatusCode, raw)
+			}
+		}
+	}
+	// Notifications have no reply: 202, nothing forwarded.
+	for _, method := range []string{"notifications/cancelled", "notifications/roots/list_changed", "notifications/progress", "notifications/unknown"} {
+		res, raw := mcpRawPOST(t, srv, headers, `{"jsonrpc":"2.0","method":"`+method+`","params":{}}`)
+		if res.StatusCode != http.StatusAccepted || len(raw) != 0 {
+			t.Errorf("%s: %d %q, want 202 and no body", method, res.StatusCode, raw)
+		}
+	}
+	// A key spelled with an escape is the same key.
+	res, raw := mcpRawPOST(t, srv, headers, `{"jsonrpc":"2.0","id":1,"met\u0068od":"subscriptions/listen","params":{}}`)
+	if res.StatusCode != http.StatusOK || !strings.Contains(string(raw), "-32601") {
+		t.Errorf("escaped method key: %d %.200s, want -32601", res.StatusCode, raw)
+	}
+	if n := mcpToolCallCount(rec); n != 0 {
+		t.Fatalf("%d tool calls for refused methods", n)
+	}
+
+	// The five that are served.
+	for name, body := range map[string]string{
+		"ping":       `{"jsonrpc":"2.0","id":1,"method":"ping"}`,
+		"tools/list": `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`,
+		"tools/call": `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_workspaces","arguments":{}}}`,
+		"initialize": `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`,
+	} {
+		res, raw := mcpRawPOST(t, srv, headers, body)
+		if res.StatusCode != http.StatusOK || strings.Contains(string(raw), `"error"`) {
+			t.Errorf("%s: %d %.200s", name, res.StatusCode, raw)
+		}
+	}
+	res, raw = mcpRawPOST(t, srv, headers, `{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	if res.StatusCode != http.StatusAccepted {
+		t.Errorf("notifications/initialized: %d %q", res.StatusCode, raw)
+	}
+	if n := mcpToolCallCount(rec); n != 1 {
+		t.Errorf("%d tool calls after one tools/call", n)
 	}
 }

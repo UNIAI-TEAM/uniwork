@@ -53,7 +53,15 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, log *slog.Logg
 		log = slog.Default()
 	}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "uniwork", Title: "UniWork", Version: "1"},
-		&mcp.ServerOptions{SupportedProtocolVersions: mcpProtocolVersions})
+		&mcp.ServerOptions{
+			SupportedProtocolVersions: mcpProtocolVersions,
+			// Tools, and no list-changed notifications: a stateless server never
+			// has a stream to send one on, so advertising it was untrue, and the
+			// SDK's subscriptions/listen handler parks for as long as the client
+			// stays while it is advertised. The default {"logging":{}} goes too:
+			// nothing here answers logging/setLevel.
+			Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{ListChanged: false}},
+		})
 	for _, t := range tools {
 		var schema map[string]any
 		if err := json.Unmarshal(t.Schema, &schema); err != nil {
