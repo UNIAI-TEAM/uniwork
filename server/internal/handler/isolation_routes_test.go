@@ -154,10 +154,12 @@ func isoIdem(fields map[string]string, extra map[string]any) func(*isoWorld, *is
 	}
 }
 
-// isoIdemOnly sends no body, only the tenant's Idempotency-Key - the key
-// isoIdem sends, so a lookup names the commit the same tenant made.
+// isoIdemOnly sends no body, only the tenant's seeded intent key - the key
+// isolation_world_test.go commits (and leaves not_committed), so the owner's
+// control reads a real intent row and the other tenant is refused on the
+// document before any intent is read.
 func isoIdemOnly(_ *isoWorld, tn *isoTenant) isoBody {
-	return isoBody{headers: map[string]string{"Idempotency-Key": "iso-" + tn.tag}}
+	return isoBody{headers: map[string]string{"Idempotency-Key": "iso-intent-" + tn.tag}}
 }
 
 func isoJSON(v any) func(*isoWorld, *isoTenant) isoBody {
@@ -385,9 +387,9 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/shares":                                                           {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/uploads":                                                          {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
 	"POST /api/v1/documents/{documentID}/versions/commit":                                                  {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
-	// G5-07: the lookup names the same key the commit row above sends, so the owner's control reads
-	// its own intent (committed, or 410 commit_intent_unknown before the commit ran) and the other
-	// tenant is refused on the document before any intent is read.
+	// G5-07: the lookup sends the key isolation_world_test.go seeds and leaves not_committed, so the
+	// owner's control reads its own intent (200 not_committed) and the other tenant is refused on the
+	// document before any intent is read.
 	"GET /api/v1/documents/{documentID}/versions/commit":               {body: isoIdemOnly},
 	"POST /api/v1/office-frame/documents/{documentID}/uploads":         {body: isoFile("frame.docx", isoDocxMime, isoFrameDocx, nil)},
 	"POST /api/v1/office-frame/documents/{documentID}/versions/commit": {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
