@@ -1,0 +1,10 @@
+$ cd apps/docs && npx vitest run tests/g6-12-field-allowlist.test.ts tests/g6-12-create-document-bound.test.ts tests/g6-12-mutated-flags.test.ts tests/g6-12-side-state-rollback.test.ts tests/g6-12-define-style-description.test.ts tests/g6-12-ask-clarification.test.ts tests/g6-12-url-fetch-guard.test.ts tests/ai-comment-tools.test.ts tests/ai-hf-tool.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+
+ Test Files  9 passed (9)
+      Tests  60 passed (60)
+   Start at  14:52:14
+   Duration  6.64s (transform 7.03s, setup 0ms, import 13.99s, tests 1.34s, environment 3.49s)
+

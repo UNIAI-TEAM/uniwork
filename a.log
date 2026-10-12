@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4
+0972b5346a2067e1f4cb05d899d7fa108811ef9e
+e6862e5302805bd6a25893e6ff2c082a2dca3a34
+0972b534 style(docs,markdown): prettier format the ask_clarification card CSS
+c939a37c test(markdown): pin the SSRF guard and size cap on AI image URL fetches
+8e8ed499 test(docs): pin the SSRF guard and size cap on AI image URL fetches
+7e1bf4c0 feat(markdown): add ask_clarification with a questionnaire card (C-ASK)

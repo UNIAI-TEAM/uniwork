@@ -1,0 +1,7 @@
+$ npx eslint apps/docs/src/renderer/App.tsx apps/docs/src/renderer/ai/AiPanel.tsx apps/docs/src/renderer/ai/docs-skill.ts apps/docs/src/renderer/ai/field-ops.ts apps/docs/src/renderer/ai/run-snapshot.ts apps/docs/src/renderer/ai/style-ops.ts apps/docs/src/renderer/ai/tools.ts apps/docs/src/renderer/components/ClarifyCard.tsx apps/docs/tests/ai-comment-tools.test.ts apps/docs/tests/ai-hf-tool.test.ts apps/docs/tests/g6-12-ask-clarification.test.ts apps/docs/tests/g6-12-create-document-bound.test.ts apps/docs/tests/g6-12-define-style-description.test.ts apps/docs/tests/g6-12-field-allowlist.test.ts apps/docs/tests/g6-12-mutated-flags.test.ts apps/docs/tests/g6-12-side-state-rollback.test.ts apps/docs/tests/g6-12-url-fetch-guard.test.ts apps/docs/tests/helpers/g6-12-side-fixture.ts apps/markdown/src/renderer/ai/AiPanel.tsx apps/markdown/src/renderer/ai/markdown-skill.ts apps/markdown/src/renderer/ai/tools.ts apps/markdown/src/renderer/components/ClarifyCard.tsx apps/markdown/tests/g6-12-ask-clarification.test.ts apps/markdown/tests/g6-12-url-fetch-guard.test.ts apps/markdown/tests/uniwork-view-only-ai.test.ts
+
+/home/ubuntu/work/uniwork-office/apps/docs/src/renderer/App.tsx
+  5147:6  warning  React Hook useEffect has missing dependencies: 'colMode', 'hasVertical', and 'watermarkDirty'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+
