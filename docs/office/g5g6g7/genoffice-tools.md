@@ -1,14 +1,23 @@
 # UniWork Office — Bảng công cụ agent genoffice (G6-01, làm mới sau G6-12)
 
-> **Trạng thái:** in-progress — cột cơ học (khối trích xuất tại `66169a9a`, sau G6-12) và cột tay đủ bảy module; hàng đã sửa ở
-> G6-12 ghi commit + test ở §9; hàng chưa sửa ghi chủ mới hoặc "chờ Product (đợt 3)". Chờ owner F + Product ký cột tay (§10).
+> **Trạng thái:** in-progress — cột cơ học (khối trích xuất tại `cb76dde5`, pin web `0.1.0-cb76dde`; sinh bằng extractor đã sửa ở F
+> `f5b75e1f` cho tới khi fork main có bản sửa; bản G6-12 ở `66169a9a` chỉ khác dòng `rev=` và ô markdown `ask_clarification`) và
+> cột tay đủ bảy module; hàng đã sửa ở G6-12 ghi commit + test ở §9; hàng chưa sửa ghi chủ mới hoặc "chờ Product (đợt 3)". Chờ
+> owner F + Product ký cột tay (§10).
 
 ## 1. Nguồn, cách tái tạo và kiểm tra
 
 - **Fork tại SHA:** `66169a9a` (`66169a9ae1d3d7497d6585efbf5c7be9d94aa96c`, đầu nhánh tích hợp
   `feature/UNI-1366-g6-12-tools` của fork, đã đẩy). Đó là fork `main` `673fc563` cộng toàn bộ nhánh module G6-12 (UNI-1366).
   Bản tài liệu trước (G6-01) đọc ở `0d03b185` = pin web `0.1.0-0d03b18`
-  ([office-web-modules](../office-web-modules.md)); khối §3 và các hàng đã sửa ở G6-12 nay đọc ở `66169a9a`.
+  ([office-web-modules](../office-web-modules.md)); các hàng đã sửa ở G6-12 đọc ở `66169a9a` — riêng khối §3 nay đọc ở
+  `cb76dde5` (gạch đầu dòng dưới).
+- **Khối §3 ở G7-06 (UNI-1378):** khối trích xuất nay đọc ở `cb76dde5` (`cb76dde5928f8ea9cf66af938d3f83bd1278f78c` — fork `main`
+  sau G6-12, pin web `0.1.0-cb76dde`), sinh bằng extractor **đã sửa** ở F `f5b75e1f`
+  (`f5b75e1f4f773a8a22d12574a0e33c7e45d55127`, nhánh `feature/UNI-1378-g7-06-extractor`, blob
+  `94babf94780facd66e88cb622cc5f2c8e7841e70`) vì fork `main` chưa có bản sửa. So với khối ở `66169a9a`, chỉ khác dòng `rev=` và ô
+  markdown `ask_clarification` `yes` → `no` (§3.1 nhóm C đã đóng). Số dòng `path:line` ở §2 và §4–§8 vẫn đọc ở `66169a9a` trừ
+  chỗ ghi khác (không đọc lại ở `cb76dde5`).
 - **Số dòng `path:line` trong §2 và §4–§8.** Giữ nguyên số dòng đọc ở `0d03b185` cho mọi hàng G6-12 không chạm: giữa
   `0d03b185` và `e6862e53` không file nào dưới `apps/*/src/renderer`, `apps/*/src/main`, `packages/agent-core`,
   `packages/ai-provider`, `packages/electron-utils`, `web/modules` hay `web/docs/bridge` đổi ngoài các shard i18n (kiểm bằng
@@ -22,23 +31,27 @@
   khớp luôn là tên công cụ và tên ký hiệu, không phải số dòng.
 - **Nguồn duy nhất của tên công cụ cho G6-14:** instruction pack `office_uniwork_ai@N` chỉ được nhắc tên công cụ có
   trong cột `tool` của khối trích xuất (§3). Cột tay (§4–§9) là nhận định của người viết, không là nguồn tên.
-- **Tái tạo cột cơ học** (trong worktree fork, không checkout, không chạy code sản phẩm):
+- **Tái tạo cột cơ học** (trong worktree fork ở nhánh `feature/UNI-1378-g7-06-extractor` — script đã sửa — không checkout,
+  không chạy code sản phẩm):
 
   ```bash
-  node scripts/genoffice-tools-extract.mjs --rev 66169a9a > /tmp/genoffice-tools.md
+  node scripts/genoffice-tools-extract.mjs --rev cb76dde5 > /tmp/genoffice-tools.md
   ```
 
-- **Kiểm AC-2** (khối giữa hai marker = đầu ra script, từng byte), chạy ở gốc repo D với `FORK` trỏ tới worktree fork:
+- **Kiểm AC-2** (khối giữa hai marker = đầu ra script, từng byte), chạy ở gốc repo D với `FORK` trỏ tới worktree fork và
+  `EXTRACTOR` trỏ tới script đã sửa ở F `f5b75e1f` (khi fork `main` chưa có bản sửa):
 
   ```bash
-  node "$FORK/scripts/genoffice-tools-extract.mjs" --repo "$FORK" --rev 66169a9a > /tmp/extract.md
+  node "$EXTRACTOR" --repo "$FORK" --rev cb76dde5 > /tmp/extract.md
   sed -e '1,/^<!-- extract:begin -->$/d' -e '/^<!-- extract:end -->$/,$d' \
     docs/office/g5g6g7/genoffice-tools.md | diff - /tmp/extract.md && echo AC-2 OK
   ```
 
-  Đã chạy ngày 2026-10-12 với script tại fork `66169a9a` (UNI-1366, WDoc): `AC-2 OK`, `diff` thoát 0; sha256 của đầu ra
-  script (cũng là của khối giữa hai marker) `3acc970fa0d66cfd2ecc77bbbdbf937bd42522dab35e7c6df903b6b7458f6221`, 141 dòng công cụ,
-  0 ô `unresolved`, 0 ô `undeclared`.
+  Đã chạy ngày 2026-10-12 (G7-06) với script F `f5b75e1f` ở `--rev cb76dde5`: `AC-2 OK`, `diff` thoát 0; sha256 của đầu ra
+  script (cũng là của khối giữa hai marker) `d0ef92a89cf178086768295c885448087af0ba05463748197fc9785428982fac`, 141 dòng
+  công cụ, 0 ô `unresolved`, 0 ô `undeclared`. Cùng script ở `--rev 66169a9a` chỉ khác khối cũ `3acc970f…` ở ô markdown
+  `ask_clarification` (`yes` → `no`; dòng `rev=` theo rev), và ở `--rev 0d03b185` in đúng bản G6-01 `0df68253…` như script cũ
+  của `66169a9a`.
 - **Ghim lịch sử.** Script của `66169a9a` chạy ở `--rev 0d03b185` vẫn in đúng bản G6-01 từng giao: sha256 `0df68253…`
   (`0df682539473c28ffb1f978a81e62828c0d81a6116dc1c4bdf1d55703931e1c9`; chạy lại ở `66169a9a` trong WDoc và khớp dòng
   `G6_01_PIN_0D03_IDENTICAL` của vòng cloud `cloud-test-extractor-2`). Ở `--rev e6862e53` (nền của G6-12) đầu ra là
@@ -87,7 +100,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 ## 3. Cột cơ học (sinh bằng script, không sửa tay)
 
 <!-- extract:begin -->
-<!-- genoffice-tools-extract v1 rev=66169a9ae1d3d7497d6585efbf5c7be9d94aa96c -->
+<!-- genoffice-tools-extract v1 rev=cb76dde5928f8ea9cf66af938d3f83bd1278f78c -->
 | module | tool | input_schema_sha256 | editor_write | source |
 | --- | --- | --- | --- | --- |
 | docs | accept_changes | 9af09d4b7b735877e734a81a8d86f6dbd6fe1ba184cd649a13dec3fe2e196fe0 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -137,7 +150,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | html | web_search | 0190a7f984b61a677dd6b5e3bbe3f4b0bacbde61149c05035f4b3da9b05154ba | no | apps/html/src/renderer/ai/search-skill.ts |
 | html | write_document | f84f720da1d30d480c519e8dbb46ca81bb3b3d69b12332634bd5b3187c63f313 | yes | apps/html/src/renderer/ai/tools.ts |
 | markdown | apply_ops | e796ff6fcf174827819356e0312f2246fd573b42cb7bbb1f0b7052407c1334c3 | yes | apps/markdown/src/renderer/ai/tools.ts |
-| markdown | ask_clarification | 7b1327afd202f0d0d47debc5f922fdcbe4541bad90d6f97efe31db002b3373f7 | yes | apps/markdown/src/renderer/ai/tools.ts |
+| markdown | ask_clarification | 7b1327afd202f0d0d47debc5f922fdcbe4541bad90d6f97efe31db002b3373f7 | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | generate_image | ed7b16fa3ca50a85c50bc04b296613c9b84014231d5c3ea987819284f5561c25 | yes | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | image_search | 9c4b23b1cd0fe8dae086fe7c3c86dbceb1130a0c36d8ea7f93bbbe8bcfc9de2a | no | apps/markdown/src/renderer/ai/tools.ts |
@@ -245,18 +258,20 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
   `set_header_footer`, `define_style`, `set_page_setup`, `set_watermark` `no` → `yes` (§9 dòng 5); sheets
   `merge_attached_workbooks` `undeclared` → `yes` (§9, mục merge); html `ask_clarification`, pdf `create_document`, pdf
   `generate_image` `undeclared` → `no`. Không còn ô `undeclared` nào trong khối.
-- **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Ở khối cũ có 20 chỗ hai
-  cột khác nhau; ở `66169a9a` còn **13**: 12 chỗ nhóm B (công cụ ghi file; không phải lỗi) và 1 chỗ nhóm C (đọc của script,
-  không phải hành vi code). Tính lại từ 20: −5 (nhóm A cũ, code khai báo sai: đã sửa ở G6-12, §9 dòng 5) −3 (html
-  `ask_clarification`, pdf `generate_image`, sheets `merge_attached_workbooks`: nay khai báo đúng, cột cơ học và cột tay trùng)
-  = 12, trong đó pdf `create_document` chuyển từ nhóm C cũ sang nhóm B (nay `no`, hand `file`); +1 chỗ mới
-  (markdown `ask_clarification`, nhóm C) = 13. Cột cơ học không sửa tay; chỗ nào code sai thì sửa ở code rồi chạy lại script.
+- **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Ở khối `cb76dde5` còn **12**
+  chỗ hai cột khác nhau, đều nhóm B (công cụ ghi file; không phải lỗi). Ở `66169a9a` là **13**: 12 chỗ nhóm B và 1 chỗ nhóm C
+  (markdown `ask_clarification`, đọc của script — xem dòng C dưới bảng, đã đóng ở G7-06). Tính lại từ 20 của khối cũ: −5 (nhóm A
+  cũ, code khai báo sai: đã sửa ở G6-12, §9 dòng 5) −3 (html `ask_clarification`, pdf `generate_image`, sheets
+  `merge_attached_workbooks`: nay khai báo đúng, cột cơ học và cột tay trùng) = 12, cộng 1 chỗ mới (markdown
+  `ask_clarification`, nhóm C) = 13 ở `66169a9a`, rồi −1 khi extractor đã sửa đọc đúng ô đó = **12** ở `cb76dde5`; pdf
+  `create_document` chuyển từ nhóm C cũ sang nhóm B (nay `no`, hand `file`). Cột cơ học không sửa tay; chỗ nào code sai thì sửa ở
+  code rồi chạy lại script.
 
 | nhóm | module / tool | cơ học | tay | giải thích |
 | --- | --- | --- | --- | --- |
 | A. Code khai báo `false` nhưng công cụ có đổi tài liệu | (không còn) | — | — | Năm công cụ docs (`resolve_comment`, `set_header_footer`, `define_style`, `set_page_setup`, `set_watermark`) nay khai báo `mutated: true` (§9 dòng 5), nên cột cơ học là `yes`, trùng cột tay `có`. |
 | B. Ghi ra ngoài tài liệu | docs `create_document`; sheets `create_document`; slides `save_style_template`; pdf `create_document`; pdf `insert_blank_page`, `set_page_size`, `crop_pages`, `extract_pages`, `split_pdf`, `split_pages`, `merge_pages`, `replace_pages` | `no` / `yes` | file | `editor_write` chỉ nói về tài liệu đang mở. Cột tay ghi `file` vì công cụ ghi file, lưu, hoặc tạo version (§5 (c)). Các công cụ cấp file của pdf vừa đổi tài liệu (`yes`) vừa ghi file. Ba công cụ `create_document` (docs, sheets, pdf) bị ẩn khi tài liệu gắn UniWork (§5, §9 dòng 2, 17, 31); các công cụ pdf cấp file còn lại chờ Product (§9 dòng 30, 31). |
-| C. Script đọc khác hành vi | markdown `ask_clarification` | `yes` | không | Mọi đường trả về của công cụ trong code đều khai báo `mutated: false` (`apps/markdown/src/renderer/ai/tools.ts`, test `apps/markdown/tests/g6-12-ask-clarification.test.ts`); ô `yes` là kết quả đọc của script (chỗ định tuyến là một `if (call.name === 'ask_clarification') return …` một dòng, không khối `{}`, nằm trước `switch`; docs cùng kiểu mà ra `no`). Nguyên nhân (đã chẩn đoán ở review FE): `branchRange` (`scripts/genoffice-tools-extract.mjs:1322-1331` (66169a9a)) kết thúc nhánh không có `{}` chỉ ở `;` hoặc `}`; fork không dùng dấu chấm phẩy, nên vùng của `=== 'ask_clarification'` chạy tiếp vào `switch (call.name)` kế bên và gom cả `case 'write_document': return writeDocument(…)`, mà helper đó khai báo `mutated: true` → `yes`. Ở docs, chuỗi token sau guard gặp `}` trước khi tới helper nào có `mutated`, nên ra `no`. Ghi thành tồn đọng extractor cùng nhóm R1-1..R1-3 (§9.2), chủ G7-06 (cùng lỗi có thể đổi ô của mọi `if (call.name === …) return …` không `{}`). Cột tay (`không`) đúng theo code. |
+| C. Script đọc khác hành vi — **đã đóng ở G7-06** | markdown `ask_clarification` | `no` (khối `cb76dde5`; khối `66169a9a` in `yes`) | không | Mọi đường trả về của công cụ trong code đều khai báo `mutated: false` (`apps/markdown/src/renderer/ai/tools.ts`, test `apps/markdown/tests/g6-12-ask-clarification.test.ts`). Ở `66169a9a` ô cơ học in `yes` vì `branchRange` (`scripts/genoffice-tools-extract.mjs:1322-1331` (66169a9a)) kết thúc nhánh không có `{}` chỉ ở `;` hoặc `}`; fork không dùng dấu chấm phẩy, nên vùng của `if (call.name === 'ask_clarification') return …` chạy tiếp vào `switch (call.name)` kế bên và gom cả `case 'write_document': return writeDocument(…)`, mà helper đó khai báo `mutated: true` → `yes` (ở docs, chuỗi token sau guard gặp `}` trước khi tới helper nào có `mutated`, nên vẫn ra `no`). Extractor đã sửa ở F `f5b75e1f` (`feature/UNI-1378-g7-06-extractor`, blob `94babf94…`, chờ gộp vào fork main) kết thúc nhánh không `{}` ở cuối câu lệnh, nên khối `cb76dde5` in `no`, trùng cột tay `không`. |
 
 
 ## 4. Cột tay theo module
@@ -375,7 +390,7 @@ chú trong prompt và từ chối nếu vẫn bị gọi; (2) `ask_clarification
 | generate_image | **desktop**; web **ẩn** (cap `aiImageFetch` cùng `imageGeneration`) | prompt, aspectRatio, `afterIndex`, alt → như `insert_image` | như `insert_image` | có | cùng bước tải ảnh + lưu như trên nên bị ẩn bằng cùng cap, kể cả nếu host web sau này cấp `imageGeneration` |
 | read_frontmatter | cả hai | — → YAML thô | — | không | |
 | web_search | cả hai, web cần `webSearch` | query, maxResults → câu trả lời, link, trích | mặc định 6 | không | |
-| ask_clarification | cả hai (chỉ khi panel có thẻ hỏi) | `questions[]` (≤ 4 câu, ≤ 5 lựa chọn) → câu trả lời của người dùng | `inputSchema` giống từng byte html; mô tả riêng cho markdown | không (`mutated: false` ở mọi đường trả về; **cột cơ học §3 ghi `yes`**, lỗi đọc của script, §3.1 nhóm C) | **mới ở G6-12** (§7, §9 dòng 7; `md/ai/tools.ts:149` (66169a9a)). Chặn run tới khi người dùng trả lời; Bỏ qua/Dừng/Chat mới/đóng panel trả `cancelled`; biên nhận dưới tin nhắn người dùng. View-only giữ. Rào vùng sửa không áp |
+| ask_clarification | cả hai (chỉ khi panel có thẻ hỏi) | `questions[]` (≤ 4 câu, ≤ 5 lựa chọn) → câu trả lời của người dùng | `inputSchema` giống từng byte html; mô tả riêng cho markdown | không (`mutated: false` ở mọi đường trả về; khối §3 ở `cb76dde5` cũng ghi `no` sau khi sửa script, §3.1 nhóm C đã đóng) | **mới ở G6-12** (§7, §9 dòng 7; `md/ai/tools.ts:149` (66169a9a)). Chặn run tới khi người dùng trả lời; Bỏ qua/Dừng/Chat mới/đóng panel trả `cancelled`; biên nhận dưới tin nhắn người dùng. View-only giữ. Rào vùng sửa không áp |
 
 **Rào vùng sửa (G6-12, §9 dòng 9) — markdown.** Chỉ bật khi lượt có phạm vi: gửi từ composer/popover/ribbon khi đang có vùng chọn
 (chip "Selection (N words)" còn đó; bỏ chip bằng × thì lượt không rào) hoặc gửi hàng đợi sửa (mỗi neo là một vùng). Rào là danh
@@ -870,7 +885,7 @@ Những gì G6-12 cố ý để lại, hoặc quyết định mặc định cầ
 | mục | nguồn | tình huống | chủ | quyết định / lý do |
 | --- | --- | --- | --- | --- |
 | docs: rollback sau khi lưu giữa lượt | review FE docs-md F1 (minor) | người dùng lưu trong lúc AI chạy; rollback chỉ trả cây, header/style/page setup giữ như file đã lưu, panel không báo | G6-09 (hiển thị/undo theo lượt) | Advisor 2026-10-12: chấp nhận ở G6-12, chuyển G6-09. Phát lại bảng style/header/page setup chờ trước khi lưu lên file đã parse lại là sai, và style đã ghi vào styles.xml không xóa được; một thông báo cần chuỗi 21 ngôn ngữ (đã đề nghị làm sau) |
-| extractor: tồn đọng R1-1..R1-3 | review BE extractor (low; 0 ảnh hưởng ở cả hai pin) | R1-1: bag `tools:` lồng trong schema → dòng ma; R1-2: `get tools(): T[]` có chú thích kiểu trả về → công cụ không schema bị bỏ (cũng ở nền); R1-3: `return [` của helper lồng trong thân `get tools()` bị coi là danh sách công cụ | G7-06 (làm cứng extractor) | để lại: không có ảnh hưởng tới bảng ở `0d03b185` và `66169a9a`; sửa cùng lúc đồng bộ upstream. Cùng nhóm: ô `editor_write` của markdown `ask_clarification` (§3.1 nhóm C); nguyên nhân: `branchRange` (`scripts/genoffice-tools-extract.mjs:1322-1331` (66169a9a)) kết thúc nhánh không có `{}` chỉ ở `;` hoặc `}`, fork không có dấu chấm phẩy, nên vùng của `if (call.name === 'ask_clarification') return …` chạy tiếp vào `switch (call.name)` kế bên, gom `case 'write_document'` có helper khai báo `mutated: true` → `yes`; chủ G7-06 |
+| extractor: tồn đọng R1-1..R1-3 | review BE extractor (low; 0 ảnh hưởng ở cả hai pin) | R1-1: bag `tools:` lồng trong schema → dòng ma; R1-2: `get tools(): T[]` có chú thích kiểu trả về → công cụ không schema bị bỏ (cũng ở nền); R1-3: `return [` của helper lồng trong thân `get tools()` bị coi là danh sách công cụ | G7-06 (đã sửa ở F `f5b75e1f`) | Đã sửa ở F `f5b75e1f` (`feature/UNI-1378-g7-06-extractor`, blob `94babf94…`, chờ Advisor gộp vào fork main); đầu ra ở `0d03b185`, `66169a9a` và `cb76dde5` không đổi chỗ nào khác. Cùng lúc đóng ô `editor_write` của markdown `ask_clarification` (`yes` → `no`, §3.1 nhóm C). |
 | slides: bản recovery trong `userData/slides-autosave` | review BE slides R1-4 (low) | deck gắn UniWork còn dirty sau khi AI hạ cánh, nên tick 30 giây ghi bản recovery vào `userData` | Product (nhận biết) | lead chấp nhận: lưu trữ cục bộ của app, cùng loại với `save_style_template` và với sửa tay đã có từ trước |
 | slides: `save_style_template` ghi `userData/style-templates` | WSl mục 2 | thư viện style cục bộ chứa text Style Skill, `topic`, khung layout; không có bản sao tài liệu | Product (xác nhận) | khuyến nghị: không phải "ra ngoài tài liệu", không đổi; nếu Product muốn không có dữ liệu suy từ tài liệu trong `userData` thì bỏ trường `topic` khi gắn UniWork |
 | pdf: thẻ hỏi đang chờ bị bỏ ở lần lưu đầu của một PDF trống | review FE pdf-html F1 (minor) | đường dẫn đổi từ rỗng sang có; dọn thẻ giải quyết câu hỏi như đã bỏ qua | không (ghi nhận, ngang hành vi thẻ xác nhận cấp file) | Advisor 2026-10-12: chấp nhận như đã biết |
@@ -890,6 +905,7 @@ Những gì G6-12 cố ý để lại, hoặc quyết định mặc định cầ
 Cột tay (§2, §4–§9) chờ owner F + Product ký qua Advisor; chữ ký đóng gate G6-D4. Cột cơ học (§3) không cần ký: nó
 được kiểm bằng lệnh AC-2 ở §1.
 
-Trạng thái ở `66169a9a`: khối §3 và lệnh AC-2 đã chạy lại (§1); cột tay đã làm mới cho mọi hàng G6-12 sửa (§3.1, §4, §5, §6, §7, §8, §9);
+Trạng thái ở `66169a9a` (G6-12): khối §3 và lệnh AC-2 đã chạy lại (§1); cột tay đã làm mới cho mọi hàng G6-12 sửa (§3.1, §4, §5, §6, §7, §8, §9);
+G7-06 chạy lại AC-2 và làm mới khối §3 ở `cb76dde5` bằng extractor đã sửa (§1, §3.1 nhóm C đã đóng);
 phần chờ ký gồm các mục "chờ Product (đợt 3)" ở §9, §9.1 và các xác nhận mặc định ở §9.2. Hàng chưa ký vẫn là hàng chưa ký — G6-12
 không đóng gate G6-D4.
