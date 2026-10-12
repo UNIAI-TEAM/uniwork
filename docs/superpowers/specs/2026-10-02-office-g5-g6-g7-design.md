@@ -1,6 +1,6 @@
 # UniWork Office G5/G6/G7 — Đồng bộ, AI Office (UniWork AI) và nghiệm thu phát hành
 
-> **Trạng thái:** in-progress — spec v1.2 bàn giao (đề xuất, chờ duyệt), ngày 2026-10-12 (v1.1 ngày 2026-10-11, v1.0 ngày 2026-10-02). Đội lập phase này không triển khai;
+> **Trạng thái:** in-progress — spec v1.2 bàn giao (đã duyệt 2026-10-12, U-13; gate còn mở ở §13.1), ngày 2026-10-12 (v1.1 ngày 2026-10-11, v1.0 ngày 2026-10-02). Đội lập phase này không triển khai;
 > G5/G6/G7 giao cho đội khác (quyết định người dùng 2026-10-11). v1.2 bỏ Dify khỏi phạm vi (U-12). Chưa khởi chạy triển khai, cấu hình upstream model hoặc nghiệm thu sản phẩm.
 
 **Issue tài liệu:** UNI-923, parent UNI-437; Roadmap C-01, liên quan C-15/C-16.
@@ -50,6 +50,7 @@ Nếu yêu cầu ghi công thức, thay đổi chỉ nằm trong editor để ng
 | U-10 | G5/G6/G7 do đội khác triển khai (2026-10-11) | Spec này là tài liệu bàn giao; đội nhận lập plan, sub-issue và chốt các gate §13 |
 | U-11 | Mọi việc liên quan chứng chỉ (ký số, notarization, kênh stable, update feed có ký) ở backlog đến khi có chứng chỉ | Không là gate của G7 cho bản dev; chỉ thành gate khi người dùng mở lại |
 | U-12 | Bỏ Dify (người dùng 2026-10-12: "k cần giao task cho bên đó đâu bro. bỏ luôn đi cũng được. về url dify config thì có thể test tạm bằng config của custom provider trong codex") | Không deployment Dify (staging hay production), không adapter Dify, không Dify app, không Knowledge API, không pipeline nhập corpus, không POC retrieval, không giao việc cho đội khác. UniWork AI → UniWork API → `ai.Gateway` → upstream model là cấu hình của provider openai-compatible có sẵn (§8); upstream dev/test là custom provider của Codex trên máy dev (§8.4); CI và unit test dùng provider `fake` |
+| U-13 | Người dùng duyệt spec v1.2 theo gợi ý (2026-10-12: "ok duyệt theo gợi ý") | Đóng: G5-D1 giá trị chính sách (lease ≤ 24h, gia hạn khi online, revoke có hiệu lực khi máy nhận revoke hoặc lease hết hạn, logout khóa ngay); G5-D3 (một save intent chưa giải quyết mỗi Document); entitlement UniWork AI dùng lại `office.ai_cloud` (§8); bộ test eval tối thiểu 100 tình huống (§9.2); platform G7-D2 (Win NSIS, mac arm64 + x64 dmg, Linux AppImage + deb; ký số theo U-11). Giao đội triển khai chốt: G5-D2, G6-D1, G6-D4, ngưỡng/chi phí của G7-D1, máy cụ thể của G7-D2. Người dùng tự quyết khi lên production: G6-D2 (dev/test dùng upstream Codex theo U-12) |
 
 Không có RAG, fine-tuning trọng số, tự học từ hội thoại khách hàng hay cam kết model ghi nhớ lâu dài. “Kiến thức”
 trong phase này là instruction pack có version, review và eval (§7).
@@ -535,7 +536,7 @@ Gate G6-D1 yêu cầu chứng minh:
   theo của cùng hội thoại; không lấy từ input người dùng hoặc model.
 - `CheckQuota` trước, `RecordUsage` theo usage thật; usage thiếu là unknown/reconciliation, không mặc định 0.
   Không đếm trùng lượt bao ngoài và từng lượt model con. Chốt usage trên context tách khỏi request như ADR 0029.
-- Entitlement: đề xuất v1 **dùng lại `office.ai_cloud`**, để `chat` là một công cụ cloud như các công cụ khác và máy trạng thái
+- Entitlement: v1 **dùng lại `office.ai_cloud`** (đã duyệt, U-13), để `chat` là một công cụ cloud như các công cụ khác và máy trạng thái
   của seam (`enabled` / `not-entitled`) không đổi; grant `uniwork_ai` của frame đọc cùng khóa. Nếu chủ sản phẩm muốn khóa riêng
   (ví dụ `office.ai_uniwork`), thì `enabled` phải đổi thành "có ít nhất một công cụ được entitlement" và mỗi công cụ mang
   entitlement riêng, cả ở `GET .../ai/cloud` lẫn grant frame. Khóa mới seed bằng migration, đọc qua `EntitlementService.Can` (fail-closed).
@@ -614,7 +615,7 @@ artifact, người kiểm và blocker. “Chưa chạy”, “skip”, “không
 ### 9.2 Bộ đánh giá AI độc lập
 
 G6 giao ví dụ authoring/dev set; G7 giữ test set độc lập, không đặt đáp án vào instruction pack hay prompt.
-Đề xuất tối thiểu 100 tình huống test giữ riêng: 40 XLSX, 20 DOCX, 5 mỗi PPTX/PDF/Markdown/HTML,
+Tối thiểu 100 tình huống test giữ riêng (đã duyệt, U-13): 40 XLSX, 20 DOCX, 5 mỗi PPTX/PDF/Markdown/HTML,
 20 trường hợp liên định dạng về quyền, stale version, ambiguity, lỗi và prompt injection.
 Mỗi case có query vi/en, fixture/version, source anchors,
 allowed/required tool operations, expected numeric/structural outputs, expected writes (thường là zero) và oracle.
@@ -752,17 +753,17 @@ end-to-end latency/cost và crash rate. Alert thresholds chốt từ load profil
 
 | ID | Đề xuất để duyệt / owner | Chặn |
 | --- | --- | --- |
-| G5-D1 | Chủ auth/quyền + owner app fork + G5: offline lease có TTL, đề xuất tối đa 24h; quy tắc cold start/clock/revoke; amendment live-ACL recovery của DOC-005 | Unlock cloud offline, nghiệm thu offline library |
-| G5-D2 | G1/FileService/G5: feed/snapshot/idempotency retention, durable logical intent lookup, attempt fencing và claim refresh; phải định lượng windows trước code | Durable retry và cursor production |
-| G5-D3 | G5 + UX: một outstanding intent/Document, N+1 chờ outcome N; queue/cache limits và cách pause/cancel | Queue UX/acceptance |
-| G6-D1 | AI Platform + owner fork: hợp đồng façade route/wire/run id (header hay body)/rate limit, streaming thật hay SSE một chunk ở v1, mở rộng vòng tool-result của provider có sẵn (§6.2), `ModelPolicy` của `office_uniwork_ai` (trần token, model mặc định), trần instruction pack, khóa entitlement, quota semantics, trần lượt chạy (U-12 bỏ phần cách nối Dify) | UniWork AI production; cần ADR nếu thay boundary |
-| G6-D2 | Chủ dữ liệu/OPS: upstream model production (vendor hay self-host), region, retention/log nội dung của vendor, secrets; transcript phía server (U-12 bỏ phần Dify) | Dữ liệu thật tới upstream model |
+| G5-D1 | **Giá trị chính sách đã duyệt (U-13)**; còn cần amendment DOC-005 + threat model được chủ auth duyệt. Chủ auth/quyền + owner app fork + G5: offline lease có TTL, đề xuất tối đa 24h; quy tắc cold start/clock/revoke; amendment live-ACL recovery của DOC-005 | Unlock cloud offline, nghiệm thu offline library |
+| G5-D2 | **Giao đội triển khai chốt (U-13).** G1/FileService/G5: feed/snapshot/idempotency retention, durable logical intent lookup, attempt fencing và claim refresh; phải định lượng windows trước code | Durable retry và cursor production |
+| G5-D3 | **Đã duyệt một intent/Document (U-13)**; số giới hạn queue/cache/nháp chốt ở U-01. G5 + UX: một outstanding intent/Document, N+1 chờ outcome N; queue/cache limits và cách pause/cancel | Queue UX/acceptance |
+| G6-D1 | **Giao đội triển khai chốt (U-13)**; phần entitlement đã duyệt (dùng lại `office.ai_cloud`). AI Platform + owner fork: hợp đồng façade route/wire/run id (header hay body)/rate limit, streaming thật hay SSE một chunk ở v1, mở rộng vòng tool-result của provider có sẵn (§6.2), `ModelPolicy` của `office_uniwork_ai` (trần token, model mặc định), trần instruction pack, khóa entitlement, quota semantics, trần lượt chạy (U-12 bỏ phần cách nối Dify) | UniWork AI production; cần ADR nếu thay boundary |
+| G6-D2 | **Người dùng quyết khi lên production (U-13)**; dev/test dùng upstream Codex (U-12). Chủ dữ liệu/OPS: upstream model production (vendor hay self-host), region, retention/log nội dung của vendor, secrets; transcript phía server (U-12 bỏ phần Dify) | Dữ liệu thật tới upstream model |
 | G6-D3 | ~~v1 AI chỉ dùng committed snapshot~~ — đóng: AI genoffice đọc nội dung đang mở (§6.1); phần còn lại chuyển vào G6-D2 (lưu giữ nội dung chưa lưu) | — |
-| G6-D4 | G6 + owner fork + Product: chốt ma trận §6.5 theo bảng công cụ genoffice; cách hiển thị thay đổi AI trước khi Lưu theo từng module | Tiêu chí AI từng format |
-| G7-D1 | QA + Product + OPS: duyệt thresholds §9.2, fixture/load profile, cost/run và end-to-end SLO | Kết luận chất lượng/hiệu năng |
-| G7-D2 | Owner fork + OPS + QA: máy/OS/arch, stage/channel từng platform; ký số theo backlog chứng chỉ (U-11) | Cam kết platform và phát hành |
+| G6-D4 | **Giao đội triển khai chốt (U-13).** G6 + owner fork + Product: chốt ma trận §6.5 theo bảng công cụ genoffice; cách hiển thị thay đổi AI trước khi Lưu theo từng module | Tiêu chí AI từng format |
+| G7-D1 | **Số tình huống đã duyệt (≥100, U-13)**; ngưỡng/chi phí giao đội triển khai chốt. QA + Product + OPS: duyệt thresholds §9.2, fixture/load profile, cost/run và end-to-end SLO | Kết luận chất lượng/hiệu năng |
+| G7-D2 | **Danh sách platform đã duyệt (U-13)**; máy cụ thể giao đội triển khai. Owner fork + OPS + QA: máy/OS/arch, stage/channel từng platform; ký số theo backlog chứng chỉ (U-11) | Cam kết platform và phát hành |
 
-Chỉ U-01..12 là quyết định đã có; bảng trên là đề xuất có chủ đích, chưa được duyệt.
+U-01..13 là quyết định đã có. U-13 đóng phần ghi "đã duyệt" trong bảng trên; phần còn lại vẫn mở với owner ghi ở từng dòng.
 Gate chưa đóng không cấm chuẩn bị độc lập, nhưng không cho runtime fallback vượt policy.
 Không đặt ngày hoàn thành từ số nhóm; estimate sau khi đội nhận bàn giao có capacity và thử P1.
 
