@@ -110,3 +110,86 @@ func TestCommitIntentLookupRoute(t *testing.T) {
 		t.Fatalf("lookup with the flag off: %d %v", status, got)
 	}
 }
+
+// syncedLogBuffer is a bytes.Buffer safe for the server's goroutine, used to
+// capture what the request logger writes while the test reads.
+type syncedLogBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncedLogBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncedLogBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+// TI-8: the Idempotency-Key never reaches the request log or an error body,
+// and the header bound the POST already applies covers the GET lookup too
+// (printable ASCII, at most 255 bytes - middleware.IdempotencyKeyFormat).
+func TestCommitIntentKeyNeverLeaks(t *testing.T) {
+	w := newDocsWorld(t)
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+		map[string]string{"title": "leak.txt"}, "leak.txt", []byte("leak v1\n"), nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("create file doc: %d %s", res.StatusCode, raw)
+	}
+	var j map[string]any
+	_ = json.Unmarshal(raw, &j)
+	id := j["document"].(map[string]any)["id"].(string)
+
+	var logs syncedLogBuffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	lookup := func(key string) (int, []byte) {
+		t.Helper()
+		req, _ := http.NewRequest(http.MethodGet, w.srv.URL+"/api/v1/documents/"+id+"/versions/commit", nil)
+		req.Header.Set("Authorization", "Bearer "+w.token)
+		req.Header.Set("Idempotency-Key", key)
+		res, err := w.srv.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := readAll(res)
+		return res.StatusCode, body
+	}
+
+	key := "ci-leak-" + util.NewID()
+	status, body := lookup(key)
+	if status != 410 || !bytes.Contains(body, []byte("commit_intent_unknown")) {
+		t.Fatalf("unknown key: %d %s", status, body)
+	}
+	if bytes.Contains(body, []byte(key)) {
+		t.Fatalf("the 410 body carries the key: %s", body)
+	}
+
+	tooLong := strings.Repeat("k", 256)
+	status, body = lookup(tooLong)
+	if status != 400 || !bytes.Contains(body, []byte("invalid_request")) {
+		t.Fatalf("over-long key: %d %s", status, body)
+	}
+	if bytes.Contains(body, []byte(tooLong)) {
+		t.Fatalf("the 400 body carries the key: %s", body)
+	}
+
+	// The access line is written after the response leaves; wait for it before
+	// reading the buffer.
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(logs.String(), "versions/commit") {
+		if time.Now().After(deadline) {
+			t.Fatalf("no access log line for the lookup: %s", logs.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if logged := logs.String(); strings.Contains(logged, key) || strings.Contains(logged, tooLong) {
+		t.Fatalf("the request log carries the key: %s", logged)
+	}
+}
