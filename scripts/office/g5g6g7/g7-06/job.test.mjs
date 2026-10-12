@@ -25,6 +25,14 @@ import "./test-cases/brand.cases.mjs";
 // ---- the CLI: flags, env forms, exit codes and result.json ------------------
 
 
+test("job-lib carries no dead exports: mergeStatus/STATUSES/STATUS_RANK are gone", async () => {
+  const lib = await import("./job-lib.mjs");
+  for (const name of ["mergeStatus", "STATUSES", "STATUS_RANK"]) {
+    assert.equal(name in lib, false, `${name} is dead code (F-09)`);
+  }
+});
+
+
 test("the CLI runs the checked-in fake captures green through --checks brand", () => {
   const dir = outDir("cli-brand-ok");
   const run = cli(["--checks", "brand", "--captures", CAPTURES, "--out", dir]);

@@ -19,7 +19,6 @@ export const REPO_ROOT = resolve(JOB_DIR, "..", "..", "..", "..");
 export const CHECK_NAMES = Object.freeze(["protocol", "extractor", "golden", "brand"]);
 /** The two hosts the capture provider shoots (contract section 3). */
 export const HOSTS = Object.freeze(["desktop", "web"]);
-export const STATUSES = Object.freeze(["PASS", "FAIL", "BLOCKED", "NOTE"]);
 /** BLOCKED is the exit code the G7-01 harness already uses for "cannot run". */
 export const BLOCKED_EXIT = 77;
 
@@ -35,14 +34,6 @@ export const PROTOCOL_FILES = Object.freeze({
   endpoint: "web/docs/protocol/endpoint.ts",
   host: "web/docs/protocol/host.ts",
 });
-
-/** FAIL is worse than BLOCKED, which is worse than NOTE, which is worse than PASS. */
-const STATUS_RANK = { PASS: 0, NOTE: 1, BLOCKED: 2, FAIL: 3 };
-
-/** @param {string[]} statuses @returns {"PASS" | "NOTE" | "BLOCKED" | "FAIL"} */
-export function mergeStatus(statuses) {
-  return statuses.reduce((worst, status) => (STATUS_RANK[status] > STATUS_RANK[worst] ? status : worst), "PASS");
-}
 
 /** The exit code a run ends with: 1 any FAIL, else 77 any BLOCKED, else 0. */
 export function exitCodeFor(checks) {
