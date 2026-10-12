@@ -10,6 +10,8 @@ import {
   groupRows,
   indexTree,
   matchesChip,
+  rowOrigin,
+  rowSizeBytes,
   sourceRow,
   type DocumentSummaryRow,
 } from "./library-rows";
@@ -88,6 +90,16 @@ describe("library rows", () => {
     ]);
     expect(groupRows(rows, "source", index).map((g) => g.key)).toEqual(["origin:documents", "origin:chat"]);
     expect(groupRows(rows, "none", index)).toHaveLength(1);
+  });
+
+  it("tells uploads from created documents and sizes only files", () => {
+    const upload = documentRow(doc({ kind: "file", origin: "upload", size_bytes: 2048 }));
+    const blank = documentRow(doc({ kind: "file", origin: "created", size_bytes: 0 }));
+    const page = documentRow(doc({ origin: "created", size_bytes: 0 }));
+    const older = documentRow(doc({ kind: "file" }));
+    expect([upload, blank, page, older].map(rowOrigin)).toEqual(["upload", "created", "created", "documents"]);
+    expect([upload, blank, page, older, src()].map(rowSizeBytes)).toEqual([2048, null, null, null, 1]);
+    expect(groupRows([upload, page], "source", index).map((g) => g.key)).toEqual(["origin:upload", "origin:created"]);
   });
 
   it("sorts newest first and sinks rows without a date", () => {

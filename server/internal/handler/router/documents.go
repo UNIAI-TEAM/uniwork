@@ -409,14 +409,14 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/archive", h.ArchiveDocument, apiOp{
 		summary:     "Archive a document subtree",
-		description: "Đưa tài liệu (hoặc thư mục) và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh. Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Đưa tài liệu (hoặc thư mục) và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh; quá 1000 node sống -> 422 folder_too_large (hãy lưu trữ từng phần). Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/restore", h.RestoreDocument, apiOp{
 		summary:     "Restore an archived document",
-		description: "Khôi phục đúng các node của một đợt archive (batch_id); node bị archive bởi đợt khác không tự sống lại. Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Khôi phục đúng các node của một đợt archive (batch_id); node bị archive bởi đợt khác không tự sống lại; đợt quá 1000 node -> 422 folder_too_large. Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
@@ -446,7 +446,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/links", h.CreateDocumentLink, apiOp{
 		summary:     "Create a public link",
-		description: "Liên kết xem ẩn danh: cần entitlement documents.public_links và công tắc tổ chức; tối đa 5 liên kết sống -> 422 document_link_limit. Token chỉ trả một lần cùng url trang chia sẻ; server chỉ giữ SHA-256.",
+		description: "Liên kết xem ẩn danh: cần entitlement documents.public_links và công tắc tổ chức; tối đa 5 liên kết sống -> 422 document_link_limit; thư mục không có liên kết công khai -> 422 folder_not_supported. Token chỉ trả một lần cùng url trang chia sẻ; server chỉ giữ SHA-256.",
 		tags:        []string{"documents"},
 		sdi:         sdi.CreateDocumentLinkSDI{},
 		sdo:         sdo.DocumentLinkSDO{},

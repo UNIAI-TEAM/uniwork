@@ -64,3 +64,11 @@ export function buildOfficeDeepLink(ticket: string, channel: OfficeChannel = "st
 export function safeOfficeDeepLink(session: OfficeLaunchSessionLike, channel: OfficeChannel, profile?: OfficeLinkProfile): string {
   return buildOfficeDeepLink(session.launch_ticket, channel, profile);
 }
+
+/** The app's home route: opens (or brings forward) the installed app on its
+ * home screen. It carries no ticket and names no document, only the public
+ * deployment profile, so a first-run app learns its server from this click. */
+export function buildOfficeHomeLink(channel: OfficeChannel = "stable", profile?: OfficeLinkProfile): string {
+  const params = profileParams(profile, channel);
+  return `${officeScheme(channel)}://home${params.length > 0 ? `?${query(params)}` : ""}`;
+}

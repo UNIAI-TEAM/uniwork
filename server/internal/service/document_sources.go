@@ -135,7 +135,10 @@ type DocumentSourceItem struct {
 	UpdatedAt    time.Time
 	Owner        *DocumentSourceOwner
 	CanOpenInApp bool
-	rowID        string
+	// CanSave is whether Save can turn the file into a document: the same
+	// verdict the document upload would give (documentSourceSaveable).
+	CanSave bool
+	rowID   string
 }
 
 // DocumentSourcePage is one list page; NextCursor is empty on the last one.
@@ -180,7 +183,12 @@ func (s *DocumentSourceService) List(ctx context.Context, actor Actor, workspace
 		if len([]rune(q)) > 200 {
 			return DocumentSourcePage{}, Invalid("q tối đa 200 ký tự")
 		}
-		dq.q = pgtype.Text{String: escapeLikePattern(q), Valid: true}
+		// The queries compare uw_fold_search(name) with the folded term, so
+		// "hop dong" finds "Hợp đồng" (foldForSearch and the SQL function are
+		// held together by TestDocumentSourceFoldAgreesWithGo).
+		if folded := foldForSearch(q); folded != "" {
+			dq.q = pgtype.Text{String: escapeLikePattern(folded), Valid: true}
+		}
 	}
 	if f.Cursor != "" {
 		at, id, ok := decodeDocumentSourceCursor(f.Cursor)
@@ -211,10 +219,12 @@ func (s *DocumentSourceService) List(ctx context.Context, actor Actor, workspace
 	return page, nil
 }
 
-// DocumentSourceFile is an opened source file. The caller closes Body.
+// DocumentSourceFile is an opened source file. The caller closes Body. Size
+// is the exact byte length of Body, or -1 when it is not known up front.
 type DocumentSourceFile struct {
 	Item DocumentSourceItem
 	Body io.ReadCloser
+	Size int64
 }
 
 // Open answers the download: the row through the list gate, then the bytes
@@ -228,11 +238,16 @@ func (s *DocumentSourceService) Open(ctx context.Context, actor Actor, workspace
 	if err != nil {
 		return DocumentSourceFile{}, err
 	}
-	body, err := s.openBytes(ctx, actor, workspaceID, item)
+	return s.openItem(ctx, actor, workspaceID, item)
+}
+
+// openItem opens the bytes of a row the list gate already admitted.
+func (s *DocumentSourceService) openItem(ctx context.Context, actor Actor, workspaceID string, item DocumentSourceItem) (DocumentSourceFile, error) {
+	body, size, err := s.openBytes(ctx, actor, workspaceID, item)
 	if err != nil {
 		return DocumentSourceFile{}, hideSourceRefusal(err)
 	}
-	return DocumentSourceFile{Item: item, Body: body}, nil
+	return DocumentSourceFile{Item: item, Body: body, Size: size}, nil
 }
 
 // SaveSourceFileInput is POST .../documents/sources/{id}/save.
@@ -248,14 +263,36 @@ type SaveSourceFileInput struct {
 // create is CreateFileDocument's - parent check, quota, audit and the
 // document.created outbox row in one transaction, Idempotency-Key replay -
 // with the source id recorded on the audit row.
+//
+// Two refusals come before any byte is read: a file the document upload would
+// refuse (can_save false) answers 422 source_not_saveable, and a parent the
+// caller cannot put a document under answers as the upload's pre-flight does,
+// so a wrong request costs no IMAP/object read and leaves no staged file.
 func (s *DocumentSourceService) Save(ctx context.Context, actor Actor, workspaceID, sourceFileID string, in SaveSourceFileInput) (DocumentFileResult, error) {
-	f, err := s.Open(ctx, actor, workspaceID, sourceFileID)
+	ws, err := s.gate(ctx, actor, workspaceID)
+	if err != nil {
+		return DocumentFileResult{}, err
+	}
+	item, err := s.lookup(ctx, actor, ws, sourceFileID)
+	if err != nil {
+		return DocumentFileResult{}, err
+	}
+	if !item.CanSave {
+		return DocumentFileResult{}, errSourceNotSaveable()
+	}
+	parentID := strings.TrimSpace(in.ParentID)
+	if parentID != "" {
+		if err := s.docs.authorizeParentIn(ctx, actor, parentID, workspaceID); err != nil {
+			return DocumentFileResult{}, err
+		}
+	}
+	f, err := s.openItem(ctx, actor, workspaceID, item)
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
 	defer f.Body.Close()
 	return s.docs.CreateFileDocument(ctx, actor, workspaceID, CreateFileDocumentInput{
-		ParentID:       strings.TrimSpace(in.ParentID),
+		ParentID:       parentID,
 		Title:          strings.TrimSpace(in.Title),
 		Filename:       f.Item.Name,
 		Body:           f.Body,
@@ -377,8 +414,9 @@ func documentSourceItem(src string, r db.ListDocumentSourceChatFilesRow) Documen
 	item := DocumentSourceItem{
 		ID: r.SourceID, Source: src, Name: r.Name, MimeType: r.MimeType, Extension: ext,
 		SizeBytes: r.SizeBytes, UpdatedAt: r.SortAt.Time.UTC(), CanOpenInApp: documentSourceAppExts[ext],
-		Parent: DocumentSourceParent{Kind: documentSourceParentKind(r.ParentKind), ID: r.ParentID, Title: r.ParentTitle, Ref: r.ParentRef},
-		rowID:  r.RowID,
+		CanSave: documentSourceSaveable(ext, r.MimeType, r.SizeBytes),
+		Parent:  DocumentSourceParent{Kind: documentSourceParentKind(r.ParentKind), ID: r.ParentID, Title: r.ParentTitle, Ref: r.ParentRef},
+		rowID:   r.RowID,
 	}
 	// A task comment's file links to its task: the comment is read there.
 	if item.Parent.Kind == "task_comment" && r.ParentRef != "" {
@@ -414,37 +452,49 @@ func documentSourceOwnerKind(kind string) string {
 	}
 }
 
-func (s *DocumentSourceService) openBytes(ctx context.Context, actor Actor, workspaceID string, item DocumentSourceItem) (io.ReadCloser, error) {
+// openBytes opens a row's bytes through its domain's own Open and reports the
+// exact length when the source measured it: the stored size of a FileService
+// file (chat, meeting, task), the decoded length of an email part (the size
+// IMAP lists is the encoded one, so it is not used). -1 means unknown.
+func (s *DocumentSourceService) openBytes(ctx context.Context, actor Actor, workspaceID string, item DocumentSourceItem) (io.ReadCloser, int64, error) {
+	known := int64(-1)
+	if item.SizeBytes > 0 {
+		known = item.SizeBytes
+	}
 	switch item.Source {
 	case DocumentSourceChat:
 		_, rd, err := s.chat.OpenChatFileMessage(ctx, actor.ID, workspaceID, item.Parent.ID, item.rowID, false)
 		if err != nil {
-			return nil, err
+			return nil, -1, err
 		}
 		if rd.Body == nil {
-			return nil, ErrNotFound
+			return nil, -1, ErrNotFound
 		}
-		return rd.Body, nil
+		return rd.Body, known, nil
 	case DocumentSourceTask:
 		att, rc, err := s.tasks.OpenAttachmentContent(ctx, actor, item.rowID)
 		if err != nil {
-			return nil, err
+			return nil, -1, err
 		}
 		if att.WorkspaceID != workspaceID {
 			_ = rc.Close()
-			return nil, ErrNotFound
+			return nil, -1, ErrNotFound
 		}
-		return rc, nil
+		return rc, known, nil
 	case DocumentSourceMeeting:
-		return s.meetings.OpenMeetingRecording(ctx, actor.ID, "", item.Parent.ID, item.rowID, 0, 0)
+		rc, err := s.meetings.OpenMeetingRecording(ctx, actor.ID, "", item.Parent.ID, item.rowID, 0, 0)
+		if err != nil {
+			return nil, -1, err
+		}
+		return rc, known, nil
 	case DocumentSourceEmail:
 		_, data, err := s.email.OpenAttachment(ctx, actor, workspaceID, item.Parent.Ref, item.Parent.ID, item.rowID)
 		if err != nil {
-			return nil, err
+			return nil, -1, err
 		}
-		return io.NopCloser(bytes.NewReader(data)), nil
+		return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
 	}
-	return nil, ErrNotFound
+	return nil, -1, ErrNotFound
 }
 
 // hideSourceRefusal turns a domain's refusal into not_found, so the open path
