@@ -54,6 +54,18 @@ export function origin(port, scheme = "http", host = "127.0.0.1") {
 }
 
 /**
+ * `http://localhost:port` for the web and the API a browser opens. Never
+ * 127.0.0.1: Next 16 `next dev` blocks /_next/hmr from any other host
+ * (allowedDevOrigins), so a page opened on 127.0.0.1 is server-rendered but never
+ * hydrates and a click on "Log in" is a native GET submit (G7-06 cloud round 1).
+ * Web and API share the host so the refresh cookie the API sets is same-site for
+ * the page, as in the e2e suite (localhost:3000 against localhost:8080).
+ */
+export function appOrigin(port, scheme = "http") {
+  return origin(port, scheme, "localhost");
+}
+
+/**
  * The environment the D server is started with, on the command line. Everything
  * is derived from the run's ports, so a run can never talk to a stale server on
  * the default :8080. `apiOrigin` is also the value the web build inlines
@@ -73,8 +85,8 @@ export function buildServerEnv({
   deploymentId = "default",
   verificationCode = "123456",
 }) {
-  const apiOrigin = origin(apiPort);
-  const webOrigin = origin(webPort);
+  const apiOrigin = appOrigin(apiPort);
+  const webOrigin = appOrigin(webPort);
   return {
     PORT: String(apiPort),
     FRONTEND_ORIGIN: webOrigin,
@@ -87,7 +99,7 @@ export function buildServerEnv({
     // METRICS_ADDR is a bare host:port the server listens on, not an origin.
     METRICS_ADDR: `127.0.0.1:${metricsPort}`,
     NEXT_PUBLIC_API_URL: apiOrigin,
-    NEXT_PUBLIC_WS_URL: `ws://127.0.0.1:${apiPort}`,
+    NEXT_PUBLIC_WS_URL: appOrigin(apiPort, "ws"),
     NEXT_PUBLIC_APP_URL: webOrigin,
     E2E_BASE_URL: webOrigin,
     LOCAL_UPLOAD_BASE_URL: apiOrigin,
@@ -592,8 +604,8 @@ export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "
       `WEB_PORT=${webPort}`,
       `METRICS_PORT=${metricsPort}`,
       `PREVIEW_PORT=${previewPort}`,
-      `API_ORIGIN=${origin(apiPort)}`,
-      `WEB_ORIGIN=${origin(webPort)}`,
+      `API_ORIGIN=${appOrigin(apiPort)}`,
+      `WEB_ORIGIN=${appOrigin(webPort)}`,
       `OFFICE_FORK_SHA=${forkSha}`,
       `D_SHA=${dSha}`,
       "",
@@ -617,7 +629,7 @@ export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "
   if (dotenvPath && existsSync(dotenvPath)) {
     writePrivateFile(join(cwd, ".env"), serverDotEnv(readFileSync(dotenvPath, "utf8"), Object.keys(serverEnv)));
   }
-  return { apiPort, webPort, metricsPort, previewPort, apiOrigin: origin(apiPort), webOrigin: origin(webPort) };
+  return { apiPort, webPort, metricsPort, previewPort, apiOrigin: appOrigin(apiPort), webOrigin: appOrigin(webPort) };
 }
 
 // CLI: node lib.mjs --write <runDir> | node lib.mjs --fork-dir <cacheRoot> <sha>

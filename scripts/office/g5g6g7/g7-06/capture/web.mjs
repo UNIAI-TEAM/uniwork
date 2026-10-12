@@ -9,10 +9,11 @@ import { offerableFrameVersion } from "../../../../../apps/web/platform/office-f
 import { readPins } from "../../../../../apps/web/platform/office-frame/frame-headers.mjs";
 import { blocked, failed, ok } from "./meta.mjs";
 import { COLOR_SCHEME, DEVICE_SCALE_FACTOR, LOCALE, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORT } from "./constants.mjs";
-import { pageIsBusy, realSleep, settle } from "./settle.mjs";
-import { collectRenderedText } from "./text.mjs";
+import { notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
+import { collectRenderedText, frameSubtree } from "./text.mjs";
 import { REPO_ROOT } from "./playwright.mjs";
 import { cleanupSeed, seedWorkspace } from "./seed.mjs";
+import { signIn } from "./signin.mjs";
 
 const FRAME_ROOT = join(REPO_ROOT, "apps", "web", "public", "office-frame");
 /** Chromium flags that make glyph rasterisation the same on every VM. */
@@ -49,11 +50,15 @@ export async function waitForFrame(page, module, { timeoutMs = OPEN_TIMEOUT_MS, 
   }
 }
 
-/** Hides carets in every frame (belt and braces beside Playwright's own `caret: "hide"`). */
-async function hideCarets(page) {
-  for (const frame of page.frames()) {
-    await frame.addStyleTag({ content: "*{caret-color:transparent!important}" }).catch(() => {});
-  }
+/**
+ * Hides the Next dev overlay and carets of the host page. Not injected into the
+ * module iframe on purpose: Playwright's own `caret: "hide"` already covers every
+ * frame at screenshot time, and a style tag added to the markdown frame made its
+ * editor toggle a 9 px cursor bar between every two shots (never settling).
+ */
+async function hideHostChrome(page) {
+  // the Next dev overlay badge is fixed-position UI of the dev server; it must not land in a shot
+  await page.addStyleTag({ content: "*{caret-color:transparent!important}nextjs-portal{display:none!important}" }).catch(() => {});
 }
 
 /**
@@ -67,7 +72,7 @@ export async function captureOpenFrame(page, module, { settleOptions = SETTLE, s
     const hint = state.state === "none" ? `no ${module} frame host on the page (the web build may not offer it: restart web after frame-install); page says: ${state.detail}` : `frame state stayed ${state.state}`;
     return failed(`frame_not_ready: ${hint}`);
   }
-  await hideCarets(page);
+  await hideHostChrome(page);
   const host = page.locator(`[data-office-docs-frame][data-office-module="${module}"]`);
   const result = await settle({
     grab: () => host.screenshot({ animations: "disabled", caret: "hide" }),
@@ -76,17 +81,17 @@ export async function captureOpenFrame(page, module, { settleOptions = SETTLE, s
     now,
     ...settleOptions,
   });
-  if (result.status !== "settled") return failed(`not_settled:${result.reason} after ${result.waitedMs}ms (${result.frames} frames)`);
-  const { text } = await collectRenderedText(page);
-  return ok({ png: result.frame, text });
-}
-
-async function signIn(page, webOrigin, seed) {
-  await page.goto(`${webOrigin}/login`, { waitUntil: "domcontentloaded" });
-  await page.getByLabel("Email").fill(seed.email);
-  await page.getByLabel(/^(Mật khẩu|Password)$/).fill(seed.password);
-  await page.getByRole("button", { name: /^(Đăng nhập|Log in)$/ }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 60_000 });
+  if (result.status !== "settled") return failed(notSettledReason(result));
+  // `.txt` is the module frame's own text (and the frames inside it): the host page around it
+  // always has words (sidebar, breadcrumb, the file name), so counting it would let a blank
+  // frame pass the job's no_rendered_text. The host text goes to `.host.txt` for the brand check.
+  const iframe = host.locator("iframe").first();
+  const moduleFrame = (await host.locator("iframe").count()) > 0 ? await (await iframe.elementHandle()).contentFrame() : null;
+  const moduleFrames = moduleFrame ? frameSubtree(page, moduleFrame) : [];
+  const hostFrames = page.frames().filter((frame) => !moduleFrames.includes(frame));
+  const { text, canvasOnly } = await collectRenderedText(page, moduleFrames);
+  const { text: hostText } = await collectRenderedText(page, hostFrames);
+  return ok({ png: result.frame, text, hostText, canvasOnly });
 }
 
 /** Everything blocked/failed the same way: the result map for a host that cannot start. */
@@ -173,8 +178,8 @@ export async function captureWeb({ ports, fixtures, playwright, log = () => {}, 
     await browser?.close().catch(() => {});
     if (seed) {
       const cleaned = await cleanupSeed({ apiOrigin, seed, fetchImpl });
-      base.notes.push(`cleanup ${cleaned.ok ? "queued" : "FAILED"}: ${cleaned.leftover}`);
-      log(`web: cleanup ${cleaned.ok ? "queued" : "FAILED"}: ${cleaned.leftover}`);
+      base.notes.push(`cleanup ${cleaned.ok ? "done" : "INCOMPLETE"}: ${cleaned.leftover}`);
+      log(`web: cleanup ${cleaned.ok ? "done" : "INCOMPLETE"}: ${cleaned.leftover}`);
     }
   }
 }

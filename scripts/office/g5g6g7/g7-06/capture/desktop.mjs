@@ -20,10 +20,10 @@ import { readPins } from "../../../../../apps/web/platform/office-frame/frame-he
 import { appEnv } from "../../harness/lib.mjs";
 import { blocked, failed, ok } from "./meta.mjs";
 import { COLOR_SCHEME, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORT } from "./constants.mjs";
-import { pageIsBusy, realSleep, settle } from "./settle.mjs";
-import { collectRenderedText } from "./text.mjs";
+import { notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
+import { collectRenderedText, joinBlocks } from "./text.mjs";
 
-const ELECTRON_ARGS = ["--no-sandbox", "--disable-gpu", "--lang=vi-VN", "--force-color-profile=srgb", "--font-render-hinting=none", "--disable-lcd-text"];
+export const ELECTRON_ARGS = ["--no-sandbox", "--disable-gpu", "--lang=vi-VN", "--force-device-scale-factor=1", "--force-color-profile=srgb", "--font-render-hinting=none", "--disable-lcd-text"];
 const SIGN_IN_WORDS = /\b(sign in|log in|login)\b|đăng nhập/i;
 
 /** Why the harness app cannot be reused for a capture, or "" when it can. */
@@ -77,6 +77,27 @@ async function shellScreenText(app) {
   } catch {
     return "";
   }
+}
+
+/**
+ * What the shell shows around the module view: every BrowserWindow title (the OS
+ * window title) and the text of every shell page (tab strip, menus drawn in
+ * HTML). Brand text there is on screen even though the module view is clean.
+ */
+export async function collectShellText(app, modulePage) {
+  const blocks = [];
+  try {
+    const titles = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((win) => win.getTitle()));
+    blocks.push({ title: "", body: titles.join("\n"), attrs: [] });
+  } catch {
+    // no window titles readable: the pages below still are
+  }
+  for (const win of app.windows()) {
+    if (win === modulePage) continue;
+    const { text } = await collectRenderedText(win);
+    blocks.push({ title: "", body: text, attrs: [] });
+  }
+  return joinBlocks(blocks);
 }
 
 async function closeApp(app) {
@@ -133,9 +154,10 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
       now,
       ...SETTLE,
     });
-    if (result.status !== "settled") return failed(`not_settled:${result.reason} after ${result.waitedMs}ms (${result.frames} frames)`);
-    const { text } = await collectRenderedText(page);
-    return ok({ png: result.frame, text });
+    if (result.status !== "settled") return failed(notSettledReason(result));
+    const { text, canvasOnly } = await collectRenderedText(page);
+    const shellText = await collectShellText(app, page);
+    return ok({ png: result.frame, text, shellText, canvasOnly });
   } catch (error) {
     return failed(`capture_error: ${String(error.message).split("\n")[0]}`);
   } finally {

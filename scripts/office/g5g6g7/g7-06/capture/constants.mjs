@@ -25,11 +25,19 @@ export const MODULE_OF_FORMAT = {
   html: "html",
 };
 
-/** Settle: poll interval, how many identical consecutive frames end it, and the budget. */
-export const SETTLE = { intervalMs: 300, identicalFrames: 2, timeoutMs: 45_000 };
+/**
+ * Settle: poll interval, how many identical consecutive frames end it, how long
+ * they must have been identical (the sheets view repaints its status bar when a
+ * streaming load finishes seconds after the grid first looks complete), and the budget.
+ */
+export const SETTLE = { intervalMs: 300, identicalFrames: 2, quietMs: 2_500, timeoutMs: 45_000 };
 
 /** How long a module takes to show up (a tab/WebContentsView on desktop, the frame's ready state on web). */
 export const OPEN_TIMEOUT_MS = 90_000;
 
 /** Text under this many visible characters is the job's `no_rendered_text`; the provider reports it but still writes the file. */
 export const MIN_VISIBLE_CHARS = 20;
+
+/** How long the login form has to hydrate (a cold `next dev` compiles /login on first hit), and how long the sign-in may take after the click. */
+export const HYDRATE_TIMEOUT_MS = 45_000;
+export const SIGN_IN_TIMEOUT_MS = 60_000;
