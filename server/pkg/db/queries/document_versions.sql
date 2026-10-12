@@ -119,3 +119,23 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND (sqlc.narg(before_version)::integer IS NULL OR version < sqlc.narg(before_version)::integer)
 ORDER BY version DESC
 LIMIT sqlc.arg(max_rows);
+
+-- What a list row shows beside the metadata, for one page of file documents:
+-- the size of the version the document points at and whether version 1 came
+-- from the Office engine (a blank create or a converted copy) rather than
+-- uploaded bytes. Pages and folders have no file versions and are left out.
+-- name: ListDocumentFileListFacts :many
+SELECT d.id,
+  COALESCE(cur.size_bytes, 0)::bigint AS size_bytes,
+  (COALESCE(first.engine_name, '') <> '')::boolean AS engine_made
+FROM documents d
+LEFT JOIN document_versions cur
+  ON cur.organization_id = d.organization_id
+  AND cur.id = d.file_version_id
+LEFT JOIN document_versions first
+  ON first.organization_id = d.organization_id
+  AND first.document_id = d.id
+  AND first.version = 1
+WHERE d.organization_id = sqlc.arg(organization_id)
+  AND d.id = ANY(sqlc.arg(document_ids)::text[])
+  AND d.kind = 'file';

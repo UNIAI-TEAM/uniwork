@@ -164,6 +164,8 @@ type DocumentSummaryDTO struct {
 	Revision       string  `json:"revision" description:"Revision làm việc, chuỗi thập phân" example:"41"`
 	CurrentVersion int32   `json:"current_version" description:"Ordinal phiên bản mới nhất; 0 = chưa có mốc" example:"3"`
 	Position       float64 `json:"position" description:"Thứ tự trong cây" example:"0"`
+	SizeBytes      int64   `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
+	Origin         string  `json:"origin" description:"upload (file tải lên) hoặc created (trang, thư mục, file trống, bản chuyển đổi)" example:"upload"`
 	Snippet        *string `json:"snippet,omitempty" description:"Đoạn khớp ≤ 160 ký tự khi tìm bằng q" example:"…kế hoạch quý 4 gồm ba mốc…"`
 	MyLevel        *string `json:"my_level,omitempty" description:"view, edit hoặc manage khi service đã tính" example:"view"`
 	Via            *string `json:"via,omitempty" description:"member, share, link hoặc ai_context" example:"share"`

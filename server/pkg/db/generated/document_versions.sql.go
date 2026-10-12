@@ -201,6 +201,58 @@ func (q *Queries) InsertDocumentVersion(ctx context.Context, arg InsertDocumentV
 	return i, err
 }
 
+const listDocumentFileListFacts = `-- name: ListDocumentFileListFacts :many
+SELECT d.id,
+  COALESCE(cur.size_bytes, 0)::bigint AS size_bytes,
+  (COALESCE(first.engine_name, '') <> '')::boolean AS engine_made
+FROM documents d
+LEFT JOIN document_versions cur
+  ON cur.organization_id = d.organization_id
+  AND cur.id = d.file_version_id
+LEFT JOIN document_versions first
+  ON first.organization_id = d.organization_id
+  AND first.document_id = d.id
+  AND first.version = 1
+WHERE d.organization_id = $1
+  AND d.id = ANY($2::text[])
+  AND d.kind = 'file'
+`
+
+type ListDocumentFileListFactsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	DocumentIds    []string `json:"document_ids"`
+}
+
+type ListDocumentFileListFactsRow struct {
+	ID         string `json:"id"`
+	SizeBytes  int64  `json:"size_bytes"`
+	EngineMade bool   `json:"engine_made"`
+}
+
+// What a list row shows beside the metadata, for one page of file documents:
+// the size of the version the document points at and whether version 1 came
+// from the Office engine (a blank create or a converted copy) rather than
+// uploaded bytes. Pages and folders have no file versions and are left out.
+func (q *Queries) ListDocumentFileListFacts(ctx context.Context, arg ListDocumentFileListFactsParams) ([]ListDocumentFileListFactsRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentFileListFacts, arg.OrganizationID, arg.DocumentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentFileListFactsRow{}
+	for rows.Next() {
+		var i ListDocumentFileListFactsRow
+		if err := rows.Scan(&i.ID, &i.SizeBytes, &i.EngineMade); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentVersionFileHolds = `-- name: ListDocumentVersionFileHolds :many
 SELECT v.file_id,
   CASE

@@ -8119,6 +8119,8 @@
       },
       "origin": {
         "documents": "Tài liệu",
+        "upload": "Tải lên",
+        "created": "Tạo mới",
         "chat": "Trò chuyện",
         "task": "Công việc",
         "meeting": "Cuộc họp",

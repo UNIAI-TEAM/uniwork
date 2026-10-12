@@ -19,8 +19,12 @@ export type TypeChip = (typeof TYPE_CHIPS)[number];
 export const GROUP_BY = ["folder", "source", "type", "none"] as const;
 export type GroupBy = (typeof GROUP_BY)[number];
 
-/** Where a row came from, for the Source column and "group by source". */
-export type RowOrigin = "documents" | "chat" | "task" | "meeting" | "email" | "other";
+/**
+ * Where a row came from, for the Source column and "group by source". A
+ * document is uploaded or created here; "documents" is a server that does
+ * not say which.
+ */
+export type RowOrigin = "upload" | "created" | "documents" | "chat" | "task" | "meeting" | "email" | "other";
 
 export function documentRow(doc: DocumentSummaryRow): LibraryRow {
   return { type: "document", id: doc.id, doc };
@@ -37,7 +41,15 @@ export function rowFormat(row: LibraryRow): string {
 }
 
 export function rowOrigin(row: LibraryRow): RowOrigin {
-  if (row.type === "document") return "documents";
+  if (row.type === "document") {
+    switch (row.doc.origin) {
+      case "upload":
+      case "created":
+        return row.doc.origin;
+      default:
+        return "documents";
+    }
+  }
   switch (row.source.source) {
     case "chat":
     case "task":
@@ -47,6 +59,12 @@ export function rowOrigin(row: LibraryRow): RowOrigin {
     default:
       return "other";
   }
+}
+
+/** A file document's or a source file's size; pages, folders and unknown sizes say nothing. */
+export function rowSizeBytes(row: LibraryRow): number | null {
+  if (row.type === "source") return row.source.size_bytes ?? null;
+  return row.doc.kind === "file" && (row.doc.size_bytes ?? 0) > 0 ? (row.doc.size_bytes ?? null) : null;
 }
 
 export function rowTitle(row: LibraryRow): string {

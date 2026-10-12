@@ -8124,6 +8124,8 @@
       },
       "origin": {
         "documents": "Documents",
+        "upload": "Uploaded",
+        "created": "Created",
         "chat": "Chat",
         "task": "Tasks",
         "meeting": "Meetings",

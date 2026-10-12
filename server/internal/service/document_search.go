@@ -57,6 +57,7 @@ type ListDocumentsInput struct {
 type DocumentListItem struct {
 	Document db.Document
 	Snippet  string
+	Facts    DocumentListFacts
 }
 
 // DocumentListPage is one page plus the cursor for the next.
@@ -202,6 +203,14 @@ func escapeLikeQuery(q string) string {
 // last row, so rows created or moved while the client pages change neither
 // the next page's membership nor its order.
 func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
+	page, err := s.listDocumentsPage(ctx, actor, workspaceID, in)
+	if err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListFacts(ctx, page.Items)
+}
+
+func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
 	scope, err := s.documentListScope(ctx, actor, workspaceID)
 	if err != nil {
 		return DocumentListPage{}, err
@@ -325,6 +334,14 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 // actor opened (access log) or last edited, permission-filtered. Only a
 // person has a "recent"; agents get the plain list.
 func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
+	page, err := s.listRecentDocumentsPage(ctx, actor, workspaceID, in)
+	if err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListFacts(ctx, page.Items)
+}
+
+func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
 	if actor.Kind != audit.KindHuman {
 		return DocumentListPage{}, ErrForbidden
 	}
