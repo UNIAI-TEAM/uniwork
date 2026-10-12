@@ -132,15 +132,31 @@ func officeSection(module string) (string, bool) {
 // variant closes with the footer the whole registry shares. An unknown module
 // is an error, never a default section.
 func OfficeSystemPrompt(module string) (string, error) {
-	section, ok := officeSection(module)
-	if !ok {
-		return "", fmt.Errorf("ai: unknown office module %q", module)
-	}
 	p, ok := LookupPrompt(PromptOfficeUniworkAI)
 	if !ok {
 		return "", fmt.Errorf("ai: %s is not registered", PromptOfficeUniworkAI)
 	}
-	return p.System + "\n\n" + p.Sections[section] + "\n" + UntrustedFooter, nil
+	text, err := officeAssemble(p, module)
+	if err != nil {
+		return "", fmt.Errorf("ai: %w", err)
+	}
+	return text, nil
+}
+
+// officeAssemble is OfficeSystemPrompt over a given pack entry; the Gateway
+// calls it with the prompt it looked up, so the text it sends and the text
+// the goldens pin come from one function. A module whose section is missing
+// from p.Sections is an error too, never a module-less prompt (BE14-3).
+func officeAssemble(p Prompt, module string) (string, error) {
+	name, ok := officeSection(module)
+	if !ok {
+		return "", fmt.Errorf("unknown office module %q", module)
+	}
+	section, ok := p.Sections[name]
+	if !ok || section == "" {
+		return "", fmt.Errorf("%s has no %s section for module %q", p.Key(), name, module)
+	}
+	return p.System + "\n\n" + section + "\n" + UntrustedFooter, nil
 }
 
 // Registry shape PROVISIONAL (draft Q1, option (a)): the common section stays
@@ -149,8 +165,9 @@ func OfficeSystemPrompt(module string) (string, error) {
 // office_uniwork_ai_<module>@1 — would put the module in the usage row's
 // prompt_id and break the plan's prompt_id = office_uniwork_ai@1 row; AI
 // Platform closes Q1. Output is free text: no OutputSchema and no Render —
-// the façade (G6-03a) sends the conversation, and the footer's "language
-// named by the caller" comes from the caller's own message.
+// the façade (G6-03a) sends the conversation (Request.History ending with the
+// user's message) and names the module (Request.Module), and the footer's
+// "language named by the caller" comes from the caller's own message.
 func init() {
 	register(Prompt{
 		ID: "office_uniwork_ai", Version: 1,

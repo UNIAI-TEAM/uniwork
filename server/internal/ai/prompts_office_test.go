@@ -131,6 +131,22 @@ func TestOfficeSystemPromptUnknownModule(t *testing.T) {
 		}
 		seen[text] = true
 	}
+
+	// A routed module whose section key is missing is an error, never a
+	// module-less prompt (BE14-3).
+	p := officePack(t)
+	for _, m := range officeModuleSections {
+		missing := p
+		missing.Sections = map[string]string{}
+		for k, v := range p.Sections {
+			if k != m.section {
+				missing.Sections[k] = v
+			}
+		}
+		if got, err := officeAssemble(missing, m.module); err == nil {
+			t.Errorf("%s without its %s section assembled %d bytes", m.module, m.section, len(got))
+		}
+	}
 }
 
 // officePieceRE is the estimator's token model: one word, one number or one
@@ -375,46 +391,58 @@ func assertEnglish(t *testing.T, question, section, text string) {
 	}
 }
 
-// TestGatewayOfficeUniworkUsageRow pins G6-A10's trace: a UniWork AI turn
-// through the Gateway leaves prompt_id office_uniwork_ai@1 on its usage row.
-// Like every gateway test it needs a reachable test database (TEST_DATABASE_URL
-// or the default on localhost): it SKIPs locally and the cloud round runs it.
-//
-// G6-03a will pass the turn's module so the Gateway sends the assembled
-// System text; until that wiring lands, Prompt.System is the common section
-// and the smallest test-visible path is a tool-result turn (no rendered user
-// message, so no façade-side template). The row's prompt_id — what this test
-// pins — is written from Request.PromptID either way.
+// TestGatewayOfficeUniworkUsageRow pins G6-A10's trace and BE14-1 on the real
+// path: a normal UniWork AI turn (History ending with the user's message,
+// Request.Module set as G6-03a sets it) and the tool-result turn after it both
+// send the assembled COMMON + MODULE + footer for the named module, and both
+// leave prompt_id office_uniwork_ai@1 on their usage row. Like every gateway
+// test it needs a reachable test database (TEST_DATABASE_URL or the default on
+// localhost): it SKIPs locally and the cloud round runs it.
 func TestGatewayOfficeUniworkUsageRow(t *testing.T) {
 	ctx := context.Background()
 	fp := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
 		return provider.CompletionResponse{Text: "3 rows in column A.", Model: "fake", InputTokens: 40, OutputTokens: 8}
 	}}
 	g, q := gatewayFixture(t, fp, &fakeQuota{})
-	resp, err := g.Complete(ctx, Request{
-		Actor: audit.User("u1"), OrganizationID: "org1", WorkspaceID: "ws1",
-		Capability: CapOfficeUniworkAI, PromptID: PromptOfficeUniworkAI,
-		ToolResultTurn: true,
-		History: []provider.Message{
-			{Role: "user", Content: "how many rows does column A have?"},
-			{Role: "assistant", ToolCalls: []provider.ToolCall{{ID: "call_1", Name: "read_range", Input: json.RawMessage(`{"range":"A:A"}`)}}},
-			{Role: "tool", ToolCallID: "call_1", Content: `{"rows":3}`},
-		},
-	})
+	want, err := OfficeSystemPrompt("xlsx")
 	if err != nil {
 		t.Fatal(err)
 	}
-	row, err := q.AiGetUsageEvent(ctx, resp.UsageEventID)
-	if err != nil {
-		t.Fatal(err)
+	ask := []provider.Message{{Role: "user", Content: "how many rows does column A have?"}}
+	turns := map[string]Request{
+		"normal": {History: ask},
+		"tool result": {ToolResultTurn: true, History: append(append([]provider.Message{}, ask...),
+			provider.Message{Role: "assistant", ToolCalls: []provider.ToolCall{{ID: "call_1", Name: "read_range", Input: json.RawMessage(`{"range":"A:A"}`)}}},
+			provider.Message{Role: "tool", ToolCallID: "call_1", Content: `{"rows":3}`},
+		)},
 	}
-	if row.PromptID != PromptOfficeUniworkAI {
-		t.Fatalf("usage row prompt_id = %q, want %q", row.PromptID, PromptOfficeUniworkAI)
-	}
-	if row.Capability != string(CapOfficeUniworkAI) {
-		t.Fatalf("usage row capability = %q, want %q", row.Capability, CapOfficeUniworkAI)
-	}
-	if fp.Calls != 1 {
-		t.Fatalf("provider called %d times", fp.Calls)
+	for _, name := range []string{"normal", "tool result"} {
+		req := turns[name]
+		req.Actor, req.OrganizationID, req.WorkspaceID = audit.User("u1"), "org1", "ws1"
+		req.Capability, req.PromptID, req.Module = CapOfficeUniworkAI, PromptOfficeUniworkAI, "xlsx"
+		calls := fp.Calls
+		resp, err := g.Complete(ctx, req)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if fp.Calls != calls+1 {
+			t.Fatalf("%s: provider called %d times", name, fp.Calls-calls)
+		}
+		if fp.Last.System != want {
+			t.Fatalf("%s: system text is not the xlsx variant: %s", name, firstDiff(want, fp.Last.System))
+		}
+		if gj, wj := mustJSON(t, fp.Last.Messages), mustJSON(t, req.History); gj != wj {
+			t.Fatalf("%s: sent more than the history:\n%s\n%s", name, gj, wj)
+		}
+		row, err := q.AiGetUsageEvent(ctx, resp.UsageEventID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if row.PromptID != PromptOfficeUniworkAI {
+			t.Fatalf("%s: usage row prompt_id = %q, want %q", name, row.PromptID, PromptOfficeUniworkAI)
+		}
+		if row.Capability != string(CapOfficeUniworkAI) {
+			t.Fatalf("%s: usage row capability = %q, want %q", name, row.Capability, CapOfficeUniworkAI)
+		}
 	}
 }
