@@ -5271,6 +5271,10 @@
       "enterprise": {
         "title": "UniWork for enterprises",
         "description": "Explore organization structure, permissions and the activity log."
+      },
+      "office": {
+        "title": "UniWork Office — the AI office app",
+        "description": "Office apps for macOS, Windows and Linux: documents, spreadsheets, slides, PDF, HTML and Markdown with AI, sharing your UniWork account and workspace."
       }
     },
     "revision": {
@@ -6657,7 +6661,8 @@
       "browseFeatures": "Browse features",
       "closeMenu": "Close menu",
       "solutions": "Solutions",
-      "why": "Why UniWork"
+      "why": "Why UniWork",
+      "office": "Office"
     },
     "cta": {
       "start": "Get started",
@@ -7531,6 +7536,155 @@
           "Read the record details"
         ]
       }
+    },
+    "office": {
+      "hero": {
+        "kicker": "The UniWork office app",
+        "title": "UniWork Office",
+        "sub": "AI office apps for macOS, Windows and Linux. Sign in with your UniWork account, open files from your team's workspace and save them back as a new version.",
+        "downloadFor": "Download for {{os}}",
+        "variants": "{{os}} installers",
+        "demo": "See the six editors",
+        "unavailable": "The installers are being prepared. Meanwhile you can still open and edit Office files on the web, in Documents.",
+        "trustAccount": "Uses your UniWork account",
+        "trustAi": "AI through your UniWork plan or your own key",
+        "trustOffline": "Edit local files without a connection"
+      },
+      "editors": {
+        "title": "Six editors. One workspace.",
+        "formats": "Works with DOCX, XLSX, PPTX, PDF, HTML and Markdown",
+        "tabs": "Editors",
+        "imageAlt": "UniWork Office: {{editor}} with the AI panel",
+        "docs": {
+          "name": "Docs",
+          "title": "Write documents with AI beside you",
+          "description": "Write, format and review DOCX files in the app. Ask AI to draft, rewrite a paragraph or summarise, then decide what to keep.",
+          "p1": "Open and save DOCX with its formatting intact",
+          "p2": "AI drafts, rewrites and summarises in one panel",
+          "p3": "Comments and version history stay with the file in UniWork"
+        },
+        "sheets": {
+          "name": "Sheets",
+          "title": "Spreadsheets that answer questions about your numbers",
+          "description": "Enter data, use formulas and charts on XLSX files. Ask AI to explain figures, find the right formula or build a summary table.",
+          "p1": "Formulas, formatting and multiple sheets in one file",
+          "p2": "AI explains figures and suggests formulas",
+          "p3": "Save back to the workspace as a new version"
+        },
+        "slides": {
+          "name": "Slides",
+          "title": "From an idea to a deck",
+          "description": "Build a PPTX from a topic or an outline. AI suggests the layout and content of each slide, and you adjust the rest directly on the slide.",
+          "p1": "Open and save PPTX files",
+          "p2": "AI builds an outline and content for each slide",
+          "p3": "Review and edit each slide right on the canvas"
+        },
+        "pdf": {
+          "name": "PDF",
+          "title": "Read and annotate PDFs",
+          "description": "Open a PDF, search it, highlight and add notes. AI summarises long documents and answers questions about what is in the file.",
+          "p1": "Highlight, annotate and draw on the page",
+          "p2": "AI summarises and answers from the file's content",
+          "p3": "Save the annotated copy as a new version"
+        },
+        "html": {
+          "name": "HTML",
+          "title": "Write a web page and see it at once",
+          "description": "Edit HTML and preview it side by side. AI helps with layout, fixes mistakes and adjusts the tone of the page.",
+          "p1": "Source and preview next to each other",
+          "p2": "AI builds the layout and fixes errors",
+          "p3": "Save the page to your team's workspace"
+        },
+        "markdown": {
+          "name": "Markdown",
+          "title": "Structured notes",
+          "description": "Write Markdown with a live preview. AI helps turn loose notes into a document with clear headings.",
+          "p1": "Write and preview in one window",
+          "p2": "AI organises notes into a document",
+          "p3": "Inserted images are saved with the file"
+        }
+      },
+      "tasks": {
+        "title": "From a task to a finished file",
+        "sub": "Six common jobs, each starting from one editor.",
+        "open": "Open {{editor}}",
+        "draft": {
+          "title": "Draft a document",
+          "description": "Tell AI the goal and the reader, get a draft, then adjust it to your team's voice."
+        },
+        "data": {
+          "title": "From data to answers",
+          "description": "Paste figures into a spreadsheet, ask what you want to know and get a formula or a summary table."
+        },
+        "slides": {
+          "title": "From a topic to a deck",
+          "description": "Give a topic or an outline and get a first set of slides to edit and present."
+        },
+        "pdf": {
+          "title": "A fresh start from a PDF",
+          "description": "Summarise a PDF report, pull out the key points and turn them into a new team document."
+        },
+        "html": {
+          "title": "From an idea to a web page",
+          "description": "Describe the page you need, see the build at once and edit the code when you want control."
+        },
+        "notes": {
+          "title": "From notes to a document",
+          "description": "Gather scattered meeting notes into a document with headings, action items and owners."
+        }
+      },
+      "ai": {
+        "title": "AI built in, your data stays in your workspace",
+        "sub": "UniWork Office shares its account and permissions with UniWork, so AI and files follow the same rules.",
+        "account": {
+          "title": "AI through your UniWork account",
+          "description": "Cloud AI comes with your organization's UniWork plan, or you can use your own API key. Pick the model right in the AI panel."
+        },
+        "files": {
+          "title": "Files live in your team's workspace",
+          "description": "Open from Documents, save as a new version, share and comment in UniWork. Files stored on your computer can be edited offline."
+        },
+        "link": "See how UniWork handles permissions"
+      },
+      "faq": {
+        "title": "Frequently asked questions",
+        "q1": "Does UniWork Office cost anything?",
+        "a1": "The app comes with your UniWork account. Cloud AI follows your organization's UniWork plan; see the Pricing page for the plans on offer.",
+        "q2": "Which formats can I open?",
+        "a2": "DOCX, XLSX, PPTX, PDF, HTML and Markdown. For older Office formats, open the file from Documents on the web and UniWork converts it.",
+        "q3": "Does it work offline?",
+        "a3": "Editing a file stored on your computer needs no connection. Opening files from the workspace, saving a new version and using AI need one.",
+        "q4": "How is my data handled?",
+        "a4": "Your team's files live in the UniWork workspace under your organization's permissions. A file's content is only sent to AI when you ask AI to work on it.",
+        "q5": "Do I need a separate account for Office?",
+        "a5": "No. You sign in with your UniWork account, with the same permissions and workspaces as on the web.",
+        "q6": "How do I open a file from UniWork on the web?",
+        "a6": "In Documents, choose Open in app on the file you need, or press Open UniWork Office to just launch the app. If it isn't installed, UniWork walks you through the download."
+      },
+      "download": {
+        "title": "Download UniWork Office",
+        "version": "Version {{version}}",
+        "requirements": "Requires: {{value}}",
+        "unsigned": "This build is not code-signed, so your system may warn you the first time you open it.",
+        "unavailable": "No installer has been published yet."
+      },
+      "works": {
+        "title": "Works with UniWork",
+        "sub": "The app is not apart from the workspace: files go from UniWork to the app and back.",
+        "open": {
+          "title": "Open from Documents",
+          "description": "Choose Open in app on any file, or launch the app and sign in with your UniWork account."
+        },
+        "version": {
+          "title": "Save as a new version",
+          "description": "Every save adds a version; earlier ones stay so you can go back."
+        },
+        "share": {
+          "title": "Share and comment",
+          "description": "Your team still sees the file, its comments and its access in UniWork."
+        }
+      },
+      "closing": "Bring the office apps home to your team's workspace."
     }
   },
   "documents": {

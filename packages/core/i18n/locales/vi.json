@@ -5267,6 +5267,10 @@
       "enterprise": {
         "title": "UniWork cho doanh nghiệp",
         "description": "Tìm hiểu cấu trúc tổ chức, phân quyền và nhật ký hoạt động."
+      },
+      "office": {
+        "title": "UniWork Office — ứng dụng văn phòng có AI",
+        "description": "Bộ ứng dụng văn phòng cho macOS, Windows và Linux: soạn văn bản, bảng tính, trình chiếu, PDF, HTML và Markdown với AI, dùng chung tài khoản và workspace UniWork."
       }
     },
     "revision": {
@@ -6652,7 +6656,8 @@
       "browseFeatures": "Khám phá tính năng",
       "closeMenu": "Đóng menu",
       "solutions": "Giải pháp",
-      "why": "Vì sao UniWork"
+      "why": "Vì sao UniWork",
+      "office": "Office"
     },
     "cta": {
       "start": "Bắt đầu ngay",
@@ -7526,6 +7531,155 @@
           "Đọc chi tiết bản ghi"
         ]
       }
+    },
+    "office": {
+      "hero": {
+        "kicker": "Ứng dụng văn phòng của UniWork",
+        "title": "UniWork Office",
+        "sub": "Bộ ứng dụng văn phòng có AI cho macOS, Windows và Linux. Đăng nhập bằng tài khoản UniWork, mở file từ workspace của nhóm và lưu lại thành phiên bản mới.",
+        "downloadFor": "Tải cho {{os}}",
+        "variants": "Bản cài cho {{os}}",
+        "demo": "Xem sáu trình soạn thảo",
+        "unavailable": "Bản cài đặt đang được chuẩn bị. Trong lúc chờ, bạn vẫn mở và sửa file Office ngay trên web, trong mục Tài liệu.",
+        "trustAccount": "Dùng chung tài khoản UniWork",
+        "trustAi": "AI theo gói UniWork hoặc khóa riêng",
+        "trustOffline": "Sửa file trên máy không cần mạng"
+      },
+      "editors": {
+        "title": "Sáu trình soạn thảo. Một workspace.",
+        "formats": "Hỗ trợ DOCX, XLSX, PPTX, PDF, HTML và Markdown",
+        "tabs": "Trình soạn thảo",
+        "imageAlt": "UniWork Office: {{editor}} với bảng AI",
+        "docs": {
+          "name": "Văn bản",
+          "title": "Soạn văn bản với AI ngay bên cạnh",
+          "description": "Viết, định dạng và rà soát file DOCX trong ứng dụng. Nhờ AI nháp nội dung, viết lại một đoạn hoặc tóm tắt, rồi bạn quyết định giữ phần nào.",
+          "p1": "Mở và lưu file DOCX, giữ nguyên định dạng",
+          "p2": "AI nháp, viết lại và tóm tắt trong cùng một bảng",
+          "p3": "Bình luận và lịch sử phiên bản đi cùng file trong UniWork"
+        },
+        "sheets": {
+          "name": "Bảng tính",
+          "title": "Bảng tính trả lời được câu hỏi về số liệu",
+          "description": "Nhập dữ liệu, dùng công thức và biểu đồ trên file XLSX. Hỏi AI để hiểu số liệu, tìm công thức phù hợp hoặc dựng bảng tổng hợp.",
+          "p1": "Công thức, định dạng và nhiều sheet trong một file",
+          "p2": "AI giải thích số liệu và gợi ý công thức",
+          "p3": "Lưu về workspace thành phiên bản mới"
+        },
+        "slides": {
+          "name": "Trình chiếu",
+          "title": "Từ ý tưởng đến bài trình chiếu",
+          "description": "Dựng bài PPTX từ một chủ đề hoặc dàn ý. AI gợi ý bố cục và nội dung từng trang, phần còn lại bạn chỉnh trực tiếp trên trang.",
+          "p1": "Mở và lưu file PPTX",
+          "p2": "AI dựng dàn ý và nội dung cho từng trang",
+          "p3": "Xem lại và chỉnh từng trang ngay trên canvas"
+        },
+        "pdf": {
+          "name": "PDF",
+          "title": "Đọc và chú thích PDF",
+          "description": "Mở PDF, tìm chữ, đánh dấu và ghi chú. AI tóm tắt tài liệu dài và trả lời câu hỏi theo nội dung file.",
+          "p1": "Đánh dấu, ghi chú và vẽ lên trang",
+          "p2": "AI tóm tắt và trả lời theo nội dung file",
+          "p3": "Lưu bản chú thích thành phiên bản mới"
+        },
+        "html": {
+          "name": "HTML",
+          "title": "Viết trang web, xem kết quả ngay",
+          "description": "Sửa mã HTML và xem trước bên cạnh. AI giúp dựng bố cục, sửa lỗi và chỉnh giọng văn của trang.",
+          "p1": "Mã nguồn và bản xem trước cạnh nhau",
+          "p2": "AI dựng bố cục và sửa lỗi",
+          "p3": "Lưu trang về workspace của nhóm"
+        },
+        "markdown": {
+          "name": "Markdown",
+          "title": "Ghi chú có cấu trúc",
+          "description": "Viết Markdown với bản xem trước trực tiếp. AI giúp sắp xếp ghi chú rời thành tài liệu có đề mục rõ ràng.",
+          "p1": "Soạn và xem trước trong một cửa sổ",
+          "p2": "AI sắp xếp ghi chú thành tài liệu",
+          "p3": "Ảnh chèn vào được lưu cùng file"
+        }
+      },
+      "tasks": {
+        "title": "Từ việc cần làm đến file hoàn chỉnh",
+        "sub": "Sáu việc thường gặp, mỗi việc bắt đầu từ một trình soạn thảo.",
+        "open": "Mở {{editor}}",
+        "draft": {
+          "title": "Soạn một văn bản",
+          "description": "Nói với AI mục tiêu và người đọc, nhận bản nháp, rồi chỉnh theo giọng của nhóm."
+        },
+        "data": {
+          "title": "Từ số liệu đến câu trả lời",
+          "description": "Dán số liệu vào bảng tính, hỏi điều bạn muốn biết và nhận công thức hoặc bảng tổng hợp."
+        },
+        "slides": {
+          "title": "Từ chủ đề đến bài trình chiếu",
+          "description": "Đưa một chủ đề hoặc dàn ý, nhận bộ trang đầu tiên để bạn chỉnh và trình bày."
+        },
+        "pdf": {
+          "title": "Bắt đầu mới từ một file PDF",
+          "description": "Tóm tắt báo cáo PDF, rút ý chính rồi chuyển thành văn bản mới của nhóm."
+        },
+        "html": {
+          "title": "Từ ý tưởng đến trang web",
+          "description": "Mô tả trang bạn cần, xem bản dựng ngay và chỉnh mã khi muốn kiểm soát chi tiết."
+        },
+        "notes": {
+          "title": "Từ ghi chú đến tài liệu",
+          "description": "Gom ghi chú họp rời rạc thành tài liệu có đề mục, việc cần làm và người phụ trách."
+        }
+      },
+      "ai": {
+        "title": "AI có sẵn, dữ liệu vẫn ở workspace của bạn",
+        "sub": "UniWork Office dùng chung tài khoản và phân quyền với UniWork, nên AI và file đi theo cùng một quy tắc.",
+        "account": {
+          "title": "AI qua tài khoản UniWork",
+          "description": "AI trên cloud đi cùng gói UniWork của tổ chức, hoặc bạn dùng khóa API của riêng mình. Chọn mô hình ngay trong bảng AI."
+        },
+        "files": {
+          "title": "File nằm trong workspace của nhóm",
+          "description": "Mở từ Tài liệu, lưu thành phiên bản mới, chia sẻ và bình luận trong UniWork. File lưu trên máy thì sửa được khi không có mạng."
+        },
+        "link": "Xem cách UniWork phân quyền"
+      },
+      "faq": {
+        "title": "Câu hỏi thường gặp",
+        "q1": "UniWork Office có tốn phí không?",
+        "a1": "Ứng dụng đi cùng tài khoản UniWork. AI trên cloud tính theo gói UniWork của tổ chức; xem trang Bảng giá để biết các gói hiện có.",
+        "q2": "Mở được những định dạng nào?",
+        "a2": "DOCX, XLSX, PPTX, PDF, HTML và Markdown. Với file Office định dạng cũ, hãy mở từ Tài liệu trên web để UniWork chuyển đổi.",
+        "q3": "Có dùng được khi không có mạng không?",
+        "a3": "Sửa file lưu trên máy không cần mạng. Mở file từ workspace, lưu thành phiên bản mới và dùng AI thì cần kết nối.",
+        "q4": "Dữ liệu của tôi được xử lý thế nào?",
+        "a4": "File của nhóm nằm trong workspace UniWork và theo phân quyền của tổ chức. Nội dung file chỉ được gửi cho AI khi bạn yêu cầu AI xử lý.",
+        "q5": "Tôi có cần tài khoản riêng cho Office không?",
+        "a5": "Không. Bạn đăng nhập bằng tài khoản UniWork, với cùng quyền và workspace như trên web.",
+        "q6": "Làm sao mở file từ UniWork trên web?",
+        "a6": "Trong Tài liệu, chọn Mở bằng app ở file bạn cần, hoặc bấm Mở UniWork Office để chỉ mở ứng dụng. Nếu chưa cài, UniWork sẽ hướng dẫn tải."
+      },
+      "download": {
+        "title": "Tải UniWork Office",
+        "version": "Phiên bản {{version}}",
+        "requirements": "Yêu cầu: {{value}}",
+        "unsigned": "Bản này chưa ký số nên hệ điều hành có thể cảnh báo khi mở lần đầu.",
+        "unavailable": "Chưa có bản cài đặt nào được phát hành."
+      },
+      "works": {
+        "title": "Làm việc cùng UniWork",
+        "sub": "Ứng dụng không tách khỏi workspace: file đi từ UniWork sang ứng dụng và quay về.",
+        "open": {
+          "title": "Mở từ Tài liệu",
+          "description": "Chọn Mở bằng app ở bất kỳ file nào, hoặc mở ứng dụng rồi đăng nhập bằng tài khoản UniWork."
+        },
+        "version": {
+          "title": "Lưu thành phiên bản mới",
+          "description": "Mỗi lần lưu thêm một phiên bản; các bản cũ vẫn còn để bạn quay lại."
+        },
+        "share": {
+          "title": "Chia sẻ và bình luận",
+          "description": "Cả nhóm vẫn thấy file, bình luận và quyền truy cập của file ngay trong UniWork."
+        }
+      },
+      "closing": "Đưa bộ ứng dụng văn phòng về cùng workspace của nhóm."
     }
   },
   "documents": {
