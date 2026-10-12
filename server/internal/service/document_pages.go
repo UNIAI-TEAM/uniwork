@@ -230,6 +230,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 			return DocumentView{}, err
 		}
 		if visibility == "" {
+			// Inherited at create only; a later move leaves visibility alone.
 			visibility = parent.Visibility
 		}
 	}

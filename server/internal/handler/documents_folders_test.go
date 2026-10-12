@@ -88,3 +88,22 @@ func TestDocumentFolderRoutes(t *testing.T) {
 		t.Fatalf("tree has no folder node %s: %v", folderID, out)
 	}
 }
+
+// A folder has no public link: the create is refused by name and nothing is
+// stored, so there is no token to read it with.
+func TestDocumentFolderRefusesPublicLinks(t *testing.T) {
+	w := newDocsWorld(t)
+	res, out := doJSON(t, w.srv, "PUT", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.token, map[string]any{"public_links_enabled": true})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("enable links: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents", w.token, map[string]any{"title": "Riêng", "kind": "folder"})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("create folder: %d %v", res.StatusCode, out)
+	}
+	folderID := out["document"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+folderID+"/links", w.token, map[string]any{"expires_in_days": 7})
+	if code, _ := errCodeClass(out); res.StatusCode != http.StatusUnprocessableEntity || code != "folder_not_supported" {
+		t.Fatalf("link on a folder: %d code=%q %v", res.StatusCode, code, out)
+	}
+}
