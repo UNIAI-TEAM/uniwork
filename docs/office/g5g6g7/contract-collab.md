@@ -361,7 +361,7 @@ Quy tắc chung (CLAUDE.md › Database): không `FOREIGN KEY`/`REFERENCES`; id 
 `999<unix-ms>_<name>.{up,down}.sql` với `unix-ms = max(Date.now() lúc viết, tiền tố lớn nhất trên root + 1)` (tiền tố lớn nhất hôm
 nay `9991791800000006`); mỗi index `CREATE [UNIQUE] INDEX CONCURRENTLY` một mình một file. Thứ tự: nối **sau** hàng G6-03c của
 plan §6.3 (G5-01a → G5-07 → G5-08s → G6-03a → G6-03b → G6-03c → **G8-03**); merge lệch thứ tự thì đổi tên khi rebase
-(`TestMigrationPrefixesSortTheSameAsStringsAndNumbers`). Bảng contract-p0 §5 chưa có hàng G8-03; owner registry migration (Lead D) thêm khi G8-03 viết file.
+(`TestMigrationPrefixesSortTheSameAsStringsAndNumbers`). Hàng G8-03 ở bảng contract-p0 §5 (hàng 7) khớp thứ tự này.
 Migration thứ tư (D, `office_launch_sessions.comment_id`, mục 2.9) thuộc G8-07 và nối sau G8-03.
 
 ### 5.1 Migration A — `999<ms>_document_comments_collab`
@@ -581,8 +581,7 @@ G8-08 không thêm mã protocol mới, `PROTOCOL_VERSION` giữ 1):
 
 `status` của `ProtocolErrorShape` (`docs-frame-protocol.ts:119-129`) mang HTTP gốc. Mất mạng dùng `network` vì protocol đã định
 nghĩa nó cho "fetch failed / offline" (`docs-frame-protocol.ts:90-91`, `:112`); `internal` chỉ cho 5xx và ngoại lệ ném (chú thích ở
-`docs-frame-protocol.ts:96`). Cả hai reviewer đồng ý; plan G8-08 còn ghi "mất mạng/5xx → `internal`" — finding F1 cho Advisor (báo
-cáo r2), OQ-C9 đóng theo giá trị này.
+`docs-frame-protocol.ts:96`). Cả hai reviewer đồng ý; plan G8-08 đã sửa cùng giá trị trên root (`50fc0f174`), OQ-C9 đóng.
 
 **`comment_deleted` ở frame — một luật duy nhất (finding R1-7 = FE-2):** protocol `code` là `conflict` + `details.code =
 "comment_deleted"`, `retryable: false`. Lý do giữ `conflict`: plan G8-08 ghi đúng ánh xạ này ("`comment_deleted` → `conflict` +
@@ -697,7 +696,7 @@ reports/<lane>/cloud-test-<seq>.md`, contract-p0 §10); `go test` chạy trong `
 | OQ-C6 | `comment_id` lạ trong vé launch | Bỏ im lặng, không lỗi (chỉ là gợi ý reveal; app tự hiện S15) | Lead D |
 | OQ-C7 | "Người liên quan đến comment" khi resolve | v1 chỉ tác giả comment được resolve (mẫu 5 nói "bình luận của bạn"); người tham gia khác chờ Product | Product (UNI-1337) |
 | OQ-C8 | Hai dòng (tiêu đề + nội dung) trong `titles.go` đang một chuỗi mỗi kind | `titles.go` + `notifications.kind.*` giữ câu **nội dung** (có actor + tài liệu, kênh push/email cần); tiêu đề ngắn thành khóa mới `notifications.kindTitle.*` cho Inbox/push title | Lead D (G8-05) |
-| OQ-C9 | Plan G8-08 ánh xạ mất mạng → `internal`, trong khi protocol có `network` ("fetch failed / offline") | **Đã chốt r2** (hai reviewer đồng ý, lead giao): mất mạng → `network`, 5xx → `internal` (mục 9). Còn lại: Advisor sửa dòng plan G8-08 (finding F1) | Advisor (plan) |
+| OQ-C9 | Plan G8-08 ánh xạ mất mạng → `internal`, trong khi protocol có `network` ("fetch failed / offline") | **Đã chốt r2** (hai reviewer đồng ý, lead giao): mất mạng → `network`, 5xx → `internal` (mục 9); plan G8-08 đã khớp trên root `50fc0f174` | Đóng |
 | OQ-C10 | Đổi tên hiển thị không đổi `list_token` → client dùng `since_token` giữ tên chip cũ tới lần list đầy đủ kế | Chấp nhận v1: tên chip đến từ bảng `mentions` (mục 2.1), làm mới ở mỗi list đầy đủ (web mỗi lần invalidate; desktop khi token đổi) | UX |
 | OQ-C11 | Chữ nhãn neo `lost` (`collabAnchorLost`) trùng chữ khung tombstone "Nội dung đã bị xóa" (EXPERIENCE-G8:74-75) dù comment còn sống | Chữ riêng: vi "Không còn tìm thấy vị trí được bình luận" / en "The commented content was removed"; sửa EXPERIENCE-G8:74 và câu AC G8-A02 của plan ("cha hiện 'Nội dung đã bị xoá'") cùng lúc | UX + Advisor |
 | OQ-C12 | Frame biết mức quyền bình luận để ẩn composer mà không phải thử request | `InitPayload.commentsLevel?: "view" \| "edit"` tùy chọn (mục 10), thiếu → `view`; chỉ là gợi ý hiển thị | Lead F |

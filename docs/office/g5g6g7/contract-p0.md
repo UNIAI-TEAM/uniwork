@@ -151,6 +151,7 @@ lệch thứ tự, đổi tên khi rebase để thứ tự chuỗi = thứ tự 
 | 4 | G6-03a | `999<ms>_ai_uniwork_conversations` | nếu G6-02 chọn Postgres |
 | 5 | G6-03b | `999<ms>_ai_uniwork_runs` | luôn áp dụng (lô #2, Q3) |
 | 6 | G6-03c | `999<ms>_<entitlement>` | chỉ khi G6-D1 chọn nhánh entitlement mới (U-13: dùng lại `office.ai_cloud`, nên mặc định không có) |
+| 7 | G8-03 | `999<ms>_document_comments_collab` → `999<ms>_document_comment_revisions` → `999<ms>_document_comment_mentions`, mỗi index `CONCURRENTLY` một file riêng (`…_document_comment_revisions_comment_uidx`, `…_document_comment_revisions_document_idx`, `…_document_comment_mentions_comment_user_uidx`, `…_document_comment_mentions_document_idx`); chi tiết [contract-collab](./contract-collab.md) mục 5 | luôn áp dụng (G8-D5, plan §6.3) |
 
 Bảng mới: không FK, id ULID `TEXT`, `organization_id TEXT NOT NULL`, `created_by` + `created_by_kind`; bảng có TTL có
 worker dọn đăng ký trong chuỗi shutdown `server/cmd/server/main.go` (plan §4).
