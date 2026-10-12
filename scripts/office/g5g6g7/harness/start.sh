@@ -33,11 +33,13 @@ RUN_DIR="${HARNESS_RUN_DIR:-$REPO_ROOT/.harness-run}"
 FORK_CACHE="${OFFICE_FORK_CACHE:-$HOME/.cache/uniwork-office-harness}"
 DRY_RUN="${HARNESS_DRY_RUN:-0}"
 SKIP_APP="${HARNESS_SKIP_APP:-0}"
+DESKTOP="${HARNESS_DESKTOP:-0}"
 
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --skip-app) SKIP_APP=1 ;;
+    --desktop) DESKTOP=1 ;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "start.sh: unknown argument $arg (try --help)" >&2; exit 2 ;;
   esac
@@ -229,7 +231,12 @@ set +a
 
 NEED_XVFB=0
 LIBS_MISSING=()
-if [ "$SKIP_APP" != "1" ]; then
+if [ "$SKIP_APP" != "1" ] && [ "$DESKTOP" = "1" ]; then
+  # Desktop mode: the app opens on the invoking session's own display, so a
+  # person can sign in to it; no Xvfb is started or installed.
+  [ -n "${DISPLAY:-}" ] \
+    || blocked "--desktop needs a graphical session (DISPLAY is empty)" "run start.sh from a terminal of the desktop session the app should open on"
+elif [ "$SKIP_APP" != "1" ]; then
   command -v xvfb-run > /dev/null 2>&1 || NEED_XVFB=1
   while IFS= read -r lib; do
     [ -n "$lib" ] && LIBS_MISSING+=("$lib")
@@ -549,7 +556,11 @@ fi
 # shell persists into userData/app-settings.json (office-bridge-host.ts:84
 # persistUniWorkApiOriginFromEnv, called at index.ts:5248) — sample-ac.mjs reads
 # it back as proof the running app resolved the D server.
-echo "harness: starting the fork Electron app under xvfb..."
+if [ "$DESKTOP" = "1" ]; then
+  echo "harness: starting the fork Electron app on the desktop display $DISPLAY..."
+else
+  echo "harness: starting the fork Electron app under xvfb..."
+fi
 # The Electron binary is resolved the way the fork's own e2e does
 # (apps/shell/e2e/helpers.ts: require('electron') returns the binary path), and
 # the switches come before the app path so Chromium consumes them.
@@ -564,6 +575,10 @@ fi
 
 XVFB_DISPLAY_FILE="$RUN_DIR/display"
 : > "$XVFB_DISPLAY_FILE"
+# Under xvfb-run the app gets a display of its own; in desktop mode it is started
+# directly and keeps the DISPLAY of the invoking session.
+APP_WRAP=()
+[ "$DESKTOP" = "1" ] || APP_WRAP=(xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24")
 setsid env \
   UNIWORK_API_ORIGIN="$API_ORIGIN" \
   UNIWORK_BRIDGE_SILENT=1 \
@@ -571,7 +586,7 @@ setsid env \
   GENOFFICE_NO_SPARE_VIEW=1 \
   GENOFFICE_LANG=en \
   ELECTRON_DISABLE_SANDBOX=1 \
-  xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" \
+  ${APP_WRAP[@]+"${APP_WRAP[@]}"} \
   bash -c "echo \"\$DISPLAY\" > '$XVFB_DISPLAY_FILE'; exec '$ELECTRON_BIN' --no-sandbox --disable-gpu '$FORK_DIR/apps/shell'" \
   >> "$RUN_DIR/logs/app.log" 2>&1 &
 APP_PID=$!

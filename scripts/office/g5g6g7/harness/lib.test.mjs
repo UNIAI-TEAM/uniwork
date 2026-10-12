@@ -351,7 +351,14 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
     shim("ldconfig", "#!/usr/bin/env bash\nprintf 'libnss3.so\\nlibatk-1.0.so.0\\nlibgbm.so.1\nlibasound.so.2\nlibcups.so.2\n'\n");
   }
   shim("git", "#!/usr/bin/env bash\ncase \"$1\" in rev-parse) echo 1111111111111111111111111111111111111111; exit 0 ;; esac\nexit 0\n");
-  shim("xvfb-run", "#!/usr/bin/env bash\nwhile [ \"$#\" -gt 0 ]; do case \"$1\" in --*) shift ;; --*=*) shift ;; *) break ;; esac; done\nexport DISPLAY=:99\nexec \"$@\"\n");
+  shim("xvfb-run", [
+    "#!/usr/bin/env bash",
+    `echo used >> ${JSON.stringify(join(root, "xvfb-used"))}`,
+    'while [ "$#" -gt 0 ]; do case "$1" in --*) shift ;; *) break ;; esac; done',
+    "export DISPLAY=:99",
+    'exec "$@"',
+    "",
+  ].join("\n"));
   shim("fake-electron", "#!/usr/bin/env bash\nsleep 600\n");
   // Records its argv (the install strategy is asserted from it) and answers with
   // npmExit, so a failing install is exercised without a real npm. `ci
@@ -548,6 +555,33 @@ test("writeRunEnv leaves the server a .env without any key it owns, in a cwd of 
   } finally {
     if (previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.DATABASE_URL;
     if (previous.REDIS_URL === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = previous.REDIS_URL;
+  }
+});
+
+test("--desktop opens the app on the invoking session's display, without xvfb", () => {
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack, { HARNESS_DESKTOP: "1", DISPLAY: ":7" });
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /on the desktop display :7/);
+    assert.match(readFileSync(join(stack.runDir, "ports.env"), "utf8"), /^DISPLAY=:7$/m);
+    assert.ok(!existsSync(join(stack.root, "xvfb-used")), "desktop mode must not start Xvfb");
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("--desktop without a graphical session is BLOCKED with the reason", () => {
+  const stack = mkFakeStack();
+  try {
+    const env = { ...process.env, PATH: `${stack.bin}:${process.env.PATH}`, ENV_FILE: stack.envFile, HARNESS_RUN_DIR: stack.runDir, OFFICE_FORK_CACHE: stack.cacheDir, NVM_DIR: stack.nvmDir };
+    delete env.DISPLAY;
+    const result = spawnSync("bash", [join(stack.harness, "start.sh"), "--desktop"], { encoding: "utf8", timeout: 60_000, env });
+    assert.equal(result.status, 77, `expected BLOCKED (77), got ${result.status}\n${result.stderr}`);
+    assert.match(result.stderr, /BLOCKED: --desktop needs a graphical session/);
+    assert.equal(readStartStatus(stack.runDir).state, "blocked");
+  } finally {
+    stopFakeStack(stack);
   }
 });
 
