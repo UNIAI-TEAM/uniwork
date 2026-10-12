@@ -27,15 +27,20 @@ export interface FolderPickerDialogProps {
   tree: DocumentTreeNode[];
   /** Preselected: the folder the library has open, or null for the root. */
   initialFolderId: string | null;
-  /** A folder that may not be picked, with everything under it (the one being moved). */
-  excludeId?: string | null;
+  /** A folder the server would refuse as the target, with everything under it
+   *  (the moved folder itself, its subtree, a level past the depth limit). */
+  refuse?: (folderId: string) => boolean;
   pending: boolean;
   error: string | null;
   onSubmit: (folderId: string | null) => void;
 }
 
-function flatFolders(nodes: DocumentTreeNode[], excludeId: string | null, depth = 0): { node: DocumentTreeNode; depth: number }[] {
-  return nodes.flatMap((node) => (node.id === excludeId ? [] : [{ node, depth }, ...flatFolders(node.children, excludeId, depth + 1)]));
+function flatFolders(
+  nodes: DocumentTreeNode[],
+  refuse: ((folderId: string) => boolean) | undefined,
+  depth = 0,
+): { node: DocumentTreeNode; depth: number }[] {
+  return nodes.flatMap((node) => (refuse?.(node.id) ? [] : [{ node, depth }, ...flatFolders(node.children, refuse, depth + 1)]));
 }
 
 /**
@@ -51,13 +56,13 @@ export function FolderPickerDialog({
   submitLabel,
   tree,
   initialFolderId,
-  excludeId = null,
+  refuse,
   pending,
   error,
   onSubmit,
 }: FolderPickerDialogProps) {
   const { t } = useTranslation();
-  const folders = useMemo(() => flatFolders(foldersOnly(tree), excludeId), [tree, excludeId]);
+  const folders = useMemo(() => flatFolders(foldersOnly(tree), refuse), [tree, refuse]);
   const [picked, setPicked] = useState<string | null>(initialFolderId);
   useEffect(() => {
     if (open) setPicked(initialFolderId);

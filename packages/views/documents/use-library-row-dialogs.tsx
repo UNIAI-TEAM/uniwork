@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -10,7 +10,7 @@ import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema"
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
-import { loadMoveRevision } from "./document-tree-model";
+import { loadMoveRevision, moveRefused, moveTooDeep } from "./document-tree-model";
 import { FolderPickerDialog } from "./folder-picker-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
 
@@ -48,6 +48,14 @@ export function useLibraryRowDialogs({
   const [archiving, setArchiving] = useState<DocumentSummaryRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [moveLoading, setMoveLoading] = useState(false);
+
+  // Targets the server would refuse are not offered: the moved item, its
+  // subtree, and a folder where it would end up past the depth limit.
+  const movingId = moving?.id ?? null;
+  const refuseTarget = useCallback(
+    (folderId: string) => (movingId ? moveRefused(tree, movingId, folderId) || moveTooDeep(tree, movingId, folderId) : false),
+    [tree, movingId],
+  );
 
   const submitMove = async (doc: DocumentSummaryRow, parentId: string | null) => {
     setError(null);
@@ -104,7 +112,7 @@ export function useLibraryRowDialogs({
         submitLabel={t("documents.home.move.submit")}
         tree={tree}
         initialFolderId={moving?.parent_id ?? null}
-        excludeId={moving?.kind === "folder" ? moving.id : null}
+        refuse={refuseTarget}
         pending={moveLoading}
         error={moving ? error : null}
         onSubmit={(target) => {

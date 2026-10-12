@@ -95,6 +95,7 @@ describe("documents-sources endpoints", () => {
       size_bytes: 0,
       owner: null,
       can_open_in_app: false,
+      can_save: false,
       mime_type: "",
       extension: "",
     });

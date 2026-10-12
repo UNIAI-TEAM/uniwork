@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import { paths } from "@uniwork/core/paths";
-import { sourceParentPath } from "./source-links";
+import { sourceLinkLabelKey, sourceParentPath } from "./source-links";
 
 const ws = paths.workspace("acme", "eng");
 
@@ -15,6 +15,9 @@ describe("sourceParentPath", () => {
     expect(sourceParentPath(ws, { kind: "chat_dm", id: "c", title: "" })).toBe(ws.chat());
     expect(sourceParentPath(ws, { kind: "email_thread", id: "e", title: "" })).toBe(ws.email());
     expect(sourceParentPath(ws, { kind: "meeting", id: "m1", title: "" })).toBe(ws.meeting("m1"));
+    expect(sourceLinkLabelKey({ kind: "chat_channel", id: "c", title: "" })).toBe("documents.home.row.open_chat");
+    expect(sourceLinkLabelKey({ kind: "email_thread", id: "e", title: "" })).toBe("documents.home.row.open_email");
+    expect(sourceLinkLabelKey({ kind: "task_comment", id: "t", title: "" })).toBe("documents.home.row.go_to_source");
     expect(sourceParentPath(ws, { kind: "fax", id: "x", title: "" } as unknown as DocumentSourceFile["parent"])).toBeNull();
   });
 });

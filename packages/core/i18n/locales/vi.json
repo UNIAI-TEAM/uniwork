@@ -8175,7 +8175,9 @@
         "download_failed": "Không thể tải file xuống. Thử lại.",
         "star_failed": "Không thể cập nhật gắn sao. Thử lại.",
         "move": "Di chuyển",
-        "archive": "Lưu trữ"
+        "archive": "Lưu trữ",
+        "open_chat": "Mở Chat",
+        "open_email": "Mở Email"
       },
       "empty": {
         "title": "Workspace chưa có tài liệu",
@@ -8221,7 +8223,9 @@
       "document_parent_kind": "Không đặt được ở đây: thư mục chỉ nằm ở gốc hoặc trong thư mục khác; trang và file nằm trong trang hoặc thư mục.",
       "document_cycle": "Không thể chuyển một mục vào chính nó hoặc vào mục con của nó.",
       "document_too_deep": "Cây tài liệu tối đa 5 cấp.",
-      "folder_not_supported": "Thư mục không có nội dung để mở hay chỉnh sửa."
+      "folder_not_supported": "Thư mục không có nội dung để mở hay chỉnh sửa.",
+      "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa lưu trữ được một lần. Hãy lưu trữ từng phần bên trong trước.",
+      "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu."
     }
   },
   "squads": {

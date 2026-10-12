@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { ArchiveRestore, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import {
   useArchiveDocument,
@@ -25,6 +24,7 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { documentErrorMessage } from "./document-error-message";
 
 export interface DocumentArchiveDialogProps {
   open: boolean;
@@ -120,10 +120,7 @@ export function DocumentArchiveDialog({
       if (isArchive && (cls.cls === "permission" || cls.cls === "missing")) {
         setError(t("documents.archive.archive_forbidden"));
       } else {
-        setError(
-          apiErrorMessage(err) ??
-            t(isArchive ? "documents.archive.archive_failed" : "documents.archive.restore_failed"),
-        );
+        setError(documentErrorMessage(err, t, isArchive ? "documents.archive.archive_failed" : "documents.archive.restore_failed"));
       }
     }
   };

@@ -8180,7 +8180,9 @@
         "download_failed": "Could not download the file. Try again.",
         "star_failed": "Could not update the star. Try again.",
         "move": "Move",
-        "archive": "Archive"
+        "archive": "Archive",
+        "open_chat": "Open Chat",
+        "open_email": "Open Email"
       },
       "empty": {
         "title": "No documents in this workspace yet",
@@ -8226,7 +8228,9 @@
       "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; pages and files sit in a page or a folder.",
       "document_cycle": "An item can't move into itself or into something inside it.",
       "document_too_deep": "The document tree is at most 5 levels deep.",
-      "folder_not_supported": "A folder has no content to open or edit."
+      "folder_not_supported": "A folder has no content to open or edit.",
+      "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
+      "source_not_saveable": "This file can't be copied into Documents."
     }
   },
   "squads": {

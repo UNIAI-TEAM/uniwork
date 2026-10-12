@@ -26,3 +26,19 @@ export function sourceParentPath(ws: WorkspacePaths, parent: DocumentSourceFile[
       return null;
   }
 }
+
+/**
+ * The label of that link: chat and email open the module only (there is no
+ * per-message route), so they say so instead of promising the original.
+ */
+export function sourceLinkLabelKey(parent: DocumentSourceFile["parent"]): string {
+  switch (parent.kind) {
+    case "chat_channel":
+    case "chat_dm":
+      return "documents.home.row.open_chat";
+    case "email_thread":
+      return "documents.home.row.open_email";
+    default:
+      return "documents.home.row.go_to_source";
+  }
+}

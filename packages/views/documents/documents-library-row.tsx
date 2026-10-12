@@ -22,6 +22,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
+import { sourceLinkLabelKey } from "./source-links";
 import {
   formatBytes,
   isFolderRow,
@@ -136,10 +137,13 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
   }
   if (row.type === "source") {
     actions.push(
-      { id: "go-to-source", label: t("documents.home.row.go_to_source"), icon: ExternalLink, run: primary },
+      { id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: ExternalLink, run: primary },
       { id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) },
-      { id: "save", label: t("documents.home.row.save_to_folder"), icon: FolderInput, run: () => handlers.onSaveSource(row) },
     );
+    // Only a file the server marks as copyable offers the save.
+    if (row.source.can_save) {
+      actions.push({ id: "save", label: t("documents.home.row.save_to_folder"), icon: FolderInput, run: () => handlers.onSaveSource(row) });
+    }
   }
 
   const quick = desktop ? (

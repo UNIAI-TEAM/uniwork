@@ -39,6 +39,8 @@ export const DocumentSourceFileSchema = z.object({
     .optional()
     .default(null),
   can_open_in_app: z.boolean().optional().default(false),
+  // Whether "Save to folder" may copy this file; absent (an older server) is no.
+  can_save: z.boolean().optional().default(false),
 });
 export type DocumentSourceFile = Omit<z.infer<typeof DocumentSourceFileSchema>, "source" | "parent"> & {
   source: DocumentSourceKind;

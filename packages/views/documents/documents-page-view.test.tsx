@@ -610,6 +610,69 @@ describe("DocumentsPageView", () => {
     expect(postCall("POST")).toBeUndefined();
   });
 
+  it("says a chat file opens Chat, and offers no save for a file the server will not copy", async () => {
+    route({ list: () => [], sources: () => [source({ can_save: false })] });
+    renderView(vi.fn());
+    const row = await rowOf("Đề xuất ngân sách.pdf");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách.pdf" }) }));
+    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_chat") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.go_to_source") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.save_to_folder") })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: t("documents.home.row.download") })).toBeInTheDocument();
+  });
+
+  it("explains a refused save in the dialog", async () => {
+    route({
+      list: () => [],
+      sources: () => [source()],
+      post: () => {
+        throw new ApiError("server text", "source_not_saveable", 422);
+      },
+    });
+    renderView(vi.fn());
+    const row = await rowOf("Đề xuất ngân sách.pdf");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách.pdf" }) }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.save_to_folder") }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.save_source.submit") }));
+    expect(await within(dialog).findByText(t("documents.errors.source_not_saveable"))).toBeInTheDocument();
+  });
+
+  it("does not offer a move target past the depth limit", async () => {
+    const chain = (level: number): ReturnType<typeof treeNode> =>
+      treeNode({ id: `l${level}`, title: `Cấp ${level}`, kind: "folder", children: level < 5 ? [chain(level + 1)] : [] });
+    route({
+      list: () => [summary({ id: "d1" })],
+      tree: () => [chain(1), treeNode({ id: "d1", title: "Kế hoạch Q4", children: [treeNode({ id: "d2", title: "Con" })] })],
+    });
+    renderView(vi.fn());
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
+    const dialog = await screen.findByRole("dialog");
+    // A page with one child takes two levels: level 3 is the deepest target.
+    expect(within(dialog).getByRole("radio", { name: "Cấp 3" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("radio", { name: "Cấp 4" })).toBeNull();
+    expect(within(dialog).queryByRole("radio", { name: "Cấp 5" })).toBeNull();
+  });
+
+  it("explains a folder too large to archive at once", async () => {
+    route({
+      list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })],
+      post: () => {
+        throw new ApiError("server text", "folder_too_large", 422);
+      },
+    });
+    renderView(vi.fn());
+    const row = await rowOf("Hợp đồng");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.archive") }));
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", { name: t("documents.archive.archive_confirm") });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+    expect(await within(dialog).findByText(t("documents.errors.folder_too_large"))).toBeInTheDocument();
+  });
+
   it("uploads a file from the card and opens the new document", async () => {
     const onOpen = vi.fn();
     route({ list: () => [], upload: () => ({ document: file("d2", "note.txt") }) });
@@ -699,6 +762,7 @@ function source(over: Record<string, unknown> = {}) {
     updated_at: "2026-10-09T03:00:00Z",
     owner: { id: "u2", kind: "human", name: "Dũng" },
     can_open_in_app: true,
+    can_save: true,
     ...over,
   };
 }
