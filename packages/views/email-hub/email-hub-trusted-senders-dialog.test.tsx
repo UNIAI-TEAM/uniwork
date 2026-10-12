@@ -27,6 +27,7 @@ describe("EmailHubTrustedSendersDialog", () => {
 
   it("says how to add one when the list is empty", () => {
     render(wrap(<EmailHubTrustedSendersDialog accountId="acc1" open onOpenChange={() => {}} />));
-    expect(screen.getByText(/Chưa có người gửi nào/)).toBeInTheDocument();
+    expect(screen.getByText("Chưa có người gửi nào")).toBeInTheDocument();
+    expect(screen.getByText(/Luôn hiện ảnh từ người gửi này/)).toBeInTheDocument();
   });
 });

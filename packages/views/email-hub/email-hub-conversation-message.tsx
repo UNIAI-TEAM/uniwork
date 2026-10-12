@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ImageOff, RefreshCw } from "lucide-react";
+import { ImageOff, Images, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   emailHubHasReadableBody,
@@ -134,7 +134,8 @@ export function EmailHubConversationMessage({
                 )}
               </div>
             ) : hasRemote && senderTrusted ? (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-caption text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 text-caption text-muted-foreground">
+                <Images className="size-4 shrink-0" aria-hidden />
                 <span className="min-w-0 flex-1 text-pretty [overflow-wrap:anywhere]">
                   {t("email_hub.remote_trusted", { email: message.from_addr })}
                 </span>

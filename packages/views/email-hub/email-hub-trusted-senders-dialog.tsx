@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Images, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   useEmailHubTrustedSenders,
@@ -8,7 +8,9 @@ import {
 } from "@uniwork/core/email-hub/trusted-senders";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@uniwork/ui/components/ui/empty";
 import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
+import { EmailSenderAvatar } from "./email-hub-view-parts";
 
 /** The senders of one mailbox whose images show without asking, each removable. */
 export function EmailHubTrustedSendersDialog({
@@ -33,11 +35,20 @@ export function EmailHubTrustedSendersDialog({
         />
         <FormDialogBody>
           {senders.length === 0 ? (
-            <p className="text-body text-muted-foreground text-pretty">{t("email_hub.trusted_senders_empty")}</p>
+            <Empty className="py-6">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Images aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{t("email_hub.trusted_senders_empty")}</EmptyTitle>
+                <EmptyDescription className="text-caption">{t("email_hub.trusted_senders_empty_hint")}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <ul className="divide-y divide-border">
               {senders.map((email) => (
-                <li key={email} className="flex min-w-0 items-center gap-3 py-1.5">
+                <li key={email} className="flex min-w-0 items-center gap-3 py-2">
+                  <EmailSenderAvatar fromAddr={email} className="size-7 text-caption" />
                   <span className="min-w-0 flex-1 text-body [overflow-wrap:anywhere]">{email}</span>
                   <Button
                     type="button"
