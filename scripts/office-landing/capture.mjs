@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { buildDocx, buildPptx, buildXlsx, htmlPage, markdownNotes, pdfHtml } from "./samples.mjs";
+import { buildDocx, buildPptx, buildXlsx, htmlPage, markdownNotes, pdfHtml, REPORT_PDF_OPTIONS } from "./samples.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 // Playwright and jszip are the e2e workspace's dependencies.
@@ -60,7 +60,7 @@ async function sampleFile(editor, lang, browser) {
     case "pdf": {
       const page = await browser.newPage();
       await page.setContent(pdfHtml(lang));
-      const buffer = Buffer.from(await page.pdf({ format: "A4" }));
+      const buffer = Buffer.from(await page.pdf(REPORT_PDF_OPTIONS));
       await page.close();
       return { name: "report.pdf", mimeType: MIME.pdf, buffer };
     }
