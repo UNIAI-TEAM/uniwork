@@ -1049,7 +1049,7 @@ func (q *Queries) AdminRevertInvoiceRefundRequest(ctx context.Context, id string
 const adminSetOrganizationStatus = `-- name: AdminSetOrganizationStatus :one
 UPDATE organizations SET status = $2, suspended_at = $3, suspended_reason = $4, updated_at = now()
 WHERE id = $1
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, deletion_scheduled_at
 `
 
 type AdminSetOrganizationStatusParams struct {
@@ -1077,6 +1077,7 @@ func (q *Queries) AdminSetOrganizationStatus(ctx context.Context, arg AdminSetOr
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.DeletionScheduledAt,
 	)
 	return i, err
 }

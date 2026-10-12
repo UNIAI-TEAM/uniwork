@@ -409,6 +409,18 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{orgID}/audit/exports": {body: func(*isoWorld, *isoTenant) isoBody {
 		return isoBody{json: map[string]any{"format": "csv", "from": time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), "to": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}}
 	}},
+	"GET /api/v1/orgs/{orgID}/privacy/exports/{privacyExportID}/download": {
+		skipControl: "the seeded request has no file yet; the detail route is the owner's control, and this route answers 404 until a worker attaches one",
+	},
+	"POST /api/v1/orgs/{orgID}/privacy/deletion": {
+		body: func(_ *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"confirm_slug": tn.orgSlug}}
+		},
+		skipControl: "the export control in this run already holds the one open privacy request, so the owner's deletion would answer 409; TestPrivacyDeletion covers that path",
+	},
+	"POST /api/v1/orgs/{orgID}/privacy/deletion/cancel": {
+		skipControl: "no deletion is scheduled in this run, so the owner's cancel would answer 404; TestPrivacyDeletionCoversTheDelay covers that path",
+	},
 	"PUT /api/v1/tasks/{taskID}":                                                               {body: isoJSON(map[string]any{"revision": 1, "title": "edited"})},
 	"POST /api/v1/tasks/{taskID}/attachments":                                                  {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"DELETE /api/v1/tasks/{taskID}/reactions":                                                  {body: isoJSON(map[string]any{"emoji": "👍"})},

@@ -177,19 +177,20 @@ const insertDomainOutboxEvent = `-- name: InsertDomainOutboxEvent :exec
 INSERT INTO outbox_events (
   id, workspace_id, organization_id, topic, payload, status,
   event_version, correlation_id, actor_kind, actor_id, available_at
-) VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, $8, $9, now())
+) VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, $8, $9, COALESCE($10::timestamptz, now()))
 `
 
 type InsertDomainOutboxEventParams struct {
-	ID             string      `json:"id"`
-	WorkspaceID    pgtype.Text `json:"workspace_id"`
-	OrganizationID pgtype.Text `json:"organization_id"`
-	Topic          string      `json:"topic"`
-	Payload        string      `json:"payload"`
-	EventVersion   int32       `json:"event_version"`
-	CorrelationID  pgtype.Text `json:"correlation_id"`
-	ActorKind      pgtype.Text `json:"actor_kind"`
-	ActorID        pgtype.Text `json:"actor_id"`
+	ID             string             `json:"id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	OrganizationID pgtype.Text        `json:"organization_id"`
+	Topic          string             `json:"topic"`
+	Payload        string             `json:"payload"`
+	EventVersion   int32              `json:"event_version"`
+	CorrelationID  pgtype.Text        `json:"correlation_id"`
+	ActorKind      pgtype.Text        `json:"actor_kind"`
+	ActorID        pgtype.Text        `json:"actor_id"`
+	AvailableAt    pgtype.Timestamptz `json:"available_at"`
 }
 
 // Chỉ package internal/audit được gọi câu này (arch_test.go giữ luật);
@@ -205,6 +206,7 @@ func (q *Queries) InsertDomainOutboxEvent(ctx context.Context, arg InsertDomainO
 		arg.CorrelationID,
 		arg.ActorKind,
 		arg.ActorID,
+		arg.AvailableAt,
 	)
 	return err
 }

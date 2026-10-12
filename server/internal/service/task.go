@@ -109,7 +109,7 @@ func (s *TaskService) assigneeKind(ctx context.Context, orgID, workspaceID strin
 	case audit.KindHuman:
 		if assigneeID != nil {
 			if _, err := s.ws.RequireMember(ctx, workspaceID, *assigneeID); err != nil {
-				if errors.Is(err, ErrOrganizationSuspended) {
+				if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrOrganizationDeletionScheduled) {
 					return "", err
 				}
 				return "", coded(http.StatusUnprocessableEntity, "assignee_not_member", "người được gán không phải thành viên workspace")

@@ -233,6 +233,39 @@ func (q *Queries) FileGCClaimJobs(ctx context.Context, arg FileGCClaimJobsParams
 	return items, nil
 }
 
+const fileGCDataSubjectRequestRefTenants = `-- name: FileGCDataSubjectRequestRefTenants :many
+SELECT r.file_id, r.organization_id
+FROM data_subject_requests r
+WHERE r.file_id = ANY($1::text[])
+`
+
+type FileGCDataSubjectRequestRefTenantsRow struct {
+	FileID         pgtype.Text `json:"file_id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// tenant: system
+// data_subject_requests.file_id: the row carries its tenant.
+func (q *Queries) FileGCDataSubjectRequestRefTenants(ctx context.Context, fileIds []string) ([]FileGCDataSubjectRequestRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCDataSubjectRequestRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCDataSubjectRequestRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCDataSubjectRequestRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const fileGCDocumentAssetRefTenants = `-- name: FileGCDocumentAssetRefTenants :many
 SELECT a.file_id, a.organization_id
 FROM document_assets a

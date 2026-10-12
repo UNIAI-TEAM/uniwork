@@ -1,0 +1,123 @@
+package service
+
+// Tenant export classification (C-06 lát 1). A business table is either
+// included, once, or excluded with a reason a person can read in the zip.
+// TestTenantExportClassifiesEveryTenantTable fails when a migration adds a
+// table with organization_id and nobody has said which.
+
+// tenantExportExcluded is what the zip leaves out, and why.
+var tenantExportExcluded = map[string]string{
+	"audit_events":             "Nhật ký bất biến, đã có bản xuất riêng.",
+	"audit_exports":            "Sổ job xuất nhật ký, không phải nội dung nghiệp vụ.",
+	"audit_retention_policies": "Chính sách giữ nhật ký, không phải nội dung nghiệp vụ.",
+	"billing_payment_intents":  "Chứng từ thanh toán; lát xóa tổ chức sẽ giữ.",
+	"invoices":                 "Hóa đơn kế toán; lát xóa tổ chức sẽ giữ.",
+	"usage_counters":           "Số đo hạn mức, không phải nội dung.",
+	"usage_events":             "Số đo hạn mức, không phải nội dung.",
+	"ai_usage_events":          "Số đo token, không phải nội dung hội thoại.",
+	"ai_provider_credentials":  "Khóa API nhà cung cấp của từng người, đã niêm phong.",
+	"outbox_events":            "Hàng đợi hạ tầng.",
+	"graph_dirty":              "Hàng đợi chiếu Work Graph, dựng lại được.",
+	"graph_edges":              "Chiếu Work Graph, dựng lại được từ nguồn.",
+	"graph_node_facts":         "Chiếu Work Graph, dựng lại được từ nguồn.",
+	"graph_nodes":              "Chiếu Work Graph, dựng lại được từ nguồn.",
+	"idempotency_keys":         "Sổ kỹ thuật chống ghi trùng.",
+	"file_upload_sessions":     "Phiên tải kỹ thuật.",
+	"file_jobs":                "Job kỹ thuật của tệp.",
+	"file_backfill_items":      "Sổ công cụ chuyển tệp, không phải nội dung.",
+	"file_derivatives":         "Bản dẫn xuất kỹ thuật; byte tệp không nằm trong gói.",
+	"office_jobs":              "Job kỹ thuật Office.",
+	"office_launch_sessions":   "Phiên mở ứng dụng desktop, có bí mật phiên.",
+	"meeting_audit_logs":       "Nhật ký họp cũ, cùng lớp với audit.",
+}
+
+func tenantExportIncludes(table string) bool {
+	for _, name := range tenantExportIncludedTables {
+		if name == table {
+			return true
+		}
+	}
+	return false
+}
+
+// tenantExportIncludedTables is every tenant table the zip contains, one
+// JSONL file each. data_subject_requests is the dossier itself.
+var tenantExportIncludedTables = []string{
+	"agents",
+	"ai_conversations",
+	"ai_messages",
+	"attachments",
+	"calendar_connections",
+	"chat_blocks",
+	"chat_message_follow_ups",
+	"chat_message_links",
+	"chat_messages",
+	"chat_reminders",
+	"chat_room_members",
+	"chat_rooms",
+	"chat_thread_followers",
+	"chat_thread_task_links",
+	"chat_user_nicknames",
+	"chat_voice_recordings",
+	"comment_reactions",
+	"data_subject_requests",
+	"departments",
+	"document_access_logs",
+	"document_assets",
+	"document_comments",
+	"document_favorites",
+	"document_settings",
+	"document_share_links",
+	"document_shares",
+	"document_versions",
+	"documents",
+	"email_hub_accounts",
+	"email_hub_attachments",
+	"email_hub_scheduled_sends",
+	"email_hub_thread_ai_summaries",
+	"email_hub_threads",
+	"files",
+	"home_preferences",
+	"invitations",
+	"meeting_access_grants",
+	"meeting_attendance_marks",
+	"meeting_attendance_sessions",
+	"meeting_attendees",
+	"meeting_chat_messages",
+	"meeting_conference_sessions",
+	"meeting_invitations",
+	"meeting_invite_links",
+	"meeting_join_requests",
+	"meeting_motion_ballots",
+	"meeting_motions",
+	"meeting_notes",
+	"meeting_participants",
+	"meeting_recordings",
+	"meeting_reminders",
+	"meeting_summaries",
+	"meeting_transcript_segments",
+	"meetings",
+	"notifications",
+	"organization_member_profiles",
+	"organization_members",
+	"project_resources",
+	"projects",
+	"saved_signatures",
+	"subscriptions",
+	"task_comments",
+	"task_dependencies",
+	"task_label_links",
+	"task_labels",
+	"task_pins",
+	"task_properties",
+	"task_reactions",
+	"task_source_contexts",
+	"task_statuses",
+	"task_subscribers",
+	"task_view_preferences",
+	"task_views",
+	"tasks",
+	"workspace_agent_members",
+	"workspace_members",
+	"workspaces",
+}

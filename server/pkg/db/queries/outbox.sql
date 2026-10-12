@@ -4,7 +4,7 @@
 INSERT INTO outbox_events (
   id, workspace_id, organization_id, topic, payload, status,
   event_version, correlation_id, actor_kind, actor_id, available_at
-) VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, $8, $9, now());
+) VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, $8, $9, COALESCE(sqlc.narg('available_at')::timestamptz, now()));
 
 -- name: ClaimPendingOutboxTopics :many
 -- tenant: system

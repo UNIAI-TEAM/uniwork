@@ -101,6 +101,17 @@ func managedFileReferenceSources() []FileReferenceSource {
 			},
 		},
 		{
+			Table: "data_subject_requests", Column: "file_id", Provider: privacyExportReferenceProvider{}.Name(),
+			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
+				rows, err := q.FileGCDataSubjectRequestRefTenants(ctx, ids)
+				out := make([]fileReferenceTenant, 0, len(rows))
+				for _, r := range rows {
+					out = append(out, knownTenant(r.FileID, r.OrganizationID))
+				}
+				return out, err
+			},
+		},
+		{
 			Table: "document_versions", Column: "file_id", Provider: DocumentVersionReferenceProvider{}.Name(),
 			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
 				rows, err := q.FileGCDocumentVersionRefTenants(ctx, ids)

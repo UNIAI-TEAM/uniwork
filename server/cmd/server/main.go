@@ -269,6 +269,7 @@ func main() {
 	// connection joins its organization scope at connect time (F-03 §6.4).
 	hub.SetOrganizationResolver(wsSvc.OrganizationOf)
 	auditSvc := service.NewAuditService(pool, q, orgSvc, wsSvc)
+	privacySvc := service.NewPrivacyExportService(pool, q, orgSvc)
 	peopleSvc := service.NewPeopleService(pool, q, orgSvc)
 	// One FileService for the process. Every writer below is wired in the
 	// same step as the reference provider that covers it: the collector must
@@ -295,6 +296,7 @@ func main() {
 	chatSvc.SetVoiceRecordingFiles(fileSvc)
 	meetingSvc.SetFiles(fileSvc)
 	auditSvc.SetFileService(fileSvc)
+	privacySvc.SetFileService(fileSvc)
 	fileAccess, err := service.NewFileAccessService(service.FileAccessOptions{
 		Files: fileSvc, Workspaces: wsSvc, Secret: fileAccessSecret(cfg.JWTSecret),
 	})
@@ -357,6 +359,13 @@ func main() {
 	auditExports := service.NewAuditExportConsumer(q, store)
 	auditExports.SetFileService(pool, fileSvc)
 	dispatcher.RegisterLane(outbox.LaneSlow, auditExports)
+	privacyExports := service.NewPrivacyExportConsumer(pool, q)
+	privacyExports.SetFileService(fileSvc)
+	dispatcher.RegisterLane(outbox.LaneSlow, privacyExports)
+	privacyDeletion := service.NewPrivacyDeletionConsumer(pool, q)
+	privacyDeletion.SetFileService(fileSvc)
+	privacyDeletion.SetGraphForget(projector.ForgetOrganization)
+	dispatcher.RegisterLane(outbox.LaneSlow, privacyDeletion)
 	dispatcher.RegisterLane(outbox.LaneSlow, outbox.WebhookConsumer{})
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatVoiceSummaryConsumer(chatSvc))
@@ -553,6 +562,7 @@ func main() {
 		Agents:              agentSvc,
 		Actors:              actorSvc,
 		Audit:               auditSvc,
+		Privacy:             privacySvc,
 		Billing:             billingSvc,
 		Notifications:       notifSvc,
 		AskUNI:              askUNI,

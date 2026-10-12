@@ -15,3 +15,9 @@ a49c5a133b23d1a4cdc0bed500da54291e42fc57:server/internal/service/ai_credentials_
 # Office frame AI proxy unit-test literal (UNI-1014, branch feature/UNI-1014-office-web-modules):
 # a fixed fake vendor key in a *_test.go, not a credential. CI scans every remote branch.
 6139778154cc87783920938335ea841ae2586bfa:server/internal/handler/office_frame_ai_test.go:generic-api-key:30
+# The Office pivot (fc171d4a, UNI-1001) reintroduced the same four *_test.go
+# literals. Still fixed fake vendor keys, not credentials.
+fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/ai/provider/byok_test.go:generic-api-key:155
+fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/ai/proxy_test.go:generic-api-key:24
+fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/handler/office_frame_ai_test.go:generic-api-key:30
+fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/service/ai_credentials_test.go:generic-api-key:29
