@@ -572,6 +572,36 @@ test("writeRunEnv leaves the server a .env without any key it owns, in a cwd of 
   }
 });
 
+test("the server's cwd is 0700 and its .env copy and server.env are 0600, even over a looser pre-existing file (R2-2)", async () => {
+  const runDir = mkdtempSync(join(tmpdir(), "harness-modes-"));
+  const source = join(runDir, "vm.env");
+  writeFileSync(source, "POSTGRES_PASSWORD=pg-secret\nMINIO_SECRET_ACCESS_KEY=minio-secret\n");
+  const mode = (path) => statSync(path).mode & 0o777;
+  // a previous run (or another tool) left looser permissions behind
+  mkdirSync(serverCwd(runDir), { recursive: true, mode: 0o775 });
+  for (const file of [join(serverCwd(runDir), ".env"), join(runDir, "server.env")]) {
+    writeFileSync(file, "stale\n");
+    chmodSync(file, 0o664);
+  }
+  const previous = process.umask(0o002);
+  try {
+    await writeRunEnv(runDir, { dotenvPath: source });
+    mkdirSync(join(runDir, "fresh"), { recursive: true });
+    const fresh = join(runDir, "fresh");
+    await writeRunEnv(fresh, { dotenvPath: source });
+    for (const dir of [runDir, fresh]) {
+      const cwd = serverCwd(dir);
+      assert.equal(mode(join(cwd, ".env")), 0o600, `.env copy in ${dir}`);
+      assert.equal(mode(join(dir, "server.env")), 0o600, `server.env in ${dir}`);
+      for (let at = cwd; at !== dir; at = dirname(at)) assert.equal(mode(at), 0o700, `${at} must be owner-only`);
+    }
+    assert.match(readFileSync(join(serverCwd(runDir), ".env"), "utf8"), /POSTGRES_PASSWORD=pg-secret/);
+    assert.doesNotMatch(readFileSync(join(serverCwd(runDir), ".env"), "utf8"), /stale/);
+  } finally {
+    process.umask(previous);
+  }
+});
+
 const SERVER_SECRETS = ["DATABASE_URL", "REDIS_URL", "JWT_SECRET", "OPENAI_API_KEY", "S3_SECRET_ACCESS_KEY", "SMTP_PASSWORD", "GITHUB_TOKEN"];
 
 test("the app start.sh launches gets an allow-listed env, never the VM .env's server secrets (H1-8)", async () => {

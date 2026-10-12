@@ -4,8 +4,8 @@
 // binding a throwaway listener to port 0, so the node --test file can pin the
 // behaviour without starting the stack.
 import net from "node:net";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 /** Exit code every harness script uses for "a precondition is missing", never for "the check failed". */
@@ -527,6 +527,16 @@ export function isMainModule({ argv1 = process.argv[1], execArgv = process.execA
 
 
 /**
+ * Writes `text` to `file` readable by its owner only. The mode given to
+ * writeFileSync is ignored for a file that already exists and masked by the
+ * umask otherwise, so it is applied again after the write.
+ */
+function writePrivateFile(file, text) {
+  writeFileSync(file, text, { mode: 0o600 });
+  chmodSync(file, 0o600);
+}
+
+/**
  * Writes one run's files: `ports.env` (the ports, origins, SHAs and later the
  * display) and `server.env` (the server's environment, quoted so a URL with a
  * query still sources in bash). Called by start.sh as
@@ -562,15 +572,22 @@ export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "
     ].join("\n"),
   );
   const quote = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
-  writeFileSync(
+  writePrivateFile(
     join(runDir, "server.env"),
     `${Object.entries(serverEnv).map(([key, value]) => `${key}=${quote(value)}`).join("\n")}\n`,
   );
   // The server's own working directory and the .env it finds there (see serverCwd).
+  // Both carry secrets the run does not own (the VM's database password, the
+  // storage keys), so the directories are 0700 and the files 0600 (reviewer_be R2-2).
   const cwd = serverCwd(runDir);
-  mkdirSync(cwd, { recursive: true });
+  mkdirSync(cwd, { recursive: true, mode: 0o700 });
+  // mkdir's mode is masked by the umask and ignored for a directory that exists
+  for (let dir = cwd; ; dir = dirname(dir)) {
+    chmodSync(dir, 0o700);
+    if (dirname(dir) === runDir) break;
+  }
   if (dotenvPath && existsSync(dotenvPath)) {
-    writeFileSync(join(cwd, ".env"), serverDotEnv(readFileSync(dotenvPath, "utf8"), Object.keys(serverEnv)));
+    writePrivateFile(join(cwd, ".env"), serverDotEnv(readFileSync(dotenvPath, "utf8"), Object.keys(serverEnv)));
   }
   return { apiPort, webPort, metricsPort, previewPort, apiOrigin: origin(apiPort), webOrigin: origin(webPort) };
 }
