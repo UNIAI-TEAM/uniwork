@@ -5,7 +5,7 @@
 // under-20-visible-character .txt cannot pass a brand check.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { HOSTS, fixtureIds, readJsonIfPresent, relativeToOut } from "./job-lib.mjs";
+import { HOSTS, fixtureIds, readJsonState, relativeToOut } from "./job-lib.mjs";
 
 const BRANDS = [/genoffice/g, /genspark/g];
 const VISIBLE = /[^\s\p{Cc}\p{Cf}\p{Mn}]/gu;
@@ -48,11 +48,15 @@ export function runBrandCheck({ capturesDir, outDir, fixtures = fixtureIds(), ho
   }
   const pairs = [];
   for (const host of hosts) {
-    const meta = readJsonIfPresent(join(capturesDir, host, "meta.json"));
+    const metaState = readJsonState(join(capturesDir, host, "meta.json"));
     for (const fixture of fixtures) {
       const pair = { host, fixture };
       const textPath = join(capturesDir, host, `${fixture}.txt`);
-      const status = meta?.fixtures?.[fixture]?.status;
+      if (metaState.error) {
+        pairs.push({ ...pair, status: "BLOCKED", reasons: ["capture_meta_unreadable"], hits: [] });
+        continue;
+      }
+      const status = metaState.value?.fixtures?.[fixture]?.status;
       if (!existsSync(textPath)) {
         pairs.push({ ...pair, status: "BLOCKED", reasons: ["rendered_text_missing"], hits: [] });
         continue;

@@ -13,7 +13,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { sha256Hex } from "../../../../apps/web/platform/office-frame/frame-bundle.mjs";
-import { DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonIfPresent, relativeToOut } from "./job-lib.mjs";
+import { DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonState, relativeToOut } from "./job-lib.mjs";
 
 export const DEFAULT_TOLERANCE = Object.freeze({ channel: 16, ratio: 0.001 });
 
@@ -25,10 +25,9 @@ export function tolerancesOf(manifest) {
   };
 }
 
-/** The per-fixture status the capture provider recorded, when it left a meta.json. */
-function captureStatus(capturesDir, host, fixture) {
-  const meta = readJsonIfPresent(join(capturesDir, host, "meta.json"));
-  const status = meta?.fixtures?.[fixture]?.status;
+/** The per-fixture status the capture provider recorded, when its meta.json parsed. */
+function captureStatus(metaState, fixture) {
+  const status = metaState?.value?.fixtures?.[fixture]?.status;
   return typeof status === "string" ? status : null;
 }
 
@@ -99,21 +98,27 @@ export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, 
   }
   const { PNG } = loadPngjs();
   const manifestPath = join(goldensDir, "manifest.json");
-  let manifest = readJsonIfPresent(manifestPath) ?? {};
+  const manifestState = readJsonState(manifestPath);
+  if (manifestState.error) {
+    return { status: "BLOCKED", reasons: [`goldens_manifest_unreadable (${manifestState.error})`], artifacts: [] };
+  }
+  let manifest = manifestState.value ?? {};
   const tolerance = tolerancesOf(manifest);
   const entries = manifest.entries ?? {};
   const pairs = [];
   const artifacts = [];
 
   for (const host of hosts) {
+    const metaState = readJsonState(join(capturesDir, host, "meta.json"));
     for (const fixture of fixtures) {
       const pair = { host, fixture };
       const capturePath = join(capturesDir, host, `${fixture}.png`);
       const goldenPath = join(goldensDir, host, `${fixture}.png`);
       const entry = entries[`${host}/${fixture}`] ?? null;
-      const metaStatus = captureStatus(capturesDir, host, fixture);
+      const metaStatus = captureStatus(metaState, fixture);
       let report;
-      if (!existsSync(capturePath)) report = pairBlocked(pair, "capture_missing");
+      if (metaState.error) report = pairBlocked(pair, "capture_meta_unreadable");
+      else if (!existsSync(capturePath)) report = pairBlocked(pair, "capture_missing");
       else if (metaStatus === "failed") report = pairBlocked(pair, "capture_failed");
       else if (metaStatus === "blocked") report = pairBlocked(pair, "capture_blocked");
       else if (!entry || !existsSync(goldenPath)) report = { ...pair, status: "FAIL", reasons: ["golden_missing"] };
@@ -184,15 +189,27 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
     return { status: "BLOCKED", reasons: ["captures_missing"], artifacts: [] };
   }
   const manifestPath = join(goldensDir, "manifest.json");
-  const previous = readJsonIfPresent(manifestPath) ?? {};
+  const previousState = readJsonState(manifestPath);
+  if (previousState.error) {
+    return { status: "BLOCKED", reasons: [`goldens_manifest_unreadable (${previousState.error})`], artifacts: [] };
+  }
+  const previous = previousState.value ?? {};
   const entries = { ...(previous.entries ?? {}) };
   const blocked = [];
-  const metaOf = (host) => readJsonIfPresent(join(capturesDir, host, "meta.json"));
-  const metas = hosts.map((host) => metaOf(host));
+  const metaStates = new Map(hosts.map((host) => [host, readJsonState(join(capturesDir, host, "meta.json"))]));
   for (const host of hosts) {
     for (const fixture of fixtures) {
+      const metaState = metaStates.get(host);
+      if (metaState.error) {
+        blocked.push(`capture_meta_unreadable:${host}/${fixture}`);
+        continue;
+      }
+      if (metaState.missing) {
+        blocked.push(`capture_meta_missing:${host}/${fixture}`);
+        continue;
+      }
       const capturePath = join(capturesDir, host, `${fixture}.png`);
-      if (!existsSync(capturePath) || captureStatus(capturesDir, host, fixture) !== "ok") {
+      if (!existsSync(capturePath) || captureStatus(metaState, fixture) !== "ok") {
         blocked.push(`capture_missing:${host}/${fixture}`);
         continue;
       }
@@ -202,7 +219,7 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
       entries[`${host}/${fixture}`] = { sha256: sha256Hex(readFileSync(target)), masks: entries[`${host}/${fixture}`]?.masks ?? [] };
     }
   }
-  const meta = metas.find((value) => value && value.viewport) ?? {};
+  const meta = [...metaStates.values()].map((state) => state.value).find((value) => value && value.viewport) ?? {};
   const manifest = {
     schema: 1,
     pinVersion: pinVersion ?? meta.pinVersion ?? previous.pinVersion ?? null,

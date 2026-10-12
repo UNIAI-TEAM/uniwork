@@ -94,10 +94,16 @@ export function runJob({
     results.golden = updateGoldens({ capturesDir, goldensDir, fixtures, hosts, pinVersion: docsPin?.version ?? null, forkSha: sha, outDir });
   } else {
     for (const name of checks) {
-      if (name === "protocol") results.protocol = runProtocolCheck({ forkDir, forkSha, installedRoot, pinDir, outDir });
-      else if (name === "extractor") results.extractor = runExtractorCheck({ forkDir, forkSha: sha, extractor, outDir });
-      else if (name === "golden") results.golden = runGoldenCheck({ capturesDir, goldensDir, fixtures, hosts, outDir });
-      else if (name === "brand") results.brand = runBrandCheck({ capturesDir, fixtures, hosts, outDir });
+      try {
+        if (name === "protocol") results.protocol = runProtocolCheck({ forkDir, forkSha, installedRoot, pinDir, outDir });
+        else if (name === "extractor") results.extractor = runExtractorCheck({ forkDir, forkSha: sha, extractor, outDir });
+        else if (name === "golden") results.golden = runGoldenCheck({ capturesDir, goldensDir, fixtures, hosts, outDir });
+        else if (name === "brand") results.brand = runBrandCheck({ capturesDir, fixtures, hosts, outDir });
+      } catch (error) {
+        // A check that throws still leaves a verdict — and result.json — behind
+        // (F-07): a crash reads as BLOCKED, the ledger artifact is never missing.
+        results[name] = { status: "BLOCKED", reasons: [`check_crashed (${error.message})`], artifacts: [] };
+      }
     }
   }
   const result = { forkSha: sha, pinVersion: docsPin?.version ?? null, checks: results };

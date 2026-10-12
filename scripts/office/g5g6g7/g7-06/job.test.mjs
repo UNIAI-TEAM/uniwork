@@ -9,7 +9,7 @@
 // register their tests on this file when imported.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { optionsFromEnv } from "./job.mjs";
@@ -43,6 +43,29 @@ test("the CLI exits 1 on a brand hit and writes it into result.json", () => {
   const run = cli(["--checks", "brand", "--captures", captures, "--out", dir]);
   assert.equal(run.status, 1);
   assert.deepEqual(readJson(join(dir, "result.json")).checks.brand.reasons, ["brand_text"]);
+});
+
+test("a corrupt capture meta blocks the pairs and still writes result.json", () => {
+  const captures = cx.mkCaptures(tmpDir("g7-06-captures-"));
+  writeFileSync(join(captures, "desktop", "meta.json"), "{ not json");
+  const dir = outDir("cli-corrupt-meta");
+  const run = cli(["--checks", "brand", "--captures", captures, "--out", dir]);
+  assert.equal(run.status, 77, `${run.stdout}\n${run.stderr}`);
+  const result = readJson(join(dir, "result.json"));
+  assert.equal(result.checks.brand.status, "BLOCKED");
+  assert.deepEqual(result.checks.brand.reasons, ["capture_meta_unreadable"]);
+});
+
+test("a check that throws is BLOCKED with its reason and result.json still exists", () => {
+  const captures = cx.mkCaptures(tmpDir("g7-06-captures-"));
+  rmSync(join(captures, "desktop", `${ONE}.txt`), { force: true });
+  mkdirSync(join(captures, "desktop", `${ONE}.txt`));
+  const dir = outDir("cli-check-crash");
+  const run = cli(["--checks", "brand", "--captures", captures, "--out", dir]);
+  assert.equal(run.status, 77, `${run.stdout}\n${run.stderr}`);
+  const result = readJson(join(dir, "result.json"));
+  assert.equal(result.checks.brand.status, "BLOCKED");
+  assert.match(result.checks.brand.reasons[0], /^check_crashed \(/);
 });
 
 test("the CLI exits 77 when protocol has no installed bundle", () => {

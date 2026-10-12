@@ -113,6 +113,14 @@ test("golden: a capture the provider marked failed is BLOCKED", () => {
   assert.deepEqual(check.reasons, ["capture_failed"]);
 });
 
+test("golden: a meta.json that is not valid JSON is BLOCKED, never a crash", () => {
+  const world = goldenWorld();
+  writeFileSync(join(world.captures, "desktop", "meta.json"), "{ not json");
+  const { check } = goldenRun(world, { name: "golden-corrupt-meta" });
+  assert.equal(check.status, "BLOCKED");
+  assert.deepEqual(check.reasons, ["capture_meta_unreadable"]);
+});
+
 test("golden: no captures at all is BLOCKED, not a pass", () => {
   const missing = join(tmpDir("g7-06-nocaptures-"), "captures");
   const dir = outDir("golden-none");

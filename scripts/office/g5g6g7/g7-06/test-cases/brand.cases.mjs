@@ -10,15 +10,16 @@ import * as fx from "../test-fixtures/capture-fixtures.mjs";
 import { ONE, outDir, readJson, tmpDir } from "../test-fixtures/test-env.mjs";
 
 
-function brandWorld({ text = null, removeText = null } = {}) {
+function brandWorld({ text = null, removeText = null, metaText = null } = {}) {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
   if (text !== null) writeFileSync(join(captures, "desktop", `${ONE}.txt`), text);
   if (removeText) {
     for (const host of HOSTS) rmSync(join(captures, host, `${removeText}.txt`), { force: true });
   }
+  if (metaText !== null) writeFileSync(join(captures, "desktop", "meta.json"), metaText);
   const dir = outDir("brand");
   const check = runBrandCheck({ capturesDir: captures, fixtures: [ONE], outDir: dir });
-  return { check, artifact: readJson(join(dir, "brand.json")) };
+  return { check, artifact: readJson(join(dir, "brand.json")), captures };
 }
 
 test("brand: clean rendered text passes", () => {
@@ -58,5 +59,11 @@ test("brand: no captures at all is BLOCKED", () => {
   const check = runBrandCheck({ capturesDir: join(tmpDir("g7-06-nocaptures-"), "captures"), fixtures: [ONE], outDir: dir });
   assert.equal(check.status, "BLOCKED");
   assert.deepEqual(check.reasons, ["captures_missing"]);
+});
+
+test("brand: a meta.json that is not valid JSON is BLOCKED, never a crash", () => {
+  const { check } = brandWorld({ metaText: "{ not json" });
+  assert.equal(check.status, "BLOCKED");
+  assert.deepEqual(check.reasons, ["capture_meta_unreadable"]);
 });
 

@@ -52,10 +52,21 @@ export function exitCodeFor(checks) {
   return 0;
 }
 
-/** @param {string} file @returns {unknown | null} the parsed file, null when absent */
-export function readJsonIfPresent(file) {
-  if (!existsSync(file)) return null;
-  return JSON.parse(readFileSync(file, "utf8"));
+/**
+ * Read and parse a JSON file without throwing (F-07): `{ value }` when it
+ * parses, `{ missing: true }` when it is absent, `{ error }` when it is
+ * unreadable or not JSON. A provider or manifest file the job cannot read must
+ * block the pair it belongs to — it never crashes the run and never reads as ok.
+ * @param {string} file
+ * @returns {{ value: unknown } | { missing: true } | { error: string }}
+ */
+export function readJsonState(file) {
+  if (!existsSync(file)) return { missing: true };
+  try {
+    return { value: JSON.parse(readFileSync(file, "utf8")) };
+  } catch (error) {
+    return { error: error.message };
+  }
 }
 
 /**
