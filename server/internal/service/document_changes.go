@@ -216,13 +216,15 @@ func clampChangeLimit(n int) int32 {
 //
 // Membership and the read gates are re-resolved INSIDE this transaction
 // (RequireMemberQ / RequireAgentMemberQ through the tx), not only from the
-// scope the caller resolved before it (BE-F1-4): a role revoked between the
-// two requests' first gate read and the item materialisation therefore leaves
-// no snapshot behind, and the gate and the items are read against the same
-// MVCC snapshot. The residual window is the RR transaction snapshot itself: a
-// revocation committing after this transaction's first statement is, by
-// definition, not in this snapshot - the same semantics as every other
-// membership decision in the codebase.
+// scope the caller resolved before it (BE-F1-4), so the gate and the items
+// are read against the same MVCC snapshot: membership is evaluated as of
+// the snapshot's MVCC point (the first statement of this transaction, the
+// same point as the high-water mark). A revocation committed after that
+// point does not abort or trim the snapshot being built, which holds
+// exactly the documents the caller could read at that point; every later
+// request - the next page cursor or a new cold start - is refused by the
+// membership gate. Only a revocation committed before that point leaves no
+// snapshot behind.
 //
 // The returned organization id is the one read inside the transaction, so the
 // cursor binds the same tenant the snapshot carries.
