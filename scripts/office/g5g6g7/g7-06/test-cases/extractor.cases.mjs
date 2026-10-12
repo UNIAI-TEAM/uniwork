@@ -35,12 +35,12 @@ test("extractor: the committed block is a PASS and the blob sha is recorded", ()
 });
 
 test("extractor: one editor_write cell flipped opens the manual review row", () => {
-  const flipped = COMMITTED.map((line) => (line.startsWith("| markdown | ask_clarification |") ? line.replace("| yes |", "| no |") : line));
+  const flipped = COMMITTED.map((line) => (line.startsWith("| markdown | ask_clarification |") ? line.replace("| no |", "| yes |") : line));
   const { check, diff } = extractorRun(stubFork(flipped), { name: "extractor-flip" });
   assert.equal(check.status, "FAIL");
   assert.deepEqual(check.reasons, ["mechanical_column_changed"]);
-  assert.match(diff, /^\| markdown \| ask_clarification \| editor_write \| yes \| no \|$/m);
-  assert.match(diff, /^\| markdown\/ask_clarification \| owner F \+ Product \| open \| G7-06 [0-9a-f]+ \| editor_write yes -> no \|$/m);
+  assert.match(diff, /^\| markdown \| ask_clarification \| editor_write \| no \| yes \|$/m);
+  assert.match(diff, /^\| markdown\/ask_clarification \| owner F \+ Product \| open \| G7-06 [0-9a-f]+ \| editor_write no -> yes \|$/m);
 });
 
 test("extractor: an added row is a mechanical_column_changed with its own review row", () => {
