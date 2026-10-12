@@ -539,7 +539,18 @@ for i in $(seq 1 60); do
 done
 [ -s "$XVFB_DISPLAY_FILE" ] || fail "xvfb never reported a display for the app"
 DISPLAY_VALUE="$(cat "$XVFB_DISPLAY_FILE")"
-echo "DISPLAY=$DISPLAY_VALUE" >> "$RUN_DIR/ports.env"
+{
+  echo "DISPLAY=$DISPLAY_VALUE"
+  # What the document step needs to hand a deep link to the running app the way
+  # the fork's own suite does (second instance, URL in argv): the Electron
+  # binary, the app dir, the userData the working copy lands in, the fork
+  # checkout and the deployment id the D server and the app must agree on.
+  echo "UNIWORK_USER_DATA=$RUN_DIR/userdata"
+  echo "ELECTRON_BIN=$ELECTRON_BIN"
+  echo "SHELL_APP_DIR=$FORK_DIR/apps/shell"
+  echo "OFFICE_FORK_DIR=$FORK_DIR"
+  echo "HARNESS_DEPLOYMENT_ID=default"
+} >> "$RUN_DIR/ports.env"
 echo "harness: app on $DISPLAY_VALUE (pid $APP_PID)"
 
 echo "harness: up"
@@ -550,3 +561,6 @@ echo "  pids      $RUN_DIR/pids"
 echo "  next      OFFICE_FORK_SHA=$FORK_SHA HARNESS_RUN_DIR=$RUN_DIR node scripts/office/g5g6g7/evidence.mjs run \\"
 echo "              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \\"
 echo "              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir $RUN_DIR"
+echo "  next      (document step, its own evidence line) OFFICE_FORK_SHA=$FORK_SHA HARNESS_RUN_DIR=$RUN_DIR \\"
+echo "              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-md-notes-vi --checker tester-cloud -- \\"
+echo "              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir $RUN_DIR"

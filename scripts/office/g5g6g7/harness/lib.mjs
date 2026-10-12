@@ -154,20 +154,6 @@ export function workingCopyDir(userDataDir, deploymentId, userId, documentKey) {
 }
 
 /**
- * The `attempt_id` of a desktop-auth consent URL
- * (`<api>/auth/desktop/consent?attempt_id=…`), the id the D server needs back to
- * approve the attempt (handler/dto/sdi/desktop_auth.go). Null when the URL
- * carries none, so a caller reports that rather than approving the wrong one.
- */
-export function attemptIdFromConsentUrl(url) {
-  try {
-    return new URL(String(url)).searchParams.get("attempt_id");
-  } catch {
-    return null;
-  }
-}
-
-/**
  * The launch ticket of a `uniwork-office[-dev]://open?ticket=…` deep link, or
  * null. The harness never assumes the shape: it reads the ticket the server
  * returned and only then builds the argv it hands to the app.
@@ -253,8 +239,11 @@ export function evidenceLine(record) {
     fixtureSha256: record.fixtureSha256 ?? "",
     command: record.command ?? "",
     // The exact argument vector, so an argument with a space survives the ledger
-    // (the runner's contract carries both).
-    argv: Array.isArray(record.argv) ? record.argv : [],
+    // (the runner's contract carries both). Defaults to this process's own argv —
+    // the command that actually ran — so a harness-written line (including a
+    // BLOCKED or FAIL one) never lands with an empty `argv`, which the runner's
+    // verify now reports as an empty required field (reviewer_be r2 N1).
+    argv: Array.isArray(record.argv) ? record.argv : [...process.argv],
     exitCode: typeof record.exitCode === "number" ? record.exitCode : -1,
     result: record.result ?? "BLOCKED",
     artifact: record.artifact ?? "",

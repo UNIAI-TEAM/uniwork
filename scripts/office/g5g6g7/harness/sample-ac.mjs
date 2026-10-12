@@ -133,6 +133,9 @@ if (preconditions.length > 0) {
     platform: `${process.platform}-${process.arch}`,
     build: `node ${process.versions.node}`,
     command: `node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir ${runDir}`,
+    // the exact command that ran, not an empty vector: verify reports [] as an
+    // empty required field (reviewer_be r2 N1)
+    argv: [...process.argv],
     exitCode: BLOCKED,
     result: "BLOCKED",
     checker: "harness:start.sh+sample-ac.mjs",
@@ -323,7 +326,7 @@ if (!process.env.OFFICE_EVIDENCE_ID) {
     platform: manifest.platform,
     build: `node ${process.versions.node}`,
     command,
-    argv: ["node", "scripts/office/g5g6g7/harness/sample-ac.mjs", "--run-dir", runDir],
+    argv: [...process.argv],
     exitCode,
     result,
     artifact: manifestPath,
