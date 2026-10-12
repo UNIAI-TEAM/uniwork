@@ -47,13 +47,14 @@ const (
 	// compaction drops automatic snapshots above it; manual, restore and
 	// upload versions are always kept.
 	documentVersionKeep = 500
-	// documentArchiveMaxNodes bounds one archive or restore: the command holds
-	// the workspace tree lock and writes one audit and outbox row per node, so
-	// a subtree past this is archived in parts.
+	// documentArchiveMaxNodes bounds one archive: the command holds the
+	// workspace tree lock and checks and writes every node, so a subtree past
+	// this is archived in parts. Restore has no bound (see RestoreDocument): a
+	// batch can only be larger than this if it was archived before the bound.
 	documentArchiveMaxNodes = 1000
 )
 
-// archiveBound is the node bound one archive or restore accepts.
+// archiveBound is the node bound one archive accepts.
 func (s *DocumentService) archiveBound() int {
 	if s.archiveMaxNodes > 0 {
 		return s.archiveMaxNodes
@@ -61,9 +62,9 @@ func (s *DocumentService) archiveBound() int {
 	return documentArchiveMaxNodes
 }
 
-func errFolderTooLarge(verb string) error {
+func errFolderTooLarge() error {
 	return coded(http.StatusUnprocessableEntity, "folder_too_large",
-		"thư mục có quá nhiều mục để "+verb+" một lần (tối đa 1000): hãy "+verb+" từng phần")
+		"thư mục có quá nhiều mục để lưu trữ một lần (tối đa 1000): hãy lưu trữ từng phần")
 }
 
 // requireManageOnSubtree refuses (ErrForbidden) unless the actor holds manage
@@ -218,7 +219,7 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 			return DocumentArchiveResult{}, err
 		}
 		if len(live) > s.archiveBound() {
-			return DocumentArchiveResult{}, errFolderTooLarge("lưu trữ")
+			return DocumentArchiveResult{}, errFolderTooLarge()
 		}
 		// Never archive a restricted child the caller cannot manage: refuse the
 		// whole command, never leave the child orphaned live.
@@ -270,6 +271,15 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 // RestoreDocument brings back exactly the batch the archive stamped. A node
 // whose parent stayed in the trash (or was purged) re-roots itself so it is
 // reachable again.
+//
+// Restore is not bounded like archive. A batch written since the bound exists
+// holds at most documentArchiveMaxNodes nodes, so only a legacy batch (from
+// before folders) could be larger, and refusing it would strand it in the
+// trash: a restore cannot be done in parts. It stays cheap under the tree
+// lock: the batch is read, cleared and audited in one statement each, the
+// trivial manage rules are read off the rows, and only a node whose parent is
+// outside the batch costs a parent lookup. What does scale with the batch is
+// effectiveLevel for a node the caller manages only through a share.
 func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
 	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentRestore, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if !doc.ArchivedAt.Valid {
@@ -287,9 +297,6 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 				return DocumentArchiveResult{}, err
 			}
 			members = rows
-		}
-		if len(members) > s.archiveBound() {
-			return DocumentArchiveResult{}, errFolderTooLarge("khôi phục")
 		}
 		// Manage on every member still archived: a batch comes back whole or
 		// not at all.
@@ -323,8 +330,8 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 		// A member whose parent is not in the batch comes back orphaned:
 		// detach it to the root so it is reachable again.
 		for _, m := range members {
-			if !inBatch[m.ID] || !m.ParentID.Valid {
-				continue
+			if !inBatch[m.ID] || !m.ParentID.Valid || inBatch[m.ParentID.String] {
+				continue // a parent restored in the same batch is live again: nothing to look up
 			}
 			parent, err := q.GetDocument(ctx, db.GetDocumentParams{
 				ID: m.ParentID.String, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,

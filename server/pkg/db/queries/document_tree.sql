@@ -252,7 +252,10 @@ WHERE d.archived_at IS NULL
     d.owner_kind IS NOT NULL
     OR NOT (
       sqlc.arg(is_ws_admin)::boolean
-      OR (sqlc.arg(is_ws_member)::boolean AND d.acl_owner_id = sqlc.arg(actor_id)::text)
+      -- acl_owner_id is NULL for agent/system-created documents: without the
+      -- IS NOT NULL guard the comparison is NULL, NOT NULL stays NULL and the
+      -- row would drop out of the result as if it were manageable.
+      OR (sqlc.arg(is_ws_member)::boolean AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = sqlc.arg(actor_id)::text)
       OR EXISTS (
         SELECT 1
         FROM document_shares s

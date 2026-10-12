@@ -416,7 +416,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/restore", h.RestoreDocument, apiOp{
 		summary:     "Restore an archived document",
-		description: "Khôi phục đúng các node của một đợt archive (batch_id); node bị archive bởi đợt khác không tự sống lại; đợt quá 1000 node -> 422 folder_too_large. Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Khôi phục đúng các node của một đợt archive (batch_id); node bị archive bởi đợt khác không tự sống lại; không giới hạn số node (đợt cũ quá 1000 node vẫn khôi phục được).Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
