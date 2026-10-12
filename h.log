@@ -1,0 +1,132 @@
+$ git checkout e6862e53 -- apps/slides/src && (cd apps/slides && npx vitest run tests/g6-12-bound-draft.test.ts tests/g6-12-bound-sidecar.test.ts); RED=$?; git checkout HEAD -- apps/slides/src; git status --short apps/slides/src; echo "RED_EXIT=$RED"; test $RED -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+ ❯ tests/g6-12-bound-sidecar.test.ts (2 tests | 1 failed) 11ms
+     × bound deck: pages land, no sidecar is written 9ms
+stdout | tests/g6-12-bound-draft.test.ts > generate_deck / regenerate_slide landing on a UniWork-bound deck > append (generate_deck): no draft, path kept, deck stays dirty, file untouched
+[local-slide] page generated: bytes=5824 imageFails=0 ms=65
+
+stdout | tests/g6-12-bound-draft.test.ts > generate_deck / regenerate_slide landing on a UniWork-bound deck > replace_at (regenerate_slide): no draft, path kept, deck stays dirty
+[local-slide] page generated: bytes=5825 imageFails=0 ms=16
+
+stdout | tests/g6-12-bound-draft.test.ts > generate_deck / regenerate_slide landing on a UniWork-bound deck > insert_at (failed-page retry): no draft, path kept
+[local-slide] page generated: bytes=5822 imageFails=0 ms=15
+
+stdout | tests/g6-12-bound-draft.test.ts > generate_deck / regenerate_slide landing on a UniWork-bound deck > replace (new deck): the new deck keeps the bound path, no draft, unsaved
+[local-slide] page generated: bytes=5824 imageFails=0 ms=13
+
+stdout | tests/g6-12-bound-draft.test.ts > generate_deck / regenerate_slide landing on a UniWork-bound deck > replace (new deck): the new deck keeps the bound path, no draft, unsaved
+[local-slide] page generated: bytes=5822 imageFails=0 ms=12
+
+ ❯ tests/g6-12-bound-draft.test.ts (6 tests | 4 failed) 357ms
+     × append (generate_deck): no draft, path kept, deck stays dirty, file untouched 143ms
+     × replace_at (regenerate_slide): no draft, path kept, deck stays dirty 45ms
+     × insert_at (failed-page retry): no draft, path kept 41ms
+     × replace (new deck): the new deck keeps the bound path, no draft, unsaved 58ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-bound-draft.test.ts > generate_deck / regenerate_slide landing on a UniWork-bound deck > append (generate_deck): no draft, path kept, deck stays dirty, file untouched
+AssertionError: expected '/tmp/slides-g6-12-draft-qPaaH6/docume…' to be '' // Object.is equality
+
+- Expected
++ Received
+
++ /tmp/slides-g6-12-draft-qPaaH6/documents/UniWork Office/Quarterly Review.pptx
+
+ ❯ tests/g6-12-bound-draft.test.ts:148:20
+    146|     expect(r.error).toBeUndefined()
+    147|     // empty path: the panel takes no path change (title, dirty flag) …
+    148|     expect(r.path).toBe('')
+       |                    ^
+    149|     expect(sessions.get(WC)!.path).toBe(deckPath)
+    150|     expect(sessions.get(WC)!.opened.deck.slides.length).toBe(before + …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/g6-12-bound-draft.test.ts > generate_deck / regenerate_slide landing on a UniWork-bound deck > replace_at (regenerate_slide): no draft, path kept, deck stays dirty
+AssertionError: expected '/tmp/slides-g6-12-draft-qPaaH6/docume…' to be '' // Object.is equality
+
+- Expected
++ Received
+
++ /tmp/slides-g6-12-draft-qPaaH6/documents/UniWork Office/未命名演示-20261012-142250.pptx
+
+ ❯ tests/g6-12-bound-draft.test.ts:167:20
+    165|     expect(r.error).toBeUndefined()
+    166|     // empty path: the panel takes no path change (title, dirty flag) …
+    167|     expect(r.path).toBe('')
+       |                    ^
+    168|     expect(sessions.get(WC)!.path).toBe(deckPath)
+    169|     expect(drafts()).toEqual([])
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/g6-12-bound-draft.test.ts > generate_deck / regenerate_slide landing on a UniWork-bound deck > insert_at (failed-page retry): no draft, path kept
+AssertionError: expected '/tmp/slides-g6-12-draft-qPaaH6/docume…' to be '/tmp/slides-g6-12-draft-qPaaH6/deck-g…' // Object.is equality
+
+Expected: "/tmp/slides-g6-12-draft-qPaaH6/deck-gx9zp6vvv47.pptx"
+Received: "/tmp/slides-g6-12-draft-qPaaH6/documents/UniWork Office/未命名演示-20261012-142250.pptx"
+
+ ❯ tests/g6-12-bound-draft.test.ts:184:36
+    182|     )) as Landed
+    183|     expect(r.error).toBeUndefined()
+    184|     expect(sessions.get(WC)!.path).toBe(deckPath)
+       |                                    ^
+    185|     expect(drafts()).toEqual([])
+    186|     expect(sessionDirty(sessions.get(WC)!)).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/g6-12-bound-draft.test.ts > generate_deck / regenerate_slide landing on a UniWork-bound deck > replace (new deck): the new deck keeps the bound path, no draft, unsaved
+AssertionError: expected '/tmp/slides-g6-12-draft-qPaaH6/docume…' to be '' // Object.is equality
+
+- Expected
++ Received
+
++ /tmp/slides-g6-12-draft-qPaaH6/documents/UniWork Office/Quarterly Review.pptx
+
+ ❯ tests/g6-12-bound-draft.test.ts:201:20
+    199|     expect(r.error).toBeUndefined()
+    200|     // empty path: the panel takes no path change (title, dirty flag) …
+    201|     expect(r.path).toBe('')
+       |                    ^
+    202|     const now = sessions.get(WC)!
+    203|     expect(now).not.toBe(session)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/g6-12-bound-sidecar.test.ts > generate_deck style sidecar vs UniWork binding > bound deck: pages land, no sidecar is written
+AssertionError: expected [ { …(3) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "createdAt": "2026-10-12T14:22:48.953Z",
++     "styleSkill": "Deep navy + gold",
++     "topic": "Doubled in a decade",
++   },
++ ]
+
+ ❯ tests/g6-12-bound-sidecar.test.ts:62:22
+     60|     expect(res.isError).toBeFalsy()
+     61|     expect(getPages()).toBe(2)
+     62|     expect(sidecars).toEqual([])
+       |                      ^
+     63|   })
+     64|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  5 failed | 3 passed (8)
+   Start at  14:22:46
+   Duration  4.37s (transform 4.21s, setup 0ms, import 5.53s, tests 368ms, environment 835ms)
+
+RED_EXIT=1
+RED_AS_EXPECTED

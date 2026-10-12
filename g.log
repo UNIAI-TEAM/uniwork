@@ -1,0 +1,10 @@
+$ cd apps/slides && npx vitest run tests/g6-12-bound-draft.test.ts tests/g6-12-bound-sidecar.test.ts tests/g6-12-url-fetch-guard.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+
+ Test Files  3 passed (3)
+      Tests  49 passed (49)
+   Start at  14:22:41
+   Duration  4.30s (transform 5.73s, setup 0ms, import 7.81s, tests 917ms, environment 1.94s)
+
