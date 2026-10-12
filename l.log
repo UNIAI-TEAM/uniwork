@@ -1,0 +1,2 @@
+$ bash scripts/go-cover-floor.sh 2>&1 | tail -20 || echo "cover-floor script needs a full profile: see log"
+usage: scripts/go-cover-floor.sh <coverprofile> [coverprofile...]

@@ -1,0 +1,25 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=1 -v ./internal/service/ -run 'TestOfficeCapabilities|TestOfficeDesktopDownload|TestOfficeApp|TestFeatureFlag'
+=== RUN   TestOfficeDesktopDownloadMembershipAudit
+--- PASS: TestOfficeDesktopDownloadMembershipAudit (0.63s)
+=== RUN   TestOfficeDesktopDownloadUnsafeOrUnavailableConfig
+=== RUN   TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/absent_installer
+=== RUN   TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/unsafe_scheme
+=== RUN   TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/credentials
+=== RUN   TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/non-origin
+=== RUN   TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/ambiguous_deployment
+=== RUN   TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/wrong_client
+=== RUN   TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/wrong_channel
+--- PASS: TestOfficeDesktopDownloadUnsafeOrUnavailableConfig (0.72s)
+    --- PASS: TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/absent_installer (0.00s)
+    --- PASS: TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/unsafe_scheme (0.00s)
+    --- PASS: TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/credentials (0.00s)
+    --- PASS: TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/non-origin (0.00s)
+    --- PASS: TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/ambiguous_deployment (0.00s)
+    --- PASS: TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/wrong_client (0.00s)
+    --- PASS: TestOfficeDesktopDownloadUnsafeOrUnavailableConfig/wrong_channel (0.00s)
+=== RUN   TestOfficeDesktopDownloadPicksTheChannelClientFromSeveral
+--- PASS: TestOfficeDesktopDownloadPicksTheChannelClientFromSeveral (0.62s)
+=== RUN   TestOfficeDesktopDownloadMultiplePlatforms
+--- PASS: TestOfficeDesktopDownloadMultiplePlatforms (0.78s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	3.882s
