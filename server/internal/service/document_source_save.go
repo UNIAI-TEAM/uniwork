@@ -48,6 +48,12 @@ var documentSourceExtTypes = map[string]string{
 // FileService stores a CSV or NDJSON file as text/plain in Chat and Tasks but
 // names it text/csv / application/x-ndjson again when a document upload
 // re-detects it, so those two extensions never pass.
+//
+// The upload judges the bytes (files.DetectContentType) and this judges what
+// the source module stored, so it is a copy of that rule, not the rule itself:
+// TestDocumentSourceSaveableAgreesWithTheUpload fails when a change to
+// detect.go, the document_file policy or a source purpose's canonical types
+// makes the two disagree. Edit this function together with it.
 func documentSourceSaveable(ext, mimeType string, sizeBytes int64) bool {
 	p := documentFilePolicy()
 	if p.MaxBytes <= 0 || sizeBytes <= 0 || sizeBytes > p.MaxBytes {

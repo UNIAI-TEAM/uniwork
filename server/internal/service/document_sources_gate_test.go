@@ -117,7 +117,7 @@ func TestDocumentSourceByteRefusalsAreNotFound(t *testing.T) {
 		{"private channel member", tn.owner, tn.wsA, "chat:" + privateMsg},
 		{"dm peer", tn.aclOwner, tn.wsA, "chat:" + dmMsg},
 		{"group member", tn.member, tn.wsA, "chat:" + groupMsg},
-		{"group member from the other workspace", tn.owner, tn.wsB, "chat:" + dmMsg},
+		{"dm member, read from the organization's other workspace", tn.owner, tn.wsB, "chat:" + dmMsg},
 		{"workspace member, task file", tn.member, tn.wsA, "task:" + att},
 	}
 	for _, c := range admitted {
