@@ -484,6 +484,8 @@ describe("DocumentsPageView", () => {
       const call = postCall("POST");
       expect(call?.[0]).toBe(`${LIST_BASE}/sources/chat%3Am1/save`);
       expect((call?.[1] as { body?: unknown }).body).toEqual({ parent_id: null });
+      // A retried POST after a timeout must replay, not save the file twice.
+      expect((call?.[1] as { headers?: Record<string, string> }).headers?.["Idempotency-Key"]).toBeTruthy();
     });
     expect(createSession).not.toHaveBeenCalled();
   });

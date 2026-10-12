@@ -36,9 +36,11 @@ export function sourcesWaveFor(
       return payload.workspace_id && payload.workspace_id !== wsId ? null : "now";
     case "recording.ready":
       return "now";
+    case "email_hub.new_mail":
+      // Stamped with the workspace the mail account is linked to.
+      return payload.workspace_id && payload.workspace_id !== wsId ? null : "slow";
     case "chat.message.created":
     case "chat.message.deleted":
-    case "email_hub.new_mail":
       return "slow";
     default:
       return null;

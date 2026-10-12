@@ -65,7 +65,8 @@ func TestAttachListAccessWithoutRows(t *testing.T) {
 
 // DB-backed: for each viewer shape, every row the list, the folder-children
 // list and recent return carries exactly the level effectiveLevel gives that
-// viewer, and the whole page costs one shares read (not one per row).
+// viewer. The one-shares-read-per-page cost is by construction (attachListAccess
+// reads them with one set-based query); this test does not count queries.
 func TestListRowsCarryEffectiveLevel(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "lvlrows")

@@ -149,7 +149,10 @@ export function DesktopOpenAction({
   const [coordinatorState, setCoordinatorState] = useState(() => saveCoordinator?.getState() ?? null);
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [working, setWorking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // An object, so each failed attempt is a new value and the row toast fires again for the same message.
+  const [failure, setFailure] = useState<{ message: string } | null>(null);
+  const setError = (message: string | null) => setFailure(message === null ? null : { message });
+  const error = failure?.message ?? null;
   const [installOpen, setInstallOpen] = useState(false);
   const [installReason, setInstallReason] = useState<"not-installed" | "expired" | "error" | "download">("not-installed");
   const [resolvedInstallers, setResolvedInstallers] = useState(installers);
@@ -191,8 +194,8 @@ export function DesktopOpenAction({
     };
   }, [installOpen, installReason]);
   useEffect(() => {
-    if (placement === "row" && error) toast.error(error);
-  }, [placement, error]);
+    if (placement === "row" && failure) toast.error(failure.message);
+  }, [placement, failure]);
   useEffect(() => setResolvedInstallers(installers), [installers]);
   useEffect(() => setResolvedPlatforms(supportedPlatforms), [supportedPlatforms]);
   useEffect(() => setResolvedHint(platformHint), [platformHint]);
@@ -360,7 +363,7 @@ export function DesktopOpenAction({
           </DropdownMenu>
         </ButtonGroup>
       )}
-      {error && placement !== "row" ? <p role="alert"className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
+      {error && placement !== "row" ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
       <Dialog open={choiceOpen} onOpenChange={(open) => { if (working) return; setChoiceOpen(open); if (!open) settleRequest("unavailable"); }}>
         <DialogContent className="sm:max-w-md" aria-describedby="office-desktop-choice-description">
           <DialogHeader>

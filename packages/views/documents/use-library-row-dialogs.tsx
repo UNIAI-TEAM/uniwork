@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useMoveDocument } from "@uniwork/core/documents/hooks-collections";
 import { useSaveSourceToFolder } from "@uniwork/core/documents/hooks-library";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
+import { createSafeId } from "@uniwork/core/utils";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
@@ -48,6 +49,8 @@ export function useLibraryRowDialogs({
   const [archiving, setArchiving] = useState<DocumentSummaryRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [moveLoading, setMoveLoading] = useState(false);
+  // One key per source and target: a retry after a timeout replays the same save, a new target is a new one.
+  const saveKey = useRef<{ sourceId: string; target: string | null; key: string } | null>(null);
 
   // Targets the server would refuse are not offered: the moved item, its
   // subtree, and a folder where it would end up past the depth limit.
@@ -93,8 +96,13 @@ export function useLibraryRowDialogs({
         onSubmit={(target) => {
           if (!saving) return;
           setError(null);
-          void saveSource.mutateAsync({ sourceId: saving.source.id, parentId: target }).then(
+          const sourceId = saving.source.id;
+          if (saveKey.current?.sourceId !== sourceId || saveKey.current.target !== target) {
+            saveKey.current = { sourceId, target, key: createSafeId() };
+          }
+          void saveSource.mutateAsync({ sourceId, parentId: target, idempotencyKey: saveKey.current.key }).then(
             () => {
+              saveKey.current = null;
               setSaving(null);
               toast.success(t("documents.home.save_source.saved"));
             },
