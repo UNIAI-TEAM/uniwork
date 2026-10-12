@@ -400,7 +400,7 @@ không, nên tài liệu **không** tự tải lại; người dùng xác nhận
 bước 2, focus nút tải về, tải về lần nữa được. Thất bại → ở lại bước 2,
 dòng `uwConflictDownloadFailed`. Lựa chọn tải về trên web được giữ (OQ-UX8, U-15, 2026-10-12); nháp xung đột không vào C18 Restore.
 
-**Bước 2 — Save copy confirm (OQ-UX6, U-15, 2026-10-12; G5-12).** Tiêu đề `uwConflictSaveCopyTitle`, câu `uwConflictSaveCopyConfirm`. Nút: "Tạo bản sao" (`uwConflictSaveCopyGo`, primary) + "Quay lại" (focus mặc định). Bản sao giữ owner, visibility và ACL của tài liệu nguồn, ghi provenance (nguồn, version, revision, checksum) và không mở ACL rộng hơn; tên mặc định do server đặt (`<tên> (bản sao)`). Chỉ khi còn quyền sửa nguồn; thiếu `consent: "copy"` hoặc tài liệu do Work Product sở hữu bị server từ chối (`copy_consent_required`, `owner_requires_copy`) → `uwConflictSaveCopyFailed`. Cách ghi nội dung "bản của bạn" vào bản sao do G5-12 chốt. Không tạo intent, không thay đổi tài liệu hiện tại; desktop dùng cùng khuôn.
+**Bước 2 — Save copy confirm (OQ-UX6, U-15, 2026-10-12; G5-12).** Tiêu đề `uwConflictSaveCopyTitle`, câu `uwConflictSaveCopyConfirm`. Nút: "Tạo bản sao" (`uwConflictSaveCopyGo`, primary) + "Quay lại" (focus mặc định). Bản sao giữ owner, visibility và ACL của tài liệu nguồn, ghi provenance (nguồn, version, revision, checksum) và không mở ACL rộng hơn; tên mặc định do server đặt (`<tên> (bản sao)`). Chỉ khi còn quyền sửa nguồn; thiếu `consent: "copy"` hoặc tài liệu do Work Product sở hữu bị server từ chối (`copy_consent_required`, `owner_requires_copy`) → `uwConflictSaveCopyFailed`. Cách ghi nội dung "bản của bạn" vào bản sao do G5-12 chốt. Ghi chú G5-12: Lưu thành bản sao tạo bản sao rồi ghi byte cục bộ của bạn lên đó làm phiên bản mới đầu tiên qua đường commit thông thường; bản sao không bao giờ hiện nội dung head của server như thể là bản của người dùng; nếu G5-12 không làm được như vậy thì đổi chuỗi `uwConflictSaveCopyConfirm` qua chủ i18n. Không tạo intent, không thay đổi tài liệu hiện tại; desktop dùng cùng khuôn.
 
 **Bước 2 — Overwrite confirm.** Câu `uwConflictOverwriteConfirm`. Nút: "Ghi đè" (danger) + "Quay lại" (focus mặc định).
 Desktop: tạo intent mới trên base mới; intent cũ thành superseded (§5.3).
@@ -416,7 +416,7 @@ chấp nhận như vậy, đã ký (OQ-UX14, U-15, 2026-10-12): không có route
 
 | Biến thể | Khác biệt |
 | --- | --- |
-| Có quyền sửa | Ba hành động đầy đủ |
+| Có quyền sửa | Bốn hành động đầy đủ: Tải lại, Lưu thành bản sao, Ghi đè, Hủy (theo thứ tự này) |
 | Mất quyền sửa (đã thành chỉ xem) | Không có "Ghi đè…" và không có "Lưu thành bản sao…"; dòng `uwConflictNoEdit`. Chỉ "Tải lại bản mới nhất" + "Hủy". Không có sao chép/xuất để né quyền (§5.3) |
 | Tài liệu bị xóa | Không mở S5; thanh S6 Delete |
 | Desktop từ hàng queue `conflict` | Như có quyền sửa; "Ghi đè" tạo intent mới trên base mới, intent cũ superseded |
@@ -428,7 +428,7 @@ chấp nhận như vậy, đã ký (OQ-UX14, U-15, 2026-10-12): không có route
 | Intent `reconciling-stuck` | "Tải lại bản mới nhất"/"Ghi đè…"/"Lưu thành bản sao…" `aria-disabled`, lý do `uwRemoteWaitStuck` + "Mở trung tâm đồng bộ" (`uwQueueOpenCenter`) |
 | Ghi đè gặp 409 lần nữa | Cột "Bản trên UniWork" cập nhật theo head mới, dòng `uwConflictHeadMoved`, về bước 1, focus Hủy |
 | Đọc head / tải bản mới thất bại (mất mạng) | Ở lại hộp thoại, dòng `uwConflictReloadFailed` / `uwConflictOverwriteFailed`, tài liệu không đổi, các nút vẫn dùng được |
-| Lưu thành bản sao xong | Ở lại hộp thoại, về bước 1, dòng `uwConflictSaveCopyDone` (ghi vào nút `role=alert` của hộp thoại), focus Hủy; tài liệu hiện tại và intent không đổi, không trả lời `save` |
+| Lưu thành bản sao xong | Ở lại hộp thoại, về bước 1, dòng `uwConflictSaveCopyDone` (ghi vào vùng thông báo của hộp thoại, một live region `role=alert`, không phải một nút), focus Hủy; tài liệu hiện tại và intent không đổi, không trả lời `save` |
 | Lưu thành bản sao thất bại | Ở lại bước xác nhận, dòng `uwConflictSaveCopyFailed`; thay đổi của bạn không đổi |
 | Web, tải bản của tôi thất bại | Ở lại bước 2, dòng `uwConflictDownloadFailed`, không tải lại |
 | Web, Ghi đè trả 401 | Dòng `uwConflictSessionWeb`; nháp giữ ở C18 |
@@ -862,7 +862,7 @@ và bỏ các thay đổi" — đổi nội dung thành câu của `webConflictB
 | `uwOfflineAdd` | Thêm tài liệu… | Add documents… |
 | `uwOfflineUsage` | Đang dùng {used} / {cap} trên máy này | Using {used} of {cap} on this computer |
 | `uwOfflineEmpty` | Chưa có tài liệu nào dùng khi không có mạng. | No documents are available offline yet. |
-| `uwOfflineCapReached` | Thư viện offline trên máy này đã đạt giới hạn: dung lượng {cap}; số tài liệu tối đa: {count}. Bỏ ghim một tài liệu để thêm tài liệu khác. | The offline library on this computer is at its limit: storage {cap}; maximum documents: {count}. Remove an offline copy to add another. |
+| `uwOfflineCapReached` | Thư viện offline trên máy này đã đạt giới hạn: dung lượng {cap}; số tài liệu tối đa: {maxDocs}. Bỏ ghim một tài liệu để thêm tài liệu khác. | The offline library on this computer is at its limit: storage {cap}; maximum documents: {maxDocs}. Remove an offline copy to add another. |
 | `uwOfflineReady` | Sẵn sàng offline | Available offline |
 | `uwOfflineBadgeWaiting` / `uwOfflineBadgeDownloading` / `uwOfflineBadgeVerifying` / `uwOfflineBadgeUpdate` / `uwOfflineBadgeInterrupted` / `uwOfflineBadgeDiskFull` / `uwOfflineBadgeCorrupt` / `uwOfflineBadgeLeaseSoon` / `uwOfflineBadgeViewOnly` | Chờ mạng / Đang tải / Đang kiểm tra / Có bản mới / Chưa sẵn sàng / Không đủ dung lượng / Bản tải về bị lỗi / Sắp hết quyền offline / Sẵn sàng offline · chỉ xem | Waiting for network / Downloading / Verifying / Update available / Not ready / Not enough space / Download damaged / Offline access ending soon / Available offline · view only |
 | `uwOfflineRowWaiting` | Sẽ tải khi có mạng | Will download when online |
@@ -1088,3 +1088,4 @@ Các số của OQ-UX2 (đã ký, U-15, 2026-10-12):
 | Heartbeat lock cửa sổ | 5 giây; coi là mất sau 15 giây (3 nhịp lỡ) |
 | Mức kẹp `Retry-After` | 300 giây |
 | Số lần chờ 429 tối đa mỗi lượt | 3 (G6-02 xác nhận khi spike xong) |
+| Độ dài queue | Một intent chưa giải quyết mỗi Document (G5-D3); tổng bị chặn bởi ngân sách store 1 GiB (U-15, derived) |

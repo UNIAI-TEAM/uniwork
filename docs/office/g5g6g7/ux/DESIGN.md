@@ -441,7 +441,8 @@ Architecture. Mục này chỉ nói hình thức; hành vi và ARIA ở EXPERIEN
   `new-version-bar-error` (mất quyền, đã xóa, nạp thất bại). Nút trong thanh là Link action. Mock:
   [conflict-dialog.html](mockups/conflict-dialog.html) (S6).
 - **Conflict dialog (S5)** — **skin của fork thắng**: `.ow-dlg` 448px, tiêu đề 16px, câu mô tả `--text-dim`, hàng nút xếp
-  dọc toàn chiều rộng trên dải `surface-subtle`, `button-dialog-primary` "Tải lại bản mới nhất", `button-dialog-danger`
+  dọc toàn chiều rộng trên dải `surface-subtle`, `button-dialog-primary` "Tải lại bản mới nhất", `button-dialog-ghost`
+  "Lưu thành bản sao…" (không có token nút phụ riêng; chỉ khi còn quyền sửa), `button-dialog-danger`
   (nền `danger-bg`) "Ghi đè…", `button-dialog-ghost` "Hủy", nút X 28px ở góc. Desktop vẽ cùng skin. **Delta duy nhất so
   với khuôn fork:** (1) bảng hai cột "Bản của bạn" / "Bản trên UniWork" (`dl` trên nền `surface-subtle`, viền `border`,
   bo `{rounded.md}`; phiên bản, thời điểm, người lưu) cùng Link action "Xem khác biệt" trong slot nội dung; (2) bước xác
