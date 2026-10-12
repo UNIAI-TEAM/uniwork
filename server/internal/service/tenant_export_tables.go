@@ -15,6 +15,7 @@ var tenantExportExcluded = map[string]string{
 	"usage_counters":           "Số đo hạn mức, không phải nội dung.",
 	"usage_events":             "Số đo hạn mức, không phải nội dung.",
 	"ai_usage_events":          "Số đo token, không phải nội dung hội thoại.",
+	"ai_provider_credentials":  "Khóa API nhà cung cấp của từng người, đã niêm phong.",
 	"outbox_events":            "Hàng đợi hạ tầng.",
 	"graph_dirty":              "Hàng đợi chiếu Work Graph, dựng lại được.",
 	"graph_edges":              "Chiếu Work Graph, dựng lại được từ nguồn.",
