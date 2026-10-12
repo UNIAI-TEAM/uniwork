@@ -27,9 +27,11 @@ không hardcode trong test. Bộ đánh giá AI độc lập (≥100 ca, spec §
 
 Mỗi dòng có `id` duy nhất, owner, host (web, desktop hoặc cả hai), một oracle thuộc tập cho phép (`receipt`,
 `object/part`, `extraction`, `render diff`, `deterministic score`, `security probe`, `manifest`), fixture id kèm sha256
-của manifest, các ca âm bắt buộc, gate đang mở ảnh hưởng tới dòng, danh sách task plan §5.6, và reviewer. Một dòng chỉ
-thành `PASS` khi có bản ghi bằng chứng kết quả `PASS` cho đúng revision; `NOT_RUN`, `BLOCKED` và kết quả `skip` không
-bao giờ được tính là `PASS`. Dòng `BLOCKED` phải có `blocker.gate` (gate plan §3), `blocker.owner` và `blocker.reason`.
+của manifest, `evidenceRequired` (bản ghi và artifact sẽ chứng minh dòng đó), các ca âm bắt buộc, gate đang mở ảnh
+hưởng tới dòng, danh sách task plan §5.6, và reviewer. Một dòng chỉ thành `PASS` khi có bản ghi bằng chứng kết quả
+`PASS` cho đúng revision, exit code 0, artifact còn trên đĩa và mỗi fixture của dòng có bản ghi riêng; `FAIL`, `BLOCKED`
+và mọi kết quả khác không bao giờ được tính là `PASS`. Dòng `BLOCKED` phải có `blocker.gate` (gate plan §3),
+`blocker.owner` và `blocker.reason`.
 
 ## Gate đang mở
 
@@ -88,9 +90,10 @@ không PASS.
 
 Mỗi lần chạy ghi một dòng JSON vào `test-results/office-g5g6g7-evidence/evidence.jsonl` bằng
 `scripts/office/g5g6g7/evidence.mjs run`, đủ trường của hợp đồng: requirement id, SHA hai repo (D và fork), pin bundle
-web, platform/build, fixture id + sha256, lệnh, exit code, kết quả, artifact, người kiểm và blocker. Lệnh `verify`
+web, platform/build, fixture id + sha256, lệnh kèm argv, exit code, kết quả, artifact, người kiểm và blocker. Lệnh `verify`
 đối chiếu sổ bằng chứng với ma trận này: một dòng `PASS` không có bản ghi, một bản ghi `PASS` không khớp hash fixture,
-hoặc một dòng `BLOCKED` không có blocker đều bị từ chối. `reset` xóa dữ liệu và artifact của lane nhưng từ chối chạm
-database không mang tiền tố test của lane.
+hoặc một dòng `BLOCKED` không có blocker đều bị từ chối; một lệnh bị tín hiệu kết thúc là `FAIL` (128 + số tín hiệu),
+không bao giờ là `PASS`. `reset` xóa dữ liệu và artifact của lane nhưng từ chối chạm database không mang tiền tố test
+của lane, kể cả `uniwork_test` dùng chung.
 
 Dòng bị chặn vẫn giữ nguyên; gỡ chặn bằng cách đóng gate rồi chạy lại trên revision cuối, không sửa tay trạng thái.

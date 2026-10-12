@@ -323,6 +323,7 @@ if (!process.env.OFFICE_EVIDENCE_ID) {
     platform: manifest.platform,
     build: `node ${process.versions.node}`,
     command,
+    argv: ["node", "scripts/office/g5g6g7/harness/sample-ac.mjs", "--run-dir", runDir],
     exitCode,
     result,
     artifact: manifestPath,

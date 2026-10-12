@@ -146,6 +146,9 @@ export function evidenceLine(record) {
     fixtureId: record.fixtureId ?? "",
     fixtureSha256: record.fixtureSha256 ?? "",
     command: record.command ?? "",
+    // The exact argument vector, so an argument with a space survives the ledger
+    // (the runner's contract carries both).
+    argv: Array.isArray(record.argv) ? record.argv : [],
     exitCode: typeof record.exitCode === "number" ? record.exitCode : -1,
     result: record.result ?? "BLOCKED",
     artifact: record.artifact ?? "",

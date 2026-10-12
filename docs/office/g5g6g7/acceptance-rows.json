@@ -29,7 +29,8 @@
   "rowRules": [
     "One row per requirement id in spec Section 9.1: G5-A01..G5-A08, G6-A01..G6-A10, G7-A01..G7-A05.",
     "fixtures[] name a manifest id and repeat that manifest entry's sha256; the sibling test reads the hash from the manifest and never hardcodes it.",
-    "A row is PASS only with an evidence record whose result is PASS; NOT_RUN, BLOCKED and skip results are never counted as PASS.",
+    "A row is PASS only with an evidence record whose result is PASS, exit code 0, an artifact on disk and one record per fixture it names; a result other than PASS is never counted as PASS.",
+    "Every row carries evidenceRequired: the artifacts and records that would prove it, so a row without an evidence plan fails even while it is NOT_RUN.",
     "A BLOCKED row carries blocker.gate (plan Section 3), blocker.owner and blocker.reason.",
     "gate records the open decision gate that affects the row even when the row is NOT_RUN; null when no gate affects it.",
     "acceptance.md repeats these rows cell for cell; the sibling test fails on any drift between the two."
@@ -52,6 +53,7 @@
         "type": "receipt",
         "assertion": "Assert the paged snapshot is consistent at its high-water mark, a commit that lands between the snapshot and the first feed page appears exactly once, retention never drops a change the client has not acknowledged, and a cursor advances past a page whose events are all filtered."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the change-feed receipts for the concurrent-writer and retention cases.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
@@ -77,6 +79,7 @@
         "type": "receipt",
         "assertion": "Assert the incremental feed leaks no metadata of a document the caller lost access to, a revocation removal payload carries ids and revision only, and a tombstone never resurrects an archived or deleted document."
       },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-md-notes-vi with result PASS, each with its artifact, plus the ACL removal payloads showing ids and revision only.",
       "fixtures": [
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
         { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" }
@@ -102,6 +105,7 @@
         "type": "receipt",
         "assertion": "Assert both directions of a cross-host save land on the same version id and checksum, and a dirty editor is never replaced by the incoming version."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS from both hosts, each with its artifact, plus the version ids and checksums the two hosts report.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
@@ -127,6 +131,7 @@
         "type": "object/part",
         "assertion": "Assert the offline pin holds every declared file, asset and checksum, and an interrupted download, a full disk or a corrupt cache never reports the library as ready."
       },
+      "evidenceRequired": "A recorded run on fx-pdf-invoice-vi and one on fx-html-page-vi with result PASS, each with its artifact, plus the pin manifest of files, assets and checksums the app resolved.",
       "fixtures": [
         { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" },
         { "id": "fx-html-page-vi", "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884" }
@@ -156,6 +161,7 @@
         "type": "receipt",
         "assertion": "Assert one offline save that survives a crash and a restart produces exactly one receipt and one version after reconnect, and an edit made while the save runs stays dirty."
       },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the receipt and version rows the reconnect produced after the crash.",
       "fixtures": [
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
       ],
@@ -180,6 +186,7 @@
         "type": "receipt",
         "assertion": "Assert an expired upload, a timeout after commit, a cancel race and a late response each reconcile to one version with no duplicate upload and no overwrite."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the version and upload rows each of the four race cases reconciled to.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
       ],
@@ -204,6 +211,7 @@
         "type": "receipt",
         "assertion": "Assert an expired lease, a rolled-back clock, a revocation, a logout A to B, a deployment switch and a locked keystore each follow the approved policy with no plaintext left behind."
       },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the lease decisions and the keystore state for each policy case.",
       "fixtures": [
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
       ],
@@ -232,6 +240,7 @@
         "type": "receipt",
         "assertion": "Assert a conflict keeps both copies with the copy retaining owner, ACL and provenance, and cancelling a queued intent loses no draft."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-pptx-deck-vi with result PASS, each with its artifact, plus both conflicting copies with their owner, ACL and provenance.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
         { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" }
@@ -257,6 +266,7 @@
         "type": "deterministic score",
         "assertion": "Assert the resolved sheet, range, cell types and filters match the workbook oracle, and a whole-range calculation matches the ground truth rather than a sampled subset."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the resolved sheet, range, cell types and filters the score compares with the oracle.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
       ],
@@ -281,6 +291,7 @@
         "type": "deterministic score",
         "assertion": "Assert an ambiguous request asks back, an unsupported formula is refused with its reason, a stale calculation cache is not used as the answer, and blank, error, locale and rounding cases resolve as the case declares."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the ask-back question and the refusal reasons the ambiguous and unsupported cases returned.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
       ],
@@ -305,6 +316,7 @@
         "type": "receipt",
         "assertion": "Assert the server version count is unchanged and no save intent is created after a full AI turn for every provider, and only an explicit user Save commits."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the version count and the save intents the server recorded after each AI turn.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
@@ -330,6 +342,7 @@
         "type": "receipt",
         "assertion": "Assert an AI change is visible and undoable before Save, the Save after an AI turn uses the current base_revision, a 409 keeps the local copy, and a double click or a retry does not create a second version."
       },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-xlsx-revenue-xyz with result PASS, each with its artifact, plus the base_revision of the Save and the 409 outcome.",
       "fixtures": [
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
@@ -355,6 +368,7 @@
         "type": "object/part",
         "assertion": "Assert the AI edit round-trips through the DOCX validator, a new version appears only after the user Save, the file opens in Word, and the previous version's checksum is unchanged."
       },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the validator output, the new version and the unchanged checksum of the previous one.",
       "fixtures": [
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
       ],
@@ -379,6 +393,7 @@
         "type": "object/part",
         "assertion": "Assert every remaining Section 6.5 format has a structure or render oracle per host, and a format without a capability is refused on that host rather than shown as disabled."
       },
+      "evidenceRequired": "A recorded run on each of fx-pptx-deck-vi, fx-pdf-invoice-vi, fx-md-notes-vi and fx-html-page-vi with result PASS, each with its artifact, plus the structure or render oracle per host.",
       "fixtures": [
         { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" },
         { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" },
@@ -406,6 +421,7 @@
         "type": "security probe",
         "assertion": "Assert each probe is refused: a revoked entitlement or ACL mid-run, a stale frame token, a cross-organization or cross-workspace run id, a client-supplied system or assistant turn, a prompt-injection payload, a replayed history, and a tool call outside the allowlist; the run limit answers run_limit_reached; and the panel is hidden while UniWork AI is not eligible and appears on uniworkAi alone with no BYOK."
       },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-xlsx-revenue-xyz with result PASS, each with its artifact, plus the refusal code of every probe and the panel state with and without uniworkAi.",
       "fixtures": [
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
@@ -431,6 +447,7 @@
         "type": "receipt",
         "assertion": "Assert an upstream timeout or outage, credits_exhausted, a rate limit, a client disconnect and a cancel each end in a bounded structured outcome, the editor keeps its state, and a BYOK turn still completes while UniWork AI fails."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the bounded outcome of each failure case and the BYOK turn that still completed.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
       ],
@@ -455,6 +472,7 @@
         "type": "receipt",
         "assertion": "Assert every model call in a run carries attribution, quota and usage; a disconnect mid-run still records usage; and a provider that returns no usage lands as unknown with a reconciliation row counted once."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the usage rows with attribution and quota, and the reconciliation row counted once.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
       ],
@@ -479,6 +497,7 @@
         "type": "deterministic score",
         "assertion": "Assert a run's usage line carries prompt_id and the resolved provider and model, every tool name the pack mentions exists in the genoffice tool table, and a version change or rollback never makes the model name a tool outside the allowlist or invent one."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the prompt_id, provider and model of the usage line and the tool names against the genoffice table.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
@@ -504,6 +523,7 @@
         "type": "receipt",
         "assertion": "Assert the loop closes through the harness on the real stack: a web edit-save, opening the app from web, a desktop offline edit-save, a reconnect that lets web see the version, and an AI turn plus Save all leave both hosts on the same result; the version count grows by exactly one per user Save and by zero per AI turn and the final checksum is identical on both hosts."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS through the harness on the real stack, each with its artifact, plus the version count per Save and the checksum both hosts report.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
@@ -529,6 +549,7 @@
         "type": "receipt",
         "assertion": "Assert an AI result that arrives after a remote update, a conflict or a revocation is not applied to the newer base, and a revocation answers the next AI turn with 403 and no new version."
       },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the base each late AI result was refused against and the 403 of the next turn after a revocation.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
@@ -554,6 +575,7 @@
         "type": "receipt",
         "assertion": "Assert a dev build upgrades and rolls back across the store schema with no lost data and no new intent, opening a local file while signed out sends zero network requests, and the support matrix states the known unsigned-dev limit."
       },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the store migration and rollback evidence and the zero-network capture of the signed-out local open.",
       "fixtures": [
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
       ],
@@ -582,6 +604,7 @@
         "type": "render diff",
         "assertion": "Assert the automated contrast, forced-colors, zoom, DOM-order, keyboard and focus checks pass in both themes and both locales, the layout stays responsive at the committed widths, the performance budget is measured, the screen reader walkthrough is recorded on the real machine, and the fidelity regression over the six fixtures keeps unchanged regions intact."
       },
+      "evidenceRequired": "A recorded run on each of the six fixtures with result PASS, each with its artifact, plus the contrast, forced-colors, zoom, DOM-order, keyboard and focus results in both themes and both locales and the recorded screen-reader walkthrough.",
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
@@ -615,6 +638,7 @@
         "type": "manifest",
         "assertion": "Assert a clean-environment rebuild reproduces the same artifact hashes for the instruction pack version, the non-secret upstream configuration, the genoffice tool table and the runtime manifest (fork SHA, bundle pin), and the runbooks and support matrix match those artifacts."
       },
+      "evidenceRequired": "A recorded run on fx-md-notes-vi with result PASS and its artifact, plus the artifact hashes of the instruction pack, the upstream configuration, the tool table and the runtime manifest.",
       "fixtures": [
         { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" }
       ],

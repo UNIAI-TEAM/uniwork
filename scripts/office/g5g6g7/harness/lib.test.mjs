@@ -91,7 +91,7 @@ test("forkCacheDir is keyed by the revision so two SHAs never share a checkout",
 
 test("evidenceLine carries every field the runner contract checks, empty when unknown", () => {
   const line = evidenceLine({ requirementId: "G7-A05", result: "PASS", exitCode: 0, dSha: "abc", fSha: "0d03b18" });
-  for (const key of ["evidenceId", "requirementId", "dSha", "fSha", "pin", "platform", "build", "fixtureId", "fixtureSha256", "command", "exitCode", "result", "artifact", "checker", "blocker", "startedAt", "finishedAt"]) {
+  for (const key of ["evidenceId", "requirementId", "dSha", "fSha", "pin", "platform", "build", "fixtureId", "fixtureSha256", "command", "argv", "exitCode", "result", "artifact", "checker", "blocker", "startedAt", "finishedAt"]) {
     assert.ok(key in line, `missing ${key}`);
   }
   assert.equal(line.result, "PASS");
