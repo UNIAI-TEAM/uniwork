@@ -1,0 +1,65 @@
+{
+  "fixtureId": "fx-docx-report-vi",
+  "format": "docx",
+  "fixtureSha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+  "synthetic": true,
+  "title": "Báo cáo kinh doanh quý 1 năm 2026",
+  "headings": [
+    {
+      "level": 1,
+      "text": "1. Tóm tắt điều hành"
+    },
+    {
+      "level": 1,
+      "text": "2. Doanh thu theo khu vực"
+    },
+    {
+      "level": 2,
+      "text": "2.1. Ghi chú về dữ liệu"
+    },
+    {
+      "level": 1,
+      "text": "3. Việc cần làm tiếp"
+    }
+  ],
+  "tables": [
+    {
+      "header": [
+        "Khu vực",
+        "Doanh thu Q1 (đồng)",
+        "Tỷ trọng"
+      ],
+      "rows": [
+        [
+          "Bắc",
+          "9.060.000",
+          "41,1%"
+        ],
+        [
+          "Nam",
+          "7.200.000",
+          "32,6%"
+        ],
+        [
+          "Trung",
+          "5.800.000",
+          "26,3%"
+        ],
+        [
+          "Tổng cộng",
+          "22.060.000",
+          "100,0%"
+        ]
+      ]
+    }
+  ],
+  "listItems": [
+    "Rà soát các ô giảm giá nhập theo hai cách (10 và 10%).",
+    "Xử lý các ô lỗi trong bảng doanh thu quý 2.",
+    "Gửi báo cáo cho trưởng nhóm kinh doanh trước ngày 15."
+  ],
+  "comments": 0,
+  "paragraphCount": 10,
+  "pageCountEstimate": 1,
+  "pageCountNote": "Estimate for A4 with 1-inch margins; not render-verified."
+}
