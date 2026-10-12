@@ -9,10 +9,12 @@
 //   1. the D server answers /healthz and /readyz on this run's API port,
 //   2. GET /api/v1/config names this run's API origin as office_api_origin
 //      (the origin the web hands to the desktop app),
-//   3. the D web answers on this run's web port and the build it serves inlines
-//      that same API origin — the rule e2e/api-url.ts pins, applied without a
-//      browser: NEXT_PUBLIC_API_URL is baked in at build time, so a mismatch
-//      means the run is testing a stale build (a warm VM's old :8080 server),
+//   3. the D web answers on this run's web port and calls that same API origin —
+//      the rule e2e/api-url.ts pins: a headless Chromium opens /login and the
+//      first /api/v1/ request is read off the page (falling back to reading the
+//      origin inlined in the served build). NEXT_PUBLIC_API_URL is baked in at
+//      build time, so a mismatch means the run is testing a stale build — a warm
+//      VM's old :8080 server,
 //   4. the running Electron app resolved that origin: it persists
 //      UNIWORK_API_ORIGIN into userData/app-settings.json
 //      (fork apps/shell/src/main/office-bridge-host.ts:84, called at
