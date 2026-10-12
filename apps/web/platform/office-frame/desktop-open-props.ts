@@ -24,13 +24,19 @@ export function desktopOpenAllowed({ open, readonly }: { open: boolean; readonly
  * its own download bar. Nothing is proxied or buffered through UniWork.
  * Resolves with the file name the dialog shows.
  */
+function installerFileName(url: string): string {
+  const raw = new URL(url).pathname.split("/").pop() ?? "";
+  try { return decodeURIComponent(raw); } catch { return raw; }
+}
+
 async function downloadInstallerInBrowser(organizationId: string, channel: OfficeChannel, platform: DesktopPlatform): Promise<string> {
   const profile = await getOfficeDesktopDownload(organizationId, channel, platform);
   const installer = profile?.installers.find((row) => row.platform === platform);
   if (!installer) throw new Error("installer unavailable");
-  const file = decodeURIComponent(new URL(installer.url).pathname).split("/").pop() ?? "";
+  const file = installerFileName(installer.url);
   const link = window.document.createElement("a");
-  link.href = installer.url; link.rel = "noopener"; link.download = file;
+  // a release host that answers without Content-Disposition opens a new tab, never unloads the app
+  link.href = installer.url; link.rel = "noopener"; link.target = "_blank"; link.download = file;
   window.document.body.append(link); link.click(); link.remove();
   return file;
 }
