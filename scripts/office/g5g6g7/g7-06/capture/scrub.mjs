@@ -10,6 +10,8 @@ const VALUE = String.raw`(?:"[^"]*"|'[^']*'|[^\s"',;&]+)`;
 
 // header and key rules run in this order: a scheme or cookie list is consumed whole before the generic key rule sees it
 const RULES = [
+  // URL userinfo (scheme://user:pass@host): user and password both go, the host and path stay
+  [/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#]*@/gi, "$1<redacted>@"],
   // JWT-shaped strings anywhere (header.payload[.signature])
   [/eyJ[\w-]{4,}\.[\w-]{2,}(?:\.[\w-]*)?/g, "<redacted>"],
   // Authorization: Bearer <tok> / Basic <b64> / any scheme: the whole header value goes

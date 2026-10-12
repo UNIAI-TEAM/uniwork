@@ -555,6 +555,15 @@ describe("diagnostics paths", () => {
     assert.deepEqual(appPlaces({}), []);
   });
 
+  test("URL userinfo (user and password) is scrubbed for any scheme, the rest of the URL kept (N-10)", () => {
+    assert.ok(!clip("GET https://user:hunter2@host.example/x", 400).includes("hunter2"));
+    assert.ok(!clip("GET https://user:hunter2@host.example/x", 400).includes("user:"));
+    assert.equal(clip("GET https://user:hunter2@host.example/x", 400), "GET https://<redacted>@host.example/x");
+    assert.equal(clip("connect postgres://u:p4ssw0rd@db:5432/x failed", 400), "connect postgres://<redacted>@db:5432/x failed");
+    assert.equal(clip("redis://:onlypass@cache:6379 and ssh+git://deploy@git.example/r.git", 400), "redis://<redacted>@cache:6379 and ssh+git://<redacted>@git.example/r.git");
+    assert.equal(clip("see https://host.example/a@b and mail me@example.com", 400), "see https://host.example/a@b and mail me@example.com");
+  });
+
   test("the console watcher scrubs paths and secrets with the app dir it was given", () => {
     const handlers = {};
     const watch = watchConsole({ on: (event, fn) => { handlers[event] = fn; } }, ["/opt/uniwork/app"]);
