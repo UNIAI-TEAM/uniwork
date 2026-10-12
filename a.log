@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+d93c938e60accbbf8cb350690bcf67afc7f09c95
+76da95da837ade314cfd94811afc0664a6e06ec5
+d93c938e6 test(ai): pin the office pack goldens, caps, version and usage row (G6-14)
+ae45868f4 feat(ai): register the office_uniwork_ai@1 instruction pack (G6-14)
+4112e4ce0 chore(scripts): run the instruction-pack contract test in check.sh
+924db1941 test(office): pin the G6-14 pack to the mechanical tool table
+76da95da8 feat(ai): merge G6-13 AI capability gaps and provider hardening (UNI-1365)
+ad52a00fd docs(office): merge the G8 collaboration plan (UNI-1331, UNI-1328)

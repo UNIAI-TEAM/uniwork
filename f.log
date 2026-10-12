@@ -1,0 +1,9 @@
+$ cd server && go test -count=1 -v ./internal -run 'TestProviderSDKOnlyInAIProvider|TestAIPackageOnlyCallsAiQueries|TestActorConstructedOnlyInService'
+=== RUN   TestActorConstructedOnlyInService
+--- PASS: TestActorConstructedOnlyInService (0.03s)
+=== RUN   TestProviderSDKOnlyInAIProvider
+--- PASS: TestProviderSDKOnlyInAIProvider (0.32s)
+=== RUN   TestAIPackageOnlyCallsAiQueries
+--- PASS: TestAIPackageOnlyCallsAiQueries (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal	0.350s

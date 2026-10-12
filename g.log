@@ -1,0 +1,41 @@
+$ node --test scripts/office/instruction-pack-tools.test.mjs
+TAP version 13
+# Subtest: the mechanical table parses into the six pack modules with a plausible tool count
+ok 1 - the mechanical table parses into the six pack modules with a plausible tool count
+  ---
+  duration_ms: 2.812035
+  ...
+# Subtest: every tool name in a module section is in that module's column
+ok 2 - every tool name in a module section is in that module's column
+  ---
+  duration_ms: 1.060403
+  ...
+# Subtest: every tool name in the common section is in all six module columns
+ok 3 - every tool name in the common section is in all six module columns
+  ---
+  duration_ms: 1.216364
+  ...
+# Subtest: a section that names an unknown tool fails, naming token, section and file
+ok 4 - a section that names an unknown tool fails, naming token, section and file
+  ---
+  duration_ms: 0.420361
+  ...
+# Subtest: a section that names another module's tool fails
+ok 5 - a section that names another module's tool fails
+  ---
+  duration_ms: 0.786357
+  ...
+# Subtest: a common-section tool missing in one module fails
+ok 6 - a common-section tool missing in one module fails
+  ---
+  duration_ms: 0.438363
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 62.267085

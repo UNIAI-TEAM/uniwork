@@ -1,0 +1,2 @@
+$ cd server && test -z "$(gofmt -l ./internal/ai)" && echo gofmt-clean
+gofmt-clean
