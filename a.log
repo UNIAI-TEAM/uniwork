@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+a7248f911808851c0c4c3bec2caa7b4415730924
+41b8f75ff009c848d50561ca487ac55adb8f8f9a
+a7248f911 fix(office): fail the config load on a malformed OFFICE_CHANGE_SNAPSHOT_TTL
+32d394773 fix(office): re-read the change-feed gates inside the snapshot transaction
+23ef1670a fix(office): ship the change-feed revision as a decimal string
+3a2319c1a chore(office): merge root 41b8f75ff (X-02 r2a frame pin) into G5-01a
+41b8f75ff chore(office): re-pin the six office frames to web-0.1.0-cb76dde
+0bdd4105c feat(office): merge G7-01 harness and G7-02 holdout eval set (UNI-1376, UNI-1377)
+b2bacfbd1 Merge branch 'feature/UNI-1376-g7-01-harness' into feature/UNI-1377-g7-02-holdout
+7411c4986 fix(office): remove the run's Xauthority file in stop.sh
