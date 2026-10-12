@@ -1,0 +1,12 @@
+$ git checkout -b d1-f-office-shots-2 && git add apps/web/public/landing/office && git -c user.name=Zone17th -c user.email=zone17@habichthuy.com commit -m "feat(landing): Office page Slides and PDF screenshots re-captured with richer samples" -m "Refs: UNI-1307" && git push origin d1-f-office-shots-2; echo push_exit=$?
+Switched to a new branch 'd1-f-office-shots-2'
+→ GATE_LEVEL=fast: lint + typecheck left to CI (docs/engineering/GATE_LEVELS.md)
+[d1-f-office-shots-2 df9e31ae9] feat(landing): Office page Slides and PDF screenshots re-captured with richer samples
+ 4 files changed, 0 insertions(+), 0 deletions(-)
+remote: 
+remote: Create a pull request for 'd1-f-office-shots-2' on GitHub by visiting:        
+remote:      https://github.com/UNIAI-TEAM/uniwork/pull/new/d1-f-office-shots-2        
+remote: 
+To https://github.com/UNIAI-TEAM/uniwork
+ * [new branch]          d1-f-office-shots-2 -> d1-f-office-shots-2
+push_exit=0

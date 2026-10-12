@@ -1,0 +1,21 @@
+$ set -a && . ./.env && set +a && E2E_BASE_URL=http://localhost:3000 NEXT_PUBLIC_API_URL=http://localhost:8080 node scripts/office-landing/capture.mjs --only slides,pdf --require-ai 2>&1 | tee /tmp/capture.log; ls -la apps/web/public/landing/office/
+slides.vi.webp  102568 bytes  frame 1176x888  AI panel: yes
+pdf.vi.webp  106106 bytes  frame 1176x888  AI panel: yes
+slides.en.webp  87536 bytes  frame 1176x888  AI panel: yes
+pdf.en.webp  103852 bytes  frame 1176x888  AI panel: yes
+report: /tmp/office-landing-capture.json
+total 1156
+drwxr-xr-x 2 ubuntu ubuntu   4096 Oct 12 04:20 .
+drwxr-xr-x 7 ubuntu ubuntu   4096 Oct 12 04:19 ..
+-rw-r--r-- 1 ubuntu ubuntu 120450 Oct 12 04:20 docs.en.webp
+-rw-r--r-- 1 ubuntu ubuntu 128514 Oct 12 04:19 docs.vi.webp
+-rw-r--r-- 1 ubuntu ubuntu  75860 Oct 12 04:20 html.en.webp
+-rw-r--r-- 1 ubuntu ubuntu  80774 Oct 12 04:20 html.vi.webp
+-rw-r--r-- 1 ubuntu ubuntu  90768 Oct 12 04:20 markdown.en.webp
+-rw-r--r-- 1 ubuntu ubuntu  88614 Oct 12 04:20 markdown.vi.webp
+-rw-r--r-- 1 ubuntu ubuntu 103852 Oct 12 05:24 pdf.en.webp
+-rw-r--r-- 1 ubuntu ubuntu 106106 Oct 12 05:24 pdf.vi.webp
+-rw-r--r-- 1 ubuntu ubuntu  79412 Oct 12 04:20 sheets.en.webp
+-rw-r--r-- 1 ubuntu ubuntu  82726 Oct 12 04:20 sheets.vi.webp
+-rw-r--r-- 1 ubuntu ubuntu  87536 Oct 12 05:24 slides.en.webp
+-rw-r--r-- 1 ubuntu ubuntu 102568 Oct 12 05:24 slides.vi.webp
