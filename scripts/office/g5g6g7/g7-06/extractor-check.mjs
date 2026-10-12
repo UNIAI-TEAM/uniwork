@@ -194,7 +194,10 @@ export function runExtractorCheck({ forkDir = null, forkSha = null, extractor = 
   const committed = committedLines ? parseExtractBlock(committedLines) : null;
   const atPin = ran ? parseExtractBlock(run.stdout ?? "") : null;
   if (!committed) fail.push(`committed_block_missing (${BEGIN}/${END} not found in ${toolsDoc})`);
-  if (atPin && !atPin.rev && atPin.rows.length === 0) fail.push("extractor_failed (no extract block on stdout)");
+  // A clean exit whose stdout carries no parseable extract block compared
+  // nothing, so it can never be a PASS (F-01): both the `rev=` header of the
+  // block and at least one tool row must be there.
+  if (atPin && (!atPin.rev || atPin.rows.length === 0)) fail.push("extractor_failed (no extract block on stdout)");
 
   const rev = { committed: committed?.rev ?? null, atPin: atPin?.rev ?? null, differs: Boolean(committed && atPin && committed.rev !== atPin.rev) };
   const changed = committed && atPin && atPin.rows.length > 0 ? diffRows(committed, atPin) : [];

@@ -67,6 +67,24 @@ test("extractor: a different rev= alone is not a row difference", () => {
   assert.match(diff, /rev_differs/);
 });
 
+test("extractor: a clean exit with no extract block on stdout is extractor_failed, never PASS", () => {
+  // A rev line (or just the header rows) and zero parsed rows compared nothing;
+  // PASSing it is the false pass F-01 reports.
+  const revOnly = extractorRun(stubFork([COMMITTED[0]]), { name: "extractor-revonly" });
+  assert.equal(revOnly.check.status, "FAIL");
+  assert.deepEqual(revOnly.check.reasons, ["extractor_failed (no extract block on stdout)"]);
+  assert.equal(revOnly.artifact.counts.atPin, 0);
+
+  const headerOnly = extractorRun(stubFork(COMMITTED.slice(0, 3)), { name: "extractor-header" });
+  assert.equal(headerOnly.check.status, "FAIL");
+  assert.deepEqual(headerOnly.check.reasons, ["extractor_failed (no extract block on stdout)"]);
+
+  const rowsNoRev = extractorRun(stubFork(COMMITTED.slice(1)), { name: "extractor-norev" });
+  assert.equal(rowsNoRev.check.status, "FAIL");
+  assert.deepEqual(rowsNoRev.check.reasons, ["extractor_failed (no extract block on stdout)"]);
+  assert.equal(rowsNoRev.artifact.counts.atPin, rowsNoRev.artifact.counts.committed, "the rows are there, the rev header is not");
+});
+
 test("extractor: a failing extractor is extractor_failed with its stderr tail", () => {
   const fork = fx.mkFakeFork(tmpDir("g7-06-fork-"), { extractor: fx.failingExtractor("stub: cannot read rev") });
   const { check, artifact } = extractorRun(fork, { name: "extractor-fail" });
