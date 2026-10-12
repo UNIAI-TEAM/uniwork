@@ -1,0 +1,10 @@
+$ cd apps/sheets && npx vitest run tests/g6-12-add-image-guard.test.ts tests/g6-12-fetch-image-guard.test.ts tests/g6-12-create-document-bound.test.ts tests/g6-12-merge-mutated.test.ts tests/g6-12-ask-clarification.test.ts tests/merge-skill.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+
+ Test Files  6 passed (6)
+      Tests  42 passed (42)
+   Start at  14:42:32
+   Duration  5.68s (transform 6.89s, setup 0ms, import 9.71s, tests 115ms, environment 413ms)
+

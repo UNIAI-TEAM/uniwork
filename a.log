@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4
+a769f3c3c5a412cd16789983691e95ab8f0e4a25
+e6862e5302805bd6a25893e6ff2c082a2dca3a34
+a769f3c3 fix(sheets): satisfy the sheets typecheck for the ask_clarification card and tests
+6875f13b feat(sheets): ask_clarification question card in the sheets AI panel
+b0b112f8 test(sheets): ask_clarification card tool for the sheets AI (C-ASK)
+c833b92a fix(sheets): merge_attached_workbooks declares mutated and gets an [Undo]
