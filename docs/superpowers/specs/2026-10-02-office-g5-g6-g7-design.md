@@ -562,6 +562,10 @@ dữ liệu khách hàng lên dịch vụ chưa duyệt.
 - Các bản sao ở upstream (log/retention của vendor) và ở UniWork (transcript hội thoại phía server, cache) phải có
   inventory và chính sách xóa. G6-D2 chốt vendor/self-host, region, retention và tắt log nội dung của upstream trước khi
   dùng dữ liệu thật; không chứng minh được thì chưa mở UniWork AI cho tenant production.
+- Bản sao cục bộ "Tải bản của tôi về máy" trong hộp thoại xung đột web (`api.download`, X-02 + G5-09w): tệp do trình
+  duyệt và người dùng giữ trên máy, ngoài mọi chính sách xóa của UniWork. Không có hàng `document_access`, không có route
+  server và host không gọi server ghi sự kiện `export` trước khi giao Blob; chỉ người còn `can_edit` trên frame token hiện
+  tại mới tải được. Chấp nhận như vậy, đã ký (OQ-UX14, U-15, 2026-10-12; EXPERIENCE.md › Conflict dialog (S5)).
 - Upstream outage chỉ làm UniWork AI unavailable; editor, Lưu, BYOK và G5 vẫn hoạt động.
   Không fallback âm thầm sang nhà cung cấp khác.
 - Instruction pack đã phát hành bất biến theo version (§7.2). Lưu dấu vết kỹ thuật đủ truy ngược kết quả tới
