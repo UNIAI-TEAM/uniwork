@@ -46,11 +46,27 @@ export const SAVE_WATCHDOG_MS = 30_000;
 /** How a Save the page asked for ended: a new version, the newest version reloaded, the user's Cancel, or a failure. */
 export type DocsFrameSaveOutcome = "saved" | "reloaded" | "cancelled" | "failed";
 
+/**
+ * One frame endpoint's life. `failed`: the frame hit a fatal error or failed its handshake, and
+ * nothing of it is usable any more. `disposed`: retry or unmount retired it; its late callbacks
+ * must not touch the session that replaced it.
+ */
+interface FrameLife {
+  state: "live" | "failed" | "disposed";
+}
+
 /** The Save the page has in flight, as the watchdog sees it. */
 interface HostSaveWatch {
+  /** The endpoint this Save went to. */
+  life: FrameLife;
   abort: AbortController;
-  /** Set when the host itself gave up: the frame stayed silent, or its document went away. */
-  cause: "watchdog" | "unload" | null;
+  /**
+   * Set when the host itself gave up: the frame stayed silent, its document went away, or the
+   * frame failed for good (`fatal`, already reported on its own).
+   */
+  cause: "watchdog" | "unload" | "fatal" | null;
+  /** The Save resolved: nothing may arm its watchdog again. */
+  settled: boolean;
   /** `api.save` requests of the frame in flight. */
   busy: number;
   modal: boolean;
@@ -62,7 +78,7 @@ interface HostSaveWatch {
 function armWatchdog(watch: HostSaveWatch) {
   if (watch.timer !== null) clearTimeout(watch.timer);
   watch.timer = null;
-  if (watch.busy > 0 || watch.modal || watch.cause) return;
+  if (watch.busy > 0 || watch.modal || watch.cause || watch.settled || watch.life.state !== "live") return;
   watch.timer = setTimeout(() => { watch.cause = "watchdog"; watch.abort.abort(); }, SAVE_WATCHDOG_MS);
 }
 
@@ -223,6 +239,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   // The Save the page has in flight, and whether the frame shows a dialog right now.
   const hostSave = useRef<HostSaveWatch | null>(null);
   const modalOpen = useRef(false);
+  // The life of the endpoint the current effect created.
+  const frameLife = useRef<FrameLife>({ state: "disposed" });
   // A clean frame after a save reads "saved"; one never saved reads "ready".
   const savedOnce = useRef(false);
 
@@ -236,19 +254,33 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     modalOpen.current = false;
     sentToken.current = null;
     savedOnce.current = false;
+    const life: FrameLife = { state: "live" };
+    frameLife.current = life;
+    const iframe = iframeRef.current;
+    // The frame failed for good (fatal error, failed handshake, a bundle that never started): show
+    // the failure, and end a Save in flight with it, since nothing is left to answer it.
+    const failSession = (failure: ProtocolErrorShape) => {
+      setFatal(failure);
+      setStatus("failed");
+      if (life.state !== "live") return;
+      life.state = "failed";
+      modalOpen.current = false;
+      setModal(false);
+      const watch = hostSave.current;
+      if (watch?.life === life && !watch.cause) { watch.cause = "fatal"; watch.abort.abort(); }
+    };
     // The frame document may never answer (404/5xx on index.html loads a dead page, and an iframe
     // fires no error event for that): until the handshake completes, a probe and a timer decide.
     let booted = false;
     const failBoot = (frameBundle: DocsFrameBundleFailure) => {
       if (booted) return;
       booted = true;
-      setFatal({
+      failSession({
         code: frameBundle === "timeout" ? "timeout" : "internal",
         message: frameBundle === "timeout" ? "frame did not start in time" : "frame bundle could not be loaded",
         retryable: true,
         details: { frameBundle },
       });
-      setStatus("failed");
     };
 
     const currentToken = async (): Promise<TokenPayload> => {
@@ -274,11 +306,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
     const save = proxy("api.save", true, (api) => api.save);
     // A save the frame starts (its button, Ctrl+S, the leave dialog) passes through here.
+    // Once retry or unmount retired this endpoint, a late answer belongs to nobody: the session
+    // that replaced it keeps its own state.
     const tracked = <T,>(run: () => Promise<T>, settled: (result: T) => DocsFrameSaveState) => {
       setSaveState("saving");
       return run().then(
-        (result) => { setSaveState(settled(result)); return result; },
+        (result) => { if (life.state !== "disposed") setSaveState(settled(result)); return result; },
         (error: unknown) => {
+          if (life.state === "disposed") throw error;
           // While the page's own Save is open its answer decides the header: a 409 here is the
           // frame's conflict dialog opening, not the end of that Save.
           if (hostSave.current) setSaveState("saving");
@@ -293,11 +328,40 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // Its edits are gone too (Markdown and HTML reload themselves after Reload latest): the next
     // document reports its own dirty state.
     const frameGone = () => {
+      if (life.state !== "live") return;
       modalOpen.current = false;
       setModal(false);
       setDirty(false);
       const watch = hostSave.current;
-      if (watch && !watch.cause) { watch.cause = "unload"; watch.abort.abort(); }
+      if (watch?.life === life && !watch.cause) { watch.cause = "unload"; watch.abort.abort(); }
+    };
+    // The same-origin frame document that completed the handshake. Its window's pagehide is the
+    // moment it goes away (navigation, reload, the iframe leaving the page), whether or not a
+    // replacement ever loads. A frame that cannot be inspected falls back to loads and handshakes.
+    let frameDoc: Document | null = null;
+    let frameDocGone = false;
+    let unbindFrameDoc: (() => void) | null = null;
+    const docGone = () => {
+      if (frameDocGone) return;
+      frameDocGone = true;
+      frameGone();
+    };
+    const bindFrameDocument = () => {
+      unbindFrameDoc?.();
+      unbindFrameDoc = null;
+      frameDoc = null;
+      frameDocGone = false;
+      let win: Window | null = null;
+      try {
+        win = iframe?.contentWindow ?? null;
+        frameDoc = win?.document ?? null;
+      } catch { frameDoc = null; return; /* not same-origin: loads and handshakes decide */ }
+      if (!win || !frameDoc) return;
+      const target = win;
+      const doc = frameDoc;
+      const onHide = () => { if (frameDoc === doc) docGone(); };
+      target.addEventListener("pagehide", onHide);
+      unbindFrameDoc = () => target.removeEventListener("pagehide", onHide);
     };
     const endpoint = createDocsFrameHost({
       self: window,
@@ -345,7 +409,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.open": proxy("api.open", false, (api) => api.open),
         "api.save": async (payload, context) => {
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
-          const watch = hostSave.current;
+          const watch = hostSave.current?.life === life ? hostSave.current : null;
           if (watch) { watch.busy += 1; armWatchdog(watch); }
           try {
             return await tracked(() => save(payload, context), (result) => {
@@ -355,7 +419,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
               return "saved";
             });
           } finally {
-            if (watch) { watch.busy -= 1; armWatchdog(watch); }
+            // Only the Save still open may wait again; one that already ended stays ended.
+            if (watch) { watch.busy -= 1; if (hostSave.current === watch) armWatchdog(watch); }
           }
         },
         "api.saveAs": async (payload, context) => {
@@ -395,12 +460,18 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           return { outcome: refused || !current.onAppOpen ? "unavailable" : await current.onAppOpen() };
         },
       },
-      // A new frame instance after the first: the old document and anything it had open are gone.
-      onInitialized: () => { if (booted) frameGone(); booted = true; setSlow(false); setStatus((now) => (now === "failed" ? now : "ready")); },
+      // A new frame instance after the first: the old document and anything it had open are gone
+      // (unless its pagehide said so already).
+      onInitialized: () => {
+        if (booted && !frameDocGone) frameGone();
+        booted = true;
+        bindFrameDocument();
+        setSlow(false);
+        setStatus((now) => (now === "failed" ? now : "ready"));
+      },
       onHandshakeError: (error) => {
         if (error.code === "cancelled") return;
-        setFatal(error.toShape());
-        setStatus("failed");
+        failSession(error.toShape());
       },
     });
 
@@ -412,6 +483,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       else setSaveState((now) => (now === "dirty" ? (savedOnce.current ? "saved" : "ready") : now));
     });
     endpoint.on("modal", ({ open }) => {
+      // A frame that failed has no dialog left to report.
+      if (life.state !== "live") return;
       modalOpen.current = open;
       setModal(open);
       // A dialog the user reads stops the watchdog; one that closes without an answer restarts it.
@@ -428,7 +501,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       onSaved?.(saved);
     });
     endpoint.on("error", ({ error, fatal: isFatal }) => {
-      if (isFatal) { setFatal(error); setStatus("failed"); }
+      if (isFatal) failSession(error);
       // A save conflict is answered inside the frame (its own Cancel / Reload / Overwrite dialog) and
       // reaches the host only as this event: a toast here would say it twice.
       if (error.code === "conflict" && !isFatal) return;
@@ -450,12 +523,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // loads fine and then never starts: its script error does not reach the page, and the load event
     // still fires. Once the frame document has loaded, probe its scripts (served from the HTTP cache
     // when they did load) and fall back at once instead of waiting out the boot timer.
-    const iframe = iframeRef.current;
-    // The first load is the frame document itself; any later one replaced it.
+    // The first load is the frame document itself; any later one replaced it. A load of a document
+    // other than the one that shook hands replaced it too, even when its first load was never seen.
     let loads = 0;
     const onFrameLoad = () => {
       loads += 1;
-      if (loads > 1) frameGone();
+      let current: Document | null = null;
+      try { current = iframe?.contentDocument ?? null; } catch { /* not same-origin: the count decides */ }
+      if (loads > 1 || (frameDoc !== null && current !== frameDoc)) docGone();
       if (booted) return;
       let sources: string[] = [];
       try {
@@ -470,7 +545,21 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
     iframe?.addEventListener("load", onFrameLoad);
     setHost(endpoint);
-    return () => { clearTimeout(bootTimer); clearTimeout(slowTimer); iframe?.removeEventListener("load", onFrameLoad); probe.abort(); booted = true; endpoint.dispose(); setHost(null); };
+    return () => {
+      clearTimeout(bootTimer);
+      clearTimeout(slowTimer);
+      iframe?.removeEventListener("load", onFrameLoad);
+      unbindFrameDoc?.();
+      probe.abort();
+      booted = true;
+      // Retired at once: a Save still open here is cancelled by the dispose below, and nothing of
+      // this endpoint may arm a timer or write state after this line.
+      life.state = "disposed";
+      const watch = hostSave.current;
+      if (watch?.life === life && watch.timer !== null) { clearTimeout(watch.timer); watch.timer = null; }
+      endpoint.dispose();
+      setHost(null);
+    };
   }, [attempt, documentId, frameOrigin, iframeRef, module, queryClient, wsId]);
 
   // Proactive rotation: a re-minted token reaches the frame before the old one expires.
@@ -487,9 +576,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   useEffect(() => { host?.setLanguage(locale); }, [host, locale]);
 
   const save = useCallback(async (reason: "user" | "navigate"): Promise<DocsFrameSaveOutcome> => {
-    // One Save at a time: a second one (the page is inert while the frame's dialog is open) waits its turn.
-    if (!host || hostSave.current) return "failed";
-    const watch: HostSaveWatch = { abort: new AbortController(), cause: null, busy: 0, modal: modalOpen.current, stored: false, timer: null };
+    // One Save at a time: a second one (the page is inert while the frame's dialog is open) is refused, unsent.
+    const life = frameLife.current;
+    if (!host || hostSave.current || life.state !== "live") return "failed";
+    const watch: HostSaveWatch = { life, abort: new AbortController(), cause: null, settled: false, busy: 0, modal: modalOpen.current, stored: false, timer: null };
     hostSave.current = watch;
     armWatchdog(watch);
     setSaveState("saving");
@@ -512,6 +602,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (result.error.code === "cancelled") { setSaveState("dirty"); return "cancelled"; }
       return fail(result.error);
     } catch (error) {
+      // The frame failed for good: its failure is already on screen (and reported once), and this Save ends with it.
+      if (watch.cause === "fatal") { setSaveState("error"); return "failed"; }
       if (watch.cause === "watchdog") {
         return fail({ code: "timeout", message: "the editor did not answer the save in time", retryable: true });
       }
@@ -519,11 +611,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         return fail({ code: "internal", message: "the editor closed before it answered the save", retryable: true, details: { reason: "frame_unloaded" } });
       }
       const shape = shapeOf(error);
-      // The session itself went away (retry, unmount): nobody is left to tell.
-      if (shape.code === "cancelled") { setSaveState("dirty"); return "cancelled"; }
+      // The session itself went away (retry, unmount): nobody is left to tell, and the session
+      // that replaced it keeps its own header.
+      if (shape.code === "cancelled") { if (watch.life.state !== "disposed") setSaveState("dirty"); return "cancelled"; }
       return fail(shape);
     } finally {
+      watch.settled = true;
       if (watch.timer !== null) clearTimeout(watch.timer);
+      watch.timer = null;
       if (hostSave.current === watch) hostSave.current = null;
     }
   }, [host]);

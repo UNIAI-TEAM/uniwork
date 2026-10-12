@@ -180,10 +180,16 @@ export function OfficeModuleFrame({
   // instance (mounted while closed) keeps that failure line from showing on the next leave.
   const [leaveRound, setLeaveRound] = useState(0);
   const leaveResolve = useRef<((allowed: boolean) => void) | null>(null);
+  // A leave's Save that the frame's dialog took over: the leave dialog stays closed until that Save
+  // answers, even once the frame's dialog has closed, and comes back only if it failed.
+  const leaveSaving = useRef(false);
+  const [leaveHeld, setLeaveHeld] = useState(false);
+  useEffect(() => { if (session.modal && leaveSaving.current) setLeaveHeld(true); }, [session.modal]);
   const finishLeave = (allowed: boolean) => {
     const resolve = leaveResolve.current;
     leaveResolve.current = null;
     setLeaveOpen(false);
+    setLeaveHeld(false);
     resolve?.(allowed);
   };
   useEffect(() => {
@@ -333,12 +339,16 @@ export function OfficeModuleFrame({
       */}
       <LeaveDialog
         key={`leave-${leaveRound}`}
-        open={leaveOpen && !session.modal}
+        open={leaveOpen && !session.modal && !leaveHeld}
         dirty
         onOpenChange={(open) => { if (!open) finishLeave(false); }}
         onSave={async () => {
-          const outcome = await saveSession("navigate");
+          leaveSaving.current = true;
+          const outcome = await saveSession("navigate").finally(() => { leaveSaving.current = false; });
           if (outcome === "cancelled") { finishLeave(false); setLeaveRound((n) => n + 1); }
+          // Failed: the leave dialog comes back with its failure line. Saved or reloaded: the
+          // leave goes ahead and finishLeave closes it, so it never reopens in between.
+          if (outcome === "failed") setLeaveHeld(false);
           return outcome === "saved" || outcome === "reloaded";
         }}
         onDiscard={async () => true}
