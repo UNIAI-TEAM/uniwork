@@ -1,0 +1,10 @@
+$ cd apps/sheets && npx vitest run tests/g6-12-clarify-panel-open.test.ts tests/g6-12-merge-undo-wiring.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  16:08:46
+   Duration  5.56s (transform 3.87s, setup 0ms, import 5.51s, tests 11ms, environment 0ms)
+

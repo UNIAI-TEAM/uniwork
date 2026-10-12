@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+37822ed78171e45ae4a795953e5de8dbd70f237c
+673fc5639438fff6c246d4d4c7b85b131b4e468e
+37822ed7 fix(sheets): keep the AI panel open while a clarification waits
+c028e48c test(sheets): pin that a waiting clarification keeps the AI panel open
+c8b3e07c fix(sheets): wire the merge Undo through a tested wrapper and pin the undo-depth unit

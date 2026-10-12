@@ -1,0 +1,10 @@
+$ cd apps/pdf && npx vitest run tests/g6-12-clarify-receipts.test.ts tests/g6-12-pdf-ask.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/pdf
+
+
+ Test Files  2 passed (2)
+      Tests  40 passed (40)
+   Start at  16:08:39
+   Duration  1.92s (transform 1.89s, setup 215ms, import 2.33s, tests 220ms, environment 763ms)
+

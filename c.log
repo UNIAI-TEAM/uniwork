@@ -1,0 +1,10 @@
+$ cd apps/html && npx vitest run tests/g6-12-clarify-receipts.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  16:08:42
+   Duration  1.71s (transform 859ms, setup 0ms, import 1.11s, tests 122ms, environment 379ms)
+
