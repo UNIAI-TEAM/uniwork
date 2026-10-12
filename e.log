@@ -1,0 +1,1 @@
+$ (cd packages/views && pnpm exec eslint --max-warnings 0 office/frame/frame-download.ts office/frame/office-docs-frame.test.tsx office/frame/office-module-frame.test.tsx office/frame/office-module-frame.tsx office/frame/use-docs-frame-session.test.tsx office/frame/use-docs-frame-session.ts )

@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -3
+e386e9b139050628118fafb0aba2c60107bc7400
+50fc0f17403ef5441e778fad20cb8f6676eadc39
+e386e9b13 docs(office): list the web conflict download in the section 8.3 copy inventory
+882666fcd fix(office): end a page Save when its frame stops being usable
+7429a4f08 test(office): pin how a page Save ends when its frame stops being usable

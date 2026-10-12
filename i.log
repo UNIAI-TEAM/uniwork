@@ -1,0 +1,576 @@
+$ git checkout bdd83fee8 -- packages/views/office/frame/use-docs-frame-session.ts packages/views/office/frame/office-module-frame.tsx; (cd packages/views && pnpm vitest run office/frame/use-docs-frame-session.test.tsx office/frame/office-docs-frame.test.tsx); RED=$?; git checkout HEAD -- packages/views; git status --short packages; echo "RED_EXIT_FIX1=$RED"; test $RED -ne 0 && echo RED_AS_EXPECTED_FIX1
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:212:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:219:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:212:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:219:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:212:33)
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:219:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+    at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+ ❯ office/frame/office-docs-frame.test.tsx (41 tests | 4 failed) 2853ms
+         × keeps the leave dialog closed, then leaves on saved 59ms
+         × keeps the leave dialog closed, then stays on cancelled without reopening it 56ms
+         × reopens the leave dialog with its failure line only on a failed answer 54ms
+       × lifts the inert page and gives up a leave save when the frame document goes away with nothing loaded after it 1042ms
+stderr | office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > does not re-arm the watchdog when the frame's api.save ends after the Save was answered
+The current testing environment is not configured to support act(...)
+
+ ❯ office/frame/use-docs-frame-session.test.tsx (30 tests | 7 failed) 121742ms
+     × gives up the Save when the frame document goes away, with no replacement load 30009ms
+     × reads a single replacement load as the old document gone when the first load was never seen 30005ms
+     × settles the Save on a fatal frame error: failed with that error, one onError, no timer left 30004ms
+     × settles the Save when a new frame instance fails its handshake 30003ms
+     × does not re-arm the watchdog when the frame's api.save ends after the Save was answered 66ms
+     × does not re-arm the watchdog or touch the next session when api.save ends after a retry 65ms
+     × does not re-arm the watchdog when api.save ends after unmount 64ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > when the frame's dialog closes before its answer > keeps the leave dialog closed, then leaves on saved
+AssertionError: expected <div data-open …(10)>…(3)</div> to be null
+
+- Expected:
+null
+
++ Received:
+<div
+  aria-describedby="office-leave-description"
+  aria-labelledby="base-ui-_r_1g_"
+  class="fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-surface-raised p-4 text-body text-popover-foreground shadow-[var(--floating-shadow)] ring-1 ring-surface-border outline-none origin-center transition-[opacity,scale] duration-(--duration-standard) ease-out-quart data-starting-style:scale-[0.98] data-starting-style:opacity-0 data-ending-style:scale-[0.98] data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 motion-reduce:transition-opacity sm:max-w-md"
+  data-base-ui-focusable=""
+  data-open=""
+  data-slot="dialog-content"
+  data-starting-style=""
+  id="_r_1b_"
+  role="dialog"
+  style="--nested-dialogs: 0;"
+  tabindex="-1"
+>
+  <div
+    class="flex flex-col gap-2"
+    data-slot="dialog-header"
+  >
+    <h2
+      class="font-heading text-title-sm leading-none font-medium"
+      data-slot="dialog-title"
+      id="base-ui-_r_1g_"
+    >
+      Rời tài liệu?
+    </h2>
+    <p
+      class="text-body text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground"
+      data-slot="dialog-description"
+      id="office-leave-description"
+    >
+      Bạn có thay đổi chưa lưu. Chọn cách xử lý trước khi rời tài liệu.
+    </p>
+  </div>
+  <div
+    class="flex gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:justify-end flex-col items-stretch sm:flex-col"
+    data-slot="dialog-footer"
+  >
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground [a]:hover:bg-primary/80 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"
+      data-slot="button"
+      tabindex="0"
+      type="button"
+    >
+      Lưu lên UniWork
+    </button>
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft hover:border-destructive/40 dark:bg-destructive-soft dark:hover:bg-destructive-soft"
+      data-slot="button"
+      tabindex="0"
+      type="button"
+    >
+      Bỏ thay đổi
+    </button>
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"
+      data-slot="button"
+      tabindex="0"
+      type="button"
+    >
+      Ở lại
+    </button>
+  </div>
+  <button
+    class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 size-7 rounded-md in-data-[slot=button-group]:rounded-md absolute top-2 right-2"
+    data-slot="dialog-close"
+    tabindex="0"
+    type="button"
+  >
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-x"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6 6 18"
+      />
+      <path
+        d="m6 6 12 12"
+      />
+    </svg>
+    <span
+      class="sr-only"
+    >
+      Đóng
+    </span>
+  </button>
+</div>
+
+ ❯ closedBeforeAnswer office/frame/office-docs-frame.test.tsx:475:46
+    473|         await held.frame.event("modal", { open: false });
+    474|         // The answer is still on its way: the leave controls must not…
+    475|         expect(screen.queryByRole("dialog")).toBeNull();
+       |                                              ^
+    476|         expect(screen.queryByRole("button", { name: "Lưu lên UniWork" …
+    477|         return held;
+ ❯ office/frame/office-docs-frame.test.tsx:481:42
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > when the frame's dialog closes before its answer > keeps the leave dialog closed, then stays on cancelled without reopening it
+AssertionError: expected <div data-open …(10)>…(3)</div> to be null
+
+- Expected:
+null
+
++ Received:
+<div
+  aria-describedby="office-leave-description"
+  aria-labelledby="base-ui-_r_1n_"
+  class="fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-surface-raised p-4 text-body text-popover-foreground shadow-[var(--floating-shadow)] ring-1 ring-surface-border outline-none origin-center transition-[opacity,scale] duration-(--duration-standard) ease-out-quart data-starting-style:scale-[0.98] data-starting-style:opacity-0 data-ending-style:scale-[0.98] data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 motion-reduce:transition-opacity sm:max-w-md"
+  data-base-ui-focusable=""
+  data-open=""
+  data-slot="dialog-content"
+  data-starting-style=""
+  id="_r_1i_"
+  role="dialog"
+  style="--nested-dialogs: 0;"
+  tabindex="-1"
+>
+  <div
+    class="flex flex-col gap-2"
+    data-slot="dialog-header"
+  >
+    <h2
+      class="font-heading text-title-sm leading-none font-medium"
+      data-slot="dialog-title"
+      id="base-ui-_r_1n_"
+    >
+      Rời tài liệu?
+    </h2>
+    <p
+      class="text-body text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground"
+      data-slot="dialog-description"
+      id="office-leave-description"
+    >
+      Bạn có thay đổi chưa lưu. Chọn cách xử lý trước khi rời tài liệu.
+    </p>
+  </div>
+  <div
+    class="flex gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:justify-end flex-col items-stretch sm:flex-col"
+    data-slot="dialog-footer"
+  >
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground [a]:hover:bg-primary/80 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"
+      data-slot="button"
+      tabindex="0"
+      type="button"
+    >
+      Lưu lên UniWork
+    </button>
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft hover:border-destructive/40 dark:bg-destructive-soft dark:hover:bg-destructive-soft"
+      data-slot="button"
+      tabindex="0"
+      type="button"
+    >
+      Bỏ thay đổi
+    </button>
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"
+      data-slot="button"
+      tabindex="0"
+      type="button"
+    >
+      Ở lại
+    </button>
+  </div>
+  <button
+    class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 size-7 rounded-md in-data-[slot=button-group]:rounded-md absolute top-2 right-2"
+    data-slot="dialog-close"
+    tabindex="0"
+    type="button"
+  >
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-x"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6 6 18"
+      />
+      <path
+        d="m6 6 12 12"
+      />
+    </svg>
+    <span
+      class="sr-only"
+    >
+      Đóng
+    </span>
+  </button>
+</div>
+
+ ❯ closedBeforeAnswer office/frame/office-docs-frame.test.tsx:475:46
+    473|         await held.frame.event("modal", { open: false });
+    474|         // The answer is still on its way: the leave controls must not…
+    475|         expect(screen.queryByRole("dialog")).toBeNull();
+       |                                              ^
+    476|         expect(screen.queryByRole("button", { name: "Lưu lên UniWork" …
+    477|         return held;
+ ❯ office/frame/office-docs-frame.test.tsx:488:42
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > when the frame's dialog closes before its answer > reopens the leave dialog with its failure line only on a failed answer
+AssertionError: expected <div data-open …(10)>…(3)</div> to be null
+
+- Expected:
+null
+
++ Received:
+<div
+  aria-describedby="office-leave-description"
+  aria-labelledby="base-ui-_r_1u_"
+  class="fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-surface-raised p-4 text-body text-popover-foreground shadow-[var(--floating-shadow)] ring-1 ring-surface-border outline-none origin-center transition-[opacity,scale] duration-(--duration-standard) ease-out-quart data-starting-style:scale-[0.98] data-starting-style:opacity-0 data-ending-style:scale-[0.98] data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 motion-reduce:transition-opacity sm:max-w-md"
+  data-base-ui-focusable=""
+  data-open=""
+  data-slot="dialog-content"
+  data-starting-style=""
+  id="_r_1p_"
+  role="dialog"
+  style="--nested-dialogs: 0;"
+  tabindex="-1"
+>
+  <div
+    class="flex flex-col gap-2"
+    data-slot="dialog-header"
+  >
+    <h2
+      class="font-heading text-title-sm leading-none font-medium"
+      data-slot="dialog-title"
+      id="base-ui-_r_1u_"
+    >
+      Rời tài liệu?
+    </h2>
+    <p
+      class="text-body text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground"
+      data-slot="dialog-description"
+      id="office-leave-description"
+    >
+      Bạn có thay đổi chưa lưu. Chọn cách xử lý trước khi rời tài liệu.
+    </p>
+  </div>
+  <div
+    class="flex gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:justify-end flex-col items-stretch sm:flex-col"
+    data-slot="dialog-footer"
+  >
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground [a]:hover:bg-primary/80 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"
+      data-slot="button"
+      tabindex="0"
+      type="button"
+    >
+      Lưu lên UniWork
+    </button>
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft hover:border-destructive/40 dark:bg-destructive-soft dark:hover:bg-destructive-soft"
+      data-slot="button"
+      tabindex="0"
+      type="button"
+    >
+      Bỏ thay đổi
+    </button>
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"
+      data-slot="button"
+      tabindex="0"
+      type="button"
+    >
+      Ở lại
+    </button>
+  </div>
+  <button
+    class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 size-7 rounded-md in-data-[slot=button-group]:rounded-md absolute top-2 right-2"
+    data-slot="dialog-close"
+    tabindex="0"
+    type="button"
+  >
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-x"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6 6 18"
+      />
+      <path
+        d="m6 6 12 12"
+      />
+    </svg>
+    <span
+      class="sr-only"
+    >
+      Đóng
+    </span>
+  </button>
+</div>
+
+ ❯ closedBeforeAnswer office/frame/office-docs-frame.test.tsx:475:46
+    473|         await held.frame.event("modal", { open: false });
+    474|         // The answer is still on its way: the leave controls must not…
+    475|         expect(screen.queryByRole("dialog")).toBeNull();
+       |                                              ^
+    476|         expect(screen.queryByRole("button", { name: "Lưu lên UniWork" …
+    477|         return held;
+ ❯ office/frame/office-docs-frame.test.tsx:496:42
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > lifts the inert page and gives up a leave save when the frame document goes away with nothing loaded after it
+Error: expect(element).not.toHaveAttribute("inert") // element.hasAttribute("inert")
+
+Expected the element not to have attribute:
+  inert
+Received:
+  inert=""
+
+Ignored nodes: comments, script, style
+[36m<html[39m
+  [33mclass[39m=[32m"dark"[39m
+  [33mlang[39m=[32m"vi"[39m
+  [33mstyle[39m=[32m"color-scheme: dark;"[39m
+[36m>[39m
+  [36m<head />[39m
+  [36m<body[39m
+    [33mstyle[39m=[32m""[39m
+  [36m>[39m
+    [36m<div>[39m
+      [36m<button[39m
+        [33mdata-office-frame-modal-dimmed[39m=[32m""[39m
+        [33minert[39m=[32m""[39m
+        [33mstyle[39m=[32m"transition: filter 150ms ease-out; filter: brightness(0.6) saturate(0.8);"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0mflip[0m
+      [36m</button>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"relative flex min-h-0 min-w-0 flex-1 flex-col bg-background"[39m
+        [33mdata-dirty[39m=[32m"true"[39m
+        [33mdata-frame-modal[39m=[32m"true"[39m
+        [33mdata-office-docs-frame[39m=[32m"true"[39m
+        [33mdata-office-module[39m=[32m"docs"[39m
+        [33mdata-save-state[39m=[32m"saving"[39m
+        [33mdata-state[39m=[32m"ready"[39m
+      [36m>[39m
+        [36m<iframe[39m
+          [33mallow[39m=[32m"clipboard-read; clipboard-write"[39m
+          [33mclass[39m=[32m"w-full min-w-0 border-0 bg-background min-h-0 flex-1"[39m
+          [33mdata-testid[39m=[32m"office-docs-frame-iframe"[39m
+          [33mreferrerpolicy[39m=[32m"same-origin"[39m
+          [33msrc[39m=[32m"/office-frame/docs/1.0.0/index.html"[39m
+          [33mtitle[39m=[32m"Trình soạn thảo tài liệu: Plan"[39m
+        [36m/>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</body>[39m
+[36m</html>[39m
+ ❯ office/frame/office-docs-frame.test.tsx:562:46
+    560|       expect(flip()).toHaveAttribute("inert");
+    561|       act(() => { frame.win.dispatchEvent(new Event("pagehide")); });
+    562|       await waitFor(() => expect(flip()).not.toHaveAttribute("inert"));
+       |                                              ^
+    563|       await waitFor(() => expect(frame.received.some((m) => m.kind ===…
+    564|       // The leave is not decided behind the user's back: the leave di…
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > gives up the Save when the frame document goes away, with no replacement load
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ office/frame/use-docs-frame-session.test.tsx:236:3
+    234|     frame.received.some((m) => m.kind === "event" && m.type === "cance…
+    235|
+    236|   it("gives up the Save when the frame document goes away, with no rep…
+       |   ^
+    237|     const frame = setup();
+    238|     const { saving, request } = await startSave(frame, "navigate");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > reads a single replacement load as the old document gone when the first load was never seen
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ office/frame/use-docs-frame-session.test.tsx:253:3
+    251|   });
+    252|
+    253|   it("reads a single replacement load as the old document gone when th…
+       |   ^
+    254|     const frame = setup();
+    255|     const { saving, request } = await startSave(frame);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > settles the Save on a fatal frame error: failed with that error, one onError, no timer left
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ office/frame/use-docs-frame-session.test.tsx:278:3
+    276|   });
+    277|
+    278|   it("settles the Save on a fatal frame error: failed with that error,…
+       |   ^
+    279|     const frame = setup();
+    280|     const { saving, request } = await startSave(frame, "navigate");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > settles the Save when a new frame instance fails its handshake
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ office/frame/use-docs-frame-session.test.tsx:297:3
+    295|   });
+    296|
+    297|   it("settles the Save when a new frame instance fails its handshake",…
+       |   ^
+    298|     const frame = setup();
+    299|     const { saving, request } = await startSave(frame, "navigate");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > does not re-arm the watchdog when the frame's api.save ends after the Save was answered
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ office/frame/use-docs-frame-session.test.tsx:325:32
+    323|     await act(async () => { finish({ ok: true, file: FILE, versionId: …
+    324|     await settle();
+    325|     expect(vi.getTimerCount()).toBe(0);
+       |                                ^
+    326|     await advance(60_000);
+    327|     expect(frame.onError).not.toHaveBeenCalled();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > does not re-arm the watchdog or touch the next session when api.save ends after a retry
+AssertionError: expected 'dirty' to be 'ready' // Object.is equality
+
+Expected: "ready"
+Received: "dirty"
+
+ ❯ office/frame/use-docs-frame-session.test.tsx:340:49
+    338|     await expect(saving).resolves.toBe("cancelled");
+    339|     await settle();
+    340|     expect(frame.hook.result.current.saveState).toBe("ready");
+       |                                                 ^
+    341|     // The new session's own boot timers run; the old upload must not …
+    342|     const timers = vi.getTimerCount();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+ FAIL  office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: a Save whose frame stops being usable > does not re-arm the watchdog when api.save ends after unmount
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ office/frame/use-docs-frame-session.test.tsx:362:32
+    360|     await act(async () => { finish({ ok: true, file: FILE, versionId: …
+    361|     await settle();
+    362|     expect(vi.getTimerCount()).toBe(0);
+       |                                ^
+    363|   });
+    364| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  11 failed | 60 passed (71)
+   Start at  20:40:33
+   Duration  122.81s (transform 979ms, setup 729ms, import 1.05s, tests 124.60s, environment 600ms)
+
+RED_EXIT_FIX1=1
+RED_AS_EXPECTED_FIX1
