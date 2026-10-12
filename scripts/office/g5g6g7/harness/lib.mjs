@@ -4,8 +4,8 @@
 // binding a throwaway listener to port 0, so the node --test file can pin the
 // behaviour without starting the stack.
 import net from "node:net";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 /** Exit code every harness script uses for "a precondition is missing", never for "the check failed". */
@@ -330,7 +330,7 @@ function forkShaOfRun(envFile) {
  * and returns the exit code the step must end with, 1 for a failed start and 77
  * only for a precondition start.sh itself reported missing.
  */
-export async function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "", fixtureSha256 = "", command, checker, startedAt, argv }) {
+export async function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "", command, checker, startedAt, argv }) {
   const blocked = gate.gate === "blocked";
   const result = blocked ? "BLOCKED" : "FAIL";
   const exitCode = blocked ? BLOCKED_EXIT : 1;
@@ -342,22 +342,50 @@ export async function concludeAtStartGate(gate, { runDir, requirementId, fixture
     fSha: process.env.OFFICE_FORK_SHA || forkShaOfRun(paths.envFile),
     requirementId,
     fixtureId,
-    fixtureSha256,
+    fixtureSha256: await fixtureSha256Of(fixtureId),
     platform: `${process.platform}-${process.arch}`,
     build: `node ${process.versions.node}`,
     command,
     argv,
     exitCode,
     result,
+    artifact: writeStepArtifact(runDir, requirementId, command, [`${blocked ? "BLOCKED" : "FAILED"}: ${gate.reason}`]),
     checker,
     blocker: blocked ? gate.reason : "",
     startedAt,
     finishedAt: new Date().toISOString(),
   });
-  mkdirSync(runDir, { recursive: true });
   if (blocked) appendFileSync(paths.blockedFile, `${JSON.stringify(record, null, 2)}\n`);
   if (!process.env.OFFICE_EVIDENCE_ID) appendFileSync(paths.evidenceFile, `${JSON.stringify(record)}\n`);
   return exitCode;
+}
+
+/**
+ * The manifest hash of fixture `fixtureId` ("" when there is none or the id is
+ * not in the manifest, which verify then reports for what it is). Read through
+ * the runner's own manifest reader, so the hash never comes from a copy.
+ */
+export async function fixtureSha256Of(fixtureId) {
+  if (!fixtureId) return "";
+  const { readManifest } = await import("../evidence.mjs");
+  try {
+    return readManifest().fixtures.find((fixture) => fixture.id === fixtureId)?.sha256 ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * The artifact of a step that ended before it could produce one: a log under
+ * the run's logs/ holding the command and why it stopped, so the ledger line
+ * names a file that exists instead of "". Returns its absolute path.
+ */
+export function writeStepArtifact(runDir, requirementId, command, lines) {
+  const logDir = harnessPaths(runDir).logDir;
+  mkdirSync(logDir, { recursive: true });
+  const file = join(logDir, `${requirementId}-step.log`);
+  appendFileSync(file, `$ ${command}\n\n${lines.join("\n")}\n`);
+  return file;
 }
 
 /** Where the fork is cloned for a pinned revision: one directory per SHA, reused across runs. */
@@ -527,6 +555,16 @@ export function isMainModule({ argv1 = process.argv[1], execArgv = process.execA
 
 
 /**
+ * Writes `text` to `file` readable by its owner only. The mode given to
+ * writeFileSync is ignored for a file that already exists and masked by the
+ * umask otherwise, so it is applied again after the write.
+ */
+function writePrivateFile(file, text) {
+  writeFileSync(file, text, { mode: 0o600 });
+  chmodSync(file, 0o600);
+}
+
+/**
  * Writes one run's files: `ports.env` (the ports, origins, SHAs and later the
  * display) and `server.env` (the server's environment, quoted so a URL with a
  * query still sources in bash). Called by start.sh as
@@ -562,15 +600,22 @@ export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "
     ].join("\n"),
   );
   const quote = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
-  writeFileSync(
+  writePrivateFile(
     join(runDir, "server.env"),
     `${Object.entries(serverEnv).map(([key, value]) => `${key}=${quote(value)}`).join("\n")}\n`,
   );
   // The server's own working directory and the .env it finds there (see serverCwd).
+  // Both carry secrets the run does not own (the VM's database password, the
+  // storage keys), so the directories are 0700 and the files 0600 (reviewer_be R2-2).
   const cwd = serverCwd(runDir);
-  mkdirSync(cwd, { recursive: true });
+  mkdirSync(cwd, { recursive: true, mode: 0o700 });
+  // mkdir's mode is masked by the umask and ignored for a directory that exists
+  for (let dir = cwd; ; dir = dirname(dir)) {
+    chmodSync(dir, 0o700);
+    if (dirname(dir) === runDir) break;
+  }
   if (dotenvPath && existsSync(dotenvPath)) {
-    writeFileSync(join(cwd, ".env"), serverDotEnv(readFileSync(dotenvPath, "utf8"), Object.keys(serverEnv)));
+    writePrivateFile(join(cwd, ".env"), serverDotEnv(readFileSync(dotenvPath, "utf8"), Object.keys(serverEnv)));
   }
   return { apiPort, webPort, metricsPort, previewPort, apiOrigin: origin(apiPort), webOrigin: origin(webPort) };
 }
