@@ -1,0 +1,844 @@
+$ git checkout 6e4d9611 -- web/modules/shared && git checkout HEAD -- web/modules/shared/conflict-dialog.test.ts; (npx vitest run --root web/modules shared/conflict-dialog.test.ts); C=$?; git checkout HEAD -- web; git clean -fdq web/modules/shared; git status --short web; echo "RED_EXIT conflict_dialog=$C"; test $C -ne 0 && echo RED_AS_EXPECTED_2
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+ ❯ shared/conflict-dialog.test.ts (25 tests | 23 failed) 1308ms
+     × DOM order = Tab order: table, Reload latest, Overwrite…, Cancel, X; first focus Cancel 69ms
+     × two-column table from both heads: base revision vs the head revision, time and author 60ms
+     × without a known author the server column says "a member" 59ms
+     × the alert row is always in the tree (empty, not display:none) and the title can take focus 59ms
+     × without edit access: no Overwrite…, the no-edit line, Reload latest + Cancel 60ms
+     × offline: Reload and Overwrite are aria-disabled with the reason, still in the Tab loop 59ms
+     × reports modal open while it shows and closed when it settles 1ms
+     × opens the confirmation in the same card, focus Back; Back returns focus to Overwrite… 60ms
+     × confirmed: a new version, answered ok with its versionId 58ms
+     × a second 409: the table follows the new head, the head-moved line, back to step 1 on Cancel 58ms
+     × 401: the session line in the dialog; closing answers unauthorized 58ms
+     × 403: the revoked variant with Close and the title focused; answers forbidden 58ms
+     × 403 organization suspended: the blocked sentence with its reason 59ms
+     × 410: the deleted variant; answers not_found 59ms
+     × 413: the too-large line at step 1 and the download choice turns aria-disabled 59ms
+     × 5xx: the overwrite-failed line, buttons still work; closing answers internal 60ms
+     × without the download capability: discard-and-reload and Back only, focus Back 57ms
+     × Back returns to step 1 with the focus on Reload latest 58ms
+     × with download: sends the bytes, asks to check the file, never reloads on its own 60ms
+     × a failed download stays on step 2 with the line and does not reload 57ms
+     × without edit access there is no download choice 58ms
+     × a reload that fails keeps the dialog with the reload-failed line 58ms
+     × the X on a confirmation step cancels the whole dialog 60ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 23 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  shared/conflict-dialog.test.ts > step 1 > DOM order = Tab order: table, Reload latest, Overwrite…, Cancel, X; first focus Cancel
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ shared/conflict-dialog.test.ts:88:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > step 1 > two-column table from both heads: base revision vs the head revision, time and author
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ shared/conflict-dialog.test.ts:120:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > step 1 > without a known author the server column says "a member"
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ shared/conflict-dialog.test.ts:137:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > step 1 > the alert row is always in the tree (empty, not display:none) and the title can take focus
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ shared/conflict-dialog.test.ts:146:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > step 1 > without edit access: no Overwrite…, the no-edit line, Reload latest + Cancel
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ shared/conflict-dialog.test.ts:156:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > step 1 > offline: Reload and Overwrite are aria-disabled with the reason, still in the Tab loop
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ shared/conflict-dialog.test.ts:163:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > step 1 > reports modal open while it shows and closed when it settles
+TypeError: onFrameModal is not a function
+ ❯ shared/conflict-dialog.test.ts:185:17
+    183|   it('reports modal open while it shows and closed when it settles', a…
+    184|     const seen: boolean[] = []
+    185|     const off = onFrameModal((open) => seen.push(open))
+       |                 ^
+    186|     const done = runConflictDialog(io())
+    187|     await pick('cancel')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Overwrite… > opens the confirmation in the same card, focus Back; Back returns focus to Overwrite…
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:197:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Overwrite… > confirmed: a new version, answered ok with its versionId
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:215:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Overwrite… > a second 409: the table follows the new head, the head-moved line, back to step 1 on Cancel
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:233:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Overwrite… > 401: the session line in the dialog; closing answers unauthorized
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:260:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Overwrite… > 403: the revoked variant with Close and the title focused; answers forbidden
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:269:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Overwrite… > 403 organization suspended: the blocked sentence with its reason
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:280:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Overwrite… > 410: the deleted variant; answers not_found
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:291:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Overwrite… > 413: the too-large line at step 1 and the download choice turns aria-disabled
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:303:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Overwrite… > 5xx: the overwrite-failed line, buttons still work; closing answers internal
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:319:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Reload latest (web) > without the download capability: discard-and-reload and Back only, focus Back
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:331:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Reload latest (web) > Back returns to step 1 with the focus on Reload latest
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:343:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Reload latest (web) > with download: sends the bytes, asks to check the file, never reloads on its own
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:354:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Reload latest (web) > a failed download stays on step 2 with the line and does not reload
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:379:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Reload latest (web) > without edit access there is no download choice
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:393:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Reload latest (web) > a reload that fails keeps the dialog with the reload-failed line
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:400:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/23]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > Reload latest (web) > the X on a confirmation step cancels the whole dialog
+Error: no conflict dialog
+ ❯ shown shared/conflict-dialog.test.ts:62:9
+     60|     await flush()
+     61|   }
+     62|   throw new Error('no conflict dialog')
+       |         ^
+     63| }
+     64|
+ ❯ pick shared/conflict-dialog.test.ts:66:3
+ ❯ shared/conflict-dialog.test.ts:408:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/23]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 22 unhandled errors during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:87:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "DOM order = Tab order: table, Reload latest, Overwrite…, Cancel, X; first focus Cancel". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:119:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "two-column table from both heads: base revision vs the head revision, time and author". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:136:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "without a known author the server column says "a member"". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:145:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "the alert row is always in the tree (empty, not display:none) and the title can take focus". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:155:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "without edit access: no Overwrite…, the no-edit line, Reload latest + Cancel". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:162:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "offline: Reload and Overwrite are aria-disabled with the reason, still in the Tab loop". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:196:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "opens the confirmation in the same card, focus Back; Back returns focus to Overwrite…". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:214:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "confirmed: a new version, answered ok with its versionId". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:232:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "a second 409: the table follows the new head, the head-moved line, back to step 1 on Cancel". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:259:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "401: the session line in the dialog; closing answers unauthorized". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:268:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "403: the revoked variant with Close and the title focused; answers forbidden". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:279:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "403 organization suspended: the blocked sentence with its reason". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:290:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "410: the deleted variant; answers not_found". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:302:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "413: the too-large line at step 1 and the download choice turns aria-disabled". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:318:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "5xx: the overwrite-failed line, buttons still work; closing answers internal". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:330:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "without the download capability: discard-and-reload and Back only, focus Back". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:342:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "Back returns to step 1 with the focus on Reload latest". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:353:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "with download: sends the bytes, asks to check the file, never reloads on its own". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:378:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "a failed download stays on step 2 with the line and does not reload". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:387:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "without edit access there is no download choice". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:399:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "a reload that fails keeps the dialog with the reload-failed line". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+TypeError: openFrameDialog is not a function
+ ❯ runConflictDialog shared/conflict-dialog.ts:231:41
+    229|   const online = io.online ?? (() => (typeof navigator === 'undefined'…
+    230|
+    231|   const dialog: FrameDialogHandle<Id> = openFrameDialog<Id>({
+       |                                         ^
+    232|     marker: CONFLICT_MARKER,
+    233|     closeLabel: t('uwConflictClose'),
+ ❯ shared/conflict-dialog.test.ts:407:18
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+ ❯ runWithCancel ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10
+ ❯ ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+ ❯ runWithTimeout ../../node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10
+
+This error originated in "shared/conflict-dialog.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "the X on a confirmation step cancels the whole dialog". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  1 failed (1)
+      Tests  23 failed | 2 passed (25)
+     Errors  22 errors
+   Start at  18:14:46
+   Duration  1.92s (transform 174ms, setup 0ms, import 209ms, tests 1.31s, environment 317ms)
+
+RED_EXIT conflict_dialog=1
+RED_AS_EXPECTED_2

@@ -1,0 +1,558 @@
+$ git checkout 9bfd16e3 -- web/docs/bridge web/modules/pdf/webapi.ts web/modules/shared/text-webapi.ts web/modules/sheets/bridge.ts web/modules/slides/web-host-io.ts web/modules/slides/web-slides-api.ts && git checkout HEAD -- web/docs/bridge/webapi.test.ts web/modules/pdf/webapi.test.ts web/modules/sheets/bridge.test.ts web/modules/slides/web-slides-api.test.ts web/modules/markdown/webapi.test.ts; (npx vitest run --root web/docs/bridge --environment jsdom webapi.test.ts); A=$?; (npx vitest run --root web/modules markdown/webapi.test.ts sheets/bridge.test.ts); B=$?; (npx vitest run --root web/modules/pdf webapi.test.ts); P=$?; (npx vitest run --root web/modules/slides web-slides-api.test.ts); S=$?; git checkout HEAD -- web; git status --short web; echo "RED_EXIT docs=$A md_sheets=$B pdf=$P slides=$S"; test $A -ne 0 -a $B -ne 0 -a $P -ne 0 -a $S -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/bridge
+
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+ ❯ webapi.test.ts (85 tests | 9 failed) 721ms
+     × conflict -> Overwrite… -> confirm: re-reads the head etag and saves over the newer version 9ms
+     × conflict -> Reload latest: the latest version replaces the document, no error banner 60ms
+     × save conflict: the frame shows the one conflict dialog; Cancel answers cancelled 60ms
+     × save conflict -> Overwrite… confirmed: answers ok with the new version 62ms
+     × save conflict -> Reload latest: answers ok without a versionId 61ms
+     × save conflict without the download capability: no download choice 61ms
+     × save conflict with the download capability: the bytes go to api.download, then Reload 62ms
+     × save conflict -> Overwrite gets 401: the session line, closing answers unauthorized 61ms
+     × save conflict: the editor result carries the localized conflict sentence, not the server message 62ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  webapi.test.ts > saveDocx > conflict -> Overwrite… -> confirm: re-reads the head etag and saves over the newer version
+AssertionError: expected  to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ webapi.test.ts:287:63
+    285|     await choose('conflict', 'overwrite')
+    286|     // the confirmation step replaces the content of the same dialog: …
+    287|     expect(document.querySelectorAll('[role="alertdialog"]')).toHaveLe…
+       |                                                               ^
+    288|     expect(mock.calls.filter((c) => c.type === 'api.save')).toHaveLeng…
+    289|     await choose('conflict', 'go')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  webapi.test.ts > saveDocx > conflict -> Reload latest: the latest version replaces the document, no error banner
+Error: no conflict dialog
+ ❯ dialogShown webapi.test.ts:47:9
+     45|     await flush()
+     46|   }
+     47|   throw new Error(`no ${marker} dialog`)
+       |         ^
+     48| }
+     49|
+ ❯ choose webapi.test.ts:51:14
+ ❯ webapi.test.ts:310:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  webapi.test.ts > host save / saveAs requests (editor flows) > save conflict: the frame shows the one conflict dialog; Cancel answers cancelled
+Error: no conflict dialog
+ ❯ dialogShown webapi.test.ts:47:9
+     45|     await flush()
+     46|   }
+     47|   throw new Error(`no ${marker} dialog`)
+       |         ^
+     48| }
+     49|
+ ❯ webapi.test.ts:746:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  webapi.test.ts > host save / saveAs requests (editor flows) > save conflict -> Overwrite… confirmed: answers ok with the new version
+Error: no conflict dialog
+ ❯ dialogShown webapi.test.ts:47:9
+     45|     await flush()
+     46|   }
+     47|   throw new Error(`no ${marker} dialog`)
+       |         ^
+     48| }
+     49|
+ ❯ choose webapi.test.ts:51:14
+ ❯ webapi.test.ts:762:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  webapi.test.ts > host save / saveAs requests (editor flows) > save conflict -> Reload latest: answers ok without a versionId
+Error: no conflict dialog
+ ❯ dialogShown webapi.test.ts:47:9
+     45|     await flush()
+     46|   }
+     47|   throw new Error(`no ${marker} dialog`)
+       |         ^
+     48| }
+     49|
+ ❯ choose webapi.test.ts:51:14
+ ❯ webapi.test.ts:773:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  webapi.test.ts > host save / saveAs requests (editor flows) > save conflict without the download capability: no download choice
+Error: no conflict dialog
+ ❯ dialogShown webapi.test.ts:47:9
+     45|     await flush()
+     46|   }
+     47|   throw new Error(`no ${marker} dialog`)
+       |         ^
+     48| }
+     49|
+ ❯ choose webapi.test.ts:51:14
+ ❯ webapi.test.ts:785:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  webapi.test.ts > host save / saveAs requests (editor flows) > save conflict with the download capability: the bytes go to api.download, then Reload
+Error: no conflict dialog
+ ❯ dialogShown webapi.test.ts:47:9
+     45|     await flush()
+     46|   }
+     47|   throw new Error(`no ${marker} dialog`)
+       |         ^
+     48| }
+     49|
+ ❯ choose webapi.test.ts:51:14
+ ❯ webapi.test.ts:802:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  webapi.test.ts > host save / saveAs requests (editor flows) > save conflict -> Overwrite gets 401: the session line, closing answers unauthorized
+Error: no conflict dialog
+ ❯ dialogShown webapi.test.ts:47:9
+     45|     await flush()
+     46|   }
+     47|   throw new Error(`no ${marker} dialog`)
+       |         ^
+     48| }
+     49|
+ ❯ choose webapi.test.ts:51:14
+ ❯ webapi.test.ts:823:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  webapi.test.ts > host save / saveAs requests (editor flows) > save conflict: the editor result carries the localized conflict sentence, not the server message
+Error: no conflict dialog
+ ❯ dialogShown webapi.test.ts:47:9
+     45|     await flush()
+     46|   }
+     47|   throw new Error(`no ${marker} dialog`)
+       |         ^
+     48| }
+     49|
+ ❯ choose webapi.test.ts:51:14
+ ❯ webapi.test.ts:844:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  9 failed | 76 passed (85)
+   Start at  18:14:20
+   Duration  1.65s (transform 450ms, setup 0ms, import 535ms, tests 721ms, environment 313ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+ ❯ sheets/bridge.test.ts (45 tests | 8 failed) 1793ms
+     × Overwrite re-reads the head etag and saves again 4ms
+     × Reload latest cancels the save and reopens the newest version through the open action 1ms
+     × a host-initiated save opens the conflict dialog in the frame; Cancel answers cancelled 3ms
+     × a host-initiated save -> Overwrite answers ok with the new version 4ms
+     × a host-initiated save -> Reload answers ok without a versionId 2ms
+     × a host-initiated save -> Overwrite failed with 403, closed: answers forbidden 1ms
+     × the dialog stays open past the host-save timer without a timeout answer 701ms
+     × the real dialog: workbook wording, DOM order Reload latest, Overwrite…, Cancel, focus Cancel; download only with the capability 1006ms
+ ❯ markdown/webapi.test.ts (36 tests | 7 failed) 7316ms
+     × Overwrite… asks to confirm, then re-reads the head etag and saves again 1057ms
+     × Reload latest drops the edits and reloads the frame (the host re-runs the handshake) 1054ms
+     × a host `save` opens the one conflict dialog in the frame and reports modal 1003ms
+     × a host `save` -> Overwrite… confirmed answers ok with the new version 1002ms
+     × a host `save` -> Reload answers ok without a versionId, then the frame reloads 1003ms
+     × the download choice shows only with the download capability 1001ms
+     × the renderer save result says the document changed elsewhere, no retry hint 1002ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 15 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  markdown/webapi.test.ts > markdownApi: save conflicts > Overwrite… asks to confirm, then re-reads the head etag and saves again
+ FAIL  markdown/webapi.test.ts > markdownApi: save conflicts > Reload latest drops the edits and reloads the frame (the host re-runs the handshake)
+AssertionError: expected null not to be null
+ ❯ markdown/webapi.test.ts:215:71
+    213|   async function click(choice: string): Promise<void> {
+    214|     await vi.waitFor(() =>
+    215|       expect(document.querySelector(`[data-choice="${choice}"]`)).not.…
+       |                                                                       ^
+    216|     )
+    217|     ;(document.querySelector(`[data-choice="${choice}"]`) as HTMLButto…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/15]⎯
+
+ FAIL  markdown/webapi.test.ts > markdownApi: save conflicts > a host `save` opens the one conflict dialog in the frame and reports modal
+ FAIL  markdown/webapi.test.ts > markdownApi: save conflicts > a host `save` -> Overwrite… confirmed answers ok with the new version
+ FAIL  markdown/webapi.test.ts > markdownApi: save conflicts > a host `save` -> Reload answers ok without a versionId, then the frame reloads
+ FAIL  markdown/webapi.test.ts > markdownApi: save conflicts > the download choice shows only with the download capability
+AssertionError: expected null not to be null
+ ❯ markdown/webapi.test.ts:262:74
+    260|     const res = s.mock.host.save({ reason: 'user' })
+    261|     await vi.waitFor(() =>
+    262|       expect(document.querySelector('[data-office-web="conflict"]')).n…
+       |                                                                          ^
+    263|     )
+    264|     return { ...s, res }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/15]⎯
+
+ FAIL  markdown/webapi.test.ts > markdownApi: host save conflict copy > the renderer save result says the document changed elsewhere, no retry hint
+AssertionError: expected null not to be null
+ ❯ markdown/webapi.test.ts:326:89
+    324|     mock.bumpRemote(file.fileId)
+    325|     const res = mock.host.save({ reason: 'user' })
+    326|     await vi.waitFor(() => expect(document.querySelector('[data-choice…
+       |                                                                                         ^
+    327|     ;(document.querySelector('[data-choice="cancel"]') as HTMLButtonEl…
+    328|     await res
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/15]⎯
+
+ FAIL  sheets/bridge.test.ts > save conflicts > Overwrite re-reads the head etag and saves again
+ FAIL  sheets/bridge.test.ts > save conflicts > Reload latest cancels the save and reopens the newest version through the open action
+Error: Not saved: a newer version exists.
+ ❯ resolveConflict sheets/bridge.ts:559:11
+    557|       return { canceled: true }
+    558|     }
+    559|     throw new Error(text('appWebConflictNotSaved'))
+       |           ^
+    560|   }
+    561|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/15]⎯
+
+ FAIL  sheets/bridge.test.ts > save conflicts > a host-initiated save opens the conflict dialog in the frame; Cancel answers cancelled
+AssertionError: expected "vi.fn()" to be called once, but got 0 times
+ ❯ sheets/bridge.test.ts:559:22
+    557|     hostSaving(t, wb)
+    558|     const res = await t.mock.host.save({ reason: 'user' })
+    559|     expect(conflict).toHaveBeenCalledOnce()
+       |                      ^
+    560|     expect(res).toMatchObject({ ok: false, error: { code: 'cancelled' …
+    561|     expect(t.mock.errors).toHaveLength(0)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/15]⎯
+
+ FAIL  sheets/bridge.test.ts > save conflicts > a host-initiated save -> Overwrite answers ok with the new version
+AssertionError: expected { ok: false, error: { …(3) } } to match object { ok: true, versionId: 'v3' }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "versionId": "v3",
++   "ok": false,
+  }
+
+ ❯ sheets/bridge.test.ts:569:56
+    567|     t.mock.bumpRemote(t.file.fileId)
+    568|     hostSaving(t, wb)
+    569|     expect(await t.mock.host.save({ reason: 'user' })).toMatchObject({…
+       |                                                        ^
+    570|   })
+    571|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/15]⎯
+
+ FAIL  sheets/bridge.test.ts > save conflicts > a host-initiated save -> Reload answers ok without a versionId
+AssertionError: expected { ok: false, error: { …(3) } } to match object { ok: true, …(1) }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "file": {
+-     "fileId": "f1",
+-     "versionId": "v2",
+-   },
+-   "ok": true,
++   "ok": false,
+  }
+
+ ❯ sheets/bridge.test.ts:578:17
+    576|     hostSaving(t, wb)
+    577|     const res = await t.mock.host.save({ reason: 'navigate' })
+    578|     expect(res).toMatchObject({ ok: true, file: { fileId: t.file.fileI…
+       |                 ^
+    579|     expect(res).not.toHaveProperty('versionId')
+    580|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/15]⎯
+
+ FAIL  sheets/bridge.test.ts > save conflicts > a host-initiated save -> Overwrite failed with 403, closed: answers forbidden
+AssertionError: expected { ok: false, error: { …(3) } } to match object { ok: false, …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "error": {
+-     "code": "forbidden",
++     "code": "conflict",
+    },
+    "ok": false,
+  }
+
+ ❯ sheets/bridge.test.ts:587:56
+    585|     t.mock.bumpRemote(t.file.fileId)
+    586|     hostSaving(t, wb)
+    587|     expect(await t.mock.host.save({ reason: 'user' })).toMatchObject({
+       |                                                        ^
+    588|       ok: false,
+    589|       error: { code: 'forbidden' },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/15]⎯
+
+ FAIL  sheets/bridge.test.ts > save conflicts > the dialog stays open past the host-save timer without a timeout answer
+TypeError: close is not a function
+ ❯ sheets/bridge.test.ts:602:5
+    600|     // saveTimeoutMs is 500 in these tests
+    601|     await new Promise((r) => setTimeout(r, 700))
+    602|     close({ kind: 'cancelled' })
+       |     ^
+    603|     expect(await res).toMatchObject({ ok: false, error: { code: 'cance…
+    604|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/15]⎯
+
+ FAIL  sheets/bridge.test.ts > save conflicts > the real dialog: workbook wording, DOM order Reload latest, Overwrite…, Cancel, focus Cancel; download only with the capability
+AssertionError: expected null not to be null
+ ❯ sheets/bridge.test.ts:612:88
+    610|     const pending = t.desktop.saveWorkbookEdits(saveRequest(wb.session…
+    611|     await vi.waitFor(() =>
+    612|       expect(document.querySelector('[data-sheets-web="conflict"] [dat…
+       |                                                                                        ^
+    613|     )
+    614|     expect(document.querySelector('h2')!.textContent).toBe('This workb…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/15]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: Not saved: a newer version exists.
+ ❯ resolveConflict sheets/bridge.ts:559:11
+    557|       return { canceled: true }
+    558|     }
+    559|     throw new Error(text('appWebConflictNotSaved'))
+       |           ^
+    560|   }
+    561|
+
+This error originated in "sheets/bridge.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "the real dialog: workbook wording, DOM order Reload latest, Overwrite…, Cancel, focus Cancel; download only with the capability". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  2 failed (2)
+      Tests  15 failed | 66 passed (81)
+     Errors  1 error
+   Start at  18:14:22
+   Duration  8.33s (transform 1.46s, setup 0ms, import 1.78s, tests 9.11s, environment 659ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules/pdf
+
+ ❯ webapi.test.ts (37 tests | 6 failed) 6441ms
+     × conflict -> Overwrite re-reads the head etag and saves again 1057ms
+     × conflict -> Reload latest replaces the working copy and asks the viewer to reopen 1052ms
+     × host `save` runs the viewer save flow; its conflict opens the frame dialog, Cancel answers cancelled 1002ms
+     × host `save` conflict: DOM order and first focus, Overwrite… confirmed answers the new version 1002ms
+     × host `save` conflict -> Reload answers ok without a versionId; download only with the capability 1002ms
+     × a host `save` conflict reads as a conflict in the viewer, never the server message or "try again" 1002ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  webapi.test.ts > save > conflict -> Overwrite re-reads the head etag and saves again
+ FAIL  webapi.test.ts > save > conflict -> Reload latest replaces the working copy and asks the viewer to reopen
+ FAIL  webapi.test.ts > save > host `save` runs the viewer save flow; its conflict opens the frame dialog, Cancel answers cancelled
+ FAIL  webapi.test.ts > save > host `save` conflict -> Reload answers ok without a versionId; download only with the capability
+ FAIL  webapi.test.ts > save > a host `save` conflict reads as a conflict in the viewer, never the server message or "try again"
+AssertionError: expected null not to be null
+ ❯ webapi.test.ts:129:86
+    127|
+    128| const choose = async (id: string) => {
+    129|   await vi.waitFor(() => expect(document.querySelector(`[data-choice="…
+       |                                                                                      ^
+    130|   ;(document.querySelector(`[data-choice="${id}"]`) as HTMLButtonEleme…
+    131| }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  webapi.test.ts > save > host `save` conflict: DOM order and first focus, Overwrite… confirmed answers the new version
+AssertionError: expected null not to be null
+ ❯ webapi.test.ts:379:85
+    377|     const res = s.mock.host.save({ reason: 'user' })
+    378|     await vi.waitFor(() =>
+    379|       expect(document.querySelector('[data-pdf-web="conflict"] [data-c…
+       |                                                                                     ^
+    380|     )
+    381|     expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 31 passed (37)
+   Start at  18:14:31
+   Duration  7.53s (transform 564ms, setup 0ms, import 689ms, tests 6.44s, environment 316ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules/slides
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ web-slides-api.test.ts (39 tests | 6 failed) 4576ms
+     × conflict -> Overwrite re-reads the head etag and saves again 291ms
+     × conflict -> Reload latest replaces the deck; Cancel keeps it dirty 335ms
+     × a host `save` request runs the renderer save flow; its conflict opens the frame dialog 284ms
+     × a host `save` conflict: one dialog, DOM order, Overwrite… confirmed answers the new version 282ms
+     × a host `save` conflict -> Reload answers ok without a versionId 272ms
+     × a host `save` conflict reads as a conflict, not as "try again" (a retry conflicts again) 268ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  web-slides-api.test.ts > save > conflict -> Overwrite re-reads the head etag and saves again
+Error: condition not met
+ ❯ waitFor web-slides-api.test.ts:110:9
+    108|     await flush(1)
+    109|   }
+    110|   throw new Error('condition not met')
+       |         ^
+    111| }
+    112|
+ ❯ pickChoice web-slides-api.test.ts:96:3
+ ❯ web-slides-api.test.ts:253:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  web-slides-api.test.ts > save > conflict -> Reload latest replaces the deck; Cancel keeps it dirty
+Error: condition not met
+ ❯ waitFor web-slides-api.test.ts:110:9
+    108|     await flush(1)
+    109|   }
+    110|   throw new Error('condition not met')
+       |         ^
+    111| }
+    112|
+ ❯ pickChoice web-slides-api.test.ts:96:3
+ ❯ web-slides-api.test.ts:276:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  web-slides-api.test.ts > save > a host `save` request runs the renderer save flow; its conflict opens the frame dialog
+Error: condition not met
+ ❯ waitFor web-slides-api.test.ts:110:9
+    108|     await flush(1)
+    109|   }
+    110|   throw new Error('condition not met')
+       |         ^
+    111| }
+    112|
+ ❯ pickChoice web-slides-api.test.ts:96:3
+ ❯ web-slides-api.test.ts:294:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  web-slides-api.test.ts > save > a host `save` conflict: one dialog, DOM order, Overwrite… confirmed answers the new version
+Error: condition not met
+ ❯ waitFor web-slides-api.test.ts:110:9
+    108|     await flush(1)
+    109|   }
+    110|   throw new Error('condition not met')
+       |         ^
+    111| }
+    112|
+ ❯ web-slides-api.test.ts:308:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  web-slides-api.test.ts > save > a host `save` conflict -> Reload answers ok without a versionId
+Error: condition not met
+ ❯ waitFor web-slides-api.test.ts:110:9
+    108|     await flush(1)
+    109|   }
+    110|   throw new Error('condition not met')
+       |         ^
+    111| }
+    112|
+ ❯ pickChoice web-slides-api.test.ts:96:3
+ ❯ web-slides-api.test.ts:330:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  web-slides-api.test.ts > save > a host `save` conflict reads as a conflict, not as "try again" (a retry conflicts again)
+Error: condition not met
+ ❯ waitFor web-slides-api.test.ts:110:9
+    108|     await flush(1)
+    109|   }
+    110|   throw new Error('condition not met')
+       |         ^
+    111| }
+    112|
+ ❯ pickChoice web-slides-api.test.ts:96:3
+ ❯ web-slides-api.test.ts:353:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 33 passed (39)
+   Start at  18:14:39
+   Duration  6.74s (transform 1.45s, setup 0ms, import 1.77s, tests 4.58s, environment 309ms)
+
+RED_EXIT docs=1 md_sheets=1 pdf=1 slides=1
+RED_AS_EXPECTED
