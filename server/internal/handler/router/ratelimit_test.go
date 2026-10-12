@@ -278,3 +278,63 @@ func TestChatWritesBudgetEachUserPerRoute(t *testing.T) {
 		}
 	}
 }
+
+// OAuth endpoints for external MCP clients (ADR 0031): authorize, token and
+// revoke ride the credential budget, 60 a minute per address and path;
+// registration is a public write that creates rows, so it gets 10 an hour.
+// The discovery documents stay on the global budget only.
+func TestMCPOAuthRoutesAreBudgeted(t *testing.T) {
+	h, _ := limitedMux(t)
+	for i, route := range []struct{ method, path string }{
+		{http.MethodGet, "/oauth/authorize"},
+		{http.MethodPost, "/oauth/token"},
+		{http.MethodPost, "/oauth/revoke"},
+	} {
+		c := caller{ip: fmt.Sprintf("10.20.1.%d", i+1)}
+		c.spend(t, h, route.method, route.path, 60)
+		c.wantRefused(t, h, route.method, route.path, "credential budget: 60 a minute")
+	}
+
+	c := caller{ip: "10.20.1.10"}
+	c.spend(t, h, http.MethodPost, "/oauth/register", 10)
+	c.wantRefused(t, h, http.MethodPost, "/oauth/register", "registration budget: 10 an hour")
+
+	// The budgets are per route: an address that spent registration still
+	// reaches the token endpoint, and the reverse.
+	c.spend(t, h, http.MethodPost, "/oauth/token", 1)
+	d := caller{ip: "10.20.1.11"}
+	d.spend(t, h, http.MethodPost, "/oauth/token", 60)
+	d.spend(t, h, http.MethodPost, "/oauth/register", 1)
+
+	// Another address has its own budget.
+	caller{ip: "10.20.1.12"}.spend(t, h, http.MethodPost, "/oauth/register", 1)
+
+	for _, path := range []string{
+		"/.well-known/oauth-protected-resource",
+		"/.well-known/oauth-protected-resource/mcp",
+		"/.well-known/oauth-authorization-server",
+	} {
+		anonymous := caller{ip: "10.20.1.13"}
+		anonymous.spend(t, h, http.MethodGet, path, 100)
+	}
+}
+
+// With no Redis the limiters are no-ops, as everywhere else: the routes stay
+// reachable and the mux still binds the same handlers.
+func TestMCPOAuthRoutesWorkWithoutRedis(t *testing.T) {
+	mux := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000"}}, stubRoutes())
+	for _, c := range []struct{ method, path, want string }{
+		{http.MethodGet, "/oauth/authorize", "McpAuthorize"},
+		{http.MethodPost, "/oauth/token", "McpToken"},
+		{http.MethodPost, "/oauth/revoke", "McpRevoke"},
+		{http.MethodPost, "/oauth/register", "McpRegister"},
+	} {
+		for i := 0; i < 70; i++ {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(c.method, c.path, nil))
+			if rec.Code != http.StatusOK || rec.Body.String() != c.want {
+				t.Fatalf("%s %s #%d = %d %q, want 200 %s", c.method, c.path, i, rec.Code, rec.Body.String(), c.want)
+			}
+		}
+	}
+}

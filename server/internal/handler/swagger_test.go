@@ -66,6 +66,13 @@ func TestSwaggerSpecFollowsChiRoutesAndSDI(t *testing.T) {
 			return nil
 		case route == "/api/v1/ws":
 			return nil
+		case strings.HasPrefix(route, "/oauth/"), strings.HasPrefix(route, "/.well-known/"), route == "/mcp":
+			// RFC bodies outside the api wrapper (ADR 0031); they must not
+			// appear in the spec either.
+			if _, ok := spec.Paths[strings.TrimSuffix(route, "/")]; ok {
+				t.Errorf("%s %s is on the OpenAPI spec; RFC routes stay outside the api wrapper", method, route)
+			}
+			return nil
 		case strings.HasSuffix(route, "/lobby-ws"):
 			return nil
 		case method == http.MethodOptions:

@@ -168,6 +168,8 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
 	d.Documents = docs
 	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
+	d.McpAuth = service.NewMcpAuthService(pool, q, d.Organizations, d.Cfg)
+	d.McpAuth.SetFlags(mcpTestFlags(true))
 	preview, err := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
 		Documents: docs, Origin: isoPreviewOrigin, Secret: "isolation-matrix-preview-secret-0123456789",
 		TTL: 5 * time.Minute, MaxBytes: 1 << 20,

@@ -117,6 +117,10 @@ func New(d Deps, h Routes) http.Handler {
 	cat := &apiCatalog{}
 	root := newAPI(r, cat)
 	registerMeta(root, r, d.Storage, h)
+	// Discovery and OAuth for external MCP clients: RFC bodies, so outside the
+	// api wrapper and the OpenAPI catalogue. Registration creates rows for any
+	// caller, so it gets the smaller budget.
+	registerMCP(r, h, credentialLimit, mw.RateLimit(d.Redis, 10, time.Hour, proxies))
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
 		registerAuth(v1, h, credentialLimit)

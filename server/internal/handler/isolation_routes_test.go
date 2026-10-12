@@ -189,6 +189,16 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/auth/refresh":             {class: isoPublic, reason: reasonAuth},
 	"POST /api/v1/auth/register":            {class: isoPublic, reason: reasonAuth},
 
+	// MCP connector OAuth server (ADR 0031): a client is a program, and the
+	// code, verifier, refresh token or client secret is the credential.
+	"GET /.well-known/oauth-protected-resource":     {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0031)"},
+	"GET /.well-known/oauth-protected-resource/mcp": {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0031)"},
+	"GET /.well-known/oauth-authorization-server":   {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0031)"},
+	"GET /oauth/authorize":                          {class: isoPublic, reason: reasonAuth},
+	"POST /oauth/token":                             {class: isoPublic, reason: "authentication: the one-time code with its PKCE verifier, or a refresh token, is the credential"},
+	"POST /oauth/revoke":                            {class: isoPublic, reason: "authentication: the token is the credential; another client's token is left untouched (RFC 7009)"},
+	"POST /oauth/register":                          {class: isoPublic, reason: "dynamic client registration: a client is a program, not tenant data"},
+
 	"GET /uploads/*": {class: isoPublic, reason: "legacy local-disk objects by unguessable key; FileService objects (v1/) are refused - TestServeFileRefusesFileServiceObjects and the uploads subtest"},
 
 	// Provider callbacks.

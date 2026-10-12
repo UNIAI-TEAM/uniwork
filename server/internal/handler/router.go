@@ -27,6 +27,7 @@ type Deps struct {
 	Minter        auth.TokenMinter
 	Auth          *service.AuthService
 	DesktopAuth   *service.DesktopAuthService
+	McpAuth       *service.McpAuthService
 	Verification  *service.VerificationService
 	PasswordReset *service.PasswordResetService
 	GoogleAuth    *service.GoogleAuthService
@@ -190,6 +191,13 @@ func New(d Deps) http.Handler {
 		AdminRefundInvoice:         h.adminRefundInvoice,
 		AdminConfirmInvoiceRefund:  h.adminConfirmInvoiceRefund,
 		WS:                         h.ws,
+
+		McpProtectedResource:   h.mcpProtectedResource,
+		McpAuthorizationServer: h.mcpAuthorizationServer,
+		McpAuthorize:           h.mcpAuthorize,
+		McpToken:               h.mcpToken,
+		McpRegister:            h.mcpRegister,
+		McpRevoke:              h.mcpRevoke,
 
 		Register:              h.register,
 		Login:                 h.login,

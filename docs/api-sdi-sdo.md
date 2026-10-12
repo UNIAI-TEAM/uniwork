@@ -227,8 +227,9 @@ tự đặt cap (xem `uploadAvatar`).
 | `GET /uploads/*` | File tĩnh local storage |
 | `GET /swagger`, `/swagger/*` | Chính UI/spec |
 | `OPTIONS *` | CORS |
+| `/oauth/*`, `/.well-known/*`, `/mcp` | OAuth và MCP cho client AI bên ngoài (ADR 0031): body theo RFC (form, JSON-RPC), đăng ký bằng `registerMCP` ngoài wrapper `api`; `router_test.go` ghim các route, test Swagger đòi chúng **không** có trong spec |
 
-`TestSwaggerSpecFollowsChiRoutesAndSDI` bỏ qua đúng bốn nhóm này. Route
+`TestSwaggerSpecFollowsChiRoutesAndSDI` bỏ qua đúng các nhóm này. Route
 REST mới mà đăng ký ngoài wrapper `api` sẽ làm test đỏ.
 
 ---
