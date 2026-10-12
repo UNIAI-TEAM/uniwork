@@ -215,8 +215,8 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 
 // requestMessages is what the provider is sent: History plus the rendered
 // prompt as the final user message, or, on a tool-result turn, History
-// exactly — refused unless it ends with tool results that answer the
-// assistant message just before them.
+// exactly — refused unless it ends with tool results that answer every call
+// of the assistant message just before them, each exactly once.
 func requestMessages(req Request, prompt Prompt) ([]provider.Message, error) {
 	if !req.ToolResultTurn {
 		msgs := make([]provider.Message, 0, len(req.History)+1)
@@ -233,13 +233,26 @@ func requestMessages(req Request, prompt Prompt) ([]provider.Message, error) {
 	if i == len(req.History) || i == 0 || req.History[i-1].Role != "assistant" {
 		return nil, errPolicy("tool-result turn must end with tool results after the assistant's calls")
 	}
-	asked := map[string]bool{}
-	for _, c := range req.History[i-1].ToolCalls {
-		asked[c.ID] = true
+	turn := &req.History[i-1]
+	pending := make(map[string]bool, len(turn.ToolCalls))
+	for _, c := range turn.ToolCalls {
+		if c.ID == "" {
+			return nil, errPolicy("assistant tool call without an id")
+		}
+		if pending[c.ID] {
+			return nil, errPolicy("assistant tool call " + c.ID + " repeats a call id")
+		}
+		pending[c.ID] = true
 	}
 	for _, m := range req.History[i:] {
-		if m.ToolCallID == "" || !asked[m.ToolCallID] {
+		if m.ToolCallID == "" || !pending[m.ToolCallID] {
 			return nil, errPolicy("tool result " + m.ToolCallID + " answers no call of the assistant turn")
+		}
+		delete(pending, m.ToolCallID)
+	}
+	for _, c := range turn.ToolCalls {
+		if pending[c.ID] {
+			return nil, errPolicy("tool-result turn leaves call " + c.ID + " unanswered")
 		}
 	}
 	return req.History, nil

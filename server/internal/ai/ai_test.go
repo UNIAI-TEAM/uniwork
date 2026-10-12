@@ -740,6 +740,17 @@ func TestRequestMessages(t *testing.T) {
 		t.Fatalf("parallel results refused: %v", err)
 	}
 
+	// Every call must be paired with exactly one result: an unanswered call, a
+	// repeated result, a repeated call id and an empty call id are all refused
+	// (BE13-1).
+	partial := toolTurnHistory("call_1")
+	partial[1].ToolCalls = append(partial[1].ToolCalls, provider.ToolCall{ID: "call_2", Name: "get_cell"})
+	duplicate := append(toolTurnHistory("call_1"), provider.Message{Role: "tool", ToolCallID: "call_1", Content: "again"})
+	repeated := toolTurnHistory("call_1")
+	repeated[1].ToolCalls = append(repeated[1].ToolCalls, provider.ToolCall{ID: "call_1", Name: "get_cell"})
+	nameless := toolTurnHistory("call_1")
+	nameless[1].ToolCalls = append([]provider.ToolCall{{Name: "get_cell"}}, nameless[1].ToolCalls...)
+
 	for name, bad := range map[string]Request{
 		"empty history":   {ToolResultTurn: true},
 		"ends with user":  {ToolResultTurn: true, History: toolTurnHistory("call_1")[:1]},
@@ -747,6 +758,10 @@ func TestRequestMessages(t *testing.T) {
 		"unknown id":      {ToolResultTurn: true, History: append(toolTurnHistory("call_1")[:2], provider.Message{Role: "tool", ToolCallID: "call_9", Content: "1"})},
 		"missing id":      {ToolResultTurn: true, History: append(toolTurnHistory("call_1")[:2], provider.Message{Role: "tool", Content: "1"})},
 		"attachments":     {ToolResultTurn: true, History: toolTurnHistory("call_1"), Attachments: []provider.Part{{MIME: "image/png"}}},
+		"unanswered call": {ToolResultTurn: true, History: partial},
+		"dup result id":   {ToolResultTurn: true, History: duplicate},
+		"dup call id":     {ToolResultTurn: true, History: repeated},
+		"call w/o id":     {ToolResultTurn: true, History: nameless},
 	} {
 		if _, err := requestMessages(bad, p); err == nil {
 			t.Fatalf("%s: accepted", name)
