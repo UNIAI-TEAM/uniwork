@@ -11,29 +11,48 @@ import (
 func (h *handlers) vnpayBillingWebhook(w http.ResponseWriter, r *http.Request) {
 	ev, err := h.Billing.ParseProviderWebhook(r)
 	if errors.Is(err, billing.ErrInvalidWebhookSignature) {
-		respondError(w, http.StatusUnauthorized, "invalid_request", "webhook signature invalid")
+		writeVNPayIPN(w, "97")
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "webhook payload invalid")
+		writeVNPayIPN(w, "99")
 		return
 	}
 	payload, err := service.ProviderWebhookPayloadJSON(ev)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "webhook payload invalid")
+		writeVNPayIPN(w, "99")
 		return
 	}
-	ok, err := h.Billing.HandleProviderWebhook(r.Context(), ev, payload)
-	if err != nil || !ok {
-		if err != nil {
-			h.Log.Error("vnpay webhook apply", "err", err)
+	code, err := h.Billing.HandleProviderWebhook(r.Context(), ev, payload)
+	if err != nil {
+		h.Log.Error("vnpay webhook apply", "err", err)
+		if code == "" {
+			code = "99"
 		}
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("RspCode=99&Message=Unknown error"))
-		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("RspCode=00&Message=Confirm Success"))
+	writeVNPayIPN(w, code)
+}
+
+func writeVNPayIPN(w http.ResponseWriter, code string) {
+	respondJSON(w, http.StatusOK, map[string]string{
+		"RspCode": code,
+		"Message": vnpayIPNMessage(code),
+	})
+}
+
+func vnpayIPNMessage(code string) string {
+	switch code {
+	case "00":
+		return "Confirm Success"
+	case "01":
+		return "Order not found"
+	case "02":
+		return "Order already confirmed"
+	case "04":
+		return "Invalid amount"
+	case "97":
+		return "Invalid Checksum"
+	default:
+		return "Unknown error"
+	}
 }
