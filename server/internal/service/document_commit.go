@@ -81,6 +81,16 @@ func errDocumentVersionConflict(current int64) error {
 		Fields: map[string]any{"current_revision": strconv.FormatInt(current, 10)}}
 }
 
+// contentBaseCurrent is the OQ-P1 (a1) base check of a file write: the base
+// the caller read still describes the content when it lies between the
+// revision of the last content change and the current revision. A move,
+// unarchive or rename since the base bumps only revision and passes; a
+// content change since the base, or a base the document never reached, is
+// document_version_conflict.
+func contentBaseCurrent(locked db.Document, base int64) bool {
+	return locked.ContentRevision <= base && base <= locked.Revision
+}
+
 func errEngineIncompatible() error {
 	return CodedError{Code: "engine_incompatible", Status: http.StatusConflict, Err: ErrConflict,
 		Msg: "phiên bản trình soạn thảo không tương thích; hãy cập nhật ứng dụng"}
@@ -298,7 +308,7 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 				// version of its source.
 				return errOfficeUploadInvalid("office_job_export_not_a_version")
 			}
-			if locked.Revision != job.BaseRevision || locked.FileVersionID.String != job.BaseVersionID {
+			if !contentBaseCurrent(locked, job.BaseRevision) || locked.FileVersionID.String != job.BaseVersionID {
 				return errDocumentVersionConflict(locked.Revision)
 			}
 			eng = officeEngineInfo()
@@ -306,7 +316,7 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 			if err := checkEngine(in.Engine); err != nil {
 				return err
 			}
-			if locked.Revision != in.BaseRevision {
+			if !contentBaseCurrent(locked, in.BaseRevision) {
 				return errDocumentVersionConflict(locked.Revision)
 			}
 			eng = in.Engine
@@ -431,7 +441,7 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 			res, err = replayWithAccess(replay.Body, access)
 			return err
 		}
-		if locked.Revision != in.BaseRevision {
+		if !contentBaseCurrent(locked, in.BaseRevision) {
 			return errDocumentVersionConflict(locked.Revision)
 		}
 		src, err := q.GetDocumentVersion(ctx, db.GetDocumentVersionParams{

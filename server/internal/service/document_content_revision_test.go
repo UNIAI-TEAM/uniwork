@@ -7,7 +7,18 @@ import (
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// TestContentBaseCurrent: the closed range [content_revision, revision].
+func TestContentBaseCurrent(t *testing.T) {
+	d := db.Document{ContentRevision: 3, Revision: 5}
+	for base, want := range map[int64]bool{2: false, 3: true, 4: true, 5: true, 6: false} {
+		if got := contentBaseCurrent(d, base); got != want {
+			t.Errorf("base %d: got %v, want %v", base, got, want)
+		}
+	}
+}
 
 // TestDocumentContentRevision: OQ-P1 (a1, contract-p0 §7.1). A file commit,
 // an office job commit and a version restore accept a base between the

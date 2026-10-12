@@ -709,8 +709,8 @@ func (s *DocumentOfficeService) OpenOfficeJobOutput(ctx context.Context, actor A
 // get the job row back. Exactly one commit wins; a cancelled, failed or
 // already committed job returns ErrOfficeJobNotCommittable and its output is
 // never attached. The caller, in the same transaction, must also:
-//   - CAS the document on the job's base (documents.revision = BaseRevision and
-//     file_version_id = BaseVersionID): two jobs may complete on one base
+//   - CAS the document on the job's base (content_revision <= BaseRevision <=
+//     revision, OQ-P1, and file_version_id = BaseVersionID): two jobs may complete on one base
 //     (different keys, or a retry after the first settled), and only the
 //     document CAS decides which one becomes the version;
 //   - ClaimInTx the job's OutputFileID with FileService, or the staged output
