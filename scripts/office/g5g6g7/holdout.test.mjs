@@ -670,19 +670,28 @@ test('setup is accepted and validated: overlay, history, selection, serverVersio
 });
 
 /**
- * A needle is only a leak signal when it identifies the case's own content. A URL scheme, a bare number or a reserved
- * example domain (RFC 2606) occurs legitimately all over the repo, so scanning for it would only produce noise; the
- * high-value needles are the injection payloads (setup.overlay / setup.history values) and the mustNotContain markers,
- * which are exactly what must never reach an instruction pack. R1-6 names those two classes; a bare number is left out
- * on purpose and a money-scale number (>= 7 digits, e.g. 22.060.000) is kept.
+ * A needle is only a leak signal when it identifies the case's own content. A URL scheme, a short bare number or a
+ * reserved example domain (RFC 2606) occurs legitimately all over the repo, so scanning for it would only produce
+ * noise; the high-value needles are the injection payloads (setup.overlay / setup.history values) and the
+ * mustNotContain markers, which are exactly what must never reach an instruction pack. R1-6 names those two classes.
+ * A money-scale number (>= MIN_NUMBER_DIGITS digits, e.g. 22.060.000) is a needle too (R2-2): it is the answer itself.
+ * It must survive the same distinctiveness filter that drops the short ones, so the rule lives in one place.
  */
+const MIN_NUMBER_DIGITS = 7;
+/**
+ * Money-scale needles dropped by name, each with the reason. `12345678` is the counting run "1..8": it is a substring of
+ * every "0123456789…" alphabet and RFC 6238 seed in the tree (50 tracked files, none of them a leak), so as a plain
+ * string it says nothing. Its grouped forms (dot- and comma-grouped) are not exempt and are scanned.
+ */
+const EXEMPT_MONEY_NEEDLES = new Map([['12345678', 'the counting run 1-8, a substring of digit alphabets and test seeds in 50 tracked files']]);
+const digitCount = (needle) => needle.replace(/[^\d]/g, '').length;
 const GENERIC_NEEDLES = [
   /^https?:\/\/$/i, // a URL scheme on its own, not a payload
-  /^[\d.,]+$/, // a bare number
+  (needle) => /^[\d.,]+$/.test(needle) && digitCount(needle) < MIN_NUMBER_DIGITS, // a short bare number
+  (needle) => EXEMPT_MONEY_NEEDLES.has(needle), // named exemption, with its reason above
   /(^|\.)example\.(com|invalid|org|net)$/i, // a reserved example domain (RFC 2606)
 ];
-const MIN_NUMBER_DIGITS = 7;
-const isDistinctive = (needle) => !GENERIC_NEEDLES.some((pattern) => pattern.test(needle));
+const isDistinctive = (needle) => !GENERIC_NEEDLES.some((rule) => (typeof rule === 'function' ? rule(needle) : rule.test(needle)));
 
 /** A number as a reader could type it: plain, en-grouped and vi-grouped (the leak scan looks for any of them). */
 function numberForms(value) {
@@ -770,6 +779,39 @@ test('the leak scan finds an injection payload and a marker outside the holdout 
     assert.ok(found.includes('leaked.md'), `the marker leak was not found: ${found.join(', ')}`);
     assert.ok(found.includes('leaked.bin'), `a payload inside a binary file was not found: ${found.join(', ')}`);
     assert.ok(!found.includes('clean.md'), 'the scan reported a file that carries no needle');
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test('the leak scan keeps money-scale numbers and finds one planted outside the holdout dir, text and binary (R2-2)', () => {
+  // The money needles used to be added and then removed again by the bare-number filter (0 of 156 survived), so a
+  // money-scale answer committed outside the holdout dir was invisible. The planted value is read from the cases (a
+  // mustNotContain money token no fixture owns), never written here, or this file would itself be the leak.
+  const needles = leakNeedles();
+  const isMoney = (token) => /^[\d.,]+$/.test(token) && digitCount(token) >= MIN_NUMBER_DIGITS;
+  const planted = allCases
+    .flatMap((c) => c.expected.mustNotContain)
+    .find((token) => isMoney(token) && token.includes('.') && !needleOwnedByFixture(token) && !EXEMPT_MONEY_NEEDLES.has(token.replace(/\./g, '')));
+  assert.ok(planted, 'expected a money-scale mustNotContain token that no fixture owns');
+  const plain = planted.replace(/\./g, '');
+  // The plain form is a needle too, though a fixture that holds it (xlsx cell XML) owns it and drops it from the scan.
+  for (const needle of [planted, plain]) assert.ok(needles.includes(needle), `the money needle ${needle} was filtered out`);
+  for (const exempt of EXEMPT_MONEY_NEEDLES.keys()) assert.ok(!needles.includes(exempt), `${exempt} is exempt by name and must not be scanned`);
+  assert.ok(!needles.some((needle) => /^[\d.,]+$/.test(needle) && digitCount(needle) < MIN_NUMBER_DIGITS), 'a short bare number is scanned');
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'holdout-leak-money-'));
+  const git = (args) => execFileSync('git', ['-C', scratch, '-c', 'user.email=t@example.invalid', '-c', 'user.name=t', ...args], { encoding: 'utf8' });
+  try {
+    git(['init', '-q']);
+    fs.writeFileSync(path.join(scratch, 'leaked.md'), `quarter total ${planted} dong\n`, 'utf8');
+    fs.writeFileSync(path.join(scratch, 'leaked.bin'), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(planted, 'utf8')]));
+    fs.writeFileSync(path.join(scratch, 'clean.md'), 'order 123456 and 99.000 only\n', 'utf8');
+    git(['add', '.']);
+    git(['commit', '-qm', 'scratch']);
+    const found = findLeaks(needles.filter((needle) => !needleOwnedByFixture(needle)), scratch);
+    assert.ok(found.includes('leaked.md'), `${planted} in a text file was not found: ${found.join(', ')}`);
+    assert.ok(found.includes('leaked.bin'), `${planted} in a binary file was not found: ${found.join(', ')}`);
+    assert.ok(!found.includes('clean.md'), 'a short number was reported as a leak');
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }
