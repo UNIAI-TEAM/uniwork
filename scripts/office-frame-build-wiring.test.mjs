@@ -23,6 +23,15 @@ test("the web Dockerfile builds with NODE_ENV=production and takes OFFICE_FRAME_
   );
 });
 
+// pnpm install runs the packages/office-upstream prepare script, which applies its patch series
+// with `git apply`; node:22-alpine has no git (232e58a2b, lost once in #219).
+test("the web Dockerfile installs git before pnpm install", () => {
+  const dockerfile = read("apps/web/Dockerfile");
+  const git = dockerfile.search(/^RUN apk add --no-cache git$/m);
+  assert.ok(git >= 0, "the build stage must install git");
+  assert.ok(git < dockerfile.indexOf("RUN pnpm install"), "git must be installed before pnpm install");
+});
+
 test("the production Jenkinsfile builds the web image without a frame credential", () => {
   const jenkins = read("ci/Jenkinsfile.production-app.groovy");
   assert.doesNotMatch(jenkins, /OFFICE_FRAME_SOURCE/, "the Jenkinsfile must not wire OFFICE_FRAME_SOURCE or its credential");
