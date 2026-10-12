@@ -125,7 +125,14 @@ func New(d Deps, h Routes) http.Handler {
 	// api wrapper and the OpenAPI catalogue. Registration creates rows for any
 	// caller, so it gets the smaller budget.
 	registerMCP(r, h, credentialLimit, mw.RateLimit(d.Redis, 10, time.Hour, proxies),
-		mw.RateLimitByIdentityBucket(d.Redis, "mcp", 120, time.Minute, proxies, mcpBearer))
+		mcpLimits(
+			// Every request of an address, whatever token it carries: the
+			// per-token key below is read before authentication, so a caller
+			// who rotates well-formed uwm_at_ strings gets a fresh bucket from
+			// each. 1200 a minute holds ten teams at their own 120 behind one
+			// AI vendor's egress address.
+			mw.RateLimitByIdentityBucket(d.Redis, "mcp-ip", 1200, time.Minute, proxies, nil),
+			mw.RateLimitByIdentityBucket(d.Redis, "mcp", 120, time.Minute, proxies, mcpBearer)))
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
 		registerAuth(v1, h, credentialLimit)

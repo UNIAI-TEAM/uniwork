@@ -415,3 +415,57 @@ func TestMCPBearerKey(t *testing.T) {
 		}
 	}
 }
+
+// Ruling 28: the per-token budget is read before authentication, so a caller
+// who rotates well-formed uwm_at_ strings gets a fresh 120 a minute from each.
+// A per-address ceiling of 1200 a minute sits in front of it and counts every
+// request of the address whatever token it carries. Four teams behind one
+// vendor address (480 a minute at their own ceilings) fit under it.
+func TestMCPAddressCeilingStopsRotatingTokens(t *testing.T) {
+	h, _ := limitedMux(t)
+	c := caller{ip: "10.30.1.1"}
+	for i := 0; i < 1200; i++ {
+		c.bearer = fmt.Sprintf("uwm_at_rotating-%d", i)
+		if code := c.send(h, http.MethodPost, "/mcp"); code == http.StatusTooManyRequests {
+			t.Fatalf("request %d of 1200 from one address was refused with 429", i+1)
+		}
+	}
+	c.bearer = "uwm_at_rotating-1200"
+	c.wantRefused(t, h, http.MethodPost, "/mcp", "the 1201st request of an address in a minute, with a token never seen before")
+	// The refusal carries the standard envelope and Retry-After.
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.RemoteAddr = c.ip + ":40000"
+	req.Header.Set("Authorization", "Bearer uwm_at_rotating-1201")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") != "60" {
+		t.Fatalf("429 answer: %d Retry-After %q", rec.Code, rec.Header().Get("Retry-After"))
+	}
+
+	// A token the address spent is still limited by its own 120, and another
+	// address has its own ceiling.
+	other := caller{ip: "10.30.1.2", bearer: "uwm_at_one-team"}
+	other.spend(t, h, http.MethodPost, "/mcp", 120)
+	other.wantRefused(t, h, http.MethodPost, "/mcp", "per-token budget still applies under the ceiling")
+	caller{ip: "10.30.1.3", bearer: "uwm_at_fresh"}.spend(t, h, http.MethodPost, "/mcp", 1)
+}
+
+// The ceiling counts GET and DELETE too, and does not touch routes that are
+// not /mcp.
+func TestMCPAddressCeilingCoversEveryMethodAndNothingElse(t *testing.T) {
+	h, _ := limitedMux(t)
+	c := caller{ip: "10.30.1.4"}
+	for i := 0; i < 1200; i++ {
+		c.bearer = fmt.Sprintf("uwm_at_m-%d", i)
+		method := []string{http.MethodPost, http.MethodGet, http.MethodDelete}[i%3]
+		if code := c.send(h, method, "/mcp"); code == http.StatusTooManyRequests {
+			t.Fatalf("request %d refused", i+1)
+		}
+	}
+	c.bearer = "uwm_at_m-last"
+	c.wantRefused(t, h, http.MethodDelete, "/mcp", "one ceiling for every method")
+	// The discovery documents and OAuth endpoints are on their own budgets.
+	c.bearer = ""
+	c.spend(t, h, http.MethodGet, "/.well-known/oauth-protected-resource", 5)
+	c.spend(t, h, http.MethodPost, "/oauth/token", 5)
+}

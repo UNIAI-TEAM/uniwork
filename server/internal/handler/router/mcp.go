@@ -21,7 +21,8 @@ const mcpAccessPrefix = "uwm_at_"
 //
 // authorize, token and revoke share the credential budget (per address and
 // path); registration writes a row for any caller and takes its own; /mcp is
-// budgeted per access token (mcpBearer) and is off the global limiter.
+// budgeted per access token (mcpBearer) under a ceiling per address, and is off
+// the global limiter.
 func registerMCP(r chi.Router, h Routes, credentialLimit, registerLimit, mcpLimit func(http.Handler) http.Handler) {
 	r.Get("/.well-known/oauth-protected-resource", h.McpProtectedResource)
 	r.Get("/.well-known/oauth-protected-resource/mcp", h.McpProtectedResource)
@@ -36,6 +37,17 @@ func registerMCP(r chi.Router, h Routes, credentialLimit, registerLimit, mcpLimi
 	r.With(mcpLimit).Post("/mcp", h.McpServe)
 	r.With(mcpLimit).Get("/mcp", h.McpServe)
 	r.With(mcpLimit).Delete("/mcp", h.McpServe)
+}
+
+// mcpLimits runs the limiters in order, first to last. The address ceiling
+// goes first so a request it refuses never opens a per-token counter.
+func mcpLimits(limits ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		for i := len(limits) - 1; i >= 0; i-- {
+			next = limits[i](next)
+		}
+		return next
+	}
 }
 
 // mcpBearer keys the /mcp budget by access token. The router reads no
