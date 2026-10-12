@@ -1,7 +1,7 @@
 # UniWork Office G5/G6/G7 — Đồng bộ, AI Office (UniWork AI) và nghiệm thu phát hành
 
-> **Trạng thái:** in-progress — spec v1.2 bàn giao (đã duyệt 2026-10-12, U-13; gate còn mở ở §13.1), ngày 2026-10-12 (v1.1 ngày 2026-10-11, v1.0 ngày 2026-10-02). Đội lập phase này không triển khai;
-> G5/G6/G7 giao cho đội khác (quyết định người dùng 2026-10-11). v1.2 bỏ Dify khỏi phạm vi (U-12). Chưa khởi chạy triển khai, cấu hình upstream model hoặc nghiệm thu sản phẩm.
+> **Trạng thái:** in-progress — spec v1.2 bàn giao (đã duyệt 2026-10-12, U-13; gate còn mở ở §13.1; triển khai bằng cook-plan theo U-14), ngày 2026-10-12 (v1.1 ngày 2026-10-11, v1.0 ngày 2026-10-02). U-14 (2026-10-12) thay U-10:
+> phiên Advisor của UNI-923 triển khai G5/G6/G7 theo plan v2.6. v1.2 bỏ Dify khỏi phạm vi (U-12). Triển khai bắt đầu 2026-10-12 (U-14); chưa cấu hình upstream model production, chưa nghiệm thu sản phẩm.
 
 **Issue tài liệu:** UNI-923, parent UNI-437; Roadmap C-01, liên quan C-15/C-16.
 **Issue triển khai:** G5 UNI-660 · G6 UNI-635 · G7 UNI-661 (đội nhận bàn giao giữ các issue này).
@@ -51,6 +51,7 @@ Nếu yêu cầu ghi công thức, thay đổi chỉ nằm trong editor để ng
 | U-11 | Mọi việc liên quan chứng chỉ (ký số, notarization, kênh stable, update feed có ký) ở backlog đến khi có chứng chỉ | Không là gate của G7 cho bản dev; chỉ thành gate khi người dùng mở lại |
 | U-12 | Bỏ Dify (người dùng 2026-10-12: "k cần giao task cho bên đó đâu bro. bỏ luôn đi cũng được. về url dify config thì có thể test tạm bằng config của custom provider trong codex") | Không deployment Dify (staging hay production), không adapter Dify, không Dify app, không Knowledge API, không pipeline nhập corpus, không POC retrieval, không giao việc cho đội khác. UniWork AI → UniWork API → `ai.Gateway` → upstream model là cấu hình của provider openai-compatible có sẵn (§8); upstream dev/test là custom provider của Codex trên máy dev (§8.4); CI và unit test dùng provider `fake` |
 | U-13 | Người dùng duyệt spec v1.2 theo gợi ý (2026-10-12: "ok duyệt theo gợi ý") | Đóng: G5-D1 giá trị chính sách (lease ≤ 24h, gia hạn khi online, revoke có hiệu lực khi máy nhận revoke hoặc lease hết hạn, logout khóa ngay); G5-D3 (một save intent chưa giải quyết mỗi Document); entitlement UniWork AI dùng lại `office.ai_cloud` (§8); bộ test eval tối thiểu 100 tình huống (§9.2); platform G7-D2 (Win NSIS, mac arm64 + x64 dmg, Linux AppImage + deb; ký số theo U-11). Giao đội triển khai chốt: G5-D2, G6-D1, G6-D4, ngưỡng/chi phí của G7-D1, máy cụ thể của G7-D2. Người dùng tự quyết khi lên production: G6-D2 (dev/test dùng upstream Codex theo U-12) |
+| U-14 | Người dùng giao phiên Advisor của UNI-923 triển khai phase bằng cook-plan (2026-10-12: "automation 10p check, trước tiên triển khai 4 lane, 2 lane local, 2 lane vps bro, mỗi lane 4-6 session tùy tải máy. dùng skill cook plan") | Thay U-10: đội lập spec/plan cũng là đội triển khai. Vai trò owner người (Auth, G1/FileService, Product, UX, OPS, QA) do lead agent đảm nhận; mọi điểm cần người ký (*hitl*) về người dùng qua decision packet của Advisor |
 
 Không có RAG, fine-tuning trọng số, tự học từ hội thoại khách hàng hay cam kết model ghi nhớ lâu dài. “Kiến thức”
 trong phase này là instruction pack có version, review và eval (§7).
@@ -763,7 +764,7 @@ end-to-end latency/cost và crash rate. Alert thresholds chốt từ load profil
 | G7-D1 | **Số tình huống đã duyệt (≥100, U-13)**; ngưỡng/chi phí giao đội triển khai chốt. QA + Product + OPS: duyệt thresholds §9.2, fixture/load profile, cost/run và end-to-end SLO | Kết luận chất lượng/hiệu năng |
 | G7-D2 | **Danh sách platform đã duyệt (U-13)**; máy cụ thể giao đội triển khai. Owner fork + OPS + QA: máy/OS/arch, stage/channel từng platform; ký số theo backlog chứng chỉ (U-11) | Cam kết platform và phát hành |
 
-U-01..13 là quyết định đã có. U-13 đóng phần ghi "đã duyệt" trong bảng trên; phần còn lại vẫn mở với owner ghi ở từng dòng.
+U-01..14 là quyết định đã có. U-13 đóng phần ghi "đã duyệt" trong bảng trên; phần còn lại vẫn mở với owner ghi ở từng dòng.
 Gate chưa đóng không cấm chuẩn bị độc lập, nhưng không cho runtime fallback vượt policy.
 Không đặt ngày hoàn thành từ số nhóm; estimate sau khi đội nhận bàn giao có capacity và thử P1.
 
@@ -784,7 +785,7 @@ Không đặt ngày hoàn thành từ số nhóm; estimate sau khi đội nhận
 
 Phiên UNI-923 chỉ viết spec, plan bàn giao và tham chiếu roadmap ở mức đề xuất. Không tạo instruction pack,
 không cấu hình upstream/model, không chạy E2E acceptance và không thay đổi status của issue implementation.
-Triển khai do đội khác (U-10); chỉ người dùng quyết định duyệt spec và giao phase.
+Từ U-14 phiên Advisor của UNI-923 triển khai theo plan v2.6; chỉ người dùng ký các điểm *hitl* và quyết định phát hành.
 
 ## 14. Tham chiếu đã kiểm tra
 
