@@ -1,6 +1,7 @@
 // Sibling of scripts/office/acceptance-matrix.test.mjs for the G5/G6/G7 matrix
-// (UNI-1376 / G7-01 item B). The g3g4 matrix is a different contract and is not
-// touched here; this file owns the G5/G6/G7 rows, their markdown mirror and the
+// (UNI-1376 / G7-01 item B), extended with the G8 collaboration rows (UNI-1331,
+// plan section 5.7). The g3g4 matrix is a different contract and is not
+// touched here; this file owns the G5/G6/G7/G8 rows, their markdown mirror and the
 // evidence records they may not claim without.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -26,12 +27,14 @@ const writeArtifact = (name) => {
   return file;
 };
 
-// Spec Section 9.1, one id per requirement. A new requirement is added here and
-// in acceptance-rows.json together; the count below is the other half.
+// Spec Section 9.1, one id per requirement, plus the G8 addendum rows (plan
+// section 5.7 acceptance table). A new requirement is added here and in
+// acceptance-rows.json together; the count below is the other half.
 const requirementIds = [
   ...range('G5', 1, 8),
   ...range('G6', 1, 10),
   ...range('G7', 1, 5),
+  ...range('G8', 1, 10),
 ];
 const oracleTypes = new Set(['receipt', 'object/part', 'extraction', 'render diff', 'deterministic score', 'security probe', 'manifest']);
 const hosts = new Set(['web', 'desktop']);
@@ -288,10 +291,11 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
     G5: candidate.rows.filter((row) => row.id.startsWith('G5-')).length,
     G6: candidate.rows.filter((row) => row.id.startsWith('G6-')).length,
     G7: candidate.rows.filter((row) => row.id.startsWith('G7-')).length,
+    G8: candidate.rows.filter((row) => row.id.startsWith('G8-')).length,
     total: candidate.rows.length,
   };
   assert.deepEqual(candidate.rowCounts, counts, 'rowCounts must reconcile with the rows');
-  assert.deepEqual(counts, { G5: 8, G6: 10, G7: 5, total: 23 }, 'the spec Section 9.1 split must not change silently');
+  assert.deepEqual(counts, { G5: 8, G6: 10, G7: 5, G8: 10, total: 33 }, 'the spec Section 9.1 split plus the G8 addendum rows must not change silently');
   // R1-14: today's slice is not frozen here. A row that legitimately becomes PASS,
   // or a gate that closes and leaves no BLOCKED row, must not fail a correct
   // matrix; the rows' own rules and the prose count table are what is pinned.
@@ -315,7 +319,7 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
   assert.ok(doc.includes(summary.totalLine), `acceptance.md totals row does not match the rows: expected ${summary.totalLine}`);
   const gateSection = doc.split(gateMarker)[1]?.split('\n## ')[0] ?? '';
   assert.deepEqual(
-    [...new Set(gateSection.match(/G[567]-A\d\d/g) ?? [])].sort(),
+    [...new Set(gateSection.match(/G[5678]-A\d\d/g) ?? [])].sort(),
     [...summary.blocked].sort(),
     'the open-gate section must name exactly the BLOCKED rows',
   );
@@ -323,7 +327,7 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
 
   // The group tables are subsections of the matrix section, not siblings of it
   // (reviewer_fe F3).
-  for (const group of ['G5', 'G6', 'G7']) {
+  for (const group of ['G5', 'G6', 'G7', 'G8']) {
     assert.ok(doc.includes(`### Nghiệm thu ${group} `), `the ${group} table must be a ### subsection`);
   }
   assert.equal(/^## Nghiệm thu /m.test(doc), false, 'the group headings are subsections of the matrix table, not siblings');
@@ -472,10 +476,10 @@ test('acceptance matrix rejects candidate regressions', () => {
     { name: 'PASS whose evidence has an unknown result vocabulary', mutate: (c) => { c.evidence[0].result = 'skipped'; }, build: passRow, expected: /unsupported result "skipped"/ },
     { name: 'PASS whose evidence has an empty result', mutate: (c) => { c.evidence[0].result = ''; }, build: passRow, expected: /unsupported result ""/ },
     { name: 'row without evidenceRequired', mutate: (c) => { c.rows[0].evidenceRequired = ''; }, expected: /needs a non-empty evidenceRequired/ },
-    // The synthetic base has 22 NOT_RUN rows and one BLOCKED row (the last), so
-    // these drifts name its own numbers, not the committed matrix's.
-    { name: 'markdown count table drift', doc: (doc) => doc.replace('| 4 NOT_RUN, 1 BLOCKED |', '| 3 NOT_RUN, 2 BLOCKED |'), expected: /count table does not match/ },
-    { name: 'markdown totals row drift', doc: (doc) => doc.replace('**22 NOT_RUN, 1 BLOCKED, 0 PASS**', '**21 NOT_RUN, 2 BLOCKED, 0 PASS**'), expected: /totals row does not match/ },
+    // The synthetic base has 32 NOT_RUN rows and one BLOCKED row (the last, G8-A10),
+    // so these drifts name its own numbers, not the committed matrix's.
+    { name: 'markdown count table drift', doc: (doc) => doc.replace('| 9 NOT_RUN, 1 BLOCKED |', '| 8 NOT_RUN, 2 BLOCKED |'), expected: /count table does not match/ },
+    { name: 'markdown totals row drift', doc: (doc) => doc.replace('**32 NOT_RUN, 1 BLOCKED, 0 PASS**', '**31 NOT_RUN, 2 BLOCKED, 0 PASS**'), expected: /totals row does not match/ },
     { name: 'markdown blocked count word drift', doc: (doc) => doc.replace(/một dòng bị chặn hôm nay/i, 'Hai dòng bị chặn hôm nay'), expected: /blocked count must read/ },
     { name: 'open-gate section naming a row that is not BLOCKED', doc: (doc) => doc.replace('hôm nay:\n\n- ', 'hôm nay:\n\n- G5-A01, '), expected: /open-gate section must name exactly/ },
     { name: 'markdown group heading promoted back to a sibling', doc: (doc) => doc.replace('### Nghiệm thu G6', '## Nghiệm thu G6'), expected: /must be a ### subsection/ },
