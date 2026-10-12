@@ -97,7 +97,7 @@ export function OfficeHomeLaunch({ channel, deploymentId, apiOrigin, launch, loa
         className={cn("max-sm:px-2", className)}
         aria-label={label}
         aria-busy={launching || undefined}
-        disabled={launching}
+        aria-disabled={launching || undefined}
         onClick={() => void run()}
         data-office-home-launch
       >

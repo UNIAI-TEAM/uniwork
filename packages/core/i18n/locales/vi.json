@@ -7690,7 +7690,7 @@
       "pdf": "Tài liệu PDF",
       "md": "Tài liệu Markdown",
       "html": "Tài liệu HTML",
-      "file": "Tệp",
+      "file": "File",
       "page": "Trang UniWork",
       "folder": "Thư mục"
     },
@@ -8193,7 +8193,7 @@
         "unavailable_hint": "Chưa dùng được trên máy chủ này",
         "page": {
           "card": "Trang",
-          "hint": "Trang UniWork, có việc và nhắc đến",
+          "hint": "Trang UniWork, gắn được công việc và nhắc tên",
           "menu": "Trang",
           "ext": "UniWork"
         },
@@ -8330,7 +8330,7 @@
         "star_failed": "Không thể cập nhật gắn sao. Thử lại.",
         "move": "Di chuyển",
         "archive": "Lưu trữ",
-        "open_chat": "Mở Chat",
+        "open_chat": "Mở Trò chuyện",
         "open_email": "Mở Email"
       },
       "empty": {
@@ -8350,6 +8350,8 @@
         "sources_description": "File trong trò chuyện, công việc, cuộc họp và email mà bạn xem được sẽ hiện ở đây."
       },
       "no_matches_description": "Không có file loại này. Tạo mới ở hàng thẻ phía trên hoặc bỏ lọc.",
+      "no_matches_plain_description": "Không có file loại này. Bỏ lọc để xem tất cả.",
+      "no_matches_more_description": "Chưa thấy file loại này trong phần đã tải. Tải thêm để tìm tiếp hoặc bỏ lọc.",
       "drop_hint": "Kéo thả file vào bảng để tải lên.",
       "drop_active": "Thả để tải lên thư mục đang mở",
       "drop_failed": "Không thể tải lên {{name}}.",

@@ -163,6 +163,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const scope: ScopeTab | null = view.kind === "home" || view.kind === "recent" || view.kind === "shared" || view.kind === "archived" ? view.kind : null;
   const filtered = chip !== "all" && library.unfilteredCount > 0;
   const state = library.state;
+  // The header counts documents only: not the folders and not the files that
+  // other modules list here as links.
+  const documentCount = state.rows.filter((row) => row.type === "document" && row.doc.kind !== "folder").length;
   const emptyCopy =
     view.kind === "home"
       ? {
@@ -181,6 +184,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     starredCount: library.starredCount,
     sourcesAvailable: library.sourcesAvailable,
     canCreate: !folderId || canCreate,
+    newFolderPending: creator.folderPending,
     onView: (next: LibraryView) => goHome(next),
     onFolder: (id: string) => goHome({ kind: "home" }, id),
     onNewFolder: () => void newFolder(),
@@ -198,7 +202,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         icon={MODULE_ICONS.documents}
         tone={moduleTone("documents")}
         title={t("documents.page.title")}
-        count={enabled && view.kind === "home" && !folderId && !state.loading && !state.hasMore ? state.rows.length : undefined}
+        count={enabled && view.kind === "home" && !folderId && !state.loading && !state.hasMore ? documentCount : undefined}
         actions={
           enabled ? (
             <div className="flex items-center gap-2">
@@ -262,6 +266,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                 loading={state.loading}
                 failure={state.failure}
                 filtered={filtered}
+                cardsShown={canCreate && view.kind === "home"}
                 archived={view.kind === "archived"}
                 hasMore={state.hasMore}
                 loadingMore={state.loadingMore}

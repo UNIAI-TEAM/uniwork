@@ -1,10 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { OfficeSaveCoordinatorLike } from "./desktop-open-action";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DesktopOpenAction } from "./desktop-open-action";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 initI18n();
 
@@ -26,6 +29,21 @@ async function openDownload() {
 }
 
 describe("DesktopOpenAction", () => {
+  it("draws the row button icon-only in the narrow column and on touch, named and with a tooltip", () => {
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} placement="row" />);
+    const button = screen.getByRole("button", { name: "Open in app" });
+    expect(button).toHaveAttribute("title", "Open in UniWork Office");
+    expect(button.querySelector("span")).toHaveClass("max-md:sr-only", "pointer-coarse:sr-only");
+  });
+
+  it("reports a failed row launch as a toast, not inside the row cell", async () => {
+    const createSession = vi.fn(async () => null);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} placement="row" createSession={createSession} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in app" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("renders one split button whose label stays accessible below lg", () => {
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} />);
     const edit = screen.getByRole("button", { name: "Open in UniWork Office" });

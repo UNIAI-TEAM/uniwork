@@ -541,7 +541,7 @@ describe("DocumentsPageView", () => {
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("radio", { name: "Hợp đồng" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hợp đồng" }));
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
     await waitFor(() => {
       const call = postCall("POST");
@@ -565,8 +565,8 @@ describe("DocumentsPageView", () => {
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).queryByRole("radio", { name: "Hợp đồng" })).toBeNull();
-    expect(within(dialog).queryByRole("radio", { name: "Con" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Hợp đồng" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Con" })).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
     expect(await within(dialog).findByText(t("documents.errors.document_parent_kind"))).toBeInTheDocument();
   });
@@ -650,9 +650,9 @@ describe("DocumentsPageView", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
     const dialog = await screen.findByRole("dialog");
     // A page with one child takes two levels: level 3 is the deepest target.
-    expect(within(dialog).getByRole("radio", { name: "Cấp 3" })).toBeInTheDocument();
-    expect(within(dialog).queryByRole("radio", { name: "Cấp 4" })).toBeNull();
-    expect(within(dialog).queryByRole("radio", { name: "Cấp 5" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Cấp 3" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Cấp 4" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Cấp 5" })).toBeNull();
   });
 
   it("explains a folder too large to archive at once", async () => {

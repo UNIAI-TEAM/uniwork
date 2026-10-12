@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronRight, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -106,9 +106,14 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  // One submit per edit: Enter removes the focused input, which fires blur, and
+  // Escape must not commit the draft through that blur.
+  const settled = useRef(false);
   const leaf = path.at(-1);
   if (!leaf) return null;
   const submit = () => {
+    if (settled.current) return;
+    settled.current = true;
     const title = draft.trim();
     setEditing(false);
     if (title && title !== leaf.title) onRename(title);
@@ -144,7 +149,10 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
             onChange={(event) => setDraft(event.target.value)}
             onBlur={submit}
             onKeyDown={(event) => {
-              if (event.key === "Escape") setEditing(false);
+              if (event.key === "Escape") {
+                settled.current = true;
+                setEditing(false);
+              }
             }}
             className="h-8 w-56"
           />
@@ -164,6 +172,7 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
               aria-disabled={renaming || undefined}
               onClick={() => {
                 if (renaming) return;
+                settled.current = false;
                 setDraft(leaf.title);
                 setEditing(true);
               }}

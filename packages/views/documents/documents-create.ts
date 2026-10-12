@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { BlankDocumentFormat } from "@uniwork/core/api/endpoints/documents-blank";
 import { useCreateDocument } from "@uniwork/core/documents/hooks";
 import { isEndpointMissing, useCreateBlankFile, useCreateFolder } from "@uniwork/core/documents/hooks-library";
+import { createSafeId } from "@uniwork/core/utils";
 import { documentErrorMessage } from "./document-error-message";
 
 /** What the create cards and the "New" menu offer, in the design's order. */
@@ -26,6 +27,8 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
   const createFolder = useCreateFolder(wsId);
   // A type the server answered 404/501 for (its blank route or format is not
   // deployed yet): the card stays visible, disabled with a hint, for the session.
+  // A second click while the first create is in flight must not make a second folder.
+  const folderBusy = useRef(false);
   const [unavailable, setUnavailable] = useState<ReadonlySet<CreateType>>(new Set());
 
   const create = async (type: CreateType, parentId: string | null) => {
@@ -42,6 +45,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
         format: type satisfies BlankDocumentFormat,
         title: t(`documents.home.default_names.${type}`),
         ...(parentId ? { parentId } : {}),
+        idempotencyKey: createSafeId(),
       });
       onOpen(doc.id);
     } catch (error) {
@@ -56,15 +60,20 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
 
   /** A new folder takes its default name; the caller navigates into it. */
   const newFolder = async (parentId: string | null): Promise<string | null> => {
+    if (folderBusy.current) return null;
+    folderBusy.current = true;
     try {
       const folder = await createFolder.mutateAsync({
         title: t("documents.home.folders.default_name"),
         ...(parentId ? { parentId } : {}),
+        idempotencyKey: createSafeId(),
       });
       return folder.id;
     } catch (error) {
       toast.error(documentErrorMessage(error, t, "documents.home.folders.create_failed"));
       return null;
+    } finally {
+      folderBusy.current = false;
     }
   };
 

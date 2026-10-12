@@ -73,6 +73,20 @@ describe("OfficeHomeLaunch", () => {
     expect(screen.queryByRole("button", { name: "Open UniWork Office" })).not.toBeInTheDocument();
   });
 
+  it("holds the button with aria-disabled while it launches, so focus stays and a second click does nothing", async () => {
+    let finish: (outcome: OfficeLaunchOutcome) => void = () => undefined;
+    const launch = vi.fn(() => new Promise<OfficeLaunchOutcome>((resolve) => { finish = resolve; }));
+    render(<OfficeHomeLaunch {...props({ launch })} />);
+    const button = await screen.findByRole("button", { name: "Open UniWork Office" });
+    fireEvent.click(button);
+    await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
+    expect(button).not.toBeDisabled();
+    fireEvent.click(button);
+    expect(launch).toHaveBeenCalledOnce();
+    finish("launched");
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
+  });
+
   it("keeps the label for assistive tech when it is icon-only on a phone", async () => {
     render(<OfficeHomeLaunch {...props()} />);
     const button = await screen.findByRole("button", { name: "Open UniWork Office" });

@@ -17,6 +17,8 @@ export interface DocumentsLibraryListProps {
   failure: "error" | "permission" | null;
   /** The rows are empty because a filter is on, not because the library is. */
   filtered: boolean;
+  /** The create cards sit above the list, so the no-match hint may point at them. */
+  cardsShown?: boolean;
   /** Show the archive badge on every row (the archive tab). */
   archived?: boolean;
   hasMore: boolean;
@@ -40,6 +42,7 @@ export function DocumentsLibraryList({
   loading,
   failure,
   filtered,
+  cardsShown = false,
   archived = false,
   hasMore,
   loadingMore,
@@ -82,16 +85,31 @@ export function DocumentsLibraryList({
   const total = groups.reduce((sum, group) => sum + group.rows.length, 0);
   if (total === 0) {
     if (filtered) {
+      // The type filter runs on the pages already loaded; while the server has
+      // more, "no matches" is not an answer yet, so offer the next page.
       return (
         <CollectionPageState
           icon={Search}
           title={t("documents.library.no_matches_title")}
-          description={t("documents.home.no_matches_description")}
+          description={t(
+            hasMore
+              ? "documents.home.no_matches_more_description"
+              : cardsShown
+                ? "documents.home.no_matches_description"
+                : "documents.home.no_matches_plain_description",
+          )}
           role="status"
           actions={
-            <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
-              {t("documents.library.clear_filters")}
-            </Button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {hasMore ? (
+                <Button type="button" variant="outline" size="sm" aria-disabled={loadingMore || undefined} aria-busy={loadingMore || undefined} onClick={() => { if (!loadingMore) onLoadMore(); }}>
+                  {loadingMore ? t("documents.library.loading_more") : t("documents.library.load_more")}
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
+                {t("documents.library.clear_filters")}
+              </Button>
+            </div>
           }
         />
       );
@@ -118,7 +136,7 @@ export function DocumentsLibraryList({
             <col className="hidden w-40 md:table-column" />
             <col className="hidden w-28 md:table-column" />
             <col className="hidden w-28 md:table-column" />
-            <col className="w-12 md:w-44" />
+            <col className="w-28 md:w-44" />
           </colgroup>
           <thead className="hidden bg-muted/50 md:table-header-group">
             <tr className="border-b border-border text-caption text-muted-foreground">
@@ -149,7 +167,7 @@ export function DocumentsLibraryList({
       </div>
       {hasMore ? (
         <div className="flex justify-center p-4">
-          <Button type="button" variant="outline" size="sm" disabled={loadingMore} aria-busy={loadingMore} onClick={onLoadMore}>
+          <Button type="button" variant="outline" size="sm" aria-disabled={loadingMore || undefined} aria-busy={loadingMore} onClick={() => { if (!loadingMore) onLoadMore(); }}>
             {loadingMore ? t("documents.library.loading_more") : t("documents.library.load_more")}
           </Button>
         </div>

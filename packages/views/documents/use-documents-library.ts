@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { documentKeys } from "@uniwork/core/documents/keys";
@@ -16,10 +16,10 @@ import type { DocumentSourceType } from "@uniwork/core/documents/sources-schema"
 import type { DocumentList, DocumentTreeNode } from "@uniwork/core/types/document";
 import type { LibraryView } from "./documents-sidebar";
 import {
-  byUpdatedDesc,
   documentRow,
   indexTree,
   matchesChip,
+  mergeNewestFirst,
   sourceRow,
   type FolderInfo,
   type LibraryRow,
@@ -120,13 +120,30 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   // shows only after the API has answered.
   const sourcesQuery = useDocumentSources(wsId, sourceFilter, { enabled });
   const sourcesMissing = sourcesQuery.isError && isEndpointMissing(sourcesQuery.error);
-  const sourcesAvailable = Boolean(sourcesQuery.data) && !sourcesMissing;
+  // Availability is "the API has answered for this workspace", not "the query
+  // for the current chip has data": a chip change swaps the query key, and the
+  // sidebar section must not unmount while the new one loads.
+  const [answeredFor, setAnsweredFor] = useState<string | null>(null);
+  if (Boolean(sourcesQuery.data) && !sourcesMissing && answeredFor !== wsId) setAnsweredFor(wsId);
+  if (sourcesMissing && answeredFor === wsId) setAnsweredFor(null);
+  const sourcesAvailable = !sourcesMissing && (Boolean(sourcesQuery.data) || answeredFor === wsId);
 
   const nodes: DocumentTreeNode[] = useMemo(() => tree.data?.documents ?? [], [tree.data]);
   const folderIndex: Map<string, FolderInfo> = useMemo(() => indexTree(nodes), [nodes]);
   const starred = useMemo(
     () => (favorites.data ?? []).filter((fav) => !fav.workspace_id || fav.workspace_id === wsId),
     [favorites.data, wsId],
+  );
+
+  // A cache read, not a subscription: recomputed when one of the lists above
+  // answers (their data is the dependency) and not on every render.
+  const known = useMemo(
+    () =>
+      view.kind === "starred"
+        ? knownDocuments([[null, rootQuery.data], ...queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) })])
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the cache entries are read through getQueriesData; these answers are what change them
+    [view.kind, queryClient, wsId, rootQuery.data, homeQuery.data, recentQuery.data, sharedQuery.data, archivedQuery.data, favorites.data],
   );
 
   const sourceRows = (sourcesQuery.data?.pages.flatMap((page) => page.items) ?? []).map(sourceRow);
@@ -144,9 +161,8 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     case "starred": {
       // The root list is read through its hook so an answer re-renders the
       // view; other cached lists and details count too (read, never fetched).
-      const known = knownDocuments([[null, rootQuery.data], ...queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) })]);
       state = {
-        rows: starred.map((fav) => documentRow(favoriteRow(fav, known.get(fav.document_id)))),
+        rows: starred.map((fav) => documentRow(favoriteRow(fav, known?.get(fav.document_id)))),
         loading: favorites.isPending && !!orgId,
         failure: favorites.isError && !favorites.data ? failureOf(favorites.error) : null,
         hasMore: false,
@@ -173,7 +189,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
       state = merge
         ? {
             ...docs,
-            rows: [...docs.rows, ...sourceRows].sort(byUpdatedDesc),
+            rows: mergeNewestFirst(docs.rows, sourceRows, { docs: docs.hasMore, sources: Boolean(sourcesQuery.hasNextPage) }),
             hasMore: docs.hasMore || Boolean(sourcesQuery.hasNextPage),
             loadingMore: docs.loadingMore || sourcesQuery.isFetchingNextPage,
             loadMore: () => {
