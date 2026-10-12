@@ -21,6 +21,7 @@ import { appEnv } from "../../harness/lib.mjs";
 import { blocked, failed, ok } from "./meta.mjs";
 import { COLOR_SCHEME, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORTS } from "./constants.mjs";
 import { STATUS_SELECTORS, isStreamingStatus, notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
+import { clip } from "./scrub.mjs";
 import { collectRenderedText, joinBlocks } from "./text.mjs";
 
 export const ELECTRON_ARGS = ["--no-sandbox", "--disable-gpu", "--lang=vi-VN", "--force-device-scale-factor=1", "--force-color-profile=srgb", "--font-render-hinting=none", "--disable-lcd-text"];
@@ -135,9 +136,6 @@ export async function captureWithRetry(attempt) {
   const { retryable: _retryable, ...rest } = second;
   return { ...rest, retries: [{ reason: first.reason, ...(first.diagnostics ? { diagnostics: first.diagnostics } : {}) }] };
 }
-
-const SECRET_WORDS = /\b(token|ticket|secret|password|passwd|authorization|api[_-]?key|bearer)\b(\s*[=:]\s*|\s+)\S+/gi;
-const clip = (text, length) => String(text).replace(SECRET_WORDS, "$1=<redacted>").replace(/\s+/g, " ").trim().slice(0, length);
 
 /** Collects the module page's console lines (capped, secret words scrubbed); read them with `.lines`. */
 function watchConsole(page) {

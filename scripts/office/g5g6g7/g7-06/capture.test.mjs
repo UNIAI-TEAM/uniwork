@@ -22,6 +22,7 @@ import { loadPlaywright } from "./capture/playwright.mjs";
 import { readRun } from "./capture/run-dir.mjs";
 import { cleanupSeed, seedWorkspace } from "./capture/seed.mjs";
 import { PROGRESS_TEXT, frameHash, isStreamingStatus, notSettledReason, pageIsBusy, settle } from "./capture/settle.mjs";
+import { clip } from "./capture/scrub.mjs";
 import { collectRenderedText, frameBlock, joinBlocks, visibleChars } from "./capture/text.mjs";
 import { redactUrl, signIn } from "./capture/signin.mjs";
 import { loadPngjs } from "./job-lib.mjs";
@@ -439,6 +440,85 @@ describe("desktop host", () => {
     const { exitCode, meta } = await runCapture({ host: "desktop", out, fixtures: readFixtures(), runDir: run, playwright: fake });
     assert.equal(exitCode, 77);
     assert.ok(Object.values(meta.fixtures).every((f) => f.status === "blocked" && /ELECTRON_BIN/.test(f.reason)));
+  });
+});
+
+// ---- diagnostics scrubber (N-8) ----------------------------------------------
+describe("diagnostics scrubber", () => {
+  const JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1MSJ9.c2lnbmF0dXJl";
+  const leaks = (input, secret) => assert.ok(!clip(input, 400).includes(secret), `"${secret}" survived in: ${clip(input, 400)}`);
+
+  test("snake_case, camelCase and quoted keys lose their value", () => {
+    leaks("access_token=abc123xyz", "abc123xyz");
+    leaks('{"refresh_token":"zzz999"}', "zzz999");
+    leaks("accessToken: abcSECRET1", "abcSECRET1");
+    leaks("idToken=qq77", "qq77");
+    leaks("x-api-key: k-4455", "k-4455");
+    leaks("apiKey=AK9988&other=1", "AK9988");
+    leaks("api_key=AK1122", "AK1122");
+    leaks("password=hunter2", "hunter2");
+    leaks('{"passwd": "p4ss"}', "p4ss");
+    leaks("client_secret=s3cr3t", "s3cr3t");
+    leaks("sessionId=S-8812", "S-8812");
+    leaks("session=S-9912", "S-9912");
+    leaks('{"password":"two words here"}', "words");
+    assert.match(clip("access_token=abc123 and then more", 400), /and then more/);
+  });
+
+  test("the value after an Authorization scheme is gone, not only the word Bearer", () => {
+    leaks("Authorization: Bearer tok_ABCdef123456", "tok_ABCdef123456");
+    leaks('{"authorization":"Bearer tok_ZZ998877"}', "tok_ZZ998877");
+    leaks("authorization=Bearer tok_QQ112233", "tok_QQ112233");
+    leaks("sent header bearer tok_WW445566 to server", "tok_WW445566");
+  });
+
+  test("Basic credentials are gone", () => {
+    leaks("Authorization: Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpwYXNzd29yZA");
+    leaks("Authorization: basic dXNlcjpwYXNz", "dXNlcjpwYXNz");
+    leaks("replay with Basic dXNlcjpwYXNzd29yZA== now", "dXNlcjpwYXNzd29yZA");
+  });
+
+  test("cookie headers lose every pair", () => {
+    const line = clip("Cookie: sid=abc111; theme=dark; csrf=xyz222", 400);
+    for (const secret of ["abc111", "xyz222", "dark"]) assert.ok(!line.includes(secret), line);
+    leaks("Set-Cookie: sid=abc333; Path=/; HttpOnly", "abc333");
+    leaks("cookie=sid=abc444", "abc444");
+  });
+
+  test("a query token is scrubbed and the rest of the URL kept", () => {
+    const line = clip("GET /api/v1/files?token=qtok123&page=2 failed", 400);
+    assert.ok(!line.includes("qtok123"), line);
+    assert.match(line, /\/api\/v1\/files\?/);
+    assert.match(line, /page=2 failed/);
+    leaks("https://x/y?access_token=zz1&refresh_token=zz2", "zz2");
+  });
+
+  test("JWT-shaped strings are removed wherever they are", () => {
+    leaks(`error ${JWT} while saving`, JWT);
+    leaks(`data:${JWT}`, "eyJzdWIi");
+    leaks(`id=${JWT}`, "c2lnbmF0dXJl");
+    leaks("eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.", "eyJzdWIiOiJ4In0");
+    assert.match(clip(`error ${JWT} while saving`, 400), /^error .* while saving$/);
+  });
+
+  test("ordinary status text is kept unchanged", () => {
+    for (const text of [
+      "Đang tải theo luồng… 1.234 hàng",
+      "Đã lưu báo-cáo_quý-3.xlsx (12 trang, 3.402 ô)",
+      "Loading 1,200 rows of 5,000",
+      "notification: Đã lưu | progressbar: 45%",
+      "Basic formatting applied to 12 cells",
+      "Session expired soon? no — 3 sheets open",
+      "Mã phiên bản 0.1.0-cb76dde đã sẵn sàng",
+      "log: font fallback to Be Vietnam Pro for 4 runs",
+    ]) {
+      assert.equal(clip(text, 400), text);
+    }
+  });
+
+  test("the length cap and whitespace folding still apply", () => {
+    assert.equal(clip("a   b\n c", 400), "a b c");
+    assert.equal(clip("x".repeat(500), 10), "x".repeat(10));
   });
 });
 
