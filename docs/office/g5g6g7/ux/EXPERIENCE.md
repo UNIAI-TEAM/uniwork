@@ -26,6 +26,8 @@ và chốt ở task được nêu. Trạng thái `final`: U-01 đã áp các câ
   (tone `info`, vùng chạm và vùng live của pill — Accessibility Floor › S1), đường xung đột của `webapi.ts`/
   `text-webapi.ts` khi Lưu do host gửi (Conflict dialog (S5)), preload của sáu app + `tab-manager.ts` (`aiRun` desktop,
   dưới đây).
+- **G8 (plan v2.8).** Bề mặt S12–S18 và danh sách file fork G8 đổi nằm ở spine riêng [EXPERIENCE-G8.md](EXPERIENCE-G8.md)
+  (draft); luật chung của spine này áp nguyên cho G8.
 - **UI system.** Token và component của fork (`packages/ui/src/tokens.css`, `home.css`, `styles.css` từng app), i18n của
   shell (`apps/shell/src/renderer/src/i18n/*`) và của từng app/frame (`apps/*/src/renderer/i18n/app/*`,
   `web/modules/shared/i18n/web/*`); khóa nguồn kiểu `zh`, mọi locale phải có khóa. Tham chiếu thị giác: DESIGN.md.

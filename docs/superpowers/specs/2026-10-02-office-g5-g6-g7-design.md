@@ -6,6 +6,8 @@
 **Issue tài liệu:** UNI-923, parent UNI-437; Roadmap C-01, liên quan C-15/C-16.
 **Issue triển khai:** G5 UNI-660 · G6 UNI-635 · G7 UNI-661 (đội nhận bàn giao giữ các issue này).
 **Phạm vi tài liệu:** một phase với ba luồng song song và các mốc bàn giao; không hợp nhất ba issue thành một.
+**Phụ lục (2026-10-13; quyết định đã ký trừ G8-D3):** [G8 — cộng tác trên tài liệu và liên kết sau đăng nhập](2026-10-13-office-g8-collab-addendum.md)
+(UNI-1331, UNI-1328) thêm luồng thứ tư; spec này không đổi, bất biến §3 áp cho G8.
 **Nguồn quyết định:** trao đổi người dùng ngày 2026-10-02 trong chat `01a0fbad-e4fb-7321-9009-37d2b12b351e`;
 v1.1 cập nhật theo pivot genoffice (UNI-1001, 2026-10-08), ADR 0028/0029 và trao đổi người dùng ngày 2026-10-11.
 
