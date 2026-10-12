@@ -15,7 +15,7 @@ import (
 )
 
 // McpAuthService is UniWork's OAuth 2.1 authorization server for external MCP
-// clients (spec 2026-10-12-mcp-connector, ADR 0028). It issues opaque tokens
+// clients (spec 2026-10-12-mcp-connector, ADR 0031). It issues opaque tokens
 // that only /mcp accepts; it never mints a session JWT.
 type McpAuthService struct {
 	pool    *pgxpool.Pool

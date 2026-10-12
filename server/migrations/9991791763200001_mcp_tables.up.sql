@@ -1,4 +1,4 @@
--- MCP connector (UNI-1308, spec 2026-10-12-mcp-connector, ADR 0028).
+-- MCP connector (UNI-1308, spec 2026-10-12-mcp-connector, ADR 0031).
 -- mcp_clients and mcp_auth_attempts are identity tables (no tenant yet);
 -- grants and tokens belong to the organization the user chose on consent.
 CREATE TABLE mcp_clients (

@@ -60,7 +60,7 @@
 | `server/internal/handler/mcp_connect.go` | REST cho web |
 | `server/internal/handler/router/mcp.go`, `router/connect.go` | đăng ký route |
 | `server/internal/metrics/mcp.go` | metric |
-| `docs/adr/0028-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md` | ADR |
+| `docs/adr/0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md` | ADR |
 | `packages/core/api/endpoints/connect.ts`, `packages/core/connect/{keys,hooks}.ts` | client |
 | `packages/views/auth/connect-consent.tsx` | màn consent |
 | `apps/web/app/(auth)/auth/connect/authorize/page.tsx` | route consent |
@@ -101,7 +101,7 @@ Expected: prefix lớn nhất `< 9991791763200001`. Nếu lớn hơn, cộng th�
 `server/migrations/9991791763200001_mcp_tables.up.sql`:
 
 ```sql
--- MCP connector (UNI-1308, spec 2026-10-12-mcp-connector, ADR 0028).
+-- MCP connector (UNI-1308, spec 2026-10-12-mcp-connector, ADR 0031).
 -- mcp_clients and mcp_auth_attempts are identity tables (no tenant yet);
 -- grants and tokens belong to the organization the user chose on consent.
 CREATE TABLE mcp_clients (
@@ -685,7 +685,7 @@ import (
 )
 
 // McpAuthService is UniWork's OAuth 2.1 authorization server for external MCP
-// clients (spec 2026-10-12-mcp-connector, ADR 0028). It issues opaque tokens
+// clients (spec 2026-10-12-mcp-connector, ADR 0031). It issues opaque tokens
 // that only /mcp accepts; it never mints a session JWT.
 type McpAuthService struct {
 	pool    *pgxpool.Pool
@@ -1171,7 +1171,7 @@ git commit -m "feat(mcp): client registration, metadata documents and client aut
 
 ---
 
-### Task 3: Authorize và consent — Start, Consent, Approve, Cancel; flag; ADR 0028
+### Task 3: Authorize và consent — Start, Consent, Approve, Cancel; flag; ADR 0031
 
 **Files:**
 - Create: `server/internal/service/mcp_authorize.go`
@@ -1179,7 +1179,7 @@ git commit -m "feat(mcp): client registration, metadata documents and client aut
 - Modify: `server/internal/featureflags/keys.go` (flag `mcp_connector`)
 - Modify: `server/internal/audit/actions.go` (bốn action)
 - Modify: `server/internal/service/audit_coverage_test.go` (`auditActions()` + `actionsWithoutCommands`)
-- Create: `docs/adr/0028-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md`
+- Create: `docs/adr/0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md`
 
 **Interfaces:**
 - Consumes (Task 2): `ResolveClient`, `allowsRedirect`, `mcpCSRFError`, `mcpAttemptExpired`, `errMcpConnectorDisabled`, `mcpTime`, hằng số `mcp*`.
@@ -1739,12 +1739,12 @@ func mcpRedirect(base string, add url.Values) (string, error) {
 Run: `go test -count=1 ./internal/service/ -run 'TestMcp|TestEveryAuditedCommandWritesItsRow|TestFlagsAreReviewed' -v 2>&1 | grep -E '^(--- |ok|FAIL)'`
 Expected: mọi test PASS. (`TestFlagsAreReviewed` nằm ở `internal/featureflags`; chạy thêm `go test ./internal/featureflags/`.)
 
-- [ ] **Step 5: Viết ADR 0028**
+- [ ] **Step 5: Viết ADR 0031**
 
-`docs/adr/0028-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md`:
+`docs/adr/0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md`:
 
 ```markdown
-# 0028 — UniWork là OAuth authorization server cho client AI bên ngoài; token MCP tách khỏi token phiên
+# 0031 — UniWork là OAuth authorization server cho client AI bên ngoài; token MCP tách khỏi token phiên
 
 **Trạng thái:** accepted (2026-10-12) — chấp nhận bởi bavinh2803 khi duyệt spec
 `2026-10-12-mcp-connector-design.md` (UNI-1308).
@@ -1790,7 +1790,7 @@ Expected: `fail 0`.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add server/internal/service/mcp_authorize.go server/internal/service/mcp_authorize_test.go server/internal/service/mcp_helpers_test.go server/internal/featureflags/keys.go server/internal/audit/actions.go server/internal/service/audit_coverage_test.go docs/adr/0028-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md
+git add server/internal/service/mcp_authorize.go server/internal/service/mcp_authorize_test.go server/internal/service/mcp_helpers_test.go server/internal/featureflags/keys.go server/internal/audit/actions.go server/internal/service/audit_coverage_test.go docs/adr/0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md
 git commit -m "feat(mcp): authorization requests, consent and grants behind the mcp_connector flag"
 ```
 
@@ -2863,7 +2863,7 @@ import (
 func TestMCPToolsAreReadOnly(t *testing.T) {
 	r := McpTools(&McpToolService{})
 	if r.MutationCount() != 0 {
-		t.Fatalf("MCP registry has %d write tools; v1 is read-only (ADR 0028)", r.MutationCount())
+		t.Fatalf("MCP registry has %d write tools; v1 is read-only (ADR 0031)", r.MutationCount())
 	}
 	want := []string{"list_workspaces", "my_work", "search", "get_task", "get_meeting"}
 	if got := r.Names(); strings.Join(got, ",") != strings.Join(want, ",") {
@@ -3492,7 +3492,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
-// OAuth endpoints for external MCP clients (ADR 0028). Bodies follow the
+// OAuth endpoints for external MCP clients (ADR 0031). Bodies follow the
 // RFCs, not SDI/SDO, so these routes sit outside the api wrapper and cap
 // their own bodies instead of going through decode.
 const mcpFormLimit = 16 << 10
@@ -3729,7 +3729,7 @@ import (
 
 // registerMCP mounts discovery, OAuth and (Task 8) /mcp outside the api
 // wrapper and the OpenAPI catalogue: their bodies follow RFCs, not SDI/SDO
-// (ADR 0028). swagger_test.go lists these prefixes as exceptions.
+// (ADR 0031). swagger_test.go lists these prefixes as exceptions.
 func registerMCP(r chi.Router, h Routes, credentialLimit, registerLimit func(http.Handler) http.Handler) {
 	r.Get("/.well-known/oauth-protected-resource", h.McpProtectedResource)
 	r.Get("/.well-known/oauth-protected-resource/mcp", h.McpProtectedResource)
@@ -3744,7 +3744,7 @@ func registerMCP(r chi.Router, h Routes, credentialLimit, registerLimit func(htt
 `router/routes.go`, trong `type Routes struct`:
 
 ```go
-	// MCP connector OAuth (ADR 0028), mounted by registerMCP.
+	// MCP connector OAuth (ADR 0031), mounted by registerMCP.
 	McpProtectedResource   http.HandlerFunc
 	McpAuthorizationServer http.HandlerFunc
 	McpAuthorize           http.HandlerFunc
@@ -3770,15 +3770,15 @@ func registerMCP(r chi.Router, h Routes, credentialLimit, registerLimit func(htt
 
 ```go
 		case strings.HasPrefix(route, "/oauth/"), strings.HasPrefix(route, "/.well-known/"), route == "/mcp":
-			// RFC bodies outside the api wrapper (ADR 0028)
+			// RFC bodies outside the api wrapper (ADR 0031)
 ```
 
 `server/internal/handler/isolation_routes_test.go`, trong `isoRoutes`:
 
 ```go
-	"GET /.well-known/oauth-protected-resource":     {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0028)"},
-	"GET /.well-known/oauth-protected-resource/mcp": {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0028)"},
-	"GET /.well-known/oauth-authorization-server":   {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0028)"},
+	"GET /.well-known/oauth-protected-resource":     {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0031)"},
+	"GET /.well-known/oauth-protected-resource/mcp": {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0031)"},
+	"GET /.well-known/oauth-authorization-server":   {class: isoPublic, reason: "OAuth discovery: public metadata, no tenant (ADR 0031)"},
 	"GET /oauth/authorize":                          {class: isoPublic, reason: reasonAuth},
 	"POST /oauth/token":                             {class: isoPublic, reason: "authentication: the one-time code with its PKCE verifier, or a refresh token, is the credential"},
 	"POST /oauth/revoke":                            {class: isoPublic, reason: "authentication: the token is the credential; another client's token is left untouched (RFC 7009)"},
@@ -4947,7 +4947,7 @@ git commit -m "feat(mcp): consent, connected apps and organization switch over R
 
 **Interfaces:**
 - Consumes: `newIsolationServer`, `buildTenant`, `joinAsMember(t, outsider, tenant)`, `(*isoTenant).leakIn(raw []byte, requested string) string`, `tn.get(t, "task")`, `tn.get(t, "meeting")`, `mcpRPC` (Task 8), `doJSON`.
-- Produces: `TestIsolationMCP` (tên được ADR 0028 và spec §12 nhắc tới).
+- Produces: `TestIsolationMCP` (tên được ADR 0031 và spec §12 nhắc tới).
 
 - [ ] **Step 1: Giữ access token khi seed**
 
@@ -6341,7 +6341,7 @@ Chạy lần lượt (mỗi lệnh tạo một sub-issue `todo` dưới UNI-1308
 ```bash
 make issue-sub PARENT=UNI-1308 TITLE="MCP 1/14: bảng, cột, index, query"
 make issue-sub PARENT=UNI-1308 TITLE="MCP 2/14: đăng ký client (DCR, CIMD)"
-make issue-sub PARENT=UNI-1308 TITLE="MCP 3/14: authorize, consent, flag, ADR 0028"
+make issue-sub PARENT=UNI-1308 TITLE="MCP 3/14: authorize, consent, flag, ADR 0031"
 make issue-sub PARENT=UNI-1308 TITLE="MCP 4/14: token (exchange, refresh, revoke)"
 make issue-sub PARENT=UNI-1308 TITLE="MCP 5/14: gate /mcp, grant, công tắc tổ chức, vòng đời"
 make issue-sub PARENT=UNI-1308 TITLE="MCP 6/14: năm tool đọc"

@@ -5,7 +5,7 @@
 **Ngày:** 2026-10-12
 **Issue:** UNI-1308 (parent UNI-417 · Giai đoạn A)
 **Roadmap ID:** A-13 · P1
-**ADR mới:** 0028 — viết trong PR đầu tiên của spec này (§11).
+**ADR mới:** 0031 — viết trong PR đầu tiên của spec này (§11).
 **Liên quan:** ADR 0007 (actor), ADR 0008 (tenant), ADR 0010 (AI không ghi trực tiếp),
 ADR 0025 (một process), spec G4 desktop §4 (luồng PKCE đã có),
 spec Ask UNI / F-09 (`server/internal/ai/tools.go`).
@@ -58,7 +58,7 @@ admin tổ chức đã chủ động cho phép khi bật connector.
 - Cài đặt cá nhân: "Ứng dụng đã kết nối" (xem, thu hồi).
 - Cài đặt tổ chức: bật/tắt connector, xem và thu hồi mọi grant của tổ chức.
 - Flag `mcp_connector`, audit, rate limit, metric.
-- ADR 0028.
+- ADR 0031.
 
 ### 3.2 Ngoài phạm vi
 
@@ -131,7 +131,7 @@ Issuer là `API_PUBLIC_URL`. Resource duy nhất là `${API_PUBLIC_URL}/mcp`.
 Các route này và `/mcp` đăng ký ngoài wrapper `api` và không vào OpenAPI, giống
 `GET /api/v1/ws`, vì body theo RFC chứ không theo SDI/SDO. Mỗi route tự đặt giới hạn
 body bằng `http.MaxBytesReader` (token/revoke 16 KiB, register 16 KiB, `/mcp` 1 MiB)
-thay cho `decode`. `router_test.go` ghim danh sách route ngoài wrapper. ADR 0028 ghi
+thay cho `decode`. `router_test.go` ghim danh sách route ngoài wrapper. ADR 0031 ghi
 ngoại lệ này.
 
 REST cho web (qua wrapper `api`, có SDI/SDO, `pathParamSDI` cho `attemptID`, `grantID`):
@@ -394,7 +394,7 @@ audit. Lệnh đọc qua tool không audit.
   bằng id (`scripts/no-pii-log.test.mjs`).
 - Biến môi trường mới (nếu có) vào `.env.example`.
 
-## 11. ADR 0028
+## 11. ADR 0031
 
 Tiêu đề: "UniWork là OAuth authorization server cho client AI bên ngoài; token MCP tách
 khỏi token phiên". Ghi:
