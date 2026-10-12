@@ -16,6 +16,7 @@ import { SiteHeader } from "./site-header";
 import { SolutionsTeaser } from "./solutions-teaser";
 import { TrustBand } from "./trust-band";
 import { LandingMotion } from "./animation/landing-motion";
+import { ScrollMascot } from "./scroll-mascot";
 import "./landing.css";
 import "./landing-motion.css";
 import "./landing-explorer.css";
@@ -34,6 +35,7 @@ import "./landing-decisions.css";
 import "./landing-ai-stage.css";
 import trustStyles from "./landing-trust.module.css";
 import "./hero-nexus.css";
+import "./scroll-mascot.css";
 
 /**
  * THESIS: One shared product stage covers six families and eighteen entries,
@@ -54,14 +56,16 @@ import "./hero-nexus.css";
  * MOTION: Five source-backed local storyboards demonstrate explicit actions;
  * assignment never completes work, and planned entries never autoplay.
  * Frames expand on entry; copy arrives once and stays readable. UNI wears the
- * shared mark and waves only its foreleg over the approved original image. Playback pauses
- * offscreen and in hidden documents; reduced motion is still until explicit play.
+ * shared mark and waves only its foreleg over the approved original image. A small
+ * companion follows page scroll outside the AI stage and stops when scrolling stops.
+ * Playback pauses offscreen and in hidden documents; reduced motion is still.
  */
 export function LandingPage() {
   const { t } = useTranslation();
   return (
     <div data-design-contract="277f981e" className={`landing-site ${landingFont.variable} min-h-dvh bg-background text-foreground`}>
       <LandingMotion />
+      <ScrollMascot />
       <a className="landing-skip" href="#landing-main">{t("landing.studio.skip")}</a>
       <SiteHeader />
       <main id="landing-main">
