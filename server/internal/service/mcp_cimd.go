@@ -42,7 +42,7 @@ func NewCIMDFetcher() ClientMetadataFetcher {
 	}}
 	transport := &http.Transport{
 		Proxy:                  nil,
-		DisableKeepAlives:      true, // a fetch happens at most once per client per 24h; an idle connection per attacker-chosen host would only leak fds
+		DisableKeepAlives:      true, // fetches are rare and short-lived, so connection reuse buys nothing; an idle connection per attacker-chosen host would only leak fds
 		DialContext:            dialer.DialContext,
 		TLSHandshakeTimeout:    5 * time.Second,
 		ResponseHeaderTimeout:  5 * time.Second,

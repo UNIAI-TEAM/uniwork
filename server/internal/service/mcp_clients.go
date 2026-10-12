@@ -136,11 +136,15 @@ func (s *McpAuthService) resolveCIMD(ctx context.Context, clientID string) (McpC
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return McpClient{}, err
 	}
+	cached := err == nil // a stale row exists; it answers if the refetch cannot
 	if s.fetch == nil {
 		return McpClient{}, errMcpClientUnknown
 	}
 	body, err := s.fetch.Fetch(ctx, clientID)
 	if err != nil {
+		if cached {
+			return mcpClientFromRow(row), nil // stale-while-error: the host is down, the client is not unknown
+		}
 		return McpClient{}, errMcpClientUnknown
 	}
 	var doc struct {

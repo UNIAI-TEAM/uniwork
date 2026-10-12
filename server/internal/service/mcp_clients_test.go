@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMcpRegisterPublicClient(t *testing.T) {
@@ -128,5 +129,36 @@ func TestMcpAuthenticateClientPropagatesInfrastructureErrors(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want the context error propagated", err)
+	}
+}
+
+// A stale cached document is a better answer than 401 when the host is down:
+// a transient fetch failure must not make MCP clients drop their registration.
+func TestMcpResolveCIMDServesStaleRowWhenRefetchFails(t *testing.T) {
+	w := newMcpWorld(t)
+	id := "https://stale.example/oauth/metadata.json"
+	doc, _ := json.Marshal(map[string]any{"client_id": id, "client_name": "Stale Client", "redirect_uris": []string{"https://stale.example/cb"}})
+	f := &fakeCIMD{body: doc}
+	w.svc.SetFetcher(f)
+	if _, err := w.svc.ResolveClient(w.ctx, id); err != nil || f.calls != 1 {
+		t.Fatalf("first resolve = calls %d, %v", f.calls, err)
+	}
+
+	w.svc.now = func() time.Time { return time.Now().Add(25 * time.Hour) }
+	f.err = errors.New("down")
+	c, err := w.svc.ResolveClient(w.ctx, id)
+	if err != nil || c.Name != "Stale Client" || !c.allowsRedirect("https://stale.example/cb") || f.calls != 2 {
+		t.Fatalf("stale resolve = %+v, calls %d, err %v; want the cached client after one refetch attempt", c, f.calls, err)
+	}
+
+	never := "https://never-seen.example/oauth/metadata.json"
+	if _, err := w.svc.ResolveClient(w.ctx, never); !errors.Is(err, errMcpClientUnknown) {
+		t.Fatalf("no cached row and the fetch fails: err = %v, want errMcpClientUnknown", err)
+	}
+
+	f.err = nil
+	f.body = []byte(`{"client_id":"` + id + `","client_name":"","redirect_uris":[]}`)
+	if _, err := w.svc.ResolveClient(w.ctx, id); !errors.Is(err, errMcpClientUnknown) {
+		t.Fatalf("an invalid document is a real answer, not a stale fallback: err = %v", err)
 	}
 }
