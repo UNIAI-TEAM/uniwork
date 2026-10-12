@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git diff --stat ad52a00fd HEAD
+a2679726299a3a9506c19fe224688e402ebc960a
+ad52a00fd2ad6716fa7d22718bfb618c6e3480b0
+ docs/office/g5g6g7/acceptance-rows.json |  20 +
+ docs/office/g5g6g7/acceptance.md        |  18 +
+ docs/office/g5g6g7/contract-collab.md   | 729 ++++++++++++++++++++++++++++++++
+ docs/office/g5g6g7/contract-p0.md       |  11 +
+ 4 files changed, 778 insertions(+)

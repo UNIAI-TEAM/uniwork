@@ -1,0 +1,47 @@
+$ node --test scripts/office/acceptance-matrix-g5g6g7.test.mjs; echo "ACCEPTANCE_MATRIX_EXIT=$?"
+TAP version 13
+# Subtest: acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+ok 1 - acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+  ---
+  duration_ms: 3.3264
+  ...
+# Subtest: acceptance.md says the requirements are an interpretation, not the verbatim spec
+ok 2 - acceptance.md says the requirements are an interpretation, not the verbatim spec
+  ---
+  duration_ms: 0.189632
+  ...
+# Subtest: a PASS row that runs on several fixtures needs one PASS record per fixture
+ok 3 - a PASS row that runs on several fixtures needs one PASS record per fixture
+  ---
+  duration_ms: 17.889325
+  ...
+# Subtest: the summary numbers are checked against the candidate, not the committed matrix (N6)
+ok 4 - the summary numbers are checked against the candidate, not the committed matrix (N6)
+  ---
+  duration_ms: 21.516959
+  ...
+# Subtest: the ledger is read only when the caller names it, and only its own records
+ok 5 - the ledger is read only when the caller names it, and only its own records
+  ---
+  duration_ms: 1.887949
+  ...
+# Subtest: a ledger that is named and does not exist is an error, not a green gate (N5)
+ok 6 - a ledger that is named and does not exist is an error, not a green gate (N5)
+  ---
+  duration_ms: 1.419982
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 7 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 54.856014
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 146.072826
+ACCEPTANCE_MATRIX_EXIT=0
