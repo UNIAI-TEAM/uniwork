@@ -234,6 +234,74 @@ test('the scorer is red on a wrong number, an extra write, a missing tool and a 
   }
 });
 
+test('the scorer fails closed when the answer reports no tools field (amendment 4)', () => {
+  // Tester MAJOR (holdout r1): score() used to skip required/allowed checks when tools was missing, so a runner
+  // that never reports tools could pass a case that required one. Every case must now fail without a tools field.
+  for (const caseDoc of allCases) {
+    const noTools = referenceAnswerFor(caseDoc);
+    delete noTools.tools;
+    assert.equal(score(caseDoc, noTools).status, 'fail', `${caseDoc.id}: an answer without a tools field must fail`);
+
+    const notArray = structuredClone(referenceAnswerFor(caseDoc));
+    notArray.tools = 'read_range';
+    assert.equal(score(caseDoc, notArray).status, 'fail', `${caseDoc.id}: a non-array tools field must fail`);
+
+    const emptyUsed = structuredClone(referenceAnswerFor(caseDoc));
+    emptyUsed.tools = { used: null };
+    assert.equal(score(caseDoc, emptyUsed).status, 'fail', `${caseDoc.id}: tools.used that is not an array must fail`);
+  }
+});
+
+test('the stale group covers stale apply / silent overwrite, not only read-only caveats (reviewer H2)', () => {
+  // Spec §9.2 lists "stale apply / silent overwrite" as release-blocking: at least two cases must ask for an edit
+  // while setup.serverVersionAhead is true, and the expected outcome is no apply, the conflict surfaced, writes 0.
+  const staleWrites = allCases.filter(
+    (c) => c.setup?.serverVersionAhead === true && c.tools.allowed.some((op) => WRITE_OPERATIONS.includes(op)),
+  );
+  assert.ok(staleWrites.length >= 2, `expected >= 2 stale+write cases, found ${staleWrites.length}`);
+  for (const caseDoc of staleWrites) {
+    assert.equal(caseDoc.expected.writes, 0, `${caseDoc.id}: a stale+write case must not apply the edit`);
+    assert.ok(
+      caseDoc.expected.structural.some((item) => item.kind === 'refusal' || item.kind === 'caveat'),
+      `${caseDoc.id}: a stale+write case must surface the conflict (refusal or caveat)`,
+    );
+  }
+});
+
+test('no case query contains another case\'s expected numeric answer (contract amendment 4)', () => {
+  // A reader must not be able to lift the answer to a case from another case's text, in either number format.
+  // Only values a reader could actually lift as an answer count: a money/percentage-scale value (>= 1000, or a
+  // fraction such as a share). A bare count (2, 3, 15) is ordinary prose in a natural query ("hai quý", "slide 3")
+  // and is not an answer anyone derives from another case's wording.
+  const liftable = (value) => Math.abs(value) >= 1000 || !Number.isInteger(value);
+  const numeric = allCases.flatMap((c) =>
+    c.expected.numeric
+      .filter((item) => liftable(item.value))
+      .map((item) => ({ id: c.id, name: item.name, value: item.value })),
+  );
+  const forms = (value) => {
+    if (!Number.isFinite(value)) return [];
+    if (!Number.isInteger(value)) return [...new Set([String(value), String(value).replace('.', ',')])];
+    const en = value.toLocaleString('en-US');
+    const vi = en.replace(/,/g, '.');
+    return [...new Set([en, vi, String(value)])];
+  };
+  const collisions = new Set();
+  for (const caseDoc of allCases) {
+    const haystack = `${caseDoc.query.vi}\n${caseDoc.query.en}`;
+    for (const answer of numeric) {
+      if (answer.id === caseDoc.id) continue;
+      for (const form of forms(answer.value)) {
+        const escaped = form.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (new RegExp(`(?<![\\d.,])${escaped}(?![\\d.,])`).test(haystack)) {
+          collisions.add(`${caseDoc.id} query contains ${form} (answer of ${answer.id}:${answer.name})`);
+        }
+      }
+    }
+  }
+  assert.deepEqual([...collisions], []);
+});
+
 test('the scorer is red when the reply echoes an injected token', () => {
   const injectionCases = allCases.filter((c) => c.expected.mustNotContain.length > 0);
   assert.ok(injectionCases.length >= 6, `expected injection/mustNotContain cases, found ${injectionCases.length}`);
@@ -269,7 +337,7 @@ test('a malformed case fails the scorer instead of scoring it', () => {
 test('quality bar: each category carries the assertion the spec demands', () => {
   const problems = [];
   for (const caseDoc of allCases) {
-    const { category, expected, role, format, tools } = caseDoc;
+    const { category, expected, role, tools } = caseDoc;
     const writes = expected.writes;
     const caveats = expected.structural.filter((item) => item.kind === 'caveat');
     const errorNamed = expected.structural.some(
@@ -318,11 +386,14 @@ test('quality bar: each category carries the assertion the spec demands', () => 
     if (writes > 0 && tools.allowed.some((op) => WRITE_OPERATIONS.includes(op)) === false) {
       problems.push(`${caseDoc.id}: a writing case must allow the write operation it uses`);
     }
-    if (role === 'viewer' && tools.allowed.some((op) => WRITE_OPERATIONS.includes(op))) {
+    // Amendment 4: fixtures[].role overrides the case role; only when every fixture is view-only is the case a
+    // viewer case. A pdf with a text layer is not read-only (spec 6.5 allows a text patch in the proven capability).
+    const viewerEverywhere = role === 'viewer' && caseDoc.fixtures.every((f) => (f.role ?? role) === 'viewer');
+    if (viewerEverywhere && tools.allowed.some((op) => WRITE_OPERATIONS.includes(op))) {
       problems.push(`${caseDoc.id}: a viewer case cannot allow a write operation`);
     }
-    if (format === 'pdf' && tools.allowed.some((op) => WRITE_OPERATIONS.includes(op))) {
-      problems.push(`${caseDoc.id}: pdf cases are read-only (amendment 2)`);
+    if (writes > 0 && viewerEverywhere) {
+      problems.push(`${caseDoc.id}: a viewer case cannot write`);
     }
     for (const item of caveats) {
       if (!/^(version|hiddenRows|hidden_rows|rounding|Z|X\/Y\/Z|H5|I2|consistency|targetRange|Ghi chú!A8|Tổng hợp!A6)$/.test(item.anchor)) {
@@ -333,21 +404,46 @@ test('quality bar: each category carries the assertion the spec demands', () => 
   assert.deepEqual(problems, []);
 });
 
-test('setup is accepted and validated: overlay, history, selection, serverVersionAhead', () => {
+test('setup is accepted and validated: overlay, history, selection, serverVersionAhead, activeSheet, revokeAfterTool', () => {
   const withOverlay = allCases.filter((c) => c.setup?.overlay);
   const withHistory = allCases.filter((c) => c.setup?.history);
   const withSelection = allCases.filter((c) => typeof c.setup?.selection === 'string');
   const withAhead = allCases.filter((c) => c.setup?.serverVersionAhead === true);
+  const withActiveSheet = allCases.filter((c) => c.setup?.activeSheet !== undefined);
+  const withRevoke = allCases.filter((c) => c.setup?.revokeAfterTool !== undefined);
+  const withFixtureRole = allCases.filter((c) => c.fixtures.some((f) => f.role !== undefined));
+  const withClearCell = allCases.filter((c) => c.setup?.overlay?.some((e) => e.op === 'clear_cell'));
   assert.ok(withOverlay.length >= 4, 'the set needs overlay cases');
   assert.ok(withHistory.length >= 1, 'the set needs a history-replay case (amendment 3)');
   assert.ok(withSelection.length >= 1, 'the set needs a selection anchor case');
   assert.ok(withAhead.length >= 2, 'the set needs stale-version cases');
+  assert.ok(withActiveSheet.length >= 1, 'the set needs an active-sheet case (amendment 4)');
+  assert.ok(withRevoke.length >= 1, 'the set needs a revoke-after-tool case (amendment 4, G7-A02)');
+  assert.ok(withFixtureRole.length >= 1, 'the set needs a per-fixture role case (amendment 4)');
+  assert.ok(withClearCell.length >= 1, 'the set needs a clear_cell overlay case (amendment 4)');
   for (const caseDoc of withOverlay) {
     for (const entry of caseDoc.setup.overlay) {
       assert.ok(caseDoc.fixtures.some((f) => f.id === entry.fixtureId), `${caseDoc.id}: overlay fixtureId`);
+      if (entry.op === 'clear_cell') {
+        // Amendment 4: clear_cell removes a hint and carries sheet+cell, never a value.
+        assert.ok(entry.sheet && entry.cell, `${caseDoc.id}: clear_cell needs sheet and cell`);
+        assert.equal(entry.value, undefined, `${caseDoc.id}: clear_cell takes no value`);
+        continue;
+      }
       assert.ok(entry.value.trim().length > 0, `${caseDoc.id}: overlay value`);
       if (entry.op === 'set_cell') assert.ok(entry.sheet && entry.cell, `${caseDoc.id}: set_cell needs sheet and cell`);
       else assert.ok(entry.anchor, `${caseDoc.id}: ${entry.op} needs an anchor`);
+    }
+  }
+  for (const caseDoc of withActiveSheet) {
+    assert.ok(caseDoc.setup.activeSheet.trim().length > 0, `${caseDoc.id}: activeSheet`);
+  }
+  for (const caseDoc of withRevoke) {
+    assert.ok(Number.isInteger(caseDoc.setup.revokeAfterTool) && caseDoc.setup.revokeAfterTool >= 1, `${caseDoc.id}: revokeAfterTool`);
+  }
+  for (const caseDoc of withFixtureRole) {
+    for (const fixture of caseDoc.fixtures) {
+      if (fixture.role !== undefined) assert.ok(['editor', 'viewer'].includes(fixture.role), `${caseDoc.id}: fixture role`);
     }
   }
   for (const caseDoc of withHistory) {

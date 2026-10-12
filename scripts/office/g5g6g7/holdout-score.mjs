@@ -56,9 +56,9 @@ const ROUNDINGS = new Set(['none', '0dp', '2dp']);
 const HOSTS = new Set(['web', 'desktop']);
 const ROLES = new Set(['editor', 'viewer']);
 const ORACLE_TYPES = new Set(['deterministic', 'rubric']);
-const OVERLAY_OPS = new Set(['set_cell', 'replace_text', 'insert_after']);
+const OVERLAY_OPS = new Set(['set_cell', 'clear_cell', 'replace_text', 'insert_after']);
 const HISTORY_ROLES = new Set(['user', 'assistant', 'tool']);
-const SETUP_KEYS = new Set(['overlay', 'serverVersionAhead', 'selection', 'history']);
+const SETUP_KEYS = new Set(['overlay', 'serverVersionAhead', 'selection', 'history', 'activeSheet', 'revokeAfterTool']);
 const ID_PATTERN = /^HO-[A-Z]+-\d{3}$/;
 
 const isFilled = (v) => typeof v === 'string' && v.trim().length > 0;
@@ -193,6 +193,9 @@ export function validateCase(caseDoc) {
     else fixtureIds.add(fixture.id);
     if (!/^[0-9a-f]{64}$/.test(fixture.sha256 ?? '')) at(`${id}: fixture ${fixture.id} needs a sha256`);
     if (!isFilled(fixture.version)) at(`${id}: fixture ${fixture.id} needs a version`);
+    if (fixture.role !== undefined && !ROLES.has(fixture.role)) {
+      at(`${id}: fixture ${fixture.id} role must be editor or viewer`);
+    }
   }
   if (!Array.isArray(caseDoc.host) || caseDoc.host.length === 0) at(`${id}: host is required`);
   else for (const host of caseDoc.host) if (!HOSTS.has(host)) at(`${id}: unknown host ${host}`);
@@ -256,13 +259,17 @@ export function validateCase(caseDoc) {
     }
   }
 
+  // Amendment 4: a pdf with a text layer is NOT read-only (spec 6.5 allows a text patch inside the proven
+  // capability), so no format-level write ban exists. A viewer case may still not write, whether the role is on the
+  // case or overridden per fixture (fixtures[].role). When the role is mixed, the write has to name the editable
+  // fixture in the case's own wording; the scorer can only see the role set, not which fixture a tool call touched.
+  const viewerEverywhere =
+    caseDoc.role === 'viewer' &&
+    (caseDoc.fixtures ?? []).every((fixture) => (fixture.role ?? caseDoc.role) === 'viewer');
   if (Array.isArray(allowed)) {
-    if (caseDoc.role === 'viewer') {
+    if (viewerEverywhere) {
       if (caseDoc.expected?.writes !== 0) at(`${id}: a viewer case cannot expect writes`);
       for (const op of allowed) if (WRITE_OPERATIONS.has(op)) at(`${id}: a viewer case cannot allow ${op}`);
-    }
-    if (caseDoc.format === 'pdf') {
-      for (const op of allowed) if (WRITE_OPERATIONS.has(op)) at(`${id}: pdf cases are read-only, ${op} is not allowed`);
     }
     if (caseDoc.expected?.writes === 0) {
       for (const op of required) if (WRITE_OPERATIONS.has(op)) at(`${id}: writes 0 but ${op} is required`);
@@ -282,11 +289,20 @@ export function validateCase(caseDoc) {
         else for (const entry of setup.overlay) {
           if (!isObject(entry)) { at(`${id}: overlay entry is not an object`); continue; }
           if (!fixtureIds.has(entry.fixtureId)) at(`${id}: overlay fixtureId must name one of the case fixtures`);
-          if (!OVERLAY_OPS.has(entry.op)) at(`${id}: overlay op must be set_cell, replace_text or insert_after`);
-          if (!isFilled(entry.value)) at(`${id}: overlay value must be a non-empty string`);
-          if (entry.op === 'set_cell') {
+          if (!OVERLAY_OPS.has(entry.op)) {
+            at(`${id}: overlay op must be set_cell, clear_cell, replace_text or insert_after`);
+          }
+          if (entry.op === 'clear_cell') {
+            // Amendment 4: clear_cell removes a hint (e.g. Ghi chú!A4) and carries no value.
+            if (!isFilled(entry.sheet) || !isFilled(entry.cell)) at(`${id}: clear_cell needs sheet and cell`);
+            if (entry.value !== undefined) at(`${id}: clear_cell takes no value`);
+          } else if (entry.op === 'set_cell') {
+            if (!isFilled(entry.value)) at(`${id}: overlay value must be a non-empty string`);
             if (!isFilled(entry.sheet) || !isFilled(entry.cell)) at(`${id}: set_cell needs sheet and cell`);
-          } else if (!isFilled(entry.anchor)) at(`${id}: ${entry.op} needs an anchor`);
+          } else {
+            if (!isFilled(entry.value)) at(`${id}: overlay value must be a non-empty string`);
+            if (!isFilled(entry.anchor)) at(`${id}: ${entry.op} needs an anchor`);
+          }
         }
       }
       if (setup.serverVersionAhead !== undefined && typeof setup.serverVersionAhead !== 'boolean') {
@@ -294,6 +310,12 @@ export function validateCase(caseDoc) {
       }
       if (setup.selection !== undefined && setup.selection !== null && !isFilled(setup.selection)) {
         at(`${id}: setup.selection must be a non-empty string or null`);
+      }
+      if (setup.activeSheet !== undefined && !isFilled(setup.activeSheet)) {
+        at(`${id}: setup.activeSheet must be a non-empty sheet name`);
+      }
+      if (setup.revokeAfterTool !== undefined && !(Number.isInteger(setup.revokeAfterTool) && setup.revokeAfterTool >= 1)) {
+        at(`${id}: setup.revokeAfterTool must be an integer >= 1 (the role drops after that many tool calls)`);
       }
       if (setup.history !== undefined) {
         if (!Array.isArray(setup.history) || setup.history.length === 0) at(`${id}: setup.history must be a non-empty array`);
@@ -396,7 +418,14 @@ export function score(caseDoc, answer) {
 
   const used = answerToolList(answer);
   if (used === null) {
-    if (caseDoc.tools.required.length === 0) add('tools_reported', 'needs_reviewer', 'the answer reports no tool usage');
+    // Fail closed (amendment 4): an answer without a tools field (or with tools that is not an array) cannot be
+    // shown to have used the required operations or to have stayed inside the allowlist, so it is a failure —
+    // never a silent pass. A runner that drops the field must not be able to score a case that required a tool.
+    add(
+      'tools_reported',
+      'fail',
+      'the answer reports no tool usage (missing tools field or tools is not an array): required/allowed checks cannot be verified',
+    );
   } else {
     for (const op of caseDoc.tools.required) {
       add(`tool_required:${op}`, used.includes(op) ? 'pass' : 'fail', used.includes(op) ? 'used' : 'not used');
