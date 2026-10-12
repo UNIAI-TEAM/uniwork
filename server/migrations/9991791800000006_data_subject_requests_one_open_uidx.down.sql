@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_data_subject_requests_one_open;

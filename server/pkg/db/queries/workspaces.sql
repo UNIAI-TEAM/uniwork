@@ -45,6 +45,8 @@ ORDER BY w.created_at, w.id;
 -- let them in.
 SELECT COALESCE(m.role, CASE WHEN om.role IN ('owner','admin') THEN 'admin' END, '')::text AS role,
        w.organization_id, o.status AS organization_status,
+       COALESCE(om.role, '')::text AS organization_role,
+       o.deletion_scheduled_at,
        (om.deactivated_at IS NOT NULL)::boolean AS organization_member_deactivated
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
