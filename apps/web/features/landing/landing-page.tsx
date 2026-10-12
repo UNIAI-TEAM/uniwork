@@ -16,7 +16,7 @@ import { SiteHeader } from "./site-header";
 import { SolutionsTeaser } from "./solutions-teaser";
 import { TrustBand } from "./trust-band";
 import { LandingMotion } from "./animation/landing-motion";
-import { ScrollMascot } from "./scroll-mascot";
+import { CinematicWorld } from "./cinematic-world";
 import "./landing.css";
 import "./landing-motion.css";
 import "./landing-explorer.css";
@@ -35,37 +35,26 @@ import "./landing-decisions.css";
 import "./landing-ai-stage.css";
 import trustStyles from "./landing-trust.module.css";
 import "./hero-nexus.css";
-import "./scroll-mascot.css";
+import "./cinematic-world.css";
 
 /**
- * THESIS: One shared product stage covers six families and eighteen entries,
- * distinguishing usable scopes, partial foundations and planned concepts.
- * Reference UI follows the user's Lovable screenshots, not a released-app claim.
- * OWN-WORLD: Bright studio, cobalt ink, Be Vietnam Pro; large framed scenes
- * with clear gutters, spacious type and dark trust/closing passages.
- * STORY: Watch a short action sequence or explore the shared workspace, meet UNI,
- * then inspect governance and planned work before creating an account.
- * REFERENCE: User-supplied ClickUp feature-rail composition; claims checked
- * against develop 26e56c4b. Demos stay local, with configuration caveats.
- * FIRST VIEWPORT: A floating navigation dock above a compact, naturally wrapped
- * headline and one CTA. A small live work core connects four concise context labels.
- * Feature disclosure opens a compact directory; mobile keeps a native link menu.
- * FORM: User-pinned ClickUp/Motion product-led canon overrides seed 277f981e;
- * code-led, no approved visual comp. User chose an AI horse illustration
- * with 2.5D motion over a 360-degree mesh, based on their supplied reference.
- * MOTION: Five source-backed local storyboards demonstrate explicit actions;
- * assignment never completes work, and planned entries never autoplay.
- * Frames expand on entry; copy arrives once and stays readable. UNI wears the
- * shared mark and waves only its foreleg over the approved original image. A small
- * companion follows page scroll outside the AI stage and stops when scrolling stops.
- * Playback pauses offscreen and in hidden documents; reduced motion is still.
+ * THESIS: UNI inhabits one dimensional studio throughout native page scroll.
+ * OWN-WORLD: Pearl atrium, thick arches, cobalt ramp, soft contact shadows;
+ * product content stays on readable foreground surfaces.
+ * STORY: Enter, follow UNI running and jumping, explore the product, then sign up.
+ * FIRST VIEWPORT: Copy and one CTA on the left; UNI and architecture on the right.
+ * FORM: Architectural studio, confirmed choice 02; record UNI-1334-studio-02.
+ * Scroll samples pose and camera; the direction is recorded from the user choice.
+ * MOTION: Articulated limbs, anticipation, jump, landing and a curved spatial route.
+ * Pausing freezes the scene; reduced motion opens on a still, deliberate frame.
+ * FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
  */
 export function LandingPage() {
   const { t } = useTranslation();
   return (
-    <div data-design-contract="277f981e" className={`landing-site ${landingFont.variable} min-h-dvh bg-background text-foreground`}>
+    <div data-design-contract="UNI-1334-studio-02" className={`landing-site landing-cinematic ${landingFont.variable} min-h-dvh bg-background text-foreground`}>
       <LandingMotion />
-      <ScrollMascot />
+      <CinematicWorld />
       <a className="landing-skip" href="#landing-main">{t("landing.studio.skip")}</a>
       <SiteHeader />
       <main id="landing-main">
@@ -73,6 +62,7 @@ export function LandingPage() {
         <div className="landing-product-story">
           <Capabilities />
           <BusinessOs />
+          <div className="studio-world-passage" aria-hidden="true" />
           <SolutionsTeaser />
           <AiWorkforce />
         </div>
@@ -81,6 +71,7 @@ export function LandingPage() {
           <TrustBand />
           <MarketGapTeaser />
         </div>
+        <div className="studio-world-passage" aria-hidden="true" />
         <div className="landing-future-story">
           <Roadmap />
         </div>

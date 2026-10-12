@@ -27,21 +27,10 @@ test("landing demo controls perform the actions they advertise without workspace
 test("3D controls, cinematic playback and reduced motion remain usable", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  const core = page.locator('[data-scene="core"]');
-  await expect(core).toBeVisible();
-  await expect(core.locator('.scene-brand svg')).toHaveAttribute('viewBox', '0 0 128 92');
-  await expect(core.locator(".scene-canvas")).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
-  await expect(core).toHaveAttribute("data-motion", "paused");
-  await expect(core.getByRole("button")).toHaveCount(1);
-  await expect(core.locator(".scene-modes")).toHaveCount(0);
-  const character = page.locator('[data-scene="character"]');
-  await character.scrollIntoViewIfNeeded();
-  await expect(character.locator('.mascot-portrait img')).toHaveJSProperty('complete', true);
-  await expect(character.locator('.mascot-portrait')).toHaveAttribute('data-rendered', 'true', { timeout: 20000 });
-  await expect(character.locator('.mascot-portrait')).toHaveAttribute('data-running', 'false');
-  await expect(character.getByRole('button', { name: 'Xoay mô hình', exact: true })).toHaveCount(0);
-  await expect(character).toHaveAttribute('data-motion', 'paused');
-  await expect(character.getByRole("button")).toHaveCount(0);
+  const world = page.locator(".studio-world");
+  await expect(world).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
+  await expect(world).toHaveAttribute("data-motion", "paused");
+  await expect(page.locator(".studio-world-mark svg")).toHaveAttribute("viewBox", "0 0 128 92");
   await selectWorkspaceFeature(page, "meetings");
   await page.locator(".meeting-follow-up [data-slot=accordion-trigger]").click();
   const film = page.locator(".workflow-film");
@@ -58,7 +47,7 @@ test("hero keeps one conversion action and one product control system", async ({
   await page.goto("/");
   const hero = page.locator(".landing-hero");
   await expect(hero.locator(".landing-hero-actions a")).toHaveCount(1);
-  await expect(hero.locator('[data-scene="core"] button')).toHaveCount(1);
+  await expect(page.locator(".studio-world-toggle")).toHaveCount(1);
   await expect(hero.locator(".scene-modes")).toHaveCount(0);
   const preview = page.locator("#product-preview");
   await openManualPreview(page);
@@ -67,7 +56,7 @@ test("hero keeps one conversion action and one product control system", async ({
   await expect(preview.getByRole("tab")).toHaveCount(6);
   await expect(hero.getByRole("tab")).toHaveCount(0);
   await expect(preview.locator(".preview-sidebar")).toHaveCount(0);
-  await expect(page.locator(".landing-product-story > section")).toHaveCount(3);
+  await expect(page.locator(".landing-product-story > section")).toHaveCount(4);
 });
 
 test("Starter and FAQ signals animate only while visible and respect reduced motion", async ({ page }) => {
@@ -100,7 +89,7 @@ test("framed scenes arrive on scroll and remain readable after the entrance", as
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
   await expect(page.locator(".landing-signal, .landing-chapter-junction")).toHaveCount(0);
-  await expect(page.locator(".landing-product-story > section")).toHaveCount(3);
+  await expect(page.locator(".landing-product-story > section")).toHaveCount(4);
   await expect(page.locator(".landing-conversion-story > section")).toHaveCount(3);
 
   const chapter = page.locator(".landing-trust-story");
@@ -141,39 +130,23 @@ test("framed scenes arrive on scroll and remain readable after the entrance", as
   await expect.poll(async () => Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
 });
 
-test("nonessential motion stops offscreen and pause controls stop the real renderer", async ({ page }) => {
+test("film playback stops offscreen alongside the scroll-driven world", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
-  const core = page.locator('[data-scene="core"]');
-  await expect(core.locator(".scene-canvas")).toHaveAttribute("data-running", "true", { timeout: 20000 });
-  await core.getByRole("button", { name: "Dừng chuyển động", exact: true }).click();
-  await expect(core.locator(".scene-canvas")).toHaveAttribute("data-running", "false");
-  await core.getByRole("button", { name: "Bật chuyển động", exact: true }).click();
-  await expect(core.locator(".scene-canvas")).toHaveAttribute("data-running", "true");
+  const world = page.locator(".studio-world");
+  await expect(world).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
   await selectWorkspaceFeature(page, "meetings");
   await openManualPreview(page);
-  await expect(page.locator("#product-preview")).toHaveAttribute("data-presentation", "explore");
   await page.locator(".meeting-follow-up [data-slot=accordion-trigger]").click();
   const film = page.locator(".workflow-film");
   await film.scrollIntoViewIfNeeded();
-  await expect(core.locator(".scene-canvas")).toHaveAttribute("data-running", "false");
+  await expect(world).toHaveAttribute("data-running", "false");
   await expect(film.locator("video")).toHaveJSProperty("paused", false);
   const startedAt = await film.locator("video").evaluate((video: HTMLVideoElement) => video.currentTime);
   await expect.poll(() => film.locator("video").evaluate((video: HTMLVideoElement) => video.currentTime)).not.toBe(startedAt);
   await page.getByRole("contentinfo").scrollIntoViewIfNeeded();
   await expect(film.locator("video")).toHaveJSProperty("paused", true);
-  const character = page.locator('[data-scene="character"]');
-  await character.scrollIntoViewIfNeeded();
-  await expect(character.locator('.mascot-portrait')).toHaveAttribute('data-running', 'true', { timeout: 20000 });
-  await expect(character.getByRole('button')).toHaveCount(0);
-  await expect(character.locator('.mascot-portrait')).toHaveAttribute('data-running', 'false', { timeout: 6000 });
-  const pausedFrame = await character.locator('canvas').screenshot();
-  await character.locator('.mascot-portrait').hover({ position: { x: 40, y: 60 } });
-  expect((await character.locator('canvas').screenshot()).equals(pausedFrame)).toBe(true);
-  await page.getByRole("contentinfo").scrollIntoViewIfNeeded();
-  await expect(character.locator('.mascot-portrait')).toHaveAttribute('data-running', 'false');
 });
-
 test("GPU unavailable leaves a usable fallback and the demo intact", async ({ page }) => {
   await page.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
@@ -183,14 +156,11 @@ test("GPU unavailable leaves a usable fallback and the demo intact", async ({ pa
     } as typeof original;
   });
   await page.goto("/");
-  await expect(page.locator('[data-scene="core"] .scene-fallback')).toContainText("Chế độ gọn nhẹ", { timeout: 20000 });
+  await expect(page.locator(".studio-world")).toHaveAttribute("data-failed", "true", { timeout: 20000 });
+  await expect(page.locator(".studio-world-fallback")).toBeVisible();
   await selectWorkspaceFeature(page, "chat");
   await openManualPreview(page);
   await expect(page.locator("#product-preview")).toHaveAttribute("data-presentation", "explore");
   await expect(page.getByRole("textbox", { name: "Tin nhắn minh họa" })).toBeVisible();
-  const character = page.locator('[data-scene="character"]');
-  await character.scrollIntoViewIfNeeded();
-  await expect(character.locator('img')).toBeVisible();
-  await expect(character.locator('img')).toHaveJSProperty('naturalWidth', 1200);
-  await expect(character.getByRole('button')).toHaveCount(0);
+  await expect(page.locator(".studio-world-fallback")).toHaveJSProperty("naturalWidth", 1672);
 });

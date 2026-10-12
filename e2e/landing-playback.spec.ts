@@ -113,20 +113,14 @@ test("storyboards become readable three-step stories at 390px", async ({ page })
   }
 });
 
-test("original UNI wears the shared mark and retains its static fallback", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
-  const character = page.locator('[data-scene="character"]');
-  await character.scrollIntoViewIfNeeded();
-  const portrait = character.locator(".mascot-portrait");
-  await expect(portrait).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
-  const mark = character.locator(".mascot-shirt-logo svg");
-  await expect(mark).toBeVisible();
-  await expect(mark).toHaveAttribute("viewBox", "0 0 128 92");
-  await expect(portrait.locator("img")).toBeAttached();
-  await expect(character).toHaveAttribute("data-motion", "paused");
+test("UNI uses the shared mark and retains the architectural fallback", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" }); await page.goto("/");
+  const world = page.locator(".studio-world");
+  await expect(world).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
+  await expect(world.locator(".studio-world-mark svg")).toHaveAttribute("viewBox", "0 0 128 92");
+  await expect(world.locator("img")).toBeAttached();
+  await expect(world).toHaveAttribute("data-motion", "paused");
 });
-
 for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "mobile", width: 390, height: 844 }]) {
   for (const locale of ["vi", "en"]) {
     test(`scripted views, brand and contrast: ${viewport.name}-${locale}`, async ({ page, context, baseURL }) => {
@@ -156,8 +150,8 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "
         }
       }
       if (process.env.LANDING_CAPTURE === "1" && locale === "vi") {
-        await page.locator(".horse-mascot").scrollIntoViewIfNeeded();
-        await page.locator(".horse-mascot").screenshot({ path: resolve(import.meta.dirname, `../.impeccable/review/branded-horse-${viewport.name}.png`), style: ".site-header, nextjs-portal { visibility: hidden !important; }" });
+        await page.locator(".studio-world").scrollIntoViewIfNeeded();
+        await page.locator(".studio-world").screenshot({ path: resolve(import.meta.dirname, `../.impeccable/review/branded-horse-${viewport.name}.png`), style: ".site-header, nextjs-portal { visibility: hidden !important; }" });
       }
     });
   }

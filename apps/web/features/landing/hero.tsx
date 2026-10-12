@@ -6,7 +6,7 @@ import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Container } from "./layout-primitives";
-import { InteractiveScene } from "./interactive-scene";
+
 
 export function Hero() {
   const { t } = useTranslation();
@@ -26,7 +26,7 @@ export function Hero() {
             </Link>
           </div>
         </div>
-        <InteractiveScene />
+
         </div>
       </Container>
     </section>

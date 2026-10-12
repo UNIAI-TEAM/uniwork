@@ -9,18 +9,13 @@ for (const width of [1440, 1280, 768, 390]) {
     await page.goto("/");
     await expect(page.locator(".header-shell")).toHaveCSS("display", "flex");
     await expect(page.locator(".landing-hero-stage")).toHaveCSS("display", "flex");
-    await expect(page.locator(".landing-hero-copy")).toHaveCSS("text-align", "center");
-    await expect(page.locator(".landing-hero-actions")).toHaveCSS("justify-content", "center");
-    await expect(page.locator('.scene-canvas')).toHaveAttribute('data-rendered', 'true', { timeout: 20000 });
+    await expect(page.locator(".landing-hero-copy")).toHaveCSS("text-align", width < 768 ? "center" : "left");
+    await expect(page.locator(".landing-hero-actions")).toHaveCSS("justify-content", width < 768 ? "center" : "flex-start");
+    await expect(page.locator('.studio-world')).toHaveAttribute('data-rendered', 'true', { timeout: 20000 });
     await expect(page.locator(".landing-hero-actions a")).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect((await page.locator(".landing-hero, .site-header").allTextContents()).join(" ")).not.toContain("landing.");
-    const motionButton = await page.locator('.scene-core .scene-motion-toggle').boundingBox();
-    for (const context of await page.locator('.hero-context').all()) {
-      const box = await context.boundingBox();
-      const separate = box!.x + box!.width <= motionButton!.x || box!.x >= motionButton!.x + motionButton!.width || box!.y + box!.height <= motionButton!.y || box!.y >= motionButton!.y + motionButton!.height;
-      expect(separate).toBe(true);
-    }
+    await expect(page.locator(".studio-world-toggle")).toBeVisible();
     await expect(page.locator(".hero-scene-footer, .hero-scene-caption")).toHaveCount(0);
     const dir = resolve(import.meta.dirname, "../.impeccable/review");
     await mkdir(dir, { recursive: true });
@@ -58,7 +53,7 @@ test("opening supports English and dark mode", async ({ page, context, baseURL }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" });
   await page.goto("/");
-  await expect(page.locator(".scene-canvas")).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
+  await expect(page.locator(".studio-world")).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
   await expect(page.getByRole("banner").getByRole("button", { name: "Product", exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveClass(/dark/);
   const dir = resolve(import.meta.dirname, "../.impeccable/review");
@@ -69,13 +64,13 @@ test("opening supports English and dark mode", async ({ page, context, baseURL }
 test("opening motion can be paused and honors a changed reduced-motion preference", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
-  const core = page.locator('.scene-core');
-  await expect(core.locator('.scene-canvas')).toHaveAttribute('data-rendered', 'true', { timeout: 20000 });
-  await expect(core).toHaveAttribute('data-motion', 'playing');
-  await core.getByRole('button').click();
+  const core = page.locator('.studio-world');
+  await expect(core).toHaveAttribute('data-rendered', 'true', { timeout: 20000 });
+  await expect(core).toHaveAttribute('data-motion', 'scroll');
+  await page.locator('.studio-world-toggle').click();
   await expect(core).toHaveAttribute('data-motion', 'paused');
-  await core.getByRole('button').click();
-  await expect(core).toHaveAttribute('data-motion', 'playing');
+  await page.locator('.studio-world-toggle').click();
+  await expect(core).toHaveAttribute('data-motion', 'scroll');
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(core).toHaveAttribute('data-motion', 'paused');
   await expect(page.locator('.landing-hero-copy')).toHaveCSS('animation-name', 'none');

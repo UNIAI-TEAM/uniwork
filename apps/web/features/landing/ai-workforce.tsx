@@ -6,7 +6,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@uniwork/ui/components/ui/accordion";
 import { ANCHORS } from "./anchors";
 import { Container } from "./layout-primitives";
-import { HorseMascot } from "./horse-mascot";
+
 
 const BENEFITS = [{ key: "aiRead", icon: ScanText }, { key: "aiSource", icon: BookOpen }, { key: "aiControl", icon: ShieldCheck }] as const;
 
@@ -29,10 +29,7 @@ export function AiWorkforce() {
             </Accordion>
             <a href="#hoi-uni" className={cn(buttonVariants({ variant: "brand", size: "lg" }), "studio-button ai-demo-link")}>{t("landing.reference.viewAsk")}<ArrowRight aria-hidden /></a>
           </div>
-          <figure className="ai-visual">
-            <HorseMascot />
-            <figcaption className="sr-only">{t("landing.motion.characterLabel")}</figcaption>
-          </figure>
+          <div className="ai-world-window" aria-hidden="true" />
         </div>
       </Container>
     </section>

@@ -27,6 +27,7 @@ export async function openManualPreview(page: Page) {
 }
 
 export async function selectWorkspaceFeature(page: Page, key: string, manual = true) {
+  if (manual) await openManualPreview(page);
   const entry = Object.entries(workspaceGroups).find(([, values]) => (values as readonly string[]).includes(key));
   if (!entry) throw new Error(`Unknown workspace feature: ${key}`);
   const stage = page.locator("#product-preview");

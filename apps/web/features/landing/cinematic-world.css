@@ -1,0 +1,38 @@
+/* UNI-1334: a continuous architectural world, with readable foreground surfaces. */
+.landing-cinematic { isolation: isolate; background: transparent; }
+.studio-world { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: var(--landing-stage); }
+.studio-world canvas, .studio-world-fallback { position: absolute; inset: 0; width: 100%; height: 100%; }
+.studio-world-fallback { object-fit: cover; object-position: 65% center; }
+.studio-world[data-rendered="true"] .studio-world-fallback { visibility: hidden; }
+.studio-world-mark { display: none; }
+.studio-world-toggle { position: fixed; bottom: max(22px, env(safe-area-inset-bottom)); right: 24px; z-index: 45; width: 44px; height: 44px; border-radius: 50%; background: var(--background); color: var(--foreground); border-color: var(--border); box-shadow: 0 2px 12px color-mix(in srgb, var(--landing-deep) 8%, transparent); }
+.landing-cinematic .landing-hero { position: relative; min-height: 105svh; padding: clamp(160px, 22vh, 240px) 0 80px; background: transparent; }
+.landing-cinematic .landing-hero-stage { align-items: flex-start; min-height: 65svh; }
+.landing-cinematic .landing-hero-stage .landing-hero-copy { text-align: left; width: 47%; max-width: 560px; margin: 0; padding: 28px; border-radius: 24px; background: color-mix(in srgb, var(--background) 96%, transparent); }
+.landing-site.landing-cinematic .landing-hero h1 { font-size: clamp(48px, 4.8vw, 76px); line-height: 1.05; letter-spacing: -.04em; }
+.landing-cinematic .landing-hero-stage .landing-hero-description { max-width: 43ch; margin-left: 0; font-size: 18px; }
+.landing-cinematic .landing-hero-stage .landing-hero-actions { justify-content: flex-start; }
+.landing-cinematic .landing-product-story, .landing-cinematic .landing-future-story,
+.landing-cinematic .landing-conversion-story { background: transparent; }
+.landing-cinematic .studio-world-passage { height: 68svh; pointer-events: none; }
+.landing-cinematic .studio-section:not(.ai-section) > div { background: var(--background); border-radius: 32px; }
+.landing-cinematic .ai-section { background: transparent; }
+.landing-cinematic .ai-stage { min-height: 90svh; background: transparent; box-shadow: none; border: 0; overflow: visible; }
+.landing-cinematic .ai-stage::before, .landing-cinematic .ai-stage::after { display: none; }
+.landing-cinematic .ai-stage-copy { align-self: center; padding: 36px; background: var(--background); border: 1px solid var(--border); border-radius: 24px; }
+.landing-cinematic .ai-world-window { min-height: 500px; }
+.landing-cinematic .landing-future-story .studio-section,
+.landing-cinematic .landing-conversion-story .studio-section { background: var(--background); }
+@media (max-width: 767px) {
+  .studio-world-toggle { right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); }
+  .landing-cinematic .landing-hero { min-height: 115svh; padding: 122px 0 32px; }
+  .landing-cinematic .landing-hero-stage { align-items: center; }
+  .landing-cinematic .landing-hero-stage .landing-hero-copy { width: 100%; max-width: 500px; text-align: center; padding: 20px 14px; }
+  .landing-site.landing-cinematic .landing-hero h1 { font-size: clamp(36px, 9vw, 48px); line-height: 1.08; }
+  .landing-cinematic .landing-hero-stage .landing-hero-description { margin-inline: auto; font-size: 15px; max-width: 36ch; }
+  .landing-cinematic .landing-hero-stage .landing-hero-actions { justify-content: center; }
+  .landing-cinematic .studio-world-passage { height: 50svh; }
+  .landing-cinematic .ai-stage-copy { padding: 24px; }
+  .landing-cinematic .ai-world-window { min-height: 48svh; }
+  .landing-cinematic .studio-section:not(.ai-section) > div { border-radius: 24px; }
+}
