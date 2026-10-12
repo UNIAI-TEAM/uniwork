@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -693,5 +694,131 @@ func TestPolicyOfficeUniworkAI(t *testing.T) {
 	// Existing capabilities keep their policies: ollama still has a default.
 	if _, m, err := ResolveModel(CapCopilotAnswer, "ollama", nil, nil); err != nil || m != "llama3.1" {
 		t.Fatalf("copilot on ollama: %s %v", m, err)
+	}
+}
+
+// ---- Tool-result turn (G6-13): one Complete per tool-result round ------------
+
+func toolTurnHistory(id string) []provider.Message {
+	return []provider.Message{
+		{Role: "user", Content: "what is in A1?"},
+		{Role: "assistant", ToolCalls: []provider.ToolCall{{ID: id, Name: "get_cell", Input: json.RawMessage(`{"cell":"A1"}`)}}},
+		{Role: "tool", ToolCallID: id, Content: `{"value":42}`},
+	}
+}
+
+// TestRequestMessages pins what reaches the provider: the old path is
+// History + the rendered prompt (unchanged for every existing caller), a
+// tool-result turn is History exactly, with no invented user message.
+func TestRequestMessages(t *testing.T) {
+	p, _ := LookupPrompt(PromptCopilotAnswer)
+	req := askReq()
+	req.History = []provider.Message{{Role: "user", Content: "trước"}, {Role: "assistant", Content: "sau"}}
+	req.Attachments = []provider.Part{{MIME: "image/png", Data: []byte{1}}}
+	got, err := requestMessages(req, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := append(append([]provider.Message{}, req.History...), provider.Message{Role: "user", Content: p.Render(req.Vars), Parts: req.Attachments})
+	if gj, wj := mustJSON(t, got), mustJSON(t, want); gj != wj {
+		t.Fatalf("default path changed:\n%s\n%s", gj, wj)
+	}
+
+	turn := Request{ToolResultTurn: true, History: toolTurnHistory("call_1")}
+	got, err = requestMessages(turn, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gj, wj := mustJSON(t, got), mustJSON(t, turn.History); gj != wj {
+		t.Fatalf("tool turn must be History as is:\n%s\n%s", gj, wj)
+	}
+	// Parallel calls: every result after the assistant turn that asked.
+	parallel := toolTurnHistory("call_1")
+	parallel[1].ToolCalls = append(parallel[1].ToolCalls, provider.ToolCall{ID: "call_2", Name: "get_cell"})
+	parallel = append(parallel, provider.Message{Role: "tool", ToolCallID: "call_2", Content: "7"})
+	if _, err := requestMessages(Request{ToolResultTurn: true, History: parallel}, p); err != nil {
+		t.Fatalf("parallel results refused: %v", err)
+	}
+
+	for name, bad := range map[string]Request{
+		"empty history":   {ToolResultTurn: true},
+		"ends with user":  {ToolResultTurn: true, History: toolTurnHistory("call_1")[:1]},
+		"result w/o call": {ToolResultTurn: true, History: []provider.Message{{Role: "user", Content: "q"}, {Role: "tool", ToolCallID: "call_1", Content: "1"}}},
+		"unknown id":      {ToolResultTurn: true, History: append(toolTurnHistory("call_1")[:2], provider.Message{Role: "tool", ToolCallID: "call_9", Content: "1"})},
+		"missing id":      {ToolResultTurn: true, History: append(toolTurnHistory("call_1")[:2], provider.Message{Role: "tool", Content: "1"})},
+		"attachments":     {ToolResultTurn: true, History: toolTurnHistory("call_1"), Attachments: []provider.Part{{MIME: "image/png"}}},
+	} {
+		if _, err := requestMessages(bad, p); err == nil {
+			t.Fatalf("%s: accepted", name)
+		}
+	}
+}
+
+func mustJSON(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// TestGatewayToolResultTurn drives two rounds through the Gateway with the
+// scripted fake: round 1 asks for a tool, round 2 sends the result under the
+// same id and gets the answer; ids survive into Response and the audit column.
+func TestGatewayToolResultTurn(t *testing.T) {
+	const key = "test_tool_turn@1"
+	prompts[key] = Prompt{ID: "test_tool_turn", Version: 1, System: "sys " + UntrustedFooter,
+		Render: func(vars map[string]any) string { return fmt.Sprint(vars["question"]) }}
+	t.Cleanup(func() { delete(prompts, key) })
+	ctx := context.Background()
+	fp := &provider.Fake{}
+	g, q := gatewayFixture(t, fp, &fakeQuota{})
+	req := Request{
+		Actor: audit.User("u1"), OrganizationID: "org1", Capability: CapOfficeUniworkAI, PromptID: key,
+		Vars:  map[string]any{"question": "what is in A1?"},
+		Tools: Registry{{Name: "get_cell", Kind: ToolRead, Risk: RiskLow}},
+	}
+	first, err := g.Complete(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.ToolCalls) != 1 || first.ToolCalls[0].ID != provider.FakeToolCallID {
+		t.Fatalf("round 1 %+v", first)
+	}
+	row, err := q.AiGetUsageEvent(ctx, first.UsageEventID)
+	if err != nil || row.Status != "succeeded" || !strings.Contains(row.ToolCalls, `"id":"`+provider.FakeToolCallID+`"`) {
+		t.Fatalf("round 1 audit %+v %v", row, err)
+	}
+
+	req.ToolResultTurn = true
+	req.Vars = nil
+	req.History = []provider.Message{
+		{Role: "user", Content: "what is in A1?"},
+		{Role: "assistant", ToolCalls: first.ToolCalls},
+		{Role: "tool", ToolCallID: first.ToolCalls[0].ID, Content: `{"value":42}`},
+	}
+	second, err := g.Complete(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(second.Text, provider.FakeToolCallID) || len(second.ToolCalls) != 0 {
+		t.Fatalf("round 2 %+v", second)
+	}
+	if gj, wj := mustJSON(t, fp.Last.Messages), mustJSON(t, req.History); gj != wj {
+		t.Fatalf("round 2 sent more than the history:\n%s\n%s", gj, wj)
+	}
+	if len(fp.Last.Tools) != 1 {
+		t.Fatalf("tools not offered on round 2: %+v", fp.Last.Tools)
+	}
+	row2, _ := q.AiGetUsageEvent(ctx, second.UsageEventID)
+	if row2.Status != "succeeded" || row2.Capability != "office_uniwork_ai" || row2.PromptID != key {
+		t.Fatalf("round 2 usage %+v", row2)
+	}
+	// A malformed turn is refused before a usage row or a provider call.
+	calls := fp.Calls
+	req.History = req.History[:2]
+	if _, err := g.Complete(ctx, req); err == nil || fp.Calls != calls {
+		t.Fatalf("malformed turn reached the provider: %v", err)
 	}
 }

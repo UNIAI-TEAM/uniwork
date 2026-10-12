@@ -54,6 +54,13 @@ type Request struct {
 	// History is prior turns of a conversation, oldest first; the rendered
 	// prompt becomes the final user message.
 	History []provider.Message
+	// ToolResultTurn sends History as is, with no rendered user message: it
+	// answers the assistant's tool calls, so History must end with that
+	// assistant message (ToolCalls with ids) followed by one role "tool"
+	// message per answered call. Vars and Attachments are not used; the
+	// prompt still supplies the system text. One Complete per tool-result
+	// round (G6-03a); every existing caller leaves it false.
+	ToolResultTurn bool
 	// Sources is the context pack, for the audit columns only — the caller
 	// renders it into Vars.
 	Sources   []Source
@@ -132,6 +139,10 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 			return Response{}, err
 		}
 	}
+	msgs, err := requestMessages(req, prompt)
+	if err != nil {
+		return Response{}, err
+	}
 	row, err := g.insertUsage(ctx, req, model, "pending", "")
 	if err != nil {
 		return Response{}, err
@@ -140,8 +151,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		Model: model, System: prompt.System, MaxTokens: policy.MaxTokens, Temperature: policy.Temperature,
 		JSONSchema: prompt.OutputSchema,
 	}
-	creq.Messages = append(creq.Messages, req.History...)
-	creq.Messages = append(creq.Messages, provider.Message{Role: "user", Content: prompt.Render(req.Vars), Parts: req.Attachments})
+	creq.Messages = msgs
 	// Structured JSON output and tool-calling fight each other on OpenAI-compatible
 	// hosts (400 / empty content → 502 ai_provider_error). When the prompt pins a
 	// schema, context must already be in Vars — do not advertise tools.
@@ -203,7 +213,42 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	}, nil
 }
 
+// requestMessages is what the provider is sent: History plus the rendered
+// prompt as the final user message, or, on a tool-result turn, History
+// exactly — refused unless it ends with tool results that answer the
+// assistant message just before them.
+func requestMessages(req Request, prompt Prompt) ([]provider.Message, error) {
+	if !req.ToolResultTurn {
+		msgs := make([]provider.Message, 0, len(req.History)+1)
+		msgs = append(msgs, req.History...)
+		return append(msgs, provider.Message{Role: "user", Content: prompt.Render(req.Vars), Parts: req.Attachments}), nil
+	}
+	if len(req.Attachments) > 0 {
+		return nil, errPolicy("tool-result turn carries attachments")
+	}
+	i := len(req.History)
+	for i > 0 && req.History[i-1].Role == "tool" {
+		i--
+	}
+	if i == len(req.History) || i == 0 || req.History[i-1].Role != "assistant" {
+		return nil, errPolicy("tool-result turn must end with tool results after the assistant's calls")
+	}
+	asked := map[string]bool{}
+	for _, c := range req.History[i-1].ToolCalls {
+		asked[c.ID] = true
+	}
+	for _, m := range req.History[i:] {
+		if m.ToolCallID == "" || !asked[m.ToolCallID] {
+			return nil, errPolicy("tool result " + m.ToolCallID + " answers no call of the assistant turn")
+		}
+	}
+	return req.History, nil
+}
+
 type toolCallAudit struct {
+	// ID is the vendor's call id, so a tool result can be traced to the call
+	// it answered; empty for a vendor that sends none.
+	ID      string `json:"id,omitempty"`
 	Name    string `json:"name"`
 	Risk    string `json:"risk"`
 	Allowed bool   `json:"allowed"`
@@ -216,7 +261,7 @@ func auditToolCalls(calls []provider.ToolCall, allowed Registry) ([]toolCallAudi
 	denied := ""
 	for _, c := range calls {
 		t, ok := allowed.Get(c.Name)
-		a := toolCallAudit{Name: c.Name, Allowed: ok}
+		a := toolCallAudit{ID: c.ID, Name: c.Name, Allowed: ok}
 		if ok {
 			a.Risk = string(t.Risk)
 		} else if denied == "" {
