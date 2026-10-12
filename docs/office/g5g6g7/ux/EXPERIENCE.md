@@ -11,7 +11,7 @@ design: DESIGN.md
 # UniWork Office G5/G6/G7 — Experience Spine
 
 Spine này là hợp đồng hành vi cho các bề mặt UI của G5 (đồng bộ, offline, Lưu, xung đột) và G6 (nhà cung cấp
-UniWork AI trong panel AI genoffice). Mọi `§` trỏ vào spec G5/G6/G7 v1.1; mã task, cổng (X-01, X-02, X-03, U-01, G5-…,
+UniWork AI trong panel AI genoffice). Mọi `§` trỏ vào spec G5/G6/G7 v1.2 (U-12 bỏ Dify; spine không có trạng thái Dify/retrieval nào); mã task, cổng (X-01, X-02, X-03, U-01, G5-…,
 G6-…) và tên trường wire do plan đề xuất (`x_uniwork`, `ask_user`, `Retry-After`, `office_capability_off`) trỏ vào plan
 và chốt ở task được nêu. Trạng thái `draft`: U-01 (Product ký, đóng Open questions) đặt `final`.
 
