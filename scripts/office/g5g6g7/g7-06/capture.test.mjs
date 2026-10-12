@@ -9,20 +9,20 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseArgs, runCapture } from "./capture.mjs";
 import { HOSTS, MIN_FRAME_WIDTH, SETTLE, STREAMING_TIMEOUT_MS, VIEWPORTS } from "./capture/constants.mjs";
-import { ELECTRON_ARGS, captureWithRetry, collectShellText, desktopEnv, desktopPrecondition, isRetryableTimeout } from "./capture/desktop.mjs";
+import { ELECTRON_ARGS, captureWithRetry, collectShellText, desktopEnv, desktopPrecondition, isRetryableTimeout, watchConsole } from "./capture/desktop.mjs";
 import { readFixtures, selectFixtures } from "./capture/fixtures.mjs";
 import { blocked, buildMeta, clearCapture, exitCodeFor, failed, metaEntry, ok, pngSize, writeCapture } from "./capture/meta.mjs";
 import { loadPlaywright } from "./capture/playwright.mjs";
 import { readRun } from "./capture/run-dir.mjs";
 import { cleanupSeed, seedWorkspace } from "./capture/seed.mjs";
 import { PROGRESS_TEXT, frameHash, isStreamingStatus, notSettledReason, pageIsBusy, settle } from "./capture/settle.mjs";
-import { clip } from "./capture/scrub.mjs";
+import { appPlaces, clip } from "./capture/scrub.mjs";
 import { collectRenderedText, frameBlock, joinBlocks, visibleChars } from "./capture/text.mjs";
 import { redactUrl, signIn } from "./capture/signin.mjs";
 import { loadPngjs } from "./job-lib.mjs";
@@ -519,6 +519,47 @@ describe("diagnostics scrubber", () => {
   test("the length cap and whitespace folding still apply", () => {
     assert.equal(clip("a   b\n c", 400), "a b c");
     assert.equal(clip("x".repeat(500), 10), "x".repeat(10));
+  });
+});
+
+// ---- diagnostics paths (N-9) -------------------------------------------------
+describe("diagnostics paths", () => {
+  const places = { home: "/home/tester", run: "/var/run-scratch", app: ["/opt/uniwork/app", "/opt/uniwork/electron"] };
+
+  test("the home dir, the run dirs and the app dir become placeholders, file URLs included", () => {
+    assert.equal(clip("error at file:///home/tester/work/x.js:12", 400, places), "error at file://<home>/work/x.js:12");
+    assert.equal(clip("ENOENT /var/run-scratch/g7-06-desktop-ab12/f1/doc.docx", 400, places), "ENOENT <run>/g7-06-desktop-ab12/f1/doc.docx");
+    assert.equal(clip("Uncaught at file:///opt/uniwork/app/main.js:3", 400, places), "Uncaught at file://<app>/main.js:3");
+    assert.equal(clip("spawn /opt/uniwork/electron/electron ENOENT", 400, places), "spawn <app>/electron ENOENT");
+    assert.equal(clip("a /home/tester and b /home/tester/c", 400, places), "a <home> and b <home>/c");
+  });
+
+  test("the app dir wins when it sits inside the home dir", () => {
+    const nested = { home: "/home/tester", run: "/tmp", app: ["/home/tester/uniwork/app"] };
+    assert.equal(clip("at /home/tester/uniwork/app/x.js and /home/tester/other.js", 400, nested), "at <app>/x.js and <home>/other.js");
+  });
+
+  test("only whole path segments match, and ordinary paths and text are untouched", () => {
+    assert.equal(clip("/home/testers/x /srv/home/tester/y /home/tester.bak/z", 400, places), "/home/testers/x /srv/home/tester/y /home/tester.bak/z");
+    assert.equal(clip("GET /api/v1/files?page=2 → Đã lưu báo-cáo_quý-3.xlsx", 400, places), "GET /api/v1/files?page=2 → Đã lưu báo-cáo_quý-3.xlsx");
+  });
+
+  test("with no places given the real home and tmpdir are scrubbed", () => {
+    const out = clip(`at file://${homedir()}/x.js and ${tmpdir()}/g7/y`, 400);
+    assert.ok(!out.includes(homedir()) || homedir() === "/", out);
+    assert.match(out, /<run>\/g7\/y/);
+  });
+
+  test("the app places come from SHELL_APP_DIR and the Electron binary's dir", () => {
+    assert.deepEqual(appPlaces({ SHELL_APP_DIR: "/opt/a/app", ELECTRON_BIN: "/opt/e/dist/electron" }), ["/opt/a/app", "/opt/e/dist"]);
+    assert.deepEqual(appPlaces({}), []);
+  });
+
+  test("the console watcher scrubs paths and secrets with the app dir it was given", () => {
+    const handlers = {};
+    const watch = watchConsole({ on: (event, fn) => { handlers[event] = fn; } }, ["/opt/uniwork/app"]);
+    handlers.console({ type: () => "error", text: () => "load failed file:///opt/uniwork/app/x.js:12 access_token=abc123" });
+    assert.deepEqual(watch.lines, ["error: load failed file://<app>/x.js:12 access_token=<redacted>"]);
   });
 });
 

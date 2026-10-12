@@ -21,7 +21,7 @@ import { appEnv } from "../../harness/lib.mjs";
 import { blocked, failed, ok } from "./meta.mjs";
 import { COLOR_SCHEME, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORTS } from "./constants.mjs";
 import { STATUS_SELECTORS, isStreamingStatus, notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
-import { clip } from "./scrub.mjs";
+import { appPlaces, clip } from "./scrub.mjs";
 import { collectRenderedText, joinBlocks } from "./text.mjs";
 
 export const ELECTRON_ARGS = ["--no-sandbox", "--disable-gpu", "--lang=vi-VN", "--force-device-scale-factor=1", "--force-color-profile=srgb", "--font-render-hinting=none", "--disable-lcd-text"];
@@ -137,17 +137,17 @@ export async function captureWithRetry(attempt) {
   return { ...rest, retries: [{ reason: first.reason, ...(first.diagnostics ? { diagnostics: first.diagnostics } : {}) }] };
 }
 
-/** Collects the module page's console lines (capped, secret words scrubbed); read them with `.lines`. */
-function watchConsole(page) {
+/** Collects the module page's console lines (capped, secrets and paths scrubbed); read them with `.lines`. */
+export function watchConsole(page, app = []) {
   const lines = [];
   page.on("console", (message) => {
-    if (lines.length < 40) lines.push(clip(`${message.type()}: ${message.text()}`, 300));
+    if (lines.length < 40) lines.push(clip(`${message.type()}: ${message.text()}`, 300, { app }));
   });
   return { lines };
 }
 
 /** What the module's status regions say right now, per frame; read-only, never touches the page. */
-async function statusText(page) {
+async function statusText(page, app) {
   const texts = [];
   for (const frame of page.frames()) {
     const found = await frame
@@ -155,7 +155,7 @@ async function statusText(page) {
       .catch(() => []);
     texts.push(...found);
   }
-  return clip(texts.join(" | "), 400);
+  return clip(texts.join(" | "), 400, { app });
 }
 
 /** One fixture on a fresh instance (closed again before it returns). */
@@ -179,7 +179,8 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
       if (SIGN_IN_WORDS.test(screen)) return blocked(`shell_requires_sign_in: the shell shows "${screen}" instead of opening ${basename(fixture.path)}`);
       return failed(`module_view_not_found: no ://${fixture.module}/ page within ${OPEN_TIMEOUT_MS / 1000}s; the shell shows "${screen}"`);
     }
-    const consoleWatch = watchConsole(page);
+    const appDirs = appPlaces(ports);
+    const consoleWatch = watchConsole(page, appDirs);
     const applied = [];
     await app.evaluate(({ BrowserWindow, nativeTheme }, size) => {
       nativeTheme.themeSource = "light";
@@ -197,7 +198,7 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
     });
     if (result.status !== "settled") {
       // dump what the app said before failing or retrying, so the next round can tell the causes apart
-      const diagnostics = { status: await statusText(page), busy: clip(result.busyWhy ?? "", 200), console: consoleWatch.lines };
+      const diagnostics = { status: await statusText(page, appDirs), busy: clip(result.busyWhy ?? "", 200, { app: appDirs }), console: consoleWatch.lines };
       return failed(notSettledReason(result), { retryable: isRetryableTimeout(result), diagnostics });
     }
     const { text, canvasOnly } = await collectRenderedText(page);

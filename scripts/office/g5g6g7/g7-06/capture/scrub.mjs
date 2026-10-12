@@ -1,3 +1,6 @@
+import { homedir, tmpdir } from "node:os";
+import { dirname } from "node:path";
+
 // Diagnostics scrubber: every console line and status text that reaches meta.json
 // (which travels with the cloud reports) goes through `clip`, so a credential in
 // any common form never leaves the box.
@@ -22,8 +25,30 @@ const RULES = [
   [/\bbasic\s+(?=[A-Za-z0-9+/]*(?:[0-9=+/]|[a-z][A-Z]))[A-Za-z0-9+/]{12,}={0,2}/gi, "basic=<redacted>"],
 ];
 
-export function redact(text) {
+function redact(text) {
   return RULES.reduce((out, [pattern, replacement]) => out.replace(pattern, replacement), String(text));
 }
 
-export const clip = (text, length) => redact(text).replace(/\s+/g, " ").trim().slice(0, length);
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** The install dirs of the app under capture: the shell's app dir and the dir of the Electron binary. */
+export const appPlaces = (ports) => [ports.SHELL_APP_DIR, ports.ELECTRON_BIN && dirname(ports.ELECTRON_BIN)].filter(Boolean);
+
+/**
+ * Replaces the app install dirs, the run (tmpdir) dirs and the user's home with
+ * <app>/<run>/<home>; the longest path wins, so an app dir inside the home dir
+ * still reads <app>. Whole path segments only; a `file:///` URL needs no special
+ * case because its path part is matched like any other.
+ */
+function redactPaths(text, { home = homedir(), run = tmpdir(), app = [] } = {}) {
+  const entries = [...app.map((path) => [path, "<app>"]), [run, "<run>"], [home, "<home>"]]
+    .map(([path, placeholder]) => [String(path ?? "").replace(/\/+$/, ""), placeholder])
+    .filter(([path]) => path.length > 1)
+    .sort((a, b) => b[0].length - a[0].length);
+  if (entries.length === 0) return String(text);
+  const placeholders = new Map(entries);
+  const pattern = new RegExp(`(?<![\\w.-])(?:${entries.map(([path]) => escapeRegExp(path)).join("|")})(?![\\w-]|\\.\\w)`, "g");
+  return String(text).replace(pattern, (path) => placeholders.get(path));
+}
+
+export const clip = (text, length, places) => redactPaths(redact(text), places).replace(/\s+/g, " ").trim().slice(0, length);
