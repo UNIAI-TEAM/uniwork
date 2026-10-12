@@ -1,0 +1,228 @@
+$ cd apps/web && npx vitest run platform/office-frame --reporter=verbose
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/apps/web
+
+stderr | platform/office-frame/frame-install.test.ts > frame protocol pin (X-02 protocolSha256) > refuses a hand-edited pin hash, though the manifest digest still matches
+office-frame: 0.1.0-abc1234 is installed but does not verify (frame protocol differs from the pin (endpoint); re-pin deliberately with --pin); this frame is not offered
+
+stderr | platform/office-frame/frame-install.test.ts > offerableFrameVersion > offers the pinned version only when it is installed and verifies
+office-frame: 0.1.0-abc1234 is installed but does not verify (index.html: sha256 differs from the manifest); this frame is not offered
+
+tar: Removing leading `../' from member names
+ ✓ platform/office-frame/frame-install.test.ts > loadBundle > verifies every file against the manifest and returns the digest of manifest.json 3ms
+ ✓ platform/office-frame/frame-install.test.ts > loadBundle > refuses a file whose content changed, whose size changed, or that is missing 3ms
+ ✓ platform/office-frame/frame-install.test.ts > loadBundle > refuses a build from a dirty fork checkout unless a local run allows it 1ms
+ ✓ platform/office-frame/frame-install.test.ts > loadBundle > refuses a csp.json that lets another origin frame the editor 1ms
+ ✓ platform/office-frame/frame-install.test.ts > per-document policies of a build (the html preview) > loads them, pins them and re-verifies them once installed 4ms
+ ✓ platform/office-frame/frame-install.test.ts > per-document policies of a build (the html preview) > notices a changed or dropped document policy against the pin 3ms
+ ✓ platform/office-frame/frame-install.test.ts > per-document policies of a build (the html preview) > refuses a policy for a file the manifest does not list, and an unsafe policy 2ms
+ ✓ platform/office-frame/frame-install.test.ts > per-document policies of a build (the html preview) > a build without documents has none and matches a pin without them 1ms
+ ✓ platform/office-frame/frame-install.test.ts > install / checkInstalled > copies the listed files plus manifest and csp, replaces older versions, and re-verifies 3ms
+ ✓ platform/office-frame/frame-install.test.ts > install / checkInstalled > re-install is idempotent and does not leave staging directories 3ms
+ ✓ platform/office-frame/frame-install.test.ts > install / checkInstalled > notices an installed csp.json that no longer matches the pin 2ms
+ ✓ platform/office-frame/frame-install.test.ts > frame protocol pin (X-02 protocolSha256) > a re-pin keeps the build's protocolSha256 and the installed copy verifies 2ms
+ ✓ platform/office-frame/frame-install.test.ts > frame protocol pin (X-02 protocolSha256) > refuses a hand-edited pin hash, though the manifest digest still matches 3ms
+ ✓ platform/office-frame/frame-install.test.ts > frame protocol pin (X-02 protocolSha256) > a pin recording the protocol refuses a build that records none; a pin without it checks nothing 2ms
+ ✓ platform/office-frame/frame-install.test.ts > materialize / locateBundleDir > accepts the version directory itself or its parent holding exactly one version 1ms
+ ✓ platform/office-frame/frame-install.test.ts > materialize / locateBundleDir > unpacks a .tar.gz of the version directory 14ms
+ ✓ platform/office-frame/frame-install.test.ts > locateModuleBundle > finds each module under a dist-web root, and nothing for a module the root lacks 2ms
+ ✓ platform/office-frame/frame-install.test.ts > locateModuleBundle > keeps the docs-only layouts working: dist-web/docs, or the version directory itself 5ms
+ ✓ platform/office-frame/frame-install.test.ts > locateModuleBundle > matches a version directory by its manifest's module, and refuses an unknown module name 1ms
+ ✓ platform/office-frame/frame-install.test.ts > locateModuleBundle > finds a module inside an archive of a dist-web root 16ms
+ ✓ platform/office-frame/frame-install.test.ts > offerableFrameVersion > offers the pinned version only when it is installed and verifies 2ms
+ ✓ platform/office-frame/frame-install.test.ts > archive sources are checked before they are extracted > accepts the build as an archive 10ms
+ ✓ platform/office-frame/frame-install.test.ts > archive sources are checked before they are extracted > refuses a symlink member 9ms
+ ✓ platform/office-frame/frame-install.test.ts > archive sources are checked before they are extracted > refuses a member that climbs out of the bundle 8ms
+ ✓ platform/office-frame/frame-install.test.ts > archive sources are checked before they are extracted > refuses an archive over the size, entry or unpacked-size cap 9ms
+ ✓ platform/office-frame/frame-install.test.ts > archive sources are checked before they are extracted > does not extract a refused archive 8ms
+ ✓ platform/office-frame/frame-install.test.ts > archive sources are checked before they are extracted > gives up on a download that exceeds the cap or never answers 62ms
+ ✓ platform/office-frame/frame-install.test.ts > redactSourceUrl > keeps scheme and host only, whatever secret rides in the userinfo, path or query 0ms
+ ✓ platform/office-frame/frame-install.test.ts > redactSourceUrl > replaces a value that is not a URL with a fixed placeholder 0ms
+ ✓ platform/office-frame/document-host.test.tsx > DocumentOfficeEditorHost > opens a.docx in the docs module host, readonly passed through 21ms
+ ✓ platform/office-frame/document-host.test.tsx > DocumentOfficeEditorHost > opens a.pdf in the pdf module host, readonly passed through 3ms
+ ✓ platform/office-frame/document-host.test.tsx > DocumentOfficeEditorHost > opens a.md in the markdown module host, readonly passed through 3ms
+ ✓ platform/office-frame/document-host.test.tsx > DocumentOfficeEditorHost > opens a.html in the html module host, readonly passed through 2ms
+ ✓ platform/office-frame/document-host.test.tsx > DocumentOfficeEditorHost > opens a.pptx in the slides module host, readonly passed through 3ms
+ ✓ platform/office-frame/document-host.test.tsx > DocumentOfficeEditorHost > opens a.xlsx in the sheets module host, readonly passed through 2ms
+ ✓ platform/office-frame/document-host.test.tsx > DocumentOfficeEditorHost > gives legacy.xls the typed unsupported state, never a module host 9ms
+ ✓ platform/office-frame/document-host.test.tsx > DocumentOfficeEditorHost > gives letter.odt the typed unsupported state, never a module host 2ms
+ ✓ platform/office-frame/document-host.test.tsx > DocumentOfficeEditorHost > gives archive.zip the typed unsupported state, never a module host 2ms
+ ✓ platform/office-frame/document-host.test.tsx > detectDocumentFormat > reads the mime type before the file name, and names the conversion-only sources 1ms
+stderr | platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > opens the module's frame on the organization's flag, with its version and the desktop wiring
+An update to NavigationProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to NavigationProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > opens a .docx in the Docs frame and follows Save as to the copy
+An update to NavigationProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to NavigationProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ platform/office-frame/module-frame-boot-failure.test.tsx > a module whose frame bundle answers an HTTP error > docs shows the load failure with Retry and open-in-app instead of staying on the loading skeleton 80ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > says the web editor is not set up, with open-in-app and download, when the module has no installed bundle 59ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > opens the module's frame on the organization's flag, with its version and the desktop wiring 13ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > opens a .docx in the Docs frame and follows Save as to the copy 6ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > opens the slides frame for a view-only user too, readonly 5ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > installer channel of the desktop open action > lists the dev installers when only the dev channel publishes one 7ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > installer channel of the desktop open action > prefers stable when stable publishes an installer 6ms
+ ✓ platform/office-frame/module-frame-boot-failure.test.tsx > a module whose frame bundle answers an HTTP error > pdf shows the load failure with Retry and open-in-app instead of staying on the loading skeleton 27ms
+ ✓ platform/office-frame/module-frame-boot-failure.test.tsx > a module whose frame bundle answers an HTTP error > markdown shows the load failure with Retry and open-in-app instead of staying on the loading skeleton 22ms
+ ✓ platform/office-frame/module-frame-boot-failure.test.tsx > a module whose frame bundle answers an HTTP error > html shows the load failure with Retry and open-in-app instead of staying on the loading skeleton 28ms
+ ✓ platform/office-frame/module-frame-boot-failure.test.tsx > a module whose frame bundle answers an HTTP error > slides shows the load failure with Retry and open-in-app instead of staying on the loading skeleton 19ms
+ ✓ platform/office-frame/module-frame-boot-failure.test.tsx > a module whose frame bundle answers an HTTP error > sheets shows the load failure with Retry and open-in-app instead of staying on the loading skeleton 18ms
+ ✓ platform/office-frame/module-frame-boot-failure.test.tsx > a module whose frame bundle answers an HTTP error > keeps the frame mounted, still booting, while the bundle answers 13ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > shows the unavailable notice, not the frame, when the module's own flag is overridden off 17ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > shows a frame that did not load as its error, with Retry, open-in-app and download 15ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > offers a view-only user of a failed frame Retry and the download, not the app 6ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > opens a workbook under the cap in the frame, with no notice 4ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > a workbook above the Sheets cap > shows the open-in-the-app notice on the stored-size pre-check, without asking for a token 13ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > a workbook above the Sheets cap > shows the same notice when the frame reports the worksheet gate (too_large) 11ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > a workbook above the Sheets cap > keeps the primary button on the launch-ticket path, and the installer prompt when the app is missing 86ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > a workbook above the Sheets cap > downloads the file itself with the secondary button 17ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > OfficeModuleHost > a workbook above the Sheets cap > offers a view-only user the download alone 5ms
+ ✓ platform/office-frame/module-frame-host.test.tsx > pinnedFrameVersion > reads the docs variable first, then the module map, and nothing from a broken map 1ms
+ ✓ platform/office-frame/frame-source.test.ts > parseSource > accepts an https .tar.gz url with a 64-digit sha256 1ms
+ ✓ platform/office-frame/frame-source.test.ts > parseSource > refuses anything else, so a bad edit fails the build instead of installing unverified bytes 1ms
+ ✓ platform/office-frame/frame-source.test.ts > readSource > returns null for a missing file and parses the committed one 1ms
+ ✓ platform/office-frame/frame-source.test.ts > resolveSource > uses the committed source, with its sha256, when there is no override 0ms
+ ✓ platform/office-frame/frame-source.test.ts > resolveSource > lets an explicit override win, without the committed sha256 0ms
+ ✓ platform/office-frame/frame-source.test.ts > resolveSource > is null with no override and no committed source 0ms
+ ✓ platform/office-frame/frame-source.test.ts > materialize with an expected sha256 > unpacks an archive that hashes to it 14ms
+ ✓ platform/office-frame/frame-source.test.ts > materialize with an expected sha256 > refuses an archive that does not, before unpacking it 5ms
+stderr | platform/office-frame/tab-title.test.tsx > document tab titles > names the library, then the document
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | platform/office-frame/tab-title.test.tsx > document tab titles > names the library, then the document
+The current testing environment is not configured to support act(...)
+
+stderr | platform/office-frame/tab-title.test.tsx > document tab titles > says UniWork Office while an Office editor is open, even when both mount together
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | platform/office-frame/tab-title.test.tsx > document tab titles > says UniWork Office while an Office editor is open, even when both mount together
+The current testing environment is not configured to support act(...)
+
+ ✓ platform/office-frame/tab-title.test.tsx > document tab titles > names the library, then the document 12ms
+ ✓ platform/office-frame/tab-title.test.tsx > document tab titles > says UniWork Office while an Office editor is open, even when both mount together 4ms
+ ✓ platform/office-frame/frame-bundle.test.ts > assertSafeVersion / assertSafeBundlePath > accepts a version-with-sha and refuses anything a path join could escape 2ms
+ ✓ platform/office-frame/frame-bundle.test.ts > assertSafeVersion / assertSafeBundlePath > accepts relative forward-slashed paths only 1ms
+ ✓ platform/office-frame/frame-bundle.test.ts > modules > knows the six modules and nothing else, each served from its own root 1ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > reads the fork manifest and ignores informational fields 1ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > reads the module a build names, an absent one being docs (builds from before modules) 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > reads the dirty flag the fork sets for an uncommitted build 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > refuses not an object 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > refuses unknown module 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > refuses unsafe version 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > refuses bad gitSha 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > refuses entry outside files 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > refuses no files 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > refuses bad digest 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > refuses bad size 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > refuses escaping path 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseManifest > refuses duplicate path 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > protocolSha256 (X-02 frame protocol pin) > is optional in a manifest and kept, in key order, when present 1ms
+ ✓ platform/office-frame/frame-bundle.test.ts > protocolSha256 (X-02 frame protocol pin) > refuses not an object, in a manifest and in a pin 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > protocolSha256 (X-02 frame protocol pin) > refuses a list, in a manifest and in a pin 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > protocolSha256 (X-02 frame protocol pin) > refuses a missing digest, in a manifest and in a pin 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > protocolSha256 (X-02 frame protocol pin) > refuses a bad digest, in a manifest and in a pin 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > protocolSha256 (X-02 frame protocol pin) > refuses an upper-case digest, in a manifest and in a pin 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > protocolSha256 (X-02 frame protocol pin) > refuses an unknown key, in a manifest and in a pin 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > protocolSha256 (X-02 frame protocol pin) > buildPin copies it from the manifest and parsePin keeps it; a pin without it keeps its old shape 1ms
+ ✓ platform/office-frame/frame-bundle.test.ts > frame-ancestors > adds 'self' when absent, keeps it when exactly 'self', refuses anything wider 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseCspManifest > accepts a header-name keyed object, directives, a policy string and headers as map or list 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseCspManifest > keeps other response headers the bundle asks for 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > parseCspManifest > refuses a file with no policy, a wide frame-ancestors, or a non-object 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > pin > round-trips through parsePin 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > pin > refuses a pin with a bad schema 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > pin > refuses a pin with a bad version 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > pin > refuses a pin with a bad gitSha 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > pin > refuses a pin with a bad digest 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > pin > refuses a pin with a bad headers 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > pin > refuses a pin with a bad not an object 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > pin > names every way a bundle can differ from the pin 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > per-document policies > reads csp.json documents (value or directives), forces frame-ancestors, and sorts by path 1ms
+ ✓ platform/office-frame/frame-bundle.test.ts > per-document policies > refuses a policy that is not the sandboxed, opaque, network-less kind 1ms
+ ✓ platform/office-frame/frame-bundle.test.ts > per-document policies > refuses a path that is not one bundle file, the entry, or a duplicate 0ms
+ ✓ platform/office-frame/frame-bundle.test.ts > per-document policies > rides in the pin and round-trips; a pin without documents keeps its old shape 1ms
+ ✓ platform/office-frame/desktop-open-props.test.ts > desktop open rule of the module frames > shows the action only for an open editor and a user who may edit 1ms
+ ✓ platform/office-frame/desktop-open-props.test.ts > desktop open rule of the module frames > wires a frame with the deep-link launch and the saved version, and reads the committed version back after a frame save 3ms
+ ✓ platform/office-frame/desktop-open-props.test.ts > desktop open rule of the module frames > carries the deployment origin into the action for the open link's profile 0ms
+ ✓ platform/office-frame/desktop-open-props.test.ts > desktop open rule of the module frames > downloads the plain installer in the browser after the audited click, never through a blob 10ms
+ ✓ platform/office-frame/frame-headers.test.ts > officeFrameHeaderRules > locks every path under /office-frame down first, then gives a module's paths its pinned CSP, same-origin framing and nosniff 1ms
+ ✓ platform/office-frame/frame-headers.test.ts > officeFrameHeaderRules > never lets the bundle's own headers override framing or caching policy 1ms
+ ✓ platform/office-frame/frame-headers.test.ts > officeFrameHeaderRules > revalidates a version's top-level files and makes everything below a directory immutable, without overlap 1ms
+ ✓ platform/office-frame/frame-headers.test.ts > officeFrameHeaderRules > without a pin serves a locked-down, same-origin-only policy 0ms
+ ✓ platform/office-frame/frame-headers.test.ts > per-module rules > gives each module its own pin's policy and its own caching rules; another module's pin never leaks 1ms
+ ✓ platform/office-frame/frame-headers.test.ts > per-module rules > reads one pin per module beside docs.pin.json, null where none is checked in 2ms
+ ✓ platform/office-frame/frame-headers.test.ts > a document with its own policy > serves /office-frame/html/<v>/preview.html with its own CSP, after the module's rules so it wins 0ms
+ ✓ platform/office-frame/frame-headers.test.ts > a document with its own policy > keeps the host-owned headers on the document and takes no other header from the policy 0ms
+ ✓ platform/office-frame/frame-headers.test.ts > a document with its own policy > gives no other path, and no other module, a document rule 1ms
+ ✓ platform/office-frame/frame-headers.test.ts > the checked-in pin > parses, carries the frame-ancestors policy and is not a dirty build 0ms
+ ✓ platform/office-frame/frame-headers.test.ts > readPin > is null when no pin is checked in and parses one when it is 1ms
+ ✓ platform/office-frame/frame-headers.test.ts > readPin > rethrows a read error that is not 'missing' 0ms
+ ✓ platform/office-frame/desktop-handoff.test.ts > desktop handoff browser binding > builds channel-specific opaque links only 2ms
+ ✓ platform/office-frame/desktop-handoff.test.ts > desktop handoff browser binding > carries the public deployment profile, all four values or none 1ms
+ ✓ platform/office-frame/desktop-handoff.test.ts > desktop handoff browser binding > does not trust a drifted server URL 0ms
+ ✓ platform/office-frame/desktop-handoff.test.ts > desktop handoff browser binding > offers a not-installed outcome when visibility never changes 2ms
+ ✓ platform/office-frame/desktop-handoff.test.ts > desktop handoff browser binding > recognises a handoff when the page loses focus while waiting, even if it stays visible (GOA9-r4-05) 1ms
+ ✓ platform/office-frame/desktop-handoff.test.ts > desktop handoff browser binding > stops listening once the wait is over 1ms
+ ✓ platform/office-frame/desktop-handoff.test.ts > desktop handoff browser binding > recognises a handoff when the browser becomes hidden 0ms
+ ✓ platform/office-frame/frame-production.test.ts > isProductionBuild > is true only for NODE_ENV=production 1ms
+ ✓ platform/office-frame/frame-production.test.ts > assertFrameComplete > passes a production build with all six modules pinned and installed 1ms
+ ✓ platform/office-frame/frame-production.test.ts > assertFrameComplete > fails a production build with no source and nothing installed, naming the source and every module 0ms
+ ✓ platform/office-frame/frame-production.test.ts > assertFrameComplete > fails a production build whose source lacks some modules, naming only those 0ms
+ ✓ platform/office-frame/frame-production.test.ts > assertFrameComplete > fails a production build with a module that has no pin 0ms
+ ✓ platform/office-frame/frame-production.test.ts > assertFrameComplete > fails a production build with no pin at all 0ms
+ ✓ platform/office-frame/frame-production.test.ts > assertFrameComplete > never fails a development or test build, whatever is installed 0ms
+ ✓ platform/office-frame/frame-asset-rewrites.test.ts > officeFrameAssetRewrites > proxies only the signed asset and linked byte routes to the API origin 1ms
+ ✓ platform/office-frame/frame-asset-rewrites.test.ts > officeFrameAssetRewrites > matches ULIDs only, so no other frame route (sign, open, content) goes through the app 0ms
+ ✓ platform/office-frame/frame-asset-rewrites.test.ts > officeFrameAssetRewrites > adds nothing for an unusable API URL 0ms
+
+ Test Files  12 passed (12)
+      Tests  145 passed (145)
+   Start at  14:22:40
+   Duration  3.27s (transform 1.57s, setup 1.08s, import 2.73s, tests 809ms, environment 3.25s)
+

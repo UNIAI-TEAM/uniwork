@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -5
+8026472cd084e95f3e336f77823a5d2202fd1334
+25ba113b79034f853f5f84bf899274d681c1db3f
+8026472cd test(office): frame protocol vendor hash is CRLF-safe
+fd27fd467 test(office): vendored frame protocol must match every frame pin's protocolSha256
+7855c67b4 feat(office): frame pins carry the bundle's protocolSha256 and install checks it
+28b2d4f26 feat(office): vendor the X-02 frame protocol from the fork
+eb453e910 docs(office): answer OQ-P3 for the frame protocol
