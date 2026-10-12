@@ -737,7 +737,7 @@
         "A purged document must not leave a row in any of the four comment tables, and a copy must not carry the comments of its source."
       ],
       "tasks": ["G8-03", "G8-10", "G8-11", "G8-20"],
-      "command": "`go test ./internal/service ./internal/handler -run 'DocumentComment(Kind|Tombstone|Revision|Purge|Copy)'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents` · F vitest panel G8-11",
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentComment(Kind|Tombstone|Revision|Purge|Copy|ListToken)'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents packages/core/api/endpoints/document-comments.test.ts` (gồm ca `unchanged`, dòng `discussion` ở client cũ) · F vitest panel G8-11",
       "artifact": "`reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md` + ảnh S13 light/dark vi/en, `reports/g8-fork_editors/cloud-test-*.md`",
       "gate": "G8-D5",
       "blocker": null,
@@ -765,7 +765,7 @@
         "An unavailable server or a reload must not discard the draft being composed, and a reply to a thread deleted meanwhile must keep the text with the message \"Bình luận này đã bị xóa.\""
       ],
       "tasks": ["G8-08", "G8-10", "G8-11", "G8-19", "G8-04", "G8-20"],
-      "command": "`pnpm vitest run packages/core/office packages/views/office/frame packages/core/realtime/use-realtime-sync.test.tsx` · `node --test scripts/office/frame-protocol-vendor.test.mjs` · F vitest protocol G8-08 · harness G8-19 hai host",
+      "command": "`pnpm vitest run packages/core/office packages/views/office/frame packages/core/realtime/use-realtime-sync.test.tsx` · `node --test scripts/office/frame-protocol-vendor.test.mjs` · F vitest protocol G8-08 (gồm `comment_deleted` không reload + giữ nháp, thứ tự `comments.reveal`) · harness G8-19 hai host",
       "artifact": "`reports/g8-fork_host/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md`, `reports/g7-qa/g8-a04/` (ghi hình web ↔ desktop)",
       "gate": "G8-D1",
       "blocker": null,
@@ -819,7 +819,7 @@
         "The actor of an event must not receive a notification of it."
       ],
       "tasks": ["G8-05"],
-      "command": "`go test ./internal/notification -run 'DocumentComment|Titles|Kinds'` · `pnpm vitest run packages/core/types packages/views/notifications packages/core/i18n`",
+      "command": "`go test ./internal/notification -run 'DocumentComment|Titles|Kinds'` (gồm `TestDocumentCommentCommentedNotification` viết lại theo G8-D4) · `pnpm vitest run packages/core/types packages/views/notifications packages/core/i18n`",
       "artifact": "`reports/g8-server/cloud-test-*.md` (bảng người nhận UNI-1337 từng hàng)",
       "gate": "G8-D4",
       "blocker": null,

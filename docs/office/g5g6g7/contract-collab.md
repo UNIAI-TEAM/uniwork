@@ -11,6 +11,8 @@ lỗi, mục 10 ma trận), [EXPERIENCE-G8](./ux/EXPERIENCE-G8.md) (spine S12–
 **Cách đọc:** dữ kiện code ghi `file:line` tại D `ad52a00fd` (nhánh `feature/UNI-1396-g8-01-contract`), F = fork
 `uniwork-office` (tiền tố `F:`). Ô ghi **(đề xuất, OQ-Cn)** là chỗ phụ lục im lặng: giá trị đó là khuyến nghị có hiệu lực tạm
 cho lane (như "theo draft contract-p0"), chờ ký ở mục 13. Phụ lục và spec chính thắng khi lệch với tài liệu này.
+**Chính tả (finding FE-7):** mọi chữ UI mới viết "xóa" theo `docs/conventions.md:219` ("Lưu / Hủy / Xóa"; `vi.json` đa số dùng
+"Xóa"); trích dẫn từ phụ lục/EXPERIENCE-G8 viết "xoá" được chuẩn hóa ở đây, khóa i18n mới dùng "xóa".
 
 ## 1. Quyết định
 
@@ -24,7 +26,7 @@ cho lane (như "theo draft contract-p0"), chờ ký ở mục 13. Phụ lục v�
 | G8-D5 (Q6) | Dòng `document_comments` hiện có (không neo) thành Discussion | Mục 5.1 migration A |
 | G8-D6 (Q3) | v1 bình luận cần online; Markdown/HTML chỉ Discussion; neo PPTX là slide (+ id đối tượng khi editor cấp); quan hệ Task/Project/Meeting ↔ Document hoãn | Mục 4, mục 10 |
 | Q7 | Epic E5 riêng, lane L21–L24 | Mục 12 (owner theo lane) |
-| Q8 | Xóa thật nội dung và lịch sử sửa; khung "Nội dung đã bị xoá" giữ cấu trúc chuỗi; audit chỉ ghi hành động | Mục 2.4, 5 |
+| Q8 | Xóa thật nội dung và lịch sử sửa; khung "Nội dung đã bị xóa" giữ cấu trúc chuỗi; audit chỉ ghi hành động | Mục 2.4, 5 |
 | Q9 | Tác giả khi chưa đăng nhập/tệp cục bộ: nhãn trung tính, không bao giờ tên tài khoản máy; giá trị ghi vào tệp là hằng `"User"` (phụ lục §4.4) | G8-02; không route nào ở đây |
 | Q10 | Tài khoản nhiều tổ chức: bắt chọn lần đầu, nhớ lựa chọn, đổi trong Cài đặt › Tài khoản | G8-16, spine S16 |
 
@@ -73,8 +75,32 @@ SDO `DocumentCommentListSDO` (mở rộng `sdo/document.go:357-359`):
 | Trường | Kiểu | Luôn có | Ví dụ | Nghĩa |
 | --- | --- | --- | --- | --- |
 | `comments` | `DocumentCommentDTO[]` | có | `[…]` | Cũ nhất trước. Khi `unchanged = true` là mảng rỗng (một hình dạng SDO duy nhất) |
+| `mentions` | `DocumentCommentMentionDTO[]` | có (mới) | `[{"user_id":"01J8…","display_name":"An","state":"ok"}]` | Bảng tên của mọi id trong token mention của các `comments` trả về (khử trùng); rỗng khi `unchanged = true` |
 | `list_token` | string | có (mới) | `lt1:9f2c…` | Token hiện tại của **toàn tài liệu** (không phụ thuộc `kind`), mục 6 |
 | `unchanged` | bool | có (mới) | `false` | `true` chỉ khi `since_token` bằng token hiện tại; client giữ danh sách cũ |
+
+`DocumentCommentMentionDTO` (mới, nguồn tên của mention chip mục 3 — finding FE-1):
+
+| Trường | Kiểu | Luôn có | Ví dụ | Nghĩa |
+| --- | --- | --- | --- | --- |
+| `user_id` | string | có | `01J8X4USR0…` | Id trong token (`TokenIDs`, mục 3) |
+| `display_name` | string | khi `state = ok` | `Nguyễn An` | Tên hiển thị hiện tại |
+| `avatar_url` | string | không | `https://…` | Như `avatar_url` của tác giả |
+| `state` | `ok` \| `unavailable` | có | `ok` | `unavailable` khi tài khoản không còn hoặc không còn là thành viên hiệu lực (chưa vô hiệu) của tổ chức sở hữu tài liệu; khi đó không có `display_name`, chip hiện nhãn trong token, không link |
+
+Tra một lần mỗi trang list (một query theo tập id, ràng buộc `organization_id` của tài liệu), không bao giờ trả tên của người
+ngoài tổ chức. Đổi tên hiển thị không đổi `list_token` (mục 6): bảng tên làm mới ở mỗi lần list đầy đủ (OQ-C10).
+
+**Tính đúng của token và danh sách (finding R1-3):** service đọc **mọi** dòng của tài liệu (cả hai loại, cả tombstone) bằng **một
+câu SQL** (`ListDocumentComments` mở rộng), tính `list_token` từ chính tập dòng đó (mục 6), rồi mới lọc `kind` trong bộ nhớ. Không
+có query token riêng, nên token không bao giờ đi trước dòng trả về. Client chỉ lưu `list_token` cùng với danh sách nó đi kèm.
+
+**Client D (finding FE-5):** hàm endpoint trả kết quả phân biệt `{unchanged: true, list_token}` | `{unchanged: false, comments,
+mentions, list_token}`; hook React Query **không bao giờ** ghi `comments: []` của câu trả lời `unchanged` vào
+`documentKeys.comments`. Câu trả lời thiếu `unchanged` (fallback của `parseWithFallback`) chỉ được coi là danh sách đầy đủ khi
+`comments` parse được; không thì giữ cache cũ. Query web D **không gửi** `since_token` (React Query đã dedup và realtime
+invalidate); `since_token` dành cho frame desktop và poll. Ca malformed `document-comments.test.ts` gồm `unchanged: true` thiếu
+`comments` và câu trả lời thiếu `unchanged`.
 
 `DocumentCommentDTO` (mở rộng `sdo/document.go:332-348`; trường cũ giữ nguyên tên và nghĩa):
 
@@ -82,16 +108,22 @@ SDO `DocumentCommentListSDO` (mở rộng `sdo/document.go:357-359`):
 | --- | --- | --- | --- | --- |
 | `id`, `document_id`, `author_id`, `author_kind`, `author`, `parent_id`, `revision`, `resolved_at`, `created_at`, `updated_at`, `display_name`, `avatar_url`, `reactions` | như hiện tại | — | — | Không đổi |
 | `body` | string | — | `""` | Rỗng khi `deleted_at` có giá trị (tombstone) |
-| `type` | string | — | `discussion` | Giữ để client cũ đọc; bằng `comment_type` (sau migration dòng cũ là `discussion`) |
+| `type` | string | — | `discussion` | Giữ để client cũ đọc; bằng `comment_type` (sau migration dòng cũ là `discussion`). Xem "Client cũ gặp `discussion`" bên dưới |
 | `kind` | `comment` \| `discussion` | có | `comment` | = `comment_type`; client mới chỉ đọc trường này |
 | `anchor` | object \| null | có | `{"format":"xlsx","v":1,"sheet":"S1","range":"B7"}` | Chỉ comment gốc `kind=comment`; mục 4 |
 | `anchor_version_id` | string \| null | có | `01J8X4VER0…` | Version neo đang lưu |
 | `anchor_state` | `exact` \| `stale` \| `lost` \| null | có | `stale` | null khi không neo |
-| `deleted_at` | string \| null | có | `2026-10-13T09:00:00Z` | Có giá trị = khung "Nội dung đã bị xoá" |
+| `deleted_at` | string \| null | có | `2026-10-13T09:00:00Z` | Có giá trị = khung "Nội dung đã bị xóa" |
 | `deleted_by_id`, `deleted_by_kind` | string \| null | có | `01J…`, `human` | Ai xóa (ADR 0007) |
 
 Lỗi: 400 `invalid_request` (`kind` sai), 401, 403/404 theo `authorizeDocument` (không lộ tài liệu tồn tại). Danh sách chứa cả
 tombstone (để giữ chuỗi), không chứa dòng đã bỏ cứng.
+
+**Client cũ gặp `discussion` (finding FE-6):** sau migration A mọi dòng cũ có `type = "discussion"`. Schema client là lenient nên
+không vỡ khi chạy, nhưng chú thích `packages/core/api/endpoints/document-comments.ts:14-16` ("allowlist is "comment" only") và mọi
+chỗ lọc/so `type === "comment"` sẽ bỏ sót dòng. Brief G8-10: grep và cập nhật mọi chỗ đọc `type` của bình luận tài liệu (endpoint,
+`DocumentCommentsPanel`, fixture `document-comments-panel.test.tsx`) và thêm test "panel D cũ hiện dòng `type: "discussion"` không
+đổi" (đi trong lệnh `pnpm vitest run packages/views/documents` của G8-A03).
 
 ### 2.2 Tạo — `POST /documents/{documentID}/comments` (+ header `Idempotency-Key`)
 
@@ -124,7 +156,8 @@ Luật (phụ lục §4.1, §4.3; plan G8-03, G8-04):
   (`recordCommentAudit`, `comments.go:220-236`).
 
 SDO `DocumentCommentSDO {comment}` (201 như hiện tại). Lỗi: 400 `invalid_request` (body rỗng, `kind`/`anchor` sai schema, neo
-vượt trần), 400 `anchor_version_invalid`, 403/404, 409 `comment_deleted`, 409 `idempotency_*`, 413 (body > 1 MiB).
+vượt trần), 400 `anchor_version_invalid`, 403/404, 409 `comment_deleted`, 409 `idempotency_*`, 413 `payload_too_large` (thân
+request > 1 MiB; mã do `decode` ghi, `server/internal/handler/json.go:44`).
 
 ### 2.3 Sửa — `PATCH /documents/{documentID}/comments/{commentID}`
 
@@ -144,9 +177,10 @@ Quyền theo mục 1.2. Phụ lục bất biến 4, Q8:
 | Đã tombstone | Không làm gì, không audit, không sự kiện | 200, `outcome = "tombstoned"` |
 
 Sau khi bỏ cứng, nếu cha là tombstone và không còn dòng con nào thì cha cũng bỏ cứng, lặp lên gốc **(đề xuất, OQ-C4)**.
-Tombstone giữ `author_id`/`author_kind` (khung hiện "đã bị xoá", không phải rò rỉ). Audit `document.comment_deleted` chỉ ghi hành
-động + id, không ghi nội dung (Q8). SDO: `StatusSDO {status:"ok"}` mở rộng thêm `outcome` (`tombstoned` | `removed`) — SDO mới
-`DocumentCommentDeleteSDO` để không đổi `StatusSDO` dùng chung.
+Tombstone giữ `author_id`/`author_kind` (khung hiện "đã bị xóa", không phải rò rỉ). Audit `document.comment_deleted` chỉ ghi hành
+động + id, không ghi nội dung (Q8). SDO: `DocumentCommentDeleteSDO {status: "ok", outcome: "tombstoned" | "removed"}` (SDO mới
+thay `sdo.StatusSDO{}` ở `router/documents.go:312`; `StatusSDO` dùng chung không đổi). `status` giữ nguyên tên và giá trị nên client
+cũ đọc `status` không đổi (finding R1-5); test handler khẳng định câu trả lời có cả `status` và `outcome`.
 
 ### 2.5 Resolve / mở lại — `POST|DELETE /documents/{documentID}/comments/{commentID}/resolve`
 
@@ -162,6 +196,7 @@ Quyền `edit` **(đề xuất, OQ-C5;** phụ lục không nói mức quyền; 
 | --- | --- | --- | --- | --- |
 | `version_id` | string | có | `01J8X4VER0…` | Version vừa Lưu (receipt) |
 | `anchors` | array (≤ 500 phần tử **(đề xuất, OQ-C5)**) | có | `[…]` | |
+| `anchors[]` | `DocumentCommentAnchorItemSDI` | có | | Kiểu **có tên** trong `dto/sdi` (không struct ẩn danh), xem mục 2.10 |
 | `anchors[].comment_id` | string | có | `01J8X4CMTN…` | Comment gốc `kind=comment` |
 | `anchors[].anchor` | object | có | mục 4 | Neo mới (giữ neo cũ khi `state=lost`) |
 | `anchors[].state` | `exact` \| `lost` | có | `exact` | Editor chỉ báo tìm thấy / không tìm thấy; server tự hạ `exact` → `stale` theo luật 3 |
@@ -185,9 +220,12 @@ SDO `DocumentCommentAnchorsSDO`:
 | --- | --- | --- | --- |
 | `updated` | string[] | `["01J…"]` | `comment_id` đã đổi |
 | `skipped` | `{comment_id, reason}`[] | `[{"comment_id":"01J…","reason":"older_version"}]` | `reason` ∈ `older_version` \| `not_applicable` (gộp mọi trường hợp không thuộc/không neo được, để không lộ) |
-| `list_token` | string | `lt1:…` | Token sau khi ghi |
+| `list_token` | string | `lt1:…` | Token sau khi ghi, tính trong tx của lệnh từ mọi dòng của tài liệu |
 
-Lỗi: 400 `anchor_version_invalid`, 400 `invalid_request` (schema/trần neo), 403/404, 413.
+Client **không** dùng `list_token` của `PUT` làm `since_token` (danh sách nó đang giữ chưa có các dòng vừa đổi, và có thể thiếu
+thay đổi của người khác); sau `PUT` có `updated` khác rỗng, client tải lại list đầy đủ.
+
+Lỗi: 400 `anchor_version_invalid`, 400 `invalid_request` (schema/trần neo), 403/404, 413 `payload_too_large`.
 
 ### 2.7 Lịch sử sửa — `GET /documents/{documentID}/comments/{commentID}/revisions`
 
@@ -212,16 +250,32 @@ trực tiếp không thấy email. Người ngoài tổ chức → 404.
 ### 2.9 Vé launch desktop — `POST /documents/{documentID}/office/sessions` (sẵn có)
 
 `CreateOfficeLaunchSessionSDI` (`sdi/office_launch.go:6-12`) thêm `comment_id` tùy chọn (ULID). Server chỉ giữ giá trị khi comment
-thuộc đúng tài liệu và tenant; không thì bỏ im lặng, không lỗi **(đề xuất, OQ-C6)**. `OfficeLaunchExchangeSDO`
-(`sdo/office_launch.go:32-36`) trả lại `comment_id` khi có. Client: `packages/core/office/desktop-handoff.ts` thêm trường tùy chọn;
-app mở tài liệu rồi gửi `comments.reveal` (mục 10). Seam L2 (plan §6.3).
+thuộc đúng tài liệu và tenant; không thì bỏ im lặng, không lỗi **(đề xuất, OQ-C6)**. Chủ: G8-07 (plan G8-07 "D service vé launch
+(`comment_id` tùy chọn)"; seam L2, plan §6.3).
+
+- **Lưu (finding R1-2):** bảng `office_launch_sessions` (`server/migrations/9991790722053469_office_launch_sessions.up.sql`) chưa có
+  cột này. G8-07 thêm migration D `999<ms>_office_launch_sessions_comment_id`: `ALTER TABLE office_launch_sessions ADD COLUMN
+  comment_id TEXT` (NULL được, không FK, không index — chỉ đọc theo dòng phiên đã tra). Query tạo phiên ghi cột; query đổi vé đọc
+  lại cột cùng dòng.
+- **Trả về:** `OfficeLaunchSessionSDO` (tạo) không đổi. `OfficeLaunchExchangeSDO` (`sdo/office_launch.go:32-36`) thêm trường cấp
+  trên `comment_id` (`string`, `omitempty`, ví dụ `01J8X4CMTN…`) cạnh `receipt_id`, **không** đặt trong `OfficeLaunchDocumentDTO`
+  (DTO đó mô tả tài liệu). Lúc đổi vé, server kiểm lại comment còn thuộc tài liệu và chưa bị bỏ cứng; không thì bỏ trường.
+- Client: `packages/core/office/desktop-handoff.ts` thêm trường tùy chọn; app mở tài liệu rồi gửi `comments.reveal` theo thứ tự ở
+  mục 10.
+- Thứ tự migration: hàng G8-07 nối sau G8-03 (mục 5); plan §6.3 chưa có hàng này — finding cho Advisor (báo cáo r2).
 
 ### 2.10 Isolation (G8-A08)
 
 `TestIsolationMatrix` phủ mọi route mới theo path ngay khi đăng ký. Trường body có đuôi `_id` cần ca `isoReferences`
 (`server/internal/handler/isolation_references_test.go:100`; ca `parent_id` hiện có `:179-180`): `PutDocumentCommentAnchorsSDI.version_id`,
-`PutDocumentCommentAnchorsSDI.anchors[].comment_id`, `CreateDocumentCommentSDI.base_version_id`,
+`DocumentCommentAnchorItemSDI.comment_id`, `CreateDocumentCommentSDI.base_version_id`,
 `CreateOfficeLaunchSessionSDI.comment_id`. World seed thêm một dòng mỗi bảng mới (`isolation_world_test.go`).
+
+Cách gate thấy trường lồng (finding R1-9): `TestEveryBodyIDFieldHasAReferenceCase` (`isolation_references_test.go:338`) duyệt
+mọi **kiểu struct có tên** khai ở cấp gói trong `dto/sdi/*.go` và khóa theo `<TênKiểu>.<json>`; nó không đi vào kiểu phần tử của
+mảng, cũng không thấy struct ẩn danh. Vì vậy phần tử `anchors[]` phải là kiểu có tên `DocumentCommentAnchorItemSDI` trong
+`dto/sdi`: khi đó gate tự bắt `DocumentCommentAnchorItemSDI.comment_id` và ca `isoReferences` (covers đúng khóa đó, tấn công bằng
+comment của A trong body của B) là bắt buộc chứ không thừa. Một struct ẩn danh sẽ lọt gate — cấm.
 
 ## 3. Nội dung bình luận và token mention
 
@@ -248,8 +302,10 @@ hiển thị.
 "request bị chặn ở 1 MiB", `sdo/document.go:338`). Hợp đồng giữ đúng con số đó (phụ lục §4.2: "giữ con số của route hiện có");
 trần ký tự riêng là OQ-C1.
 
-**Hiển thị tối thiểu mọi host:** văn bản, xuống dòng, liên kết (mở ngoài), mention chip. Chip lấy **tên hiện tại** theo id; nhãn
-trong token chỉ dùng khi người đó không còn tồn tại/không đọc được (khi đó không link). Cú pháp Markdown khác hiện nguyên văn.
+**Hiển thị tối thiểu mọi host:** văn bản, xuống dòng, liên kết (mở ngoài), mention chip. Chip lấy **tên hiện tại** theo id từ bảng
+`mentions` của câu trả lời list (mục 2.1, `DocumentCommentMentionDTO`; frame nhận cùng bảng trong kết quả `comments.list`, mục 10);
+nhãn trong token chỉ dùng khi `state = unavailable` hoặc id không có trong bảng (khi đó không link). Không host nào tự tra tên theo
+cách khác. Cú pháp Markdown khác hiện nguyên văn.
 Soạn: `@` mở picker (`mentions.search` → route 2.8); dán văn bản có token hợp lệ giữ token. Fixture chung (G8-08, G8-20): body có
 mention + mọi phần Markdown con, đi web → desktop → web không đổi byte.
 
@@ -259,6 +315,13 @@ mention + mọi phần Markdown con, đi web → desktop → web không đổi b
 
 Mọi neo có `format` và `v` (hiện `v = 1`); trần 4 KiB trên JSON chuẩn tắc (mục 2.2) mỗi neo; mọi trường trích dẫn ≤ 500 ký tự
 (Unicode code point). Trường lạ → 400 `invalid_request` (schema đóng, để hash chuẩn tắc ổn định).
+
+**Nơi thực thi schema đóng (finding R1-4):** `decode` dùng chung **không** chặn trường lạ (`json.NewDecoder(r.Body).Decode(dst)`, không
+`DisallowUnknownFields`, `server/internal/handler/json.go:33-34`), nên schema đóng không tự có. SDI giữ `anchor` dạng
+`json.RawMessage`; service (G8-04, file mới `server/internal/service/document_comment_anchor.go`, hàm `validateAnchor(format,
+raw)`) đọc `format` + `v`, chọn struct theo `format` khớp định dạng tài liệu, giải mã bằng `json.Decoder` có
+`DisallowUnknownFields()`, kiểm kiểu/miền/trần, rồi trả JSON chuẩn tắc dùng cho cả lưu và `anchorHash`. Mọi lỗi → 400
+`invalid_request`. Dùng chung cho `POST` tạo và từng phần tử `PUT anchors`. Test G8-04: neo có khóa lạ → 400 `invalid_request`.
 
 | `format` | Trường | Kiểu | Bắt buộc | Ví dụ |
 | --- | --- | --- | --- | --- |
@@ -282,8 +345,13 @@ Markdown/HTML không có neo (G8-D6): `kind=comment` trên định dạng đó �
 | `anchor_state` | Khi nào | UI |
 | --- | --- | --- |
 | `exact` | Neo ghi trên version là head lúc ghi | Hiện vị trí |
-| `stale` | Neo ghi trên version cũ hơn head (tạo trên `base_version_id` không phải head, hoặc `PUT` từ version không phải head) | Hiện vị trí kèm cờ có chữ |
-| `lost` | Editor báo không tìm thấy | Thread còn, cha hiện "Nội dung đã bị xoá" theo UNI-1333; reveal chỉ mở thread, không mở comment khác |
+| `stale` | Neo ghi trên version cũ hơn head (tạo trên `base_version_id` không phải head, hoặc `PUT` từ version không phải head) | Hiện vị trí kèm nhãn chữ khóa `collabAnchorStale`: vi "Vị trí có thể đã thay đổi" (EXPERIENCE-G8:73) |
+| `lost` | Editor báo không tìm thấy | Comment **còn sống**, thread đọc/trả lời được; nhãn neo khóa `collabAnchorLost` (EXPERIENCE-G8:74), **khác** khóa tombstone `collabDeleted`; reveal chỉ mở thread, không mở comment khác |
+
+Chữ của `collabAnchorLost` (finding FE-4): EXPERIENCE-G8:74 hiện dùng cùng chữ với khung tombstone ("Nội dung đã bị xóa",
+`collabDeleted`, :75) dù comment vẫn sống, nên người đọc hiểu nhầm là đã xóa. Hợp đồng giữ hai khóa riêng; chữ đề xuất cho
+`collabAnchorLost`: vi "Không còn tìm thấy vị trí được bình luận" / en "The commented content was removed" — chờ UX ký ở OQ-C11
+(không sửa spine UX ở đây).
 
 So sánh chỉ theo số `document_versions.version`; luật đầy đủ ở mục 2.6. Neo không phải quyền (bất biến 3).
 
@@ -294,6 +362,7 @@ Quy tắc chung (CLAUDE.md › Database): không `FOREIGN KEY`/`REFERENCES`; id 
 nay `9991791800000006`); mỗi index `CREATE [UNIQUE] INDEX CONCURRENTLY` một mình một file. Thứ tự: nối **sau** hàng G6-03c của
 plan §6.3 (G5-01a → G5-07 → G5-08s → G6-03a → G6-03b → G6-03c → **G8-03**); merge lệch thứ tự thì đổi tên khi rebase
 (`TestMigrationPrefixesSortTheSameAsStringsAndNumbers`). Bảng contract-p0 §5 chưa có hàng G8-03; owner registry migration (Lead D) thêm khi G8-03 viết file.
+Migration thứ tư (D, `office_launch_sessions.comment_id`, mục 2.9) thuộc G8-07 và nối sau G8-03.
 
 ### 5.1 Migration A — `999<ms>_document_comments_collab`
 
@@ -354,7 +423,7 @@ Index file riêng: `999<ms>_document_comment_mentions_comment_user_uidx` — `CR
   `-- tenant:` đúng nghĩa; không query nào lọc chỉ theo `comment_id` (`TestEveryQueryNamesItsTenant`). File: `document_comments.sql`
   (mở rộng), `document_comment_mentions.sql` (mới, gồm `ClaimDocumentCommentMention :execrows`), revisions trong
   `document_comments.sql` hoặc file riêng.
-- Purge tài liệu (`server/pkg/db/queries/document_gc.sql:69-73`, `server/internal/service/document_lifecycle.go:757-838`) dọn **bốn**
+- Purge tài liệu (`DeleteDocumentComments`, `server/pkg/db/queries/document_gc.sql:70-74`, `server/internal/service/document_lifecycle.go:757-838`) dọn **bốn**
   bảng trong cùng tx theo thứ tự **reactions → mentions → revisions → comments**: `comment_reactions` không có `document_id`, join
   qua `document_comments` (`document_comments.sql:85-93`) nên phải chạy trước (`DeleteDocumentCommentReactionsByDocument` mới).
 - Bản sao (`POST /documents/{id}/copies`) không chép bình luận, mention, revision.
@@ -369,8 +438,14 @@ Index file riêng: `999<ms>_document_comment_mentions_comment_user_uidx` — `CR
 - Mọi mutation đổi một dòng đặt `updated_at = now()` cùng tx: tạo, sửa, tombstone, resolve, mở lại, `PUT anchors` có đổi. Bỏ cứng
   làm tập dòng đổi nên token đổi dù không dòng nào mới hơn; client **không bao giờ suy xóa từ "không thấy dòng"**, chỉ thay cả danh
   sách khi token khác.
-- Reaction không vào token (editor fork chưa vẽ reaction, phụ lục §4.7); đổi tên hiển thị không đổi token (chip lấy tên lúc vẽ).
-- Tính bằng một query chỉ đọc (`id, updated_at, anchor_state` theo `workspace_id` + `document_id`) trong cùng snapshot với list.
+- Reaction không vào token (editor fork chưa vẽ reaction, phụ lục §4.7); đổi tên hiển thị không đổi token (tên chip đến từ bảng `mentions` của mỗi lần list đầy đủ, mục 2.1; OQ-C10).
+- **Cách tính (finding R1-3, chuẩn tắc):** list (mục 2.1) đọc mọi dòng của tài liệu bằng **một câu SQL** (theo `organization_id`,
+  `workspace_id`, `document_id`; cả hai loại, cả tombstone) và tính token từ chính các dòng đó trước khi lọc `kind`; một câu SQL
+  là một snapshot, không cần tx REPEATABLE READ. **Cấm** query token riêng ngoài câu list (hai câu = hai snapshot: một ghi chen
+  giữa làm token đi trước dòng, client lưu token mới rồi mọi lần poll sau trả `unchanged` và không bao giờ thấy dòng thiếu — desktop
+  chỉ làm mới bằng token nên không tự lành). `PUT anchors` tính token trong tx của chính lệnh (sau khi ghi).
+- Test G8-03 (`DocumentCommentListToken`, đi trong G8-A03): chèn một lệnh tạo giữa lúc service đọc dòng và lúc trả (hook test
+  trong service) → client dùng token trả về vẫn thấy dòng mới ở lần poll kế; token không bao giờ đi trước danh sách.
 
 ## 7. Sự kiện và realtime
 
@@ -429,6 +504,12 @@ hiệu. Mention không cấp quyền (bất biến 6).
 | Trả lời trong `kind=discussion` | Tác giả comment cha (≠ actor) | `document_discussion_replied` (mới) |
 | Resolve `kind=comment` | Tác giả comment được resolve (≠ actor) **(đề xuất, OQ-C7)** | `document_comment_resolved` (mới) |
 
+**Test hiện có phải lật (finding R1-6):** rule hiện vẫn phát `KindDocumentCommented` (`server/internal/notification/rules.go:429`)
+và `TestDocumentCommentCommentedNotification` (`server/internal/notification/document_comments_test.go:109-117`) khẳng định
+`owner[0].Kind == KindDocumentCommented`. G8-05 **viết lại** test đó theo bảng trên (tạo thread không mention → không thông báo
+nào; mention/reply/resolve → đúng kind), không nới lỏng assertion. Test viết lại phải đỏ trên code trước G8-05 và xanh sau; nó chạy
+trong lệnh G8-A06 (mục 12).
+
 Một thông báo mỗi người mỗi sự kiện, ưu tiên mention > reply > resolve; không gửi actor; người bị vô hiệu/không đọc được → không
 gửi. Push mặc định: bật cho `document_mentioned`, `document_discussion_mentioned`; tắt cho reply/resolve (`notification/prefs.go:19-20`).
 `params`: `actor`, `document`, `snippet` (ngắn, như `rules.go:409`), `comment_id`, `kind`; không nội dung tài liệu. `GroupKey` theo
@@ -441,13 +522,19 @@ mẫu `document:<doc>:<loại>:<comment>` như `document:…:mention:…` hiện
 | # | Kind | Tiêu đề vi | Nội dung vi | Tiêu đề en | Nội dung en |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `document_mentioned` | Bạn được nhắc tên trong bình luận | {{actor}} đã nhắc đến bạn trong bình luận tại tài liệu “{{document}}”. | You were mentioned in a comment | {{actor}} mentioned you in a comment on “{{document}}”. |
-| 2 | `document_discussion_mentioned` | Bạn được nhắc tên trong thảo luận | {{actor}} đã nhắc đến bạn trong thảo luận của tài liệu “{{document}}”. | You were mentioned in a discussion | {{actor}} mentioned you in the discussion of “{{document}}”. |
+| 2 | `document_discussion_mentioned` | Bạn được nhắc tên trong thảo luận | {{actor}} đã nhắc đến bạn trong thảo luận của tài liệu “{{document}}”. | You were mentioned in a discussion | {{actor}} mentioned you in a discussion on “{{document}}”. |
 | 3 | `document_comment_replied` | Có phản hồi bình luận mới | {{actor}} đã phản hồi bình luận của bạn trong tài liệu “{{document}}”. | New reply to your comment | {{actor}} replied to your comment in “{{document}}”. |
 | 4 | `document_discussion_replied` | Có phản hồi thảo luận mới | {{actor}} đã phản hồi nội dung thảo luận của bạn trong tài liệu “{{document}}”. | New reply in a discussion | {{actor}} replied to your discussion post in “{{document}}”. |
 | 5 | `document_comment_resolved` | Bình luận đã được giải quyết | {{actor}} đã đánh dấu bình luận của bạn trong tài liệu “{{document}}” là đã giải quyết. | Comment resolved | {{actor}} marked your comment in “{{document}}” as resolved. |
 
-Cột vi là nguyên văn UNI-1337 (thay `[Tên người thực hiện]`/`[Tên tài liệu]` bằng placeholder); cột en do hợp đồng này dịch. Chỗ
-đặt hai dòng trong `titles.go` (hiện một chuỗi mỗi kind, `notification/titles.go:10-46`) là OQ-C8.
+Cột vi là nguyên văn UNI-1337 (thay `[Tên người thực hiện]`/`[Tên tài liệu]` bằng placeholder); cột en do hợp đồng này dịch
+(mẫu 2 sửa theo finding FE-8: "in a discussion on"). Chỗ đặt hai dòng trong `titles.go` (hiện một chuỗi mỗi kind,
+`notification/titles.go:10-46`) là OQ-C8.
+
+**Escape (finding FE-8):** `{{actor}}`, `{{document}}` là văn bản thuần. Dấu ngoặc kép cong “ ” nằm trong mẫu, không trong giá trị.
+Tiêu đề/nội dung push và email là text thuần: nội suy **không** HTML-escape (client đã đặt `interpolation: { escapeValue: false }`, `packages/core/i18n/create-i18n.ts:18`; một tên tài liệu có `"` hay `&` hiện nguyên văn, không
+thành `&quot;`/`&amp;`); Inbox web vẽ bằng nút văn bản React (React tự escape), không `dangerouslySetInnerHTML`. Test i18n G8-05: tên
+tài liệu chứa `"`, `&`, `<` hiện nguyên văn ở cả push title và Inbox.
 
 ### 8.5 Inbox: snippet, cờ và deep link (phụ lục §4.6, G8-07)
 
@@ -472,7 +559,7 @@ Cột vi là nguyên văn UNI-1337 (thay `[Tên người thực hiện]`/`[Tên 
 
 | Mã | HTTP | `error_class` | Lý do | Ai thêm |
 | --- | --- | --- | --- | --- |
-| `comment_deleted` | 409 | không lớp | Comment đích đã tombstone; composer phân biệt "Bình luận này đã bị xóa." với xung đột thường; không xếp `conflict` để client không chạy đường "tải lại rồi thử" | G8-03 |
+| `comment_deleted` | 409 | không lớp | Comment đích đã tombstone; composer phân biệt "Bình luận này đã bị xóa." với xung đột thường. Không xếp `error_class = conflict` ở registry server để client HTTP không chạy đường "tải lại rồi thử" | G8-03 |
 | `anchor_version_invalid` | 400 | không lớp | Version không thuộc tài liệu/tenant hoặc không còn; một thân lỗi cho mọi trường hợp (không lộ) | G8-04 |
 
 Ánh xạ sang `PROTOCOL_ERROR_CODES` (`packages/core/office/docs-frame-protocol.ts:99-116`, vendored từ `F:web/docs/protocol/types.ts`;
@@ -487,11 +574,31 @@ G8-08 không thêm mã protocol mới, `PROTOCOL_VERSION` giữ 1):
 | 401 | `unauthorized` | — | false |
 | 403 | `forbidden` | — | false |
 | 404 | `not_found` | — | false |
-| 413 | `too_large` | — | false |
+| 413 `payload_too_large` (`handler/json.go:44`) | `too_large` | `{code: "payload_too_large"}` | false |
 | 429 | `rate_limited` | — | true |
-| Mất mạng, 5xx | `internal` (theo plan G8-08; xem OQ-C9) | `{status}` khi có | true |
+| Mất mạng / không tới được server (fetch lỗi, offline, timeout kết nối) | `network` | — | true |
+| 5xx | `internal` | — (có `status`) | true |
 
-`status` của `ProtocolErrorShape` (`docs-frame-protocol.ts:119-129`) mang HTTP gốc.
+`status` của `ProtocolErrorShape` (`docs-frame-protocol.ts:119-129`) mang HTTP gốc. Mất mạng dùng `network` vì protocol đã định
+nghĩa nó cho "fetch failed / offline" (`docs-frame-protocol.ts:90-91`, `:112`); `internal` chỉ cho 5xx và ngoại lệ ném (chú thích ở
+`docs-frame-protocol.ts:96`). Cả hai reviewer đồng ý; plan G8-08 còn ghi "mất mạng/5xx → `internal`" — finding F1 cho Advisor (báo
+cáo r2), OQ-C9 đóng theo giá trị này.
+
+**`comment_deleted` ở frame — một luật duy nhất (finding R1-7 = FE-2):** protocol `code` là `conflict` + `details.code =
+"comment_deleted"`, `retryable: false`. Lý do giữ `conflict`: plan G8-08 ghi đúng ánh xạ này ("`comment_deleted` → `conflict` +
+`details.code`"), HTTP gốc là 409, G8-08 không thêm mã protocol mới (`PROTOCOL_VERSION` giữ 1), và `not_found` tệ hơn vì trùng S15
+"tài liệu không còn". Vì `conflict` trong fork cũng là mã xung đột lưu/version (đường tải lại), luật chuẩn tắc cho mọi frame và host:
+
+1. Bộ xử lý lỗi `comments.*` đọc `details.code` **trước** `code`. Có `details.code` → xử lý theo nó; chỉ khi không có mới rơi về
+   nhánh theo `code`.
+2. `details.code = "comment_deleted"`: **không** vào đường tải lại/thử lại, **không** reload tài liệu, giữ nguyên nháp composer, hiện
+   "Bình luận này đã bị xóa." + "Sao chép nội dung" (`collabTargetDeleted`, `collabCopyDraft`, EXPERIENCE-G8:78), đánh dấu thread là
+   đã xóa và tải lại **danh sách bình luận** (không phải tài liệu).
+3. `details.code` bắt đầu `idempotency_` (`conflict`): không reload, giữ nháp, báo lỗi gửi chung; người dùng gửi lại tạo key mới.
+4. Bộ xử lý xung đột lưu/version của editor không bao giờ nhận lỗi của `comments.*` (lỗi trả về chính request đó, không phát qua sự
+   kiện `error` chung).
+
+Test G8-08 (đi trong G8-A04): lỗi `conflict` + `comment_deleted` không gọi đường reload và giữ nháp; tương tự `idempotency_payload_mismatch`.
 
 ## 10. Frame protocol `comments.*` (G8-08)
 
@@ -502,10 +609,15 @@ Thay đổi hai repo, chủ seam Lead F: sửa fork `web/docs/protocol/{types,en
 - Capability mới `comments` trong `CAPABILITY_KEYS` (`docs-frame-protocol.ts:289-306`); host chỉ quảng bá khi tài liệu bind UniWork
   và người dùng có ít nhất `view`. Frame chỉ gửi `comments.*`/`mentions.search` khi capability hiệu lực có `comments`.
 - `InitUser` (`:417-419`) thêm `id?: string` — chỉ để biết "bình luận của tôi", không dùng cấp quyền (bất biến 2).
+- `InitPayload` (`:373`) thêm `commentsLevel?: "view" | "edit"` **(đề xuất, OQ-C12;** finding FE-9): host điền từ mức quyền tài liệu
+  hiệu lực khi quảng bá `comments`. Frame **không** suy affordance từ `InitUser.id`: chỉ hiện composer, sửa, xóa, resolve, mở lại khi
+  `commentsLevel = "edit"` (sửa/xóa thêm điều kiện là tác giả; người `manage` sửa/xóa của người khác vẫn do server quyết, frame chỉ
+  hiện khi server đã cho — lỗi 403 đổi panel sang "Chỉ xem"). Thiếu trường (host cũ) → coi như `view` (S12 "Chỉ xem"), không gửi
+  request ghi nào để dò quyền. Đây là gợi ý hiển thị; server vẫn là cổng quyền duy nhất.
 
 | Message | Hướng | Kiểu | Payload | Kết quả |
 | --- | --- | --- | --- | --- |
-| `comments.list` | frame → host | request | `{kind?, since_token?}` | `{comments, list_token, unchanged}` (SDO 2.1) |
+| `comments.list` | frame → host | request | `{kind?, since_token?}` | `{comments, mentions, list_token, unchanged}` (SDO 2.1; `unchanged = true` → frame giữ `comments` và `mentions` cũ) |
 | `comments.create` | frame → host | request | `{kind, parent_id?, body, anchor?, base_version_id?}` | `{comment}` |
 | `comments.update` | frame → host | request | `{comment_id, body}` | `{comment}` |
 | `comments.delete` | frame → host | request | `{comment_id}` | `{outcome}` |
@@ -521,6 +633,15 @@ Thay đổi hai repo, chủ seam Lead F: sửa fork `web/docs/protocol/{types,en
 - `comments.create` trên web: host D sinh `Idempotency-Key` mỗi lần bấm Gửi (giữ qua retry của cùng lần gửi).
 - `comments.reveal`: frame cuộn panel tới thread, đưa neo vào khung nhìn; neo `lost`/`stale` → chỉ mở thread, không mở comment khác;
   comment không có trong danh sách → `revealed: false`, frame hiện trạng thái S15 tương ứng.
+- **Thứ tự `comments.reveal` (finding FE-3):**
+  1. Host chỉ gửi sau khi nhận init ack có capability hiệu lực chứa `comments` (`InitAck.capabilities`, `:421-425`). Init ack không
+     có `comments` → host không gửi reveal; web rơi về panel D với `?comment=`, desktop không làm gì thêm.
+  2. Frame nhận reveal trước khi `comments.list` đầu tiên thành công thì **giữ** request (không trả `revealed: false`) và trả lời ngay
+     sau list đầu tiên thành công, trong hạn timeout của request. List đầu tiên lỗi → trả lỗi `not_ready`, `retryable: true`.
+  3. Host thử lại **một lần** khi gặp `not_ready` hoặc `timeout`, sau 2 s hoặc ngay khi nhận `comments.changed` (cái nào đến trước);
+     lần hai lỗi → host bỏ, không báo gì (panel frame tự hiện trạng thái lỗi tải).
+  4. `revealed: false` chỉ mang nghĩa "danh sách đã tải và không có comment này": frame đã hiện S15, host **không** toast/hiện thêm.
+  5. Mỗi `?comment=` / `comment_id` của vé launch gửi reveal một lần mỗi lần mở tài liệu; đổi query trên cùng trang gửi reveal mới.
 - Desktop: preload sáu app mở `uniworkComments.*` → IPC `uniwork:comments:*` → main gọi D qua `authorizedRequest` cho tài liệu bind;
   tài liệu không bind → không request nào. Server không khả dụng → lỗi theo mục 9, panel chỉ đọc, nháp giữ trong renderer.
 - **Một panel mỗi host (bất biến 8):** web: frame mở + capability hiệu lực có `comments` → panel của frame là panel duy nhất; host D
@@ -555,10 +676,10 @@ reports/<lane>/cloud-test-<seq>.md`, contract-p0 §10); `go test` chạy trong `
 | --- | --- | --- | --- |
 | G8-A01 | G8-02, G8-12..15, G8-19 (góp G8-08, G8-20) | F vitest tác giả G8-02 (grep-test `userInfo(`/`USERNAME`/`LOGNAME` + đọc lại phần bình luận tệp) · F vitest adapter G8-12..15 (AI tool không gọi `comments.create` trước Gửi) · harness G8-19 bốn fixture | `reports/g8-fork_host/cloud-test-*.md`, `reports/g8-fork_editors/cloud-test-*.md`, `reports/g7-qa/g8-a01/` (dòng server + phần tệp đọc lại + log request) |
 | G8-A02 | G8-04, G8-12..15, G8-19 | `go test ./internal/service ./internal/handler -run 'DocumentCommentAnchors\|IsolationMatrix'` · F vitest neo G8-12..15 (Lưu → neo mới, xóa → `lost`, reveal) · harness G8-19 | `reports/g8-server/cloud-test-*.md`, `reports/g8-fork_editors/cloud-test-*.md`, `reports/g7-qa/g8-a02/` (receipt neo + ba thân 400) |
-| G8-A03 | G8-03, G8-10, G8-11 (góp G8-20) | `go test ./internal/service ./internal/handler -run 'DocumentComment(Kind\|Tombstone\|Revision\|Purge\|Copy)'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents` · F vitest panel G8-11 | `reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md` + ảnh S13 light/dark vi/en, `reports/g8-fork_editors/cloud-test-*.md` |
-| G8-A04 | G8-08, G8-10, G8-11, G8-19 (góp G8-04, G8-20) | `pnpm vitest run packages/core/office packages/views/office/frame packages/core/realtime/use-realtime-sync.test.tsx` · `node --test scripts/office/frame-protocol-vendor.test.mjs` · F vitest protocol G8-08 · harness G8-19 hai host | `reports/g8-fork_host/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md`, `reports/g7-qa/g8-a04/` (ghi hình web ↔ desktop) |
+| G8-A03 | G8-03, G8-10, G8-11 (góp G8-20) | `go test ./internal/service ./internal/handler -run 'DocumentComment(Kind\|Tombstone\|Revision\|Purge\|Copy\|ListToken)'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents packages/core/api/endpoints/document-comments.test.ts` (gồm ca `unchanged`, dòng `discussion` ở client cũ) · F vitest panel G8-11 | `reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md` + ảnh S13 light/dark vi/en, `reports/g8-fork_editors/cloud-test-*.md` |
+| G8-A04 | G8-08, G8-10, G8-11, G8-19 (góp G8-04, G8-20) | `pnpm vitest run packages/core/office packages/views/office/frame packages/core/realtime/use-realtime-sync.test.tsx` · `node --test scripts/office/frame-protocol-vendor.test.mjs` · F vitest protocol G8-08 (gồm `comment_deleted` không reload + giữ nháp, thứ tự `comments.reveal`) · harness G8-19 hai host | `reports/g8-fork_host/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md`, `reports/g7-qa/g8-a04/` (ghi hình web ↔ desktop) |
 | G8-A05 | G8-05, G8-06, G8-10 (góp G8-20) | `go test ./internal/notification ./internal/service ./internal/mentions -run 'DocumentMention\|MentionCandidates\|Claim\|TokenIDs'` · `pnpm vitest run packages/core/api/endpoints/document-comments.test.ts packages/views/documents` | `reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md` |
-| G8-A06 | G8-05 | `go test ./internal/notification -run 'DocumentComment\|Titles\|Kinds'` · `pnpm vitest run packages/core/types packages/views/notifications packages/core/i18n` | `reports/g8-server/cloud-test-*.md` (bảng người nhận UNI-1337 từng hàng) |
+| G8-A06 | G8-05 | `go test ./internal/notification -run 'DocumentComment\|Titles\|Kinds'` (gồm `TestDocumentCommentCommentedNotification` viết lại theo G8-D4) · `pnpm vitest run packages/core/types packages/views/notifications packages/core/i18n` | `reports/g8-server/cloud-test-*.md` (bảng người nhận UNI-1337 từng hàng) |
 | G8-A07 | G8-07, G8-19 (góp G8-08) | `go test ./internal/notification ./internal/service -run 'ResourceURL\|FilterReadableDocuments\|NotificationList\|OfficeLaunch'` · `pnpm vitest run packages/views/notifications/resource-href.test.ts packages/views/documents packages/core/api/endpoints/notifications.test.ts` · harness G8-19 deep link web + desktop | `reports/g8-web/cloud-test-*.md`, `reports/g8-server/cloud-test-*.md`, `reports/g7-qa/g8-a07/` (ảnh S15 năm ngoại lệ) |
 | G8-A08 | G8-03, G8-04, G8-06, G8-08 | `go test ./internal/handler -run 'IsolationMatrix\|IsolationRealtime\|EveryBodyIDFieldHasAReferenceCase'` · `go test ./internal/service -run AuditCoverage` · `node --test scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs` | `reports/g8-server/cloud-test-*.md` |
 | G8-A09 | G8-16, G8-17, G8-19 | F vitest `uniwork-auth`/`uniwork-docs` G8-16/G8-17 · harness G8-19 đăng nhập nhiều tổ chức + tạo/đổi tên/lưu trữ | `reports/g8-fork_host/cloud-test-*.md`, `reports/g7-qa/g8-a09/` + ảnh S16–S18 |
@@ -576,7 +697,9 @@ reports/<lane>/cloud-test-<seq>.md`, contract-p0 §10); `go test` chạy trong `
 | OQ-C6 | `comment_id` lạ trong vé launch | Bỏ im lặng, không lỗi (chỉ là gợi ý reveal; app tự hiện S15) | Lead D |
 | OQ-C7 | "Người liên quan đến comment" khi resolve | v1 chỉ tác giả comment được resolve (mẫu 5 nói "bình luận của bạn"); người tham gia khác chờ Product | Product (UNI-1337) |
 | OQ-C8 | Hai dòng (tiêu đề + nội dung) trong `titles.go` đang một chuỗi mỗi kind | `titles.go` + `notifications.kind.*` giữ câu **nội dung** (có actor + tài liệu, kênh push/email cần); tiêu đề ngắn thành khóa mới `notifications.kindTitle.*` cho Inbox/push title | Lead D (G8-05) |
-| OQ-C9 | Plan G8-08 ánh xạ mất mạng → `internal`, trong khi protocol có `network` ("fetch failed / offline") | Mất mạng → `network`, 5xx → `internal`; sửa plan G8-08 cùng lúc nếu ký | Lead F |
-| OQ-C10 | Đổi tên hiển thị không đổi `list_token` → desktop giữ chip tên cũ tới lần đổi kế | Chấp nhận v1 (chip lấy tên hiện tại lúc vẽ; panel vẽ lại khi focus) | UX |
+| OQ-C9 | Plan G8-08 ánh xạ mất mạng → `internal`, trong khi protocol có `network` ("fetch failed / offline") | **Đã chốt r2** (hai reviewer đồng ý, lead giao): mất mạng → `network`, 5xx → `internal` (mục 9). Còn lại: Advisor sửa dòng plan G8-08 (finding F1) | Advisor (plan) |
+| OQ-C10 | Đổi tên hiển thị không đổi `list_token` → client dùng `since_token` giữ tên chip cũ tới lần list đầy đủ kế | Chấp nhận v1: tên chip đến từ bảng `mentions` (mục 2.1), làm mới ở mỗi list đầy đủ (web mỗi lần invalidate; desktop khi token đổi) | UX |
+| OQ-C11 | Chữ nhãn neo `lost` (`collabAnchorLost`) trùng chữ khung tombstone "Nội dung đã bị xóa" (EXPERIENCE-G8:74-75) dù comment còn sống | Chữ riêng: vi "Không còn tìm thấy vị trí được bình luận" / en "The commented content was removed"; sửa EXPERIENCE-G8:74 và câu AC G8-A02 của plan ("cha hiện 'Nội dung đã bị xoá'") cùng lúc | UX + Advisor |
+| OQ-C12 | Frame biết mức quyền bình luận để ẩn composer mà không phải thử request | `InitPayload.commentsLevel?: "view" \| "edit"` tùy chọn (mục 10), thiếu → `view`; chỉ là gợi ý hiển thị | Lead F |
 
 Không câu nào ở đây chặn G8-03/04/05/06/08: lane dùng giá trị tạm, ghi "theo draft contract-collab" trong packet.
