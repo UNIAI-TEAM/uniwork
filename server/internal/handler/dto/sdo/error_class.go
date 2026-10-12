@@ -56,6 +56,25 @@ var errorClassByCode = map[string]string{
 	"refresh_reused": "session",
 }
 
+// Deliberately unclassified codes (contract-p0 section 4). Each is
+// registered here as a name with NO class, so no later writer adds one by
+// reflex; the HTTP status travels with the code at its emission site.
+//
+//   change_cursor_expired  (410) the feed cursor is older than retention.
+//     "gone" would teach the client to stop retrying and leave, which is
+//     the opposite of the full resync the feed parser (G5-04) runs on
+//     this code, so it must not read as gone.
+//   change_cursor_invalid  (400) a forged cursor or one from another
+//     scope; the refusal must not reveal the scope it failed against.
+//   run_limit_reached      (429) a UniWork AI run limit, unclassified the
+//     same way ai_rate_limited is: it is not a quota or permission denial.
+//   office_capability_off  (403, fields.capability) a flag hides the
+//     capability; it is not a permission denial, so the client must not
+//     run its lost-access recovery path (CLAUDE.md > Platform Admin).
+//
+// commit_intent_unknown (410, plan G5-07) is reserved in the docs only and
+// is not registered until G5-D2 fixes the intent retention.
+
 // ErrorClassFor returns the error_class a wire code carries, "" when the code
 // is unclassified - the field is then omitted from the envelope.
 func ErrorClassFor(code string) string {

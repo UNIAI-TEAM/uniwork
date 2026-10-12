@@ -51,6 +51,12 @@ func TestErrorClassTable(t *testing.T) {
 		"too_large", "payload_too_large", "unsupported_media_type",
 		"storage_unavailable", "ai_quota_exceeded", "ai_rate_limited",
 		"email_hub_not_configured", "not_a_code", "",
+		// The Office G5/G6 codes X-03 registers with no class on purpose
+		// (contract-p0 section 4): a class here would teach the client the
+		// wrong recovery path. commit_intent_unknown stays docs-only until
+		// G5-D2 fixes intent retention, so it is checked unclassified too.
+		"change_cursor_expired", "change_cursor_invalid", "run_limit_reached",
+		"office_capability_off", "commit_intent_unknown",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {
