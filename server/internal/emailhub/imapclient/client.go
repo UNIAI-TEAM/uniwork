@@ -11,6 +11,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -51,6 +52,11 @@ type Credentials struct {
 	// AccessToken is an OAuth access token; when set, AUTHENTICATE XOAUTH2
 	// replaces LOGIN and Password is ignored.
 	AccessToken string
+
+	// Tests inject a loopback dialer and trust root through these unexported
+	// fields. Production always uses the guarded dialer and system roots.
+	dialer  client.Dialer
+	rootCAs *x509.CertPool
 }
 
 // ThreadMeta is the metadata cached for one mailbox message.
@@ -158,51 +164,49 @@ var ErrLoginRefused = errors.New("imap: login refused")
 // password is never sent over a plaintext connection.
 var ErrTLSRequired = errors.New("imap: server does not offer STARTTLS")
 
-// dialTCP opens the TCP connection. Package tests swap in a plain dialer
-// because netguard refuses loopback.
-var dialTCP = netguard.Dial
-
-// tlsRootCAs is nil in production (system roots); package tests trust the
-// fake server's self-signed certificate.
-var tlsRootCAs *x509.CertPool
-
-// greetingTimeout bounds what cl.Timeout cannot: the greeting, the implicit
-// TLS handshake and the CAPABILITY client.New sends with no timeout set.
-// A var only so a package test can shorten it.
-var greetingTimeout = imapClientTimeout
-
 func dial(c Credentials) (*client.Client, error) {
-	conn, err := dialTCP(context.Background(), "tcp", net.JoinHostPort(c.Host, strconv.Itoa(c.Port)))
-	if err != nil {
-		return nil, fmt.Errorf("imap dial: %w", err)
+	return dialWithTimeout(c, imapClientTimeout)
+}
+
+// dialWithTimeout applies the same bound to TCP dial, TLS/greeting, STARTTLS
+// and authentication. Keeping it as an argument lets tests exercise real
+// stalled sockets without changing package-global state.
+func dialWithTimeout(c Credentials, timeout time.Duration) (*client.Client, error) {
+	addr := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+	dialer := c.dialer
+	if dialer == nil {
+		dialer = netguard.NewDialer(timeout)
 	}
-	cfg := &tls.Config{ServerName: c.Host, MinVersion: tls.VersionTLS12, RootCAs: tlsRootCAs}
+	heldDialer := &deadlineHoldingDialer{Dialer: dialer, timeout: timeout}
+	cfg := &tls.Config{ServerName: c.Host, MinVersion: tls.VersionTLS12, RootCAs: c.rootCAs}
 	starttls := c.Security == "starttls"
-	if !starttls {
-		conn = tls.Client(conn, cfg) // "tls", and "" for rows written before the column existed
+	var (
+		cl  *client.Client
+		err error
+	)
+	if starttls {
+		cl, err = client.DialWithDialer(heldDialer, addr)
+	} else {
+		// Empty security is legacy implicit TLS, identical to "tls".
+		cl, err = client.DialWithDialerTLS(heldDialer, addr, cfg)
 	}
-	if err := conn.SetDeadline(time.Now().Add(greetingTimeout)); err != nil {
-		_ = conn.Close()
-		return nil, fmt.Errorf("imap dial: %w", err)
-	}
-	held := &deadlineHeldConn{Conn: conn}
-	held.hold.Store(true)
-	cl, err := client.New(held)
 	if err != nil {
-		_ = conn.Close()
+		err = heldDialer.causeOr(err)
+		heldDialer.close()
+		if errors.Is(err, netguard.ErrHostNotAllowed) {
+			return nil, netguard.ErrHostNotAllowed
+		}
 		return nil, fmt.Errorf("imap greeting: %w", err)
 	}
-	held.hold.Store(false)
-	_ = conn.SetDeadline(time.Time{})
-	cl.Timeout = imapClientTimeout
+	// Set the command timeout before releasing the greeting deadline, so no
+	// STARTTLS, LOGIN or AUTHENTICATE command can run unbounded.
+	cl.Timeout = timeout
+	heldDialer.release()
 	if starttls {
-		// cl.StartTLS handshakes without cl.Timeout and go-imap rewrites conn
-		// deadlines per command, so a deadline would not stick: close on a timer.
-		stall := time.AfterFunc(greetingTimeout, func() { _ = conn.Close() })
 		err := startTLS(cl, cfg)
-		stall.Stop()
 		if err != nil {
-			_ = conn.Close() // Logout would wait on a stalled handshake
+			err = heldDialer.causeOr(err)
+			_ = cl.Terminate()
 			return nil, err
 		}
 	}
@@ -216,7 +220,8 @@ func dial(c Credentials) (*client.Client, error) {
 		err = login(cl, user, c.Password)
 	}
 	if err != nil {
-		_ = cl.Logout()
+		err = heldDialer.causeOr(err)
+		_ = cl.Terminate()
 		return nil, fmt.Errorf("imap login: %w", err)
 	}
 	return cl, nil
@@ -238,12 +243,98 @@ func startTLS(cl *client.Client, cfg *tls.Config) error {
 	return nil
 }
 
-// deadlineHeldConn ignores go-imap's deadline calls while hold is set:
-// client.New may send CAPABILITY with Timeout 0, which would clear the
-// greeting deadline and let a server that greets and then stalls hang dial.
+// deadlineHoldingDialer keeps one deadline across TCP/TLS, the greeting and
+// the capability probes client.New may send before Client.Timeout can be set.
+// Its underlying production dialer is netguard.NewDialer; package tests inject
+// a plain net.Dialer so loopback fixtures still exercise real sockets.
+type deadlineHoldingDialer struct {
+	client.Dialer
+	timeout time.Duration
+	conn    *deadlineHeldConn
+}
+
+func (d *deadlineHoldingDialer) causeOr(fallback error) error {
+	if d.conn != nil && isTransportClosure(fallback) {
+		return d.conn.causeOr(fallback)
+	}
+	return fallback
+}
+
+// isTransportClosure is deliberately narrow: a server's tagged NO/BAD and
+// local semantic sentinels must win even if the peer resets immediately after
+// sending them. Only transport errors that go-imap may collapse to its private
+// connection-closed value are eligible for the remembered sanitized cause.
+func isTransportClosure(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrAuthFailed) || errors.Is(err, ErrLoginRefused) || errors.Is(err, ErrTLSRequired) {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	return hasGoIMAPConnectionClosed(err)
+}
+
+func hasGoIMAPConnectionClosed(err error) bool {
+	if err == nil {
+		return false
+	}
+	switch err.Error() {
+	case "imap: connection closed", "imap: connection closed during command execution":
+		return true
+	}
+	if many, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, nested := range many.Unwrap() {
+			if hasGoIMAPConnectionClosed(nested) {
+				return true
+			}
+		}
+		return false
+	}
+	return hasGoIMAPConnectionClosed(errors.Unwrap(err))
+}
+
+func (d *deadlineHoldingDialer) Dial(network, addr string) (net.Conn, error) {
+	conn, err := d.Dialer.Dial(network, addr)
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.SetDeadline(time.Now().Add(d.timeout)); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	held := &deadlineHeldConn{Conn: conn}
+	held.hold.Store(true)
+	d.conn = held
+	return held, nil
+}
+
+func (d *deadlineHoldingDialer) release() {
+	if d.conn == nil {
+		return
+	}
+	d.conn.hold.Store(false)
+	_ = d.conn.Conn.SetDeadline(time.Time{})
+}
+
+func (d *deadlineHoldingDialer) close() {
+	if d.conn != nil {
+		_ = d.conn.Conn.Close()
+	}
+}
+
+// deadlineHeldConn ignores go-imap's deadline calls while hold is set.
 type deadlineHeldConn struct {
 	net.Conn
-	hold atomic.Bool
+	hold      atomic.Bool
+	failureMu sync.Mutex
+	failure   error
 }
 
 func (c *deadlineHeldConn) SetDeadline(t time.Time) error {
@@ -252,6 +343,65 @@ func (c *deadlineHeldConn) SetDeadline(t time.Time) error {
 	}
 	return c.Conn.SetDeadline(t)
 }
+
+func (c *deadlineHeldConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	if cause := sanitizedConnectionCause(err); cause != nil {
+		c.remember(cause)
+		// go-imap logs every reader error except EOF. The caller gets causeOr's
+		// sanitized timeout/network error instead of this internal EOF.
+		return n, io.EOF
+	}
+	return n, err
+}
+
+func (c *deadlineHeldConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	if cause := sanitizedConnectionCause(err); cause != nil {
+		c.remember(cause)
+		return n, cause
+	}
+	return n, err
+}
+
+func (c *deadlineHeldConn) remember(err error) {
+	c.failureMu.Lock()
+	if c.failure == nil {
+		c.failure = err
+	}
+	c.failureMu.Unlock()
+}
+
+func (c *deadlineHeldConn) causeOr(fallback error) error {
+	c.failureMu.Lock()
+	defer c.failureMu.Unlock()
+	if c.failure != nil {
+		return c.failure
+	}
+	return fallback
+}
+
+func sanitizedConnectionCause(err error) error {
+	if err == nil || errors.Is(err, io.EOF) {
+		return nil
+	}
+	var netErr net.Error
+	if !errors.As(err, &netErr) {
+		return nil
+	}
+	if netErr.Timeout() {
+		return context.DeadlineExceeded
+	}
+	return imapNetworkError{}
+}
+
+// imapNetworkError keeps the net.Error taxonomy without retaining a raw
+// endpoint-bearing *net.OpError.
+type imapNetworkError struct{}
+
+func (imapNetworkError) Error() string   { return "imap: network error" }
+func (imapNetworkError) Timeout() bool   { return false }
+func (imapNetworkError) Temporary() bool { return false }
 
 // login runs LOGIN by hand because client.Login keeps only the response text,
 // and the response code is what tells a refused password (AUTHENTICATIONFAILED;

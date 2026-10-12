@@ -121,7 +121,10 @@ func TestDialNetworkErrorIsNotAuthFailed(t *testing.T) {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 	_ = ln.Close()
-	_, err = dial(Credentials{Host: "127.0.0.1", Port: port, Email: "u", Password: "p"})
+	_, err = dial(Credentials{
+		Host: "127.0.0.1", Port: port, Email: "u", Password: "p",
+		dialer: &net.Dialer{Timeout: time.Second}, rootCAs: fakeRootCAs,
+	})
 	if err == nil || errors.Is(err, ErrAuthFailed) || errors.Is(err, ErrLoginRefused) {
 		t.Fatalf("expected a plain network error, got %v", err)
 	}
