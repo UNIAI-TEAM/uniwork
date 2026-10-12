@@ -274,3 +274,36 @@ tài liệu docx dùng renderer đó là **GO-B3 (UNI-1013)**. Trên develop hi�
 route hay trang web nào cho khung này: chỉ có component `OfficeFrame` trong
 `packages/views/office/frame/` (editor G3 cũ). Các route/đường dẫn mới sẽ được
 ghi vào mục này khi hai lane đó đăng ký chúng.
+
+## 6. Capability theo tổ chức (X-03, UNI-1340)
+
+App desktop đọc danh sách tính năng Office đang bật cho một tổ chức trước khi dùng
+feed, Lưu, thư viện offline hay UniWork AI. Đây là route **chỉ app**; web không dùng
+(web đọc `office_sync_feed` qua `GET /api/v1/config`, xem EXPERIENCE › Foundation ›
+Grant và flag). Không nhầm với `GET /documents/{documentID}/office/capabilities`
+(`OfficeCapabilitySDO`), route theo **một tài liệu** trả định dạng/thao tác của engine.
+
+| Việc | Route |
+| --- | --- |
+| Capability theo tổ chức | `GET /orgs/{orgID}/office/capabilities` |
+
+- **Auth:** phiên thiết bị bearer (`RequireAuthWithDevice`, cùng nhóm `authed` như mục 3);
+  không có nhóm route riêng cho app. `orgID` là ULID tổ chức.
+- **Quyền:** chỉ `OrganizationService.RequireMember`; người không phải thành viên nhận
+  **403/404** theo `mapServiceError`, tài khoản bị vô hiệu hóa / tổ chức bị đình chỉ theo
+  cổng sẵn có. Handler không tự quyết quyền. Đây là **read**: không ghi audit.
+- **Đánh giá flag:** cùng bộ đánh giá và thứ tự override **user > organization > global**
+  mà `GET /api/v1/config` dùng. Flag chỉ **ẩn năng lực**, không cấp quyền.
+- **Hình dạng:**
+  `{sync_feed, sync_write, offline_library, ai_uniwork, ai_uniwork_formats[], ttl_seconds}`.
+  `ai_uniwork_formats` liệt kê các định dạng có `office_ai_uniwork_<format>` bật **và**
+  `office_ai_uniwork` bật (tắt kill switch thì danh sách rỗng).
+- **`ttl_seconds`:** hằng số **300**. Cách app lưu và dùng bản này (TTL, lỗi, "chưa từng
+  đọc được") là luật của [EXPERIENCE › State Patterns › Capability tắt](../g5g6g7/ux/EXPERIENCE.md)
+  (nguồn duy nhất; không chép lại ở đây).
+- **Mã lỗi:** route feed/intent/lease/AI về sau **tự từ chối bằng `office_capability_off`
+  (403, `fields.capability`)** khi flag tắt — server là nguồn thật, client cũ vẫn bị chặn.
+  Bốn mã mới của phase đăng ký **không lớp** `error_class` (contract-p0 §4):
+  `change_cursor_expired` (410), `change_cursor_invalid` (400), `run_limit_reached` (429),
+  `office_capability_off` (403). Tên `commit_intent_unknown` (410) **mới chỉ được giữ chỗ
+  trong tài liệu, chưa phát** cho tới khi G5-D2 chốt retention intent.
