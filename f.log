@@ -1,0 +1,102 @@
+$ npm run typecheck -w @genoffice/sheets
+
+> @genoffice/sheets@0.1.0 typecheck
+> tsc --noEmit
+
+../html/src/renderer/ai/brief-writer.ts(131,36): error TS2379: Argument of type '{ transport: AgentTransport; system: string; user: string; signal: AbortSignal | undefined; maxChars: number; extract: (raw: string) => { text: string; complete: boolean; }; }' is not assignable to parameter of type 'StreamTextOptions' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'signal' are incompatible.
+    Type 'AbortSignal | undefined' is not assignable to type 'AbortSignal'.
+      Type 'undefined' is not assignable to type 'AbortSignal'.
+../html/src/renderer/ai/page-writer.ts(114,36): error TS2379: Argument of type '{ transport: AgentTransport; system: string; user: string; signal: AbortSignal | undefined; maxChars: number; extract: (raw: string) => { text: string; complete: boolean; }; onProgress: ((html: string) => void) | undefined; }' is not assignable to parameter of type 'StreamTextOptions' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'signal' are incompatible.
+    Type 'AbortSignal | undefined' is not assignable to type 'AbortSignal'.
+      Type 'undefined' is not assignable to type 'AbortSignal'.
+../html/src/renderer/ai/tools.ts(84,5): error TS2375: Type '{ primary: string | undefined; accent: string | undefined; bg: string | undefined; surface: string | undefined; text: string | undefined; }' is not assignable to type '{ primary?: string; accent?: string; bg?: string; surface?: string; text?: string; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'primary' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+../html/src/renderer/ai/tools.ts(91,5): error TS2375: Type '{ heading: string | undefined; body: string | undefined; scale: string | undefined; }' is not assignable to type '{ heading?: string; body?: string; scale?: string; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'heading' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+../html/src/renderer/ai/tools.ts(96,5): error TS2375: Type '{ radius: string | undefined; spacing: string | undefined; shadow: string | undefined; }' is not assignable to type '{ radius?: string; spacing?: string; shadow?: string; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'radius' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+../html/src/renderer/ai/tools.ts(138,5): error TS2322: Type '{ title: string; type: string | undefined; brief: string; layout: string | undefined; image_queries: string[] | undefined; }[]' is not assignable to type 'BriefSection[]'.
+  Type '{ title: string; type: string | undefined; brief: string; layout: string | undefined; image_queries: string[] | undefined; }' is not assignable to type 'BriefSection' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+    Types of property 'type' are incompatible.
+      Type 'string | undefined' is not assignable to type 'string'.
+        Type 'undefined' is not assignable to type 'string'.
+../html/src/renderer/ai/tools.ts(148,5): error TS2375: Type '{ title: string | undefined; language: string | undefined; audience: string | undefined; length: string | undefined; }' is not assignable to type '{ title?: string; language?: string; audience?: string; length?: string; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'title' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+../html/src/renderer/ai/tools.ts(659,47): error TS2379: Argument of type '{ depth: number; fromSid: number | undefined; maxLines: number; }' is not assignable to parameter of type '{ depth?: number; fromSid?: number; maxLines?: number; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'fromSid' are incompatible.
+    Type 'number | undefined' is not assignable to type 'number'.
+      Type 'undefined' is not assignable to type 'number'.
+../html/src/renderer/ai/tools.ts(781,17): error TS2322: Type '{ id: string; label: string; description: string | undefined; options: string[]; multi: boolean; }[]' is not assignable to type 'ClarifyQuestion[]'.
+  Type '{ id: string; label: string; description: string | undefined; options: string[]; multi: boolean; }' is not assignable to type 'ClarifyQuestion' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+    Types of property 'description' are incompatible.
+      Type 'string | undefined' is not assignable to type 'string'.
+        Type 'undefined' is not assignable to type 'string'.
+../html/src/renderer/ai/tools.ts(822,17): error TS2375: Type '{ mode: PlanMode; notes: string | undefined; page: string | undefined; }' is not assignable to type 'BriefPlanSpec' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'notes' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+../html/src/renderer/ai/tools.ts(863,17): error TS2379: Argument of type '{ kind: "design"; brief: Brief; instruction: string; context: string | undefined; }' is not assignable to parameter of type 'PageWriteSpec' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Type '{ kind: "design"; brief: Brief; instruction: string; context: string | undefined; }' is not assignable to type '{ kind: "design"; brief: Brief; instruction: string; context?: string; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+    Types of property 'context' are incompatible.
+      Type 'string | undefined' is not assignable to type 'string'.
+        Type 'undefined' is not assignable to type 'string'.
+../html/src/renderer/ai/tools.ts(901,13): error TS2379: Argument of type '{ kind: "content"; title: string | undefined; plan: string; instruction: string; context: string | undefined; }' is not assignable to parameter of type 'PageWriteSpec' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Type '{ kind: "content"; title: string | undefined; plan: string; instruction: string; context: string | undefined; }' is not assignable to type '{ kind: "content"; title?: string; plan: string; instruction: string; context?: string; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+    Types of property 'title' are incompatible.
+      Type 'string | undefined' is not assignable to type 'string'.
+        Type 'undefined' is not assignable to type 'string'.
+../html/src/renderer/document/ops.ts(245,53): error TS2379: Argument of type '{ within: [number, number] | undefined; }' is not assignable to parameter of type 'MatchOptions' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'within' are incompatible.
+    Type '[number, number] | undefined' is not assignable to type '[number, number]'.
+      Type 'undefined' is not assignable to type '[number, number]'.
+../html/src/renderer/document/ops.ts(253,45): error TS2379: Argument of type '{ within: [number, number] | undefined; }' is not assignable to parameter of type 'MatchOptions' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'within' are incompatible.
+    Type '[number, number] | undefined' is not assignable to type '[number, number]'.
+      Type 'undefined' is not assignable to type '[number, number]'.
+../html/src/renderer/i18n/locale.tsx(54,14): error TS2339: Property 'htmlApi' does not exist on type 'Window & typeof globalThis'.
+../html/src/renderer/i18n/locale.tsx(54,41): error TS7006: Parameter 'next' implicitly has an 'any' type.
+src/renderer/ai/ClarifyCard.tsx(96,27): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(97,45): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(102,35): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(102,68): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(103,13): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(104,28): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(107,16): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(107,27): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(109,43): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(111,20): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(120,9): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(156,17): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(158,46): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(159,12): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(161,10): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(161,61): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(163,12): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(169,24): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(173,39): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(176,42): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(178,36): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(184,44): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(185,10): error TS18048: 'q' is possibly 'undefined'.
+src/renderer/ai/ClarifyCard.tsx(198,13): error TS18048: 'q' is possibly 'undefined'.
+tests/g6-12-ask-clarification.test.ts(91,51): error TS2493: Tuple type '[]' of length '0' has no element at index '0'.
+tests/g6-12-fetch-image-guard.test.ts(15,23): error TS2345: Argument of type 'Uint8Array<ArrayBufferLike> | ReadableStream<Uint8Array<ArrayBufferLike>>' is not assignable to parameter of type 'BodyInit | null | undefined'.
+  Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BodyInit | null | undefined'.
+    Type 'Uint8Array<ArrayBufferLike>' is missing the following properties from type 'URLSearchParams': size, append, delete, get, and 2 more.
+npm error Lifecycle script `typecheck` failed with error:
+npm error code 2
+npm error path /home/ubuntu/work/uniwork-office/apps/sheets
+npm error workspace @genoffice/sheets@0.1.0
+npm error location /home/ubuntu/work/uniwork-office/apps/sheets
+npm error command failed
+npm error command sh -c tsc --noEmit

@@ -1,0 +1,305 @@
+$ git checkout e6862e53 -- apps/sheets/src && (cd apps/sheets && npx vitest run tests/g6-12-add-image-guard.test.ts tests/g6-12-create-document-bound.test.ts tests/g6-12-merge-mutated.test.ts tests/g6-12-ask-clarification.test.ts); RED=$?; git checkout HEAD -- apps/sheets/src; git status --short apps/sheets/src; echo "RED_EXIT=$RED"; test $RED -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+ ❯ tests/g6-12-add-image-guard.test.ts (10 tests | 5 failed) 16ms
+     × refuses the local path /etc/passwd before anything is applied 8ms
+     × refuses the local path ~/.ssh/id_rsa before anything is applied 1ms
+     × refuses the local path C:\Users\u\secret.png before anything is applied 1ms
+     × refuses the local path relative/x.png before anything is applied 1ms
+     × refuses a local path inside a mixed batch (all-or-nothing) 2ms
+ ❯ tests/g6-12-ask-clarification.test.ts (8 tests | 7 failed) 13ms
+     × is offered with the html input schema, byte for byte 4ms
+     × describes confirming column meaning / target range before calculating or writing 1ms
+     × stays available on a view-only workbook (it changes nothing) 3ms
+     × waits for the answers and returns them in the html result format 3ms
+     × returns the skipped result when the user skips, stops or starts a new chat 1ms
+     × refuses empty questions and keeps at most 4 questions / 5 options 1ms
+     × has its card strings in the zh key set and the en/vi shards 0ms
+ ❯ tests/g6-12-create-document-bound.test.ts (3 tests | 2 failed) 10ms
+     × hides the tool and its prompt bullet while bound, live 5ms
+     × refuses a stray call while bound without writing anything 3ms
+ ❯ tests/g6-12-merge-mutated.test.ts (4 tests | 4 failed) 66ms
+     × declares mutated: true on success 6ms
+     × says so when the undo history cannot hold the merge 1ms
+     × reports undo steps that restore the workbook and keep earlier history 41ms
+     × reports null when the merge overflows the bounded undo history 16ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 18 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > refuses the local path /etc/passwd before anything is applied
+ FAIL  tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > refuses the local path ~/.ssh/id_rsa before anything is applied
+ FAIL  tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > refuses the local path C:\Users\u\secret.png before anything is applied
+ FAIL  tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > refuses the local path relative/x.png before anything is applied
+AssertionError: expected 'Rejected — none of the 1 operation(s)…' to match /UniWork/
+
+- Expected:
+/UniWork/
+
++ Received:
+"Rejected — none of the 1 operation(s) were applied (a batch is all-or-nothing): reached proposeOperations"
+
+ ❯ tests/g6-12-add-image-guard.test.ts:73:29
+     71|       const result = await addImage(path, value)
+     72|       expect(result.isError).toBe(true)
+     73|       expect(result.output).toMatch(/UniWork/)
+       |                             ^
+     74|       expect(result.output).toMatch(/attach/i)
+     75|       expect(proposeOperations).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/18]⎯
+
+ FAIL  tests/g6-12-add-image-guard.test.ts > g6-12 add_image local path guard (UniWork-bound workbook) > refuses a local path inside a mixed batch (all-or-nothing)
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array [
+      Array [
+        Object {
+          "anchorCell": "B2",
+          "op": "add_image",
+          "path": "https://example.com/a.png",
+          "sheetId": "sheet-1",
+        },
+        Object {
+          "anchorCell": "D2",
+          "op": "add_image",
+          "path": "/tmp/b.png",
+          "sheetId": "sheet-1",
+        },
+      ],
+      "two images",
+    ]
+
+
+Number of calls: 1
+
+ ❯ tests/g6-12-add-image-guard.test.ts:101:35
+     99|     )
+    100|     expect(result.isError).toBe(true)
+    101|     expect(proposeOperations).not.toHaveBeenCalled()
+       |                                   ^
+    102|   })
+    103|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/18]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > g6-12 sheets ask_clarification > is offered with the html input schema, byte for byte
+AssertionError: expected undefined to be defined
+ ❯ tests/g6-12-ask-clarification.test.ts:35:20
+     33|     const sheets = tool(WORKBOOK_TOOLS, 'ask_clarification')
+     34|     const html = tool(HTML_TOOLS, 'ask_clarification')
+     35|     expect(sheets).toBeDefined()
+       |                    ^
+     36|     expect(JSON.stringify(sheets!.inputSchema)).toBe(JSON.stringify(ht…
+     37|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/18]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > g6-12 sheets ask_clarification > describes confirming column meaning / target range before calculating or writing
+TypeError: Cannot read properties of undefined (reading 'description')
+ ❯ tests/g6-12-ask-clarification.test.ts:40:65
+     38|
+     39|   it('describes confirming column meaning / target range before calcul…
+     40|     const description = tool(WORKBOOK_TOOLS, 'ask_clarification')!.des…
+       |                                                                 ^
+     41|     expect(description).toMatch(/column/i)
+     42|     expect(description).toMatch(/range/i)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/18]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > g6-12 sheets ask_clarification > stays available on a view-only workbook (it changes nothing)
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-12-ask-clarification.test.ts:47:54
+     45|
+     46|   it('stays available on a view-only workbook (it changes nothing)', (…
+     47|     expect(VIEW_ONLY_TOOLS.has('ask_clarification')).toBe(true)
+       |                                                      ^
+     48|   })
+     49|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/18]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > g6-12 sheets ask_clarification > waits for the answers and returns them in the html result format
+AssertionError: expected "vi.fn()" to be called with arguments: [ [ { id: 'z', …(4) } ] ]
+
+Number of calls: 0
+
+ ❯ tests/g6-12-ask-clarification.test.ts:55:30
+     53|     }))
+     54|     const result = await ask(deps(askClarification), { questions: [que…
+     55|     expect(askClarification).toHaveBeenCalledWith([
+       |                              ^
+     56|       { ...question, description: undefined, multi: false },
+     57|     ])
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/18]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > g6-12 sheets ask_clarification > returns the skipped result when the user skips, stops or starts a new chat
+AssertionError: expected true to be undefined
+
+- Expected:
+undefined
+
++ Received:
+true
+
+ ❯ tests/g6-12-ask-clarification.test.ts:71:28
+     69|       { questions: [question] },
+     70|     )
+     71|     expect(result.isError).toBeUndefined()
+       |                            ^
+     72|     expect(result.mutated).toBe(false)
+     73|     expect(result.output).toMatch(/^The user skipped the questionnaire…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/18]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > g6-12 sheets ask_clarification > refuses empty questions and keeps at most 4 questions / 5 options
+TypeError: Cannot read properties of undefined (reading '0')
+ ❯ tests/g6-12-ask-clarification.test.ts:91:48
+     89|     }))
+     90|     await ask(deps(askClarification), { questions: many })
+     91|     const asked = askClarification.mock.calls[0]![0] as unknown as { o…
+       |                                                ^
+     92|     expect(asked).toHaveLength(4)
+     93|     expect(asked.every((q) => q.options.length === 5)).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/18]⎯
+
+ FAIL  tests/g6-12-ask-clarification.test.ts > g6-12 sheets ask_clarification > has its card strings in the zh key set and the en/vi shards
+AssertionError: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-ask-clarification.test.ts:109:51
+    107|       'aiToolClarifySkipped',
+    108|     ] as const) {
+    109|       expect((zh as Record<string, string>)[key]).toBeTruthy()
+       |                                                   ^
+    110|       expect((en as Record<string, string>)[key]).toBeTruthy()
+    111|       expect((viShard as Record<string, string>)[key]).toBeTruthy()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/18]⎯
+
+ FAIL  tests/g6-12-create-document-bound.test.ts > g6-12 create_document for a UniWork-bound workbook > hides the tool and its prompt bullet while bound, live
+AssertionError: expected [ 'get_workbook_context', …(12) ] to not include 'create_document'
+ ❯ tests/g6-12-create-document-bound.test.ts:54:30
+     52|     const bound = { value: true }
+     53|     const skill = createWorkbookSkill(deps(bound).value)
+     54|     expect(names(skill)).not.toContain('create_document')
+       |                              ^
+     55|     expect(names(skill)).toContain('propose_operations')
+     56|     expect(skill.systemPrompt).not.toContain('tool create_document')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/18]⎯
+
+ FAIL  tests/g6-12-create-document-bound.test.ts > g6-12 create_document for a UniWork-bound workbook > refuses a stray call while bound without writing anything
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-create-document-bound.test.ts:69:28
+     67|       value,
+     68|     )
+     69|     expect(result.isError).toBe(true)
+       |                            ^
+     70|     expect(result.output).toMatch(/UniWork/)
+     71|     expect(createDocument).not.toHaveBeenCalled()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/18]⎯
+
+ FAIL  tests/g6-12-merge-mutated.test.ts > g6-12 merge_attached_workbooks declaration > declares mutated: true on success
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-merge-mutated.test.ts:44:31
+     42|     }).executeTool(call)
+     43|     expect(execution.isError).toBeFalsy()
+     44|     expect(execution.mutated).toBe(true)
+       |                               ^
+     45|     expect(execution.output).toMatch(/Undo/)
+     46|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/18]⎯
+
+ FAIL  tests/g6-12-merge-mutated.test.ts > g6-12 merge_attached_workbooks declaration > says so when the undo history cannot hold the merge
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-merge-mutated.test.ts:55:31
+     53|       undoSteps: null,
+     54|     }).executeTool(call)
+     55|     expect(execution.mutated).toBe(true)
+       |                               ^
+     56|     expect(execution.output).toMatch(/cannot be undone/i)
+     57|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/18]⎯
+
+ FAIL  tests/g6-12-merge-mutated.test.ts > g6-12 merge rollback > reports undo steps that restore the workbook and keep earlier history
+TypeError: actual value must be number or bigint, received "undefined"
+ ❯ tests/g6-12-merge-mutated.test.ts:156:30
+    154|         .map((s) => s.getSheetName()),
+    155|     ).toEqual(['Sheet1', 'Q3'])
+    156|     expect(result.undoSteps).toBeGreaterThan(0)
+       |                              ^
+    157|
+    158|     // what the panel's [Undo] does with the recorded steps
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/18]⎯
+
+ FAIL  tests/g6-12-merge-mutated.test.ts > g6-12 merge rollback > reports null when the merge overflows the bounded undo history
+AssertionError: expected undefined to be null
+
+- Expected:
+null
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-merge-mutated.test.ts:174:30
+    172|     )
+    173|     expect(result.importedSheets).toBe(1)
+    174|     expect(result.undoSteps).toBeNull()
+       |                              ^
+    175|   })
+    176| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/18]⎯
+
+
+ Test Files  4 failed (4)
+      Tests  18 failed | 7 passed (25)
+   Start at  14:32:38
+   Duration  6.33s (transform 7.64s, setup 0ms, import 10.70s, tests 105ms, environment 489ms)
+
+RED_EXIT=1
+RED_AS_EXPECTED

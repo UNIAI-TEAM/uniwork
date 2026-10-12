@@ -1,0 +1,13 @@
+$ npx eslint apps/sheets/src/main/ai-fetch-image.ts apps/sheets/src/main/sheets-main.ts apps/sheets/src/renderer/App.tsx apps/sheets/src/renderer/ExcelShell.tsx apps/sheets/src/renderer/ai/AiChatPanel.tsx apps/sheets/src/renderer/ai/ClarifyCard.tsx apps/sheets/src/renderer/ai/merge-skill.ts apps/sheets/src/renderer/ai/tools.ts apps/sheets/src/renderer/ai/view-only-skill.ts apps/sheets/src/renderer/ai/workbook-skill.ts apps/sheets/src/renderer/merge-workbooks.ts apps/sheets/tests/g6-12-add-image-guard.test.ts apps/sheets/tests/g6-12-ask-clarification.test.ts apps/sheets/tests/g6-12-create-document-bound.test.ts apps/sheets/tests/g6-12-fetch-image-guard.test.ts apps/sheets/tests/g6-12-merge-mutated.test.ts apps/sheets/tests/merge-skill.test.ts
+
+/home/ubuntu/work/uniwork-office/apps/sheets/src/renderer/App.tsx
+  3412:77  warning  The ref value 'visualInstallTimerRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'visualInstallTimerRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+  3413:43  warning  The ref value 'visualDisposablesRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'visualDisposablesRef.current' to a variable inside the effect, and use that variable in the cleanup function    react-hooks/exhaustive-deps
+  3424:6   warning  React Hook useEffect has missing dependencies: 'handleInspectWorkbook', 'installPageBreakLayers', 'queueChartDataSync', 'recomputeSheetContent', 'visualContext', and 'visualSyncContext'. Either include them or remove the dependency array                                              react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/sheets/src/renderer/ExcelShell.tsx
+  600:6  warning  React Hook useEffect has missing dependencies: 'aiPreset.autoRun', 'aiPreset.text', 'onPromptChange', and 'onSend'. Either include them or remove the dependency array. If 'onPromptChange' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+  650:5  warning  React Hook useMemo has a missing dependency: 'onListFunctions'. Either include it or remove the dependency array. If 'onListFunctions' changes too often, find the parent component that defines it and wrap that definition in useCallback                                                       react-hooks/exhaustive-deps
+
+✖ 5 problems (0 errors, 5 warnings)
+
