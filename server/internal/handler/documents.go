@@ -308,6 +308,9 @@ func (h *handlers) commitDocumentVersion(w http.ResponseWriter, r *http.Request)
 		UploadID:       strings.TrimSpace(in.UploadID),
 		BaseRevision:   base,
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		// The desktop app's device session is the sync path office_sync_write
+		// gates; a browser session keeps saving while the flag is off (G5-07).
+		Sync: middleware.DeviceSession(r.Context()),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)

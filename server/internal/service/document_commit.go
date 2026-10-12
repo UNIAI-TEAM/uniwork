@@ -68,6 +68,10 @@ type CommitFileVersionInput struct {
 	BaseRevision   int64
 	IdempotencyKey string
 	Engine         DocumentEngineInfo
+	// Sync marks the desktop sync path - a native device session - the only
+	// caller office_sync_write gates (G5-07). A browser session and the web
+	// frame leave it false and keep saving while the flag is off.
+	Sync bool
 }
 
 func errDocumentDeleted() error {
@@ -268,9 +272,10 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 	if err := decideDocumentAccess(doc, current, DocumentLevelEdit); err != nil {
 		return DocumentFileResult{}, err
 	}
-	// office_sync_write hides new commits only (G5-07, X-03): a replay above
-	// and the intent lookup keep answering while it is off.
-	if !s.syncWriteEnabled(ctx, actor, doc.OrganizationID) {
+	// office_sync_write hides new sync commits only (G5-07, X-03): it gates
+	// the desktop device session's path, never the web host or the web frame;
+	// a replay above and the intent lookup keep answering while it is off.
+	if in.Sync && !s.syncWriteEnabled(ctx, actor, doc.OrganizationID) {
 		return DocumentFileResult{}, errOfficeCapabilityOff(officeSyncWriteCapability)
 	}
 	// The logical intent is claimed before the transaction, in its own, so a

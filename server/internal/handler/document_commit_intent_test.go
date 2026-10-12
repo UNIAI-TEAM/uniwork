@@ -1,17 +1,26 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
+	"log/slog"
+	"net/http"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
 // TestCommitIntentLookupRoute: GET /documents/{id}/versions/commit answers a
 // commit by its Idempotency-Key header (G5-07): committed with the version and
 // revision, 410 commit_intent_unknown with no error_class for a key the server
 // holds nothing for, 400 without the header, 404 for an outsider; with
-// office_sync_write off a new commit is 403 office_capability_off while the
+// office_sync_write off a device session's new commit is 403
+// office_capability_off while a browser session still commits and the
 // committed key still reads.
 func TestCommitIntentLookupRoute(t *testing.T) {
 	w := newDocsWorld(t)
@@ -71,13 +80,28 @@ func TestCommitIntentLookupRoute(t *testing.T) {
 		t.Fatalf("outsider lookup: %d, want 404", status)
 	}
 
+	// The desktop app's device session is the sync path the flag gates; a
+	// browser session (w.token) is not.
+	devices := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
+	deviceToken, err := devices.MintSession(w.userID, "ci-device-session")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	setFlagOverride(t, "office_sync_write", featureflags.ScopeOrganization, w.orgID, false)
 	t.Cleanup(func() { clearFlagOverride(t, "office_sync_write", featureflags.ScopeOrganization, w.orgID) })
 	up3 := upload("v3.txt", "intent v3\n", "ci-up-2")
 	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", w.token,
 		map[string]string{"Idempotency-Key": "ci-commit-2"}, map[string]any{"upload_id": up3, "base_revision": committedRev})
+	if res.StatusCode != 200 {
+		t.Fatalf("web commit with the flag off: %d %v", res.StatusCode, out)
+	}
+	committedRev = out["document"].(map[string]any)["revision"].(string)
+	up4 := upload("v4.txt", "intent v4\n", "ci-up-3")
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", deviceToken,
+		map[string]string{"Idempotency-Key": "ci-commit-3"}, map[string]any{"upload_id": up4, "base_revision": committedRev})
 	if code, class := errCodeClass(out); res.StatusCode != 403 || code != "office_capability_off" || class != "" {
-		t.Fatalf("flag off commit: %d code=%q class=%q", res.StatusCode, code, class)
+		t.Fatalf("sync commit with the flag off: %d code=%q class=%q", res.StatusCode, code, class)
 	}
 	if fields, _ := out["error"].(map[string]any)["fields"].(map[string]any); fields["capability"] != "sync_write" {
 		t.Fatalf("flag off fields: %v", out)

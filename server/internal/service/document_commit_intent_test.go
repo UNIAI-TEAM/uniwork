@@ -310,6 +310,9 @@ func TestCommitIntentSweepKeepsLiveRows(t *testing.T) {
 	}
 }
 
+// office_sync_write gates the desktop sync commit only (G5-07, X-03): with
+// the flag off a sync commit is office_capability_off while a web commit keeps
+// saving, and a replay and the lookup keep answering.
 func TestCommitIntentSyncWriteFlag(t *testing.T) {
 	env := newIntentEnv(t)
 	member := human(env.tn.member)
@@ -317,14 +320,19 @@ func TestCommitIntentSyncWriteFlag(t *testing.T) {
 	up := env.upload(t, member, created.Document.ID, "flag-v2.pdf", pdfBody("v2"))
 	key := util.NewID()
 
-	// No override: office_sync_write defaults on, the commit runs.
+	// No override: office_sync_write defaults on, the sync commit runs.
 	env.svc.SetFlags(staticDocFlags{})
-	res, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, key)
-	mustf(t, err, "commit with the default flag")
+	res, err := env.commitSync(member, created.Document.ID, up.UploadID, created.Document.Revision, key, true)
+	mustf(t, err, "sync commit with the default flag")
 
 	env.svc.SetFlags(staticDocFlags{officeSyncWriteFlag: false})
+	// The web path is never gated.
 	up2 := env.upload(t, member, created.Document.ID, "flag-v3.pdf", pdfBody("v3"))
-	_, err = env.commit(member, created.Document.ID, up2.UploadID, res.Document.Revision, util.NewID())
+	web, err := env.commitSync(member, created.Document.ID, up2.UploadID, res.Document.Revision, util.NewID(), false)
+	mustf(t, err, "web commit with the flag off")
+	// A new sync commit is refused.
+	up3 := env.upload(t, member, created.Document.ID, "flag-v4.pdf", pdfBody("v4"))
+	_, err = env.commitSync(member, created.Document.ID, up3.UploadID, web.Document.Revision, util.NewID(), true)
 	ce := wantCode(t, err, "office_capability_off")
 	if ce.Status != 403 || ce.Fields["capability"] != "sync_write" {
 		t.Fatalf("refusal = %+v", ce)
@@ -332,19 +340,23 @@ func TestCommitIntentSyncWriteFlag(t *testing.T) {
 	if !errors.Is(err, ErrForbidden) {
 		t.Fatalf("office_capability_off must unwrap to ErrForbidden: %v", err)
 	}
-	// The committed result is still readable, by lookup and by replay.
+	// The committed result is still readable, by lookup and by replay; the
+	// replay path is counted.
 	got, err := env.lookup(member, created.Document.ID, key)
 	mustf(t, err, "lookup with the flag off")
 	if got.Outcome != CommitIntentCommitted || got.VersionID != res.Version.ID {
 		t.Fatalf("lookup = %+v", got)
 	}
-	again, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, key)
+	again, err := env.commitSync(member, created.Document.ID, up.UploadID, created.Document.Revision, key, true)
 	mustf(t, err, "replay with the flag off")
 	if again.Version.ID != res.Version.ID {
 		t.Fatalf("replay = %s, want %s", again.Version.ID, res.Version.ID)
 	}
-	if vs := env.versions(t, env.doc(t, created.Document.ID)); len(vs) != 2 {
-		t.Fatalf("versions = %d, want 2", len(vs))
+	if env.m.replays != 1 {
+		t.Fatalf("replays = %d, want 1 (the flag-off replay)", env.m.replays)
+	}
+	if vs := env.versions(t, env.doc(t, created.Document.ID)); len(vs) != 3 {
+		t.Fatalf("versions = %d, want 3", len(vs))
 	}
 }
 
