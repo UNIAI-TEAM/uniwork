@@ -39,6 +39,10 @@ export const DocumentSourceFileSchema = z.object({
     .optional()
     .default(null),
   can_open_in_app: z.boolean().optional().default(false),
+  // Whether the file can become a document (type on the document allowlist,
+  // size within the cap). Absent means false: a client never offers Save on a
+  // row the server did not vouch for.
+  can_save: z.boolean().optional().default(false),
 });
 export type DocumentSourceFile = Omit<z.infer<typeof DocumentSourceFileSchema>, "source" | "parent"> & {
   source: DocumentSourceKind;

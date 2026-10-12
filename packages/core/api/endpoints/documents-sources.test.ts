@@ -41,6 +41,7 @@ const item = (over: Record<string, unknown> = {}) => ({
   updated_at: "2026-09-27T09:00:00Z",
   owner: { id: "u1", kind: "human", name: "An" },
   can_open_in_app: true,
+  can_save: true,
   ...over,
 });
 
@@ -76,6 +77,7 @@ describe("documents-sources endpoints", () => {
       limit: "50",
     });
     expect(out.items[0]?.parent.kind).toBe("chat_channel");
+    expect(out.items[0]?.can_save).toBe(true);
     expect(out.next_cursor).toBe("c2");
   });
 
@@ -95,6 +97,7 @@ describe("documents-sources endpoints", () => {
       size_bytes: 0,
       owner: null,
       can_open_in_app: false,
+      can_save: false,
       mime_type: "",
       extension: "",
     });
@@ -108,7 +111,15 @@ describe("documents-sources endpoints", () => {
     expect(out.items).toHaveLength(1);
   });
 
-  it.each([{ nope: true }, { items: "x" }, { items: [{ id: "s1" }] }, null, [], "str"])(
+  it.each([
+    { nope: true },
+    { items: "x" },
+    { items: [{ id: "s1" }] },
+    { items: [item({ can_save: "yes" })] },
+    null,
+    [],
+    "str",
+  ])(
     "listDocumentSources throws on malformed %#",
     async (body) => {
       vi.mocked(fetch).mockResolvedValueOnce(json(body));
