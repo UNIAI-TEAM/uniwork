@@ -27,6 +27,7 @@ type DocumentSourceDTO struct {
 	UpdatedAt    string                  `json:"updated_at" description:"Thời điểm tệp xuất hiện ở nguồn (RFC 3339 UTC)" example:"2026-10-12T08:00:00Z"`
 	Owner        *DocumentSourceOwnerDTO `json:"owner" description:"Người đưa tệp lên; null với email"`
 	CanOpenInApp bool                    `json:"can_open_in_app" description:"Định dạng app Office mở được (chỉ xem)" example:"true"`
+	CanSave      bool                    `json:"can_save" description:"Lưu được thành tài liệu: định dạng thuộc danh sách của tài liệu tệp và dung lượng trong giới hạn; false thì Save trả 422 source_not_saveable" example:"true"`
 }
 
 // DocumentSourceListSDO is one page of GET .../documents/sources.
