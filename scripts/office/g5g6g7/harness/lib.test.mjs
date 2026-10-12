@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { verify } from "../evidence.mjs";
+import { routeCatalogue, routeMatches } from "./server-contract.helper.mjs";
 import { APP_ENV_PASSTHROUGH, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -837,11 +838,20 @@ test("start.sh names the failing step and its args when lib.mjs errors", () => {
 // without a stack.
 
 /** A fake D server for the document step; resolves with its origin and a stop(). */
-function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls = 0, loginPassword = "", failDelete = false } = {}) {
+// It behaves like the real router where the harness has been bitten: the org's
+// id and slug differ and `/orgs/{org}/workspaces` takes the ID (the slug is a 403,
+// cloud round 5), the account owning an organization is refused deletion with
+// 409 (owner_must_transfer), and a request the router does not register is
+// recorded in `unrouted` (a test asserts it stays empty).
+const FAKE_ORG = { id: "01JORGIDFAKE0000000000000", slug: "o-g7-fake-slug" };
+function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls = 0, loginPassword = "", failDelete = false, failOn = null } = {}) {
   return new Promise((resolveServer) => {
     const calls = [];
     const requests = [];
+    const unrouted = [];
+    const routes = routeCatalogue();
     let devicePolls = 0;
+    let ownsOrg = false;
     const server = createHttpServer((req, res) => {
       const chunks = [];
       req.on("data", (c) => chunks.push(c));
@@ -853,9 +863,12 @@ function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls
         const url = new URL(req.url, "http://127.0.0.1");
         calls.push(url.pathname);
         requests.push({ method: req.method, path: url.pathname, body: Buffer.concat(chunks).toString("utf8") });
-        if (/^\/api\/v1\/orgs\/[^/]+\/privacy\/deletion$/.test(url.pathname) || url.pathname === "/api/v1/me/delete") {
-          return failDelete ? send(409, { error: "owner_must_transfer" }) : send(url.pathname === "/api/v1/me/delete" ? 200 : 202, { status: "ok" });
+        if (url.pathname !== "/healthz" && !(url.pathname.startsWith("/api/v1/") && routeMatches(routes, req.method, url.pathname.slice("/api/v1".length)))) {
+          unrouted.push(`${req.method} ${url.pathname}`);
         }
+        if (failOn && failOn.method === req.method && failOn.path.test(url.pathname)) return send(failOn.status, { error: failOn.error ?? "failed", access_token: "LEAKED.TOKEN" });
+        if (url.pathname === `/api/v1/orgs/${FAKE_ORG.id}/privacy/deletion`) return failDelete ? send(409, { error: "privacy_request_in_flight" }) : send(202, { status: "ok" });
+        if (url.pathname === "/api/v1/me/delete") return ownsOrg ? send(409, { error: "owner_must_transfer" }) : send(200, { status: "ok" });
         if (url.pathname === "/healthz") return send(200, { status: "ok" });
         if (url.pathname === "/api/v1/auth/login") {
           const sent = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
@@ -867,8 +880,13 @@ function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls
         }
         if (url.pathname === "/api/v1/auth/register") return send(201, { access_token: "tok", user: { id: "u1" } });
         if (url.pathname === "/api/v1/me/email/verify") return send(200, { user: { id: "u1" } });
-        if (url.pathname === "/api/v1/orgs") return send(201, { organization: { id: "o1", slug: "o1" } });
-        if (/^\/api\/v1\/orgs\/[^/]+\/workspaces$/.test(url.pathname)) return send(201, { workspace: { id: "w1" } });
+        if (url.pathname === "/api/v1/orgs") {
+          ownsOrg = true;
+          return send(201, { organization: { ...FAKE_ORG, name: "G7-01 harness", role: "owner" } });
+        }
+        if (/^\/api\/v1\/orgs\/[^/]+\/workspaces$/.test(url.pathname)) {
+          return url.pathname === `/api/v1/orgs/${FAKE_ORG.id}/workspaces` ? send(201, { workspace: { id: "w1" } }) : send(403, { error: "forbidden" });
+        }
         if (/^\/api\/v1\/workspaces\/[^/]+\/documents\/files$/.test(url.pathname)) return send(201, { document: { id: "doc_fixture" } });
         if (/^\/api\/v1\/documents\/[^/]+\/office\/sessions$/.test(url.pathname)) {
           if (!mintLink) return send(500, { error: "no_launch" });
@@ -879,7 +897,7 @@ function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls
     });
     server.listen(0, "127.0.0.1", () => {
       const { port } = server.address();
-      resolveServer({ origin: `http://127.0.0.1:${port}`, calls, requests, stop: () => new Promise((r) => server.close(r)) });
+      resolveServer({ origin: `http://127.0.0.1:${port}`, calls, requests, unrouted, stop: () => new Promise((r) => server.close(r)) });
     });
   });
 }
@@ -1298,23 +1316,106 @@ test("a second instance that does not exit is killed as a group, not left behind
 
 // ---- cleanup of what the run seeded (H1-5) ------------------------------------
 
-test("the seeded organization and account are removed by id after the step", async () => {
+test("the seeded organization is removed by id; the owner account is a logged leftover, not a /me/delete 409", async () => {
   const server = await mkFakeDocumentServer();
   const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir]);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.deepEqual(server.unrouted, [], "every request the step sent is a route the server registers");
     const writes = server.requests.filter((r) => r.method === "POST").map((r) => r.path);
-    const org = writes.indexOf("/api/v1/orgs/o1/privacy/deletion");
-    const account = writes.indexOf("/api/v1/me/delete");
-    assert.ok(org >= 0 && account > org, `organization deletion, then the account (saw ${writes.join(", ")})`);
+    // the workspace is created under the organization's ID, never its slug
+    assert.ok(writes.includes(`/api/v1/orgs/${FAKE_ORG.id}/workspaces`), writes.join(", "));
+    assert.ok(!writes.some((path) => path.includes(FAKE_ORG.slug)), "the org slug is never put in a path");
+    assert.ok(writes.includes(`/api/v1/orgs/${FAKE_ORG.id}/privacy/deletion`), "the organization deletion is requested by id");
     // only ids this run was handed: the org it created, confirmed with its own slug
-    assert.deepEqual(JSON.parse(server.requests.find((r) => r.path === "/api/v1/orgs/o1/privacy/deletion").body), { confirm_slug: "o1" });
+    assert.deepEqual(JSON.parse(server.requests.find((r) => r.path.endsWith("/privacy/deletion")).body), { confirm_slug: FAKE_ORG.slug });
+    // the owner cannot delete the account while the org's erasure is pending (409), so it is not tried
+    assert.ok(!writes.includes("/api/v1/me/delete"), "no /me/delete while the account owns the queued organization");
     assert.match(result.stdout, /cleanup ok\s+request deletion of the seeded organization/);
+    assert.match(result.stdout, /cleanup left\s+account u1 — still the owner/);
     const report = JSON.parse(readFileSync(join(run.runDir, "document-step.json"), "utf8"));
-    assert.deepEqual(report.cleanup.steps.map((step) => step.ok), [true, true]);
+    assert.deepEqual(report.cleanup.steps.map((step) => step.ok), [true]);
+    assert.deepEqual(report.cleanup.leftovers.map((left) => left.what), ["organization", "account"]);
+    assert.equal(report.cleanup.leftovers[0].id, FAKE_ORG.id);
+    assert.match(report.cleanup.leftovers[1].email, /^g7-01-harness-\d+@example\.com$/);
     assert.ok(!everythingWritten(run, result).includes("password123"), "the seeded password is not written anywhere");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("without a seeded organization the seeded account is deleted by the step", async () => {
+  const server = await mkFakeDocumentServer({ failOn: { method: "POST", path: /^\/api\/v1\/orgs$/, status: 500 } });
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n" });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir]);
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.ok(server.requests.some((r) => r.path === "/api/v1/me/delete"), "the account the run made is deleted");
+    assert.ok(!server.requests.some((r) => r.path.includes("privacy/deletion")), "no organization was made, none is deleted");
+    const report = JSON.parse(readFileSync(join(run.runDir, "document-step.json"), "utf8"));
+    assert.deepEqual(report.cleanup.steps, [{ name: "delete the seeded account", ok: true }]);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a seeding FAIL prints the failing request and reason, never a token, and cleanup still runs", async () => {
+  const server = await mkFakeDocumentServer({ failOn: { method: "POST", path: /\/workspaces$/, status: 403, error: "forbidden" } });
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n" });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir]);
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    const request = `POST /api/v1/orgs/${FAKE_ORG.id}/workspaces -> 403`;
+    assert.ok(result.stdout.includes(`FAIL    the D server created the account and the fixture document — ${request}`), result.stdout);
+    assert.ok(result.stderr.includes(`FAILED: the D server created the account and the fixture document — ${request}`), result.stderr);
+    assert.ok(result.stderr.includes(`[request POST /api/v1/orgs/${FAKE_ORG.id}/workspaces -> 403]`), result.stderr);
+    const report = JSON.parse(readFileSync(join(run.runDir, "document-step.json"), "utf8"));
+    assert.deepEqual(report.failures[0].request, { method: "POST", path: `/api/v1/orgs/${FAKE_ORG.id}/workspaces`, status: 403 });
+    assert.equal(report.checks.filter((check) => check.result === "FAIL").length, 1, "one FAIL check, not a second one for the same failure");
+    assert.ok(!everythingWritten(run, result).includes("LEAKED.TOKEN"), "no token from the response ends up in any output");
+    // the half-made organization is still erased by id
+    assert.ok(server.requests.some((r) => r.path === `/api/v1/orgs/${FAKE_ORG.id}/privacy/deletion`));
+  } finally {
+    await server.stop();
+  }
+});
+
+test("under the evidence runner a FAIL's reason is in the artifact and echoed to the round log", async () => {
+  const server = await mkFakeDocumentServer({ failOn: { method: "POST", path: /\/workspaces$/, status: 403 } });
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n" });
+  const outDir = mkdtempSync(join(tmpdir(), "harness-evidence-"));
+  try {
+    const result = await new Promise((resolveRun) => {
+      const child = spawn(process.execPath, [join(HERE, "..", "evidence.mjs"), "run", "--req", "G7-A01", "--fixture", "fx-docx-report-vi", "--checker", "tester-cloud", "--out", outDir, "--", process.execPath, DOC_STEP, "--run-dir", run.runDir], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, OFFICE_FORK_SHA: "0d03b18" } });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (d) => (stdout += d));
+      child.stderr.on("data", (d) => (stderr += d));
+      child.on("close", (status) => resolveRun({ status, stdout, stderr }));
+    });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /evidence: ev-g7-a01-\d+ FAIL; last \d+ line/);
+    assert.match(result.stderr, /\| +FAILED: the D server created the account and the fixture document — POST \/api\/v1\/orgs\/\S+\/workspaces -> 403/);
+    const record = JSON.parse(result.stdout.trim().split("\n")[0]);
+    const artifact = readFileSync(join(HERE, "..", "..", "..", "..", record.artifact), "utf8");
+    assert.match(artifact, /POST \/api\/v1\/orgs\/\S+\/workspaces -> 403/);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a failed cleanup does not turn a BLOCKED step into a FAIL", async () => {
+  const server = await mkFakeDocumentServer({ failDelete: true });
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n", session: false });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir]);
+    assert.equal(result.status, 77, `${result.stdout}\n${result.stderr}`);
+    const report = JSON.parse(readFileSync(join(run.runDir, "document-step.json"), "utf8"));
+    assert.equal(report.result, "BLOCKED");
+    assert.equal(report.cleanup.steps[0].ok, false);
+    assert.match(report.cleanup.steps[0].detail, /POST \/api\/v1\/orgs\/\S+\/privacy\/deletion -> 409/);
   } finally {
     await server.stop();
   }
@@ -1328,6 +1429,7 @@ test("a reused account is never cleaned up", async () => {
     const result = await runDocumentStep(["--run-dir", run.runDir], REUSED);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.ok(!server.requests.some((r) => /privacy\/deletion|\/me\/delete/.test(r.path)), "no deletion call for a reused account");
+    assert.deepEqual(server.unrouted, []);
     assert.match(result.stdout, /cleanup skipped: the account is reused/);
   } finally {
     await server.stop();
@@ -1341,8 +1443,12 @@ test("a cleanup that fails is reported and does not change the result", async ()
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir]);
     assert.equal(result.status, 0, "the open itself passed");
-    assert.match(result.stdout, /cleanup FAILED\s+request deletion of the seeded organization — .*409/);
+    assert.match(result.stdout, /cleanup FAILED\s+request deletion of the seeded organization — POST \/api\/v1\/orgs\/\S+\/privacy\/deletion -> 409/);
+    assert.match(result.stdout, /cleanup left\s+organization .* the deletion request failed/);
     assert.match(result.stdout, /document step: PASS/);
+    const report = JSON.parse(readFileSync(join(run.runDir, "document-step.json"), "utf8"));
+    assert.equal(report.result, "PASS");
+    assert.equal(report.cleanup.steps[0].ok, false, "the failed cleanup is in document-step.json");
   } finally {
     await server.stop();
   }

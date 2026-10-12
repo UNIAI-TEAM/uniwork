@@ -251,9 +251,18 @@ account instead, and `--wait-signin` prints its email; its random password is in
 ends), never in the output. A reused account's password is read from the
 environment only and is never printed or written; no token, ticket or password
 reaches the output, `document-step.json` or the ledger. The step creates its own
-organization, workspace and document under the account; a **seeded** account and
-its organization are removed again by id (organization deletion request, then
-account deletion), a **reused** account is never cleaned up.
+organization, workspace and document under the account, through the calls
+tabulated in `api-contract.mjs` (`api-contract.test.mjs` pins every path, method,
+path-param kind and body key against the server's router, handlers and SDI
+structs; `POST /orgs/{org}/workspaces` takes the organization **id**, not its
+slug). Cleanup: a **seeded** organization gets its deletion requested by id
+(the server erases it asynchronously, after 5 days); the seeded account is still
+that organization's owner, so the server refuses its deletion (`409`) and the
+step does not try: it is listed with the organization under `cleanup.leftovers`
+in `document-step.json` (id, email, reason; never a secret) and printed as
+`cleanup left`. A seeded account without an organization is deleted at once. A
+cleanup that fails or is deferred never changes the result. A **reused** account
+is never cleaned up.
 
 **Expected PASS.** `document step: PASS`, exit `0`, a G7-A01 line with
 `"result":"PASS"` in `test-results/office-g5g6g7-evidence/evidence.jsonl`, and
@@ -268,4 +277,8 @@ document under `.harness-run/userdata/uniwork-documents/default/<account>/<doc>/
 Other outcomes: `BLOCKED` (77) with `no live uniwork-office-dev desktop session
 for <email>` when nobody signed in within the wait (or the app is signed in as a
 different account); `FAIL` (1) when the app was signed in and handed the link but
-left no working copy, or when the server refused to mint the link.
+left no working copy, or when the server refused to mint the link, or when a
+seeding call failed. A FAIL says why on stdout and stderr (`FAILED: <check> —
+<reason> [request <METHOD> <path> -> <status>]`, never a token or ticket), in
+`failures` of `document-step.json`, and `evidence.mjs run` echoes the tail of a
+FAIL or BLOCKED command's output to stderr so it reaches the cloud round log.
