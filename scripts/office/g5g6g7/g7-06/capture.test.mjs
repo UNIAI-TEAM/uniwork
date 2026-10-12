@@ -636,6 +636,13 @@ root.getElementById("inner").attachShadow({ mode: "open" }).innerHTML = "<span>S
     assert.equal(small.canvasOnly, false);
   });
 
+  test("the Next dev overlay (a toast-like badge in a nextjs-portal shadow root) neither holds the shot nor lands in the text", async () => {
+    const page = '<!doctype html><p>chữ</p><nextjs-portal></nextjs-portal><script>document.querySelector("nextjs-portal").attachShadow({mode:"open"}).innerHTML=\'<div class="nextjs-toast" style="width:36px;height:36px">[data-next-badge-root]{--x:1}</div>\'</script>';
+    assert.equal(await withPage(page, (p) => pageIsBusy(p)), false);
+    const { text } = await withPage(page, collectRenderedText);
+    assert.ok(!text.includes("data-next-badge-root"), text);
+  });
+
   test("a spinner inside a shadow root counts as busy (FS-6)", async () => {
     const page = '<!doctype html><div id="h"></div><script>document.getElementById("h").attachShadow({mode:"open"}).innerHTML=\'<div role="progressbar" style="width:20px;height:20px">...</div>\'</script>';
     const busy = await withPage(page, (p) => pageIsBusy(p));

@@ -18,7 +18,8 @@ export function collectFrameText() {
   // every open shadow root, nested ones included
   const roots = [document];
   for (let i = 0; i < roots.length; i += 1) {
-    for (const el of roots[i].querySelectorAll("*")) if (el.shadowRoot) roots.push(el.shadowRoot);
+    // the Next dev overlay's shadow roots are the dev server's UI, not the product's text
+    for (const el of roots[i].querySelectorAll("*")) if (el.shadowRoot && !/^next(js-portal|-route-announcer)$/i.test(el.tagName)) roots.push(el.shadowRoot);
   }
   const attrs = [];
   const extra = [];

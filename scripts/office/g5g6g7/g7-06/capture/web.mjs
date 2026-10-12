@@ -50,11 +50,15 @@ export async function waitForFrame(page, module, { timeoutMs = OPEN_TIMEOUT_MS, 
   }
 }
 
-/** Hides carets in every frame (belt and braces beside Playwright's own `caret: "hide"`). */
-async function hideCarets(page) {
-  for (const frame of page.frames()) {
-    await frame.addStyleTag({ content: "*{caret-color:transparent!important}" }).catch(() => {});
-  }
+/**
+ * Hides the Next dev overlay and carets of the host page. Not injected into the
+ * module iframe on purpose: Playwright's own `caret: "hide"` already covers every
+ * frame at screenshot time, and a style tag added to the markdown frame made its
+ * editor toggle a 9 px cursor bar between every two shots (never settling).
+ */
+async function hideHostChrome(page) {
+  // the Next dev overlay badge is fixed-position UI of the dev server; it must not land in a shot
+  await page.addStyleTag({ content: "*{caret-color:transparent!important}nextjs-portal{display:none!important}" }).catch(() => {});
 }
 
 /**
@@ -68,7 +72,7 @@ export async function captureOpenFrame(page, module, { settleOptions = SETTLE, s
     const hint = state.state === "none" ? `no ${module} frame host on the page (the web build may not offer it: restart web after frame-install); page says: ${state.detail}` : `frame state stayed ${state.state}`;
     return failed(`frame_not_ready: ${hint}`);
   }
-  await hideCarets(page);
+  await hideHostChrome(page);
   const host = page.locator(`[data-office-docs-frame][data-office-module="${module}"]`);
   const result = await settle({
     grab: () => host.screenshot({ animations: "disabled", caret: "hide" }),

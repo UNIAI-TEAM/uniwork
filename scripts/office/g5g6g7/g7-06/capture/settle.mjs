@@ -108,7 +108,8 @@ export function busyProbe({ selectors, transient, statusSelectors, progressSourc
   // the probe walks open shadow roots too: a spinner or toast inside a web component is still on screen
   const roots = [document];
   for (let i = 0; i < roots.length; i += 1) {
-    for (const el of roots[i].querySelectorAll("*")) if (el.shadowRoot) roots.push(el.shadowRoot);
+    // the Next dev overlay (its badge is a persistent "toast") is the dev server's, not the product's
+    for (const el of roots[i].querySelectorAll("*")) if (el.shadowRoot && !/^next(js-portal|-route-announcer)$/i.test(el.tagName)) roots.push(el.shadowRoot);
   }
   const first = (list, accept) => {
     for (const root of roots) {
