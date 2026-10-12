@@ -54,6 +54,36 @@ ra mạng.
 - **Model mới**: thêm vào `allowedModels` (`policy.go`) và seed rate; không
   đọc tên model từ DB hay từ người dùng.
 
+## UniWork AI upstream
+
+`office_uniwork_ai` là capability của trợ lý UniWork AI trong editor Office (G6-13, UNI-1365; façade ở G6-03a). Nó đi qua
+cùng một Gateway như Ask UNI nên **dùng chung provider/upstream của tiến trình**: đặt `OPENAI_*` cho UniWork AI cũng đổi
+upstream của Ask UNI và tóm tắt họp trên deployment đó. Upstream riêng theo capability là ADR riêng, ngoài v1.
+
+| Biến | Vai trò với `office_uniwork_ai` |
+| --- | --- |
+| `AI_PROVIDER`, `OPENAI_BASE_URL`, `OPENAI_API_KEY` | Chọn upstream (chung mọi capability); `anthropic` và `openai` hỗ trợ vòng tool-result, `fake` cho dev/CI |
+| `AI_MODEL_OFFICE_UNIWORK_AI` | Chọn model riêng cho capability này (override có sẵn `AI_MODEL_<CAPABILITY>`) |
+| `AI_MODEL_ALLOW` | Phải chứa model self-host/ngoài danh sách có sẵn thì override mới được nhận |
+
+Triệu chứng và kiểm tra:
+
+- **UniWork AI tắt / `capabilities.enabled=false`** (`ai_disabled` 503 từ route): Gateway chưa có provider. Kiểm `AI_PROVIDER`
+  và key/`OPENAI_BASE_URL` của provider đã chọn, restart `uniwork-be`. `AI_PROVIDER=fake` chạy được nhưng không bao giờ báo
+  UniWork AI bật cho tổ chức nào.
+- **Model không như đã đặt**: `AI_MODEL_OFFICE_UNIWORK_AI` ngoài allowlist → Gateway dùng model mặc định của provider và
+  ghi log cảnh báo (cùng cơ chế mục "Cấu hình"). Thêm model vào `AI_MODEL_ALLOW`, restart, kiểm lại log không còn cảnh báo.
+- **`AI_PROVIDER=ollama`**: capability này từ chối rõ vì ollama chưa hỗ trợ vòng tool-result (không có model mặc định cho
+  ollama); UniWork AI không bật trên deployment đó. Dùng `openai` hoặc `anthropic`.
+- **Lỗi `ai_provider_error` ở lượt có công cụ**: upstream từ chối tool call/`tool_call_id` hoặc không trả tool call (một
+  số model self-host không trả tool call khi `stream` là false) — đổi model, chạy lại wrapper spike (xem dưới).
+- **Token/credit dev trông cao**: upstream dev cộng overhead prompt riêng; số `usage` của nó không phải tín hiệu chi phí.
+
+Dev local: cấu hình upstream dev, cách kiểm và cách quay về `fake` ở `docs/office/g5g6g7/dev-upstream.md`; wrapper
+`scripts/office/ai-upstream-spike.sh fake|dev` kiểm vòng tool-result mà không in giá trị. Production: upstream, region và
+retention **chưa chọn** — chờ gate G6-D2; tới đó chỉ fixture tổng hợp chạy trên upstream dev. Không ghi base URL, host, IP
+hay khóa của upstream dev ở đâu ngoài secret store/cấu hình máy dev.
+
 ## Không bao giờ
 
 - Không log prompt, nguồn hay câu trả lời. `ai_messages` là dữ liệu người dùng,
