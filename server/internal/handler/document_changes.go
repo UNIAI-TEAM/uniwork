@@ -42,7 +42,10 @@ func (h *handlers) listDocumentChanges(w http.ResponseWriter, r *http.Request) {
 		HasMore: page.HasMore, NextCursor: page.NextCursor, ExpiresAt: page.ExpiresAt.UTC().Format(time.RFC3339),
 	}
 	for _, c := range page.Changes {
-		row := sdo.DocumentChangeSDO{DocumentID: c.DocumentID, Kind: c.Kind, Revision: c.Revision, CurrentVersion: c.CurrentVersion}
+		row := sdo.DocumentChangeSDO{
+			DocumentID: c.DocumentID, Kind: c.Kind, Revision: changeRevisionWire(c.Revision),
+			CurrentVersion: c.CurrentVersion,
+		}
 		if c.FileVersionID != "" {
 			v := c.FileVersionID
 			row.VersionID = &v
@@ -50,4 +53,12 @@ func (h *handlers) listDocumentChanges(w http.ResponseWriter, r *http.Request) {
 		out.Changes = append(out.Changes, row)
 	}
 	respondJSON(w, http.StatusOK, out)
+}
+
+// changeRevisionWire formats a revision for the wire: always a decimal string,
+// never a JSON number. A BIGINT revision above JavaScript's 2^53 would lose
+// precision as a number and corrupt the client's sync base (spec §3 invariant
+// 2, BE-F1-1), so every document SDO ships it as a string.
+func changeRevisionWire(revision int64) string {
+	return strconv.FormatInt(revision, 10)
 }

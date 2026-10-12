@@ -2,10 +2,12 @@ package sdo
 
 // DocumentChangeSDO is one change-feed row: ids, kind, revision and the
 // version pointer only - never a title, path or content (spec §4.1).
+// Revision is a decimal string on the wire like every other document SDO, so
+// a BIGINT revision never loses precision in JSON (spec §3 invariant 2).
 type DocumentChangeSDO struct {
 	DocumentID     string  `json:"document_id" description:"Id tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7V8"`
 	Kind           string  `json:"kind" description:"Loại tài liệu: page, file hoặc folder" example:"file"`
-	Revision       int64   `json:"revision" description:"Revision của tài liệu tại high-water mark của snapshot" example:"7"`
+	Revision       string  `json:"revision" description:"Revision làm việc tại high-water mark của snapshot, chuỗi thập phân" example:"41"`
 	CurrentVersion int32   `json:"current_version" description:"Số thứ tự phiên bản mới nhất" example:"3"`
 	VersionID      *string `json:"version_id" description:"Id bản ghi phiên bản đang là head (file); null với page/folder" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
 }

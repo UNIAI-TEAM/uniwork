@@ -64,4 +64,15 @@ func TestDocumentChangesOpenAPI(t *testing.T) {
 			}
 		}
 	}
+	// BE-F1-1: revision is a decimal string on the wire (spec §3 invariant 2),
+	// never a JSON number - a BIGINT above 2^53 would lose precision in JS.
+	var revision struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(spec.Components.Schemas["SdoDocumentChangeSDO"].Properties["revision"], &revision); err != nil {
+		t.Fatal(err)
+	}
+	if revision.Type != "string" {
+		t.Fatalf("SdoDocumentChangeSDO.revision type = %q, want string", revision.Type)
+	}
 }
