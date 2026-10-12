@@ -171,6 +171,11 @@ func TestIsolationMatrix(t *testing.T) {
 	// tenant's signature or bare path does.
 	t.Run("frame-linked", w.frameLinkedChecks)
 
+	// A change-feed cursor is bound to its account, organization and
+	// workspace: replayed by B's owner in B's own workspace it is invalid and
+	// names nothing of A's (G5-01a).
+	t.Run("change-cursor", w.changeCursorChecks)
+
 	// B's own routes with A's rows named in the body: an assignee, a parent,
 	// a project, a share principal. Each must be refused or ignored, and B's
 	// rows must not come to point at A's.
