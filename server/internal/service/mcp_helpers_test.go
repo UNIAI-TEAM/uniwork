@@ -114,3 +114,25 @@ func (w *mcpWorld) approve(t *testing.T, c McpClient, redirect string) string {
 	u, _ := url.Parse(to)
 	return u.Query().Get("code")
 }
+
+// issue runs the whole flow for the owner and returns a fresh token pair.
+func (w *mcpWorld) issue(t *testing.T) (McpClient, McpTokenPair) {
+	t.Helper()
+	w.enable(t)
+	c := w.publicClient(t, "https://x.test/cb")
+	code := w.approve(t, c, "https://x.test/cb")
+	pair, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, Code: code, CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c, pair
+}
+
+func (w *mcpWorld) liveTokens(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := w.pool.QueryRow(w.ctx, `SELECT count(*) FROM mcp_tokens WHERE organization_id = $1 AND revoked_at IS NULL`, w.org.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
