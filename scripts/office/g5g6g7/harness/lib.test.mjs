@@ -405,7 +405,8 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
   // bin dir, so the stubs below keep winning and the test never depends on the
   // host's nvm. `node` here is the real Node (the harness must keep running).
   shim("node", `#!/usr/bin/env bash\nexec ${process.execPath} "$@"\n`);
-  shim("pnpm", "#!/usr/bin/env bash\nsleep 600\n");
+  // `pnpm --filter @uniwork/web dev` is the D web: its environment is what the web build inlines, so it is recorded
+  shim("pnpm", `#!/usr/bin/env bash\ncase "$*" in *@uniwork/web*) env > ${JSON.stringify(join(root, "web-env"))} ;; esac\nsleep 600\n`);
   // The network probe is `curl ... <fork>/info/refs`; the app's own probes are
   // `curl -sf -o /dev/null <url>`. `network:false` fails only the former.
   shim("curl", network
@@ -561,6 +562,26 @@ test("start.sh reaches up through the real lib.mjs fork-dir call (fake stack)", 
       assert.match(ports, new RegExp(`^${key}=`, "m"), `ports.env is missing ${key}`);
     }
     assert.match(ports, /^HARNESS_DEPLOYMENT_ID=default$/m);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("start.sh puts the localhost WebSocket URL on the web's command line, the same host as the API origin (d8115227b)", () => {
+  // The browser opens ws://<host>:<api port>; a 127.0.0.1 here against a localhost page origin is
+  // the round 1 symptom the server's origin allowlist answered with 403. lib.test.mjs pins the env
+  // form (buildServerEnv); the web gets its own copy from start.sh, which this pins.
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const ports = readFileSync(join(stack.runDir, "ports.env"), "utf8");
+    const apiPort = ports.match(/^API_PORT=(\d+)$/m)?.[1];
+    assert.ok(apiPort, ports);
+    const webEnv = readFileSync(join(stack.root, "web-env"), "utf8");
+    assert.match(webEnv, new RegExp(`^NEXT_PUBLIC_WS_URL=ws://localhost:${apiPort}$`, "m"), webEnv);
+    assert.match(webEnv, new RegExp(`^NEXT_PUBLIC_API_URL=http://localhost:${apiPort}$`, "m"), webEnv);
+    assert.doesNotMatch(webEnv, /^NEXT_PUBLIC_(WS|API)_URL=.*127\.0\.0\.1/m, webEnv);
   } finally {
     stopFakeStack(stack);
   }
