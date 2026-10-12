@@ -17,6 +17,13 @@ function props(overrides: Partial<OfficeInstallPromptProps> = {}): OfficeInstall
 beforeEach(async () => { await setLocale("en"); });
 
 describe("OfficeInstallPrompt", () => {
+  it("says there is nothing to install, and offers no Open again, when the channel has no installer", () => {
+    render(<OfficeInstallPrompt {...props({ installers: [], reason: "not-installed" })} />);
+    expect(screen.getByText("This channel has no installer yet. Try again later.")).toBeInTheDocument();
+    expect(screen.queryByText(/Install the right version/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open again" })).not.toBeInTheDocument();
+    expect(screen.getByText("Install link unavailable")).toBeInTheDocument();
+  });
   it.each([
     ["win32-x64", "Windows", "x64 · .exe"], ["darwin-arm64", "macOS", "Apple Silicon · .dmg"],
     ["darwin-x64", "macOS", "Intel · .dmg"], ["linux-x64-deb", "Linux", ".deb"],

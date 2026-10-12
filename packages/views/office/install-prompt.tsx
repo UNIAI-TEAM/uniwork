@@ -110,7 +110,7 @@ function InstallerPicker({
       <Logo variant="mark" size={36} decorative className="size-9 shrink-0 rounded-[10px]" />
       <div className="min-w-0 space-y-1">
         <DialogTitle className="text-title leading-snug">{t("title")}</DialogTitle>
-        <DialogDescription id="office-install-description" className="text-body">{t(options.length === 0 && reason === "download" ? "description_unavailable" : reasonKey)}</DialogDescription>
+        <DialogDescription id="office-install-description" className="text-body">{t(options.length === 0 && (reason === "download" || reason === "not-installed") ? "description_unavailable" : reasonKey)}</DialogDescription>
       </div>
     </div>
     {options.length === 0 ? <p role="status" className="text-body text-muted-foreground">{t("unavailable")}</p> : <>

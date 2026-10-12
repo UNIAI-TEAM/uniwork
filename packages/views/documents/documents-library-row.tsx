@@ -215,7 +215,8 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
         <td className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
             {quick ? (
-              <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+              // Below `md` the app command lives in the ⋯ menu so the name keeps the row.
+              <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100 max-md:hidden">
                 {quick}
               </div>
             ) : null}

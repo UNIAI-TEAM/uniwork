@@ -8196,7 +8196,15 @@
         "evening": "Good evening. What would you like to create today?",
         "evening_named": "Good evening, {{name}}. What would you like to create today?",
         "hint_root": "New files go to the workspace root and open straight in the editor.",
-        "hint_folder": "New files go to the {{folder}} folder and open straight in the editor."
+        "hint_folder": "New files go to the {{folder}} folder and open straight in the editor.",
+        "morning_read_only": "Good morning.",
+        "morning_read_only_named": "Good morning, {{name}}.",
+        "afternoon_read_only": "Good afternoon.",
+        "afternoon_read_only_named": "Good afternoon, {{name}}.",
+        "evening_read_only": "Good evening.",
+        "evening_read_only_named": "Good evening, {{name}}.",
+        "hint_read_only": "You can only view the {{folder}} folder: open files to read them, not to create or edit.",
+        "hint_read_only_plain": "You can only view this folder: open files to read them, not to create or edit."
       },
       "create": {
         "label": "Create",
