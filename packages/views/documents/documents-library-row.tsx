@@ -22,6 +22,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
+import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkLabelKey } from "./source-links";
 import {
   formatBytes,
@@ -104,7 +105,7 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
     doc && doc.kind === "file" && APP_FORMATS.has(format) && handlers.desktopOpen && !archived
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
-  const viewOnly = doc?.my_level === "view";
+  const level = rowLevel(doc);
 
   const primary = () => {
     if (doc && folder) handlers.onFolder(doc.id);
@@ -130,10 +131,15 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
       });
     }
   }
-  // A viewer of the row (shared with view only) and the archive tab get neither.
-  if (doc && !archived && !viewOnly) {
-    if (handlers.onMove) actions.push({ id: "move", label: t("documents.home.row.move"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
-    if (handlers.onArchive) actions.push({ id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) });
+  // Each command follows the level of THIS row (move: edit, archive: manage);
+  // the archive tab offers neither.
+  if (doc && !archived) {
+    if (handlers.onMove && canMoveRow(level)) {
+      actions.push({ id: "move", label: t("documents.home.row.move"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
+    }
+    if (handlers.onArchive && canArchiveRow(level)) {
+      actions.push({ id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) });
+    }
   }
   if (row.type === "source") {
     actions.push(
@@ -151,7 +157,7 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
       {...desktop}
       documentId={doc!.id}
       placement="row"
-      operation={viewOnly ? "view" : "edit"}
+      operation={rowAppOperation(level)}
       requestRef={appRequest}
     />
   ) : source ? (

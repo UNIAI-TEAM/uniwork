@@ -197,6 +197,28 @@ describe("documents-collections endpoints", () => {
     ]);
   });
 
+  it("list rows carry the viewer's level, and a drifted level reads as absent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "a", my_level: "manage" }),
+            summary({ id: "b", my_level: "view" }),
+            summary({ id: "c", my_level: 3 }),
+            summary({ id: "d" }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocuments("w1");
+    expect(out.documents.map((d) => [d.id, d.my_level])).toEqual([
+      ["a", "manage"],
+      ["b", "view"],
+      ["c", undefined],
+      ["d", undefined],
+    ]);
+  });
+
   it.each(malformedBodies)("listDocuments throws rather than fake-empty %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(listDocuments("w1")).rejects.toThrow("document_list_invalid");
