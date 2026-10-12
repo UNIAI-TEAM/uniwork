@@ -15,9 +15,9 @@ import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseArgs, runCapture } from "./capture.mjs";
 import { HOSTS, MIN_FRAME_WIDTH, SETTLE, STREAMING_TIMEOUT_MS, VIEWPORTS } from "./capture/constants.mjs";
-import { ELECTRON_ARGS, collectShellText, desktopEnv, desktopPrecondition } from "./capture/desktop.mjs";
+import { ELECTRON_ARGS, captureWithRetry, collectShellText, desktopEnv, desktopPrecondition, isRetryableTimeout } from "./capture/desktop.mjs";
 import { readFixtures, selectFixtures } from "./capture/fixtures.mjs";
-import { blocked, buildMeta, clearCapture, exitCodeFor, failed, ok, pngSize, writeCapture } from "./capture/meta.mjs";
+import { blocked, buildMeta, clearCapture, exitCodeFor, failed, metaEntry, ok, pngSize, writeCapture } from "./capture/meta.mjs";
 import { loadPlaywright } from "./capture/playwright.mjs";
 import { readRun } from "./capture/run-dir.mjs";
 import { cleanupSeed, seedWorkspace } from "./capture/seed.mjs";
@@ -378,6 +378,58 @@ describe("desktop host", () => {
     assert.ok(!text.includes("module text"));
     const noTitles = await collectShellText({ evaluate: async () => { throw new Error("no electron"); }, windows: () => [pageOf("s", "Menu")] }, moduleView);
     assert.match(noTitles, /Menu/);
+  });
+
+  describe("desktop retry of a busy streaming status (item 6)", () => {
+    const STREAMING = 'status "Đang tải theo luồng a.xlsx: 9 hàng khả dụng."';
+    const timeout = (busyWhy, reason = "still_busy") => ({ status: "timeout", reason, busyWhy, frames: 3, waitedMs: 90_000 });
+    const busyResult = (busyWhy = STREAMING) => failed(notSettledReason(timeout(busyWhy)), { retryable: isRetryableTimeout(timeout(busyWhy)), diagnostics: { status: busyWhy, console: [] } });
+
+    test("only a still_busy timeout with a streaming status is retryable", () => {
+      assert.equal(isRetryableTimeout(timeout(STREAMING)), true);
+      assert.equal(isRetryableTimeout(timeout('spinner progressbar')), false);
+      assert.equal(isRetryableTimeout(timeout('notification "Đã lưu"')), false);
+      assert.equal(isRetryableTimeout(timeout("", "still_busy")), false);
+      assert.equal(isRetryableTimeout(timeout(STREAMING, "frames_differ")), false);
+    });
+
+    test("a first attempt busy on a streaming status is run once more, and the retry is recorded", async () => {
+      const calls = [];
+      const answers = [busyResult(), ok({ png: Buffer.alloc(1), text: "t" })];
+      const result = await captureWithRetry(async () => { calls.push(1); return answers.shift(); });
+      assert.equal(calls.length, 2);
+      assert.equal(result.status, "ok");
+      assert.equal(result.retries.length, 1);
+      assert.match(result.retries[0].reason, /^not_settled:still_busy \(status "Đang tải theo luồng/);
+      assert.match(result.retries[0].diagnostics.status, /Đang tải theo luồng/);
+    });
+
+    test("two busy results in a row fail not_settled; there is no third attempt", async () => {
+      let calls = 0;
+      const result = await captureWithRetry(async () => { calls += 1; return busyResult(); });
+      assert.equal(calls, 2);
+      assert.equal(result.status, "failed");
+      assert.match(result.reason, /^not_settled:still_busy/);
+      assert.equal(result.retries.length, 1);
+    });
+
+    test("a busy result that is not a streaming status, or any other failure, is not retried", async () => {
+      for (const first of [busyResult("spinner progressbar"), failed("electron_launch_failed: x"), blocked("shell_requires_sign_in")]) {
+        let calls = 0;
+        const result = await captureWithRetry(async () => { calls += 1; return first; });
+        assert.equal(calls, 1, first.reason);
+        assert.equal(result.retries, undefined);
+      }
+    });
+
+    test("meta.json records the retries and the diagnostics of the fixture", () => {
+      const entry = metaEntry({ status: "ok", reason: "", png: Buffer.alloc(1), retries: [{ reason: "not_settled:still_busy (x)", diagnostics: { status: "s", console: ["log: a"] } }] });
+      assert.deepEqual(entry.retries, [{ reason: "not_settled:still_busy (x)", diagnostics: { status: "s", console: ["log: a"] } }]);
+      const meta = buildMeta({ host: "desktop", forkSha: "x", pinVersion: "y", fixtures: { a: entry, b: metaEntry(failed("not_settled:still_busy (x)", { diagnostics: { status: "s", console: [] } })) } });
+      assert.equal(meta.fixtures.a.retries.length, 1);
+      assert.deepEqual(meta.fixtures.b.diagnostics, { status: "s", console: [] });
+      assert.equal(meta.fixtures.b.status, "failed");
+    });
   });
 
   test("with no reusable app every fixture is blocked and nothing is launched", async () => {

@@ -5,7 +5,14 @@ import { COLOR_SCHEME, DEVICE_SCALE_FACTOR, EXIT_BLOCKED, EXIT_FAILED, EXIT_OK, 
 
 export const ok = (extra = {}) => ({ status: "ok", reason: "", ...extra });
 export const blocked = (reason) => ({ status: "blocked", reason });
-export const failed = (reason) => ({ status: "failed", reason });
+/** `extra` carries what the retry logic and meta.json need: `retryable`, `diagnostics`, `retries`. */
+export const failed = (reason, extra = {}) => ({ status: "failed", reason, ...extra });
+
+/** The meta.json entry of one fixture result (what the contract fixes, plus the retry record and diagnostics a reviewer reads). */
+export function metaEntry(result) {
+  if (result.status === "ok") return { status: "ok", reason: result.reason ?? "", size: pngSize(result.png) ?? undefined, canvasOnly: result.canvasOnly ?? false, ...(result.retries ? { retries: result.retries } : {}) };
+  return { status: result.status, reason: result.reason, ...(result.retries ? { retries: result.retries } : {}), ...(result.diagnostics ? { diagnostics: result.diagnostics } : {}) };
+}
 
 /** Width and height of a PNG from its IHDR chunk, or null when the buffer is not a PNG. */
 export function pngSize(png) {
@@ -39,6 +46,9 @@ export function buildMeta({ host, forkSha, pinVersion, fixtures, settings = {}, 
           // what the shot really is: its size, and whether the frame paints mainly into a canvas (its text is not in the DOM)
           ...(entry.size ? { size: entry.size } : {}),
           ...(entry.canvasOnly !== undefined ? { canvasOnly: entry.canvasOnly } : {}),
+          // a desktop fixture that was captured again on a fresh instance says so, with what the app showed (item 6)
+          ...(entry.retries ? { retries: entry.retries } : {}),
+          ...(entry.diagnostics ? { diagnostics: entry.diagnostics } : {}),
         },
       ]),
     ),

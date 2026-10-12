@@ -20,7 +20,7 @@ import { readPins } from "../../../../../apps/web/platform/office-frame/frame-he
 import { appEnv } from "../../harness/lib.mjs";
 import { blocked, failed, ok } from "./meta.mjs";
 import { COLOR_SCHEME, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORTS } from "./constants.mjs";
-import { notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
+import { STATUS_SELECTORS, isStreamingStatus, notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
 import { collectRenderedText, joinBlocks } from "./text.mjs";
 
 export const ELECTRON_ARGS = ["--no-sandbox", "--disable-gpu", "--lang=vi-VN", "--force-device-scale-factor=1", "--force-color-profile=srgb", "--font-render-hinting=none", "--disable-lcd-text"];
@@ -118,7 +118,49 @@ async function closeApp(app) {
   }
 }
 
-/** One fixture on a fresh instance. */
+/** A settle that ended still busy on a streaming-load status: the one failure a fresh instance is known to cure (item 6). */
+export function isRetryableTimeout(result) {
+  return result.status === "timeout" && result.reason === "still_busy" && isStreamingStatus(result.busyWhy);
+}
+
+/**
+ * Runs `attempt` (one fixture on one fresh instance, closed before it returns);
+ * a result that says `retryable` is run once more and the first failure is kept
+ * on `retries`. A second busy result is the fixture's result: no loop.
+ */
+export async function captureWithRetry(attempt) {
+  const first = await attempt();
+  if (first.status !== "failed" || !first.retryable) return first;
+  const second = await attempt();
+  const { retryable: _retryable, ...rest } = second;
+  return { ...rest, retries: [{ reason: first.reason, ...(first.diagnostics ? { diagnostics: first.diagnostics } : {}) }] };
+}
+
+const SECRET_WORDS = /\b(token|ticket|secret|password|passwd|authorization|api[_-]?key|bearer)\b(\s*[=:]\s*|\s+)\S+/gi;
+const clip = (text, length) => String(text).replace(SECRET_WORDS, "$1=<redacted>").replace(/\s+/g, " ").trim().slice(0, length);
+
+/** Collects the module page's console lines (capped, secret words scrubbed); read them with `.lines`. */
+function watchConsole(page) {
+  const lines = [];
+  page.on("console", (message) => {
+    if (lines.length < 40) lines.push(clip(`${message.type()}: ${message.text()}`, 300));
+  });
+  return { lines };
+}
+
+/** What the module's status regions say right now, per frame; read-only, never touches the page. */
+async function statusText(page) {
+  const texts = [];
+  for (const frame of page.frames()) {
+    const found = await frame
+      .evaluate((selectors) => selectors.flatMap((selector) => [...document.querySelectorAll(selector)].map((el) => (el.textContent ?? "").replace(/\s+/g, " ").trim()).filter(Boolean)), STATUS_SELECTORS)
+      .catch(() => []);
+    texts.push(...found);
+  }
+  return clip(texts.join(" | "), 400);
+}
+
+/** One fixture on a fresh instance (closed again before it returns). */
 async function captureOne({ ports, fixture, playwright, scratch, log, now = Date.now }) {
   const dir = mkdtempSync(join(scratch, `${fixture.id}-`));
   const userData = join(dir, "userdata");
@@ -139,6 +181,7 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
       if (SIGN_IN_WORDS.test(screen)) return blocked(`shell_requires_sign_in: the shell shows "${screen}" instead of opening ${basename(fixture.path)}`);
       return failed(`module_view_not_found: no ://${fixture.module}/ page within ${OPEN_TIMEOUT_MS / 1000}s; the shell shows "${screen}"`);
     }
+    const consoleWatch = watchConsole(page);
     const applied = [];
     await app.evaluate(({ BrowserWindow, nativeTheme }, size) => {
       nativeTheme.themeSource = "light";
@@ -154,7 +197,11 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
       now,
       ...SETTLE,
     });
-    if (result.status !== "settled") return failed(notSettledReason(result));
+    if (result.status !== "settled") {
+      // dump what the app said before failing or retrying, so the next round can tell the causes apart
+      const diagnostics = { status: await statusText(page), busy: clip(result.busyWhy ?? "", 200), console: consoleWatch.lines };
+      return failed(notSettledReason(result), { retryable: isRetryableTimeout(result), diagnostics });
+    }
     const { text, canvasOnly } = await collectRenderedText(page);
     const shellText = await collectShellText(app, page);
     return ok({ png: result.frame, text, shellText, canvasOnly });
@@ -177,7 +224,7 @@ export async function captureDesktop({ ports, fixtures, playwright, log = () => 
   try {
     for (const fixture of fixtures) {
       results[fixture.id] = fixture.module
-        ? await captureOne({ ports, fixture, playwright, scratch, log })
+        ? await captureWithRetry(() => captureOne({ ports, fixture, playwright, scratch, log }))
         : failed(`no module for format ${fixture.format}`);
     }
   } finally {

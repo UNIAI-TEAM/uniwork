@@ -16,7 +16,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { EXIT_BLOCKED, EXIT_FAILED, EXIT_USAGE, HOSTS } from "./capture/constants.mjs";
 import { readFixtures, selectFixtures } from "./capture/fixtures.mjs";
-import { blocked, buildMeta, clearCapture, exitCodeFor, pngSize, writeCapture, writeMeta } from "./capture/meta.mjs";
+import { blocked, buildMeta, clearCapture, exitCodeFor, metaEntry, writeCapture, writeMeta } from "./capture/meta.mjs";
 import { loadPlaywright } from "./capture/playwright.mjs";
 import { defaultRunDir, readRun } from "./capture/run-dir.mjs";
 import { captureDesktop } from "./capture/desktop.mjs";
@@ -58,10 +58,10 @@ export async function runCapture({ host, out, fixtures, runDir, env = process.en
         writeCapture(out, host, fixture.id, { png: result.png, text: result.text, hostText: result.hostText, shellText: result.shellText });
         const chars = visibleChars(result.text);
         const reason = chars === 0 ? "rendered text is empty (the brand check will fail it as no_rendered_text)" : "";
-        entries[fixture.id] = { status: "ok", reason, size: pngSize(result.png) ?? undefined, canvasOnly: result.canvasOnly ?? false };
+        entries[fixture.id] = { ...metaEntry(result), reason };
       } else {
         clearCapture(out, host, fixture.id);
-        entries[fixture.id] = { status: result.status, reason: result.reason };
+        entries[fixture.id] = metaEntry(result);
       }
     }
     const meta = buildMeta({ host, forkSha, pinVersion, fixtures: entries });
