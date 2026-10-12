@@ -1,0 +1,8 @@
+$ FORMAT_BASE_REF=$(git merge-base HEAD origin/main); export FORMAT_BASE_REF; git rev-parse HEAD; npm run format:check
+9beafdf7c10e3f7f08cec65f57cf9f86483e541a
+
+> genoffice@0.1.0 format:check
+> node tools/format-changed.mjs --check
+
+Checking formatting...
+All matched files use Prettier code style!

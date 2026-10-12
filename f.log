@@ -1,0 +1,289 @@
+$ AI_PROVIDER=fake npm run test -w @genoffice/ui -- --reporter=verbose
+
+> @genoffice/ui@0.1.0 test
+> vitest run --reporter=verbose
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+ ✓ tests/ribbon-overflow.test.ts > ribbonOverflowOf > has no cue when the band fits 8ms
+ ✓ tests/ribbon-overflow.test.ts > ribbonOverflowOf > cues the end at the start of the scroll, both in the middle, the start at the end 1ms
+ ✓ tests/ribbon-overflow.test.ts > ribbonOverflowOf > reads the rtl scroll offset (<= 0) as a logical position 1ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CutoutDialog keyboard and focus > behaves as a modal: focus moves in, Tab stays inside, Escape is swallowed 63ms
+ ✓ tests/image-dialogs-a11y.test.ts > nudgeCropEdge > moves only the sides the handle owns 2ms
+ ✓ tests/image-dialogs-a11y.test.ts > nudgeCropEdge > clamps to the image and to the minimum box size 1ms
+ ✓ tests/image-dialogs-a11y.test.ts > nudgeCropEdge > moves both sides of a corner 1ms
+ ✓ tests/image-dialogs-a11y.test.ts > cropEdgeArrowDelta > ignores a key that does not move the edge 1ms
+ ✓ tests/image-dialogs-a11y.test.ts > cropEdgeArrowDelta > takes the coarse step with Shift 1ms
+ ✓ tests/image-dialogs-a11y.test.ts > cropEdgeValue > reports the side the handle owns 1ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > exposes every edge as a named tab stop 23ms
+stderr | tests/color-picker-keyboard.test.ts > ColorPicker keyboard grid > exposes grid semantics and marks the current colour selected
+The current testing environment is not configured to support act(...)
+
+stderr | tests/color-picker-keyboard.test.ts > ColorPicker keyboard grid > exposes grid semantics and marks the current colour selected
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/ribbon-overflow.test.ts > the overflow cue of a ribbon > stays hidden while the band fits 116ms
+ ✓ tests/ribbon-overflow.test.ts > the overflow cue of a ribbon > shows a chevron at the clipped edge and marks the root 35ms
+ ✓ tests/ribbon-overflow.test.ts > the overflow cue of a ribbon > follows the scroll position and scrolls the band when clicked 34ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > localizes the edge names 8ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > moves focus into the dialog on open 6ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > adjusts the focused edge with the arrow keys 14ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > leaves an edge alone for an arrow it does not own 11ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > never drives an edge past the image bounds 10ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > does not apply the crop when Enter lands on a handle 13ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > closes on Escape without applying 5ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > names the dialog and marks it modal 6ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > focuses Apply on open so Enter applies instead of cancelling 15ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > wraps Tab from the last control to the first 9ms
+stderr | tests/color-picker-keyboard.test.ts > ColorPicker keyboard grid > roves focus with arrow keys and keeps a single tab stop
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/color-picker-keyboard.test.ts > ColorPicker keyboard grid > roves focus with arrow keys and keeps a single tab stop
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > wraps Shift+Tab from the first control to the last 13ms
+ ✓ tests/image-dialogs-a11y.test.ts > shared CropDialog keyboard and focus > restores focus to the invoking control on close 9ms
+ ✓ tests/image-dialogs-a11y.test.ts > CROP_EDGE_LABELS > names all eight edges in every language 4ms
+ ✓ tests/image-dialogs-a11y.test.ts > CROP_EDGE_LABELS > has a distinct name per edge in every language 9ms
+ ✓ tests/ribbon-overflow.test.ts > the overflow cue of a ribbon > does not re-schedule itself: its own writes never wake the observers again 30ms
+ ✓ tests/ribbon-overflow.test.ts > the overflow cue of a ribbon > hides the cue while the ribbon is collapsed and removes it on unmount 14ms
+ ✓ tests/ribbon-overflow.test.ts > a ribbon that renders after the hook mounted > gets the cue once it appears (no second mount call in the app) 32ms
+ ✓ tests/ribbon-overflow.test.ts > a ribbon that renders after the hook mounted > mounts the cue once per ribbon node, not once per render 14ms
+ ✓ tests/ribbon-overflow.test.ts > a ribbon that renders after the hook mounted > moves to a replaced ribbon node and cleans up when it goes away 4ms
+stderr | tests/color-picker-keyboard.test.ts > ColorPicker keyboard grid > keeps a tab stop when the roved cell leaves with the recent-colors row
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/color-picker-keyboard.test.ts > ColorPicker keyboard grid > exposes grid semantics and marks the current colour selected 191ms
+ ✓ tests/color-picker-keyboard.test.ts > ColorPicker keyboard grid > roves focus with arrow keys and keeps a single tab stop 50ms
+stderr | tests/color-picker-keyboard.test.ts > ColorPicker keyboard grid > keeps a tab stop when the roved cell leaves with the recent-colors row
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/color-picker-keyboard.test.ts > ColorPicker keyboard grid > keeps a tab stop when the roved cell leaves with the recent-colors row 58ms
+ ✓ tests/dropdown-a11y.test.ts > Dropdown active option exposure > has no activedescendant or controls reference while closed 18ms
+ ✓ tests/dropdown-a11y.test.ts > Dropdown active option exposure > points the trigger at the listbox it controls once open 14ms
+ ✓ tests/dropdown-a11y.test.ts > Dropdown active option exposure > references the active option and gives every option an id 7ms
+ ✓ tests/dropdown-a11y.test.ts > Dropdown active option exposure > moves the reference as the arrows walk the list 8ms
+ ✓ tests/dropdown-a11y.test.ts > Dropdown active option exposure > keeps the reference on the option that also carries the active class 5ms
+ ✓ tests/dropdown-a11y.test.ts > Dropdown active option exposure > never points at a disabled option 5ms
+ ✓ tests/dropdown-a11y.test.ts > Dropdown active option exposure > keeps focus on the trigger while the reference changes 4ms
+ ✓ tests/dropdown-a11y.test.ts > Dropdown active option exposure > drops the reference when the list closes and restores it on reopen 4ms
+ ✓ tests/dropdown-a11y.test.ts > Dropdown active option exposure > opens on the current value 4ms
+ ✓ tests/dropdown-a11y.test.ts > Dropdown active option exposure > gives each instance its own ids 12ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > names the dialog 39ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > localizes the dialog name 7ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > names the dialog in every supported language 3ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > moves focus to the close control on open 6ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > restores focus to the invoking control on close 5ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > keeps Tab inside the viewer 13ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > wraps backwards from the first control to the last 5ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > keeps Shift+Tab inside the viewer when the backdrop itself holds focus 12ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > closes on Escape without reaching the editor behind 8ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > pulls focus back onto the backdrop when it drops to body 5ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > closes on Escape even when focus has escaped to body 4ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > still zooms from the keyboard 7ms
+ ✓ tests/image-viewer-a11y.test.ts > shared ImageViewer modal focus > closes when the backdrop itself is clicked 7ms
+ ✓ tests/ai-model-need.test.ts > a stored key with no model: send is off, the hint says to choose a model 37ms
+ ✓ tests/ai-model-need.test.ts > a known model keeps send on 5ms
+ ✓ tests/ai-model-need.test.ts > no key at all: send is off too, and the hint is the add-a-key copy (viewer and editor alike) 5ms
+ ✓ tests/ai-model-need.test.ts > a key list that failed to load is not "add an API key": send stays on and the server decides 4ms
+ ✓ tests/ai-model-need.test.ts > opening the chip reads the settings again while the key list is unknown 7ms
+ ✓ tests/ai-model-need.test.ts > the icon-only composer shows the hint above the footer and it opens the AI settings 6ms
+ ✓ tests/ai-model-need.test.ts > the hint goes away once a key and a model are known 3ms
+ ✓ tests/ai-model-need.test.ts > a host that did not ask for the rule (desktop) is untouched 3ms
+ ✓ tests/ai-model-need.test.ts > every locale has both hints 1ms
+ ✓ tests/screentip-a11y.test.ts > screentip keyboard and ARIA > shows on focus and links the anchor through aria-describedby 20ms
+ ✓ tests/screentip-a11y.test.ts > screentip keyboard and ARIA > hides on Escape and drops the association 3ms
+ ✓ tests/screentip-a11y.test.ts > screentip keyboard and ARIA > hides on blur 2ms
+ ✓ tests/screentip-a11y.test.ts > screentip keyboard and ARIA > still shows on hover 2ms
+ ✓ tests/ai-panel-side-button.test.ts > switches sides, updates the label, and persists each click 27ms
+ ✓ tests/ai-panel-side-button.test.ts > keeps the existing side when saving the preference fails 4ms
+ ✓ tests/use-image-generation-offered.test.ts > grant off: hidden even with a key, and the cloud is never read 10ms
+ ✓ tests/use-image-generation-offered.test.ts > grant on, own provider key: shown without a cloud sign-in 2ms
+ ✓ tests/use-image-generation-offered.test.ts > grant on, no key: shown only while the UniWork cloud answers signed in with tools on 3ms
+ ✓ tests/use-image-generation-offered.test.ts > re-reads on window focus, and a missing bridge or a rejected read stays hidden 3ms
+ ✓ tests/modal-keys-trap.test.ts > shared trapTab > wraps backwards from the backdrop itself to the last control 13ms
+ ✓ tests/modal-keys-trap.test.ts > shared trapTab > wraps forwards from the backdrop itself to the first control 2ms
+ ✓ tests/modal-keys-trap.test.ts > shared trapTab > keeps Tab from escaping through an in-modal link 5ms
+ ✓ tests/use-cloud-signed-in.test.ts > reads once on mount and again each time the panel opens 12ms
+ ✓ tests/use-cloud-signed-in.test.ts > shows a plan turned on while the panel was collapsed once it reopens 2ms
+ ✓ tests/use-cloud-signed-in.test.ts > a panel without an open flag reads on mount and on window focus 2ms
+ ✓ tests/use-cloud-signed-in.test.ts > refresh() reads on demand and a missing bridge or a rejected read is harmless 2ms
+ ✓ tests/font-list.test.ts > partitionFontFamilies > keeps MS Gothic / MS Mincho / Hiragino Mincho under the names ja machines report 2ms
+ ✓ tests/font-list.test.ts > partitionFontFamilies > keeps a localized candidate the machine reports under its English name 1ms
+ ✓ tests/font-list.test.ts > partitionFontFamilies > keeps an English-named candidate the machine reports under its localized name 0ms
+ ✓ tests/font-list.test.ts > partitionFontFamilies > keeps the JhengHei and DengXian Light candidates on zh-TW / non-zh Windows 0ms
+ ✓ tests/font-list.test.ts > partitionFontFamilies > treats every spelling of a family as present when the machine reports one (CJK-locale Windows) 0ms
+ ✓ tests/font-list.test.ts > partitionFontFamilies > keeps every candidate when the enumeration is unavailable or denied 0ms
+ ✓ tests/font-list.test.ts > partitionFontFamilies > keeps catalog families the enumeration cannot see through knownAvailable 0ms
+ ✓ tests/font-list.test.ts > partitionFontFamilies > keeps every candidate while enumeration is pending, even with catalog installs 0ms
+ ✓ tests/font-list.test.ts > partitionFontFamilies > lists the machine families that are not candidates under system, in order 0ms
+ ✓ tests/font-list.test.ts > systemFamiliesBesidesCandidates > drops the candidates from the machine list, keeping its order 0ms
+ ✓ tests/font-list.test.ts > systemFamiliesBesidesCandidates > keeps a docs picker from listing a builtin twice 3ms
+ ✓ tests/font-list.test.ts > candidate lists > carry Windows, macOS and downloadable names for the same script 0ms
+ ✓ tests/font-list.test.ts > candidate lists > offer a serif next to the sans for every CJK script 0ms
+ ✓ tests/font-list.test.ts > candidate lists > has no duplicate candidates in the merged list 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > covers every UI language 1ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale en has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ja has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ko has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale fr has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale de has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale es has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale th has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale id has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ru has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ar has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pt has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale it has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pl has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale cs has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale nl has exactly the zh key set, no empty values 2ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ms has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale he has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale hi has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh-TW has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale vi has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale en keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ja keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ko keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale fr keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale de keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale es keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale th keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale id keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ru keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ar keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pt keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale it keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pl keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale cs keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale nl keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ms keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale he keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale hi keeps the zh placeholders 1ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh-TW keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale vi keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale en has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ja has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ko has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale fr has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale de has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale es has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale th has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale id has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ru has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ar has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pt has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale it has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pl has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale cs has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale nl has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ms has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale he has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale hi has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh-TW has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale vi has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale en keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ja keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ko keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale fr keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale de keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale es keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale th keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale id keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ru keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ar keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pt keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale it keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pl keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale cs keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale nl keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ms keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale he keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale hi keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh-TW keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale vi keeps the provider name untranslated 1ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > uses one key per counted string: no plural-form keys and no ICU plural 1ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > says what the catalogue says in vi and en 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > fills the placeholders through aiUniworkText 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > flips next on a single mouse-wheel notch down 1ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > flips previous on a wheel notch up 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > flips once per notch while the wheel keeps spinning 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > accumulates small trackpad deltas into a single flip 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > swallows the momentum tail after a trackpad flip 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > starts a new gesture after a quiet gap 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > a direction reversal flips immediately without waiting for the gap 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > ignores tiny drifts separated by pauses 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > flips again on a second swipe even while the first tail is still running 1ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > coalesced momentum events (double delta, double interval) do not re-flip 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > a hard flick whose first event is already notch-sized flips exactly once 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > a coalesced pulse right after a flip (page-render jank) does not re-flip 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > a single stray rapid event does not stall a steady wheel spin 0ms
+ ✓ tests/wheel-zoom.test.ts > createWheelPager > ignores zero-delta events (pure horizontal scroll) 0ms
+ ✓ tests/wheel-zoom.test.ts > notchStep > moves ten percentage points per notch inside the given range 0ms
+ ✓ tests/wheel-zoom.test.ts > notchStep > rounds to whole percents so repeated notches do not drift 0ms
+ ✓ tests/wheel-zoom.test.ts > notchStep > clampZoom pins to the range 0ms
+ ✓ tests/wheel-zoom.test.ts > createZoomWheelClassifier > a Windows Ctrl+wheel notch up is one zoom-in step, notch down one zoom-out step 0ms
+ ✓ tests/wheel-zoom.test.ts > createZoomWheelClassifier > line-mode deltas (Firefox-style wheels) are notches regardless of size 0ms
+ ✓ tests/wheel-zoom.test.ts > createZoomWheelClassifier > Chromium pinch (ctrlKey, small fractional deltas) stays continuous 0ms
+ ✓ tests/wheel-zoom.test.ts > createZoomWheelClassifier > Cmd+two-finger scroll accumulates to a single step and swallows the tail 0ms
+ ✓ tests/wheel-zoom.test.ts > createZoomWheelClassifier > a Cmd+mouse-wheel notch on macOS steps once per notch 0ms
+ ✓ tests/wheel-zoom.test.ts > createZoomWheelClassifier > ignores zero deltas 0ms
+ ✓ tests/ai-model-picker-options.test.ts > aiModelPickerGroups > lists nothing while signed out with no keys 2ms
+ ✓ tests/ai-model-picker-options.test.ts > aiModelPickerGroups > lists uniAI when signed in 0ms
+ ✓ tests/ai-model-picker-options.test.ts > aiModelPickerGroups > lists uniAI once a Token Hub key is set, from either key slot 1ms
+ ✓ tests/ai-model-picker-options.test.ts > aiModelPickerGroups > adds a vendor once its key is set and puts an off-catalog model first 0ms
+ ✓ tests/ai-model-picker-options.test.ts > aiModelPickerGroups > needs a base URL for custom endpoints 0ms
+ ✓ tests/ai-model-picker-options.test.ts > hosts without the UniAI pool (web frames) > never lists uniAI nor names openrouter/auto, even while the cloud sign-in is reported 0ms
+ ✓ tests/ai-model-picker-options.test.ts > hosts without the UniAI pool (web frames) > lists the viewer provider that carries a (masked) key and selects its model 1ms
+ ✓ tests/ai-model-picker-options.test.ts > hosts without the UniAI pool (web frames) > no stored key: the selection falls to uniAI but nothing is listed, so the chip says Choose model 0ms
+ ✓ tests/ai-model-picker-options.test.ts > selection round trip > switches provider and model in one write and reads back 0ms
+ ✓ tests/ai-model-picker-options.test.ts > selection round trip > falls back to uniAI when the stored provider is unusable 0ms
+ ✓ tests/ai-model-picker-options.test.ts > CLI vendors > lists Codex only after the settings page stored a path or model 0ms
+ ✓ tests/ai-panel-side.test.ts > AI panel side in the renderer > moves the layout on a side-only update and restores the default 3ms
+ ✓ tests/ai-panel-side.test.ts > AI panel side in the renderer > measures width inward from the selected window edge 1ms
+ ✓ tests/ai-panel-side.test.ts > AI panel initial open state > follows the remembered per-app state while the setting is on 1ms
+ ✓ tests/ai-panel-side.test.ts > AI panel initial open state > starts collapsed regardless of the remembered state when off 0ms
+ ✓ tests/ai-panel-side.test.ts > AI panel initial open state > leaves the remembered state alone while off so turning it back on restores it 0ms
+ ✓ tests/ai-panel-side.test.ts > AI panel initial open state > starts collapsed in a narrow window when nothing is remembered, and does not remember that 0ms
+ ✓ tests/ai-panel-side.test.ts > AI panel initial open state > a deliberate choice in a narrow window is remembered and wins over the width 0ms
+ ✓ tests/ai-panel-side.test.ts > AI panel initial open state > a wide window still opens by default and remembers an explicit close 0ms
+ ✓ tests/auto-save-pref.test.ts > resolveAutoSave > falls back to the global default when nothing is stored 1ms
+ ✓ tests/auto-save-pref.test.ts > resolveAutoSave > honors legacy 1/0 values only while the global setting was never set 0ms
+ ✓ tests/auto-save-pref.test.ts > resolveAutoSave > honors an override whose base matches the current global stamp 0ms
+ ✓ tests/auto-save-pref.test.ts > resolveAutoSave > discards an override once the global setting was flipped again 0ms
+ ✓ tests/auto-save-pref.test.ts > resolveAutoSave > ignores corrupt or foreign values 0ms
+ ✓ tests/ai-send-off-token.test.ts > disabled Send button token > has a value in the light, dark and system-dark blocks 2ms
+ ✓ tests/ai-send-off-token.test.ts > disabled Send button token > dims the art in both dark blocks and leaves it alone in light 0ms
+ ✓ tests/ai-send-off-token.test.ts > disabled Send button token > the shared AI footer stylesheet applies it to a disabled Send button 0ms
+ ✓ tests/capabilities.test.ts > createCapabilityReader > desktop (no object): every capability is on 1ms
+ ✓ tests/capabilities.test.ts > createCapabilityReader > web: explicit false hides, missing keys stay on, later grants are seen 0ms
+ ✓ tests/capabilities.test.ts > createCapabilityReader > reads once (cached) until resetForTest; a throwing reader means desktop 0ms
+ ✓ tests/popover-dismiss.test.ts > installPopoverDismiss > keeps the open class while another popover is open when one teardown runs twice 2ms
+ ✓ tests/dropdown.test.ts > Dropdown keyboard navigation > skips disabled options in both directions 1ms
+ ✓ tests/dropdown.test.ts > Dropdown keyboard navigation > finds the enabled Home and End targets and reports none when all are disabled 0ms
+ ✓ tests/dropdown.test.ts > Dropdown keyboard navigation > reconciles active indexes when options shrink or become disabled 0ms
+
+ Test Files  21 passed (21)
+      Tests  244 passed (244)
+   Start at  13:09:38
+   Duration  4.08s (transform 1.19s, setup 0ms, import 2.30s, tests 1.27s, environment 6.56s)
+
