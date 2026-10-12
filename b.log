@@ -1,0 +1,117 @@
+$ set -a && . ./.env && set +a && cd server && go test -race -count=1 -timeout 30m -v -run 'TestDocumentFolderArchiveBound|TestDocumentFolderArchiveAccess|TestDocumentMoveChecksAccessBeforeKind|TestDocumentMoveKeepsVisibility|TestDocumentFolderHasNoPublicLink|TestReusedAuditActionCommandsWriteTheirOwnRows|TestDocumentFolders|TestDocumentArchive|TestDocumentLifecycle|TestDocumentTree|TestDocumentPublicLink|TestChildKindAllowed' ./internal/service
+=== RUN   TestReusedAuditActionCommandsWriteTheirOwnRows
+=== RUN   TestReusedAuditActionCommandsWriteTheirOwnRows/CreateFolder
+=== RUN   TestReusedAuditActionCommandsWriteTheirOwnRows/SaveSourceFile
+--- PASS: TestReusedAuditActionCommandsWriteTheirOwnRows (4.27s)
+    --- PASS: TestReusedAuditActionCommandsWriteTheirOwnRows/CreateFolder (2.96s)
+    --- PASS: TestReusedAuditActionCommandsWriteTheirOwnRows/SaveSourceFile (1.31s)
+=== RUN   TestDocumentFolderArchiveBound
+=== RUN   TestDocumentFolderArchiveBound/a_subtree_at_the_bound_archives_and_restores
+=== RUN   TestDocumentFolderArchiveBound/a_subtree_over_the_bound_is_refused_and_nothing_is_archived
+--- PASS: TestDocumentFolderArchiveBound (1.22s)
+    --- PASS: TestDocumentFolderArchiveBound/a_subtree_at_the_bound_archives_and_restores (0.02s)
+    --- PASS: TestDocumentFolderArchiveBound/a_subtree_over_the_bound_is_refused_and_nothing_is_archived (0.02s)
+=== RUN   TestDocumentFolderArchiveAccess
+=== RUN   TestDocumentFolderArchiveAccess/a_restricted_child_the_caller_does_not_manage_refuses_the_whole_archive
+=== RUN   TestDocumentFolderArchiveAccess/a_share_at_edit_is_not_manage
+=== RUN   TestDocumentFolderArchiveAccess/a_manage_share_on_the_child_lets_the_archive_through
+=== RUN   TestDocumentFolderArchiveAccess/a_workspace_admin_manages_every_node,_restricted_or_not
+--- PASS: TestDocumentFolderArchiveAccess (0.92s)
+    --- PASS: TestDocumentFolderArchiveAccess/a_restricted_child_the_caller_does_not_manage_refuses_the_whole_archive (0.01s)
+    --- PASS: TestDocumentFolderArchiveAccess/a_share_at_edit_is_not_manage (0.01s)
+    --- PASS: TestDocumentFolderArchiveAccess/a_manage_share_on_the_child_lets_the_archive_through (0.01s)
+    --- PASS: TestDocumentFolderArchiveAccess/a_workspace_admin_manages_every_node,_restricted_or_not (0.01s)
+=== RUN   TestDocumentMoveChecksAccessBeforeKind
+--- PASS: TestDocumentMoveChecksAccessBeforeKind (0.83s)
+=== RUN   TestDocumentMoveKeepsVisibility
+--- PASS: TestDocumentMoveKeepsVisibility (0.80s)
+=== RUN   TestDocumentFolderHasNoPublicLink
+--- PASS: TestDocumentFolderHasNoPublicLink (0.66s)
+=== RUN   TestDocumentFolders
+=== RUN   TestDocumentFolders/a_folder_is_created_at_the_root_without_content_and_audited
+=== RUN   TestDocumentFolders/a_folder_refuses_content_and_an_unknown_kind_is_invalid
+=== RUN   TestDocumentFolders/folders_nest_and_hold_pages_and_files
+=== RUN   TestDocumentFolders/a_folder_never_sits_under_a_page
+=== RUN   TestDocumentFolders/a_page_and_a_file_move_into_a_folder,_a_folder_moves_to_the_root
+=== RUN   TestDocumentFolders/a_folder_never_moves_into_itself_or_a_descendant
+=== RUN   TestDocumentFolders/a_parent_from_another_workspace_is_refused
+=== RUN   TestDocumentFolders/archiving_a_folder_archives_its_subtree_in_one_batch
+=== RUN   TestDocumentFolders/a_folder_renames_like_any_document
+=== RUN   TestDocumentFolders/content,_version,_byte_and_office_routes_refuse_a_folder_by_name
+=== RUN   TestDocumentFolders/a_stranger_still_learns_nothing_about_a_folder
+--- PASS: TestDocumentFolders (0.81s)
+    --- PASS: TestDocumentFolders/a_folder_is_created_at_the_root_without_content_and_audited (0.01s)
+    --- PASS: TestDocumentFolders/a_folder_refuses_content_and_an_unknown_kind_is_invalid (0.00s)
+    --- PASS: TestDocumentFolders/folders_nest_and_hold_pages_and_files (0.02s)
+    --- PASS: TestDocumentFolders/a_folder_never_sits_under_a_page (0.01s)
+    --- PASS: TestDocumentFolders/a_page_and_a_file_move_into_a_folder,_a_folder_moves_to_the_root (0.02s)
+    --- PASS: TestDocumentFolders/a_folder_never_moves_into_itself_or_a_descendant (0.01s)
+    --- PASS: TestDocumentFolders/a_parent_from_another_workspace_is_refused (0.00s)
+    --- PASS: TestDocumentFolders/archiving_a_folder_archives_its_subtree_in_one_batch (0.02s)
+    --- PASS: TestDocumentFolders/a_folder_renames_like_any_document (0.01s)
+    --- PASS: TestDocumentFolders/content,_version,_byte_and_office_routes_refuse_a_folder_by_name (0.01s)
+    --- PASS: TestDocumentFolders/a_stranger_still_learns_nothing_about_a_folder (0.00s)
+=== RUN   TestChildKindAllowed
+--- PASS: TestChildKindAllowed (0.00s)
+=== RUN   TestDocumentArchive
+=== RUN   TestDocumentArchive/a_subtree_archives_in_one_batch_and_restores_together
+=== RUN   TestDocumentArchive/a_restricted_child_the_caller_cannot_manage_blocks_the_batch
+=== RUN   TestDocumentArchive/restore_touches_exactly_the_batch_it_was_asked_for
+=== RUN   TestDocumentArchive/an_owned_document_refuses_archive_and_restore
+=== RUN   TestDocumentArchive/an_archived_document_cannot_be_moved
+=== RUN   TestDocumentArchive/the_owner_restore_seams_name_the_batch_each_row_cleared
+--- PASS: TestDocumentArchive (0.99s)
+    --- PASS: TestDocumentArchive/a_subtree_archives_in_one_batch_and_restores_together (0.01s)
+    --- PASS: TestDocumentArchive/a_restricted_child_the_caller_cannot_manage_blocks_the_batch (0.01s)
+    --- PASS: TestDocumentArchive/restore_touches_exactly_the_batch_it_was_asked_for (0.01s)
+    --- PASS: TestDocumentArchive/an_owned_document_refuses_archive_and_restore (0.00s)
+    --- PASS: TestDocumentArchive/an_archived_document_cannot_be_moved (0.01s)
+    --- PASS: TestDocumentArchive/the_owner_restore_seams_name_the_batch_each_row_cleared (0.01s)
+=== RUN   TestDocumentPublicLink
+=== RUN   TestDocumentPublicLink/organization_switch_is_off_by_default_and_admin-only
+=== RUN   TestDocumentPublicLink/create:_random_token_stored_as_a_hash,_default_7_days
+=== RUN   TestDocumentPublicLink/anonymous_read_is_view_only_and_logged_without_an_actor
+=== RUN   TestDocumentPublicLink/five_live_links_per_document
+=== RUN   TestDocumentPublicLink/who_may_create_and_revoke
+=== RUN   TestDocumentPublicLink/revoke_blocks_the_next_read
+=== RUN   TestDocumentPublicLink/every_public_read_re-checks_flag,_entitlement,_expiry,_tenant_and_document
+=== RUN   TestDocumentPublicLink/file_bytes_stream_through_Go,_private_and_public,_and_stop_on_revoke
+--- PASS: TestDocumentPublicLink (0.83s)
+    --- PASS: TestDocumentPublicLink/organization_switch_is_off_by_default_and_admin-only (0.01s)
+    --- PASS: TestDocumentPublicLink/create:_random_token_stored_as_a_hash,_default_7_days (0.01s)
+    --- PASS: TestDocumentPublicLink/anonymous_read_is_view_only_and_logged_without_an_actor (0.01s)
+    --- PASS: TestDocumentPublicLink/five_live_links_per_document (0.01s)
+    --- PASS: TestDocumentPublicLink/who_may_create_and_revoke (0.01s)
+    --- PASS: TestDocumentPublicLink/revoke_blocks_the_next_read (0.00s)
+    --- PASS: TestDocumentPublicLink/every_public_read_re-checks_flag,_entitlement,_expiry,_tenant_and_document (0.04s)
+    --- PASS: TestDocumentPublicLink/file_bytes_stream_through_Go,_private_and_public,_and_stop_on_revoke (0.03s)
+=== RUN   TestDocumentTree
+=== RUN   TestDocumentTree/move_re-parents_and_the_tree_read_shows_it
+=== RUN   TestDocumentTree/moving_a_page_under_itself_is_a_cycle
+=== RUN   TestDocumentTree/moving_a_page_under_its_own_descendant_is_a_cycle
+=== RUN   TestDocumentTree/the_five-level_bound_counts_the_moved_subtree
+=== RUN   TestDocumentTree/a_parent_in_another_workspace_is_refused
+=== RUN   TestDocumentTree/a_parent_in_another_organization_is_not_found
+=== RUN   TestDocumentTree/a_parent_in_a_workspace_the_caller_cannot_see_is_not_found
+=== RUN   TestDocumentTree/an_invisible_document's_self-parent_move_is_not_found
+=== RUN   TestDocumentTree/a_move_needs_edit_on_source_AND_destination
+=== RUN   TestDocumentTree/an_owned_document_has_no_tree_slot
+=== RUN   TestDocumentTree/a_stale_revision_conflicts
+=== RUN   TestDocumentTree/concurrent_opposite_moves_serialize_without_a_cycle
+=== RUN   TestDocumentTree/the_tree_hides_a_subtree_the_member_cannot_read
+--- PASS: TestDocumentTree (1.02s)
+    --- PASS: TestDocumentTree/move_re-parents_and_the_tree_read_shows_it (0.01s)
+    --- PASS: TestDocumentTree/moving_a_page_under_itself_is_a_cycle (0.00s)
+    --- PASS: TestDocumentTree/moving_a_page_under_its_own_descendant_is_a_cycle (0.00s)
+    --- PASS: TestDocumentTree/the_five-level_bound_counts_the_moved_subtree (0.02s)
+    --- PASS: TestDocumentTree/a_parent_in_another_workspace_is_refused (0.00s)
+    --- PASS: TestDocumentTree/a_parent_in_another_organization_is_not_found (0.00s)
+    --- PASS: TestDocumentTree/a_parent_in_a_workspace_the_caller_cannot_see_is_not_found (0.01s)
+    --- PASS: TestDocumentTree/an_invisible_document's_self-parent_move_is_not_found (0.00s)
+    --- PASS: TestDocumentTree/a_move_needs_edit_on_source_AND_destination (0.01s)
+    --- PASS: TestDocumentTree/an_owned_document_has_no_tree_slot (0.01s)
+    --- PASS: TestDocumentTree/a_stale_revision_conflicts (0.01s)
+    --- PASS: TestDocumentTree/concurrent_opposite_moves_serialize_without_a_cycle (0.02s)
+    --- PASS: TestDocumentTree/the_tree_hides_a_subtree_the_member_cannot_read (0.01s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	13.787s

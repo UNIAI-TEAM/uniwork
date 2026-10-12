@@ -1,0 +1,5 @@
+$ set -a && . ./.env && set +a && cd server && go test -race -count=1 -timeout 30m -v -run 'TestRecordManyWritesWhatRecordWould' ./internal/audit
+=== RUN   TestRecordManyWritesWhatRecordWould
+--- PASS: TestRecordManyWritesWhatRecordWould (0.86s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/audit	1.878s

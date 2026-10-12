@@ -1,0 +1,7 @@
+$ set -a && . ./.env && set +a && cd server && go test -race -count=1 -timeout 30m -v -run 'TestAuditAndOutboxWritesGoThroughTheAuditPackage|TestActorConstructedOnlyInService|TestMembershipQueries|TestAuditEventsAreAppendOnly' ./internal
+=== RUN   TestActorConstructedOnlyInService
+--- PASS: TestActorConstructedOnlyInService (0.03s)
+=== RUN   TestAuditAndOutboxWritesGoThroughTheAuditPackage
+--- PASS: TestAuditAndOutboxWritesGoThroughTheAuditPackage (0.03s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal	1.075s
