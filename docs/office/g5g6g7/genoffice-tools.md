@@ -23,7 +23,7 @@
     docs/office/g5g6g7/genoffice-tools.md | diff - /tmp/extract.md && echo AC-2 OK
   ```
 
-  Đã chạy ngày 2026-10-12 với script tại fork `919084f` (UNI-1363): `AC-2 OK`; đầu ra trùng từng byte với bản W1 giao.
+  Đã chạy ngày 2026-10-12 với script tại fork `e8a692c` (UNI-1363, sau khi sửa lỗi đọc thừa `editor_write`): `AC-2 OK`; đầu ra trùng từng byte với bản W1 giao (sha256 `0df68253…`).
 
 - Đồng bộ upstream hoặc đổi pin: G7-06 chạy lại script tại SHA mới; cột cơ học lệch → cập nhật khối §3 và mở một hàng
   review tay cho owner F + Product (§10).
@@ -73,9 +73,9 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | --- | --- | --- | --- | --- |
 | docs | accept_changes | 9af09d4b7b735877e734a81a8d86f6dbd6fe1ba184cd649a13dec3fe2e196fe0 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | add_comment | 2c02b65e695409a1779ba442dfe9c681ef389a3f4e5ad33e47ead67291b7777f | yes | apps/docs/src/renderer/ai/tools.ts |
-| docs | analyze_media | 4be9eff4d929769f31dfd25837b4f07af62ea6084cc720a88573d595b8711974 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | analyze_media | 4be9eff4d929769f31dfd25837b4f07af62ea6084cc720a88573d595b8711974 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | apply_ops | acc60f5acf92201819c6ff3f7887e6216bb4f8cf54ca4487ea7d7d0fd8c5f613 | yes | apps/docs/src/renderer/ai/tools.ts |
-| docs | create_document | 8c956443bbd56633e88e3fc40d47cea47048995ccbf4813023736f14dfbb54cf | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | create_document | 8c956443bbd56633e88e3fc40d47cea47048995ccbf4813023736f14dfbb54cf | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | define_style | 18fc6a4f754c0dc3282428b868dba32ea0945ee246839cdcac475fc7b35c6957 | no | apps/docs/src/renderer/ai/style-ops.ts |
 | docs | delete_comment | ca077b8285b224249d6df8bf86f4baf458bacca9e50cfa8434c5d5d0f9fdda53 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | delete_note | 83ab8c2ba74a615ceb5d0e472c28c4d5adcdc8f2eb7cdb4d064c33b385ce8c3d | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -83,7 +83,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | docs | edit_note | f465830acda36342513258eff25bc94a37c3cfc7868505a0fefcceabb4bfb055 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | generate_image | f6852b9e5272085ee5e6509a3c6a37dcd28da7f5349151248118e9e4f38c1cde | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/docs/src/renderer/ai/tools.ts |
-| docs | image_search | 874a0d101865e7910d3ba9145ce2d9a29776932ce1a689060beb89d8d04fb699 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | image_search | 874a0d101865e7910d3ba9145ce2d9a29776932ce1a689060beb89d8d04fb699 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | insert_chart | 12fab920f1474bfb8d1ed16c4cc02856f27d322275d274149df02cf2e4b521a4 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | insert_content | 40b05e9c8e06cd3281e3d9f1bdea9b08ccf7a5b7da24bfe2922390dfa79dae4e | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | insert_endnote | c838739e51d952f781dd0b70020c6255ff6bb377131d3059691aadbf08ea44b4 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -105,8 +105,8 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | docs | resolve_comment | ebe1eaf288ea69a42e0f9ec3fb0a59e79c86d99c6d940fef6733927577da3750 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | set_header_footer | e697d4aab47ae2eda0e96e816204f069edfd5e5fa77b31b614e77ac5e1ca4f6e | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | set_page_setup | cdc7c96a266910c5bf472893f8a3bd3b1e4a3bd84ad546d5c1cf355d8a83b996 | no | apps/docs/src/renderer/ai/page-setup.ts |
-| docs | set_watermark | 7472f1d51802ae0fa36252afb5ec408d9ed7524430337bea08f6ddf94c810256 | yes | apps/docs/src/renderer/ai/floating-ops.ts |
-| docs | web_search | 768c0c31293d6717b7345cc108d9bcd69dbbb7e4a695ee3059600e674670cbf4 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | set_watermark | 7472f1d51802ae0fa36252afb5ec408d9ed7524430337bea08f6ddf94c810256 | no | apps/docs/src/renderer/ai/floating-ops.ts |
+| docs | web_search | 768c0c31293d6717b7345cc108d9bcd69dbbb7e4a695ee3059600e674670cbf4 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | write_document | 72dac356ba2c80721cc2937fff59bece13ddefa491ea862ec4028b832c7ae247 | yes | apps/docs/src/renderer/ai/tools.ts |
 | html | apply_ops | 7ceda385ebf30d139a07335e082b922514da756a956ecebe3a80a1692663fbd2 | yes | apps/html/src/renderer/ai/tools.ts |
 | html | ask_clarification | 7b1327afd202f0d0d47debc5f922fdcbe4541bad90d6f97efe31db002b3373f7 | undeclared | apps/html/src/renderer/ai/tools.ts |
@@ -172,7 +172,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | pdf | transform_image | df2862b332437b3a963d607932a4aafff006ee9f6be8515242e1eae94a7b1060 | yes | apps/pdf/src/renderer/ai/tools.ts |
 | sheets | aggregate_range | 32587dfef46690cf453961d118c003224088ce369027e84716595d8a1b24c551 | no | apps/sheets/src/renderer/ai/tools.ts |
 | sheets | create_document | 125a43f66d295e90404e05abadaa0e82e269fa06eaeddb20841497e3d4a692a7 | no | apps/sheets/src/renderer/ai/tools.ts |
-| sheets | find_cells | 2b150624089aafa5e5f49047d7ff2bb3451971257180529846ea79eb415fe8d2 | yes | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | find_cells | 2b150624089aafa5e5f49047d7ff2bb3451971257180529846ea79eb415fe8d2 | no | apps/sheets/src/renderer/ai/tools.ts |
 | sheets | generate_image | df82864f0926591f453c9aaabdd23fb1a9b746228098c5239ecb8ff01f151d69 | no | apps/sheets/src/renderer/ai/image-skill.ts |
 | sheets | get_workbook_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/sheets/src/renderer/ai/tools.ts |
 | sheets | image_search | 3f5b97d7c6b3a4519fb63c6c2684b872e6e09c378eeb727d226e710be4dd7135 | no | apps/sheets/src/renderer/ai/image-skill.ts |
@@ -184,9 +184,9 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | sheets | read_formats | fadf34ccc70f71a2f554a2675263adfed999de7de9806c634d96fd23ca5b460a | no | apps/sheets/src/renderer/ai/tools.ts |
 | sheets | read_range | a24cfa6cf4bdfa061ee716a84a3c3f04cbaa912b2fec21bf912db77c3ec4a5d0 | no | apps/sheets/src/renderer/ai/tools.ts |
 | sheets | read_sheet_features | dbeaf7ccbb6be10d3dcd1b1b0463b3707698c07278731d60e811f2d52499c8cb | no | apps/sheets/src/renderer/ai/tools.ts |
-| sheets | select_range | 5c4bc90b431bfb06f9ee24b68846dde2109f76a79be3c9ebf9fb83ef7bab72c2 | yes | apps/sheets/src/renderer/ai/tools.ts |
-| sheets | trace_dependents | c943056ce23e242700a590848ccf78ad915967ac7a3b03f015d6a7bad0be1459 | yes | apps/sheets/src/renderer/ai/tools.ts |
-| sheets | trace_precedents | ca54e759b883d7b6a58f4dfabbc21d782573ccef76199887c5404c0b8ee78aff | yes | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | select_range | 5c4bc90b431bfb06f9ee24b68846dde2109f76a79be3c9ebf9fb83ef7bab72c2 | no | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | trace_dependents | c943056ce23e242700a590848ccf78ad915967ac7a3b03f015d6a7bad0be1459 | no | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | trace_precedents | ca54e759b883d7b6a58f4dfabbc21d782573ccef76199887c5404c0b8ee78aff | no | apps/sheets/src/renderer/ai/tools.ts |
 | sheets | web_search | 0190a7f984b61a677dd6b5e3bbe3f4b0bacbde61149c05035f4b3da9b05154ba | no | apps/sheets/src/renderer/ai/search-skill.ts |
 | slides | analyze_media | dbfb29df5c12dc878a617b1f1300a77537e83dbcf62ae9448ce160c174b09ca7 | no | apps/slides/src/renderer/ai/slides-skill.ts |
 | slides | apply_ops | deb4af7fbbf172cd483bbb6cfe5f0e476adfc1d6d3479062969b4598ddddf4bf | yes | apps/slides/src/renderer/ai/slides-skill.ts |
@@ -212,16 +212,17 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 
 - **Tên công cụ:** 135 dòng, khớp đúng tập tên của các bảng tay §4 theo từng module — docs 37, markdown 9, html 8, sheets 18,
   slides 18, pdf 45; `agent-core` không có dòng nào. Không thiếu, không thừa, không trùng.
-- **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Có 26 chỗ hai cột
-  khác nhau, chia thành năm nhóm dưới đây. Cột cơ học không sửa tay; chỗ nào code sai thì sửa ở G6-12, rồi chạy lại script.
+- **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Có 19 chỗ hai cột
+  khác nhau, chia thành bốn nhóm dưới đây. (Bản trước của tài liệu này có 26 chỗ: 9 ô `editor_write` bị extractor ghi `yes` thừa — docs
+  `web_search`, `image_search`, `analyze_media`, `create_document`, `set_watermark`; sheets `find_cells`, `select_range`,
+  `trace_precedents`, `trace_dependents`. Lỗi ở script, đã sửa tại fork `e8a692c`; các ô đó nay là `no` trong khối §3.) Cột cơ học không sửa tay; chỗ nào code sai thì sửa ở G6-12, rồi chạy lại script.
 
 | nhóm | module / tool | cơ học | tay | giải thích |
 | --- | --- | --- | --- | --- |
-| A. Code khai báo `false` nhưng công cụ có đổi tài liệu | docs `resolve_comment`, `set_header_footer`, `define_style`, `set_page_setup` | `no` | có | Cột cơ học làm đúng theo khai báo; khai báo sai (§4.2 ghi chú, §9 dòng 5). |
-| B. Cột cơ học ghi `yes` dù nhánh chỉ khai báo `mutated: false` | docs `web_search`, `image_search`, `analyze_media`, `create_document` (`apps/docs/src/renderer/ai/tools.ts:887`, `:908`, `:942`, `:1010`); sheets `find_cells`, `select_range`, `trace_precedents`, `trace_dependents` (`apps/sheets/src/renderer/ai/tools.ts:1153`, `:1185`, `:1202`/`:1233`, `:1268`) | `yes` | không | Nghi script đọc thừa: có thể nó đi theo một hàm phụ hoặc vượt ranh giới nhánh `case`. Đã báo lead để W1 kiểm. Chỗ này sai ở phía script, không phải ở bảng tay. |
-| C. Ghi ra ngoài tài liệu | sheets `create_document`; slides `save_style_template`; pdf `insert_blank_page`, `set_page_size`, `crop_pages`, `extract_pages`, `split_pdf`, `split_pages`, `merge_pages`, `replace_pages` | `no` / `yes` | file | `editor_write` chỉ nói về tài liệu đang mở. Cột tay ghi `file` vì công cụ ghi file, lưu, hoặc tạo version (§5 (c)). Các công cụ cấp file của pdf vừa đổi tài liệu (`yes`) vừa ghi file. |
-| D. Code không khai báo gì | html `ask_clarification`, pdf `generate_image` | `undeclared` | không | Hai công cụ này không đổi tài liệu, chỉ thiếu khai báo `mutated: false`. G6-12 nên thêm để cột cơ học thành `no`. |
-| D. Code không khai báo gì | sheets `merge_attached_workbooks`, pdf `create_document` | `undeclared` | có / file | `merge_attached_workbooks` ghi sheet vào workbook nhưng không đặt `mutated: true`, nên không có snapshot rollback. `create_document` của pdf ghi file mới. G6-12 cần khai báo đúng. |
+| A. Code khai báo `false` nhưng công cụ có đổi tài liệu | docs `resolve_comment`, `set_header_footer`, `define_style`, `set_page_setup`, `set_watermark` | `no` | có | Cột cơ học làm đúng theo khai báo; khai báo sai (§4.2 ghi chú, §9 dòng 5). |
+| B. Ghi ra ngoài tài liệu | sheets `create_document`; slides `save_style_template`; pdf `insert_blank_page`, `set_page_size`, `crop_pages`, `extract_pages`, `split_pdf`, `split_pages`, `merge_pages`, `replace_pages` | `no` / `yes` | file | `editor_write` chỉ nói về tài liệu đang mở. Cột tay ghi `file` vì công cụ ghi file, lưu, hoặc tạo version (§5 (c)). Các công cụ cấp file của pdf vừa đổi tài liệu (`yes`) vừa ghi file. |
+| C. Code không khai báo gì | html `ask_clarification`, pdf `generate_image` | `undeclared` | không | Hai công cụ này không đổi tài liệu, chỉ thiếu khai báo `mutated: false`. G6-12 nên thêm để cột cơ học thành `no`. |
+| C. Code không khai báo gì | sheets `merge_attached_workbooks`, pdf `create_document` | `undeclared` | có / file | `merge_attached_workbooks` ghi sheet vào workbook nhưng không đặt `mutated: true`, nên không có snapshot rollback. `create_document` của pdf ghi file mới. G6-12 cần khai báo đúng. |
 
 
 ## 4. Cột tay theo module
