@@ -40,7 +40,7 @@ import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { concludeAtStartGate, evidenceLine, harnessPaths, readStartStatus, startGate } from "./lib.mjs";
+import { concludeAtStartGate, evidenceLine, harnessEvidenceId, harnessPaths, ledgerIdentity, readStartStatus, startGate } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..", "..");
@@ -79,7 +79,7 @@ const startedAt = new Date().toISOString();
 // not "no server, so BLOCKED" (cloud round 4).
 const gate = startGate(readStartStatus(runDir));
 if (gate.gate !== "proceed") {
-  process.exit(concludeAtStartGate(gate, {
+  process.exit(await concludeAtStartGate(gate, {
     runDir,
     requirementId: "G7-A05",
     command: `node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir ${runDir}`,
@@ -142,6 +142,9 @@ if (!existsSync(appSettingsPath)) preconditions.push(`the app has not written ${
 if (preconditions.length > 0) {
   for (const reason of preconditions) console.error(`BLOCKED: ${reason}`);
   const record = evidenceLine({
+    evidenceId: harnessEvidenceId("G7-A05"),
+    ...(await ledgerIdentity()),
+    fSha: process.env.OFFICE_FORK_SHA || ports.OFFICE_FORK_SHA || "",
     requirementId: "G7-A05",
     platform: `${process.platform}-${process.arch}`,
     build: `node ${process.versions.node}`,

@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { verify } from "../evidence.mjs";
 import { BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -967,6 +968,7 @@ test("document-step FAILs when a signed-in app is handed the link and does not o
 // reported a missing precondition may block them.
 
 const SAMPLE_AC = join(HERE, "sample-ac.mjs");
+const REPO_FIXTURES = join(HERE, "..", "..", "..", "..", "docs", "office", "g5g6g7", "fixtures");
 
 function stepAfterStart(script, state, reason) {
   const run = mkDocumentRun({ origin: "http://127.0.0.1:1", electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
@@ -1148,4 +1150,46 @@ test("a wrong password for a reused account is a FAIL", async () => {
   } finally {
     await server.stop();
   }
+});
+
+// ---- the ledger lines the harness writes pass `evidence.mjs verify` (H1-3) ----
+
+/** What `verify` says about the one line the harness wrote, ignoring the matrix's own rows. */
+function verifyLine(line, artifactFile) {
+  const outDir = mkdtempSync(join(tmpdir(), "harness-ledger-"));
+  writeFileSync(join(outDir, "evidence.jsonl"), `${JSON.stringify({ ...line, artifact: line.artifact || artifactFile })}\n`);
+  return verify({ outDir }).problems.filter((problem) => problem.startsWith("line 1 "));
+}
+
+test("document-step's own evidence line is complete: verify finds nothing wrong with it", async () => {
+  const server = await mkFakeDocumentServer({ loginPassword: "x" });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const line = JSON.parse(readFileSync(join(run.runDir, "evidence.jsonl"), "utf8").trim().split("\n").at(-1));
+    assert.match(line.dSha, /^[0-9a-f]{40}$/);
+    assert.ok(line.pin.length > 0, "the served frame pin is on the line");
+    assert.ok(line.evidenceId.length > 0);
+    assert.deepEqual(verifyLine(line, join(run.runDir, "document-step.json")), []);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a BLOCKED document-step line and a start-gate line also pass verify", async () => {
+  const server = await mkFakeDocumentServer({ devices: [], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
+  try {
+    const blocked = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"], REUSED);
+    assert.equal(blocked.status, 77);
+    const line = JSON.parse(readFileSync(join(run.runDir, "evidence.jsonl"), "utf8").trim().split("\n").at(-1));
+    assert.equal(line.result, "BLOCKED");
+    assert.deepEqual(verifyLine(line, join(run.runDir, "document-step.json")), []);
+  } finally {
+    await server.stop();
+  }
+  const gated = stepAfterStart(DOC_STEP, "blocked", "no network to the fork");
+  assert.deepEqual(verifyLine({ ...gated.line, fixtureId: "fx-docx-report-vi", fixtureSha256: JSON.parse(readFileSync(join(REPO_FIXTURES, "manifest.json"), "utf8")).fixtures.find((f) => f.id === "fx-docx-report-vi").sha256 }, "/dev/null"), []);
 });

@@ -318,19 +318,28 @@ export function startGate(status) {
   return { gate: "fail", reason: `start.sh failed${why}; the stack is not up (see the run's logs)` };
 }
 
+/** The fork SHA start.sh wrote into a run's ports.env ("" when there is none). */
+function forkShaOfRun(envFile) {
+  if (!existsSync(envFile)) return "";
+  return /^OFFICE_FORK_SHA=(.*)$/m.exec(readFileSync(envFile, "utf8"))?.[1]?.trim() ?? "";
+}
+
 /**
  * A step that cannot run because start.sh did not bring the stack up: prints
  * why, records the evidence line (unless the evidence runner owns the ledger)
  * and returns the exit code the step must end with, 1 for a failed start and 77
  * only for a precondition start.sh itself reported missing.
  */
-export function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "", fixtureSha256 = "", command, checker, startedAt, argv = [...process.argv] }) {
+export async function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "", fixtureSha256 = "", command, checker, startedAt, argv = [...process.argv] }) {
   const blocked = gate.gate === "blocked";
   const result = blocked ? "BLOCKED" : "FAIL";
   const exitCode = blocked ? BLOCKED_EXIT : 1;
   console.error(`${blocked ? "BLOCKED" : "FAILED"}: ${gate.reason}`);
   const paths = harnessPaths(runDir);
   const record = evidenceLine({
+    evidenceId: harnessEvidenceId(requirementId),
+    ...(await ledgerIdentity()),
+    fSha: process.env.OFFICE_FORK_SHA || forkShaOfRun(paths.envFile),
     requirementId,
     fixtureId,
     fixtureSha256,
@@ -354,6 +363,23 @@ export function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "
 /** Where the fork is cloned for a pinned revision: one directory per SHA, reused across runs. */
 export function forkCacheDir(cacheRoot, sha) {
   return join(cacheRoot, `uniwork-office-${sha}`);
+}
+
+/**
+ * The identity every ledger line carries: the D checkout's HEAD and the web
+ * frame pin that is served, resolved the way the evidence runner resolves them
+ * (resolveDSha / readPin). A harness-written line without them is rejected by
+ * `evidence.mjs verify` ("has an empty dSha / pin", reviewer_be H1-3).
+ */
+export async function ledgerIdentity(env = process.env) {
+  // Imported on use: start.sh runs lib.mjs on its own and never needs the runner.
+  const { readPin, resolveDSha } = await import("../evidence.mjs");
+  return { dSha: resolveDSha(), pin: readPin(env) };
+}
+
+/** A fresh evidence id for a line the harness writes itself (the runner owns ids under OFFICE_EVIDENCE_ID). */
+export function harnessEvidenceId(requirementId) {
+  return `${String(requirementId).toLowerCase()}-harness-${Date.now()}`;
 }
 
 /**

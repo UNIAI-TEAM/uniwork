@@ -49,7 +49,7 @@ import { randomBytes } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { DEV_CLIENT_ID, activeDesktopDevice, concludeAtStartGate, documentStepOutcome, evidenceLine, harnessPaths, officeDeepLink, parseWaitSignin, readStartStatus, startGate, ticketFromLaunchUrl, workingCopyDir } from "./lib.mjs";
+import { DEV_CLIENT_ID, activeDesktopDevice, concludeAtStartGate, documentStepOutcome, evidenceLine, harnessPaths, harnessEvidenceId, ledgerIdentity, officeDeepLink, parseWaitSignin, readStartStatus, startGate, ticketFromLaunchUrl, workingCopyDir } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..", "..");
@@ -203,7 +203,7 @@ const API_ORIGIN = ports.API_ORIGIN;
 // not "no server, so BLOCKED" (cloud round 4).
 const startedGate = startGate(readStartStatus(runDir));
 if (startedGate.gate !== "proceed") {
-  process.exit(concludeAtStartGate(startedGate, {
+  process.exit(await concludeAtStartGate(startedGate, {
     runDir,
     requirementId,
     command: `node scripts/office/g5g6g7/harness/document-step.mjs --run-dir ${runDir} --req ${requirementId} --fixture ${fixtureId}`,
@@ -236,6 +236,9 @@ try {
 if (preconditions.length > 0) {
   for (const reason of preconditions) console.error(`BLOCKED: ${reason}`);
   const record = evidenceLine({
+    evidenceId: harnessEvidenceId(requirementId),
+    ...(await ledgerIdentity()),
+    fSha: process.env.OFFICE_FORK_SHA || ports.OFFICE_FORK_SHA || "",
     requirementId,
     fixtureId,
     fixtureSha256: fixture?.sha256 ?? "",
@@ -455,6 +458,8 @@ appendFileSync(artifactPath, `${JSON.stringify(report, null, 2)}\n`);
 
 if (!process.env.OFFICE_EVIDENCE_ID) {
   const line = evidenceLine({
+    evidenceId: harnessEvidenceId(requirementId),
+    ...(await ledgerIdentity()),
     requirementId,
     fixtureId,
     fixtureSha256: fixture.sha256,
