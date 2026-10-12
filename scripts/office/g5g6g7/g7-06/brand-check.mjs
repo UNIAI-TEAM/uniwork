@@ -5,7 +5,7 @@
 // under-20-visible-character .txt cannot pass a brand check.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { HOSTS, fixtureIds, readJsonState, relativeToOut } from "./job-lib.mjs";
+import { capturePairBlocker, HOSTS, fixtureIds, readJsonState, relativeToOut } from "./job-lib.mjs";
 
 const BRANDS = [/genoffice/g, /genspark/g];
 const VISIBLE = /[^\s\p{Cc}\p{Cf}\p{Mn}]/gu;
@@ -40,9 +40,12 @@ export function brandHits(text) {
 
 /**
  * Run the check and write <out>/brand.json.
- * @param {{ capturesDir: string | null, outDir: string, fixtures?: string[], hosts?: string[] }} options
+ *
+ * `forkSha` / `pinVersion` are the build the text is about: a capture whose
+ * meta.json names another build is blocked (F-04), never scanned.
+ * @param {{ capturesDir: string | null, outDir: string, fixtures?: string[], hosts?: string[], forkSha?: string | null, pinVersion?: string | null }} options
  */
-export function runBrandCheck({ capturesDir, outDir, fixtures = fixtureIds(), hosts = HOSTS }) {
+export function runBrandCheck({ capturesDir, outDir, fixtures = fixtureIds(), hosts = HOSTS, forkSha = null, pinVersion = null }) {
   if (!capturesDir || !existsSync(capturesDir)) {
     return { status: "BLOCKED", reasons: ["captures_missing"], artifacts: [] };
   }
@@ -52,21 +55,13 @@ export function runBrandCheck({ capturesDir, outDir, fixtures = fixtureIds(), ho
     for (const fixture of fixtures) {
       const pair = { host, fixture };
       const textPath = join(capturesDir, host, `${fixture}.txt`);
-      if (metaState.error) {
-        pairs.push({ ...pair, status: "BLOCKED", reasons: ["capture_meta_unreadable"], hits: [] });
+      const blocker = capturePairBlocker(metaState, fixture, { forkSha, pinVersion });
+      if (blocker) {
+        pairs.push({ ...pair, status: "BLOCKED", reasons: [blocker], hits: [] });
         continue;
       }
-      const status = metaState.value?.fixtures?.[fixture]?.status;
       if (!existsSync(textPath)) {
         pairs.push({ ...pair, status: "BLOCKED", reasons: ["rendered_text_missing"], hits: [] });
-        continue;
-      }
-      if (status === "failed") {
-        pairs.push({ ...pair, status: "BLOCKED", reasons: ["capture_failed"], hits: [] });
-        continue;
-      }
-      if (status === "blocked") {
-        pairs.push({ ...pair, status: "BLOCKED", reasons: ["capture_blocked"], hits: [] });
         continue;
       }
       const text = readFileSync(textPath, "utf8");

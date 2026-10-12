@@ -7,18 +7,35 @@ import { test } from "node:test";
 import { runBrandCheck } from "../brand-check.mjs";
 import { HOSTS } from "../job-lib.mjs";
 import * as fx from "../test-fixtures/capture-fixtures.mjs";
+import { FAKE_CAPTURE } from "../test-fixtures/fake-capture.mjs";
 import { ONE, outDir, readJson, tmpDir } from "../test-fixtures/test-env.mjs";
 
 
-function brandWorld({ text = null, removeText = null, metaText = null } = {}) {
+function brandWorld({
+  text = null,
+  removeText = null,
+  metaText = null,
+  meta = null,
+  forkSha = FAKE_CAPTURE.forkSha,
+  pinVersion = FAKE_CAPTURE.pinVersion,
+} = {}) {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
   if (text !== null) writeFileSync(join(captures, "desktop", `${ONE}.txt`), text);
   if (removeText) {
     for (const host of HOSTS) rmSync(join(captures, host, `${removeText}.txt`), { force: true });
   }
   if (metaText !== null) writeFileSync(join(captures, "desktop", "meta.json"), metaText);
+  if (meta) {
+    for (const host of HOSTS) {
+      const file = join(captures, host, "meta.json");
+      const current = readJson(file);
+      const next = typeof meta === "function" ? meta(current, host) : { ...current, ...meta };
+      if (next === null) rmSync(file, { force: true });
+      else writeFileSync(file, `${JSON.stringify(next, null, 2)}\n`);
+    }
+  }
   const dir = outDir("brand");
-  const check = runBrandCheck({ capturesDir: captures, fixtures: [ONE], outDir: dir });
+  const check = runBrandCheck({ capturesDir: captures, fixtures: [ONE], outDir: dir, forkSha, pinVersion });
   return { check, artifact: readJson(join(dir, "brand.json")), captures };
 }
 
@@ -65,5 +82,17 @@ test("brand: a meta.json that is not valid JSON is BLOCKED, never a crash", () =
   const { check } = brandWorld({ metaText: "{ not json" });
   assert.equal(check.status, "BLOCKED");
   assert.deepEqual(check.reasons, ["capture_meta_unreadable"]);
+});
+
+test("brand: captures from another build are BLOCKED, never scanned", () => {
+  const other = brandWorld({ meta: { pinVersion: "0.1.0-other" } });
+  assert.equal(other.check.status, "BLOCKED");
+  assert.deepEqual(other.check.reasons, ["captures_from_another_pin"]);
+});
+
+test("brand: a host without meta.json is BLOCKED, not treated as ok", () => {
+  const { check } = brandWorld({ meta: () => null });
+  assert.equal(check.status, "BLOCKED");
+  assert.deepEqual(check.reasons, ["capture_meta_missing"]);
 });
 

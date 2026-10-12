@@ -17,6 +17,8 @@ export const FAKE_WIDTH = 64;
 export const FAKE_HEIGHT = 48;
 /** The region a fake "caret" sits in; the tests' mask points at it. */
 export const FAKE_CARET = Object.freeze({ x: 4, y: 4, w: 8, h: 8, reason: "fake caret" });
+/** The build the fake captures come from; tests pass it as the job's identity. */
+export const FAKE_CAPTURE = Object.freeze({ forkSha: "cb76dde5", pinVersion: "0.1.0-cb76dde" });
 
 /**
  * An RGBA PNG of 64x48: a per-fixture background, a white border and a 2px
@@ -55,7 +57,7 @@ export function fakeText(host, fixture) {
  * @param {string} dir
  * @param {{ hosts?: string[], fixtures?: string[], forkSha?: string, pinVersion?: string, statuses?: Record<string, "ok" | "blocked" | "failed"> }} [options]
  */
-export function writeFakeCaptures(dir, { hosts = HOSTS, fixtures = fixtureIds(), forkSha = "cb76dde5", pinVersion = "0.1.0-cb76dde", statuses = {} } = {}) {
+export function writeFakeCaptures(dir, { hosts = HOSTS, fixtures = fixtureIds(), forkSha = FAKE_CAPTURE.forkSha, pinVersion = FAKE_CAPTURE.pinVersion, statuses = {} } = {}) {
   for (const host of hosts) {
     mkdirSync(join(dir, host), { recursive: true });
     const entries = {};

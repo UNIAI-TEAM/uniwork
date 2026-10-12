@@ -13,7 +13,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { sha256Hex } from "../../../../apps/web/platform/office-frame/frame-bundle.mjs";
-import { DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonState, relativeToOut } from "./job-lib.mjs";
+import { capturePairBlocker, DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonState, relativeToOut } from "./job-lib.mjs";
 
 export const DEFAULT_TOLERANCE = Object.freeze({ channel: 16, ratio: 0.001 });
 
@@ -90,9 +90,12 @@ function pairBlocked(pair, reason) {
 /**
  * Run the check and write <out>/golden/summary.json plus, per pair,
  * .actual.png / .expected.png / .diff.png under <out>/golden/<host>/.
- * @param {{ capturesDir: string | null, goldensDir?: string, outDir: string, fixtures?: string[], hosts?: string[] }} options
+ *
+ * `forkSha` / `pinVersion` are the build the comparisons are about: a capture
+ * whose meta.json names another build is blocked (F-04), never compared.
+ * @param {{ capturesDir: string | null, goldensDir?: string, outDir: string, fixtures?: string[], hosts?: string[], forkSha?: string | null, pinVersion?: string | null }} options
  */
-export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, outDir, fixtures = fixtureIds(), hosts = HOSTS }) {
+export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, outDir, fixtures = fixtureIds(), hosts = HOSTS, forkSha = null, pinVersion = null }) {
   if (!capturesDir || !existsSync(capturesDir)) {
     return { status: "BLOCKED", reasons: ["captures_missing"], artifacts: [] };
   }
@@ -115,12 +118,10 @@ export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, 
       const capturePath = join(capturesDir, host, `${fixture}.png`);
       const goldenPath = join(goldensDir, host, `${fixture}.png`);
       const entry = entries[`${host}/${fixture}`] ?? null;
-      const metaStatus = captureStatus(metaState, fixture);
+      const blocker = capturePairBlocker(metaState, fixture, { forkSha, pinVersion });
       let report;
-      if (metaState.error) report = pairBlocked(pair, "capture_meta_unreadable");
+      if (blocker) report = pairBlocked(pair, blocker);
       else if (!existsSync(capturePath)) report = pairBlocked(pair, "capture_missing");
-      else if (metaStatus === "failed") report = pairBlocked(pair, "capture_failed");
-      else if (metaStatus === "blocked") report = pairBlocked(pair, "capture_blocked");
       else if (!entry || !existsSync(goldenPath)) report = { ...pair, status: "FAIL", reasons: ["golden_missing"] };
       else {
         const outDirForPair = join(outDir, "golden", host);

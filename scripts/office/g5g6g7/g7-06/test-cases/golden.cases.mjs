@@ -9,10 +9,22 @@ import { sha256Hex } from "../../../../../apps/web/platform/office-frame/frame-b
 import { runGoldenCheck, updateGoldens } from "../golden-check.mjs";
 import { HOSTS, REPO_ROOT } from "../job-lib.mjs";
 import * as fx from "../test-fixtures/capture-fixtures.mjs";
+import { FAKE_CAPTURE } from "../test-fixtures/fake-capture.mjs";
 import { FIXTURES, JOB_DIR, ONE, outDir, readJson, tmpDir } from "../test-fixtures/test-env.mjs";
 
 
-function goldenWorld({ fixtures = [ONE], mutateCapture = null, transform = null, masks = {}, tolerance = null, removeGolden = null, metaStatus = null } = {}) {
+/** Rewrite (or remove) each host's meta.json in a captures copy. */
+function patchMeta(captures, patch) {
+  for (const host of HOSTS) {
+    const file = join(captures, host, "meta.json");
+    const meta = readJson(file);
+    const next = typeof patch === "function" ? patch(meta, host) : { ...meta, ...patch };
+    if (next === null) rmSync(file, { force: true });
+    else writeFileSync(file, `${JSON.stringify(next, null, 2)}\n`);
+  }
+}
+
+function goldenWorld({ fixtures = [ONE], mutateCapture = null, transform = null, masks = {}, tolerance = null, removeGolden = null, metaStatus = null, meta = null } = {}) {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
   const goldens = fx.writeGoldens(tmpDir("g7-06-goldens-"), { capturesDir: captures, fixtures, hosts: HOSTS, masks, tolerance, transform: transform ?? undefined });
   if (mutateCapture) mutateCapture(captures);
@@ -24,12 +36,16 @@ function goldenWorld({ fixtures = [ONE], mutateCapture = null, transform = null,
       writeFileSync(join(captures, host, "meta.json"), `${JSON.stringify(meta, null, 2)}\n`);
     }
   }
+  if (meta) patchMeta(captures, meta);
   return { captures, goldens };
 }
 
-function goldenRun({ captures, goldens }, { name = "golden", fixtures = [ONE] } = {}) {
+function goldenRun(
+  { captures, goldens },
+  { name = "golden", fixtures = [ONE], forkSha = FAKE_CAPTURE.forkSha, pinVersion = FAKE_CAPTURE.pinVersion } = {},
+) {
   const dir = outDir(name);
-  const check = runGoldenCheck({ capturesDir: captures, goldensDir: goldens, fixtures, outDir: dir });
+  const check = runGoldenCheck({ capturesDir: captures, goldensDir: goldens, fixtures, outDir: dir, forkSha, pinVersion });
   return { check, summary: readJson(join(dir, "golden", "summary.json")) };
 }
 
@@ -119,6 +135,40 @@ test("golden: a meta.json that is not valid JSON is BLOCKED, never a crash", () 
   const { check } = goldenRun(world, { name: "golden-corrupt-meta" });
   assert.equal(check.status, "BLOCKED");
   assert.deepEqual(check.reasons, ["capture_meta_unreadable"]);
+});
+
+test("golden: captures from another build are BLOCKED, never compared", () => {
+  for (const [label, patch] of [["pin", { pinVersion: "0.1.0-other" }], ["sha", { forkSha: "a".repeat(40) }]]) {
+    const world = goldenWorld({ meta: patch });
+    const { check } = goldenRun(world, { name: `golden-other-${label}` });
+    assert.equal(check.status, "BLOCKED", label);
+    assert.deepEqual(check.reasons, ["captures_from_another_pin"], label);
+  }
+});
+
+test("golden: a host without meta.json is BLOCKED, not treated as ok", () => {
+  const world = goldenWorld({ meta: () => null });
+  const { check } = goldenRun(world, { name: "golden-no-meta" });
+  assert.equal(check.status, "BLOCKED");
+  assert.deepEqual(check.reasons, ["capture_meta_missing"]);
+});
+
+test("golden: a pair status the provider does not write is BLOCKED, not ok", () => {
+  const world = goldenWorld({
+    meta: (meta) => {
+      delete meta.fixtures;
+      return meta;
+    },
+  });
+  const { check } = goldenRun(world, { name: "golden-unknown-status" });
+  assert.equal(check.status, "BLOCKED");
+  assert.deepEqual(check.reasons, ["capture_status_unknown"]);
+});
+
+test("golden: a meta with the full fork SHA matches the pin's short one", () => {
+  const world = goldenWorld({ meta: { forkSha: `cb76dde${"0".repeat(33)}` } });
+  const { check } = goldenRun(world, { name: "golden-full-sha", forkSha: "cb76dde" });
+  assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
 });
 
 test("golden: no captures at all is BLOCKED, not a pass", () => {

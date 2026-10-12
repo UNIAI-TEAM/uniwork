@@ -126,7 +126,32 @@ export function sameRevision(a, b) {
   return a.slice(0, length) === b.slice(0, length);
 }
 
-/** A path as it will be written into result.json: relative to the run's out dir. */
+/**
+ * The blocking reason for one capture pair, read from the provider's
+ * meta.json (contract 3). The file must exist and parse, name this job's pin
+ * and mark the pair `ok`; anything else — another build's captures, a missing
+ * provider record, a status the provider never writes — blocks the pair
+ * (F-04): a comparison the job cannot tie to the pin is never a pass.
+ * @param {{ value: unknown } | { missing: true } | { error: string }} metaState
+ * @param {string} fixture
+ * @param {{ forkSha?: string | null, pinVersion?: string | null }} identity
+ * @returns {string | null} the reason, or null when the pair may be compared
+ */
+export function capturePairBlocker(metaState, fixture, { forkSha = null, pinVersion = null } = {}) {
+  if (metaState.missing) return "capture_meta_missing";
+  if (metaState.error) return "capture_meta_unreadable";
+  const meta = metaState.value ?? {};
+  if (!sameRevision(meta.forkSha, forkSha) || !pinVersion || meta.pinVersion !== pinVersion) return "captures_from_another_pin";
+  const status = meta.fixtures?.[fixture]?.status;
+  if (status === "ok") return null;
+  if (status === "blocked") return "capture_blocked";
+  if (status === "failed") return "capture_failed";
+  return "capture_status_unknown";
+}
+
+/**
+ * A path as it will be written into result.json: relative to the run's out dir.
+ */
 export function relativeToOut(outDir, file) {
   const abs = resolve(file);
   const rel = abs.startsWith(resolve(outDir) + "/") ? abs.slice(resolve(outDir).length + 1) : abs;
