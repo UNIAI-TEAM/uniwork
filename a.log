@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4
+bb18f47ec03860598c8c94082ffb9ee933a2eaa0
+09bbd43d6628e13ea00a63b4bd9f019fbace834e
+bb18f47e fix(html): fence AI edits to the selected or queued elements in code
+ca1e50ca test(html): element-scoped AI turns must not edit outside the fence
+f220f8e1 fix(markdown): fence AI edits to the selection or queued targets in code
+3bf95c80 test(markdown): selection-scoped AI turns must not edit outside the fence

@@ -1,0 +1,10 @@
+$ npx vitest run --root web/modules markdown html
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+
+ Test Files  4 passed (4)
+      Tests  64 passed (64)
+   Start at  15:11:46
+   Duration  1.40s (transform 1.03s, setup 0ms, import 1.27s, tests 624ms, environment 1.49s)
+

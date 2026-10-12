@@ -1,0 +1,10 @@
+$ cd apps/html && npx vitest run
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+
+ Test Files  43 passed (43)
+      Tests  317 passed (317)
+   Start at  15:12:12
+   Duration  10.19s (transform 3.60s, setup 0ms, import 7.28s, tests 3.09s, environment 15.81s)
+
