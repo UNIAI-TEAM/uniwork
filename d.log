@@ -1,0 +1,151 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -timeout 40m -v ./internal/handler/ -run 'TestCommitIntent|TestIsolationMatrix|TestEveryBodyIDFieldHasAReferenceCase|TestIsolationRealtime|TestDocumentsFlagOff404|TestDocumentFileLifecycle|TestSwaggerSpecFollowsChiRoutesAndSDI|TestOfficeFrame|TestAppCapabilit'; echo "HANDLER_EXIT=$?"
+=== RUN   TestCommitIntentLookupRoute
+2026/10/12 19:30:51 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/auth/register status=200 duration=7.074ms request_id=cursor/2kYbUj2pRA-000001 correlation_id=01M4RSHAY45YNGV13QSWBAK7QP
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=3.128ms request_id=cursor/2kYbUj2pRA-000002 correlation_id=01M4RSHAYBJM8H1KNHDCS19SGF
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.54ms request_id=cursor/2kYbUj2pRA-000003 correlation_id=01M4RSHAYFBGT7V5E52776M2FV
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/orgs/01M4RSHAYFBGT7V5E529EAPTFQ/workspaces status=201 duration=5.822ms request_id=cursor/2kYbUj2pRA-000004 correlation_id=01M4RSHAYKJJF065FABSVP69PQ
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/auth/register status=200 duration=6.447ms request_id=cursor/2kYbUj2pRA-000005 correlation_id=01M4RSHAYSVSMCB5NEGF37VH5K
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=4.019ms request_id=cursor/2kYbUj2pRA-000006 correlation_id=01M4RSHAZ0J6MC85HM7DGFKBNA
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/workspaces/01M4RSHAYNKYC3SHND2QG2RSFC/documents/files status=201 duration=9.716ms request_id=cursor/2kYbUj2pRA-000007 correlation_id=01M4RSHAZ4Q6GXCJ9S2ZS9MDSM
+2026/10/12 19:30:51 WARN http request method=GET path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/versions/commit status=410 duration=947µs request_id=cursor/2kYbUj2pRA-000008 correlation_id=01M4RSHAZERCZX6ZPS8WQ06T2Z
+2026/10/12 19:30:51 WARN http request method=GET path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/versions/commit status=400 duration=49µs request_id=cursor/2kYbUj2pRA-000009 correlation_id=01M4RSHAZF9MDCHXAQ7SFAFDVK
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/uploads status=201 duration=845µs request_id=cursor/2kYbUj2pRA-000010 correlation_id=01M4RSHAZF9MDCHXAQ7TH7HGGN
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/versions/commit status=200 duration=5.719ms request_id=cursor/2kYbUj2pRA-000011 correlation_id=01M4RSHAZHHN16T1NAG8ZZ74T5
+2026/10/12 19:30:51 INFO http request method=GET path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/versions/commit status=200 duration=1.017ms request_id=cursor/2kYbUj2pRA-000012 correlation_id=01M4RSHAZQ3XPT3Q7ZQAYFHPXC
+2026/10/12 19:30:51 WARN http request method=GET path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/versions/commit status=404 duration=289µs request_id=cursor/2kYbUj2pRA-000013 correlation_id=01M4RSHAZRT352C4E5SSV4CQNX
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/uploads status=201 duration=388µs request_id=cursor/2kYbUj2pRA-000014 correlation_id=01M4RSHAZSV4RR2ZETD17KM7SB
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/versions/commit status=200 duration=6.172ms request_id=cursor/2kYbUj2pRA-000015 correlation_id=01M4RSHAZTTKRZEMMRNPBGRZY5
+2026/10/12 19:30:51 INFO http request method=POST path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/uploads status=201 duration=443µs request_id=cursor/2kYbUj2pRA-000016 correlation_id=01M4RSHB00PXMDCFRYNGBJ8HN1
+2026/10/12 19:30:51 WARN http request method=POST path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/versions/commit status=403 duration=339µs request_id=cursor/2kYbUj2pRA-000017 correlation_id=01M4RSHB01K5P9MWE8EJ86C0WP
+2026/10/12 19:30:51 INFO http request method=GET path=/api/v1/documents/01M4RSHAZ9VCDCM51XSVK198ET/versions/commit status=200 duration=1.945ms request_id=cursor/2kYbUj2pRA-000018 correlation_id=01M4RSHB01K5P9MWE8EKFA7WYY
+--- PASS: TestCommitIntentLookupRoute (0.86s)
+=== RUN   TestCommitIntentKeyNeverLeaks
+2026/10/12 19:30:52 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/12 19:30:52 INFO http request method=POST path=/api/v1/auth/register status=200 duration=8.078ms request_id=cursor/2kYbUj2pRA-000019 correlation_id=01M4RSHBR8P84VNGB28VF3DFDN
+2026/10/12 19:30:52 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=5.369ms request_id=cursor/2kYbUj2pRA-000020 correlation_id=01M4RSHBRGK2DEJK50EAH1AMQY
+2026/10/12 19:30:52 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.794ms request_id=cursor/2kYbUj2pRA-000021 correlation_id=01M4RSHBRPF769ZBAXV695TDQY
+2026/10/12 19:30:52 INFO http request method=POST path=/api/v1/orgs/01M4RSHBRPF769ZBAXV8E2R8TS/workspaces status=201 duration=6.544ms request_id=cursor/2kYbUj2pRA-000022 correlation_id=01M4RSHBRV7780CHH22ZWTVCAZ
+2026/10/12 19:30:52 INFO http request method=POST path=/api/v1/auth/register status=200 duration=6.636ms request_id=cursor/2kYbUj2pRA-000023 correlation_id=01M4RSHBS28S54DB0QP1TJY54D
+2026/10/12 19:30:52 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=5.003ms request_id=cursor/2kYbUj2pRA-000024 correlation_id=01M4RSHBS8PXZE1F45J8C6087K
+2026/10/12 19:30:52 INFO http request method=POST path=/api/v1/workspaces/01M4RSHBRW7XRF4RJNPFMTDS57/documents/files status=201 duration=10.047ms request_id=cursor/2kYbUj2pRA-000025 correlation_id=01M4RSHBSEZ7KNNS455F42KM5J
+--- PASS: TestCommitIntentKeyNeverLeaks (0.82s)
+=== RUN   TestDocumentsFlagOff404
+--- PASS: TestDocumentsFlagOff404 (0.71s)
+=== RUN   TestDocumentFileLifecycle
+--- PASS: TestDocumentFileLifecycle (0.92s)
+=== RUN   TestIsolationMatrix
+=== RUN   TestIsolationMatrix/control
+=== RUN   TestIsolationMatrix/cross-tenant
+=== RUN   TestIsolationMatrix/anonymous
+=== RUN   TestIsolationMatrix/self
+=== RUN   TestIsolationMatrix/mixed
+=== RUN   TestIsolationMatrix/frame-linked
+=== RUN   TestIsolationMatrix/references
+=== RUN   TestIsolationMatrix/member-of-both
+=== RUN   TestIsolationMatrix/listing
+=== RUN   TestIsolationMatrix/uploads
+=== RUN   TestIsolationMatrix/untouched
+=== RUN   TestIsolationMatrix/write-control
+--- PASS: TestIsolationMatrix (202.69s)
+    --- PASS: TestIsolationMatrix/control (0.24s)
+    --- PASS: TestIsolationMatrix/cross-tenant (58.84s)
+    --- PASS: TestIsolationMatrix/anonymous (60.53s)
+    --- PASS: TestIsolationMatrix/self (0.25s)
+    --- PASS: TestIsolationMatrix/mixed (19.59s)
+    --- PASS: TestIsolationMatrix/frame-linked (0.00s)
+    --- PASS: TestIsolationMatrix/references (16.46s)
+    --- PASS: TestIsolationMatrix/member-of-both (44.19s)
+    --- PASS: TestIsolationMatrix/listing (0.31s)
+    --- PASS: TestIsolationMatrix/uploads (0.00s)
+    --- PASS: TestIsolationMatrix/untouched (0.00s)
+    --- PASS: TestIsolationMatrix/write-control (0.84s)
+=== RUN   TestIsolationRealtime
+=== RUN   TestIsolationRealtime/workspace_channel
+=== RUN   TestIsolationRealtime/subscribe
+=== RUN   TestIsolationRealtime/meeting_lobby
+--- PASS: TestIsolationRealtime (1.65s)
+    --- PASS: TestIsolationRealtime/workspace_channel (0.00s)
+    --- PASS: TestIsolationRealtime/subscribe (0.30s)
+    --- PASS: TestIsolationRealtime/meeting_lobby (0.00s)
+=== RUN   TestEveryBodyIDFieldHasAReferenceCase
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.00s)
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWrite
+--- PASS: TestOfficeFrameViewOnlyTokenCannotWrite (0.61s)
+=== RUN   TestOfficeFrameTokenStopsWhenAccessIsRevoked
+--- PASS: TestOfficeFrameTokenStopsWhenAccessIsRevoked (0.62s)
+=== RUN   TestOfficeFrameCommitReplaysOnTheSameIdempotencyKey
+--- PASS: TestOfficeFrameCommitReplaysOnTheSameIdempotencyKey (0.74s)
+=== RUN   TestOfficeFrameRecentsJudgeTheFileNotTheTitle
+--- PASS: TestOfficeFrameRecentsJudgeTheFileNotTheTitle (0.71s)
+=== RUN   TestOfficeFrameAIHappyPath
+--- PASS: TestOfficeFrameAIHappyPath (0.86s)
+=== RUN   TestOfficeFrameAIRefusesEverythingButThisDocumentsToken
+--- PASS: TestOfficeFrameAIRefusesEverythingButThisDocumentsToken (1.18s)
+=== RUN   TestOfficeFrameAIRechecksViewAccessPerRequest
+--- PASS: TestOfficeFrameAIRechecksViewAccessPerRequest (0.85s)
+=== RUN   TestOfficeFrameAIEntitlementRequired
+--- PASS: TestOfficeFrameAIEntitlementRequired (0.98s)
+=== RUN   TestOfficeFrameAIFollowsTheModuleFlag
+--- PASS: TestOfficeFrameAIFollowsTheModuleFlag (0.90s)
+=== RUN   TestOfficeFrameTokenCarriesTheAIGrant
+--- PASS: TestOfficeFrameTokenCarriesTheAIGrant (0.89s)
+=== RUN   TestOfficeFrameOpenResolvesRelativeReferences
+--- PASS: TestOfficeFrameOpenResolvesRelativeReferences (1.08s)
+=== RUN   TestOfficeFrameOpenHasNoAssetsOutsideTextModules
+--- PASS: TestOfficeFrameOpenHasNoAssetsOutsideTextModules (0.87s)
+=== RUN   TestOfficeFrameSiblingNeedsItsOwnViewAccess
+--- PASS: TestOfficeFrameSiblingNeedsItsOwnViewAccess (0.85s)
+=== RUN   TestOfficeFrameExportPDFRoute
+--- PASS: TestOfficeFrameExportPDFRoute (0.80s)
+=== RUN   TestOfficeFrameExportWithoutExportEngine
+--- PASS: TestOfficeFrameExportWithoutExportEngine (0.82s)
+=== RUN   TestOfficeFrameModuleFlagsArePerModuleAndPerOrganization
+--- PASS: TestOfficeFrameModuleFlagsArePerModuleAndPerOrganization (0.64s)
+=== RUN   TestOfficeFrameSheetsMintRefusesAWorkbookOverTheCap
+--- PASS: TestOfficeFrameSheetsMintRefusesAWorkbookOverTheCap (0.76s)
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/docs
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/pdf
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/markdown
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/html
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/slides
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/sheets
+--- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule (0.95s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/docs (0.03s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/pdf (0.02s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/markdown (0.02s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/html (0.02s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/slides (0.02s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/sheets (0.01s)
+=== RUN   TestOfficeFrameSignedAssetKeepsTheModule
+--- PASS: TestOfficeFrameSignedAssetKeepsTheModule (0.83s)
+=== RUN   TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap
+--- PASS: TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap (0.79s)
+=== RUN   TestOfficeFrameLinkedTakesNoFrameToken
+--- PASS: TestOfficeFrameLinkedTakesNoFrameToken (0.71s)
+=== RUN   TestOfficeFrameResolveTypedPaths
+--- PASS: TestOfficeFrameResolveTypedPaths (0.91s)
+=== RUN   TestOfficeFrameResolveRefreshesURLsPastTheirLifetime
+--- PASS: TestOfficeFrameResolveRefreshesURLsPastTheirLifetime (0.82s)
+=== RUN   TestOfficeFrameSignedURLsFollowTheLiveACL
+--- PASS: TestOfficeFrameSignedURLsFollowTheLiveACL (0.99s)
+=== RUN   TestOfficeFrameWalkStopsAtATrashedAncestor
+--- PASS: TestOfficeFrameWalkStopsAtATrashedAncestor (0.89s)
+=== RUN   TestOfficeFrameOpenBoundsTheACLChecks
+--- PASS: TestOfficeFrameOpenBoundsTheACLChecks (1.05s)
+=== RUN   TestOfficeFrameTokenNeedsTheFlag
+--- PASS: TestOfficeFrameTokenNeedsTheFlag (0.95s)
+=== RUN   TestOfficeFrameOpenSaveConflictReopen
+--- PASS: TestOfficeFrameOpenSaveConflictReopen (0.99s)
+=== RUN   TestOfficeFrameTokenOpensOnlyItsDocument
+--- PASS: TestOfficeFrameTokenOpensOnlyItsDocument (0.88s)
+=== RUN   TestOfficeFrameImagesAreSignedPerAsset
+--- PASS: TestOfficeFrameImagesAreSignedPerAsset (0.82s)
+=== RUN   TestOfficeFrameFlagIsEvaluatedPerOrganization
+--- PASS: TestOfficeFrameFlagIsEvaluatedPerOrganization (0.91s)
+=== RUN   TestSwaggerSpecFollowsChiRoutesAndSDI
+--- PASS: TestSwaggerSpecFollowsChiRoutesAndSDI (0.48s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	234.826s
+HANDLER_EXIT=0
