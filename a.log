@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+c68a5956073eb630af9b7387e64ed95216292cad
+9beafdf7c10e3f7f08cec65f57cf9f86483e541a
+c68a5956 test(tools): pin the name anchor and the dispatcher rule (R2-3)
+85c0c339 fix(tools): narrow the extractor's name anchor and dispatcher rule
+e8a692c6 test(tools): cover the guard path, duplicate helpers and schema-less tools

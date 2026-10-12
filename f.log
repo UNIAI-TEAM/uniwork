@@ -1,0 +1,159 @@
+$ node --test scripts/*.test.mjs
+TAP version 13
+# Subtest: extract
+    # Subtest: prints the exact table for the fixture
+    ok 1 - prints the exact table for the fixture
+      ---
+      duration_ms: 45.547565
+      type: 'test'
+      ...
+    # Subtest: resolves spread and shared-const schemas, and refuses to guess the rest
+    ok 2 - resolves spread and shared-const schemas, and refuses to guess the rest
+      ---
+      duration_ms: 32.951424
+      type: 'test'
+      ...
+    # Subtest: finds tools reachable only through a capability-keyed getter
+    ok 3 - finds tools reachable only through a capability-keyed getter
+      ---
+      duration_ms: 31.90349
+      type: 'test'
+      ...
+    # Subtest: keeps both rows of a duplicate (module, tool) pair
+    ok 4 - keeps both rows of a duplicate (module, tool) pair
+      ---
+      duration_ms: 32.164188
+      type: 'test'
+      ...
+    # Subtest: hashes are independent of key order, at every nesting level
+    ok 5 - hashes are independent of key order, at every nesting level
+      ---
+      duration_ms: 57.646016
+      type: 'test'
+      ...
+    # Subtest: derives editor_write from declarations only
+    ok 6 - derives editor_write from declarations only
+      ---
+      duration_ms: 34.761321
+      type: 'test'
+      ...
+    # Subtest: is byte-identical across two runs
+    ok 7 - is byte-identical across two runs
+      ---
+      duration_ms: 35.092857
+      type: 'test'
+      ...
+    # Subtest: sorts by module, then tool, then source
+    ok 8 - sorts by module, then tool, then source
+      ---
+      duration_ms: 31.408923
+      type: 'test'
+      ...
+    1..8
+ok 1 - extract
+  ---
+  duration_ms: 302.368997
+  type: 'suite'
+  ...
+# Subtest: CLI
+    # Subtest: exits 0 and prints the same table as the API
+    ok 1 - exits 0 and prints the same table as the API
+      ---
+      duration_ms: 88.384444
+      type: 'test'
+      ...
+    # Subtest: is byte-identical across two CLI runs
+    ok 2 - is byte-identical across two CLI runs
+      ---
+      duration_ms: 119.835476
+      type: 'test'
+      ...
+    # Subtest: reads an explicit --rev and --repo
+    ok 3 - reads an explicit --rev and --repo
+      ---
+      duration_ms: 70.377845
+      type: 'test'
+      ...
+    # Subtest: exits non-zero with a message on a bad rev
+    ok 4 - exits non-zero with a message on a bad rev
+      ---
+      duration_ms: 59.422956
+      type: 'test'
+      ...
+    1..4
+ok 2 - CLI
+  ---
+  duration_ms: 338.244539
+  type: 'suite'
+  ...
+# Subtest: editor_write routing
+    # Subtest: credits only the guard branch the named tool takes (R1-1)
+    ok 1 - credits only the guard branch the named tool takes (R1-1)
+      ---
+      duration_ms: 30.388243
+      type: 'test'
+      ...
+    # Subtest: keeps same-named local helpers distinct by position (R1-2)
+    ok 2 - keeps same-named local helpers distinct by position (R1-2)
+      ---
+      duration_ms: 32.74524
+      type: 'test'
+      ...
+    # Subtest: reports a tool object without inputSchema as unresolved:missing (R1-3)
+    ok 3 - reports a tool object without inputSchema as unresolved:missing (R1-3)
+      ---
+      duration_ms: 31.517403
+      type: 'test'
+      ...
+    # Subtest: ignores non-tool {name, description} arrays (R2-1)
+    ok 4 - ignores non-tool {name, description} arrays (R2-1)
+      ---
+      duration_ms: 31.867083
+      type: 'test'
+      ...
+    # Subtest: follows a mutating helper that only mentions call.name in a ternary (R2-2)
+    ok 5 - follows a mutating helper that only mentions call.name in a ternary (R2-2)
+      ---
+      duration_ms: 29288.650392
+      type: 'test'
+      ...
+    1..5
+ok 3 - editor_write routing
+  ---
+  duration_ms: 29415.383254
+  type: 'suite'
+  ...
+# Subtest: real repo
+    # Subtest: produces rows for each of the six apps at HEAD
+    ok 1 - produces rows for each of the six apps at HEAD
+      ---
+      duration_ms: 539.41644
+      type: 'test'
+      ...
+    # Subtest: reports the two blocked rows as read-only at the pin (R1-1, R1-2)
+    ok 2 - reports the two blocked rows as read-only at the pin (R1-1, R1-2)
+      ---
+      duration_ms: 87.800254
+      type: 'test'
+      ...
+    # Subtest: is deterministic and keeps every hash well formed at HEAD
+    ok 3 - is deterministic and keeps every hash well formed at HEAD
+      ---
+      duration_ms: 178.207554
+      type: 'test'
+      ...
+    1..3
+ok 4 - real repo
+  ---
+  duration_ms: 805.583371
+  type: 'suite'
+  ...
+1..4
+# tests 20
+# suites 4
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 31167.713378
