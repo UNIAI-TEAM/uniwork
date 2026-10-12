@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
 import { getDocument } from "@uniwork/core/api/endpoints/documents";
 import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
 import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
 import { detectDesktopPlatform, DESKTOP_PLATFORMS, selectOfficeInstallerChannel, type DesktopPlatformHints } from "@uniwork/core/office";
 import type { Document } from "@uniwork/core/types/document";
-import type { DesktopOpenActionProps, FrameDesktopOpenProps, OfficeChannel, OfficeSaveOutcome } from "@uniwork/views/office";
+import type { DesktopOpenActionProps, FrameDesktopOpenProps, OfficeChannel, OfficeHomeLaunchProps, OfficeSaveOutcome } from "@uniwork/views/office";
 import { launchOfficeDeepLink } from "./desktop-handoff";
 
 /**
@@ -45,8 +45,20 @@ function desktopOpenWiring(
         return null;
       }
     },
+    ...installerWiring(document.organization_id, channelReady),
+    launch: launchOfficeDeepLink,
+  };
+}
+
+/** The installer half of the wiring: the organization's published installers,
+ * this machine's platform, and the bundle download. */
+function installerWiring(
+  organizationId: string,
+  channelReady: () => Promise<OfficeChannel>,
+): Pick<OfficeHomeLaunchProps, "loadInstallers" | "loadPlatformHint" | "downloadInstaller"> {
+  return {
     loadInstallers: async () => {
-      const profile = await getOfficeDesktopDownload(document.organization_id, await channelReady());
+      const profile = await getOfficeDesktopDownload(organizationId, await channelReady());
       return { installers: profile?.installers ?? [], supportedPlatforms: profile?.supported_platforms ?? DESKTOP_PLATFORMS };
     },
     loadPlatformHint: async () => {
@@ -56,14 +68,13 @@ function desktopOpenWiring(
       return detectDesktopPlatform({ userAgent: navigator.userAgent, userAgentData: data ? { platform: data.platform, mobile: data.mobile, ...entropy } : undefined });
     },
     downloadInstaller: async (platform) => {
-      const blob = await downloadOfficeDesktopBundle(document.organization_id, await channelReady(), platform);
+      const blob = await downloadOfficeDesktopBundle(organizationId, await channelReady(), platform);
       const url = URL.createObjectURL(blob);
       const link = window.document.createElement("a");
       link.href = url; link.download = "UniWork-Office.zip";
       window.document.body.append(link); link.click(); link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     },
-    launch: launchOfficeDeepLink,
   };
 }
 
@@ -145,4 +156,15 @@ export function useDocumentsDesktopOpen(organizationId: string): (document: Pick
     (document: Pick<Document, "id" | "organization_id" | "current_version">) => frameDesktopOpen(document, deploymentId, channel, channelReady),
     [deploymentId, channel, channelReady],
   );
+}
+
+/**
+ * "Open UniWork Office" in the Documents header: the app on its home screen,
+ * with no document and no launch ticket, and the same installers when it does
+ * not answer. The functions are stable, so the platform probe runs once.
+ */
+export function useOfficeHomeLaunch(organizationId: string): OfficeHomeLaunchProps {
+  const { channel, channelReady } = useOfficeConfigBinding(organizationId);
+  const installers = useMemo(() => installerWiring(organizationId, channelReady), [organizationId, channelReady]);
+  return { channel, launch: launchOfficeDeepLink, ...installers };
 }

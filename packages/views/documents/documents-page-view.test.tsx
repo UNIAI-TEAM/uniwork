@@ -9,6 +9,7 @@ import {
 } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
+import type { OfficeLaunchSessionFactory } from "../office";
 import { DocumentsPageView } from "./documents-page-view";
 
 const { t } = initI18n();
@@ -41,11 +42,19 @@ function treeNode(over: Record<string, unknown> = {}) {
 
 function renderView(
   onOpen: (id: string) => void,
-  opts: boolean | { desktopOpen?: React.ComponentProps<typeof DocumentsPageView>["desktopOpen"] } = true,
+  opts:
+    | boolean
+    | {
+        desktopOpen?: React.ComponentProps<typeof DocumentsPageView>["desktopOpen"];
+        officeHome?: React.ComponentProps<typeof DocumentsPageView>["officeHome"];
+      } = true,
 ) {
   const on = typeof opts === "boolean" ? opts : true;
   const desktopOpen = typeof opts === "boolean" ? undefined : opts.desktopOpen;
-  return render(withFlag(<DocumentsPageView wsId={WS} onOpen={onOpen} desktopOpen={desktopOpen} />, on));
+  const officeHome = typeof opts === "boolean" ? undefined : opts.officeHome;
+  return render(
+    withFlag(<DocumentsPageView wsId={WS} onOpen={onOpen} desktopOpen={desktopOpen} officeHome={officeHome} />, on),
+  );
 }
 
 function queryOf(path: string) {
@@ -454,7 +463,7 @@ describe("DocumentsPageView", () => {
       sources: () => [source()],
       post: () => ({ document: file("c1", "Đề xuất ngân sách.pdf") }),
     });
-    const createSession = vi.fn();
+    const createSession = vi.fn<OfficeLaunchSessionFactory>();
     renderView(vi.fn(), { desktopOpen: desktopOpenWith(createSession) });
 
     const row = await rowOf("Đề xuất ngân sách.pdf");
@@ -492,7 +501,7 @@ describe("DocumentsPageView", () => {
     route({
       list: () => [summary(), file("f1", "Báo giá.docx", { my_level: "view", current_version: 2 })],
     });
-    const createSession = vi.fn().mockResolvedValue(null);
+    const createSession = vi.fn<OfficeLaunchSessionFactory>().mockResolvedValue(null);
     renderView(vi.fn(), { desktopOpen: desktopOpenWith(createSession) });
 
     const fileRow = await rowOf("Báo giá.docx");
@@ -503,6 +512,102 @@ describe("DocumentsPageView", () => {
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
     expect(createSession.mock.calls[0]?.[0]).toBe("f1");
     expect(createSession.mock.calls[0]?.[1]).toMatchObject({ operation: "view", deployment_id: "dep-1" });
+  });
+
+  it("shows a file's size and whether it was uploaded or created here", async () => {
+    route({
+      list: () => [
+        summary({ id: "u1", kind: "file", title: "Hợp đồng.pdf", size_bytes: 2048, origin: "upload" }),
+        summary({ id: "c1", kind: "file", title: "Báo cáo.docx", size_bytes: 0, origin: "created" }),
+      ],
+    });
+    renderView(vi.fn());
+    const uploaded = await rowOf("Hợp đồng.pdf");
+    expect(within(uploaded).getByText(t("documents.home.origin.upload"))).toBeInTheDocument();
+    expect(within(uploaded).getAllByText(/2 KB/).length).toBeGreaterThan(0);
+    const created = await rowOf("Báo cáo.docx");
+    expect(within(created).getByText(t("documents.home.origin.created"))).toBeInTheDocument();
+  });
+
+  it("moves a row into a folder picked in the dialog, on the revision it reads first", async () => {
+    route({
+      list: () => [summary({ id: "d1" }), summary({ id: "f1", kind: "folder", title: "Hợp đồng" })],
+      tree: () => [treeNode({ id: "f1", title: "Hợp đồng", kind: "folder" }), treeNode({ id: "d1", title: "Kế hoạch Q4" })],
+      detail: (id) => summary({ id, revision: "7" }),
+      post: (path) => (path.endsWith("/move") ? { document: summary({ id: "d1", parent_id: "f1", revision: "8" }) } : {}),
+    });
+    renderView(vi.fn());
+    const row = await rowOf("Kế hoạch Q4");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Hợp đồng" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
+    await waitFor(() => {
+      const call = postCall("POST");
+      expect(call?.[0]).toBe("/api/v1/documents/d1/move");
+      expect((call?.[1] as { body?: unknown }).body).toEqual({ parent_id: "f1", revision: "7" });
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("keeps a refused move in the dialog with the localized reason, and never offers a folder inside itself", async () => {
+    route({
+      list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })],
+      tree: () => [treeNode({ id: "f1", title: "Hợp đồng", kind: "folder", children: [treeNode({ id: "f2", title: "Con", kind: "folder", parent_id: "f1" })] })],
+      detail: (id) => summary({ id, kind: "folder", revision: "2" }),
+      post: () => {
+        throw new ApiError("server text", "document_parent_kind", 422);
+      },
+    });
+    renderView(vi.fn());
+    // The folder is in the sidebar tree too; the row menu names it.
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByRole("radio", { name: "Hợp đồng" })).toBeNull();
+    expect(within(dialog).queryByRole("radio", { name: "Con" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
+    expect(await within(dialog).findByText(t("documents.errors.document_parent_kind"))).toBeInTheDocument();
+  });
+
+  it("says archiving a folder takes everything in it", async () => {
+    route({ list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })] });
+    renderView(vi.fn());
+    const row = await rowOf("Hợp đồng");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.archive") }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(t("documents.archive.archive_folder_title"))).toBeInTheDocument();
+    expect(within(dialog).getByText(t("documents.archive.archive_folder_description"))).toBeInTheDocument();
+  });
+
+  it("offers no move or archive on the archive and shared tabs", async () => {
+    route({ list: () => [summary()] });
+    renderView(vi.fn());
+    fireEvent.click(await screen.findByRole("tab", { name: t("documents.home.scope.archived") }));
+    const row = await rowOf("Kế hoạch Q4");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
+    await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
+  });
+
+  it("puts Open UniWork Office in the header, launching the app with no document", async () => {
+    route({ list: () => [] });
+    const launch = vi.fn(async () => "launched" as const);
+    renderView(vi.fn(), {
+      officeHome: {
+        channel: "stable",
+        launch,
+        loadInstallers: vi.fn(async () => ({ installers: [] })),
+        loadPlatformHint: vi.fn(async () => ({ platform: "win32-x64" as const, confidence: "certain" as const })),
+        downloadInstaller: vi.fn(async () => undefined),
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.open_office") }));
+    await waitFor(() => expect(launch).toHaveBeenCalledWith("uniwork-office://"));
+    expect(postCall("POST")).toBeUndefined();
   });
 
   it("uploads a file from the card and opens the new document", async () => {
@@ -656,7 +761,7 @@ async function rowOf(title: string) {
   return row as HTMLElement;
 }
 
-function desktopOpenWith(createSession: ReturnType<typeof vi.fn>) {
+function desktopOpenWith(createSession: OfficeLaunchSessionFactory) {
   return () => ({
     deploymentId: "dep-1",
     savedVersion: 1,

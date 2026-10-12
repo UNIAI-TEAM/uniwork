@@ -30,7 +30,8 @@ export interface DocumentArchiveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wsId: string;
-  doc: Document;
+  /** The document (a library row is enough: only its id and kind are read). */
+  doc: { id: string; kind: string };
   /** `archive` from a live document; `restore` from the trash. */
   mode: "archive" | "restore";
   /** Called after a verified archive, so the caller can leave the document. */
@@ -69,6 +70,8 @@ export function DocumentArchiveDialog({
   const archive = useArchiveDocument(wsId);
   const restore = useRestoreDocument(wsId);
   const isArchive = mode === "archive";
+  // Archiving a folder archives everything in it; the dialog says so.
+  const folder = doc.kind === "folder";
   const subtree = useDocumentTree(wsId, doc.id, { enabled: open && isArchive });
   const [error, setError] = useState<string | null>(null);
   const keyRef = useRef<string | null>(null);
@@ -172,10 +175,16 @@ export function DocumentArchiveDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {t(isArchive ? "documents.archive.archive_title" : "documents.archive.restore_title")}
+            {t(isArchive ? (folder ? "documents.archive.archive_folder_title" : "documents.archive.archive_title") : "documents.archive.restore_title")}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {t(isArchive ? "documents.archive.archive_description" : "documents.archive.restore_description")}
+            {t(
+              isArchive
+                ? folder
+                  ? "documents.archive.archive_folder_description"
+                  : "documents.archive.archive_description"
+                : "documents.archive.restore_description",
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {isArchive ? (

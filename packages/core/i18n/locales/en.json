@@ -7548,42 +7548,19 @@
     "page": {
       "title": "Documents",
       "new_page": "New page",
-      "upload_file": "Upload file",
       "off_title": "Documents are off",
       "off_description": "Documents are not enabled for this workspace.",
       "checking_title": "Checking whether documents are available…",
       "unknown_title": "Could not check whether documents are available",
       "unknown_description": "The configuration did not load, so we don't know if documents are enabled for this workspace. Try again.",
       "unknown_retry": "Try again",
-      "create_failed": "Could not create the page",
       "upload_failed": "Could not upload the file",
       "tab_title": "{{title}} · UniWork",
       "office_tab_title": "{{title}} · UniWork Office"
     },
     "library": {
-      "count_label": "documents",
-      "tabs": {
-        "all": "All",
-        "recent": "Recent",
-        "shared": "Shared with me",
-        "archived": "Archive"
-      },
-      "filters": {
-        "kind_label": "Document type",
-        "kind_all": "Any type",
-        "kind_page": "Page",
-        "kind_file": "File",
-        "date_label": "Updated",
-        "date_all": "Any time",
-        "date_today": "Today",
-        "date_week": "Last 7 days",
-        "date_month": "Last 30 days"
-      },
       "loading": "Loading documents…",
-      "empty_title": "No documents yet",
-      "empty_description": "Create a page or upload a file to get started.",
       "no_matches_title": "No documents match the filters",
-      "no_matches_description": "Try removing the type or date filter.",
       "error_title": "Could not load the document list",
       "error_description": "Check your connection and try again.",
       "retry": "Try again",
@@ -7592,12 +7569,10 @@
       "load_more": "Load more",
       "loading_more": "Loading more…",
       "clear_filters": "Clear filters",
-      "row_meta": "Updated {{time}}",
       "archived_badge": "Archived"
     },
     "tree": {
       "aria_label": "Document tree",
-      "open_trigger": "Tree",
       "sheet_title": "Document tree",
       "sheet_description": "Expand branches and pick a document to open.",
       "loading": "Loading the document tree…",
@@ -7966,7 +7941,9 @@
       "restore_confirm": "Restore",
       "restore_submitting": "Restoring…",
       "restore_failed": "Could not restore. Nothing changed.",
-      "restore_not_archived": "This document is not in the trash."
+      "restore_not_archived": "This document is not in the trash.",
+      "archive_folder_title": "Archive folder",
+      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later."
     },
     "public": {
       "loading": "Loading the document…",
@@ -8201,7 +8178,9 @@
         "save_to_folder": "Save to folder",
         "menu": "Actions for {{title}}",
         "download_failed": "Could not download the file. Try again.",
-        "star_failed": "Could not update the star. Try again."
+        "star_failed": "Could not update the star. Try again.",
+        "move": "Move",
+        "archive": "Archive"
       },
       "empty": {
         "title": "No documents in this workspace yet",
@@ -8234,7 +8213,20 @@
         "submit": "Save",
         "saved": "Saved a copy to Documents.",
         "failed": "Could not save the file to the folder. Try again."
-      }
+      },
+      "move": {
+        "title": "Move",
+        "description": "Pick a new folder for {{name}}. Everything inside it moves too.",
+        "submit": "Move",
+        "moved": "Moved."
+      },
+      "open_office": "Open UniWork Office"
+    },
+    "errors": {
+      "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; pages and files sit in a page or a folder.",
+      "document_cycle": "An item can't move into itself or into something inside it.",
+      "document_too_deep": "The document tree is at most 5 levels deep.",
+      "folder_not_supported": "A folder has no content to open or edit."
     }
   },
   "squads": {

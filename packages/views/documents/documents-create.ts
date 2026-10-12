@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
 import type { BlankDocumentFormat } from "@uniwork/core/api/endpoints/documents-blank";
 import { useCreateDocument } from "@uniwork/core/documents/hooks";
 import { isEndpointMissing, useCreateBlankFile, useCreateFolder } from "@uniwork/core/documents/hooks-library";
+import { documentErrorMessage } from "./document-error-message";
 
 /** What the create cards and the "New" menu offer, in the design's order. */
 export const CREATE_TYPES = ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"] as const;
@@ -50,7 +50,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
         toast.error(t("documents.home.create_unavailable"));
         return;
       }
-      toast.error(apiErrorMessage(error) ?? t("documents.home.create_failed"));
+      toast.error(documentErrorMessage(error, t, "documents.home.create_failed"));
     }
   };
 
@@ -63,7 +63,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
       });
       return folder.id;
     } catch (error) {
-      toast.error(apiErrorMessage(error) ?? t("documents.home.folders.create_failed"));
+      toast.error(documentErrorMessage(error, t, "documents.home.folders.create_failed"));
       return null;
     }
   };

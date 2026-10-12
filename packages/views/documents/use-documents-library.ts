@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { useDocumentFavorites } from "@uniwork/core/documents/hooks-favorites";
 import {
   useDocumentList,
@@ -19,11 +21,11 @@ import {
   indexTree,
   matchesChip,
   sourceRow,
-  type DocumentSummaryRow,
   type FolderInfo,
   type LibraryRow,
   type TypeChip,
 } from "./library-rows";
+import { favoriteRow, knownDocuments } from "./starred-rows";
 
 interface InfiniteLike<T> {
   data?: { pages: T[] };
@@ -64,29 +66,6 @@ function documentState(q: InfiniteLike<DocumentList>): LibraryState {
   };
 }
 
-/** A favorite carries what a row needs to open the document, not its dates. */
-function favoriteRow(fav: { document_id: string; workspace_id: string; title: string; kind: string; icon?: string | null; parent_id?: string | null }): DocumentSummaryRow {
-  return {
-    id: fav.document_id,
-    organization_id: "",
-    workspace_id: fav.workspace_id,
-    parent_id: fav.parent_id ?? null,
-    kind: fav.kind,
-    title: fav.title,
-    icon: fav.icon ?? null,
-    visibility: "workspace",
-    revision: "",
-    current_version: 0,
-    position: 0,
-    created_by: "",
-    created_by_kind: "human",
-    updated_by: "",
-    updated_by_kind: "human",
-    created_at: "",
-    updated_at: "",
-  };
-}
-
 const SOURCE_TYPES = new Set<string>(["docx", "xlsx", "pptx", "pdf", "md", "html"]);
 
 export interface UseDocumentsLibraryInput {
@@ -113,6 +92,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const sourceType = SOURCE_TYPES.has(chip) ? (chip as DocumentSourceType) : undefined;
   const sourcesWanted = chip !== "page" && ((home && !folderId) || view.kind === "sources");
 
+  const queryClient = useQueryClient();
   const tree = useDocumentTree(wsId, undefined, { enabled });
   const favorites = useDocumentFavorites(orgId, { enabled: enabled && !!orgId });
   const listFilter = useMemo(
@@ -122,7 +102,10 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     }),
     [folderId, chip],
   );
+  // The starred view reads the workspace root list too (the home root's own
+  // cache entry when it was open), so starred rows get dates and editors.
   const homeQuery = useDocumentList(wsId, listFilter, { enabled: enabled && home });
+  const rootQuery = useDocumentList(wsId, {}, { enabled: enabled && view.kind === "starred" });
   const archivedQuery = useDocumentList(wsId, { archived: true }, { enabled: enabled && view.kind === "archived" });
   const recentQuery = useRecentDocuments(wsId, { enabled: enabled && view.kind === "recent" });
   const sharedQuery = useSharedWithMe(wsId, { enabled: enabled && view.kind === "shared" });
@@ -158,9 +141,12 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     case "archived":
       state = documentState(archivedQuery);
       break;
-    case "starred":
+    case "starred": {
+      // The root list is read through its hook so an answer re-renders the
+      // view; other cached lists and details count too (read, never fetched).
+      const known = knownDocuments([[null, rootQuery.data], ...queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) })]);
       state = {
-        rows: starred.map((fav) => documentRow(favoriteRow(fav))),
+        rows: starred.map((fav) => documentRow(favoriteRow(fav, known.get(fav.document_id)))),
         loading: favorites.isPending && !!orgId,
         failure: favorites.isError && !favorites.data ? failureOf(favorites.error) : null,
         hasMore: false,
@@ -169,6 +155,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
         refetch: () => void favorites.refetch(),
       };
       break;
+    }
     case "sources":
       state = {
         rows: sourceRows,

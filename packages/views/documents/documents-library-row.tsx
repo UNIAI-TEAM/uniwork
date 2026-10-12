@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, MonitorUp, Star, StarOff } from "lucide-react";
+import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, MonitorUp, Star, StarOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -22,7 +22,17 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
-import { formatBytes, isFolderRow, rowFormat, rowOrigin, rowSizeBytes, rowTitle, rowUpdatedAt, type LibraryRow } from "./library-rows";
+import {
+  formatBytes,
+  isFolderRow,
+  rowFormat,
+  rowOrigin,
+  rowSizeBytes,
+  rowTitle,
+  rowUpdatedAt,
+  type DocumentSummaryRow,
+  type LibraryRow,
+} from "./library-rows";
 
 /** The formats UniWork Office opens; a page, folder or other file has no app action. */
 const APP_FORMATS = new Set(["docx", "xlsx", "pptx", "pdf", "md", "html"]);
@@ -39,6 +49,12 @@ export interface LibraryRowHandlers {
   /** Absent outside an organization (no favorites there). */
   onToggleStar?: (documentId: string, starred: boolean) => void;
   isStarred: (documentId: string) => boolean;
+  /**
+   * Move to another folder and archive, for people who may change the open
+   * folder; absent hides both. The server still decides per document.
+   */
+  onMove?: (doc: DocumentSummaryRow) => void;
+  onArchive?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
   desktopOpen?: LibraryDesktopOpen;
@@ -112,7 +128,13 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
         run: () => handlers.onToggleStar?.(doc.id, starred),
       });
     }
-  } else if (row.type === "source") {
+  }
+  // A viewer of the row (shared with view only) and the archive tab get neither.
+  if (doc && !archived && !viewOnly) {
+    if (handlers.onMove) actions.push({ id: "move", label: t("documents.home.row.move"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
+    if (handlers.onArchive) actions.push({ id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) });
+  }
+  if (row.type === "source") {
     actions.push(
       { id: "go-to-source", label: t("documents.home.row.go_to_source"), icon: ExternalLink, run: primary },
       { id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) },
