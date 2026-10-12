@@ -45,18 +45,14 @@ func TestDocumentFolderArchiveBound(t *testing.T) {
 				t.Fatalf("%s: %d archive outbox rows, want 1", id, n)
 			}
 		}
-		// A restore past the bound is refused by name and moves nothing.
+		// Restore has no bound: a batch larger than it (a legacy one) can only
+		// come back whole, never in parts, so it must not be refused.
 		env.svc.archiveMaxNodes = 2
-		_, err = env.svc.RestoreDocument(ctx, member, root.ID, ArchiveDocumentInput{})
-		wantCode(t, err, "folder_too_large")
-		if d, err := env.f.q.GetDocumentByID(ctx, root.ID); err != nil || !d.ArchivedAt.Valid {
-			t.Fatalf("a refused restore changed the folder: %+v %v", d, err)
-		}
-		env.svc.archiveMaxNodes = 3
 		res, err = env.svc.RestoreDocument(ctx, member, root.ID, ArchiveDocumentInput{})
 		if err != nil || len(res.Affected) != 3 {
-			t.Fatalf("restore at the bound = %v, %v", res.Affected, err)
+			t.Fatalf("restore of a batch over the bound = %v, %v", res.Affected, err)
 		}
+		env.svc.archiveMaxNodes = 3
 		for _, id := range res.Affected {
 			if n := env.countAudit(t, "document.restored", id); n != 1 {
 				t.Fatalf("%s: %d restore audit rows, want 1", id, n)
@@ -118,6 +114,48 @@ func TestDocumentFolderArchiveAccess(t *testing.T) {
 		}
 		f.live(t, root.ID)
 		f.live(t, child.ID)
+	})
+
+	// acl_owner_id is NULL for agent/system-created documents. The set-based
+	// query must keep such a node in the check set (NULL = actor is not true),
+	// so the answer equals effectiveLevel's: a restricted node is unreadable,
+	// an edit-only one is not manage.
+	t.Run("a restricted child with no ACL owner refuses a folder manager", func(t *testing.T) {
+		root := newFolder(t)
+		child := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted",
+			createdBy: tn.aclOwner.ID, parent: root.ID})
+		_, err := env.svc.ArchiveDocument(ctx, member, root.ID, ArchiveDocumentInput{})
+		if !errors.Is(err, ErrForbidden) {
+			t.Fatalf("archive over a restricted child with a NULL ACL owner = %v, want forbidden", err)
+		}
+		f.live(t, root.ID)
+		f.live(t, child.ID)
+	})
+
+	t.Run("an edit-only workspace child with no ACL owner refuses a folder manager", func(t *testing.T) {
+		root := newFolder(t)
+		child := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace",
+			createdBy: tn.aclOwner.ID, parent: root.ID})
+		_, err := env.svc.ArchiveDocument(ctx, member, root.ID, ArchiveDocumentInput{})
+		if !errors.Is(err, ErrForbidden) {
+			t.Fatalf("archive over an edit-only child with a NULL ACL owner = %v, want forbidden", err)
+		}
+		f.live(t, root.ID)
+		f.live(t, child.ID)
+	})
+
+	t.Run("a workspace admin archives a child with no ACL owner", func(t *testing.T) {
+		root := newFolder(t)
+		child := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted",
+			createdBy: tn.aclOwner.ID, parent: root.ID})
+		res, err := env.svc.ArchiveDocument(ctx, human(tn.wsAdmin), root.ID, ArchiveDocumentInput{})
+		if err != nil || len(res.Affected) != 2 {
+			t.Fatalf("admin archive over a NULL-ACL-owner child = %v, %v", res.Affected, err)
+		}
+		d, err := f.q.GetDocumentByID(ctx, child.ID)
+		if err != nil || !d.ArchivedAt.Valid {
+			t.Fatalf("NULL-ACL-owner child not archived: %+v %v", d, err)
+		}
 	})
 
 	t.Run("a share at edit is not manage", func(t *testing.T) {

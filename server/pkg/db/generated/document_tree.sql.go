@@ -521,7 +521,10 @@ WHERE d.archived_at IS NULL
     d.owner_kind IS NOT NULL
     OR NOT (
       $1::boolean
-      OR ($2::boolean AND d.acl_owner_id = $3::text)
+      -- acl_owner_id is NULL for agent/system-created documents: without the
+      -- IS NOT NULL guard the comparison is NULL, NOT NULL stays NULL and the
+      -- row would drop out of the result as if it were manageable.
+      OR ($2::boolean AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3::text)
       OR EXISTS (
         SELECT 1
         FROM document_shares s
