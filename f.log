@@ -1,0 +1,82 @@
+$ node scripts/office/g5g6g7/g7-06/job.mjs --update-goldens --captures .g7-06-captures --out .g7-06-run/update; echo "update exit $?"; cat .g7-06-run/update/result.json 2>/dev/null; cat scripts/office/g5g6g7/g7-06/goldens/manifest.json; true
+g7-06 job: fork cb76dde, pin 0.1.0-cb76dde
+  golden    BLOCKED — capture_missing:desktop/fx-xlsx-revenue-xyz
+g7-06 job: BLOCKED (0 fail, 1 blocked, 0 pass, 0 note) — artifacts in /workspace/.g7-06-run/update
+update exit 77
+{
+  "forkSha": "cb76dde",
+  "pinVersion": "0.1.0-cb76dde",
+  "checks": {
+    "golden": {
+      "status": "BLOCKED",
+      "reasons": [
+        "capture_missing:desktop/fx-xlsx-revenue-xyz"
+      ],
+      "artifacts": [
+        "golden/update.json",
+        "/workspace/scripts/office/g5g6g7/g7-06/goldens/manifest.json"
+      ]
+    }
+  }
+}
+{
+  "schema": 1,
+  "pinVersion": "0.1.0-cb76dde",
+  "forkSha": "cb76dde",
+  "capturedOn": "2026-10-12T20:21:34.465Z",
+  "viewport": {
+    "w": 1440,
+    "h": 900
+  },
+  "deviceScaleFactor": 1,
+  "tolerance": {
+    "channel": 16,
+    "ratio": 0.001
+  },
+  "entries": {
+    "desktop/fx-docx-report-vi": {
+      "sha256": "df15ea8266615048ab2291ddd852a4a1884ee5b123882a0d01114c4f425325b1",
+      "masks": []
+    },
+    "desktop/fx-pptx-deck-vi": {
+      "sha256": "a59ad91c5e8986532aa03c2893d8f645f1208250dbb0ed5b67d728cb4f015648",
+      "masks": []
+    },
+    "desktop/fx-pdf-invoice-vi": {
+      "sha256": "53deefa43eaed30c760cc2e485bf749495a7b3a830873743e88ee1cdeda41dcf",
+      "masks": []
+    },
+    "desktop/fx-md-notes-vi": {
+      "sha256": "b7ecd389bff9e8f527d687bbd1db1ed4ebf3d7a10cccb25c391890dbede4c79c",
+      "masks": []
+    },
+    "desktop/fx-html-page-vi": {
+      "sha256": "91ccc360e2412011e2e2cb00fc233c1b8fe398a175046ed8e0e5093bdbcabdf2",
+      "masks": []
+    },
+    "web/fx-xlsx-revenue-xyz": {
+      "sha256": "a4c1b342caefb0e8cf62641c37b5b117980bbd9a78d8f16e7d4682390a207c15",
+      "masks": []
+    },
+    "web/fx-docx-report-vi": {
+      "sha256": "d3a77254f85fcee14664f6de95577b1f000d178997db5574f11623b9d48d2020",
+      "masks": []
+    },
+    "web/fx-pptx-deck-vi": {
+      "sha256": "7c2e7a378428bc4273bd3983443ddeecc94569c48bae3b845305a079b8a3fe37",
+      "masks": []
+    },
+    "web/fx-pdf-invoice-vi": {
+      "sha256": "12e82702194047925841375d489f80b5bacfd30c9e44d02198642fc2a270d213",
+      "masks": []
+    },
+    "web/fx-md-notes-vi": {
+      "sha256": "c652142edc2213f0d17148c762ed82827fae8bf9ed26570385ca58c08dbcf84b",
+      "masks": []
+    },
+    "web/fx-html-page-vi": {
+      "sha256": "94abb2dc6964a2a925f3e1138c6ca9a34a92eb595879ae6deacd37ff7e63ebf1",
+      "masks": []
+    }
+  }
+}

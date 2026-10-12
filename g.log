@@ -1,0 +1,31 @@
+$ node scripts/office/g5g6g7/g7-06/capture.mjs --host desktop --out .g7-06-captures-2; echo "desktop2 exit $?"; node scripts/office/g5g6g7/g7-06/capture.mjs --host web --out .g7-06-captures-2; echo "web2 exit $?"; true
+desktop: fx-xlsx-revenue-xyz -> sheets view open (theme+size, media)
+desktop: fx-docx-report-vi -> docs view open (theme+size, media)
+desktop: fx-pptx-deck-vi -> slides view open (theme+size, media)
+desktop: fx-pdf-invoice-vi -> pdf view open (theme+size, media)
+desktop: fx-md-notes-vi -> markdown view open (theme+size, media)
+desktop: fx-html-page-vi -> html view open (theme+size, media)
+  ok      desktop/fx-xlsx-revenue-xyz
+  ok      desktop/fx-docx-report-vi
+  ok      desktop/fx-pptx-deck-vi
+  ok      desktop/fx-pdf-invoice-vi
+  ok      desktop/fx-md-notes-vi
+  ok      desktop/fx-html-page-vi
+capture desktop: ok (exit 0), meta at /workspace/.g7-06-captures-2/desktop/meta.json
+desktop2 exit 0
+web: fx-xlsx-revenue-xyz -> /o-g706-mv5p8ayq/w-g706-mv5p8ayq/documents/<id>
+web: fx-docx-report-vi -> /o-g706-mv5p8ayq/w-g706-mv5p8ayq/documents/<id>
+web: fx-pptx-deck-vi -> /o-g706-mv5p8ayq/w-g706-mv5p8ayq/documents/<id>
+web: fx-pdf-invoice-vi -> /o-g706-mv5p8ayq/w-g706-mv5p8ayq/documents/<id>
+web: fx-md-notes-vi -> /o-g706-mv5p8ayq/w-g706-mv5p8ayq/documents/<id>
+web: fx-html-page-vi -> /o-g706-mv5p8ayq/w-g706-mv5p8ayq/documents/<id>
+web: cleanup done: stays: 6 document(s) archived into the trash (the API has no purge; kept until the organization is erased); organization 01M4RWGHPJXDPNCVDNY4DTA2K5 (erasure queued, runs in 5 days; its workspace 01M4RWGHPTB1R0DBDFDQXVZ4Y0 stays until then); owner account g7-06-capture-1791836571266@example.com (it cannot be deleted while it owns an organization)
+cleanup done: stays: 6 document(s) archived into the trash (the API has no purge; kept until the organization is erased); organization 01M4RWGHPJXDPNCVDNY4DTA2K5 (erasure queued, runs in 5 days; its workspace 01M4RWGHPTB1R0DBDFDQXVZ4Y0 stays until then); owner account g7-06-capture-1791836571266@example.com (it cannot be deleted while it owns an organization)
+  ok      web/fx-xlsx-revenue-xyz
+  ok      web/fx-docx-report-vi
+  ok      web/fx-pptx-deck-vi
+  ok      web/fx-pdf-invoice-vi
+  ok      web/fx-md-notes-vi
+  ok      web/fx-html-page-vi
+capture web: ok (exit 0), meta at /workspace/.g7-06-captures-2/web/meta.json
+web2 exit 0
