@@ -44,7 +44,7 @@
 //   OFFICE_FORK_SHA=0d03b18 node scripts/office/g5g6g7/evidence.mjs run \
 //     --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
 //     node scripts/office/g5g6g7/harness/document-step.mjs --run-dir <runDir>
-import { existsSync, mkdirSync, readFileSync, readdirSync, appendFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, appendFileSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -320,6 +320,8 @@ let password = reusePassword;
 let token = "";
 /** null = not checked (cloud), true = the server lists a live desktop session for the account, false = it does not. */
 let desktopSession = null;
+/** What this run created and may therefore remove, by id (never a pattern over the VM's data). */
+const seeded = { org: null };
 
 async function login() {
   const session = await jsonRequest("POST", `${API_ORIGIN}/api/v1/auth/login`, { body: { email, password } });
@@ -352,6 +354,7 @@ try {
     token,
     body: { name: "G7-01 harness", slug: `o-${slug}` },
   });
+  seeded.org = { id: org.organization.id, slug: org.organization.slug };
   const workspace = await jsonRequest("POST", `${API_ORIGIN}/api/v1/orgs/${org.organization.slug}/workspaces`, {
     token,
     body: { name: "G7-01 harness", slug: `w-${slug}` },
@@ -482,6 +485,33 @@ if (mintError || !(desktopMode && !desktopSession)) {
   if (outcome.blocker) blockers.push(outcome.blocker);
 }
 
+// ---- clean up what this run seeded (reviewer_be H1-5) -------------------------
+// The VM's database is shared and the harness never resets it, so a run removes
+// what it made, by the ids it was handed: a request to delete the seeded
+// organization (the product's own erasure of the organization, its workspaces,
+// documents and files; the server's job runs it after its grace period), then
+// the seeded account (anonymised). A reused account is a person's own and is
+// never touched. A cleanup that fails is reported and never changes the result:
+// it says nothing about the claim under test.
+const cleanup = { skipped: reused ? "the account is reused, not seeded" : null, steps: [] };
+async function cleanupStep(name, run) {
+  try {
+    await run();
+    cleanup.steps.push({ name, ok: true });
+  } catch (error) {
+    cleanup.steps.push({ name, ok: false, detail: error.message });
+  }
+}
+if (!reused && token) {
+  if (seeded.org) {
+    await cleanupStep("request deletion of the seeded organization", () =>
+      jsonRequest("POST", `${API_ORIGIN}/api/v1/orgs/${seeded.org.id}/privacy/deletion`, { token, body: { confirm_slug: seeded.org.slug } }),
+    );
+  }
+  await cleanupStep("delete the seeded account", () => jsonRequest("POST", `${API_ORIGIN}/api/v1/me/delete`, { token, body: { password } }));
+  rmSync(paths.docUser, { force: true });
+}
+
 // ---- evidence line (the runner owns it under OFFICE_EVIDENCE_ID) -------------
 const failed = checks.filter((c) => c.result === "FAIL");
 const result = failed.length > 0 ? "FAIL" : blockers.length > 0 ? "BLOCKED" : "PASS";
@@ -491,7 +521,7 @@ const forkSha = process.env.OFFICE_FORK_SHA || ports.OFFICE_FORK_SHA || "";
 const command = `node scripts/office/g5g6g7/harness/document-step.mjs --run-dir ${runDir} --req ${requirementId} --fixture ${fixtureId}`;
 mkdirSync(runDir, { recursive: true });
 const artifactPath = join(runDir, "document-step.json");
-const report = { schemaVersion: 1, kind: "uniwork-office-g5g6g7-document-step", requirementId, fixtureId, documentId, deploymentId, checks, blockers, result };
+const report = { schemaVersion: 1, kind: "uniwork-office-g5g6g7-document-step", requirementId, fixtureId, documentId, deploymentId, checks, blockers, cleanup, result };
 appendFileSync(artifactPath, `${JSON.stringify(report, null, 2)}\n`);
 
 if (!process.env.OFFICE_EVIDENCE_ID) {
@@ -518,6 +548,8 @@ if (!process.env.OFFICE_EVIDENCE_ID) {
 }
 
 for (const c of checks) console.log(`  ${c.result.padEnd(7)} ${c.name}${c.detail ? ` — ${c.detail}` : ""}`);
+for (const step of cleanup.steps) console.log(`  cleanup ${step.ok ? "ok     " : "FAILED "} ${step.name}${step.ok ? "" : ` — ${step.detail}`}`);
+if (cleanup.skipped) console.log(`  cleanup skipped: ${cleanup.skipped}`);
 console.log(`document step: ${result}`);
 for (const b of blockers) console.error(`  blocked: ${b}`);
 console.log(`document step artifact: ${artifactPath}`);

@@ -837,9 +837,10 @@ test("start.sh names the failing step and its args when lib.mjs errors", () => {
 // without a stack.
 
 /** A fake D server for the document step; resolves with its origin and a stop(). */
-function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls = 0, loginPassword = "" } = {}) {
+function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls = 0, loginPassword = "", failDelete = false } = {}) {
   return new Promise((resolveServer) => {
     const calls = [];
+    const requests = [];
     let devicePolls = 0;
     const server = createHttpServer((req, res) => {
       const chunks = [];
@@ -851,6 +852,10 @@ function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls
         };
         const url = new URL(req.url, "http://127.0.0.1");
         calls.push(url.pathname);
+        requests.push({ method: req.method, path: url.pathname, body: Buffer.concat(chunks).toString("utf8") });
+        if (/^\/api\/v1\/orgs\/[^/]+\/privacy\/deletion$/.test(url.pathname) || url.pathname === "/api/v1/me/delete") {
+          return failDelete ? send(409, { error: "owner_must_transfer" }) : send(url.pathname === "/api/v1/me/delete" ? 200 : 202, { status: "ok" });
+        }
         if (url.pathname === "/healthz") return send(200, { status: "ok" });
         if (url.pathname === "/api/v1/auth/login") {
           const sent = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
@@ -874,7 +879,7 @@ function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls
     });
     server.listen(0, "127.0.0.1", () => {
       const { port } = server.address();
-      resolveServer({ origin: `http://127.0.0.1:${port}`, calls, stop: () => new Promise((r) => server.close(r)) });
+      resolveServer({ origin: `http://127.0.0.1:${port}`, calls, requests, stop: () => new Promise((r) => server.close(r)) });
     });
   });
 }
@@ -1138,22 +1143,26 @@ test("--wait-signin that never sees a sign-in is BLOCKED with the wait in the re
   }
 });
 
-test("--wait-signin with a seeded account keeps its random password in a 0600 file, never in the output", async () => {
-  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE] });
+test("--wait-signin with a seeded account keeps its random password in a 0600 file while it waits, never in the output", async () => {
+  // signed out for three polls (about 6s): long enough to read the file mid-run
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], devicesAfterPolls: 3 });
   const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
-    const result = await runDocumentStep(["--run-dir", run.runDir, "--wait-signin", "20"]);
-    assert.equal(result.status, 0, `document-step exited ${result.status}\n${result.stdout}\n${result.stderr}`);
-    assert.ok(server.calls.includes("/api/v1/auth/register"), "no account given: one is seeded");
+    const finished = runDocumentStep(["--run-dir", run.runDir, "--wait-signin", "30"]);
     const file = harnessPaths(run.runDir).docUser;
+    for (let i = 0; i < 40 && !existsSync(file); i += 1) await new Promise((r) => setTimeout(r, 100));
     assert.equal(statSync(file).mode & 0o777, 0o600);
     const { email, password } = JSON.parse(readFileSync(file, "utf8"));
+    const result = await finished;
+    assert.equal(result.status, 0, `document-step exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.ok(server.calls.includes("/api/v1/auth/register"), "no account given: one is seeded");
     assert.match(email, /^g7-01-harness-\d+@example\.com$/);
     assert.ok(password.length >= 16 && password !== "password123", "a waited sign-in gets its own random password");
     assert.match(result.stdout, new RegExp(`as ${email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
     assert.ok(result.stdout.includes(file), "the output points at the credentials file");
     assert.ok(!everythingWritten(run, result).includes(password), "the seeded password stays out of the output and the evidence");
+    assert.ok(!existsSync(file), "the credentials file goes with the account it was for");
   } finally {
     await server.stop();
   }
@@ -1285,4 +1294,69 @@ test("a second instance that does not exit is killed as a group, not left behind
   } finally {
     await server.stop();
   }
+});
+
+// ---- cleanup of what the run seeded (H1-5) ------------------------------------
+
+test("the seeded organization and account are removed by id after the step", async () => {
+  const server = await mkFakeDocumentServer();
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const writes = server.requests.filter((r) => r.method === "POST").map((r) => r.path);
+    const org = writes.indexOf("/api/v1/orgs/o1/privacy/deletion");
+    const account = writes.indexOf("/api/v1/me/delete");
+    assert.ok(org >= 0 && account > org, `organization deletion, then the account (saw ${writes.join(", ")})`);
+    // only ids this run was handed: the org it created, confirmed with its own slug
+    assert.deepEqual(JSON.parse(server.requests.find((r) => r.path === "/api/v1/orgs/o1/privacy/deletion").body), { confirm_slug: "o1" });
+    assert.match(result.stdout, /cleanup ok\s+request deletion of the seeded organization/);
+    const report = JSON.parse(readFileSync(join(run.runDir, "document-step.json"), "utf8"));
+    assert.deepEqual(report.cleanup.steps.map((step) => step.ok), [true, true]);
+    assert.ok(!everythingWritten(run, result).includes("password123"), "the seeded password is not written anywhere");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a reused account is never cleaned up", async () => {
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir], REUSED);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.ok(!server.requests.some((r) => /privacy\/deletion|\/me\/delete/.test(r.path)), "no deletion call for a reused account");
+    assert.match(result.stdout, /cleanup skipped: the account is reused/);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a cleanup that fails is reported and does not change the result", async () => {
+  const server = await mkFakeDocumentServer({ failDelete: true });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir]);
+    assert.equal(result.status, 0, "the open itself passed");
+    assert.match(result.stdout, /cleanup FAILED\s+request deletion of the seeded organization — .*409/);
+    assert.match(result.stdout, /document step: PASS/);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("stop.sh removes the run's uploads and server cwd by path and keeps logs and evidence", () => {
+  const runDir = mkdtempSync(join(tmpdir(), "harness-stop-"));
+  for (const dir of ["uploads", join("server-cwd", "a", "b", "c"), "logs"]) mkdirSync(join(runDir, dir), { recursive: true });
+  writeFileSync(join(runDir, "uploads", "doc.docx"), "x");
+  writeFileSync(join(runDir, "logs", "server.log"), "log");
+  writeFileSync(join(runDir, "evidence.jsonl"), "{}\n");
+  writeFileSync(join(runDir, "pids"), "");
+  const result = spawnSync("bash", [join(HERE, "stop.sh")], { encoding: "utf8", env: { ...process.env, HARNESS_RUN_DIR: runDir } });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(!existsSync(join(runDir, "uploads")) && !existsSync(join(runDir, "server-cwd")));
+  assert.ok(existsSync(join(runDir, "logs", "server.log")) && existsSync(join(runDir, "evidence.jsonl")));
 });
