@@ -225,3 +225,58 @@ func TestMcpRevokeFamilyLeavesLongExpiredTokensAlone(t *testing.T) {
 		t.Fatalf("revoked rows = %d, %v", revoked, err)
 	}
 }
+
+// Start does not touch last_used_at, so a client registered long ago and not
+// yet granted anything looks abandoned while a person is on its consent page.
+// Deleting it then would let Approve write a grant for a client that is gone.
+func TestMcpSweepKeepsAClientWithALiveAuthorizationAttempt(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	old := func(c McpClient) {
+		t.Helper()
+		if _, err := w.pool.Exec(w.ctx, `UPDATE mcp_clients SET created_at = now() - interval '40 days', last_used_at = NULL WHERE client_id = $1`, c.ClientID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inFlight := w.publicClient(t, "https://x.test/cb")
+	old(inFlight)
+	liveAttempt := w.attempt(t, inFlight.ClientID, time.Now().Add(5*time.Minute))
+	lapsed := w.publicClient(t, "https://x.test/cb")
+	old(lapsed)
+	// Expired an hour ago: the attempt sweep keeps it for a day, but nobody can
+	// still approve it, so it does not hold its client.
+	lapsedAttempt := w.attempt(t, lapsed.ClientID, time.Now().Add(-time.Hour))
+	idle := w.publicClient(t, "https://x.test/cb")
+	old(idle)
+
+	r, err := w.svc.Sweep(w.ctx)
+	if err != nil || r.Clients != 2 {
+		t.Fatalf("sweep = %+v, %v; want the lapsed and the idle client gone", r, err)
+	}
+	has := func(c McpClient) bool {
+		t.Helper()
+		var n int
+		if err := w.pool.QueryRow(w.ctx, `SELECT count(*) FROM mcp_clients WHERE client_id = $1`, c.ClientID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n == 1
+	}
+	if !has(inFlight) {
+		t.Error("a client with a live authorization attempt was deleted")
+	}
+	if has(lapsed) || has(idle) {
+		t.Errorf("an abandoned client was kept (lapsed attempt %v, idle %v)", has(lapsed), has(idle))
+	}
+	if !w.exists(t, "mcp_auth_attempts", liveAttempt) || !w.exists(t, "mcp_auth_attempts", lapsedAttempt) {
+		t.Error("the sweep deleted an attempt that expired less than a day ago")
+	}
+
+	// The person finishing the flow still gets a code.
+	consentURL, err := w.svc.Start(w.ctx, McpAuthorizeInput{ResponseType: "code", ClientID: inFlight.ClientID, RedirectURI: "https://x.test/cb", CodeChallenge: mcpTestChallenge(), CodeChallengeMethod: "S256"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.svc.Consent(w.ctx, w.owner.ID, attemptID(t, consentURL)); err != nil {
+		t.Fatal(err)
+	}
+}

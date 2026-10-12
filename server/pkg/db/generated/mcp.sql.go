@@ -297,9 +297,14 @@ const deleteAbandonedMcpClients = `-- name: DeleteAbandonedMcpClients :execrows
 DELETE FROM mcp_clients c
 WHERE c.kind = 'dcr' AND COALESCE(c.last_used_at, c.created_at) < now() - interval '30 days'
   AND NOT EXISTS (SELECT 1 FROM mcp_grants g WHERE g.client_id = c.client_id)
+  AND NOT EXISTS (SELECT 1 FROM mcp_auth_attempts a WHERE a.client_id = c.client_id AND a.expires_at > now())
 `
 
 // tenant: system
+// A client with a live authorization attempt is in the middle of consent: Start
+// does not touch last_used_at, so without this a client registered long ago
+// could be deleted between Start and Approve, which would then write a grant
+// for a client that is gone.
 func (q *Queries) DeleteAbandonedMcpClients(ctx context.Context) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteAbandonedMcpClients)
 	if err != nil {
