@@ -45,6 +45,15 @@ for arg in "$@"; do
   esac
 done
 
+# --dry-run must never touch a live run: before this, it truncated the run's pids
+# file and rewrote ports.env/server.env/lib.log before reaching its own exit, so
+# stop.sh could no longer find the live server/web/app (reviewer_be H1-2). It
+# gets a scratch run dir of its own instead of the real one.
+DRY_RUN_DIR=""
+if [ "$DRY_RUN" = "1" ]; then
+  DRY_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/harness-dry-run.XXXXXX")"
+  RUN_DIR="$DRY_RUN_DIR"
+fi
 mkdir -p "$RUN_DIR/logs" "$RUN_DIR/userdata"
 # Absolute from here on: the D server is started from another directory, and a
 # relative HARNESS_RUN_DIR would point its log redirect at the wrong place.
@@ -121,8 +130,16 @@ dump_logs() {
   done
   [ "$any" = 1 ] || echo "harness: no component logs in $LOG_DIR" >&2
 }
+# A dry run touches nothing of a live run: it works in a scratch run dir (see
+# DRY_RUN_DIR), removed here once the exit is reported.
 on_exit() {
   local code=$?
+  report_exit "$code"
+  [ -z "${DRY_RUN_DIR:-}" ] || rm -rf "$DRY_RUN_DIR"
+  return 0
+}
+report_exit() {
+  local code=$1
   [ "$code" -eq 0 ] && return 0
   # An exit nobody called fail()/blocked() for (set -e on a bad command) is still
   # a failed start, never a quiet "starting".

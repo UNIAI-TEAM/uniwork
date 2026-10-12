@@ -558,6 +558,30 @@ test("writeRunEnv leaves the server a .env without any key it owns, in a cwd of 
   }
 });
 
+test("--dry-run leaves a live run's pids, ports and logs untouched (reviewer_be H1-2)", () => {
+  const stack = mkFakeStack();
+  try {
+    mkdirSync(join(stack.runDir, "logs"), { recursive: true });
+    writeFileSync(join(stack.runDir, "pids"), "server 4242 8080\nweb 4243 3000\n");
+    writeFileSync(join(stack.runDir, "ports.env"), "API_PORT=8080\nMARK=live\n");
+    writeFileSync(join(stack.runDir, "server.env"), "PORT='8080'\n");
+    writeFileSync(join(stack.runDir, "logs", "lib.log"), "live\n");
+    const before = ["pids", "ports.env", "server.env", join("logs", "lib.log")].map((f) => readFileSync(join(stack.runDir, f), "utf8"));
+    const result = runStart(stack, { HARNESS_DRY_RUN: "1" });
+    assert.equal(result.status, 0, `start.sh --dry-run exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /--dry-run, stopping before anything is started/);
+    const after = ["pids", "ports.env", "server.env", join("logs", "lib.log")].map((f) => readFileSync(join(stack.runDir, f), "utf8"));
+    assert.deepEqual(after, before);
+    assert.ok(!existsSync(join(stack.runDir, "start-status.json")), "a dry run records no start status");
+    // and it removed its own scratch dir
+    const scratch = /run dir (\S+harness-dry-run\.\S+)/.exec(result.stdout)?.[1];
+    assert.ok(scratch, "the dry run names its scratch run dir");
+    assert.ok(!existsSync(scratch), "the scratch run dir is removed");
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
 test("--desktop opens the app on the invoking session's display, without xvfb", () => {
   const stack = mkFakeStack();
   try {
