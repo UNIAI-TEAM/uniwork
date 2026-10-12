@@ -66,7 +66,7 @@ Cột bằng chứng trỏ tới mục chi tiết ở §4. Dòng nào đã có t
 | 11 | `LoadShed` + đồng thời | miễn `LoadShed` theo mẫu route (giữ `setBodyDeadline`); trần mỗi pod 32 lượt đang chạy, toàn hệ thống 64 (lease Redis), mỗi tổ chức 8; vượt → 429 `ai_uniwork_busy` + `Retry-After: 5` (mã chưa có trong contract-p0 §4, §8.1) | §4.10 | AI Platform; số mặc định G7-D1 |
 | 12 | Run id | header `X-UniWork-AI-Run` (server cấp ở response đầu, client gửi lại); conversation id header `X-UniWork-AI-Conversation`; thêm cả hai vào CORS `AllowedHeaders`/`ExposedHeaders` | §4.11 | AI Platform + owner F |
 | 13 | Wire extension | object `x_uniwork` ở response/chunk cuối: `dropped_tool_calls[{index, name, reason: view_only\|not_allowlisted}]`, `step`, `limit`, `terminal` (dành sẵn, hàng 14); `finish_reason` giữ giá trị chuẩn (`tool_calls`/`stop`/`length`), không thêm `tool_not_allowed` | §4.12 | owner F + AI Platform |
-| 14 | Streaming v1 | SSE một chunk (một chunk `chat.completion.chunk` đầy đủ + `[DONE]`); header 200 chỉ gửi **sau** khi biết câu trả lời upstream, nên mọi lỗi là status HTTP thật (429 + `Retry-After` giây, 502, 504); deadline 55 giây tính từ lúc request tới, phủ cả việc trước upstream và lượt gọi upstream (< watchdog 60 giây của fork); không bao giờ 200 với stream rỗng; stream thật là v1.1 sau khi có `Provider.Stream`. Frame kết thúc sau header `"x_uniwork": {"terminal": {"code", "retry_after"}}` + `[DONE]` ký ngay: **dành sẵn, server không bao giờ phát ở v1**; G6-05 đọc nó từ v1 (test `fake`: terminal 429 sau một chunk → chờ, cùng run id; terminal 502 → lỗi, không gửi lại kiểu stream rỗng) | §4.5, §4.13 | AI Platform + owner F |
+| 14 | Streaming v1 | SSE một chunk (một chunk `chat.completion.chunk` đầy đủ + `[DONE]`); header 200 chỉ gửi **sau** khi biết câu trả lời upstream, nên mọi lỗi là status HTTP thật (429 + `Retry-After` giây, 502, 504); deadline 55 giây tính từ lúc request tới, phủ cả việc trước upstream và lượt gọi upstream (< watchdog 60 giây của fork); không bao giờ 200 với stream rỗng; stream thật là v1.1 sau khi có `Provider.Stream`. Frame kết thúc sau header `"x_uniwork": {"terminal": {"code", "retry_after"}}` + `[DONE]` ký ngay: **dành sẵn, server không bao giờ phát ở v1**; G6-05 đọc nó từ v1 (test `fake`: terminal 429 sau một chunk → chờ ở vòng lặp agent-core, khởi động lại lượt, cùng run id, không lặp văn bản một phần; terminal 502 → lỗi, không gửi lại kiểu stream rỗng) | §4.5, §4.13 | AI Platform + owner F |
 | 15 | Entitlement | dùng lại `office.ai_cloud` — **đã quyết (U-13; contract-p0 §11)**, không migration (contract-p0 §5 hàng 6) | §4.14 | đã ký (U-13) |
 | 16 | Run/usage | hạ tầng AI: `ai_usage_events` + bảng run qua `Ai*`; không audit, không outbox; usage thiếu → `reason_code = usage_unknown` + metric | §4.15 | AI Platform |
 | 17 | Ứng viên upstream production | bảng §6 (vendor API có ZDR, cloud hyperscaler theo region, self-host) | §6 | người dùng (G6-D2) |
@@ -269,7 +269,6 @@ khi đã biết câu trả lời upstream. Vì v1 là SSE một chunk / JSON (§
 `fmt.Errorf("provider: %s → %d: %s", …)` không có kiểu (`server/internal/ai/provider/openai.go:203-208`), và Gateway
 gói **mọi** lỗi provider thành `ErrProviderError` 502 (`server/internal/ai/gateway.go:162-169`); ngoài proxy BYOK không
 chỗ nào trong `server/internal/ai` đọc 429 hay `Retry-After` của upstream. Việc cần làm:
-- **G6-13 (fake):** `server/internal/ai/fake.go` `FakeReply` phải đặt `UsagePresent` (đang được sửa song song, BE-4) để fake báo usage giống provider scripted `fake.go`.
 - **G6-13 (provider):** openai/anthropic trả một lỗi có kiểu mang HTTP status + `Retry-After` (giây, đã parse; thiếu thì
   0), bọc được bằng `errors.As`; `fake` có kịch bản tiêm lỗi đó.
 - **G6-03a (Gateway/façade):** rẽ theo lỗi có kiểu **trước** `ErrProviderError.wrap` ở `gateway.go:169` — status 429 →
@@ -278,6 +277,9 @@ chỗ nào trong `server/internal/ai` đọc 429 hay `Retry-After` của upstrea
 - **Test** (`AI_PROVIDER=fake`, tên `TestAIUniwork…RateLimit` theo contract-p0 §10): fake tiêm 429 với `Retry-After: 7`
   → façade trả 429 `ai_rate_limited`, `Retry-After: 7`, header run/conversation giữ nguyên (§4.11); tiêm 429 không có
   `Retry-After` → `Retry-After: 30`; tiêm 500 → 502 `ai_provider_error`.
+
+Ghi chú riêng, không thuộc việc 429: `FakeReply` (`server/internal/ai/fake.go`) đã đặt `UsagePresent: true` từ
+`4f6949525` (BE-4), nên fake báo usage giống provider thật; không còn việc G6-13 nào cho điểm này.
 
 Façade **không bao giờ** trả 200 rồi đóng stream rỗng: fork coi "(empty stream)" là lỗi tạm và tự gửi lại hai lần
 (`EMPTY_STREAM_RETRY_DELAYS_MS = [1_000, 3_000]`, `packages/agent-core/src/loop.ts:336`, nhánh `:969-985`), mỗi lần là một
@@ -528,7 +530,9 @@ Ràng buộc từ fork (notes-fork-adapter §2, §4, uniwork-office `0d03b185`):
   upstream chậm cộng 55 giây có thể vượt watchdog 60 giây của fork, và fork báo `AiTimeoutError` ("timeout") thay vì
   hàng 504 trong khi server vẫn tính lượt. 5 giây còn lại giữa 55 và 60 chỉ phủ mạng và ghi response, nên fork luôn
   nhận một status thật trước khi watchdog bắn. Quá deadline → 504 `ai_provider_timeout` (dù deadline hết trước hay
-  trong lượt gọi upstream); mọi lỗi khác theo bảng §4.5. Test G6-03a (`TestAIUniwork…Timeout`, `fake` có độ trễ): việc
+  trong lượt gọi upstream; khi hết giữa lượt gọi, Gateway trả `ErrProviderError.wrap(context.DeadlineExceeded)`
+  = 502 tại `gateway.go:162-169`, nên façade phải kiểm tra `errors.Is(err, context.DeadlineExceeded)` hoặc
+  `ctx.Err()` của chính nó **trước** khi áp hàng 502); mọi lỗi khác theo bảng §4.5. Test G6-03a (`TestAIUniwork…Timeout`, `fake` có độ trễ): việc
   trước upstream chậm 10 giây + fake chậm 50 giây → 504 lúc ≈ 55 giây tính từ lúc request tới. Không gửi keep-alive `: ping` ở v1 (trước header không có gì để gửi; sau header chunk đến ngay).
   Biên đo được: lượt chậm nhất 9,8 giây (§3, lần 1), xa 55 giây.
 - Không bao giờ trả 200 rồi đóng stream rỗng hay không có chunk đầy đủ: fork gửi lại "(empty stream)" hai lần
@@ -549,11 +553,19 @@ Ràng buộc từ fork (notes-fork-adapter §2, §4, uniwork-office `0d03b185`):
   - Trạng thái G6-D1: **dành sẵn — server không bao giờ phát nó ở v1** (v1 là SSE một chunk, mọi lỗi là status HTTP thật
     theo §4.5). Server bắt đầu phát chỉ khi v1.1 bật stream thật; khi đó `code` và `retry_after` mang đúng nghĩa của
     hàng tương ứng ở bảng §4.5.
-  - G6-05 đọc nó **từ v1**, không điều kiện: `terminal.code = ai_rate_limited` → vòng chờ §4.5 (kẹp 300, tối đa 3 lần,
-    cùng run id, bỏ phần chunk đã nhận của lượt đó); mã khác → lỗi theo mã, "Thử lại"; không bao giờ coi frame này là
-    "(empty stream)" để tự gửi lại. Test G6-05 với `AI_PROVIDER=fake` (kịch bản fake phát frame, hoặc fixture SSE cùng
+  - G6-05 đọc nó **từ v1**, không điều kiện: `terminal.code = ai_rate_limited` → chờ theo §4.5 (kẹp 300, tối đa 3 lần,
+    cùng run id); mã khác → lỗi theo mã, "Thử lại"; không bao giờ coi frame này là "(empty stream)" để tự gửi lại.
+    **Vòng chờ này không nằm trong transport.** Tới lúc frame tới, các chunk nội dung đã đi qua `cb.onDelta`
+    (`openai-compatible.ts:275-281`) vào `turnText` của vòng lặp và ra UI qua `events.onText`
+    (`packages/agent-core/src/loop.ts:923-932`); transport không rút lại được. Nên transport chỉ báo một lỗi có kiểu
+    (`ai_rate_limited` + `retry_after`), và việc chờ + gửi lại chạy ở đường `onError` của vòng lặp agent-core
+    (hoặc một callback reset mới), **khởi động lại lượt** như `startTurn` (`loop.ts:904-906` đặt lại `turnText`,
+    `turnReasoning`, `toolCalls`; tiền lệ `retryDrop`, `:975-985`, "text được vẽ lại"). Desktop và web dùng chung
+    agent-core nên đây là một chỗ, không phải hai. (Chỉ 429 **trước** header mới chờ được trong transport, vì chưa có
+    delta nào đã phát.) Test G6-05 với `AI_PROVIDER=fake` (kịch bản fake phát frame, hoặc fixture SSE cùng
     hình dạng phía fork): (1) một chunk nội dung rồi terminal `ai_rate_limited`, `retry_after: 2` → chờ 2 giây, gửi lại
-    cùng `X-UniWork-AI-Run`; (2) terminal `ai_provider_error` ngay sau header → lỗi "Thử lại", không có lượt gửi lại
+    cùng `X-UniWork-AI-Run`, **và sau lần gửi lại, văn bản đã vẽ và `history` chỉ chứa câu trả lời của lần gửi lại,
+    không có chữ nào của chunk một phần (không lặp, không nối)**; (2) terminal `ai_provider_error` ngay sau header → lỗi "Thử lại", không có lượt gửi lại
     nào do nhánh stream rỗng.
 - Luôn trả SSE khi client gửi `stream: true` (fork luôn gửi `stream: true`): đường JSON của fork quét **mọi chuỗi** trong
   body và ném `AiCreditsError` khi gặp cụm như "credit … exhausted/balance" (`throwIfCreditsNotice`,
@@ -733,7 +745,7 @@ Sự kiện `aiRun` (X-02) chưa có ở pin này.
 | `openai.go` không gửi trường `stream`; `deepseek-4.1` trên upstream dev coi thiếu là `stream:true`, còn `stream:false` thì không trả tool call (§3 ghi chú 4) | đường không stream phụ thuộc mặc định của từng upstream/model | **G6-13 phải gửi `stream` tường minh** (`false` ở `Complete`) + test hợp đồng thân request có khóa `stream`; dev dùng `gpt-6-luna`; mỗi ứng viên G6-D2 chạy lại harness |
 | p95 lệch giữa hai lần AC-2 (cả vòng 12 702 vs 5182 ms; lượt 2 9819 vs 1971 ms) | với 10 mẫu, p95 = mẫu chậm nhất, nên một lượt chậm của upstream dev dùng chung quyết định nó | mọi trần/timeout dựa trên lần xấu hơn (lần 1, §3); G6-08/G7-D1 đo lại với nhiều mẫu hơn và tải thật trước khi chốt trần 10 lượt |
 | Trần chờ upstream 55 giây ở v1 (§4.13) | câu trả lời văn bản dài gần `MaxTokens` 4096 trên upstream chậm (< ~75 token/giây) thành 504 `ai_provider_timeout` | G6-08 đo lượt dài nhất trên dev set; chạm trần → bật stream thật v1.1, không nới trần (watchdog fork 60 giây) |
-| Stream thật v1.1 cần frame kết thúc sau header (`x_uniwork.terminal`, §4.13) | adapter v1 không đọc được nó → v1.1 phải phát hành lại app, trái spec §6.2 | **ký hình dạng ngay ở G6-D1**, trạng thái "dành sẵn: server không bao giờ phát ở v1"; G6-05 đọc nó từ v1 + test `fake` (terminal 429 sau một chunk → chờ, cùng run id; terminal 502 → lỗi, không gửi lại kiểu stream rỗng) |
+| Stream thật v1.1 cần frame kết thúc sau header (`x_uniwork.terminal`, §4.13) | adapter v1 không đọc được nó → v1.1 phải phát hành lại app, trái spec §6.2 | **ký hình dạng ngay ở G6-D1**, trạng thái "dành sẵn: server không bao giờ phát ở v1"; G6-05 đọc nó từ v1, chờ ở vòng lặp agent-core (khởi động lại lượt, bỏ văn bản một phần), không ở transport + test `fake` (terminal 429 sau một chunk → chờ, cùng run id, văn bản đã vẽ chỉ gồm câu trả lời gửi lại; terminal 502 → lỗi, không gửi lại kiểu stream rỗng) |
 | Upstream 429 hôm nay thành 502 (`openai.go:203-208` lỗi không kiểu, `gateway.go:162-169`) | hàng 429 upstream của §4.5 không xảy ra; đường chờ G6-05 với 429 upstream không thử end-to-end được | G6-13 lỗi provider có kiểu (status + `Retry-After`), G6-03a rẽ trước `ErrProviderError.wrap`, test `fake` tiêm 429 (§4.5) |
 | `temperature` không gửi khi 0 (`openai.go:48`) | upstream dùng mặc định riêng, kết quả kém xác định | chấp nhận ở v1 (gửi tường minh làm Claude qua lớp compat trả 400, §4.1); G6-08 đo độ ổn định trên dev set |
 | Schema công cụ module lớn | ăn ngân sách 48 000 | G6-01 đo kích thước schema; G6-14 báo nếu > 8000 token |
