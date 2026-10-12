@@ -34,6 +34,7 @@
     "./home/*": "./home/*.ts",
     "./agents": "./agents/hooks.ts",
     "./audit": "./audit/hooks.ts",
+    "./privacy": "./privacy/hooks.ts",
     "./admin": "./admin/hooks.ts",
     "./billing": "./billing/hooks.ts",
     "./billing/vnpay-bank-label": "./billing/vnpay-bank-label.ts",

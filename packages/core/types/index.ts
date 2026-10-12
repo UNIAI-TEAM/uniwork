@@ -15,6 +15,7 @@ export * from "./home";
 export * from "./meeting";
 export * from "./events";
 export * from "./audit";
+export * from "./privacy";
 export * from "./billing";
 export * from "./notification";
 export * from "./ai";

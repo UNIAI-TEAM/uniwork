@@ -297,6 +297,13 @@ type Routes struct {
 	GetAuditExport      http.HandlerFunc
 	DownloadAuditExport http.HandlerFunc
 
+	ListPrivacyExports    http.HandlerFunc
+	CreatePrivacyExport   http.HandlerFunc
+	CreatePrivacyDeletion http.HandlerFunc
+	CancelPrivacyDeletion http.HandlerFunc
+	GetPrivacyExport      http.HandlerFunc
+	DownloadPrivacyExport http.HandlerFunc
+
 	GraphNeighbors http.HandlerFunc
 	GraphHistory   http.HandlerFunc
 

@@ -47,6 +47,7 @@ type Deps struct {
 	Agents              *service.AgentService
 	Actors              *service.ActorService
 	Audit               *service.AuditService
+	Privacy             *service.PrivacyExportService
 	Billing             *service.BillingService
 	Notifications       *notification.Service
 	AskUNI              *service.AskUNIService
@@ -450,15 +451,21 @@ func New(d Deps) http.Handler {
 		ListWorkspaceAgents: h.listWorkspaceAgents,
 		AddWorkspaceAgent:   h.addWorkspaceAgent,
 
-		ListAuditEvents:     h.listAuditEvents,
-		GetAuditEvent:       h.getAuditEvent,
-		ListResourceHistory: h.listResourceHistory,
-		GetAuditRetention:   h.getAuditRetention,
-		SetAuditRetention:   h.setAuditRetention,
-		ListAuditExports:    h.listAuditExports,
-		CreateAuditExport:   h.createAuditExport,
-		GetAuditExport:      h.getAuditExport,
-		DownloadAuditExport: h.downloadAuditExport,
+		ListAuditEvents:       h.listAuditEvents,
+		GetAuditEvent:         h.getAuditEvent,
+		ListResourceHistory:   h.listResourceHistory,
+		GetAuditRetention:     h.getAuditRetention,
+		SetAuditRetention:     h.setAuditRetention,
+		ListAuditExports:      h.listAuditExports,
+		CreateAuditExport:     h.createAuditExport,
+		GetAuditExport:        h.getAuditExport,
+		DownloadAuditExport:   h.downloadAuditExport,
+		ListPrivacyExports:    h.listPrivacyExports,
+		CreatePrivacyExport:   h.createPrivacyExport,
+		CreatePrivacyDeletion: h.createPrivacyDeletion,
+		CancelPrivacyDeletion: h.cancelPrivacyDeletion,
+		GetPrivacyExport:      h.getPrivacyExport,
+		DownloadPrivacyExport: h.downloadPrivacyExport,
 
 		GraphNeighbors: h.graphNeighbors,
 		GraphHistory:   h.graphHistory,

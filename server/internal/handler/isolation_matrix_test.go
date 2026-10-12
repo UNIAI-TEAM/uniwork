@@ -591,6 +591,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "officeJob")
 	case "{exportID}":
 		return tn.get(t, "auditExport")
+	case "{privacyExportID}":
+		return tn.get(t, "privacyExport")
 	case "{eventID}":
 		return tn.get(t, "auditEvent")
 	case "{departmentId}":

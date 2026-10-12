@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -90,6 +91,10 @@ type Event struct {
 	// Record; set them explicitly when emitting without an audit row.
 	OrganizationID string
 	WorkspaceID    string
+
+	// AvailableAt delays delivery. The zero value is delivered immediately,
+	// which is every event except a scheduled organization deletion.
+	AvailableAt time.Time
 }
 
 // Counter receives one call per audit row written, for the Prometheus
@@ -341,6 +346,7 @@ func (r *Recorder) insertEvent(ctx context.Context, q *db.Queries, correlationID
 		CorrelationID:  optText(correlationID),
 		ActorKind:      optText(string(actor.Kind)),
 		ActorID:        optText(actor.ID),
+		AvailableAt:    optTime(ev.AvailableAt),
 	})
 }
 
@@ -363,4 +369,11 @@ func optText(s string) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: s, Valid: true}
+}
+
+func optTime(t time.Time) pgtype.Timestamptz {
+	if t.IsZero() {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: t, Valid: true}
 }

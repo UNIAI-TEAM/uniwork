@@ -199,7 +199,7 @@ func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSl
 		// already know this workspace exists, so they get the honest answer
 		// and the client can draw the right notice; everything else is 404 so
 		// nothing leaks.
-		if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated) {
+		if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationDeletionScheduled) {
 			return WorkspaceView{}, err
 		}
 		return WorkspaceView{}, ErrNotFound // không lộ sự tồn tại
@@ -236,6 +236,9 @@ func (s *WorkspaceService) RequireMemberQ(ctx context.Context, q *db.Queries, wo
 	// (F-03 §4.1).
 	if access.OrganizationMemberDeactivated {
 		return db.WorkspaceMember{}, errMemberDeactivated()
+	}
+	if access.DeletionScheduledAt.Valid && access.OrganizationRole != OrgRoleOwner {
+		return db.WorkspaceMember{}, errOrganizationDeletionScheduled(access.DeletionScheduledAt.Time)
 	}
 	// The one place every workspace request passes through, so the span and
 	// the log lines of this request learn their tenant here (spec F-11 §6.1).

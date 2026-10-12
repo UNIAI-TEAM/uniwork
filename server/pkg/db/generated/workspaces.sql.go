@@ -198,6 +198,8 @@ func (q *Queries) GetPendingInvitationForEmail(ctx context.Context, arg GetPendi
 const getWorkspaceAccess = `-- name: GetWorkspaceAccess :one
 SELECT COALESCE(m.role, CASE WHEN om.role IN ('owner','admin') THEN 'admin' END, '')::text AS role,
        w.organization_id, o.status AS organization_status,
+       COALESCE(om.role, '')::text AS organization_role,
+       o.deletion_scheduled_at,
        (om.deactivated_at IS NOT NULL)::boolean AS organization_member_deactivated
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
@@ -212,10 +214,12 @@ type GetWorkspaceAccessParams struct {
 }
 
 type GetWorkspaceAccessRow struct {
-	Role                          string `json:"role"`
-	OrganizationID                string `json:"organization_id"`
-	OrganizationStatus            string `json:"organization_status"`
-	OrganizationMemberDeactivated bool   `json:"organization_member_deactivated"`
+	Role                          string             `json:"role"`
+	OrganizationID                string             `json:"organization_id"`
+	OrganizationStatus            string             `json:"organization_status"`
+	OrganizationRole              string             `json:"organization_role"`
+	DeletionScheduledAt           pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	OrganizationMemberDeactivated bool               `json:"organization_member_deactivated"`
 }
 
 // tenant: by-id
@@ -231,6 +235,8 @@ func (q *Queries) GetWorkspaceAccess(ctx context.Context, arg GetWorkspaceAccess
 		&i.Role,
 		&i.OrganizationID,
 		&i.OrganizationStatus,
+		&i.OrganizationRole,
+		&i.DeletionScheduledAt,
 		&i.OrganizationMemberDeactivated,
 	)
 	return i, err

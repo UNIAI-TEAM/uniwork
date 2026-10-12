@@ -179,6 +179,7 @@ func New(d Deps, h Routes) http.Handler {
 			emailHubConnectLimit := mw.RateLimitPerRoute(d.Redis, 10, 10*time.Minute, proxies, bearerUser(d.Minter))
 			registerEmailHub(authed, h, emailHubConnectLimit)
 			registerAudit(authed, h)
+			registerPrivacy(authed, h)
 			registerGraph(authed, h)
 			registerMeetings(authed, h)
 			// Chat writes budget per signed-in person and per route: an office
