@@ -87,11 +87,21 @@ func (s *McpAuthService) RevokeOrgGrant(ctx context.Context, actorID, orgID, gra
 	return s.revokeGrant(ctx, audit.User(actorID), grantID, func(g db.McpGrant) bool { return g.OrganizationID == orgID })
 }
 
-// revokeGrant closes one grant and its tokens in one transaction. The grant row
-// is locked first (lock order: grant, then token), so a rotation or mint in
-// flight on it commits before the tokens are closed and its new pair is closed
-// too. A grant that is not the caller's reads as absent.
+// revokeGrant closes one grant and its tokens in one transaction. A grant that
+// is not the caller's reads as absent, and that is decided from an unlocked
+// read (user_id and organization_id never change), so a stranger's request
+// neither waits behind a rotation in flight nor tells by its timing that the id
+// exists. Only then is the grant row locked (lock order: attempt, then grant, then
+// token), so a rotation or mint in flight commits before the tokens are closed and its
+// new pair is closed too.
 func (s *McpAuthService) revokeGrant(ctx context.Context, actor audit.Actor, grantID string, mine func(db.McpGrant) bool) error {
+	peek, err := s.q.GetMcpGrantByID(ctx, grantID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !mine(peek)) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -154,18 +164,25 @@ func (s *McpAuthService) SetPolicy(ctx context.Context, actorID, orgID string, e
 	if err != nil {
 		return McpPolicy{}, err
 	}
+	if before.McpEnabledAt.Valid == enabled {
+		// Nothing to change. Writing anyway would put this admin's id on a
+		// switch another admin turned on and bump updated_at, with no audit row
+		// to say so; the row keeps who and when the real change set.
+		if err := tx.Commit(ctx); err != nil {
+			return McpPolicy{}, err
+		}
+		return McpPolicy{Enabled: enabled, Available: available, EnabledAt: optTime(before.McpEnabledAt), EnabledBy: before.McpEnabledBy.String}, nil
+	}
 	row, err := q.SetOrganizationMcpPolicy(ctx, db.SetOrganizationMcpPolicyParams{ID: orgID, Enabled: enabled, ActorID: actorID})
 	if err != nil {
 		return McpPolicy{}, err
 	}
-	if before.McpEnabledAt.Valid != enabled {
-		if err := auditRecorder.Record(ctx, q, audit.Entry{
-			OrganizationID: orgID, Actor: audit.User(actorID), Action: audit.ActionOrganizationMcpPolicyChanged,
-			ResourceType: "organization", ResourceID: orgID,
-			Changes: audit.Diff(map[string]any{"mcp_enabled": before.McpEnabledAt.Valid}, map[string]any{"mcp_enabled": enabled}),
-		}); err != nil {
-			return McpPolicy{}, err
-		}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: orgID, Actor: audit.User(actorID), Action: audit.ActionOrganizationMcpPolicyChanged,
+		ResourceType: "organization", ResourceID: orgID,
+		Changes: audit.Diff(map[string]any{"mcp_enabled": before.McpEnabledAt.Valid}, map[string]any{"mcp_enabled": enabled}),
+	}); err != nil {
+		return McpPolicy{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return McpPolicy{}, err
@@ -186,7 +203,7 @@ func (s *McpAuthService) requireOrgAdmin(ctx context.Context, orgID, userID stri
 
 // revokeMcpGrantsForUserInOrg runs inside Leave's transaction.
 //
-// Lock order everywhere is attempt, grant, token (mcp_tokens.go). The grants
+// Lock order everywhere is attempt, then grant, then token (mcp_tokens.go). The grants
 // are therefore locked first, in id order, then marked revoked, and only then
 // are their tokens closed. Closing tokens first would miss the pair a code
 // exchange or rotation in flight inserts for a grant this call has not locked

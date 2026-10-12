@@ -240,3 +240,98 @@ func TestMcpRevokeWaitsForARevocationInFlight(t *testing.T) {
 		t.Fatalf("revoked audit rows = %d, want 0: the grant was already revoked when this request took its turn", n)
 	}
 }
+
+// Asking to revoke a grant that is not yours is answered from an unlocked read,
+// at once, whatever is happening to the grant: otherwise the answer's timing
+// tells a stranger whether the id exists and whether someone is refreshing it,
+// and a stranger can stall another person's rotation by queuing on its row.
+func TestMcpRevokingAnotherPersonsGrantDoesNotWaitForTheGrantLock(t *testing.T) {
+	w := newMcpWorld(t)
+	member := registerVerified(t, w.q, w.auth, "mcp-timing@example.com", "Member")
+	addOrgMember(t, w.q, w.org.ID, member.ID)
+	_, pair := w.issueAs(t, member)
+	grants, err := w.svc.ListMyGrants(w.ctx, member.ID)
+	if err != nil || len(grants) != 1 {
+		t.Fatalf("grants = %+v, %v", grants, err)
+	}
+	stranger := registerVerified(t, w.q, w.auth, "mcp-timing-stranger@example.com", "Stranger")
+	orgB, adminB := w.otherOrg(t, "mcp-org-b4")
+	_ = w.rotationInFlight(t, pair) // holds the grant row until the test ends
+
+	asks := map[string]func() error{
+		"a stranger through their own route": func() error { return w.svc.RevokeMyGrant(w.ctx, stranger.ID, grants[0].ID) },
+		"an unknown id":                      func() error { return w.svc.RevokeMyGrant(w.ctx, stranger.ID, "01NOSUCHGRANT00000000000000") },
+		"another organization's admin":       func() error { return w.svc.RevokeOrgGrant(w.ctx, adminB.ID, orgB.ID, grants[0].ID) },
+	}
+	for name, ask := range asks {
+		select {
+		case err := <-inBackground(ask):
+			if !errors.Is(err, ErrNotFound) {
+				t.Errorf("%s: err = %v, want ErrNotFound", name, err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%s waited on the grant lock before saying the grant is not theirs", name)
+		}
+	}
+}
+
+// The bulk and single revocations close tokens that can still be used. A token
+// that expired long ago is unusable already and is the cleanup job's to delete;
+// updating it as well makes the revocation and DeleteExpiredMcpTokens wait on
+// the same old rows in different orders (40P01). A raw transaction stands for a
+// cleanup run that has deleted them and not committed yet.
+func TestMcpRevocationLeavesExpiredTokensToTheCleanupJob(t *testing.T) {
+	operations := map[string]func(w *mcpWorld, member db.User, grantID string) error{
+		"RevokeMyGrant": func(w *mcpWorld, member db.User, grantID string) error {
+			return w.svc.RevokeMyGrant(w.ctx, member.ID, grantID)
+		},
+		"revokeMcpGrantsForUserInOrg": func(w *mcpWorld, member db.User, _ string) error {
+			return w.inTx(func(q *db.Queries) error { return revokeMcpGrantsForUserInOrg(w.ctx, q, w.org.ID, member.ID) })
+		},
+		"revokeAllMcpGrantsForUser": func(w *mcpWorld, member db.User, _ string) error {
+			return w.inTx(func(q *db.Queries) error { return revokeAllMcpGrantsForUser(w.ctx, q, member.ID) })
+		},
+	}
+	for name, op := range operations {
+		t.Run(name, func(t *testing.T) {
+			w := newMcpWorld(t)
+			member := registerVerified(t, w.q, w.auth, "mcp-expired@example.com", "Member")
+			addOrgMember(t, w.q, w.org.ID, member.ID)
+			_, _ = w.issueAs(t, member)
+			grants, err := w.svc.ListMyGrants(w.ctx, member.ID)
+			if err != nil || len(grants) != 1 {
+				t.Fatalf("grants = %+v, %v", grants, err)
+			}
+			for _, kind := range []string{"access", "refresh"} {
+				if _, err := w.pool.Exec(w.ctx, `INSERT INTO mcp_tokens (id, organization_id, grant_id, family_id, kind, digest, expires_at)
+					VALUES ($1, $2, $3, $4, $5, $6, now() - interval '8 days')`,
+					util.NewID(), w.org.ID, grants[0].ID, util.NewID(), kind, digest("long-expired-"+kind)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cleanup, err := w.pool.Begin(w.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = cleanup.Rollback(context.Background()) })
+			if n, err := w.q.WithTx(cleanup).DeleteExpiredMcpTokens(w.ctx); err != nil || n != 2 {
+				t.Fatalf("cleanup in flight deleted %d rows, %v: the setup needs both expired tokens", n, err)
+			}
+
+			select {
+			case err := <-inBackground(func() error { return op(w, member, grants[0].ID) }):
+				if err != nil {
+					t.Fatalf("revocation: %v (deadlock: %v)", err, isDeadlock(err))
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("the revocation waited on tokens that expired days ago: it updates rows the cleanup job is deleting")
+			}
+			if err := cleanup.Commit(w.ctx); err != nil {
+				t.Fatal(err)
+			}
+			if n := w.liveTokensOf(t, member.ID); n != 0 {
+				t.Fatalf("live tokens = %d: the unexpired pair must still be closed", n)
+			}
+		})
+	}
+}

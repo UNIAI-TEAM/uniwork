@@ -757,7 +757,8 @@ type LockMcpGrantsForUserInOrganizationParams struct {
 // First step of revoking a person's grants in bulk (Leave): lock them in id
 // order, so a mint or rotation in flight on one of them commits before the
 // revocation reads its tokens, and two bulk revocations of one person take
-// their grants in the same sequence. Lock order everywhere: grant, then token.
+// their grants in the same sequence. Lock order everywhere: attempt, then
+// grant, then token.
 func (q *Queries) LockMcpGrantsForUserInOrganization(ctx context.Context, arg LockMcpGrantsForUserInOrganizationParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, lockMcpGrantsForUserInOrganization, arg.OrganizationID, arg.UserID)
 	if err != nil {
@@ -856,7 +857,7 @@ func (q *Queries) RevokeAllMcpGrantsForUser(ctx context.Context, dollar_1 string
 
 const revokeAllMcpTokensForUser = `-- name: RevokeAllMcpTokensForUser :execrows
 UPDATE mcp_tokens SET revoked_at = now()
-WHERE revoked_at IS NULL AND grant_id IN (SELECT id FROM mcp_grants WHERE user_id = $1)
+WHERE revoked_at IS NULL AND expires_at > now() AND grant_id IN (SELECT id FROM mcp_grants WHERE user_id = $1)
 `
 
 // tenant: self
@@ -889,10 +890,13 @@ func (q *Queries) RevokeMcpGrant(ctx context.Context, arg RevokeMcpGrantParams) 
 }
 
 const revokeMcpGrantTokens = `-- name: RevokeMcpGrantTokens :execrows
-UPDATE mcp_tokens SET revoked_at = now() WHERE grant_id = $1 AND revoked_at IS NULL
+UPDATE mcp_tokens SET revoked_at = now() WHERE grant_id = $1 AND revoked_at IS NULL AND expires_at > now()
 `
 
 // tenant: parent grant_id
+// Tokens that already expired are unusable and are DeleteExpiredMcpTokens's to
+// remove; touching them here would make the two wait on the same old rows in
+// different orders (40P01). The same filter is on the bulk revocations below.
 func (q *Queries) RevokeMcpGrantTokens(ctx context.Context, grantID string) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeMcpGrantTokens, grantID)
 	if err != nil {
@@ -947,7 +951,7 @@ func (q *Queries) RevokeMcpTokenFamily(ctx context.Context, familyID string) (in
 
 const revokeMcpTokensForUserInOrganization = `-- name: RevokeMcpTokensForUserInOrganization :execrows
 UPDATE mcp_tokens t SET revoked_at = now()
-WHERE t.organization_id = $1 AND t.revoked_at IS NULL
+WHERE t.organization_id = $1 AND t.revoked_at IS NULL AND t.expires_at > now()
   AND t.grant_id IN (SELECT g.id FROM mcp_grants g WHERE g.organization_id = $1 AND g.user_id = $2)
 `
 

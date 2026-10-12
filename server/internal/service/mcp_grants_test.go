@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -132,8 +133,8 @@ func TestMcpOrgGrantsNeedAdmin(t *testing.T) {
 	if err := w.svc.RevokeOrgGrant(w.ctx, member.ID, w.org.ID, grants[0].ID); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("a plain member revoking through the organization route: %v", err)
 	}
-	if err := w.svc.RevokeOrgGrant(w.ctx, w.owner.ID, "01OTHERORG0000000000000000", grants[0].ID); err == nil {
-		t.Fatal("a grant is revoked only through its own organization")
+	if err := w.svc.RevokeOrgGrant(w.ctx, w.owner.ID, "01OTHERORG0000000000000000", grants[0].ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("a grant is revoked only through its own organization: %v", err)
 	}
 	if n := w.liveTokens(t); n != 2 {
 		t.Fatalf("refused revokes changed the tokens: live = %d", n)
@@ -214,8 +215,8 @@ func TestMcpPolicyToggleAudits(t *testing.T) {
 		t.Fatalf("an unchanged switch writes no row: rows = %d, want 1", n)
 	}
 	w.svc.SetFlags(mcpFlags(false))
-	if _, err := w.svc.SetPolicy(w.ctx, w.owner.ID, w.org.ID, true); err == nil {
-		t.Fatal("the switch cannot turn on while the platform flag is off")
+	if _, err := w.svc.SetPolicy(w.ctx, w.owner.ID, w.org.ID, true); !errors.Is(err, ErrMcpConnectorDisabled) {
+		t.Fatalf("the switch cannot turn on while the platform flag is off: %v", err)
 	}
 	member := registerVerified(t, w.q, w.auth, "mcp-member3@example.com", "Member")
 	addOrgMember(t, w.q, w.org.ID, member.ID)
@@ -374,4 +375,103 @@ func TestMcpDeleteAccountRevokesEveryGrant(t *testing.T) {
 	if _, err := w.svc.Authenticate(w.ctx, ownerPair.AccessToken); err != nil {
 		t.Fatalf("someone else's token: %v", err)
 	}
+}
+
+// updatedAt is the organization row's updated_at, which a real change bumps.
+func (w *mcpWorld) orgUpdatedAt(t *testing.T) time.Time {
+	t.Helper()
+	var at time.Time
+	if err := w.pool.QueryRow(w.ctx, `SELECT updated_at FROM organizations WHERE id = $1`, w.org.ID).Scan(&at); err != nil {
+		t.Fatal(err)
+	}
+	return at
+}
+
+// Switching on what is already on changes nothing: the row keeps the admin who
+// really turned it on (the audit row says so), so a second admin's repeat does
+// not rewrite who and when. The same holds for switching off what is off.
+func TestMcpSetPolicyRepeatChangesNothing(t *testing.T) {
+	w := newMcpWorld(t)
+	admin := registerVerified(t, w.q, w.auth, "mcp-admin-repeat@example.com", "Admin")
+	addOrgMemberRole(t, w.q, w.org.ID, admin.ID, OrgRoleAdmin)
+	first, err := w.svc.SetPolicy(w.ctx, admin.ID, w.org.ID, true)
+	if err != nil || first.EnabledBy != admin.ID || first.EnabledAt == nil {
+		t.Fatalf("first enable = %+v, %v", first, err)
+	}
+	stamp := w.orgUpdatedAt(t)
+
+	again, err := w.svc.SetPolicy(w.ctx, w.owner.ID, w.org.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !again.Enabled || !again.Available || again.EnabledBy != admin.ID || again.EnabledAt == nil || !again.EnabledAt.Equal(*first.EnabledAt) {
+		t.Fatalf("a repeated enable rewrote the row: first %+v, repeat %+v", first, again)
+	}
+	if p, err := w.svc.Policy(w.ctx, w.owner.ID, w.org.ID); err != nil || p.EnabledBy != admin.ID {
+		t.Fatalf("policy after the repeat = %+v, %v", p, err)
+	}
+	if got := w.orgUpdatedAt(t); !got.Equal(stamp) {
+		t.Fatalf("updated_at moved from %v to %v on a repeated enable", stamp, got)
+	}
+	if n := auditCount(t, w, audit.ActionOrganizationMcpPolicyChanged); n != 1 {
+		t.Fatalf("policy audit rows = %d, want 1", n)
+	}
+
+	if _, err := w.svc.SetPolicy(w.ctx, w.owner.ID, w.org.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	stamp = w.orgUpdatedAt(t)
+	off, err := w.svc.SetPolicy(w.ctx, admin.ID, w.org.ID, false)
+	if err != nil || off.Enabled || off.EnabledAt != nil || off.EnabledBy != "" {
+		t.Fatalf("repeated disable = %+v, %v", off, err)
+	}
+	if got := w.orgUpdatedAt(t); !got.Equal(stamp) {
+		t.Fatalf("updated_at moved from %v to %v on a repeated disable", stamp, got)
+	}
+	if n := auditCount(t, w, audit.ActionOrganizationMcpPolicyChanged); n != 2 {
+		t.Fatalf("policy audit rows = %d, want 2 (on, off)", n)
+	}
+}
+
+// An administrator who is deactivated, or whose organization is suspended, gets
+// the membership gate's answer on every organization-level command, not a
+// success: the gate is RequireMember and the role check comes after it.
+func TestMcpOrgCommandsRefuseDeactivatedAdminAndSuspendedOrganization(t *testing.T) {
+	w := newMcpWorld(t)
+	admin := registerVerified(t, w.q, w.auth, "mcp-admin-gate@example.com", "Admin")
+	addOrgMemberRole(t, w.q, w.org.ID, admin.ID, OrgRoleAdmin)
+	_, _ = w.issue(t)
+	grants, _ := w.svc.ListMyGrants(w.ctx, w.owner.ID)
+
+	commands := map[string]func(actor string) error{
+		"ListOrgGrants":  func(a string) error { _, err := w.svc.ListOrgGrants(w.ctx, a, w.org.ID); return err },
+		"RevokeOrgGrant": func(a string) error { return w.svc.RevokeOrgGrant(w.ctx, a, w.org.ID, grants[0].ID) },
+		"Policy":         func(a string) error { _, err := w.svc.Policy(w.ctx, a, w.org.ID); return err },
+		"SetPolicy on":   func(a string) error { _, err := w.svc.SetPolicy(w.ctx, a, w.org.ID, true); return err },
+		"SetPolicy off":  func(a string) error { _, err := w.svc.SetPolicy(w.ctx, a, w.org.ID, false); return err },
+	}
+	check := func(want error) {
+		t.Helper()
+		for name, run := range commands {
+			if err := run(admin.ID); !errors.Is(err, want) {
+				t.Errorf("%s: err = %v, want %v", name, err, want)
+			}
+		}
+		if n := w.liveTokens(t); n != 2 {
+			t.Errorf("a refused command changed the tokens: live = %d", n)
+		}
+	}
+
+	if _, err := w.pool.Exec(w.ctx, `UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`, w.org.ID, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	check(ErrMemberDeactivated)
+
+	if _, err := w.pool.Exec(w.ctx, `UPDATE organization_members SET deactivated_at = NULL WHERE organization_id = $1 AND user_id = $2`, w.org.ID, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(w.ctx, `UPDATE organizations SET status = 'suspended' WHERE id = $1`, w.org.ID); err != nil {
+		t.Fatal(err)
+	}
+	check(ErrOrganizationSuspended)
 }

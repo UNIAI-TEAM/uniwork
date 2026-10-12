@@ -72,9 +72,10 @@ func (s *McpAuthService) Exchange(ctx context.Context, in McpExchangeInput) (Mcp
 		// (RFC 8707); the deferred rollback leaves the code unused.
 		return McpTokenPair{}, oauthErr(http.StatusBadRequest, "invalid_target", "unknown resource")
 	}
-	// Lock order everywhere: grant, then token. Holding the grant row while the
-	// pair is minted makes a concurrent revocation of this grant or family wait
-	// for the new rows instead of missing them.
+	// Lock order everywhere: attempt, then grant, then token. This request holds
+	// the attempt row (the redeem above); holding the grant row while the pair
+	// is minted makes a concurrent revocation of this grant or family wait for
+	// the new rows instead of missing them.
 	grant, err := q.GetMcpGrantForUpdate(ctx, row.GrantID.String)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && grant.RevokedAt.Valid) {
 		return McpTokenPair{}, errInvalidGrant
@@ -136,8 +137,9 @@ func (s *McpAuthService) Refresh(ctx context.Context, in McpRefreshInput) (McpTo
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	// Lock order everywhere: grant, then token. The first read is unlocked and
-	// only names the grant; every check below runs again under both locks.
+	// Lock order everywhere: attempt, then grant, then token (a refresh touches
+	// no attempt). The first read is unlocked and only names the grant; every
+	// check below runs again under both locks.
 	peek, err := q.GetMcpTokenByDigest(ctx, digest(in.RefreshToken))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return McpTokenPair{}, errInvalidGrant
@@ -199,9 +201,9 @@ func (s *McpAuthService) RevokeToken(ctx context.Context, clientID, clientSecret
 	if err != nil {
 		return err
 	}
-	// The first read is unlocked and only names the grant. Lock order everywhere:
-	// grant, then token, so the revocation waits for a rotation in flight and
-	// then closes the pair it minted.
+	// The first read is unlocked and only names the grant. Lock order
+	// everywhere: attempt, then grant, then token, so the revocation waits for
+	// a rotation in flight and then closes the pair it minted.
 	tok, err := s.q.GetMcpTokenByDigest(ctx, digest(raw))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
@@ -267,10 +269,11 @@ func (s *McpAuthService) issuePair(ctx context.Context, q *db.Queries, grant db.
 
 // revokeFamily closes every token of one family and records why, in its own
 // transaction: it runs after the caller's transaction was rolled back. It
-// locks the grant first (lock order everywhere: grant, then token), so a
-// rotation or mint in flight on the grant commits before the revocation reads
-// the family, and its new rows are closed with the rest. It writes the audit
-// row only when it closed something: a repeat has nothing left to record.
+// locks the grant first (lock order everywhere: attempt, then grant, then
+// token), so a rotation or mint in flight on the grant commits before the
+// revocation reads the family, and its new rows are closed with the rest. It
+// writes the audit row only when it closed something: a repeat has nothing
+// left to record.
 func (s *McpAuthService) revokeFamily(ctx context.Context, grantID, familyID, reason string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

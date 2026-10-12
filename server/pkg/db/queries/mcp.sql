@@ -91,7 +91,10 @@ WHERE id = $1 AND revoked_at IS NULL;
 
 -- name: RevokeMcpGrantTokens :execrows
 -- tenant: parent grant_id
-UPDATE mcp_tokens SET revoked_at = now() WHERE grant_id = $1 AND revoked_at IS NULL;
+-- Tokens that already expired are unusable and are DeleteExpiredMcpTokens's to
+-- remove; touching them here would make the two wait on the same old rows in
+-- different orders (40P01). The same filter is on the bulk revocations below.
+UPDATE mcp_tokens SET revoked_at = now() WHERE grant_id = $1 AND revoked_at IS NULL AND expires_at > now();
 
 -- name: TouchMcpGrant :exec
 -- tenant: by-id
@@ -121,7 +124,8 @@ ORDER BY g.created_at DESC;
 -- First step of revoking a person's grants in bulk (Leave): lock them in id
 -- order, so a mint or rotation in flight on one of them commits before the
 -- revocation reads its tokens, and two bulk revocations of one person take
--- their grants in the same sequence. Lock order everywhere: grant, then token.
+-- their grants in the same sequence. Lock order everywhere: attempt, then
+-- grant, then token.
 SELECT id FROM mcp_grants
 WHERE organization_id = sqlc.arg(organization_id) AND user_id = sqlc.arg(user_id) AND revoked_at IS NULL
 ORDER BY id
@@ -137,7 +141,7 @@ FOR UPDATE;
 
 -- name: RevokeMcpTokensForUserInOrganization :execrows
 UPDATE mcp_tokens t SET revoked_at = now()
-WHERE t.organization_id = sqlc.arg(organization_id) AND t.revoked_at IS NULL
+WHERE t.organization_id = sqlc.arg(organization_id) AND t.revoked_at IS NULL AND t.expires_at > now()
   AND t.grant_id IN (SELECT g.id FROM mcp_grants g WHERE g.organization_id = sqlc.arg(organization_id) AND g.user_id = sqlc.arg(user_id));
 
 -- name: RevokeMcpGrantsForUserInOrganization :execrows
@@ -147,7 +151,7 @@ WHERE organization_id = sqlc.arg(organization_id) AND user_id = sqlc.arg(user_id
 -- name: RevokeAllMcpTokensForUser :execrows
 -- tenant: self
 UPDATE mcp_tokens SET revoked_at = now()
-WHERE revoked_at IS NULL AND grant_id IN (SELECT id FROM mcp_grants WHERE user_id = $1);
+WHERE revoked_at IS NULL AND expires_at > now() AND grant_id IN (SELECT id FROM mcp_grants WHERE user_id = $1);
 
 -- name: RevokeAllMcpGrantsForUser :execrows
 -- tenant: self

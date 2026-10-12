@@ -20,8 +20,9 @@ import (
 // request that is half way through a change, start the operation under test
 // against it, wait until the database shows it blocked on a lock, and only then
 // let the raw transaction commit. The service serializes everything that
-// changes a grant's tokens on the grant row (lock order: grant, then token), so
-// each operation must queue behind the open transaction and then see all of it.
+// changes a grant's tokens on the grant row (lock order: attempt, then grant,
+// then token), so each operation must queue behind the open transaction and
+// then see all of it.
 
 // grantTx opens a raw transaction that holds the grant row of the world's
 // organization FOR UPDATE.
