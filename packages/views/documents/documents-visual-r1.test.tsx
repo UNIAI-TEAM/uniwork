@@ -8,7 +8,7 @@ import { DocumentsPageView } from "./documents-page-view";
 import { DocumentsGreeting } from "./documents-home-create";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { documentRow } from "./library-rows";
+import { documentRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 
 // Visual r1 fixes for the Documents home (UNI-1305): the phone row keeps its
 // name, one count, read-only copy, the app command in the row menu, one drop hint.
@@ -19,17 +19,24 @@ const WS = "ws1";
 const TREE_URL = `/api/v1/workspaces/${WS}/documents/tree`;
 const LIST_BASE = `/api/v1/workspaces/${WS}/documents`;
 
-function file(id: string, title: string, over: Record<string, unknown> = {}) {
+function file(id: string, title: string, over: Partial<DocumentSummaryRow> = {}): DocumentSummaryRow {
   return {
     id,
+    organization_id: "org1",
     workspace_id: WS,
     kind: "file",
     title,
+    visibility: "workspace",
     revision: "1",
-    updated_at: "2026-09-28T03:00:00Z",
-    organization_id: "org1",
     current_version: 1,
+    position: 0,
     my_level: "edit",
+    created_by: "",
+    created_by_kind: "human",
+    updated_by: "",
+    updated_by_kind: "human",
+    created_at: "",
+    updated_at: "2026-09-28T03:00:00Z",
     ...over,
   };
 }
@@ -46,10 +53,10 @@ const handlers: LibraryRowHandlers = {
   desktopOpen: (doc) => ({ deploymentId: "dep-1", savedVersion: doc.current_version }),
 };
 
-function renderList(rows = [documentRow(file("f1", "Báo giá tháng 10.docx"))] as ReturnType<typeof documentRow>[], over: Partial<LibraryRowHandlers> = {}) {
+function renderList(rows: LibraryRow[] = [documentRow(file("f1", "Báo giá tháng 10.docx"))], over: Partial<LibraryRowHandlers> = {}) {
   return render(
     <DocumentsLibraryList
-      groups={[{ key: "unfiled", rows }]}
+      groups={[{ key: "unfiled", title: "", rows }]}
       loading={false}
       failure={null}
       filtered={false}
@@ -92,6 +99,18 @@ describe("phone row layout (finding 1)", () => {
     expect(group?.nextElementSibling).toHaveClass("hidden", "md:table-cell");
     // One header and the rows share one column template.
     expect(document.querySelectorAll("colgroup col")).toHaveLength(6);
+  });
+});
+
+describe("row accessible names", () => {
+  it("names the row button by its type mark and title, apart from the menu trigger", () => {
+    renderList([documentRow(file("f1", "Báo giá tháng 10.docx")), documentRow(file("p1", "Kế hoạch Q4", { kind: "page" }))]);
+    // The type mark is exposed (a docx is "Tài liệu Word"), so the title is a suffix, not the whole name.
+    expect(screen.getByRole("button", { name: new RegExp(`^${t("documents.file_types.docx")} Báo giá tháng 10\\.docx`) })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: new RegExp(`^${t("documents.file_types.page")} Kế hoạch Q4`) })).toBeInTheDocument();
+    // The menu trigger keeps its own descriptive name, one per row.
+    expect(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Báo giá tháng 10.docx" }) })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Kế hoạch Q4/ })).toHaveLength(2);
   });
 });
 

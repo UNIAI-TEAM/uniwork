@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { documentMatrix, type DocumentMatrix } from "./documents-fixtures";
-import { onboardDocumentsUser } from "./documents-onboard";
+import { libraryRowButton, onboardDocumentsUser } from "./documents-onboard";
 import { loginViaUi } from "./meeting-recording-fixture";
 import { workspaceSeed } from "./onboard";
 import { captureAuth } from "./tasks-seed";
@@ -73,7 +73,7 @@ test("create card, folder, move and the other-modules section on the owner's hom
 
   // 2. A folder: created with its default name, opened, and named in the breadcrumb.
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
-  await expect(library(page).getByRole("button", { name: DOCX_TITLE, exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await sidebar(page).getByRole("button", { name: "Tạo thư mục" }).click();
   const crumbs = page.getByRole("navigation", { name: "Đường dẫn thư mục" });
   await expect(crumbs).toBeVisible({ timeout: 30_000 });
@@ -81,7 +81,7 @@ test("create card, folder, move and the other-modules section on the owner's hom
   await crumbs.getByRole("button", { name: "Tài liệu" }).click();
 
   // 3. Move the docx into the folder from its row menu, then find it inside.
-  await expect(library(page).getByRole("button", { name: DOCX_TITLE, exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Thao tác cho ${DOCX_TITLE}` }).click();
   await page.getByRole("menuitem", { name: "Di chuyển" }).click();
   const dialog = page.getByRole("dialog");
@@ -92,7 +92,7 @@ test("create card, folder, move and the other-modules section on the owner's hom
   await expect(page.getByText("Đã di chuyển.")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("treeitem", { name: new RegExp(FOLDER_TITLE) }).click();
   await expect(page.getByRole("navigation", { name: "Đường dẫn thư mục" }).getByText(FOLDER_TITLE, { exact: true })).toBeVisible();
-  await expect(library(page).getByRole("button", { name: DOCX_TITLE, exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
 
   // 4. Other modules: visible while the API answers, with the task's file under
   // "Công việc"; hidden when the route is missing (an older server answers 404).
@@ -226,7 +226,7 @@ test.describe("a view-only member", () => {
 
     // The shared folder opens from the shared tab; inside it the viewer creates nothing.
     await page.getByRole("tab", { name: /Được chia sẻ/ }).click();
-    await library(page).getByRole("button", { name: sharedFolderTitle, exact: true }).click();
+    await libraryRowButton(library(page), sharedFolderTitle).click();
     await expect(page.getByRole("navigation", { name: "Đường dẫn thư mục" }).getByText(sharedFolderTitle)).toBeVisible({
       timeout: 30_000,
     });
@@ -242,7 +242,7 @@ test.describe("a view-only member", () => {
     await openLibrary(page, m.aOwner.orgSlug, m.aOwner.wsSlug);
 
     // The row is on the home list (the share admits it) with the viewer's own level.
-    await expect(library(page).getByRole("button", { name: sharedPageTitle, exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(libraryRowButton(library(page), sharedPageTitle)).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: `Thao tác cho ${sharedPageTitle}` }).click();
     await expect(page.getByRole("menuitem", { name: "Mở trên web" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Di chuyển" })).toHaveCount(0);
