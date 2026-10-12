@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { verify } from "../evidence.mjs";
-import { BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { APP_ENV_PASSTHROUGH, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -369,7 +369,7 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
     'exec "$@"',
     "",
   ].join("\n"));
-  shim("fake-electron", "#!/usr/bin/env bash\nsleep 600\n");
+  shim("fake-electron", `#!/usr/bin/env bash\nenv > ${JSON.stringify(join(root, "electron-env"))}\nsleep 600\n`);
   // Records its argv (the install strategy is asserted from it) and answers with
   // npmExit, so a failing install is exercised without a real npm. `ci
   // --ignore-scripts` on a clean tree leaves the two things start.sh then probes
@@ -422,7 +422,7 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
   // single-client pair, a LiveKit URL, and a setting the server REQUIRES and the
   // run does not set (PREVIEW_ASSET_TTL). The harness sources it (ENV_FILE) and
   // the real server reads the same file from the checkout root.
-  const dotenv = "DATABASE_URL=postgres://u:p@localhost:5432/db?sslmode=disable\nREDIS_URL=redis://localhost:6379/0\nDESKTOP_AUTH_CLIENT_ID=uniwork-office\nDESKTOP_AUTH_REDIRECT_URIS=uniwork-office://auth/callback\nLIVEKIT_URL=ws://localhost:7880\nPREVIEW_ASSET_TTL=10m\n";
+  const dotenv = "DATABASE_URL=postgres://u:p@localhost:5432/db?sslmode=disable\nREDIS_URL=redis://localhost:6379/0\nDESKTOP_AUTH_CLIENT_ID=uniwork-office\nDESKTOP_AUTH_REDIRECT_URIS=uniwork-office://auth/callback\nLIVEKIT_URL=ws://localhost:7880\nPREVIEW_ASSET_TTL=10m\nJWT_SECRET=jwt-secret-value\nOPENAI_API_KEY=sk-secret-value\nS3_SECRET_ACCESS_KEY=s3-secret-value\nSMTP_PASSWORD=smtp-secret-value\nGITHUB_TOKEN=gh-secret-value\n";
   writeFileSync(envFile, dotenv);
   writeFileSync(join(root, ".env"), dotenv);
   // A fake nvm: `nvm which 22` names the stub bin dir, so start.sh's nvm branch
@@ -566,6 +566,39 @@ test("writeRunEnv leaves the server a .env without any key it owns, in a cwd of 
     if (previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.DATABASE_URL;
     if (previous.REDIS_URL === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = previous.REDIS_URL;
   }
+});
+
+const SERVER_SECRETS = ["DATABASE_URL", "REDIS_URL", "JWT_SECRET", "OPENAI_API_KEY", "S3_SECRET_ACCESS_KEY", "SMTP_PASSWORD", "GITHUB_TOKEN"];
+
+test("the app start.sh launches gets an allow-listed env, never the VM .env's server secrets (H1-8)", async () => {
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const envFile = join(stack.root, "electron-env");
+    for (let i = 0; i < 40 && !existsSync(envFile); i += 1) await new Promise((r) => setTimeout(r, 100));
+    const seen = Object.fromEntries(readFileSync(envFile, "utf8").split("\n").filter(Boolean).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]));
+    for (const key of SERVER_SECRETS) assert.ok(!(key in seen), `${key} reached the Electron app`);
+    assert.ok(!Object.values(seen).some((value) => /secret-value|^sk-/.test(value)), "no secret value reached the app");
+    // what the app needs is there
+    assert.match(seen.UNIWORK_API_ORIGIN, /^http:\/\/127\.0\.0\.1:\d+$/);
+    assert.equal(seen.GENOFFICE_USER_DATA, join(stack.runDir, "userdata"));
+    assert.ok(seen.PATH && seen.HOME);
+    // and nothing outside the allow-list besides what appEnv adds itself
+    const allowed = new Set([...APP_ENV_PASSTHROUGH, "UNIWORK_API_ORIGIN", "GENOFFICE_USER_DATA", "GENOFFICE_NO_SPARE_VIEW", "ELECTRON_DISABLE_SANDBOX", "UNIWORK_BRIDGE_SILENT", "GENOFFICE_LANG", "_", "PWD", "SHLVL", "OLDPWD"]);
+    const extra = Object.keys(seen).filter((key) => !allowed.has(key));
+    assert.deepEqual(extra, [], `unexpected variables in the app's environment: ${extra.join(", ")}`);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("appEnv passes only the allow-list and refuses a secret by name", () => {
+  const source = { PATH: "/bin", HOME: "/h", DISPLAY: ":1", DATABASE_URL: "x", REDIS_URL: "y", JWT_SECRET: "z", MY_API_KEY: "k", SESSION_TOKEN: "t", DB_PASSWORD: "p", UNRELATED: "u" };
+  const env = appEnv({ source, apiOrigin: "http://127.0.0.1:1", userDataDir: "/ud" });
+  assert.deepEqual(Object.keys(env).sort(), ["DISPLAY", "ELECTRON_DISABLE_SANDBOX", "GENOFFICE_NO_SPARE_VIEW", "GENOFFICE_USER_DATA", "HOME", "PATH", "UNIWORK_API_ORIGIN"]);
+  assert.throws(() => appEnv({ source, apiOrigin: "o", userDataDir: "u", extra: { JWT_SECRET: "s" } }), /server secret/);
+  for (const key of APP_ENV_PASSTHROUGH) assert.doesNotMatch(key, /KEY|SECRET|TOKEN|PASSWORD|DATABASE_URL|REDIS_URL/i);
 });
 
 test("--dry-run leaves a live run's pids, ports and logs untouched (reviewer_be H1-2)", () => {
@@ -1201,4 +1234,56 @@ test("a BLOCKED document-step line and a start-gate line also pass verify", asyn
   }
   const gated = stepAfterStart(DOC_STEP, "blocked", "no network to the fork");
   assert.deepEqual(verifyLine({ ...gated.line, fixtureId: "fx-docx-report-vi", fixtureSha256: JSON.parse(readFileSync(join(REPO_FIXTURES, "manifest.json"), "utf8")).fixtures.find((f) => f.id === "fx-docx-report-vi").sha256 }, "/dev/null"), []);
+});
+
+// ---- the deep-link handoff: allow-listed env, recorded and cleaned up (H1-7, H1-8) ----
+
+test("the second instance gets the allow-listed env, not the harness's", async () => {
+  const server = await mkFakeDocumentServer();
+  const root = mkdtempSync(join(tmpdir(), "harness-handoff-"));
+  const envFile = join(root, "env");
+  const body = `#!/usr/bin/env bash\nenv > ${JSON.stringify(envFile)}\nexit 0\n`;
+  const run = mkDocumentRun({ origin: server.origin, electronBody: body, session: true });
+  try {
+    const polluted = Object.fromEntries(SERVER_SECRETS.map((key) => [key, `${key}-secret-value`]));
+    await runDocumentStep(["--run-dir", run.runDir], { ...polluted, HARNESS_DOC_WAIT_MS: "300" });
+    const text = readFileSync(envFile, "utf8");
+    for (const key of SERVER_SECRETS) assert.ok(!text.includes(`${key}=`), `${key} reached the second instance`);
+    assert.match(text, /^UNIWORK_API_ORIGIN=http:\/\/127\.0\.0\.1:\d+$/m);
+    assert.match(text, /^UNIWORK_OFFICE_CHANNEL=dev$/m);
+    assert.match(text, /^DISPLAY=:99$/m);
+    assert.match(text, /^GENOFFICE_USER_DATA=/m);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("the second instance is in the pids file while it lives and gone when it exits", async () => {
+  const server = await mkFakeDocumentServer();
+  const snapshot = join(mkdtempSync(join(tmpdir(), "harness-handoff-")), "pids-during");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\ncp "$GENOFFICE_USER_DATA/../pids" ${JSON.stringify(snapshot)}\nexit 0\n`, session: true });
+  writeFileSync(join(run.runDir, "pids"), "server 1 8080\n");
+  try {
+    await runDocumentStep(["--run-dir", run.runDir], { HARNESS_DOC_WAIT_MS: "300" });
+    assert.match(readFileSync(snapshot, "utf8"), /^handoff \d+ 0$/m, "recorded while it ran");
+    assert.equal(readFileSync(join(run.runDir, "pids"), "utf8"), "server 1 8080\n", "removed once it exited, the rest untouched");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a second instance that does not exit is killed as a group, not left behind", async () => {
+  const server = await mkFakeDocumentServer();
+  const pidFile = join(mkdtempSync(join(tmpdir(), "harness-handoff-")), "child-pid");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\nsleep 300 &\necho $! > ${JSON.stringify(pidFile)}\nwait\n`, session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir], { HARNESS_HANDOFF_TIMEOUT_MS: "1500", HARNESS_DOC_WAIT_MS: "300" });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /did not exit within 1\.5s and was killed/);
+    const child = Number(readFileSync(pidFile, "utf8").trim());
+    await new Promise((r) => setTimeout(r, 300));
+    assert.throws(() => process.kill(child, 0), "the second instance's child must be gone too");
+  } finally {
+    await server.stop();
+  }
 });

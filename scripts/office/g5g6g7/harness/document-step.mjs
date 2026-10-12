@@ -48,8 +48,8 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, appendFileSync, write
 import { randomBytes } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
-import { DEV_CLIENT_ID, activeDesktopDevice, concludeAtStartGate, documentStepOutcome, evidenceLine, harnessPaths, harnessEvidenceId, ledgerIdentity, officeDeepLink, parseWaitSignin, readStartStatus, startGate, ticketFromLaunchUrl, workingCopyDir } from "./lib.mjs";
+import { spawn } from "node:child_process";
+import { DEV_CLIENT_ID, activeDesktopDevice, appEnv, concludeAtStartGate, documentStepOutcome, evidenceLine, harnessPaths, harnessEvidenceId, ledgerIdentity, officeDeepLink, parseWaitSignin, readStartStatus, startGate, ticketFromLaunchUrl, workingCopyDir } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..", "..");
@@ -60,6 +60,8 @@ const DEFAULT_REQUIREMENT = "G7-A01";
 const DEFAULT_FIXTURE = "fx-docx-report-vi";
 /** How long to wait for the app to leave a working copy (HARNESS_DOC_WAIT_MS overrides). */
 const WORKING_COPY_TIMEOUT_MS = Number(process.env.HARNESS_DOC_WAIT_MS ?? 60_000);
+/** How long the deep-link handoff (the second instance) may run before it is killed. */
+const HANDOFF_TIMEOUT_MS = Number(process.env.HARNESS_HANDOFF_TIMEOUT_MS ?? 30_000);
 
 function argValue(flag, fallback) {
   const i = process.argv.indexOf(flag);
@@ -174,21 +176,56 @@ function findWorkingCopyDocumentId(userDataDir, deploymentId, documentId) {
   return null;
 }
 
-/** Hands the deep link to the running app as a second instance (URL in argv). */
+/**
+ * Hands the deep link to the running app as a second instance (URL in argv).
+ * The instance gets an allow-listed environment (lib.mjs: appEnv), never the
+ * harness's own, and its own process group, which is recorded in the run's pids
+ * file for as long as it lives: if it outlives the step (it became the primary
+ * because the first app died, or it forked children), stop.sh still finds it.
+ * It is waited on with a timeout; a timed-out instance is killed as a group.
+ */
 function deliverDeepLink(ports, url) {
-  const env = {
-    ...process.env,
-    GENOFFICE_USER_DATA: ports.UNIWORK_USER_DATA,
-    GENOFFICE_NO_SPARE_VIEW: "1",
-    UNIWORK_API_ORIGIN: ports.API_ORIGIN,
-    UNIWORK_OFFICE_CHANNEL: "dev",
-    ELECTRON_DISABLE_SANDBOX: "1",
-    ...(ports.DISPLAY ? { DISPLAY: ports.DISPLAY } : {}),
-  };
-  return spawnSync(ports.ELECTRON_BIN, ["--no-sandbox", "--disable-gpu", ports.SHELL_APP_DIR, url], {
-    env,
-    encoding: "utf8",
-    timeout: 30_000,
+  const env = appEnv({
+    apiOrigin: ports.API_ORIGIN,
+    userDataDir: ports.UNIWORK_USER_DATA,
+    extra: { UNIWORK_OFFICE_CHANNEL: "dev", ...(ports.DISPLAY ? { DISPLAY: ports.DISPLAY } : {}) },
+  });
+  return new Promise((resolveDelivery) => {
+    let settled = false;
+    let pidLine = "";
+    const finish = (outcome) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (pidLine && existsSync(paths.pidFile)) {
+        const kept = readFileSync(paths.pidFile, "utf8").split("\n").filter((line) => line && line !== pidLine);
+        writeFileSync(paths.pidFile, kept.length > 0 ? `${kept.join("\n")}\n` : "");
+      }
+      resolveDelivery(outcome);
+    };
+    const child = spawn(ports.ELECTRON_BIN, ["--no-sandbox", "--disable-gpu", ports.SHELL_APP_DIR, url], {
+      env,
+      detached: true,
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      if (stderr.length < 4_096) stderr += chunk;
+    });
+    if (child.pid && existsSync(paths.pidFile)) {
+      pidLine = `handoff ${child.pid} 0`;
+      appendFileSync(paths.pidFile, `${pidLine}\n`);
+    }
+    const timer = setTimeout(() => {
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        // already gone
+      }
+      finish({ status: null, error: new Error(`the second instance did not exit within ${HANDOFF_TIMEOUT_MS / 1000}s and was killed`) });
+    }, HANDOFF_TIMEOUT_MS);
+    child.on("error", (error) => finish({ status: null, error }));
+    child.on("close", (status) => finish({ status, stderr }));
   });
 }
 
@@ -409,7 +446,7 @@ if (!mintError && ticket && launchUrl) {
   // session (a Linux VM without a Secret Service selects safeStorage's
   // `basic_text` backend, which the app refuses by contract — credentials.ts).
   signedIn = existsSync(join(ports.UNIWORK_USER_DATA, "uniwork-auth", "session.bin"));
-  const delivered = deliverDeepLink(ports, launchUrl);
+  const delivered = await deliverDeepLink(ports, launchUrl);
   if (delivered.error || delivered.status !== 0) {
     checks.push({
       name: "the app received the deep link as a second instance",

@@ -366,6 +366,63 @@ export function forkCacheDir(cacheRoot, sha) {
 }
 
 /**
+ * The variables the fork's Electron app may inherit from whoever started it: the
+ * process basics, the locale, the session and display it opens on, and the
+ * keyring bus its desktop session is kept in. Everything else of the harness's
+ * environment is withheld, above all the server's: start.sh sources the VM's
+ * `.env` (DATABASE_URL, REDIS_URL, JWT_SECRET, storage and provider keys, ...)
+ * and an app that inherited it would hold every secret of the stack it is
+ * only a client of (reviewer_be H1-8).
+ */
+export const APP_ENV_PASSTHROUGH = [
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TMPDIR",
+  "DISPLAY",
+  "XAUTHORITY",
+  "WAYLAND_DISPLAY",
+  "XDG_RUNTIME_DIR",
+  "XDG_SESSION_TYPE",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_CACHE_HOME",
+  "DBUS_SESSION_BUS_ADDRESS",
+];
+
+/** Names that carry a secret or the server's own wiring; none may reach the app, whatever else changes. */
+const SERVER_SECRET_NAME = /(KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL)|^(DATABASE|REDIS)_URL$/i;
+
+/**
+ * The whole environment of an Electron process the harness starts (the app
+ * itself and the second instance that carries a deep link): the allow-listed
+ * variables of `source`, then what the app needs — the D server's origin, its
+ * userData dir and the few switches the fork reads — and the caller's `extra`.
+ * It throws on a secret-looking name rather than passing it on.
+ */
+export function appEnv({ source = process.env, apiOrigin, userDataDir, extra = {} }) {
+  const env = {};
+  for (const key of APP_ENV_PASSTHROUGH) {
+    if (source[key] !== undefined && source[key] !== "") env[key] = source[key];
+  }
+  Object.assign(env, {
+    UNIWORK_API_ORIGIN: apiOrigin,
+    GENOFFICE_USER_DATA: userDataDir,
+    GENOFFICE_NO_SPARE_VIEW: "1",
+    ELECTRON_DISABLE_SANDBOX: "1",
+    ...extra,
+  });
+  for (const key of Object.keys(env)) {
+    if (SERVER_SECRET_NAME.test(key)) throw new Error(`appEnv refuses ${key}: a server secret must not reach the Electron app`);
+  }
+  return env;
+}
+
+/**
  * The identity every ledger line carries: the D checkout's HEAD and the web
  * frame pin that is served, resolved the way the evidence runner resolves them
  * (resolveDSha / readPin). A harness-written line without them is rejected by
@@ -495,6 +552,7 @@ function usage(reason) {
   if (reason) console.error(`lib.mjs: ${reason}`);
   console.error("usage: lib.mjs --write <runDir>");
   console.error("       lib.mjs --fork-dir <cacheRoot> <sha>");
+  console.error("       lib.mjs --app-env <apiOrigin> <userDataDir>");
   process.exit(2);
 }
 
@@ -509,6 +567,12 @@ if (isMainModule()) {
         console.error(error.message);
         process.exit(1);
       });
+  } else if (mode === "--app-env") {
+    // NUL-delimited KEY=VALUE entries for `env -i` in start.sh
+    const [apiOrigin, userDataDir] = rest;
+    if (!apiOrigin || !userDataDir) usage("--app-env needs an API origin and a userData dir");
+    const env = appEnv({ apiOrigin, userDataDir, extra: { UNIWORK_BRIDGE_SILENT: "1", GENOFFICE_LANG: "en" } });
+    process.stdout.write(Object.entries(env).map(([key, value]) => `${key}=${value}\0`).join(""));
   } else if (mode === "--fork-dir") {
     const [cacheRoot, sha] = rest;
     if (!cacheRoot || !sha) usage("--fork-dir needs a cache root and a fork SHA");

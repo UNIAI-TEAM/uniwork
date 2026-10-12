@@ -596,13 +596,14 @@ XVFB_DISPLAY_FILE="$RUN_DIR/display"
 # directly and keeps the DISPLAY of the invoking session.
 APP_WRAP=()
 [ "$DESKTOP" = "1" ] || APP_WRAP=(xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24")
-setsid env \
-  UNIWORK_API_ORIGIN="$API_ORIGIN" \
-  UNIWORK_BRIDGE_SILENT=1 \
-  GENOFFICE_USER_DATA="$RUN_DIR/userdata" \
-  GENOFFICE_NO_SPARE_VIEW=1 \
-  GENOFFICE_LANG=en \
-  ELECTRON_DISABLE_SANDBOX=1 \
+# The app gets an allow-listed environment (lib.mjs: appEnv), never the VM's .env
+# this script sourced above: DATABASE_URL, JWT_SECRET and the rest are the
+# server's, and the app is only its client (reviewer_be H1-8).
+APP_ENV=()
+while IFS= read -r -d '' entry; do APP_ENV+=("$entry"); done \
+  < <(node "$HERE/lib.mjs" --app-env "$API_ORIGIN" "$RUN_DIR/userdata" 2>> "$LOG_DIR/lib.log")
+[ "${#APP_ENV[@]}" -gt 0 ] || fail "could not build the app's environment (see $LOG_DIR/lib.log)"
+setsid env -i "${APP_ENV[@]}" \
   ${APP_WRAP[@]+"${APP_WRAP[@]}"} \
   bash -c "echo \"\$DISPLAY\" > '$XVFB_DISPLAY_FILE'; exec '$ELECTRON_BIN' --no-sandbox --disable-gpu '$FORK_DIR/apps/shell'" \
   >> "$RUN_DIR/logs/app.log" 2>&1 &

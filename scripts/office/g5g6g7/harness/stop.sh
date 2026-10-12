@@ -20,13 +20,14 @@ if [ ! -f "$PID_FILE" ]; then
   exit 0
 fi
 
-# App, then web, then server: reverse of the start order, so the app stops
-# talking to a web that is still up.
+# Reverse of the start order (handoff, app, web, server), so the app stops
+# talking to a web that is still up. "handoff" is the second Electron instance
+# the document step hands a deep link to; it is listed only while it lives.
 pids=()
 while read -r name pid port; do
   [ -n "${pid:-}" ] || continue
   case "$name" in
-    app|web|server) pids=("$pid" "${pids[@]:-}") ;;
+    app|web|server|handoff) pids=("$pid" "${pids[@]:-}") ;;
     *) echo "harness: ignoring unknown pid line: $name $pid" >&2 ;;
   esac
 done < "$PID_FILE"
