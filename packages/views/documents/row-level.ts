@@ -5,7 +5,7 @@
  * loaded copy — reads as view: the controls stay hidden rather than offer a
  * command the server would refuse.
  */
-export type RowLevel = "view" | "edit" | "manage";
+type RowLevel = "view" | "edit" | "manage";
 
 export function rowLevel(row: { my_level?: string | null } | null | undefined): RowLevel {
   switch (row?.my_level) {

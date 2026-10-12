@@ -1,4 +1,7 @@
+import type { QueryClient } from "@tanstack/react-query";
+import { documentKeys } from "../documents/keys";
 import type { WSEventType } from "../types/events";
+import { createInvalidateScheduler } from "./invalidate-scheduler";
 
 /**
  * The Documents home lists files other modules hold (chat, task attachments,
@@ -17,9 +20,9 @@ import type { WSEventType } from "../types/events";
  * meeting open hears it, so a Documents home opened elsewhere catches a new
  * recording on its next refetch (window focus, see `useDocumentSources`).
  */
-export const SOURCES_INVALIDATE_MS = 5_000;
+const SOURCES_INVALIDATE_MS = 5_000;
 
-export type SourcesWave = "now" | "slow";
+type SourcesWave = "now" | "slow";
 
 export function sourcesWaveFor(
   wsId: string,
@@ -40,4 +43,24 @@ export function sourcesWaveFor(
     default:
       return null;
   }
+}
+
+/**
+ * The sync hook's side of it: `onFrame` marks the sources list stale for the
+ * frames above (`now` through the hook's own scheduler, `slow` through a
+ * window of its own), `dispose` stops the slow window with the subscription.
+ */
+export function createSourcesRefresher(
+  qc: QueryClient,
+  wsId: string,
+  scheduler: Pick<ReturnType<typeof createInvalidateScheduler>, "schedule">,
+) {
+  const slow = createInvalidateScheduler(qc, SOURCES_INVALIDATE_MS);
+  return {
+    onFrame(type: WSEventType, payload: Record<string, string>) {
+      const wave = sourcesWaveFor(wsId, type, payload);
+      if (wave) (wave === "slow" ? slow : scheduler).schedule(documentKeys.sourcesRoot(wsId));
+    },
+    dispose: () => slow.dispose(),
+  };
 }
