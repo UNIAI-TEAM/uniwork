@@ -122,6 +122,18 @@ type DocumentVersionResultSDO struct {
 	Version  DocumentVersionDTO `json:"version"`
 }
 
+// CommitIntentSDO answers GET /documents/{id}/versions/commit (G5-07): what
+// became of the caller's commit with the Idempotency-Key header. version and
+// revision are present only when outcome is committed. A key the server holds
+// no intent for (swept after its resume window, never received, or another
+// member's) is not this body but 410 commit_intent_unknown.
+type CommitIntentSDO struct {
+	Outcome   string `json:"outcome" description:"committed | not_committed (claim hết hạn, không attempt nào còn commit được) | in_flight (đang có claim sống) | unknown (chỉ đi kèm 410 commit_intent_unknown)" example:"committed"`
+	VersionID string `json:"version_id,omitempty" description:"ULID version đã tạo, khi committed" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+	Version   *int32 `json:"version,omitempty" description:"Số version đã tạo, khi committed" example:"3"`
+	Revision  string `json:"revision,omitempty" description:"Revision tài liệu sau commit (chuỗi thập phân), khi committed" example:"42"`
+}
+
 // DocumentAssetSDO is POST /documents/{id}/assets (C-01 §5.4): the asset a
 // page embeds via asset://{id}. url is the Go proxy route that serves the
 // bytes (302/presign is not used for documents).

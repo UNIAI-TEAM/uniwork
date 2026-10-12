@@ -642,6 +642,7 @@ func New(d Deps) http.Handler {
 		PatchDocument:           h.patchDocument,
 		UploadDocumentFile:      h.uploadDocumentFile,
 		CommitDocumentVersion:   h.commitDocumentVersion,
+		LookupCommitIntent:      h.lookupCommitIntent,
 		ListDocumentVersions:    h.listDocumentVersions,
 		CreateDocumentVersion:   h.createDocumentVersion,
 		GetDocumentVersion:      h.getDocumentVersion,

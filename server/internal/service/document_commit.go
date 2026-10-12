@@ -252,6 +252,12 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 		s.intentCounters().IncOfficeIdempotentReplay()
 		return replayWithAccess(replay.Body, current)
 	}
+	// The intent claim below is a write, so the permission is decided before
+	// it as well as again inside the mutation: a caller who may only view
+	// leaves no intent row behind.
+	if err := decideDocumentAccess(doc, current, DocumentLevelEdit); err != nil {
+		return DocumentFileResult{}, err
+	}
 	// office_sync_write hides new commits only (G5-07, X-03): a replay above
 	// and the intent lookup keep answering while it is off.
 	if !s.syncWriteEnabled(ctx, actor, doc.OrganizationID) {

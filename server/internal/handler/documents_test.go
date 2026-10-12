@@ -56,6 +56,10 @@ func newDocsWorld(t *testing.T) *docsWorld {
 	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
 	docs.SetFiles(filesfake.New(filesfake.Options{}))
+	// office_sync_write (G5-07) reads through the same evaluator as the routes.
+	if d.FeatureFlags != nil {
+		docs.SetFlags(d.FeatureFlags)
+	}
 	d.Documents = docs
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
@@ -188,6 +192,7 @@ func TestDocumentsFlagOff404(t *testing.T) {
 		{"PATCH", "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7"},
 		{"POST", "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/uploads"},
 		{"POST", "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/versions/commit"},
+		{"GET", "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/versions/commit"},
 		{"GET", "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/versions"},
 		{"GET", "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/versions/1"},
 		{"POST", "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/versions"},

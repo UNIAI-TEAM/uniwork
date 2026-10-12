@@ -478,6 +478,7 @@ type Routes struct {
 	PatchDocument          http.HandlerFunc
 	UploadDocumentFile     http.HandlerFunc
 	CommitDocumentVersion  http.HandlerFunc
+	LookupCommitIntent     http.HandlerFunc
 	ListDocumentVersions   http.HandlerFunc
 	CreateDocumentVersion  http.HandlerFunc
 	GetDocumentVersion     http.HandlerFunc
