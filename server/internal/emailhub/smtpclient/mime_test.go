@@ -1,6 +1,11 @@
 package smtpclient
 
 import (
+	"io"
+	"mime"
+	"mime/multipart"
+	"mime/quotedprintable"
+	"net/mail"
 	"strings"
 	"testing"
 )
@@ -22,13 +27,113 @@ func TestBuildBodyPartAlternative(t *testing.T) {
 	if !strings.Contains(body, "text/plain") || !strings.Contains(body, "text/html") {
 		t.Fatalf("missing parts: %q", body)
 	}
+	if got := strings.Count(body, "Content-Transfer-Encoding: quoted-printable"); got != 2 {
+		t.Fatalf("quoted-printable body part headers = %d, want 2", got)
+	}
 }
 
-func TestEncodeBodyContentFoldsLongLines(t *testing.T) {
+func TestBuildRawQuotedPrintableLongHTMLRoundTrip(t *testing.T) {
 	t.Parallel()
-	long := strings.Repeat("a", maxLineLen+10)
-	if !strings.Contains(encodeBodyContent(long+"\nline2"), "\r\n") {
-		t.Fatal("expected CRLF folding for multiline body")
+	bodyHTML := "<div>" + strings.Repeat("Tiếng Việt có dấu — nội dung dài. ", 80) + "</div>"
+	if len([]byte(bodyHTML)) < 2_000 {
+		t.Fatalf("test fixture must exceed 2,000 bytes, got %d", len([]byte(bodyHTML)))
+	}
+	raw := buildRaw(
+		"from@example.com",
+		[]string{"to@example.com"},
+		nil,
+		nil,
+		"Long Vietnamese HTML",
+		"",
+		bodyHTML,
+		nil,
+		"<id@example.com>",
+		"",
+		"",
+	)
+
+	msg, err := mail.ReadMessage(strings.NewReader(raw))
+	if err != nil {
+		t.Fatalf("parse message: %v", err)
+	}
+	if got := msg.Header.Get("Content-Transfer-Encoding"); got != "quoted-printable" {
+		t.Fatalf("Content-Transfer-Encoding = %q, want quoted-printable", got)
+	}
+	encoded, err := io.ReadAll(msg.Body)
+	if err != nil {
+		t.Fatalf("read encoded body: %v", err)
+	}
+	for lineNumber, line := range strings.Split(strings.TrimSuffix(string(encoded), "\r\n"), "\r\n") {
+		if len([]byte(line)) > maxLineLen {
+			t.Fatalf("encoded line %d has %d octets, want <= %d: %q", lineNumber+1, len([]byte(line)), maxLineLen, line)
+		}
+	}
+	decoded, err := io.ReadAll(quotedprintable.NewReader(strings.NewReader(string(encoded))))
+	if err != nil {
+		t.Fatalf("decode quoted-printable body: %v", err)
+	}
+	if got := strings.TrimSuffix(string(decoded), "\r\n"); got != bodyHTML {
+		t.Fatalf("decoded body does not round-trip:\ngot:  %q\nwant: %q", got, bodyHTML)
+	}
+}
+
+func TestBuildRawAttachmentBodyUsesQuotedPrintable(t *testing.T) {
+	t.Parallel()
+	raw := buildRaw(
+		"from@example.com",
+		[]string{"to@example.com"},
+		nil,
+		nil,
+		"Files",
+		"Nội dung thư",
+		"",
+		[]OutboundAttachment{{Filename: "doc.txt", ContentType: "text/plain", Data: []byte("hello")}},
+		"<id@example.com>",
+		"",
+		"",
+	)
+
+	msg, err := mail.ReadMessage(strings.NewReader(raw))
+	if err != nil {
+		t.Fatalf("parse message: %v", err)
+	}
+	mediaType, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
+	if err != nil {
+		t.Fatalf("parse Content-Type: %v", err)
+	}
+	if mediaType != "multipart/mixed" {
+		t.Fatalf("Content-Type = %q, want multipart/mixed", mediaType)
+	}
+	reader := multipart.NewReader(msg.Body, params["boundary"])
+	bodyPart, err := reader.NextRawPart()
+	if err != nil {
+		t.Fatalf("read body part: %v", err)
+	}
+	if got := bodyPart.Header.Get("Content-Transfer-Encoding"); got != "quoted-printable" {
+		t.Fatalf("body part Content-Transfer-Encoding = %q, want quoted-printable", got)
+	}
+	attachmentPart, err := reader.NextRawPart()
+	if err != nil {
+		t.Fatalf("read attachment part: %v", err)
+	}
+	if got := attachmentPart.Header.Get("Content-Transfer-Encoding"); got != "base64" {
+		t.Fatalf("attachment Content-Transfer-Encoding = %q, want base64", got)
+	}
+}
+
+func TestQuotedPrintableNormalizesCRLF(t *testing.T) {
+	t.Parallel()
+	const body = "Dòng một\r\nDòng hai"
+	encoded := qp(body)
+	if strings.Contains(encoded, "\r\r\n") {
+		t.Fatalf("quoted-printable output contains duplicated carriage return: %q", encoded)
+	}
+	decoded, err := io.ReadAll(quotedprintable.NewReader(strings.NewReader(encoded)))
+	if err != nil {
+		t.Fatalf("decode quoted-printable body: %v", err)
+	}
+	if got := string(decoded); got != body {
+		t.Fatalf("decoded body = %q, want %q", got, body)
 	}
 }
 
@@ -72,10 +177,10 @@ func TestBuildBodyPartHTMLOnly(t *testing.T) {
 	}
 }
 
-func TestEncodeBodyContentShortSingleLine(t *testing.T) {
+func TestQuotedPrintableShortSingleLine(t *testing.T) {
 	t.Parallel()
 	const line = "short plain body"
-	if got := encodeBodyContent(line); got != line {
+	if got := qp(line); got != line {
 		t.Fatalf("expected unchanged short line, got %q", got)
 	}
 }
