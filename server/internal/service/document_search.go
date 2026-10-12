@@ -58,6 +58,9 @@ type DocumentListItem struct {
 	Document db.Document
 	Snippet  string
 	Facts    DocumentListFacts
+	// Access is the actor's level on the row (document_list_access.go); the
+	// zero value means the service did not compute it.
+	Access DocumentAccess
 }
 
 // DocumentListPage is one page plus the cursor for the next.
@@ -274,7 +277,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			}
 			out.Items = append(out.Items, DocumentListItem{Document: d})
 		}
-		return out, nil
+		return out, s.attachListAccess(ctx, scope, workspaceID, actor.Kind == audit.KindAgent, out.Items)
 
 	case in.ParentID != nil && !query.Valid:
 		// One level of the tree, position order. q present searches the
@@ -301,7 +304,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			}
 			out.Items = append(out.Items, DocumentListItem{Document: d})
 		}
-		return out, nil
+		return out, s.attachListAccess(ctx, scope, workspaceID, actor.Kind == audit.KindAgent, out.Items)
 
 	default:
 		var cursorAt pgtype.Timestamptz
@@ -326,7 +329,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			}
 			out.Items = append(out.Items, DocumentListItem{Document: listRowDocument(r), Snippet: r.Snippet})
 		}
-		return out, nil
+		return out, s.attachListAccess(ctx, scope, workspaceID, actor.Kind == audit.KindAgent, out.Items)
 	}
 }
 
@@ -381,7 +384,7 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 		}
 		out.Items = append(out.Items, DocumentListItem{Document: d})
 	}
-	return out, nil
+	return out, s.attachListAccess(ctx, scope, workspaceID, false, out.Items)
 }
 
 // listRowDocument converts the flat-page row (which carries the snippet)

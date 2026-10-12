@@ -246,7 +246,9 @@ export const DocumentSummarySchema = z.object({
   size_bytes: z.number().nullable().optional().catch(undefined),
   origin: z.string().nullable().optional().catch(undefined),
   snippet: z.string().nullable().optional(),
-  my_level: z.string().nullable().optional(),
+  // The viewer's level on this row (every list route carries it); a drifted
+  // value reads as absent, which the views treat as view-only.
+  my_level: z.string().nullable().optional().catch(undefined),
   via: z.string().nullable().optional(),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),

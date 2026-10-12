@@ -251,7 +251,11 @@ func (h *handlers) documentLifecycleCommand(w http.ResponseWriter, r *http.Reque
 func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(page.Items))}
 	for _, item := range page.Items {
-		out.Documents = append(out.Documents, documentSummaryDTO(item.Document, item.Facts, item.Snippet, nil))
+		var access *service.DocumentAccess
+		if item.Access.Level != service.DocumentLevelNone {
+			access = &item.Access
+		}
+		out.Documents = append(out.Documents, documentSummaryDTO(item.Document, item.Facts, item.Snippet, access))
 	}
 	if page.NextCursor != "" {
 		out.NextCursor = &page.NextCursor

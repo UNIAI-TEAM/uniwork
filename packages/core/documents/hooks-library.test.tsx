@@ -96,6 +96,16 @@ describe("documents library hooks", () => {
     expect(result.current.hasNextPage).toBe(false);
   });
 
+  it("useDocumentSources refetches on window focus and sits under the sources root", async () => {
+    vi.mocked(fetch).mockResolvedValue(json({ items: [item("s1")], next_cursor: null }));
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useDocumentSources("w1", { source: "chat" }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [query] = qc.getQueryCache().findAll({ queryKey: documentKeys.sourcesRoot("w1") });
+    expect(query).toBeDefined();
+    expect(query?.observers[0]?.options.refetchOnWindowFocus).toBe(true);
+  });
+
   it("useDocumentSources does not retry a 404", async () => {
     vi.mocked(fetch).mockResolvedValue(json({ error: "not found", code: "not_found" }, 404));
     // Default retry on: only the hook's own retry rule may stop the loop.

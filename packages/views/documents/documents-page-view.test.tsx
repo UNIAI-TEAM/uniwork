@@ -31,6 +31,7 @@ function summary(over: Record<string, unknown> = {}) {
     kind: "page",
     title: "Kế hoạch Q4",
     revision: "1",
+    my_level: "manage",
     updated_at: "2026-09-28T03:00:00Z",
     ...over,
   };
@@ -591,6 +592,51 @@ describe("DocumentsPageView", () => {
     await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
+  });
+
+  it("gates Move and Archive by the level of each row, not by the open folder", async () => {
+    route({
+      list: () => [
+        summary({ id: "m1", title: "Quản lý", my_level: "manage" }),
+        summary({ id: "e1", title: "Chỉnh sửa", my_level: "edit" }),
+        summary({ id: "v1", title: "Chỉ xem", my_level: "view" }),
+        summary({ id: "n1", title: "Chưa rõ", my_level: undefined }),
+      ],
+    });
+    renderView(vi.fn());
+    const menuItems = async (title: string) => {
+      const row = await rowOf(title);
+      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+      await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
+      const has = (key: string) => screen.queryByRole("menuitem", { name: t(key) }) !== null;
+      const out = { move: has("documents.home.row.move"), archive: has("documents.home.row.archive") };
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeNull());
+      return out;
+    };
+    expect(await menuItems("Quản lý")).toEqual({ move: true, archive: true });
+    expect(await menuItems("Chỉnh sửa")).toEqual({ move: true, archive: false });
+    expect(await menuItems("Chỉ xem")).toEqual({ move: false, archive: false });
+    // A row the server sent no level for reads as view: nothing it would refuse.
+    expect(await menuItems("Chưa rõ")).toEqual({ move: false, archive: false });
+  });
+
+  it("opens an editable row in the app with an edit session and a view-only row read-only", async () => {
+    route({
+      list: () => [
+        file("f1", "Sửa.docx", { my_level: "edit", current_version: 2 }),
+        file("f2", "Xem.docx", { my_level: "view", current_version: 2 }),
+      ],
+    });
+    const createSession = vi.fn<OfficeLaunchSessionFactory>().mockResolvedValue(null);
+    renderView(vi.fn(), { desktopOpen: desktopOpenWith(createSession) });
+    for (const [title, id, operation] of [["Sửa.docx", "f1", "edit"], ["Xem.docx", "f2", "view"]] as const) {
+      createSession.mockClear();
+      fireEvent.click(within(await rowOf(title)).getByRole("button", { name: t("office.desktop.row_action") }));
+      await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
+      expect(createSession.mock.calls[0]?.[0]).toBe(id);
+      expect(createSession.mock.calls[0]?.[1]).toMatchObject({ operation });
+    }
   });
 
   it("puts Open UniWork Office in the header, launching the app with no document", async () => {

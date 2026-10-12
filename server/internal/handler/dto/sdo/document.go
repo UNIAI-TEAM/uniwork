@@ -150,8 +150,9 @@ type DocumentDownloadSDO struct {
 
 // DocumentSummaryDTO is one list row (list/recent/shared-with-me): the
 // metadata a library row renders, without the page content a list never
-// carries. `snippet` rides only on a search hit; `my_level`/`via` exist only
-// where the service resolved them (shared-with-me), never guessed.
+// carries. `snippet` rides only on a search hit; `my_level`/`via` are the
+// level the service resolved for the viewer on that row (list, recent,
+// folder children, shared-with-me), never guessed.
 type DocumentSummaryDTO struct {
 	ID             string  `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	OrganizationID string  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
@@ -167,7 +168,7 @@ type DocumentSummaryDTO struct {
 	SizeBytes      int64   `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
 	Origin         string  `json:"origin" description:"upload (file tải lên) hoặc created (trang, thư mục, file trống, bản chuyển đổi)" example:"upload"`
 	Snippet        *string `json:"snippet,omitempty" description:"Đoạn khớp ≤ 160 ký tự khi tìm bằng q" example:"…kế hoạch quý 4 gồm ba mốc…"`
-	MyLevel        *string `json:"my_level,omitempty" description:"view, edit hoặc manage khi service đã tính" example:"view"`
+	MyLevel        *string `json:"my_level,omitempty" description:"view, edit hoặc manage của người xem trên dòng này; vắng mặt = coi như view" example:"view"`
 	Via            *string `json:"via,omitempty" description:"member, share, link hoặc ai_context" example:"share"`
 	OwnerKind      *string `json:"owner_kind,omitempty" example:"work_product"`
 	OwnerID        *string `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`

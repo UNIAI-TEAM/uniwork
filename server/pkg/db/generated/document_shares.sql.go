@@ -165,6 +165,56 @@ func (q *Queries) ListDocumentShares(ctx context.Context, arg ListDocumentShares
 	return items, nil
 }
 
+const listLiveSharesForDocuments = `-- name: ListLiveSharesForDocuments :many
+SELECT document_id, principal_type, principal_id, level
+FROM document_shares
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = ANY($3::text[])
+  AND revoked_at IS NULL
+`
+
+type ListLiveSharesForDocumentsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	DocumentIds    []string `json:"document_ids"`
+}
+
+type ListLiveSharesForDocumentsRow struct {
+	DocumentID    string `json:"document_id"`
+	PrincipalType string `json:"principal_type"`
+	PrincipalID   string `json:"principal_id"`
+	Level         string `json:"level"`
+}
+
+// The live grants on a page of documents of one workspace, read once so a list
+// can resolve every row's level without a query per row. Only the columns
+// the level rule needs.
+func (q *Queries) ListLiveSharesForDocuments(ctx context.Context, arg ListLiveSharesForDocumentsParams) ([]ListLiveSharesForDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, listLiveSharesForDocuments, arg.OrganizationID, arg.WorkspaceID, arg.DocumentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLiveSharesForDocumentsRow{}
+	for rows.Next() {
+		var i ListLiveSharesForDocumentsRow
+		if err := rows.Scan(
+			&i.DocumentID,
+			&i.PrincipalType,
+			&i.PrincipalID,
+			&i.Level,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeDocumentShare = `-- name: RevokeDocumentShare :exec
 UPDATE document_shares
 SET revoked_at = now(), revoked_by = $1
