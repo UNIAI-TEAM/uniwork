@@ -44,7 +44,7 @@ OPS). Cột bằng chứng trỏ tới mục chi tiết ở §4.
 | 5 | Số lần chờ 429 tối đa mỗi run | 3; mức kẹp `Retry-After` 300 giây (EXPERIENCE OQ-UX2) | §4.5 | owner F + Product |
 | 6 | Trần body / tool-result | body: giữ `maxJSONBody` 1 MiB (không override); mỗi tool-result ≤ 64 KiB; tổng tool-result một request ≤ 256 KiB; vượt → 413 `ai_tool_result_too_large` ("workbook quá lớn") | §4.6 | AI Platform + owner F |
 | 7 | Ngân sách lịch sử/token | đầu vào mỗi lượt model ≤ 48 000 token ước lượng (system + lịch sử + tool-result); cắt lượt cũ nhất theo cặp nguyên vẹn; giữ tối đa 20 lượt người dùng | §4.7 | AI Platform |
-| 8 | Hình dạng mở rộng provider | `ToolCall{ID, Name, Input}`; `Message{Role: user\|assistant\|tool, Content, Parts, ToolCalls, ToolCallID}`; `ai.Request.Turns` (đã có id) thay cho câu user cuối khi lượt là tool-result; openai/anthropic/fake cài, ollama từ chối rõ (pending W1 commit SHA) | §4.8 | AI Platform |
+| 8 | Hình dạng mở rộng provider | `ToolCall{ID, Name, Input}`; `Message{Role: user\|assistant\|tool, Content, Parts, ToolCalls, ToolCallID}`; `CompletionResponse.UsagePresent`; `ai.Request.Turns` (đã có id) thay cho câu user cuối khi lượt là tool-result; openai/anthropic/fake cài, ollama từ chối rõ (test W1 `aadf0daa5`, cài đặt `bcca72643`) | §4.8 | AI Platform |
 | 9 | Kho hội thoại phía server | Postgres, 2 bảng mới (`ai_uniwork_conversations`, `ai_uniwork_turns`), nội dung mã hóa `secretbox` AES-256-GCM, TTL nhàn rỗi 30 phút, hạn tuyệt đối 24 giờ, 20 lượt | §4.9, §5 | AI Platform + G6-D2 (dữ liệu thật) |
 | 10 | OQ-P2 | route phiên có tài liệu trên path, kiểm quyền tài liệu mỗi request, dọn theo sự kiện + kiểm lười + TTL | §5 | AI Platform + Lead F |
 | 11 | `LoadShed` + đồng thời | miễn `LoadShed` theo mẫu route (giữ `setBodyDeadline`); trần mỗi pod 32 lượt đang chạy, toàn hệ thống 64 (lease Redis), mỗi tổ chức 8; vượt → 429 `Retry-After: 5` | §4.10 | AI Platform; số mặc định G7-D1 |
@@ -61,8 +61,13 @@ Code spike thuộc worker `worker-g6-ai_server_spike` (W1) trên cùng nhánh; b
 
 | Chế độ | Lệnh | Mạng | Dữ liệu |
 | --- | --- | --- | --- |
-| fake (AC-1) | `bash scripts/office/ai-upstream-spike.sh fake` (pending W1: tên lệnh chính xác lấy từ commit) | không | tool call xác định của `provider.Fake` |
-| dev (AC-2) | `bash scripts/office/ai-upstream-spike.sh dev` với `AI_PROVIDER=openai`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `AI_MODEL_*` đọc từ môi trường; giá trị configured per `~/.codex/config.toml` customlocal (spec §8.4), không hardcode | có, chỉ máy dev | fixture tổng hợp |
+| fake (AC-1) | `bash scripts/office/ai-upstream-spike.sh fake` (đặt `AI_PROVIDER=fake`, `SPIKE_MODE=fake`) | không | tool call xác định của `provider.Fake` |
+| dev (AC-2) | `source scripts/office/ai-upstream-spike-env.sh` rồi `bash scripts/office/ai-upstream-spike.sh dev`; script env đọc `base_url` + `env_key` của `[model_providers.customlocal]` và export `OPENAI_BASE_URL`/`OPENAI_API_KEY` không in giá trị; model qua `SPIKE_MODEL` hoặc `AI_MODEL_OFFICE_UNIWORK_AI`; dev bị từ chối nếu thiếu một trong ba. Giá trị configured per `~/.codex/config.toml` customlocal (spec §8.4) | có, chỉ máy dev | fixture tổng hợp |
+
+Commit spike: `aadf0daa5` (test hình dạng), `bcca72643` (provider), `544907c3b` (harness
+`server/internal/ai/provider/upstream_spike_test.go`, gắn cờ `SPIKE_MODE=fake|dev`; mọi chuỗi ghi ra đi qua
+`spikeRedact` nên base URL, host và khóa thành `<upstream>`), `e568fe149` (wrapper + helper env). Wrapper ghi JSON + bản
+tóm tắt + log chạy vào thư mục báo cáo của lane và trả exit code của test.
 
 Vòng đo (theo brief lane): (1) request đầu khai một công cụ tổng hợp (ví dụ `sum_range` trên bảng số giả), model trả
 `tool_calls[].id`; (2) request thứ hai gửi message `tool` với đúng `tool_call_id`; (3) model trả lời cuối. Đo: id còn
@@ -70,22 +75,24 @@ nguyên hai chiều, `usage` có hay thiếu, probe `stream: true` thô (số ch
 p50/p95 trên ≥ 10 lần, tên model lấy từ `/v1/models`. Harness là test Go gắn cờ môi trường trong
 `server/internal/ai/provider` — package duy nhất được mở kết nối model (`TestProviderSDKOnlyInAIProvider`).
 
-pending W1 measurement: lệnh thật, SHA spike, đường dẫn log `reports/g6-ai_server/w1-spike-report.md` và
-`ac2-dev-run-1.json`.
+Kết quả lưu ngoài repo ở `reports/g6-ai_server/` của lane (smoke fake: `spike-smoke.json`; dev: pending W1 measurement
+`w1-spike-report.md`, `ac2-dev-run-1.json`).
 
 ## 3. Kết quả đo
 
-pending W1 measurement. Bảng sẽ điền từ `w1-spike-report.md` + `ac2-dev-run-1.json`:
+Cột fake lấy từ smoke `spike-smoke.json` (2026-10-12T10:07:36Z, 3 vòng). Cột upstream dev: pending W1 measurement
+(`w1-spike-report.md` + `ac2-dev-run-1.json`).
 
 | Đo | fake | upstream dev |
 | --- | --- | --- |
-| Model (từ `/v1/models`) | `fake` | pending W1 measurement |
-| `tool_calls[].id` response → `CompletionResponse` | pending | pending |
-| `tool_call_id` request → upstream chấp nhận | pending | pending |
-| `usage` non-stream | pending | pending |
+| Model (từ `/v1/models`) | `fake` (fake không có `/v1/models`) | pending W1 measurement |
+| Vòng có tool call | 3/3 | pending |
+| `tool_calls[].id` response → `CompletionResponse` → `tool_call_id` request (hai chiều) | ok 3/3, câu trả lời nhắc lại id 3/3, không call thừa ở lượt 2 | pending |
+| `usage` non-stream (lượt 1 / lượt 2) | có 3/3 / có 3/3 | pending |
 | `usage` khi stream (`stream_options.include_usage`) | n/a | pending |
-| Stream: số chunk, delta tool call theo index, chunk usage cuối | n/a | pending |
-| Latency p50 / p95 (n ≥ 10), lượt đầu và lượt tool-result | pending | pending |
+| Stream: số chunk, id trên delta tool call đầu, chunk usage cuối, `finish_reason` | n/a | pending |
+| `finish_reason` / `stop_reason` thấy được | `tool_calls`, `end_turn` | pending |
+| Latency p50 / p95 (lượt 1, lượt 2, cả vòng) | 0 ms (trong bộ nhớ) | pending |
 
 ## 4. Quyết định
 
@@ -198,7 +205,7 @@ user/assistant, `Content`, `Parts` (`provider.go:23-30`); `oaiToolCall` không c
 (`anthropic.go:76-77`) và gửi mọi message assistant thành một text block (`anthropic.go:34-38`); `ai.Request` chỉ nhận
 `History` + một câu user cuối render từ prompt (`gateway.go:56`, `gateway.go:143-144`).
 
-**Đề xuất (draft, pending X-01; xác nhận theo commit W1 — pending W1 commit SHA):**
+**Đề xuất (draft, pending X-01; đã cài trên nhánh spike ở `bcca72643`, `server/internal/ai/provider/provider.go`):**
 
 ```go
 type ToolCall struct {
@@ -214,13 +221,25 @@ type Message struct {
 	ToolCalls  []ToolCall // assistant turn that asked for tools
 	ToolCallID string     // role "tool": the call this result answers
 }
+
+type CompletionResponse struct {
+	// ...existing fields...
+	UsagePresent bool // false when the vendor sent no usage block (unknown, not zero)
+}
 ```
+
+Test hợp đồng của W1 (commit `aadf0daa5`, `server/internal/ai/provider/provider_test.go`) chốt đúng hình dạng này:
+`TestOpenAIToolResultLoop` (id `call_abc` từ response đi lại thành `tool_calls[].id` của assistant phát lại và
+`tool_call_id` của message `tool`, arguments giữ nguyên), `TestOpenAIUsageAbsent` (thiếu `usage` →
+`UsagePresent = false`, không phải 0), `TestFakeToolLoop` (fake trả một call có id rồi trả lời khi thấy kết quả),
+`TestAnthropicToolResultLoop` (`tool_use.id` hai chiều; message `tool` thành block `tool_result` trên lượt user kế),
+`TestOllamaRefusesToolMessages` (`ErrUnsupported`).
 
 | Provider | Gửi | Nhận |
 | --- | --- | --- |
 | `openai.go` | assistant: `tool_calls[{id, type:"function", function{name, arguments}}]`; tool: `{role:"tool", tool_call_id, content}` | `choices[0].message.tool_calls[].id` → `ToolCall.ID` |
-| `anthropic.go` | assistant: `tool_use{id, name, input}` block (+ text nếu có); tool: user message chứa `tool_result{tool_use_id, content}`; nhiều tool-result liên tiếp gộp vào **một** user message (Messages API đòi luân phiên vai) | `ToolUseBlock.ID` → `ToolCall.ID` |
-| `fake.go` | ghi lại `Last` như hiện có | chế độ kịch bản: lượt 1 trả `ToolCall{ID:"call_fake_1", …}`, lượt có message `tool` khớp id trả lời cuối; id lạ → lỗi (test âm) |
+| `anthropic.go` | assistant: `tool_use{id, name, input}` block (+ text nếu có); tool: user message chứa `tool_result{tool_use_id, content}`. Spike cài **mỗi message `tool` thành một user message riêng**; với nhiều call song song trong một lượt, Messages API cần mọi `tool_result` ngay sau lượt assistant — G6-13 gộp các message `tool` liên tiếp vào một user message và thêm test hai call song song | `ToolUseBlock.ID` → `ToolCall.ID` |
+| `fake.go` | ghi lại `Last` như hiện có | chế độ kịch bản: lượt 1 trả `ToolCall{ID:"call_fake_1", …}`, lượt có message `tool` khớp id trả lời cuối và nhắc lại id (`TestFakeToolLoop`) |
 | `ollama.go` | message có `ToolCalls`/role `tool` → `ErrUnsupported` | — |
 
 `ai.Request` thêm `Turns []provider.Message` (transcript đã có id, do service dựng từ kho §4.9): khi `Turns` khác rỗng,
@@ -372,7 +391,8 @@ vì đó là bí mật người dùng quản lý. Dấu vết truy ngược đã
 `tool_calls`, `correlation_id` (spec §8.3).
 
 Usage thiếu: `ai_usage_events.status` chỉ nhận `pending|succeeded|failed|rejected` (`092_ai_gateway.up.sql:38`) và
-`openai.go:111-114` đọc `usage` vắng thành 0 token. Đề xuất G6-03b: khi upstream không trả `usage`, dòng là
+`openai.go:111-114` đọc `usage` vắng thành 0 token (spike thêm `CompletionResponse.UsagePresent`, §4.8, để Gateway
+phân biệt được). Đề xuất G6-03b: khi `UsagePresent` false, dòng là
 `succeeded` + `reason_code = usage_unknown`, không gọi `quota.Record` với 0, tăng
 `uniwork_ai_uniwork_usage_unknown_total`, và job đối soát ước lượng sau (không đếm hai lần). Không cần migration đổi
 CHECK. Upstream dev có trả `usage` không: pending W1 measurement.
