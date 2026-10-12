@@ -404,3 +404,34 @@ test("--update-goldens carries maskLimits and tolerance of the previous manifest
   updateGoldens({ capturesDir: captures, goldensDir: fresh, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-limits-fresh") });
   assert.deepEqual(readJson(join(fresh, "manifest.json")).maskLimits, { maxAreaSharePerMask: 0.05, maxAreaSharePerEntry: 0.1 });
 });
+
+for (const [label, patchViewport, host] of [
+  ["no viewport", (meta) => { delete meta.viewport; return meta; }, "desktop"],
+  ["a negative viewport size", (meta) => ({ ...meta, viewport: { w: -1, h: 48 } }), "desktop"],
+  ["a fractional viewport size", (meta) => ({ ...meta, viewport: { w: 64.5, h: 48 } }), "web"],
+  ["another viewport than the manifest's for that host", (meta) => ({ ...meta, viewport: { w: 128, h: 96 } }), "web"],
+]) {
+  test(`--update-goldens blocks a pair whose meta carries ${label}, as the compare path does (R3-1)`, () => {
+    const world = goldenWorld();
+    const before = readJson(join(world.goldens, "manifest.json"));
+    const bytesBefore = readFileSync(join(world.goldens, host, `${ONE}.png`));
+    patchMeta(world.captures, (meta, metaHost) => (metaHost === host ? patchViewport(meta) : meta));
+    const compare = goldenRun(world, { name: "golden-update-viewport-compare" }).check;
+    assert.equal(compare.status, "BLOCKED");
+    assert.deepEqual(compare.reasons, ["captures_at_another_viewport"]);
+    const updated = updateGoldens({ capturesDir: world.captures, goldensDir: world.goldens, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-viewport") });
+    assert.equal(updated.status, "BLOCKED");
+    assert.deepEqual(updated.reasons, [`captures_at_another_viewport:${host}/${ONE}`]);
+    assert.deepEqual(readFileSync(join(world.goldens, host, `${ONE}.png`)), bytesBefore, "nothing was copied");
+    assert.deepEqual(readJson(join(world.goldens, "manifest.json")).entries[`${host}/${ONE}`], before.entries[`${host}/${ONE}`]);
+  });
+}
+
+test("--update-goldens takes a host's viewport from its meta only when that host was blessed; a blocked host keeps its prior one (R3-2)", () => {
+  const world = goldenWorld({ viewport: { desktop: { w: 64, h: 48 }, web: { w: 128, h: 96 } } });
+  patchMeta(world.captures, (meta, host) => (host === "web" ? { ...meta, forkSha: "e".repeat(7), viewport: { w: 999, h: 888 } } : meta));
+  const updated = updateGoldens({ capturesDir: world.captures, goldensDir: world.goldens, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-blocked-viewport") });
+  assert.equal(updated.status, "BLOCKED");
+  assert.deepEqual(updated.reasons, [`captures_from_another_pin:web/${ONE}`]);
+  assert.deepEqual(readJson(join(world.goldens, "manifest.json")).viewport, { desktop: { w: 64, h: 48 }, web: { w: 128, h: 96 } });
+});

@@ -93,10 +93,14 @@ export function viewportProblem(manifest) {
   return null;
 }
 
-/** BLOCKED reason when a capture was not taken at its host's manifest viewport (meta.json records the one really used), else null. */
+/**
+ * BLOCKED reason when a capture was not taken at its host's manifest viewport (meta.json records the one really used), else null.
+ * `expected` null (a manifest that does not declare the host yet) only asks for a whole-pixel size.
+ */
 function viewportBlocker(metaState, expected) {
   const used = metaState?.value?.viewport;
-  return isSize(used) && used.w === expected.w && used.h === expected.h ? null : "captures_at_another_viewport";
+  if (!isSize(used)) return "captures_at_another_viewport";
+  return expected && (used.w !== expected.w || used.h !== expected.h) ? "captures_at_another_viewport" : null;
 }
 
 /**
@@ -285,6 +289,7 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
   const previous = previousState.value ?? {};
   const entries = { ...(previous.entries ?? {}) };
   const blocked = [];
+  const blessedHosts = new Set();
   const metaStates = new Map(hosts.map((host) => [host, readJsonState(join(capturesDir, host, "meta.json"))]));
   for (const host of hosts) {
     for (const fixture of fixtures) {
@@ -308,6 +313,12 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
         blocked.push(`${blocker}:${host}/${fixture}`);
         continue;
       }
+      // the compare path's viewport check too (R3-1): a meta that proves no viewport, or another one than the manifest's for this host, is never blessed
+      const viewportBlock = viewportBlocker(metaState, viewportProblem(previous) ? null : previous.viewport[host]);
+      if (viewportBlock) {
+        blocked.push(`${viewportBlock}:${host}/${fixture}`);
+        continue;
+      }
       const textPath = join(capturesDir, host, `${fixture}.txt`);
       if (!existsSync(textPath)) {
         blocked.push(`rendered_text_missing:${host}/${fixture}`);
@@ -326,13 +337,14 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
       mkdirSync(dirname(target), { recursive: true });
       copyFileSync(capturePath, target);
       entries[`${host}/${fixture}`] = { sha256: sha256Hex(readFileSync(target)), masks: entries[`${host}/${fixture}`]?.masks ?? [] };
+      blessedHosts.add(host);
     }
   }
   const meta = [...metaStates.values()].map((state) => state.value).find((value) => value && value.viewport) ?? {};
-  // one viewport per host: this run's capture of that host, else the previous manifest's, else the provider's fixed one
+  // one viewport per host: this run's capture of that host when one of its pairs was blessed (R3-2), else the previous manifest's, else the provider's fixed one
   const viewport = Object.fromEntries(
     HOSTS.map((host) => {
-      const used = metaStates.get(host)?.value?.viewport;
+      const used = blessedHosts.has(host) ? metaStates.get(host).value.viewport : null;
       const before = viewportProblem(previous) ? null : previous.viewport[host];
       return [host, isSize(used) ? { w: used.w, h: used.h } : before ?? { ...VIEWPORTS[host] }];
     }),
