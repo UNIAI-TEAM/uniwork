@@ -39,10 +39,11 @@ type OfficeEditSDI struct {
 // CreateBlankDocumentFileSDI is POST
 // /api/v1/workspaces/{workspaceID}/documents/files/blank (+ Idempotency-Key
 // header): creates a new document whose first version holds bytes the engine
-// produced. Only formats with a blank generator are accepted (md, html, xlsx);
-// any other format answers unsupported_operation and stores nothing.
+// produced or the server seeded. Only formats with a blank generator are
+// accepted (md, html, xlsx, docx, pptx, pdf); any other format answers
+// unsupported_operation and stores nothing.
 type CreateBlankDocumentFileSDI struct {
-	Format   string  `json:"format" description:"md, html hoặc xlsx; định dạng khác trả unsupported_operation" example:"md"`
+	Format   string  `json:"format" description:"md, html, xlsx, docx, pptx hoặc pdf; định dạng khác trả unsupported_operation" example:"docx"`
 	Title    string  `json:"title" minLength:"1" description:"Tiêu đề tài liệu, 1-500 ký tự" example:"Ghi chú họp"`
 	ParentID *string `json:"parent_id" description:"ULID trang cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 }
