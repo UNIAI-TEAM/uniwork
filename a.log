@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+5402acd3325493033ec0ad2172e3074e8ac320fe
+99fbdac8c935338930ecd80e004a1ac5abb1f711
+5402acd33 test(office): pin the change feed snapshot, cursor and isolation
+f94156baf feat(office): route GET /workspaces/{workspaceID}/documents/changes
+57eba7977 feat(office): snapshot, signed cursor and TTL sweep of the change feed
+07fe168a5 feat(office): add the change-feed snapshot tables
+99fbdac8c feat(office): merge the X-03 flags, error codes and app capability route (UNI-1340)
+75cf97b5e test(office): pin every capability flag key to the registry
