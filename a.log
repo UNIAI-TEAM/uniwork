@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -3
+bdd83fee8d88b04cc3187e70c1f81643d0d56902
+0bdd4105c428b17d4ab42236c1cfa32eb70be33a
+bdd83fee8 feat(office): let the frame own the conflict dialog of a page Save
+29afeac96 test(office): pin the frame-owned conflict dialog contract on the web host
+bd5372279 docs(office): apply sign-off batch 2 (G6-D1) to contract-p0 and EXPERIENCE

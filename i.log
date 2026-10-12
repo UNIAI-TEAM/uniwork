@@ -1,0 +1,550 @@
+$ git checkout bd5372279 -- packages/views/office/frame/use-docs-frame-session.ts packages/views/office/frame/office-module-frame.tsx packages/views/office/frame/save-conflict-dialog.tsx packages/core/i18n/locales && rm -f packages/views/office/frame/frame-download.ts; (cd packages/views && pnpm vitest run office/frame/use-docs-frame-session.test.tsx office/frame/office-docs-frame.test.tsx office/frame/office-module-frame.test.tsx); RED=$?; git checkout HEAD -- packages/views packages/core; git clean -fdq packages/views/office/frame; git status --short packages; echo "RED_EXIT=$RED"; test $RED -ne 0 && echo RED_AS_EXPECTED
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+
+ ❯ office/frame/use-docs-frame-session.test.tsx (0 test)
+ ❯ office/frame/office-module-frame.test.tsx (82 tests | 7 failed) 1752ms
+     × docs: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format 17ms
+     × pdf: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format 11ms
+     × markdown: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format 12ms
+     × html: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format 11ms
+     × slides: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format 10ms
+     × sheets: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format 10ms
+     × offers no download to a viewer and refuses one 12ms
+stderr | office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > stays on the page when the user cancels the frame's dialog, without an error
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ❯ office/frame/office-docs-frame.test.tsx (37 tests | 5 failed) 64574ms
+       × shows no dialog of its own, makes the page inert while the frame's is open, and reads Cancel as unsaved 1078ms
+       × holds the leave until the frame answers, stepping the leave dialog aside while the frame's is open 1040ms
+       × stays on the page when the user cancels the frame's dialog, without an error 30004ms
+       × says unauthorized (HTTP 401) and keeps the leave dialog open 1051ms
+       × lifts the inert page and gives up the save when the frame document unloads 30004ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  office/frame/use-docs-frame-session.test.tsx [ office/frame/use-docs-frame-session.test.tsx ]
+Error: Failed to resolve import "./frame-download" from "office/frame/use-docs-frame-session.test.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /workspace/packages/views/office/frame/use-docs-frame-session.test.tsx:8:48
+  4  |  import { PROTOCOL_NS, PROTOCOL_VERSION } from "@uniwork/core/office/docs-frame-protocol";
+  5  |  import { requestMock } from "../../test/api-mock";
+  6  |  import { OFFICE_FRAME_DOWNLOAD_MAX_BYTES } from "./frame-download";
+     |                                                   ^
+  7  |  import { useDocsFrameSession } from "./use-docs-frame-session";
+  8  |  var _jsxFileName = "/workspace/packages/views/office/frame/use-docs-frame-session.test.tsx";
+ ❯ TransformPluginContext._formatLog ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31147:39
+ ❯ TransformPluginContext.error ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31144:14
+ ❯ normalizeUrl ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28083:18
+ ❯ ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28153:30
+ ❯ TransformPluginContext.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28119:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:30932:14
+ ❯ loadAndTransform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:20671:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/13]⎯
+
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > shows no dialog of its own, makes the page inert while the frame's is open, and reads Cancel as unsaved
+AssertionError: expected "Mock" to be called at least once
+
+Ignored nodes: comments, script, style
+[36m<html[39m
+  [33mclass[39m=[32m"dark"[39m
+  [33mlang[39m=[32m"vi"[39m
+  [33mstyle[39m=[32m"color-scheme: dark;"[39m
+[36m>[39m
+  [36m<head />[39m
+  [36m<body[39m
+    [33mstyle[39m=[32m""[39m
+  [36m>[39m
+    [36m<div>[39m
+      [36m<button[39m
+        [33mstyle[39m=[32m""[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0mflip[0m
+      [36m</button>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"relative flex min-h-0 min-w-0 flex-1 flex-col bg-background"[39m
+        [33mdata-dirty[39m=[32m"true"[39m
+        [33mdata-office-docs-frame[39m=[32m"true"[39m
+        [33mdata-office-module[39m=[32m"docs"[39m
+        [33mdata-save-state[39m=[32m"dirty"[39m
+        [33mdata-state[39m=[32m"ready"[39m
+      [36m>[39m
+        [36m<iframe[39m
+          [33mallow[39m=[32m"clipboard-read; clipboard-write"[39m
+          [33mclass[39m=[32m"w-full min-w-0 border-0 bg-background min-h-0 flex-1"[39m
+          [33mdata-testid[39m=[32m"office-docs-frame-iframe"[39m
+          [33mreferrerpolicy[39m=[32m"same-origin"[39m
+          [33msrc[39m=[32m"/office-frame/docs/1.0.0/index.html"[39m
+          [33mtitle[39m=[32m"Trình soạn thảo tài liệu: Plan"[39m
+        [36m/>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</body>[39m
+[36m</html>[39m
+ ❯ office/frame/office-docs-frame.test.tsx:424:47
+    422|       expect(flip()).not.toHaveAttribute("inert");
+    423|       // The keyboard goes back into the frame, where the user was.
+    424|       await waitFor(() => expect(focusWindow).toHaveBeenCalled());
+       |                                               ^
+    425|       await frame.respond(frame.sent("request", "save")[0]!, { ok: fal…
+    426|       await expect(saving).resolves.toBe(false);
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/13]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > holds the leave until the frame answers, stepping the leave dialog aside while the frame's is open
+AssertionError: expected <div data-open id="_r_1s_" …(8)>…(2)</div> to be null
+
+Ignored nodes: comments, script, style
+[36m<html[39m
+  [33mclass[39m=[32m"dark"[39m
+  [33mdata-base-ui-scroll-locked[39m=[32m""[39m
+  [33mlang[39m=[32m"vi"[39m
+  [33mstyle[39m=[32m"color-scheme: dark; scrollbar-gutter: stable; overflow-y: hidden; overflow-x: hidden; scroll-behavior: unset;"[39m
+[36m>[39m
+  [36m<head />[39m
+  [36m<body[39m
+    [33mstyle[39m=[32m"position: relative; height: calc(100dvh - 784px); width: calc(100vw - 1040px); box-sizing: border-box; overflow-y: hidden; overflow-x: hidden; scroll-behavior: unset;"[39m
+  [36m>[39m
+    [36m<div[39m
+      [33maria-hidden[39m=[32m"true"[39m
+      [33mdata-base-ui-inert[39m=[32m""[39m
+    [36m>[39m
+      [36m<button[39m
+        [33mdata-office-frame-modal-dimmed[39m=[32m""[39m
+        [33minert[39m=[32m""[39m
+        [33mstyle[39m=[32m"transition: filter 150ms ease-out; filter: brightness(0.6) saturate(0.8);"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0mflip[0m
+      [36m</button>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"relative flex min-h-0 min-w-0 flex-1 flex-col bg-background"[39m
+        [33mdata-dirty[39m=[32m"true"[39m
+        [33mdata-frame-modal[39m=[32m"true"[39m
+        [33mdata-office-docs-frame[39m=[32m"true"[39m
+        [33mdata-office-module[39m=[32m"docs"[39m
+        [33mdata-save-state[39m=[32m"dirty"[39m
+        [33mdata-state[39m=[32m"ready"[39m
+      [36m>[39m
+        [36m<iframe[39m
+          [33mallow[39m=[32m"clipboard-read; clipboard-write"[39m
+          [33mclass[39m=[32m"w-full min-w-0 border-0 bg-background min-h-0 flex-1"[39m
+          [33mdata-testid[39m=[32m"office-docs-frame-iframe"[39m
+          [33mreferrerpolicy[39m=[32m"same-origin"[39m
+          [33msrc[39m=[32m"/office-frame/docs/1.0.0/index.html"[39m
+          [33mtitle[39m=[32m"Trình soạn thảo tài liệu: Plan"[39m
+        [36m/>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+    [36m<div[39m
+      [33mdata-base-ui-portal[39m=[32m""[39m
+      [33mdata-office-frame-modal-dimmed[39m=[32m""[39m
+      [33mdata-slot[39m=[32m"dialog-portal"[39m
+      [33mid[39m=[32m"_r_1u_"[39m
+      [33minert[39m=[32m""[39m
+      [33mstyle[39m=[32m"transition: filter 150ms ease-out; filter: brightness(0.6) saturate(0.8);"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mdata-base-ui-inert[39m=[32m""[39m
+        [33mrole[39m=[32m"presentation"[39m
+        [33mstyle[39m=[32m"position: fixed; inset: 0; user-select: none;"[39m
+      [36m/>[39m
+      [36m<div[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mclass[39m=[32m"fixed inset-0 isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs transition-opacity duration-(--duration-fast) ease-out-quart data-starting-style:opacity-0 data-ending-style:opacity-0 motion-reduce:transition-opacity"[39m
+        [33mdata-base-ui-inert[39m=[32m""[39m
+        [33mdata-open[39m=[32m""[39m
+        [33mdata-slot[39m=[32m"dialog-overlay"[39m
+        [33mrole[39m=[32m"presentation"[39m
+        [33mstyle[39m=[32m"user-select: none;"[39m
+      [36m/>[39m
+      [36m<span[39m
+        [33maria-hidden[39m=[32m"true"[39m
+        [33mdata-base-ui-focus-guard[39m=[32m""[39m
+        [33mdata-base-ui-inert[39m=[32m""[39m
+        [33mdata-type[39m=[32m"inside"[39m
+        [33mstyle[39m=[32m"clip-path: inset(50%); overflow: hidden; white-space: nowrap; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px; position: fixed; top: 0px; left: 0px;"[39m
+        [33mtabindex[39m=[32m"0"[39m
+      [36m/>[39m
+      [36m<div[39m
+        [33maria-describedby[39m=[32m"office-leave-description"[39m
+        [33maria-labelledby[39m=[32m"base-ui-_r_1v_"[39m
+        [33mclass[39m=[32m"fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-surface-raised p-4 text-body text-popover-foreground shadow-[var(--floating-shadow)] ring-1 ring-surface-border outline-none origin-center transition-[opacity,scale] duration-(--duration-standard) ease-out-quart data-starting-style:scale-[0.98] data-starting-style:opacity-0 data-ending-style:scale-[0.98] data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 motion-reduce:transition-opacity sm:max-w-md"[39m
+        [33mdata-base-ui-focusable[39m=[32m""[39m
+        [33mdata-open[39m=[32m""[39m
+        [33mdata-slot[39m=[32m"dialog-content"[39m
+        [33mid[39m=[32m"_r_1s_"[39m
+        [33mrole[39m=[32m"dialog"[39m
+        [33mstyle[39m=[32m"--nested-dialogs: 0;"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex flex-col gap-2"[39m
+          [33mdata-slot[39m=[32m"dialog-header"[39m
+        [36m>[39m
+          [36m<h2[39m
+            [33mclass[39m=[32m"font-heading text-title-sm leading-none font-medium"[39m
+            [33mdata-slot[39m=[32m"dialog-title"[39m
+            [33mid[39m=[32m"base-ui-_r_1v_"[39m
+          [36m>[39m
+            [0mRời tài liệu?[0m
+          [36m</h2>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"text-body text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground"[39m
+            [33mdata-slot[39m=[32m"dialog-description"[39m
+            [33mid[39m=[32m"office-leave-description"[39m
+          [36m>[39m
+            [0mBạn có thay đổi chưa lưu. Chọn cách xử lý trước khi rời tài liệu.[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:justify-end flex-col items-stretch sm:flex-col"[39m
+          [33mdata-slot[39m=[32m"dialog-footer"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground [a]:hover:bg-primary/80 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+            [33mdata-disabled[39m=[32m""[39m
+            [33mdata-slot[39m=[32...
+
+- Expected:
+null
+
++ Received:
+<div
+  aria-describedby="office-leave-description"
+  aria-labelledby="base-ui-_r_1v_"
+  class="fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-surface-raised p-4 text-body text-popover-foreground shadow-[var(--floating-shadow)] ring-1 ring-surface-border outline-none origin-center transition-[opacity,scale] duration-(--duration-standard) ease-out-quart data-starting-style:scale-[0.98] data-starting-style:opacity-0 data-ending-style:scale-[0.98] data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 motion-reduce:transition-opacity sm:max-w-md"
+  data-base-ui-focusable=""
+  data-open=""
+  data-slot="dialog-content"
+  id="_r_1s_"
+  role="dialog"
+  style="--nested-dialogs: 0;"
+  tabindex="-1"
+>
+  <div
+    class="flex flex-col gap-2"
+    data-slot="dialog-header"
+  >
+    <h2
+      class="font-heading text-title-sm leading-none font-medium"
+      data-slot="dialog-title"
+      id="base-ui-_r_1v_"
+    >
+      Rời tài liệu?
+    </h2>
+    <p
+      class="text-body text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground"
+      data-slot="dialog-description"
+      id="office-leave-description"
+    >
+      Bạn có thay đổi chưa lưu. Chọn cách xử lý trước khi rời tài liệu.
+    </p>
+  </div>
+  <div
+    class="flex gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:justify-end flex-col items-stretch sm:flex-col"
+    data-slot="dialog-footer"
+  >
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground [a]:hover:bg-primary/80 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"
+      data-disabled=""
+      data-slot="button"
+      disabled=""
+      tabindex="0"
+      type="button"
+    >
+      Đang xử lý…
+    </button>
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft hover:border-destructive/40 dark:bg-destructive-soft dark:hover:bg-destructive-soft"
+      data-disabled=""
+      data-slot="button"
+      disabled=""
+      tabindex="0"
+      type="button"
+    >
+      Bỏ thay đổi
+    </button>
+    <button
+      class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"
+      data-disabled=""
+      data-slot="button"
+      disabled=""
+      tabindex="0"
+      type="button"
+    >
+      Ở lại
+    </button>
+  </div>
+</div>
+
+ ❯ office/frame/office-docs-frame.test.tsx:462:64
+    460|       void leaving.then(() => { settled = true; });
+    461|       await frame.event("modal", { open: true });
+    462|       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNul…
+       |                                                                ^
+    463|       expect(settled).toBe(false);
+    464|       await frame.event("modal", { open: false });
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/13]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > stays on the page when the user cancels the frame's dialog, without an error
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ office/frame/office-docs-frame.test.tsx:477:5
+    475|     });
+    476|
+    477|     it("stays on the page when the user cancels the frame's dialog, wi…
+       |     ^
+    478|       const { frame, save, leaving } = await leavingWithSave();
+    479|       await frame.event("modal", { open: true });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/13]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > says unauthorized (HTTP 401) and keeps the leave dialog open
+AssertionError: expected [] to have a length of 1 but got +0
+
+Ignored nodes: comments, script, style
+[36m<html[39m
+  [33mclass[39m=[32m"dark"[39m
+  [33mlang[39m=[32m"vi"[39m
+  [33mstyle[39m=[32m"color-scheme: dark;"[39m
+[36m>[39m
+  [36m<head />[39m
+  [36m<body[39m
+    [33mstyle[39m=[32m""[39m
+  [36m>[39m
+    [36m<div>[39m
+      [36m<button[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [0mflip[0m
+      [36m</button>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"relative flex min-h-0 min-w-0 flex-1 flex-col bg-background"[39m
+        [33mdata-dirty[39m=[32m"true"[39m
+        [33mdata-office-docs-frame[39m=[32m"true"[39m
+        [33mdata-office-module[39m=[32m"docs"[39m
+        [33mdata-save-state[39m=[32m"dirty"[39m
+        [33mdata-state[39m=[32m"ready"[39m
+      [36m>[39m
+        [36m<iframe[39m
+          [33mallow[39m=[32m"clipboard-read; clipboard-write"[39m
+          [33mclass[39m=[32m"w-full min-w-0 border-0 bg-background min-h-0 flex-1"[39m
+          [33mdata-testid[39m=[32m"office-docs-frame-iframe"[39m
+          [33mreferrerpolicy[39m=[32m"same-origin"[39m
+          [33msrc[39m=[32m"/office-frame/docs/1.0.0/index.html"[39m
+          [33mtitle[39m=[32m"Trình soạn thảo tài liệu: Plan"[39m
+        [36m/>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</body>[39m
+[36m</html>[39m
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ office/frame/office-docs-frame.test.tsx:451:65
+    449|       const leaving = leaveGuardAllows("/elsewhere");
+    450|       fireEvent.click(await screen.findByRole("button", { name: "Lưu l…
+    451|       await waitFor(() => expect(frame.sent("request", "save")).toHave…
+       |                                                                 ^
+    452|       const save = frame.sent("request", "save")[0]!;
+    453|       expect(save.payload).toEqual({ reason: "navigate" });
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/13]⎯
+
+ FAIL  office/frame/office-docs-frame.test.tsx > OfficeDocsFrame > a page Save that meets a newer version: the frame's conflict dialog answers it > lifts the inert page and gives up the save when the frame document unloads
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ office/frame/office-docs-frame.test.tsx:504:5
+    502|     );
+    503|
+    504|     it("lifts the inert page and gives up the save when the frame docu…
+       |     ^
+    505|       const controlsRef = { current: null as { save: () => Promise<boo…
+    506|       mount({ controlsRef });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/13]⎯
+
+ FAIL  office/frame/office-module-frame.test.tsx > the frame's api.download (conflict dialog: download my version) > docs: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format
+AssertionError: expected { token: 'tok-1', …(10) } to match object { capabilities: { download: true } }
+(23 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "capabilities": {
+-     "download": true,
++     "ai": false,
++     "attachments": true,
++     "desktopOpen": false,
++     "exportHtml": false,
++     "exportPdf": true,
++     "imageGeneration": false,
++     "imageSearch": false,
++     "images": true,
++     "print": true,
++     "recents": true,
++     "save": true,
++     "saveAs": true,
++     "webSearch": false,
+    },
+  }
+
+ ❯ office/frame/office-module-frame.test.tsx:650:39
+    648|     await frame.ready({ module });
+    649|     await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    650|     expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { …
+       |                                       ^
+    651|     const clicks: string[] = [];
+    652|     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/13]⎯
+
+ FAIL  office/frame/office-module-frame.test.tsx > the frame's api.download (conflict dialog: download my version) > pdf: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format
+ FAIL  office/frame/office-module-frame.test.tsx > the frame's api.download (conflict dialog: download my version) > slides: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format
+ FAIL  office/frame/office-module-frame.test.tsx > the frame's api.download (conflict dialog: download my version) > sheets: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format
+AssertionError: expected { token: 'tok-1', …(10) } to match object { capabilities: { download: true } }
+(23 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "capabilities": {
+-     "download": true,
++     "ai": false,
++     "attachments": false,
++     "desktopOpen": false,
++     "exportHtml": false,
++     "exportPdf": false,
++     "imageGeneration": false,
++     "imageSearch": false,
++     "images": false,
++     "print": true,
++     "recents": false,
++     "save": true,
++     "saveAs": true,
++     "webSearch": false,
+    },
+  }
+
+ ❯ office/frame/office-module-frame.test.tsx:650:39
+    648|     await frame.ready({ module });
+    649|     await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    650|     expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { …
+       |                                       ^
+    651|     const clicks: string[] = [];
+    652|     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/13]⎯
+
+ FAIL  office/frame/office-module-frame.test.tsx > the frame's api.download (conflict dialog: download my version) > markdown: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format
+ FAIL  office/frame/office-module-frame.test.tsx > the frame's api.download (conflict dialog: download my version) > html: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format
+AssertionError: expected { token: 'tok-1', …(10) } to match object { capabilities: { download: true } }
+(23 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "capabilities": {
+-     "download": true,
++     "ai": false,
++     "attachments": false,
++     "desktopOpen": false,
++     "exportHtml": true,
++     "exportPdf": false,
++     "imageGeneration": false,
++     "imageSearch": false,
++     "images": true,
++     "print": true,
++     "recents": false,
++     "save": true,
++     "saveAs": true,
++     "webSearch": false,
+    },
+  }
+
+ ❯ office/frame/office-module-frame.test.tsx:650:39
+    648|     await frame.ready({ module });
+    649|     await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    650|     expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { …
+       |                                       ^
+    651|     const clicks: string[] = [];
+    652|     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/13]⎯
+
+ FAIL  office/frame/office-module-frame.test.tsx > the frame's api.download (conflict dialog: download my version) > offers no download to a viewer and refuses one
+AssertionError: expected { token: 'tok-1', …(10) } to match object { capabilities: { download: false } }
+(23 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "capabilities": {
+-     "download": false,
++     "ai": false,
++     "attachments": false,
++     "desktopOpen": false,
++     "exportHtml": false,
++     "exportPdf": false,
++     "imageGeneration": false,
++     "imageSearch": false,
++     "images": false,
++     "print": true,
++     "recents": false,
++     "save": false,
++     "saveAs": false,
++     "webSearch": false,
+    },
+  }
+
+ ❯ office/frame/office-module-frame.test.tsx:663:39
+    661|     await frame.ready({ module: "sheets" });
+    662|     await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    663|     expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { …
+       |                                       ^
+    664|     const id = frame.request("api.download", { data: new ArrayBuffer(3…
+    665|     await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/13]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  12 failed | 107 passed (119)
+   Start at  18:30:14
+   Duration  65.91s (transform 1.19s, setup 960ms, import 1.43s, tests 66.33s, environment 796ms)
+
+A  packages/views/office/frame/save-conflict-dialog.tsx
+RED_EXIT=1
+RED_AS_EXPECTED

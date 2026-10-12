@@ -1,0 +1,18 @@
+$ pnpm --filter @uniwork/views --filter @uniwork/core lint
+Scope: 2 of 12 workspace projects
+packages/core lint$ eslint . --max-warnings 0
+packages/core lint: Done
+packages/views lint$ eslint . --max-warnings 0
+packages/views lint: /workspace/packages/views/admin/admin-billing-ui.tsx
+packages/views lint:   152:15  error  Use <DateField> (packages/views/common) or <TimeInput> from @uniwork/ui, not a native date/time input  no-restricted-syntax
+packages/views lint:   165:15  error  Use <DateField> (packages/views/common) or <TimeInput> from @uniwork/ui, not a native date/time input  no-restricted-syntax
+packages/views lint: /workspace/packages/views/chat/chat-page-view.tsx
+packages/views lint:   539:1  error  File has too many lines (502). Maximum allowed is 500  max-lines
+packages/views lint: /workspace/packages/views/settings/components/billing-tab.tsx
+packages/views lint:   129:6   warning  React Hook useEffect has a missing dependency: 'clearCheckoutQuery'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+packages/views lint:   199:11  error    packages/views must not reload the page. Use useNavigation().push()/replace()                                          no-restricted-syntax
+packages/views lint: ✖ 5 problems (4 errors, 1 warning)
+packages/views lint: Failed
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 lint: `eslint . --max-warnings 0`
+Exit status 1
