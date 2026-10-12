@@ -1,0 +1,485 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=1 -v ./internal/service/ -run 'TestContentBaseCurrent|TestDocumentContentRevision|TestDocumentCommit|TestDocumentOffice|TestDocumentVersion|TestDocumentTree|TestDocumentLifecycle'
+=== RUN   TestDocumentCommit
+=== RUN   TestDocumentCommit/fake
+=== RUN   TestDocumentCommit/fake/commit_points_the_document_at_a_new_version
+=== RUN   TestDocumentCommit/fake/two_saves_on_one_base:_one_wins,_the_other_conflicts
+=== RUN   TestDocumentCommit/fake/permission_revoked_between_put_and_commit
+=== RUN   TestDocumentCommit/fake/DB_error_after_the_put_rolls_back_and_the_retry_commits_once
+=== RUN   TestDocumentCommit/fake/an_upload_committed_once_cannot_be_committed_again
+=== RUN   TestDocumentCommit/fake/tombstone,_visibility,_kind_and_format
+=== RUN   TestDocumentCommit/fake/engine_range
+=== RUN   TestDocumentCommit/fake/restore_points_back_at_the_old_file
+=== RUN   TestDocumentCommit/local
+2026/10/12 17:55:09 INFO local storage adapter ready dir=/tmp/TestDocumentCommitlocal3500883797/001
+=== RUN   TestDocumentCommit/local/commit_points_the_document_at_a_new_version
+=== RUN   TestDocumentCommit/local/two_saves_on_one_base:_one_wins,_the_other_conflicts
+=== RUN   TestDocumentCommit/local/permission_revoked_between_put_and_commit
+=== RUN   TestDocumentCommit/local/DB_error_after_the_put_rolls_back_and_the_retry_commits_once
+=== RUN   TestDocumentCommit/local/an_upload_committed_once_cannot_be_committed_again
+=== RUN   TestDocumentCommit/local/tombstone,_visibility,_kind_and_format
+=== RUN   TestDocumentCommit/local/engine_range
+=== RUN   TestDocumentCommit/local/restore_points_back_at_the_old_file
+=== RUN   TestDocumentCommit/minio
+    document_storage_harness_test.go:122: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+--- PASS: TestDocumentCommit (2.93s)
+    --- PASS: TestDocumentCommit/fake (2.04s)
+        --- PASS: TestDocumentCommit/fake/commit_points_the_document_at_a_new_version (0.02s)
+        --- PASS: TestDocumentCommit/fake/two_saves_on_one_base:_one_wins,_the_other_conflicts (0.02s)
+        --- PASS: TestDocumentCommit/fake/permission_revoked_between_put_and_commit (0.01s)
+        --- PASS: TestDocumentCommit/fake/DB_error_after_the_put_rolls_back_and_the_retry_commits_once (0.01s)
+        --- PASS: TestDocumentCommit/fake/an_upload_committed_once_cannot_be_committed_again (0.01s)
+        --- PASS: TestDocumentCommit/fake/tombstone,_visibility,_kind_and_format (0.02s)
+        --- PASS: TestDocumentCommit/fake/engine_range (0.01s)
+        --- PASS: TestDocumentCommit/fake/restore_points_back_at_the_old_file (0.01s)
+    --- PASS: TestDocumentCommit/local (0.89s)
+        --- PASS: TestDocumentCommit/local/commit_points_the_document_at_a_new_version (0.04s)
+        --- PASS: TestDocumentCommit/local/two_saves_on_one_base:_one_wins,_the_other_conflicts (0.04s)
+        --- PASS: TestDocumentCommit/local/permission_revoked_between_put_and_commit (0.03s)
+        --- PASS: TestDocumentCommit/local/DB_error_after_the_put_rolls_back_and_the_retry_commits_once (0.03s)
+        --- PASS: TestDocumentCommit/local/an_upload_committed_once_cannot_be_committed_again (0.04s)
+        --- PASS: TestDocumentCommit/local/tombstone,_visibility,_kind_and_format (0.04s)
+        --- PASS: TestDocumentCommit/local/engine_range (0.02s)
+        --- PASS: TestDocumentCommit/local/restore_points_back_at_the_old_file (0.03s)
+    --- SKIP: TestDocumentCommit/minio (0.00s)
+=== RUN   TestContentBaseCurrent
+--- PASS: TestContentBaseCurrent (0.00s)
+=== RUN   TestDocumentContentRevision
+=== RUN   TestDocumentContentRevision/fake
+=== RUN   TestDocumentContentRevision/fake/a_new_document_starts_with_content_revision_=_revision
+=== RUN   TestDocumentContentRevision/fake/move_then_commit_is_committed
+=== RUN   TestDocumentContentRevision/fake/unarchive_then_save_is_saved
+=== RUN   TestDocumentContentRevision/fake/rename_then_save_is_saved
+=== RUN   TestDocumentContentRevision/fake/a_content_commit_in_between_still_conflicts,_even_after_a_move
+=== RUN   TestDocumentContentRevision/fake/a_base_newer_than_revision_conflicts
+=== RUN   TestDocumentContentRevision/fake/the_office_job_path_takes_the_same_rule
+=== RUN   TestDocumentContentRevision/fake/restore_takes_the_same_rule
+=== RUN   TestDocumentContentRevision/fake/page_content_writes_move_content_revision,_a_rename_does_not
+=== RUN   TestDocumentContentRevision/local
+2026/10/12 17:55:11 INFO local storage adapter ready dir=/tmp/TestDocumentContentRevisionlocal2691822178/001
+=== RUN   TestDocumentContentRevision/local/a_new_document_starts_with_content_revision_=_revision
+=== RUN   TestDocumentContentRevision/local/move_then_commit_is_committed
+=== RUN   TestDocumentContentRevision/local/unarchive_then_save_is_saved
+=== RUN   TestDocumentContentRevision/local/rename_then_save_is_saved
+=== RUN   TestDocumentContentRevision/local/a_content_commit_in_between_still_conflicts,_even_after_a_move
+=== RUN   TestDocumentContentRevision/local/a_base_newer_than_revision_conflicts
+=== RUN   TestDocumentContentRevision/local/the_office_job_path_takes_the_same_rule
+=== RUN   TestDocumentContentRevision/local/restore_takes_the_same_rule
+=== RUN   TestDocumentContentRevision/local/page_content_writes_move_content_revision,_a_rename_does_not
+=== RUN   TestDocumentContentRevision/minio
+    document_storage_harness_test.go:122: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+--- PASS: TestDocumentContentRevision (1.84s)
+    --- PASS: TestDocumentContentRevision/fake (0.84s)
+        --- PASS: TestDocumentContentRevision/fake/a_new_document_starts_with_content_revision_=_revision (0.01s)
+        --- PASS: TestDocumentContentRevision/fake/move_then_commit_is_committed (0.02s)
+        --- PASS: TestDocumentContentRevision/fake/unarchive_then_save_is_saved (0.02s)
+        --- PASS: TestDocumentContentRevision/fake/rename_then_save_is_saved (0.01s)
+        --- PASS: TestDocumentContentRevision/fake/a_content_commit_in_between_still_conflicts,_even_after_a_move (0.01s)
+        --- PASS: TestDocumentContentRevision/fake/a_base_newer_than_revision_conflicts (0.00s)
+        --- PASS: TestDocumentContentRevision/fake/the_office_job_path_takes_the_same_rule (0.02s)
+        --- PASS: TestDocumentContentRevision/fake/restore_takes_the_same_rule (0.01s)
+        --- PASS: TestDocumentContentRevision/fake/page_content_writes_move_content_revision,_a_rename_does_not (0.01s)
+    --- PASS: TestDocumentContentRevision/local (1.00s)
+        --- PASS: TestDocumentContentRevision/local/a_new_document_starts_with_content_revision_=_revision (0.02s)
+        --- PASS: TestDocumentContentRevision/local/move_then_commit_is_committed (0.03s)
+        --- PASS: TestDocumentContentRevision/local/unarchive_then_save_is_saved (0.03s)
+        --- PASS: TestDocumentContentRevision/local/rename_then_save_is_saved (0.02s)
+        --- PASS: TestDocumentContentRevision/local/a_content_commit_in_between_still_conflicts,_even_after_a_move (0.03s)
+        --- PASS: TestDocumentContentRevision/local/a_base_newer_than_revision_conflicts (0.02s)
+        --- PASS: TestDocumentContentRevision/local/the_office_job_path_takes_the_same_rule (0.05s)
+        --- PASS: TestDocumentContentRevision/local/restore_takes_the_same_rule (0.03s)
+        --- PASS: TestDocumentContentRevision/local/page_content_writes_move_content_revision,_a_rename_does_not (0.01s)
+    --- SKIP: TestDocumentContentRevision/minio (0.00s)
+=== RUN   TestDocumentOfficeBlankCreatesEveryFormat
+--- PASS: TestDocumentOfficeBlankCreatesEveryFormat (1.12s)
+=== RUN   TestDocumentOfficeBlankSeedFormatsReplay
+--- PASS: TestDocumentOfficeBlankSeedFormatsReplay (0.72s)
+=== RUN   TestDocumentOfficeCapability
+--- PASS: TestDocumentOfficeCapability (0.75s)
+=== RUN   TestDocumentOfficeNegotiationGates
+--- PASS: TestDocumentOfficeNegotiationGates (0.77s)
+=== RUN   TestDocumentOfficeBlankRefusals
+--- PASS: TestDocumentOfficeBlankRefusals (0.71s)
+=== RUN   TestDocumentOfficeBlankRefusalsKeyOfAPlainUpload
+--- PASS: TestDocumentOfficeBlankRefusalsKeyOfAPlainUpload (0.64s)
+=== RUN   TestDocumentOfficeBlankCreateWaitsForTheEngine
+--- PASS: TestDocumentOfficeBlankCreateWaitsForTheEngine (0.96s)
+=== RUN   TestDocumentOfficeCommit
+=== RUN   TestDocumentOfficeCommit/fake
+=== RUN   TestDocumentOfficeCommit/fake/a_scripted_engine_job_lands_its_output_end_to_end
+=== RUN   TestDocumentOfficeCommit/fake/a_completed_job_commits_exactly_one_version
+=== RUN   TestDocumentOfficeCommit/fake/a_document_off_the_job's_base_conflicts_and_leaves_the_output_staged
+=== RUN   TestDocumentOfficeCommit/fake/a_job_cancelled_before_commit_never_attaches_its_output
+=== RUN   TestDocumentOfficeCommit/fake/an_export_job's_output_is_never_a_version
+=== RUN   TestDocumentOfficeCommit/fake/a_live_or_failed_job_is_not_committable_either
+=== RUN   TestDocumentOfficeCommit/fake/output_for_another_document_is_not_this_document's_upload
+=== RUN   TestDocumentOfficeCommit/fake/retry_of_the_same_key_replays;_a_new_key_sees_a_spent_output
+=== RUN   TestDocumentOfficeCommit/fake/document_ACL_gates_the_office_commit
+=== RUN   TestDocumentOfficeCommit/local
+2026/10/12 17:55:18 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeCommitlocal821914757/001
+=== RUN   TestDocumentOfficeCommit/local/a_scripted_engine_job_lands_its_output_end_to_end
+=== RUN   TestDocumentOfficeCommit/local/a_completed_job_commits_exactly_one_version
+=== RUN   TestDocumentOfficeCommit/local/a_document_off_the_job's_base_conflicts_and_leaves_the_output_staged
+=== RUN   TestDocumentOfficeCommit/local/a_job_cancelled_before_commit_never_attaches_its_output
+=== RUN   TestDocumentOfficeCommit/local/an_export_job's_output_is_never_a_version
+=== RUN   TestDocumentOfficeCommit/local/a_live_or_failed_job_is_not_committable_either
+=== RUN   TestDocumentOfficeCommit/local/output_for_another_document_is_not_this_document's_upload
+=== RUN   TestDocumentOfficeCommit/local/retry_of_the_same_key_replays;_a_new_key_sees_a_spent_output
+=== RUN   TestDocumentOfficeCommit/local/document_ACL_gates_the_office_commit
+=== RUN   TestDocumentOfficeCommit/minio
+    document_storage_harness_test.go:122: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+--- PASS: TestDocumentOfficeCommit (1.85s)
+    --- PASS: TestDocumentOfficeCommit/fake (0.86s)
+        --- PASS: TestDocumentOfficeCommit/fake/a_scripted_engine_job_lands_its_output_end_to_end (0.02s)
+        --- PASS: TestDocumentOfficeCommit/fake/a_completed_job_commits_exactly_one_version (0.01s)
+        --- PASS: TestDocumentOfficeCommit/fake/a_document_off_the_job's_base_conflicts_and_leaves_the_output_staged (0.01s)
+        --- PASS: TestDocumentOfficeCommit/fake/a_job_cancelled_before_commit_never_attaches_its_output (0.01s)
+        --- PASS: TestDocumentOfficeCommit/fake/an_export_job's_output_is_never_a_version (0.01s)
+        --- PASS: TestDocumentOfficeCommit/fake/a_live_or_failed_job_is_not_committable_either (0.01s)
+        --- PASS: TestDocumentOfficeCommit/fake/output_for_another_document_is_not_this_document's_upload (0.01s)
+        --- PASS: TestDocumentOfficeCommit/fake/retry_of_the_same_key_replays;_a_new_key_sees_a_spent_output (0.01s)
+        --- PASS: TestDocumentOfficeCommit/fake/document_ACL_gates_the_office_commit (0.02s)
+    --- PASS: TestDocumentOfficeCommit/local (0.99s)
+        --- PASS: TestDocumentOfficeCommit/local/a_scripted_engine_job_lands_its_output_end_to_end (0.04s)
+        --- PASS: TestDocumentOfficeCommit/local/a_completed_job_commits_exactly_one_version (0.03s)
+        --- PASS: TestDocumentOfficeCommit/local/a_document_off_the_job's_base_conflicts_and_leaves_the_output_staged (0.03s)
+        --- PASS: TestDocumentOfficeCommit/local/a_job_cancelled_before_commit_never_attaches_its_output (0.02s)
+        --- PASS: TestDocumentOfficeCommit/local/an_export_job's_output_is_never_a_version (0.02s)
+        --- PASS: TestDocumentOfficeCommit/local/a_live_or_failed_job_is_not_committable_either (0.03s)
+        --- PASS: TestDocumentOfficeCommit/local/output_for_another_document_is_not_this_document's_upload (0.03s)
+        --- PASS: TestDocumentOfficeCommit/local/retry_of_the_same_key_replays;_a_new_key_sees_a_spent_output (0.02s)
+        --- PASS: TestDocumentOfficeCommit/local/document_ACL_gates_the_office_commit (0.05s)
+    --- SKIP: TestDocumentOfficeCommit/minio (0.00s)
+=== RUN   TestDocumentOfficeIntegration
+    document_office_integration_test.go:196: MINIO_* is not set: the engine container PUTs to the presigned URL, so the real-store rows need MinIO
+--- SKIP: TestDocumentOfficeIntegration (0.00s)
+=== RUN   TestDocumentOfficeLifecycle
+=== RUN   TestDocumentOfficeLifecycle/the_dispatch_grant_binds_actor,_scope,_base,_input,_output_and_deadline
+=== RUN   TestDocumentOfficeLifecycle/a_same-key_retry_after_the_output_was_committed_replays_the_committed_job
+=== RUN   TestDocumentOfficeLifecycle/cancel_wins_against_a_completion_the_engine_reports_late
+=== RUN   TestDocumentOfficeLifecycle/provider_output_cancellation_settles_as_a_retryable_commit_failure
+=== RUN   TestDocumentOfficeLifecycle/commit_and_cancel_of_a_completed_job:_whichever_lands_first_is_final
+=== RUN   TestDocumentOfficeLifecycle/a_retryable_dispatch_refusal_keeps_the_job_for_the_same_key;_a_final_one_settles_it
+=== RUN   TestDocumentOfficeLifecycle/engine_outcomes_map_onto_the_row
+=== RUN   TestDocumentOfficeLifecycle/an_xlsx_open_model_over_the_bound_settles_as_a_non-retryable_byte_bound_failure
+=== RUN   TestDocumentOfficeLifecycle/an_engine_that_lost_the_job_settles_from_the_provider-output_intent
+=== RUN   TestDocumentOfficeLifecycle/Go's_clock_times_out_a_job_the_engine_keeps_running,_and_tells_the_engine
+=== RUN   TestDocumentOfficeLifecycle/export_is_refused_before_a_row_or_an_output_intent_exists
+=== RUN   TestDocumentOfficeLifecycle/office_commands_take_the_document_ACL,_not_workspace_membership
+=== RUN   TestDocumentOfficeLifecycle/edit_payloads_are_bounded_and_operation-scoped_before_storage
+=== RUN   TestDocumentOfficeLifecycle/only_the_job's_creator_cancels_it
+=== RUN   TestDocumentOfficeLifecycle/metrics_count_each_job_once_and_keep_the_queue_gauge_on_a_failed_probe
+=== RUN   TestDocumentOfficeLifecycle/the_reconciler_sweeps_on_its_interval_and_stops_with_its_context
+--- PASS: TestDocumentOfficeLifecycle (11.92s)
+    --- PASS: TestDocumentOfficeLifecycle/the_dispatch_grant_binds_actor,_scope,_base,_input,_output_and_deadline (0.70s)
+    --- PASS: TestDocumentOfficeLifecycle/a_same-key_retry_after_the_output_was_committed_replays_the_committed_job (0.74s)
+    --- PASS: TestDocumentOfficeLifecycle/cancel_wins_against_a_completion_the_engine_reports_late (0.63s)
+    --- PASS: TestDocumentOfficeLifecycle/provider_output_cancellation_settles_as_a_retryable_commit_failure (1.02s)
+    --- PASS: TestDocumentOfficeLifecycle/commit_and_cancel_of_a_completed_job:_whichever_lands_first_is_final (0.92s)
+    --- PASS: TestDocumentOfficeLifecycle/a_retryable_dispatch_refusal_keeps_the_job_for_the_same_key;_a_final_one_settles_it (0.84s)
+    --- PASS: TestDocumentOfficeLifecycle/engine_outcomes_map_onto_the_row (0.91s)
+    --- PASS: TestDocumentOfficeLifecycle/an_xlsx_open_model_over_the_bound_settles_as_a_non-retryable_byte_bound_failure (0.69s)
+    --- PASS: TestDocumentOfficeLifecycle/an_engine_that_lost_the_job_settles_from_the_provider-output_intent (0.66s)
+    --- PASS: TestDocumentOfficeLifecycle/Go's_clock_times_out_a_job_the_engine_keeps_running,_and_tells_the_engine (0.74s)
+    --- PASS: TestDocumentOfficeLifecycle/export_is_refused_before_a_row_or_an_output_intent_exists (0.65s)
+    --- PASS: TestDocumentOfficeLifecycle/office_commands_take_the_document_ACL,_not_workspace_membership (0.62s)
+    --- PASS: TestDocumentOfficeLifecycle/edit_payloads_are_bounded_and_operation-scoped_before_storage (0.67s)
+    --- PASS: TestDocumentOfficeLifecycle/only_the_job's_creator_cancels_it (0.63s)
+    --- PASS: TestDocumentOfficeLifecycle/metrics_count_each_job_once_and_keep_the_queue_gauge_on_a_failed_probe (0.78s)
+    --- PASS: TestDocumentOfficeLifecycle/the_reconciler_sweeps_on_its_interval_and_stops_with_its_context (0.71s)
+=== RUN   TestDocumentOfficeQ7Integration
+    document_office_q7_integration_test.go:90: MINIO_* is not set: the engine container PUTs to the presigned URL, so the real-store rows need MinIO
+--- SKIP: TestDocumentOfficeQ7Integration (0.00s)
+=== RUN   TestDocumentOfficeQ7
+=== RUN   TestDocumentOfficeQ7/fake
+=== RUN   TestDocumentOfficeQ7/fake/the_convert_gate_refuses_before_any_mutation
+=== RUN   TestDocumentOfficeQ7/fake/the_convert_envelope_carries_the_source_tuple_and_never_a_base_revision
+=== RUN   TestDocumentOfficeQ7/fake/cancel_creates_nothing
+=== RUN   TestDocumentOfficeQ7/fake/accept_creates_an_OOXML_copy_with_provenance;_the_source_is_unchanged
+=== RUN   TestDocumentOfficeQ7/fake/accept_is_the_creator's,_inside_the_source's_tenant,_without_leaks
+=== RUN   TestDocumentOfficeQ7/fake/a_job_that_is_not_a_conversion_is_never_accepted_as_one
+=== RUN   TestDocumentOfficeQ7/local
+2026/10/12 17:55:32 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeQ7local3799239600/001
+=== RUN   TestDocumentOfficeQ7/local/the_convert_gate_refuses_before_any_mutation
+=== RUN   TestDocumentOfficeQ7/local/the_convert_envelope_carries_the_source_tuple_and_never_a_base_revision
+=== RUN   TestDocumentOfficeQ7/local/cancel_creates_nothing
+=== RUN   TestDocumentOfficeQ7/local/accept_creates_an_OOXML_copy_with_provenance;_the_source_is_unchanged
+=== RUN   TestDocumentOfficeQ7/local/accept_is_the_creator's,_inside_the_source's_tenant,_without_leaks
+=== RUN   TestDocumentOfficeQ7/local/a_job_that_is_not_a_conversion_is_never_accepted_as_one
+=== RUN   TestDocumentOfficeQ7/minio
+    document_storage_harness_test.go:122: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+--- PASS: TestDocumentOfficeQ7 (1.73s)
+    --- PASS: TestDocumentOfficeQ7/fake (0.70s)
+        --- PASS: TestDocumentOfficeQ7/fake/the_convert_gate_refuses_before_any_mutation (0.02s)
+        --- PASS: TestDocumentOfficeQ7/fake/the_convert_envelope_carries_the_source_tuple_and_never_a_base_revision (0.01s)
+        --- PASS: TestDocumentOfficeQ7/fake/cancel_creates_nothing (0.01s)
+        --- PASS: TestDocumentOfficeQ7/fake/accept_creates_an_OOXML_copy_with_provenance;_the_source_is_unchanged (0.02s)
+        --- PASS: TestDocumentOfficeQ7/fake/accept_is_the_creator's,_inside_the_source's_tenant,_without_leaks (0.01s)
+        --- PASS: TestDocumentOfficeQ7/fake/a_job_that_is_not_a_conversion_is_never_accepted_as_one (0.01s)
+    --- PASS: TestDocumentOfficeQ7/local (1.03s)
+        --- PASS: TestDocumentOfficeQ7/local/the_convert_gate_refuses_before_any_mutation (0.04s)
+        --- PASS: TestDocumentOfficeQ7/local/the_convert_envelope_carries_the_source_tuple_and_never_a_base_revision (0.02s)
+        --- PASS: TestDocumentOfficeQ7/local/cancel_creates_nothing (0.03s)
+        --- PASS: TestDocumentOfficeQ7/local/accept_creates_an_OOXML_copy_with_provenance;_the_source_is_unchanged (0.04s)
+        --- PASS: TestDocumentOfficeQ7/local/accept_is_the_creator's,_inside_the_source's_tenant,_without_leaks (0.04s)
+        --- PASS: TestDocumentOfficeQ7/local/a_job_that_is_not_a_conversion_is_never_accepted_as_one (0.02s)
+    --- SKIP: TestDocumentOfficeQ7/minio (0.00s)
+=== RUN   TestDocumentOfficeEngineRollback
+=== RUN   TestDocumentOfficeEngineRollback/fake
+=== RUN   TestDocumentOfficeEngineRollback/local
+2026/10/12 17:55:33 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeEngineRollbacklocal182537220/001
+=== RUN   TestDocumentOfficeEngineRollback/minio
+    document_storage_harness_test.go:122: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+--- PASS: TestDocumentOfficeEngineRollback (1.21s)
+    --- PASS: TestDocumentOfficeEngineRollback/fake (0.60s)
+    --- PASS: TestDocumentOfficeEngineRollback/local (0.61s)
+    --- SKIP: TestDocumentOfficeEngineRollback/minio (0.00s)
+=== RUN   TestDocumentOfficeUpgradeReplay
+    document_office_replay_test.go:98: MINIO_* is not set: the engine container PUTs to the presigned URL, so the replay needs MinIO
+--- SKIP: TestDocumentOfficeUpgradeReplay (0.00s)
+=== RUN   TestDocumentOfficeLifecycleThroughTheDocumentRoute
+=== RUN   TestDocumentOfficeLifecycleThroughTheDocumentRoute/a_committed_key_replays_with_the_old,_omitted_or_explicit_base
+=== RUN   TestDocumentOfficeLifecycleThroughTheDocumentRoute/an_explicit_base_revision_0_is_a_stale_base,_not_the_current_one
+=== RUN   TestDocumentOfficeLifecycleThroughTheDocumentRoute/a_named_format_must_be_the_document's
+=== RUN   TestDocumentOfficeLifecycleThroughTheDocumentRoute/cancel_through_another_document's_route_leaves_the_job_live
+--- PASS: TestDocumentOfficeLifecycleThroughTheDocumentRoute (2.73s)
+    --- PASS: TestDocumentOfficeLifecycleThroughTheDocumentRoute/a_committed_key_replays_with_the_old,_omitted_or_explicit_base (0.65s)
+    --- PASS: TestDocumentOfficeLifecycleThroughTheDocumentRoute/an_explicit_base_revision_0_is_a_stale_base,_not_the_current_one (0.63s)
+    --- PASS: TestDocumentOfficeLifecycleThroughTheDocumentRoute/a_named_format_must_be_the_document's (0.67s)
+    --- PASS: TestDocumentOfficeLifecycleThroughTheDocumentRoute/cancel_through_another_document's_route_leaves_the_job_live (0.78s)
+=== RUN   TestDocumentOfficeJobWithoutPresignedStorageAnswers503
+--- PASS: TestDocumentOfficeJobWithoutPresignedStorageAnswers503 (1.06s)
+=== RUN   TestDocumentOfficeJob
+=== RUN   TestDocumentOfficeJob/completes,_verifies_the_output_through_FileService,_and_commits_once
+    document_office_test.go:244: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/retry_of_the_same_key_reads_the_job_or_replays_its_output,_never_a_second_job
+    document_office_test.go:278: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/a_second_key_for_the_same_live_work_is_in_flight
+    document_office_test.go:309: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/process_kill:_a_worker_that_dies_settles_failed_engine_crashed
+    document_office_test.go:323: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/timeout:_the_engine_deadline_settles_timed_out
+    document_office_test.go:340: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/cancel_of_a_running_job_wins_and_forbids_a_late_commit
+    document_office_test.go:356: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/cancel/complete_race:_exactly_one_outcome,_and_commit_only_if_completed
+    document_office_test.go:381: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/late_response:_an_engine_answer_after_Go_settled_the_job_changes_nothing
+    document_office_test.go:426: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/Go-side_deadline:_a_job_the_engine_still_runs_is_cancelled_and_timed_out
+    document_office_test.go:457: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/grant_bindings_are_enforced_by_the_real_engine
+    document_office_test.go:478: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/authorization_and_base_checks_run_before_any_row_or_output_exists
+    document_office_test.go:544: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/restart:_a_job_the_engine_lost_mid-run_settles_failed_engine_lost_job
+    document_office_test.go:566: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+=== RUN   TestDocumentOfficeJob/restart:_output_written_before_the_crash_reconciles_to_completed
+    document_office_test.go:582: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+--- PASS: TestDocumentOfficeJob (0.00s)
+    --- SKIP: TestDocumentOfficeJob/completes,_verifies_the_output_through_FileService,_and_commits_once (0.00s)
+    --- SKIP: TestDocumentOfficeJob/retry_of_the_same_key_reads_the_job_or_replays_its_output,_never_a_second_job (0.00s)
+    --- SKIP: TestDocumentOfficeJob/a_second_key_for_the_same_live_work_is_in_flight (0.00s)
+    --- SKIP: TestDocumentOfficeJob/process_kill:_a_worker_that_dies_settles_failed_engine_crashed (0.00s)
+    --- SKIP: TestDocumentOfficeJob/timeout:_the_engine_deadline_settles_timed_out (0.00s)
+    --- SKIP: TestDocumentOfficeJob/cancel_of_a_running_job_wins_and_forbids_a_late_commit (0.00s)
+    --- SKIP: TestDocumentOfficeJob/cancel/complete_race:_exactly_one_outcome,_and_commit_only_if_completed (0.00s)
+    --- SKIP: TestDocumentOfficeJob/late_response:_an_engine_answer_after_Go_settled_the_job_changes_nothing (0.00s)
+    --- SKIP: TestDocumentOfficeJob/Go-side_deadline:_a_job_the_engine_still_runs_is_cancelled_and_timed_out (0.00s)
+    --- SKIP: TestDocumentOfficeJob/grant_bindings_are_enforced_by_the_real_engine (0.00s)
+    --- SKIP: TestDocumentOfficeJob/authorization_and_base_checks_run_before_any_row_or_output_exists (0.00s)
+    --- SKIP: TestDocumentOfficeJob/restart:_a_job_the_engine_lost_mid-run_settles_failed_engine_lost_job (0.00s)
+    --- SKIP: TestDocumentOfficeJob/restart:_output_written_before_the_crash_reconciles_to_completed (0.00s)
+=== RUN   TestDocumentOfficeEngineDown
+--- PASS: TestDocumentOfficeEngineDown (0.78s)
+=== RUN   TestDocumentOfficeJobRedispatchAfterEngineDown
+    document_office_test.go:721: OFFICE_ENGINE_TEST_URL not set: start the office compose profile with fault operations (see the G2-02 report)
+--- SKIP: TestDocumentOfficeJobRedispatchAfterEngineDown (0.00s)
+=== RUN   TestDocumentOfficeViewerOpen
+=== RUN   TestDocumentOfficeViewerOpen/fake
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_edit
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_serialize
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_convert
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_export
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_capability
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_unknown
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/stranger_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/agent_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/anonymous_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/OPEN_refuses_edits
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/OPEN_refuses_target
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/OPEN_refuses_format_override
+=== RUN   TestDocumentOfficeViewerOpen/fake/direct/OPEN_refuses_revision_override
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_edit
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_serialize
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_convert
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_export
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_capability
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_unknown
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/stranger_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/agent_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/anonymous_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/OPEN_refuses_edits
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/OPEN_refuses_target
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/OPEN_refuses_format_override
+=== RUN   TestDocumentOfficeViewerOpen/fake/document_wrapper/OPEN_refuses_revision_override
+=== RUN   TestDocumentOfficeViewerOpen/local
+2026/10/12 17:55:39 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeViewerOpenlocal1243664427/001
+=== RUN   TestDocumentOfficeViewerOpen/local/direct
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_edit
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_serialize
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_convert
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_export
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_capability
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_unknown
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/stranger_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/agent_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/anonymous_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/OPEN_refuses_edits
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/OPEN_refuses_target
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/OPEN_refuses_format_override
+=== RUN   TestDocumentOfficeViewerOpen/local/direct/OPEN_refuses_revision_override
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_edit
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_serialize
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_convert
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_export
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_capability
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_unknown
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/stranger_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/agent_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/anonymous_refuses_OPEN
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/OPEN_refuses_edits
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/OPEN_refuses_target
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/OPEN_refuses_format_override
+=== RUN   TestDocumentOfficeViewerOpen/local/document_wrapper/OPEN_refuses_revision_override
+=== RUN   TestDocumentOfficeViewerOpen/minio
+    document_storage_harness_test.go:122: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+--- PASS: TestDocumentOfficeViewerOpen (1.67s)
+    --- PASS: TestDocumentOfficeViewerOpen/fake (0.76s)
+        --- PASS: TestDocumentOfficeViewerOpen/fake/direct (0.05s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_edit (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_serialize (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_convert (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_export (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_capability (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_unknown (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_ (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/viewer_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/stranger_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/agent_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/anonymous_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/OPEN_refuses_edits (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/OPEN_refuses_target (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/OPEN_refuses_format_override (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/direct/OPEN_refuses_revision_override (0.00s)
+        --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper (0.05s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_edit (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_serialize (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_convert (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_export (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_capability (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_unknown (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_ (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/viewer_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/stranger_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/agent_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/anonymous_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/OPEN_refuses_edits (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/OPEN_refuses_target (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/OPEN_refuses_format_override (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/fake/document_wrapper/OPEN_refuses_revision_override (0.00s)
+    --- PASS: TestDocumentOfficeViewerOpen/local (0.91s)
+        --- PASS: TestDocumentOfficeViewerOpen/local/direct (0.08s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_edit (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_serialize (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_convert (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_export (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_capability (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_unknown (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_ (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/viewer_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/stranger_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/agent_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/anonymous_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/OPEN_refuses_edits (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/OPEN_refuses_target (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/OPEN_refuses_format_override (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/direct/OPEN_refuses_revision_override (0.00s)
+        --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper (0.07s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_edit (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_serialize (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_convert (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_export (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_capability (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_unknown (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_ (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/viewer_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/stranger_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/agent_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/anonymous_refuses_OPEN (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/OPEN_refuses_edits (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/OPEN_refuses_target (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/OPEN_refuses_format_override (0.00s)
+            --- PASS: TestDocumentOfficeViewerOpen/local/document_wrapper/OPEN_refuses_revision_override (0.00s)
+    --- SKIP: TestDocumentOfficeViewerOpen/minio (0.00s)
+=== RUN   TestDocumentOfficeXlsxIntegration
+    document_office_xlsx_integration_test.go:119: MINIO_* is not set: the engine container PUTs to the presigned URL, so the real-store rows need MinIO
+--- SKIP: TestDocumentOfficeXlsxIntegration (0.00s)
+=== RUN   TestDocumentVersionHeldBy
+--- PASS: TestDocumentVersionHeldBy (0.49s)
+=== RUN   TestDocumentTree
+=== RUN   TestDocumentTree/move_re-parents_and_the_tree_read_shows_it
+=== RUN   TestDocumentTree/moving_a_page_under_itself_is_a_cycle
+=== RUN   TestDocumentTree/moving_a_page_under_its_own_descendant_is_a_cycle
+=== RUN   TestDocumentTree/the_five-level_bound_counts_the_moved_subtree
+=== RUN   TestDocumentTree/a_parent_in_another_workspace_is_refused
+=== RUN   TestDocumentTree/a_parent_in_another_organization_is_not_found
+=== RUN   TestDocumentTree/a_parent_in_a_workspace_the_caller_cannot_see_is_not_found
+=== RUN   TestDocumentTree/an_invisible_document's_self-parent_move_is_not_found
+=== RUN   TestDocumentTree/a_move_needs_edit_on_source_AND_destination
+=== RUN   TestDocumentTree/an_owned_document_has_no_tree_slot
+=== RUN   TestDocumentTree/a_stale_revision_conflicts
+=== RUN   TestDocumentTree/concurrent_opposite_moves_serialize_without_a_cycle
+=== RUN   TestDocumentTree/the_tree_hides_a_subtree_the_member_cannot_read
+--- PASS: TestDocumentTree (0.84s)
+    --- PASS: TestDocumentTree/move_re-parents_and_the_tree_read_shows_it (0.01s)
+    --- PASS: TestDocumentTree/moving_a_page_under_itself_is_a_cycle (0.00s)
+    --- PASS: TestDocumentTree/moving_a_page_under_its_own_descendant_is_a_cycle (0.00s)
+    --- PASS: TestDocumentTree/the_five-level_bound_counts_the_moved_subtree (0.02s)
+    --- PASS: TestDocumentTree/a_parent_in_another_workspace_is_refused (0.00s)
+    --- PASS: TestDocumentTree/a_parent_in_another_organization_is_not_found (0.00s)
+    --- PASS: TestDocumentTree/a_parent_in_a_workspace_the_caller_cannot_see_is_not_found (0.00s)
+    --- PASS: TestDocumentTree/an_invisible_document's_self-parent_move_is_not_found (0.00s)
+    --- PASS: TestDocumentTree/a_move_needs_edit_on_source_AND_destination (0.01s)
+    --- PASS: TestDocumentTree/an_owned_document_has_no_tree_slot (0.00s)
+    --- PASS: TestDocumentTree/a_stale_revision_conflicts (0.00s)
+    --- PASS: TestDocumentTree/concurrent_opposite_moves_serialize_without_a_cycle (0.02s)
+    --- PASS: TestDocumentTree/the_tree_hides_a_subtree_the_member_cannot_read (0.01s)
+=== RUN   TestDocumentVersion
+=== RUN   TestDocumentVersion/manual_version_only_when_the_working_copy_changed
+=== RUN   TestDocumentVersion/version_levels
+=== RUN   TestDocumentVersion/list_pages_on_a_stable_cursor_without_content
+=== RUN   TestDocumentVersion/restore_appends_a_version_and_bumps_the_revision
+=== RUN   TestDocumentVersion/restore_of_a_file_version_points_back_at_its_file
+=== RUN   TestDocumentVersion/idempotent_create_and_version
+=== RUN   TestDocumentVersion/page_bytes_go_through_the_storage_quota
+--- PASS: TestDocumentVersion (0.71s)
+    --- PASS: TestDocumentVersion/manual_version_only_when_the_working_copy_changed (0.01s)
+    --- PASS: TestDocumentVersion/version_levels (0.01s)
+    --- PASS: TestDocumentVersion/list_pages_on_a_stable_cursor_without_content (0.01s)
+    --- PASS: TestDocumentVersion/restore_appends_a_version_and_bumps_the_revision (0.01s)
+    --- PASS: TestDocumentVersion/restore_of_a_file_version_points_back_at_its_file (0.01s)
+    --- PASS: TestDocumentVersion/idempotent_create_and_version (0.01s)
+    --- PASS: TestDocumentVersion/page_bytes_go_through_the_storage_quota (0.02s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	36.677s

@@ -1,0 +1,1 @@
+$ cd server && test -z "$(gofmt -l ./internal/service ./pkg/db ./migrations)" && go vet ./internal/service/ ./pkg/db/... ./migrations/ && go tool staticcheck ./internal/service/ ./pkg/db/... ./migrations/

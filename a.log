@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -5
+4bc448b4acd8da8d2e873209745c5c37c9946411
+30d3f0ac56e59f252d478cfb6e5acccf22eecff8
+4bc448b4a feat(documents): accept a commit base between content_revision and revision
+33c9fe75b feat(documents): move content_revision with every content write
+4bd45a389 test(documents): pin the content-revision base rule before it exists
+30d3f0ac5 docs(office): merge the G6-12 genoffice tools doc at fork 66169a9a (UNI-1366)
+99fbdac8c feat(office): merge the X-03 flags, error codes and app capability route (UNI-1340)
