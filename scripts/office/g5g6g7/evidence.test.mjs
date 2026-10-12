@@ -197,6 +197,12 @@ test('a skip line only turns a clean exit into BLOCKED, and never masks a failur
     result: 'BLOCKED',
     blocker: 'command reported skip: skip - not applicable',
   });
+  // R1-01: the word may be skipped/skipping, in any case, and need not be first.
+  for (const output of ['Skipped: no xvfb on this VM', 'skipped: no xvfb', 'Skipping Electron: no display', 'no xvfb; skipping G7-10', 'SKIPPING: no display']) {
+    assert.equal(classifyResult({ exitCode: 0, output }).result, 'BLOCKED', `${output} must be BLOCKED`);
+  }
+  // A mention in the middle of a sentence is not a skip statement.
+  assert.equal(classifyResult({ exitCode: 0, output: 'the cache was warm; no skip needed' }).result, 'PASS');
   // A failing command that prints a skip-shaped line stays a FAIL.
   assert.deepEqual(classifyResult({ exitCode: 1, output: 'SKIP: no xvfb\nboom' }), { result: 'FAIL', blocker: null });
   assert.deepEqual(classifyResult({ exitCode: 137, output: 'skip' }), { result: 'FAIL', blocker: null });
@@ -248,7 +254,78 @@ test('a missing or drifted fixture is BLOCKED and never PASS, and the command do
     outDir: tempDir(),
   });
   assert.equal(unknown.result, 'BLOCKED');
-  assert.match(unknown.blocker, /is not in/);
+  assert.match(unknown.blocker, /is not declared by row|is not in/);
+});
+
+test('a run on a fixture the row does not declare is BLOCKED and the command does not run', () => {
+  // R1-13: the row proves nothing about a fixture it never names. fx-html-page-vi
+  // is in the manifest and G5-A01 does not declare it, so this is a row/fixture
+  // mismatch, not a missing fixture.
+  const marker = path.join(tempDir(), 'ran');
+  const record = runEvidence({
+    requirementId: 'G5-A01',
+    fixtureId: 'fx-html-page-vi',
+    checker: 'tester-cloud',
+    command: [process.execPath, '-e', `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "x")`],
+    outDir: tempDir(),
+  });
+  assert.equal(record.result, 'BLOCKED');
+  assert.match(record.blocker, /is not declared by row G5-A01/);
+  assert.equal(record.exitCode, null);
+  assert.equal(fs.existsSync(marker), false, 'the command never ran');
+});
+
+test('two runs for one requirement cannot share an evidence id or overwrite an artifact', () => {
+  // R1-11: the id is reserved with an exclusive lock file, so a second run that
+  // read the same ledger count still gets its own id.
+  const outDir = tempDir();
+  const first = runEvidence({
+    requirementId: 'G5-A01',
+    fixtureId: 'fx-xlsx-revenue-xyz',
+    checker: 'tester-cloud',
+    command: [process.execPath, '-e', 'process.exit(0)'],
+    outDir,
+  });
+  const second = runEvidence({
+    requirementId: 'G5-A01',
+    fixtureId: 'fx-xlsx-revenue-xyz',
+    checker: 'tester-cloud',
+    command: [process.execPath, '-e', 'process.exit(0)'],
+    outDir,
+  });
+  assert.notEqual(first.evidenceId, second.evidenceId);
+  assert.notEqual(first.artifact, second.artifact);
+  assert.equal(new Set(readLines(outDir).map((line) => line.evidenceId)).size, 2);
+});
+
+test('the ledger records the argv array beside the readable command', () => {
+  const outDir = tempDir();
+  const record = runEvidence({
+    requirementId: 'G5-A01',
+    fixtureId: 'fx-xlsx-revenue-xyz',
+    checker: 'tester-cloud',
+    command: [process.execPath, '-e', 'process.exit(0)', 'a b', 'quote"d'],
+    outDir,
+  });
+  assert.deepEqual(record.argv, [process.execPath, '-e', 'process.exit(0)', 'a b', 'quote"d']);
+  assert.equal(record.command, `${process.execPath} -e process.exit(0) a b quote"d`);
+  assert.deepEqual(readLines(outDir)[0].argv, record.argv, 'argv survives the round trip through the ledger');
+});
+
+test('a check that prints more than the default buffer still records its exit code', () => {
+  // R1-15: 2 MiB of output used to make spawnSync report ENOBUFS, which was read
+  // as a spawn failure and recorded FAIL for a check that exited 0.
+  const outDir = tempDir();
+  const record = runEvidence({
+    requirementId: 'G5-A01',
+    fixtureId: 'fx-xlsx-revenue-xyz',
+    checker: 'tester-cloud',
+    command: [process.execPath, '-e', 'process.stdout.write("x".repeat(2 * 1024 * 1024))'],
+    outDir,
+  });
+  assert.equal(record.result, 'PASS', record.blocker ?? '');
+  assert.equal(record.exitCode, 0);
+  assert.ok(fs.statSync(path.join(repoRoot, record.artifact)).size > 2 * 1024 * 1024, 'the artifact keeps the output');
 });
 
 test('an explicit blocker reason blocks a run that would otherwise pass', () => {
@@ -274,6 +351,10 @@ test('an unknown requirement id is refused instead of written', () => {
 
 test('reset only touches a lane test database and is a dry run without psql', () => {
   assert.equal(assertLaneTestDatabase('uniwork_office_g7_qa_123_test'), 'uniwork_office_g7_qa_123_test');
+  // R1-06: the shared repo test DB is every checkout's, not this lane's.
+  assert.throws(() => assertLaneTestDatabase('uniwork_test'), /shared test database is not a lane test database/);
+  assert.throws(() => assertLaneTestDatabase('lane_test', 'lane_'), /shared test database is not a lane test database/);
+  assert.equal(assertLaneTestDatabase('uniwork_lane_test'), 'uniwork_lane_test', 'a name after the prefix is the lane');
   assert.throws(() => assertLaneTestDatabase('uniwork_shared'), /not under the lane test prefix|only touch a \*_test/);
   assert.throws(() => assertLaneTestDatabase('postgres'), /not under the lane test prefix/);
   assert.throws(() => assertLaneTestDatabase(''), /no database name/);
@@ -355,6 +436,12 @@ test('verify accepts a clean ledger and rejects a pass without an artifact, a st
   fs.writeFileSync(ledgerFile, `${ledger.map((line) => JSON.stringify(line)).join('\n')}\n`);
   assert.ok(verify({ outDir }).problems.some((problem) => /BLOCKED has no blocker reason/.test(problem)));
 
+  // A ledger that repeats an evidence id is a problem (R1-11).
+  ledger.push({ ...ledger[0] });
+  fs.writeFileSync(ledgerFile, `${ledger.map((line) => JSON.stringify(line)).join('\n')}\n`);
+  assert.ok(verify({ outDir }).problems.some((problem) => /repeats evidence id/.test(problem)));
+  ledger.pop();
+
   // A line missing a contract field is a problem.
   delete ledger[0].pin;
   fs.writeFileSync(ledgerFile, `${ledger.map((line) => JSON.stringify(line)).join('\n')}\n`);
@@ -382,16 +469,22 @@ test('verify accepts a clean ledger and rejects a pass without an artifact, a st
 test('verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker', () => {
   const matrix = readMatrix(MATRIX_PATH);
   const outDir = tempDir();
-  // A ledger line whose fixture the row does not declare cannot carry its PASS.
   const record = runEvidence({
     requirementId: 'G5-A01',
-    fixtureId: 'fx-html-page-vi',
+    fixtureId: 'fx-xlsx-revenue-xyz',
     checker: 'tester-cloud',
     command: [process.execPath, '-e', 'process.exit(0)'],
     outDir,
   });
   assert.equal(record.result, 'PASS');
   const ledgerFile = path.join(outDir, 'evidence.jsonl');
+  // The runner refuses to record a run on a fixture the row does not declare
+  // (R1-13), so this line is written by hand — which is exactly the ledger a
+  // reader cannot trust, and verify must still refuse it.
+  const manifest = readManifest(MANIFEST_PATH);
+  const foreign = manifest.fixtures.find((fixture) => fixture.id === 'fx-html-page-vi');
+  const line = { ...readLines(outDir)[0], fixtureId: foreign.id, fixtureSha256: foreign.sha256 };
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(line)}\n`);
 
   const claimed = structuredClone(matrix);
   claimed.rows.find((row) => row.id === 'G5-A01').status = 'PASS';

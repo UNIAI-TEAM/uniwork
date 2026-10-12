@@ -30,11 +30,14 @@ const LEDGER_NAME = 'evidence.jsonl';
 
 // Exit 77 is the harness convention for "this environment cannot run the check"
 // (the C harness exits 77 when the cloud VM lacks xvfb or Electron libs), and a
-// line that starts with SKIP is the same statement in text form — but only for a
-// command that exited 0. A failure whose output happens to contain a line
-// starting with "skip" stays a FAIL.
+// line that says the check was skipped is the same statement in text form. The
+// word may be `skip`, `skipped` or `skipping` in any case, at the start of a line
+// or right after a clause boundary ("no xvfb; skipping G7-10"), because the plan
+// Section 8 fallback is written exactly that way. The line is read only when the
+// command exited 0, so a failure that mentions a skip stays a FAIL. The direction
+// is deliberate: a verbose check that says "skip" is BLOCKED, never PASS.
 export const SKIP_EXIT_CODE = 77;
-const SKIP_LINE = /^(?:SKIP|skip)\b/;
+const SKIP_LINE = /(?:^|[;.]\s+)(?:skip|skipped|skipping)\b/i;
 
 /** Every evidence line carries these fields (spec Section 9.1). */
 export const REQUIRED_FIELDS = [
@@ -48,6 +51,7 @@ export const REQUIRED_FIELDS = [
   'fixtureId',
   'fixtureSha256',
   'command',
+  'argv',
   'exitCode',
   'result',
   'artifact',
@@ -185,9 +189,26 @@ function emptyFields(record) {
   );
 }
 
-function nextEvidenceId(outDir, requirementId) {
+/**
+ * Claims an evidence id no other run can take. The ledger count alone is racy:
+ * two concurrent runs against one out dir both read the same count and write the
+ * same id, and the second overwrites the first's artifact. The id is reserved by
+ * creating a lock file exclusively, so the loser moves to the next number.
+ */
+function reserveEvidenceId(outDir, requirementId) {
   const used = readLedger(outDir).filter((record) => record.requirementId === requirementId).length;
-  return `ev-${requirementId.toLowerCase()}-${String(used + 1).padStart(4, '0')}`;
+  const lockDir = path.join(outDir, '.locks');
+  fs.mkdirSync(lockDir, { recursive: true });
+  for (let n = used + 1; n <= used + 1000; n += 1) {
+    const evidenceId = `ev-${requirementId.toLowerCase()}-${String(n).padStart(4, '0')}`;
+    try {
+      fs.closeSync(fs.openSync(path.join(lockDir, evidenceId), 'wx'));
+      return evidenceId;
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+    }
+  }
+  throw new Error(`could not reserve an evidence id for ${requirementId} in ${outDir}`);
 }
 
 /**
@@ -220,16 +241,20 @@ export function runEvidence({
   const startedAt = new Date().toISOString();
   const dSha = resolveDSha(cwd);
   const { sha: fSha } = resolveFSha(env);
-  const evidenceId = nextEvidenceId(outDir, requirementId);
+  const evidenceId = reserveEvidenceId(outDir, requirementId);
 
   let result = 'BLOCKED';
   let blocker = blockerReason ?? null;
   let exitCode = null;
   let output = '';
+  // A run on a fixture the row does not name proves nothing about the row, so it
+  // is BLOCKED and the command is not run (R1-13). This is checked before the
+  // fixture lookup: an undeclared fixture is refused even if the manifest has it.
   const fixtureDeclared = row.fixtures.some((reference) => reference.id === fixtureId);
-  if (!fixtureDeclared) process.stderr.write(`evidence: ${requirementId} does not declare fixture ${fixtureId}; recording it anyway\n`);
-
-  if (!fixture) {
+  if (!fixtureDeclared) {
+    blocker = `fixture ${fixtureId} is not declared by row ${requirementId}`;
+    output = blocker;
+  } else if (!fixture) {
     blocker = `fixture ${fixtureId} is not in ${MANIFEST_PATH}`;
     output = blocker;
   } else {
@@ -247,7 +272,14 @@ export function runEvidence({
   }
 
   if (blocker === null) {
-    const run = spawnSync(command[0], command.slice(1), { cwd, encoding: 'utf8', env: { ...env, OFFICE_EVIDENCE_ID: evidenceId } });
+    // A check that prints more than the 1 MiB default makes spawnSync set an
+    // ENOBUFS error, which would be read as a spawn failure (R1-15).
+    const run = spawnSync(command[0], command.slice(1), {
+      cwd,
+      encoding: 'utf8',
+      env: { ...env, OFFICE_EVIDENCE_ID: evidenceId },
+      maxBuffer: 64 * 1024 * 1024,
+    });
     exitCode = exitCodeOf(run);
     output = `${run.stdout ?? ''}${run.stderr ?? ''}${run.error ? String(run.error.message) : ''}`;
     const classified = classifyResult({ exitCode, output });
@@ -271,7 +303,10 @@ export function runEvidence({
     build: build ?? env.OFFICE_BUILD?.trim() ?? 'dev',
     fixtureId,
     fixtureSha256: fixture ? fixture.sha256 : null,
+    // `command` is the readable form; `argv` is the exact argument vector, so an
+    // argument with a space or a quote survives the ledger (R1-12).
     command: command.join(' '),
+    argv: [...command],
     exitCode,
     result,
     artifact: artifactRel,
@@ -285,7 +320,12 @@ export function runEvidence({
   return record;
 }
 
-/** Lane test DB prefix; the default already refuses anything without a `_test` suffix. */
+/**
+ * Lane test DB prefix. The default is the org prefix, so on its own it accepts
+ * the shared repo test database (`uniwork_test`, the one `make test-go` uses in
+ * every checkout); `assertLaneTestDatabase` refuses that name separately, and a
+ * lane can narrow the prefix further with OFFICE_LANE_TEST_DB_PREFIX.
+ */
 export function laneTestDbPrefix(env = process.env) {
   return env.OFFICE_LANE_TEST_DB_PREFIX?.trim() || 'uniwork_';
 }
@@ -298,6 +338,12 @@ export function assertLaneTestDatabase(name, prefix = laneTestDbPrefix()) {
   if (!name) throw new Error('reset: no database name; set TEST_DATABASE_URL or DATABASE_URL');
   if (!name.startsWith(prefix)) throw new Error(`reset refuses database ${name}: not under the lane test prefix ${prefix}`);
   if (!name.endsWith('_test')) throw new Error(`reset refuses database ${name}: a reset may only touch a *_test database`);
+  // `${prefix}test` is the shared test database of every checkout on this server,
+  // not a lane's own: a lane name has a segment between the prefix and `_test`
+  // (R1-06).
+  if (name === `${prefix}test`) {
+    throw new Error(`reset refuses database ${name}: the shared test database is not a lane test database; name the lane, e.g. ${prefix}<lane>_test`);
+  }
   return name;
 }
 
@@ -382,7 +428,10 @@ export function verify({ outDir = abs(DEFAULT_OUT_DIR), matrixPath = MATRIX_PATH
   for (const [index, record] of ledger.entries()) {
     for (const field of missingFields(record)) problems.push(`line ${index + 1} (${record.evidenceId ?? '?'}) is missing ${field}`);
     for (const field of emptyFields(record)) problems.push(`line ${index + 1} (${record.evidenceId ?? '?'}) has an empty ${field}`);
-    if (record.evidenceId) byId.set(record.evidenceId, record);
+    if (record.evidenceId) {
+      if (byId.has(record.evidenceId)) problems.push(`line ${index + 1} repeats evidence id ${record.evidenceId}`);
+      byId.set(record.evidenceId, record);
+    }
     if (!RESULTS.includes(record.result)) problems.push(`line ${index + 1} has an unsupported result ${record.result}`);
     const fixture = fixtures.get(record.fixtureId);
     if (!fixture) problems.push(`line ${index + 1} names unknown fixture ${record.fixtureId}`);
