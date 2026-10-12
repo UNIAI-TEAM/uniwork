@@ -394,6 +394,33 @@ export const APP_ENV_PASSTHROUGH = [
   "DBUS_SESSION_BUS_ADDRESS",
 ];
 
+/**
+ * The environment of the second instance that carries the deep link: the
+ * allow-listed basics plus the run's own X display AND its auth file. Under
+ * `xvfb-run` the display is protected by a private Xauthority; ports.env records
+ * both (start.sh), and a second client that got only DISPLAY died with
+ * "Authorization required ... Missing X server or $DISPLAY" (cloud round 6).
+ * What the run recorded wins over the caller's own session.
+ */
+export function handoffEnv(ports, source = process.env) {
+  return appEnv({
+    source,
+    apiOrigin: ports.API_ORIGIN,
+    userDataDir: ports.UNIWORK_USER_DATA,
+    extra: {
+      UNIWORK_OFFICE_CHANNEL: "dev",
+      ...(ports.DISPLAY ? { DISPLAY: ports.DISPLAY } : {}),
+      ...(ports.XAUTHORITY ? { XAUTHORITY: ports.XAUTHORITY } : {}),
+    },
+  });
+}
+
+/** A child's end as words: `exited 1`, `was killed by SIGSEGV` (a null exit code means a signal, never "exited null"). */
+export function describeExit(status, signal) {
+  if (status !== null && status !== undefined) return `exited ${status}`;
+  return signal ? `was killed by ${signal}` : "ended without an exit code or a signal";
+}
+
 /** Names that carry a secret or the server's own wiring; none may reach the app, whatever else changes. */
 const SERVER_SECRET_NAME = /(KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL)|^(DATABASE|REDIS)_URL$/i;
 

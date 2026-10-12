@@ -50,7 +50,7 @@ Flags (each has an environment form too, for the spec line):
 
 Every artifact lands in `.harness-run/` (override with `HARNESS_RUN_DIR`, and
 that directory is gitignored): `ports.env` (this run's ports, origins, SHAs,
-`DISPLAY`, and the app's launch inputs — `UNIWORK_USER_DATA`, `ELECTRON_BIN`,
+`DISPLAY` and, under Xvfb, its `XAUTHORITY` (the run's own `xauthority` file, so the document step's second Electron instance can connect to the same X server), and the app's launch inputs — `UNIWORK_USER_DATA`, `ELECTRON_BIN`,
 `SHELL_APP_DIR`, `OFFICE_FORK_DIR`, `HARNESS_DEPLOYMENT_ID`), `pids`, `logs/`,
 `userdata/`, `sample-ac.json`, `document-step.json`, `blocked.json` when a
 precondition was absent, and `evidence.jsonl` when run directly. The layout
