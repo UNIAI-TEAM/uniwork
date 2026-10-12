@@ -151,7 +151,7 @@ SELECT * FROM mcp_tokens WHERE digest = $1 FOR UPDATE;
 
 -- name: MarkMcpTokenUsed :execrows
 -- tenant: by-id
-UPDATE mcp_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL;
+UPDATE mcp_tokens SET used_at = $2 WHERE id = $1 AND used_at IS NULL;
 
 -- name: RevokeMcpTokenByID :execrows
 -- tenant: by-id

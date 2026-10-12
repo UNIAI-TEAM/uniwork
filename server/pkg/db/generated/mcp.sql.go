@@ -695,12 +695,17 @@ func (q *Queries) ListMcpGrantsForUser(ctx context.Context, userID string) ([]Li
 }
 
 const markMcpTokenUsed = `-- name: MarkMcpTokenUsed :execrows
-UPDATE mcp_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL
+UPDATE mcp_tokens SET used_at = $2 WHERE id = $1 AND used_at IS NULL
 `
 
+type MarkMcpTokenUsedParams struct {
+	ID     string             `json:"id"`
+	UsedAt pgtype.Timestamptz `json:"used_at"`
+}
+
 // tenant: by-id
-func (q *Queries) MarkMcpTokenUsed(ctx context.Context, id string) (int64, error) {
-	result, err := q.db.Exec(ctx, markMcpTokenUsed, id)
+func (q *Queries) MarkMcpTokenUsed(ctx context.Context, arg MarkMcpTokenUsedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markMcpTokenUsed, arg.ID, arg.UsedAt)
 	if err != nil {
 		return 0, err
 	}

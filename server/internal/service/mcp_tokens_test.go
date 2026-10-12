@@ -396,3 +396,168 @@ func TestMcpRevokeAccessTokenLeavesRefreshToken(t *testing.T) {
 		t.Fatalf("refresh after revoking the access token: %v", err)
 	}
 }
+
+// Audit rows record a detection, not every repeat of it: once the family is
+// closed there is nothing left to revoke, so a second or third replay of the
+// same code adds nothing to the append-only log.
+func TestMcpRepeatedCodeReplayAuditsOnce(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	c := w.publicClient(t, "https://x.test/cb")
+	code := w.approve(t, c, "https://x.test/cb")
+	in := McpExchangeInput{ClientID: c.ClientID, Code: code, CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"}
+	if _, err := w.svc.Exchange(w.ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 3 {
+		_, err := w.svc.Exchange(w.ctx, in)
+		if !errors.Is(err, errInvalidGrant) {
+			t.Fatalf("replay %d: %v", i, err)
+		}
+	}
+	if rows := w.familyRevokedRows(t); rows != 1 {
+		t.Fatalf("family_revoked audit rows = %d after three replays, want 1", rows)
+	}
+	var tokens string
+	if err := w.pool.QueryRow(w.ctx, `SELECT metadata::jsonb->>'tokens' FROM audit_events WHERE organization_id = $1 AND action = $2`, w.org.ID, audit.ActionMcpTokenFamilyRevoked).Scan(&tokens); err != nil || tokens != "2" {
+		t.Fatalf("audited tokens = %q, %v; the one row records the pair it closed", tokens, err)
+	}
+}
+
+// The attempt keeps the resource it was bound to; a code whose binding is not
+// this server's resource is refused with invalid_target and stays unused.
+func TestMcpExchangeRefusesAttemptBoundToAnotherResource(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	c := w.publicClient(t, "https://x.test/cb")
+	code := w.approve(t, c, "https://x.test/cb")
+	in := McpExchangeInput{ClientID: c.ClientID, Code: code, CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"}
+	if _, err := w.pool.Exec(w.ctx, `UPDATE mcp_auth_attempts SET resource = 'https://old.example.test/mcp' WHERE code_digest = $1`, digest(code)); err != nil {
+		t.Fatal(err)
+	}
+	_, err := w.svc.Exchange(w.ctx, in)
+	wantOAuth(t, err, "invalid_target")
+	if n := w.countRows(t, `SELECT count(*) FROM mcp_auth_attempts WHERE code_digest = $1 AND used_at IS NULL`, digest(code)); n != 1 {
+		t.Fatal("a refused exchange consumed the code")
+	}
+	if n := w.liveTokens(t); n != 0 {
+		t.Fatalf("live tokens = %d, want 0", n)
+	}
+	if _, err := w.pool.Exec(w.ctx, `UPDATE mcp_auth_attempts SET resource = $2 WHERE code_digest = $1`, digest(code), w.svc.ResourceURL()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.svc.Exchange(w.ctx, in); err != nil {
+		t.Fatalf("the same code with its own resource must redeem: %v", err)
+	}
+}
+
+// used_at is compared with the service clock (the grace window), so it is
+// stamped from the service clock, not from the database's.
+func TestMcpRefreshStampsUsedAtFromTheServiceClock(t *testing.T) {
+	w := newMcpWorld(t)
+	c, pair := w.issue(t)
+	at := time.Now().Add(-2 * time.Hour).Truncate(time.Millisecond)
+	w.svc.now = func() time.Time { return at }
+	if _, err := w.svc.Refresh(w.ctx, McpRefreshInput{ClientID: c.ClientID, RefreshToken: pair.RefreshToken}); err != nil {
+		t.Fatal(err)
+	}
+	var usedAt time.Time
+	if err := w.pool.QueryRow(w.ctx, `SELECT used_at FROM mcp_tokens WHERE digest = $1`, digest(pair.RefreshToken)).Scan(&usedAt); err != nil {
+		t.Fatal(err)
+	}
+	if !usedAt.Equal(at) {
+		t.Fatalf("used_at = %s, want the service clock %s", usedAt, at)
+	}
+}
+
+func (w *mcpWorld) confidentialClient(t *testing.T, redirect string) (McpClient, string) {
+	t.Helper()
+	reg, err := w.svc.Register(w.ctx, McpRegistration{ClientName: "Secret Client", RedirectURIs: []string{redirect}, TokenEndpointAuthMethod: "client_secret_post"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reg.ClientSecret == "" {
+		t.Fatal("a confidential client gets a secret")
+	}
+	return reg.Client, reg.ClientSecret
+}
+
+func wantInvalidClient(t *testing.T, err error) {
+	t.Helper()
+	var oe OAuthError
+	if !errors.As(err, &oe) || oe.Code != "invalid_client" || oe.Status != 401 {
+		t.Fatalf("err = %v, want 401 invalid_client", err)
+	}
+}
+
+// A confidential client must present its secret at every endpoint, and a
+// refused attempt consumes neither the code nor the refresh token.
+func TestMcpConfidentialClientSecretGatesTheTokenEndpoint(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	c, secret := w.confidentialClient(t, "https://x.test/cb")
+	code := w.approve(t, c, "https://x.test/cb")
+	in := McpExchangeInput{ClientID: c.ClientID, Code: code, CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"}
+	for _, bad := range []string{"", "not-the-secret"} {
+		in.ClientSecret = bad
+		_, err := w.svc.Exchange(w.ctx, in)
+		wantInvalidClient(t, err)
+	}
+	if n := w.countRows(t, `SELECT count(*) FROM mcp_auth_attempts WHERE code_digest = $1 AND used_at IS NULL`, digest(code)); n != 1 {
+		t.Fatal("a refused client consumed the code")
+	}
+	if n := w.liveTokens(t); n != 0 {
+		t.Fatalf("live tokens = %d, want 0", n)
+	}
+	in.ClientSecret = secret
+	pair, err := w.svc.Exchange(w.ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, bad := range []string{"", "not-the-secret"} {
+		_, err := w.svc.Refresh(w.ctx, McpRefreshInput{ClientID: c.ClientID, ClientSecret: bad, RefreshToken: pair.RefreshToken})
+		wantInvalidClient(t, err)
+		wantInvalidClient(t, w.svc.RevokeToken(w.ctx, c.ClientID, bad, pair.RefreshToken))
+	}
+	if n := w.countRows(t, `SELECT count(*) FROM mcp_tokens WHERE digest = $1 AND used_at IS NULL AND revoked_at IS NULL`, digest(pair.RefreshToken)); n != 1 {
+		t.Fatal("a refused client used up or revoked the refresh token")
+	}
+	if _, err := w.svc.Refresh(w.ctx, McpRefreshInput{ClientID: c.ClientID, ClientSecret: secret, RefreshToken: pair.RefreshToken}); err != nil {
+		t.Fatalf("refresh with the right secret: %v", err)
+	}
+}
+
+// No credential - code, verifier, client secret, either token - may reach the
+// audit log, which is append-only and long lived.
+func TestMcpAuditRowsCarryNoRawCredentials(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	c, secret := w.confidentialClient(t, "https://x.test/cb")
+	code := w.approve(t, c, "https://x.test/cb")
+	pair0, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, ClientSecret: secret, Code: code, CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pair1, err := w.svc.Refresh(w.ctx, McpRefreshInput{ClientID: c.ClientID, ClientSecret: secret, RefreshToken: pair0.RefreshToken})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.svc.now = func() time.Time { return time.Now().Add(mcpReuseGrace + time.Second) }
+	_, err = w.svc.Refresh(w.ctx, McpRefreshInput{ClientID: c.ClientID, ClientSecret: secret, RefreshToken: pair0.RefreshToken})
+	wantOAuth(t, err, "invalid_grant")
+
+	// the log is not empty: the consent and the reuse detection both wrote rows.
+	if rows := w.countRows(t, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = ANY($2)`, w.org.ID, []string{audit.ActionMcpGrantCreated, audit.ActionMcpTokenFamilyRevoked}); rows != 2 {
+		t.Fatalf("mcp audit rows = %d, want grant.created and family_revoked", rows)
+	}
+	for name, raw := range map[string]string{
+		"code": code, "verifier": mcpTestVerifier, "client secret": secret,
+		"first access token": pair0.AccessToken, "first refresh token": pair0.RefreshToken,
+		"second access token": pair1.AccessToken, "second refresh token": pair1.RefreshToken,
+	} {
+		if n := w.countRows(t, `SELECT count(*) FROM audit_events a WHERE a.organization_id = $1 AND position($2 in a::text) > 0`, w.org.ID, raw); n != 0 {
+			t.Fatalf("the %s reached audit_events", name)
+		}
+	}
+}
