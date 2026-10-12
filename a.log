@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3; whoami
+95e7106ef3cc1361c22f1e742f077ca829e4383d
+09bbd43d6628e13ea00a63b4bd9f019fbace834e
+95e7106e test(slides): pin the OS username in the session characterisation trace
+09bbd43d docs(office): document protocolSha256 in the frame manifest field table
+07356474 fix(office): frame client omits an empty run_id in aiRun
+ubuntu

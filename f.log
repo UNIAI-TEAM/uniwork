@@ -1,0 +1,107 @@
+$ git checkout 09bbd43d -- apps/slides/tests/session-characterisation.test.ts && (cd apps/slides && unshare -U npx vitest run tests/session-characterisation.test.ts); RED=$?; git checkout HEAD -- apps/slides/tests/session-characterisation.test.ts; echo "RED_EXIT=$RED"; test $RED -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+ ❯ tests/session-characterisation.test.ts (1 test | 1 failed) 2868ms
+     × replays the fixture scenario with an unchanged trace 1742ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/session-characterisation.test.ts > slides session characterisation > replays the fixture scenario with an unchanged trace
+Error: Snapshot `slides session characterisation > replays the fixture scenario with an unchanged trace 1` mismatched
+
+- Expected
++ Received
+
+@@ -1678,11 +1678,11 @@
+   },
+   {
+    "wc": 1,
+    "channel": "slides:add-comment",
+    "result": "array(1)",
+-   "digest": "97ade83b99efc471",
++   "digest": "fae24a13e41206e8",
+    "sent": [
+     {
+      "wc": 1,
+      "channel": "slides:history-changed",
+      "digest": "988167f261580812"
+@@ -1691,17 +1691,17 @@
+   },
+   {
+    "wc": 1,
+    "channel": "slides:get-comments",
+    "result": "array(1)",
+-   "digest": "97ade83b99efc471"
++   "digest": "fae24a13e41206e8"
+   },
+   {
+    "wc": 1,
+    "channel": "slides:add-comment",
+    "result": "array(2)",
+-   "digest": "087978d3ee3922ba",
++   "digest": "4f85a5acfa7f6864",
+    "sent": [
+     {
+      "wc": 1,
+      "channel": "slides:history-changed",
+      "digest": "988167f261580812"
+@@ -1710,11 +1710,11 @@
+   },
+   {
+    "wc": 1,
+    "channel": "slides:delete-comment",
+    "result": "array(1)",
+-   "digest": "e68d24d328555274",
++   "digest": "f332b41fe9362f4d",
+    "sent": [
+     {
+      "wc": 1,
+      "channel": "slides:history-changed",
+      "digest": "988167f261580812"
+@@ -2196,11 +2196,11 @@
+    },
+    "digest": "f0057f0e83df1b00"
+   },
+   {
+    "saved": "business after save",
+-   "bytes": "#bytes:61418:0485fbd50e4602300d6dccd223e1e71742457ef7f59bb9c3672b4555773d6f7b"
++   "bytes": "#bytes:61419:098892e902504bcc18401d83872d0e5ffccf4279f2b309160353cdef2ad4809e"
+   },
+   {
+    "wc": 1,
+    "channel": "slides:is-dirty",
+    "result": false,
+@@ -2282,11 +2282,11 @@
+     }
+    ]
+   },
+   {
+    "saved": "business save-as",
+-   "bytes": "#bytes:62442:5bad756da8c757965276d0bd7732f984ee4dd065af1e1ac91447a787d46cfd5e"
++   "bytes": "#bytes:62443:efe4fa7b1d5d516f1149dacc6883a48dee7d0f2b57829c1801abf06c90711ade"
+   },
+   {
+    "wc": 1,
+    "channel": "slides:save-as",
+    "result": {
+
+ ❯ tests/session-characterisation.test.ts:803:5
+    801|     await step(9, 'slides:save')
+    802|
+    803|     await expect(JSON.stringify(trace, null, 1) + '\n').toMatchFileSna…
+       |     ^
+    804|   })
+    805| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+  Snapshots  1 failed
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  15:21:20
+   Duration  3.07s (transform 984ms, setup 0ms, import 107ms, tests 2.87s, environment 0ms)
+
+RED_EXIT=1
+RED_AS_EXPECTED

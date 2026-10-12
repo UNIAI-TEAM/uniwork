@@ -1,0 +1,1 @@
+$ npx eslint apps/slides/tests/session-characterisation.test.ts

@@ -1,0 +1,12 @@
+$ cd apps/slides && unshare -U npx vitest run tests/session-characterisation.test.ts; echo "AS_OTHER_USER_EXIT=$?"; unshare -U id -un
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  15:21:17
+   Duration  2.68s (transform 983ms, setup 0ms, import 110ms, tests 2.49s, environment 0ms)
+
+AS_OTHER_USER_EXIT=0
+nobody

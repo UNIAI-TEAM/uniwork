@@ -1,0 +1,19 @@
+$ npm run test -w @genoffice/slides
+
+> @genoffice/slides@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+
+ Test Files  145 passed | 1 skipped (146)
+      Tests  1409 passed | 14 skipped (1423)
+   Start at  15:21:24
+   Duration  43.38s (transform 10.51s, setup 0ms, import 39.46s, tests 19.03s, environment 56.41s)
+
