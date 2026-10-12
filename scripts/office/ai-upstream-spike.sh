@@ -11,10 +11,19 @@
 # Run from the repo root, under Git Bash or Linux. The exit code is the test's.
 # This script never prints the upstream's URL, host, IP, port or key: the
 # harness redacts what it emits, and nothing here echoes a value it read.
+#
+# A dev run is evidence, so it never overwrites an earlier one: the default
+# SPIKE_OUT is ac2-dev-run-<UTC yyyymmddThhmmssZ>, a name collision bumps the
+# suffix, and an explicit SPIKE_OUT that already holds a run is refused.
 set -uo pipefail
 
 usage() {
   echo "usage: $0 fake|dev   (see the header of this file)" >&2
+}
+
+# True when a run already wrote any of the three files at this base name.
+spike_run_exists() {
+  [ -e "$1.json" ] || [ -e "$1.txt" ] || [ -e "$1.log" ]
 }
 
 mode="${1:-}"
@@ -65,7 +74,25 @@ else
     exit 2
   fi
   export AI_PROVIDER=openai SPIKE_MODE=dev
-  export SPIKE_OUT="${SPIKE_OUT:-$SPIKE_RUN_DIR/ac2-dev-run-1}"
+  if [ -n "${SPIKE_OUT:-}" ]; then
+    # An explicit path is honoured verbatim, but never at the cost of an
+    # earlier run's evidence.
+    if spike_run_exists "$SPIKE_OUT"; then
+      echo "ai-upstream-spike: SPIKE_OUT $SPIKE_OUT already holds a run; choose a new name" >&2
+      exit 2
+    fi
+  else
+    # Timestamped default: a bare rerun starts a new run instead of
+    # overwriting ac2-dev-run-1. A collision (two starts inside one second, or
+    # a leftover file) bumps the suffix until the name is free.
+    SPIKE_OUT="$SPIKE_RUN_DIR/ac2-dev-run-$(date -u +%Y%m%dT%H%M%SZ)"
+    n=1
+    while spike_run_exists "$SPIKE_OUT"; do
+      n=$((n + 1))
+      SPIKE_OUT="$SPIKE_RUN_DIR/ac2-dev-run-$(date -u +%Y%m%dT%H%M%SZ)-$n"
+    done
+  fi
+  export SPIKE_OUT
 fi
 
 mkdir -p "$SPIKE_RUN_DIR" || exit 2
