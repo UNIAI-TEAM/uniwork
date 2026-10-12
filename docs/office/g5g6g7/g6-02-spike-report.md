@@ -34,9 +34,13 @@ và trên upstream dev, rồi đề xuất mọi số và quyết định thẻ 
 - Run id và conversation id đi bằng **header** (`X-UniWork-AI-Run`, `X-UniWork-AI-Conversation`); call bị lọc báo
   bằng object `x_uniwork`, `finish_reason` giữ giá trị chuẩn.
 - Run/usage là **hạ tầng AI** (`Ai*` queries), không vào `audit_coverage_test.go`.
-- Đo (§3): trên upstream dev, id tool call đi hai chiều 10/10 vòng, `usage` có ở 20/20 lượt và ở chunk cuối khi
-  stream, latency một lượt p50 1,5–1,7 giây / p95 3,1–9,8 giây, cả vòng p50 3,1 giây / p95 12,7 giây (lần chạy lại;
-  lần đầu 3,3 / 7,1 giây); `fake` đi hai chiều 10/10. `/v1/models` đọc được 2472 tên (§3 ghi chú 1).
+- Façade v1 **gọi upstream trước, mở response sau**: mọi lỗi trước byte đầu là status HTTP thật (429 + `Retry-After`
+  giây, 502, 504…), chờ upstream kẹp 55 giây dưới watchdog 60 giây của fork, không bao giờ trả stream rỗng (§4.5, §4.13).
+- Đo (§3, hai lần AC-2 trên upstream dev, 10 vòng mỗi lần): id tool call đi hai chiều 10/10 cả hai lần, `usage` có ở
+  20/20 lượt và ở chunk cuối khi stream; cả vòng p50 3096 / 3300 ms, p95 **12 702** / 5182 ms (lần 1 / lần 2; p95 trên
+  10 mẫu là mẫu chậm nhất, nên một lượt chậm của upstream dev dùng chung quyết định nó). Mọi trần/timeout dựa trên lần
+  xấu hơn (lần 1). `fake` đi hai chiều 10/10. `/v1/models` 2472 tên, `gpt-6-luna` có trong danh sách (lần 2,
+  `model_in_list`).
 
 ### Proposed G6-D1 values
 
@@ -46,9 +50,9 @@ Cột bằng chứng trỏ tới mục chi tiết ở §4. Dòng nào đã có t
 
 | # | Quyết định | Giá trị đề xuất | Bằng chứng | Ký |
 | --- | --- | --- | --- | --- |
-| 1 | `ModelPolicy` `office_uniwork_ai` | `Default`: `anthropic` → `claude-opus-5`, `openai` → `gpt-4o`, `fake` → `fake`, **không có `ollama`** (không hỗ trợ vòng tool → capability không cấu hình); `MaxTokens` 4096; `Temperature` 0; dev: `AI_MODEL_OFFICE_UNIWORK_AI` = `gpt-6-luna` + thêm vào `AI_MODEL_ALLOW` (đã chạy 20/20 lượt; upstream nhận tên này, model sai trả 404; chưa có cờ thành viên trong 2472 tên của `/v1/models`, §3 ghi chú 1) | §4.1 | AI Platform + owner F |
+| 1 | `ModelPolicy` `office_uniwork_ai` | `Default`: `anthropic` → `claude-opus-5`, `openai` → `gpt-4o`, `fake` → `fake`, **không có `ollama`** (không hỗ trợ vòng tool → capability không cấu hình); `MaxTokens` 4096; `Temperature` 0; dev: `AI_MODEL_OFFICE_UNIWORK_AI` = `gpt-6-luna` + thêm vào `AI_MODEL_ALLOW` (đã chạy 2 × 20 lượt; có trong 2472 tên của `/v1/models`, `model_in_list` lần 2, §3 ghi chú 1) | §4.1 | AI Platform + owner F |
 | 2 | Trần token instruction pack | ≤ 2000 token cho phần chung + đoạn module lớn nhất (phần chung ≤ 800, mỗi đoạn module ≤ 1200) | §4.2 | AI Platform + Product (G6-14 *hitl*) |
-| 3 | Trần vòng tool / lượt model mỗi run | 8 vòng tool-result, 10 lượt gọi model mỗi run (lượt đầu + 8 vòng + 1 dự phòng); vượt → `run_limit_reached` (429, không `error_class`, mã đã chốt ở contract-p0 §4); client phân biệt theo mã, không chờ lại | §4.3 | AI Platform + owner F |
+| 3 | Trần vòng tool / lượt model mỗi run | 8 vòng tool-result, 10 lượt gọi model mỗi run (lượt đầu + 8 vòng + 1 dự phòng); vượt → `run_limit_reached` (contract-p0 §4 chốt 429, không `error_class`; **đề xuất đổi sang 409** trước khi X-03 phát hành, Q2 ở §8.1, vì fork xếp mọi 429 là "AI bận"); client kết thúc run, không chờ lại | §4.3, §7 | AI Platform + owner F |
 | 4 | Nhóm rate limit `ai-uniwork` | 60 req/phút theo danh tính (bucket riêng, không chung `ai-byok`) | §4.4 | AI Platform |
 | 5 | Số lần chờ 429 tối đa mỗi run | 3; mức kẹp `Retry-After` 300 giây (EXPERIENCE OQ-UX2) | §4.5 | owner F + Product |
 | 6 | Trần body / tool-result | body: giữ `maxJSONBody` 1 MiB (không override); mỗi tool-result ≤ 64 KiB; tổng tool-result một request ≤ 256 KiB; vượt → 413 `ai_tool_result_too_large` ("workbook quá lớn"; mã **chưa có** trong bảng contract-p0 §4, đề xuất thêm, §8.1) | §4.6 | AI Platform + owner F |
@@ -59,7 +63,7 @@ Cột bằng chứng trỏ tới mục chi tiết ở §4. Dòng nào đã có t
 | 11 | `LoadShed` + đồng thời | miễn `LoadShed` theo mẫu route (giữ `setBodyDeadline`); trần mỗi pod 32 lượt đang chạy, toàn hệ thống 64 (lease Redis), mỗi tổ chức 8; vượt → 429 `ai_uniwork_busy` + `Retry-After: 5` (mã chưa có trong contract-p0 §4, §8.1) | §4.10 | AI Platform; số mặc định G7-D1 |
 | 12 | Run id | header `X-UniWork-AI-Run` (server cấp ở response đầu, client gửi lại); conversation id header `X-UniWork-AI-Conversation`; thêm cả hai vào CORS `AllowedHeaders`/`ExposedHeaders` | §4.11 | AI Platform + owner F |
 | 13 | Wire extension | object `x_uniwork` ở response/chunk cuối: `dropped_tool_calls[{index, name, reason: view_only\|not_allowlisted}]`, `step`, `limit`; `finish_reason` giữ giá trị chuẩn (`tool_calls`/`stop`/`length`), không thêm `tool_not_allowed` | §4.12 | owner F + AI Platform |
-| 14 | Streaming v1 | SSE một chunk (một chunk `chat.completion.chunk` đầy đủ + `[DONE]`); stream thật là v1.1 sau khi có `Provider.Stream` | §4.13 | AI Platform + owner F |
+| 14 | Streaming v1 | SSE một chunk (một chunk `chat.completion.chunk` đầy đủ + `[DONE]`); header 200 chỉ gửi **sau** khi biết câu trả lời upstream, nên mọi lỗi là status HTTP thật (429 + `Retry-After` giây, 502, 504); chờ upstream ≤ 55 giây (< watchdog 60 giây của fork); không bao giờ 200 với stream rỗng; stream thật là v1.1 sau khi có `Provider.Stream` | §4.5, §4.13 | AI Platform + owner F |
 | 15 | Entitlement | dùng lại `office.ai_cloud` — **đã quyết (U-13; contract-p0 §11)**, không migration (contract-p0 §5 hàng 6) | §4.14 | đã ký (U-13) |
 | 16 | Run/usage | hạ tầng AI: `ai_usage_events` + bảng run qua `Ai*`; không audit, không outbox; usage thiếu → `reason_code = usage_unknown` + metric | §4.15 | AI Platform |
 | 17 | Ứng viên upstream production | bảng §6 (vendor API có ZDR, cloud hyperscaler theo region, self-host) | §6 | người dùng (G6-D2) |
@@ -80,67 +84,80 @@ nào còn lại (chế độ fake của wrapper làm đúng như vậy). Giá tr
 Commit spike: `aadf0daa5` (test hình dạng), `bcca72643` (provider), `544907c3b` (harness
 `server/internal/ai/provider/upstream_spike_test.go`, gắn cờ `SPIKE_MODE=fake|dev`; mọi chuỗi ghi ra đi qua
 `spikeRedact` nên base URL, host và khóa thành `<upstream>`), `e568fe149` (wrapper + helper env), `85bca4171` (giới hạn danh sách model harness giữ: giới hạn đọc 1 MiB cũ cắt cụt JSON
-của `/v1/models`, xem §3 ghi chú 1). Wrapper ghi JSON + bản tóm tắt + log chạy vào thư mục báo cáo của lane và trả exit
+của `/v1/models`, xem §3 ghi chú 1), `d9049f79c` (`model_in_list` + `model_name_count` tính trên **toàn bộ** danh sách
+trước khi cắt mẫu 200 tên). Wrapper ghi JSON + bản tóm tắt + log chạy vào thư mục báo cáo của lane và trả exit
 code của test.
 
-Vòng đo (theo brief lane): (1) request đầu khai một công cụ tổng hợp (ví dụ `sum_range` trên bảng số giả), model trả
+Vòng đo (theo brief lane): (1) request đầu khai một công cụ tổng hợp (`get_cell` trên một sheet giả, `upstream_spike_test.go:37-40`), model trả
 `tool_calls[].id`; (2) request thứ hai gửi message `tool` với đúng `tool_call_id`; (3) model trả lời cuối. Đo: id còn
 nguyên hai chiều, `usage` có hay thiếu, probe `stream: true` thô (số chunk, delta tool call, chunk usage cuối), latency
 p50/p95 trên ≥ 10 lần, tên model lấy từ `/v1/models`. Harness là test Go gắn cờ môi trường trong
 `server/internal/ai/provider` — package duy nhất được mở kết nối model (`TestProviderSDKOnlyInAIProvider`).
 
-Kết quả lưu ngoài repo ở `reports/g6-ai_server/` của lane (dev: `ac2-dev-run-1.json`, `.txt`, `.log`; bản ghi bằng chứng
-của W1: `w1-spike-report.md`).
+Kết quả lưu ngoài repo ở `reports/g6-ai_server/` của lane (dev: `ac2-dev-run-1.{json,txt,log}` và
+`ac2-dev-run-2.{json,txt,log}`; bản ghi bằng chứng của W1: `w1-spike-report.md`).
 
 ## 3. Kết quả đo
 
 Cột fake: lần chạy `bash scripts/office/ai-upstream-spike.sh fake` với `SPIKE_LOOPS=10`, exit 0, không mạng
-(`w1-spike-report.md` §2 #5, §4). Cột upstream dev: AC-2 **chạy lại**, `ac2-dev-run-1.json` / `.txt` / `.log`
-(2026-10-12T10:24:36Z, 10 vòng, harness ở `85bca4171`, `--- PASS: TestUpstreamSpike (48.65s)`), đã **thay** lần chạy đầu
-(10:21:54Z, harness `544907c3b`; số của lần đó ghi ở dưới bảng). Hai cột ở thư mục báo cáo lane, ngoài repo.
+(`w1-spike-report.md` §2 #5, §4). Upstream dev: **hai lần AC-2**, cùng model, cùng fixture, 10 vòng mỗi lần, cả hai
+`--- PASS: TestUpstreamSpike`:
+- **Lần 1** — `ac2-dev-run-1.{json,txt,log}`, bắt đầu 2026-10-12T10:24:36Z, harness `85bca4171`, 48,65 giây.
+- **Lần 2** — `ac2-dev-run-2.{json,txt,log}`, bắt đầu 2026-10-12T10:34:43Z, harness `d9049f79c`, 40,58 giây
+  (`w1-spike-report.md` §2 #6b).
 
-| Đo | fake | upstream dev |
-| --- | --- | --- |
-| Model | `fake` | `gpt-6-luna` (đặt qua `SPIKE_MODEL`, xem ghi chú 1) |
-| `GET /v1/models` | n/a | HTTP 200, **2472 tên**; harness giữ số đếm thật + 200 tên đầu (ghi chú 1) |
-| Vòng có tool call | 10/10 | 10/10 |
-| id hai chiều (`tool_calls[].id` → `CompletionResponse` → `tool_call_id` request được upstream nhận) | ok 10/10 | **ok 10/10, lỗi 0** |
-| Câu trả lời nhắc lại id | 10/10 | 0/10 (model diễn đạt lại; nhắc id chỉ là assertion của fake, ghi chú 3) |
-| Call thừa ở lượt 2 | 0 | 0 |
-| `usage` non-stream (lượt 1 / lượt 2) | có 10/10 / 10/10 | **có 10/10 / 10/10** |
-| Token prompt lượt 1 / lượt 2 | 24 / 10 (ước lượng) | **2637 / 2682** (cả 10 vòng như nhau; ghi chú 2) |
-| Token completion lượt 1 / lượt 2 | n/a | 19 / 10–11 |
-| `finish_reason` thấy được | `tool_calls`, `end_turn` | `tool_calls`, `stop` |
-| Stream thô (`stream: true` + `stream_options.include_usage`) | n/a | HTTP 200, 8 chunk, có delta tool call, **id có ngay trên delta đầu**, **có chunk usage cuối**, `finish_reason` `tool_calls` |
-| Latency lượt 1 p50 / p95 | 0 ms | **1488 / 3127 ms** |
-| Latency lượt 2 (tool-result) p50 / p95 | 0 ms | **1732 / 9819 ms** |
-| Latency cả vòng p50 / p95 | 0 ms | **3096 / 12702 ms** |
-| Lỗi / 429 | không | không (20 call, 0 lỗi) |
+Trước lần 1 còn một lượt thử 10:21:54Z (harness `544907c3b`, cả vòng p50 3310 / p95 7073 ms) mà artifact bị lần 1 ghi
+đè; nó chỉ nằm trong lịch sử của `w1-spike-report.md` §4 và không dùng làm bằng chứng. Mọi file ở thư mục báo cáo lane,
+ngoài repo.
 
-Lần chạy đầu (10:21:54Z, chỉ để so): lượt 1 p50 1575 / p95 3160 ms, lượt 2 p50 1660 / p95 4853 ms, cả vòng p50 3310 / p95
-7073 ms, 20/20 `usage`, id 10/10. Độ lệch giữa hai lần chạy là thật (p95 lượt 2 gần gấp đôi); mọi số dẫn xuất trong báo
-cáo dùng lần chạy sau (chậm hơn) và nêu khoảng khi cần.
+| Đo | fake | upstream dev lần 1 | upstream dev lần 2 |
+| --- | --- | --- | --- |
+| Model | `fake` | `gpt-6-luna` (`SPIKE_MODEL`, ghi chú 1) | `gpt-6-luna` |
+| `GET /v1/models` | n/a | HTTP 200, **2472 tên**, giữ mẫu 200 tên | HTTP 200, 2472 tên, **`model_in_list: true`** |
+| Vòng có tool call | 10/10 | 10/10 | 10/10 |
+| id hai chiều (`tool_calls[].id` → `CompletionResponse` → `tool_call_id` request được upstream nhận) | ok 10/10 | **ok 10/10, lỗi 0** | **ok 10/10, lỗi 0** |
+| Câu trả lời nhắc lại id | 10/10 | 0/10 (ghi chú 3) | 0/10 |
+| Call thừa ở lượt 2 | 0 | 0 | 0 |
+| `usage` non-stream (lượt 1 / lượt 2) | có 10/10 / 10/10 | **có 10/10 / 10/10** | **có 10/10 / 10/10** |
+| Token prompt lượt 1 / lượt 2 | 24 / 10 (ước lượng) | **2637 / 2682** (cả 10 vòng; ghi chú 2) | 2637 / 2682 |
+| Token completion lượt 1 / lượt 2 | n/a | 19 / 10–11 | 19 / 10–11 |
+| `finish_reason` thấy được | `tool_calls`, `end_turn` | `tool_calls`, `stop` | `tool_calls`, `stop` |
+| Stream thô (`stream: true` + `stream_options.include_usage`) | n/a | HTTP 200, 8 chunk, có delta tool call, **id có ngay trên delta đầu**, **có chunk usage cuối**, `finish_reason` `tool_calls` | giống lần 1 |
+| Latency lượt 1 p50 / p95 | 0 ms | 1488 / 3127 ms | 1676 / 3816 ms |
+| Latency lượt 2 (tool-result) p50 / p95 | 0 ms | 1732 / **9819** ms | 1475 / 1971 ms |
+| Latency cả vòng p50 / p95 | 0 ms | 3096 / **12 702** ms | 3300 / 5182 ms |
+| Lỗi / 429 | không | không (20 call) | không (20 call) |
+
+**Vì sao hai lần lệch.** p50 ổn định (cả vòng 3096 vs 3300 ms, lượt 1 1,5 vs 1,7 giây), chỉ p95 lệch. Harness tính
+percentile theo nearest rank (`spikePercentile`, `upstream_spike_test.go:587-601`): với 10 mẫu, p95 = mẫu thứ 10, tức
+**mẫu chậm nhất**. p95 lượt 2 của lần 1 (9819 ms, gấp 5 lần lần 2) vì vậy là **một** lượt tool-result chậm, kéo p95 cả
+vòng lên 12 702 ms; lần 2 không có lượt nào như thế. Upstream dev là proxy dùng chung, tải của người khác quyết định
+đuôi; 10 mẫu không đủ để ước lượng đuôi ổn định. Quy tắc của báo cáo: **mọi trần và timeout dựa trên lần xấu hơn
+(lần 1)** — lượt chậm nhất đã thấy 9,8 giây, cả vòng chậm nhất 12,7 giây — và G6-08/G7-D1 đo lại với nhiều mẫu hơn.
 
 Ghi chú:
-1. Brief yêu cầu tên model lấy từ `/v1/models`. **Đã sửa:** lần chạy đầu 200 nhưng không có tên nào vì giới hạn đọc 1 MiB
-   cắt cụt JSON (upstream liệt kê 2472 tên); `85bca4171` đọc tới 8 MiB và lần chạy lại đọc được. Còn hai chi tiết: (a)
-   artifact chỉ giữ 200 tên đầu theo thứ tự chữ, đều có dạng `cl/<hãng>/<model>` (ví dụ `cl/anthropic/claude-opus-5`,
-   `cl/deepseek/deepseek-v4.1-flash`), và **không có `gpt-6-luna`** trong 200 tên đó, nên artifact chưa chứng minh được
-   `gpt-6-luna` nằm trong 2472 tên; (b) bằng chứng gián tiếp: model sai trả 404 (`SPIKE_MODEL=no-such-model-uni1364`,
-   `w1-spike-report.md` §2 #7), trong khi `gpt-6-luna` trả lời 20/20 lượt, tức upstream nhận ra tên này. Việc còn lại
-   (một cờ `model_in_list` trong summary, hoặc W1 chạy lại phần liệt kê toàn bộ) là chi tiết nhỏ, không đổi kết luận nào;
-   contract-p0 §8 muốn `AI_MODEL_ALLOW` chọn "từ `/v1/models`", nên giá trị dev ở §4.1 vẫn là tạm tới khi có cờ đó.
+1. Brief yêu cầu tên model lấy từ `/v1/models`. Lượt thử 10:21:54Z đọc được status 200 nhưng không có tên nào vì giới
+   hạn đọc 1 MiB cắt cụt JSON; `85bca4171` đọc tới 8 MiB (lần 1 đọc được 2472 tên, mẫu 200 tên đầu theo thứ tự chữ đều
+   dạng `cl/<hãng>/<model>`, không chứa `gpt-6-luna`), và `d9049f79c` tính `model_in_list` trên **toàn bộ** danh sách
+   trước khi cắt mẫu. Lần 2: `model_in_list: true`, `model_name_count: 2472`. Cùng với bằng chứng âm (model sai trả 404,
+   `SPIKE_MODEL=no-such-model-uni1364`, `w1-spike-report.md` §2 #7), giá trị dev ở §4.1 thỏa contract-p0 §8 ("chọn từ
+   `/v1/models`").
 2. Prompt của harness chỉ là một câu + một công cụ, không system prompt (`upstream_spike_test.go:37-41`), tức vài chục
-   token, nhưng upstream dev báo 2637 token đầu vào ổn định: upstream dev **cộng thêm ~2.6k token** của riêng nó (system
-   prompt phía proxy hoặc tương đương). Hệ quả: (a) `usage` của upstream dev không phản ánh đúng chi phí của nội dung
-   UniWork, chỉ dùng cho dev; (b) với ứng viên production (§6), G7-D1 đo lại overhead trước khi chốt cost/run.
-3. Model thật không nhắc lại id trong câu trả lời: id sống sót qua giao thức 10/10 nhưng chỉ `fake` nhắc lại nó. Test muốn
-   thấy id quay về phải đọc `tool_calls[].id`, không đọc văn bản trả lời; id có ngay trên delta tool call đầu của stream,
-   nên façade stream (v1.1) khóa theo nó được.
-4. Adapter `openai.go` hiện **không gửi `stream`**. Một model của upstream dev (`deepseek-4.1`) coi việc thiếu `stream` là
-   `stream:true` và trả thân SSE; với `stream:false` tường minh nó trả JSON `finish_reason: stop` **không có tool call**.
-   `gpt-6-luna` theo mặc định và trả `tool_calls`. Hệ quả: façade (G6-13) gửi `stream:false` tường minh ở đường không
-   stream (một dòng), và chọn model dev cho `AI_MODEL_OFFICE_UNIWORK_AI` là quyết định có hậu quả (`w1-spike-report.md` §5.1).
+   token, nhưng upstream dev báo 2637 token đầu vào ổn định ở cả hai lần: upstream dev **cộng thêm ~2,6k token** của
+   riêng nó (system prompt phía proxy hoặc tương đương). Hệ quả cho quota/usage: `usage.prompt_tokens` của upstream
+   **không** phải tín hiệu chi phí trung thực của nội dung UniWork — dòng `ai_usage_events` và `quota.Record` (§4.15) sẽ
+   tính cả phần overhead mà người dùng không gửi. Dev: chấp nhận, chỉ dùng cho dev; G6-13/G6-03b ghi `prompt_tokens` của
+   upstream nguyên trạng (không trừ đoán) nhưng ngân sách lịch sử (§4.7) so với ước lượng của UniWork; production: G7-D1
+   đo overhead của ứng viên G6-D2 (§6) bằng cùng harness trước khi chốt cost/run.
+3. Model thật không nhắc lại id trong câu trả lời: id sống sót qua giao thức 10/10 (cả hai lần) nhưng chỉ `fake` nhắc
+   lại nó. Test muốn thấy id quay về phải đọc `tool_calls[].id`, không đọc văn bản trả lời; id có ngay trên delta tool
+   call đầu của stream, nên façade stream (v1.1) khóa theo nó được.
+4. Adapter `openai.go` hiện **không gửi trường `stream`** (thân request không có khóa này). Một model của upstream dev
+   (`deepseek-4.1`) coi việc thiếu `stream` là `stream:true` và trả thân SSE; với `stream:false` tường minh nó trả JSON
+   `finish_reason: stop` **không có tool call**. `gpt-6-luna` theo mặc định và trả `tool_calls`. Hệ quả cho **G6-13**:
+   adapter openai phải **luôn gửi `stream` tường minh** (`false` ở đường `Complete`), không dựa vào mặc định của upstream;
+   chọn model dev cho `AI_MODEL_OFFICE_UNIWORK_AI` là quyết định có hậu quả, và mỗi ứng viên G6-D2 chạy lại harness để
+   kiểm tool call với `stream:false` (`w1-spike-report.md` §5.1).
 
 ## 4. Quyết định
 
@@ -164,9 +181,9 @@ cờ `office_ai_uniwork` bật **và** `ResolveModel` ra được model cho prov
 không bao giờ báo true cho tổ chức nào (contract-p0 §8, spec §12.3).
 - Model chọn bằng override có sẵn `AI_MODEL_OFFICE_UNIWORK_AI` (`policy.go:84`), phải nằm trong `allowedModels`
   (`policy.go:61-65`) hoặc `AI_MODEL_ALLOW` (`config.go:34-38`). Dev: `AI_MODEL_OFFICE_UNIWORK_AI=gpt-6-luna` và
-  `AI_MODEL_ALLOW=gpt-6-luna` — model AC-2 đã chạy (10 vòng, 20 lượt, id hai chiều 10/10, §3). Đây là model dev, không
-  phải default production; default production đi theo G6-D2. `/v1/models` đã đọc được (2472 tên) nhưng artifact chưa
-  ghi `gpt-6-luna` có trong danh sách (§3 ghi chú 1). Chọn model dev có hậu quả: `deepseek-4.1` không trả tool call
+  `AI_MODEL_ALLOW=gpt-6-luna` — model AC-2 đã chạy (hai lần × 10 vòng, id hai chiều 10/10 mỗi lần, §3). Đây là model dev, không
+  phải default production; default production đi theo G6-D2. `gpt-6-luna` có trong 2472 tên của `/v1/models`
+  (`model_in_list: true`, lần 2, §3 ghi chú 1). Chọn model dev có hậu quả: `deepseek-4.1` không trả tool call
   khi gửi `stream:false` (§3 ghi chú 4), `gpt-6-luna` thì có.
 - `Temperature: 0` theo spec §8.1; `openai.go:48` và `anthropic.go:30` chỉ gửi `temperature` khi > 0, tức upstream dùng
   mặc định của nó. **Giữ hành vi đó** (không gửi `temperature: 0` tường minh): lớp openai-compatible của Anthropic trả 400
@@ -190,9 +207,11 @@ trần".
 
 **Đề xuất G6-D1 (số):** mỗi run tối đa **8 request tool-result** và **10 lượt gọi model** (đếm ở server theo run id).
 Vượt → `run_limit_reached`, "Hỏi tiếp" mở run mới trong cùng conversation (plan G6-03b). Mã đã chốt ở contract-p0 §4:
-HTTP **429**, không `error_class`, "như `ai_rate_limited`", do X-03 thêm. Hệ quả cho client (G6-05): vì cũng là 429,
+HTTP **429**, không `error_class`, "như `ai_rate_limited`", do X-03 thêm. Hệ quả cho client (G6-05): nếu giữ 429,
 vòng chờ §4.5 phải rẽ theo **mã lỗi** — `run_limit_reached` kết thúc run, không có `Retry-After` và không chờ lại; chỉ 429
-của limiter, `ai_uniwork_busy` (§4.10) hoặc upstream mới vào vòng chờ.
+của limiter, `ai_uniwork_busy` (§4.10) hoặc upstream mới vào vòng chờ. Fork hiện xếp **mọi** 429 là "AI bận" trước khi
+ai đọc mã (§7, `overload-error.ts:10-20`, `ai-chat-error.ts:43`; web ném ở `transport.ts:107`), nên báo cáo **khuyến nghị
+đổi `run_limit_reached` sang 409** trước khi X-03 phát hành (Q2, §8.1).
 
 Lý do: một tác vụ XLSX điển hình là đọc vùng → tính → ghi → kiểm lại (4 vòng); 8 cho gấp đôi chỗ cho sửa sai. 10 lượt
 model = 1 lượt đầu + 8 vòng + 1 dự phòng cho request bị upstream từ chối giữa chừng mà client gửi lại cùng bước. 429 do
@@ -202,9 +221,10 @@ limiter UniWork trả **không** đếm (request không tới Gateway); 429/5xx 
 trần server (10) luôn tới trước và fork chưa có hành vi cho `run_limit_reached` (G6-05 thêm). Fork tự gửi lại cùng
 request trong ba trường hợp — stream rỗng (2 lần, `loop.ts:965-985`), stream đứt giữa tham số công cụ (1 lần,
 `loop.ts:342-343`), lỗi trần `max_tokens` (1 lần, `output-cap.ts:38-55`) — mỗi lần là một lượt model ở server; lượt
-"dự phòng" trong số 10 dành cho chúng (notes-fork-adapter §5). Đo trên upstream dev (§3, prompt nhỏ): p50 một lượt 1,5–1,7 giây nên 10 lượt thường ≈ 17 giây; p95 là 3,1 giây (lượt 1)
-và 9,8 giây (lượt 2, lần chạy lại), nên trường hợp xấu 10 lượt đều ở p95 lượt 2 ≈ 100 giây, cộng thời gian công cụ trong
-renderer — mỗi lượt vẫn dưới timeout 60 giây và cả run vẫn xa TTL §4.9 (1800 giây). Prompt Office thật (instruction pack + schema module + lịch sử) dài hơn nhiều; G6-08 đo lại, và nếu p95 một
+"dự phòng" trong số 10 dành cho chúng (notes-fork-adapter §5). Đo trên upstream dev (§3, prompt nhỏ, lấy lần xấu hơn — lần 1): p50 một lượt 1,5–1,7 giây nên 10 lượt thường ≈ 17
+giây; lượt chậm nhất đã thấy 9,8 giây (p95 lượt 2 của lần 1 = mẫu chậm nhất; lần 2 chỉ 2,0 giây), nên trường hợp xấu 10
+lượt đều chậm như thế ≈ 100 giây, cộng thời gian công cụ trong renderer — mỗi lượt vẫn dưới trần chờ upstream 55 giây
+(§4.13) và cả run vẫn xa TTL §4.9 (1800 giây). Prompt Office thật (instruction pack + schema module + lịch sử) dài hơn nhiều; G6-08 đo lại, và nếu p95 một
 lượt > 20 giây thì trần 10 lượt (≈ 3 phút) xem lại cùng G7-D1.
 
 ### 4.4 Rate limit nhóm `ai-uniwork`
@@ -224,11 +244,42 @@ người. Limiter toàn cục 300/phút theo bearer (`router.go:81`) không ch�
 
 **Đề xuất G6-D1:** **3** lần chờ mỗi run; mức kẹp `Retry-After` **300 giây**. Đây là đề xuất của
 EXPERIENCE.md (OQ-UX2, `docs/office/g5g6g7/ux/EXPERIENCE.md:496,1006`), G6-02 xác nhận. Server luôn gửi `Retry-After`
-bằng giây trên 429 của nó (`ratelimit.go:160` đã làm cho limiter; trần đồng thời §4.10 cũng phải làm). 429 của upstream
-được chuyển thành 429 có `Retry-After` của server (giá trị upstream nếu đọc được, kẹp 300; thiếu → 30), không bao giờ
-là 502. Phía fork đây là việc mới: đường desktop không đọc `Retry-After` ở đâu cả, 429 kết thúc lượt bằng lỗi
-`overloaded`; web parse `retryAfterSec` (`web/modules/shared/ai/errors.ts:121-127`) nhưng không ai chờ theo nó
-(notes-fork-adapter §5). G6-05 cài vòng chờ trước khi lỗi được ném (`protocols/openai-compatible.ts:206-210`).
+bằng giây trên 429 của nó (`ratelimit.go:160` đã làm cho limiter; trần đồng thời §4.10 cũng phải làm).
+
+**Quy tắc lỗi v1 (một quy tắc, §4.13 dùng đúng nó):** façade gọi upstream **trước** và chỉ mở response (status + header)
+khi đã biết câu trả lời upstream. Vì v1 là SSE một chunk / JSON (§4.13), không có gì để gửi sớm, nên mọi lỗi trước byte
+đầu luôn là **status HTTP thật với thân JSON** `{code, message}` — không bao giờ là frame lỗi trong một 200:
+
+| Nguồn | HTTP | Mã | `Retry-After` | Fork thấy (pin `0d03b185`) |
+| --- | --- | --- | --- | --- |
+| Limiter `ai-uniwork` (§4.4) | 429 | `ai_rate_limited` | có, giây | vào vòng chờ G6-05 |
+| Trần đồng thời (§4.10) | 429 | `ai_uniwork_busy` | `5` | vào vòng chờ G6-05 |
+| 429 của upstream | 429 | `ai_rate_limited` | giá trị upstream nếu đọc được, kẹp 300; thiếu → 30 | vào vòng chờ G6-05; **không bao giờ** thành 502 |
+| Trần run (§4.3) | 429 theo contract-p0; **đề xuất 409** (Q2) | `run_limit_reached` | không | kết thúc run, "Hỏi tiếp" |
+| Tool-result quá trần (§4.6) | 413 | `ai_tool_result_too_large` | không | kết thúc run, thông báo theo nền tảng (§4.6) |
+| Conversation hết hạn/đã dọn (§4.9) | 409 | `conversation_expired` | không | hội thoại mới |
+| Cờ tắt / mất quyền (§4.9, §5) | 403 (JSON, không bao giờ `text/html`, §7) | `office_capability_off` / lỗi quyền tài liệu | không | kết thúc run |
+| Upstream 5xx / không kết nối được | 502 | `ai_provider_error` (`server/internal/ai/errors.go:39`) | không | kết thúc run, "Thử lại" |
+| Upstream quá 55 giây (§4.13) | 504 | `ai_provider_timeout` (mã mới, không lớp; Q4) | không | kết thúc run, "Thử lại" |
+
+Façade **không bao giờ** trả 200 rồi đóng stream rỗng: fork coi "(empty stream)" là lỗi tạm và tự gửi lại hai lần
+(`EMPTY_STREAM_RETRY_DELAYS_MS = [1_000, 3_000]`, `packages/agent-core/src/loop.ts:336`, nhánh `:969-985`), mỗi lần là một
+lượt model bị tính ở server và ăn trần §4.3. Thân thông báo của mọi lỗi tránh các cụm mà bộ phân loại desktop bắt
+(`rate limit`, `overload`, `quota exceeded`, `credit`, `overload-error.ts:10-25`) để mã — không phải câu chữ — quyết định
+nhánh.
+
+Phía fork đây là việc mới, ở **hai** chỗ:
+- **Desktop** (`packages/ai-provider`): không đọc `Retry-After` ở đâu cả; status không OK thành `Error("HTTP 429: …")`
+  (`protocols/openai-compatible.ts:206-210`) rồi bị xếp `overloaded` (`overload-error.ts:10-20`, `ai-chat-error.ts:43`)
+  và lượt kết thúc. G6-05 rẽ theo status + `code` **trước** dòng `:209` (hoặc trong `protocols/uniwork.ts` mới) và chạy
+  vòng chờ ở đó.
+- **Web** (`web/modules/shared/ai/*`): `createProxyFetch` ném `aiErrorFromResponse(res)` cho **mọi** status trong
+  `BY_STATUS` — gồm 403, 429, 502, 503 — trước khi lớp protocol thấy response (`transport.ts:101-110`, `proxyAnswered`
+  `:90-98`, `isContractFailure` `errors.ts:99-108,189-191`); `retryAfterSec` được parse (`errors.ts:121-127,161-163`)
+  nhưng không ai chờ theo nó (notes-fork-adapter §5). Vòng chờ đặt riêng ở `:206-210` **không bao giờ chạy** trên frame
+  web: G6-05 phải đặt nhánh/vòng chờ trong `transport.ts`/`errors.ts` (hoặc fetch riêng của route `…/ai/uniwork/…`, §7)
+  dùng `AiWebError.retryAfterSec` + `serverCode`. Status ngoài `BY_STATUS` (409, 413, 504) đi tiếp xuống
+  `openai-compatible.ts:209` như desktop, nên cũng cần nhánh theo mã ở đó.
 
 ### 4.6 Trần body và tool-result
 
@@ -239,6 +290,13 @@ là 502. Phía fork đây là việc mới: đường desktop không đọc `Ret
   `ai_tool_result_too_large` (client hiện "workbook quá lớn", plan G6-03a luật 4). Bảng mã X-03 của contract-p0 §4 **chưa
   liệt kê** mã này; nếu G6-D1 được ký thì thêm một hàng (HTTP 413, không lớp) vào bảng đó và đăng ký ở
   `server/internal/handler/dto/sdo/error_class.go` (§8.1).
+- **Map theo nền tảng.** Mã này áp dụng trên cả ba route (org, frame, route phiên có tài liệu §5), tức cả desktop. Chuỗi
+  hiện có `aiErrWorkbookTooLarge` chỉ đúng cho **web** ("quá lớn để AI xử lý trên web. Mở bằng ứng dụng UniWork Office",
+  hành động "Mở bằng ứng dụng", `docs/office/g5g6g7/ux/EXPERIENCE.md:524,1001`); trên desktop người dùng **đã ở trong
+  ứng dụng**, nên câu đó sai và nút đó chết. Đề xuất: web giữ `aiErrWorkbookTooLarge` + "Mở bằng ứng dụng"; desktop map
+  cùng mã sang một chuỗi riêng (ý: "vùng dữ liệu quá lớn để AI xử lý một lần — chọn vùng hoặc sheet nhỏ hơn"), **không**
+  có hành động mở ứng dụng. Câu chữ vi/en của chuỗi desktop là việc UX: follow-up cho Advisor/UX owner (spine
+  EXPERIENCE), ghi ở §8.1 hàng 14; G6-05u không tự đặt câu.
 - Câu hỏi người dùng ≤ 8000 ký tự (cùng bậc `maxLength` 4000 của công cụ đám mây ở `dto/sdi/ai_cloud.go`, gấp đôi
   vì câu hỏi Office hay dán bảng nhỏ).
 
@@ -321,7 +379,7 @@ Gateway dùng `Turns` thay cho `History` + câu user render, giữ nguyên đư�
 | --- | --- |
 | Nơi lưu | **Postgres**: `ai_uniwork_conversations` (id ULID, `organization_id`, `workspace_id` NULL được — route phiên không tài liệu, `user_id`, `document_id` NULL được, `module`, `device_id` NULL được, `created_by` + `created_by_kind`, `last_used_at`, `expires_at`) và `ai_uniwork_turns` (id, `organization_id`, `conversation_id`, `run_id`, `seq`, `role` user/assistant/tool, `ciphertext`, `usage_event_id`, `created_at`); một migration `999<ms>_ai_uniwork_conversations` (G6-03a, contract-p0 §5 hàng 4; `<ms>` = `max(unix-ms lúc viết, tiền tố lớn nhất trên root + 1)`, đổi tên khi rebase nếu merge lệch thứ tự), index `CONCURRENTLY` mỗi file một câu, không FK; bảng run nằm ở migration riêng của G6-03b (§4.15) |
 | Mã hóa | nội dung lượt (câu hỏi, câu trả lời, tool call input, tool-result) mã hóa `server/internal/util/secretbox` AES-256-GCM như kho khóa (ADR 0029 D2); khóa riêng `AI_CONVERSATION_KEY` (base64 32 byte, `.env.example`), không dùng chung `AI_CREDENTIAL_KEY` để lộ một khóa không lộ cả hai; thiếu khóa → UniWork AI coi như chưa cấu hình (`tools.chat` false), fail closed |
-| TTL nhàn rỗi | **30 phút** kể từ `last_used_at` (≥ 300 giây kẹp `Retry-After` + thời gian một run tối đa ≈ 10 lượt × 60 giây timeout `AI_TIMEOUT_SECONDS` (`config.go:28-33`) = 600 giây; 1800 > 900) |
+| TTL nhàn rỗi | **30 phút** kể từ `last_used_at` (≥ 300 giây kẹp `Retry-After` + thời gian một run tối đa ≈ 10 lượt × 55 giây trần chờ upstream của façade (§4.13; dưới timeout Gateway 60 giây `AI_TIMEOUT_SECONDS`, `config.go:28-33`) = 550 giây; 1800 > 850) |
 | Hạn tuyệt đối | 24 giờ kể từ `created_at` (transcript chứa nội dung chưa lưu, spec §8.3) |
 | Lượt giữ | 20 lượt người dùng (§4.7) |
 | Dọn | worker TTL đăng ký vào chuỗi shutdown của `server/cmd/server/main.go` (plan §4), xóa theo lô; consumer outbox cho `document.deleted`, `member.removed`, `member.left`, `member.deactivated` (`docs/events/CATALOGUE.md:127-164`); kiểm lười ở mỗi request (§5); đăng xuất xóa conversation của phiên không tài liệu; "hội thoại mới" xóa conversation cũ của cùng (user, document, module); cờ `office_ai_uniwork` (contract-p0 §4) tắt cho tổ chức → worker xóa theo `organization_id` ở vòng kế và request mới bị từ chối bằng 403 `office_capability_off` với `fields.capability` (contract-p0 §4: cờ ẩn capability, không phải từ chối quyền) |
@@ -357,8 +415,8 @@ plaintext, không TTL; sửa chúng là đổi hợp đồng Ask UNI. Bảng m�
 
 Bằng chứng: `loadshed.go:21-49` — miễn chỉ bằng so khớp path chính xác (`exempt[r.URL.Path]`) hoặc WebSocket, và nhánh
 miễn gọi thẳng `next` nên bỏ `setBodyDeadline` (`loadshed.go:32-35` so với `:39`); router đặt `HTTPMaxInFlight` mặc
-định 128 (`config.go:295`, `router.go:116`). Một lượt UniWork AI giữ slot suốt thời gian model trả lời (timeout 60 giây,
-`config.go:28`); 128 người hỏi cùng lúc sẽ làm mọi request khác nhận 503 `server_busy` — trái plan G6-03a "lượt UniWork
+định 128 (`config.go:295`, `router.go:116`). Một lượt UniWork AI giữ slot suốt thời gian model trả lời (tối đa 55 giây, §4.13;
+dưới timeout Gateway 60 giây ở `config.go:28`); 128 người hỏi cùng lúc sẽ làm mọi request khác nhận 503 `server_busy` — trái plan G6-03a "lượt UniWork
 AI không bao giờ làm `LoadShed` cắt request khác". 32/pod = 25% của 128, nên kể cả khi tắt miễn trừ vẫn còn 96 slot cho
 phần còn lại. Trần tổ chức 8 giữ một tổ chức lớn không ăn hết 64.
 
@@ -369,7 +427,8 @@ phần còn lại. Trần tổ chức 8 giữ một tổ chức lớn không ăn
 trong body.
 
 Lý do: body giữ đúng openai-compatible (`messages`, `tools`, `stream`), nên adapter fork dùng lại bộ dựng body sẵn có
-và chỉ thêm header; SSE gửi header trước chunk đầu nên id có ngay cả khi stream bị cắt giữa chừng; id do server cấp,
+và chỉ thêm header; hai header có trên **mọi** response của run, kể cả response lỗi của §4.5 (429, 409, 413, 502, 504),
+nên vòng chờ 429 gửi lại đúng run id (EXPERIENCE:496 "giữ run id") dù lỗi tới trước câu trả lời đầu; id do server cấp,
 không bao giờ lấy từ input người dùng hoặc model (spec §8.2). Việc kèm theo: thêm hai header vào CORS `AllowedHeaders`
 (`router.go:95`) và `ExposedHeaders` (`router.go:111`), nếu không frame web không đọc được id. `router.go` là seam của
 Lead D, sửa nối tiếp qua root (contract-p0 §2).
@@ -412,17 +471,19 @@ lượt đã có nội dung và thành lỗi "model returned no content" khi lư
 không dùng `tool_not_allowed`. Hai bẫy phải tránh: **không bao giờ** dùng khóa `error` cho dữ liệu không fatal (mọi
 `event.error` truthy làm hủy lượt, `:267`, `:97`), và giá trị `reason` chỉ là mã (`view_only`, `not_allowlisted`),
 không câu chữ. Fork hiện không có chỗ hiển thị call bị bỏ (`StreamCallbacks`, `AiStreamChunk.type`): G6-05 thêm một
-loại chunk/callback `notice`, G6-05u vẽ chip.
+loại chunk/callback `notice` ở đường JSON, đường SSE và cầu IPC desktop (§7), G6-05u vẽ chip. Spine UX
+`EXPERIENCE.md:134` còn nhắc `finish_reason = tool_not_allowed`; Advisor bỏ vế đó khi đóng G6-D1 (§8.1 hàng 13).
 
 ### 4.13 Streaming thật hay SSE một chunk ở v1
 
 **Đề xuất G6-D1 (streaming nằm trong G6-D1, contract-p0 §11):** **SSE một chunk** ở v1: khi client gửi `stream: true`, façade trả
 `text/event-stream` gồm một `chat.completion.chunk` đầy đủ (role, content, tool_calls có id, `finish_reason`,
-`x_uniwork`, `usage`) rồi `data: [DONE]`; `stream: false` trả JSON thường.
+`x_uniwork`, `usage`) rồi `data: [DONE]`; `stream: false` trả JSON thường. Cả hai chỉ được mở (status 200 + header)
+**sau** khi Gateway đã có câu trả lời upstream — đúng quy tắc lỗi v1 ở §4.5.
 
 Lý do: `provider.Provider` không có method stream (`provider.go:89-93`) và `Gateway.Complete` là một request một
 response (`gateway.go:114-204`); stream thật cần method mới ở cả ba provider, lọc tool call theo delta, và chốt usage
-khi stream đứt — rủi ro lớn hơn lợi ích. Số đo (§3) ủng hộ: một lượt p50 1,5–1,7 giây, p95 3,1–9,8 giây, phần lớn lượt
+khi stream đứt — rủi ro lớn hơn lợi ích. Số đo (§3) ủng hộ: một lượt p50 1,5–1,7 giây, chậm nhất đã thấy 9,8 giây (lần 1), phần lớn lượt
 Office là tool call ngắn (19 token đầu ra ở lượt 1) nên stream thật không rút ngắn được gì người dùng thấy; chỉ câu trả
 lời văn bản dài mới được lợi, và đó là việc của v1.1. Ngưỡng `uwTipWaitAiLong` 30 giây của EXPERIENCE không cần đổi.
 Adapter `uniwork` của fork vẫn phải chịu stream thật (spec §6.2) để v1.1 bật bằng server mà không phát hành lại app.
@@ -434,9 +495,28 @@ Ràng buộc từ fork (notes-fork-adapter §2, §4, uniwork-office `0d03b185`):
 - Mỗi phần tử `tool_calls` trong chunk **phải có `index`** (bộ gộp delta khóa theo `tc.index`,
   `protocols/openai-compatible.ts:284-307`; thiếu `index` thì mọi call gộp làm một), cùng `id`, `function.name`,
   `function.arguments` đầy đủ và `finish_reason` trong **cùng** chunk, rồi `[DONE]`.
-- Watchdog của fork chờ header tối đa 60 giây, im lặng tối đa 180 giây (`watchdog.ts:8-15`), bằng đúng timeout
-  Gateway 60 giây (`config.go:28`). Façade vì vậy **gửi header SSE ngay** khi nhận request (sau kiểm quyền/quota), rồi
-  gửi comment keep-alive `: ping` mỗi 15 giây cho tới khi có chunk.
+- Watchdog của fork chờ **header** tối đa 60 giây (`AI_CONNECT_TIMEOUT_MS`, `watchdog.ts:8`), sau đó im lặng tối đa 180
+  giây (`watchdog.ts:15`); timeout Gateway mặc định cũng là 60 giây (`config.go:28`), tức không có biên. **Quy tắc v1:
+  façade gọi upstream trước, rồi mới gửi header.** Lượt gọi upstream của façade chạy với deadline **55 giây** (context
+  của façade; `context.WithTimeout` của Gateway ở `gateway.go:153` lồng bên trong, cái nhỏ hơn thắng; không đổi
+  `AI_TIMEOUT_SECONDS` dùng chung với Ask UNI). 5 giây còn lại phủ kiểm quyền/quota/kho hội thoại và mạng, nên fork
+  luôn nhận một status thật trước khi watchdog bắn `AiTimeoutError`. Quá 55 giây → 504 `ai_provider_timeout`; mọi lỗi
+  khác theo bảng §4.5. Không gửi keep-alive `: ping` ở v1 (trước header không có gì để gửi; sau header chunk đến ngay).
+  Biên đo được: lượt chậm nhất 9,8 giây (§3, lần 1), xa 55 giây.
+- Không bao giờ trả 200 rồi đóng stream rỗng hay không có chunk đầy đủ: fork gửi lại "(empty stream)" hai lần
+  (`loop.ts:336`, `:969-985`), mỗi lần là một lượt model bị tính (§4.3, §4.5).
+- Vì sao không chọn "header sớm + keep-alive" (phương án b của review FE R1-1): nó cho phép chờ quá 60 giây, nhưng mọi
+  lỗi sau header (upstream 429/5xx/timeout) không còn là status HTTP: `Retry-After` không đi được, đường 429 có sẵn của
+  web (`AiWebError.retryAfterSec`, §4.5) không dùng được, và fork phải học một frame kết thúc mới **ngay ở v1** cho một
+  lợi ích v1 không cần (câu trả lời một chunk). Rủi ro của phương án a: câu trả lời văn bản dài gần `MaxTokens` 4096 trên
+  upstream chậm có thể vượt 55 giây (≈ 75 token/giây là ngưỡng); G6-08 đo lượt dài nhất trên dev set, và nếu chạm trần
+  thì đó là lý do bật stream thật (v1.1), không phải nới trần.
+- **Hình dạng tương lai (chỉ đặt tên, không thuộc v1):** khi stream thật bật ở v1.1, lỗi xảy ra **sau** khi header đã
+  gửi là một chunk kết thúc dưới `x_uniwork`, **không** dùng khóa `error` (mọi `error` truthy hủy lượt,
+  `openai-compatible.ts:267`): `"x_uniwork": {"terminal": {"code": "ai_rate_limited" | "ai_provider_error" |
+  "ai_provider_timeout", "retry_after": <giây>}}` rồi `data: [DONE]`; vẫn không bao giờ đóng stream rỗng. Hình dạng này
+  ký cùng v1.1; nếu muốn v1.1 bật mà không phát hành lại app, G6-05 phải đọc được nó từ v1 — đó là điều kiện của v1.1,
+  ghi ở §8.
 - Luôn trả SSE khi client gửi `stream: true` (fork luôn gửi `stream: true`): đường JSON của fork quét **mọi chuỗi** trong
   body và ném `AiCreditsError` khi gặp cụm như "credit … exhausted/balance" (`throwIfCreditsNotice`,
   `protocols/shared.ts:352-382`), nên một câu trả lời về bảng tính có chữ "credit balance" sẽ thành lỗi tín dụng giả.
@@ -576,10 +656,11 @@ dưới đây tương đối với gốc fork.
 | Tool-call id hai chiều | đã nói `role:'tool'` + `tool_call_id` và gửi lại đúng id đọc từ response (`protocols/openai-compatible.ts:46-74`); **thiếu id thì tự sinh UUID** (`:122`, `:287-292`) | server luôn trả `id` cho mọi tool call; server từ chối `tool_call_id` không thuộc run (luật 2) — UUID tự sinh sẽ bị từ chối, đúng ý |
 | Gửi lịch sử | vòng agent gửi **toàn bộ** `history` mỗi lượt (`agent-core/src/loop.ts:904-921`, tối đa 40 message) | adapter tự cắt: run mới = message `user` cuối; vòng tool = các message `tool` sau assistant cuối (§4.6 giữ body nhỏ nhờ việc này) |
 | Run id / conversation id | header ra có tiền lệ (`providers.ts:18-25`); không có hook đọc header về (`protocols/shared.ts:253-265`) | thêm `onResponseHeaders`; `cb.sessionId` không phải conversation id (§4.11) |
-| SSE một chunk / JSON | chịu cả một chunk đủ + `finish_reason`, thiếu `[DONE]` vẫn được (`:242-332`); chịu JSON khi `stream:true` (`shared.ts:329-337`) | server luôn có `index` trong `tool_calls`, header SSE sớm + keep-alive (§4.13) |
-| `x_uniwork` | bị bỏ qua, không lỗi; chưa có chỗ hiển thị | thêm chunk/callback `notice` + chip (G6-05u) |
-| 429 / `Retry-After` | desktop không đọc; web parse nhưng không chờ | vòng chờ tối đa 3 lần, kẹp 300 giây (§4.5) |
-| Trần run | client 100 lượt; tự gửi lại 3 trường hợp | xử lý `run_limit_reached` (§4.3) |
+| SSE một chunk / JSON | chịu cả một chunk đủ + `finish_reason`, thiếu `[DONE]` vẫn được (`:242-332`); chịu JSON khi `stream:true` (`shared.ts:329-337`) | server luôn có `index` trong `tool_calls`; header chỉ gửi khi đã có câu trả lời upstream (≤ 55 giây, dưới watchdog 60 giây `watchdog.ts:8`), lỗi là status HTTP thật, không bao giờ 200 rỗng (§4.5, §4.13) |
+| `x_uniwork` | bị bỏ qua, không lỗi; chưa có chỗ hiển thị: `AiStreamChunk.type` chỉ có `delta\|reasoning\|tool-call\|done\|error\|ping` (`packages/ai-provider/src/types.ts:216-220`), bản sao IPC `IpcStreamChunk.type` cũng vậy (`packages/agent-core/src/electron-transport.ts:14-18`) | thêm loại chunk/callback `notice` ở **cả ba** chỗ: đường JSON (`emitOpenAiJsonMessage`), đường SSE (`openai-compatible.ts`), và cầu IPC desktop (`AiStreamChunk.type` + `IpcStreamChunk.type`, kênh `ai:stream-chunk` main → renderer của từng app, ví dụ `apps/docs/src/main/docs-main.ts:3840`, `apps/slides/src/main/ai-ipc.ts:180`); chip ở G6-05u |
+| 429 / `Retry-After` | desktop không đọc, 429 thành `Error("HTTP 429: …")` (`openai-compatible.ts:206-210`); web ném `AiWebError` cho mọi 429 ngay trong `createProxyFetch` (`web/modules/shared/ai/transport.ts:101-110`, `errors.ts:148-165`), parse `retryAfterSec` nhưng không chờ | vòng chờ tối đa 3 lần, kẹp 300 giây, rẽ theo `code`; **hai chỗ**: desktop trước `openai-compatible.ts:209`, web trong `transport.ts`/`errors.ts` (vòng chờ chỉ ở `:206-210` không bao giờ chạy trên web) (§4.5) |
+| Trần run | client 100 lượt; tự gửi lại 3 trường hợp. Một `run_limit_reached` 429 thành chữ `HTTP 429: …`, khớp `\bHTTP (429\|503\|529)\b` trong `packages/ai-provider/src/overload-error.ts:10-20` → `errorCode: 'overloaded'` (`packages/ai-provider/src/ai-chat-error.ts:43`) → "AI đang bận, thử lại sau" thay vì `aiErrRunLimit` + "Hỏi tiếp" | rẽ theo mã **trước** bộ phân loại `overloaded` (desktop) và trước `createProxyFetch` ném (web). Khuyến nghị gốc: trả lời Q2 bằng **409** để run limit không bao giờ là 429 (§4.3, §8.1) |
+| 403 | desktop: 403 có `content-type: text/html` bị coi là trang chặn và gửi lại qua rescue fetch (`packages/ai-provider/src/fetch.ts:63-67,85-97`); web: 403 là `entitlement_required` (`errors.ts:99-108`) | façade luôn trả 403 bằng **JSON** (`office_capability_off`, lỗi quyền tài liệu ở route §5), không bao giờ `text/html`; G6-05 map `code` của 403 thay vì coi mọi 403 là thiếu entitlement |
 | Provider không khóa | handler main của docs/sheets/slides **từ chối provider không có `apiKey`** (`apps/docs/src/main/docs-main.ts:3842`, `apps/slides/src/main/ai-ipc.ts:182`, `apps/sheets/src/main/sheets-main.ts:3743,3779`); pdf/html/markdown chưa định vị handler | G6-05 sửa handler main của mọi module, không chỉ `packages/ai-provider` |
 | Web | `toProxyRequest` chỉ nhận URL `/byok/…` (`web/modules/shared/ai/transport.ts:45-87`); `proxyConfig` cứng `byok` (`stream.ts:68-79`); `WEB_PROVIDER_IDS` và `settings()` chỉ dựng từ khóa BYOK đã lưu (`web-ai.ts:71-73`, `:359-409`) | đường riêng cho `…/ai/uniwork/chat/completions` và mục provider không khóa |
 | Seam cloud | `UNIWORK_CLOUD_TOOLS` chưa có `chat` (`uniwork-cloud.ts:17-26`) | thêm `chat` (plan G6-05) |
@@ -588,18 +669,22 @@ dưới đây tương đối với gốc fork.
 
 Phạm vi sửa ở fork (notes §6): `packages/ai-provider/src/{types,providers,registry,stream,uniwork-cloud,fetch,ai-notice}.ts`,
 `protocols/{openai-compatible,shared}.ts` (hoặc `protocols/uniwork.ts` mới), handler `ai:stream` của từng app,
-`packages/ui` (picker, logo), `web/modules/shared/ai/*`, map capability web và khóa frame `uniworkAi` (thay đổi hai repo,
-spec §3 bất biến 9). Sự kiện `aiRun` (X-02) chưa có ở pin này.
+`packages/ui` (picker, logo), `web/modules/shared/ai/*` (gồm `transport.ts`/`errors.ts` cho vòng chờ 429 và nhánh theo
+mã), `packages/ai-provider/src/{overload-error,ai-chat-error}.ts` (rẽ mã trước bộ phân loại), `packages/agent-core/src/electron-transport.ts`
+(`IpcStreamChunk` thêm `notice`), map capability web và khóa frame `uniworkAi` (thay đổi hai repo, spec §3 bất biến 9).
+Sự kiện `aiRun` (X-02) chưa có ở pin này.
 
 ## 8. Rủi ro và việc còn mở
 
 | Rủi ro / việc | Ảnh hưởng | Xử lý đề xuất |
 | --- | --- | --- |
 | Upstream production không trả `usage` (upstream dev có trả, 20/20) | credit tính sai | `usage_unknown` + đối soát (§4.15); kiểm lại trên ứng viên G6-D2 bằng cùng harness |
-| `usage` của upstream gồm overhead riêng (~2.6k token trên upstream dev, §3 ghi chú 2) | credit/cost tính cả phần không phải của UniWork | dev: chấp nhận; production: G7-D1 đo overhead của ứng viên trước khi chốt cost/run |
-| Artifact AC-2 chỉ giữ 200 trong 2472 tên của `/v1/models`, không có `gpt-6-luna` (§3 ghi chú 1) | contract-p0 §8 muốn model dev chọn từ danh sách; thành viên chưa được ghi | Bộ đọc đã sửa (`85bca4171`, tên đã đọc được); thêm cờ `model_in_list` hoặc liệt kê đủ ở lần chạy sau; bằng chứng gián tiếp: model sai 404, `gpt-6-luna` 20/20 |
-| `openai.go` không gửi `stream`; `deepseek-4.1` trên upstream dev coi là `stream:true`, còn `stream:false` thì không trả tool call (§3 ghi chú 4) | đường không stream không đọc được mọi model của upstream | G6-13 gửi `stream:false` tường minh; dev dùng `gpt-6-luna`; kiểm lại từng ứng viên G6-D2 bằng harness |
-| Latency p95 lượt 2 lệch giữa hai lần chạy (4,9 → 9,8 giây) | số p95 không ổn định trên upstream dev dùng chung | dùng khoảng trong báo cáo; G6-08/G7-D1 đo lại với tải thật trước khi chốt trần 10 lượt |
+| `usage` của upstream gồm overhead riêng (~2,6k token mỗi lượt trên upstream dev, cả hai lần AC-2, §3 ghi chú 2) | `prompt_tokens` của upstream không phải tín hiệu chi phí trung thực: dòng `ai_usage_events`/`quota.Record` (§4.15) tính cả phần người dùng không gửi; trên dev, prompt vài chục token thành ~2,6k | dev: chấp nhận, không dùng số dev để định giá; G6-13/G6-03b ghi usage upstream nguyên trạng, ngân sách §4.7 so với ước lượng UniWork; production: G7-D1 đo overhead của ứng viên G6-D2 bằng cùng harness trước khi chốt cost/run và quota |
+| `/v1/models` liệt kê 2472 tên, artifact giữ mẫu 200 (§3 ghi chú 1) | — | **Đã đóng:** `d9049f79c` tính `model_in_list` trên toàn danh sách; AC-2 lần 2: `gpt-6-luna` có (`true`) |
+| `openai.go` không gửi trường `stream`; `deepseek-4.1` trên upstream dev coi thiếu là `stream:true`, còn `stream:false` thì không trả tool call (§3 ghi chú 4) | đường không stream phụ thuộc mặc định của từng upstream/model | **G6-13 phải gửi `stream` tường minh** (`false` ở `Complete`) + test hợp đồng thân request có khóa `stream`; dev dùng `gpt-6-luna`; mỗi ứng viên G6-D2 chạy lại harness |
+| p95 lệch giữa hai lần AC-2 (cả vòng 12 702 vs 5182 ms; lượt 2 9819 vs 1971 ms) | với 10 mẫu, p95 = mẫu chậm nhất, nên một lượt chậm của upstream dev dùng chung quyết định nó | mọi trần/timeout dựa trên lần xấu hơn (lần 1, §3); G6-08/G7-D1 đo lại với nhiều mẫu hơn và tải thật trước khi chốt trần 10 lượt |
+| Trần chờ upstream 55 giây ở v1 (§4.13) | câu trả lời văn bản dài gần `MaxTokens` 4096 trên upstream chậm (< ~75 token/giây) thành 504 `ai_provider_timeout` | G6-08 đo lượt dài nhất trên dev set; chạm trần → bật stream thật v1.1, không nới trần (watchdog fork 60 giây) |
+| Stream thật v1.1 cần frame kết thúc sau header (`x_uniwork.terminal`, §4.13) | adapter v1 không đọc được nó → v1.1 phải phát hành lại app | quyết khi ký v1.1; nếu muốn v1.1 bật chỉ bằng server, G6-05 đọc `x_uniwork.terminal` từ v1 + test `fake` |
 | `temperature` không gửi khi 0 (`openai.go:48`) | upstream dùng mặc định riêng, kết quả kém xác định | chấp nhận ở v1 (gửi tường minh làm Claude qua lớp compat trả 400, §4.1); G6-08 đo độ ổn định trên dev set |
 | Schema công cụ module lớn | ăn ngân sách 48 000 | G6-01 đo kích thước schema; G6-14 báo nếu > 8000 token |
 | Khóa `AI_CONVERSATION_KEY` mới | thêm secret phải quản lý | ADR 0029 Hệ quả: secret manager; không có xoay khóa v1, đổi khóa = mọi transcript thành `conversation_expired` (chấp nhận được vì TTL 30 phút) |
@@ -607,7 +692,7 @@ spec §3 bất biến 9). Sự kiện `aiRun` (X-02) chưa có ở pin này.
 | Gateway một provider cho cả server (spec §8.1) | đổi upstream UniWork AI đổi luôn Ask UNI | ngoài v1, cần ADR |
 | Số trong bảng tóm tắt | chưa ký | người dùng ký G6-D1 ở lô #2 (contract-p0 §2, §11); G7-D1 cho trần đồng thời ở lô #3 |
 
-Mọi quyết định của thẻ G6-02 đã có đề xuất và bằng chứng; không mục nào còn chờ số đo. Còn mở ngoài phạm vi quyết định: cờ thành viên của `gpt-6-luna` trong `/v1/models` (§3 ghi chú 1; tên đã đọc được), các câu hỏi Q1–Q5 ở §8.1, và việc ký G6-D1 / G6-D2 / G7-D1.
+Mọi quyết định của thẻ G6-02 đã có đề xuất và bằng chứng; không mục nào còn chờ số đo. Còn mở ngoài phạm vi quyết định: các câu hỏi Q1–Q5 ở §8.1, hai việc ngoài lane ở §8.1 hàng 13–14 (spine EXPERIENCE), và việc ký G6-D1 / G6-D2 / G7-D1.
 
 ### 8.1 Đối chiếu contract-p0
 
@@ -618,26 +703,32 @@ sửa contract-p0. "Thay đổi" là phần đã sửa trong báo cáo này.
 | --- | --- | --- | --- |
 | 1 | G6-D1 ký bởi "AI Platform + owner F" (theo plan §3) | G6-D1 → người dùng; "Báo cáo G6-02 → lô #2; người dùng" (§2, §11) | Sửa phần dẫn bảng tóm tắt và hàng rủi ro cuối: cột "Ký" chỉ còn là vai soạn/đồng sở hữu, người ký là người dùng |
 | 2 | Cờ tắt → "request mới bị từ chối" (không nêu mã) | Cờ ẩn capability, trả `office_capability_off` 403 kèm `fields.capability`, không nhập vào `permission` (§4) | §4.9 dùng mã này; giá trị `fields.capability` chưa chốt (câu hỏi Q1) |
-| 3 | `run_limit_reached` chỉ nêu tên mã; vòng chờ 429 ở §4.5 chưa phân biệt | `run_limit_reached` 429, không lớp (§4) | §4.3 ghi HTTP 429 và buộc client phân biệt theo mã (Q2) |
+| 3 | `run_limit_reached` chỉ nêu tên mã; vòng chờ 429 ở §4.5 chưa phân biệt | `run_limit_reached` 429, không lớp (§4) | §4.3, §4.5 ghi HTTP 429 và buộc client phân biệt theo mã; §7 nêu chỗ fork xếp 429 là "bận" (`overload-error.ts:10-20`, `ai-chat-error.ts:43`); **khuyến nghị đổi sang 409** (Q2) |
 | 4 | `conversation_expired` không nêu HTTP | 409, không lớp, registry thêm khi G6-D1 đóng (§4) | §4.9 ghi 409 |
 | 5 | `ai_uniwork_runs` thuộc "hạ tầng AI", vẫn cần bảng | Migration G6-03b hàng 5 chỉ "nếu G6-02 xếp run là business state" (§5) | Báo cáo giữ kết luận hạ tầng AI (§4.15) **và** nêu bảng vẫn cần migration; điều kiện của contract-p0 đọc lệch (Q3) |
 | 6 | Tên migration `999<ms>_ai_uniwork_conversations` | Hàng 4, đúng tên; `<ms>` = `max(unix-ms lúc viết, tiền tố lớn nhất + 1)` (§5) | §4.9 ghi quy tắc `<ms>`; không đổi tên |
 | 7 | Route thứ ba `POST /api/v1/documents/{documentID}/ai/uniwork/chat/completions` (OQ-P2) | §3 chỉ có hai route AI (org, office-frame), "hình dạng wire: G6-D1" | Không xung đột; giữ làm đề xuất G6-D1, nêu rõ cần thêm hàng vào §3 khi ký (§5) |
-| 8 | Mã `ai_tool_result_too_large` (413), `ai_uniwork_busy` (429) | Bảng mã §4 không có hai mã này | Giữ làm đề xuất G6-D1; thêm vào bảng khi ký (§4.6, §4.10; Q4) |
+| 8 | Mã `ai_tool_result_too_large` (413), `ai_uniwork_busy` (429), `ai_provider_timeout` (504) | Bảng mã §4 không có ba mã này | Giữ làm đề xuất G6-D1; thêm vào bảng khi ký (§4.5, §4.6, §4.10, §4.13; Q4) |
 | 9 | Dev env: `AI_PROVIDER=openai`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `AI_MODEL_ALLOW`, `AI_MODEL_OFFICE_UNIWORK_AI`; capability `office_uniwork_ai` | Cùng tên, cùng giá trị cloud (`fake`, không đặt gì) (§8) | Khớp, chỉ thêm trích dẫn (§2, §4.1) |
 | 10 | `office.ai_cloud`, không migration | Đã đóng bởi U-13, §5 hàng 6 | Khớp, thêm trích dẫn (§4.14) |
 | 11 | Các seam `router.go`, `openapi.go`, `main.go`, isolation matrix nhắc rải rác | Lead D giữ, sửa nối tiếp qua root (§2) | Thêm nhắc ở §4.11 và §5 |
 | 12 | Không nhắc "My AI"/model theo tài khoản (UNI-1240) | §1: G6-02/G6-03c xác minh đường dẫn cụ thể khi dùng | Spike không đụng nên **chưa xác minh**; để G6-03c (Q5) |
+| 13 | (ngoài contract-p0) spine UX `docs/office/g5g6g7/ux/EXPERIENCE.md:134` (Result chip luật 2) vẫn ghi "Chưa hỗ trợ nếu server báo tool call bị bỏ hoặc `finish_reason = tool_not_allowed`" | — | Báo cáo bỏ `tool_not_allowed` (§4.12: call bị lọc chỉ đi qua `x_uniwork.dropped_tool_calls`, `finish_reason` chuẩn). Spine phải bỏ vế `finish_reason = tool_not_allowed` để G6-05u không cài nhánh cho giá trị server không bao giờ gửi. Spine **không** là path của lane: **Advisor sửa khi đóng G6-D1** |
+| 14 | (ngoài contract-p0) `aiErrWorkbookTooLarge` (`EXPERIENCE.md:524,1001`) là câu chỉ cho web ("mở bằng ứng dụng") | — | 413 `ai_tool_result_too_large` cũng tới desktop (§4.6): cần một chuỗi desktop vi/en không có hành động mở ứng dụng. Follow-up UX cho **Advisor/UX owner** (spine), G6-05u dùng chuỗi đó khi có |
 
 Câu hỏi cho lead (contract-p0 giữ nguyên):
 - **Q1.** `fields.capability` của `office_capability_off` nhận giá trị gì cho UniWork AI: `ai_uniwork` (khóa của route
   capability app, §4) và `ai_uniwork_<format>`? Đề xuất dùng đúng các khóa đó.
-- **Q2.** `run_limit_reached` là 429 như limiter nên phía fork vòng chờ 429 hiện xử lý theo status. Đề xuất giữ 429 nhưng
-  G6-05 rẽ theo mã (không `Retry-After` thì không chờ). Nếu muốn tránh lệ thuộc đó, đổi HTTP (ví dụ 409) trước khi X-03 phát hành.
+- **Q2.** `run_limit_reached` là 429 như limiter. Ở pin `0d03b185` mọi 429 bị fork xếp "AI bận" trước khi ai đọc mã
+  (desktop `overload-error.ts:10-20` → `ai-chat-error.ts:43`; web `transport.ts:107`), nên giữ 429 buộc G6-05 rẽ theo mã ở
+  hai chỗ trước các bộ đó, và một bản fork thiếu nhánh sẽ tự chờ rồi báo "bận" cho một run đã hết trần. **Khuyến nghị:
+  đổi `run_limit_reached` sang 409** (không lớp, cùng HTTP với `conversation_expired`, phân biệt theo mã) trước khi X-03
+  phát hành: 409 không nằm trong `BY_STATUS` của web và không khớp mẫu `overloaded`, nên không bao giờ vào vòng chờ;
+  đây là sửa một hàng của contract-p0 §4, cần người dùng ký cùng G6-D1.
 - **Q3.** Hàng 5 của §5 ghi bảng run chỉ cần "nếu run là business state". Bảng bộ đếm run vẫn cần dù là hạ tầng AI. Xin xác nhận
   hàng 5 áp dụng vô điều kiện cho G6-03b (hoặc bộ đếm đi cùng migration hàng 4).
-- **Q4.** Có thêm `ai_tool_result_too_large` (413) và `ai_uniwork_busy` (429) vào bảng mã X-03 không, hay G6-03a/b đăng ký
-  qua registry owner (như `conversation_expired`) khi G6-D1 đóng?
+- **Q4.** Có thêm `ai_tool_result_too_large` (413), `ai_uniwork_busy` (429) và `ai_provider_timeout` (504, §4.13) vào
+  bảng mã X-03 không, hay G6-03a/b đăng ký qua registry owner (như `conversation_expired`) khi G6-D1 đóng?
 - **Q5.** Ai xác minh chỗ lưu "My AI"/model theo tài khoản của UNI-1240 (contract-p0 §1)? Báo cáo này không làm.
 
 ## 9. Tham chiếu
@@ -655,4 +746,4 @@ Câu hỏi cho lead (contract-p0 giữ nguyên):
   `server/internal/service/{office_frame,document_access,askuni}.go`, `server/pkg/db/queries/ai.sql`,
   `server/migrations/092_ai_gateway.up.sql`, `server/internal/service/audit_coverage_test.go`.
 - Báo cáo lane: `.uniwork-dev/office-g5g6g7/reports/g6-ai_server/` — `w1-spike-report.md`, `ac2-dev-run-1.json`,
-  `notes-fork-adapter.md`, `notes-upstream-candidates.md` (ngoài repo).
+  `ac2-dev-run-2.json`, `notes-fork-adapter.md`, `notes-upstream-candidates.md`, `review-fe-1.md` (ngoài repo).
