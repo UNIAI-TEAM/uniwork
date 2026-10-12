@@ -33,7 +33,8 @@
     "Every row carries evidenceRequired: the artifacts and records that would prove it, so a row without an evidence plan fails even while it is NOT_RUN.",
     "A BLOCKED row carries blocker.gate (plan Section 3), blocker.owner and blocker.reason.",
     "gate records the open decision gate that affects the row even when the row is NOT_RUN; null when no gate affects it.",
-    "acceptance.md repeats these rows cell for cell; the sibling test fails on any drift between the two."
+    "acceptance.md repeats these rows cell for cell; the sibling test fails on any drift between the two, and it recomputes the count table and the open-gate section from these rows.",
+    "The sibling test reads the runner ledger only when OFFICE_EVIDENCE_LEDGER names it; evidenceLedger above is the path the runner writes, never read implicitly (it is gitignored)."
   ],
   "rowCounts": {
     "G5": 8,

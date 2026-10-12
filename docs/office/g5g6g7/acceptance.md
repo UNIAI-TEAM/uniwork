@@ -96,4 +96,6 @@ hoặc một dòng `BLOCKED` không có blocker đều bị từ chối; một l
 không bao giờ là `PASS`. `reset` xóa dữ liệu và artifact của lane nhưng từ chối chạm database không mang tiền tố test
 của lane, kể cả `uniwork_test` dùng chung.
 
+Test chỉ đọc sổ bằng chứng khi biến `OFFICE_EVIDENCE_LEDGER` trỏ tới nó: đường dẫn mặc định nằm trong `.gitignore`, nên một sổ cũ của revision khác không thể âm thầm chống lưng cho một dòng `PASS`.
+
 Dòng bị chặn vẫn giữ nguyên; gỡ chặn bằng cách đóng gate rồi chạy lại trên revision cuối, không sửa tay trạng thái.
