@@ -105,14 +105,18 @@ func changeErrorCode(out map[string]any) string {
 // off answers 403 office_capability_off with fields.capability.
 func TestDocumentChangesHTTPErrorAnswers(t *testing.T) {
 	w := newChangeFeedWorld(t)
+	// Two documents and limit=1: the cold start hands out a mid-pagination
+	// SNAPSHOT cursor, the only kind that names the snapshot. A single-page
+	// snapshot hands out the feed cursor, which answers 501 until G5-01b.
+	w.seedDoc(t, util.NewID())
 
 	status, out := w.feed(t, "limit=1")
 	if status != http.StatusOK {
 		t.Fatalf("cold start = %d %v, want 200", status, out)
 	}
 	cursor, _ := out["next_cursor"].(string)
-	if cursor == "" {
-		t.Fatalf("cold start hands out no cursor: %v", out)
+	if more, _ := out["has_more"].(bool); cursor == "" || !more {
+		t.Fatalf("cold start hands out no snapshot cursor: %v", out)
 	}
 	// The snapshot is swept before the next page: the cursor itself is
 	// genuine and unexpired, so the honest answer is a full resync, never a
