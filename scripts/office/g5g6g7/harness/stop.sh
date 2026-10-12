@@ -16,10 +16,12 @@ RUN_DIR="${HARNESS_RUN_DIR:-$REPO_ROOT/.harness-run}"
 PID_FILE="$RUN_DIR/pids"
 
 # What the run wrote outside its logs and evidence, removed by exact path: the
-# uploaded fixture documents (LOCAL_UPLOAD_DIR) and the server's private cwd with
-# its .env copy. Logs, userdata and evidence stay for the round's report.
+# uploaded fixture documents (LOCAL_UPLOAD_DIR), the server's private cwd with its
+# .env copy, and the run's Xauthority file (the display cookie start.sh gave its
+# Xvfb). Logs, userdata and evidence stay for the round's report.
 remove_run_data() {
   rm -rf "$RUN_DIR/uploads" "$RUN_DIR/server-cwd"
+  rm -f "$RUN_DIR/xauthority"
 }
 
 if [ ! -f "$PID_FILE" ]; then

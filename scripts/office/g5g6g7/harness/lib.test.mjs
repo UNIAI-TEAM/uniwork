@@ -1567,10 +1567,20 @@ test("stop.sh removes the run's uploads and server cwd by path and keeps logs an
   writeFileSync(join(runDir, "logs", "server.log"), "log");
   writeFileSync(join(runDir, "evidence.jsonl"), "{}\n");
   writeFileSync(join(runDir, "pids"), "");
+  writeFileSync(join(runDir, "xauthority"), "cookie", { mode: 0o600 });
   const result = spawnSync("bash", [join(HERE, "stop.sh")], { encoding: "utf8", env: { ...process.env, HARNESS_RUN_DIR: runDir } });
   assert.equal(result.status, 0, result.stderr);
   assert.ok(!existsSync(join(runDir, "uploads")) && !existsSync(join(runDir, "server-cwd")));
+  assert.ok(!existsSync(join(runDir, "xauthority")), "the Xvfb's Xauthority cookie is removed (R2-3)");
   assert.ok(existsSync(join(runDir, "logs", "server.log")) && existsSync(join(runDir, "evidence.jsonl")));
+});
+
+test("stop.sh removes the Xauthority file also when there is no pid file (R2-3)", () => {
+  const runDir = mkdtempSync(join(tmpdir(), "harness-stop-"));
+  writeFileSync(join(runDir, "xauthority"), "cookie", { mode: 0o600 });
+  const result = spawnSync("bash", [join(HERE, "stop.sh")], { encoding: "utf8", env: { ...process.env, HARNESS_RUN_DIR: runDir } });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(!existsSync(join(runDir, "xauthority")));
 });
 
 test("document-step's precondition BLOCKED line (no D server up) carries its fixture and an artifact log (R2-1)", () => {
