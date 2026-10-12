@@ -192,7 +192,7 @@ test("the lib.mjs CLI modes answer and name the mode on a bad call", () => {
  * on the path start.sh execs, pnpm/electron sleep) — this is the "dry-run with a
  * fake server/web" the fix asks for, not a stand-in for the real stack.
  */
-function mkFakeStack({ lib } = {}) {
+function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true } = {}) {
   const root = mkdtempSync(join(tmpdir(), "harness-start-"));
   const bin = join(root, "bin");
   const harness = join(root, "scripts", "office", "g5g6g7", "harness");
@@ -201,7 +201,7 @@ function mkFakeStack({ lib } = {}) {
   const forkDir = join(cacheDir, "uniwork-office-0d03b18");
   const shellDir = join(forkDir, "apps", "shell");
   const electronDir = join(shellDir, "node_modules", "electron");
-  for (const dir of [bin, harness, join(root, "node_modules"), join(root, "server", "cmd", "server"), join(root, "server", "cmd", "migrate"), join(forkDir, ".git"), join(forkDir, "node_modules"), join(shellDir, "out", "main"), electronDir]) {
+  for (const dir of [bin, harness, join(root, "node_modules"), join(root, "server", "cmd", "server"), join(root, "server", "cmd", "migrate"), join(forkDir, ".git"), join(forkDir, "node_modules", ".bin"), join(forkDir, "node_modules", "electron", "dist"), join(shellDir, "out", "main"), electronDir]) {
     mkdirSync(dir, { recursive: true });
   }
   copyFileSync(START_SH, join(harness, "start.sh"));
@@ -213,12 +213,40 @@ function mkFakeStack({ lib } = {}) {
     chmodSync(join(bin, name), 0o755);
   };
   shim("go", "#!/usr/bin/env bash\nif [ \"$1\" = build ]; then mkdir -p bin && : > bin/harness-server && chmod +x bin/harness-server; exit 0; fi\nexit 0\n");
+  // The harness puts nvm's Node 22 first on PATH; the fake nvm hands it this
+  // bin dir, so the stubs below keep winning and the test never depends on the
+  // host's nvm. `node` here is the real Node (the harness must keep running).
+  shim("node", `#!/usr/bin/env bash\nexec ${process.execPath} "$@"\n`);
   shim("pnpm", "#!/usr/bin/env bash\nsleep 600\n");
-  shim("curl", "#!/usr/bin/env bash\nexit 0\n");
+  // The network probe is `curl ... <fork>/info/refs`; the app's own probes are
+  // `curl -sf -o /dev/null <url>`. `network:false` fails only the former.
+  shim("curl", network
+    ? "#!/usr/bin/env bash\nexit 0\n"
+    : "#!/usr/bin/env bash\nfor a in \"$@\"; do case \"$a\" in */info/refs*) exit 7 ;; esac; done\nexit 0\n");
   shim("ldconfig", "#!/usr/bin/env bash\nprintf 'libnss3.so\\nlibatk-1.0.so.0\\nlibgbm.so.1\\nlibasound.so.2\\nlibcups.so.2\\n'\n");
   shim("git", "#!/usr/bin/env bash\ncase \"$1\" in rev-parse) echo 1111111111111111111111111111111111111111; exit 0 ;; esac\nexit 0\n");
   shim("xvfb-run", "#!/usr/bin/env bash\nwhile [ \"$#\" -gt 0 ]; do case \"$1\" in --*) shift ;; --*=*) shift ;; *) break ;; esac; done\nexport DISPLAY=:99\nexec \"$@\"\n");
   shim("fake-electron", "#!/usr/bin/env bash\nsleep 600\n");
+  // Records its argv (the install strategy is asserted from it) and answers with
+  // npmExit, so a failing install is exercised without a real npm. `ci
+  // --ignore-scripts` on a clean tree leaves the two things start.sh then probes
+  // (electron's install.js and a working esbuild), which is what a real run does.
+  shim("npm", [
+    "#!/usr/bin/env bash",
+    `printf '%s\\n' "$*" >> "${join(root, "npm-argv")}"`,
+    "echo \"npm stub: $*\"",
+    `if [ "${npmExit}" = 0 ] && [ "$1" = ci ]; then`,
+    `  mkdir -p "${join(forkDir, "node_modules", "electron", "dist")}" "${join(forkDir, "node_modules", ".bin")}"`,
+    `  : > "${join(forkDir, "node_modules", "electron", "install.js")}"`,
+    `  printf 'electron\\n' > "${join(forkDir, "node_modules", "electron", "path.txt")}"`,
+    `  : > "${join(forkDir, "node_modules", "electron", "dist", "electron")}"`,
+    `  chmod +x "${join(forkDir, "node_modules", "electron", "dist", "electron")}"`,
+    `  printf '#!/usr/bin/env bash\\necho 0.25.12\\n' > "${join(forkDir, "node_modules", ".bin", "esbuild")}"`,
+    `  chmod +x "${join(forkDir, "node_modules", ".bin", "esbuild")}"`,
+    "fi",
+    `exit ${npmExit}`,
+    "",
+  ].join("\n"));
 
   // The fork looks built, so the slow build:all never runs.
   writeFileSync(join(forkDir, ".harness-built"), "0d03b18\n");
@@ -226,9 +254,34 @@ function mkFakeStack({ lib } = {}) {
   writeFileSync(join(electronDir, "package.json"), '{"name":"electron","version":"0.0.0","main":"index.js"}\n');
   writeFileSync(join(electronDir, "index.js"), `module.exports = ${JSON.stringify(join(bin, "fake-electron"))};\n`);
 
+  if (forkTree === "installed") {
+    // What `npm ci --ignore-scripts` + the binary fetch leave behind, as
+    // start.sh's fork_tree_ready / binary probes see it.
+    writeFileSync(join(forkDir, "node_modules", "electron", "install.js"), "// electron install.js\n");
+    writeFileSync(join(forkDir, "node_modules", "electron", "path.txt"), "electron\n");
+    mkdirSync(join(forkDir, "node_modules", "electron", "dist"), { recursive: true });
+    writeFileSync(join(forkDir, "node_modules", "electron", "dist", "electron"), "");
+    chmodSync(join(forkDir, "node_modules", "electron", "dist", "electron"), 0o755);
+    writeFileSync(join(forkDir, "node_modules", ".bin", "esbuild"), "#!/usr/bin/env bash\necho 0.25.12\n");
+    chmodSync(join(forkDir, "node_modules", ".bin", "esbuild"), 0o755);
+  }
+  // The app resolves electron from apps/shell/node_modules; its binary is what
+  // `require("electron")` prints, so it exists whenever the app may start.
+  if (forkTree === "installed" || npmExit === 0) {
+    writeFileSync(join(electronDir, "path.txt"), "electron\n");
+    mkdirSync(join(electronDir, "dist"), { recursive: true });
+    writeFileSync(join(electronDir, "dist", "electron"), "");
+    chmodSync(join(electronDir, "dist", "electron"), 0o755);
+  }
+
   const envFile = join(root, "env");
   writeFileSync(envFile, "DATABASE_URL=postgres://u:p@localhost:5432/db?sslmode=disable\nREDIS_URL=redis://localhost:6379/0\n");
-  return { root, bin, harness, runDir, cacheDir, envFile };
+  // A fake nvm: `nvm which 22` names the stub bin dir, so start.sh's nvm branch
+  // is exercised and the stubs stay in front of PATH.
+  const nvmDir = join(root, "nvm");
+  mkdirSync(nvmDir, { recursive: true });
+  writeFileSync(join(nvmDir, "nvm.sh"), `nvm() { case "$1" in which) echo "${bin}/node" ;; *) return 1 ;; esac; }\n`);
+  return { root, bin, harness, runDir, cacheDir, envFile, nvmDir, npmArgv: join(root, "npm-argv") };
 }
 
 function runStart(stack, extraEnv = {}) {
@@ -241,6 +294,7 @@ function runStart(stack, extraEnv = {}) {
       ENV_FILE: stack.envFile,
       HARNESS_RUN_DIR: stack.runDir,
       OFFICE_FORK_CACHE: stack.cacheDir,
+      NVM_DIR: stack.nvmDir,
       ...extraEnv,
     },
   });
@@ -275,6 +329,72 @@ test("start.sh reaches up through the real lib.mjs fork-dir call (fake stack)", 
     for (const name of ["server-build.log", "migrate.log", "server.log", "web.log", "app.log"]) {
       assert.ok(existsSync(join(stack.runDir, "logs", name)), `missing ${name}`);
     }
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+// ---- the fork install (r3): the runner's way, and FAIL vs BLOCKED -------------
+// The r2 cloud round died inside `npm ci`: the fork's root `postinstall:
+// install-electron` downloaded a 123 MiB GitHub release during the install and a
+// 504 from the release host took the whole `npm ci` down, reported as BLOCKED.
+// The fix installs the way the runner does (install-office.sh:15 + run-tests.sh)
+// — no scripts during `npm ci`, the Electron binary fetched by its own install.js
+// afterwards — and a step that fails while the VM is fine is a FAIL, not BLOCKED.
+
+function npmArgv(stack) {
+  return existsSync(stack.npmArgv) ? readFileSync(stack.npmArgv, "utf8").trim().split("\n").filter(Boolean) : [];
+}
+
+test("start.sh installs the fork with npm ci --ignore-scripts, never a bare npm ci", () => {
+  const stack = mkFakeStack({ forkTree: "absent" });
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /harness: up/);
+    const installs = npmArgv(stack).filter((line) => line.startsWith("ci"));
+    assert.equal(installs.length, 1, `expected exactly one npm ci, saw ${JSON.stringify(npmArgv(stack))}`);
+    // No lifecycle script may run during `npm ci`: electron 43 ignores the
+    // ELECTRON_SKIP_BINARY_DOWNLOAD flag that made the postinstall harmless
+    // through 42.x, so the flag alone no longer keeps the 123 MiB download out
+    // of the install (and out of its failure path).
+    assert.match(installs[0], /--ignore-scripts/);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("start.sh does not install a fork whose tree is already complete", () => {
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(npmArgv(stack).length, 0, `npm was called: ${JSON.stringify(npmArgv(stack))}`);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("a failing fork install is a FAIL with the log tail, not BLOCKED", () => {
+  const stack = mkFakeStack({ forkTree: "absent", npmExit: 7 });
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 1, `expected FAILED (1), got ${result.status}\n${result.stderr}`);
+    assert.match(result.stderr, /FAILED: npm ci --ignore-scripts failed in the fork/);
+    assert.match(result.stderr, /last 60 lines of the fork install/);
+    assert.doesNotMatch(result.stderr, /BLOCKED:/);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("a missing network for the fork is BLOCKED, not FAILED", () => {
+  const stack = mkFakeStack({ forkTree: "absent", network: false });
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 77, `expected BLOCKED (77), got ${result.status}\n${result.stderr}`);
+    assert.match(result.stderr, /BLOCKED: no network to /);
+    assert.equal(npmArgv(stack).length, 0, "the install must not be attempted without network");
   } finally {
     stopFakeStack(stack);
   }

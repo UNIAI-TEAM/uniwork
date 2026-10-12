@@ -14,8 +14,12 @@
 # kills exactly those PIDs.
 #
 # Exit codes: 0 up, 1 a step failed, 77 BLOCKED — a precondition the VM does not
-# meet (missing tool, no database, no fork revision). BLOCKED is never a pass:
-# the caller records it as BLOCKED with the reason printed here.
+# meet (missing tool, no database, no fork revision, no network, no display).
+# BLOCKED is never a pass: the caller records it as BLOCKED with the reason
+# printed here. A step that fails while its precondition is met — an install
+# strategy of ours that does not match the fork, a build that breaks — is a FAIL
+# (1), never BLOCKED: the r2 round reported BLOCKED for an install bug of this
+# script's own and read as "the VM cannot do it".
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -56,6 +60,8 @@ fail() { echo "FAILED: $1" >&2; exit 1; }
 LOG_DIR="$RUN_DIR/logs"
 LOG_TAIL_LINES="${HARNESS_LOG_TAIL_LINES:-40}"
 dumped_logs=0
+# Logs a step already tailed itself (fork_log_tail); the trap must not repeat them.
+already_tailed=""
 dump_logs() {
   [ -d "$LOG_DIR" ] || return 0
   local log any=0
@@ -64,6 +70,7 @@ dump_logs() {
     # lib.log is lib.mjs's last stderr; run_lib already echoes it on the failing
     # call, so dumping it again here would only duplicate it.
     [ "$(basename "$log")" = "lib.log" ] && continue
+    case " $already_tailed " in *" $log "*) continue ;; esac
     any=1
     echo "harness: ---- tail -$LOG_TAIL_LINES $(basename "$log") ----" >&2
     tail -n "$LOG_TAIL_LINES" "$log" >&2 || true
@@ -119,6 +126,37 @@ fi
 
 NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
 [ "$NODE_MAJOR" -ge 22 ] || blocked "node $NODE_MAJOR is older than 22" "install Node 22 on the VM"
+
+# ---- Node 22 from nvm, when the VM's default node is not it ------------------
+# The cloud VM's default `node` is not guaranteed to be a 22.x: the agent image
+# ships its own build and the runner may put another one first. The fork pins
+# `engines.node >= 22.12.0` (electron 43's own engine), so every fork step —
+# install, build, electron download, the app — must run on a Node 22. nvm is
+# sourced in a subshell (its script is not `set -u` clean) and only the resolved
+# 22.x bin dir is taken from it; when nvm has no 22 the ambient node is used if
+# it satisfies the engine, and a VM with neither is BLOCKED, never a silent run
+# on the wrong major.
+NODE_ENGINE_MIN="${HARNESS_NODE_ENGINE_MIN:-22.12.0}"
+node_engine_ok() { # node_engine_ok <node-bin>
+  [ -x "$1" ] || return 1
+  "$1" -e 'const [a,b]=process.versions.node.split(".").map(Number);const [x,y]=process.argv[1].split(".").map(Number);process.exit(a>x||(a===x&&b>=y)?0:1)' "$NODE_ENGINE_MIN"
+}
+nvm_node_bin() {
+  local sh="${NVM_DIR:-$HOME/.nvm}/nvm.sh"
+  [ -s "$sh" ] || return 1
+  bash -c 'set +u; . "$1" > /dev/null 2>&1 || exit 1; nvm which 22 2> /dev/null' _ "$sh"
+}
+NVM_NODE="$(nvm_node_bin || true)"
+if [ -n "$NVM_NODE" ] && node_engine_ok "$NVM_NODE"; then
+  PATH="$(dirname "$NVM_NODE"):$PATH"
+  export PATH
+  echo "harness: node $("$NVM_NODE" -p 'process.versions.node') from nvm ($NVM_NODE)"
+elif node_engine_ok "$(command -v node)"; then
+  echo "harness: node $(node -p 'process.versions.node') from PATH (nvm has no usable 22.x)"
+else
+  blocked "no Node >= $NODE_ENGINE_MIN on this VM (nvm: ${NVM_NODE:-none}, PATH: $(node -p 'process.versions.node' 2> /dev/null || echo none))" \
+    "install Node 22 on the VM (nvm install 22, or the NodeSource 22.x package)"
+fi
 
 # The env file the VM already prepared (cloud runner: write-env.sh). The harness
 # reuses that database and Redis — it creates neither, and never resets them.
@@ -295,13 +333,27 @@ FORK_DIR="$(run_lib "resolve the fork cache dir" --fork-dir "$FORK_CACHE" "$FORK
   || fail "could not resolve the fork cache dir for $FORK_SHA (see the step above and $LOG_DIR/lib.log)"
 [ -n "$FORK_DIR" ] || fail "lib.mjs --fork-dir returned an empty path for $FORK_SHA"
 mkdir -p "$FORK_CACHE"
+# Is the fork reachable? A VM without network is the one precondition that makes
+# every fork step impossible, so it is probed on its own and reported as BLOCKED;
+# with the network up, a clone or install that fails is this harness's step
+# failing (FAIL), never a missing capability. Only run when the work is needed,
+# so a warm cache never depends on the probe.
+fork_network_ok() {
+  curl -sf -o /dev/null --max-time 20 "$FORK_REMOTE/info/refs?service=git-upload-pack"
+}
+
 if [ ! -d "$FORK_DIR/.git" ]; then
   echo "harness: cloning the fork at $FORK_SHA..."
   # Replace a half-written cache entry through a staging dir, so a failed clone
   # can never leave a directory that looks like a checkout.
   rm -rf "$FORK_DIR.staging"
-  git clone -q "$FORK_REMOTE" "$FORK_DIR.staging" > "$RUN_DIR/logs/fork-clone.log" 2>&1 \
-    || { tail -20 "$RUN_DIR/logs/fork-clone.log" >&2; blocked "could not clone $FORK_REMOTE" "give the VM network access to the fork, or pre-clone it at OFFICE_FORK_CACHE"; }
+  if ! git clone -q "$FORK_REMOTE" "$FORK_DIR.staging" > "$RUN_DIR/logs/fork-clone.log" 2>&1; then
+    fork_log_tail "$RUN_DIR/logs/fork-clone.log" "the fork clone"
+    if fork_network_ok; then
+      fail "git clone $FORK_REMOTE failed although the fork answers (see $RUN_DIR/logs/fork-clone.log)"
+    fi
+    blocked "could not clone $FORK_REMOTE" "give the VM network access to the fork, or pre-clone it at OFFICE_FORK_CACHE"
+  fi
   mv "$FORK_DIR.staging" "$FORK_DIR"
 fi
 # Fetching a bare SHA needs the server to allow it, so a miss fetches the
@@ -309,23 +361,110 @@ fi
 if ! git -C "$FORK_DIR" cat-file -e "$FORK_SHA^{commit}" 2> /dev/null; then
   git -C "$FORK_DIR" fetch -q origin > "$RUN_DIR/logs/fork-fetch.log" 2>&1 || true
 fi
-git -C "$FORK_DIR" cat-file -e "$FORK_SHA^{commit}" 2> /dev/null \
-  || blocked "the fork checkout has no commit $FORK_SHA" "check OFFICE_FORK_SHA; the pinned base is 0d03b18"
+if ! git -C "$FORK_DIR" cat-file -e "$FORK_SHA^{commit}" 2> /dev/null; then
+  if fork_network_ok; then
+    fail "the fork has no commit $FORK_SHA after fetching (the pin is wrong; the pinned base is 0d03b18)"
+  fi
+  blocked "the fork checkout has no commit $FORK_SHA" "check OFFICE_FORK_SHA; the pinned base is 0d03b18"
+fi
 git -C "$FORK_DIR" checkout -q --detach "$FORK_SHA"
 
-# ELECTRON_SKIP_BINARY_DOWNLOAD keeps npm ci cheap; the binary is fetched only
-# when the app is actually driven (install-office.sh does the same).
-if [ ! -d "$FORK_DIR/node_modules" ]; then
-  echo "harness: npm ci in the fork (no Electron binary yet)..."
-  (cd "$FORK_DIR" && ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci) > "$RUN_DIR/logs/fork-npm-ci.log" 2>&1 \
-    || { tail -20 "$RUN_DIR/logs/fork-npm-ci.log" >&2; blocked "npm ci failed in the fork" "the fork needs Node 22 and network; see $RUN_DIR/logs/fork-npm-ci.log"; }
-fi
+# ---- install the fork, the runner's way --------------------------------------
+# The runner's install-office.sh installs the fork with
+# `ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci` and fetches the binary afterwards with
+# `node node_modules/electron/install.js` (run-tests.sh:186-190). This harness
+# must do exactly that, because the environment variable alone no longer keeps
+# the binary out of `npm ci`:
+#
+#   * electron 43 dropped the `if (process.env.ELECTRON_SKIP_BINARY_DOWNLOAD)
+#     process.exit(0)` guard its install.js carried through 42.x, so the flag is
+#     now inert. The fork pins electron 43.7.6, so the root `postinstall:
+#     install-electron` downloaded a 123 MiB GitHub release *during* `npm ci` —
+#     the r2 round died on that download (504 from the release host) and, worse,
+#     on any hiccup it takes the whole `npm ci` with it.
+#   * a `postinstall` that downloads a release is not a precondition the VM can
+#     satisfy, so a failure there is this harness's install strategy failing, not
+#     a missing capability: FAIL (1), never BLOCKED (77). Only a missing network
+#     or a missing Node 22 is a precondition, and each is probed on its own below.
+#
+# So: `npm ci --ignore-scripts` for the tree, then the two scripts the fork needs
+# (`install-electron`, and esbuild's `install.js` which links the platform binary
+# its optional dependency shipped). Everything else the fork's 8 install scripts
+# do is for Windows packaging (electron-winstaller's 7z copy) or a version-scheme
+# warning (protobufjs) and is deliberately skipped.
+FORK_INSTALL_LOG="$RUN_DIR/logs/fork-install.log"
+fork_log_tail() { # fork_log_tail <log> <what> — the last 60 lines on stdout before a FAILED
+  echo "harness: ---- last 60 lines of $2 ($1) ----" >&2
+  tail -n 60 "$1" >&2 2> /dev/null || true
+  already_tailed="$already_tailed $1"
+}
+
+# The fork's dependency tree is complete when npm ci has run and esbuild links a
+# working binary; a cache from an older strategy (a plain `npm ci`, or one that
+# died in the postinstall) is re-installed rather than trusted.
+fork_tree_ready() {
+  local dir=$1
+  [ -f "$dir/node_modules/electron/install.js" ] || return 1
+  [ -x "$dir/node_modules/.bin/esbuild" ] || return 1
+  "$dir/node_modules/.bin/esbuild" --version > /dev/null 2>&1
+}
+
+# npm ci with the fork's own scripts off: nothing in the tree may reach the
+# network, so a failure here is a real install failure and never a BLOCKED.
+run_npm_ci() { # run_npm_ci <dir>
+  local dir=$1
+  (cd "$dir" && npm ci --ignore-scripts) >> "$FORK_INSTALL_LOG" 2>&1
+}
+
+# A missing network is the one precondition that stops the install (BLOCKED); a
+# slow or flaky one is not judged here — the install itself reports a real
+# failure. Probed only when something still has to be fetched, so a warm cache
+# never blocks on it.
+need_fork_install=0
+fork_tree_ready "$FORK_DIR" || need_fork_install=1
 for d in "$FORK_DIR/node_modules/electron" "$FORK_DIR/apps/shell/node_modules/electron"; do
-  [ -f "$d/install.js" ] && [ ! -f "$d/path.txt" ] || continue
-  echo "harness: downloading the Electron binary..."
-  node "$d/install.js" > "$RUN_DIR/logs/fork-electron.log" 2>&1 \
-    || blocked "the Electron binary could not be downloaded" "network to the Electron release host (see $RUN_DIR/logs/fork-electron.log)"
+  [ -f "$d/install.js" ] || continue
+  { [ -f "$d/path.txt" ] && [ -x "$d/dist/electron" ]; } || need_fork_install=1
 done
+if [ "$need_fork_install" = 1 ] && ! fork_network_ok; then
+  blocked "no network to $FORK_REMOTE" "give the VM network access to the fork, or pre-clone it at OFFICE_FORK_CACHE"
+fi
+
+if ! fork_tree_ready "$FORK_DIR"; then
+  echo "harness: npm ci in the fork (--ignore-scripts; no Electron binary yet)..."
+  if ! run_npm_ci "$FORK_DIR"; then
+    fork_log_tail "$FORK_INSTALL_LOG" "the fork install"
+    fail "npm ci --ignore-scripts failed in the fork (see $FORK_INSTALL_LOG)"
+  fi
+  if [ ! -f "$FORK_DIR/node_modules/electron/install.js" ]; then
+    fork_log_tail "$FORK_INSTALL_LOG" "the fork install"
+    fail "the fork install left no node_modules/electron/install.js (see $FORK_INSTALL_LOG)"
+  fi
+fi
+
+# `install-electron` in the tree npm ci skipped (npm puts the workspace bins in
+# node_modules/.bin; the fork has no apps/shell/node_modules of its own today,
+# the second path is the one run-tests.sh also probes).
+for d in "$FORK_DIR/node_modules/electron" "$FORK_DIR/apps/shell/node_modules/electron"; do
+  [ -f "$d/install.js" ] || continue
+  if [ -f "$d/path.txt" ] && [ -x "$d/dist/electron" ]; then
+    continue
+  fi
+  echo "harness: fetching the Electron binary (node $d/install.js)..."
+  (cd "$d/.." && node "$d/install.js") >> "$FORK_INSTALL_LOG" 2>&1 \
+    || { fork_log_tail "$FORK_INSTALL_LOG" "the Electron binary download"; fail "the Electron binary could not be downloaded (see $FORK_INSTALL_LOG)"; }
+done
+
+# esbuild's postinstall links the platform binary; without it `vite` cannot
+# bundle and `npm run build:all` fails on a missing esbuild. The JS shim still
+# works when the optional platform package is present, so this is a repair, not
+# a hard requirement.
+if [ -f "$FORK_DIR/node_modules/esbuild/install.js" ] \
+  && ! "$FORK_DIR/node_modules/.bin/esbuild" --version > /dev/null 2>&1; then
+  echo "harness: repairing the esbuild binary (node node_modules/esbuild/install.js)..."
+  (cd "$FORK_DIR" && node node_modules/esbuild/install.js) >> "$FORK_INSTALL_LOG" 2>&1 \
+    || { fork_log_tail "$FORK_INSTALL_LOG" "the esbuild binary install"; fail "esbuild's install.js failed in the fork (see $FORK_INSTALL_LOG)"; }
+fi
 
 # The build is the slow step, and the cache is one directory per SHA, so a build
 # already made from this revision is reused. The marker lives inside the
@@ -337,11 +476,13 @@ if [ -f "$BUILD_MARKER" ] && [ "$(cat "$BUILD_MARKER" 2> /dev/null)" = "$FORK_SH
 else
   echo "harness: building the fork apps (this is the slow step)..."
   (cd "$FORK_DIR" && npm run build:all) > "$RUN_DIR/logs/fork-build.log" 2>&1 \
-    || fail "npm run build:all failed in the fork (see $RUN_DIR/logs/fork-build.log)"
+    || { fork_log_tail "$RUN_DIR/logs/fork-build.log" "the fork build"; fail "npm run build:all failed in the fork (see $RUN_DIR/logs/fork-build.log)"; }
   printf '%s\n' "$FORK_SHA" > "$BUILD_MARKER"
 fi
-[ -f "$SHELL_MAIN" ] \
-  || fail "the fork built but has no $SHELL_MAIN (build:all did not produce the shell)"
+if [ ! -f "$SHELL_MAIN" ]; then
+  fork_log_tail "$RUN_DIR/logs/fork-build.log" "the fork build"
+  fail "the fork built but has no $SHELL_MAIN (build:all did not produce the shell)"
+fi
 
 # ---- the fork's Electron app under xvfb -------------------------------------
 # The app is pointed at this run's server through UNIWORK_API_ORIGIN, which the
@@ -353,8 +494,13 @@ echo "harness: starting the fork Electron app under xvfb..."
 # (apps/shell/e2e/helpers.ts: require('electron') returns the binary path), and
 # the switches come before the app path so Chromium consumes them.
 ELECTRON_BIN="$(cd "$FORK_DIR/apps/shell" && node -p 'require("electron")' 2> /dev/null || true)"
-[ -n "$ELECTRON_BIN" ] && [ -x "$ELECTRON_BIN" ] \
-  || blocked "the Electron binary is not installed in the fork" "the harness downloads it with node node_modules/electron/install.js; see $RUN_DIR/logs/fork-electron.log"
+if [ -z "$ELECTRON_BIN" ] || [ ! -x "$ELECTRON_BIN" ]; then
+  # The download step above already ran and reported its own failure; reaching
+  # here means the tree has no usable binary, which is an install of ours that
+  # did not hold — a FAIL, not a missing precondition.
+  fork_log_tail "$FORK_INSTALL_LOG" "the fork install"
+  fail "no usable Electron binary in the fork (resolved '${ELECTRON_BIN:-}'; see $FORK_INSTALL_LOG)"
+fi
 
 XVFB_DISPLAY_FILE="$RUN_DIR/display"
 : > "$XVFB_DISPLAY_FILE"
