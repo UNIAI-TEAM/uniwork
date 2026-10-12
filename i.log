@@ -1,0 +1,215 @@
+$ cat test-results/office-g5g6g7-evidence/evidence.jsonl; ls -la .harness-run .harness-run/logs 2>/dev/null; cat .harness-run/document-step.json 2>/dev/null; cat test-results/office-g5g6g7-evidence/artifacts/*.log 2>/dev/null; for f in .harness-run/logs/*.log .harness-run/*/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 60 "$f"; }; done; true
+{"evidenceId":"ev-g7-a05-0001","requirementId":"G7-A05","dSha":"f8e806c5d758097fb93bca18009887c729520595","fSha":"0d03b18","pin":"0.1.0-0d03b18","platform":"linux-x64","build":"dev","fixtureId":"fx-md-notes-vi","fixtureSha256":"e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def","command":"node scripts/office/g5g6g7/harness/sample-ac.mjs","argv":["node","scripts/office/g5g6g7/harness/sample-ac.mjs"],"exitCode":0,"result":"PASS","artifact":"test-results/office-g5g6g7-evidence/artifacts/ev-g7-a05-0001.log","checker":"tester-cloud","blocker":null,"startedAt":"2026-10-12T16:19:30.248Z","finishedAt":"2026-10-12T16:20:01.187Z"}
+{"evidenceId":"ev-g7-a01-0001","requirementId":"G7-A01","dSha":"f8e806c5d758097fb93bca18009887c729520595","fSha":"0d03b18","pin":"0.1.0-0d03b18","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/harness/document-step.mjs --run-dir .harness-run","argv":["node","scripts/office/g5g6g7/harness/document-step.mjs","--run-dir",".harness-run"],"exitCode":1,"result":"FAIL","artifact":"test-results/office-g5g6g7-evidence/artifacts/ev-g7-a01-0001.log","checker":"tester-cloud","blocker":null,"startedAt":"2026-10-12T16:20:01.247Z","finishedAt":"2026-10-12T16:20:01.977Z"}
+.harness-run:
+total 52
+drwxr-xr-x  6 ubuntu ubuntu 4096 Oct 12 16:20 .
+drwxr-xr-x 24 ubuntu ubuntu 4096 Oct 12 16:19 ..
+-rw-r--r--  1 ubuntu ubuntu    4 Oct 12 16:19 display
+-rw-r--r--  1 ubuntu ubuntu 2473 Oct 12 16:20 document-step.json
+drwxr-xr-x  2 ubuntu ubuntu 4096 Oct 12 16:19 logs
+-rw-r--r--  1 ubuntu ubuntu   47 Oct 12 16:20 pids
+-rw-r--r--  1 ubuntu ubuntu  721 Oct 12 16:19 ports.env
+-rw-r--r--  1 ubuntu ubuntu 1579 Oct 12 16:20 sample-ac.json
+drwxr-xr-x  3 ubuntu ubuntu 4096 Oct 12 16:19 server-cwd
+-rw-r--r--  1 ubuntu ubuntu 1000 Oct 12 16:19 server.env
+-rw-r--r--  1 ubuntu ubuntu   27 Oct 12 16:19 start-status.json
+drwxr-xr-x  3 ubuntu ubuntu 4096 Oct 12 16:20 uploads
+drwxr-xr-x 15 ubuntu ubuntu 4096 Oct 12 16:19 userdata
+
+.harness-run/logs:
+total 32
+drwxr-xr-x 2 ubuntu ubuntu 4096 Oct 12 16:19 .
+drwxr-xr-x 6 ubuntu ubuntu 4096 Oct 12 16:20 ..
+-rw-r--r-- 1 ubuntu ubuntu 1281 Oct 12 16:19 app.log
+-rw-r--r-- 1 ubuntu ubuntu    0 Oct 12 16:19 lib.log
+-rw-r--r-- 1 ubuntu ubuntu   54 Oct 12 16:19 migrate.log
+-rw-r--r-- 1 ubuntu ubuntu  202 Oct 12 16:19 readyz.json
+-rw-r--r-- 1 ubuntu ubuntu    0 Oct 12 16:19 server-build.log
+-rw-r--r-- 1 ubuntu ubuntu 4063 Oct 12 16:20 server.log
+-rw-r--r-- 1 ubuntu ubuntu 6431 Oct 12 16:19 web.log
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-g5g6g7-document-step",
+  "requirementId": "G7-A01",
+  "fixtureId": "fx-docx-report-vi",
+  "documentId": "01M4REKX8SFQSCCPFP4DP0Z2FA",
+  "deploymentId": "default",
+  "checks": [
+    {
+      "name": "the D server created a file document from the fixture",
+      "result": "PASS",
+      "detail": "01M4REKX8SFQSCCPFP4DP0Z2FA"
+    },
+    {
+      "name": "the D server minted a dev-channel launch link",
+      "result": "PASS",
+      "detail": "uniwork-office-dev://open?ticket=<redacted>"
+    },
+    {
+      "name": "the app received the deep link as a second instance",
+      "result": "FAIL",
+      "detail": "the second instance exited null: Authorization required, but no authorization protocol specified\n\n[32201:1012/162001.936104:ERROR:ui/ozone/platform/x11/ozone_platform_x11.cc:257] Missing X server or $DISPLAY\n[32201:1012/162001.936209"
+    },
+    {
+      "name": "the app's working copy names the fixture document",
+      "result": "BLOCKED",
+      "detail": "no signed-in session in the app"
+    }
+  ],
+  "blockers": [
+    "the app is not signed in: it has no desktop session to redeem the launch ticket (the harness does not automate the sign-in, and a Linux VM without an OS keyring cannot keep one; the fork's own suite skips on the same precondition). Run G7-A01 on a signed-in desktop: see the README, 'Run it on a signed-in desktop'"
+  ],
+  "failures": [
+    {
+      "check": "the app received the deep link as a second instance",
+      "reason": "the second instance exited null: Authorization required, but no authorization protocol specified\n\n[32201:1012/162001.936104:ERROR:ui/ozone/platform/x11/ozone_platform_x11.cc:257] Missing X server or $DISPLAY\n[32201:1012/162001.936209"
+    }
+  ],
+  "cleanup": {
+    "skipped": null,
+    "steps": [
+      {
+        "name": "request deletion of the seeded organization",
+        "ok": true
+      }
+    ],
+    "leftovers": [
+      {
+        "what": "organization",
+        "id": "01M4REKX7CJ24VQKAF7Y617CDB",
+        "slug": "o-g7-01-mv5gk0rq",
+        "reason": "erasure is queued; the server's job removes it after its grace period (5 days)"
+      },
+      {
+        "what": "account",
+        "id": "01M4REKX6HQWRB2YZJYTFZVQDB",
+        "email": "g7-01-harness-1791822001304@example.com",
+        "reason": "still the owner of the organization above, so POST /me/delete answers 409 until the organization is erased"
+      }
+    ]
+  },
+  "result": "FAIL"
+}
+$ node scripts/office/g5g6g7/harness/document-step.mjs --run-dir .harness-run
+
+  PASS    the D server created a file document from the fixture — 01M4REKX8SFQSCCPFP4DP0Z2FA
+  PASS    the D server minted a dev-channel launch link — uniwork-office-dev://open?ticket=<redacted>
+  FAIL    the app received the deep link as a second instance — the second instance exited null: Authorization required, but no authorization protocol specified
+
+[32201:1012/162001.936104:ERROR:ui/ozone/platform/x11/ozone_platform_x11.cc:257] Missing X server or $DISPLAY
+[32201:1012/162001.936209
+  BLOCKED the app's working copy names the fixture document — no signed-in session in the app
+  cleanup ok      request deletion of the seeded organization
+  cleanup left   organization 01M4REKX7CJ24VQKAF7Y617CDB — erasure is queued; the server's job removes it after its grace period (5 days)
+  cleanup left   account 01M4REKX6HQWRB2YZJYTFZVQDB — still the owner of the organization above, so POST /me/delete answers 409 until the organization is erased
+document step: FAIL
+document step artifact: .harness-run/document-step.json
+  blocked: the app is not signed in: it has no desktop session to redeem the launch ticket (the harness does not automate the sign-in, and a Linux VM without an OS keyring cannot keep one; the fork's own suite skips on the same precondition). Run G7-A01 on a signed-in desktop: see the README, 'Run it on a signed-in desktop'
+  FAILED: the app received the deep link as a second instance — the second instance exited null: Authorization required, but no authorization protocol specified
+
+[32201:1012/162001.936104:ERROR:ui/ozone/platform/x11/ozone_platform_x11.cc:257] Missing X server or $DISPLAY
+[32201:1012/162001.936209
+$ node scripts/office/g5g6g7/harness/sample-ac.mjs
+
+  PASS    D server answers /healthz — status=ok
+  PASS    D server /readyz reports its dependencies — readyz 200
+  PASS    GET /api/v1/config names this run's API origin — office_api_origin=http://127.0.0.1:42031 office_deployment_id=default
+  PASS    D web answers on this run's web port — 200, 58572 bytes
+  PASS    the web calls this run's API origin — http://127.0.0.1:42031 (inlined in the served build)
+  PASS    the Electron app persisted the D server origin — uniworkApiOrigin=http://127.0.0.1:42031
+  PASS    the fork is checked out at the pinned SHA — fork 0d03b185c8060bafc4e2afe7173e0a10260465bd
+sample AC: PASS
+runtime manifest: /workspace/.harness-run/sample-ac.json
+=== .harness-run/logs/app.log
+[32004:1012/161929.713122:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[32004:1012/161929.836237:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[32004:1012/161929.873000:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[32004:1012/161929.900218:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[32004:1012/161929.901566:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[32004:1012/161929.908262:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[32004:1012/161929.913965:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+=== .harness-run/logs/lib.log
+=== .harness-run/logs/migrate.log
+16:19:17.510 INF migrate done component=server dir=up
+=== .harness-run/logs/server-build.log
+=== .harness-run/logs/server.log
+16:19:17.529 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+16:19:17.529 INF metrics listening component=server addr=127.0.0.1:33571
+16:19:17.529 INF local storage adapter ready dir=/workspace/.harness-run/uploads
+16:19:17.541 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/12 16:19:17 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+16:19:17.542 INF mail: log mode, messages are printed component=server
+16:19:17.542 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+16:19:18.049 INF mail: outbox worker started component=server tick=5s
+16:19:18.049 INF listening component=server port=42031 swagger=http://localhost:42031/swagger/index.html
+16:19:30.419 INF http request method=GET path=/api/v1/config status=200 duration=1.005ms request_id=cursor/scBS7udw6c-000006 correlation_id=773c756658296088c46b3e56a7bd2d31 trace_id=773c756658296088c46b3e56a7bd2d31 span_id=f85153d40ff8b357
+16:20:01.372 INF mail not configured, printing message component=server kind=verification_code to=g7-01-harness-1791822001304@example.com subject="769376 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    769376\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+16:20:01.375 INF http request method=POST path=/api/v1/auth/register status=200 duration=67.455ms request_id=cursor/scBS7udw6c-000008 correlation_id=1d04a034d79eb6ccd50a928446f62b13 trace_id=1d04a034d79eb6ccd50a928446f62b13 span_id=e0b9476f1b34f6e1
+16:20:01.382 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=4.556ms request_id=cursor/scBS7udw6c-000009 correlation_id=22805f4aef4ff29a5adbcaa61eacfe49 trace_id=22805f4aef4ff29a5adbcaa61eacfe49 span_id=8c67e756be5f4ef2 actor_id=01M4REKX6HQWRB2YZJYTFZVQDB actor_kind=human
+16:20:01.395 INF http request method=POST path=/api/v1/orgs status=201 duration=12.133ms request_id=cursor/scBS7udw6c-000010 correlation_id=1c862403afecadb476940ce3c555dd89 trace_id=1c862403afecadb476940ce3c555dd89 span_id=976d19beba12b4e3 actor_id=01M4REKX6HQWRB2YZJYTFZVQDB actor_kind=human
+16:20:01.408 INF http request method=POST path=/api/v1/orgs/01M4REKX7CJ24VQKAF7Y617CDB/workspaces status=201 duration=11.252ms request_id=cursor/scBS7udw6c-000011 correlation_id=18e515ed408ebb7ab59cadad18ef87b6 trace_id=18e515ed408ebb7ab59cadad18ef87b6 span_id=b27b9bdae7abee93 organization_id=01M4REKX7CJ24VQKAF7Y617CDB workspace_id=01M4REKX7QEBXPX0KKHNNREB0Q actor_id=01M4REKX6HQWRB2YZJYTFZVQDB actor_kind=human
+16:20:01.441 INF http request method=POST path=/api/v1/workspaces/01M4REKX7QEBXPX0KKHNNREB0Q/documents/files status=201 duration=30.694ms request_id=cursor/scBS7udw6c-000012 correlation_id=290b7981bf3ff46c3ad060bb8fc46f44 trace_id=290b7981bf3ff46c3ad060bb8fc46f44 span_id=a3b0bdf899203ec2 organization_id=01M4REKX7CJ24VQKAF7Y617CDB workspace_id=01M4REKX7QEBXPX0KKHNNREB0Q actor_id=01M4REKX6HQWRB2YZJYTFZVQDB actor_kind=human
+16:20:01.449 INF http request method=POST path=/api/v1/documents/01M4REKX8SFQSCCPFP4DP0Z2FA/office/sessions status=201 duration=6.135ms request_id=cursor/scBS7udw6c-000013 correlation_id=faa35d763911b64e76ca90adee495f90 trace_id=faa35d763911b64e76ca90adee495f90 span_id=e405533e56594a78 organization_id=01M4REKX7CJ24VQKAF7Y617CDB workspace_id=01M4REKX7QEBXPX0KKHNNREB0Q actor_id=01M4REKX6HQWRB2YZJYTFZVQDB actor_kind=human
+16:20:01.972 INF http request method=POST path=/api/v1/orgs/01M4REKX7CJ24VQKAF7Y617CDB/privacy/deletion status=202 duration=5.359ms request_id=cursor/scBS7udw6c-000014 correlation_id=0562896967338f70b2e8eba84770f22a trace_id=0562896967338f70b2e8eba84770f22a span_id=0c24717e6d9857c7 actor_id=01M4REKX6HQWRB2YZJYTFZVQDB actor_kind=human
+=== .harness-run/logs/web.log
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11319:13
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login 200 in 63ms (next.js: 4ms, application-code: 59ms)
+⚠ ./apps/web/app/globals.css:11319:13
+Warning: Parsing CSS source code failed
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11319:13
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login 200 in 70ms (next.js: 13ms, application-code: 57ms)
+⚠ Blocked cross-origin request to Next.js dev resource /_next/hmr from "127.0.0.1".
+Cross-origin access to Next.js dev resources is blocked by default for safety.
+
+To allow this host in development, add it to "allowedDevOrigins" in next.config.js and restart the dev server:
+
+// next.config.js
+module.exports = {
+  allowedDevOrigins: ['127.0.0.1'],
+}
+
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
