@@ -106,22 +106,25 @@ change any provision script would need:
 
 ## What is still open (item C follow-up)
 
-- `sample-ac.mjs` step 4 reads `userData/app-settings.json`, which the app writes
-  only after it reaches `app.whenReady` (fork `apps/shell/src/main/index.ts:5248`,
-  `persistUniWorkApiOriginFromEnv` in `apps/shell/src/main/office-bridge-host.ts:84`).
-  Driving a **document** through the bridge needs a signed-in session and an
-  office launch ticket, and that path is not implemented here:
-  `POST /api/v1/documents/{documentID}/office/sessions`
-  (D `server/internal/handler/router/documents.go:90`) returns a
-  `uniwork-office-dev://open?ticket=…` deep link
-  (D `server/internal/handler/office_launch.go:44`); the fork's
-  `handleOfficeLaunchUrl` (F `apps/shell/src/main/office-bridge-host.ts:104`)
-  exchanges the ticket at `POST /api/v1/office/sessions/exchange`
-  (D `server/internal/handler/router/office_launch.go:12`) with a **device**
-  session bearer, then downloads and opens the document. TODO(item C follow-up):
-  seed a user plus a device session and add that path as a second sample AC
-  (G7-A01's "web edit-save → open in the app" half). The current case deliberately
-  stops at "the three pieces run together and the app resolved the D server".
-- The fork's `npm run build:all` is the slow step (several minutes on a fresh VM)
-  and its Rust xlsx sidecar needs `cargo`; `HARNESS_SKIP_APP=1` isolates the
-  server + web half while that is worked on.
+`sample-ac.mjs` step 4 reads `userData/app-settings.json`, which the app writes
+only after it reaches `app.whenReady` (fork `apps/shell/src/main/index.ts:5248`,
+`persistUniWorkApiOriginFromEnv` in `apps/shell/src/main/office-bridge-host.ts:84`).
+Driving a **document** through the bridge needs a signed-in session and an office
+launch ticket, and the two ends of that link do not meet yet — this is the X-02
+seam (frame protocol rev / deep-link shape), not a harness defect:
+
+| Side | What it builds / expects | Where |
+| --- | --- | --- |
+| D | `POST /api/v1/documents/{documentID}/office/sessions` returns `launch_url` = `<client_id>://open?ticket=<ticket>` | `server/internal/handler/office_launch.go:44`, router `router/documents.go:90` |
+| F | `parseOfficeLaunchUrl` accepts only `uniwork://office/open?token=<opaque>` | `packages/office-bridge/src/protocol.ts:40`, `packages/office-bridge-contracts/src/constants.ts:8` |
+| D | `POST /api/v1/office/sessions/exchange` (a **device**-session bearer, `device_session_id` must equal the bearer's session) | `server/internal/handler/router/office_launch.go:12`, `dto/sdi/office_launch.go:14` |
+| F | `handleOfficeLaunchUrl` exchanges the token and downloads the bytes | `apps/shell/src/main/office-bridge-host.ts:104` |
+
+TODO(item C follow-up, after X-02 settles the link shape): seed a user plus a
+device session, drive that path, and add it as a second sample AC (G7-A01's
+"web edit-save → open in the app" half). The current case deliberately stops at
+"the three pieces run together and the app resolved the D server".
+
+The fork's `npm run build:all` is the slow step (several minutes on a fresh VM)
+and its Rust xlsx sidecar needs `cargo`; `--skip-app` isolates the server + web
+half while that is worked on.

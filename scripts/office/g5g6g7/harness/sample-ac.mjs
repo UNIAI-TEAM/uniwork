@@ -40,7 +40,7 @@ import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { evidenceLine } from "./lib.mjs";
+import { evidenceLine, harnessPaths } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..", "..");
@@ -52,7 +52,10 @@ function argValue(flag, fallback) {
 }
 
 const runDir = argValue("--run-dir", process.env.HARNESS_RUN_DIR || join(REPO_ROOT, ".harness-run"));
-const portsFile = join(runDir, "ports.env");
+// The same layout start.sh and lib.mjs write, so a path here can never drift
+// from the path a run actually produced.
+const paths = harnessPaths(runDir);
+const portsFile = paths.envFile;
 if (!existsSync(portsFile)) {
   console.error(`BLOCKED: no run at ${runDir} (missing ports.env); run start.sh first`);
   process.exit(BLOCKED);
@@ -116,7 +119,7 @@ async function reachable(url, timeoutMs = 5000) {
   }
 }
 
-const appSettingsPath = join(runDir, "userdata", "app-settings.json");
+const appSettingsPath = paths.appSettings;
 const preconditions = [];
 const healthStatus = await reachable(`${API_ORIGIN}/healthz`);
 if (healthStatus === 0) preconditions.push(`no D server on ${API_ORIGIN} (start.sh must be run first, and it must have stayed up)`);
@@ -137,9 +140,9 @@ if (preconditions.length > 0) {
     startedAt,
     finishedAt: new Date().toISOString(),
   });
-  mkdirSync(runDir, { recursive: true });
+  mkdirSync(paths.userDataDir, { recursive: true });
   appendFileSync(join(runDir, "blocked.json"), `${JSON.stringify(record, null, 2)}\n`);
-  if (!process.env.OFFICE_EVIDENCE_ID) appendFileSync(join(runDir, "evidence.jsonl"), `${JSON.stringify(record)}\n`);
+  if (!process.env.OFFICE_EVIDENCE_ID) appendFileSync(paths.evidenceFile, `${JSON.stringify(record)}\n`);
   process.exit(BLOCKED);
 }
 
@@ -328,7 +331,7 @@ if (!process.env.OFFICE_EVIDENCE_ID) {
     startedAt,
     finishedAt: new Date().toISOString(),
   });
-  appendFileSync(join(runDir, "evidence.jsonl"), `${JSON.stringify(line)}\n`);
+  appendFileSync(paths.evidenceFile, `${JSON.stringify(line)}\n`);
 }
 
 for (const c of checks) console.log(`  ${c.result.padEnd(7)} ${c.name}${c.detail ? ` — ${c.detail}` : ""}`);
