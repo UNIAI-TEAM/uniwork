@@ -10,6 +10,7 @@ import {
   groupRows,
   indexTree,
   matchesChip,
+  mergeNewestFirst,
   rowOrigin,
   rowSizeBytes,
   sourceRow,
@@ -109,6 +110,28 @@ describe("library rows", () => {
       documentRow(doc({ id: "new", updated_at: "2026-10-01T00:00:00Z" })),
     ];
     expect([...rows].sort(byUpdatedDesc).map((r) => r.id)).toEqual(["new", "old", "none"]);
+  });
+
+  it("merges the two paged lists so the next page only adds rows below the ones shown", () => {
+    const d = (id: string, at: string) => documentRow(doc({ id, updated_at: at }));
+    const docs = [d("d1", "2026-10-09T00:00:00Z"), d("d2", "2026-10-05T00:00:00Z")];
+    const sources = [src({ id: "chat:a", updated_at: "2026-10-08T00:00:00Z" }), src({ id: "chat:b", updated_at: "2026-10-01T00:00:00Z" })];
+    const ids = (rows: ReturnType<typeof mergeNewestFirst>) => rows.map((r) => r.id);
+
+    // Both lists have more: nothing older than the newer of the two oldest rows is shown yet.
+    expect(ids(mergeNewestFirst(docs, sources, { docs: true, sources: true }))).toEqual(["d1", "source:chat:a", "d2"]);
+    // Only the sources have more: documents below the sources' oldest row wait for them.
+    expect(ids(mergeNewestFirst(docs, sources, { docs: false, sources: true }))).toEqual(["d1", "source:chat:a", "d2", "source:chat:b"]);
+    // Exhausted lists set no bound.
+    expect(ids(mergeNewestFirst(docs, sources, { docs: false, sources: false }))).toEqual(["d1", "source:chat:a", "d2", "source:chat:b"]);
+
+    // The next documents page lands below what was shown, never above it.
+    const next = [...docs, d("d3", "2026-10-03T00:00:00Z"), d("d4", "2026-09-30T00:00:00Z")];
+    const shown = ids(mergeNewestFirst(docs, sources, { docs: true, sources: true }));
+    const after = ids(mergeNewestFirst(next, sources, { docs: false, sources: true }));
+    expect(after.slice(0, shown.length)).toEqual(shown);
+    // d4 is older than the sources' oldest loaded row, so it waits for their next page.
+    expect(after).toEqual(["d1", "source:chat:a", "d2", "d3", "source:chat:b"]);
   });
 
   it("formats sizes and says nothing for an unusable one", () => {

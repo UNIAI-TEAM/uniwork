@@ -43,6 +43,8 @@ export interface DocumentsSidebarProps {
   sourcesAvailable: boolean;
   /** View-only callers see no "new folder" control. */
   canCreate: boolean;
+  /** A folder is being created: the "+" holds still until the server answers. */
+  newFolderPending?: boolean;
   onView: (view: LibraryView) => void;
   onFolder: (folderId: string) => void;
   onNewFolder: () => void;
@@ -101,6 +103,7 @@ export function DocumentsSidebar({
   starredCount,
   sourcesAvailable,
   canCreate,
+  newFolderPending = false,
   onView,
   onFolder,
   onNewFolder,
@@ -120,7 +123,10 @@ export function DocumentsSidebar({
           canCreate ? (
             <button
               type="button"
-              onClick={onNewFolder}
+              onClick={() => {
+                if (!newFolderPending) onNewFolder();
+              }}
+              aria-disabled={newFolderPending || undefined}
               aria-label={t("documents.home.folders.new")}
               title={t("documents.home.folders.new")}
               className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:size-11"

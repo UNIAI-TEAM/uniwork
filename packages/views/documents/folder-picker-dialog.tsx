@@ -72,8 +72,7 @@ export function FolderPickerDialog({
       <button
         key={id ?? "root"}
         type="button"
-        role="radio"
-        aria-checked={picked === id}
+        aria-pressed={picked === id}
         onClick={() => setPicked(id)}
         className={cn(
           "flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-body hover:bg-accent/60 pointer-coarse:min-h-11",
@@ -93,7 +92,7 @@ export function FolderPickerDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div role="radiogroup" aria-label={t("documents.home.save_source.picker_label")} className="max-h-72 overflow-y-auto rounded-md border border-border p-1">
+        <div role="group" aria-label={t("documents.home.save_source.picker_label")} className="max-h-72 overflow-y-auto rounded-md border border-border p-1">
           {option(null, t("documents.home.save_source.root"), 0, true)}
           {folders.map(({ node, depth }) => option(node.id, node.title || t("documents.detail.untitled"), depth + 1))}
         </div>
@@ -103,10 +102,10 @@ export function FolderPickerDialog({
           </p>
         ) : null}
         <DialogFooter className="px-0 pb-0">
-          <Button type="button" variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" aria-disabled={pending || undefined} onClick={() => { if (!pending) onOpenChange(false); }}>
             {t("documents.upload.cancel")}
           </Button>
-          <Button type="button" disabled={pending} aria-busy={pending || undefined} onClick={() => onSubmit(picked)}>
+          <Button type="button" aria-disabled={pending || undefined} aria-busy={pending || undefined} onClick={() => { if (!pending) onSubmit(picked); }}>
             {pending ? <Spinner aria-hidden role="presentation" /> : null}
             {submitLabel}
           </Button>

@@ -100,8 +100,10 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
   // "Open in app" sits on every document file row (user decision 6); a viewer
   // gets a read-only session. Source files have no launch route yet
   // (api-contract §4): they offer the download instead.
+  // A starred row whose document is not in any loaded list has no version or
+  // organisation yet: no app action until the document is known.
   const desktop =
-    doc && doc.kind === "file" && APP_FORMATS.has(format) && handlers.desktopOpen && !archived
+    doc && doc.kind === "file" && doc.current_version > 0 && APP_FORMATS.has(format) && handlers.desktopOpen && !archived
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const viewOnly = doc?.my_level === "view";

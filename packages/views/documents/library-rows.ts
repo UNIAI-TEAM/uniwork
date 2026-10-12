@@ -97,6 +97,30 @@ export function byUpdatedDesc(a: LibraryRow, b: LibraryRow): number {
   return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
 }
 
+function timeOf(row: LibraryRow): number {
+  const time = Date.parse(rowUpdatedAt(row));
+  return Number.isNaN(time) ? 0 : time;
+}
+
+/**
+ * The home root's two independently paged lists (workspace documents, files
+ * from other modules) as one newest-first table. A row is shown only when it is
+ * at least as new as the oldest row loaded from every list that still has
+ * pages: the next page of either list can then only add rows below the ones on
+ * screen, so "Load more" never slots a row above what the user already sees.
+ * A list that is exhausted (or empty) sets no bound.
+ */
+export function mergeNewestFirst(
+  docs: LibraryRow[],
+  sources: LibraryRow[],
+  more: { docs: boolean; sources: boolean },
+): LibraryRow[] {
+  const oldest = (rows: LibraryRow[], paged: boolean): number =>
+    paged && rows.length > 0 ? Math.min(...rows.map(timeOf)) : Number.NEGATIVE_INFINITY;
+  const cutoff = Math.max(oldest(docs, more.docs), oldest(sources, more.sources));
+  return [...docs, ...sources].filter((row) => timeOf(row) >= cutoff).sort(byUpdatedDesc);
+}
+
 export interface FolderInfo {
   id: string;
   title: string;

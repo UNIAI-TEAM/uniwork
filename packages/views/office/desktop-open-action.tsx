@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { ChevronDown, Download, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, DESKTOP_INSTALLER_KINDS, DESKTOP_PLATFORMS, type DesktopPlatform, type DesktopPlatformGuess, type OfficeInstallerOption, type OfficeChannel, type OfficeLaunchOutcome, type OfficeState } from "@uniwork/core/office";
 import {
   createOfficeLaunchSession,
@@ -189,6 +190,9 @@ export function DesktopOpenAction({
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [installOpen, installReason]);
+  useEffect(() => {
+    if (placement === "row" && error) toast.error(error);
+  }, [placement, error]);
   useEffect(() => setResolvedInstallers(installers), [installers]);
   useEffect(() => setResolvedPlatforms(supportedPlatforms), [supportedPlatforms]);
   useEffect(() => setResolvedHint(platformHint), [platformHint]);
@@ -315,9 +319,22 @@ export function DesktopOpenAction({
     <>
       {compactMenuItems ? <HeaderActionsFill menuItems={compactMenuItems} /> : null}
       {placement === "row" ? (
-        <Button type="button" variant="outline" size="xs" className={className} data-office-desktop-action onClick={onAction} aria-disabled={working || undefined} title={label}>
+        // Icon-only in the narrow column (below `md`) and on touch, per the
+        // design; the visible text stays in the accessible name and the title
+        // is the tooltip. A failure goes to a toast (see the effect above), so
+        // nothing wide lands in the row cell.
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          className={className}
+          data-office-desktop-action
+          onClick={() => { if (!working) onAction(); }}
+          aria-disabled={working || undefined}
+          title={label}
+        >
           <MonitorUp aria-hidden />
-          {working ? t("working") : t("row_action")}
+          <span className="max-md:sr-only pointer-coarse:sr-only">{working ? t("working") : t("row_action")}</span>
         </Button>
       ) : (
         <ButtonGroup className={cn(inPageHeader && "hidden sm:flex", className)} data-office-desktop-action>
@@ -343,7 +360,7 @@ export function DesktopOpenAction({
           </DropdownMenu>
         </ButtonGroup>
       )}
-      {error ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
+      {error && placement !== "row" ? <p role="alert"className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
       <Dialog open={choiceOpen} onOpenChange={(open) => { if (working) return; setChoiceOpen(open); if (!open) settleRequest("unavailable"); }}>
         <DialogContent className="sm:max-w-md" aria-describedby="office-desktop-choice-description">
           <DialogHeader>
