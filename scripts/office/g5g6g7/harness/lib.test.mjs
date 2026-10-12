@@ -580,6 +580,68 @@ test("the chunk fallback of the sample AC reads loopback origins as the build sp
   assert.deepEqual(loopbackOriginsIn("no origin here"), []);
 });
 
+/** One fake server that is both the API and the web: /login links one client chunk that inlines `inlined`. */
+function mkChunkStack(inlinedFor) {
+  return new Promise((resolveServer) => {
+    const server = createHttpServer((req, res) => {
+      const path = new URL(req.url, "http://localhost").pathname;
+      const json = (body) => {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(body));
+      };
+      if (path === "/healthz") return json({ status: "ok" });
+      if (path === "/readyz") return json({ ok: true });
+      if (path === "/api/v1/config") return json({ office_api_origin: inlinedFor.apiOrigin(), office_deployment_id: "default" });
+      if (path === "/login") {
+        res.writeHead(200, { "content-type": "text/html" });
+        return res.end('<html><script src="/_next/static/chunks/app.js"></script></html>');
+      }
+      if (path === "/_next/static/chunks/app.js") {
+        res.writeHead(200, { "content-type": "application/javascript" });
+        return res.end(`window.__API__="${inlinedFor.inlined()}";`);
+      }
+      res.writeHead(404);
+      return res.end();
+    });
+    server.listen(0, "127.0.0.1", () => resolveServer({ server, port: server.address().port }));
+  });
+}
+
+/** sample-ac.mjs against the fake stack; only the web-origin check line is of interest here. */
+async function sampleAcWebLine(inlinedHost) {
+  const state = { origin: "", host: inlinedHost };
+  const stack = await mkChunkStack({ apiOrigin: () => state.origin, inlined: () => `http://${state.host}:${state.port}` });
+  state.port = stack.port;
+  state.origin = appOrigin(stack.port);
+  const run = mkDocumentRun({ origin: state.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
+  writeFileSync(harnessPaths(run.runDir).appSettings, JSON.stringify({ uniworkApiOrigin: state.origin }));
+  try {
+    const result = await new Promise((resolveRun) => {
+      const child = spawn(process.execPath, [SAMPLE_AC, "--run-dir", run.runDir], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, OFFICE_EVIDENCE_ID: "" } });
+      let stdout = "";
+      child.stdout.on("data", (d) => (stdout += d));
+      const timer = setTimeout(() => child.kill("SIGKILL"), 90_000);
+      child.on("close", () => {
+        clearTimeout(timer);
+        resolveRun(stdout);
+      });
+    });
+    return { line: result.split("\n").find((text) => text.includes("the web calls this run's API origin")) ?? "", origin: state.origin };
+  } finally {
+    await new Promise((done) => stack.server.close(done));
+  }
+}
+
+test("sample-ac accepts a localhost origin inlined in the served chunks and reports 127.0.0.1 as another origin (R3-3)", async () => {
+  const same = await sampleAcWebLine("localhost");
+  assert.match(same.line, /^\s+PASS\s/, same.line);
+  assert.ok(same.line.includes(`${same.origin} (inlined in the served build)`), same.line);
+  const stale = await sampleAcWebLine("127.0.0.1");
+  assert.match(stale.line, /^\s+FAIL\s/, stale.line);
+  assert.ok(stale.line.includes("the served build inlines http://127.0.0.1:"), stale.line);
+  assert.ok(stale.line.includes("stale build"), stale.line);
+});
+
 test("start.sh puts the localhost WebSocket URL on the web's command line, the same host as the API origin (d8115227b)", () => {
   // The browser opens ws://<host>:<api port>; a 127.0.0.1 here against a localhost page origin is
   // the round 1 symptom the server's origin allowlist answered with 403. lib.test.mjs pins the env
