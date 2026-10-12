@@ -1,0 +1,24 @@
+$ bash scripts/office/g5g6g7/harness/start.sh
+harness: node 22.22.2 from nvm (/home/ubuntu/.nvm/versions/node/v22.22.2/bin/node)
+harness: run dir /workspace/.harness-run
+harness: D server  http://127.0.0.1:42203 (metrics 127.0.0.1:34955)
+harness: D web     http://127.0.0.1:44769
+harness: fork      0d03b18
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://127.0.0.1:42203 ...
+harness: the fork is already built at 0d03b18; skipping build:all
+harness: starting the fork Electron app under xvfb...
+harness: app on :99 (pid 42169)
+harness: up
+  D server  http://127.0.0.1:42203
+  D web     http://127.0.0.1:44769
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18 @ 0d03b18
+  pids      /workspace/.harness-run/pids
+  next      OFFICE_FORK_SHA=0d03b18 HARNESS_RUN_DIR=/workspace/.harness-run node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /workspace/.harness-run
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=0d03b18 HARNESS_RUN_DIR=/workspace/.harness-run \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /workspace/.harness-run
