@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -160,5 +161,45 @@ func TestMcpResolveCIMDServesStaleRowWhenRefetchFails(t *testing.T) {
 	f.body = []byte(`{"client_id":"` + id + `","client_name":"","redirect_uris":[]}`)
 	if _, err := w.svc.ResolveClient(w.ctx, id); !errors.Is(err, errMcpClientUnknown) {
 		t.Fatalf("an invalid document is a real answer, not a stale fallback: err = %v", err)
+	}
+}
+
+// Stale-while-error is for a host that is down, not for one that answered: a
+// withdrawn document (404/410) or an address that is now refused must stop the
+// client from resolving even though a cached row exists.
+func TestMcpResolveCIMDDefinitiveAnswersDropStaleRow(t *testing.T) {
+	w := newMcpWorld(t)
+	id := "https://withdrawn.example/oauth/metadata.json"
+	doc, _ := json.Marshal(map[string]any{"client_id": id, "client_name": "Withdrawn Client", "redirect_uris": []string{"https://withdrawn.example/cb"}})
+	f := &fakeCIMD{body: doc}
+	w.svc.SetFetcher(f)
+	if _, err := w.svc.ResolveClient(w.ctx, id); err != nil {
+		t.Fatalf("first resolve: %v", err)
+	}
+	w.svc.now = func() time.Time { return time.Now().Add(25 * time.Hour) }
+
+	definitive := map[string]error{
+		"404 gone":          fmt.Errorf("%w: status 404", errCIMDRejected),
+		"410 gone":          fmt.Errorf("%w: status 410", errCIMDRejected),
+		"address refused":   errCIMDNotAllowed,
+		"wrapped refused":   fmt.Errorf("fetch: %w", errCIMDNotAllowed),
+		"wrapped rejection": fmt.Errorf("fetch: %w", errCIMDRejected),
+	}
+	for name, ferr := range definitive {
+		f.err = ferr
+		if c, err := w.svc.ResolveClient(w.ctx, id); !errors.Is(err, errMcpClientUnknown) {
+			t.Errorf("%s: resolve = %+v, %v; want errMcpClientUnknown despite the cached row", name, c, err)
+		}
+	}
+
+	for name, ferr := range map[string]error{
+		"plain transport error": errors.New("connection reset"),
+		"deadline":              context.DeadlineExceeded,
+		"server error":          cimdStatusError(503),
+	} {
+		f.err = ferr
+		if c, err := w.svc.ResolveClient(w.ctx, id); err != nil || c.Name != "Withdrawn Client" {
+			t.Errorf("%s: resolve = %+v, %v; want the stale client", name, c, err)
+		}
 	}
 }

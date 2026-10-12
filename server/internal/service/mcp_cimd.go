@@ -25,7 +25,20 @@ type ClientMetadataFetcher interface {
 // document URL is attacker-chosen.
 var errCIMDNotAllowed = errors.New("client metadata address not allowed")
 
+// errCIMDRejected marks a definitive answer from the host (a withdrawn document,
+// a redirect, a client error). A transient failure (transport, timeout, 5xx,
+// 408, 429) is a plain error so resolveCIMD may serve its cached row instead.
+var errCIMDRejected = errors.New("client metadata rejected")
+
 const cimdMaxBytes = 16 << 10
+
+// cimdStatusError classifies a non-200 status. It names no host or URL.
+func cimdStatusError(code int) error {
+	if code >= 500 || code == http.StatusRequestTimeout || code == http.StatusTooManyRequests {
+		return fmt.Errorf("client metadata: transient status %d", code)
+	}
+	return fmt.Errorf("%w: status %d", errCIMDRejected, code)
+}
 
 type cimdFetcher struct{ client *http.Client }
 
@@ -74,7 +87,7 @@ func (f *cimdFetcher) Fetch(ctx context.Context, raw string) ([]byte, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("client metadata: status %d", res.StatusCode)
+		return nil, cimdStatusError(res.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(res.Body, cimdMaxBytes+1))
 	if err != nil {

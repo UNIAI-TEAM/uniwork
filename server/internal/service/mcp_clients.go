@@ -142,8 +142,10 @@ func (s *McpAuthService) resolveCIMD(ctx context.Context, clientID string) (McpC
 	}
 	body, err := s.fetch.Fetch(ctx, clientID)
 	if err != nil {
-		if cached {
-			return mcpClientFromRow(row), nil // stale-while-error: the host is down, the client is not unknown
+		// stale-while-error, for a host that is down only: a definitive answer
+		// (withdrawn document, refused address) must not keep the client alive.
+		if cached && !errors.Is(err, errCIMDRejected) && !errors.Is(err, errCIMDNotAllowed) {
+			return mcpClientFromRow(row), nil
 		}
 		return McpClient{}, errMcpClientUnknown
 	}
