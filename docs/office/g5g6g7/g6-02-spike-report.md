@@ -35,7 +35,8 @@ và trên upstream dev, rồi đề xuất mọi số và quyết định thẻ 
   bằng object `x_uniwork`, `finish_reason` giữ giá trị chuẩn.
 - Run/usage là **hạ tầng AI** (`Ai*` queries), không vào `audit_coverage_test.go`.
 - Đo (§3): trên upstream dev, id tool call đi hai chiều 10/10 vòng, `usage` có ở 20/20 lượt và ở chunk cuối khi
-  stream, latency một lượt p50 1,6 giây / p95 ≤ 4,9 giây, cả vòng p50 3,3 giây / p95 7,1 giây; `fake` đi hai chiều 3/3.
+  stream, latency một lượt p50 1,5–1,7 giây / p95 3,1–9,8 giây, cả vòng p50 3,1 giây / p95 12,7 giây (lần chạy lại;
+  lần đầu 3,3 / 7,1 giây); `fake` đi hai chiều 10/10. `/v1/models` đọc được 2472 tên (§3 ghi chú 1).
 
 ### Proposed G6-D1 values
 
@@ -45,7 +46,7 @@ Cột bằng chứng trỏ tới mục chi tiết ở §4. Dòng nào đã có t
 
 | # | Quyết định | Giá trị đề xuất | Bằng chứng | Ký |
 | --- | --- | --- | --- | --- |
-| 1 | `ModelPolicy` `office_uniwork_ai` | `Default`: `anthropic` → `claude-opus-5`, `openai` → `gpt-4o`, `fake` → `fake`, **không có `ollama`** (không hỗ trợ vòng tool → capability không cấu hình); `MaxTokens` 4096; `Temperature` 0; dev: `AI_MODEL_OFFICE_UNIWORK_AI` = `gpt-6-luna` + thêm vào `AI_MODEL_ALLOW` (đã chạy 20/20 lượt; chưa đối chiếu với `/v1/models`, §3 ghi chú 1) | §4.1 | AI Platform + owner F |
+| 1 | `ModelPolicy` `office_uniwork_ai` | `Default`: `anthropic` → `claude-opus-5`, `openai` → `gpt-4o`, `fake` → `fake`, **không có `ollama`** (không hỗ trợ vòng tool → capability không cấu hình); `MaxTokens` 4096; `Temperature` 0; dev: `AI_MODEL_OFFICE_UNIWORK_AI` = `gpt-6-luna` + thêm vào `AI_MODEL_ALLOW` (đã chạy 20/20 lượt; upstream nhận tên này, model sai trả 404; chưa có cờ thành viên trong 2472 tên của `/v1/models`, §3 ghi chú 1) | §4.1 | AI Platform + owner F |
 | 2 | Trần token instruction pack | ≤ 2000 token cho phần chung + đoạn module lớn nhất (phần chung ≤ 800, mỗi đoạn module ≤ 1200) | §4.2 | AI Platform + Product (G6-14 *hitl*) |
 | 3 | Trần vòng tool / lượt model mỗi run | 8 vòng tool-result, 10 lượt gọi model mỗi run (lượt đầu + 8 vòng + 1 dự phòng); vượt → `run_limit_reached` (429, không `error_class`, mã đã chốt ở contract-p0 §4); client phân biệt theo mã, không chờ lại | §4.3 | AI Platform + owner F |
 | 4 | Nhóm rate limit `ai-uniwork` | 60 req/phút theo danh tính (bucket riêng, không chung `ai-byok`) | §4.4 | AI Platform |
@@ -78,8 +79,9 @@ nào còn lại (chế độ fake của wrapper làm đúng như vậy). Giá tr
 
 Commit spike: `aadf0daa5` (test hình dạng), `bcca72643` (provider), `544907c3b` (harness
 `server/internal/ai/provider/upstream_spike_test.go`, gắn cờ `SPIKE_MODE=fake|dev`; mọi chuỗi ghi ra đi qua
-`spikeRedact` nên base URL, host và khóa thành `<upstream>`), `e568fe149` (wrapper + helper env). Wrapper ghi JSON + bản
-tóm tắt + log chạy vào thư mục báo cáo của lane và trả exit code của test.
+`spikeRedact` nên base URL, host và khóa thành `<upstream>`), `e568fe149` (wrapper + helper env), `85bca4171` (giới hạn danh sách model harness giữ: giới hạn đọc 1 MiB cũ cắt cụt JSON
+của `/v1/models`, xem §3 ghi chú 1). Wrapper ghi JSON + bản tóm tắt + log chạy vào thư mục báo cáo của lane và trả exit
+code của test.
 
 Vòng đo (theo brief lane): (1) request đầu khai một công cụ tổng hợp (ví dụ `sum_range` trên bảng số giả), model trả
 `tool_calls[].id`; (2) request thứ hai gửi message `tool` với đúng `tool_call_id`; (3) model trả lời cuối. Đo: id còn
@@ -87,41 +89,58 @@ nguyên hai chiều, `usage` có hay thiếu, probe `stream: true` thô (số ch
 p50/p95 trên ≥ 10 lần, tên model lấy từ `/v1/models`. Harness là test Go gắn cờ môi trường trong
 `server/internal/ai/provider` — package duy nhất được mở kết nối model (`TestProviderSDKOnlyInAIProvider`).
 
-Kết quả lưu ngoài repo ở `reports/g6-ai_server/` của lane (smoke fake: `spike-smoke.json`; dev: `ac2-dev-run-1.json`,
-`.txt`, `.log`).
+Kết quả lưu ngoài repo ở `reports/g6-ai_server/` của lane (dev: `ac2-dev-run-1.json`, `.txt`, `.log`; bản ghi bằng chứng
+của W1: `w1-spike-report.md`).
 
 ## 3. Kết quả đo
 
-Cột fake: smoke `spike-smoke.json` (2026-10-12T10:07:36Z, 3 vòng). Cột upstream dev: AC-2 `ac2-dev-run-1.json` /
-`.txt` / `.log` (2026-10-12T10:21:54Z, 10 vòng, harness ở `544907c3b`, `--- PASS: TestUpstreamSpike (45.94s)`).
-Cả hai ở thư mục báo cáo lane, ngoài repo.
+Cột fake: lần chạy `bash scripts/office/ai-upstream-spike.sh fake` với `SPIKE_LOOPS=10`, exit 0, không mạng
+(`w1-spike-report.md` §2 #5, §4). Cột upstream dev: AC-2 **chạy lại**, `ac2-dev-run-1.json` / `.txt` / `.log`
+(2026-10-12T10:24:36Z, 10 vòng, harness ở `85bca4171`, `--- PASS: TestUpstreamSpike (48.65s)`), đã **thay** lần chạy đầu
+(10:21:54Z, harness `544907c3b`; số của lần đó ghi ở dưới bảng). Hai cột ở thư mục báo cáo lane, ngoài repo.
 
 | Đo | fake | upstream dev |
 | --- | --- | --- |
 | Model | `fake` | `gpt-6-luna` (đặt qua `SPIKE_MODEL`, xem ghi chú 1) |
-| `GET /v1/models` | n/a | HTTP 200, harness **không đọc được tên nào** (ghi chú 1) |
-| Vòng có tool call | 3/3 | 10/10 |
-| id hai chiều (`tool_calls[].id` → `CompletionResponse` → `tool_call_id` request được upstream nhận) | ok 3/3 | **ok 10/10, lỗi 0** |
+| `GET /v1/models` | n/a | HTTP 200, **2472 tên**; harness giữ số đếm thật + 200 tên đầu (ghi chú 1) |
+| Vòng có tool call | 10/10 | 10/10 |
+| id hai chiều (`tool_calls[].id` → `CompletionResponse` → `tool_call_id` request được upstream nhận) | ok 10/10 | **ok 10/10, lỗi 0** |
+| Câu trả lời nhắc lại id | 10/10 | 0/10 (model diễn đạt lại; nhắc id chỉ là assertion của fake, ghi chú 3) |
 | Call thừa ở lượt 2 | 0 | 0 |
-| `usage` non-stream (lượt 1 / lượt 2) | có 3/3 / 3/3 | **có 10/10 / 10/10** |
-| Token lượt 1 (prompt / completion) | 24 / 8 | 2637 / 19 (cả 10 vòng như nhau; ghi chú 2) |
-| Token lượt 2 (prompt / completion) | 10 / 9 | 2682 / 10–11 |
+| `usage` non-stream (lượt 1 / lượt 2) | có 10/10 / 10/10 | **có 10/10 / 10/10** |
+| Token prompt lượt 1 / lượt 2 | 24 / 10 (ước lượng) | **2637 / 2682** (cả 10 vòng như nhau; ghi chú 2) |
+| Token completion lượt 1 / lượt 2 | n/a | 19 / 10–11 |
 | `finish_reason` thấy được | `tool_calls`, `end_turn` | `tool_calls`, `stop` |
 | Stream thô (`stream: true` + `stream_options.include_usage`) | n/a | HTTP 200, 8 chunk, có delta tool call, **id có ngay trên delta đầu**, **có chunk usage cuối**, `finish_reason` `tool_calls` |
-| Latency lượt 1 p50 / p95 | 0 ms | **1575 / 3160 ms** |
-| Latency lượt 2 (tool-result) p50 / p95 | 0 ms | **1660 / 4853 ms** |
-| Latency cả vòng p50 / p95 | 0 ms | **3310 / 7073 ms** |
-| Lỗi / 429 | không | không |
+| Latency lượt 1 p50 / p95 | 0 ms | **1488 / 3127 ms** |
+| Latency lượt 2 (tool-result) p50 / p95 | 0 ms | **1732 / 9819 ms** |
+| Latency cả vòng p50 / p95 | 0 ms | **3096 / 12702 ms** |
+| Lỗi / 429 | không | không (20 call, 0 lỗi) |
+
+Lần chạy đầu (10:21:54Z, chỉ để so): lượt 1 p50 1575 / p95 3160 ms, lượt 2 p50 1660 / p95 4853 ms, cả vòng p50 3310 / p95
+7073 ms, 20/20 `usage`, id 10/10. Độ lệch giữa hai lần chạy là thật (p95 lượt 2 gần gấp đôi); mọi số dẫn xuất trong báo
+cáo dùng lần chạy sau (chậm hơn) và nêu khoảng khi cần.
 
 Ghi chú:
-1. Brief yêu cầu tên model lấy từ `/v1/models`. Lượt chạy gọi `/v1/models` được 200 nhưng bộ đọc của harness
-   (`spikeModelNames`, `upstream_spike_test.go:302-330`, đọc `data[].id`) không lấy được tên nào, nên `gpt-6-luna` là
-   giá trị cấu hình (`SPIKE_MODEL`), **chưa đối chiếu được với danh sách**. Việc đó còn mở cho W1 (sửa bộ đọc hoặc ghi
-   lại hình dạng response); việc upstream nhận model này và trả lời 20/20 lượt là bằng chứng thực tế nó dùng được.
+1. Brief yêu cầu tên model lấy từ `/v1/models`. **Đã sửa:** lần chạy đầu 200 nhưng không có tên nào vì giới hạn đọc 1 MiB
+   cắt cụt JSON (upstream liệt kê 2472 tên); `85bca4171` đọc tới 8 MiB và lần chạy lại đọc được. Còn hai chi tiết: (a)
+   artifact chỉ giữ 200 tên đầu theo thứ tự chữ, đều có dạng `cl/<hãng>/<model>` (ví dụ `cl/anthropic/claude-opus-5`,
+   `cl/deepseek/deepseek-v4.1-flash`), và **không có `gpt-6-luna`** trong 200 tên đó, nên artifact chưa chứng minh được
+   `gpt-6-luna` nằm trong 2472 tên; (b) bằng chứng gián tiếp: model sai trả 404 (`SPIKE_MODEL=no-such-model-uni1364`,
+   `w1-spike-report.md` §2 #7), trong khi `gpt-6-luna` trả lời 20/20 lượt, tức upstream nhận ra tên này. Việc còn lại
+   (một cờ `model_in_list` trong summary, hoặc W1 chạy lại phần liệt kê toàn bộ) là chi tiết nhỏ, không đổi kết luận nào;
+   contract-p0 §8 muốn `AI_MODEL_ALLOW` chọn "từ `/v1/models`", nên giá trị dev ở §4.1 vẫn là tạm tới khi có cờ đó.
 2. Prompt của harness chỉ là một câu + một công cụ, không system prompt (`upstream_spike_test.go:37-41`), tức vài chục
    token, nhưng upstream dev báo 2637 token đầu vào ổn định: upstream dev **cộng thêm ~2.6k token** của riêng nó (system
    prompt phía proxy hoặc tương đương). Hệ quả: (a) `usage` của upstream dev không phản ánh đúng chi phí của nội dung
    UniWork, chỉ dùng cho dev; (b) với ứng viên production (§6), G7-D1 đo lại overhead trước khi chốt cost/run.
+3. Model thật không nhắc lại id trong câu trả lời: id sống sót qua giao thức 10/10 nhưng chỉ `fake` nhắc lại nó. Test muốn
+   thấy id quay về phải đọc `tool_calls[].id`, không đọc văn bản trả lời; id có ngay trên delta tool call đầu của stream,
+   nên façade stream (v1.1) khóa theo nó được.
+4. Adapter `openai.go` hiện **không gửi `stream`**. Một model của upstream dev (`deepseek-4.1`) coi việc thiếu `stream` là
+   `stream:true` và trả thân SSE; với `stream:false` tường minh nó trả JSON `finish_reason: stop` **không có tool call**.
+   `gpt-6-luna` theo mặc định và trả `tool_calls`. Hệ quả: façade (G6-13) gửi `stream:false` tường minh ở đường không
+   stream (một dòng), và chọn model dev cho `AI_MODEL_OFFICE_UNIWORK_AI` là quyết định có hậu quả (`w1-spike-report.md` §5.1).
 
 ## 4. Quyết định
 
@@ -146,7 +165,9 @@ không bao giờ báo true cho tổ chức nào (contract-p0 §8, spec §12.3).
 - Model chọn bằng override có sẵn `AI_MODEL_OFFICE_UNIWORK_AI` (`policy.go:84`), phải nằm trong `allowedModels`
   (`policy.go:61-65`) hoặc `AI_MODEL_ALLOW` (`config.go:34-38`). Dev: `AI_MODEL_OFFICE_UNIWORK_AI=gpt-6-luna` và
   `AI_MODEL_ALLOW=gpt-6-luna` — model AC-2 đã chạy (10 vòng, 20 lượt, id hai chiều 10/10, §3). Đây là model dev, không
-  phải default production; default production đi theo G6-D2. Việc đối chiếu tên với `/v1/models` còn mở (§3 ghi chú 1).
+  phải default production; default production đi theo G6-D2. `/v1/models` đã đọc được (2472 tên) nhưng artifact chưa
+  ghi `gpt-6-luna` có trong danh sách (§3 ghi chú 1). Chọn model dev có hậu quả: `deepseek-4.1` không trả tool call
+  khi gửi `stream:false` (§3 ghi chú 4), `gpt-6-luna` thì có.
 - `Temperature: 0` theo spec §8.1; `openai.go:48` và `anthropic.go:30` chỉ gửi `temperature` khi > 0, tức upstream dùng
   mặc định của nó. **Giữ hành vi đó** (không gửi `temperature: 0` tường minh): lớp openai-compatible của Anthropic trả 400
   cho `temperature` < 1 trên Claude 4.7+ (notes-upstream-candidates §3), nên gửi tường minh sẽ làm hỏng một ứng viên
@@ -181,9 +202,9 @@ limiter UniWork trả **không** đếm (request không tới Gateway); 429/5xx 
 trần server (10) luôn tới trước và fork chưa có hành vi cho `run_limit_reached` (G6-05 thêm). Fork tự gửi lại cùng
 request trong ba trường hợp — stream rỗng (2 lần, `loop.ts:965-985`), stream đứt giữa tham số công cụ (1 lần,
 `loop.ts:342-343`), lỗi trần `max_tokens` (1 lần, `output-cap.ts:38-55`) — mỗi lần là một lượt model ở server; lượt
-"dự phòng" trong số 10 dành cho chúng (notes-fork-adapter §5). Đo trên upstream dev (§3): p95 một lượt 3,2–4,9 giây với
-prompt nhỏ, nên 10 lượt ở p95 ≈ 50 giây cộng thời gian công cụ trong renderer — dưới timeout 60 giây mỗi lượt và vừa
-TTL §4.9. Prompt Office thật (instruction pack + schema module + lịch sử) dài hơn nhiều; G6-08 đo lại, và nếu p95 một
+"dự phòng" trong số 10 dành cho chúng (notes-fork-adapter §5). Đo trên upstream dev (§3, prompt nhỏ): p50 một lượt 1,5–1,7 giây nên 10 lượt thường ≈ 17 giây; p95 là 3,1 giây (lượt 1)
+và 9,8 giây (lượt 2, lần chạy lại), nên trường hợp xấu 10 lượt đều ở p95 lượt 2 ≈ 100 giây, cộng thời gian công cụ trong
+renderer — mỗi lượt vẫn dưới timeout 60 giây và cả run vẫn xa TTL §4.9 (1800 giây). Prompt Office thật (instruction pack + schema module + lịch sử) dài hơn nhiều; G6-08 đo lại, và nếu p95 một
 lượt > 20 giây thì trần 10 lượt (≈ 3 phút) xem lại cùng G7-D1.
 
 ### 4.4 Rate limit nhóm `ai-uniwork`
@@ -401,7 +422,7 @@ loại chunk/callback `notice`, G6-05u vẽ chip.
 
 Lý do: `provider.Provider` không có method stream (`provider.go:89-93`) và `Gateway.Complete` là một request một
 response (`gateway.go:114-204`); stream thật cần method mới ở cả ba provider, lọc tool call theo delta, và chốt usage
-khi stream đứt — rủi ro lớn hơn lợi ích. Số đo (§3) ủng hộ: một lượt p50 1,6 giây, p95 3,2–4,9 giây, phần lớn lượt
+khi stream đứt — rủi ro lớn hơn lợi ích. Số đo (§3) ủng hộ: một lượt p50 1,5–1,7 giây, p95 3,1–9,8 giây, phần lớn lượt
 Office là tool call ngắn (19 token đầu ra ở lượt 1) nên stream thật không rút ngắn được gì người dùng thấy; chỉ câu trả
 lời văn bản dài mới được lợi, và đó là việc của v1.1. Ngưỡng `uwTipWaitAiLong` 30 giây của EXPERIENCE không cần đổi.
 Adapter `uniwork` của fork vẫn phải chịu stream thật (spec §6.2) để v1.1 bật bằng server mà không phát hành lại app.
@@ -576,7 +597,9 @@ spec §3 bất biến 9). Sự kiện `aiRun` (X-02) chưa có ở pin này.
 | --- | --- | --- |
 | Upstream production không trả `usage` (upstream dev có trả, 20/20) | credit tính sai | `usage_unknown` + đối soát (§4.15); kiểm lại trên ứng viên G6-D2 bằng cùng harness |
 | `usage` của upstream gồm overhead riêng (~2.6k token trên upstream dev, §3 ghi chú 2) | credit/cost tính cả phần không phải của UniWork | dev: chấp nhận; production: G7-D1 đo overhead của ứng viên trước khi chốt cost/run |
-| Tên model dev chưa đối chiếu được với `/v1/models` (§3 ghi chú 1) | brief đòi tên từ danh sách | W1 sửa bộ đọc `spikeModelNames` và chạy lại phần liệt kê; không đổi kết luận nào khác |
+| Artifact AC-2 chỉ giữ 200 trong 2472 tên của `/v1/models`, không có `gpt-6-luna` (§3 ghi chú 1) | contract-p0 §8 muốn model dev chọn từ danh sách; thành viên chưa được ghi | Bộ đọc đã sửa (`85bca4171`, tên đã đọc được); thêm cờ `model_in_list` hoặc liệt kê đủ ở lần chạy sau; bằng chứng gián tiếp: model sai 404, `gpt-6-luna` 20/20 |
+| `openai.go` không gửi `stream`; `deepseek-4.1` trên upstream dev coi là `stream:true`, còn `stream:false` thì không trả tool call (§3 ghi chú 4) | đường không stream không đọc được mọi model của upstream | G6-13 gửi `stream:false` tường minh; dev dùng `gpt-6-luna`; kiểm lại từng ứng viên G6-D2 bằng harness |
+| Latency p95 lượt 2 lệch giữa hai lần chạy (4,9 → 9,8 giây) | số p95 không ổn định trên upstream dev dùng chung | dùng khoảng trong báo cáo; G6-08/G7-D1 đo lại với tải thật trước khi chốt trần 10 lượt |
 | `temperature` không gửi khi 0 (`openai.go:48`) | upstream dùng mặc định riêng, kết quả kém xác định | chấp nhận ở v1 (gửi tường minh làm Claude qua lớp compat trả 400, §4.1); G6-08 đo độ ổn định trên dev set |
 | Schema công cụ module lớn | ăn ngân sách 48 000 | G6-01 đo kích thước schema; G6-14 báo nếu > 8000 token |
 | Khóa `AI_CONVERSATION_KEY` mới | thêm secret phải quản lý | ADR 0029 Hệ quả: secret manager; không có xoay khóa v1, đổi khóa = mọi transcript thành `conversation_expired` (chấp nhận được vì TTL 30 phút) |
@@ -584,7 +607,7 @@ spec §3 bất biến 9). Sự kiện `aiRun` (X-02) chưa có ở pin này.
 | Gateway một provider cho cả server (spec §8.1) | đổi upstream UniWork AI đổi luôn Ask UNI | ngoài v1, cần ADR |
 | Số trong bảng tóm tắt | chưa ký | người dùng ký G6-D1 ở lô #2 (contract-p0 §2, §11); G7-D1 cho trần đồng thời ở lô #3 |
 
-Mọi quyết định của thẻ G6-02 đã có đề xuất và bằng chứng; không mục nào còn chờ số đo. Còn mở ngoài phạm vi quyết định: đối chiếu tên model dev với `/v1/models` (§3 ghi chú 1), và việc ký G6-D1 / G6-D2 / G7-D1.
+Mọi quyết định của thẻ G6-02 đã có đề xuất và bằng chứng; không mục nào còn chờ số đo. Còn mở ngoài phạm vi quyết định: cờ thành viên của `gpt-6-luna` trong `/v1/models` (§3 ghi chú 1; tên đã đọc được), các câu hỏi Q1–Q5 ở §8.1, và việc ký G6-D1 / G6-D2 / G7-D1.
 
 ### 8.1 Đối chiếu contract-p0
 
