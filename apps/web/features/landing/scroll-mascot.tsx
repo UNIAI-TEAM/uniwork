@@ -42,24 +42,21 @@ export function ScrollMascot() {
       const route = progress * Math.PI * 12;
       const x = window.innerWidth - size * (0.92 + Math.sin(route * 0.5) * 0.06);
       let y = window.innerHeight * (0.49 + Math.sin(route) * 0.26) - size / 2;
-      let hasClearLane = true;
-      if (window.innerWidth < 768) {
-        // At phone widths the mascot shares the content column. Move it clear
-        // of buttons and links; hide it if no safe position is available.
-        const minY = 96;
-        const maxY = Math.max(minY, window.innerHeight - size - 16);
-        const candidates = [0, -1, 1, -2, 2, -3, 3].map((step) =>
-          Math.min(maxY, Math.max(minY, y + step * size * 1.1)),
-        );
-        const clear = candidates.find((candidate) =>
-          [0.2, 0.5, 0.8].every((part) => {
-            const behind = document.elementFromPoint(window.innerWidth - size * 0.55, candidate + size * part);
-            return !behind?.closest("a, button, input, select, textarea, [role='button'], .lovable-preview-tools, .mobile-feature-story");
-          }),
-        );
-        hasClearLane = clear !== undefined;
-        if (clear !== undefined) y = clear;
-      }
+      // Follow the route through free space, rather than laying the mascot
+      // over controls or the dense product demonstrations at any breakpoint.
+      const minY = 96;
+      const maxY = Math.max(minY, window.innerHeight - size - 16);
+      const candidates = [0, -1, 1, -2, 2, -3, 3].map((step) =>
+        Math.min(maxY, Math.max(minY, y + step * size * 1.1)),
+      );
+      const clear = candidates.find((candidate) =>
+        [0.2, 0.5, 0.8].every((part) => {
+          const behind = document.elementFromPoint(window.innerWidth - size * 0.55, candidate + size * part);
+          return !behind?.closest("a, button, input, select, textarea, [role='button'], .lovable-preview, .business-os-grid, .roadmap-visual");
+        }),
+      );
+      const hasClearLane = clear !== undefined;
+      if (clear !== undefined) y = clear;
       const visible = !reducedMotion.matches && !document.hidden && scroll > 24 && !atAiStage && footerTop > window.innerHeight * 0.85 && hasClearLane;
       element.dataset.visible = String(visible);
       if (!placed) {

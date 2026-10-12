@@ -19,9 +19,10 @@ test("UNI follows scroll, yields to the AI portrait, and respects reduced motion
   });
   expect(duringScroll).toBe("true");
 
-  await page.evaluate(() => window.scrollTo({ top: 1350, behavior: "instant" }));
   await expect.poll(async () => Math.abs((await companion.boundingBox())!.y - firstY)).toBeGreaterThan(40);
   await expect(companion).toHaveAttribute("data-running", "false");
+  await page.evaluate(() => window.scrollTo({ top: 1350, behavior: "instant" }));
+  await expect(companion).toHaveAttribute("data-visible", "false");
 
   await page.locator(".ai-stage").scrollIntoViewIfNeeded();
   await expect(companion).toHaveAttribute("data-visible", "false");
