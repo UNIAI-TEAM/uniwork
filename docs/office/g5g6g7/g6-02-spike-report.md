@@ -1,6 +1,6 @@
 # G6-02 — Spike upstream và hợp đồng façade UniWork AI
 
-> **Trạng thái:** in-progress
+> **Trạng thái:** shipped
 
 Issue UNI-1364 (parent UNI-635), plan `docs/superpowers/plans/2026-10-12-office-g5-g6-g7.md` v2.6 §5.4 thẻ G6-02,
 spec `docs/superpowers/specs/2026-10-02-office-g5-g6-g7-design.md` v1.2 §6.2, §8, §13.1. Nhánh
