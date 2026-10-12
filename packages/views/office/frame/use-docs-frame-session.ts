@@ -21,6 +21,7 @@ import {
 } from "@uniwork/core/office/docs-frame-protocol";
 import { getOfficeDraftKey, officeDraftScope } from "@uniwork/core/office/draft-session-key";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
+import { deliverFrameDownload } from "./frame-download";
 
 /**
  * No handshake within this long = the bundle never loaded, and the page shows the load failure
@@ -32,6 +33,38 @@ const BOOT_TIMEOUT_MS = 25_000;
 
 /** No handshake yet after this long: the page says the editor is taking longer than usual. */
 const SLOW_AFTER_MS = 8_000;
+
+/**
+ * A Save the page sends waits without the protocol's 30 s request timeout, because the frame's
+ * conflict dialog may stay open for as long as the user reads it. This watchdog bounds the rest:
+ * no answer and no `modal {open:true}` within this long cancels the request as a timeout. It is
+ * stopped while the frame runs `api.save` or shows a dialog, and starts over when either ends
+ * without an answer (EXPERIENCE.md › Conflict dialog (S5)).
+ */
+export const SAVE_WATCHDOG_MS = 30_000;
+
+/** How a Save the page asked for ended: a new version, the newest version reloaded, the user's Cancel, or a failure. */
+export type DocsFrameSaveOutcome = "saved" | "reloaded" | "cancelled" | "failed";
+
+/** The Save the page has in flight, as the watchdog sees it. */
+interface HostSaveWatch {
+  abort: AbortController;
+  /** Set when the host itself gave up: the frame stayed silent, or its document went away. */
+  cause: "watchdog" | "unload" | null;
+  /** `api.save` requests of the frame in flight. */
+  busy: number;
+  modal: boolean;
+  /** The frame stored a new version while this Save was open. */
+  stored: boolean;
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
+function armWatchdog(watch: HostSaveWatch) {
+  if (watch.timer !== null) clearTimeout(watch.timer);
+  watch.timer = null;
+  if (watch.busy > 0 || watch.modal || watch.cause) return;
+  watch.timer = setTimeout(() => { watch.cause = "watchdog"; watch.abort.abort(); }, SAVE_WATCHDOG_MS);
+}
 
 /**
  * `details.frameBundle` on a session failure: the frame document itself could not be loaded
@@ -73,6 +106,11 @@ export interface DocsFrameSessionOptions {
   onSavedAs?: (documentId: string, name: string) => void;
   /** Names a save-as copy before it is created (the frame asks with the source's own name). */
   copyName?: (name: string) => string;
+  /**
+   * The name of a download of the open bytes (the conflict dialog's "download my version"),
+   * without its extension: the host adds the module's own.
+   */
+  downloadName?: () => string;
   /** Non-fatal frame or proxy errors the user should hear about. */
   onError: (error: ProtocolErrorShape) => void;
   /**
@@ -97,19 +135,13 @@ export interface DocsFrameSession {
   saveState: DocsFrameSaveState;
   /** The frame shows one of its own dialogs (its `modal` event); the page dims its chrome meanwhile. */
   modal: boolean;
-  /**
-   * A save the page asked for (header Save) met a newer version on the server. The frame leaves the
-   * UI of a host-initiated save to the host, so the page asks Reload latest / Keep my edits.
-   */
-  conflict: boolean;
-  /** Keep the edits open: the dialog closes, the frame stays as it is. */
-  keepEdits: () => void;
-  /** Drop the local edits and open the newest version in a fresh frame. */
-  reloadLatest: () => void;
   /** Content height the frame last reported, in CSS px. */
   height: number | null;
-  /** Ask the frame to save (leave dialog). Resolves true once the bytes are a new version. */
-  save: (reason: "user" | "navigate") => Promise<boolean>;
+  /**
+   * Ask the frame to save (header Save, leave dialog). A conflict is the frame's to resolve in its
+   * own dialog; the answer says how the user resolved it.
+   */
+  save: (reason: "user" | "navigate") => Promise<DocsFrameSaveOutcome>;
   print: () => Promise<boolean>;
   /** Changes on every retry; key the iframe with it so the frame reloads. */
   attempt: number;
@@ -130,7 +162,7 @@ export interface DocsFrameSession {
  * by the server at mint); each cloud tool needs `ai` too. The frame then calls
  * the frame-token AI routes itself; a viewer keeps AI (it never saves).
  */
-export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false): Capabilities {
+export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false, download = false): Capabilities {
   const spec = officeModuleSpec(module);
   const grant = spec.grant;
   const on = (key: keyof Capabilities) => grant[key] === true;
@@ -144,6 +176,8 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     imageGeneration: ai && aiGrant?.image_generation === true,
     // The host's own "Open in desktop app" is only for a user who may edit.
     desktopOpen: desktopOpen && !readonly,
+    // The host delivers the frame's bytes itself (api.download), only to a user who may edit.
+    download: download && !readonly,
   };
 }
 
@@ -179,7 +213,6 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<DocsFrameSaveState>("ready");
   const [modal, setModal] = useState(false);
-  const [conflict, setConflict] = useState(false);
   const [height, setHeight] = useState<number | null>(null);
   const [host, setHost] = useState<DocsFrameHost | null>(null);
 
@@ -187,6 +220,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly });
   latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly };
   const sentToken = useRef<string | null>(null);
+  // The Save the page has in flight, and whether the frame shows a dialog right now.
+  const hostSave = useRef<HostSaveWatch | null>(null);
+  const modalOpen = useRef(false);
+  // A clean frame after a save reads "saved"; one never saved reads "ready".
+  const savedOnce = useRef(false);
 
   useEffect(() => {
     setStatus("booting");
@@ -195,10 +233,9 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     setDirty(false);
     setSaveState("ready");
     setModal(false);
-    setConflict(false);
+    modalOpen.current = false;
     sentToken.current = null;
-    // A clean frame after a save reads "saved"; one never saved reads "ready".
-    let savedOnce = false;
+    savedOnce.current = false;
     // The frame document may never answer (404/5xx on index.html loads a dead page, and an iframe
     // fires no error event for that): until the handshake completes, a probe and a timer decide.
     let booted = false;
@@ -241,9 +278,26 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       setSaveState("saving");
       return run().then(
         (result) => { setSaveState(settled(result)); return result; },
-        // A save the user cancelled leaves the edits unsaved, not failed.
-        (error: unknown) => { setSaveState(shapeOf(error).code === "cancelled" ? "dirty" : "error"); throw error; },
+        (error: unknown) => {
+          // While the page's own Save is open its answer decides the header: a 409 here is the
+          // frame's conflict dialog opening, not the end of that Save.
+          if (hostSave.current) setSaveState("saving");
+          // A save the user cancelled leaves the edits unsaved, not failed.
+          else setSaveState(shapeOf(error).code === "cancelled" ? "dirty" : "error");
+          throw error;
+        },
       );
+    };
+    // The frame's document went away (a reload or a crash): a Save sent to it can never be
+    // answered, and a dialog it reported is gone with it.
+    // Its edits are gone too (Markdown and HTML reload themselves after Reload latest): the next
+    // document reports its own dirty state.
+    const frameGone = () => {
+      modalOpen.current = false;
+      setModal(false);
+      setDirty(false);
+      const watch = hostSave.current;
+      if (watch && !watch.cause) { watch.cause = "unload"; watch.abort.abort(); }
     };
     const endpoint = createDocsFrameHost({
       self: window,
@@ -275,7 +329,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           documentId: doc, workspaceId: current.wsId,
           apiBase: docsFrameApiBase(), apiMode: "host-proxy",
           locale: current.locale, theme: current.theme,
-          capabilities: officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen)),
+          capabilities: officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true),
           ...(name ? { user: { displayName: name } } : {}),
           ...(recovery ? { recovery } : {}),
         };
@@ -289,15 +343,25 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       },
       api: {
         "api.open": proxy("api.open", false, (api) => api.open),
-        "api.save": (payload, context) => tracked(() => save(payload, context), (result) => {
-          if (!result.ok) return "dirty";
-          savedOnce = true;
-          return "saved";
-        }),
+        "api.save": async (payload, context) => {
+          // This upload belongs to the page's Save in flight: the watchdog waits for it.
+          const watch = hostSave.current;
+          if (watch) { watch.busy += 1; armWatchdog(watch); }
+          try {
+            return await tracked(() => save(payload, context), (result) => {
+              if (!result.ok) return "dirty";
+              savedOnce.current = true;
+              if (watch) watch.stored = true;
+              return "saved";
+            });
+          } finally {
+            if (watch) { watch.busy -= 1; armWatchdog(watch); }
+          }
+        },
         "api.saveAs": async (payload, context) => {
           const name = latest.current.options.copyName?.(payload.name) ?? payload.name;
           const { save: saved, rebind } = (await tracked(() => saveAs({ ...payload, name }, context), () => "saved")) as unknown as DocsFrameSavedAs;
-          savedOnce = true;
+          savedOnce.current = true;
           // Switch the frame to the copy before it hears the answer: token first, then scope.
           const { options: current } = latest.current;
           queryClient.setQueryData(officeFrameKeys.token(current.wsId, rebind.documentId), rebind.token);
@@ -319,12 +383,20 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.images.upload": proxy("api.images.upload", true, (api) => api.uploadImage),
         // A read of the user's own document, so a viewer may ask too.
         "api.assets.resolve": proxy("api.assets.resolve", false, (api) => api.resolveAssets),
+        // The conflict dialog's "download my version": bytes only; name, type and size are the host's.
+        "api.download": async (payload) => {
+          const { options: current, scopeId: doc, viewOnly: refused } = latest.current;
+          const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
+          if (refused || minted?.can_edit !== true) throw readOnly("api.download");
+          return deliverFrameDownload(payload, module, current.downloadName?.() ?? doc);
+        },
         "app.open": async () => {
           const { options: current, viewOnly: refused } = latest.current;
           return { outcome: refused || !current.onAppOpen ? "unavailable" : await current.onAppOpen() };
         },
       },
-      onInitialized: () => { booted = true; setSlow(false); setStatus((now) => (now === "failed" ? now : "ready")); },
+      // A new frame instance after the first: the old document and anything it had open are gone.
+      onInitialized: () => { if (booted) frameGone(); booted = true; setSlow(false); setStatus((now) => (now === "failed" ? now : "ready")); },
       onHandshakeError: (error) => {
         if (error.code === "cancelled") return;
         setFatal(error.toShape());
@@ -337,13 +409,19 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       // A failed save keeps "could not be confirmed" until the user edits again; the frame then
       // reports dirty, and the unsaved edits (not the old failure) are what the header must say.
       if (next) setSaveState((now) => (now === "error" ? "dirty" : now));
-      else setSaveState((now) => (now === "dirty" ? (savedOnce ? "saved" : "ready") : now));
+      else setSaveState((now) => (now === "dirty" ? (savedOnce.current ? "saved" : "ready") : now));
     });
-    endpoint.on("modal", ({ open }) => { setModal(open); });
+    endpoint.on("modal", ({ open }) => {
+      modalOpen.current = open;
+      setModal(open);
+      // A dialog the user reads stops the watchdog; one that closes without an answer restarts it.
+      const watch = hostSave.current;
+      if (watch) { watch.modal = open; armWatchdog(watch); }
+    });
     endpoint.on("title", ({ title }) => { latest.current.options.onTitle?.(title); });
     endpoint.on("resize", ({ height: next }) => { setHeight(next); });
     endpoint.on("saved", (saved) => {
-      savedOnce = true;
+      savedOnce.current = true;
       setSaveState("saved");
       const { options: { wsId: ws, onSaved }, scopeId: doc } = latest.current;
       void queryClient.invalidateQueries({ queryKey: documentKeys.detail(ws, doc) });
@@ -373,7 +451,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // still fires. Once the frame document has loaded, probe its scripts (served from the HTTP cache
     // when they did load) and fall back at once instead of waiting out the boot timer.
     const iframe = iframeRef.current;
+    // The first load is the frame document itself; any later one replaced it.
+    let loads = 0;
     const onFrameLoad = () => {
+      loads += 1;
+      if (loads > 1) frameGone();
       if (booted) return;
       let sources: string[] = [];
       try {
@@ -404,23 +486,45 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   useEffect(() => { host?.setTheme(theme); }, [host, theme]);
   useEffect(() => { host?.setLanguage(locale); }, [host, locale]);
 
-  const save = useCallback(async (reason: "user" | "navigate") => {
-    if (!host) return false;
-    // A save the user asked for from the page: a stale base is the host's to explain (the frame
-    // opens its own Reload / Overwrite dialog only for the saves it starts itself). The leave
-    // dialog's save keeps its own inline failure line.
-    const fail = (error: ProtocolErrorShape) => {
-      if (reason === "user" && error.code === "conflict") setConflict(true);
-      else latest.current.options.onError(error);
+  const save = useCallback(async (reason: "user" | "navigate"): Promise<DocsFrameSaveOutcome> => {
+    // One Save at a time: a second one (the page is inert while the frame's dialog is open) waits its turn.
+    if (!host || hostSave.current) return "failed";
+    const watch: HostSaveWatch = { abort: new AbortController(), cause: null, busy: 0, modal: modalOpen.current, stored: false, timer: null };
+    hostSave.current = watch;
+    armWatchdog(watch);
+    setSaveState("saving");
+    const fail = (error: ProtocolErrorShape): DocsFrameSaveOutcome => {
+      setSaveState("error");
+      latest.current.options.onError(error);
+      return "failed";
     };
     try {
-      const result = await host.save({ reason });
-      if (result.ok) return true;
-      fail(result.error);
-      return false;
+      // No request timeout: the frame's conflict dialog may stay open as long as the user reads it.
+      const result = await host.save({ reason }, { timeoutMs: 0, signal: watch.abort.signal });
+      if (result.ok) {
+        // A new version (Overwrite, or a plain save) reads "saved"; Reload latest stores nothing and reads "ready".
+        const stored = Boolean(result.versionId) || watch.stored;
+        if (stored) savedOnce.current = true;
+        setSaveState(stored ? "saved" : "ready");
+        return stored ? "saved" : "reloaded";
+      }
+      // Only the frame's own Cancel is silent: the edits stay, unsaved.
+      if (result.error.code === "cancelled") { setSaveState("dirty"); return "cancelled"; }
+      return fail(result.error);
     } catch (error) {
-      fail(shapeOf(error));
-      return false;
+      if (watch.cause === "watchdog") {
+        return fail({ code: "timeout", message: "the editor did not answer the save in time", retryable: true });
+      }
+      if (watch.cause === "unload") {
+        return fail({ code: "internal", message: "the editor closed before it answered the save", retryable: true, details: { reason: "frame_unloaded" } });
+      }
+      const shape = shapeOf(error);
+      // The session itself went away (retry, unmount): nobody is left to tell.
+      if (shape.code === "cancelled") { setSaveState("dirty"); return "cancelled"; }
+      return fail(shape);
+    } finally {
+      if (watch.timer !== null) clearTimeout(watch.timer);
+      if (hostSave.current === watch) hostSave.current = null;
     }
   }, [host]);
 
@@ -443,16 +547,9 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     if (tokenFailure) void refetchToken();
     setAttempt((n) => n + 1);
   }, [refetchToken, tokenFailure]);
-  const keepEdits = useCallback(() => { setConflict(false); }, []);
-  const reloadLatest = useCallback(() => {
-    // The page's own copy of the document is behind too: refetch it with the frame.
-    void queryClient.invalidateQueries({ queryKey: documentKeys.detail(wsId, scopeId) });
-    retry();
-  }, [queryClient, retry, scopeId, wsId]);
   return { status: failure ? "failed" : status, slow: slow && status === "booting" && !failure, viewOnly, failure, dirty,
     // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
     saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
     modal: modal && status === "ready" && !failure,
-    conflict: conflict && status === "ready" && !failure, keepEdits, reloadLatest,
     height, save, print, attempt, retry };
 }
