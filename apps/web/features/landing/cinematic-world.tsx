@@ -14,7 +14,7 @@ export function CinematicWorld() {
   const [manualPause, setManualPause] = useState<boolean | null>(null);
   const [failed, setFailed] = useState(false);
   const paused = manualPause ?? reduced;
-  const state = useRef({ progress: 0, paused });
+  const state = useRef({ progress: 0, paused, milestones: [] as number[] });
   useEffect(() => {
     const media = matchMedia("(prefers-reduced-motion: reduce)");
     const update = () => { setReduced(media.matches); setManualPause(null); };
@@ -53,6 +53,10 @@ export function CinematicWorld() {
         scrollFrame = 0;
         const distance = document.documentElement.scrollHeight - innerHeight;
         state.current.progress = distance > 0 ? scrollY / distance : 0;
+        state.current.milestones = [...document.querySelectorAll(".studio-world-passage")].map(passage => {
+          const bounds = passage.getBoundingClientRect();
+          return Math.max(0, Math.min(1, (bounds.top + scrollY + bounds.height / 2 - innerHeight / 2) / Math.max(1, distance)));
+        });
         renderer.current?.setState(state.current);
       });
     };

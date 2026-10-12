@@ -50,6 +50,7 @@ export function buildStudioArchitecture(scene: THREE.Scene, palette: StudioPalet
   // The blue inlay is attached to the same ramp transform.
   const inlay = new THREE.Mesh(new THREE.ExtrudeGeometry(rampShape, { depth: .045, bevelEnabled: false, curveSegments: 40 }), blue);
   inlay.position.z = 2.81; ramp.add(inlay);
+  const nearInlay = inlay.clone(); nearInlay.position.z = -.055; ramp.add(nearInlay);
   const second = route.getPointAt(.695), direction = route.getTangentAt(.695);
   const hurdle = mesh(new THREE.BoxGeometry(1.8, .28, .40), blue, [second.x, .14, second.z]);
   hurdle.rotation.y = Math.atan2(direction.x, direction.z);

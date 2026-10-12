@@ -46,6 +46,10 @@ export function createStudioWorld(host: HTMLElement, palette: StudioPalette, svg
   mark.colorSpace = THREE.SRGBColorSpace;
   const horse = buildStudioHorse({ coat: palette.coat, navy: palette.ink, blue: palette.blue, cyan: palette.cyan, coral: palette.coral }, mark);
   scene.add(horse.root);
+  const envelope = new THREE.Box3().setFromObject(horse.root).expandByScalar(.20);
+  const corners: THREE.Vector3[] = [];
+  for (const x of [envelope.min.x, envelope.max.x]) for (const y of [envelope.min.y, envelope.max.y])
+    for (const z of [envelope.min.z, envelope.max.z]) corners.push(new THREE.Vector3(x, y, z));
   const shadowCanvas = document.createElement("canvas"); shadowCanvas.width = shadowCanvas.height = 128;
   const shadowContext = shadowCanvas.getContext("2d")!;
   const gradient = shadowContext.createRadialGradient(64, 64, 4, 64, 64, 64);
@@ -65,6 +69,14 @@ export function createStudioWorld(host: HTMLElement, palette: StudioPalette, svg
   const distance = route.getLength();
   let disposed = false, lost = false, paused = false, frame = 0, last = 0, current = 0, target = 0;
   let viewportWidth = innerWidth, viewportHeight = innerHeight;
+  let milestones: number[] = [], sceneProgress = 0;
+  const routeProgress = (progress: number) => {
+    if (!compact || milestones.length !== 3) return progress;
+    const from = [0, ...milestones, 1], to = [0, .30, .695, 1, 1];
+    for (let i = 1; i < from.length; i++) if (progress <= from[i]!)
+      return THREE.MathUtils.lerp(to[i - 1]!, to[i]!, THREE.MathUtils.clamp((progress - from[i - 1]!) / Math.max(.0001, from[i]! - from[i - 1]!), 0, 1));
+    return 1;
+  };
   const smoothstep = (a: number, b: number, p: number) => THREE.MathUtils.smoothstep(p, a, b);
   const jump = (p: number, a: number, b: number) => {
     const t = THREE.MathUtils.clamp((p - a) / (b - a), 0, 1);
@@ -72,7 +84,7 @@ export function createStudioWorld(host: HTMLElement, palette: StudioPalette, svg
   };
   const draw = () => {
     if (disposed || lost || document.hidden) return;
-    const p = current;
+    const p = paused ? sceneProgress : routeProgress(current); sceneProgress = p;
     const point = route.getPointAt(p), tangent = route.getTangentAt(p);
     const air = Math.max(jump(p, .255, .345), jump(p, .665, .725));
     const preparation = jump(p, .235, .255);
@@ -86,13 +98,31 @@ export function createStudioWorld(host: HTMLElement, palette: StudioPalette, svg
     shadow.position.set(point.x, .017, point.z); shadow.scale.setScalar(1 - air * .32); shadowMaterial.opacity = .26 * (1 - air * .62);
     const orbit = .48 + Math.sin(p * Math.PI * 2) * .8;
     const phone = viewportWidth < 768;
-    const framing = (phone ? 15.8 : 10.8) + air;
-    const focus = new THREE.Vector3(point.x * (phone ? 1 : .35), (phone ? 3.6 : 1.25) + air * .95, point.z * (phone ? 1 : .32));
+    const framing = (phone ? 15.8 : viewportWidth < 1100 ? 13.5 : 11.8) + air;
+    const focus = new THREE.Vector3(point.x, (phone ? 3.6 : 1.70) + air * .95, point.z);
     camera.position.set(focus.x + Math.sin(orbit) * framing, (phone ? 5 : 3.1) + air * .5 + Math.sin(p * Math.PI) * .6,
       focus.z + Math.cos(orbit) * framing);
     camera.lookAt(focus);
+    camera.zoom = 1;
+    if (phone) camera.clearViewOffset();
+    else {
+      const windowWidth = Math.min(520, Math.max(330, viewportWidth * .36));
+      const center = viewportWidth - windowWidth / 2 - 12;
+      camera.setViewOffset(viewportWidth, viewportHeight, viewportWidth / 2 - center, 0, viewportWidth, viewportHeight);
+      horse.root.updateMatrixWorld(true); camera.updateMatrixWorld(true);
+      const preview = corners.map(corner => corner.clone().applyMatrix4(horse.root.matrixWorld).project(camera));
+      const extent = Math.max(...preview.map(v => Math.abs((v.x + 1) * viewportWidth / 2 - center)));
+      // Fit a conservative actor envelope inside the responsive scene window.
+      camera.zoom = Math.min(1, (windowWidth / 2 - 24) / Math.max(1, extent));
+      camera.updateProjectionMatrix();
+    }
     renderer.render(scene, camera);
-    host.dataset.rendered = "true"; host.dataset.pose = p.toFixed(5);
+    host.dataset.rendered = "true"; host.dataset.pose = current.toFixed(5); host.dataset.scenePose = p.toFixed(5);
+    const projected = corners.map(corner => corner.clone().applyMatrix4(horse.root.matrixWorld).project(camera));
+    host.dataset.characterLeft = Math.min(...projected.map(v => (v.x + 1) * viewportWidth / 2)).toFixed(1);
+    host.dataset.characterRight = Math.max(...projected.map(v => (v.x + 1) * viewportWidth / 2)).toFixed(1);
+    host.dataset.characterTop = Math.min(...projected.map(v => (1 - v.y) * viewportHeight / 2)).toFixed(1);
+    host.dataset.characterBottom = Math.max(...projected.map(v => (1 - v.y) * viewportHeight / 2)).toFixed(1);
     host.dataset.action = air > .02 ? "jump" : landing > .01 ? "land" : running > .1 ? "run" : "idle";
   };
   const tick = (now: number) => {
@@ -136,7 +166,8 @@ export function createStudioWorld(host: HTMLElement, palette: StudioPalette, svg
 
   resize(); draw();
   return {
-    setState(next: { progress: number; paused: boolean }) {
+    setState(next: { progress: number; paused: boolean; milestones?: number[] }) {
+      milestones = next.milestones ?? milestones;
       const wasPaused = paused; paused = next.paused; target = THREE.MathUtils.clamp(next.progress, 0, 1);
       host.dataset.motion = paused ? "paused" : "scroll";
       if (paused) { cancelAnimationFrame(frame); frame = 0; host.dataset.running = "false"; }

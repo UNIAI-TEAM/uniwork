@@ -86,7 +86,8 @@ components:
 
 > **DRAFT / NOT APPROVED FOR SHIPPING**
 >
-> Latest finish disposition: **REBUILD**, after valid native-scroll evidence.
+> Latest independent disposition: **REBUILD**, after valid native-scroll evidence.
+> The corrected staging passes visibility; character and cinematic finish remain unapproved.
 > Functional checks passing do not constitute a visual or cinematic pass.
 > This document describes the built candidate; it does not approve its focal
 > character, composition, lighting or action finish.
@@ -125,7 +126,7 @@ The current character and art finish must remain provisional.
 - Pale sculpted architecture, cobalt route accents and cyan lighting.
 - Be Vietnam Pro for the landing copy, with large headlines and one opening CTA.
 - Deterministic scroll pose and camera, explicit pause and a still reduced-motion opening.
-- A valid runtime proof with unresolved character likeness and action visibility.
+- Valid runtime and staging proof, with character likeness and cinematic action unapproved.
 
 ## Colors
 
@@ -202,42 +203,70 @@ a camera opening is not permission to crop a translated headline.
 
 The world host fills the viewport and stays fixed behind the entire landing.
 The root establishes an isolated stacking context; the world sits at z-index
--1 and does not intercept pointer input. The DOM owns the page height,
-navigation, content and conversion flow.
+-1 and does not intercept pointer input. The DOM owns page height, navigation,
+content and conversion. The corrections preserve native document scrolling.
 
 The desktop opening reserves the left side for copy and the right side for
 UNI and architecture. The built copy panel is 47% wide with a 560px cap,
 28px padding and 24px corners. The hero is at least 105svh tall with a responsive
-top inset and an 80px bottom inset. The opening camera is perspective-based
-(38° field of view); the actor is approximately 3.4 scene units high. Scene
-units are world scale, not DOM pixels.
+top inset and an 80px bottom inset. The actor is approximately 3.4 scene units
+high; scene units are world scale, not DOM pixels.
+
+From 768px, the actor has a right-side scene window whose width is
+clamp(330px, 36vw, 520px). Product, future and conversion sections, the trust
+story and footer are narrowed to the remaining left area: their width is the
+viewport minus that actor window and 48px, with a 24px left inset. The platform
+and final CTA have matching higher-specificity rules, so their older wide
+frames do not intrude into the actor area. Nested containers remain within the
+reading column. The opening copy retains its separate 47% composition.
 
 The shared Container provides a centered 80rem maximum with 16px horizontal
-padding, increasing to 24px from the small breakpoint. Large existing story
-frames cap at 1400px; their outer gutters step from 32px to 20px to 12px.
-The studio override gives repeated foreground containers 32px corners.
-Chapter spacing remains the existing 100px vertical rhythm, with chapter
-specific responsive rules. Two open passages expose the world for 68svh.
+padding, increasing to 24px from the small breakpoint. Older large story
+frames retain their 1400px cap and 32px/20px/12px outer gutter variables where
+the studio column override does not apply. Repeated foreground containers use
+32px corners, with their existing chapter spacing. The AI stage becomes a
+single left copy block on desktop: its former empty world column is hidden,
+and its former 90svh minimum and padding are removed. Business OS uses six
+columns with 116px automatic rows; each showcase spans three columns and two
+rows. Between 768px and 1100px it uses three columns, and its layer controls
+use two columns. The perimeter brand cell is hidden in the desktop studio grid.
+
+The camera follows the actor's route position and uses a view offset to center
+it in the reserved desktop window. It projects a conservative model envelope
+(the initial bounds expanded by 0.20 scene units), then adjusts zoom to fit
+that envelope inside the window with a 24px inner margin. The perspective
+field of view remains 38°. This fitting is a visibility mechanism; it is not
+an approved cinematic scale or shot grammar.
 
 At widths through 767px, the opening copy centers, becomes full width with a
 500px cap and uses 20px by 14px padding. The hero grows to at least 115svh,
-with a 122px top inset and 32px bottom inset. Open passages become 50svh,
-the AI world window becomes at least 48svh, AI copy padding becomes 24px,
-and the foreground container corners become 24px. The mobile camera moves
-further back and raises its look target to leave room above UNI for copy.
+with a 122px top inset and 32px bottom inset. Copy and product sections retain
+their phone layouts; the AI copy uses 24px padding and its world window remains
+at least 48svh. Foreground container corners reduce to 24px. The camera clears
+its desktop view offset and uses its wider phone framing.
 
-**Unapproved composition:** foreground panels hide the actor over substantial
-parts of the actual scroll route, including the second jump and closing
-greeting. The two passage spacers do not establish sufficient visible action.
-The section timeline, camera framing and foreground openings require further
-direction across desktop and mobile. Do not reuse the current occlusion or
-camera scale as an approved composition rule.
+Phones have three open action passages, each 110svh tall. The first two are
+the existing passages, and the third sits before the closing CTA and is
+phone-only. Their measured centers drive the phone route milestones so the
+first jump, second jump and closing pose happen in actual open page space,
+rather than relying on unchanged percentages of a longer document. Desktop
+keeps two 68svh passages; the third passage is hidden.
+
+**Visibility correction:** the independent follow-up inspection finds
+foreground occlusion resolved in all eleven desktop scroll frames, including
+the second jump and close, and finds all three phone action passages visible.
+The narrower reading surfaces and envelope fitting address that finding.
+Overall disposition remains **REBUILD**. Repeated right-side framing is not a
+cinematic shot direction, and the character, material, architecture and physical
+action finish remain unapproved.
 
 ## Elevation & Depth
 
 The runtime has real volume, perspective, contact shadows and a desktop floor
 reflection. Its atrium contains thick beveled arches, stacked gallery slabs,
-roof ribs, a ramp at the first jump and a low hurdle at the second. Materials
+roof ribs, a ramp at the first jump and a low hurdle at the second. The ramp
+now carries cobalt inlay on both faces, so the route cameras can see it from
+either side. Materials
 use physical roughness and restrained clearcoat. The floor uses roughness
 0.42 and clearcoat 0.18; pale architecture uses roughness 0.5. The current
 reflection is a 768px render target with a slightly transparent floor above it.
@@ -252,7 +281,7 @@ The UI keeps existing diffuse shadows where they already express a floating
 dock or action. The navigation dock uses a low navy-tinted shadow; its scrolled
 state deepens it. The hero action has a small brand-tinted shadow. The motion
 control has a low navy-tinted shadow. Their exact values live in the scoped
-sidecar; these treatments do not justify obscuring the actor.
+sidecar; foreground placement preserves the corrected actor window.
 
 **The Grounded Action Rule.** Review the actor, floor, ramp and shadow in one
 runtime frame. The source has stance/swing sampling and a contact-shadow
@@ -291,9 +320,9 @@ outside the world, keyboard reachable and usable without WebGL.
 
 The opening surface uses a 96% mix of the shared background. Most repeated
 chapter containers use an opaque background; the AI copy panel adds the shared
-border and uses 36px desktop padding. These are built readability treatments,
-not an approved solution to action staging. The AI stage itself is transparent
-and removes its former pseudo-element decoration and local stage shadow.
+border and uses 36px desktop padding. These are built readability treatments. Desktop surfaces now occupy the left reading column;
+the AI stage removes its former empty world column, pseudo-element decoration
+and local stage shadow. Visibility is verified separately from art finish.
 
 ### Continuous studio world
 
@@ -304,13 +333,17 @@ camera, route, frame scheduling, resize, visibility/context events and cleanup.
 [studio-horse.ts](animation/studio-horse.ts) is the provisional model/pose
 adapter; architecture is built in [studio-architecture.ts](animation/studio-architecture.ts).
 
-Progress is native scrollY divided by document scrollable distance.
-The route is a Catmull–Rom curve and the same sample drives pose and camera.
+Document progress is native scrollY divided by document scrollable distance.
+Desktop uses that progress directly. On phones, CinematicWorld measures the
+centers of the three action passages in scroll coordinates; the renderer maps
+those progress milestones piecewise to scene progress 0.30, 0.695 and 1. With
+three milestones absent, it uses document progress directly. The route is a
+Catmull–Rom curve and the resulting scene sample drives pose and camera.
 The current action windows are first jump 0.255–0.345, landing 0.345–0.375,
 second jump 0.665–0.725 and landing 0.725–0.755. Running eases in at the
 opening and out by progress 1; the greeting appears at 0.96–1.
-These windows record the candidate and are expected to change during
-composition work. They are not a cinematic timing standard.
+These windows refer to scene progress, which differs from document progress
+on phones. They record the candidate and are not a cinematic timing standard.
 
 Frames interpolate toward the scroll target and stop once it settles.
 There is no autonomous gait loop when scroll stops. Pause freezes the pose;
@@ -334,20 +367,42 @@ On renderer failure the fallback is visible and the motion button is disabled.
 
 ### Evidence and review state
 
-Valid motion evidence is the
-[runtime video](../../../../.impeccable/review/studio-action.webm) and the
-native-scroll frames studio-scroll-00 through studio-scroll-10, with desktop,
-mobile, user-940 and opening-dark-en captures in the same review directory.
-A stitched full-page image of a fixed canvas was rejected for scene review;
-the corrected native-scroll evidence is valid. Valid evidence did not change
-the latest finish disposition from **REBUILD**.
+The runtime proof remains
+[studio-action.webm](../../../../.impeccable/review/studio-action.webm),
+a recording of the source-authored canvas rather than generated video. Fresh
+original viewport captures in the same directory are desktop.png, mobile.png,
+user-940.png, opening-dark-en.png and studio-scroll-00.png through
+studio-scroll-10.png. Phone action proof uses mobile-action-0.png through
+mobile-action-2.png. These native-scroll originals document the composited
+world and foreground; contact sheets are only indexes.
 
-The implementing workflow reports eight focused e2e checks, web typecheck and
-focused lint passing. The full make check gate was unavailable on this host.
-These checks support renderer, scroll and motion-state behavior; they do not
-approve the artwork. The remaining acceptance work is the production focal
-model/rig, unobstructed route staging, differentiated architecture/daylight,
-and believable planted run/jump/land action.
+A stitched full-page image of a fixed canvas was rejected for scene review;
+the corrected native-scroll evidence is valid. The fresh full independent
+review returns **REBUILD**. It accepts the scoped draft persistence and confirms
+the UNI-1334-studio-02 direction record. Type meets the tracking requirement;
+the thesis, first viewport and form match the confirmed studio direction.
+Story visibility now passes across eleven desktop frames and three phone
+action passages. Cinematic performance remains unapproved. Repeated right-side
+framing does not establish deliberate cinematic angle or scale progression,
+and visibility does not certify planting, ramp contact or weight transfer.
+
+The final-fit implementing workflow reports ten focused e2e checks passing:
+three scene checks, three scroll/pause checks and four staging checks at
+1440px, 940px, 768px and 390px phone width. Web typecheck and focused lint pass.
+The full make check gate remains unavailable because GNU make is absent on
+this host. These narrow checks support renderer, motion-state and staging
+behavior; they do not imply that the complete e2e suite or artwork passed.
+
+The remaining acceptance work is:
+
+- Focal UNI likeness, rig, mesh, hair and cloth finish.
+- Architectural junctions, material differentiation, directional daylight and depth.
+- World-space feet, ramp contact, anticipation and landing compression, demonstrated in composited runtime video.
+- Deliberate cinematic angle and scale progression beyond repeated right-side framing.
+
+See the appended staging correction
+in the [review record](../../../../docs/superpowers/specs/2026-10-12-uni-studio-review.md).
+The original horse and concept remain the visual authorities.
 
 ## Do's and Don'ts
 
@@ -364,14 +419,15 @@ and believable planted run/jump/land action.
 ### Don't:
 
 - **Don't** treat passing functional checks or valid screenshots as an overall visual pass.
-- **Don't** canonize the procedural character, shoulder openings, face/hair defects or actor occlusion.
+- **Don't** canonize the procedural character, shoulder openings, face/hair defects or unfinished physical motion.
 - **Don't** use the generated fallback as proof that a matching production 3D model exists.
 - **Don't** call the confirmed choice record a fresh seed or a catalog quality bar.
 - **Don't** carry this scoped landing composition into the authenticated app.
 - **Don't** invent customer, adoption, availability or autonomous-agent evidence.
 
 **Not canonized:** the current focal model's likeness and craft defects,
-foreground occlusion, uniform architecture/light, unresolved action planting,
-incumbent illustration system display faces and any incidental eyebrow copy.
+uniform architecture/light, unresolved action planting, repetitive framing as
+cinematic direction, incumbent illustration system display faces and any
+incidental eyebrow copy.
 These are either review gaps or inherited local artifacts, not standards for
 future surfaces.

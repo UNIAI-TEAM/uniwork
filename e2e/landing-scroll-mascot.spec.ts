@@ -28,9 +28,11 @@ test("pausing and reduced motion freeze the actual studio rendering", async ({ p
   await page.locator(".studio-world-toggle").click();
   await expect(world).toHaveAttribute("data-motion", "scroll");
   await page.locator(".studio-world-toggle").click();
+  await expect(world).toHaveAttribute("data-motion", "paused");
+  await expect(world).toHaveAttribute("data-running", "false");
   const paused = await world.locator("canvas").screenshot({ style: ".landing-site > :not(.studio-world), nextjs-portal { visibility: hidden !important; }" });
   await page.evaluate(() => window.scrollTo({ top: 2400, behavior: "instant" }));
-  expect(await world.locator("canvas").screenshot({ style: ".landing-site > :not(.studio-world), nextjs-portal { visibility: hidden !important; }" })).toEqual(paused);
+  expect((await world.locator("canvas").screenshot({ style: ".landing-site > :not(.studio-world), nextjs-portal { visibility: hidden !important; }" })).equals(paused)).toBe(true);
 });
 
 test("the studio and foreground conversion action fit a phone", async ({ page }) => {

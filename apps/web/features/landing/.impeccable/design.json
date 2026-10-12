@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-12T10:44:24.1332016Z",
+  "generatedAt": "2026-10-12T11:54:17.6788076Z",
   "title": "DRAFT / NOT APPROVED FOR SHIPPING — UNI Architectural Studio 02",
   "extensions": {
     "shadows": [
@@ -29,7 +29,7 @@
       {
         "name": "scroll-sampling",
         "value": "scrollY / (documentElement.scrollHeight - innerHeight)",
-        "purpose": "Candidate route, gait, jump and camera share native page progress; art timing is not approved."
+        "purpose": "Native document progress remains the scroll owner. Desktop uses it directly; phone route progress is mapped through measured passage centers."
       },
       {
         "name": "target-settle",
@@ -44,12 +44,22 @@
       {
         "name": "second-jump",
         "value": "0.665–0.725",
-        "purpose": "Current candidate jump window; often obscured by foreground panels."
+        "purpose": "Candidate scene-progress window, now visible in the corrected desktop route and second phone passage; physical action remains unapproved."
       },
       {
         "name": "greeting",
         "value": "0.96–1.0",
-        "purpose": "Current closing pose window; closing visibility remains unapproved."
+        "purpose": "Candidate scene-progress window, now visible in the corrected desktop close and third phone passage; focal character finish remains unapproved."
+      },
+      {
+        "name": "phone-passage-map",
+        "value": "three measured passage centers -> sceneProgress 0.30 / 0.695 / 1",
+        "purpose": "Piecewise mapping aligns phone actions to actual 110svh open passages without taking scroll ownership."
+      },
+      {
+        "name": "actor-window-fit",
+        "value": "clamp(330px, 36vw, 520px); initial model bounds + 0.20 scene units; 24px inner fit margin",
+        "purpose": "Route-following camera view offset and analytic zoom preserve desktop actor visibility. Repeated framing is not approved cinematic shot direction."
       }
     ],
     "breakpoints": [
@@ -96,9 +106,9 @@
       "name": "Foreground story surface",
       "kind": "card",
       "refersTo": "story-surface",
-      "description": "Built opaque chapter container; actor occlusion is a known composition gap.",
+      "description": "Built left-column opaque chapter container; fresh full review resolves actor occlusion while focal character and cinematic finish remain REBUILD.",
       "html": "<section class=\"ds-studio-story\"><h2>Work together.</h2><p>Product information stays available in the foreground.</p></section>",
-      "css": ".ds-studio-story{padding:24px;border-radius:32px;background:var(--background);color:var(--foreground);font-family:var(--font-landing),sans-serif}.ds-studio-story h2{margin:0;font-size:48px;font-weight:700;line-height:1.25;letter-spacing:-.03em}.ds-studio-story p{margin:24px 0 0;max-width:60ch;font-size:18px;line-height:1.8;color:var(--muted-foreground)}"
+      "css": ".ds-studio-story{padding:24px;border-radius:32px;background:var(--background);color:var(--foreground);font-family:var(--font-landing),sans-serif}.ds-studio-story h2{margin:0;font-size:48px;font-weight:700;line-height:1.25;letter-spacing:-.03em}.ds-studio-story p{margin:24px 0 0;max-width:60ch;font-size:18px;line-height:1.8;color:var(--muted-foreground)}@media(min-width:768px){.ds-studio-story{width:calc(100% - clamp(330px,36vw,520px) - 48px);margin-left:24px}}@media(max-width:767px){.ds-studio-story{border-radius:24px}}"
     },
     {
       "name": "Navigation dock",
@@ -117,7 +127,7 @@
       "Pale sculpted architecture, cobalt route accents and cyan lighting.",
       "Be Vietnam Pro for the landing copy, with large headlines and one opening CTA.",
       "Deterministic scroll pose and camera, explicit pause and a still reduced-motion opening.",
-      "A valid runtime proof with unresolved character likeness and action visibility."
+      "Valid runtime and staging proof, with character likeness and cinematic action unapproved."
     ],
     "rules": [
       {
@@ -147,7 +157,7 @@
     ],
     "donts": [
       "Don't treat passing functional checks or valid screenshots as an overall visual pass.",
-      "Don't canonize the procedural character, shoulder openings, face/hair defects or actor occlusion.",
+      "Don't canonize the procedural character, shoulder openings, face/hair defects or unfinished physical motion.",
       "Don't use the generated fallback as proof that a matching production 3D model exists.",
       "Don't call the confirmed choice record a fresh seed or a catalog quality bar.",
       "Don't carry this scoped landing composition into the authenticated app.",

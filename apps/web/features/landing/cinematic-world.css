@@ -36,3 +36,42 @@
   .landing-cinematic .ai-world-window { min-height: 48svh; }
   .landing-cinematic .studio-section:not(.ai-section) > div { border-radius: 24px; }
 }
+/* The actor keeps a full scene window while reading surfaces occupy the left. */
+.studio-world-close { display: none; }
+.landing-cinematic .roadmap-section { background: var(--background); border-radius: 24px; }
+@media (min-width: 768px) {
+  .landing-cinematic { --studio-actor-window: clamp(330px, 36vw, 520px); }
+  .landing-cinematic .landing-product-story > section,
+  .landing-cinematic .landing-future-story > section,
+  .landing-cinematic .landing-conversion-story > section,
+  .landing-cinematic .landing-trust-story,
+  .landing-cinematic > footer {
+    width: calc(100% - var(--studio-actor-window) - 48px);
+    max-width: none; margin-inline: 24px 0;
+  }
+  .landing-cinematic .landing-product-story > section > div,
+  .landing-cinematic .landing-future-story > section > div,
+  .landing-cinematic .landing-conversion-story > section > div { max-width: 100%; }
+  .landing-cinematic .ai-stage { display: block; min-height: 0; padding: 0; }
+  .landing-cinematic .ai-world-window { display: none; }
+  .landing-cinematic .business-os-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: 116px; }
+  .landing-cinematic .business-os-showcase { grid-column: span 3 !important; grid-row: span 2 !important; }
+  .landing-cinematic .business-os-cell { grid-column: auto; grid-row: auto; }
+  .landing-cinematic .business-os-brand-cell { display: none; }
+}
+@media (min-width: 768px) and (max-width: 1100px) {
+  .landing-cinematic .business-os-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .landing-cinematic .business-os-cell:nth-last-child(-n+4) { grid-column: auto; }
+  .landing-cinematic .business-os-layers { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 767px) {
+  .landing-cinematic .studio-world-passage { height: 110svh; }
+  .landing-cinematic .studio-world-close { display: block; }
+}
+@media (min-width: 768px) {
+  .landing-site.landing-cinematic .landing-product-story > #platform,
+  .landing-site.landing-cinematic .landing-conversion-story > #lien-he {
+    width: calc(100% - var(--studio-actor-window) - 48px);
+    max-width: none; margin-inline: 24px 0;
+  }
+}

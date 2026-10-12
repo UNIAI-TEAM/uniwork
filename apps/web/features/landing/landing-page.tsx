@@ -78,6 +78,7 @@ export function LandingPage() {
         <div className="landing-conversion-story">
           <Pricing />
           <Faq namespace="landing.faq" count={10} initialCount={5} title="landing.faq.title" className="landing-faq studio-section" />
+          <div className="studio-world-passage studio-world-close" aria-hidden="true" />
           <FinalCta />
         </div>
       </main>
