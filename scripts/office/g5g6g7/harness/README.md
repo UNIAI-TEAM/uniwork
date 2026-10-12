@@ -43,7 +43,9 @@ Flags (each has an environment form too, for the spec line):
 Every artifact lands in `.harness-run/` (override with `HARNESS_RUN_DIR`, and
 that directory is gitignored): `ports.env` (this run's ports, origins, SHAs,
 `DISPLAY`), `pids`, `logs/`, `userdata/`, `sample-ac.json`, `blocked.json` when
-a precondition was absent, and `evidence.jsonl` when run directly.
+a precondition was absent, and `evidence.jsonl` when run directly. The layout
+itself comes from `harnessPaths` in `lib.mjs`, so a rename cannot split the
+writer from the reader.
 
 ## Exit codes
 

@@ -141,7 +141,7 @@ if (preconditions.length > 0) {
     finishedAt: new Date().toISOString(),
   });
   mkdirSync(paths.userDataDir, { recursive: true });
-  appendFileSync(join(runDir, "blocked.json"), `${JSON.stringify(record, null, 2)}\n`);
+  appendFileSync(paths.blockedFile, `${JSON.stringify(record, null, 2)}\n`);
   if (!process.env.OFFICE_EVIDENCE_ID) appendFileSync(paths.evidenceFile, `${JSON.stringify(record)}\n`);
   process.exit(BLOCKED);
 }

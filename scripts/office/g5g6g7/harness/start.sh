@@ -117,7 +117,6 @@ apt_install() { # apt_install <packages...>
 # Ports and the server's environment come from lib.mjs (buildServerEnv), the same
 # function scripts/office/g5g6g7/harness/lib.test.mjs pins, so the web, the app
 # and the sample AC cannot drift from what the server was started with.
-rm -f "$RUN_DIR/BLOCKED"
 : > "$RUN_DIR/pids"
 D_SHA="$(git rev-parse HEAD)"
 export D_SHA

@@ -116,7 +116,7 @@ export function harnessPaths(runDir) {
     runDir,
     envFile: join(runDir, "ports.env"),
     pidFile: join(runDir, "pids"),
-    blockedFile: join(runDir, "BLOCKED"),
+    blockedFile: join(runDir, "blocked.json"),
     evidenceFile: join(runDir, "evidence.jsonl"),
     logDir: join(runDir, "logs"),
     userDataDir: join(runDir, "userdata"),
