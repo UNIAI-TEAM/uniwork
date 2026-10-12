@@ -1,0 +1,28 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=3 -v ./internal/service/ -run 'TestFileGCBarrier'; echo "GC_RERUN_EXIT=$?"
+=== RUN   TestFileGCBarrierClaimWins
+2026/10/12 20:33:44 INFO local storage adapter ready dir=/tmp/TestFileGCBarrierClaimWins2058061639/001
+2026/10/12 20:33:44 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+--- PASS: TestFileGCBarrierClaimWins (0.97s)
+=== RUN   TestFileGCBarrierGCWins
+2026/10/12 20:33:45 INFO local storage adapter ready dir=/tmp/TestFileGCBarrierGCWins3672169676/001
+2026/10/12 20:33:45 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+--- PASS: TestFileGCBarrierGCWins (0.77s)
+=== RUN   TestFileGCBarrierClaimWins
+2026/10/12 20:33:45 INFO local storage adapter ready dir=/tmp/TestFileGCBarrierClaimWins2812887486/001
+2026/10/12 20:33:46 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+--- PASS: TestFileGCBarrierClaimWins (0.89s)
+=== RUN   TestFileGCBarrierGCWins
+2026/10/12 20:33:46 INFO local storage adapter ready dir=/tmp/TestFileGCBarrierGCWins3633213784/001
+2026/10/12 20:33:46 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+--- PASS: TestFileGCBarrierGCWins (0.81s)
+=== RUN   TestFileGCBarrierClaimWins
+2026/10/12 20:33:47 INFO local storage adapter ready dir=/tmp/TestFileGCBarrierClaimWins1638296892/001
+2026/10/12 20:33:47 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+--- PASS: TestFileGCBarrierClaimWins (0.83s)
+=== RUN   TestFileGCBarrierGCWins
+2026/10/12 20:33:48 INFO local storage adapter ready dir=/tmp/TestFileGCBarrierGCWins3301127049/001
+2026/10/12 20:33:48 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+--- PASS: TestFileGCBarrierGCWins (0.60s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	5.923s
+GC_RERUN_EXIT=0

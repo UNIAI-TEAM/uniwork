@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+bef1c4e2ce934a765df7c5b803326d31e7ec5645
+41b8f75ff009c848d50561ca487ac55adb8f8f9a
+bef1c4e2c fix(documents): the office job submit stores the base it accepted
+5a5d61882 test(documents): the replay counter is counted through the public commit path
+7f8328bec test(documents): pin that the Idempotency-Key never leaks and is bounded
+731d70e77 test(documents): prove the fence and the lookup under real concurrency
+3bbdb5cf7 test(documents): count every ledger replay path and expose the intent metrics
+40cb637e9 fix(documents): a DB trigger keeps content_revision moving with content
+85b8db832 fix(documents): the office job submit takes the OQ-P1 content base rule
+154f87bf3 fix(documents): office_sync_write gates the desktop sync commit only
+c7775f0b4 fix(documents): the isolation lookup sends the key the world committed
+3a41e0f95 chore(office): merge root 41b8f75ff (X-02 r2a frame pin) into G5-07
