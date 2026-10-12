@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { verifyEmail } from "./auth-nav";
 import { workspaceSeed, type WorkspaceSeed } from "./onboard";
+import { newPageCard } from "./documents-onboard";
 
 /**
  * Lane g1-07c (UNI-681) AC-3 evidence: the document comments panel on the real
@@ -87,7 +88,7 @@ test("comments panel posts, replies, reacts, resolves and survives a reload", as
   await onboard(page, seed);
 
   await page.goto(`/${seed.orgSlug}/${seed.wsSlug}/documents`);
-  await page.getByRole("button", { name: "Trang mới" }).first().click();
+  await newPageCard(page).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
 
   const surface = page.getByRole("textbox", { name: "Nội dung tài liệu" });

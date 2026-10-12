@@ -5,8 +5,8 @@ import { initI18n } from "@uniwork/core/i18n";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { wrap } from "../test/api-mock";
 import { requestMock } from "../test/api-mock";
+import { DocumentTree } from "./document-tree";
 import {
-  DocumentTree,
   findTreeNode,
   flattenTree,
   loadMoveRevision,
@@ -17,7 +17,7 @@ import {
   siblingsOf,
   subtreeHeight,
   subtreeIds,
-} from "./document-tree";
+} from "./document-tree-model";
 
 const { t } = initI18n();
 

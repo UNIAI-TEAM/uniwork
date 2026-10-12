@@ -7536,7 +7536,9 @@
       "pdf": "Tài liệu PDF",
       "md": "Tài liệu Markdown",
       "html": "Tài liệu HTML",
-      "file": "Tệp"
+      "file": "Tệp",
+      "page": "Trang UniWork",
+      "folder": "Thư mục"
     },
     "page": {
       "title": "Tài liệu",
@@ -8021,6 +8023,211 @@
       "thread_resolved_other": "Đã giải quyết · {{count}} luồng",
       "favorite_unavailable": "Chưa đọc được trạng thái yêu thích - thử lại",
       "former_member": "Cựu thành viên"
+    },
+    "home": {
+      "create_failed": "Không thể tạo tài liệu. Thử lại.",
+      "create_unavailable": "Máy chủ chưa tạo được loại file này.",
+      "editor_agent": "Agent",
+      "default_names": {
+        "docx": "Tài liệu chưa đặt tên.docx",
+        "xlsx": "Bảng tính chưa đặt tên.xlsx",
+        "pptx": "Bản trình chiếu chưa đặt tên.pptx",
+        "md": "Markdown chưa đặt tên.md",
+        "html": "Trang HTML chưa đặt tên.html",
+        "pdf": "PDF chưa đặt tên.pdf"
+      },
+      "folders": {
+        "default_name": "Thư mục mới",
+        "create_failed": "Không thể tạo thư mục. Thử lại.",
+        "new": "Tạo thư mục",
+        "empty": "Chưa có thư mục.",
+        "rename": "Đổi tên thư mục",
+        "rename_label": "Tên thư mục",
+        "rename_failed": "Không thể đổi tên thư mục. Thử lại."
+      },
+      "greeting": {
+        "morning": "Chào buổi sáng. Hôm nay bạn muốn tạo gì?",
+        "morning_named": "Chào buổi sáng, {{name}}. Hôm nay bạn muốn tạo gì?",
+        "afternoon": "Chào buổi chiều. Hôm nay bạn muốn tạo gì?",
+        "afternoon_named": "Chào buổi chiều, {{name}}. Hôm nay bạn muốn tạo gì?",
+        "evening": "Chào buổi tối. Hôm nay bạn muốn tạo gì?",
+        "evening_named": "Chào buổi tối, {{name}}. Hôm nay bạn muốn tạo gì?",
+        "hint_root": "File mới nằm ở thư mục gốc của workspace và mở ngay trong trình soạn thảo.",
+        "hint_folder": "File mới nằm trong thư mục {{folder}} và mở ngay trong trình soạn thảo."
+      },
+      "create": {
+        "label": "Tạo mới",
+        "menu": "Tạo mới",
+        "ai_badge": "AI",
+        "unavailable_hint": "Chưa dùng được trên máy chủ này",
+        "page": {
+          "card": "Trang",
+          "hint": "Trang UniWork, có việc và nhắc đến",
+          "menu": "Trang",
+          "ext": "UniWork"
+        },
+        "docx": {
+          "card": "AI Docs",
+          "hint": ".docx",
+          "menu": "Tài liệu Docs",
+          "ext": ".docx"
+        },
+        "xlsx": {
+          "card": "AI Sheets",
+          "hint": ".xlsx",
+          "menu": "Bảng tính Sheets",
+          "ext": ".xlsx"
+        },
+        "pptx": {
+          "card": "AI Slides",
+          "hint": ".pptx",
+          "menu": "Trình chiếu Slides",
+          "ext": ".pptx"
+        },
+        "md": {
+          "card": "AI Markdown",
+          "hint": ".md",
+          "menu": "Markdown",
+          "ext": ".md"
+        },
+        "html": {
+          "card": "AI HTML",
+          "hint": ".html",
+          "menu": "HTML",
+          "ext": ".html"
+        },
+        "pdf": {
+          "card": "AI PDF",
+          "hint": ".pdf",
+          "menu": "PDF",
+          "ext": ".pdf"
+        },
+        "upload": {
+          "card": "Tải file lên",
+          "hint": "docx, xlsx, pptx, pdf, md, html, ảnh"
+        }
+      },
+      "sidebar": {
+        "label": "Điều hướng tài liệu",
+        "home": "Trang chủ Tài liệu",
+        "recent": "Gần đây",
+        "starred": "Gắn sao",
+        "shared": "Được chia sẻ với tôi",
+        "folders": "Thư mục",
+        "elsewhere": "Từ nơi khác",
+        "open": "Điều hướng"
+      },
+      "origin": {
+        "documents": "Tài liệu",
+        "chat": "Trò chuyện",
+        "task": "Công việc",
+        "meeting": "Cuộc họp",
+        "email": "Email",
+        "other": "Khác"
+      },
+      "views": {
+        "recent": "Gần đây",
+        "starred": "Gắn sao",
+        "shared": "Được chia sẻ với tôi",
+        "archived": "Lưu trữ",
+        "sources": "Từ nơi khác",
+        "chat": "Trò chuyện",
+        "task": "Công việc",
+        "meeting": "Cuộc họp",
+        "email": "Email"
+      },
+      "scope_label": "Phạm vi",
+      "scope": {
+        "home": "Tất cả",
+        "recent": "Gần đây",
+        "shared": "Được chia sẻ",
+        "archived": "Lưu trữ"
+      },
+      "chips_label": "Lọc theo loại",
+      "chips": {
+        "all": "Tất cả",
+        "page": "Trang",
+        "docx": "Docs",
+        "xlsx": "Sheets",
+        "pptx": "Slides",
+        "pdf": "PDF",
+        "md": "MD",
+        "html": "HTML"
+      },
+      "group_by": {
+        "label": "Nhóm theo",
+        "folder": "Thư mục",
+        "source": "Nguồn",
+        "type": "Loại file",
+        "none": "Không nhóm"
+      },
+      "groups": {
+        "unfiled": "Chưa xếp thư mục",
+        "type": {
+          "page": "Trang",
+          "folder": "Thư mục",
+          "docx": "Docs",
+          "xlsx": "Sheets",
+          "pptx": "Slides",
+          "pdf": "PDF",
+          "md": "Markdown",
+          "html": "HTML",
+          "other": "File khác"
+        }
+      },
+      "columns": {
+        "name": "Tên",
+        "source": "Nguồn",
+        "editor": "Người sửa",
+        "updated": "Cập nhật",
+        "size": "Dung lượng",
+        "actions": "Thao tác"
+      },
+      "row": {
+        "open_folder": "Mở thư mục",
+        "open_web": "Mở trên web",
+        "open_app": "Mở bằng UniWork Office",
+        "star": "Gắn sao",
+        "unstar": "Bỏ gắn sao",
+        "go_to_source": "Đi tới bản gốc",
+        "download": "Tải xuống",
+        "save_to_folder": "Lưu vào thư mục",
+        "menu": "Thao tác cho {{title}}",
+        "download_failed": "Không thể tải file xuống. Thử lại.",
+        "star_failed": "Không thể cập nhật gắn sao. Thử lại."
+      },
+      "empty": {
+        "title": "Workspace chưa có tài liệu",
+        "folder_title": "Thư mục này chưa có gì",
+        "description": "Chọn một loại ở hàng Tạo mới phía trên, hoặc kéo thả file vào đây để tải lên.",
+        "view_only": "Bạn chỉ có quyền xem thư mục này.",
+        "recent_title": "Chưa có tài liệu nào gần đây",
+        "recent_description": "Tài liệu bạn mở hoặc sửa sẽ hiện ở đây.",
+        "starred_title": "Chưa gắn sao tài liệu nào",
+        "starred_description": "Gắn sao từ menu ⋯ của một dòng để tìm lại nhanh.",
+        "shared_title": "Chưa có tài liệu nào được chia sẻ với bạn",
+        "shared_description": "Tài liệu người khác chia sẻ với bạn sẽ hiện ở đây.",
+        "archived_title": "Lưu trữ đang trống",
+        "archived_description": "Tài liệu đã lưu trữ hiện ở đây và khôi phục được.",
+        "sources_title": "Chưa có file nào",
+        "sources_description": "File trong trò chuyện, công việc, cuộc họp và email mà bạn xem được sẽ hiện ở đây."
+      },
+      "no_matches_description": "Không có file loại này. Tạo mới ở hàng thẻ phía trên hoặc bỏ lọc.",
+      "drop_hint": "Kéo thả file vào bảng để tải lên.",
+      "drop_active": "Thả để tải lên thư mục đang mở",
+      "drop_failed": "Không thể tải lên {{name}}.",
+      "drop_done_one": "Đã tải lên {{count}} file.",
+      "drop_done_other": "Đã tải lên {{count}} file.",
+      "breadcrumb_label": "Đường dẫn thư mục",
+      "save_source": {
+        "title": "Lưu vào thư mục",
+        "description": "Tạo bản sao của {{name}} trong Tài liệu. File gốc vẫn ở chỗ cũ.",
+        "picker_label": "Chọn thư mục",
+        "root": "Thư mục gốc của workspace",
+        "submit": "Lưu",
+        "saved": "Đã lưu bản sao vào Tài liệu.",
+        "failed": "Không thể lưu file vào thư mục. Thử lại."
+      }
     }
   },
   "squads": {
@@ -8332,7 +8539,8 @@
           "appimage_run": "Cho phép chạy tệp {{file}}, rồi mở bằng lệnh sau.",
           "appimage_fuse": "Ubuntu 22.04 / 24.04 cần libfuse2. Nếu chưa có, chạy lệnh sau."
         }
-      }
+      },
+      "row_action": "Mở bằng app"
     },
     "save": {
       "status": {

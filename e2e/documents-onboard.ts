@@ -59,10 +59,15 @@ export async function signIn(page: Page, w: WorkspaceSeed) {
   await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 });
 }
 
+/** The "Page" create card of the Documents home (it keeps today's New page flow). */
+export function newPageCard(page: Page) {
+  return page.getByRole("list", { name: "Tạo mới" }).getByRole("button", { name: /^Trang/ });
+}
+
 /** New page from the library, `text` typed and confirmed saved; returns its URL. */
 export async function createPageWithText(page: Page, w: WorkspaceSeed, text: string): Promise<string> {
   await page.goto(`/${w.orgSlug}/${w.wsSlug}/documents`);
-  await page.getByRole("button", { name: "Trang mới" }).first().click();
+  await newPageCard(page).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
   const surface = page.getByRole("textbox", { name: "Nội dung tài liệu" });
   await expect(surface).toBeVisible({ timeout: 60_000 });

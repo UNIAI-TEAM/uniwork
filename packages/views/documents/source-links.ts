@@ -1,0 +1,29 @@
+import type { paths } from "@uniwork/core/paths";
+import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
+
+type WorkspacePaths = ReturnType<typeof paths.workspace>;
+
+/**
+ * Where "Go to the original" leads for a file from another module, built with
+ * the workspace paths builders only. A task links to the task; a comment
+ * attachment's parent id is the comment, so it opens the task list until the
+ * sources API names the task too; chat, meeting and email open their module
+ * (meeting by id). An unknown parent kind has no link.
+ */
+export function sourceParentPath(ws: WorkspacePaths, parent: DocumentSourceFile["parent"]): string | null {
+  switch (parent.kind) {
+    case "task":
+      return ws.task(parent.id);
+    case "task_comment":
+      return ws.tasks();
+    case "meeting":
+      return ws.meeting(parent.id);
+    case "chat_channel":
+    case "chat_dm":
+      return ws.chat();
+    case "email_thread":
+      return ws.email();
+    default:
+      return null;
+  }
+}

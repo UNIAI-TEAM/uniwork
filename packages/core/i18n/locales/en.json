@@ -7541,7 +7541,9 @@
       "pdf": "PDF document",
       "md": "Markdown document",
       "html": "HTML document",
-      "file": "File"
+      "file": "File",
+      "page": "UniWork page",
+      "folder": "Folder"
     },
     "page": {
       "title": "Documents",
@@ -8026,6 +8028,211 @@
       "thread_resolved_other": "Resolved · {{count}} threads",
       "favorite_unavailable": "Favorite state is unavailable - try again",
       "former_member": "Former member"
+    },
+    "home": {
+      "create_failed": "Could not create the document. Try again.",
+      "create_unavailable": "This server can't create this file type yet.",
+      "editor_agent": "Agent",
+      "default_names": {
+        "docx": "Untitled document.docx",
+        "xlsx": "Untitled spreadsheet.xlsx",
+        "pptx": "Untitled presentation.pptx",
+        "md": "Untitled markdown.md",
+        "html": "Untitled HTML page.html",
+        "pdf": "Untitled PDF.pdf"
+      },
+      "folders": {
+        "default_name": "New folder",
+        "create_failed": "Could not create the folder. Try again.",
+        "new": "New folder",
+        "empty": "No folders yet.",
+        "rename": "Rename folder",
+        "rename_label": "Folder name",
+        "rename_failed": "Could not rename the folder. Try again."
+      },
+      "greeting": {
+        "morning": "Good morning. What would you like to create today?",
+        "morning_named": "Good morning, {{name}}. What would you like to create today?",
+        "afternoon": "Good afternoon. What would you like to create today?",
+        "afternoon_named": "Good afternoon, {{name}}. What would you like to create today?",
+        "evening": "Good evening. What would you like to create today?",
+        "evening_named": "Good evening, {{name}}. What would you like to create today?",
+        "hint_root": "New files go to the workspace root and open straight in the editor.",
+        "hint_folder": "New files go to the {{folder}} folder and open straight in the editor."
+      },
+      "create": {
+        "label": "Create",
+        "menu": "New",
+        "ai_badge": "AI",
+        "unavailable_hint": "Not available on this server yet",
+        "page": {
+          "card": "Page",
+          "hint": "UniWork page with tasks and mentions",
+          "menu": "Page",
+          "ext": "UniWork"
+        },
+        "docx": {
+          "card": "AI Docs",
+          "hint": ".docx",
+          "menu": "Docs document",
+          "ext": ".docx"
+        },
+        "xlsx": {
+          "card": "AI Sheets",
+          "hint": ".xlsx",
+          "menu": "Sheets spreadsheet",
+          "ext": ".xlsx"
+        },
+        "pptx": {
+          "card": "AI Slides",
+          "hint": ".pptx",
+          "menu": "Slides presentation",
+          "ext": ".pptx"
+        },
+        "md": {
+          "card": "AI Markdown",
+          "hint": ".md",
+          "menu": "Markdown",
+          "ext": ".md"
+        },
+        "html": {
+          "card": "AI HTML",
+          "hint": ".html",
+          "menu": "HTML",
+          "ext": ".html"
+        },
+        "pdf": {
+          "card": "AI PDF",
+          "hint": ".pdf",
+          "menu": "PDF",
+          "ext": ".pdf"
+        },
+        "upload": {
+          "card": "Upload file",
+          "hint": "docx, xlsx, pptx, pdf, md, html, images"
+        }
+      },
+      "sidebar": {
+        "label": "Documents navigation",
+        "home": "Documents home",
+        "recent": "Recent",
+        "starred": "Starred",
+        "shared": "Shared with me",
+        "folders": "Folders",
+        "elsewhere": "From elsewhere",
+        "open": "Browse"
+      },
+      "origin": {
+        "documents": "Documents",
+        "chat": "Chat",
+        "task": "Tasks",
+        "meeting": "Meetings",
+        "email": "Email",
+        "other": "Other"
+      },
+      "views": {
+        "recent": "Recent",
+        "starred": "Starred",
+        "shared": "Shared with me",
+        "archived": "Archive",
+        "sources": "From elsewhere",
+        "chat": "Chat",
+        "task": "Tasks",
+        "meeting": "Meetings",
+        "email": "Email"
+      },
+      "scope_label": "Scope",
+      "scope": {
+        "home": "All",
+        "recent": "Recent",
+        "shared": "Shared",
+        "archived": "Archive"
+      },
+      "chips_label": "Filter by type",
+      "chips": {
+        "all": "All",
+        "page": "Pages",
+        "docx": "Docs",
+        "xlsx": "Sheets",
+        "pptx": "Slides",
+        "pdf": "PDF",
+        "md": "MD",
+        "html": "HTML"
+      },
+      "group_by": {
+        "label": "Group by",
+        "folder": "Folder",
+        "source": "Source",
+        "type": "File type",
+        "none": "No grouping"
+      },
+      "groups": {
+        "unfiled": "Not in a folder",
+        "type": {
+          "page": "Pages",
+          "folder": "Folders",
+          "docx": "Docs",
+          "xlsx": "Sheets",
+          "pptx": "Slides",
+          "pdf": "PDF",
+          "md": "Markdown",
+          "html": "HTML",
+          "other": "Other files"
+        }
+      },
+      "columns": {
+        "name": "Name",
+        "source": "Source",
+        "editor": "Edited by",
+        "updated": "Updated",
+        "size": "Size",
+        "actions": "Actions"
+      },
+      "row": {
+        "open_folder": "Open folder",
+        "open_web": "Open on the web",
+        "open_app": "Open in UniWork Office",
+        "star": "Star",
+        "unstar": "Remove star",
+        "go_to_source": "Go to the original",
+        "download": "Download",
+        "save_to_folder": "Save to folder",
+        "menu": "Actions for {{title}}",
+        "download_failed": "Could not download the file. Try again.",
+        "star_failed": "Could not update the star. Try again."
+      },
+      "empty": {
+        "title": "No documents in this workspace yet",
+        "folder_title": "This folder is empty",
+        "description": "Pick a type in the Create row above, or drop files here to upload them.",
+        "view_only": "You can only view this folder.",
+        "recent_title": "Nothing recent yet",
+        "recent_description": "Documents you open or edit show up here.",
+        "starred_title": "No starred documents yet",
+        "starred_description": "Star a document from a row's ⋯ menu to find it again quickly.",
+        "shared_title": "Nothing has been shared with you yet",
+        "shared_description": "Documents others share with you show up here.",
+        "archived_title": "The archive is empty",
+        "archived_description": "Archived documents show up here and can be restored.",
+        "sources_title": "No files yet",
+        "sources_description": "Files from chat, tasks, meetings and email that you can read show up here."
+      },
+      "no_matches_description": "No files of this type. Create one above or clear the filter.",
+      "drop_hint": "Drop files on the list to upload them.",
+      "drop_active": "Drop to upload to the open folder",
+      "drop_failed": "Could not upload {{name}}.",
+      "drop_done_one": "Uploaded {{count}} file.",
+      "drop_done_other": "Uploaded {{count}} files.",
+      "breadcrumb_label": "Folder path",
+      "save_source": {
+        "title": "Save to folder",
+        "description": "Makes a copy of {{name}} in Documents. The original stays where it is.",
+        "picker_label": "Choose a folder",
+        "root": "Workspace root",
+        "submit": "Save",
+        "saved": "Saved a copy to Documents.",
+        "failed": "Could not save the file to the folder. Try again."
+      }
     }
   },
   "squads": {
@@ -8337,7 +8544,8 @@
           "appimage_run": "Make {{file}} executable, then launch it with the following command.",
           "appimage_fuse": "Ubuntu 22.04 / 24.04 requires libfuse2. If it is missing, run the following command."
         }
-      }
+      },
+      "row_action": "Open in app"
     },
     "save": {
       "status": {
