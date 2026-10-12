@@ -50,7 +50,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { API_CALLS, ApiError, apiPath, assertBodyKeys, failureInfo } from "./api-contract.mjs";
-import { DEV_CLIENT_ID, activeDesktopDevice, appEnv, concludeAtStartGate, documentStepOutcome, evidenceLine, harnessPaths, harnessEvidenceId, ledgerIdentity, officeDeepLink, parseWaitSignin, readStartStatus, startGate, ticketFromLaunchUrl, workingCopyDir } from "./lib.mjs";
+import { DEV_CLIENT_ID, activeDesktopDevice, concludeAtStartGate, describeExit, documentStepOutcome, handoffEnv, evidenceLine, harnessPaths, harnessEvidenceId, ledgerIdentity, officeDeepLink, parseWaitSignin, readStartStatus, startGate, ticketFromLaunchUrl, workingCopyDir } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..", "..");
@@ -192,11 +192,7 @@ function findWorkingCopyDocumentId(userDataDir, deploymentId, documentId) {
  * It is waited on with a timeout; a timed-out instance is killed as a group.
  */
 function deliverDeepLink(ports, url) {
-  const env = appEnv({
-    apiOrigin: ports.API_ORIGIN,
-    userDataDir: ports.UNIWORK_USER_DATA,
-    extra: { UNIWORK_OFFICE_CHANNEL: "dev", ...(ports.DISPLAY ? { DISPLAY: ports.DISPLAY } : {}) },
-  });
+  const env = handoffEnv(ports);
   return new Promise((resolveDelivery) => {
     let settled = false;
     let pidLine = "";
@@ -232,7 +228,7 @@ function deliverDeepLink(ports, url) {
       finish({ status: null, error: new Error(`the second instance did not exit within ${HANDOFF_TIMEOUT_MS / 1000}s and was killed`) });
     }, HANDOFF_TIMEOUT_MS);
     child.on("error", (error) => finish({ status: null, error }));
-    child.on("close", (status) => finish({ status, stderr }));
+    child.on("close", (status, signal) => finish({ status, signal, stderr }));
   });
 }
 
@@ -480,7 +476,7 @@ if (!mintError && ticket && launchUrl) {
     checks.push({
       name: "the app received the deep link as a second instance",
       result: "FAIL",
-      detail: delivered.error ? delivered.error.message : `the second instance exited ${delivered.status}: ${(delivered.stderr ?? "").slice(0, 200)}`,
+      detail: delivered.error ? delivered.error.message : `the second instance ${describeExit(delivered.status, delivered.signal)}: ${(delivered.stderr ?? "").slice(0, 200)}`,
     });
   } else {
     checks.push({ name: "the app received the deep link as a second instance", result: "PASS", detail: "the handoff exited 0" });

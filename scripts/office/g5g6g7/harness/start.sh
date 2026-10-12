@@ -593,9 +593,19 @@ fi
 XVFB_DISPLAY_FILE="$RUN_DIR/display"
 : > "$XVFB_DISPLAY_FILE"
 # Under xvfb-run the app gets a display of its own; in desktop mode it is started
-# directly and keeps the DISPLAY of the invoking session.
+# directly and keeps the DISPLAY of the invoking session. xvfb-run protects its
+# display with an Xauthority file; left to itself it makes a private temp one and
+# exports XAUTHORITY to the app only, so the document step's second Electron
+# instance (a separate process tree) was refused with "Authorization required"
+# (cloud round 6). The file lives in the run dir instead (-f) and ports.env
+# records it next to DISPLAY.
+XVFB_AUTH_FILE="$RUN_DIR/xauthority"
 APP_WRAP=()
-[ "$DESKTOP" = "1" ] || APP_WRAP=(xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24")
+if [ "$DESKTOP" != "1" ]; then
+  : > "$XVFB_AUTH_FILE"
+  chmod 600 "$XVFB_AUTH_FILE"
+  APP_WRAP=(xvfb-run --auto-servernum -f "$XVFB_AUTH_FILE" --server-args="-screen 0 1280x800x24")
+fi
 # The app gets an allow-listed environment (lib.mjs: appEnv), never the VM's .env
 # this script sourced above: DATABASE_URL, JWT_SECRET and the rest are the
 # server's, and the app is only its client (reviewer_be H1-8).
@@ -605,7 +615,7 @@ while IFS= read -r -d '' entry; do APP_ENV+=("$entry"); done \
 [ "${#APP_ENV[@]}" -gt 0 ] || fail "could not build the app's environment (see $LOG_DIR/lib.log)"
 setsid env -i "${APP_ENV[@]}" \
   ${APP_WRAP[@]+"${APP_WRAP[@]}"} \
-  bash -c "echo \"\$DISPLAY\" > '$XVFB_DISPLAY_FILE'; exec '$ELECTRON_BIN' --no-sandbox --disable-gpu '$FORK_DIR/apps/shell'" \
+  bash -c "printf '%s\\n%s\\n' \"\$DISPLAY\" \"\${XAUTHORITY:-}\" > '$XVFB_DISPLAY_FILE'; exec '$ELECTRON_BIN' --no-sandbox --disable-gpu '$FORK_DIR/apps/shell'" \
   >> "$RUN_DIR/logs/app.log" 2>&1 &
 APP_PID=$!
 echo "app $APP_PID 0" >> "$RUN_DIR/pids"
@@ -617,9 +627,13 @@ for i in $(seq 1 60); do
   sleep 1
 done
 [ -s "$XVFB_DISPLAY_FILE" ] || fail "xvfb never reported a display for the app"
-DISPLAY_VALUE="$(cat "$XVFB_DISPLAY_FILE")"
+# Line 1 is the display, line 2 the X auth file the app was given ("" when the
+# invoking desktop session uses none).
+DISPLAY_VALUE="$(sed -n 1p "$XVFB_DISPLAY_FILE")"
+XAUTH_VALUE="$(sed -n 2p "$XVFB_DISPLAY_FILE")"
 {
   echo "DISPLAY=$DISPLAY_VALUE"
+  [ -z "$XAUTH_VALUE" ] || echo "XAUTHORITY=$XAUTH_VALUE"
   # What the document step needs to hand a deep link to the running app the way
   # the fork's own suite does (second instance, URL in argv): the Electron
   # binary, the app dir, the userData the working copy lands in, the fork
