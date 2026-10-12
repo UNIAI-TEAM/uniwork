@@ -16,6 +16,7 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { readPins } from "../../../../../apps/web/platform/office-frame/frame-headers.mjs";
 import { appEnv } from "../../harness/lib.mjs";
 import { blocked, failed, ok } from "./meta.mjs";
 import { COLOR_SCHEME, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORT } from "./constants.mjs";
@@ -145,7 +146,8 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
 
 /** Captures every fixture on the desktop host; `results[id]` is ok (png/text) | blocked | failed. */
 export async function captureDesktop({ ports, fixtures, playwright, log = () => {}, forkShaFallback = "" }) {
-  const base = { forkSha: ports.OFFICE_FORK_SHA || forkShaFallback, notes: [] };
+  // the pin the D checkout names: the version the desktop run is compared against too
+  const base = { forkSha: ports.OFFICE_FORK_SHA || forkShaFallback, pinVersion: readPins().docs?.version ?? "", notes: [] };
   const why = desktopPrecondition(ports);
   if (why) return { ...base, results: Object.fromEntries(fixtures.map((fixture) => [fixture.id, blocked(why)])) };
   const scratch = mkdtempSync(join(tmpdir(), "g7-06-desktop-"));
