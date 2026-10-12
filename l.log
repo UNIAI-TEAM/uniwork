@@ -1,0 +1,210 @@
+$ for f in .harness-run/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 60 "$f"; }; done; true
+=== .harness-run/logs/app.log
+[31024:1012/191951.226637:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/191951.294980:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/191951.317625:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/191951.337505:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[31024:1012/191951.337555:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/191951.342522:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/191951.343487:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[31024:1012/191954.961064:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/191956.913210:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/191958.808238:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/192000.390503:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/192001.908053:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/192003.219493:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/192108.974730:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/192110.859149:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/192112.807906:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/192114.404072:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/192115.918211:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[31024:1012/192117.231112:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+=== .harness-run/logs/fork-build.log
+✓ 1942 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/text-edit.ts is dynamically imported by /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/save-pdf.ts but also statically imported by /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/annot-delete.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/image-edit.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/read-text.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-cb76dde/apps/pdf/src/main/redaction.ts, dynamic import will not move module into another chunk.
+
+out/main/chunks/menu-pdf-IWzaKAPM.png                 0.11 kB
+out/main/chunks/menu-pptx-B-5nlFu-.png                0.27 kB
+out/main/chunks/menu-xlsx-D1ETn33r.png                0.30 kB
+out/main/chunks/menu-docx-CaJ93Biu.png                0.30 kB
+out/main/chunks/menu-md-D1G8pv4K.png                  0.42 kB
+out/main/chunks/menu-pptx@2x-k-uSrZ_N.png             0.43 kB
+out/main/chunks/menu-html-BqQjM_T0.png                0.43 kB
+out/main/chunks/menu-pdf@2x-BlOOpVEW.png              0.49 kB
+out/main/chunks/menu-xlsx@2x-BCbWE1PH.png             0.50 kB
+out/main/chunks/menu-home@2x-DklesmJt.png             0.52 kB
+out/main/chunks/menu-docx@2x-xjkcfgR-.png             0.53 kB
+out/main/chunks/menu-md@2x-DqJbAJX3.png               0.77 kB
+out/main/chunks/menu-html@2x-DPfkhFFT.png             0.90 kB
+out/main/chunks/ppt-d10PvgLp.js                      42.36 kB
+out/main/chunks/harfbuzz-CVplwa31.wasm              421.96 kB
+out/main/chunks/Carlito-Italic-KkZUqxJW.ttf         619.05 kB
+out/main/chunks/Carlito-Regular-Cbe9FLjp.ttf        631.71 kB
+out/main/chunks/Carlito-Bold-BhbXr__n.ttf           686.24 kB
+out/main/chunks/Carlito-BoldItalic-0dXjwGA0.ttf     812.34 kB
+out/main/chunks/pdf-B6l8FRA5.js                   1,013.76 kB
+out/main/extract-worker-CRafWYnY.js               1,547.97 kB
+out/main/chunks/pdf.worker-NB1PBVQH.js            2,340.46 kB
+out/main/ocr-DylNBwk4.js                              1.57 kB
+out/main/annot-delete-DubhLpER.js                     3.66 kB
+out/main/image-edit-C15DSi-_.js                      14.61 kB
+out/main/index-CrqKaREP.js                           16.42 kB
+out/main/ppt-BHIGZr4q.js                             42.29 kB
+out/main/index-MbjUHvFF.js                          268.21 kB
+out/main/index-DlHob_LR.js                          750.47 kB
+out/main/pdf-B6l8FRA5.js                          1,013.76 kB
+out/main/pdf.worker-NB1PBVQH.js                   2,340.46 kB
+out/main/index.js                                11,283.83 kB
+✓ built in 16.47s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 29 modules transformed.
+rendering chunks...
+out/preload/pdf-password.js   0.89 kB
+out/preload/update.js         1.05 kB
+out/preload/index.js         74.49 kB
+✓ built in 74ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 388 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                                        0.67 kB
+../../out/renderer/update.html                                       5.14 kB
+../../out/renderer/pdf-password.html                                 9.18 kB
+../../out/renderer/assets/app-icon-D9R8oDUQ.png                     27.10 kB
+../../out/renderer/assets/health-body-mannequin-3d-C8O8L483.jpg    109.64 kB
+../../out/renderer/assets/index-DV3GO1jp.css                       213.76 kB
+../../out/renderer/assets/update-BVAMVo1e.js                         2.24 kB
+../../out/renderer/assets/pdf-password-BczXYSzC.js                   2.77 kB
+../../out/renderer/assets/index-DYoBNKGF.js                      3,134.09 kB
+✓ built in 1.45s
+=== .harness-run/logs/fork-clone.log
+=== .harness-run/logs/fork-install.log
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated rimraf@2.6.3: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated boolean@3.2.0: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated crypto-js@4.2.0: Active development of CryptoJS has been discontinued. This library is no longer maintained.
+
+added 1081 packages, and audited 1114 packages in 16s
+
+240 packages are looking for funding
+  run `npm fund` for details
+
+18 vulnerabilities (2 low, 8 moderate, 6 high, 2 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+=== .harness-run/logs/lib.log
+=== .harness-run/logs/migrate.log
+19:17:01.419 INF migrate done component=server dir=up
+=== .harness-run/logs/server-build.log
+=== .harness-run/logs/server.log
+19:17:01.436 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+19:17:01.436 INF metrics listening component=server addr=127.0.0.1:39647
+19:17:01.437 INF local storage adapter ready dir=/workspace/.harness-run/uploads
+19:17:01.445 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/12 19:17:01 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+19:17:01.447 INF mail: log mode, messages are printed component=server
+19:17:01.447 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+19:17:01.943 INF mail: outbox worker started component=server tick=5s
+19:17:01.943 INF listening component=server port=37273 swagger=http://localhost:37273/swagger/index.html
+19:20:04.052 INF mail not configured, printing message component=server kind=verification_code to=g7-06-capture-1791832803967@example.com subject="627422 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    627422\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+19:20:04.056 INF http request method=POST path=/api/v1/auth/register status=200 duration=81.698ms request_id=cursor/tDBqkGQb35-000004 correlation_id=f3695b34adece44baf0147bcabd71c88 trace_id=f3695b34adece44baf0147bcabd71c88 span_id=4165f26273724f5d
+19:20:04.063 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=3.087ms request_id=cursor/tDBqkGQb35-000005 correlation_id=61a80961295e67e5cdf0899d3d56056f trace_id=61a80961295e67e5cdf0899d3d56056f span_id=bda7060c913e0c2c actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:20:04.078 INF http request method=POST path=/api/v1/orgs status=201 duration=13.988ms request_id=cursor/tDBqkGQb35-000006 correlation_id=7f3f394f1822575b0f912937694c6e97 trace_id=7f3f394f1822575b0f912937694c6e97 span_id=347b2facc6c102dc actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:20:04.088 INF http request method=POST path=/api/v1/orgs/01M4RRXJQ19PM8C8YRXHMTR2WP/workspaces status=201 duration=8.741ms request_id=cursor/tDBqkGQb35-000007 correlation_id=bcae70c93e0133e285f14c0f0f1d98a7 trace_id=bcae70c93e0133e285f14c0f0f1d98a7 span_id=72ad22aca1a9727e organization_id=01M4RRXJQ19PM8C8YRXHMTR2WP workspace_id=01M4RRXJQHPZMXR51537P2FVZ6 actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:20:04.092 INF onboarding completed component=server user=01M4RRXJP40KZZQ5023J6BQ26Y path=full workspace=01M4RRXJQHPZMXR51537P2FVZ6
+19:20:04.092 INF http request method=POST path=/api/v1/me/onboarding/complete status=200 duration=2.272ms request_id=cursor/tDBqkGQb35-000008 correlation_id=08cfd3f502bdfb80d55ee0883bbdc058 trace_id=08cfd3f502bdfb80d55ee0883bbdc058 span_id=0b5d7f575a8233fd organization_id=01M4RRXJQ19PM8C8YRXHMTR2WP workspace_id=01M4RRXJQHPZMXR51537P2FVZ6 actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:20:04.092 INF mail not configured, printing message component=server kind=welcome to=g7-06-capture-1791832803967@example.com subject="Welcome to UniWork" text="Hi G7-06 capture, you're all set\n\nYour workspace G7-06 capture is ready. Three things to start with:\n\n1. Create your first task and assign it to someone.\n2. Invite teammates from the Members page.\n3. Schedule a meeting and take notes right in UniWork.\n\nOpen workspace:\n\n    http://127.0.0.1:41661/o-g706-mv5mzk3j/w-g706-mv5mzk3j\n"
+19:20:04.119 INF http request method=POST path=/api/v1/workspaces/01M4RRXJQHPZMXR51537P2FVZ6/documents/files status=201 duration=24.031ms request_id=cursor/tDBqkGQb35-000009 correlation_id=2d68c70b4026bd974fdc588ad8e5166e trace_id=2d68c70b4026bd974fdc588ad8e5166e span_id=8945c840a61e7979 organization_id=01M4RRXJQ19PM8C8YRXHMTR2WP workspace_id=01M4RRXJQHPZMXR51537P2FVZ6 actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:20:04.128 INF http request method=POST path=/api/v1/workspaces/01M4RRXJQHPZMXR51537P2FVZ6/documents/files status=201 duration=8.205ms request_id=cursor/tDBqkGQb35-000010 correlation_id=018b432bd78861c5547d3799d198b59d trace_id=018b432bd78861c5547d3799d198b59d span_id=4aa612227d1b31fb organization_id=01M4RRXJQ19PM8C8YRXHMTR2WP workspace_id=01M4RRXJQHPZMXR51537P2FVZ6 actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:20:04.138 INF http request method=POST path=/api/v1/workspaces/01M4RRXJQHPZMXR51537P2FVZ6/documents/files status=201 duration=7.733ms request_id=cursor/tDBqkGQb35-000011 correlation_id=75b29bd1ad56db40eae1e5ecfa0e4055 trace_id=75b29bd1ad56db40eae1e5ecfa0e4055 span_id=b775e22802880777 organization_id=01M4RRXJQ19PM8C8YRXHMTR2WP workspace_id=01M4RRXJQHPZMXR51537P2FVZ6 actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:20:04.148 INF http request method=POST path=/api/v1/workspaces/01M4RRXJQHPZMXR51537P2FVZ6/documents/files status=201 duration=8.365ms request_id=cursor/tDBqkGQb35-000012 correlation_id=d5f0c4eb6ff26d19f1d2e7ae2ef03c21 trace_id=d5f0c4eb6ff26d19f1d2e7ae2ef03c21 span_id=7e4d10d06f9d6d2d organization_id=01M4RRXJQ19PM8C8YRXHMTR2WP workspace_id=01M4RRXJQHPZMXR51537P2FVZ6 actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:20:04.156 INF http request method=POST path=/api/v1/workspaces/01M4RRXJQHPZMXR51537P2FVZ6/documents/files status=201 duration=7.269ms request_id=cursor/tDBqkGQb35-000013 correlation_id=0f8c6c43d6b8c6ef7f4179a35ddc6c8f trace_id=0f8c6c43d6b8c6ef7f4179a35ddc6c8f span_id=cf1731995498ea4f organization_id=01M4RRXJQ19PM8C8YRXHMTR2WP workspace_id=01M4RRXJQHPZMXR51537P2FVZ6 actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:20:04.167 INF http request method=POST path=/api/v1/workspaces/01M4RRXJQHPZMXR51537P2FVZ6/documents/files status=201 duration=9.457ms request_id=cursor/tDBqkGQb35-000014 correlation_id=97167a4b85b4d940705cb1c4aff4ae18 trace_id=97167a4b85b4d940705cb1c4aff4ae18 span_id=e070c40d48dc0c51 organization_id=01M4RRXJQ19PM8C8YRXHMTR2WP workspace_id=01M4RRXJQHPZMXR51537P2FVZ6 actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:21:05.633 INF http request method=POST path=/api/v1/orgs/01M4RRXJQ19PM8C8YRXHMTR2WP/privacy/deletion status=202 duration=2.662ms request_id=cursor/tDBqkGQb35-000015 correlation_id=79099ad464bf8d9f40f8aa8b3a637935 trace_id=79099ad464bf8d9f40f8aa8b3a637935 span_id=3ee19fcc4a137675 actor_id=01M4RRXJP40KZZQ5023J6BQ26Y actor_kind=human
+19:21:17.765 INF mail not configured, printing message component=server kind=verification_code to=g7-06-capture-1791832877702@example.com subject="450118 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    450118\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+19:21:17.768 INF http request method=POST path=/api/v1/auth/register status=200 duration=64.116ms request_id=cursor/tDBqkGQb35-000017 correlation_id=f8807d940d852cce8cbcb364b67ba161 trace_id=f8807d940d852cce8cbcb364b67ba161 span_id=b1d402ed36ed0237
+19:21:17.778 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=6.91ms request_id=cursor/tDBqkGQb35-000018 correlation_id=8af778d4c420e8ce1b6c8d4008cbd0cd trace_id=8af778d4c420e8ce1b6c8d4008cbd0cd span_id=3b40635667ea5c17 actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+19:21:17.785 INF http request method=POST path=/api/v1/orgs status=201 duration=4.831ms request_id=cursor/tDBqkGQb35-000019 correlation_id=5056349ccb7edf101c9944685f24ad3f trace_id=5056349ccb7edf101c9944685f24ad3f span_id=f65ca7063b039c45 actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+19:21:17.792 INF http request method=POST path=/api/v1/orgs/01M4RRZTPMS78VBE5RMWC5H1YY/workspaces status=201 duration=5.524ms request_id=cursor/tDBqkGQb35-000020 correlation_id=8ef997d691b38a0156e86deb7c66a6a9 trace_id=8ef997d691b38a0156e86deb7c66a6a9 span_id=283b31307b56ba95 organization_id=01M4RRZTPMS78VBE5RMWC5H1YY workspace_id=01M4RRZTPWSRT4VVPBS5ECS6WW actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+19:21:17.798 INF onboarding completed component=server user=01M4RRZTNXHXC4Y27CHQ3CXYPD path=full workspace=01M4RRZTPWSRT4VVPBS5ECS6WW
+19:21:17.798 INF http request method=POST path=/api/v1/me/onboarding/complete status=200 duration=4.504ms request_id=cursor/tDBqkGQb35-000021 correlation_id=9bb8d56d55c0e4424bc55daa7706a728 trace_id=9bb8d56d55c0e4424bc55daa7706a728 span_id=0c2c998ef9039013 organization_id=01M4RRZTPMS78VBE5RMWC5H1YY workspace_id=01M4RRZTPWSRT4VVPBS5ECS6WW actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+19:21:17.798 INF mail not configured, printing message component=server kind=welcome to=g7-06-capture-1791832877702@example.com subject="Welcome to UniWork" text="Hi G7-06 capture, you're all set\n\nYour workspace G7-06 capture is ready. Three things to start with:\n\n1. Create your first task and assign it to someone.\n2. Invite teammates from the Members page.\n3. Schedule a meeting and take notes right in UniWork.\n\nOpen workspace:\n\n    http://127.0.0.1:41661/o-g706-mv5n14zq/w-g706-mv5n14zq\n"
+19:21:17.810 INF http request method=POST path=/api/v1/workspaces/01M4RRZTPWSRT4VVPBS5ECS6WW/documents/files status=201 duration=10.573ms request_id=cursor/tDBqkGQb35-000022 correlation_id=10078fb7257f738d4546ccbaa85b9b90 trace_id=10078fb7257f738d4546ccbaa85b9b90 span_id=744adb195f01ae6a organization_id=01M4RRZTPMS78VBE5RMWC5H1YY workspace_id=01M4RRZTPWSRT4VVPBS5ECS6WW actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+19:21:17.823 INF http request method=POST path=/api/v1/workspaces/01M4RRZTPWSRT4VVPBS5ECS6WW/documents/files status=201 duration=11.377ms request_id=cursor/tDBqkGQb35-000023 correlation_id=7bfcf225c1dd1277589276a6b6dcb624 trace_id=7bfcf225c1dd1277589276a6b6dcb624 span_id=d21307f02a39be13 organization_id=01M4RRZTPMS78VBE5RMWC5H1YY workspace_id=01M4RRZTPWSRT4VVPBS5ECS6WW actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+19:21:17.833 INF http request method=POST path=/api/v1/workspaces/01M4RRZTPWSRT4VVPBS5ECS6WW/documents/files status=201 duration=8.007ms request_id=cursor/tDBqkGQb35-000024 correlation_id=4a75a50470c6a63e0f5aa2a07eae446c trace_id=4a75a50470c6a63e0f5aa2a07eae446c span_id=64e5bd70f8b7d9ce organization_id=01M4RRZTPMS78VBE5RMWC5H1YY workspace_id=01M4RRZTPWSRT4VVPBS5ECS6WW actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+19:21:17.847 INF http request method=POST path=/api/v1/workspaces/01M4RRZTPWSRT4VVPBS5ECS6WW/documents/files status=201 duration=12.37ms request_id=cursor/tDBqkGQb35-000025 correlation_id=5bf5b6d0ca38516cf3031036c744ed91 trace_id=5bf5b6d0ca38516cf3031036c744ed91 span_id=f93a27eed600d119 organization_id=01M4RRZTPMS78VBE5RMWC5H1YY workspace_id=01M4RRZTPWSRT4VVPBS5ECS6WW actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+19:21:17.859 INF http request method=POST path=/api/v1/workspaces/01M4RRZTPWSRT4VVPBS5ECS6WW/documents/files status=201 duration=11.35ms request_id=cursor/tDBqkGQb35-000026 correlation_id=ff9700da5d2010d0683abe6286544531 trace_id=ff9700da5d2010d0683abe6286544531 span_id=36c92874d915a1d1 organization_id=01M4RRZTPMS78VBE5RMWC5H1YY workspace_id=01M4RRZTPWSRT4VVPBS5ECS6WW actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+19:21:17.870 INF http request method=POST path=/api/v1/workspaces/01M4RRZTPWSRT4VVPBS5ECS6WW/documents/files status=201 duration=9.607ms request_id=cursor/tDBqkGQb35-000027 correlation_id=e3b1409e725d43c2f38957e968bd834b trace_id=e3b1409e725d43c2f38957e968bd834b span_id=d796c7aa3dd4beaa organization_id=01M4RRZTPMS78VBE5RMWC5H1YY workspace_id=01M4RRZTPWSRT4VVPBS5ECS6WW actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+19:22:18.566 INF http request method=POST path=/api/v1/orgs/01M4RRZTPMS78VBE5RMWC5H1YY/privacy/deletion status=202 duration=3.588ms request_id=cursor/tDBqkGQb35-000028 correlation_id=376b7bbb89aace8ffb917b3682790a41 trace_id=376b7bbb89aace8ffb917b3682790a41 span_id=e48081e51fab27b8 actor_id=01M4RRZTNXHXC4Y27CHQ3CXYPD actor_kind=human
+=== .harness-run/logs/web.log
+
+ GET /login 200 in 119ms (next.js: 3ms, application-code: 116ms)
+⚠ ./apps/web/app/globals.css:11319:13
+Warning: Parsing CSS source code failed
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11319:13
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login?email=g7-06-capture-1791832877702%40example.com&password=password123 200 in 98ms (next.js: 4ms, application-code: 95ms)
+⚠ ./apps/web/app/globals.css:11319:13
+Warning: Parsing CSS source code failed
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11319:13
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login?email=g7-06-capture-1791832877702%40example.com&password=password123 200 in 110ms (next.js: 6ms, application-code: 105ms)

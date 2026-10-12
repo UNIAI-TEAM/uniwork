@@ -1,0 +1,46 @@
+$ node scripts/office/g5g6g7/g7-06/job.mjs --update-goldens --checks golden --captures .g7-06-captures --out .g7-06-run/update; echo "update exit $?"; cat scripts/office/g5g6g7/g7-06/goldens/manifest.json; true
+g7-06 job: fork cb76dde, pin 0.1.0-cb76dde
+  golden    BLOCKED — capture_missing:web/fx-xlsx-revenue-xyz; capture_missing:web/fx-docx-report-vi; capture_missing:web/fx-pptx-deck-vi; capture_missing:web/fx-pdf-invoice-vi; capture_missing:web/fx-md-notes-vi; capture_missing:web/fx-html-page-vi
+g7-06 job: BLOCKED (0 fail, 1 blocked, 0 pass, 0 note) — artifacts in /workspace/.g7-06-run/update
+update exit 77
+{
+  "schema": 1,
+  "pinVersion": "0.1.0-cb76dde",
+  "forkSha": "cb76dde",
+  "capturedOn": "2026-10-12T19:20:03.255Z",
+  "viewport": {
+    "w": 1440,
+    "h": 900
+  },
+  "deviceScaleFactor": 1,
+  "tolerance": {
+    "channel": 16,
+    "ratio": 0.001
+  },
+  "entries": {
+    "desktop/fx-xlsx-revenue-xyz": {
+      "sha256": "907a008ecfb3f21111aa46db27d4e0062ff22cbf81ccb2a1c801a39b52447d1e",
+      "masks": []
+    },
+    "desktop/fx-docx-report-vi": {
+      "sha256": "df15ea8266615048ab2291ddd852a4a1884ee5b123882a0d01114c4f425325b1",
+      "masks": []
+    },
+    "desktop/fx-pptx-deck-vi": {
+      "sha256": "a59ad91c5e8986532aa03c2893d8f645f1208250dbb0ed5b67d728cb4f015648",
+      "masks": []
+    },
+    "desktop/fx-pdf-invoice-vi": {
+      "sha256": "53deefa43eaed30c760cc2e485bf749495a7b3a830873743e88ee1cdeda41dcf",
+      "masks": []
+    },
+    "desktop/fx-md-notes-vi": {
+      "sha256": "b7ecd389bff9e8f527d687bbd1db1ed4ebf3d7a10cccb25c391890dbede4c79c",
+      "masks": []
+    },
+    "desktop/fx-html-page-vi": {
+      "sha256": "91ccc360e2412011e2e2cb00fc233c1b8fe398a175046ed8e0e5093bdbcabdf2",
+      "masks": []
+    }
+  }
+}

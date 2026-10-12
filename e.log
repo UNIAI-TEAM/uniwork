@@ -1,0 +1,54 @@
+$ node scripts/office/g5g6g7/g7-06/capture.mjs --host web --out .g7-06-captures; echo "web exit $?"; cat .g7-06-captures/web/meta.json; true
+web: cleanup queued: organization 01M4RRXJQ19PM8C8YRXHMTR2WP (erasure queued) and its owner account g7-06-capture-1791832803967@example.com
+cleanup queued: organization 01M4RRXJQ19PM8C8YRXHMTR2WP (erasure queued) and its owner account g7-06-capture-1791832803967@example.com
+  failed  web/fx-xlsx-revenue-xyz - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+  failed  web/fx-docx-report-vi - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+  failed  web/fx-pptx-deck-vi - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+  failed  web/fx-pdf-invoice-vi - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+  failed  web/fx-md-notes-vi - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+  failed  web/fx-html-page-vi - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+capture web: FAILED (exit 1), meta at /workspace/.g7-06-captures/web/meta.json
+web exit 1
+{
+  "host": "web",
+  "forkSha": "cb76dde",
+  "pinVersion": "0.1.0-cb76dde",
+  "viewport": {
+    "w": 1440,
+    "h": 900
+  },
+  "deviceScaleFactor": 1,
+  "capturedAt": "2026-10-12T19:21:05.635Z",
+  "fixtures": {
+    "fx-xlsx-revenue-xyz": {
+      "status": "failed",
+      "reason": "sign_in_failed: page.waitForURL: Timeout 60000ms exceeded."
+    },
+    "fx-docx-report-vi": {
+      "status": "failed",
+      "reason": "sign_in_failed: page.waitForURL: Timeout 60000ms exceeded."
+    },
+    "fx-pptx-deck-vi": {
+      "status": "failed",
+      "reason": "sign_in_failed: page.waitForURL: Timeout 60000ms exceeded."
+    },
+    "fx-pdf-invoice-vi": {
+      "status": "failed",
+      "reason": "sign_in_failed: page.waitForURL: Timeout 60000ms exceeded."
+    },
+    "fx-md-notes-vi": {
+      "status": "failed",
+      "reason": "sign_in_failed: page.waitForURL: Timeout 60000ms exceeded."
+    },
+    "fx-html-page-vi": {
+      "status": "failed",
+      "reason": "sign_in_failed: page.waitForURL: Timeout 60000ms exceeded."
+    }
+  },
+  "settings": {
+    "locale": "vi-VN",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "colorScheme": "light",
+    "reducedMotion": "reduce"
+  }
+}

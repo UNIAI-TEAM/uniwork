@@ -1,0 +1,25 @@
+$ node scripts/office/g5g6g7/g7-06/capture.mjs --host desktop --out .g7-06-captures-2; echo "desktop2 exit $?"; node scripts/office/g5g6g7/g7-06/capture.mjs --host web --out .g7-06-captures-2; echo "web2 exit $?"; true
+desktop: fx-xlsx-revenue-xyz -> sheets view open (theme+size, media)
+desktop: fx-docx-report-vi -> docs view open (theme+size, media)
+desktop: fx-pptx-deck-vi -> slides view open (theme+size, media)
+desktop: fx-pdf-invoice-vi -> pdf view open (theme+size, media)
+desktop: fx-md-notes-vi -> markdown view open (theme+size, media)
+desktop: fx-html-page-vi -> html view open (theme+size, media)
+  ok      desktop/fx-xlsx-revenue-xyz
+  ok      desktop/fx-docx-report-vi
+  ok      desktop/fx-pptx-deck-vi
+  ok      desktop/fx-pdf-invoice-vi
+  ok      desktop/fx-md-notes-vi
+  ok      desktop/fx-html-page-vi
+capture desktop: ok (exit 0), meta at /workspace/.g7-06-captures-2/desktop/meta.json
+desktop2 exit 0
+web: cleanup queued: organization 01M4RRZTPMS78VBE5RMWC5H1YY (erasure queued) and its owner account g7-06-capture-1791832877702@example.com
+cleanup queued: organization 01M4RRZTPMS78VBE5RMWC5H1YY (erasure queued) and its owner account g7-06-capture-1791832877702@example.com
+  failed  web/fx-xlsx-revenue-xyz - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+  failed  web/fx-docx-report-vi - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+  failed  web/fx-pptx-deck-vi - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+  failed  web/fx-pdf-invoice-vi - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+  failed  web/fx-md-notes-vi - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+  failed  web/fx-html-page-vi - sign_in_failed: page.waitForURL: Timeout 60000ms exceeded.
+capture web: FAILED (exit 1), meta at /workspace/.g7-06-captures-2/web/meta.json
+web2 exit 1
