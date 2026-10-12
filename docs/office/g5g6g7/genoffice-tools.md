@@ -1,7 +1,7 @@
 # UniWork Office — Bảng công cụ agent genoffice (G6-01)
 
-> **Trạng thái:** in-progress — cột tay agent-core/docs/markdown/html đã viết; chờ khối trích xuất (W1) và phần
-> sheets/slides/pdf (W3); cột tay chờ ký (§10).
+> **Trạng thái:** in-progress — cột tay đủ bảy module (agent-core, docs, markdown, html, sheets, slides, pdf); chờ khối
+> trích xuất (W1) và chữ ký cột tay (§10).
 
 ## 1. Nguồn, cách tái tạo và kiểm tra
 
@@ -181,9 +181,135 @@ Trình soạn thảo là mã nguồn (CodeMirror) + preview iframe.
 | web_search | cả hai, web cần `webSearch` | như markdown | — | không | |
 | read_attachment | **desktop**; web luôn lỗi | index, offset → văn bản tệp đính kèm | 24 000/lần (`html/ai/files-skill.ts:12`), main 48 000 | không | web stub (`web/modules/html/webapi.ts:120`) |
 
-### 4.5 sheets, slides, pdf
+### 4.5 Gắn công cụ theo host — sheets, slides, pdf
 
-PENDING phần W3 (r-ssp), gộp vào khi lead báo xong.
+Trong 4.5–4.7, §5, §6, §7, §8.1 và các dòng 16–36 của §9, đường dẫn rút gọn là của module đang nói: `tools.ts`, `files-skill.ts`, `merge-skill.ts`, `search-skill.ts`, `image-skill.ts`, `view-only-skill.ts`, `workbook-readers.ts`, `aggregate.ts`, `AiChatPanel.tsx` = `apps/sheets/src/renderer/ai/…` (sheets) hoặc `apps/pdf/src/renderer/ai/…` (pdf); `slides-skill.ts`, `AiPanel.tsx`, `edit-queue.ts`, `layout-script*.ts` = `apps/slides/src/renderer/ai/…`; `App.tsx` = `apps/<module>/src/renderer/App.tsx`; `ai-ipc.ts`, `slides-main.ts` = `apps/slides/src/main/…`; `install.ts`, `webapi.ts` (pdf) = `web/modules/pdf/…`.
+
+- Desktop: renderer gọi `window.desktopApi` / `slidesApi` / `pdfApi` (preload Electron), không đặt `capabilities` → mọi `cap()`
+  bật (`apps/sheets/src/renderer/capabilities.ts:4-6`). Chat đi qua IPC transport (`apps/sheets/src/renderer/ai/transport.ts:6`).
+- Web: frame cài cùng renderer; `installModuleBridge` bọc global bằng `withWebAi` (`web/docs/bridge/module-bridge.ts:165`),
+  grant AI lấy từ host (`aiHostGrants`, `web/docs/bridge/module-bridge.ts:149`). Khi có grant `ai`: `aiStream` đi proxy BYOK của
+  UniWork; `webSearch`/`imageSearch`/`generateImage`/`analyzeMedia` đi công cụ cloud UniWork bằng frame token
+  (`web/modules/shared/ai/web-ai.ts:674,690,726-740,741`), mỗi cái cần capability riêng + công tắc `GET cloud` của server.
+- Công cụ cloud desktop (`UNIWORK_CLOUD_TOOLS`, `packages/ai-provider/src/uniwork-cloud.ts:19-25`) chạy ở main process với
+  bearer token của phiên UniWork người dùng (`apps/shell/src/main/uniwork-auth/index.ts:210,263`); token không tới renderer.
+- "Gated" = công cụ ẩn khỏi danh sách tool gửi cho model khi capability/điều kiện tắt (getter `tools` đọc lại trước mỗi request).
+  "Stub" = công cụ vẫn được khai báo cho model nhưng bridge web trả lỗi "unavailable".
+
+### 4.6 sheets
+
+Skill ghép: `composeSkills('sheets+files', …)` tại `apps/sheets/src/renderer/App.tsx:1404-1431` = workbook skill + files (gate
+`attachments`) + merge (gate `mergeWorkbooks`) + search (gate `webSearch`) + image (gate `imageGeneration`/`imageSearch`), tất cả
+bọc `restrictToReading` (view-only UniWork → chỉ `VIEW_ONLY_TOOLS`, `apps/sheets/src/renderer/ai/view-only-skill.ts:9-24,42-64`).
+Web: `createDocument`, `attachments`, `mergeWorkbooks` luôn tắt; `webSearch`/`imageSearch`/`imageGeneration` tắt tới khi host cấp
+(`web/modules/sheets/capabilities.ts:27-36,54`).
+
+| tool | host | vào → ra | giới hạn trong code | ghi editor | ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| get_workbook_context | cả hai | `{}` → danh sách sheet (id/tên/extent), sheet active, selection (đóng băng lúc gửi), merge, chart, ô đã biết | ô đã biết ≤200, merge ≤50 (`tools.ts:712,726`) | không | `tools.ts:269`. Báo chế độ streaming và sheet READ-ONLY vượt trần save-patch (`tools.ts:661-692`) |
+| read_range | cả hai | `{range, sheetId?}` → lưới giá trị/công thức có nhãn cột A,B,… và số dòng | ≤2000 ô (`MAX_READ_RANGE_CELLS`, `tools.ts:255,832`); phải nằm trong data extent (`tools.ts:847`) | không | `tools.ts:276`. Ở chế độ lazy (xlsx nhập) giá trị là **chuỗi hiển thị** (`workbook-readers.ts:434-440`), không trả `rawValue` |
+| aggregate_range | cả hai | `{range, sheetId?, topValues?}` → cells, nonEmpty, distinct, numeric count/sum/avg/min/max, top values | ≤1.000.000 ô (`tools.ts:256,925`); topValues 0–50 (`tools.ts:257,944`); distinct ngừng sau 200.000 (`aggregate.ts:10`) | không | `tools.ts:298`. Tính bằng JS (`aggregate.ts:33-70`), không phải model. AI gọi **không** bỏ dòng ẩn (`App.tsx:1692` không truyền `skipFileHiddenRows`; status bar thì có, `App.tsx:2066`) |
+| load_guide | cả hai | `{guides[]}` → văn bản hướng dẫn op (prompts/guides/*.md) | danh mục cố định (`guides.ts`) | không | `tools.ts:325` |
+| read_formats | cả hai | `{range, sheetId?}` → định dạng tường minh (bold, màu, number format, căn lề, viền) | ≤200 ô (`tools.ts:263,980`) | không | `tools.ts:342`. Là chỗ duy nhất thấy number format (vd `0%`) |
+| read_sheet_features | cả hai | `{sheetId?}` → AutoFilter, CF, DV, defined names, freeze, hidden/protected, shape/ảnh, page setup | — | không | `tools.ts:360`; `workbook-readers.ts:28` |
+| read_cells | cả hai | `{addresses[], sheetId?}` → giá trị/công thức từng ô | ≤100 địa chỉ (`tools.ts:253,1052`, cắt bớt im lặng); streaming: bao ≤2000 ô (`tools.ts:1098-1101`) | không | `tools.ts:377` |
+| find_cells | cả hai | `{query?, regex?, look_in?, sheetId?, errors_only?, max_results?}` → `Sheet!Addr` + nội dung | mặc định 50, tối đa 200 (`tools.ts:264-265,1129`); báo truncated/sheet chưa index xong | không | `tools.ts:398`; `workbook-search.ts`. Giá trị công thức = giá trị tính gần nhất |
+| select_range | cả hai | `{range, sheetId?}` → chọn + cuộn tới vùng | — | không (đổi selection của người dùng) | `tools.ts:438` |
+| trace_precedents | cả hai | `{address, sheetId?}` → tham chiếu của công thức + mẫu giá trị + cờ lỗi | độ sâu 1; defined name không mở | không | `tools.ts:457`; `formula-audit.ts` |
+| trace_dependents | cả hai | `{address, sheetId?}` → mọi công thức đọc ô | không thấy phụ thuộc qua defined name | không | `tools.ts:475` |
+| propose_operations | cả hai | `{operations[] (workbook DSL), summary}` → "Auto-applied N change(s)" + before→after (≤20 ô) + đọc lại ≤10 ô công thức sau 300 ms | ≤2000 thay đổi ô mở rộng; op bulk ≤200.000 ô; op cấu trúc không chung batch (mô tả `tools.ts:508-511`, kiểm ở `plan()` của xlsx-gateway); batch all-or-nothing; `MAX_READBACK_FORMULAS=10`, `FORMULA_RECALC_DELAY_MS=300` (`tools.ts:260-262`); streaming: ngân sách ~50.000 ô tham chiếu (`tools.ts:665`) | có (`mutated: true`, `tools.ts:1328,1363`) | `tools.ts:493`. **Áp dụng ngay** (`App.tsx:3579-3610` `autoApplySafePlan`), không có bước xem trước. Zod `workbookOperationSchema` kiểm op (`tools.ts:1283`). Gồm cả `add_image` tải URL (xem §5) |
+| create_document | desktop (gated `createDocument`; web luôn tắt, bridge stub `web/modules/sheets/bridge.ts:820`) | `{type: xlsx/csv/docx/pdf/md/html, sheetId?, title?, content?}` → file mới trong thư mục lưu mặc định, mở tab mới | content rỗng/echo bị từ chối (`tools.ts:1433-1438`) | file | `tools.ts:527`; gate ở `workbook-skill.ts:16-21` và `tools.ts:1390`; ghi đĩa ở `apps/sheets/src/main/sheets-main.ts:1524,1570,3184` |
+| read_attachment | desktop (gated `attachments`; web tắt) | `{index, offset?}` → text trích của file đính kèm, phân trang | 24.000 ký tự/khúc (`files-skill.ts:12`) | không | `files-skill.ts:34`. Đọc file cục bộ người dùng đã đính kèm |
+| merge_attached_workbooks | desktop (gated `mergeWorkbooks`; web tắt) | `{indexes?}` → nhập mọi sheet của file đính kèm (xlsx/xlsm/xls/csv/tsv) vào workbook đang mở | chỉ phần mở rộng bảng tính (`merge-skill.ts:13`) | có (cờ: không đặt `mutated` → extractor `undeclared`) | `merge-skill.ts:42`; công thức nguồn nhập thành giá trị |
+| web_search | desktop luôn; web khi có grant `webSearch` + công tắc cloud | `{query, maxResults?}` → title/url/snippet (+ answer) | mặc định 6; web cắt query 400 ký tự, kết quả 1–10 (`web-ai.ts:676-678,577`) | không | `search-skill.ts:20`. Desktop: UniWork cloud nếu bật, nếu không chuỗi keyless Serper/DuckDuckGo (`packages/ai-search/src/search-tools.ts:4-5,36`; IPC `sheets-main.ts:3843-3853`) |
+| image_search | desktop luôn; web khi có grant `imageSearch` | `{query, maxResults?}` → danh sách imageUrl + kích thước | mặc định 8 | không | `image-skill.ts:38`; `sheets-main.ts:3855-3864` |
+| generate_image | desktop khi có model media BYOK hoặc cloud; web khi có grant `imageGeneration` | `{prompt, aspectRatio?}` → URL ảnh (web: `data:` URL) | web: prompt ≤4000 ký tự (`web-ai.ts:727`) | không (chỉ trả URL; chèn qua `add_image`) | `image-skill.ts:52`; gate `App.tsx:1424-1429` |
+
+### 4.7 slides
+
+Skill: `composeSkills('slides+files', …)` tại `apps/slides/src/renderer/ai/AiPanel.tsx:1399-1401` = slides skill + files skill.
+Getter `tools` chỉ ẩn `generate_image`/`analyze_media` khi không có provider media và lọc theo `READ_ONLY_TOOLS` khi view-only
+(`slides-skill.ts:1080-1085,1094-1102,1122-1127`). **Không có gate theo capability web** cho các công cụ khác: trên web nhiều công
+cụ được khai báo cho model nhưng bridge trả "unavailable" (`web/modules/slides/web-slides-api.ts:1111-1135`).
+
+| tool | host | vào → ra | giới hạn trong code | ghi editor | ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| read_slide | cả hai | `{slideIndex}` → mọi phần tử của trang, full text, màu hex, hệ số px↔EMU | — | không | `slides-skill.ts:288` |
+| execute_slide_script | cả hai | `{slideIndex, code, explanation?}` → kết quả script + audit layout | DSL đồng bộ trong interpreter riêng: `MAX_STEPS=25.000`, độ sâu 64, collection 10.000, regex 32M bước (`layout-script-interpreter.ts:15-17,49`); log ≤20.000 ký tự (`layout-script.ts:20-21`); một transaction, lỗi → rollback | có (`mutated: true`, `slides-skill.ts:1486`) | `slides-skill.ts:300`. Executor còn nhận bí danh ẩn `execute_layout_script` (`slides-skill.ts:1433`) — không khai báo cho model |
+| web_search | desktop; web chỉ khi grant `webSearch` (không gate: thiếu grant → lỗi) | `{query, maxResults?}` → title/link/snippet | mặc định 6 | không | `slides-skill.ts:343,1491`; desktop `apps/slides/src/main/ai-ipc.ts` (chuỗi Serper/DDG/cloud như sheets) |
+| image_search | như web_search (grant `imageSearch`) | `{query, maxResults?}` → imageUrl | mặc định 8 | không | `slides-skill.ts:356` |
+| generate_image | desktop + web (gated `imageGenAvailable`: `cap('imageGeneration')` + provider, `AiPanel.tsx:1357-1359`) | `{prompt, model?, referenceImageUrls?, aspectRatio?, transparentBackground?}` → URL ảnh | web: ≤4 ảnh tham chiếu, chỉ `data:` URL (`web-ai.ts:563-566,731`) | không | `slides-skill.ts:369`. `model` mở các model cloud đặc biệt (xóa nền, upscale…) |
+| analyze_media | desktop + web (gated `mediaAnalysisAvailable`) | `{mediaUrls[], requirements}` → văn bản phân tích | output cắt 6000 ký tự (`slides-skill.ts:1594`); desktop: đường dẫn cục bộ chỉ trong media roots của tài liệu + temp (`ai-ipc.ts:74-76,309-321`); web: ≤4 media `data:` (`web-ai.ts:741-748`) | không | `slides-skill.ts:404`. Gửi nội dung media cho provider BYOK hoặc cloud UniWork |
+| insert_web_image | desktop; web **stub** (`insertImageUrl: async () => null`, `web-slides-api.ts:1121`) | `{slideIndex, url|attachment://name, x,y,w,h}` → id phần tử mới | URL chỉ `http(s)`/`file` (`slides-skill.ts:1618`); main: SSRF guard + trần byte (`ai-ipc.ts:344-380`, `packages/electron-utils/src/remote-image.ts:11,83`) | có (`mutated: true`, `slides-skill.ts:1638`) | `slides-skill.ts:425` |
+| replace_image | desktop; web stub (`web-slides-api.ts:1122`) | `{slideIndex, sourceId, url, keepCrop?}` → thay nguồn ảnh tại chỗ | như trên (`ai-ipc.ts:417-449`) | có (`slides-skill.ts:1687`) | `slides-skill.ts:447` |
+| ask_clarification | cả hai | `{questions[2–4] {id,label,options≤5,multi?}}` → câu trả lời người dùng (card chờ) | 2–4 câu, ≤5 lựa chọn (mô tả schema) | không | `slides-skill.ts:462`; card `AiPanel.tsx:1033-1038`. **Công cụ hỏi người dùng** |
+| plan_deck | cả hai | `{core_hook, style, pages[]}` → ghi kế hoạch vào state của skill | — | không | `slides-skill.ts:493,1731` |
+| regenerate_slide | desktop; web **stub** (`landGeneratedPages`/`localGeneratePage` unavailable, `web-slides-api.ts:1127-1129`) | `{slideIndex, brief, title?, layout?, image_urls?, dataSource?}` → trang mới thay tại chỗ | — | có (`slides-skill.ts:1839`) + **file** (desktop tự ghi nháp, §5) | `slides-skill.ts:542`. Gọi LLM nội bộ thêm (sinh trang local) |
+| generate_deck | desktop; web stub | `{topic?, approx_pages?, context?, core_hook?, style?, pages?, insert_mode?, style_template?, builtin_template?, dataSource?}` → deck mới / trang nối thêm | `approx_pages` ≤200 (`MAX_APPROX_PAGES`, `slides-skill.ts:33,595`) | có (`slides-skill.ts:2529`) + **file** (nháp `<Documents>/UniWork Office/*.pptx` và sidecar `.styleskill.json`, §5) | `slides-skill.ts:577`. Nhiều lượt LLM nội bộ (style, outline, từng trang); cloud slide generation tắt cứng (`apps/slides/src/main/slides-main.ts:997-1001`) |
+| save_style_template | desktop; web stub (`web-slides-api.ts:1133`) | `{name}` → lưu style + skeleton | tên ≤64 ký tự sau khi lọc (`ai-ipc.ts:520`) | file (`userData/style-templates/<name>.json`, `ai-ipc.ts:507-525`) | `slides-skill.ts:663` (`mutated: false`) |
+| list_style_templates | desktop; web trả `[]` | `{}` → danh sách template | — | không | `slides-skill.ts:678` |
+| edit_chart | cả hai | `{slideIndex, sourceId, kind?, categories?, series?, dataSource?, …}` → chart đã sửa | `series` cần `dataSource` | có (`slides-skill.ts:2571`) | `slides-skill.ts:684` |
+| apply_ops | cả hai (engine `slides:apply-txn`, `web-slides-api.ts:999`) | `{ops[], dry_run?, isolation?}` → bản ghi op, id mới, audit layout | mô tả "at most 50" (`slides-skill.ts:757`) — **không thấy kiểm số lượng trong code** (grep `slides-skill.ts`, `packages/pptx-ops/src`) | có (`slides-skill.ts:2621`; dry run `mutated: false`) | `slides-skill.ts:741`. Atomic mặc định |
+| load_guide | cả hai | `{groups[]}` → tài liệu op group | enum `OP_GROUPS` | không | `slides-skill.ts:770` |
+| read_attachment | desktop (web: không có kho đính kèm) | `{index, offset?}` → text đính kèm | 24.000 ký tự/khúc (tương tự sheets) | không | `apps/slides/src/renderer/ai/files-skill.ts:38` |
+
+### 4.8 pdf
+
+Skill: `createPdfSkill` (`apps/pdf/src/renderer/ai/pdf-skill.ts:70-131`), định nghĩa công cụ `AGENT_TOOLS`
+(`apps/pdf/src/renderer/ai/tools.ts:228-1160`). View-only/mã hóa → chỉ `READ_ONLY_TOOLS` (`pdf-skill.ts:48-58,77-83,118-127`);
+`generate_image` ẩn khi không có provider (`pdf-skill.ts:80-82`). Web: `imageGeneration`, `ocr`, `insertPages` (tới khi có
+`filePick`) tắt (`web/modules/pdf/install.ts:43-64`); `pdfTextEdit`/`pdfImageEdit` tắt khi pdfium không chạy được
+(`install.ts:109-110`) nhưng **các công cụ AI tương ứng không gate theo capability này** (chỉ `generate_image` có `cap()`,
+`AiPanel.tsx:392`). `createDocument` web là stub (`web/modules/pdf/webapi.ts:995`); `fetchImage` web là stub `null`
+(`web/docs/bridge/ai.ts:121`, dùng ở `webapi.ts:1012`).
+
+| tool | host | vào → ra | giới hạn trong code | ghi editor | ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| read_pages | cả hai | `{start, end?}` → text theo `[Page N]` | ≤10 trang/lần (`tools.ts:1198`), ≤24.000 ký tự (`tools.ts:42,1230`); trang scan dùng OCR nếu có, có nhãn (`tools.ts:1224-1228`) | không | `tools.ts:230` |
+| search_text | cả hai | `{query}` → trang + đoạn trích | ≤40 kết quả hiển thị | không | `tools.ts:246` |
+| goto_page | cả hai | `{page}` → cuộn tới trang | — | không | `tools.ts:258` |
+| markup_text | cả hai | `{page, text, type, all?, …}` → highlight/underline/strikeout | text phải nguyên văn trên trang | có | `tools.ts:267` |
+| read_annotations | cả hai | `{start?, end?}` → luồng ghi chú + markup kèm id | — | không | `tools.ts:294` |
+| add_note | cả hai | `{page, text, anchor_text?, x?, y?, color?}` → ghi chú mới (tác giả "AI Assistant") | — | có | `tools.ts:306` |
+| reply_note | cả hai | `{page, note_id, text}` → trả lời | — | có | `tools.ts:329` |
+| edit_note | cả hai | `{page, note_id, text}` → sửa nội dung ghi chú | — | có | `tools.ts:343` |
+| delete_markup | cả hai (web: xóa annot đã lưu cần `pdfAnnotDelete`) | `{page, markup_ids?, kind?}` | bỏ ids = cả trang | có | `tools.ts:360` |
+| delete_note | cả hai | `{page, note_id}` | — | có | `tools.ts:382` |
+| edit_text | cả hai (cần pdfium; không gate) | `{page, old_text, new_text, occurrence?, font_size?, color?, font?, bold?, italic?}` | sửa tại chỗ, không reflow; font chỉ arial/times/courier | có | `tools.ts:395` |
+| edit_block | cả hai (cần pdfium) | `{page, paragraph_text, new_text, …, align?}` → viết lại đoạn, reflow trong bề rộng | không đẩy nội dung khác | có | `tools.ts:432` |
+| move_text_block | cả hai (cần pdfium) | `{page, paragraph_text, dx, dy}` | — | có | `tools.ts:476` |
+| insert_text | cả hai (cần pdfium) | `{page, text, anchor_text?, placement?, x?, y?, font_size?, color?, max_width?, align?, font?, bold?, italic?}` → id `T…` | — | có | `tools.ts:498` |
+| add_form_mark | cả hai | `{page, kind, anchor_text?, placement?, x?, y?, size?}` | — | có | `tools.ts:549` |
+| list_inserted_text | cả hai | `{page?}` → khối text chưa lưu | — | không | `tools.ts:581` |
+| edit_inserted_text | cả hai | `{id, text?, font_size?, color?, align?}` | — | có | `tools.ts:595` |
+| move_inserted_text | cả hai | `{id, x?, y?, dx?, dy?}` | — | có | `tools.ts:615` |
+| delete_inserted_text | cả hai | `{id}` | — | có | `tools.ts:631` |
+| image_search | desktop; web khi grant `imageSearch` | `{query, max_results?}` → imageUrl | mặc định 8 | không | `tools.ts:643` |
+| generate_image | desktop (provider); web tắt (`install.ts:55`) | `{prompt, aspectRatio?}` → URL | — | không | `tools.ts:656`; desktop IPC `apps/pdf/src/main/pdf-main.ts:1683-1690` |
+| list_page_images | cả hai | `{page?}` → ảnh theo trang, số thứ tự | — | không | `tools.ts:676` |
+| insert_image | desktop; web chỉ khi có cách tải (stub `fetchImage` → luôn lỗi) | `{page, url, anchor_text?, placement?, x?, y?, width?, layer?}` | một chỉnh sửa/ảnh/lần lưu (prompt) | có | `tools.ts:690`; tải ở `tools.ts:2811` → `App.tsx:5830-5831` → handler shell `ai:fetch-image` (`apps/docs/src/main/docs-main.ts:3949`, SSRF guard) |
+| transform_image | cả hai (cần pdfium) | `{page, image, x?, y?, width?, height?, layer?}` | — | có | `tools.ts:733` |
+| rotate_image | cả hai | `{page, image, direction?}` | — | có | `tools.ts:764` |
+| replace_image | desktop; web stub tải ảnh | `{page, image, url}` | PNG/JPEG | có | `tools.ts:785`; tải `tools.ts:2995` |
+| flip_image | cả hai | `{page, image, axis}` | — | có | `tools.ts:802` |
+| set_image_opacity | cả hai | `{page, image, opacity}` | — | có | `tools.ts:824` |
+| crop_image | cả hai | `{page, image, left/top/right/bottom 0–1}` | — | có | `tools.ts:845` |
+| remove_image_background | cả hai | `{page, image, tolerance?}` | tolerance 0–100 | có | `tools.ts:877` |
+| delete_image | cả hai | `{page, image}` | — | có | `tools.ts:897` |
+| list_form_fields | cả hai | `{}` → tên/kiểu/lựa chọn field AcroForm | — | không | `tools.ts:913` |
+| apply_ops | cả hai | `{ops[], dry_run?}` — `rotatePages`, `deletePage`, `setPageOrder`, `setFormValue`, `setMetadata`, `removeMarkup`, `removeTextInsert`, `setNoteContents` | **≤50 op** (`MAX_APPLY_OPS`, `tools.ts:3215,3245`); một transaction, một bước undo | có | `tools.ts:919` |
+| insert_blank_page | cả hai (card xác nhận) | `{after_page}` | — | **file**: lưu mọi chỉnh sửa chờ rồi ghi lại file (desktop) / tạo version mới qua `api.save` (web) | `tools.ts:943`; xem §5(c) |
+| set_page_size | cả hai (card) | `{size? | width, height}` | — | file (như trên) | `tools.ts:959` |
+| crop_pages | cả hai (card) | `{pages, left, top, right, bottom}` | — | file (như trên) | `tools.ts:976` |
+| extract_pages | cả hai (card) | `{pages}` → file mới (desktop) / tải xuống (web) | — | file | `tools.ts:995`; web `webapi.ts:836` |
+| split_pdf | cả hai (card) | `{pages_per_file}` → nhiều file / .zip | 1..số trang−1 | file | `tools.ts:1010`; web `webapi.ts:852` |
+| split_pages | cả hai (card) | `{per_page: 2|4|9}` → file mới / tải xuống | — | file | `tools.ts:1025` |
+| merge_pages | cả hai (card) | `{per_sheet 2–16, direction?, separator?}` → file mới / tải xuống | — | file | `tools.ts:1037` |
+| replace_pages | desktop; web khi có `filePick` (không gate) | `{pages}` + bộ chọn file → ghi lại file | — | file | `tools.ts:1059` |
+| get_outline | cả hai | `{}` → mục lục | — | không | `tools.ts:1074` |
+| set_watermark | cả hai | `{text, angle?, opacity?, color?, size?}` | size 0,02–0,5 | có | `tools.ts:1080` |
+| set_header_footer | cả hai | slot header/footer, `page_number?`, `start_at?`, `font_size?`, `color?` | — | có | `tools.ts:1108` |
+| create_document | desktop; web **stub** (`webapi.ts:995`, công cụ vẫn khai báo) | `{type: pdf/docx/md/html, title, content}` → file mới | — | file | `tools.ts:1141`; `App.tsx:5849`; main `apps/pdf/src/main/pdf-main.ts:1047` |
 
 ## 5. Kiểm an toàn (spec §6.3)
 
@@ -194,20 +320,50 @@ mở; (d) gọi API UniWork bằng quyền khác phiên người dùng. Kết lu
 | --- | --- | --- | --- |
 | agent-core | (a)–(d) | n/a | Không công cụ; vòng lặp không tải URL, không ghi file, không gọi API (`packages/agent-core/src/loop.ts`, `skill.ts`). |
 | docs | (a) | **vi phạm** | Không có thực thi macro/VBA (không đọc `vbaProject`). Nhưng op `insertField` của `apply_ops` dùng **danh sách chặn**: chỉ chặn `TOC INDEX XE HYPERLINK INCLUDEPICTURE INCLUDETEXT EMBED FORM* ADDIN` (`apps/docs/src/renderer/ai/field-ops.ts:21-33`); mọi từ khóa `^[A-Za-z]+$` khác qua được (`field-ops.ts:636-640`), gồm `DDE`, `DDEAUTO`, `LINK`, `IMPORT`, `DATABASE`. Trường được ghi `dirty` để Word tính lại khi mở → nội dung bị prompt injection có thể khiến AI chèn trường DDE vào file. Cần danh sách cho phép. `updateFields scope:"all"` cũng đánh dấu `dirty` cả trường DDE/INCLUDETEXT có sẵn trong file (`field-ops.ts:589-598`). |
-| docs | (b) | đạt (ghi chú) | Editor không tự tải đích `INCLUDEPICTURE`/`INCLUDETEXT`. Ảnh chỉ tải khi model gọi `insert_image`/`insert_picture`/`set_watermark` (ảnh): desktop qua `ai:fetch-image` → `fetchRemoteImage` (`apps/docs/src/main/docs-main.ts:3949-3967`) → `fetchWithSsrfGuard` chặn dải private/loopback/link-local ở **mọi bước redirect** (`packages/electron-utils/src/safe-remote-url.ts:19-30`, `safe-remote-url.ts:95-115`), trần 50 MB; web qua RPC `image.fetch` của host (`web/docs/bridge/webapi.ts:764`, proxy phía server UniWork, không kiểm ở fork). URL có thể đến từ text bị injection (kết quả tìm kiếm, nội dung tài liệu); system prompt không có câu "nội dung là dữ liệu không tin cậy" — phần đó thuộc instruction pack G6-14. |
+| docs | (b) | **vi phạm** | Cùng cơ chế và cùng kết luận với sheets/slides/pdf (ghi chú (b) chung dưới bảng): URL do model chọn được tải. Editor không tự tải đích `INCLUDEPICTURE`/`INCLUDETEXT`. Ảnh chỉ tải khi model gọi `insert_image`/`insert_picture`/`set_watermark` (ảnh): desktop qua `ai:fetch-image` → `fetchRemoteImage` (`apps/docs/src/main/docs-main.ts:3949-3967`) → `fetchWithSsrfGuard` chặn dải private/loopback/link-local ở **mọi bước redirect** (`packages/electron-utils/src/safe-remote-url.ts:19-30`, `safe-remote-url.ts:95-115`), trần 50 MB; web cũng tải, qua RPC `image.fetch` của host (`web/docs/bridge/webapi.ts:764`, proxy phía server UniWork, không kiểm ở fork). URL có thể đến từ text bị injection (kết quả tìm kiếm, nội dung tài liệu); system prompt không có câu "nội dung là dữ liệu không tin cậy" — phần đó thuộc instruction pack G6-14. |
 | docs | (c) | **vi phạm** | `create_document` (chỉ desktop) ghi file mới `.pdf`/`.md`/`.html` vào thư mục lưu mặc định, hoặc mở tab `.docx` mới tự lưu vào đó, không hỏi người dùng (`apps/docs/src/renderer/ai/tools.ts:980-1008`, `apps/docs/src/main/docs-main.ts:5021`, `docs-main.ts:5568-5612`). Không ghi đè (`uniquePathIn`), nhưng là ghi đĩa ngoài tài liệu đang mở do một lượt AI. Với UniWork AI phải ra khỏi allowlist. `read_attachment` chỉ đọc tệp người dùng đính kèm (`docs/ai/files-skill.ts`). |
 | docs | (d) | đạt | Desktop: công cụ đám mây đi qua transport ở shell main bằng bearer của chính tài khoản đang đăng nhập (`apps/shell/src/main/uniwork-auth/cloud.ts:195`, `cloud.ts:225`); web: frame token một tài liệu, `credentials:'omit'` (`web/modules/shared/ai/client.ts:5-7`). Không khóa dịch vụ, không quyền cao hơn phiên. |
 | markdown | (a) | đạt | Markdown không có macro/script; prompt cấm sinh HTML thô (`md/ai/markdown-skill.ts`, "Never emit raw HTML"). Cách render khối HTML thô/mermaid chưa được kiểm trong lane này. |
-| markdown | (b) | đạt (ghi chú) | Như docs: chỉ `insert_image`/`generate_image` tải ảnh, chỉ `^https?://`, PNG/JPG/GIF, qua cùng `fetchRemoteImage` (`md/ai/tools.ts:319`); link trong tài liệu không bị công cụ tải. Web: `fetchImage` là stub `null` nên không tải gì (`web/modules/markdown/webapi.ts:133`). |
+| markdown | (b) | **vi phạm** (desktop) | Như docs: chỉ `insert_image`/`generate_image` tải ảnh, chỉ `^https?://`, PNG/JPG/GIF, qua cùng `fetchRemoteImage` (`md/ai/tools.ts:319`); link trong tài liệu không bị công cụ tải. Web: `fetchImage` là stub `null` nên không tải gì (`web/modules/markdown/webapi.ts:133`) → đạt trên web. |
 | markdown | (c) | đạt (ghi chú) | `insert_image`/`generate_image` ghi file ảnh vào thư mục assets **của chính tài liệu** (`apps/markdown/src/main/markdown-main.ts:913-920`; đường dẫn tài liệu lấy từ main, không từ renderer), giống khi người dùng dán ảnh (`apps/markdown/src/renderer/editor/localImage.ts:153`). Assets là một phần tài liệu Markdown (§6.5), nhưng file được ghi **ngay lúc gọi công cụ**, trước khi Lưu, và undo/rollback không xóa nó — xem §6. |
 | markdown | (d) | đạt | Như docs. |
 | html | (a) | đạt trên web; **vi phạm** trên desktop (chờ Product) | Script trong trang chạy trong preview iframe `sandbox="allow-scripts allow-forms allow-popups allow-modals"`, không `allow-same-origin` → không chạm được app (`apps/html/src/renderer/preview/PreviewFrame.tsx:178`). Web: `preview.html` có CSP riêng `connect-src 'none'`, `form-action 'none'` và iframe `credentialless` (`web/docs/build/modules.ts:121-127`). Desktop: giao thức `html-preview://` trả về không kèm CSP (`apps/html/src/main/preview-protocol.ts:45`) → script trong trang (kể cả script AI vừa viết qua `apply_ops`/`write_document`, vốn không được làm sạch) được dùng mạng, có thể gửi nội dung trang ra ngoài. Đây là hành vi có chủ ý của preview (trang dùng CDN), nhưng với lượt AI nó là đường rò; Product quyết: CSP cho preview desktop, làm sạch HTML do AI viết, hoặc chấp nhận có ghi lý do. |
 | html | (b) | đạt (ghi chú) | Không công cụ AI nào của html tải URL (không có `insert_image`). `fetchImage` của main (`apps/html/src/main/html-main.ts:1651`) chỉ `^https?:` + `fetchRemoteImage`, dùng cho thao tác UI; web là stub `null` (`web/modules/html/webapi.ts:156`). Tài nguyên trang do preview tải là phần (a). |
 | html | (c) | đạt | `apply_ops`/`plan_page`/`write_document` chỉ đổi bộ đệm editor (`apps/html/src/renderer/App.tsx:480-520`). Tham chiếu `attachment://` được thay bằng ảnh trong `assets/` của tài liệu hoặc `data:` (`html/ai/tools.ts:397`, `tools.ts:486`). |
 | html | (d) | đạt | Như docs. |
+| sheets | (a) | **đạt** | không có đường thực thi VBA/DDE; xlsm chỉ là phần mở rộng được nhận (`merge-skill.ts:13`), không có interpreter macro. `WEBSERVICE` chỉ có trong danh sách tiền tố `_xlfn` (`packages/xlsx-gateway/src/gateway/future-functions.ts:122`); **chưa xác minh** engine công thức (Univer/IronCalc) có thực thi nó không — không có `node_modules` ở checkout để đọc |
+| sheets | (b) | **vi phạm** | op `add_image` của `propose_operations` tải URL do model đưa: desktop main `ai:fetch-image` (SSRF guard, ≤20 MB, `apps/sheets/src/main/sheets-main.ts:3866-3880,1638`), web qua proxy host `image.fetch` (`web/modules/sheets/bridge.ts:868-878`); URL có thể đến từ nội dung tài liệu/kết quả tìm kiếm (prompt injection). Thêm: đường không-URL đọc **file ảnh cục bộ bất kỳ** theo đường dẫn tuyệt đối model đưa (`apps/sheets/src/renderer/op-executor.ts:208-211` → `sheets-main.ts:2987-3002`, chỉ desktop) |
+| sheets | (c) | **vi phạm** (desktop) | `create_document` ghi file mới vào thư mục lưu mặc định (`tools.ts:527`, `sheets-main.ts:1570,3184`). Web: **pass** (`createDocument:false`, `web/modules/sheets/capabilities.ts:32`; stub `bridge.ts:820`). Autosave sau lượt AI chỉ với file cục bộ, tắt với tài liệu UniWork (`App.tsx:635-637,3530-3547`) → pass cho tài liệu UniWork |
+| sheets | (d) | **đạt** | công cụ cloud desktop dùng bearer của phiên người dùng ở main (`apps/shell/src/main/uniwork-auth/index.ts:210,263`; `packages/ai-provider/src/uniwork-cloud.ts:6-12`); web dùng frame token (`web/modules/shared/ai/web-ai.ts:9-15,207-219`). Chuỗi keyless (DuckDuckGo) không chạm API UniWork |
+| slides | (a) | **đạt** | `execute_slide_script` chạy trong interpreter DSL riêng, không `eval`, không global (`slides-skill.ts:306,317`; `layout-script-interpreter.ts:15-49`); không có đường chạy macro pptm |
+| slides | (b) | **vi phạm** | `insert_web_image`/`replace_image` tải URL do model đưa (desktop main, SSRF guard + trần, `apps/slides/src/main/ai-ipc.ts:344-380,417-449`); `generate_deck`/`regenerate_slide` tải `image_urls` trong pipeline local (`slides-main.ts:1092`); `analyze_media` nhận URL/đường dẫn cục bộ (trong media roots của tài liệu, `ai-ipc.ts:74-76,309-321`) và gửi cho provider. Web: tải ảnh là stub → pass trên web |
+| slides | (c) | **vi phạm** (desktop) | `generate_deck`/`regenerate_slide` tự ghi nháp `<Documents>/UniWork Office/<name>.pptx` và chuyển `session.path` sang nháp (`apps/slides/src/main/slides-main.ts:780-810,1222,1274,1320,1350`), **không kiểm `uniworkIsBound`** → deck UniWork bị tách thành file cục bộ; sidecar `.styleskill.json` cạnh nháp (`ai-ipc.ts:487-503`); `save_style_template` ghi `userData/style-templates` (`ai-ipc.ts:507-525`). Web: pass (stub, `web-slides-api.ts:1127-1135`) |
+| slides | (d) | **đạt** | như sheets; cloud slide generation tắt cứng (`slides-main.ts:997-1001`) |
+| pdf | (a) | **đạt** | pdf.js mở không bật scripting: `getDocument({data, password, ...DOC_OPTS})` (`apps/pdf/src/renderer/App.tsx:1045-1049`, `view-config.ts:33-38`), không có `PDFScriptingManager`/`enableScripting` trong renderer (grep). Link ngoài mở qua main `shell.openExternal` khi người dùng bấm (`LinkLayer.tsx:47`), không phải do công cụ |
+| pdf | (b) | **vi phạm** (desktop) | `insert_image`/`replace_image` tải URL do model đưa qua `ai:fetch-image` (`tools.ts:2811,2995` → `App.tsx:5830` → `apps/docs/src/main/docs-main.ts:3949`, SSRF guard). Web: pass (`fetchImage` stub null, `web/docs/bridge/ai.ts:121`) |
+| pdf | (c) | **vi phạm** | `insert_blank_page`/`set_page_size`/`crop_pages`/`replace_pages` lưu chỉnh sửa chờ rồi ghi lại file (`App.tsx:5254-5261`; mô tả `pdf-skill.ts:32-37`); **trên web tạo version mới qua `api.save`** (`web/modules/pdf/webapi.ts:17-19,472-487,760-785`) — trái §6.4 "một lượt AI không tạo upload/version". `extract_pages`/`split_pdf`/`split_pages`/`merge_pages` ghi file mới (desktop) / tải xuống (web). `create_document` ghi file (desktop). Có card xác nhận người dùng (`tools.ts:1720-1727`) — giảm nhẹ, không thay quy tắc |
+| pdf | (d) | **đạt** | như sheets |
+
+Ghi chú (b) chung: SSRF guard (`fetchRemoteImage`, `packages/electron-utils/src/remote-image.ts:83`) chặn scheme khác http(s) và
+địa chỉ private/link-local, kiểm từng redirect, có trần byte. Đó là giảm nhẹ; quy tắc spec "không tự tải URL" vẫn bị vi phạm khi
+URL do model/nội dung tài liệu quyết định, nên ghi blocker để G6-12 quyết (vd chỉ cho URL đến từ `image_search`/`generate_image`
+cùng lượt, hoặc tắt với nhà cung cấp UniWork AI).
 
 Kiểm thêm theo spec §6.2: **công cụ đám mây** (`web_search`, `image_search`, `generate_image`, `analyze_media`) gửi query/prompt/ảnh
 ra dịch vụ ngoài và tốn credit; chúng đi theo `office.ai_cloud` của tổ chức, không theo allowlist editor.
+
+### 5.1 Sheets: công thức do engine tính hay model
+
+- Công thức ghi bằng `propose_operations` (`set_formula`, `fill_range`, …) được **engine** tính: Univer formula engine trong renderer;
+  web dùng xlsx WASM (IronCalc) trong worker cho lưu/recalc (`web/modules/sheets/engine/engine.worker.ts`,
+  `web/modules/sheets/engine/stale-values.ts:1-30`); desktop có IronCalc recalc fallback (cap `recalcFallback`, tắt trên web).
+  Công cụ đọc lại kết quả tính (≤10 ô, sau 300 ms) và báo lỗi `#REF!`… (`tools.ts:1307-1366`).
+- Thống kê (`aggregate_range`) do JS tính trên giá trị ô (`aggregate.ts:33-70`), không phải model.
+- **Không có gì ép** model dùng công thức/aggregate thay vì `set_cell` một số tự nhẩm — chỉ có prompt (`prompts/base.md`). Ghi vào §9.
+- **Formula cache vs recalc:** chế độ lazy/streaming đọc giá trị từ file (giá trị cache `<v>`) cho vùng engine chưa nạp
+  (`tools.ts:74-77,661-671`); đầu ra `read_range`/`read_cells`/`find_cells` **không đánh dấu** ô nào là cache, ô nào vừa recalc.
+  Khi lưu, web làm mới hoặc xóa `<v>` cũ (`stale-values.ts:1-30`) và gateway đặt `fullCalcOnLoad`. Thiếu: cờ cache/recalc trong
+  output công cụ (§8, §9).
 
 ## 6. Hiển thị và hoàn tác thay đổi AI (spec §6.4)
 
@@ -216,6 +372,9 @@ ra dịch vụ ngoài và tốn credit; chúng đi theo `office.ai_cloud` của 
 | docs | **Theo dõi thay đổi AI tắt mặc định**: bật chỉ khi `localStorage['ai-docs-track-changes'] === '1'` (`docs/ai/AiPanel.tsx:167`, `AiPanel.tsx:392-394`). Bật: `insert_content`, `write_document`, `replace_blocks`, `replace_selection`, `apply_ops` ghi revision tác giả AI, duyệt ở tab Review (`docs/ai/protocol.ts:1202-1357`, `docs/ai/ops.ts:1495-1509`). Tắt: highlight vàng bị chấp nhận ngay trong cùng tick, không còn dấu (`AiPanel.tsx:805-808`). Biểu đồ, ảnh nổi, text box, chú thích, comment, header/footer, page setup, style, watermark không bao giờ được theo dõi. Thẻ edit queue (`docs/ai/edit-queue.ts`, `EditQueueCard.tsx`) là hàng đợi **chỉ dẫn trước khi gửi** (≤ 10 mục, ≤ 500 ký tự; `edit-queue.ts:14-16`), không hiển thị kết quả. | Nút Roll back của mỗi run: snapshot `editor.getJSON()` trước công cụ `mutated` đầu tiên (`AiPanel.tsx:790`, `AiPanel.tsx:802-804`, `AiPanel.tsx:1208-1219`). Không trả lại style/page setup/header-footer/watermark (ngoài cây ProseMirror) và không có snapshot nếu run chỉ gọi công cụ khai báo `mutated:false`. | **Không bảo đảm.** Không có `closeHistory`/nhóm lịch sử trong `apps/docs/src/renderer/ai`; mỗi công cụ là một giao dịch, lịch sử ProseMirror chỉ gộp theo cửa sổ thời gian mặc định. Chỉ bản nháp `write_document` không vào lịch sử (`docs/ai/doc-writer.ts:180`). | **blocker** cho hàng DOCX sửa: mặc định không có dấu vùng sửa trước khi Lưu; undo không theo lượt; rollback không đủ. |
 | markdown | Highlight các khoảng do giao dịch `OP_META.source === 'ai'` đổi (`apps/markdown/src/renderer/editor/aiHighlight.ts`); edit queue như docs (`md/ai/edit-queue.ts:15-17`). Không có mô tả thay đổi dạng diff. | Roll back theo run (snapshot thân + frontmatter, `md/ai/AiPanel.tsx:397`). File ảnh đã ghi vào assets không bị xóa. | **Không bảo đảm.** Mỗi op một giao dịch (`apps/markdown/src/renderer/editor/ops.ts:552-555`), không nhóm lịch sử; `apply_ops` không nguyên tử. | **blocker** một phần: có dấu vùng sửa; thiếu undo một bước mỗi lượt. |
 | html | Highlight khoảng AI sửa trong editor mã nguồn (`apps/html/src/renderer/source/SourceEditor.tsx:129`, `SourceEditor.tsx:146`), bị xóa khi người dùng gõ; thẻ brief/clarify/partial trong panel; preview nháp khi stream trang. Không có diff, không hiện trên preview. | Roll back theo run (snapshot `{text}`); Ctrl+Z của CodeMirror (`apps/html/src/renderer/source/cm-setup.ts:83`). | **Không bảo đảm.** Sửa của AI chỉ mang annotation `External` (`SourceEditor.tsx:118`), vào lịch sử CodeMirror mỗi lần dispatch; nhiều lượt gọi công cụ = nhiều bước undo. `plan_page`/`write_document` thay cả tài liệu trong một bước. | **blocker** một phần: có dấu vùng sửa ở mã nguồn, không ở preview; thiếu undo một bước mỗi lượt. |
+| sheets | Thay đổi áp ngay vào lưới (không bước xem trước; card preview chỉ là fallback khi apply lỗi, `App.tsx:3579-3610`, `AiChatPanel.tsx:673-680`). Panel hiện "AI đã áp dụng N thay đổi" + nút [Undo] trên tin nhắn trợ lý (`AiChatPanel.tsx:649-666`). Không tô vùng đã sửa; không liệt kê range/ô bị ghi đè cho người dùng (before→after chỉ đi vào tool output cho model, `tools.ts:787-808`) | Nút [Undo] gọi `handleUndo(steps)` (`App.tsx:3819-3845`) và ⌘Z | **Có**: `undoSteps` cộng dồn mọi batch của cùng một tin nhắn trợ lý (`App.tsx:3597-3605,3681-3684`) → một nút hoàn tác cả lượt. Batch quá ngân sách undo → `undoSteps 0`, không có nút (`AiChatPanel.tsx:654-657`); apply lỗi giữa chừng có thể không hoàn tác được (`tools.ts:1374-1379`) | Có hiển thị + undo theo lượt. **Thiếu cho §6.5 XLSX**: target range + số ô bị ghi đè hiển thị cho người dùng → blocker hàng XLSX-sửa (§9) |
+| slides | Thay đổi áp ngay lên deck; panel có chip công cụ, card tiến độ khi sinh deck; hàng đợi chỉnh sửa theo phần tử (`EditQueueCard.tsx`, `edit-queue.ts:1-12`, ≤10 mục, ≤500 ký tự, `edit-queue.ts:35-37`) | ⌘Z (lịch sử main process) + nút rollback trên tin nhắn (`AiPanel.tsx:2338-2345`, `aiSnapshotRestore` `AiPanel.tsx:776-791`); web qua engine (`web-slides-api.ts:996-1000`) | **Có**: `beginHistoryBatch` trước mỗi lượt, `endHistoryBatch` sau (`AiPanel.tsx:1717,767-775`); hàng đợi chỉnh sửa: một batch mỗi trang (`AiPanel.tsx:1777-1781,1871-1891`) | Đạt (không tô vùng sửa; chấp nhận theo "theo khả năng từng module") |
+| pdf | Mọi chỉnh sửa (trừ thao tác cấp file) ở trạng thái chờ, vẽ trên trang (markup, khối text `T…`, sửa text/ảnh); tóm tắt chờ đi vào context (`App.tsx:5537-5549`); chip công cụ trong panel. Thao tác cấp file có card xác nhận (`AiPanel.tsx:297-317`) | ⌘Z: `pushUndo` chụp snapshot trước mỗi thay đổi, stack 50 (`App.tsx:1822-1828,1986`); `apply_ops` = một bước | **Không**: một bước undo cho mỗi lần gọi công cụ, không gộp theo lượt; không có nút hoàn tác lượt AI; lượt > 50 thay đổi đẩy bước cũ ra khỏi stack. Thao tác cấp file **không hoàn tác được** (`tools.ts:1716-1717`) | Hiển thị có. **Thiếu**: undo gộp theo lượt (đề xuất G6-12, không blocker theo §6.4 vì vẫn undo được từng bước); thao tác cấp file không undo → nằm trong violation (c) ở §5 |
 | agent-core | Cung cấp `snapshotBefore` cho rollback (`packages/agent-core/src/loop.ts:13-21`); không có khái niệm nhóm undo. | — | — | Chỗ hợp lý để G6-09 thêm móc "bắt đầu/kết thúc lượt" cho editor nhóm lịch sử. |
 
 ## 7. Công cụ hỏi lại người dùng
@@ -226,26 +385,49 @@ ra dịch vụ ngoài và tốn credit; chúng đi theo `office.ai_cloud` của 
 | docs | **không** | Không có `ask_clarification` hay tương đương; model hỏi bằng văn bản trả lời rồi kết thúc lượt. Chỉ có luật prompt cho luồng comment (`docs/ai/protocol.ts:133`). |
 | markdown | **không** | Prompt bảo model hỏi giá trị còn thiếu bằng văn bản (`md/ai/markdown-skill.ts`). |
 | html | **có**: `ask_clarification` | `html/ai/tools.ts:324` (định nghĩa), `tools.ts:772` (thực thi). Hiện thẻ 1–4 câu, mỗi câu ≤ 5 lựa chọn, thẻ tự thêm "để AI quyết" và ô "khác"; **chặn run** tới khi người dùng trả lời (`html/ai/AiPanel.tsx:682-684`); bỏ qua/dừng/chat mới trả `cancelled` (`AiPanel.tsx:808`, `AiPanel.tsx:993`). Dùng trước khi tạo trang mới; `intentSkill` tắt nó khi ý định là "viết nội dung". |
+| sheets | **không** | không có công cụ hỏi; chỉ hỏi bằng văn bản trả lời (không có `ask_*` trong `apps/sheets/src/renderer/ai/`) |
+| slides | **có**: `ask_clarification` (card câu hỏi, chờ trả lời; `cancelled` khi người dùng bỏ) | `slides-skill.ts:462,1692`; `AiPanel.tsx:1033-1038` |
+| pdf | **không** | prompt bảo hỏi bằng văn bản (`pdf-skill.ts:41`); `confirmFileOp` chỉ là card xác nhận có/không cho thao tác cấp file, không phải câu hỏi mở; `tools.ts:185,1720`; `AiPanel.tsx:297-317` |
 
 Chip "Cần làm rõ" của G6-14 cần một tín hiệu xác định: module không có công cụ hỏi lại thì kết quả "cần làm rõ" chỉ nhận ra
 được từ văn bản — mục G6-12 ở §9.
 
 ## 8. Đối chiếu ma trận tác vụ (spec §6.5)
 
-Mỗi ô: công cụ dùng được (tên ở cột `tool` §3), hoặc `missing: <thiếu gì>`. Hàng XLSX, PPTX, PDF lấy từ phần W3 (§4.5).
+Mỗi ô: công cụ dùng được (tên ở cột `tool` §3), hoặc `missing: <thiếu gì>`. Hàng XLSX, PPTX, PDF tách theo điểm con ở §8.1.
 
 | hàng | đọc / phân tích | sửa trong editor (xem, hoàn tác, rồi Lưu) |
 | --- | --- | --- |
-| XLSX | PENDING phần W3 | PENDING phần W3 |
+| XLSX | xem §8.1 | xem §8.1 (áp ngay, chưa hiện target range + số ô bị ghi đè) |
 | DOCX | Hỏi/tóm tắt: `get_document_context` + `read_blocks` (phân trang). Trích có anchor: chỉ số block từ hai công cụ trên; `read_comments`, `read_notes` trả block neo và text neo; `read_revisions` cho tracked change. Ảnh trong tài liệu: `analyze_media` (cần model media). So sánh/giải thích: `read_revisions`, `read_attachment` cho tệp thứ hai; `missing: công cụ so sánh hai tài liệu` (model tự so trong context). | Viết lại/rút gọn/dịch đoạn chọn: `replace_selection` (trong một block), `replace_blocks` (nhiều block, kể cả bảng — giữ độ rộng, viền, ô không đổi), `apply_ops` (nguyên tử, `dryRun`). Giữ bảng và phần không sửa: công cụ chỉ đổi khoảng được chỉ, kế thừa định dạng. `missing: dấu vùng sửa mặc định trước khi Lưu` (theo dõi thay đổi tắt mặc định), `missing: undo một bước mỗi lượt`, `missing: rào code giới hạn sửa trong vùng chọn` (chỉ prompt), `missing: tôn trọng bảo vệ Word` (§4.2). |
-| PPTX | PENDING phần W3 | PENDING phần W3 |
-| PDF có text layer | PENDING phần W3 | PENDING phần W3 |
+| PPTX | xem §8.1 | xem §8.1 |
+| PDF có text layer | xem §8.1 | xem §8.1 |
 | Markdown | Hỏi/tóm tắt theo heading/source range: `get_document_context` (nhãn `h1`–`h6` trong khung), `read_blocks` (theo chỉ số block), `read_frontmatter`. `missing: tra theo tên heading hoặc theo khoảng ký tự nguồn` (chỉ có chỉ số block). | Sửa vùng chọn: `apply_ops` (vùng chọn báo trong context là "block N..M"), `write_document` với `afterIndex`. Giữ frontmatter: chỉ op `setFrontmatter` ghi nó. Giữ link/assets ngoài vùng: chỉ nhờ prompt. `missing: rào code giới hạn op trong vùng chọn`, `missing: apply_ops nguyên tử`, `missing: undo một bước mỗi lượt`. Ảnh: `insert_image`/`generate_image` chỉ desktop. |
 | HTML | Hỏi/tóm tắt nội dung: `get_outline`, `read_source` (theo `sid` hoặc dòng), `read_attachment` (desktop). `missing: trích văn bản thuần` (model đọc mã nguồn HTML). | Sửa text/DOM target: `apply_ops` (`set_text`, `set_attr`, `set_style`, `replace_element`, `insert_html`, `remove`, `move`, `str_replace`; nguyên tử, ≤ 40 op), mặc định nhắm phần tử đang chọn. `missing: làm sạch HTML do AI viết` (script, `on*=`, `javascript:`), `missing: CSP preview desktop` (§5 html (a)), `missing: undo một bước mỗi lượt`. `plan_page`/`write_document` thay cả trang — không nằm trong hàng "sửa target", nên ra khỏi allowlist khi lượt chỉ là sửa. |
 
-Hàng XLSX còn các điểm con của spec §6.5 (nhãn cột X/Y/Z vs địa chỉ cột, sheet id/range resolved, kiểu/locale/10 vs 10 %,
-dòng ẩn/lọc, hàng tổng, recalc vs cache, số dòng xử lý/coverage, target range + số ô bị ghi đè trước khi Lưu) — điền từ phần
-W3.
+### 8.1 XLSX, PPTX, PDF theo điểm con
+
+| hàng / điểm con §6.5 | công cụ | thiếu |
+| --- | --- | --- |
+| XLSX đọc/phân tích: tổng/count/average | `aggregate_range` (sum/avg/min/max/count/distinct), `read_range`, `get_workbook_context` (extent) | Không có điều kiện/nhóm trong một công cụ (SUMIF/GROUP BY) — phải ghi công thức qua `propose_operations` hoặc đọc thô; `aggregate_range` không lọc theo điều kiện |
+| XLSX: điều kiện, nhóm | `propose_operations` (công thức SUMIFS/COUNTIFS, `add_pivot`), `find_cells` | `missing: công cụ tính tổng/đếm có điều kiện + group-by chỉ đọc (không ghi workbook)`; distinct-count bằng công thức bị từ chối (`tools.ts:303`) |
+| XLSX: đối chiếu sheet | `read_range`/`read_cells`/`aggregate_range` với `sheetId`, `find_cells` toàn workbook | `missing: công cụ so khớp hai range (join/diff) chỉ đọc` |
+| XLSX: giải thích công thức | `trace_precedents`, `trace_dependents`, `read_cells` (công thức + giá trị) | Defined name không mở rộng (`tools.ts:461,479`) |
+| XLSX: phát hiện bất thường | `find_cells errors_only`, `aggregate_range` (min/max/top values) | `missing: thống kê ngoại lai/kiểu không đồng nhất trong cột` |
+| XLSX sửa: công thức/giá trị/cột dẫn xuất trong range | `propose_operations` (`set_formula`, `set_range`, `fill_range`, `copy_range`, `convert_to_values`) | Áp ngay, không xem trước (§6) |
+| XLSX: nhãn cột X/Y/Z vs địa chỉ | `read_range` in header chữ cột A,B,…; selection kèm tên header cột (`tools.ts:693-706`) | Không có công cụ ánh xạ tên header → địa chỉ cột; model tự suy từ hàng header |
+| XLSX: sheet id/range resolved | Mọi công cụ nhận `sheetId` (kiểm hợp lệ, `tools.ts:581-598`); `propose_operations` bắt buộc id từ `get_workbook_context` | Đạt |
+| XLSX: kiểu/locale/percent (10 vs 10%) | `read_formats` (number format), `read_range` | Chế độ lazy trả **chuỗi hiển thị** (`workbook-readers.ts:434-440`), demo trả giá trị thô — không nhất quán; không trả kiểu ô (number/date/text/percent), không có `rawValue` trong output. `aggregate_range` chỉ cộng ô kiểu number, text "1.234,5" không được parse locale → `missing: kiểu ô + giá trị thô + number format trong cùng output đọc` |
+| XLSX: dòng ẩn/lọc | `read_sheet_features` (AutoFilter, hidden) | `aggregate_range` của AI **tính cả dòng ẩn** (`App.tsx:1692`) và output không nói; `read_range` không đánh dấu dòng ẩn → `missing: cờ dòng ẩn/lọc + tùy chọn bỏ dòng ẩn cho AI` |
+| XLSX: hàng tổng/subtotal | — | `missing: phát hiện hàng tổng/SUBTOTAL để không cộng trùng` |
+| XLSX: recalc vs cache | `propose_operations` đọc lại sau recalc; lưu web làm mới/xóa `<v>` | `missing: cờ cache/recalc trên giá trị đọc` (§5) |
+| XLSX: coverage counts | `aggregate_range` trả cells/nonEmpty/numericCount; `read_range` báo extent | `read_cells` cắt >100 địa chỉ **im lặng** (`tools.ts:1052`); không có "số dòng xử lý / bỏ qua vì không hợp lệ" |
+| XLSX: target range + số ô bị ghi đè trước Lưu | Tool output cho model có before→after ≤20 ô (`tools.ts:787-808`); panel chỉ "N thay đổi" | `missing: hiển thị cho người dùng target range + số ô có dữ liệu bị ghi đè` → blocker hàng XLSX-sửa (spec §6.4/§6.5) |
+| XLSX: workbook vượt giới hạn frame web | `xlsxEngine` cap + màn "mở bằng app" (`apps/sheets/src/renderer/capabilities.ts`, `web/modules/sheets/capabilities.ts:50`) | Đạt (GO-C4) |
+| PPTX đọc/tóm tắt theo slide/text shape | `read_slide`, outline trong context (`slides-skill.ts:1128-1131`) | Đạt |
+| PPTX sửa/dịch text shape | `execute_slide_script` (`setText`), `apply_ops` (`setText`) | Đạt; `generate_deck`/`regenerate_slide` vượt phạm vi §6.5 ("không hứa tạo layout toàn deck") và vi phạm (c) trên desktop |
+| PDF có text layer: hỏi/tóm tắt với anchor | `read_pages`, `search_text`, `goto_page`, link `pdfnav://page/N` (`pdf-skill.ts:44`) | Trang scan: OCR chỉ desktop (`ocr` tắt trên web), output có nhãn OCR — đạt "không giả có text" |
+| PDF text patch | `edit_text`, `edit_block`, `move_text_block`, `insert_text` | Font thay thế chỉ arial/times/courier (`tools.ts:421,459,538`); trên web cần pdfium — công cụ không gate theo `pdfTextEdit` → `missing: ẩn công cụ sửa text khi pdfium không có` |
 
 ## 9. Công cụ còn thiếu → G6-12
 
@@ -276,8 +458,54 @@ Mỗi dòng: module — cần gì — vì sao — hàng ma trận / kiểm an to
     spec §6.4, §5 markdown (c).
 13. docs — sửa mô tả `define_style` (nhắc `apply_style` không tồn tại) — model gọi công cụ không có — DOCX sửa.
 14. docs — công cụ so sánh hai tài liệu (tùy Product; model hiện so trong context) — DOCX đọc "so sánh và giải thích".
+15. docs, markdown — `insert_image`/`insert_picture`/`set_watermark` (ảnh)/`generate_image` tải URL do model chọn (docs: desktop và web
+    qua `image.fetch`; markdown: desktop) — chỉ cho URL đến từ `image_search`/`generate_image` cùng lượt, hoặc tắt với UniWork AI —
+    §5 docs (b), markdown (b).
 
-Dòng của sheets, slides, pdf: PENDING phần W3.
+16. sheets — `add_image` trong `propose_operations` tải URL do model đưa (desktop + web proxy) và đọc ảnh cục bộ theo đường dẫn tuyệt đối (desktop) — vi phạm §6.3 (b), đọc file ngoài tài liệu — §5 sheets (b).
+17. sheets — `create_document` ghi file mới trên desktop — vi phạm §6.3 (c) — §5 sheets (c). (Web đã tắt.)
+18. sheets — hiển thị cho người dùng target range + số ô có dữ liệu bị ghi đè trước Lưu — spec §6.5 XLSX, §6.4 — hàng XLSX sửa.
+19. sheets — output đọc có kiểu ô, giá trị thô và number format (phân biệt 10 vs 10%), nhất quán giữa chế độ demo/lazy — §6.5 XLSX types/locale.
+20. sheets — `aggregate_range` cho AI: tùy chọn/mặc định bỏ dòng ẩn/lọc và báo số dòng ẩn đã bỏ; cờ dòng ẩn trong `read_range` — §6.5 XLSX hidden/filtered.
+21. sheets — công cụ chỉ đọc tính tổng/đếm/trung bình có điều kiện + group-by trên range, trả coverage (dòng xử lý, ô không hợp lệ bị bỏ) — §6.5 XLSX đọc (điều kiện, nhóm, coverage).
+22. sheets — cờ cache/recalc trên giá trị công thức đọc ở chế độ lazy/streaming — §6.5 XLSX recalc vs cache.
+23. sheets — `read_cells` báo khi cắt quá 100 địa chỉ (đang cắt im lặng, `tools.ts:1052`) — §6.5 coverage.
+24. sheets — phát hiện hàng tổng/subtotal và so khớp hai range (đối chiếu sheet) dạng chỉ đọc — §6.5 XLSX đọc.
+25. sheets, pdf — công cụ hỏi người dùng (`ask_user`/card như `ask_clarification`) cho "xác nhận ý nghĩa cột khi chưa rõ" (ví dụ nghiệm thu X/Y/Z) — §6.5 ví dụ nghiệm thu.
+26. slides — `insert_web_image`/`replace_image`/pipeline `generate_deck`/`analyze_media` tải URL do model đưa — §6.3 (b).
+27. slides — `generate_deck`/`regenerate_slide` tự ghi nháp `<Documents>/UniWork Office/*.pptx` và đổi `session.path` không kiểm `uniworkIsBound`; sidecar `.styleskill.json`; `save_style_template` ghi userData — §6.3 (c), §6.4.
+28. slides — web khai báo cho model các công cụ chỉ là stub (`insert_web_image`, `replace_image`, `regenerate_slide`, `generate_deck`, `save_style_template`; `web_search`/`image_search` không gate theo grant) — cần gate theo capability như sheets `gateSkill` — §6.2 allowlist ("chỉ công cụ editor của module đang mở").
+29. slides — `apply_ops` mô tả ≤50 op nhưng không thấy kiểm trong code — giới hạn công cụ (§6.3 bảng giới hạn).
+30. slides — `generate_deck`/`regenerate_slide` gọi LLM nội bộ ngoài vòng tool (style, outline, từng trang) — với UniWork AI cần đi qua cùng run id/trần lượt (§6.2 trần vòng tool) hoặc bị loại khỏi allowlist v1.
+31. pdf — `insert_blank_page`/`set_page_size`/`crop_pages`/`replace_pages` lưu chỉnh sửa chờ và tạo version mới (web `api.save`) / ghi lại file (desktop), không hoàn tác được — §6.3 (c), §6.4 "một lượt AI không tạo upload/version/save".
+32. pdf — `extract_pages`/`split_pdf`/`split_pages`/`merge_pages`/`create_document` ghi file mới (desktop) / tải xuống (web) — §6.3 (c).
+33. pdf — `insert_image`/`replace_image` tải URL do model đưa (desktop) — §6.3 (b).
+34. pdf — undo gộp theo lượt AI + nút hoàn tác lượt (đang một bước/công cụ, stack 50) — §6.4 hiển thị/hoàn tác.
+35. pdf — gate công cụ sửa text/ảnh theo `pdfTextEdit`/`pdfImageEdit`, `create_document` và tải ảnh trên web (đang khai báo nhưng stub/lỗi) — §6.2 allowlist.
+36. sheets, slides, pdf — chưa có cách phân biệt nhà cung cấp UniWork AI trong skill để áp allowlist v1 (MCP/skills tắt, cloud chỉ khi `office.ai_cloud`) — §6.2; G6-12 cần một predicate "provider = uniwork" cho getter `tools`.
+
+### 9.1 Nghi vấn còn mở cho Product / owner F
+
+Của phần docs/markdown/html:
+
+- HTML desktop: thêm CSP cho preview / làm sạch HTML do AI viết, hay chấp nhận có ghi lý do (§5 html (a))?
+- Markdown: ảnh do AI chèn được ghi vào thư mục assets trước khi Lưu — chấp nhận như "một phần tài liệu", hay dời việc ghi tới
+  lúc Lưu (§9 dòng 12)?
+- DOCX "so sánh và giải thích": cần công cụ so sánh hai tài liệu, hay so trong context là đủ (§9 dòng 14)?
+- Bảo vệ Word (chỉ đọc/form/comment) có phải chặn công cụ AI không (§9 dòng 6)?
+- Tải URL ảnh do model chọn (mọi module, §5 (b)): quy tắc G6-12 là "chỉ URL từ công cụ tìm/sinh ảnh cùng lượt" hay "tắt với
+  UniWork AI"?
+
+Của phần sheets/slides/pdf:
+
+- `WEBSERVICE` (Excel) có được engine công thức thực thi không: không xác minh được vì checkout không có `node_modules`
+  (Univer `engine-formula`, IronCalc). Đề xuất G6-12 thêm test "WEBSERVICE/FILTERXML trả lỗi, không mở mạng".
+- `merge_attached_workbooks` ghi vào workbook nhưng không đặt `mutated` → extractor W1 sẽ ra `undeclared`; nút Undo của panel có
+  phủ thao tác merge hay không chưa đọc tới (`mergeAttachedWorkbooks`, `App.tsx:1413-1420`).
+- Hiển thị AI sheets không tô vùng sửa: Product quyết có đủ "theo khả năng từng module" (§6.4) khi đã có nút Undo theo lượt, hay
+  bắt buộc dòng 18 ở §9 (target range + ô bị ghi đè) trước nghiệm thu.
+- Card xác nhận của PDF cho thao tác cấp file: Product quyết có chấp nhận như ngoại lệ §6.4 (người dùng tự xác nhận) hay tắt các
+  công cụ đó với tài liệu UniWork.
 
 ## 10. Ký duyệt cột tay (AC-4)
 
