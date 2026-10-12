@@ -32,7 +32,7 @@ ON CONFLICT DO NOTHING;
 -- name: GetOrganizationMember :one
 -- organization_status rides along so RequireMember can refuse a suspended
 -- tenant without a second query (F-11).
-SELECT m.*, o.status AS organization_status
+SELECT m.*, o.status AS organization_status, o.deletion_scheduled_at
 FROM organization_members m JOIN organizations o ON o.id = m.organization_id
 WHERE m.organization_id = $1 AND m.user_id = $2;
 

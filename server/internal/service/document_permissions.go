@@ -230,13 +230,16 @@ func (s *DocumentService) agentInWorkspace(ctx context.Context, q *db.Queries, a
 	if org.Status != OrganizationActive {
 		return false, errOrganizationSuspended()
 	}
+	if org.DeletionScheduledAt.Valid {
+		return false, errOrganizationDeletionScheduled(org.DeletionScheduledAt.Time)
+	}
 	return true, nil
 }
 
 // closedTenantOrNil keeps the two "closed tenant" answers of the membership
 // gates and folds a plain refusal into "no level".
 func closedTenantOrNil(err error) error {
-	if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated) {
+	if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationDeletionScheduled) {
 		return err
 	}
 	if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
@@ -249,7 +252,8 @@ func closedTenantOrNil(err error) error {
 // as opposed to an infrastructure error.
 func isGateRefusal(err error) bool {
 	return errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) ||
-		errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated)
+		errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated) ||
+		errors.Is(err, ErrOrganizationDeletionScheduled)
 }
 
 func capDocumentLevel(l, max DocumentLevel) DocumentLevel {

@@ -131,6 +131,9 @@ func (s *OrganizationService) RequireMemberQ(ctx context.Context, q *db.Queries,
 	if m.DeactivatedAt.Valid {
 		return db.OrganizationMember{}, errMemberDeactivated()
 	}
+	if m.DeletionScheduledAt.Valid && m.Role != OrgRoleOwner {
+		return db.OrganizationMember{}, errOrganizationDeletionScheduled(m.DeletionScheduledAt.Time)
+	}
 	return db.OrganizationMember{
 		OrganizationID: m.OrganizationID, UserID: m.UserID, Role: m.Role,
 		CreatedAt: m.CreatedAt, DeactivatedAt: m.DeactivatedAt,
@@ -150,7 +153,7 @@ func (s *OrganizationService) GetBySlug(ctx context.Context, userID, slug string
 	// A deactivated member already knows this organization exists, so they get
 	// the honest answer and the client can show the blocked screen; everyone
 	// else gets 404 rather than a hint that the slug is taken.
-	if errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationSuspended) {
+	if errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrOrganizationDeletionScheduled) {
 		return db.Organization{}, db.OrganizationMember{}, err
 	}
 	if err != nil {

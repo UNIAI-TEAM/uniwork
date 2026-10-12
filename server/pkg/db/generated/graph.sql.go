@@ -202,6 +202,51 @@ func (q *Queries) GraphFailDirty(ctx context.Context, arg GraphFailDirtyParams) 
 	return err
 }
 
+const graphForgetOrganizationDirty = `-- name: GraphForgetOrganizationDirty :exec
+DELETE FROM graph_dirty WHERE organization_id = $1
+`
+
+func (q *Queries) GraphForgetOrganizationDirty(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, graphForgetOrganizationDirty, organizationID)
+	return err
+}
+
+const graphForgetOrganizationEdges = `-- name: GraphForgetOrganizationEdges :exec
+UPDATE graph_edges SET
+  attrs = '{}'::jsonb,
+  valid_to = COALESCE(valid_to, GREATEST(valid_from, now()))
+WHERE organization_id = $1
+`
+
+func (q *Queries) GraphForgetOrganizationEdges(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, graphForgetOrganizationEdges, organizationID)
+	return err
+}
+
+const graphForgetOrganizationFacts = `-- name: GraphForgetOrganizationFacts :exec
+UPDATE graph_node_facts SET
+  value = '', attrs = '{}'::jsonb,
+  valid_to = COALESCE(valid_to, GREATEST(valid_from, now()))
+WHERE organization_id = $1
+`
+
+func (q *Queries) GraphForgetOrganizationFacts(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, graphForgetOrganizationFacts, organizationID)
+	return err
+}
+
+const graphForgetOrganizationNodes = `-- name: GraphForgetOrganizationNodes :exec
+UPDATE graph_nodes SET
+  title = '', status = '', reader_ids = ARRAY[]::text[],
+  deleted_at = COALESCE(deleted_at, now()), updated_at = now()
+WHERE organization_id = $1
+`
+
+func (q *Queries) GraphForgetOrganizationNodes(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, graphForgetOrganizationNodes, organizationID)
+	return err
+}
+
 const graphGetNodeBySource = `-- name: GraphGetNodeBySource :one
 SELECT id, organization_id, workspace_id, node_type, subtype, source_id, title, status, visibility, reader_ids, occurred_at, source_updated_at, deleted_at, created_at, updated_at FROM graph_nodes
 WHERE organization_id = $1 AND node_type = $2 AND source_id = $3

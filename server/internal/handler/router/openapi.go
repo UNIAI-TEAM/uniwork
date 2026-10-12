@@ -307,6 +307,11 @@ func pathParamSDI(path string) any {
 			OrgID    string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
 			ExportID string `path:"exportID" description:"ULID bản xuất nhật ký" example:"01J8X4EXPORT0N1P2Q3R4S5T"`
 		}{}
+	case "orgID,privacyExportID":
+		return struct {
+			OrgID           string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+			PrivacyExportID string `path:"privacyExportID" description:"ULID bản xuất dữ liệu tổ chức" example:"01J8X4EXPORT0N1P2Q3R4S5T"`
+		}{}
 	case "workspaceID,resourceType,resourceID":
 		return struct {
 			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`

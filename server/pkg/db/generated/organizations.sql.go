@@ -79,7 +79,7 @@ func (q *Queries) CountActiveOrganizationsForUser(ctx context.Context, arg Count
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organizations (id, slug, name, created_by)
 VALUES ($1, $2, $3, $4)
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, deletion_scheduled_at
 `
 
 type CreateOrganizationParams struct {
@@ -107,6 +107,7 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.DeletionScheduledAt,
 	)
 	return i, err
 }
@@ -144,7 +145,7 @@ func (q *Queries) DeleteWorkspaceMembershipsInOrg(ctx context.Context, arg Delet
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason FROM organizations WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, deletion_scheduled_at FROM organizations WHERE id = $1
 `
 
 func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organization, error) {
@@ -160,12 +161,13 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organizat
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.DeletionScheduledAt,
 	)
 	return i, err
 }
 
 const getOrganizationBySlug = `-- name: GetOrganizationBySlug :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason FROM organizations WHERE slug = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, deletion_scheduled_at FROM organizations WHERE slug = $1
 `
 
 func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
@@ -181,12 +183,13 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.DeletionScheduledAt,
 	)
 	return i, err
 }
 
 const getOrganizationMember = `-- name: GetOrganizationMember :one
-SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by, m.updated_at, o.status AS organization_status
+SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by, m.updated_at, o.status AS organization_status, o.deletion_scheduled_at
 FROM organization_members m JOIN organizations o ON o.id = m.organization_id
 WHERE m.organization_id = $1 AND m.user_id = $2
 `
@@ -197,15 +200,16 @@ type GetOrganizationMemberParams struct {
 }
 
 type GetOrganizationMemberRow struct {
-	OrganizationID     string             `json:"organization_id"`
-	UserID             string             `json:"user_id"`
-	Role               string             `json:"role"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	DeactivatedAt      pgtype.Timestamptz `json:"deactivated_at"`
-	DeactivatedBy      pgtype.Text        `json:"deactivated_by"`
-	InvitedBy          pgtype.Text        `json:"invited_by"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	OrganizationStatus string             `json:"organization_status"`
+	OrganizationID      string             `json:"organization_id"`
+	UserID              string             `json:"user_id"`
+	Role                string             `json:"role"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	DeactivatedAt       pgtype.Timestamptz `json:"deactivated_at"`
+	DeactivatedBy       pgtype.Text        `json:"deactivated_by"`
+	InvitedBy           pgtype.Text        `json:"invited_by"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	OrganizationStatus  string             `json:"organization_status"`
+	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
 }
 
 // organization_status rides along so RequireMember can refuse a suspended
@@ -223,6 +227,7 @@ func (q *Queries) GetOrganizationMember(ctx context.Context, arg GetOrganization
 		&i.InvitedBy,
 		&i.UpdatedAt,
 		&i.OrganizationStatus,
+		&i.DeletionScheduledAt,
 	)
 	return i, err
 }
@@ -394,7 +399,7 @@ func (q *Queries) ListOrganizationMembers(ctx context.Context, arg ListOrganizat
 }
 
 const listOrganizationsForUser = `-- name: ListOrganizationsForUser :many
-SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, m.role, m.deactivated_at
+SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.deletion_scheduled_at, m.role, m.deactivated_at
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 WHERE m.user_id = $1
@@ -402,17 +407,18 @@ ORDER BY o.created_at
 `
 
 type ListOrganizationsForUserRow struct {
-	ID              string             `json:"id"`
-	Slug            string             `json:"slug"`
-	Name            string             `json:"name"`
-	CreatedBy       string             `json:"created_by"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
-	Status          string             `json:"status"`
-	SuspendedAt     pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason pgtype.Text        `json:"suspended_reason"`
-	Role            string             `json:"role"`
-	DeactivatedAt   pgtype.Timestamptz `json:"deactivated_at"`
+	ID                  string             `json:"id"`
+	Slug                string             `json:"slug"`
+	Name                string             `json:"name"`
+	CreatedBy           string             `json:"created_by"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	Status              string             `json:"status"`
+	SuspendedAt         pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason     pgtype.Text        `json:"suspended_reason"`
+	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	Role                string             `json:"role"`
+	DeactivatedAt       pgtype.Timestamptz `json:"deactivated_at"`
 }
 
 // tenant: self
@@ -437,6 +443,7 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 			&i.Status,
 			&i.SuspendedAt,
 			&i.SuspendedReason,
+			&i.DeletionScheduledAt,
 			&i.Role,
 			&i.DeactivatedAt,
 		); err != nil {
