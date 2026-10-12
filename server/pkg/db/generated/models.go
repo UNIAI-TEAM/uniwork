@@ -516,6 +516,7 @@ type Document struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	ArchiveBatchID       pgtype.Text        `json:"archive_batch_id"`
+	ContentRevision      int64              `json:"content_revision"`
 }
 
 type DocumentAccessLog struct {
