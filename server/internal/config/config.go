@@ -37,6 +37,10 @@ type Config struct {
 	PreviewCapabilitySecret string
 	PreviewAssetTTL         time.Duration
 	PreviewAssetMaxBytes    int64
+	// OfficeChangeSnapshotTTL (OFFICE_CHANGE_SNAPSHOT_TTL) is the lifetime of
+	// an Office change-feed cold-start snapshot (G5-01a); 0 keeps the
+	// service's dev default (15m). The production number is G5-D2's.
+	OfficeChangeSnapshotTTL time.Duration
 	// SecureCookies is derived from FrontendOrigin's scheme: an https origin
 	// gets the Secure flag on the refresh cookie, a plain-http dev origin does
 	// not (browsers silently drop Secure cookies set over http, which would
@@ -239,6 +243,7 @@ func Load() (Config, error) {
 		PreviewCapabilitySecret:       os.Getenv("PREVIEW_CAPABILITY_SECRET"),
 		PreviewAssetTTL:               parseRequiredDuration(os.Getenv("PREVIEW_ASSET_TTL")),
 		PreviewAssetMaxBytes:          parseRequiredInt64(os.Getenv("PREVIEW_ASSET_MAX_BYTES")),
+		OfficeChangeSnapshotTTL:       parseDuration(os.Getenv("OFFICE_CHANGE_SNAPSHOT_TTL"), 0),
 		TrustedProxies:                os.Getenv("TRUSTED_PROXIES"),
 		LiveKitURL:                    os.Getenv("LIVEKIT_URL"),
 		LiveKitAPIKey:                 os.Getenv("LIVEKIT_API_KEY"),

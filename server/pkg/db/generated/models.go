@@ -549,6 +549,29 @@ type DocumentAsset struct {
 	OrphanedAt     pgtype.Timestamptz `json:"orphaned_at"`
 }
 
+type DocumentChangeSnapshot struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	HighWater      string             `json:"high_water"`
+	ItemCount      int32              `json:"item_count"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type DocumentChangeSnapshotItem struct {
+	SnapshotID     string      `json:"snapshot_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	DocumentID     string      `json:"document_id"`
+	Kind           string      `json:"kind"`
+	Revision       int64       `json:"revision"`
+	CurrentVersion int32       `json:"current_version"`
+	FileVersionID  pgtype.Text `json:"file_version_id"`
+}
+
 type DocumentComment struct {
 	ID              string             `json:"id"`
 	OrganizationID  string             `json:"organization_id"`
