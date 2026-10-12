@@ -32,6 +32,11 @@ func (o *Ollama) Complete(ctx context.Context, req CompletionRequest) (Completio
 		if len(m.Parts) > 0 {
 			return CompletionResponse{}, ErrUnsupportedMedia
 		}
+		// /api/chat has no tool-result turn: a message this adapter cannot
+		// express is refused, never dropped or flattened into a user turn.
+		if m.Role == "tool" || len(m.ToolCalls) > 0 {
+			return CompletionResponse{}, ErrUnsupported
+		}
 		msgs = append(msgs, map[string]string{"role": m.Role, "content": m.Content})
 	}
 	body := map[string]any{
@@ -75,6 +80,8 @@ func (o *Ollama) Complete(ctx context.Context, req CompletionRequest) (Completio
 	for _, tc := range out.Message.ToolCalls {
 		resp.ToolCalls = append(resp.ToolCalls, ToolCall{Name: tc.Function.Name, Input: tc.Function.Arguments})
 	}
+	// /api/chat always reports both counters; a zero still counts as present.
+	resp.UsagePresent = true
 	return resp, nil
 }
 

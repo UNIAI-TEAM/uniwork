@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -32,19 +33,34 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 	}
 	for _, m := range req.Messages {
 		block := anthropic.NewTextBlock(m.Content)
-		if m.Role == "assistant" {
-			params.Messages = append(params.Messages, anthropic.NewAssistantMessage(block))
-			continue
-		}
-		blocks := make([]anthropic.ContentBlockParamUnion, 0, len(m.Parts)+1)
-		for _, p := range m.Parts {
-			b, err := anthropicPart(p)
-			if err != nil {
-				return CompletionResponse{}, err
+		switch {
+		case m.Role == "assistant":
+			// Replay the call before its result: the Messages API needs the
+			// tool_use block (with its id) in the assistant turn that produced
+			// it, or the tool_result below has nothing to pair with.
+			blocks := make([]anthropic.ContentBlockParamUnion, 0, len(m.ToolCalls)+1)
+			if m.Content != "" {
+				blocks = append(blocks, block)
 			}
-			blocks = append(blocks, b)
+			for _, tc := range m.ToolCalls {
+				blocks = append(blocks, anthropic.NewToolUseBlock(tc.ID, toolInput(tc.Input), tc.Name))
+			}
+			params.Messages = append(params.Messages, anthropic.NewAssistantMessage(blocks...))
+		case m.Role == "tool":
+			// A tool result is not a turn of its own there: it rides the user
+			// turn, addressed to the tool_use id it answers.
+			params.Messages = append(params.Messages, anthropic.NewUserMessage(anthropic.NewToolResultBlock(m.ToolCallID, m.Content, false)))
+		default:
+			blocks := make([]anthropic.ContentBlockParamUnion, 0, len(m.Parts)+1)
+			for _, p := range m.Parts {
+				b, err := anthropicPart(p)
+				if err != nil {
+					return CompletionResponse{}, err
+				}
+				blocks = append(blocks, b)
+			}
+			params.Messages = append(params.Messages, anthropic.NewUserMessage(append(blocks, block)...))
 		}
-		params.Messages = append(params.Messages, anthropic.NewUserMessage(append(blocks, block)...))
 	}
 	for _, t := range req.Tools {
 		props, required := schemaParts(t.Schema)
@@ -63,8 +79,12 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 		return CompletionResponse{}, ErrRefused
 	}
 	out := CompletionResponse{
-		Model:        string(resp.Model),
-		StopReason:   string(resp.StopReason),
+		Model:      string(resp.Model),
+		StopReason: string(resp.StopReason),
+		// Usage is api:"required" in the SDK, so a successful response that
+		// carries no usage block never reaches here; the flag still says what
+		// the body actually had.
+		UsagePresent: resp.JSON.Usage.Valid(),
 		InputTokens:  int(resp.Usage.InputTokens),
 		OutputTokens: int(resp.Usage.OutputTokens),
 	}
@@ -74,11 +94,20 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 		case anthropic.TextBlock:
 			text.WriteString(b.Text)
 		case anthropic.ToolUseBlock:
-			out.ToolCalls = append(out.ToolCalls, ToolCall{Name: b.Name, Input: b.Input})
+			out.ToolCalls = append(out.ToolCalls, ToolCall{ID: b.ID, Name: b.Name, Input: b.Input})
 		}
 	}
 	out.Text = text.String()
 	return out, nil
+}
+
+// toolInput is the call's arguments as the SDK wants them: a decoded value, or
+// an empty object when the model sent none (the API requires the field).
+func toolInput(raw json.RawMessage) any {
+	if len(raw) == 0 {
+		return map[string]any{}
+	}
+	return raw
 }
 
 // anthropicPart maps a media part onto the Messages API: images and PDFs
