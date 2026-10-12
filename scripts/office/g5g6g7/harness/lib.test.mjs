@@ -99,6 +99,15 @@ test("evidenceLine defaults to BLOCKED, never to PASS", () => {
   assert.equal(evidenceLine({}).exitCode, -1);
 });
 
+test("evidenceLine keeps a fixture hash and a blocker out of a PASS", () => {
+  // The runner's verify refuses a PASS that carries a blocker or a non-zero exit;
+  // the writer here must not produce one in the first place.
+  const blocked = evidenceLine({ result: "BLOCKED", blocker: "no D server on http://127.0.0.1:1", exitCode: 77 });
+  assert.equal(blocked.result, "BLOCKED");
+  assert.ok(blocked.blocker.length > 0);
+  assert.notEqual(blocked.exitCode, 0);
+});
+
 test("writeRunEnv writes a ports file and a server env bash can source", async () => {
   const runDir = mkdtempSync(join(tmpdir(), "harness-lib-"));
   const previous = { DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL };
