@@ -10,3 +10,4 @@
 import "./test-cases/protocol.cases.mjs";
 import "./test-cases/extractor.cases.mjs";
 import "./test-cases/golden.cases.mjs";
+import "./test-cases/brand.cases.mjs";
