@@ -1,0 +1,364 @@
+$ git checkout e6862e53 -- apps/markdown/src apps/html/src web/modules/markdown web/modules/html && (cd apps/markdown && npx vitest run tests/g6-12-md-atomic-ops.test.ts tests/g6-12-md-edit-fence.test.ts tests/g6-12-md-web-stub-tools.test.ts); RM=$?; (cd apps/html && npx vitest run tests/g6-12-html-edit-fence.test.ts tests/g6-12-html-web-stub-tools.test.ts); RH=$?; git checkout HEAD -- apps/markdown/src apps/html/src web/modules/markdown web/modules/html; git status --short apps/markdown/src apps/html/src web/modules; echo "RED_EXIT markdown=$RM html=$RH"; test $RM -ne 0 -a $RH -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ❯ tests/g6-12-md-atomic-ops.test.ts (4 tests | 3 failed) 152ms
+     × a failing op rolls back every op that ran before it 99ms
+     × a rolled-back batch leaves no undo step that re-applies part of it 20ms
+     × a failing batch restores the frontmatter an earlier op rewrote 13ms
+ ❯ tests/g6-12-md-edit-fence.test.ts (15 tests | 5 failed) 286ms
+     × an edit outside the fence is refused and the document stays identical 17ms
+     × a batch mixing an inside and an outside edit applies nothing 28ms
+     × "whole document" writers are refused while fenced 12ms
+     × the frontmatter is outside every fence 10ms
+     × queued targets: edits in each target apply, the gap between them is refused 13ms
+ ❯ tests/g6-12-md-web-stub-tools.test.ts (3 tests | 2 failed) 84ms
+     × the web frame defaults turn the AI image download off 4ms
+     × web: insert_image is not offered and a stray call is refused without a download 78ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-md-atomic-ops.test.ts > markdown apply_ops is atomic > a failing op rolls back every op that ran before it
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-12-md-atomic-ops.test.ts:61:28
+     59|     if (result instanceof Promise) throw new Error('apply_ops must be …
+     60|     expect(result.isError).toBe(true)
+     61|     expect(result.mutated).toBeFalsy()
+       |                            ^
+     62|     expect(result.output).toContain('ops[4] replaceText FAILED')
+     63|     expect(result.output).toMatch(/nothing was applied/i)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/g6-12-md-atomic-ops.test.ts > markdown apply_ops is atomic > a rolled-back batch leaves no undo step that re-applies part of it
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/g6-12-md-atomic-ops.test.ts:78:41
+     76|       ),
+     77|     )
+     78|     expect(editor.state.doc.eq(before)).toBe(true)
+       |                                         ^
+     79|     // the batch's own history event undoes to nothing; further undos …
+     80|     // test's setContent, never a partial state of the batch
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/g6-12-md-atomic-ops.test.ts > markdown apply_ops is atomic > a failing batch restores the frontmatter an earlier op rewrote
+AssertionError: expected 'title: New' to be 'title: Old' // Object.is equality
+
+Expected: "title: Old"
+Received: "title: New"
+
+ ❯ tests/g6-12-md-atomic-ops.test.ts:104:22
+    102|     if (result instanceof Promise) throw new Error('apply_ops must be …
+    103|     expect(result.isError).toBe(true)
+    104|     expect(fm.value).toBe('title: Old')
+       |                      ^
+    105|   })
+    106|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/g6-12-md-edit-fence.test.ts > markdown selection edit fence > an edit outside the fence is refused and the document stays identical
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-md-edit-fence.test.ts:102:23
+    100|       ops({ op: 'replaceText', target: { start: 1 }, find: 'one', repl…
+    101|     )
+    102|     expect(r.isError).toBe(true)
+       |                       ^
+    103|     expect(r.output).toMatch(/outside the (selection|targets)/i)
+    104|     expect(editor.getMarkdown()).toBe(before)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/g6-12-md-edit-fence.test.ts > markdown selection edit fence > a batch mixing an inside and an outside edit applies nothing
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-md-edit-fence.test.ts:118:23
+    116|       ),
+    117|     )
+    118|     expect(r.isError).toBe(true)
+       |                       ^
+    119|     expect(editor.getMarkdown()).toBe(before)
+    120|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/g6-12-md-edit-fence.test.ts > markdown selection edit fence > "whole document" writers are refused while fenced
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-md-edit-fence.test.ts:130:32
+    128|       ops({ op: 'replaceBlocks', target: { start: 0, end: 3 }, markdow…
+    129|     )
+    130|     expect(replaceAll.isError).toBe(true)
+       |                                ^
+    131|     const writer = {
+    132|       write: async () => ({ ok: true, markdown: 'rewritten' }),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  tests/g6-12-md-edit-fence.test.ts > markdown selection edit fence > the frontmatter is outside every fence
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-md-edit-fence.test.ts:151:23
+    149|     setEditFence(editor, [fenceBlocks(editor, 2)])
+    150|     const r = await run(editor, ops({ op: 'setFrontmatter', yaml: 'tit…
+    151|     expect(r.isError).toBe(true)
+       |                       ^
+    152|     expect(yaml).toBe('title: Old')
+    153|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  tests/g6-12-md-edit-fence.test.ts > markdown selection edit fence > queued targets: edits in each target apply, the gap between them is refused
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-md-edit-fence.test.ts:171:25
+    169|       ops({ op: 'replaceText', target: { start: 2 }, find: 'two', repl…
+    170|     )
+    171|     expect(gap.isError).toBe(true)
+       |                         ^
+    172|     expect(editor.getMarkdown()).toBe(before)
+    173|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  tests/g6-12-md-web-stub-tools.test.ts > markdown insert_image per host > the web frame defaults turn the AI image download off
+AssertionError: expected undefined to be false // Object.is equality
+
+- Expected:
+false
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-md-web-stub-tools.test.ts:43:81
+     41| describe('markdown insert_image per host', () => {
+     42|   it('the web frame defaults turn the AI image download off', () => {
+     43|     expect((MARKDOWN_WEB_CAPABILITIES as Record<string, unknown>).aiIm…
+       |                                                                                 ^
+     44|   })
+     45|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  tests/g6-12-md-web-stub-tools.test.ts > markdown insert_image per host > web: insert_image is not offered and a stray call is refused without a download
+AssertionError: expected [ 'get_document_context', …(7) ] to not include 'insert_image'
+ ❯ tests/g6-12-md-web-stub-tools.test.ts:57:30
+     55|     const editor = createEditor('para')
+     56|     const skill = createMarkdownSkill(() => editor)
+     57|     expect(names(skill)).not.toContain('insert_image')
+       |                              ^
+     58|     // the rest of the editing tools stay
+     59|     expect(names(skill)).toContain('apply_ops')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  10 failed | 12 passed (22)
+   Start at  15:20:59
+   Duration  1.62s (transform 1.96s, setup 0ms, import 2.69s, tests 522ms, environment 1.15s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+ ❯ tests/g6-12-html-edit-fence.test.ts (8 tests | 5 failed) 29ms
+     × an edit of another element is refused and the source stays identical 5ms
+     × a str_replace that lands outside the fence is refused 2ms
+     × whole-page writers are refused while fenced 1ms
+     × queued targets: each target is editable, the element between them is not 2ms
+     × a retried element-scoped turn is still fenced in code 1ms
+ ❯ tests/g6-12-html-web-stub-tools.test.ts (3 tests | 2 failed) 8ms
+     × the web frame defaults turn chat attachments off 4ms
+     × web: no tool, no prompt, no context, and a stray call is refused without a read 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-html-edit-fence.test.ts > html selection edit fence > an edit of another element is refused and the source stays identical
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-html-edit-fence.test.ts:96:23
+     94|       ],
+     95|     })
+     96|     expect(r.isError).toBe(true)
+       |                       ^
+     97|     expect(r.output).toMatch(/outside the (selected element|selection)…
+     98|     expect(doc.text).toBe(DOC)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/g6-12-html-edit-fence.test.ts > html selection edit fence > a str_replace that lands outside the fence is refused
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-html-edit-fence.test.ts:108:23
+    106|       ops: [{ op: 'str_replace', old: 'Gamma text.', new: 'Gamma edite…
+    107|     })
+    108|     expect(r.isError).toBe(true)
+       |                       ^
+    109|     expect(doc.text).toBe(DOC)
+    110|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/g6-12-html-edit-fence.test.ts > html selection edit fence > whole-page writers are refused while fenced
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-html-edit-fence.test.ts:117:23
+    115|     fence = [sidOf(doc.access, 'b')]
+    116|     const r = await run(doc.access, 'write_document', { plan: 'a new p…
+    117|     expect(r.isError).toBe(true)
+       |                       ^
+    118|     expect(doc.text).toBe(DOC)
+    119|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/g6-12-html-edit-fence.test.ts > html selection edit fence > queued targets: each target is editable, the element between them is not
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-html-edit-fence.test.ts:139:25
+    137|       ops: [{ op: 'set_text', sid: b, text: 'Beta edited.' }],
+    138|     })
+    139|     expect(gap.isError).toBe(true)
+       |                         ^
+    140|     expect(doc.text).toBe(before)
+    141|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/g6-12-html-edit-fence.test.ts > html fence on retry > a retried element-scoped turn is still fenced in code
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-html-edit-fence.test.ts:170:23
+    168|       ops: [{ op: 'set_text', sid: sidOf(doc.access, 'a'), text: 'Alph…
+    169|     })
+    170|     expect(r.isError).toBe(true)
+       |                       ^
+    171|     expect(doc.text).toBe(DOC)
+    172|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/g6-12-html-web-stub-tools.test.ts > html read_attachment per host > the web frame defaults turn chat attachments off
+AssertionError: expected undefined to be false // Object.is equality
+
+- Expected:
+false
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-html-web-stub-tools.test.ts:30:76
+     28| describe('html read_attachment per host', () => {
+     29|   it('the web frame defaults turn chat attachments off', () => {
+     30|     expect((HTML_WEB_CAPABILITIES as Record<string, unknown>).attachme…
+       |                                                                            ^
+     31|   })
+     32|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/g6-12-html-web-stub-tools.test.ts > html read_attachment per host > web: no tool, no prompt, no context, and a stray call is refused without a read
+AssertionError: expected [ 'read_attachment' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "read_attachment",
++ ]
+
+ ❯ tests/g6-12-html-web-stub-tools.test.ts:45:26
+     43|     host({ capabilities: { ...HTML_WEB_CAPABILITIES, platform: 'web' }…
+     44|     const skill = createFilesSkill(() => ATTACHED)
+     45|     expect(names(skill)).toEqual([])
+       |                          ^
+     46|     expect(skill.systemPrompt).toBe('')
+     47|     expect(skill.buildContext?.() ?? '').toBe('')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  7 failed | 4 passed (11)
+   Start at  15:21:01
+   Duration  1.22s (transform 809ms, setup 0ms, import 1.09s, tests 37ms, environment 714ms)
+
+RED_EXIT markdown=1 html=1
+RED_AS_EXPECTED
