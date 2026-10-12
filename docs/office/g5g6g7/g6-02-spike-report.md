@@ -243,6 +243,16 @@ người. Limiter toàn cục 300/phút theo bearer (`router.go:81`) không ch�
 `bearerUser`; request mang frame token không phải bearer nên rơi về IP — G6-03b đổi khóa sang danh tính token
 (user + document) như plan ghi.
 
+**Mã lỗi của limiter (BE2-2).** `RateLimitByIdentityBucket` hôm nay viết cứng thân lỗi
+`sdo.NewErrorSDO("rate_limited", "too many requests")` (`server/internal/middleware/ratelimit.go:159-165`); chuỗi
+`ai_rate_limited` chỉ có ở đường Ask UNI (`service/askuni.go:105-111` → `ai/errors.go:37`), một limiter khác. G6-05 rẽ
+theo mã, nên mã nhận thật phải là mã đã ký. **Khuyến nghị: G6-03b thêm tham số mã vào middleware** (biến thể nhận
+`code string`, mặc định giữ `rate_limited` cho mọi nhóm hiện có) và nhóm `ai-uniwork` truyền `ai_rate_limited`, để ba
+nguồn 429 của §4.5 (limiter, trần đồng thời `ai_uniwork_busy`, upstream) cùng một họ mã và X-03 chỉ ghi một mã. Test
+G6-03b: vượt bucket `ai-uniwork` → thân `code = ai_rate_limited` + `Retry-After`; nhóm khác vẫn `rate_limited`.
+Phương án thay: không đổi middleware, ghi mã `rate_limited` ở hàng limiter của §4.5 và G6-05 rẽ theo `rate_limited` —
+rẻ hơn nhưng hai mã cho cùng một ý "chờ rồi thử lại"; hỏi Q6 (§8.1).
+
 ### 4.5 Số lần chờ 429 tối đa mỗi run
 
 **Đề xuất G6-D1:** **3** lần chờ mỗi run; mức kẹp `Retry-After` **300 giây**. Đây là đề xuất của
@@ -255,7 +265,7 @@ khi đã biết câu trả lời upstream. Vì v1 là SSE một chunk / JSON (§
 
 | Nguồn | HTTP | Mã | `Retry-After` | Fork thấy (pin `0d03b185`) |
 | --- | --- | --- | --- | --- |
-| Limiter `ai-uniwork` (§4.4) | 429 | `ai_rate_limited` | có, giây | vào vòng chờ G6-05 |
+| Limiter `ai-uniwork` (§4.4) | 429 | `ai_rate_limited` (cần G6-03b thêm tham số mã vào middleware; hôm nay là `rate_limited`, §4.4) | có, giây | vào vòng chờ G6-05 |
 | Trần đồng thời (§4.10) | 429 | `ai_uniwork_busy` | `5` | vào vòng chờ G6-05 |
 | 429 của upstream | 429 | `ai_rate_limited` | giá trị upstream nếu đọc được, kẹp 300; thiếu → 30 | vào vòng chờ G6-05; **không bao giờ** thành 502 (cần sửa server, xem dưới bảng) |
 | Trần run (§4.3) | 429 theo contract-p0; **đề xuất 409** (Q2) | `run_limit_reached` | không | kết thúc run, "Hỏi tiếp" |
@@ -531,9 +541,15 @@ Ràng buộc từ fork (notes-fork-adapter §2, §4, uniwork-office `0d03b185`):
   hàng 504 trong khi server vẫn tính lượt. 5 giây còn lại giữa 55 và 60 chỉ phủ mạng và ghi response, nên fork luôn
   nhận một status thật trước khi watchdog bắn. Quá deadline → 504 `ai_provider_timeout` (dù deadline hết trước hay
   trong lượt gọi upstream; khi hết giữa lượt gọi, Gateway trả `ErrProviderError.wrap(context.DeadlineExceeded)`
-  = 502 tại `gateway.go:162-169`, nên façade phải kiểm tra `errors.Is(err, context.DeadlineExceeded)` hoặc
-  `ctx.Err()` của chính nó **trước** khi áp hàng 502); mọi lỗi khác theo bảng §4.5. Test G6-03a (`TestAIUniwork…Timeout`, `fake` có độ trễ): việc
-  trước upstream chậm 10 giây + fake chậm 50 giây → 504 lúc ≈ 55 giây tính từ lúc request tới. Không gửi keep-alive `: ping` ở v1 (trước header không có gì để gửi; sau header chunk đến ngay).
+  = 502 tại `gateway.go:162-169`, và dòng usage đã được ghi `failed` với `reason_code = ai_provider_error`
+  (`gateway.go:163`) trước khi nơi gọi thấy lỗi). Bộ phân biệt là **deadline của façade**, không phải lỗi provider có
+  kiểu: G6-03a thêm một nhánh deadline trong Gateway cạnh `ErrUnsupportedMedia` (`errors.Is(perr,
+  context.DeadlineExceeded)` hoặc `ctx.Err()` của context cha) trả lỗi mới `ErrProviderTimeout` (504
+  `ai_provider_timeout`) **và** ghi dòng usage `failed` với `reason_code = ai_provider_timeout` thay cho
+  `ai_provider_error`; handler façade cũng kiểm `ctx.Err()` của chính nó trước khi áp hàng 502 (phủ trường hợp lỗi
+  trả về bọc context lỗi theo cách khác). Deadline hết **trước** khi tới Gateway: 504 không có dòng usage (chưa có lượt
+  gọi). Mọi lỗi khác theo bảng §4.5. Test G6-03a (`TestAIUniwork…Timeout`, `fake` có độ trễ): việc
+  trước upstream chậm 10 giây + fake chậm 50 giây → 504 lúc ≈ 55 giây tính từ lúc request tới, và dòng usage `failed` mang `reason_code = ai_provider_timeout`. Không gửi keep-alive `: ping` ở v1 (trước header không có gì để gửi; sau header chunk đến ngay).
   Biên đo được: lượt chậm nhất 9,8 giây (§3, lần 1), xa 55 giây.
 - Không bao giờ trả 200 rồi đóng stream rỗng hay không có chunk đầy đủ: fork gửi lại "(empty stream)" hai lần
   (`loop.ts:336`, `:969-985`), mỗi lần là một lượt model bị tính (§4.3, §4.5).
@@ -792,6 +808,9 @@ Câu hỏi cho lead (contract-p0 giữ nguyên):
   hàng 5 áp dụng vô điều kiện cho G6-03b (hoặc bộ đếm đi cùng migration hàng 4).
 - **Q4.** Có thêm `ai_tool_result_too_large` (413), `ai_uniwork_busy` (429) và `ai_provider_timeout` (504, §4.13) vào
   bảng mã X-03 không, hay G6-03a/b đăng ký qua registry owner (như `conversation_expired`) khi G6-D1 đóng?
+- **Q6.** Limiter `ai-uniwork` phát `ai_rate_limited` (G6-03b thêm tham số mã vào `RateLimitByIdentityBucket`, khuyến
+  nghị, §4.4) hay giữ `rate_limited` của middleware hiện tại và G6-05 rẽ theo `rate_limited`? contract-p0 §4 (dòng
+  `run_limit_reached`) chỉ nhắc `ai_rate_limited` như mã có sẵn, nên X-03 cần ghi một trong hai.
 - **Q5.** Ai xác minh chỗ lưu "My AI"/model theo tài khoản của UNI-1240 (contract-p0 §1)? Báo cáo này không làm.
 
 ## 9. Tham chiếu
