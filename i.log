@@ -1,0 +1,3 @@
+$ node scripts/genoffice-tools-extract.mjs --rev 0000000; test $? -ne 0 && echo BAD_REV_REJECTED
+genoffice-tools-extract: cannot read rev "0000000" in /home/ubuntu/work/uniwork-office: Command failed: git -C /home/ubuntu/work/uniwork-office rev-parse --verify 0000000^{commit}
+BAD_REV_REJECTED

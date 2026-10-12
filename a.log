@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+e8a692c6b49babbdb9b1f797ef825e23a01781e7
+0d03b185c8060bafc4e2afe7173e0a10260465bd
+e8a692c6 test(tools): cover the guard path, duplicate helpers and schema-less tools
+04128671 fix(tools): bound editor_write to the path each tool's code reaches
+919084f7 test(tools): cover the genoffice tool extractor and run it in the root test list
