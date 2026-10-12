@@ -156,6 +156,11 @@ export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, 
   const { PNG } = loadPngjs();
   const manifestPath = join(goldensDir, "manifest.json");
   const manifestState = readJsonState(manifestPath);
+  // A goldens dir without a manifest is a setup blocker, not a drift (F-08):
+  // nothing was captured, so nothing can be compared.
+  if (manifestState.missing) {
+    return { status: "BLOCKED", reasons: ["goldens_manifest_missing"], artifacts: [] };
+  }
   if (manifestState.error) {
     return { status: "BLOCKED", reasons: [`goldens_manifest_unreadable (${manifestState.error})`], artifacts: [] };
   }

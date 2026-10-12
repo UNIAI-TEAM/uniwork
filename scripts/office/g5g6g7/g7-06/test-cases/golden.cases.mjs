@@ -231,6 +231,21 @@ test("golden: no captures at all is BLOCKED, not a pass", () => {
   assert.deepEqual(check.reasons, ["captures_missing"]);
 });
 
+test("golden: a goldens dir without manifest.json is BLOCKED, not a golden_missing", () => {
+  const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
+  const dir = outDir("golden-no-manifest");
+  const check = runGoldenCheck({
+    capturesDir: captures,
+    goldensDir: tmpDir("g7-06-goldens-"),
+    fixtures: [ONE],
+    outDir: dir,
+    forkSha: FAKE_CAPTURE.forkSha,
+    pinVersion: FAKE_CAPTURE.pinVersion,
+  });
+  assert.equal(check.status, "BLOCKED");
+  assert.deepEqual(check.reasons, ["goldens_manifest_missing"]);
+});
+
 test("--update-goldens copies the captures, keeps the masks and passes afterwards", () => {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
   const goldens = tmpDir("g7-06-goldens-");
