@@ -207,6 +207,15 @@ func New(d Deps) http.Handler {
 		McpRevoke:              h.mcpRevoke,
 		McpServe:               h.mcpServe,
 
+		McpConsent:            h.mcpConsent,
+		McpConsentCommand:     h.mcpConsentCommand,
+		MyConnectedApps:       h.myConnectedApps,
+		RevokeMyConnectedApp:  h.revokeMyConnectedApp,
+		OrgConnectedApps:      h.orgConnectedApps,
+		RevokeOrgConnectedApp: h.revokeOrgConnectedApp,
+		OrgMcpPolicy:          h.orgMcpPolicy,
+		SetOrgMcpPolicy:       h.setOrgMcpPolicy,
+
 		Register:              h.register,
 		Login:                 h.login,
 		ForgotPassword:        h.forgotPassword,

@@ -444,6 +444,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	w.buildDocuments(t, tn)
 	w.buildOrganization(t, tn)
 	w.buildOffice(t, tn)
+	w.buildMcp(t, tn)
 	w.buildOfficeFrame(t, tn)
 	w.buildSeeded(t, tn)
 	w.buildActivity(t, tn)

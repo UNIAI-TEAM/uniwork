@@ -202,6 +202,19 @@ var isoRoutes = map[string]isoSpec{
 	"GET /mcp":                                      {class: isoPublic, reason: "MCP: stateless transport answers 405 after the token check; TestIsolationMCP holds the tenant"},
 	"DELETE /mcp":                                   {class: isoPublic, reason: "MCP: stateless transport answers 405 after the token check; TestIsolationMCP holds the tenant"},
 
+	// MCP connector, web side (ADR 0031). The consent attempt and the grants
+	// belong to a person; the organization routes ({org}) are scoped by their
+	// path and need no row. TestIsolationMCP holds the /mcp side.
+	"GET /api/v1/auth/connect/attempts/{attemptID}": {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/auth/connect/attempts/{attemptID}": {class: isoSelf,
+		reason: "the caller's own attempt: B names its own enabled organization against A's claimed attempt and answers 400 csrf_invalid, as for an attempt that does not exist (no existence oracle); naming A's organization is 403 (TestMcpApproveRefusals); A's attempt stays undecided and unclaimed (untouched subtest)",
+		body: func(w *isoWorld, _ *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"decision": "approve", "csrf_token": "iso-guessed-token", "organization_id": w.bravo.orgID}}
+		},
+		refusedAlso: []int{http.StatusBadRequest}},
+	"GET /api/v1/me/connected-apps":              {class: isoSelf, reason: reasonSelf},
+	"DELETE /api/v1/me/connected-apps/{grantID}": {class: isoSelf, reason: reasonSelf},
+
 	"GET /uploads/*": {class: isoPublic, reason: "legacy local-disk objects by unguessable key; FileService objects (v1/) are refused - TestServeFileRefusesFileServiceObjects and the uploads subtest"},
 
 	// Provider callbacks.

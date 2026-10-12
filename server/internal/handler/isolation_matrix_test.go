@@ -82,6 +82,7 @@ func TestIsolationMatrix(t *testing.T) {
 	}
 
 	before := w.tenantDigest(t, w.alpha)
+	attemptBefore := w.mcpAttemptDigest(t, w.alpha)
 
 	t.Run("cross-tenant", func(t *testing.T) {
 		for _, r := range routes {
@@ -282,6 +283,12 @@ func TestIsolationMatrix(t *testing.T) {
 		}
 		if decided {
 			t.Error("B's requests approved or cancelled A's desktop attempt")
+		}
+		// An MCP consent attempt names its reader, not an organization: A's
+		// row must be byte for byte what it was, so B neither claimed it,
+		// rotated its CSRF token nor decided it.
+		if got := w.mcpAttemptDigest(t, w.alpha); got != attemptBefore {
+			t.Error("B's requests changed A's MCP consent attempt")
 		}
 	})
 
@@ -581,6 +588,10 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "launchSession")
 	case "{deviceSessionID}":
 		return tn.get(t, "deviceSession")
+	case "{grantID}":
+		return tn.get(t, "mcpGrant")
+	case "{attemptID}":
+		return tn.get(t, "mcpAttempt")
 	case "{capability}":
 		return tn.get(t, "previewCapability")
 	case "{shareID}":
@@ -1051,8 +1062,6 @@ var isoUnseeded = map[string]string{
 	"meeting_reminders":       "written only by the meeting reminder job (internal/notification); no route fills it",
 	"graph_dirty":             "written only by the graph marker consumer; the isolation world runs no dispatcher and no route reads it",
 	"file_derivatives":        "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
-	"mcp_grants":              "seeded by Task 9 of the MCP plan; until then only the OAuth flow writes it",
-	"mcp_tokens":              "seeded by Task 9 of the MCP plan; until then only the OAuth flow writes it",
 }
 
 // isoDigestSkip lists tenant tables a refused request is allowed to write:

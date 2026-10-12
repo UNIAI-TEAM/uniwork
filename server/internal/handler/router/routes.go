@@ -44,6 +44,17 @@ type Routes struct {
 	McpRevoke              http.HandlerFunc
 	McpServe               http.HandlerFunc
 
+	// MCP connector, web side (registerConnect): consent, connected apps, the
+	// organization's switch.
+	McpConsent            http.HandlerFunc
+	McpConsentCommand     http.HandlerFunc
+	MyConnectedApps       http.HandlerFunc
+	RevokeMyConnectedApp  http.HandlerFunc
+	OrgConnectedApps      http.HandlerFunc
+	RevokeOrgConnectedApp http.HandlerFunc
+	OrgMcpPolicy          http.HandlerFunc
+	SetOrgMcpPolicy       http.HandlerFunc
+
 	Register              http.HandlerFunc
 	Login                 http.HandlerFunc
 	ForgotPassword        http.HandlerFunc

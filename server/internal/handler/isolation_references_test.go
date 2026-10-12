@@ -328,6 +328,7 @@ var isoRefFieldExempt = map[string]string{
 	"CreatePreviewScopeSDI.job_id":                   "an opaque label of the render the frame shows, signed into the capability; the capability still lists only assets the document owns (PreviewAssetSDI.asset_id has the case)",
 	"RevokeDesktopDeviceSDI.device_session_id":       "documentary body: DELETE /auth/desktop/devices/{deviceSessionID} keeps the id in the path, and the self pass attacks it with A's device",
 	"RevokeOfficeLaunchSessionSDI.launch_session_id": "documentary body: DELETE /office/sessions/{launchSessionID} keeps the id in the path, a tenant parameter the matrix attacks with A's receipt",
+	"McpConsentSDI.organization_id":                  "the self pass sends B's own organization against A's attempt (400 csrf_invalid); TestMcpApproveRefusals and TestIsolationMCP hold an organization the caller is not in (403)",
 }
 
 // A body field that names another row is an attack surface the path passes

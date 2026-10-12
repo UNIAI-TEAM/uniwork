@@ -87,6 +87,7 @@ Domain hiện có:
 | Task / comments | `dto/sdi/task.go` | `dto/sdo/task.go` |
 | Meeting / notes / token | `dto/sdi/meeting.go` | `dto/sdo/meeting.go` |
 | Office engine jobs | `dto/sdi/office.go` | `dto/sdo/office.go` |
+| MCP connector (consent, ứng dụng AI đã kết nối, công tắc tổ chức) | `dto/sdi/mcp.go` | `dto/sdo/mcp.go` |
 
 Domain mới: tạo cặp `dto/sdi/{domain}.go` + `dto/sdo/{domain}.go`.
 Endpoint không body thì không cần SDI. SDO có thể dùng lại
@@ -192,6 +193,8 @@ GET không body: bỏ `sdi`. Refresh/logout không JSON body: bỏ `sdi`.
 | `/tasks/{taskID}` | `"taskID"` |
 | `/meetings/{meetingID}` | `"meetingID"` |
 | `/invitations/{token}` | `"token"` |
+| `/auth/connect/attempts/{attemptID}` | `"attemptID"` |
+| `/orgs/{org}/connected-apps/{grantID}` | `"org,grantID"` |
 
 Param mới (ví dụ `{commentID}`): thêm `case` và struct `path:"commentID"`.
 Tên field Go PascalCase; tag `path` phải **trùng** tên trong `{…}` của Chi.
