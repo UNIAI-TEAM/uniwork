@@ -150,6 +150,9 @@ func blankEvidenceLevel(supported bool) office.EvidenceLevel {
 // a typed refusal, never a guess. ver may be nil: the current version is read
 // then.
 func (s *DocumentOfficeService) formatForVersion(ctx context.Context, doc db.Document, ver *db.DocumentVersion) (office.Format, error) {
+	if doc.Kind == DocumentKindFolder {
+		return "", officeErr("unsupported_operation", "folder_document")
+	}
 	if doc.Kind != DocumentKindFile {
 		return "", officeErr("unsupported_operation", "page_document")
 	}
@@ -558,6 +561,9 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	}
 	doc, _, err := s.documents.authorizeDocument(ctx, actor, documentID, officeJobRequiredLevel(office.Operation(strings.TrimSpace(req.Operation))))
 	if err != nil {
+		return db.OfficeJob{}, err
+	}
+	if err := refuseFolder(doc); err != nil {
 		return db.OfficeJob{}, err
 	}
 	operation, ok := parseOfficeOperation(req.Operation)

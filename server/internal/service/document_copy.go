@@ -78,6 +78,9 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 	if src.ArchivedAt.Valid {
 		return DocumentFileResult{}, errDocumentDeleted()
 	}
+	if err := refuseFolder(src); err != nil {
+		return DocumentFileResult{}, err
+	}
 	if src.Kind != DocumentKindFile {
 		return DocumentFileResult{}, CodedError{Code: document.ErrCodeInvalid, Status: http.StatusBadRequest,
 			Msg: "chỉ tài liệu tệp được sao chép ở endpoint này", Fields: map[string]any{"reason": "page_copy_not_supported"}}
@@ -151,9 +154,9 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 		}
 		if in.ParentID != "" {
 			// Root (G1-04b) replaced requireParentInTx with lockPageParent:
-			// the parent must be a live page of the same tenant pair the caller
+			// the parent must be a live page or folder of the same tenant pair the caller
 			// may edit, with room for one more level (locked for the create).
-			if _, err := s.lockPageParent(ctx, q, actor, in.ParentID, locked.OrganizationID, locked.WorkspaceID); err != nil {
+			if _, err := s.lockPageParent(ctx, q, actor, in.ParentID, locked.OrganizationID, locked.WorkspaceID, DocumentKindFile); err != nil {
 				return err
 			}
 		}

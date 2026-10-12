@@ -126,6 +126,9 @@ func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, d
 	if err != nil {
 		return DocumentUpload{}, err
 	}
+	if err := refuseFolder(doc); err != nil {
+		return DocumentUpload{}, err
+	}
 	if doc.Kind != DocumentKindFile {
 		return DocumentUpload{}, Invalid("chỉ tài liệu file nhận phiên bản tải lên")
 	}
@@ -371,7 +374,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	}
 	visibility := documentVisibilityWorkspace
 	if in.ParentID != "" {
-		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, orgID, workspaceID)
+		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, orgID, workspaceID, DocumentKindFile)
 		if err != nil {
 			return DocumentFileResult{}, err
 		}
@@ -555,6 +558,9 @@ func (s *DocumentService) uploadDocumentAsset(ctx context.Context, actor Actor, 
 	}
 	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelEdit)
 	if err != nil {
+		return db.DocumentAsset{}, err
+	}
+	if err := refuseFolder(doc); err != nil {
 		return db.DocumentAsset{}, err
 	}
 	if !accepts(doc) {

@@ -224,10 +224,10 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 	kind := pgtype.Text{}
 	switch in.Kind {
 	case "":
-	case DocumentKindPage, DocumentKindFile:
+	case DocumentKindPage, DocumentKindFile, DocumentKindFolder:
 		kind = pgtype.Text{String: in.Kind, Valid: true}
 	default:
-		return DocumentListPage{}, Invalid("kind phải là page hoặc file")
+		return DocumentListPage{}, Invalid("kind phải là page, file hoặc folder")
 	}
 	updatedBy := nullText(in.UpdatedBy)
 	var from, to pgtype.Timestamptz
