@@ -813,7 +813,7 @@ và bỏ các thay đổi" — đổi nội dung thành câu của `webConflictB
 | `uwRowCommitted` | Phiên bản {n} · {time} | Version {n} · {time} |
 | `uwRowKeptDraft` | Giữ từ lần tải lại lúc {time} | Kept when you reloaded at {time} |
 | `uwRowMoved` / `uwRowArchived` | Tài liệu đã được chuyển tới {workspace} / Tài liệu đã được lưu trữ trên UniWork | The document moved to {workspace} / The document was archived on UniWork |
-| `uwActRetry` (sẵn có) | Thử lại | Try again |
+| `uwActRetry` (sẵn có) | Thử lại | Retry |
 | `uwActDiscard` / `uwActDiscardSave` | Bỏ / Bỏ lần lưu… | Discard / Discard save… |
 | `uwActSendNow` / `uwActRecheck` / `uwActGuide` / `uwActOpenToResolve` / `uwActCopySupport` / `uwActDownloadMine` / `uwActOpenDraft` / `uwActDiscardDraft` / `uwActSignInAgain` / `uwActSignIn` / `uwActSwitchAccount` / `uwActReconnect` / `uwActDetails` / `uwActOpen` | Gửi ngay / Kiểm tra lại / Hướng dẫn / Mở để xử lý / Sao chép mã hỗ trợ / Tải bản của tôi về máy / Mở nháp / Bỏ nháp… / Đăng nhập lại / Đăng nhập / Chuyển tài khoản / Kết nối lại / Chi tiết / Mở | Send now / Check again / Guide / Open to resolve / Copy support code / Download my version / Open draft / Discard draft… / Sign in again / Sign in / Switch account / Reconnect / Details / Open |
 | `uwDiscardDraftConfirm` | Bỏ nháp này? Thay đổi trong nháp sẽ bị xóa khỏi máy này và không khôi phục được. | Discard this draft? Its changes will be removed from this computer and can’t be recovered. |
@@ -992,7 +992,7 @@ và bỏ các thay đổi" — đổi nội dung thành câu của `webConflictB
 | `aiConversationBoundary` | Cuộc trò chuyện mới với {provider}: các lượt phía trên không được gửi kèm. | New conversation with {provider}: the turns above aren’t sent along. |
 | `aiRunStopped` | Đã dừng. Thay đổi đã áp dụng (nếu có) vẫn trong tài liệu và hoàn tác được. | Stopped. Any changes already applied stay in the document and can be undone. |
 | `aiRunAskAgain` | Hỏi tiếp | Ask again |
-| `aiRunChooseOther` | Chọn nhà cung cấp khác | Choose another provider |
+| `aiRunChooseOther` (không phải dạng số nhiều: hậu tố `Other` là nghĩa "khác", test no-plural miễn trừ khóa này) | Chọn nhà cung cấp khác | Choose another provider |
 | `aiRunOpenInApp` | Mở bằng ứng dụng | Open in the app |
 | `aiErrRunLimit` | Lượt này đã chạm giới hạn số bước của UniWork AI. Kết quả tới đây vẫn được giữ; hãy chia nhỏ yêu cầu rồi hỏi tiếp. | This run reached UniWork AI’s step limit. Results so far are kept; split the request and ask again. |
 | `aiErrCredits` | Tổ chức đã dùng hết tín dụng AI kỳ này. Lượt này đã dừng. | Your organization is out of AI credits for this period. This run stopped. |
@@ -1075,7 +1075,7 @@ Các số của OQ-UX2 (đã ký, U-15, 2026-10-12):
 
 | Số | Giá trị |
 | --- | --- |
-| Dung lượng thư viện offline | 2 GiB mỗi tài khoản trên một máy |
+| Dung lượng thư viện offline | 2 GiB mỗi tài khoản trên một máy (hiển thị: nơi gọi định dạng số bằng `Intl.NumberFormat(locale)` cộng nhãn đơn vị; giá trị GiB hiện là "GB", ví dụ 2 GiB → "2 GB", vi dùng dấu phẩy thập phân; U-02 F10) |
 | Số tài liệu ghim | 200 |
 | Số nháp giữ tối đa mỗi tài liệu | 3 |
 | Ngân sách store đồng bộ mỗi tài khoản (queue + nháp, không gồm thư viện offline) | 1 GiB |
