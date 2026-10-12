@@ -46,9 +46,9 @@ ký scheme của kênh đang chạy; cả hai được khai báo trong `protocol
 Cả hai client phải có trong `DESKTOP_AUTH_CLIENTS` của server (xem trên). Callback đến qua argv khi khởi động, lần mở thứ hai trên Windows hoặc `open-url`
 trên macOS (kể cả trước khi app sẵn sàng) và được chuyển cho phần đăng nhập trước bộ định
 tuyến office. Địa chỉ server lấy từ hồ sơ triển khai trong userData. Hồ sơ đến qua liên kết mở từ web
-(`<scheme>://open?[ticket=…&]deploymentId=…&apiOrigin=…&clientId=…&channel=…`, đủ bốn giá trị
-hoặc không có), qua mặc định đóng gói theo kênh lúc build, hoặc do người dùng nhập ở màn hình
-Kết nối UniWork / Cài đặt. Cùng `deploymentId` thì cập nhật địa chỉ không hỏi; `deploymentId`
+(`<scheme>://open?ticket=…&deploymentId=…&apiOrigin=…&clientId=…&channel=…` cho tài liệu,
+`<scheme>://home?deploymentId=…` không có ticket cho màn hình chính; đủ bốn giá trị hoặc không có), qua mặc định đóng gói theo kênh lúc build, hoặc do người dùng nhập ở màn hình
+Kết nối UniWork / Cài đặt. Cùng `deploymentId` thì cập nhật địa chỉ không hỏi (phiên đăng nhập cũ bị bỏ, không mang sang địa chỉ mới); `deploymentId`
 mới hoặc chưa có hồ sơ thì hỏi xác nhận một lần; khác kênh thì từ chối. Không còn ZIP kèm
 `deployment-profile.json`.
 
