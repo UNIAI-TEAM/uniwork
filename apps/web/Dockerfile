@@ -2,6 +2,10 @@ FROM node:22-alpine AS build
 RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 WORKDIR /repo
 
+# packages/office-upstream runs its prepare script during pnpm install, and the
+# vendored patch series is applied with `git apply` (build-upstream.mjs).
+RUN apk add --no-cache git
+
 # Next inlines NEXT_PUBLIC_* into the client bundle by literal substitution at
 # BUILD time. Passing them as runtime `environment:` reaches the server render
 # but never the browser, so the client would keep calling localhost. They have
