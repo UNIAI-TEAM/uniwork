@@ -18,6 +18,15 @@ function normalizeEmail(addr: string) {
   return addr.trim().toLowerCase();
 }
 
+type ReplySource = Pick<EmailHubThread, "from_addr"> & Partial<Pick<EmailHubThread, "to_addrs">>;
+
+export function buildReplyRecipients(source: ReplySource, fromEmail: string | null): string[] {
+  const self = normalizeEmail(fromEmail ?? "");
+  const sourceFrom = normalizeEmail(source.from_addr);
+  if (self && sourceFrom === self) return [...(source.to_addrs ?? [])];
+  return [source.from_addr];
+}
+
 export function buildReplyAllRecipients(thread: EmailHubThread, fromEmail: string | null) {
   const self = normalizeEmail(fromEmail ?? "");
   const seen = new Set<string>();

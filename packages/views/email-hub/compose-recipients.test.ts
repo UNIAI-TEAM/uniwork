@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildForwardBody,
   buildReplyAllRecipients,
+  buildReplyRecipients,
   composeSendErrorKey,
   forwardSubject,
   replySubject,
@@ -41,6 +42,31 @@ describe("compose recipients", () => {
     expect(to).toBe("sender@example.com");
     expect(cc).toBe("peer@example.com");
   });
+
+  it("replies to the original recipients when the source was sent by the current account", () => {
+    expect(
+      buildReplyRecipients(
+        { from_addr: "  ME@company.vn ", to_addrs: ["customer@example.com"] },
+        "me@COMPANY.vn",
+      ),
+    ).toEqual(["customer@example.com"]);
+  });
+
+  it("still replies to the sender for a normal inbox message", () => {
+    expect(
+      buildReplyRecipients(
+        { from_addr: "sender@example.com", to_addrs: ["me@company.vn"] },
+        "me@company.vn",
+      ),
+    ).toEqual(["sender@example.com"]);
+  });
+
+  it.each([{ from_addr: "me@company.vn", to_addrs: [] }, { from_addr: "me@company.vn" }])(
+    "keeps an own sent message with empty or missing recipients safe: %o",
+    (source) => {
+      expect(buildReplyRecipients(source, "me@company.vn")).toEqual([]);
+    },
+  );
 
   it("buildForwardBody quotes original message in the app language", () => {
     const body = buildForwardBody(thread, {
