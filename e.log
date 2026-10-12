@@ -1,0 +1,450 @@
+$ set -a && . ./.env && set +a && NEXT_PUBLIC_API_URL=http://localhost:8080 OFFICE_SHELL_E2E=1 OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1 E2E_BASE_URL=http://localhost:3000 pnpm --filter @uniwork/e2e exec playwright test --shard=2/3
+
+Running 94 tests using 1 worker, shard 2 of 3
+
+(node:17328) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17328) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 landing-dual-navigation.spec.ts:5:3 › manual navigation layers share one preview at 1440px (5.3s)
+  ✓   2 landing-dual-navigation.spec.ts:5:3 › manual navigation layers share one preview at 768px (5.2s)
+  ✓   3 landing-dual-navigation.spec.ts:5:3 › manual navigation layers share one preview at 390px (4.5s)
+  ✓   4 landing-dual-navigation.spec.ts:52:3 › English dark navigation stays legible at 1440px (5.0s)
+  ✓   5 landing-dual-navigation.spec.ts:52:3 › English dark navigation stays legible at 390px (4.9s)
+  -   6 landing-fast-refresh.spec.ts:9:3 › a mounted en landing updates dictionary copy without losing state
+  -   7 landing-fast-refresh.spec.ts:9:3 › a mounted vi landing updates dictionary copy without losing state
+  ✓   8 landing-feature-visuals.spec.ts:5:1 › every product chapter retains visual examples on a narrow English screen (7.8s)
+  ✓   9 landing-feature-visuals.spec.ts:29:1 › visual directory navigates to chapters and the full preview still expands (1.0s)
+  ✓  10 landing-hydration.spec.ts:6:3 › landing SSR and hydration use the same current en copy (4.6s)
+  ✓  11 landing-hydration.spec.ts:6:3 › landing SSR and hydration use the same current vi copy (4.7s)
+  ✓  12 landing-lovable.spec.ts:5:3 › Lovable reference fits every feature 1440-light (11.4s)
+  ✓  13 landing-lovable.spec.ts:5:3 › Lovable reference fits every feature 1440-dark (11.0s)
+  ✓  14 landing-lovable.spec.ts:5:3 › Lovable reference fits every feature 390-dark (8.6s)
+  ✓  15 landing-lovable.spec.ts:59:1 › scaled action film keeps the explicit assignment and completion sequence (11.4s)
+  ✓  16 landing-lovable.spec.ts:84:1 › expanded film preserves reduced motion and exposes playback controls (6.9s)
+  ✓  17 landing-lovable.spec.ts:106:1 › meeting listing pauses the film and returning to the room restores it (10.1s)
+  ✓  18 landing-meetings.spec.ts:4:1 › online meetings are a view of the same workspace (4.2s)
+  ✓  19 landing-meetings.spec.ts:15:1 › meeting controls are accessible local simulations, with conditional AI follow-up (4.8s)
+  ✓  20 landing-motion.spec.ts:4:1 › landing demo controls perform the actions they advertise without workspace writes (19.7s)
+  ✓  21 landing-motion.spec.ts:27:1 › 3D controls, cinematic playback and reduced motion remain usable (5.7s)
+  ✘  22 landing-motion.spec.ts:56:1 › hero keeps one conversion action and one product control system (9.7s)
+(node:17666) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17666) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  23 landing-motion.spec.ts:73:1 › Starter and FAQ signals animate only while visible and respect reduced motion (4.6s)
+(node:17741) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17741) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  24 landing-motion.spec.ts:98:1 › framed scenes arrive on scroll and remain readable after the entrance (6.4s)
+(node:17815) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17815) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  25 landing-motion.spec.ts:144:1 › nonessential motion stops offscreen and pause controls stop the real renderer (15.5s)
+  ✓  26 landing-motion.spec.ts:177:1 › GPU unavailable leaves a usable fallback and the demo intact (3.6s)
+  ✓  27 landing-opening.spec.ts:6:3 › opening stays readable with working navigation at 1440px (4.9s)
+  ✓  28 landing-opening.spec.ts:6:3 › opening stays readable with working navigation at 1280px (4.8s)
+  ✘  29 landing-opening.spec.ts:6:3 › opening stays readable with working navigation at 768px (3.5s)
+(node:17947) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17947) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  30 landing-opening.spec.ts:6:3 › opening stays readable with working navigation at 390px (4.4s)
+  ✘  31 landing-opening.spec.ts:56:1 › opening supports English and dark mode (3.5s)
+(node:18032) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18032) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  32 landing-opening.spec.ts:69:1 › opening motion can be paused and honors a changed reduced-motion preference (7.3s)
+  ✓  33 landing-playback.spec.ts:7:1 › preview plays a real sequence, pauses and stops outside the viewport (16.0s)
+  ✓  34 landing-playback.spec.ts:27:1 › reduced motion is still by default and manual exploration retains local actions (4.0s)
+  ✓  35 landing-playback.spec.ts:46:3 › every storyboard reaches its last beat without clipping at 1440px (21.0s)
+  ✓  36 landing-playback.spec.ts:95:1 › storyboards become readable three-step stories at 390px (6.7s)
+  ✓  37 landing-playback.spec.ts:116:1 › original UNI wears the shared mark and retains its static fallback (4.6s)
+  ✓  38 landing-playback.spec.ts:132:5 › scripted views, brand and contrast: desktop-vi (15.9s)
+  ✓  39 landing-playback.spec.ts:132:5 › scripted views, brand and contrast: desktop-en (15.6s)
+  ✓  40 landing-playback.spec.ts:132:5 › scripted views, brand and contrast: mobile-vi (14.1s)
+  ✓  41 landing-playback.spec.ts:132:5 › scripted views, brand and contrast: mobile-en (13.8s)
+  ✓  42 landing-product-pages.spec.ts:5:1 › product menu opens real introduction routes, with demo explicitly separate (4.1s)
+  ✓  43 landing-product-pages.spec.ts:29:1 › all feature introductions have unique content, canonical URL and reference UI (8.4s)
+  ✓  44 landing-product-pages.spec.ts:54:3 › public pages render without overflow 1440-light (3.5s)
+  ✓  45 landing-product-pages.spec.ts:54:3 › public pages render without overflow 390-dark (3.4s)
+  ✓  46 landing-product-pages.spec.ts:87:1 › English introductions and solution/resources links remain usable (806ms)
+  ✓  47 landing-realism.spec.ts:10:3 › pending and source destination stay readable at 1440px (10.6s)
+  ✓  48 landing-realism.spec.ts:10:3 › pending and source destination stay readable at 820px (11.1s)
+  ✓  49 landing-realism.spec.ts:39:1 › Today and Projects task links open manual details even on direct entry (5.0s)
+  ✓  50 landing-realism.spec.ts:58:1 › chat waits for creation before attaching the task (7.1s)
+  ✓  51 landing-realism.spec.ts:74:1 › email keeps the same thread and Ask UNI only opens its cited source (8.8s)
+  ✓  52 landing-realism.spec.ts:102:1 › assignment opens details and a member picker without completing the task (6.5s)
+  ✓  53 landing-realism.spec.ts:123:1 › screen sharing needs source selection and confirmation; planned entries never autoplay (6.7s)
+  ✓  54 landing-reference.spec.ts:7:3 › Lovable reference structure and remaining landing sections at 1440px (6.6s)
+  ✓  55 landing-reference.spec.ts:7:3 › Lovable reference structure and remaining landing sections at 390px (6.8s)
+  ✓  56 landing-reference.spec.ts:67:34 › Today rows and counts share completion, reopening and reset state at 1440px (5.6s)
+  ✓  57 landing-reference.spec.ts:67:34 › Today rows and counts share completion, reopening and reset state at 390px (5.7s)
+  ✓  58 landing-reference.spec.ts:92:1 › skip link remains hidden without focus across tall section captures (19.4s)
+  ✘  59 landing-scenes.spec.ts:5:1 › original UNI artwork and face stay unchanged while the foreleg waves (3.7s)
+(node:18487) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18487) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  60 landing-scenes.spec.ts:55:3 › mascot expression and native scene handoff: desktop (8.9s)
+  ✓  61 landing-scenes.spec.ts:55:3 › mascot expression and native scene handoff: mobile (8.0s)
+  ✓  62 landing-scenes.spec.ts:100:1 › missing original artwork leaves the shared mark without removed controls (4.5s)
+  ✓  63 landing-scenes.spec.ts:112:1 › shirt mark and artwork share coordinates before and after resize (2.9s)
+  ✓  64 landing-scroll.spec.ts:6:3 › all explorer states and disclosures have translated text and labels: vi (13.8s)
+  ✓  65 landing-scroll.spec.ts:6:3 › all explorer states and disclosures have translated text and labels: en (13.9s)
+  ✓  66 landing-scroll.spec.ts:36:1 › grouped feature navigation supports keyboard selection (6.4s)
+  ✓  67 landing-scroll.spec.ts:55:1 › security and roadmap details are available without overwhelming the default view (4.3s)
+  ✘  68 landing-scroll.spec.ts:70:1 › decision sections use prominent semantic icon anchors (3.5s)
+(node:18670) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18670) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  69 landing-scroll.spec.ts:98:1 › trust band explains provider choice without repeating security claims (3.8s)
+  ✓  70 landing-scroll.spec.ts:112:1 › feature selector stays visible in reduced motion without a decorative rail (3.9s)
+  ✓  71 landing-studio.spec.ts:7:1 › studio demo switches views and tabs locally, with keyboard support (22.6s)
+  ✓  72 landing-studio.spec.ts:37:1 › mobile menu closes with Escape and returns focus (6.9s)
+  ✓  73 landing-studio.spec.ts:56:3 › studio responsive, assets and contrast: desktop (5.8s)
+  ✓  74 landing-studio.spec.ts:56:3 › studio responsive, assets and contrast: mobile (4.7s)
+  ✓  75 landing-studio.spec.ts:56:3 › studio responsive, assets and contrast: user-1294 (5.7s)
+  ✓  76 landing-studio.spec.ts:56:3 › studio responsive, assets and contrast: desktop-dark-en (5.5s)
+  ✓  77 landing-studio.spec.ts:56:3 › studio responsive, assets and contrast: mobile-dark-en (4.6s)
+  ✓  78 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light (5.1s)
+  ✓  79 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1280 vi dark (5.3s)
+  ✓  80 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 768 vi light (5.2s)
+  ✘  81 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 en dark (3.3s)
+(node:18919) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18919) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  82 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 vi light (3.6s)
+(node:18994) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18994) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  83 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 320 vi dark (5.5s)
+  ✓  84 landing-updates.spec.ts:7:1 › new product stories are local demos with truthful availability (5.2s)
+  ✓  85 landing-updates.spec.ts:38:5 › unified workspace views render in both themes: desktop-vi (16.2s)
+  ✓  86 landing-updates.spec.ts:38:5 › unified workspace views render in both themes: desktop-en (15.5s)
+  ✓  87 landing-updates.spec.ts:38:5 › unified workspace views render in both themes: mobile-vi (14.9s)
+  ✓  88 landing-updates.spec.ts:38:5 › unified workspace views render in both themes: mobile-en (15.0s)
+  ✓  89 landing-updates.spec.ts:62:1 › workspace finishes revealing without extra scrolling and respect reduced motion (7.0s)
+  ✓  90 landing-why.spec.ts:13:3 › Why UniWork — 1440px vi light (1.3s)
+  ✓  91 landing-why.spec.ts:13:3 › Why UniWork — 1510px en dark (1.2s)
+  ✓  92 landing-why.spec.ts:13:3 › Why UniWork — 768px en light (1.2s)
+  ✓  93 landing-why.spec.ts:13:3 › Why UniWork — 390px en dark (1.2s)
+  ✓  94 landing-why.spec.ts:13:3 › Why UniWork — 320px vi light (1.2s)
+
+
+  1) landing-motion.spec.ts:56:1 › hero keeps one conversion action and one product control system ─
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.landing-product-story > section')
+    Expected: 3
+    Received: 4
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.landing-product-story > section')
+        14 × locator resolved to 4 elements
+           - unexpected value "4"
+
+
+      68 |   await expect(hero.getByRole("tab")).toHaveCount(0);
+      69 |   await expect(preview.locator(".preview-sidebar")).toHaveCount(0);
+    > 70 |   await expect(page.locator(".landing-product-story > section")).toHaveCount(3);
+         |                                                                  ^
+      71 | });
+      72 |
+      73 | test("Starter and FAQ signals animate only while visible and respect reduced motion", async ({ page }) => {
+        at /workspace/e2e/landing-motion.spec.ts:70:66
+
+    Error Context: test-results/landing-motion-hero-keeps--bbaef--one-product-control-system/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-motion-hero-keeps--bbaef--one-product-control-system/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-motion-hero-keeps--bbaef--one-product-control-system/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) landing-motion.spec.ts:73:1 › Starter and FAQ signals animate only while visible and respect reduced motion 
+
+    Error: locator.scrollIntoViewIfNeeded: Element is not attached to the DOM
+    Call log:
+      - attempting scroll into view action
+        - waiting for element to be stable
+
+
+      76 |   const pricing = page.locator("#bang-gia");
+      77 |   const faq = page.locator(".landing-faq");
+    > 78 |   await pricing.scrollIntoViewIfNeeded();
+         |                 ^
+      79 |   await expect(pricing).toHaveAttribute("data-motion-visible", "true");
+      80 |   await expect(pricing.locator(".pricing-plan-diagram")).toBeVisible();
+      81 |   await expect.poll(() => pricing.locator(".pricing-diagram-lines path").first().evaluate(element => getComputedStyle(element).animationPlayState)).toBe("running");
+        at /workspace/e2e/landing-motion.spec.ts:78:17
+
+    Error Context: test-results/landing-motion-Starter-and-26e1a--and-respect-reduced-motion/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-motion-Starter-and-26e1a--and-respect-reduced-motion/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-motion-Starter-and-26e1a--and-respect-reduced-motion/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) landing-motion.spec.ts:98:1 › framed scenes arrive on scroll and remain readable after the entrance 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.landing-product-story > section')
+    Expected: 3
+    Received: 4
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.landing-product-story > section')
+        8 × locator resolved to 4 elements
+          - unexpected value "4"
+
+
+      101 |   await page.goto("/");
+      102 |   await expect(page.locator(".landing-signal, .landing-chapter-junction")).toHaveCount(0);
+    > 103 |   await expect(page.locator(".landing-product-story > section")).toHaveCount(3);
+          |                                                                  ^
+      104 |   await expect(page.locator(".landing-conversion-story > section")).toHaveCount(3);
+      105 |
+      106 |   const chapter = page.locator(".landing-trust-story");
+        at /workspace/e2e/landing-motion.spec.ts:103:66
+
+    Error Context: test-results/landing-motion-framed-scen-6ec0c-readable-after-the-entrance/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-motion-framed-scen-6ec0c-readable-after-the-entrance/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-motion-framed-scen-6ec0c-readable-after-the-entrance/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) landing-opening.spec.ts:6:3 › opening stays readable with working navigation at 768px ─────────
+
+    Error: expect(locator).toHaveCSS(expected) failed
+
+    Locator: locator('.landing-hero-stage')
+    Expected: "flex"
+    Error: strict mode violation: locator('.landing-hero-stage') resolved to 2 elements:
+        1) <div class="landing-hero-stage">…</div> aka locator('div').filter({ hasText: 'Cả nhóm. Một workspace.' }).nth(2)
+        2) <div class="landing-hero-stage">…</div> aka locator('[id="S:0"] > .landing-site.be_vietnam_pro_28bf86fb-module__3Lls9a__variable.min-h-dvh > #landing-main > .landing-hero > .mx-auto > .landing-hero-stage')
+
+    Call log:
+      - Expect "toHaveCSS" with timeout 5000ms
+      - waiting for locator('.landing-hero-stage')
+
+
+       9 |     await page.goto("/");
+      10 |     await expect(page.locator(".header-shell")).toHaveCSS("display", "flex");
+    > 11 |     await expect(page.locator(".landing-hero-stage")).toHaveCSS("display", "flex");
+         |                                                       ^
+      12 |     await expect(page.locator(".landing-hero-copy")).toHaveCSS("text-align", "center");
+      13 |     await expect(page.locator(".landing-hero-actions")).toHaveCSS("justify-content", "center");
+      14 |     await expect(page.locator('.scene-canvas')).toHaveAttribute('data-rendered', 'true', { timeout: 20000 });
+        at /workspace/e2e/landing-opening.spec.ts:11:55
+
+    Error Context: test-results/landing-opening-opening-st-6ffe5-working-navigation-at-768px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-opening-opening-st-6ffe5-working-navigation-at-768px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-opening-opening-st-6ffe5-working-navigation-at-768px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) landing-opening.spec.ts:56:1 › opening supports English and dark mode ─────────────────────────
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('.scene-canvas')
+    Expected: "true"
+    Error: strict mode violation: locator('.scene-canvas') resolved to 2 elements:
+        1) <div role="img" class="scene-canvas" aria-label="Interactive 3D UNI core connecting work, conversations and knowledge">…</div> aka getByRole('img', { name: 'Interactive 3D UNI core' })
+        2) <div role="img" class="scene-canvas" aria-label="Interactive 3D UNI core connecting work, conversations and knowledge">…</div> aka getByLabel('Interactive 3D UNI core').nth(1)
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 20000ms
+      - waiting for locator('.scene-canvas')
+        - locator resolved to <div role="img" class="scene-canvas" aria-label="Interactive 3D UNI core connecting work, conversations and knowledge">…</div>
+        - unexpected value "null"
+
+
+      59 |   await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" });
+      60 |   await page.goto("/");
+    > 61 |   await expect(page.locator(".scene-canvas")).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
+         |                                               ^
+      62 |   await expect(page.getByRole("banner").getByRole("button", { name: "Product", exact: true })).toBeVisible();
+      63 |   await expect(page.locator("html")).toHaveClass(/dark/);
+      64 |   const dir = resolve(import.meta.dirname, "../.impeccable/review");
+        at /workspace/e2e/landing-opening.spec.ts:61:47
+
+    Error Context: test-results/landing-opening-opening-supports-English-and-dark-mode/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-opening-opening-supports-English-and-dark-mode/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-opening-opening-supports-English-and-dark-mode/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) landing-scenes.spec.ts:5:1 › original UNI artwork and face stay unchanged while the foreleg waves 
+
+    Error: locator.scrollIntoViewIfNeeded: Element is not attached to the DOM
+    Call log:
+      - attempting scroll into view action
+        - waiting for element to be stable
+
+
+       8 |   await page.goto("/");
+       9 |   const character = page.locator('[data-scene="character"]');
+    > 10 |   await character.scrollIntoViewIfNeeded();
+         |                   ^
+      11 |   const portrait = character.locator(".mascot-portrait");
+      12 |   const canvas = portrait.locator("canvas");
+      13 |   // Isolate the foreleg deformation from the unrelated scroll-reveal entrance.
+        at /workspace/e2e/landing-scenes.spec.ts:10:19
+
+    Error Context: test-results/landing-scenes-original-UN-f3a3a-ged-while-the-foreleg-waves/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-scenes-original-UN-f3a3a-ged-while-the-foreleg-waves/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-scenes-original-UN-f3a3a-ged-while-the-foreleg-waves/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) landing-scroll.spec.ts:70:1 › decision sections use prominent semantic icon anchors ───────────
+
+    Error: locator.click: Error: strict mode violation: locator('#work-products [data-slot=accordion-trigger]') resolved to 2 elements:
+        1) <button tabindex="0" type="button" data-value="" data-hidden="" id="base-ui-_r_2p_" aria-disabled="false" aria-expanded="false" data-orientation="vertical" data-slot="accordion-trigger" aria-describedby="roadmap-work-products-desc" class="group/accordion-trigger relative flex flex-1 items-start justify-between rounded-lg border border-transparent py-2.5 text-left text-body font-medium transition-[color,border-color,box-shadow] outline-none hover:underline focus-visible:border-ring focus-visible:ring-3…>…</button> aka getByRole('button', { name: 'Work Products & Work Graph' })
+        2) <button tabindex="0" type="button" data-value="" data-hidden="" data-index="-1" aria-disabled="false" aria-expanded="false" id="base-ui-_R_392nnlbH2_" data-orientation="vertical" data-slot="accordion-trigger" aria-describedby="roadmap-work-products-desc" class="group/accordion-trigger relative flex flex-1 items-start justify-between rounded-lg border border-transparent py-2.5 text-left text-body font-medium transition-[color,border-color,box-shadow] outline-none hover:underline focus-visible:border-ri…>…</button> aka locator('#base-ui-_R_392nnlbH2_')
+
+    Call log:
+      - waiting for locator('#work-products [data-slot=accordion-trigger]')
+
+
+      72 |   await page.goto("/");
+      73 |   await expect(page.locator("#security .security-mechanism-icon")).toHaveCount(3);
+    > 74 |   await page.locator("#work-products [data-slot=accordion-trigger]").click();
+         |                                                                      ^
+      75 |   await expect(page.locator("#work-products .work-product-icon")).toHaveCount(4);
+      76 |   await expect(page.locator("#bang-gia .pricing-plan-mark")).toHaveCount(1);
+      77 |   await expect(page.locator("#bang-gia .pricing-check")).toHaveCount(8);
+        at /workspace/e2e/landing-scroll.spec.ts:74:70
+
+    Error Context: test-results/landing-scroll-decision-se-b04a6-inent-semantic-icon-anchors/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-scroll-decision-se-b04a6-inent-semantic-icon-anchors/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-scroll-decision-se-b04a6-inent-semantic-icon-anchors/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 en dark ──────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.landing-trust-story')
+    Expected: visible
+    Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+        1) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('div').filter({ hasText: 'Clear access. Traceable work.' }).nth(1)
+        2) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('[id="S:0"] > .landing-site.be_vietnam_pro_28bf86fb-module__3Lls9a__variable.min-h-dvh > #landing-main > .landing-trust-story')
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('.landing-trust-story')
+        - locator resolved to <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div>
+        - unexpected value "hidden"
+
+
+      28 |     }
+      29 |     const chapter = page.locator(".landing-trust-story");
+    > 30 |     await expect(chapter).toBeVisible();
+         |                           ^
+      31 |     await page.evaluate(() => document.fonts.ready);
+      32 |     await chapter.scrollIntoViewIfNeeded();
+      33 |     const copy = chapter.locator(".security-copy");
+        at /workspace/e2e/landing-trust.spec.ts:30:27
+
+    Error Context: test-results/landing-trust-trust-chapte-fd836-pact-and-usable-390-en-dark/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-trust-trust-chapte-fd836-pact-and-usable-390-en-dark/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-trust-trust-chapte-fd836-pact-and-usable-390-en-dark/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 vi light ─────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.landing-trust-story')
+    Expected: visible
+    Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+        1) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('div').filter({ hasText: 'Rõ quyền truy cập. Rõ từng' }).nth(1)
+        2) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('[id="S:0"] > .landing-site.be_vietnam_pro_28bf86fb-module__3Lls9a__variable.min-h-dvh > #landing-main > .landing-trust-story')
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('.landing-trust-story')
+        - locator resolved to <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div>
+        - unexpected value "hidden"
+
+
+      28 |     }
+      29 |     const chapter = page.locator(".landing-trust-story");
+    > 30 |     await expect(chapter).toBeVisible();
+         |                           ^
+      31 |     await page.evaluate(() => document.fonts.ready);
+      32 |     await chapter.scrollIntoViewIfNeeded();
+      33 |     const copy = chapter.locator(".security-copy");
+        at /workspace/e2e/landing-trust.spec.ts:30:27
+
+    Error Context: test-results/landing-trust-trust-chapte-7b4b0-act-and-usable-390-vi-light/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-trust-trust-chapte-7b4b0-act-and-usable-390-vi-light/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-trust-trust-chapte-7b4b0-act-and-usable-390-vi-light/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9 failed
+    landing-motion.spec.ts:56:1 › hero keeps one conversion action and one product control system ──
+    landing-motion.spec.ts:73:1 › Starter and FAQ signals animate only while visible and respect reduced motion 
+    landing-motion.spec.ts:98:1 › framed scenes arrive on scroll and remain readable after the entrance 
+    landing-opening.spec.ts:6:3 › opening stays readable with working navigation at 768px ──────────
+    landing-opening.spec.ts:56:1 › opening supports English and dark mode ──────────────────────────
+    landing-scenes.spec.ts:5:1 › original UNI artwork and face stay unchanged while the foreleg waves 
+    landing-scroll.spec.ts:70:1 › decision sections use prominent semantic icon anchors ────────────
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 en dark ───────────────
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 vi light ──────────────
+  2 skipped
+  83 passed (12.0m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=2/3
