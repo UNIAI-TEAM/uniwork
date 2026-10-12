@@ -1,0 +1,81 @@
+$ set -a && . ./.env && set +a && node scripts/bundle-budget.mjs --print
+initial JS: 355.0 KB gzip
+ 1165.4 KB / 358  /[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room
+ 1017.2 KB / 196  /[orgSlug]/[workspaceSlug]/chat
+  987.2 KB / 150  /[orgSlug]/[workspaceSlug]/documents
+  964.2 KB / 150  /[orgSlug]/[workspaceSlug]/email
+  929.0 KB / 150  /[orgSlug]/[workspaceSlug]/people
+  926.5 KB / 150  /[orgSlug]/[workspaceSlug]/meetings
+  922.5 KB / 154  /[orgSlug]/[workspaceSlug]/settings
+  918.3 KB / 150  /[orgSlug]/[workspaceSlug]/people/[userId]
+  915.9 KB / 150  /[orgSlug]/[workspaceSlug]/inbox
+  914.9 KB / 150  /[orgSlug]/[workspaceSlug]/documents/[documentId]
+  911.5 KB / 150  /[orgSlug]/[workspaceSlug]/meetings/[meetingId]
+  910.0 KB / 150  /[orgSlug]/[workspaceSlug]/calendar
+  909.5 KB / 150  /[orgSlug]/[workspaceSlug]/projects/[projectId]
+  909.5 KB / 150  /[orgSlug]/[workspaceSlug]/tasks/[taskId]
+  909.5 KB / 150  /[orgSlug]/[workspaceSlug]/my-tasks
+  909.5 KB / 150  /[orgSlug]/[workspaceSlug]/tasks
+  909.4 KB / 150  /[orgSlug]/[workspaceSlug]/projects
+  909.3 KB / 150  /[orgSlug]/[workspaceSlug]
+  909.3 KB / 150  /[orgSlug]/[workspaceSlug]/members
+  852.6 KB / 150  /share/[token]
+  157.0 KB / 150  /
+  133.6 KB / 150  /office
+  125.9 KB / 150  /enterprise
+  125.9 KB / 150  /learn
+  125.9 KB / 150  /pricing
+  125.9 KB / 150  /solutions
+  123.9 KB / 150  /solutions/operations
+  123.9 KB / 150  /solutions/product
+  117.7 KB / 150  /why-uniwork
+  117.3 KB / 150  /features/[slug]
+  117.3 KB / 150  /features
+  115.0 KB / 150  /(auth)/onboarding
+  114.9 KB / 150  /(auth)/workspaces/new
+   74.0 KB / 150  /admin/quota
+   73.8 KB / 150  /admin/organizations/[id]
+   72.4 KB / 150  /(auth)/reset-password
+   72.0 KB / 150  /(auth)/register
+   72.0 KB / 150  /invite/[token]
+   71.3 KB / 150  /(auth)/login
+   70.9 KB / 150  /(auth)/forgot-password
+   68.5 KB / 150  /admin/invoices
+   63.9 KB / 150  /(auth)/verify
+   62.7 KB / 150  /invite/meeting/[linkId]
+   56.2 KB / 150  /admin/organizations
+   48.5 KB / 150  /(auth)/auth/desktop/authorize
+   42.2 KB / 150  /admin/plans
+   41.0 KB / 150  /invite/meeting/[linkId]/room
+   40.2 KB / 150  /admin/trace
+   39.7 KB / 150  /admin/flags
+   36.3 KB / 150  /admin
+   36.2 KB / 150  /admin/system
+    5.1 KB / 150  /(auth)/invitations
+    4.8 KB / 150  /workspaces
+    1.7 KB / 150  /auth/callback
+    0.0 KB / 150  /_global-error
+    0.0 KB / 150  /_not-found
+bundle-budget: over budget
+  initial JS 355.0 KB > 250 KB
+  /[orgSlug]/[workspaceSlug]/calendar 910.0 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/chat 1017.2 KB > 196 KB (ratchet in scripts/bundle-budget.json)
+  /[orgSlug]/[workspaceSlug]/documents/[documentId] 914.9 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/documents 987.2 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/email 964.2 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/inbox 915.9 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/meetings/[meetingId] 911.5 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room 1165.4 KB > 358 KB (ratchet in scripts/bundle-budget.json)
+  /[orgSlug]/[workspaceSlug]/meetings 926.5 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/members 909.3 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/my-tasks 909.5 KB > 150 KB
+  /[orgSlug]/[workspaceSlug] 909.3 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/people/[userId] 918.3 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/people 929.0 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/projects/[projectId] 909.5 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/projects 909.4 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/settings 922.5 KB > 154 KB (ratchet in scripts/bundle-budget.json)
+  /[orgSlug]/[workspaceSlug]/tasks/[taskId] 909.5 KB > 150 KB
+  /[orgSlug]/[workspaceSlug]/tasks 909.5 KB > 150 KB
+  / 157.0 KB > 150 KB
+  /share/[token] 852.6 KB > 150 KB
