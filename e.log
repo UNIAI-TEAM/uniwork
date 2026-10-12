@@ -1,0 +1,131 @@
+$ cd packages/core && npx vitest run office/ --reporter=verbose
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+
+ ✓ office/docs-frame-host.test.ts > vendored docs frame host > answers ready with init carrying the token, ignoring other origins and windows 6ms
+ ✓ office/docs-frame-host.test.ts > vendored docs frame host > proxies api requests to the supplied handlers and answers missing ones unsupported 5ms
+ ✓ office/docs-frame-host.test.ts > vendored docs frame host > refuses api requests before the handshake started 2ms
+ ✓ office/docs-frame-host.test.ts > vendored docs frame host > answers token.refresh, and pushes a rotated token only after the handshake 5ms
+ ✓ office/docs-frame-host.test.ts > vendored docs frame host > reports a frame on another protocol version as a handshake error 3ms
+ ✓ office/docs-frame-host.test.ts > X-02 protocol shape (vendored) > keeps version 1 and validates the new messages 1ms
+ ✓ office/docs-frame-host.test.ts > X-02 protocol shape (vendored) > new frame -> new host: aiRun reaches the listener; api.download without a handler is unsupported 3ms
+ ✓ office/docs-frame-host.test.ts > X-02 protocol shape (vendored) > new frame -> old host (an endpoint without X-02 handlers): unknown_type plus onReject, aiRun dropped 2ms
+ ✓ office/docs-frame-host.test.ts > X-02 protocol shape (vendored) > new host -> frame: doc.remoteVersion only after the handshake, no reply expected; closeCheck right after works 5ms
+ ✓ office/docs-frame-host.test.ts > X-02 OQ-P3 through the vendored host (fake document; the real host is G5-03w) > a commit between doc.remoteVersion and api.open -> the head with its own revision and versionChanged 8ms
+ ✓ office/docs-frame-host.test.ts > X-02 OQ-P3 through the vendored host (fake document; the real host is G5-03w) > an unknown or other-document version is refused with not_found 8ms
+ ✓ office/office-modules.test.ts > office module table > names one flag and one format per module, as the server does 1ms
+ ✓ office/office-modules.test.ts > office module table > maps formats to modules, and nothing for a format no frame opens 0ms
+ ✓ office/office-modules.test.ts > office module table > serves each module from its own directory; the docs URL is unchanged 0ms
+ ✓ office/office-modules.test.ts > office module table > grants each module what its frame implements: no recents, attachments or server PDF export outside docs; images for markdown/html 0ms
+ ✓ office/office-modules.test.ts > office module table > caps Sheets at 10 MiB of stored xlsx and no other module 0ms
+ ✓ office/office-modules.test.ts > createOfficeFrameApi for a module > saves the module's own bytes under the stored name 7ms
+ ✓ office/office-modules.test.ts > createOfficeFrameApi for a module > hands a Markdown/HTML frame the signed frame routes of its relative references, and nothing else 3ms
+ ✓ office/office-modules.test.ts > createOfficeFrameApi for a module > uploads a pasted Markdown/HTML picture as a document asset under the frame's name 2ms
+ ✓ office/office-modules.test.ts > createOfficeFrameApi for a module > fails an upload whose answer is malformed or not a frame route 2ms
+ ✓ office/office-modules.test.ts > createOfficeFrameApi for a module > has an image upload only where the grant says so (markdown, html) 0ms
+ ✓ office/office-modules.test.ts > createOfficeFrameApi for a module > resolves relative paths into signed frame routes: only what was asked, only frame routes (A1b) 1ms
+ ✓ office/office-modules.test.ts > createOfficeFrameApi for a module > degrades to no URLs when the resolve answer is malformed, and fails on an API error 1ms
+ ✓ office/office-modules.test.ts > createOfficeFrameApi for a module > has a resolve request only where relative paths exist (markdown, html) 0ms
+ ✓ office/office-modules.test.ts > createOfficeFrameApi for a module > has no server PDF export outside docs (the frame prints in place) 0ms
+ ✓ office/docs-frame-api.test.ts > docs frame helpers > builds the pinned same-origin frame URL and apiBase 1ms
+ ✓ office/docs-frame-api.test.ts > docs frame helpers > turns W6's token into the protocol's epoch-ms expiry 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > opens with the frame token only and hands the frame the bytes and the revision as etag 5ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > refuses a file the token is not scoped to without calling the API 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > degrades a malformed open answer to a typed error 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > maps HTTP failures to protocol codes 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > saves as upload + commit on the etag, each with an Idempotency-Key 3ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > refuses a save with no etag instead of rebasing onto the newest revision 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > derives one Idempotency-Key per logical save: a retry replays, another edit or base does not 4ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > answers a stale base (409 document_version_conflict) as a conflict, not a failure 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > hands the frame a stable code, never the server's account-language sentence 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > fails a save whose commit answer is malformed 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > lists recents, degrading a malformed answer to none 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > has no image-upload handler: the frame embeds data: URIs and an asset URL on the API origin could not load under img-src 'self' 0ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > offers no attachments until their route exists 0ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > export > renders the live bytes when the frame sends them, named after the document 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > export > keys one export by what is exported: a retry replays, other bytes do not 7ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > export > renders the stored version when there are no unsaved bytes 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > export > maps 501 to unsupported (the frame prints instead), 504 to timeout and 413 to too_large 2ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > export > treats 503 office_not_configured (no engine at all) like 501, but not any other 503 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi > export > fails a 200 that is not a PDF, refuses HTML and another document, without guessing 1ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi saveAs > creates the copy with the session, mints a token for it and answers with its open shape 3ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi saveAs > keys one save-as by workspace, name and bytes, so a retry replays the same copy 4ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi saveAs > degrades a malformed create or mint answer to a typed error 2ms
+ ✓ office/docs-frame-api.test.ts > createDocsFrameApi saveAs > maps a refused create to the protocol code 1ms
+ ✓ office/draft-session-key.test.ts > office draft session key > is a non-extractable AES-GCM 256 key for encrypt/decrypt 6ms
+ ✓ office/draft-session-key.test.ts > office draft session key > returns the same key while the page lives (a frame reload gets it again) 1ms
+ ✓ office/draft-session-key.test.ts > office draft session key > persists the key as a CryptoKey record of the user in the keys store 1ms
+ ✓ office/draft-session-key.test.ts > office draft session key > creates both stores, so the frame (which opens the database at version 1) finds its drafts store 1ms
+ ✓ office/draft-session-key.test.ts > office draft session key > survives a page reload: the same key comes back, still non-extractable 2ms
+ ✓ office/draft-session-key.test.ts > office draft session key > two tabs racing on first use end up with the same key 2ms
+ ✓ office/draft-session-key.test.ts > office draft session key > generates a new key after the session ends: the old drafts cannot be read 28ms
+ ✓ office/draft-session-key.test.ts > office draft session key > sign-out deletes the whole frame database and leaves the old editors' drafts database alone 2ms
+ ✓ office/draft-session-key.test.ts > office draft session key > a different user switches the session: a different key, the old key record gone, the new one stored 2ms
+ ✓ office/draft-session-key.test.ts > office draft session key > a switch while the first user's key is still loading does not wipe the new user's key 2ms
+ ✓ office/draft-session-key.test.ts > office draft session key > a user who signs in again after a switch gets a new key, not the stored one 1ms
+ ✓ office/draft-session-key.test.ts > office draft session key > ending the session deletes the drafts database and settles on onsuccess 1ms
+ ✓ office/draft-session-key.test.ts > office draft session key > ending the session deletes the drafts database and settles on onerror 0ms
+ ✓ office/draft-session-key.test.ts > office draft session key > ending the session deletes the drafts database and settles on onblocked 0ms
+ ✓ office/draft-session-key.test.ts > office draft session key > settles without IndexedDB or when the delete throws 0ms
+ ✓ office/draft-session-key.test.ts > office draft session key > falls back to a memory key when IndexedDB is missing: stable in the page, new after a reload 1ms
+ ✓ office/draft-session-key.test.ts > office draft session key > falls back to a memory key when IndexedDB has no open: stable in the page, new after a reload 1ms
+ ✓ office/draft-session-key.test.ts > office draft session key > falls back to a memory key when IndexedDB refuses to open: stable in the page, new after a reload 2ms
+ ✓ office/draft-session-key.test.ts > office draft session key > scopes drafts by user and document 0ms
+ ✓ office/draft-session-key.test.ts > office draft session key > the init recovery validator wants a CryptoKey and a non-empty scope 1ms
+ ✓ office/desktop-handoff.test.ts > officeScheme / officeClientId > maps the dev channel to the dev scheme and every other channel to the shared one 1ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > builds an opaque, channel-specific link from the ticket alone 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > refuses a ticket that is short, long or carries extra parameters 1ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > appends the deployment profile as four URL-encoded parameters 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > allows loopback HTTP origins on the dev channel only 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > leaves the whole profile off when it has a path 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > leaves the whole profile off when it has credentials 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > leaves the whole profile off when it has a query 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > leaves the whole profile off when it has a fragment 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > leaves the whole profile off when it has a backslash 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > leaves the whole profile off when it has an unparsable origin 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > leaves the whole profile off when it has a deployment id that starts with a dash 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeDeepLink > leaves the whole profile off when it has an over-long deployment id 0ms
+ ✓ office/desktop-handoff.test.ts > safeOfficeDeepLink > rebuilds the link from the ticket and ignores a server-sent URL 0ms
+ ✓ office/desktop-handoff.test.ts > safeOfficeDeepLink > throws when the session ticket is malformed 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeHomeLink > opens the home route with no ticket and no query when there is no profile 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeHomeLink > carries the public deployment profile and nothing else 0ms
+ ✓ office/desktop-handoff.test.ts > buildOfficeHomeLink > drops a profile the app would refuse 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects Windows Edge without trusting the frozen Mac Intel UA 2ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects Windows Chrome without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects Windows Microsoft WebView without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects Mac Safari without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects Mac Chrome without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects Ubuntu Firefox without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects Ubuntu Chrome without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects Linux arm64 without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects ChromeOS without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects Android without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects iPhone without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects iPad without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects unknown without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > detects unrelated machine token without trusting the frozen Mac Intel UA 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > uses high entropy Mac architecture arm 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > uses high entropy Mac architecture arm64 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > uses high entropy Mac architecture x86 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > uses high entropy Mac architecture x64 0ms
+ ✓ office/desktop-platform.test.ts > detectDesktopPlatform > rejects mobile and Linux arm hints even when the reduced UA looks desktop 0ms
+ ✓ office/format-flags.test.ts > officeFormatFlagKey > maps every editable format to its server flag 2ms
+ ✓ office/format-flags.test.ts > officeFormatFlagKey > has no flag for an unknown format 0ms
+ ✓ office/format-flags.test.ts > officeFlagsAllow > needs the engine on and treats an absent format flag as on 0ms
+ ✓ office/format-flags.test.ts > officeFlagsAllow > gates an unknown format on the engine alone 0ms
+ ✓ office/installer-channel.test.ts > selectOfficeInstallerChannel > prefers stable, then beta, then dev 2ms
+ ✓ office/installer-channel.test.ts > selectOfficeInstallerChannel > returns null when no channel has an installer or the catalogue is missing 0ms
+ ✓ office/installer-channel.test.ts > selectOfficeInstallerChannel > with a drifted GET /config > selects none for malformed installer rows 7ms
+ ✓ office/installer-channel.test.ts > selectOfficeInstallerChannel > with a drifted GET /config > selects dev when only dev is published 1ms
+
+ Test Files  8 passed (8)
+      Tests  115 passed (115)
+   Start at  13:07:52
+   Duration  1.93s (transform 522ms, setup 1.04s, import 741ms, tests 198ms, environment 2.38s)
+

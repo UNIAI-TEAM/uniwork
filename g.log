@@ -1,0 +1,2 @@
+$ node apps/web/scripts/office-frame-sync.mjs --all --check
+office-frame: office-frame docs 0.1.0-0d03b18 is not installed; run office-frame:sync
