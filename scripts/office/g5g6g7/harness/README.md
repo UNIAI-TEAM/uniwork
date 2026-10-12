@@ -33,9 +33,12 @@ up (with the run dir and SHA filled in). Running `sample-ac.mjs` directly works
 too and writes the same JSON line into the run dir; under the evidence runner it
 defers to the runner's ledger so one check is never counted twice.
 
-`HARNESS_DRY_RUN=1` (or `start.sh --dry-run`) picks the ports, checks the
-preconditions and stops before starting anything. `HARNESS_SKIP_APP=1` runs the
-server and the web only (useful while the fork build is being debugged).
+Flags (each has an environment form too, for the spec line):
+
+| Flag | Env | Effect |
+| --- | --- | --- |
+| `--dry-run` | `HARNESS_DRY_RUN=1` | pick the ports, check the preconditions, stop before starting anything |
+| `--skip-app` | `HARNESS_SKIP_APP=1` | server + web only (useful while the fork build is being debugged) |
 
 Every artifact lands in `.harness-run/` (override with `HARNESS_RUN_DIR`, and
 that directory is gitignored): `ports.env` (this run's ports, origins, SHAs,
