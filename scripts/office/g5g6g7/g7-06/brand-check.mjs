@@ -3,7 +3,7 @@
 // with Cyrillic/Greek look-alikes folded to ASCII (F-06) and whitespace /
 // '-' / '_' / '.' between letters collapsed. `genoffice` or
 // `genspark` in that form is a FAIL, and so is a blank render: an empty or
-// under-20-visible-character .txt cannot pass a brand check.
+// under-20-visible-character .txt (the module frame text only) cannot pass a brand check.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { capturePairBlocker, HOSTS, fixtureIds, readJsonState, relativeToOut } from "./job-lib.mjs";
@@ -24,6 +24,13 @@ const CONFUSABLES = Object.freeze({
   α: "a", ε: "e", η: "n", ι: "i", κ: "k", ν: "v", ο: "o", ρ: "p", τ: "t", υ: "u", χ: "x", ω: "w", ϲ: "c",
 });
 const CONFUSABLE = new RegExp(`[${Object.keys(CONFUSABLES).join("")}]`, "gu");
+
+/** Optional siblings of <fixture>.txt: the web host page text and the desktop shell text. */
+const EXTRA_TEXTS = [".host.txt", ".shell.txt"];
+
+function readOptional(path) {
+  return existsSync(path) ? readFileSync(path, "utf8") : null;
+}
 
 /** How the check reads the text; exported so a test can pin the transform. */
 export function normalizeBrandText(text) {
@@ -86,7 +93,11 @@ export function runBrandCheck({ capturesDir, outDir, fixtures = fixtureIds(), ho
         pairs.push({ ...pair, status: "FAIL", reasons: ["no_rendered_text"], hits: [], visible });
         continue;
       }
-      const hits = brandHits(text);
+      // The host page and the desktop shell texts are optional (older capture
+      // dirs have none); each is scanned on its own so a hit names its file and
+      // a brand cannot be glued together across two files.
+      const hits = [{ file: `${fixture}.txt`, text }, ...EXTRA_TEXTS.map((suffix) => ({ file: `${fixture}${suffix}`, text: readOptional(join(capturesDir, host, `${fixture}${suffix}`)) }))]
+        .flatMap((source) => (source.text === null ? [] : brandHits(source.text).map((hit) => ({ ...hit, file: source.file }))));
       pairs.push({ ...pair, status: hits.length > 0 ? "FAIL" : "PASS", reasons: hits.length > 0 ? ["brand_text"] : [], hits, visible });
     }
   }

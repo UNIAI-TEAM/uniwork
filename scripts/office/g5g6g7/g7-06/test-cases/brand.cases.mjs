@@ -13,6 +13,8 @@ import { ONE, outDir, readJson, tmpDir } from "../test-fixtures/test-env.mjs";
 
 function brandWorld({
   text = null,
+  hostText = null,
+  shellText = null,
   removeText = null,
   metaText = null,
   meta = null,
@@ -21,6 +23,8 @@ function brandWorld({
 } = {}) {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
   if (text !== null) writeFileSync(join(captures, "desktop", `${ONE}.txt`), text);
+  if (hostText !== null) writeFileSync(join(captures, "desktop", `${ONE}.host.txt`), hostText);
+  if (shellText !== null) writeFileSync(join(captures, "desktop", `${ONE}.shell.txt`), shellText);
   if (removeText) {
     for (const host of HOSTS) rmSync(join(captures, host, `${removeText}.txt`), { force: true });
   }
@@ -111,3 +115,27 @@ test("brand: a host without meta.json is BLOCKED, not treated as ok", () => {
   assert.deepEqual(check.reasons, ["capture_meta_missing"]);
 });
 
+
+const CLEAN = "Báo cáo doanh thu quý 1 — tổng hợp theo khu vực.\n";
+
+for (const [name, option, file] of [["host page", "hostText", "host.txt"], ["shell window titles", "shellText", "shell.txt"]]) {
+  test(`brand: a brand string only in the ${name} text is brand_text naming ${file}`, () => {
+    const { check, artifact } = brandWorld({ [option]: `${CLEAN}GenSpark\n` });
+    assert.equal(check.status, "FAIL");
+    assert.deepEqual(check.reasons, ["brand_text"]);
+    const pair = artifact.pairs.find((candidate) => candidate.host === "desktop");
+    assert.equal(pair.hits.length, 1);
+    assert.equal(pair.hits[0].file, `${ONE}.${file}`);
+  });
+}
+
+test("brand: a blank .txt with a populated .host.txt is still no_rendered_text", () => {
+  const { check } = brandWorld({ text: "", hostText: CLEAN });
+  assert.equal(check.status, "FAIL");
+  assert.deepEqual(check.reasons, ["no_rendered_text"]);
+});
+
+test("brand: clean .host.txt and .shell.txt pass", () => {
+  const { check } = brandWorld({ hostText: CLEAN, shellText: CLEAN });
+  assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
+});
