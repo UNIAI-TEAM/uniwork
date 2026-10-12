@@ -49,10 +49,9 @@ blocked() { # blocked <what is missing> <what would fix it>
 fail() { echo "FAILED: $1" >&2; exit 1; }
 
 # ---- preconditions -----------------------------------------------------------
-# A missing tool is BLOCKED, not a crash: the cloud runner's provision.sh does
-# not install xvfb or the Electron runtime libraries for the uniwork profile
-# (see the report's provision delta). We never install system packages here
-# beyond what this script can do without root: detect and report.
+# A missing tool is BLOCKED, not a crash. What can be installed is installed
+# below (see "what this run needs on top of the provisioned VM"); what cannot is
+# reported with the command that would fix it.
 missing=()
 for tool in node go pnpm git curl; do
   command -v "$tool" > /dev/null 2>&1 || missing+=("$tool")
