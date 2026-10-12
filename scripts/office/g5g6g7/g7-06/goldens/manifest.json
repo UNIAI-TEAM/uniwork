@@ -12,5 +12,9 @@
     "channel": 16,
     "ratio": 0.001
   },
+  "maskLimits": {
+    "maxAreaSharePerMask": 0.05,
+    "maxAreaSharePerEntry": 0.1
+  },
   "entries": {}
 }

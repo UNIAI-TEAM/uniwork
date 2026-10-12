@@ -24,9 +24,9 @@ function patchMeta(captures, patch) {
   }
 }
 
-function goldenWorld({ fixtures = [ONE], mutateCapture = null, transform = null, masks = {}, tolerance = null, removeGolden = null, metaStatus = null, meta = null } = {}) {
+function goldenWorld({ fixtures = [ONE], mutateCapture = null, transform = null, masks = {}, tolerance = null, maskLimits = null, removeGolden = null, metaStatus = null, meta = null } = {}) {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
-  const goldens = fx.writeGoldens(tmpDir("g7-06-goldens-"), { capturesDir: captures, fixtures, hosts: HOSTS, masks, tolerance, transform: transform ?? undefined });
+  const goldens = fx.writeGoldens(tmpDir("g7-06-goldens-"), { capturesDir: captures, fixtures, hosts: HOSTS, masks, tolerance, maskLimits, transform: transform ?? undefined });
   if (mutateCapture) mutateCapture(captures);
   if (removeGolden) rmSync(join(goldens, removeGolden), { force: true });
   if (metaStatus) {
@@ -79,6 +79,58 @@ test("golden: one changed pixel stays under the ratio tolerance", () => {
   const { check, summary } = goldenRun(world, { name: "golden-pixel" });
   assert.equal(check.status, "PASS");
   assert.equal(summary.pairs[0].pixels.changed, 1);
+});
+
+test("golden: a mask without a reason is invalid_mask, never a silent blank", () => {
+  const world = goldenWorld({ masks: { [`desktop/${ONE}`]: [{ x: 20, y: 20, w: 8, h: 8 }] } });
+  const { check } = goldenRun(world, { name: "golden-mask-noreason" });
+  assert.equal(check.status, "FAIL");
+  assert.match(check.reasons[0], /^invalid_mask \(desktop\/.*: mask 1: no reason\)$/);
+});
+
+test("golden: a mask outside the frame is invalid_mask, never clamped", () => {
+  for (const [label, mask] of [
+    ["over the edge", { x: 60, y: 20, w: 8, h: 8, reason: "stray" }],
+    ["entirely outside", { x: -40, y: -40, w: 8, h: 8, reason: "stray" }],
+    ["empty", { x: 4, y: 4, w: 0, h: 0, reason: "stray" }],
+  ]) {
+    const world = goldenWorld({ masks: { [`desktop/${ONE}`]: [mask] } });
+    const { check } = goldenRun(world, { name: "golden-mask-bounds" });
+    assert.equal(check.status, "FAIL", label);
+    assert.match(check.reasons[0], /^invalid_mask \(desktop\//, label);
+  }
+});
+
+test("golden: a mask over the per-mask area cap is invalid_mask, a smaller one passes", () => {
+  const over = goldenWorld({ masks: { [`desktop/${ONE}`]: [{ x: 0, y: 0, w: 16, h: 10, reason: "too big" }] } }); // 160 px of 3072 = 5.2%
+  const overCheck = goldenRun(over, { name: "golden-mask-oversize" }).check;
+  assert.equal(overCheck.status, "FAIL");
+  assert.match(overCheck.reasons[0], /^invalid_mask \(desktop\/.*: 5\.2% of the frame, over 5\.0%\)$/);
+  const under = goldenWorld({ masks: { [`desktop/${ONE}`]: [{ x: 0, y: 0, w: 8, h: 16, reason: "caret" }] } }); // 128 px = 4.2%
+  const underCheck = goldenRun(under, { name: "golden-mask-undersize" }).check;
+  assert.equal(underCheck.status, "PASS", JSON.stringify(underCheck.reasons));
+});
+
+test("golden: masks whose total passes the entry cap are invalid_mask", () => {
+  const masks = (count) =>
+    Array.from({ length: count }, (_, index) => ({ x: index * 16, y: 0, w: 8, h: 12, reason: "clock" })); // 96 px = 3.125% each
+  const three = goldenWorld({ masks: { [`desktop/${ONE}`]: masks(3) } }); // 9.375% <= 10%
+  const threeCheck = goldenRun(three, { name: "golden-mask-total-ok" }).check;
+  assert.equal(threeCheck.status, "PASS", JSON.stringify(threeCheck.reasons));
+  const four = goldenWorld({ masks: { [`desktop/${ONE}`]: masks(4) } }); // 12.5% > 10%
+  const fourCheck = goldenRun(four, { name: "golden-mask-total-over" }).check;
+  assert.equal(fourCheck.status, "FAIL");
+  assert.match(fourCheck.reasons[0], /^invalid_mask \(desktop\/.*: the masks cover 12\.5% of the frame, over 10\.0%\)$/);
+});
+
+test("golden: the mask limits come from manifest.json, not from code", () => {
+  const world = goldenWorld({
+    masks: { [`desktop/${ONE}`]: [{ x: 4, y: 4, w: 8, h: 8, reason: "caret" }] }, // 2.1%, valid by default
+    maskLimits: { maxAreaSharePerMask: 0.01, maxAreaSharePerEntry: 0.1 },
+  });
+  const { check } = goldenRun(world, { name: "golden-mask-limits" });
+  assert.equal(check.status, "FAIL");
+  assert.match(check.reasons[0], /^invalid_mask \(desktop\//);
 });
 
 test("golden: the tolerance comes from manifest.json, not from code", () => {
@@ -214,5 +266,6 @@ test("the committed goldens manifest is the schema, with no entries yet", () => 
   assert.equal(manifest.schema, 1);
   assert.deepEqual(manifest.entries, {});
   assert.deepEqual(manifest.tolerance, { channel: 16, ratio: 0.001 });
+  assert.deepEqual(manifest.maskLimits, { maxAreaSharePerMask: 0.05, maxAreaSharePerEntry: 0.1 });
   assert.deepEqual(manifest.viewport, { w: 1440, h: 900 });
 });

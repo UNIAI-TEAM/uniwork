@@ -19,7 +19,7 @@ export function mkCaptures(dir) {
 }
 
 /** Goldens built from the captures; `transform` may replace one pair's bytes. */
-export function writeGoldens(dir, { capturesDir, fixtures, hosts, masks = {}, tolerance = null, transform = (_key, bytes) => bytes } = {}) {
+export function writeGoldens(dir, { capturesDir, fixtures, hosts, masks = {}, tolerance = null, maskLimits = null, transform = (_key, bytes) => bytes } = {}) {
   const entries = {};
   for (const host of hosts) {
     for (const fixture of fixtures) {
@@ -38,6 +38,7 @@ export function writeGoldens(dir, { capturesDir, fixtures, hosts, masks = {}, to
     viewport: { w: 64, h: 48 },
     deviceScaleFactor: 1,
     ...(tolerance ? { tolerance } : {}),
+    ...(maskLimits ? { maskLimits } : {}),
     entries,
   };
   writeFileSync(join(dir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);

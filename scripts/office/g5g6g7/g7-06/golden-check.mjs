@@ -8,6 +8,12 @@
 // how large a share of the unmasked pixels may differ before the pair drifts
 // (default 0.001). The golden's own sha256 must equal its manifest entry.
 //
+// The mask limits live there too (`maskLimits`, next to `tolerance`): every
+// mask carries a reason and must stay inside the frame, at most 5% of the
+// frame each and 10% for all masks of one entry (F-05, FS-3). A mask that
+// breaks any of that fails the pair as `invalid_mask` — it is never clamped
+// away, because a careless rectangle could blank the whole comparison.
+//
 // In `--update-goldens` mode the captures are copied into the goldens dir and
 // the manifest is rewritten; masks are hand-owned and stay untouched.
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -16,6 +22,8 @@ import { sha256Hex } from "../../../../apps/web/platform/office-frame/frame-bund
 import { capturePairBlocker, DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonState, relativeToOut } from "./job-lib.mjs";
 
 export const DEFAULT_TOLERANCE = Object.freeze({ channel: 16, ratio: 0.001 });
+/** How much of the frame a mask may blank, per mask and per entry (F-05, FS-3). */
+export const DEFAULT_MASK_LIMITS = Object.freeze({ maxAreaSharePerMask: 0.05, maxAreaSharePerEntry: 0.1 });
 
 /** Tolerances come from the manifest; the defaults only fill an absent value. */
 export function tolerancesOf(manifest) {
@@ -25,13 +33,58 @@ export function tolerancesOf(manifest) {
   };
 }
 
+/** Mask limits come from the manifest too; the defaults only fill an absent value. */
+export function maskLimitsOf(manifest) {
+  return {
+    maxAreaSharePerMask:
+      typeof manifest?.maskLimits?.maxAreaSharePerMask === "number" ? manifest.maskLimits.maxAreaSharePerMask : DEFAULT_MASK_LIMITS.maxAreaSharePerMask,
+    maxAreaSharePerEntry:
+      typeof manifest?.maskLimits?.maxAreaSharePerEntry === "number" ? manifest.maskLimits.maxAreaSharePerEntry : DEFAULT_MASK_LIMITS.maxAreaSharePerEntry,
+  };
+}
+
+/**
+ * The reason a pair's mask list cannot be trusted, or null when every mask is
+ * a rectangle inside the frame that carries a reason and holds the manifest's
+ * area caps. A mask the check cannot trust fails the pair (F-05, FS-3): it is
+ * never clamped away, because one careless rectangle could blank the frame.
+ * @param {unknown} masks
+ * @param {{ width: number, height: number, pair: string, limits: { maxAreaSharePerMask: number, maxAreaSharePerEntry: number } }} layout
+ */
+export function maskProblem(masks, { width, height, pair, limits }) {
+  const frame = width * height;
+  let covered = 0;
+  for (const [index, mask] of (Array.isArray(masks) ? masks : []).entries()) {
+    const at = `${pair}: mask ${index + 1}`;
+    if (!mask || typeof mask !== "object") return `invalid_mask (${at}: not a rectangle)`;
+    if (typeof mask.reason !== "string" || mask.reason.trim() === "") return `invalid_mask (${at}: no reason)`;
+    const { x, y, w, h } = mask;
+    if (![x, y, w, h].every((value) => Number.isInteger(value))) return `invalid_mask (${at}: x/y/w/h are not whole pixels)`;
+    if (w <= 0 || h <= 0) return `invalid_mask (${at}: empty rectangle)`;
+    if (x < 0 || y < 0 || x + w > width || y + h > height) return `invalid_mask (${at}: outside the ${width}x${height} frame)`;
+    const share = (w * h) / frame;
+    if (share > limits.maxAreaSharePerMask) {
+      return `invalid_mask (${at}: ${(share * 100).toFixed(1)}% of the frame, over ${(limits.maxAreaSharePerMask * 100).toFixed(1)}%)`;
+    }
+    covered += w * h;
+  }
+  if (covered / frame > limits.maxAreaSharePerEntry) {
+    return `invalid_mask (${pair}: the masks cover ${((covered / frame) * 100).toFixed(1)}% of the frame, over ${(limits.maxAreaSharePerEntry * 100).toFixed(1)}%)`;
+  }
+  return null;
+}
+
 /** The per-fixture status the capture provider recorded, when its meta.json parsed. */
 function captureStatus(metaState, fixture) {
   const status = metaState?.value?.fixtures?.[fixture]?.status;
   return typeof status === "string" ? status : null;
 }
 
-/** A pixel is masked when any mask rectangle covers it; stray masks are clamped. */
+/**
+ * A pixel is masked when any mask rectangle covers it. The masks are validated
+ * before the comparison (bounds, reason, area — `maskProblem`), so the clamp
+ * here is only a safety net for a caller that skipped that check.
+ */
 function maskGrid(masks, width, height) {
   const grid = new Uint8Array(width * height);
   for (const mask of Array.isArray(masks) ? masks : []) {
@@ -107,6 +160,7 @@ export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, 
   }
   let manifest = manifestState.value ?? {};
   const tolerance = tolerancesOf(manifest);
+  const maskLimits = maskLimitsOf(manifest);
   const entries = manifest.entries ?? {};
   const pairs = [];
   const artifacts = [];
@@ -148,19 +202,24 @@ export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, 
             if (actual.width !== expected.width || actual.height !== expected.height) {
               report = { ...pair, status: "FAIL", reasons: ["size_mismatch"], size: { actual: [actual.width, actual.height], expected: [expected.width, expected.height] } };
             } else {
-              const result = comparePixels(actual, expected, tolerance, entry.masks ?? []);
-              const drift = result.ratio > tolerance.ratio;
-              report = {
-                ...pair,
-                status: drift ? "FAIL" : "PASS",
-                reasons: drift ? ["golden_drift"] : [],
-                pixels: { outside: result.outside, changed: result.changed, ratio: result.ratio },
-              };
-              const diffPath = join(outDirForPair, `${fixture}.diff.png`);
-              const image = new PNG({ width: actual.width, height: actual.height });
-              Buffer.from(result.diff).copy(image.data);
-              writeFileSync(diffPath, PNG.sync.write(image));
-              artifacts.push(relativeToOut(outDir, diffPath));
+              const maskIssue = maskProblem(entry.masks ?? [], { width: actual.width, height: actual.height, pair: `${host}/${fixture}`, limits: maskLimits });
+              if (maskIssue) {
+                report = { ...pair, status: "FAIL", reasons: [maskIssue] };
+              } else {
+                const result = comparePixels(actual, expected, tolerance, entry.masks ?? []);
+                const drift = result.ratio > tolerance.ratio;
+                report = {
+                  ...pair,
+                  status: drift ? "FAIL" : "PASS",
+                  reasons: drift ? ["golden_drift"] : [],
+                  pixels: { outside: result.outside, changed: result.changed, ratio: result.ratio },
+                };
+                const diffPath = join(outDirForPair, `${fixture}.diff.png`);
+                const image = new PNG({ width: actual.width, height: actual.height });
+                Buffer.from(result.diff).copy(image.data);
+                writeFileSync(diffPath, PNG.sync.write(image));
+                artifacts.push(relativeToOut(outDir, diffPath));
+              }
             }
           }
         }
