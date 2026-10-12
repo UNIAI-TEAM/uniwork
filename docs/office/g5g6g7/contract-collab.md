@@ -350,7 +350,7 @@ Markdown/HTML không có neo (G8-D6): `kind=comment` trên định dạng đó �
 
 Chữ của `collabAnchorLost` (finding FE-4): EXPERIENCE-G8:74 hiện dùng cùng chữ với khung tombstone ("Nội dung đã bị xóa",
 `collabDeleted`, :75) dù comment vẫn sống, nên người đọc hiểu nhầm là đã xóa. Hợp đồng giữ hai khóa riêng; chữ đề xuất cho
-`collabAnchorLost`: vi "Không còn tìm thấy vị trí được bình luận" / en "The commented content was removed" — chờ UX ký ở OQ-C11
+`collabAnchorLost`: vi "Không còn tìm thấy vị trí được bình luận" / en "The commented location can no longer be found" — chờ UX ký ở OQ-C11
 (không sửa spine UX ở đây).
 
 So sánh chỉ theo số `document_versions.version`; luật đầy đủ ở mục 2.6. Neo không phải quyền (bất biến 3).
@@ -510,6 +510,14 @@ và `TestDocumentCommentCommentedNotification` (`server/internal/notification/do
 nào; mention/reply/resolve → đúng kind), không nới lỏng assertion. Test viết lại phải đỏ trên code trước G8-05 và xanh sau; nó chạy
 trong lệnh G8-A06 (mục 12).
 
+**Sổ đăng ký kind phải sửa cùng thay đổi (finding BE-11):** ngừng phát `document_commented` nhưng **giữ** kind đó ở mọi sổ đăng ký
+(dòng cũ vẫn render), và thêm bốn kind mới vào cùng một thay đổi G8-05 ở đủ bảy chỗ: `server/internal/notification/kinds.go`
+(`:31,45`), `server/internal/notification/titles.go` (`:25,45`), `packages/core/i18n/locales/{vi,en}.json` (nhãn danh mục
+`vi.json:381`/`en.json:382` và tiêu đề `vi.json:4524`/`en.json:4528`), `packages/core/types/notification.ts` (`:18`),
+`packages/views/notifications/kind-tone.ts` (`:26`), `packages/views/notifications/kind-icon.tsx` (`:32`),
+`packages/views/notifications/notification-category.ts` (`:19`); `TestTitlesMatchClientLocales`
+(`server/internal/notification/titles_test.go`) và `packages/views/notifications/kind-tone.test.ts` phải xanh.
+
 Một thông báo mỗi người mỗi sự kiện, ưu tiên mention > reply > resolve; không gửi actor; người bị vô hiệu/không đọc được → không
 gửi. Push mặc định: bật cho `document_mentioned`, `document_discussion_mentioned`; tắt cho reply/resolve (`notification/prefs.go:19-20`).
 `params`: `actor`, `document`, `snippet` (ngắn, như `rules.go:409`), `comment_id`, `kind`; không nội dung tài liệu. `GroupKey` theo
@@ -608,11 +616,17 @@ Thay đổi hai repo, chủ seam Lead F: sửa fork `web/docs/protocol/{types,en
 - Capability mới `comments` trong `CAPABILITY_KEYS` (`docs-frame-protocol.ts:289-306`); host chỉ quảng bá khi tài liệu bind UniWork
   và người dùng có ít nhất `view`. Frame chỉ gửi `comments.*`/`mentions.search` khi capability hiệu lực có `comments`.
 - `InitUser` (`:417-419`) thêm `id?: string` — chỉ để biết "bình luận của tôi", không dùng cấp quyền (bất biến 2).
-- `InitPayload` (`:373`) thêm `commentsLevel?: "view" | "edit"` **(đề xuất, OQ-C12;** finding FE-9): host điền từ mức quyền tài liệu
-  hiệu lực khi quảng bá `comments`. Frame **không** suy affordance từ `InitUser.id`: chỉ hiện composer, sửa, xóa, resolve, mở lại khi
-  `commentsLevel = "edit"` (sửa/xóa thêm điều kiện là tác giả; người `manage` sửa/xóa của người khác vẫn do server quyết, frame chỉ
-  hiện khi server đã cho — lỗi 403 đổi panel sang "Chỉ xem"). Thiếu trường (host cũ) → coi như `view` (S12 "Chỉ xem"), không gửi
-  request ghi nào để dò quyền. Đây là gợi ý hiển thị; server vẫn là cổng quyền duy nhất.
+- `InitPayload` (`:373`) thêm `commentsLevel?: "view" | "edit" | "manage"` **(đề xuất, OQ-C12;** finding FE-9, BE-10, FE-r2-1):
+  mức quyền tài liệu hiệu lực của người gọi (cùng giá trị `my_level`, `sdo/document.go:29`). Luật frame theo từng giá trị
+  (G8-D3 tạm, mục 1.2):
+  - `view` → không ghi gì: không composer, không sửa/xóa/resolve/mở lại (S12 "Chỉ xem").
+  - `edit` → composer, trả lời, sửa/xóa bình luận **của mình** (`author_id = InitUser.id`), resolve/mở lại.
+  - `manage` → như `edit`, thêm sửa/xóa bình luận của **người khác** (khớp `canModerate`, `document_comments.go:96-102`).
+  - Host quảng bá capability `comments` thì **phải** gửi `commentsLevel`; init có `comments` mà thiếu `commentsLevel` là lỗi host —
+    test protocol G8-08 khẳng định điều này (mục 12, G8-A04).
+  - Thiếu trường (lỗi host, hoặc OQ-C12 bị bác khi ký): frame hiện composer và thao tác trên bình luận của mình, **không bao giờ**
+    hiện sửa/xóa bình luận của người khác; một lỗi 403 từ server đổi panel sang "Chỉ xem". Không gửi request ghi nào để dò quyền.
+  Frame không suy affordance từ `InitUser.id` ngoài việc nhận ra "của mình". Đây là gợi ý hiển thị; server vẫn là cổng quyền duy nhất.
 
 | Message | Hướng | Kiểu | Payload | Kết quả |
 | --- | --- | --- | --- | --- |
@@ -636,7 +650,13 @@ Thay đổi hai repo, chủ seam Lead F: sửa fork `web/docs/protocol/{types,en
   1. Host chỉ gửi sau khi nhận init ack có capability hiệu lực chứa `comments` (`InitAck.capabilities`, `:421-425`). Init ack không
      có `comments` → host không gửi reveal; web rơi về panel D với `?comment=`, desktop không làm gì thêm.
   2. Frame nhận reveal trước khi `comments.list` đầu tiên thành công thì **giữ** request (không trả `revealed: false`) và trả lời ngay
-     sau list đầu tiên thành công, trong hạn timeout của request. List đầu tiên lỗi → trả lỗi `not_ready`, `retryable: true`.
+     sau list đầu tiên thành công. List đầu tiên lỗi → trả lỗi `not_ready`, `retryable: true`.
+     **Hạn chờ (finding FE-r2-3) — chọn: frame trả `not_ready` trước khi host hết hạn.** Frame giữ reveal tối đa 10 s kể từ lúc
+     nhận; quá 10 s mà list đầu tiên chưa xong → trả `not_ready`, `retryable: true`. Host gửi reveal với timeout mặc định
+     `DEFAULT_TIMEOUT_MS = 30_000` (`packages/core/office/docs-frame-endpoint.ts:84`) và không đặt `timeoutMs` riêng thấp hơn 15 s.
+     Lý do: hạn chờ là của frame (frame biết list đầu tiên đang ở đâu), còn timeout là tùy chọn từng host (`timeoutMs` 0 = chờ mãi,
+     `docs-frame-endpoint.ts:61`), nên frame không dựa vào nó được; host luôn nhận một lỗi có kiểu (`not_ready`) thay vì `timeout`
+     của transport, và list chậm không tốn thêm một lần thử lại vì timeout.
   3. Host thử lại **một lần** khi gặp `not_ready` hoặc `timeout`, sau 2 s hoặc ngay khi nhận `comments.changed` (cái nào đến trước);
      lần hai lỗi → host bỏ, không báo gì (panel frame tự hiện trạng thái lỗi tải).
   4. `revealed: false` chỉ mang nghĩa "danh sách đã tải và không có comment này": frame đã hiện S15, host **không** toast/hiện thêm.
@@ -676,7 +696,7 @@ reports/<lane>/cloud-test-<seq>.md`, contract-p0 §10); `go test` chạy trong `
 | G8-A01 | G8-02, G8-12..15, G8-19 (góp G8-08, G8-20) | F vitest tác giả G8-02 (grep-test `userInfo(`/`USERNAME`/`LOGNAME` + đọc lại phần bình luận tệp) · F vitest adapter G8-12..15 (AI tool không gọi `comments.create` trước Gửi) · harness G8-19 bốn fixture | `reports/g8-fork_host/cloud-test-*.md`, `reports/g8-fork_editors/cloud-test-*.md`, `reports/g7-qa/g8-a01/` (dòng server + phần tệp đọc lại + log request) |
 | G8-A02 | G8-04, G8-12..15, G8-19 | `go test ./internal/service ./internal/handler -run 'DocumentCommentAnchors\|IsolationMatrix'` · F vitest neo G8-12..15 (Lưu → neo mới, xóa → `lost`, reveal) · harness G8-19 | `reports/g8-server/cloud-test-*.md`, `reports/g8-fork_editors/cloud-test-*.md`, `reports/g7-qa/g8-a02/` (receipt neo + ba thân 400) |
 | G8-A03 | G8-03, G8-10, G8-11 (góp G8-20) | `go test ./internal/service ./internal/handler -run 'DocumentComment(Kind\|Tombstone\|Revision\|Purge\|Copy\|ListToken)'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents packages/core/api/endpoints/document-comments.test.ts` (gồm ca `unchanged`, dòng `discussion` ở client cũ) · F vitest panel G8-11 | `reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md` + ảnh S13 light/dark vi/en, `reports/g8-fork_editors/cloud-test-*.md` |
-| G8-A04 | G8-08, G8-10, G8-11, G8-19 (góp G8-04, G8-20) | `pnpm vitest run packages/core/office packages/views/office/frame packages/core/realtime/use-realtime-sync.test.tsx` · `node --test scripts/office/frame-protocol-vendor.test.mjs` · F vitest protocol G8-08 (gồm `comment_deleted` không reload + giữ nháp, thứ tự `comments.reveal`) · harness G8-19 hai host | `reports/g8-fork_host/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md`, `reports/g7-qa/g8-a04/` (ghi hình web ↔ desktop) |
+| G8-A04 | G8-08, G8-10, G8-11, G8-19 (góp G8-04, G8-20) | `pnpm vitest run packages/core/office packages/views/office/frame packages/core/realtime/use-realtime-sync.test.tsx` · `node --test scripts/office/frame-protocol-vendor.test.mjs` · F vitest protocol G8-08 (gồm `comment_deleted` không reload + giữ nháp, thứ tự + hạn chờ `comments.reveal`, `commentsLevel` view/edit/manage, init có `comments` thiếu `commentsLevel` = lỗi host) · harness G8-19 hai host | `reports/g8-fork_host/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md`, `reports/g7-qa/g8-a04/` (ghi hình web ↔ desktop) |
 | G8-A05 | G8-05, G8-06, G8-10 (góp G8-20) | `go test ./internal/notification ./internal/service ./internal/mentions -run 'DocumentMention\|MentionCandidates\|Claim\|TokenIDs'` · `pnpm vitest run packages/core/api/endpoints/document-comments.test.ts packages/views/documents` | `reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md` |
 | G8-A06 | G8-05 | `go test ./internal/notification -run 'DocumentComment\|Titles\|Kinds'` (gồm `TestDocumentCommentCommentedNotification` viết lại theo G8-D4) · `pnpm vitest run packages/core/types packages/views/notifications packages/core/i18n` | `reports/g8-server/cloud-test-*.md` (bảng người nhận UNI-1337 từng hàng) |
 | G8-A07 | G8-07, G8-19 (góp G8-08) | `go test ./internal/notification ./internal/service -run 'ResourceURL\|FilterReadableDocuments\|NotificationList\|OfficeLaunch'` · `pnpm vitest run packages/views/notifications/resource-href.test.ts packages/views/documents packages/core/api/endpoints/notifications.test.ts` · harness G8-19 deep link web + desktop | `reports/g8-web/cloud-test-*.md`, `reports/g8-server/cloud-test-*.md`, `reports/g7-qa/g8-a07/` (ảnh S15 năm ngoại lệ) |
@@ -698,7 +718,12 @@ reports/<lane>/cloud-test-<seq>.md`, contract-p0 §10); `go test` chạy trong `
 | OQ-C8 | Hai dòng (tiêu đề + nội dung) trong `titles.go` đang một chuỗi mỗi kind | `titles.go` + `notifications.kind.*` giữ câu **nội dung** (có actor + tài liệu, kênh push/email cần); tiêu đề ngắn thành khóa mới `notifications.kindTitle.*` cho Inbox/push title | Lead D (G8-05) |
 | OQ-C9 | Plan G8-08 ánh xạ mất mạng → `internal`, trong khi protocol có `network` ("fetch failed / offline") | **Đã chốt r2** (hai reviewer đồng ý, lead giao): mất mạng → `network`, 5xx → `internal` (mục 9); plan G8-08 đã khớp trên root `50fc0f174` | Đóng |
 | OQ-C10 | Đổi tên hiển thị không đổi `list_token` → client dùng `since_token` giữ tên chip cũ tới lần list đầy đủ kế | Chấp nhận v1: tên chip đến từ bảng `mentions` (mục 2.1), làm mới ở mỗi list đầy đủ (web mỗi lần invalidate; desktop khi token đổi) | UX |
-| OQ-C11 | Chữ nhãn neo `lost` (`collabAnchorLost`) trùng chữ khung tombstone "Nội dung đã bị xóa" (EXPERIENCE-G8:74-75) dù comment còn sống | Chữ riêng: vi "Không còn tìm thấy vị trí được bình luận" / en "The commented content was removed"; sửa EXPERIENCE-G8:74 và câu AC G8-A02 của plan ("cha hiện 'Nội dung đã bị xoá'") cùng lúc | UX + Advisor |
-| OQ-C12 | Frame biết mức quyền bình luận để ẩn composer mà không phải thử request | `InitPayload.commentsLevel?: "view" \| "edit"` tùy chọn (mục 10), thiếu → `view`; chỉ là gợi ý hiển thị | Lead F |
+| OQ-C11 | Chữ nhãn neo `lost` (`collabAnchorLost`) trùng chữ khung tombstone "Nội dung đã bị xóa" (EXPERIENCE-G8:74-75) dù comment còn sống | Chữ riêng: vi "Không còn tìm thấy vị trí được bình luận" / en "The commented location can no longer be found"; sửa EXPERIENCE-G8:74 và câu AC G8-A02 của plan ("cha hiện 'Nội dung đã bị xoá'") cùng lúc | UX + Advisor |
+| OQ-C12 | Frame biết mức quyền bình luận để ẩn composer mà không phải thử request | Khuyến nghị (quyết định lead, chờ Advisor ký): `InitPayload.commentsLevel?: "view" \| "edit" \| "manage"` = mức quyền tài liệu hiệu lực (mục 10); `view` → không ghi; `edit` → composer + sửa/xóa của mình + resolve/mở lại (G8-D3 tạm); `manage` → thêm sửa/xóa của người khác; host quảng bá `comments` phải gửi trường này (test protocol G8-08). Thiếu trường → hiện composer và thao tác của mình, không bao giờ của người khác; 403 → "Chỉ xem"; server là cổng duy nhất. **Nếu OQ-C12 bị bác khi ký, luật "thiếu trường" này là toàn bộ luật** (không có `commentsLevel`) | Advisor (ký) + Lead F |
 
 Không câu nào ở đây chặn G8-03/04/05/06/08: lane dùng giá trị tạm, ghi "theo draft contract-collab" trong packet.
+
+Finding cho Advisor (thẻ G8-05 của plan, finding BE-11): thẻ G8-05 phải ghi rằng khi ngừng phát `document_commented` (kind giữ cho
+dòng cũ), cùng thay đổi đó thêm các kind mới vào `kinds.go`, `titles.go`, `packages/core/i18n/locales/{vi,en}.json`,
+`packages/core/types/notification.ts`, `kind-tone.ts`, `kind-icon.tsx`, `notification-category.ts`, với `titles_test.go` và
+`kind-tone.test.ts` xanh (chi tiết mục 8.3).
