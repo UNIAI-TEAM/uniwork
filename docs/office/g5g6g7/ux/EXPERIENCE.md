@@ -1,6 +1,6 @@
 ---
 name: UniWork Office — G5/G6/G7 surfaces
-status: draft
+status: final
 updated: 2026-10-12
 sources:
   - ../../../superpowers/specs/2026-10-02-office-g5-g6-g7-design.md
@@ -13,7 +13,7 @@ design: DESIGN.md
 Spine này là hợp đồng hành vi cho các bề mặt UI của G5 (đồng bộ, offline, Lưu, xung đột) và G6 (nhà cung cấp
 UniWork AI trong panel AI genoffice). Mọi `§` trỏ vào spec G5/G6/G7 v1.2 (U-12 bỏ Dify; spine không có trạng thái Dify/retrieval nào); mã task, cổng (X-01, X-02, X-03, U-01, G5-…,
 G6-…) và tên trường wire do plan đề xuất (`x_uniwork`, `ask_user`, `Retry-After`, `office_capability_off`) trỏ vào plan
-và chốt ở task được nêu. Trạng thái `draft`: U-01 (Product ký, đóng Open questions) đặt `final`.
+và chốt ở task được nêu. Trạng thái `final`: U-01 đã áp các câu trả lời Product đã ký (U-15, 2026-10-12) và đóng Open questions; mọi con số và nhãn ở đây là giá trị đã ký.
 
 ## Foundation
 
@@ -49,8 +49,7 @@ và chốt ở task được nêu. Trạng thái `draft`: U-01 (Product ký, đ�
     unload, mất port/IPC hoặc tab đóng. Desktop: preload của sáu app (`apps/{docs,sheets,slides,pdf,markdown,html}/src/
     preload/index.ts`) mở `reportAiRun(payload)` → IPC `uniwork:ai-run` → registry ở main theo webContents id;
     `TabManager.editorDirtyStates` trả `{path, dirty, aiRunning}` cho từng tab.
-  - `doc.remoteVersion {document_id, revision, version_id, …}` (mới, host → frame); có gửi cho thay đổi chỉ metadata hay
-    không: OQ-UX15. Tải lại dùng `api.open` (khóa xin version và cách trả lời khi version không còn là head: OQ-UX15;
+  - `doc.remoteVersion {document_id, revision, version_id, …}` (mới, host → frame); thay đổi chỉ metadata không gây xung đột Lưu (server so base nội dung, OQ-UX15, U-15, 2026-10-12), nên có gửi `doc.remoteVersion` cho chúng hay không không ảnh hưởng Lưu và do X-02 chốt. Tải lại dùng `api.open` (khóa xin version và cách trả lời khi version không còn là head do X-02 chốt, OQ-UX15 (U-15, 2026-10-12);
     không bao giờ ghép byte cũ với revision của head); phản hồi mang `FileMeta.revision` của bản trả về
     (host cũ không có trường này: S6 dùng câu không số `uwRemoteUpdatedNoRev`).
   - `api.download {data}` (mới, frame → host): frame gửi bytes đang mở; host tự quyết tên, đuôi, MIME, giới hạn kích
@@ -58,7 +57,7 @@ và chốt ở task được nêu. Trạng thái `draft`: U-01 (Product ký, đ�
     host quảng bá trong `init` **và** frame khai `download: true` (`web/docs/bridge/module-bridge.ts`/`install.ts`); frame
     chỉ vẽ lựa chọn tải về khi có. Frame không có `allow-downloads`.
   - `save` (sẵn có, host → frame): hợp đồng cho lần Lưu do host gửi ở State Patterns › Conflict dialog (S5).
-- **Ngôn ngữ.** vi và en là hai ngôn ngữ được thiết kế và duyệt; các locale khác theo OQ-UX4.
+- **Ngôn ngữ.** vi và en là hai ngôn ngữ được thiết kế và duyệt; 19 locale còn lại dùng dịch máy có review, cổng tối thiểu là test parity + placeholder + quét brand (OQ-UX4, U-15, 2026-10-12).
 - **Chế độ màu.** light / dark / theo hệ thống, theo `data-theme` của fork.
 
 ## Information Architecture
@@ -66,10 +65,10 @@ và chốt ở task được nêu. Trạng thái `draft`: U-01 (Product ký, đ�
 | # | Bề mặt | Host | Mở từ | Mục đích | Spec |
 | --- | --- | --- | --- | --- | --- |
 | S1 | Pill trạng thái Lưu (mở rộng) | Desktop | Luôn hiện trên tab tài liệu UniWork | Một nhãn đúng cho checkpoint / chờ / đã lưu / cần xử lý | §5.2, §5.3 |
-| S2 | Trung tâm đồng bộ | Desktop | Pill S1 → "Xem hàng chờ"; các điểm vào khác theo OQ-UX7 | Kết nối, lần đồng bộ cuối, hàng chờ, cần xử lý, thư viện offline | §5.3 |
+| S2 | Trung tâm đồng bộ | Desktop | Pill S1 → "Xem hàng chờ"; Cài đặt › Tài khoản → liên kết `uwSyncOpenFromSettings` (không có menu tài khoản; OQ-UX7, U-15, 2026-10-12) | Kết nối, lần đồng bộ cuối, hàng chờ, cần xử lý, thư viện offline | §5.3 |
 | S3 | Thư viện offline (tab của S2) + hành động ghim | Desktop | S2 tab "Dùng khi không có mạng"; menu tài liệu → "Dùng khi không có mạng" | Ghim/bỏ ghim, tiến trình tải, trạng thái sẵn sàng/lease | §5.1 |
 | S4 | Popover hàng chờ của tài liệu | Desktop | Bấm pill S1 khi có intent; Ctrl/⌘+S khi đã có intent | Bản đang chờ (N), có thay đổi mới (N+1), vì sao Lưu bị chặn | §5.2 |
-| S5 | Hộp thoại xung đột | Web frame + desktop | Mọi đường Lưu gặp 409 (kể cả nút Lưu của trang host web); pill "Xử lý…"; hàng `conflict` ở S2 | Tải lại bản mới nhất / Ghi đè / Hủy | §5.3 |
+| S5 | Hộp thoại xung đột | Web frame + desktop | Mọi đường Lưu gặp 409 (kể cả nút Lưu của trang host web); pill "Xử lý…"; hàng `conflict` ở S2 | Tải lại bản mới nhất / Lưu thành bản sao / Ghi đè / Hủy | §5.3 |
 | S6 | Thanh phiên bản mới | Web frame + desktop | Server có version mới cho tài liệu đang mở; mất quyền; bị xóa | Sạch: đã nạp. Dirty/AI: không nạp, mời xử lý | §4.2 |
 | S7 | Mục "UniWork AI" trong picker | Web frame + desktop | Panel AI → chọn mô hình | Chọn UniWork AI khi đủ điều kiện | §6.1 |
 | S8 | Lời công bố nội dung gửi đi | Web frame + desktop | Lượt UniWork AI đầu tiên mỗi tài liệu mỗi phiên; dòng phụ thường trực | Nội dung đang mở (kể cả chưa lưu) được gửi và dùng tín dụng tổ chức | §6.1, §8.3 |
@@ -115,22 +114,22 @@ Accessibility Floor, theo mã S. Tên thành phần dùng chung với DESIGN.md 
 | Save pill (`uw-pill`) | S1 | Một trạng thái tại một thời điểm, theo thứ tự ưu tiên ở State Patterns › Save pill (S1, desktop). Một hành động tối đa. Câu giải thích đầy đủ là cột "Mô tả" của bảng đó, hiện thành tooltip khi hover **hoặc** focus. |
 | Queue popover | S4 | Mở từ pill hoặc Ctrl/⌘+S khi có intent. Dòng 1 `uwQueuePopWaiting`; dòng 2 nếu có N+1 `uwQueuePopNewer`; dòng 3 nếu Lưu đang bị chặn: lý do. Hành động: "Mở trung tâm đồng bộ", "Hủy lần lưu…" (chỉ khi biết chưa commit). Đóng bằng Esc hoặc bấm ngoài. |
 | Lưu khi đang có intent | S1, S4 | Không tạo intent thứ hai (§5.2 bước 2). Mở S4 với `uwQueueBlockedSave`. Không âm thanh lỗi, không đổi snapshot N. Theo từng trạng thái: State Patterns › Ctrl/⌘+S theo trạng thái. |
-| Sync center | S2 | Gồm bốn phần (tên dùng chung với DESIGN): **Sync header** (kết nối + lần đồng bộ cuối + tài khoản/tổ chức + bộ nhớ đồng bộ `uwSyncStoreBudget` + "Đồng bộ ngay" + "Tạm dừng gửi"/"Tiếp tục gửi"), **Sync header status line** (một dòng, thứ tự ở State Patterns › Đầu trang S2), **Sync tab** (tablist: "Cần xử lý", "Đang chờ lưu", "Dùng khi không có mạng" (khi capability offline bật hoặc khi OQ-UX11 giữ bản đã tải), "Đã lưu gần đây"; mở mặc định ở "Cần xử lý" nếu > 0, ngược lại "Đang chờ lưu"), và mỗi tabpanel là một bảng **Sync row**. Tabpanel S3 có **Usage header** (`uwOfflineUsage` + "Thêm tài liệu…") nằm trong tabpanel, trên bảng. "Đồng bộ ngay" khi offline: vẫn hiện, không chạy, kèm lý do `uwSyncNowOffline`. |
+| Sync center | S2 | Gồm bốn phần (tên dùng chung với DESIGN): **Sync header** (kết nối + lần đồng bộ cuối + tài khoản/tổ chức + bộ nhớ đồng bộ `uwSyncStoreBudget` + "Đồng bộ ngay" + "Tạm dừng gửi"/"Tiếp tục gửi"), **Sync header status line** (một dòng, thứ tự ở State Patterns › Đầu trang S2), **Sync tab** (tablist: "Cần xử lý", "Đang chờ lưu", "Dùng khi không có mạng" (khi capability offline bật hoặc còn bản đã tải được giữ, OQ-UX11, U-15, 2026-10-12), "Đã lưu gần đây"; mở mặc định ở "Cần xử lý" nếu > 0, ngược lại "Đang chờ lưu"; tab "Đã lưu gần đây" giữ hàng 24 giờ, OQ-UX2, U-15, 2026-10-12), và mỗi tabpanel là một bảng **Sync row**. Tabpanel S3 có **Usage header** (`uwOfflineUsage` + "Thêm tài liệu…") nằm trong tabpanel, trên bảng. "Đồng bộ ngay" khi offline: vẫn hiện, không chạy, kèm lý do `uwSyncNowOffline`. |
 | Status badge | S2, S3 | Tone và khóa nhãn lấy từ bảng trạng thái; badge luôn có chữ; không tương tác. |
 | Pause/resume gửi | S2 | "Tạm dừng gửi" chỉ dừng dispatch intent mới; intent đang `committing` chạy tới receipt hoặc `reconciling`. Không xóa gì. Intent chờ vì người dùng tạm dừng ở trạng thái `paused_user` (State Patterns › Queue rows); trạng thái tạm dừng là **theo tài khoản** (áp cho mọi tổ chức, dù S2 lọc theo tổ chức), được lưu và giữ qua lần khởi động lại cho tới khi người dùng bấm "Tiếp tục gửi". |
-| Cancel intent | S2, S4 | Chỉ khi `queued`, `paused_offline`, `paused_user`, `paused_admin`, `failed`, `conflict` (biết chắc chưa commit). Xác nhận trong popover `uwQueueCancelConfirm` → `cancelled`, Toast `uwQueueCancelled`. Kết quả: tài liệu về "Có thay đổi chưa lưu"; hủy từ `conflict` (server đã mới hơn) → `remote-newer`. Tài liệu đang đóng: snapshot của intent thành **Nháp đã giữ** ở S2 (không bị xóa); tài liệu đã có số nháp tối đa hoặc store đầy → từ chối hủy với `uwConflictDraftCapReached` / `uwQueueFull`, intent giữ nguyên. Không có ở `validating/uploading/committing/reconciling/reconciling-stuck`. |
-| Pin offline | S3 | Hành động trong menu tài liệu và nút "Thêm tài liệu…" ở Usage header. Online: tải ngay; offline: "Chờ mạng". Đạt giới hạn (OQ-UX2): nút và mục menu vẫn bật, chọn thì hiện `uwOfflineCapReached` và không ghim. Không có "ghim cả thư mục/không gian" ở v1. |
+| Cancel intent | S2, S4 | Chỉ khi `queued`, `paused_offline`, `paused_user`, `paused_admin`, `failed`, `conflict` (biết chắc chưa commit). Xác nhận trong popover `uwQueueCancelConfirm` → `cancelled`, Toast `uwQueueCancelled`. Kết quả: tài liệu về "Có thay đổi chưa lưu"; hủy từ `conflict` (server đã mới hơn) → `remote-newer`. Tài liệu đang đóng: snapshot của intent thành **Nháp đã giữ** ở S2 (không bị xóa); tài liệu đã có 3 nháp (tối đa mỗi tài liệu, OQ-UX2, U-15, 2026-10-12) hoặc store đầy (1 GiB mỗi tài khoản, không gồm thư viện offline) → từ chối hủy với `uwConflictDraftCapReached` / `uwQueueFull`, intent giữ nguyên. Không có ở `validating/uploading/committing/reconciling/reconciling-stuck`. |
+| Pin offline | S3 | Hành động trong menu tài liệu và nút "Thêm tài liệu…" ở Usage header. Online: tải ngay; offline: `uwOfflineBadgeWaiting`. Đạt giới hạn (2 GiB mỗi tài khoản trên một máy hoặc 200 tài liệu ghim, cái nào chạm trước; OQ-UX2, U-15, 2026-10-12): nút và mục menu vẫn bật, chọn thì hiện `uwOfflineCapReached` và không ghim. Không có "ghim cả thư mục/không gian" ở v1. |
 | Unpin offline | S3 | Không cần xác nhận khi không có nháp/intent. Có nháp/intent: xác nhận `uwOfflineUnpinConfirm`. Không bao giờ xóa nháp/intent (§5.1). Tài liệu đang mở ở một tab: bản tải về chỉ được dọn sau khi tab đóng (không còn reader). |
-| Download progress | S3 | Thanh + chữ "{done} / {total}" + "Hủy tải". Hủy hoặc mất mạng → `interrupted`, giữ bản cũ nếu có. "Sẵn sàng offline" chỉ sau kiểm checksum. Bản cập nhật vượt giới hạn, hỏng hoặc thiếu dung lượng: giữ bản `ready` cũ, dòng phụ `uwOfflineRowUpdateKept`. "Tải ngay" khi tài liệu đang mở và dirty: tải bản mới vào cache nhưng **không** thay nội dung đang mở; tài liệu nhận S6 dirty. |
+| Download progress | S3 | Thanh + chữ `uwOfflineRowProgress` + "Hủy tải" (`uwOfflineCancelDownload`). Hủy hoặc mất mạng → `interrupted`, giữ bản cũ nếu có. "Sẵn sàng offline" chỉ sau kiểm checksum. Bản cập nhật vượt giới hạn, hỏng hoặc thiếu dung lượng: giữ bản `ready` cũ, dòng phụ `uwOfflineRowUpdateKept`. "Tải ngay" khi tài liệu đang mở và dirty: tải bản mới vào cache nhưng **không** thay nội dung đang mở; tài liệu nhận S6 dirty. |
 | Conflict dialog | S5 | Toàn bộ hợp đồng (thứ tự, focus, bước xác nhận, biến thể, lần Lưu do host web gửi, `api.download`, mở rộng `frame-dialog.ts`): State Patterns › Conflict dialog (S5). |
 | Mở S5 từ hàng S2 | S2 → S5 | "Mở để xử lý" khi tài liệu đang đóng: mở tài liệu (nội dung của intent, chỉ đọc phía sau hộp thoại) rồi hiện S5 khi đã nạp xong head; offline: biến thể "Desktop offline" của S5. Hủy S5 để lại tài liệu ở trạng thái dirty với intent `conflict` giữ nguyên. |
-| New-version bar | S6 | Một thanh, không chồng. Sạch: nạp xong rồi hiện thanh info; tự ẩn sau 8 giây **chỉ khi** không có focus và không có hover trong thanh; câu vẫn tra lại được (desktop: S2 "Đã lưu gần đây"; web: lịch sử phiên bản). Dirty / AI chạy / có intent: thanh warn, không nạp, hai hành động "Tải lại bản mới nhất…" (mở S5 bước Reload confirm) và "Để sau"; pill `remote-newer`. Chi tiết theo trạng thái: State Patterns › Thanh phiên bản mới (S6). |
-| Second-window bar | S1 | Skin của New-version bar (tone info). Mở một Document đã có cửa sổ khác giữ lock: cửa sổ mới chỉ đọc, thanh `uwLockOtherWindow` + "Chuyển tới cửa sổ đó". Lock có heartbeat và **generation**: cửa sổ giữ lock treo hoặc crash quá thời gian chốt ở OQ-UX2 → thanh đổi thành `uwLockOtherWindowGone` + "Sửa ở cửa sổ này"; khi chọn, generation tăng; cửa sổ cũ sống lại thấy generation mới và tự thành chỉ đọc với cùng thanh (không bao giờ hai cửa sổ cùng sửa). |
+| New-version bar | S6 | Một thanh, không chồng. Sạch: nạp xong rồi hiện thanh info; tự ẩn sau 8 giây (OQ-UX2, U-15, 2026-10-12) **chỉ khi** không có focus và không có hover trong thanh; câu vẫn tra lại được (desktop: S2 "Đã lưu gần đây"; web: lịch sử phiên bản). Dirty / AI chạy / có intent: thanh warn, không nạp, hai hành động "Tải lại bản mới nhất…" (mở S5 bước Reload confirm) và "Để sau"; pill `remote-newer`. Chi tiết theo trạng thái: State Patterns › Thanh phiên bản mới (S6). |
+| Second-window bar | S1 | Skin của New-version bar (tone info). Mở một Document đã có cửa sổ khác giữ lock: cửa sổ mới chỉ đọc, thanh `uwLockOtherWindow` + "Chuyển tới cửa sổ đó". Lock có heartbeat và **generation**: cửa sổ giữ lock treo hoặc crash không gửi heartbeat quá 15 giây (nhịp 5 giây, mất sau 3 nhịp lỡ; OQ-UX2, U-15, 2026-10-12) → thanh đổi thành `uwLockOtherWindowGone` + "Sửa ở cửa sổ này"; khi chọn, generation tăng; cửa sổ cũ sống lại thấy generation mới và tự thành chỉ đọc với cùng thanh (không bao giờ hai cửa sổ cùng sửa). |
 | Lock-while-open bar | S11 | Skin của New-version bar (tone error). Tài liệu **đang mở và dirty** khi khóa xảy ra: giữ bộ đệm chỉnh sửa trên màn hình ở chế độ chỉ đọc, chặn Lưu và chép/xuất theo policy; nháp N+1 ghi vào store mã hóa, thanh `uwLockWhileOpen`. Store không ghi được (kho khóa đang khóa, `store_full`): bộ đệm chỉ còn trong RAM, chỉ đọc, thanh `uwLockWhileOpenRam`; đóng cửa sổ thì mất (hộp thoại đóng của fork hỏi như với tệp chưa lưu). |
 | Provider row "UniWork AI" | S7 | Hiện khi đủ điều kiện ở State Patterns › UniWork AI (S7–S10). Desktop: tên "UniWork AI" + mô tả tín dụng (`cloudCreditsLeft`/`cloudCreditsUnlimited`). Web: chỉ tên, không dòng tín dụng ở v1 (grant frame chỉ có boolean); hết tín dụng hiện bằng lỗi 402 (S9). Không bao giờ hiện bản disabled. |
-| Picker footer | S7 | Desktop: dòng chú thích dưới danh sách, ngoài listbox, sau nút "Quản lý". Dùng nhãn `cloudState*` + nút "Chi tiết" (mở Cài đặt › Tài khoản) hoặc "Đăng nhập" khi `signed-out`. Không có footer khi chưa đọc được server lần đầu; có khi server trả `cloud_unavailable`. Web: không có footer. |
+| Picker footer | S7 | Desktop: dòng chú thích dưới danh sách, ngoài listbox, sau nút "Quản lý". Là chú thích, không phải lỗi (OQ-UX3, U-15, 2026-10-12). Dùng nhãn `cloudState*` + nút "Chi tiết" (mở Cài đặt › Tài khoản) hoặc "Đăng nhập" khi `signed-out`. Không có footer khi chưa đọc được server lần đầu; có khi server trả `cloud_unavailable`. Web: không có footer. |
 | Composer note | S7–S9 | Một ghi chú tại một thời điểm, phía trên composer. Khi nhiều điều kiện cùng đúng, ưu tiên: signed-out > capability/format tắt > not-entitled > subscription-inactive > credits-exhausted > unavailable. Dòng phụ chỉ xem (`aiUniworkViewOnly`) là dòng riêng dưới composer, có thể cùng hiện với ghi chú. Nội dung và hành động theo bảng trạng thái UniWork AI và bảng lỗi. Không tự ẩn; mất khi người dùng chọn hành động hoặc đổi nhà cung cấp. |
-| AI disclosure | S8 | Chọn UniWork AI: khối mở rộng xuất hiện trên composer, không cướp focus. "Gửi" chưa chạy khi chưa xác nhận; bấm "Gửi" lúc đó đưa người dùng tới khối. Sau "Đã hiểu": dòng phụ thường trực dưới composer. Đổi tài liệu hoặc tổ chức → hiện lại khối mở rộng (OQ-UX10). |
+| AI disclosure | S8 | Chọn UniWork AI: khối mở rộng xuất hiện trên composer, không cướp focus. "Gửi" chưa chạy khi chưa xác nhận; bấm "Gửi" lúc đó đưa người dùng tới khối. Sau "Đã hiểu": dòng phụ thường trực dưới composer. Đổi tài liệu hoặc tổ chức → hiện lại khối mở rộng (OQ-UX10, U-15, 2026-10-12; G6-05u lưu "đã hiểu" theo khóa tài khoản, tổ chức, tài liệu). |
 | Result chip | S9 | Mỗi câu trả lời UniWork AI có đúng một chip, là chữ đầu của đoạn trả lời (cùng một nút với chữ). Quyết định xác định (thứ tự ưu tiên): (1) **Đã sửa trong tài liệu** nếu có ít nhất một công cụ ghi chạy thành công trong lượt (thắng mọi loại khác; nếu lượt sau đó kết thúc bằng lỗi, câu trả lời **vẫn** có chip này **và** một dòng lỗi theo bảng S9 kèm hành động của nó); (2) **Chưa hỗ trợ** nếu server báo tool call bị bỏ hoặc `finish_reason = tool_not_allowed`, và không công cụ ghi nào chạy — lý do bỏ `view_only` → dòng `aiErrViewOnlyEdit`, `not_allowlisted` → `aiErrUnsupported {module}`; (3) **Cần làm rõ** chỉ khi model gọi công cụ làm rõ `ask_user` trong allowlist; (4) **Lỗi** khi lượt kết thúc bằng lỗi trong bảng S9; (5) còn lại **Trả lời**. Tên trường wire ở (2)–(3) chốt ở G6-02. Lượt bị Dừng mà chưa ghi: có chữ trả lời thì chip "Trả lời" + dòng `aiRunStopped`; chưa có chữ thì không có câu trả lời, chỉ dòng `aiRunStopped`. "Đã sửa…" kèm "Xem thay đổi", dòng meta (XLSX: sheet/range, số ô ghi, số ô có sẵn bị ghi đè, số dòng, cảnh báo — §6.5) và `aiResultEditedHint`. Engine không tính được (§6.5): chip "Trả lời" với cảnh báo trong dòng meta. |
 | Stop | S9 | Khi lượt chạy, nút "Gửi" đổi thành "Dừng". Dừng cũng bằng Esc khi focus trong composer và không có popup nào mở. Sau dừng: dòng `aiRunStopped`. |
 | Toast | S1, S2 | Toast một lần của shell (ví dụ `uwQueueCancelled`). Không tự tắt khi đang hover hoặc focus; nội dung cũng có trong S2. |
@@ -149,14 +148,14 @@ Accessibility Floor, theo mã S. Tên thành phần dùng chung với DESIGN.md 
 | `foreign_account` | `uwReasonForeign` | error `uwBadgeLocked` | Chuyển tài khoản | Chỉ tài khoản chủ mở được; không hiện tên tài liệu |
 | `permission_revoked` | `uwReasonForbidden` (sẵn có) | error `uwBadgeRevoked` | Kiểm tra lại · Bỏ nháp… | Cấp lại quyền (biết qua feed hoặc "Kiểm tra lại") → queued; nếu không, giữ khóa tới khi người dùng bỏ nháp |
 | `document_deleted` | `uwReasonDeleted` (sẵn có) | error `uwBadgeDeleted` | Kiểm tra lại · Bỏ nháp… | Khôi phục tài liệu → queued; nếu không, kết thúc khi người dùng bỏ nháp |
-| `document_archived` | `uwReasonArchived` | info `uwBadgeArchived` | Kiểm tra lại · Bỏ nháp… | Bỏ lưu trữ → queued (bỏ lưu trữ cũng tăng revision: OQ-UX15) |
+| `document_archived` | `uwReasonArchived` | info `uwBadgeArchived` | Kiểm tra lại · Bỏ nháp… | Bỏ lưu trữ → queued (không gây xung đột: server so base nội dung, OQ-UX15, U-15, 2026-10-12) |
 | `organization_suspended` | `uwReasonSuspended` | error `uwBadgeBlocked` | Kiểm tra lại | Tổ chức được mở lại → queued |
 | `member_deactivated` | `uwReasonDeactivated` | error `uwBadgeBlocked` | Kiểm tra lại · Bỏ nháp… | Tài khoản được kích hoạt lại → queued |
 | `lease_expired` | `uwReasonLease` | error `uwBadgeReconnect` | Kết nối lại | Gia hạn lease khi online |
 | `lease_expired` khi `offline_library` tắt | `uwReasonLease` | error `uwBadgeReconnect` | Mở trung tâm đồng bộ | Không gia hạn được tới khi capability bật lại; nháp giữ khóa ở S2 |
 | `keystore_locked` | `uwReasonKeystore` | error `uwBadgeKeystore` | Thử lại | Lớp phủ: kho khóa mở → về đúng trạng thái trước đó (`reconciling` vẫn `reconciling`, không bao giờ thành `queued` chỉ vì mở khóa). Phiên ở trạng thái `keystore-locked` (G5-04), tách khỏi `keyring_unavailable` |
 | `clock_rollback` | `uwReasonClock` | error `uwBadgeReconnect` | Kết nối lại | Kiểm thời gian với server khi online |
-| `store_full` | `uwReasonStoreFull` | error `uwBadgeBlocked` | Mở trung tâm đồng bộ | Ngân sách store của tài khoản (OQ-UX2) còn chỗ → người dùng Lưu lại |
+| `store_full` | `uwReasonStoreFull` | error `uwBadgeBlocked` | Mở trung tâm đồng bộ | Ngân sách store của tài khoản (1 GiB mỗi tài khoản, queue + nháp, không gồm thư viện offline; OQ-UX2, U-15, 2026-10-12) còn chỗ → người dùng Lưu lại |
 | `store_newer` (store cần bản app mới hơn) | `uwReasonStoreNewer` | error `uwBadgeLocked` | Đóng | Cập nhật app (bản đọc được schema mới); không tạo intent mới (G5-04g) |
 
 Máy không có kho khóa an toàn (`keyring_unavailable`: Linux `basic_text` hoặc `safeStorage` không dùng được) **không
@@ -198,7 +197,7 @@ gặp 403 → blocked `permission_revoked`); view-only chỉ thắng các trạn
 | unreachable (sẵn có, chưa có intent) | `uwChipUnreachable` (sẵn có); có intent thì thành `paused_offline` | — | — | `uwTipUnreachable` (sẵn có) |
 | signed-out (sẵn có) | `uwChipSignedOut` (sẵn có); nếu có intent/nháp: blocked `signed_out` | error | Đăng nhập | `uwTipSignedOut` (sẵn có) |
 | view-only (sẵn có) | `uwChipViewOnly` (sẵn có) | — | — | `uwTipViewOnly` (sẵn có) |
-| đang chờ AI xong bước | `uwChipSaving` (sẵn có) | — + spinner | Dừng AI (chỉ khi quá ngưỡng) | `uwTipWaitAi`; quá ngưỡng (OQ-UX2): `uwTipWaitAiLong` |
+| đang chờ AI xong bước | `uwChipSaving` (sẵn có; không có chữ riêng) | — + spinner | Dừng AI (`uwActStopAi`; chỉ khi quá ngưỡng) | `uwTipWaitAi`; quá 30 giây (OQ-UX2, U-15, 2026-10-12): `uwTipWaitAiLong` |
 
 Web frame giữ trạng thái Lưu của frame (không có queue); chỉ thêm S6.
 
@@ -212,7 +211,7 @@ Hàng đầu tiên khớp thắng (đọc từ trên xuống).
 | Đã có intent ở bất kỳ trạng thái nào (gồm khi AI đang ghi) | Không tạo intent; `conflict` → mở S5; `blocked` → S4 với lý do và hành động của lý do; `failed` → S4 với `uwTipFailed`, người dùng chọn "Lưu lại" (intent cũ superseded trước, rồi tạo intent mới) hoặc "Hủy lần lưu…"; còn lại → S4 với `uwQueueBlockedSave` |
 | `keystore_locked` hoặc `store_full` (chưa có intent) | Không tạo intent, không gửi request; pill blocked với lý do đó; S4 với câu của lý do (`store_full`: `uwQueueFull`) + "Mở trung tâm đồng bộ". Nội dung chỉ còn trong cửa sổ đang mở |
 | remote-newer (chưa có intent) | Online: mở S5 ngay, không tạo intent, không gửi request (409 đã biết). Offline: như hàng dưới; dispatch sau này gặp 409 → `conflict` |
-| AI đang ghi (một lượt có công cụ ghi đang chạy, chưa có intent) | Lưu chờ tới ranh giới bước công cụ hiện tại hoặc `aiRun idle` rồi chụp snapshot; pill "đang chờ AI". Quá ngưỡng (OQ-UX2) chưa tới ranh giới: `uwTipWaitAiLong` + hành động "Dừng AI" |
+| AI đang ghi (một lượt có công cụ ghi đang chạy, chưa có intent) | Lưu chờ tới ranh giới bước công cụ hiện tại hoặc `aiRun idle` rồi chụp snapshot; pill `uwChipSaving` + `uwTipWaitAi` (như hàng "đang chờ AI xong bước" ở Save pill). Quá 30 giây (OQ-UX2, U-15, 2026-10-12) chưa tới ranh giới: `uwTipWaitAiLong` + hành động "Dừng AI" (`uwActStopAi`) |
 | dirty / offline / unreachable (chưa có intent) | Desktop: tạo intent. Không có mạng → `paused_offline` (thắng `sync_write` tắt: không cần biết capability khi chưa gửi được); online và bản capability đang biết có `sync_write` tắt → `paused_admin`; người dùng đang tạm dừng gửi → `paused_user`; capability **chưa từng đọc được** → vẫn tạo intent (ghi coi như bật, State Patterns › Capability tắt). Web online: Lưu của frame; web offline: lỗi Lưu của frame, giữ C18 |
 
 ### Queue rows (S2 tab "Đang chờ lưu" / "Cần xử lý")
@@ -225,14 +224,14 @@ Hàng đầu tiên khớp thắng (đọc từ trên xuống).
 | paused_admin | neutral `uwBadgePausedAdmin` | `uwRowPausedAdmin` | Hủy lần lưu… | capability bật → queued (`paused_user` nếu người dùng đang tạm dừng gửi) |
 | validating / uploading | info `uwBadgeSending` + progress | `uwRowUploading` | — | receipt / reconciling / conflict / failed; `sync_write` tắt lúc này → dừng trước commit, cùng intent về paused_admin (phần đã tải lên có thể bị bỏ; lần dispatch sau tải lại) |
 | committing | info `uwBadgeSending` | `uwRowCommitting` | — | receipt / reconciling / conflict / failed; `sync_write` tắt không dừng bước này |
-| reconciling | warn `uwBadgeReconciling` | `uwRowReconciling` | Kiểm tra lại · Hướng dẫn | tra cứu (G5-07) trả đã commit → committed; chứng minh chưa commit → queued (attempt mới), hoặc paused_admin nếu `sync_write` tắt, paused_offline nếu mất mạng; trả **không biết/đã bị dọn** → reconciling-stuck (không bao giờ queued); 401 → blocked `session_expired`; 403 theo mã: `organization_suspended`/`member_deactivated`/`document_archived` → blocked lý do đó, 403 khác → `permission_revoked`; 410 → blocked `document_deleted`; quá giới hạn thử (G5-D2) → reconciling-stuck |
-| reconciling-stuck | warn `uwBadgeReconcileStuck` | `uwRowReconcileStuck` | Kiểm tra lại · Sao chép mã hỗ trợ · Tải bản của tôi về máy (hộp thoại Lưu của hệ điều hành, tên theo OQ-UX12; chỉ khi `can_edit` biết gần nhất còn đúng, offline vẫn chạy được vì tệp ở máy) · Bỏ lần lưu… (`uwActDiscardSave`; Discard confirm `uwStuckDiscardConfirm`) | không tạo attempt mới; app tự kiểm lại theo chu kỳ (OQ-UX2) và khi người dùng bấm "Kiểm tra lại"; đối soát thành công → như hàng reconciling; 403/410 → blocked như hàng reconciling; "Bỏ lần lưu…" → snapshot thành Nháp đã giữ, phần store của intent được giải phóng; tài liệu đã có số nháp tối đa hoặc store đầy → từ chối với `uwConflictDraftCapReached` / `uwQueueFull`, intent giữ nguyên |
+| reconciling | warn `uwBadgeReconciling` | `uwRowReconciling` | Kiểm tra lại · Hướng dẫn | tra cứu (G5-07) trả đã commit → committed; chứng minh chưa commit → queued (attempt mới), hoặc paused_admin nếu `sync_write` tắt, paused_offline nếu mất mạng; trả **không biết/đã bị dọn** → reconciling-stuck (không bao giờ queued); 401 → blocked `session_expired`; 403 theo mã: `organization_suspended`/`member_deactivated`/`document_archived` → blocked lý do đó, 403 khác → `permission_revoked`; 410 → blocked `document_deleted`; quá giới hạn thử (G5-D2) hoặc đã 1 giờ đối soát chưa có kết quả xác định (OQ-UX2, U-15, 2026-10-12) → reconciling-stuck |
+| reconciling-stuck | warn `uwBadgeReconcileStuck` | `uwRowReconcileStuck` | Kiểm tra lại · Sao chép mã hỗ trợ · Tải bản của tôi về máy (hộp thoại Lưu của hệ điều hành, tên `{tên} (bản của tôi).{ext}` theo OQ-UX12 (U-15, 2026-10-12); chỉ khi `can_edit` biết gần nhất còn đúng, offline vẫn chạy được vì tệp ở máy) · Bỏ lần lưu… (`uwActDiscardSave`; Discard confirm `uwStuckDiscardConfirm`) | không tạo attempt mới; app tự kiểm lại mỗi 15 phút (OQ-UX2, U-15, 2026-10-12) và khi người dùng bấm "Kiểm tra lại"; đối soát thành công → như hàng reconciling; 403/410 → blocked như hàng reconciling; "Bỏ lần lưu…" → snapshot thành Nháp đã giữ, phần store của intent được giải phóng; tài liệu đã có 3 nháp (OQ-UX2) hoặc store đầy → từ chối với `uwConflictDraftCapReached` / `uwQueueFull`, intent giữ nguyên |
 | conflict | warn `uwBadgeConflict` | `uwRowConflict` | Mở để xử lý | Ghi đè/Tải lại → intent cũ superseded; Ghi đè gặp 409 lần nữa → vẫn conflict với head mới |
 | blocked | theo bảng lý do | `uwRowBlocked {reason}` | theo lý do | theo lý do |
 | failed | error `uwBadgeFailed` | `uwRowFailed {reason}`; `{reason}` dùng lại `uwReasonQuota` / `uwReasonTooLarge` / `uwReasonOther` (sẵn có) | Chi tiết · Lưu lại · Hủy lần lưu… | người dùng chọn; "Lưu lại" = intent cũ superseded rồi intent mới |
-| committed | ok `uwBadgeSaved` (tab "Đã lưu gần đây", thời gian giữ theo OQ-UX2) | `uwRowCommitted` | Mở | hết thời gian giữ |
+| committed | ok `uwBadgeSaved` (tab "Đã lưu gần đây") | `uwRowCommitted` | Mở | hết 24 giờ giữ (OQ-UX2, U-15, 2026-10-12) |
 | kept draft | warn `uwBadgeKeptDraft` | `uwRowKeptDraft` | Mở nháp (chỉ đọc, chép được) · Bỏ nháp… | người dùng bỏ nháp. Mất quyền với tài liệu: badge `uwBadgeRevoked`, nháp giữ khóa, chỉ còn "Bỏ nháp…" (không mở, không chép) |
-| moved | info `uwBadgeMoved` | `uwRowMoved` | Mở | queue tiếp tục theo quyền ở vị trí mới; di chuyển tăng revision mà không có version mới, lần gửi có gặp 409 không: OQ-UX15 |
+| moved | info `uwBadgeMoved` | `uwRowMoved` | Mở | queue tiếp tục theo quyền ở vị trí mới; di chuyển không gây xung đột: server so base nội dung, lần gửi không gặp 409 chỉ vì di chuyển (OQ-UX15, U-15, 2026-10-12) |
 | archived | info `uwBadgeArchived` | `uwRowArchived` | Mở | server từ chối ghi → blocked `document_archived` |
 
 **Superseded** (định nghĩa duy nhất): khi người dùng Ghi đè hoặc Tải lại, intent cũ chuyển `cancelled` với lý do
@@ -246,7 +245,7 @@ store: chỉ thông báo `uwSyncStoreError` + "Thử lại" thay cho bảng (kh�
 theo tổ chức đang chọn, đầu trang hiện `uwSyncOtherOrg` khi tổ chức khác còn intent.
 Feed: cursor hết hạn (410 `change_cursor_expired`) hoặc không hợp lệ → đồng bộ lại toàn bộ, đầu trang `uwSyncResynced`;
 không bao giờ hiện thành "Đã xóa". Mỗi tổ chức chạy tối đa một lần đồng bộ lại tại một thời điểm. Đồng bộ lại lại gặp
-410: thử lại với backoff tăng dần, tối đa số lần chốt ở OQ-UX2; quá số đó → đầu trang `uwSyncResyncFailed` + "Đồng bộ
+410: thử lại với backoff tăng dần, tối đa 5 lần liên tiếp (OQ-UX2, U-15, 2026-10-12); quá số đó → đầu trang `uwSyncResyncFailed` + "Đồng bộ
 ngay", feed dừng tới khi người dùng bấm hoặc app khởi động lại.
 
 ### Đầu trang S2
@@ -283,7 +282,7 @@ downloading/verifying > lease-expiring > update-available/update kept > waiting-
 | update không áp được (vượt giới hạn / hỏng / thiếu dung lượng) | ok `uwOfflineReady` | `uwOfflineRowUpdateKept` | Mở · Thử lại |
 | interrupted | warn `uwOfflineBadgeInterrupted` | `uwOfflineRowInterrupted` | Thử lại · Bỏ ghim |
 | disk-full (lần tải đầu) | error `uwOfflineBadgeDiskFull` | `uwOfflineRowDiskFull` | Thử lại · Mở thư mục lưu trữ |
-| corrupt (lần tải đầu) | error `uwOfflineBadgeCorrupt` | `uwOfflineRowCorrupt` | Tải lại |
+| corrupt (lần tải đầu) | error `uwOfflineBadgeCorrupt` | `uwOfflineRowCorrupt` | Tải ngay (`uwOfflineDownloadNow`) |
 | lease-expiring | warn `uwOfflineBadgeLeaseSoon` | `uwOfflineRowLeaseSoon` | Mở · Bỏ ghim |
 | lease-expired / locked | theo bảng lý do | theo lý do | theo lý do |
 | revoked | error `uwBadgeRevoked` | `uwOfflineRowRevoked` | Bỏ ghim |
@@ -297,7 +296,7 @@ Nhãn trong hàng: "Bỏ ghim" = `uwOfflineUnpinShort` (menu tài liệu dùng `
 Revoked và deleted: khi nhận `permission_revoked` / xóa trên server, hoặc khi gia hạn lease thất bại vì mất quyền,
 G5-05 **xóa bản đã commit và asset** khỏi máy; nháp giữ khóa. Hàng không có "Mở". Archived ở lại thư viện tới hết lease.
 Trống: `uwOfflineEmpty`. Đạt giới hạn: `uwOfflineCapReached`. Đã đăng xuất: tab hiện số mục bị khóa, không tên.
-`offline_library` tắt: theo OQ-UX11 — nếu bản đã tải được giữ, tab hiện danh sách chỉ đọc (Mở khi lease còn hạn · Bỏ
+`offline_library` tắt: bản đã tải được giữ tới khi bật lại hoặc đăng xuất và mở được khi lease còn hạn (OQ-UX11, U-15, 2026-10-12); tab hiện danh sách chỉ đọc (Mở khi lease còn hạn · Bỏ
 ghim), không có "Thêm tài liệu…", không tải mới, không gia hạn.
 
 ### Capability tắt (server)
@@ -306,7 +305,7 @@ ghim), không có "Thêm tài liệu…", không tải mới, không gia hạn.
 | --- | --- |
 | `sync_write` | Không dispatch intent mới; intent mới tạo thành `paused_admin`; `validating`/`uploading` dừng trước commit về `paused_admin`; `committing` chạy tới receipt/reconciling; dispatch bị từ chối `office_capability_off` → `paused_admin`; queue và nháp giữ nguyên |
 | `sync_feed` | Không đọc feed: không S6 và không `remote-newer` mới — desktop bỏ qua cả sự kiện realtime cho S6 khi feed tắt; đầu trang S2 `uwSyncFeedOff`; hàng blocked cần "Kiểm tra lại" để biết quyền được cấp lại; Lưu vẫn kiểm `base_revision` nên conflict vẫn được phát hiện. Web: flag `office_sync_feed` tắt → không S6 |
-| `offline_library` | Ẩn hành động ghim và "Thêm tài liệu…"; bản đã tải: OQ-UX11 (Offline library rows). Lease hết hạn khi capability tắt: không gia hạn được → S11 `uwLockLibraryOff`; nháp giữ khóa ở S2 |
+| `offline_library` | Ẩn hành động ghim và "Thêm tài liệu…"; bản đã tải được giữ (OQ-UX11, U-15, 2026-10-12; Offline library rows). Lease hết hạn khi capability tắt: không gia hạn được → S11 `uwLockLibraryOff`; nháp giữ khóa ở S2 |
 | `ai_uniwork` hoặc format trong `ai_uniwork_formats` | Mục S7 ẩn; nếu UniWork AI đang được chọn: Composer note `aiUniworkOff`; lượt đang chạy hoàn tất bước công cụ hiện tại, bước tiếp theo bị từ chối với `aiErrCapabilityOff`. Web: flag tắt trước khi grant làm mới → request đầu bị từ chối `office_capability_off` không kèm run id → ẩn S7 + `aiUniworkOff`, không chip lỗi |
 
 **Bản capability (desktop) — quy tắc TTL duy nhất** (plan X-03, G5-04, G5-06, G6-05 dẫn về đây):
@@ -327,13 +326,13 @@ Revision so sánh bằng BigInt (chuỗi chữ số), không so chuỗi.
 | --- | --- | --- |
 | Clean, không có lượt AI chạy | info `uwRemoteUpdated` [Đóng] | Đã nạp qua `api.open`; giữ vị trí đọc khi có thể. Host cũ không trả `FileMeta.revision` → `uwRemoteUpdatedNoRev` (không số) |
 | Dirty / có intent / commit chưa rõ | warn `uwRemoteNewerDirty` [Tải lại bản mới nhất…] [Để sau] | Không thay base/nội dung; pill `remote-newer` |
-| Clean nhưng một lượt AI bất kỳ đang chạy (`aiRun running`) | warn `uwRemoteNewerAi` [Tải lại bản mới nhất…] [Để sau] | Không nạp. "Tải lại…" khi lượt đang chạy: xác nhận `uwRemoteStopAiConfirm`, dừng lượt rồi mới mở Reload confirm |
+| Clean nhưng một lượt AI bất kỳ đang chạy (`aiRun running`) | warn `uwRemoteNewerAi` [Tải lại bản mới nhất… `uwRemoteReload`] [Để sau `uwRemoteLater`] | Không nạp. "Tải lại bản mới nhất…" khi lượt đang chạy: xác nhận `uwRemoteStopAiConfirm`, dừng lượt rồi mới mở Reload confirm |
 | Thanh AI đang hiện, nhận `aiRun idle` | — | Tài liệu vẫn sạch → nạp như hàng Clean; đã dirty → thanh Dirty |
 | Đang nạp sạch thì `aiRun running` | warn `uwRemoteNewerAi` | Bỏ kết quả nạp, không thay nội dung |
-| Intent đang `committing`/`reconciling` (desktop) | warn `uwRemoteNewerDirty` | "Tải lại bản mới nhất…" `aria-disabled`, lý do `uwRemoteWaitCommit`; chạy được sau receipt hoặc khi đối soát xong |
-| Intent `reconciling-stuck` (desktop) | warn `uwRemoteNewerDirty` | "Tải lại bản mới nhất…" `aria-disabled`, lý do `uwRemoteWaitStuck` + "Mở trung tâm đồng bộ" |
+| Intent đang `committing`/`reconciling` (desktop) | warn `uwRemoteNewerDirty` | "Tải lại bản mới nhất…" (`uwRemoteReload`) `aria-disabled`, lý do `uwRemoteWaitCommit`; chạy được sau receipt hoặc khi đối soát xong |
+| Intent `reconciling-stuck` (desktop) | warn `uwRemoteNewerDirty` | "Tải lại bản mới nhất…" (`uwRemoteReload`) `aria-disabled`, lý do `uwRemoteWaitStuck` + "Mở trung tâm đồng bộ" (`uwQueueOpenCenter`) |
 | "Để sau" rồi có bản mới hơn nữa | thanh hiện lại với `{n}` mới | Không chồng thanh |
-| Dirty trở về sạch (hoàn tác hết) khi server mới hơn | info `uwRemoteNowClean` [Tải lại] | Không tự nạp; người dùng sửa tiếp → về thanh Dirty |
+| Dirty trở về sạch (hoàn tác hết) khi server mới hơn | info `uwRemoteNowClean` [Tải lại `uwConflictReloadGo`] | Không tự nạp; người dùng sửa tiếp → về thanh Dirty |
 | Đang nạp thì tài liệu thành dirty | warn `uwRemoteNewerDirty` | Bỏ kết quả nạp, không thay nội dung |
 | `api.open` trả 403 / 410 | như Revoke / Delete | — |
 | Host cũ (reply `api.open` không có `FileMeta.revision`; nó trả bản mới nhất) | sau khi nạp luôn `uwRemoteUpdatedNoRev` | Không bao giờ ghi số được yêu cầu |
@@ -354,11 +353,11 @@ Web, phản hồi Lưu: 401 → frame báo cần đăng nhập lại, nháp gi�
 ### Conflict dialog (S5)
 
 **Thứ tự và focus (câu chuẩn duy nhất; nơi khác dẫn về đây):** thứ tự DOM = thị giác = Tab ở mọi chiều rộng: bảng so
-sánh → "Xem khác biệt" (khi module có, OQ-UX9) → **Tải lại bản mới nhất** (primary) → **Ghi đè…** (danger) → **Hủy** →
+sánh → "Xem khác biệt" (chỉ Docs/DOCX ở v1, module khác ẩn nút; OQ-UX9, U-15, 2026-10-12) → **Tải lại bản mới nhất** (primary) → **Lưu thành bản sao…** (`uwConflictSaveCopy`, OQ-UX6, U-15, 2026-10-12; chỉ khi còn quyền sửa) → **Ghi đè…** (danger) → **Hủy** →
 nút đóng X. Focus mặc định **Hủy**: khuôn fork tự chọn cancel khi không có `primary` (hiện trạng tại pin); nếu
 implementation đánh dấu "Tải lại" là `primary` thì **phải** truyền `focusId: 'cancel'`. Enter ở Hủy chỉ đóng. Esc = Hủy.
-"Ghi đè…" và "Tải lại bản mới nhất" mở bước xác nhận **trong cùng hộp thoại** (bước thay nội dung, không chồng lớp);
-"Quay lại" trả về bước 1 và focus về nút đã mở bước 2. Lượt AI đang chạy khi chọn Tải lại hoặc Ghi đè: xác nhận
+"Ghi đè…", "Lưu thành bản sao…" và "Tải lại bản mới nhất" mở bước xác nhận **trong cùng hộp thoại** (bước thay nội dung, không chồng lớp);
+"Quay lại" trả về bước 1 và focus về nút đã mở bước 2. Lượt AI đang chạy khi chọn Tải lại, Ghi đè hoặc Lưu thành bản sao: xác nhận
 `uwRemoteStopAiConfirm`, dừng lượt, rồi mới vào bước 2. Giống nhau trên web frame và desktop (desktop vẽ cùng khuôn);
 nhãn web dùng khóa sẵn có `appWebConflict*`.
 
@@ -386,9 +385,9 @@ trả xung đột về host), và trả lời `save` sau khi người dùng ch�
 **Bước 2 — Reload confirm (desktop).** Câu `uwConflictReloadDesktopBody`. Nhóm radio: "Giữ bản của tôi làm nháp" (mặc
 định) / "Bỏ thay đổi của tôi". Nháp giữ = bytes cục bộ mới nhất (gồm N đang chờ và N+1 nếu có), lưu trong store mã
 hóa, hiện ở S2 "Cần xử lý" dạng "Nháp đã giữ"; mở ở chế độ chỉ đọc/chép được, **không bao giờ tự áp lại** lên base mới
-(§4.2). Không giữ được nháp — tài liệu đã có số nháp tối đa (OQ-UX2: `uwConflictDraftCapReached` + "Mở trung tâm đồng
-bộ") hoặc store không ghi được (`store_full`/`keystore_locked`: `uwConflictKeepUnavailable`) — lựa chọn "Giữ…"
-`aria-disabled` kèm câu lý do; "Bỏ…" không được chọn sẵn và "Tải lại" chỉ chạy khi đã chọn. Intent cũ thành superseded.
+(§4.2). Không giữ được nháp — tài liệu đã có 3 nháp, tối đa mỗi tài liệu (OQ-UX2, U-15, 2026-10-12: `uwConflictDraftCapReached` + "Mở trung tâm đồng
+bộ") hoặc store không ghi được (`store_full`/`keystore_locked`: `uwConflictKeepUnavailable`) — lựa chọn "Giữ bản của tôi làm nháp" (`uwConflictKeepDraft`)
+`aria-disabled` kèm câu lý do; "Bỏ thay đổi của tôi" (`uwConflictDiscard`) không được chọn sẵn và "Tải lại" chỉ chạy khi đã chọn. Intent cũ thành superseded.
 Nút: "Tải lại" (primary) + "Quay lại" (focus mặc định).
 
 **Bước 2 — Reload confirm (web).** Web không có kho nháp xung đột và không đưa nháp này vào C18 Restore. Câu
@@ -399,35 +398,38 @@ bytes đang mở ở định dạng gốc và gửi `api.download {data}` (hợp
 `uwConflictDownloadCheck` + "Tải lại" + "Quay lại": trình duyệt không cho biết người dùng có hủy hộp thoại Lưu tệp hay
 không, nên tài liệu **không** tự tải lại; người dùng xác nhận đã có tệp rồi bấm "Tải lại"; "Quay lại" ở bước này về
 bước 2, focus nút tải về, tải về lần nữa được. Thất bại → ở lại bước 2,
-dòng `uwConflictDownloadFailed`. Giữ hay bỏ lựa chọn tải về trên web: OQ-UX8.
+dòng `uwConflictDownloadFailed`. Lựa chọn tải về trên web được giữ (OQ-UX8, U-15, 2026-10-12); nháp xung đột không vào C18 Restore.
+
+**Bước 2 — Save copy confirm (OQ-UX6, U-15, 2026-10-12; G5-12).** Tiêu đề `uwConflictSaveCopyTitle`, câu `uwConflictSaveCopyConfirm`. Nút: "Tạo bản sao" (`uwConflictSaveCopyGo`, primary) + "Quay lại" (focus mặc định). Bản sao giữ owner, visibility và ACL của tài liệu nguồn, ghi provenance (nguồn, version, revision, checksum) và không mở ACL rộng hơn; tên mặc định do server đặt (`<tên> (bản sao)`). Chỉ khi còn quyền sửa nguồn; thiếu `consent: "copy"` hoặc tài liệu do Work Product sở hữu bị server từ chối (`copy_consent_required`, `owner_requires_copy`) → `uwConflictSaveCopyFailed`. Cách ghi nội dung "bản của bạn" vào bản sao do G5-12 chốt. Không tạo intent, không thay đổi tài liệu hiện tại; desktop dùng cùng khuôn.
 
 **Bước 2 — Overwrite confirm.** Câu `uwConflictOverwriteConfirm`. Nút: "Ghi đè" (danger) + "Quay lại" (focus mặc định).
 Desktop: tạo intent mới trên base mới; intent cũ thành superseded (§5.3).
 
-**`api.download` (hợp đồng host, D; G5-09w).** Frame chỉ gửi `data`. Host đặt tên = tiêu đề tài liệu +
-`uwConflictMineFileSuffix` + đuôi định dạng gốc của module (OQ-UX12); MIME lấy từ allowlist định dạng gốc của module
+**`api.download` (hợp đồng host, D; G5-09w).** Frame chỉ gửi `data`. Host đặt tên = tiêu đề tài liệu + `uwConflictMineFileSuffix` + đuôi định dạng gốc của module: `{tên} (bản của tôi).{ext}` / en `{name} (my version).{ext}`; host thay ký tự cấm của hệ điều hành (`\ / : * ? " < > |`) bằng `_` (OQ-UX12, U-15, 2026-10-12); MIME lấy từ allowlist định dạng gốc của module
 (không theo frame); kích thước ≤ trần tải về do G5-09w chốt (D chưa có trần export); chỉ chạy khi frame token hiện tại có `can_edit` (SDO frame
 token không có quyền tải riêng); một lần tải mỗi request: host tạo Blob, bấm một `<a download>` mang tên host dựng, thu
 hồi object URL ngay sau đó; không có route server, không có bản sao nội dung nào khác. Bản tải về là bản sao cục bộ
 **không có access log** (khác download/export phía server, vốn ghi `document_access`); ghi trong danh mục bản sao §8.3,
-chờ Product + Auth ký (OQ-UX14). "Thành công" = host đã giao tệp cho trình duyệt (không phải người dùng đã lưu). Request sai dạng, vượt kích thước, không quyền → từ chối, frame hiện `uwConflictDownloadFailed`.
+chấp nhận như vậy, đã ký (OQ-UX14, U-15, 2026-10-12): không có route ghi `export` trước khi giao Blob. "Thành công" = host đã giao tệp cho trình duyệt (không phải người dùng đã lưu). Request sai dạng, vượt kích thước, không quyền → từ chối, frame hiện `uwConflictDownloadFailed`.
 
 **Biến thể (bảng duy nhất):**
 
 | Biến thể | Khác biệt |
 | --- | --- |
 | Có quyền sửa | Ba hành động đầy đủ |
-| Mất quyền sửa (đã thành chỉ xem) | Không có "Ghi đè…"; dòng `uwConflictNoEdit`. Chỉ "Tải lại bản mới nhất" + "Hủy". Không có sao chép/xuất để né quyền (§5.3) |
+| Mất quyền sửa (đã thành chỉ xem) | Không có "Ghi đè…" và không có "Lưu thành bản sao…"; dòng `uwConflictNoEdit`. Chỉ "Tải lại bản mới nhất" + "Hủy". Không có sao chép/xuất để né quyền (§5.3) |
 | Tài liệu bị xóa | Không mở S5; thanh S6 Delete |
 | Desktop từ hàng queue `conflict` | Như có quyền sửa; "Ghi đè" tạo intent mới trên base mới, intent cũ superseded |
-| Module có so sánh | "Xem khác biệt" (theo bảng G6-01, OQ-UX9); module không có thì ẩn nút |
-| Web offline | "Tải lại…"/"Ghi đè…" `aria-disabled`, lý do `uwConflictOfflineWeb` (web không có hàng đợi); "Hủy" dùng được |
-| Desktop offline | "Ghi đè…" tạo intent mới trên head đã biết (`paused_offline`, dispatch sau gặp 409 thì về conflict); "Tải lại…" chỉ chạy khi head có trong thư viện offline, ngược lại `aria-disabled` với `uwConflictOfflineDesktop` |
-| Lượt AI đang chạy | Tải lại hoặc Ghi đè hỏi `uwRemoteStopAiConfirm` trước |
-| Intent đang `committing`/`reconciling` | "Tải lại…"/"Ghi đè…" `aria-disabled`, lý do `uwRemoteWaitCommit` |
-| Intent `reconciling-stuck` | "Tải lại…"/"Ghi đè…" `aria-disabled`, lý do `uwRemoteWaitStuck` + "Mở trung tâm đồng bộ" |
+| Module có so sánh | "Xem khác biệt": chỉ Docs/DOCX ở v1; G6-01 xác nhận host (desktop/web) của panel so sánh; module khác ẩn nút (OQ-UX9, U-15, 2026-10-12) |
+| Web offline | "Tải lại bản mới nhất"/"Ghi đè…" `aria-disabled`, lý do `uwConflictOfflineWeb` (web không có hàng đợi); "Lưu thành bản sao…" `aria-disabled`, lý do `uwConflictSaveCopyOffline`; "Hủy" dùng được |
+| Desktop offline | "Ghi đè…" tạo intent mới trên head đã biết (`paused_offline`, dispatch sau gặp 409 thì về conflict); "Tải lại bản mới nhất" chỉ chạy khi head có trong thư viện offline, ngược lại `aria-disabled` với `uwConflictOfflineDesktop`; "Lưu thành bản sao…" `aria-disabled`, lý do `uwConflictSaveCopyOffline` |
+| Lượt AI đang chạy | Tải lại, Ghi đè hoặc Lưu thành bản sao hỏi `uwRemoteStopAiConfirm` trước |
+| Intent đang `committing`/`reconciling` | "Tải lại bản mới nhất"/"Ghi đè…"/"Lưu thành bản sao…" `aria-disabled`, lý do `uwRemoteWaitCommit` |
+| Intent `reconciling-stuck` | "Tải lại bản mới nhất"/"Ghi đè…"/"Lưu thành bản sao…" `aria-disabled`, lý do `uwRemoteWaitStuck` + "Mở trung tâm đồng bộ" (`uwQueueOpenCenter`) |
 | Ghi đè gặp 409 lần nữa | Cột "Bản trên UniWork" cập nhật theo head mới, dòng `uwConflictHeadMoved`, về bước 1, focus Hủy |
 | Đọc head / tải bản mới thất bại (mất mạng) | Ở lại hộp thoại, dòng `uwConflictReloadFailed` / `uwConflictOverwriteFailed`, tài liệu không đổi, các nút vẫn dùng được |
+| Lưu thành bản sao xong | Ở lại hộp thoại, về bước 1, dòng `uwConflictSaveCopyDone` (ghi vào nút `role=alert` của hộp thoại), focus Hủy; tài liệu hiện tại và intent không đổi, không trả lời `save` |
+| Lưu thành bản sao thất bại | Ở lại bước xác nhận, dòng `uwConflictSaveCopyFailed`; thay đổi của bạn không đổi |
 | Web, tải bản của tôi thất bại | Ở lại bước 2, dòng `uwConflictDownloadFailed`, không tải lại |
 | Web, Ghi đè trả 401 | Dòng `uwConflictSessionWeb`; nháp giữ ở C18 |
 | Web, Ghi đè trả 403 | Theo mã: suspended/deactivated/archived → hộp thoại đổi sang câu `uwRemoteOrgBlockedWeb {reason}` + "Đóng", focus về tiêu đề mới; 403 khác → như Revoke |
@@ -493,7 +495,7 @@ MCP server và agent skills của app là tích hợp cho agent bên ngoài, kh�
 | Quyền giảm từ sửa xuống xem | Server bỏ công cụ ghi ở bước tiếp; client ngừng thực thi công cụ ghi ngay khi biết; `aiErrDowngraded` |
 | Mất quyền đọc / bị xóa | Lượt dừng; `aiErrRevoked`; S6 tương ứng |
 | Đổi tổ chức | Lượt dừng (`aiRunStopped`); tín dụng tính cho tổ chức được chọn lúc bắt đầu lượt |
-| 429 giữa lượt (quy tắc duy nhất; plan G6-05 dẫn về đây) | Giữ run id; tự chờ theo `Retry-After` rồi tiếp bước; trong lúc tự chờ **không** có nút "Thử lại" (tránh request trùng), chỉ "Dừng". `Retry-After` là số giây (≥ 0) hoặc HTTP-date (đổi ra số giây; ≤ 0 → thử ngay một lần). Thiếu, không đọc được, lớn hơn mức kẹp 300 giây, hoặc số lần chờ trong một lượt vượt trần (G6-02, OQ-UX2) → bỏ cuộc: `aiErrRateLimitedNoWait` + "Thử lại", `aiRun idle` |
+| 429 giữa lượt (quy tắc duy nhất; plan G6-05 dẫn về đây) | Giữ run id; tự chờ theo `Retry-After` rồi tiếp bước; trong lúc tự chờ **không** có nút "Thử lại" (tránh request trùng), chỉ "Dừng". `Retry-After` là số giây (≥ 0) hoặc HTTP-date (đổi ra số giây; ≤ 0 → thử ngay một lần). Thiếu, không đọc được, lớn hơn mức kẹp 300 giây, hoặc số lần chờ trong một lượt vượt trần 3 lần (G6-02 xác nhận khi spike xong; OQ-UX2, U-15, 2026-10-12) → bỏ cuộc: `aiErrRateLimitedNoWait` + "Thử lại", `aiRun idle` |
 | `run_limit_reached` | Lượt kết thúc, kết quả giữ; "Hỏi tiếp" bắt đầu lượt mới (run id mới) **trong cùng hội thoại**: server giữ các lượt trước của hội thoại (theo người dùng + tổ chức + tài liệu + module), client chỉ gửi lượt mới |
 | Frame token xoay vòng (web) | Không ảnh hưởng: hội thoại buộc theo claim của token (người dùng, tổ chức, tài liệu), không theo giá trị token |
 | Hội thoại hết hạn hoặc đã bị dọn (`conversation_expired`) | Lượt không chạy; client bỏ conversation id, luồng hiện dòng `aiConversationRestarted`, câu hỏi còn trong ô nhập để người dùng gửi lại (không tự gửi lại) |
@@ -534,7 +536,7 @@ với `aiErrViewOnlyEdit`.
 | --- | --- |
 | Chưa đăng nhập UniWork | Mục UniWork AI ẩn; BYOK/CLI chạy như genoffice (ADR 0028); không footer gây hiểu nhầm là lỗi |
 | Đã đăng nhập, đủ điều kiện | Mục hiện; khối S8 biến thể `aiUniworkLocalFile`. Hội thoại: server cấp conversation id buộc người dùng + tổ chức (+ thiết bị), không có tài liệu; xóa khi đăng xuất và theo TTL (danh mục §8.3) |
-| Nhiều tổ chức | Dòng phụ ghi rõ tổ chức trả tín dụng; đổi tổ chức trong menu tài khoản, không trong panel |
+| Nhiều tổ chức | Dòng phụ ghi rõ tổ chức trả tín dụng; đổi tổ chức ở Cài đặt › Tài khoản (app không có menu tài khoản; OQ-UX7, U-15, 2026-10-12), không trong panel |
 | Đăng xuất giữa lượt | Như vòng đời lượt chạy; mục ẩn sau đó |
 
 ## Interaction Primitives
@@ -730,8 +732,8 @@ Thất bại: trong lúc Minh offline, quyền của anh bị thu hồi → khi 
 
 ## String catalogue (vi / en)
 
-U-01 đóng danh mục này (mọi chuỗi trong bảng trạng thái có khóa). Lane UI chỉ thêm khóa trong shard của mình khi có
-review của owner i18n (Lead F). "(sẵn có)" = khóa đã có ở fork, giữ nguyên.
+U-01 đã đóng danh mục này (U-15, 2026-10-12): mọi chuỗi trong bảng trạng thái có khóa (nhãn viết thẳng trong bảng ánh xạ ở "Nhãn trong bảng trạng thái → khóa"). Lane UI chỉ thêm khóa trong shard của mình khi có
+review của owner i18n (Lead F). "(sẵn có)" = khóa đã có ở fork, giữ nguyên. Khóa của fork dùng lại nguyên, U-02 không thêm trùng: `cloudState*`, `cloudCreditsLeft`, `cloudCreditsUnlimited`, `cloudInactiveBody`, `acctKeyring*`, `acctErrKeyringUnavailable`.
 
 **Số đếm.** `format()` của fork (`packages/i18n`) chỉ thay `{word}` và fork có 21 locale (gồm ar, cs, he, pl, ru), nên
 không dùng cặp khóa số ít/số nhiều. Mọi chuỗi có số đếm là **một khóa với câu trung tính với số**: `{count}` đứng ở
@@ -826,6 +828,7 @@ và bỏ các thay đổi" — đổi nội dung thành câu của `webConflictB
 | Khóa | vi | en |
 | --- | --- | --- |
 | `uwSyncTitle` | Trung tâm đồng bộ | Sync center |
+| `uwSyncOpenFromSettings` (liên kết trong Cài đặt › Tài khoản; OQ-UX7, U-15, 2026-10-12) | Trung tâm đồng bộ | Sync center |
 | `uwSyncOnline` | Đã kết nối UniWork · đồng bộ lúc {time} | Connected to UniWork · synced {time} |
 | `uwSyncOffline` | Không có mạng · lần đồng bộ cuối {time} | Offline · last synced {time} |
 | `uwSyncPaused` | Đã tạm dừng gửi — lần lưu mới sẽ chờ | Sending paused — new saves will wait |
@@ -859,7 +862,7 @@ và bỏ các thay đổi" — đổi nội dung thành câu của `webConflictB
 | `uwOfflineAdd` | Thêm tài liệu… | Add documents… |
 | `uwOfflineUsage` | Đang dùng {used} / {cap} trên máy này | Using {used} of {cap} on this computer |
 | `uwOfflineEmpty` | Chưa có tài liệu nào dùng khi không có mạng. | No documents are available offline yet. |
-| `uwOfflineCapReached` | Đã đạt giới hạn {cap} trên máy này. Bỏ ghim một tài liệu để thêm tài liệu khác. | You’ve reached the {cap} limit on this computer. Remove an offline copy to add another. |
+| `uwOfflineCapReached` | Thư viện offline trên máy này đã đạt giới hạn: dung lượng {cap}; số tài liệu tối đa: {count}. Bỏ ghim một tài liệu để thêm tài liệu khác. | The offline library on this computer is at its limit: storage {cap}; maximum documents: {count}. Remove an offline copy to add another. |
 | `uwOfflineReady` | Sẵn sàng offline | Available offline |
 | `uwOfflineBadgeWaiting` / `uwOfflineBadgeDownloading` / `uwOfflineBadgeVerifying` / `uwOfflineBadgeUpdate` / `uwOfflineBadgeInterrupted` / `uwOfflineBadgeDiskFull` / `uwOfflineBadgeCorrupt` / `uwOfflineBadgeLeaseSoon` / `uwOfflineBadgeViewOnly` | Chờ mạng / Đang tải / Đang kiểm tra / Có bản mới / Chưa sẵn sàng / Không đủ dung lượng / Bản tải về bị lỗi / Sắp hết quyền offline / Sẵn sàng offline · chỉ xem | Waiting for network / Downloading / Verifying / Update available / Not ready / Not enough space / Download damaged / Offline access ending soon / Available offline · view only |
 | `uwOfflineRowWaiting` | Sẽ tải khi có mạng | Will download when online |
@@ -926,8 +929,15 @@ và bỏ các thay đổi" — đổi nội dung thành câu của `webConflictB
 | `uwConflictReloadDesktopBody` | Chọn điều xảy ra với thay đổi của bạn trước khi tải phiên bản {n}. | Choose what happens to your changes before version {n} loads. |
 | `uwConflictKeepDraft` / `uwConflictDiscard` | Giữ bản của tôi làm nháp / Bỏ thay đổi của tôi | Keep my version as a draft / Discard my changes |
 | `uwConflictKeepDraftHint` | Nháp nằm trong trung tâm đồng bộ, mở để xem hoặc chép; không tự áp lên bản mới. | The draft stays in the sync center to view or copy; it’s never applied to the new version automatically. |
-| `uwConflictDraftCapReached` | Tài liệu này đã có {cap} nháp được giữ, mức tối đa. Bỏ một nháp cũ trong trung tâm đồng bộ để giữ thêm. | This document already has {cap} kept drafts, the maximum. Discard an old draft in the sync center to keep another. |
+| `uwConflictDraftCapReached` | Số nháp được giữ của tài liệu này đã đạt mức tối đa: {cap}. Bỏ một nháp cũ trong trung tâm đồng bộ để giữ thêm. | This document has reached the maximum number of kept drafts: {cap}. Discard an old draft in the sync center to keep another. |
 | `uwConflictReloadGo` | Tải lại | Reload |
+| `uwConflictSaveCopy` (OQ-UX6, U-15, 2026-10-12) | Lưu thành bản sao… | Save as a copy… |
+| `uwConflictSaveCopyTitle` | Lưu thành bản sao? | Save as a copy? |
+| `uwConflictSaveCopyConfirm` | UniWork sẽ tạo một tài liệu mới từ bản của bạn, cùng chủ sở hữu và quyền truy cập với tài liệu này. Tài liệu hiện tại và phiên bản {server} của {author} không đổi. | UniWork will create a new document from your version, with the same owner and access as this document. The current document and version {server} by {author} stay as they are. |
+| `uwConflictSaveCopyGo` | Tạo bản sao | Create copy |
+| `uwConflictSaveCopyDone` | Đã lưu bản của bạn thành tài liệu mới: {title}. Tài liệu này chưa đổi; bạn vẫn chọn được Tải lại hoặc Ghi đè. | Your version was saved as a new document: {title}. This document hasn’t changed; you can still reload or overwrite. |
+| `uwConflictSaveCopyFailed` | Chưa tạo được bản sao. Thay đổi của bạn vẫn an toàn; hãy thử lại. | Couldn’t create the copy. Your changes are still safe; try again. |
+| `uwConflictSaveCopyOffline` | Không có mạng. Tạo bản sao cần kết nối; thay đổi của bạn vẫn được giữ. | You’re offline. Creating a copy needs a connection; your changes are kept. |
 | `uwConflictReloadWebBody` | Trình duyệt không giữ nháp xung đột. Tải bản của bạn về máy để chép lại sau, hoặc bỏ thay đổi. | The browser doesn’t keep conflict drafts. Download your version to copy from later, or discard your changes. |
 | `uwConflictDownloadThenReload` / `uwConflictDiscardThenReload` | Tải bản của tôi về máy rồi tải lại / Bỏ thay đổi và tải lại | Download my version, then reload / Discard changes and reload |
 | `uwConflictMineFileSuffix` | (bản của tôi) | (my version) |
@@ -1000,19 +1010,81 @@ và bỏ các thay đổi" — đổi nội dung thành câu của `webConflictB
 | `aiErrViewOnlyEdit` | Bạn chỉ có quyền xem tài liệu này nên AI không sửa được. | You only have view access to this document, so AI can’t edit it. |
 | `aiErrWorkbookTooLarge` | Bảng tính này quá lớn để AI xử lý trên web. Mở bằng ứng dụng UniWork Office. | This workbook is too large for AI on the web. Open it in the UniWork Office app. |
 
+### Nhãn trong bảng trạng thái → khóa
+
+Nhãn viết thẳng trong bảng trạng thái và Component Patterns; một nhãn một khóa, nơi nào khác khóa thì ghi rõ. Không còn chuỗi nào trong bảng trạng thái thiếu khóa.
+
+| Nhãn (vi) | Khóa | Dùng ở |
+| --- | --- | --- |
+| Xem hàng chờ | `uwActViewQueue` | pill S1 |
+| Lưu lại | `uwActSaveAgain` | pill, hàng `failed` |
+| Dừng AI | `uwActStopAi` | pill, Ctrl/⌘+S |
+| Quay lại | `uwActBack` (hàng, popover, Discard confirm, Sign-out); `uwConflictBack` (S5) | |
+| Xử lý… | `uwActResolve` (sẵn có) | pill `remote-newer`, `conflict` |
+| Chi tiết | `uwActDetails` (hàng `failed`); `aiUniworkDetails` (Picker footer) | |
+| Thử lại | `uwActRetry` (sẵn có) | `keystore_locked`, `uwSyncStoreError`, S6, offline, bảng lỗi S9 |
+| Kiểm tra lại | `uwActRecheck` | lý do bị chặn, hàng `reconciling` |
+| Hướng dẫn | `uwActGuide` | hàng `reconciling` |
+| Bỏ nháp… / Bỏ / Bỏ lần lưu… | `uwActDiscardDraft` / `uwActDiscard` / `uwActDiscardSave` | |
+| Gửi ngay | `uwActSendNow` | hàng `queued` |
+| Hủy lần lưu… | `uwQueueCancel` | S2, S4 |
+| Mở để xử lý / Mở / Mở nháp | `uwActOpenToResolve` / `uwActOpen` / `uwActOpenDraft` | hàng S2 |
+| Sao chép mã hỗ trợ / Tải bản của tôi về máy | `uwActCopySupport` / `uwActDownloadMine` | hàng `reconciling-stuck` |
+| Đăng nhập / Đăng nhập lại / Chuyển tài khoản / Kết nối lại | `uwActSignIn` / `uwActSignInAgain` / `uwActSwitchAccount` / `uwActReconnect` | lý do bị chặn, đầu trang S2, Picker footer |
+| Mở trung tâm đồng bộ | `uwQueueOpenCenter` | S4, lý do bị chặn, S5, S6 |
+| Đóng | `uwRemoteClose` (thanh, panel khóa); `uwConflictClose` (S5) | |
+| Chuyển tới cửa sổ đó / Sửa ở cửa sổ này | `uwLockGoToWindow` / `uwLockTakeEdit` | Second-window bar |
+| Đồng bộ ngay / Tạm dừng gửi / Tiếp tục gửi | `uwSyncNow` / `uwSyncPause` / `uwSyncResume` | Sync header |
+| Cần xử lý / Đang chờ lưu / Dùng khi không có mạng / Đã lưu gần đây | `uwSyncTabAttention` / `uwSyncTabQueue` / `uwSyncTabOffline` / `uwSyncTabRecent` | Sync tab |
+| Thêm tài liệu… | `uwOfflineAdd` | Usage header |
+| Dùng khi không có mạng / Bỏ ghim (menu: Bỏ dùng khi không có mạng) | `uwOfflinePin` / `uwOfflineUnpinShort` (menu `uwOfflineUnpin`) | menu tài liệu, S3 |
+| Hủy tải / Tải ngay / Mở thư mục lưu trữ | `uwOfflineCancelDownload` / `uwOfflineDownloadNow` / `uwOfflineOpenFolder` | S3 |
+| Chờ mạng (ghim khi offline) | `uwOfflineBadgeWaiting` | S3 |
+| Tải lại bản mới nhất… / Để sau | `uwRemoteReload` / `uwRemoteLater` | S6 |
+| Tải lại bản mới nhất / Ghi đè… / Lưu thành bản sao… / Hủy | `uwConflictReload` / `uwConflictOverwrite` / `uwConflictSaveCopy` / `uwConflictCancel` | S5 bước 1 |
+| Tải lại / Ghi đè / Tạo bản sao | `uwConflictReloadGo` / `uwConflictOverwriteGo` / `uwConflictSaveCopyGo` | S5 bước 2, `uwRemoteNowClean` |
+| Xem khác biệt | `uwConflictViewDiff` | S5 |
+| Giữ bản của tôi làm nháp / Bỏ thay đổi của tôi | `uwConflictKeepDraft` / `uwConflictDiscard` | S5 Reload confirm desktop |
+| Tải bản của tôi về máy rồi tải lại / Bỏ thay đổi và tải lại | `uwConflictDownloadThenReload` / `uwConflictDiscardThenReload` | S5 Reload confirm web |
+| Đăng xuất | `uwSignOutGo` | Sign-out prompt |
+| Gửi / Dừng / Hỏi tiếp / Chọn nhà cung cấp khác / Mở bằng ứng dụng | `aiRunSend` / `aiRunStop` / `aiRunAskAgain` / `aiRunChooseOther` / `aiRunOpenInApp` | S9 |
+| Đã hiểu / Tìm hiểu thêm | `aiUniworkAck` / `aiUniworkLearnMore` | S8 |
+| Xem thay đổi | `aiResultViewChanges` | chip "Đã sửa trong tài liệu" |
+| Trả lời / Cần làm rõ / Đã sửa trong tài liệu / Chưa hỗ trợ / Lỗi | `aiResultAnswer` / `aiResultClarify` / `aiResultEdited` / `aiResultUnsupported` / `aiResultError` | Result chip |
+
 ## Open questions
 
-- **OQ-UX1 (Product):** nhãn picker "UniWork AI" vs tiêu đề Cài đặt "AI đám mây UniWork" — đề xuất giữ "UniWork AI" là tên nhà cung cấp, "AI đám mây UniWork" là tên gói công cụ. Chặn: `aiUniworkProvider`.
-- **OQ-UX2 (Product, G5-D3; số do G5-D2/G5-06/G6-02 chốt):** dung lượng tối đa thư viện offline và số tài liệu ghim; số nháp giữ tối đa mỗi tài liệu; ngân sách store đồng bộ mỗi tài khoản (hiện ở đầu S2, G5-06 thực thi); thời gian giữ tab "Đã lưu gần đây" (đề xuất 24 giờ); thời gian tự ẩn thanh S6 sạch (đề xuất 8 giây, theo toast của fork); giới hạn đối soát trước khi thành "Cần hỗ trợ" và chu kỳ tự kiểm lại hàng `reconciling-stuck` (đề xuất 15 phút); số lần đồng bộ lại khi gặp 410 liên tiếp trước `uwSyncResyncFailed` (đề xuất 5); ngưỡng chờ AI trước `uwTipWaitAiLong` (đề xuất 30 giây); thời gian heartbeat của lock cửa sổ; mức kẹp `Retry-After` (đề xuất 300 giây) và số lần chờ 429 tối đa mỗi lượt (đề xuất 3, G6-02 chốt).
-- **OQ-UX3 (Product + owner F):** footer picker cho trạng thái ẩn có bị coi là "lỗi giả" theo §6.1 không — đề xuất là chú thích, không phải lỗi.
-- **OQ-UX4 (owner F):** bản dịch các locale ngoài vi/en (khóa kiểu `zh` bắt buộc mọi locale): dùng bản en tạm hay dịch máy có review.
-- **OQ-UX6 (Product + G1):** "Lưu thành bản sao…" có trong S5 v1 không (cần API sao chép giữ owner/ACL/provenance, G5-A08); spine chưa vẽ nó.
-- **OQ-UX7 (Lead F):** điểm vào S2 ngoài pill — đề xuất thêm menu tài khoản → "Trung tâm đồng bộ" và Cài đặt → mục UniWork.
-- **OQ-UX8 (Product):** Tải lại trên web: giữ lựa chọn "Tải bản của tôi về máy rồi tải lại" (đề xuất; đường `api.download` có thật, do X-02 + G5-09w xây) hay bỏ lựa chọn giữ trên web (chỉ "Bỏ thay đổi và tải lại" / "Quay lại"). Không dùng C18 Restore cho nháp xung đột trong cả hai phương án.
-- **OQ-UX9 (Product + owner F):** "Xem khác biệt" có ở module nào trong v1 — theo bảng G6-01; module không có thì ẩn nút.
-- **OQ-UX10 (Product):** khối công bố S8 hiện lại khi đổi tài liệu hoặc tổ chức — đề xuất có.
-- **OQ-UX11 (Product + G5-D1):** `offline_library` tắt thì bản đã tải giữ tới khi bật lại hoặc đăng xuất và mở được khi lease còn hạn (đề xuất), hay bị xóa ngay.
-- **OQ-UX12 (Product + owner F):** tên tệp tải về ở Reload confirm (web) và "Tải bản của tôi về máy" theo mẫu `{tên} (bản của tôi).{ext}` (đề xuất; khóa `uwConflictMineFileSuffix`).
-- **OQ-UX13 (OPS + Lead F):** v1 không có đường gửi metric từ app về server, nên metric chỉ có ở app (tuổi intent cũ nhất, crash rate, lỗi công cụ phía client) không có alert (plan §8, G7-07). Có xây đường telemetry app → server (nội dung không, theo `no-pii-log`) cho bản sau không, và ai sở hữu.
-- **OQ-UX14 (Product + Auth):** "Tải bản của tôi về máy" trên web là bản sao cục bộ không có hàng `document_access` (download/export phía server có). Chấp nhận như vậy và ghi trong danh mục bản sao §8.3 (đề xuất), hay host gọi server ghi một sự kiện `export` trước khi giao Blob.
-- **OQ-UX15 (G1/FileService + Lead D + Lead F; plan §3 OQ-P1, OQ-P3):** đổi chỉ metadata (di chuyển, khôi phục, bỏ lưu trữ) tăng revision mà không có version mới — commit có 409 không và client biết thế nào; `api.open` xin version không còn là head thì host trả gì. Plan không tự đặt luật; X-01/X-02 chốt.
+Đã đóng bởi U-01 (U-15, 2026-10-12: người dùng ký mọi khuyến nghị của `u01-decision-packet.md`); không còn câu hỏi mở. Mỗi mục ghi câu trả lời đã ký; các bảng ở trên đã cập nhật theo.
+
+- **OQ-UX1 (Product) — đã trả lời (U-15, 2026-10-12):** giữ "UniWork AI" là tên nhà cung cấp trong picker và "AI đám mây UniWork" là tên gói công cụ đám mây trong Cài đặt (`aiUniworkProvider`). G6-05 xử lý mục `uniAI` hiện có (id `genspark`): ẩn hoặc đổi nhãn khi mục `uniwork` có mặt, để picker không hiện hai tên gần giống nhau.
+- **OQ-UX2 (Product, G5-D3) — đã trả lời (U-15, 2026-10-12):** các số ở bảng dưới là giá trị đã ký; task thực thi đo lại và chỉ đổi qua Advisor.
+- **OQ-UX3 (Product + owner F) — đã trả lời (U-15, 2026-10-12):** footer picker cho trạng thái ẩn là chú thích, không phải lỗi (picker bỏ qua nhà cung cấp không dùng được, không hiện mục xám).
+- **OQ-UX4 (owner F) — đã trả lời (U-15, 2026-10-12):** 19 locale ngoài vi/en dùng dịch máy có review; cổng tối thiểu là test parity + placeholder + quét brand (U-02).
+- **OQ-UX6 (Product + G1) — đã trả lời (U-15, 2026-10-12):** "Lưu thành bản sao…" có trong S5 v1, giao ở G5-12 (P2); chỉ hiện khi còn quyền sửa; khóa `uwConflictSaveCopy*` (State Patterns › Conflict dialog (S5)).
+- **OQ-UX7 (Lead F) — đã trả lời (U-15, 2026-10-12):** chỉ Cài đặt › Tài khoản cộng pill; không dựng menu tài khoản mới (app không có), đặt liên kết `uwSyncOpenFromSettings` trong `AccountPane`.
+- **OQ-UX8 (Product) — đã trả lời (U-15, 2026-10-12):** giữ lựa chọn "Tải bản của tôi về máy rồi tải lại" trên web (đường `api.download`, X-02 + G5-09w). Không dùng C18 Restore cho nháp xung đột.
+- **OQ-UX9 (Product + owner F) — đã trả lời (U-15, 2026-10-12):** "Xem khác biệt" chỉ có ở Docs (DOCX) trong v1; module khác ẩn nút; G6-01 xác nhận host (desktop/web) của panel so sánh.
+- **OQ-UX10 (Product) — đã trả lời (U-15, 2026-10-12):** có; khối công bố S8 hiện lại khi đổi tài liệu hoặc tổ chức (G6-05u lưu "đã hiểu" theo khóa tài khoản, tổ chức, tài liệu).
+- **OQ-UX11 (Product + G5-D1) — đã trả lời (U-15, 2026-10-12):** `offline_library` tắt thì bản đã tải được giữ tới khi bật lại hoặc đăng xuất, mở được khi lease còn hạn (lease vẫn là giới hạn quyền); không xóa ngay.
+- **OQ-UX12 (Product + owner F) — đã trả lời (U-15, 2026-10-12):** tên tệp tải về `{tên} (bản của tôi).{ext}` / en `{name} (my version).{ext}` qua `uwConflictMineFileSuffix`, đuôi theo định dạng gốc của module; host thay ký tự cấm của hệ điều hành (`\ / : * ? " < > |`) bằng `_`.
+- **OQ-UX13 (OPS + Lead F) — đã trả lời (U-15, 2026-10-12):** không có telemetry app → server trong phase này; ghi vào backlog, owner OPS + Lead F. Metric chỉ có ở app không có alert (plan §8, G7-07); "Sao chép mã hỗ trợ" là đường chẩn đoán v1. Xây đường này cần đổi `PRIVACY.md` của fork và một quyết định riêng.
+- **OQ-UX14 (Product + Auth) — đã trả lời (U-15, 2026-10-12):** "Tải bản của tôi về máy" trên web là bản sao cục bộ không có hàng `document_access`, ghi trong danh mục bản sao §8.3; host không gọi server ghi sự kiện `export`.
+- **OQ-UX15 (G1/FileService + Lead D + Lead F; plan §3 OQ-P1, OQ-P3) — đã trả lời (U-15, 2026-10-12):** OQ-P1 chọn (a1) ở `contract-p0.md` mục 7.1: server so base nội dung bằng cột `content_revision`, nên di chuyển, khôi phục, bỏ lưu trữ và đổi tên không gây 409 khi nội dung không đổi (owner thực thi G5-07). Phần `api.open` xin version không còn là head (OQ-P3) là dữ kiện cho X-02 ở `contract-p0.md` mục 7.3; X-02 chốt, bất biến của spine giữ nguyên: không bao giờ ghép byte cũ với revision của head.
+
+Các số của OQ-UX2 (đã ký, U-15, 2026-10-12):
+
+| Số | Giá trị |
+| --- | --- |
+| Dung lượng thư viện offline | 2 GiB mỗi tài khoản trên một máy |
+| Số tài liệu ghim | 200 |
+| Số nháp giữ tối đa mỗi tài liệu | 3 |
+| Ngân sách store đồng bộ mỗi tài khoản (queue + nháp, không gồm thư viện offline) | 1 GiB |
+| Giữ tab "Đã lưu gần đây" | 24 giờ |
+| Tự ẩn thanh S6 khi sạch | 8 giây (hover/focus giữ thanh) |
+| Ngưỡng "Cần hỗ trợ" (reconciling → reconciling-stuck) | 1 giờ đối soát chưa có kết quả xác định |
+| Chu kỳ tự kiểm lại hàng `reconciling-stuck` | 15 phút |
+| Số lần resync liên tiếp khi gặp 410 trước `uwSyncResyncFailed` | 5, backoff tăng dần |
+| Ngưỡng chờ AI trước `uwTipWaitAiLong` | 30 giây |
+| Heartbeat lock cửa sổ | 5 giây; coi là mất sau 15 giây (3 nhịp lỡ) |
+| Mức kẹp `Retry-After` | 300 giây |
+| Số lần chờ 429 tối đa mỗi lượt | 3 (G6-02 xác nhận khi spike xong) |

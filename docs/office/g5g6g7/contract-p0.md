@@ -302,7 +302,7 @@ light/dark vi/en cho task UI.
 | --- | --- | --- | --- |
 | G5-D1 | Giá trị chính sách: lease ≤ 24 h, gia hạn khi online, revoke hiệu lực khi máy nhận revoke hoặc lease hết hạn, logout khóa ngay | Amendment DOC-005 + threat model | Lô ký #2; người dùng (vai Auth) |
 | G5-D2 | — (giao đội chốt) | Retention feed/snapshot/idempotency, tra intent, fencing, claim refresh | Lô #2; người dùng (vai G1/FileService); dev dùng giá trị tạm của G5-01a/G5-07 |
-| G5-D3 | Một intent chưa giải quyết mỗi Document | Số giới hạn queue/cache/nháp (OQ-UX2) | U-01 (lô #1, `u01-decision-packet.md`) |
+| G5-D3 | Một intent chưa giải quyết mỗi Document; số giới hạn queue/cache/nháp (OQ-UX2) | — | Đóng bởi U-01 apply (U-15, 2026-10-12): số đã ký ở `ux/EXPERIENCE.md` › Open questions |
 | G6-D1 | Entitlement dùng lại `office.ai_cloud` | Façade route/wire/run id, streaming, vòng tool-result, `ModelPolicy`, trần pack/lượt/đồng thời, quota semantics | Báo cáo G6-02 → lô #2; người dùng |
 | G6-D2 | — (người dùng quyết khi lên production) | Upstream production, region, retention/log, secrets, transcript | Người dùng; tới đó chỉ fixture tổng hợp trên upstream dev |
 | G6-D3 | Đóng (spec §13.1) | — | — |

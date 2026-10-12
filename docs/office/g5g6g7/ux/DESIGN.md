@@ -1,7 +1,7 @@
 ---
 name: UniWork Office — G5/G6/G7 surfaces
 description: Lớp delta trên shell genoffice đã rebrand (fork UNIAI-TEAM/uniwork-office) cho trung tâm đồng bộ, thư viện offline, trạng thái Lưu, hộp thoại xung đột, thông báo phiên bản mới và nhà cung cấp UniWork AI. Mọi token không liệt kê kế thừa packages/ui/src/tokens.css, apps/shell/src/renderer/src/home.css và apps/*/src/renderer/styles.css tại fork fcfcd29d. Giá trị rgb() (scrim) là có chủ ý, chép nguyên từ fork. Đây là danh sách token duy nhất của G5/G6/G7.
-status: draft
+status: final
 updated: 2026-10-12
 sources:
   - ../../../superpowers/specs/2026-10-02-office-g5-g6-g7-design.md
