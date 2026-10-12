@@ -1,0 +1,117 @@
+$ node --test scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/governance.test.mjs; echo "SCRIPTS_EXIT=$?"
+TAP version 13
+# Subtest: every alert has a runbook_url whose file exists and is named after the alert
+ok 1 - every alert has a runbook_url whose file exists and is named after the alert
+  ---
+  duration_ms: 2.155275
+  ...
+# Subtest: every runbook has the four sections in order and a status line
+ok 2 - every runbook has the four sections in order and a status line
+  ---
+  duration_ms: 1.833512
+  ...
+# Subtest: every runbook is referenced by an alert
+ok 3 - every runbook is referenced by an alert
+  ---
+  duration_ms: 0.359285
+  ...
+# Subtest: runbook index lists every alert
+ok 4 - runbook index lists every alert
+  ---
+  duration_ms: 0.42997
+  ...
+# Subtest: every variable the server reads is documented in .env.example
+ok 5 - every variable the server reads is documented in .env.example
+  ---
+  duration_ms: 30.778558
+  ...
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 6 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 4.319794
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 7 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 4.205917
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 8 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.352948
+  ...
+# Subtest: both hooks exist and are executable
+ok 9 - both hooks exist and are executable
+  ---
+  duration_ms: 0.192981
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 10 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 0.81742
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 11 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 50.082488
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 12 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 0.372014
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 13 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.145228
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 14 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 1.931081
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 15 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.634593
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 16 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 2.356074
+  ...
+# Subtest: every plan says whether it shipped
+ok 17 - every plan says whether it shipped
+  ---
+  duration_ms: 15.510012
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 18 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 0.790548
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 19 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 46.495713
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 20 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 0.483751
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 21 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 43.565345
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 176.928498
+SCRIPTS_EXIT=0

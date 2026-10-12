@@ -1,0 +1,54 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=1 -v ./internal/service/ -run 'TestDocumentChanges|TestChangeCursor|TestChangeLimitBounds|TestTenantExportClassifiesEveryTenantTable'; echo "SERVICE_EXIT=$?"
+=== RUN   TestChangeCursorRoundTrip
+--- PASS: TestChangeCursorRoundTrip (0.00s)
+=== RUN   TestChangeCursorRefusesForgedTamperedAndForeignScope
+--- PASS: TestChangeCursorRefusesForgedTamperedAndForeignScope (0.00s)
+=== RUN   TestChangeCursorExpiry
+--- PASS: TestChangeCursorExpiry (0.00s)
+=== RUN   TestChangeLimitBounds
+--- PASS: TestChangeLimitBounds (0.00s)
+=== RUN   TestDocumentChangesSnapshotIsStableUnderConcurrentWriters
+--- PASS: TestDocumentChangesSnapshotIsStableUnderConcurrentWriters (1.06s)
+=== RUN   TestDocumentChangesHighWaterHandoffCommitsMidBuild
+=== RUN   TestDocumentChangesHighWaterHandoffCommitsMidBuild/repeatable_read_(as_built)
+=== RUN   TestDocumentChangesHighWaterHandoffCommitsMidBuild/read_committed_is_caught
+    document_changes_test.go:198: violation detected as expected: the snapshot holds the writer's new document but the high-water mark cannot see it: the change would be delivered twice
+--- PASS: TestDocumentChangesHighWaterHandoffCommitsMidBuild (2.22s)
+    --- PASS: TestDocumentChangesHighWaterHandoffCommitsMidBuild/repeatable_read_(as_built) (1.04s)
+    --- PASS: TestDocumentChangesHighWaterHandoffCommitsMidBuild/read_committed_is_caught (1.18s)
+=== RUN   TestDocumentChangesMembershipIsAsOfTheSnapshot
+=== RUN   TestDocumentChangesMembershipIsAsOfTheSnapshot/repeatable_read_(as_built)
+=== RUN   TestDocumentChangesMembershipIsAsOfTheSnapshot/read_committed_is_caught
+    document_changes_test.go:198: violation detected as expected: the snapshot holds a document committed with the revocation: the gate and the items were not read at one MVCC point
+--- PASS: TestDocumentChangesMembershipIsAsOfTheSnapshot (2.51s)
+    --- PASS: TestDocumentChangesMembershipIsAsOfTheSnapshot/repeatable_read_(as_built) (1.15s)
+    --- PASS: TestDocumentChangesMembershipIsAsOfTheSnapshot/read_committed_is_caught (1.36s)
+=== RUN   TestDocumentChangesPageReadSurvivesConcurrentSweep
+=== RUN   TestDocumentChangesPageReadSurvivesConcurrentSweep/repeatable_read_(as_built)
+=== RUN   TestDocumentChangesPageReadSurvivesConcurrentSweep/read_committed_is_caught
+    document_changes_test.go:198: violation detected as expected: page read across the sweep answered 0 rows (has_more=false, phase=snapshot), want the whole page of 2 or 410
+--- PASS: TestDocumentChangesPageReadSurvivesConcurrentSweep (2.73s)
+    --- PASS: TestDocumentChangesPageReadSurvivesConcurrentSweep/repeatable_read_(as_built) (1.25s)
+    --- PASS: TestDocumentChangesPageReadSurvivesConcurrentSweep/read_committed_is_caught (1.48s)
+=== RUN   TestDocumentChangesSnapshotFollowsReadAccess
+--- PASS: TestDocumentChangesSnapshotFollowsReadAccess (1.08s)
+=== RUN   TestDocumentChangesEmptyWorkspace
+--- PASS: TestDocumentChangesEmptyWorkspace (1.01s)
+=== RUN   TestDocumentChangesSweepBetweenPagesAnswersGone
+--- PASS: TestDocumentChangesSweepBetweenPagesAnswersGone (1.05s)
+=== RUN   TestDocumentChangesSweepKeepsLiveSnapshots
+--- PASS: TestDocumentChangesSweepKeepsLiveSnapshots (0.91s)
+=== RUN   TestDocumentChangesSweepWorkerRunCountsRows
+2026/10/12 19:51:21 INFO document change snapshot sweep snapshots=1 items=2
+--- PASS: TestDocumentChangesSweepWorkerRunCountsRows (0.97s)
+=== RUN   TestDocumentChangesExpiredCursorAnswersGone
+--- PASS: TestDocumentChangesExpiredCursorAnswersGone (1.11s)
+=== RUN   TestDocumentChangesForeignCursorIsInvalidWithoutScope
+--- PASS: TestDocumentChangesForeignCursorIsInvalidWithoutScope (1.32s)
+=== RUN   TestDocumentChangesFlagOffAnswersCapabilityOff
+--- PASS: TestDocumentChangesFlagOffAnswersCapabilityOff (1.08s)
+=== RUN   TestTenantExportClassifiesEveryTenantTable
+--- PASS: TestTenantExportClassifiesEveryTenantTable (0.12s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	18.333s
+SERVICE_EXIT=0

@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+3e9e4b7d0fb5bb463ba06849031e7aab9a503b4f
+41b8f75ff009c848d50561ca487ac55adb8f8f9a
+3e9e4b7d0 refactor(office): align the openSnapshot comment with the as-of-snapshot membership window
+5ac6efc32 test(office): make the change-feed concurrency guards prove their isolation
+633cf7c5e test(office): sweep a mid-pagination snapshot cursor in the HTTP 410 guard
+a7248f911 fix(office): fail the config load on a malformed OFFICE_CHANGE_SNAPSHOT_TTL
+32d394773 fix(office): re-read the change-feed gates inside the snapshot transaction
+23ef1670a fix(office): ship the change-feed revision as a decimal string
+3a2319c1a chore(office): merge root 41b8f75ff (X-02 r2a frame pin) into G5-01a
+41b8f75ff chore(office): re-pin the six office frames to web-0.1.0-cb76dde
