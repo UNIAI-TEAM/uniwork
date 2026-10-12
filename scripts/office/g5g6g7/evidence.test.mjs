@@ -464,6 +464,22 @@ test('verify accepts a clean ledger and rejects a pass without an artifact, a st
   fs.writeFileSync(ledgerFile, `${ledger.map((line) => JSON.stringify(line)).join('\n')}\n`);
   const clean = verify({ outDir });
   assert.equal(clean.problems.some((problem) => /has an empty (blocker|exitCode)/.test(problem)), false);
+  assert.equal(clean.problems.some((problem) => /has an empty argv/.test(problem)), false, 'a real argument vector is not empty');
+
+  // N1: an empty argv array, and an argv that is not an array, carry no argument
+  // vector; the record is as incomplete as one with a blank command.
+  const argvOk = ledger[0].argv;
+  for (const argv of [[], null, 'node -e 0', {}]) {
+    ledger[0].argv = argv;
+    fs.writeFileSync(ledgerFile, `${ledger.map((line) => JSON.stringify(line)).join('\n')}\n`);
+    assert.ok(
+      verify({ outDir }).problems.some((problem) => /has an empty argv/.test(problem)),
+      `argv ${JSON.stringify(argv)} must be reported as empty`,
+    );
+  }
+  ledger[0].argv = argvOk;
+  fs.writeFileSync(ledgerFile, `${ledger.map((line) => JSON.stringify(line)).join('\n')}\n`);
+  assert.equal(verify({ outDir }).problems.some((problem) => /empty argv/.test(problem)), false);
 });
 
 test('verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker', () => {
