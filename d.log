@@ -1,0 +1,325 @@
+$ set -a && . ./.env && set +a && cd server && go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+go: downloading golang.org/x/vuln v1.7.0
+go: downloading golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5
+go: downloading golang.org/x/mod v0.39.0
+go: downloading golang.org/x/sync v0.22.0
+=== Symbol Results ===
+
+Vulnerability #1: GO-2026-6617
+    HTTP/2 server crash due to HPACK encoder race in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6617
+  Standard library
+    Found in: net/http/internal/http2@go1.27
+    Fixed in: net/http/internal/http2@go1.27.2
+    Example traces found:
+      #1: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #2: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #3: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #4: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #5: cmd/server/main.go:632:24: server.main calls http.Server.Shutdown, which calls http2.Server.GracefulShutdown
+      #6: cmd/server/main.go:632:24: server.main calls http.Server.Shutdown, which calls http2.Server.GracefulShutdown
+      #7: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #8: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #9: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #10: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #11: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http2.Transport.CloseIdleConnections
+      #12: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http2.Transport.CloseIdleConnections
+      #13: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #14: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #15: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #16: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #17: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #18: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #19: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.chunkWriter.Write
+      #20: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.chunkWriter.Write
+      #21: internal/files/contracts.go:188:21: files.Reader.Close calls http2.gzipReader.Close
+      #22: internal/files/contracts.go:188:21: files.Reader.Close calls http2.gzipReader.Close
+      #23: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.gzipReader.Read
+      #24: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.gzipReader.Read
+      #25: internal/files/contracts.go:188:21: files.Reader.Close calls http2.requestBody.Close
+      #26: internal/files/contracts.go:188:21: files.Reader.Close calls http2.requestBody.Close
+      #27: internal/handler/ai_byok.go:83:23: handler.serveProxyStream calls http.ResponseController.Flush, which eventually calls http2.responseWriter.FlushError
+      #28: internal/handler/ai_byok.go:83:23: handler.serveProxyStream calls http.ResponseController.Flush, which eventually calls http2.responseWriter.FlushError
+      #29: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls http2.responseWriter.Write
+      #30: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls http2.responseWriter.Write
+      #31: internal/realtime/hub.go:1034:15: realtime.HandleWebSocket calls http.Error, which calls http2.responseWriter.WriteHeader
+      #32: internal/realtime/hub.go:1034:15: realtime.HandleWebSocket calls http.Error, which calls http2.responseWriter.WriteHeader
+      #33: internal/service/people.go:601:20: service.PeopleService.ExportCSV calls csv.Writer.Write, which eventually calls http2.responseWriter.WriteString
+      #34: internal/service/people.go:601:20: service.PeopleService.ExportCSV calls csv.Writer.Write, which eventually calls http2.responseWriter.WriteString
+      #35: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.stickyErrWriter.Write
+      #36: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.stickyErrWriter.Write
+      #37: internal/files/contracts.go:188:21: files.Reader.Close calls http2.transportResponseBody.Close
+      #38: internal/files/contracts.go:188:21: files.Reader.Close calls http2.transportResponseBody.Close
+      #39: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.transportResponseBody.Read
+      #40: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.transportResponseBody.Read
+
+Vulnerability #2: GO-2026-6613
+    HTTP/1 server connection desynchronization after 2xx CONNECT response in
+    net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6613
+  Standard library
+    Found in: net/http@go1.27
+    Fixed in: net/http@go1.27.2
+    Example traces found:
+      #1: internal/middleware/correlation.go:7:2: middleware.init calls middleware.init, which calls http.CanonicalHeaderKey
+      #2: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do
+      #3: internal/realtime/hub.go:1034:15: realtime.HandleWebSocket calls http.Error
+      #4: internal/metrics/ai.go:7:2: metrics.init calls prometheus.init, which eventually calls http.HandleFunc
+      #5: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls middleware.compressResponseWriter.Write, which eventually calls http.Header.Add
+      #6: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls middleware.compressResponseWriter.Write, which eventually calls http.Header.Del
+      #7: internal/ai/provider/byok_client.go:196:32: provider.ForwardedRequestHeaders calls http.Header.Get
+      #8: internal/ai/provider/cloud.go:399:16: provider.OpenAITranscriber.Transcribe calls http.Header.Set
+      #9: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http.Header.Values
+      #10: internal/auth/google.go:35:35: auth.NewGoogleOAuth calls oidc.NewProvider, which calls http.NewRequest
+      #11: internal/ai/provider/cloud.go:323:40: provider.OpenAIImages.Generate calls http.NewRequestWithContext
+      #12: internal/storage/local.go:301:16: storage.LocalStorage.ServeFile calls http.NotFound
+      #13: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http.ReadRequest
+      #14: internal/ai/provider/byok_client.go:416:11: provider.idleBody.Close calls sync.Once.Do, which eventually calls http.ReadResponse
+      #15: internal/meetings/guest_cookie.go:55:20: meetings.GuestIDFromRequest calls http.Request.Cookie
+      #16: internal/billing/vnpay.go:132:24: billing.vnpParamsFromRequest calls http.Request.ParseForm
+      #17: internal/service/calendar_connections.go:126:26: service.CalendarConnectionService.Complete calls oauth2.Config.Exchange, which eventually calls http.Request.SetBasicAuth
+      #18: internal/ai/provider/byok_client.go:416:11: provider.idleBody.Close calls sync.Once.Do, which eventually calls http.Request.Write
+      #19: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http.Response.Write
+      #20: internal/storage/local.go:341:16: storage.LocalStorage.ServeFile calls http.ServeFile
+      #21: internal/metrics/server.go:13:12: metrics.NewHandler calls http.ServeMux.Handle
+      #22: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe
+      #23: cmd/server/main.go:632:24: server.main calls http.Server.Shutdown
+      #24: internal/meetings/guest_cookie.go:68:16: meetings.SetGuestCookie calls http.SetCookie
+      #25: internal/ai/provider/anthropic.go:17:47: provider.NewAnthropic calls anthropic.NewClient, which eventually calls http.Transport.Clone
+      #26: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http.Transport.CloseIdleConnections
+      #27: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http.Transport.RoundTrip
+      #28: internal/files/contracts.go:188:21: files.Reader.Close calls http.body.Close
+      #29: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http.body.Read
+      #30: internal/files/contracts.go:188:21: files.Reader.Close calls http.bodyEOFSignal.Close
+      #31: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http.bodyEOFSignal.Read
+      #32: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls io.LimitedReader.Read, which calls http.bodyLocked.Read
+      #33: internal/service/office_desktop_bundle.go:90:22: service.OfficeDesktopBundle.WriteZipTo calls io.Copy, which eventually calls http.bufioFlushWriter.Write
+      #34: internal/files/contracts.go:188:21: files.Reader.Close calls http.cancelTimerBody.Close
+      #35: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http.cancelTimerBody.Read
+      #36: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http.checkConnErrorWriter.Write
+      #37: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http.chunkWriter.Write
+      #38: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls io.LimitedReader.Read, which calls http.connReader.Read
+      #39: internal/files/contracts.go:188:21: files.Reader.Close calls http.expectContinueReader.Close
+      #40: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http.expectContinueReader.Read
+      #41: internal/files/contracts.go:188:21: files.Reader.Close calls http.gzipReader.Close
+      #42: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http.gzipReader.Read
+      #43: internal/realtime/hub.go:1092:14: realtime.HandleWebSocket calls websocket.Conn.Close, which calls http.loggingConn.Close
+      #44: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls io.LimitedReader.Read, which calls http.loggingConn.Read
+      #45: internal/service/backfill/backfill.go:542:13: backfill.Report.Human calls fmt.Fprintf, which calls http.loggingConn.Write
+      #46: internal/files/contracts.go:188:21: files.Reader.Close calls http.maxBytesReader.Close
+      #47: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http.maxBytesReader.Read
+      #48: internal/ai/provider/byok_client.go:416:11: provider.idleBody.Close calls sync.Once.Do, which eventually calls http.onceCloseListener.Close
+      #49: internal/storage/local.go:368:25: storage.LocalStorage.UploadFromReader calls io.ReadAll, which calls http.persistConn.Read
+      #50: internal/service/office_desktop_bundle.go:90:22: service.OfficeDesktopBundle.WriteZipTo calls io.Copy, which eventually calls http.persistConnWriter.ReadFrom
+      #51: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http.persistConnWriter.Write
+      #52: internal/files/contracts.go:188:21: files.Reader.Close calls http.readTrackingBody.Close
+      #53: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http.readTrackingBody.Read
+      #54: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http.readWriteCloserBody.Read
+      #55: internal/realtime/hub.go:1048:31: realtime.HandleWebSocket calls websocket.Upgrader.Upgrade, which calls http.response.Hijack
+      #56: internal/service/office_desktop_bundle.go:90:22: service.OfficeDesktopBundle.WriteZipTo calls io.Copy, which eventually calls http.response.ReadFrom
+      #57: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls http.response.Write
+      #58: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls middleware.compressResponseWriter.Write, which eventually calls http.response.WriteHeader
+      #59: internal/service/people.go:601:20: service.PeopleService.ExportCSV calls csv.Writer.Write, which eventually calls http.response.WriteString
+      #60: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls http.timeoutWriter.Write
+      #61: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls middleware.compressResponseWriter.Write, which eventually calls http.timeoutWriter.WriteHeader
+      #62: internal/outbox/outbox.go:358:80: outbox.consumerError.Error calls http.transportReadFromServerError.Error
+
+Vulnerability #3: GO-2026-6612
+    Double flow control refund on HTTP/2 server streams in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6612
+  Standard library
+    Found in: net/http/internal/http2@go1.27
+    Fixed in: net/http/internal/http2@go1.27.2
+    Example traces found:
+      #1: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #2: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #3: internal/files/contracts.go:188:21: files.Reader.Close calls http2.requestBody.Close
+      #4: internal/files/contracts.go:188:21: files.Reader.Close calls http2.requestBody.Close
+      #5: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.requestBody.Read
+      #6: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.requestBody.Read
+
+Vulnerability #4: GO-2026-6611
+    Excessive CPU consumption from repeated initial window changes in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6611
+  Standard library
+    Found in: net/http/internal/http2@go1.27
+    Fixed in: net/http/internal/http2@go1.27.2
+    Example traces found:
+      #1: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #2: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #3: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #4: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #5: cmd/server/main.go:632:24: server.main calls http.Server.Shutdown, which calls http2.Server.GracefulShutdown
+      #6: cmd/server/main.go:632:24: server.main calls http.Server.Shutdown, which calls http2.Server.GracefulShutdown
+      #7: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #8: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #9: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #10: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #11: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http2.Transport.CloseIdleConnections
+      #12: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http2.Transport.CloseIdleConnections
+      #13: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #14: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #15: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #16: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #17: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #18: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #19: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.chunkWriter.Write
+      #20: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.chunkWriter.Write
+      #21: internal/files/contracts.go:188:21: files.Reader.Close calls http2.gzipReader.Close
+      #22: internal/files/contracts.go:188:21: files.Reader.Close calls http2.gzipReader.Close
+      #23: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.gzipReader.Read
+      #24: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.gzipReader.Read
+      #25: internal/files/contracts.go:188:21: files.Reader.Close calls http2.requestBody.Close
+      #26: internal/files/contracts.go:188:21: files.Reader.Close calls http2.requestBody.Close
+      #27: internal/handler/ai_byok.go:83:23: handler.serveProxyStream calls http.ResponseController.Flush, which eventually calls http2.responseWriter.FlushError
+      #28: internal/handler/ai_byok.go:83:23: handler.serveProxyStream calls http.ResponseController.Flush, which eventually calls http2.responseWriter.FlushError
+      #29: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls http2.responseWriter.Write
+      #30: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls http2.responseWriter.Write
+      #31: internal/realtime/hub.go:1034:15: realtime.HandleWebSocket calls http.Error, which calls http2.responseWriter.WriteHeader
+      #32: internal/realtime/hub.go:1034:15: realtime.HandleWebSocket calls http.Error, which calls http2.responseWriter.WriteHeader
+      #33: internal/service/people.go:601:20: service.PeopleService.ExportCSV calls csv.Writer.Write, which eventually calls http2.responseWriter.WriteString
+      #34: internal/service/people.go:601:20: service.PeopleService.ExportCSV calls csv.Writer.Write, which eventually calls http2.responseWriter.WriteString
+      #35: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.stickyErrWriter.Write
+      #36: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.stickyErrWriter.Write
+      #37: internal/files/contracts.go:188:21: files.Reader.Close calls http2.transportResponseBody.Close
+      #38: internal/files/contracts.go:188:21: files.Reader.Close calls http2.transportResponseBody.Close
+      #39: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.transportResponseBody.Read
+      #40: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.transportResponseBody.Read
+
+Vulnerability #5: GO-2026-6610
+    HTTP/2 transport accepts malformed framing-related headers in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6610
+  Standard library
+    Found in: net/http/internal/http2@go1.27
+    Fixed in: net/http/internal/http2@go1.27.2
+    Example traces found:
+      #1: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #2: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #3: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #4: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #5: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #6: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+
+Vulnerability #6: GO-2026-6609
+    Lack of limit on size of parsed Range headers in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6609
+  Standard library
+    Found in: net/http@go1.27
+    Fixed in: net/http@go1.27.2
+    Example traces found:
+      #1: internal/storage/local.go:341:16: storage.LocalStorage.ServeFile calls http.ServeFile
+      #2: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls http.fileHandler.ServeHTTP
+
+Vulnerability #7: GO-2026-6608
+    Memory limit bypass when parsing MIME headers in net/textproto,
+    mime/multipart
+  More info: https://pkg.go.dev/vuln/GO-2026-6608
+  Standard library
+    Found in: net/textproto@go1.27
+    Fixed in: net/textproto@go1.27.2
+    Example traces found:
+      #1: internal/handler/documents.go:87:24: handler.documentUploadForm calls multipart.Reader.NextPart
+      #2: internal/handler/chat_voice_message.go:83:63: handler.handlers.sendChatVoiceMessage calls http.Request.FormValue, which eventually calls multipart.Reader.ReadForm
+      #3: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls textproto.Reader.ReadMIMEHeader
+
+Vulnerability #8: GO-2026-6607
+    Reject malformed ECH outer extension references in crypto/tls
+  More info: https://pkg.go.dev/vuln/GO-2026-6607
+  Standard library
+    Found in: crypto/tls@go1.27
+    Fixed in: crypto/tls@go1.27.2
+    Example traces found:
+      #1: internal/emailhub/imapclient/client.go:235:23: imapclient.startTLS calls client.Client.StartTLS, which eventually calls tls.Conn.Handshake
+      #2: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls tls.Conn.HandshakeContext
+      #3: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http.readWriteCloserBody.Read, which calls tls.Conn.Read
+      #4: internal/service/backfill/backfill.go:542:13: backfill.Report.Human calls fmt.Fprintf, which calls tls.Conn.Write
+      #5: cmd/server/main.go:101:24: server.main calls redis.NewClient, which eventually calls tls.DialWithDialer
+      #6: internal/mail/smtp.go:226:29: mail.SMTPSender.open calls tls.Dialer.DialContext
+
+Vulnerability #9: GO-2026-6605
+    HTTP/1 client connection desynchronization after CONNECT rejection in
+    net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6605
+  Standard library
+    Found in: net/http/httputil@go1.27
+    Fixed in: net/http/httputil@go1.27.2
+    Example traces found:
+      #1: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do
+      #2: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http.Transport.CloseIdleConnections
+      #3: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http.Transport.RoundTrip
+      #4: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls httputil.DumpRequestOut
+
+Vulnerability #10: GO-2026-6603
+    HTTP/2 server memory exhaustion due to Trailer headers in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6603
+  Standard library
+    Found in: net/http/internal/http2@go1.27
+    Fixed in: net/http/internal/http2@go1.27.2
+    Example traces found:
+      #1: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #2: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #3: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #4: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #5: cmd/server/main.go:632:24: server.main calls http.Server.Shutdown, which calls http2.Server.GracefulShutdown
+      #6: cmd/server/main.go:632:24: server.main calls http.Server.Shutdown, which calls http2.Server.GracefulShutdown
+      #7: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #8: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #9: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #10: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #11: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http2.Transport.CloseIdleConnections
+      #12: internal/storage/s3_objects.go:262:67: storage.s3ObjectStore.SignWrite calls s3.PresignClient.PresignPutObject, which eventually calls http2.Transport.CloseIdleConnections
+      #13: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #14: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #15: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #16: internal/ai/provider/byok_client.go:161:23: provider.BYOKClient.Do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #17: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #18: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #19: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.chunkWriter.Write
+      #20: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.chunkWriter.Write
+      #21: internal/files/contracts.go:188:21: files.Reader.Close calls http2.gzipReader.Close
+      #22: internal/files/contracts.go:188:21: files.Reader.Close calls http2.gzipReader.Close
+      #23: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.gzipReader.Read
+      #24: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.gzipReader.Read
+      #25: internal/files/contracts.go:188:21: files.Reader.Close calls http2.requestBody.Close
+      #26: internal/files/contracts.go:188:21: files.Reader.Close calls http2.requestBody.Close
+      #27: internal/handler/ai_byok.go:83:23: handler.serveProxyStream calls http.ResponseController.Flush, which eventually calls http2.responseWriter.FlushError
+      #28: internal/handler/ai_byok.go:83:23: handler.serveProxyStream calls http.ResponseController.Flush, which eventually calls http2.responseWriter.FlushError
+      #29: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls http2.responseWriter.Write
+      #30: internal/service/people.go:596:22: service.PeopleService.ExportCSV calls http2.responseWriter.Write
+      #31: internal/realtime/hub.go:1034:15: realtime.HandleWebSocket calls http.Error, which calls http2.responseWriter.WriteHeader
+      #32: internal/realtime/hub.go:1034:15: realtime.HandleWebSocket calls http.Error, which calls http2.responseWriter.WriteHeader
+      #33: internal/service/people.go:601:20: service.PeopleService.ExportCSV calls csv.Writer.Write, which eventually calls http2.responseWriter.WriteString
+      #34: internal/service/people.go:601:20: service.PeopleService.ExportCSV calls csv.Writer.Write, which eventually calls http2.responseWriter.WriteString
+      #35: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.stickyErrWriter.Write
+      #36: internal/service/people.go:622:20: service.PeopleService.ExportCSV calls csv.Writer.Error, which eventually calls http2.stickyErrWriter.Write
+      #37: internal/files/contracts.go:188:21: files.Reader.Close calls http2.transportResponseBody.Close
+      #38: internal/files/contracts.go:188:21: files.Reader.Close calls http2.transportResponseBody.Close
+      #39: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.transportResponseBody.Read
+      #40: internal/ai/provider/byok_client.go:404:21: provider.idleBody.Read calls http2.transportResponseBody.Read
+
+Vulnerability #11: GO-2026-6600
+    Recognize yield as regexp preceder keyword in html/template
+  More info: https://pkg.go.dev/vuln/GO-2026-6600
+  Standard library
+    Found in: html/template@go1.27
+    Fixed in: html/template@go1.27.2
+    Example traces found:
+      #1: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls template.Template.Execute
+      #2: internal/mail/render.go:115:46: mail.renderKind calls template.Template.ExecuteTemplate
+
+Vulnerability #12: GO-2026-6599
+    Reset context tracking on consecutive template expressions in html/template
+  More info: https://pkg.go.dev/vuln/GO-2026-6599
+  Standard library
+    Found in: html/template@go1.27
+    Fixed in: html/template@go1.27.2
+    Example traces found:
+      #1: cmd/server/main.go:606:30: server.main calls http.Server.ListenAndServe, which eventually calls template.Template.Execute
+      #2: internal/mail/render.go:115:46: mail.renderKind calls template.Template.ExecuteTemplate
+
+Your code is affected by 12 vulnerabilities from the Go standard library.
+This scan also found 5 vulnerabilities in packages you import and 2
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.
+exit status 3
