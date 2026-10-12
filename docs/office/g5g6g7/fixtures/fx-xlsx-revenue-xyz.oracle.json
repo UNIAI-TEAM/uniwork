@@ -1,0 +1,312 @@
+{
+  "fixtureId": "fx-xlsx-revenue-xyz",
+  "format": "xlsx",
+  "fixtureSha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+  "synthetic": true,
+  "revenueFormula": "Doanh thu = X * Y * (1 - Z); Z stored as 10 means 10 percent, as 10% means 0.1; blank means 0.",
+  "zRuleNote": "The discount rule is IF(Z>1, Z/100, Z): a stored Z above 1 is a percentage written as a number, so 10 means 10 percent. A Z of exactly 1 would therefore be read as 100 percent, which is why no cell stores 1; a blank Z is no discount. The same rule is what the workbook column G encodes.",
+  "shareBasisNote": "Tổng hợp column E (\"Tỷ trọng\") is each region share of Q1+Q2 revenue, while the DOCX/PPTX/MD/HTML \"Tỷ trọng\" column is the Q1-only share; the two are deliberately different bases and a cross-format comparison must not read them as a mismatch.",
+  "sheets": {
+    "Doanh thu Q1": {
+      "dataRows": "2-7",
+      "hiddenRows": [
+        6
+      ],
+      "totalsRow": 8,
+      "totalsRowWithoutHidden": 9,
+      "columns": {
+        "X": "D",
+        "Y": "E",
+        "Z": "F",
+        "revenue": "G"
+      },
+      "totals": {
+        "rowCount": 6,
+        "hiddenRowCount": 1,
+        "withHiddenRows": {
+          "sumX": 475,
+          "sumY": 480000,
+          "sumZStored": 10.5,
+          "revenue": 22060000
+        },
+        "withoutHiddenRows": {
+          "sumX": 275,
+          "sumY": 460000,
+          "sumZStored": 10.35,
+          "revenue": 18660000
+        }
+      },
+      "zCells": [
+        {
+          "cell": "F2",
+          "stored": 0.1,
+          "kind": "percent-format (0%)",
+          "discountFraction": 0.1
+        },
+        {
+          "cell": "F3",
+          "stored": 0.05,
+          "kind": "percent-format (0%)",
+          "discountFraction": 0.05
+        },
+        {
+          "cell": "F4",
+          "stored": 10,
+          "kind": "plain number",
+          "discountFraction": 0.1
+        },
+        {
+          "cell": "F5",
+          "stored": null,
+          "kind": "blank",
+          "discountFraction": 0
+        },
+        {
+          "cell": "F6",
+          "stored": 0.15,
+          "kind": "percent-format (0%)",
+          "discountFraction": 0.15
+        },
+        {
+          "cell": "F7",
+          "stored": 0.2,
+          "kind": "percent-format (0%)",
+          "discountFraction": 0.2
+        }
+      ],
+      "revenueByRow": [
+        {
+          "row": 2,
+          "id": "Q1-001",
+          "revenue": 4500000
+        },
+        {
+          "row": 3,
+          "id": "Q1-002",
+          "revenue": 4560000
+        },
+        {
+          "row": 4,
+          "id": "Q1-003",
+          "revenue": 3600000
+        },
+        {
+          "row": 5,
+          "id": "Q1-004",
+          "revenue": 3600000
+        },
+        {
+          "row": 6,
+          "id": "Q1-005",
+          "revenue": 3400000
+        },
+        {
+          "row": 7,
+          "id": "Q1-006",
+          "revenue": 2400000
+        }
+      ]
+    },
+    "Doanh thu Q2": {
+      "dataRows": "2-6",
+      "hiddenRows": [
+        6
+      ],
+      "totalsRow": 7,
+      "totalsRowWithoutHidden": 8,
+      "columns": {
+        "X": "D",
+        "Y": "E",
+        "Z": "F",
+        "revenue": "G"
+      },
+      "totals": {
+        "rowCount": 5,
+        "hiddenRowCount": 1,
+        "withHiddenRows": {
+          "sumX": 295,
+          "sumY": 360000,
+          "sumZStored": 10.35,
+          "revenue": 18510000
+        },
+        "withoutHiddenRows": {
+          "sumX": 260,
+          "sumY": 240000,
+          "sumZStored": 10.15,
+          "revenue": 15150000
+        }
+      },
+      "zCells": [
+        {
+          "cell": "F2",
+          "stored": 0.1,
+          "kind": "percent-format (0%)",
+          "discountFraction": 0.1
+        },
+        {
+          "cell": "F3",
+          "stored": 0.05,
+          "kind": "percent-format (0%)",
+          "discountFraction": 0.05
+        },
+        {
+          "cell": "F4",
+          "stored": 10,
+          "kind": "plain number",
+          "discountFraction": 0.1
+        },
+        {
+          "cell": "F5",
+          "stored": null,
+          "kind": "blank",
+          "discountFraction": 0
+        },
+        {
+          "cell": "F6",
+          "stored": 0.2,
+          "kind": "percent-format (0%)",
+          "discountFraction": 0.2
+        }
+      ],
+      "revenueByRow": [
+        {
+          "row": 2,
+          "id": "Q2-001",
+          "revenue": 5400000
+        },
+        {
+          "row": 3,
+          "id": "Q2-002",
+          "revenue": 5700000
+        },
+        {
+          "row": 4,
+          "id": "Q2-003",
+          "revenue": 4050000
+        },
+        {
+          "row": 5,
+          "id": "Q2-004",
+          "revenue": 0
+        },
+        {
+          "row": 6,
+          "id": "Q2-005",
+          "revenue": 3360000
+        }
+      ]
+    },
+    "Tổng hợp": {
+      "regions": [
+        {
+          "region": "Bắc",
+          "q1": 9060000,
+          "q2": 11100000,
+          "total": 20160000,
+          "cells": {
+            "q1Formula": "SUMIF over Doanh thu Q1",
+            "q2Formula": "SUMIF over Doanh thu Q2"
+          }
+        },
+        {
+          "region": "Nam",
+          "q1": 7200000,
+          "q2": 4050000,
+          "total": 11250000,
+          "cells": {
+            "q1Formula": "SUMIF over Doanh thu Q1",
+            "q2Formula": "SUMIF over Doanh thu Q2"
+          }
+        },
+        {
+          "region": "Trung",
+          "q1": 5800000,
+          "q2": 3360000,
+          "total": 9160000,
+          "cells": {
+            "q1Formula": "SUMIF over Doanh thu Q1",
+            "q2Formula": "SUMIF over Doanh thu Q2"
+          }
+        }
+      ],
+      "grandTotals": {
+        "q1": 22060000,
+        "q2": 18510000
+      },
+      "grandTotalRow": 5,
+      "shareColumn": {
+        "column": "E",
+        "header": "Tỷ trọng",
+        "basis": "Q1+Q2",
+        "formula": "D{r}/$D$5",
+        "denominator": 40570000,
+        "rows": [
+          {
+            "cell": "E2",
+            "region": "Bắc",
+            "total": 20160000,
+            "share": 0.4969189055952674,
+            "shareText": "49,7%"
+          },
+          {
+            "cell": "E3",
+            "region": "Nam",
+            "total": 11250000,
+            "share": 0.27729849642593046,
+            "shareText": "27,7%"
+          },
+          {
+            "cell": "E4",
+            "region": "Trung",
+            "total": 9160000,
+            "share": 0.22578259797880207,
+            "shareText": "22,6%"
+          }
+        ],
+        "totalCell": "E5"
+      }
+    }
+  },
+  "sheetNames": [
+    "Doanh thu Q1",
+    "Doanh thu Q2",
+    "Tổng hợp",
+    "Ghi chú"
+  ],
+  "errorCells": [
+    {
+      "sheet": "Doanh thu Q2",
+      "cell": "H5",
+      "error": "#DIV/0!"
+    },
+    {
+      "sheet": "Doanh thu Q2",
+      "cell": "I2",
+      "error": "#N/A"
+    },
+    {
+      "sheet": "Tổng hợp",
+      "cell": "B7",
+      "error": "#REF!"
+    }
+  ],
+  "blankCells": [
+    {
+      "sheet": "Doanh thu Q1",
+      "cell": "F5"
+    },
+    {
+      "sheet": "Doanh thu Q2",
+      "cell": "F5"
+    }
+  ],
+  "cachedValuesAreCorrect": true,
+  "displayExamples": {
+    "revenueQ1WithHidden": "22.060.000"
+  },
+  "regionNames": [
+    "Bắc",
+    "Nam",
+    "Trung"
+  ]
+}
