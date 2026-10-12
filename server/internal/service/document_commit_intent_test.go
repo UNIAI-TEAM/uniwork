@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -99,11 +101,35 @@ func (e *intentEnv) claimFor(t *testing.T, actor Actor, d db.Document, up Docume
 }
 
 // finishAttempt runs the second half of an attempt (format check + the commit
-// transaction with its fence) for a claim taken earlier.
-func (e *intentEnv) finishAttempt(d db.Document, file files.File, up DocumentUpload, key string, opts IdempotencyOptions, claim commitIntentClaim, actor Actor) error {
-	_, _, err := e.svc.commitClaimedFileVersion(context.Background(), actor, d, documentScope(d.OrganizationID, d.WorkspaceID), file,
+// transaction with its fence) for a claim taken earlier, returning the answer
+// the attempt got (a replay of another attempt's ledger row when one exists).
+func (e *intentEnv) finishAttempt(d db.Document, file files.File, up DocumentUpload, key string, opts IdempotencyOptions, claim commitIntentClaim, actor Actor) (DocumentFileResult, error) {
+	res, _, err := e.svc.commitClaimedFileVersion(context.Background(), actor, d, documentScope(d.OrganizationID, d.WorkspaceID), file,
 		CommitFileVersionInput{UploadID: up.UploadID, BaseRevision: d.Revision, IdempotencyKey: key}, opts, &claim)
-	return err
+	return res, err
+}
+
+// waitForIntentLockWait blocks until a query touching document_commit_intents
+// is waiting on a row lock, so a test knows the other connection reached the
+// row before it releases it (no sleep guessing).
+func waitForIntentLockWait(t *testing.T, e *intentEnv) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		var n int
+		if err := e.f.pool.QueryRow(context.Background(), `
+			SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database()
+			  AND wait_event_type = 'Lock'
+			  AND query ILIKE '%document_commit_intents%'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("no query reached document_commit_intents within the wait")
 }
 
 func (e *intentEnv) intentCount(t *testing.T, key string) int {
@@ -182,7 +208,7 @@ func TestCommitIntentFenceRefusesLateCommit(t *testing.T) {
 		if got.Outcome != CommitIntentNotCommitted {
 			t.Fatalf("lookup = %+v, want not_committed", got)
 		}
-		err = env.finishAttempt(created.Document, file, up, key, opts, claim, member)
+		_, err = env.finishAttempt(created.Document, file, up, key, opts, claim, member)
 		wantCode(t, err, "idempotency_in_flight")
 		if vs := env.versions(t, env.doc(t, created.Document.ID)); len(vs) != 1 {
 			t.Fatalf("versions = %d, want 1: the fenced attempt committed", len(vs))
@@ -191,6 +217,30 @@ func TestCommitIntentFenceRefusesLateCommit(t *testing.T) {
 		mustf(t, err, "lookup after the refused late commit")
 		if got.Outcome != CommitIntentNotCommitted {
 			t.Fatalf("lookup = %+v, want still not_committed", got)
+		}
+	})
+
+	t.Run("renewed but not committed", func(t *testing.T) {
+		env := newIntentEnv(t)
+		member := human(env.tn.member)
+		created := env.createFile(t, member, "renew-live.pdf", pdfBody("v1"))
+		up := env.upload(t, member, created.Document.ID, "renew-live-v2.pdf", pdfBody("v2"))
+		key := util.NewID()
+		stale, file, opts := env.claimFor(t, member, created.Document, up, key)
+		env.expireClaim(t, key)
+
+		// A newer attempt renews the intent and holds it live, without
+		// committing anything yet: no ledger row exists to replay.
+		newer, committed, err := env.svc.claimCommitIntent(context.Background(), member, env.doc(t, created.Document.ID), key, opts.Fingerprint)
+		mustf(t, err, "renew")
+		if committed || newer.Attempt != stale.Attempt+1 {
+			t.Fatalf("renewal = %+v committed=%v, want attempt %d", newer, committed, stale.Attempt+1)
+		}
+		// The stale attempt's fence must refuse it: live claim, wrong attempt.
+		_, err = env.finishAttempt(created.Document, file, up, key, opts, stale, member)
+		wantCode(t, err, "idempotency_in_flight")
+		if vs := env.versions(t, env.doc(t, created.Document.ID)); len(vs) != 1 {
+			t.Fatalf("versions = %d, want 1: the stale attempt committed", len(vs))
 		}
 	})
 
@@ -209,9 +259,13 @@ func TestCommitIntentFenceRefusesLateCommit(t *testing.T) {
 		if n := env.countAudit(t, audit.ActionDocumentCommitIntentRenewed, created.Document.ID); n != 1 {
 			t.Fatalf("renewal audit rows = %d, want 1", n)
 		}
-		// The stale attempt wakes up: the ledger already holds the answer, so
-		// it replays instead of committing a second version.
-		_ = env.finishAttempt(created.Document, file, up, key, opts, stale, member)
+		// The stale attempt wakes up: the ledger already holds the winner's
+		// answer, so it replays that version instead of committing a second.
+		replay, err := env.finishAttempt(created.Document, file, up, key, opts, stale, member)
+		mustf(t, err, "stale attempt after the winner committed")
+		if replay.Version.ID != res.Version.ID {
+			t.Fatalf("stale attempt answered %s, want the winner's %s", replay.Version.ID, res.Version.ID)
+		}
 		if vs := env.versions(t, env.doc(t, created.Document.ID)); len(vs) != 2 {
 			t.Fatalf("versions = %d, want 2", len(vs))
 		}
@@ -221,6 +275,126 @@ func TestCommitIntentFenceRefusesLateCommit(t *testing.T) {
 			t.Fatalf("lookup = %+v, want committed %s", got, res.Version.ID)
 		}
 	})
+}
+
+// TI-4: the fence under a real interleaving. A stale attempt's fence blocks on
+// the intent row while another connection renews the claim, and Postgres
+// re-evaluates the row when that transaction ends, so the blocked fence sees
+// the renewal and must be refused. Exactly one version exists afterwards.
+func TestCommitIntentFenceRacesARenewal(t *testing.T) {
+	env := newIntentEnv(t)
+	member := human(env.tn.member)
+	created := env.createFile(t, member, "fence-race.pdf", pdfBody("v1"))
+	up := env.upload(t, member, created.Document.ID, "fence-race-v2.pdf", pdfBody("v2"))
+	key := util.NewID()
+	claim, file, opts := env.claimFor(t, member, created.Document, up, key)
+	env.expireClaim(t, key)
+
+	conn, err := env.f.pool.Acquire(context.Background())
+	mustf(t, err, "acquire the holder connection")
+	defer conn.Release()
+	tx, err := conn.Begin(context.Background())
+	mustf(t, err, "begin the holder transaction")
+	renewed := false
+	defer func() {
+		if !renewed {
+			_ = tx.Rollback(context.Background())
+		}
+	}()
+	if _, err := tx.Exec(context.Background(),
+		`SELECT 1 FROM document_commit_intents WHERE idempotency_key = $1 FOR UPDATE`, key); err != nil {
+		t.Fatal(err)
+	}
+
+	// The stale attempt's fence cannot pass the row lock the holder owns.
+	stale := make(chan error, 1)
+	go func() {
+		_, err := env.finishAttempt(created.Document, file, up, key, opts, claim, member)
+		stale <- err
+	}()
+	waitForIntentLockWait(t, env)
+
+	// The newer attempt takes the intent over in the transaction that holds
+	// the row, and commits it.
+	q := env.f.q.WithTx(tx)
+	if _, err := q.RenewDocumentCommitIntent(context.Background(), db.RenewDocumentCommitIntentParams{
+		ClaimSeconds: 120, RetainSeconds: 3600,
+		OrganizationID: created.Document.OrganizationID, WorkspaceID: created.Document.WorkspaceID,
+		ID: claim.ID, Attempt: claim.Attempt,
+	}); err != nil {
+		t.Fatalf("renew: %v", err)
+	}
+	mustf(t, tx.Commit(context.Background()), "commit the renewal")
+	renewed = true
+
+	err = <-stale
+	wantCode(t, err, "idempotency_in_flight")
+	if vs := env.versions(t, env.doc(t, created.Document.ID)); len(vs) != 1 {
+		t.Fatalf("versions = %d, want 1: the blocked stale attempt committed", len(vs))
+	}
+}
+
+// TI-4: a lookup waits for a commit transaction that holds the intent row, so
+// it never answers not_committed for a commit that lands. The claim is expired
+// (a naive read would answer not_committed); the blocked lookup sees the row
+// committed instead.
+func TestCommitIntentLookupRacesACommit(t *testing.T) {
+	env := newIntentEnv(t)
+	member := human(env.tn.member)
+	created := env.createFile(t, member, "lookup-race.pdf", pdfBody("v1"))
+	up := env.upload(t, member, created.Document.ID, "lookup-race-v2.pdf", pdfBody("v2"))
+	key := util.NewID()
+	claim, _, _ := env.claimFor(t, member, created.Document, up, key)
+	env.expireClaim(t, key)
+
+	conn, err := env.f.pool.Acquire(context.Background())
+	mustf(t, err, "acquire the holder connection")
+	defer conn.Release()
+	tx, err := conn.Begin(context.Background())
+	mustf(t, err, "begin the holder transaction")
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(context.Background())
+		}
+	}()
+	if _, err := tx.Exec(context.Background(),
+		`SELECT 1 FROM document_commit_intents WHERE idempotency_key = $1 FOR UPDATE`, key); err != nil {
+		t.Fatal(err)
+	}
+
+	type answer struct {
+		res CommitIntentResult
+		err error
+	}
+	lookup := make(chan answer, 1)
+	go func() {
+		res, err := env.lookup(member, created.Document.ID, key)
+		lookup <- answer{res, err}
+	}()
+	waitForIntentLockWait(t, env)
+
+	// The attempt commits inside the transaction that holds the row.
+	versionID := util.NewID()
+	q := env.f.q.WithTx(tx)
+	if _, err := q.MarkDocumentCommitIntentCommitted(context.Background(), db.MarkDocumentCommitIntentCommittedParams{
+		VersionID:      pgtype.Text{String: versionID, Valid: true},
+		Version:        pgtype.Int4{Int32: 2, Valid: true},
+		Revision:       pgtype.Int8{Int64: 2, Valid: true},
+		RetainSeconds:  3600,
+		OrganizationID: created.Document.OrganizationID, WorkspaceID: created.Document.WorkspaceID,
+		ID: claim.ID, Attempt: claim.Attempt,
+	}); err != nil {
+		t.Fatalf("mark committed: %v", err)
+	}
+	mustf(t, tx.Commit(context.Background()), "commit the intent")
+	committed = true
+
+	got := <-lookup
+	mustf(t, got.err, "lookup")
+	if got.res.Outcome != CommitIntentCommitted || got.res.VersionID != versionID {
+		t.Fatalf("lookup during the commit = %+v, want committed %s", got.res, versionID)
+	}
 }
 
 // A retry after a restart (a new service on the same database) replays the
