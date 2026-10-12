@@ -48,7 +48,7 @@ func TestDocumentFolders(t *testing.T) {
 			f.ID, string(audit.ActionDocumentCreated)).Scan(&audits); err != nil {
 			t.Fatal(err)
 		}
-		if err := env.f.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'document.created' AND payload->>'document_id' = $1`,
+		if err := env.f.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'document.created' AND payload::jsonb->>'document_id' = $1`,
 			f.ID).Scan(&events); err != nil {
 			t.Fatal(err)
 		}
