@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -312,18 +313,31 @@ func (s *LocalStorage) ServeFile(w http.ResponseWriter, r *http.Request, filenam
 		http.NotFound(w, r)
 		return
 	}
-	// FileService writes into the same directory (localObjectStore shares
-	// uploadDir), and this route checks nobody: it would hand any tenant's
-	// file to anyone who can spell its key. FileService objects are served
-	// only by the authorized /api/v1/files route. The test is on the cleaned
-	// path, so "./v1/…" or "x/../v1/…" cannot slip past it, and ignores
-	// case: on a case-insensitive volume (macOS, Windows) "V1/…" opens the
-	// same object. Keys minted under the environment root (<keyRoot>v1/…) and
-	// the root-level v1/… written before the root existed are both refused.
-	if rel, err := filepath.Rel(s.uploadDir, filePath); err != nil || s.isFileServiceKey(rel) {
+	// Preserve the policy attached to the requested namespace before any
+	// alias is followed. A private path such as v1/... or email-hub/accounts/...
+	// stays private even when that directory is a link to a public-named target.
+	lexicalRel, err := filepath.Rel(s.uploadDir, filePath)
+	if err != nil || s.isPrivateObjectKey(lexicalRel) {
 		http.NotFound(w, r)
 		return
 	}
+	// Resolve the filesystem target before classifying it. A lexical key such
+	// as mail-private/accounts/... can be an in-root symlink to email-hub and
+	// must inherit the target namespace's access policy. The resolver refuses
+	// links that escape uploadDir and safely canonicalizes Windows junctions.
+	// Serve the resolved path below so a mutable alias is not consulted again
+	// after this check.
+	resolvedRoot, resolvedPath, err := resolveLocalServeTarget(s.uploadDir, filePath)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	rel, err := filepath.Rel(resolvedRoot, resolvedPath)
+	if err != nil || s.isPrivateObjectKey(rel) || s.isFilesystemAliasOfPrivateObject(resolvedRoot, resolvedPath) {
+		http.NotFound(w, r)
+		return
+	}
+	filePath = resolvedPath
 	slog.Info("serving file", "filename", filename, "filepath", filePath)
 
 	// Mirror the S3 Upload path: when sidecar metadata exists for this key,
@@ -339,6 +353,89 @@ func (s *LocalStorage) ServeFile(w http.ResponseWriter, r *http.Request, filenam
 	// Use http.ServeFile which has built-in path traversal protection
 	// It sanitizes the path and prevents access outside the directory
 	http.ServeFile(w, r, filePath)
+}
+
+// resolveLocalServeTarget canonicalizes an existing read target and verifies
+// that it stays under the canonical upload root. resolveUnderRoot is the
+// shared path policy. Windows junctions need one extra pass because Go treats
+// mount-point reparse entries as irregular files rather than symlinks; the
+// fallback follows those entries explicitly, then applies the same containment
+// and plain-component checks to the resolved path.
+func resolveLocalServeTarget(root, target string) (string, string, error) {
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", "", err
+	}
+	resolvedTarget, err := resolveUnderRoot(root, target)
+	if err == nil {
+		return resolvedRoot, resolvedTarget, nil
+	}
+	if runtime.GOOS != "windows" {
+		return "", "", err
+	}
+	resolvedRoot, err = evalLocalWindowsAliases(root)
+	if err != nil {
+		return "", "", err
+	}
+	resolvedTarget, err = evalLocalWindowsAliases(target)
+	if err != nil {
+		return "", "", err
+	}
+	if !isUnder(resolvedRoot, resolvedTarget) {
+		return "", "", fmt.Errorf("path escapes the storage root")
+	}
+	if err := checkComponentsPlain(resolvedRoot, resolvedTarget); err != nil {
+		return "", "", err
+	}
+	return resolvedRoot, resolvedTarget, nil
+}
+
+// evalLocalWindowsAliases is EvalSymlinks plus Windows mount-point junctions.
+// The target is a ServeFile read, so every component must already exist; a
+// missing target remains a 404 instead of being reconstructed as a write path.
+func evalLocalWindowsAliases(path string) (string, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	for followed := 0; followed <= 255; followed++ {
+		volume := filepath.VolumeName(path)
+		rest := strings.TrimLeft(path[len(volume):], `/\`)
+		parts := strings.FieldsFunc(rest, func(r rune) bool { return r == '/' || r == '\\' })
+		current := volume + string(filepath.Separator)
+		if volume == "" {
+			current = string(filepath.Separator)
+		}
+		restarted := false
+		for i, part := range parts {
+			current = filepath.Join(current, part)
+			info, err := os.Lstat(current)
+			if err != nil {
+				return "", err
+			}
+			isAlias := info.Mode()&os.ModeSymlink != 0 || runtime.GOOS == "windows" && info.Mode()&os.ModeIrregular != 0
+			if !isAlias {
+				if i < len(parts)-1 && !info.IsDir() {
+					return "", fmt.Errorf("path component %q is not a directory", part)
+				}
+				continue
+			}
+			link, err := os.Readlink(current)
+			if err != nil {
+				return "", err
+			}
+			if !filepath.IsAbs(link) {
+				link = filepath.Join(filepath.Dir(current), link)
+			}
+			path = filepath.Join(append([]string{link}, parts[i+1:]...)...)
+			restarted = true
+			break
+		}
+		if !restarted {
+			return filepath.Clean(current), nil
+		}
+	}
+	return "", fmt.Errorf("too many filesystem aliases")
 }
 
 // isUnder reports whether target resolves to a path inside dir (or equal to
@@ -373,13 +470,14 @@ func (s *LocalStorage) UploadFromReader(ctx context.Context, key string, reader 
 	return s.Upload(ctx, key, data, contentType, filename)
 }
 
-// isFileServiceKey reports whether a path relative to uploadDir names a
-// FileService object: v1/… or <keyRoot>v1/…, compared case-insensitively.
+// canonicalLocalKey folds a path relative to uploadDir for private namespace
+// comparisons. Those comparisons are case-insensitive because the production
+// local backend can run on a case-insensitive filesystem.
 // Windows drops trailing dots and spaces from every path segment, so
 // "develop./v1./x" opens the same object as "develop/v1/x"; the segments are
 // stripped the same way before comparing (a segment that is only dots and
 // spaces vanishes).
-func (s *LocalStorage) isFileServiceKey(rel string) bool {
+func canonicalLocalKey(rel string) string {
 	segs := strings.Split(strings.ToLower(filepath.ToSlash(rel)), "/")
 	kept := segs[:0]
 	for _, seg := range segs {
@@ -387,9 +485,67 @@ func (s *LocalStorage) isFileServiceKey(rel string) bool {
 			kept = append(kept, seg)
 		}
 	}
-	key := strings.Join(kept, "/") + "/"
+	return strings.Join(kept, "/") + "/"
+}
+
+// isFileServiceKey reports whether a path relative to uploadDir names a
+// FileService object: v1/… or <keyRoot>v1/….
+func (s *LocalStorage) isFileServiceKey(rel string) bool {
+	key := canonicalLocalKey(rel)
 	if strings.HasPrefix(key, FileServiceKeyPrefix) {
 		return true
 	}
 	return s.keyRoot != "" && strings.HasPrefix(key, strings.ToLower(s.keyRoot)+FileServiceKeyPrefix)
+}
+
+// isPrivateObjectKey reports whether rel belongs to a namespace whose bytes
+// require an authenticated service route. Email Hub message bodies predate
+// FileService, but contain the same kind of tenant-private data and must not
+// be reachable through the unauthenticated legacy /uploads/* route.
+func (s *LocalStorage) isPrivateObjectKey(rel string) bool {
+	if s.isFileServiceKey(rel) {
+		return true
+	}
+	key := canonicalLocalKey(rel)
+	if strings.HasPrefix(key, emailHubBodyKeyPrefix) {
+		return true
+	}
+	return s.keyRoot != "" && strings.HasPrefix(key, strings.ToLower(s.keyRoot)+emailHubBodyKeyPrefix)
+}
+
+const emailHubBodyKeyPrefix = "email-hub/accounts/"
+
+// isFilesystemAliasOfPrivateObject compares filesystem identity instead of
+// spelling for both Email Hub bodies and FileService objects. This preserves
+// private policy when a private namespace is itself an in-root symlink to a
+// differently named directory. It also catches Windows 8.3 aliases such as
+// EMAIL-~1, which are ordinary directory entries and survive EvalSymlinks.
+func (s *LocalStorage) isFilesystemAliasOfPrivateObject(root, target string) bool {
+	privatePrefixes := []string{
+		strings.TrimSuffix(emailHubBodyKeyPrefix, "/"),
+		strings.TrimSuffix(FileServiceKeyPrefix, "/"),
+	}
+	if s.keyRoot != "" {
+		privatePrefixes = append(privatePrefixes,
+			s.keyRoot+strings.TrimSuffix(emailHubBodyKeyPrefix, "/"),
+			s.keyRoot+strings.TrimSuffix(FileServiceKeyPrefix, "/"),
+		)
+	}
+	for _, prefix := range privatePrefixes {
+		privateDir := filepath.Join(root, filepath.FromSlash(prefix))
+		privateInfo, err := os.Stat(privateDir)
+		if err != nil {
+			continue
+		}
+		for path := target; isUnder(root, path); path = filepath.Dir(path) {
+			info, err := os.Stat(path)
+			if err == nil && os.SameFile(info, privateInfo) {
+				return true
+			}
+			if filepath.Clean(path) == filepath.Clean(root) {
+				break
+			}
+		}
+	}
+	return false
 }
