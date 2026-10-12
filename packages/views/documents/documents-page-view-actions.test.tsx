@@ -64,7 +64,8 @@ function source(over: Record<string, unknown> = {}) {
 
 interface Routes {
   list?: (path: string) => unknown[];
-  recent?: () => unknown[] | Promise<never>;
+  recent?: (path: string) => unknown[] | Promise<never>;
+  recentCursor?: (path: string) => string | null;
   shared?: () => unknown[];
   favorites?: () => unknown[];
   sources?: (path: string) => unknown[];
@@ -89,8 +90,8 @@ function route(routes: Routes) {
       return run(() => ({ items: routes.sources?.(path) ?? [], next_cursor: routes.sourcesCursor?.(path) ?? null }));
     }
     if (path.startsWith(`${LIST_BASE}/recent`)) {
-      const rows = routes.recent?.();
-      return Array.isArray(rows) || !rows ? Promise.resolve({ documents: rows ?? [], next_cursor: null }) : rows;
+      const rows = routes.recent?.(path);
+      return Array.isArray(rows) || !rows ? Promise.resolve({ documents: rows ?? [], next_cursor: routes.recentCursor?.(path) ?? null }) : rows;
     }
     if (path.startsWith(`${LIST_BASE}/shared-with-me`)) return run(() => ({ documents: routes.shared?.() ?? [], next_cursor: null }));
     if (method === "POST") return run(() => routes.post?.(path) ?? {});
@@ -298,6 +299,36 @@ describe("library views", () => {
     expect(await screen.findByText(t("documents.library.error_title"))).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: t("documents.library.retry") }));
     expect(await screen.findByText("Vừa mở")).toBeInTheDocument();
+  });
+
+  it("pages Recent with Load more", async () => {
+    const cursorOf = (path: string) => new URLSearchParams(path.split("?")[1] ?? "").get("cursor");
+    route({
+      recent: (path) => (cursorOf(path) === "c2" ? [summary({ id: "r2", title: "Mở hôm qua" })] : [summary({ id: "r1", title: "Vừa mở" })]),
+      recentCursor: (path) => (cursorOf(path) === "c2" ? null : "c2"),
+    });
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) }));
+    await screen.findByText("Vừa mở");
+    fireEvent.click(screen.getByRole("button", { name: t("documents.library.load_more") }));
+    expect(await screen.findByText("Mở hôm qua")).toBeInTheDocument();
+    expect(screen.getByText("Vừa mở")).toBeInTheDocument();
+  });
+
+  it("retries the starred list when it could not be read", async () => {
+    let attempts = 0;
+    route({
+      favorites: () => {
+        attempts += 1;
+        if (attempts === 1) throw new ApiError("boom", "internal", 500);
+        return [{ document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" }];
+      },
+    });
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.starred")) }));
+    expect(await screen.findByText(t("documents.library.error_title"))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.library.retry") }));
+    expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
   });
 
   it("separates a refusal from a failure", async () => {
