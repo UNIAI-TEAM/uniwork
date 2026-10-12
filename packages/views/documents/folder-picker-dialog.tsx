@@ -17,32 +17,52 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { foldersOnly } from "./document-tree-model";
 
-export interface SaveSourceDialogProps {
+export interface FolderPickerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** The file being saved; its name is the new document's title. */
-  name: string;
+  title: string;
+  description: string;
+  submitLabel: string;
   /** The workspace forest (folders are picked from it). */
   tree: DocumentTreeNode[];
   /** Preselected: the folder the library has open, or null for the root. */
   initialFolderId: string | null;
+  /** A folder the server would refuse as the target, with everything under it
+   *  (the moved folder itself, its subtree, a level past the depth limit). */
+  refuse?: (folderId: string) => boolean;
   pending: boolean;
   error: string | null;
   onSubmit: (folderId: string | null) => void;
 }
 
-function flatFolders(nodes: DocumentTreeNode[], depth = 0): { node: DocumentTreeNode; depth: number }[] {
-  return nodes.flatMap((node) => [{ node, depth }, ...flatFolders(node.children, depth + 1)]);
+function flatFolders(
+  nodes: DocumentTreeNode[],
+  refuse: ((folderId: string) => boolean) | undefined,
+  depth = 0,
+): { node: DocumentTreeNode; depth: number }[] {
+  return nodes.flatMap((node) => (refuse?.(node.id) ? [] : [{ node, depth }, ...flatFolders(node.children, refuse, depth + 1)]));
 }
 
 /**
- * "Save to folder" for a file that lives in another module: pick a folder (or
- * the workspace root) and the server copies the bytes into a new document.
- * Nothing is written until Save; the original stays where it is.
+ * Pick a folder (or the workspace root): "Save to folder" for a file from
+ * another module, and "Move" for a library row. Nothing is written until the
+ * submit; the server decides and the caller shows its refusal here.
  */
-export function SaveSourceDialog({ open, onOpenChange, name, tree, initialFolderId, pending, error, onSubmit }: SaveSourceDialogProps) {
+export function FolderPickerDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  submitLabel,
+  tree,
+  initialFolderId,
+  refuse,
+  pending,
+  error,
+  onSubmit,
+}: FolderPickerDialogProps) {
   const { t } = useTranslation();
-  const folders = useMemo(() => flatFolders(foldersOnly(tree)), [tree]);
+  const folders = useMemo(() => flatFolders(foldersOnly(tree), refuse), [tree, refuse]);
   const [picked, setPicked] = useState<string | null>(initialFolderId);
   useEffect(() => {
     if (open) setPicked(initialFolderId);
@@ -70,8 +90,8 @@ export function SaveSourceDialog({ open, onOpenChange, name, tree, initialFolder
     <Dialog open={open} onOpenChange={(next) => (pending ? undefined : onOpenChange(next))}>
       <DialogContent className="sm:max-w-md" showCloseButton={!pending} closeLabel={t("common.close")}>
         <DialogHeader>
-          <DialogTitle>{t("documents.home.save_source.title")}</DialogTitle>
-          <DialogDescription>{t("documents.home.save_source.description", { name })}</DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div role="radiogroup" aria-label={t("documents.home.save_source.picker_label")} className="max-h-72 overflow-y-auto rounded-md border border-border p-1">
           {option(null, t("documents.home.save_source.root"), 0, true)}
@@ -88,7 +108,7 @@ export function SaveSourceDialog({ open, onOpenChange, name, tree, initialFolder
           </Button>
           <Button type="button" disabled={pending} aria-busy={pending || undefined} onClick={() => onSubmit(picked)}>
             {pending ? <Spinner aria-hidden role="presentation" /> : null}
-            {t("documents.home.save_source.submit")}
+            {submitLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

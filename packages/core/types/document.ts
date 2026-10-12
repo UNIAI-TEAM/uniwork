@@ -240,6 +240,11 @@ export const DocumentSummarySchema = z.object({
   revision: z.string(),
   current_version: z.number().optional().default(0),
   position: z.number().optional().default(0),
+  // Size of the current file version (0 for pages and folders) and where the
+  // document came from. Newer fields: a drifted value reads as absent rather
+  // than failing the whole page.
+  size_bytes: z.number().nullable().optional().catch(undefined),
+  origin: z.string().nullable().optional().catch(undefined),
   snippet: z.string().nullable().optional(),
   my_level: z.string().nullable().optional(),
   via: z.string().nullable().optional(),
@@ -253,11 +258,15 @@ export const DocumentSummarySchema = z.object({
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
 });
+/** Uploaded bytes, or something UniWork made (page, folder, blank file, converted copy). */
+export type DocumentOrigin = "upload" | "created";
+
 export type DocumentSummary = Omit<
   z.infer<typeof DocumentSummarySchema>,
-  "kind" | "visibility" | "my_level" | "via" | "owner_kind"
+  "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin"
 > & {
   kind: DocumentKind;
+  origin?: DocumentOrigin | null;
   visibility: DocumentVisibility;
   my_level?: DocumentAccessLevel | null;
   via?: DocumentAccessVia | null;

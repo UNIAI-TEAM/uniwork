@@ -16,11 +16,11 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { apiErrorMessage } from "@uniwork/core/api";
 import { useDocumentTree, useMoveDocument } from "@uniwork/core/documents/hooks-collections";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { documentErrorMessage } from "./document-error-message";
 import { documentIconFormat, DocumentTypeIcon } from "./document-type-icon";
 import {
   findTreeNode,
@@ -238,7 +238,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, 
       await move.mutateAsync({ documentId, parent_id: parentId, position, revision });
       revealAfterMove();
     } catch (error) {
-      toast.error(apiErrorMessage(error) ?? t("documents.tree.move_failed"));
+      toast.error(documentErrorMessage(error, t, "documents.tree.move_failed"));
     } finally {
       setMovingId(null);
     }

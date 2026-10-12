@@ -8,8 +8,7 @@ import { apiErrorMessage } from "@uniwork/core/api";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useCreateDocumentFile, useDocument, useUpdateDocument } from "@uniwork/core/documents/hooks";
 import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/documents/hooks-favorites";
-import { useDownloadDocumentSource, useSaveSourceToFolder } from "@uniwork/core/documents/hooks-library";
-import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
+import { useDownloadDocumentSource } from "@uniwork/core/documents/hooks-library";
 import { paths } from "@uniwork/core/paths";
 import { canEditDocument } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -19,6 +18,7 @@ import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
+import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { useCreateOfType } from "./documents-create";
 import { CreateCards, CreateMenu, DocumentsGreeting } from "./documents-home-create";
@@ -28,10 +28,11 @@ import { FolderBreadcrumb, LibraryToolbar, type ScopeTab } from "./documents-lib
 import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
-import { SaveSourceDialog } from "./save-source-dialog";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
+import { documentErrorMessage } from "./document-error-message";
 import { useDropUpload } from "./use-drop-upload";
+import { useLibraryRowDialogs } from "./use-library-row-dialogs";
 
 export interface DocumentsPageViewProps {
   wsId: string;
@@ -39,9 +40,9 @@ export interface DocumentsPageViewProps {
   onOpen: (documentId: string) => void;
   /** Host wiring of "Open in UniWork Office" per file row; without it rows have no app action. */
   desktopOpen?: LibraryDesktopOpen;
+  /** Host wiring of the header "Open UniWork Office" (the app, no document); absent hides it. */
+  officeHome?: OfficeHomeLaunchProps;
 }
-
-type SourceRow = { type: "source"; id: string; source: DocumentSourceFile };
 
 /**
  * `/documents` — the Documents home (UNI-1305 design, 2026-10-12): greeting,
@@ -49,7 +50,7 @@ type SourceRow = { type: "source"; id: string; source: DocumentSourceFile };
  * from other modules) and one library table with type chips and grouping.
  * Every row is a server answer; create, upload and save await the server.
  */
-export function DocumentsPageView({ wsId, onOpen, desktopOpen }: DocumentsPageViewProps) {
+export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: DocumentsPageViewProps) {
   const { t } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
   const enabled = gate === "on";
@@ -64,15 +65,12 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen }: DocumentsPageVi
   const [navOpen, setNavOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [saving, setSaving] = useState<SourceRow | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   const library = useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip });
   const folder = useDocument(wsId, folderId ?? "", { enabled: enabled && !!folderId });
   const renameFolder = useUpdateDocument(wsId, folderId ?? "");
   const createFile = useCreateDocumentFile(wsId);
   const creator = useCreateOfType(wsId, onOpen);
-  const saveSource = useSaveSourceToFolder(wsId);
   const downloadSource = useDownloadDocumentSource(wsId);
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
@@ -88,6 +86,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen }: DocumentsPageVi
     (folderDoc !== null &&
       canEditDocument(folderDoc, { userId: context?.user.id ?? userId, orgRole: null, wsRole: null }).allowed);
   const parentForCreate = view.kind === "home" ? folderId : null;
+
+  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId });
+  // Move and archive sit on the rows of this workspace's own lists for
+  // people who may change the open folder; the server decides per document.
+  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred");
 
   const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
   const drop = useDropUpload({
@@ -110,7 +113,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen }: DocumentsPageVi
       setUploadOpen(false);
       onOpen(doc.id);
     } catch (error) {
-      setUploadError(apiErrorMessage(error) ?? t("documents.page.upload_failed"));
+      setUploadError(documentErrorMessage(error, t, "documents.page.upload_failed"));
     }
   };
 
@@ -142,10 +145,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen }: DocumentsPageVi
         (error: unknown) => toast.error(apiErrorMessage(error) ?? t("documents.home.row.download_failed")),
       );
     },
-    onSaveSource: (row) => {
-      setSaveError(null);
-      setSaving(row);
-    },
+    onSaveSource: rowDialogs.onSaveSource,
+    onMove: rowCommands ? rowDialogs.onMove : undefined,
+    onArchive: rowCommands ? rowDialogs.onArchive : undefined,
     onToggleStar: orgId
       ? (documentId, starred) => {
           const op = starred ? unfavorite : favorite;
@@ -197,7 +199,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen }: DocumentsPageVi
         tone={moduleTone("documents")}
         title={t("documents.page.title")}
         count={enabled && view.kind === "home" && !folderId && !state.loading && !state.hasMore ? state.rows.length : undefined}
-        actions={enabled && canCreate ? <CreateMenu {...createProps} /> : null}
+        actions={
+          enabled ? (
+            <div className="flex items-center gap-2">
+              {officeHome ? <OfficeHomeLaunch {...officeHome} /> : null}
+              {canCreate ? <CreateMenu {...createProps} /> : null}
+            </div>
+          ) : null
+        }
       />
 
       {gate !== "on" ? (
@@ -291,28 +300,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen }: DocumentsPageVi
         onSubmit={(file) => void uploadFile(file)}
       />
 
-      <SaveSourceDialog
-        open={saving !== null}
-        onOpenChange={(next) => {
-          if (!next) setSaving(null);
-        }}
-        name={saving?.source.name ?? ""}
-        tree={library.tree}
-        initialFolderId={folderId}
-        pending={saveSource.isPending}
-        error={saveError}
-        onSubmit={(target) => {
-          if (!saving) return;
-          setSaveError(null);
-          void saveSource.mutateAsync({ sourceId: saving.source.id, parentId: target }).then(
-            () => {
-              setSaving(null);
-              toast.success(t("documents.home.save_source.saved"));
-            },
-            (error: unknown) => setSaveError(apiErrorMessage(error) ?? t("documents.home.save_source.failed")),
-          );
-        }}
-      />
+      {rowDialogs.dialogs}
     </div>
   );
 }

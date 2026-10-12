@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, MonitorUp, Star, StarOff } from "lucide-react";
+import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, MonitorUp, Star, StarOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -22,7 +22,18 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import { DocumentTypeIcon } from "./document-type-icon";
-import { formatBytes, isFolderRow, rowFormat, rowOrigin, rowTitle, rowUpdatedAt, type LibraryRow } from "./library-rows";
+import { sourceLinkLabelKey } from "./source-links";
+import {
+  formatBytes,
+  isFolderRow,
+  rowFormat,
+  rowOrigin,
+  rowSizeBytes,
+  rowTitle,
+  rowUpdatedAt,
+  type DocumentSummaryRow,
+  type LibraryRow,
+} from "./library-rows";
 
 /** The formats UniWork Office opens; a page, folder or other file has no app action. */
 const APP_FORMATS = new Set(["docx", "xlsx", "pptx", "pdf", "md", "html"]);
@@ -39,6 +50,12 @@ export interface LibraryRowHandlers {
   /** Absent outside an organization (no favorites there). */
   onToggleStar?: (documentId: string, starred: boolean) => void;
   isStarred: (documentId: string) => boolean;
+  /**
+   * Move to another folder and archive, for people who may change the open
+   * folder; absent hides both. The server still decides per document.
+   */
+  onMove?: (doc: DocumentSummaryRow) => void;
+  onArchive?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
   desktopOpen?: LibraryDesktopOpen;
@@ -77,7 +94,7 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
       ? handlers.personName(doc.updated_by, doc.updated_by_kind)
       : null
     : source?.owner?.name || null;
-  const size = source ? formatBytes(source.size_bytes, i18n.language) : "";
+  const size = formatBytes(rowSizeBytes(row), i18n.language);
   const updated = formatDate(rowUpdatedAt(row), i18n.language);
 
   // "Open in app" sits on every document file row (user decision 6); a viewer
@@ -112,12 +129,21 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
         run: () => handlers.onToggleStar?.(doc.id, starred),
       });
     }
-  } else if (row.type === "source") {
+  }
+  // A viewer of the row (shared with view only) and the archive tab get neither.
+  if (doc && !archived && !viewOnly) {
+    if (handlers.onMove) actions.push({ id: "move", label: t("documents.home.row.move"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
+    if (handlers.onArchive) actions.push({ id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) });
+  }
+  if (row.type === "source") {
     actions.push(
-      { id: "go-to-source", label: t("documents.home.row.go_to_source"), icon: ExternalLink, run: primary },
+      { id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: ExternalLink, run: primary },
       { id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) },
-      { id: "save", label: t("documents.home.row.save_to_folder"), icon: FolderInput, run: () => handlers.onSaveSource(row) },
     );
+    // Only a file the server marks as copyable offers the save.
+    if (row.source.can_save) {
+      actions.push({ id: "save", label: t("documents.home.row.save_to_folder"), icon: FolderInput, run: () => handlers.onSaveSource(row) });
+    }
   }
 
   const quick = desktop ? (
@@ -160,7 +186,7 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
         </td>
         <td className="hidden px-3 py-2 md:table-cell">
           <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
-            <span aria-hidden className={cn("size-1.5 rounded-full", origin === "documents" ? "bg-primary" : "bg-muted-foreground")} />
+            <span aria-hidden className={cn("size-1.5 rounded-full", origin === "created" || origin === "documents" ? "bg-primary" : "bg-muted-foreground")} />
             {t(`documents.home.origin.${origin}`)}
           </span>
         </td>

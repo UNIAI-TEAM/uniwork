@@ -24,3 +24,10 @@ export function safeOfficeDeepLink(session: OfficeLaunchSessionLike, channel: Of
   const expected = buildOfficeDeepLink(session.launch_ticket, channel);
   return session.launch_url === expected ? session.launch_url : expected;
 }
+
+/** The app's own scheme with nothing after it: opens (or brings forward) the
+ * installed app on its home screen. It carries no ticket and names no
+ * document; the app treats it as a stray link and changes nothing. */
+export function buildOfficeHomeLink(channel: OfficeChannel = "stable"): string {
+  return `${officeScheme(channel)}://`;
+}
