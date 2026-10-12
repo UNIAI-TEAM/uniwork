@@ -47,6 +47,19 @@ a precondition was absent, and `evidence.jsonl` when run directly. The layout
 itself comes from `harnessPaths` in `lib.mjs`, so a rename cannot split the
 writer from the reader.
 
+Every component writes its own log under `logs/` (`server-build.log`,
+`migrate.log`, `server.log`, `web.log`, `app.log`, plus `lib.log` for the last
+`lib.mjs` call). On any exit that is not `0` and not BLOCKED, `start.sh` prints
+the tail of each of those logs before it returns, so a cloud round can read the
+failure from the round log alone — the r1 round ended on a bare
+`usage: lib.mjs --write <runDir>` with nothing saying which step produced it.
+`HARNESS_LOG_TAIL_LINES` (default `40`) sets the length.
+
+`lib.mjs` has two CLI modes and `start.sh` calls both directly (never through
+`node -e`): `node lib.mjs --write <runDir>` writes a run's ports and env, and
+`node lib.mjs --fork-dir <cacheRoot> <sha>` prints the fork checkout path. A
+failed call names its step and the exact command in `start.sh`'s output.
+
 ## Exit codes
 
 `0` up / PASS, `1` a step failed or an assertion did not hold, `77` **BLOCKED** —
@@ -71,6 +84,7 @@ ran, the claim was false).
 | `HARNESS_RUN_DIR` | `<repo>/.harness-run` | run artifacts |
 | `HARNESS_DRY_RUN` | `0` | `1` = ports and preconditions only |
 | `HARNESS_SKIP_APP` | `0` | `1` = server + web only |
+| `HARNESS_LOG_TAIL_LINES` | `40` | lines of each component log printed on failure |
 
 The harness fills the gap the VM's profile left, as the Advisor's rule requires:
 it installs `xvfb`/`xauth`/`dbus-x11` and the Electron runtime libraries itself

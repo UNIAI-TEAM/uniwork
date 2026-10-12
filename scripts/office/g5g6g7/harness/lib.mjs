@@ -157,6 +157,29 @@ export function evidenceLine(record) {
 }
 
 
+/** The node flags that make an eval script the entry point instead of a file. */
+const EVAL_FLAGS = new Set(["-e", "--eval", "-p", "--print"]);
+
+/**
+ * Whether this module is the entry point the process was started with, as
+ * opposed to a module somebody imported. `node -e '<script>' path/lib.mjs`
+ * leaves `path/lib.mjs` in `argv[1]`, which looks exactly like a direct
+ * invocation, so an eval flag in `execArgv` means "not main" no matter what
+ * `argv[1]` says. The r1 cloud round died because start.sh imported this file
+ * from `node -e` and the guard below then ran the `--write` CLI with no
+ * `--write` argument; keep the eval-flag check so that shape stays inert.
+ */
+export function isMainModule({ argv1 = process.argv[1], execArgv = process.execArgv, moduleUrl = import.meta.url } = {}) {
+  if (!argv1) return false;
+  if (execArgv.some((arg) => EVAL_FLAGS.has(arg) || arg.startsWith("--eval=") || arg.startsWith("--print="))) return false;
+  try {
+    return moduleUrl === pathToFileURL(argv1).href;
+  } catch {
+    return false;
+  }
+}
+
+
 /**
  * Writes one run's files: `ports.env` (the ports, origins, SHAs and later the
  * display) and `server.env` (the server's environment, quoted so a URL with a
@@ -199,17 +222,32 @@ export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "
   return { apiPort, webPort, metricsPort, previewPort, apiOrigin: origin(apiPort), webOrigin: origin(webPort) };
 }
 
-// CLI: node lib.mjs --write <runDir>
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const writeIndex = process.argv.indexOf("--write");
-  if (writeIndex === -1 || !process.argv[writeIndex + 1]) {
-    console.error("usage: lib.mjs --write <runDir>");
-    process.exit(2);
+// CLI: node lib.mjs --write <runDir> | node lib.mjs --fork-dir <cacheRoot> <sha>
+// start.sh calls both modes directly (never through `node -e`), so a failure
+// names the mode it asked for.
+function usage(reason) {
+  if (reason) console.error(`lib.mjs: ${reason}`);
+  console.error("usage: lib.mjs --write <runDir>");
+  console.error("       lib.mjs --fork-dir <cacheRoot> <sha>");
+  process.exit(2);
+}
+
+if (isMainModule()) {
+  const [mode, ...rest] = process.argv.slice(2);
+  if (mode === "--write") {
+    const [runDir] = rest;
+    if (!runDir) usage("--write needs a run dir");
+    writeRunEnv(runDir, { forkSha: process.env.OFFICE_FORK_SHA, dSha: process.env.D_SHA })
+      .then((ports) => console.log(JSON.stringify(ports)))
+      .catch((error) => {
+        console.error(error.message);
+        process.exit(1);
+      });
+  } else if (mode === "--fork-dir") {
+    const [cacheRoot, sha] = rest;
+    if (!cacheRoot || !sha) usage("--fork-dir needs a cache root and a fork SHA");
+    process.stdout.write(`${forkCacheDir(cacheRoot, sha)}\n`);
+  } else {
+    usage(mode ? `unknown argument ${mode}` : "no mode given");
   }
-  writeRunEnv(process.argv[writeIndex + 1], { forkSha: process.env.OFFICE_FORK_SHA, dSha: process.env.D_SHA })
-    .then((ports) => console.log(JSON.stringify(ports)))
-    .catch((error) => {
-      console.error(error.message);
-      process.exit(1);
-    });
 }

@@ -48,6 +48,63 @@ blocked() { # blocked <what is missing> <what would fix it>
 }
 fail() { echo "FAILED: $1" >&2; exit 1; }
 
+# Every component writes its own log under the run dir, and a cloud round has to
+# be able to read the failure from those logs alone — the r1 round died on an
+# exit nobody explained and left nothing but the last stdout line. So any
+# non-zero exit prints the tail of each component log once; the message says
+# which log to open first. HARNESS_LOG_TAIL_LINES tunes the length.
+LOG_DIR="$RUN_DIR/logs"
+LOG_TAIL_LINES="${HARNESS_LOG_TAIL_LINES:-40}"
+dumped_logs=0
+dump_logs() {
+  [ -d "$LOG_DIR" ] || return 0
+  local log any=0
+  for log in "$LOG_DIR"/*.log; do
+    [ -f "$log" ] || continue
+    # lib.log is lib.mjs's last stderr; run_lib already echoes it on the failing
+    # call, so dumping it again here would only duplicate it.
+    [ "$(basename "$log")" = "lib.log" ] && continue
+    any=1
+    echo "harness: ---- tail -$LOG_TAIL_LINES $(basename "$log") ----" >&2
+    tail -n "$LOG_TAIL_LINES" "$log" >&2 || true
+  done
+  [ "$any" = 1 ] || echo "harness: no component logs in $LOG_DIR" >&2
+}
+on_exit() {
+  local code=$?
+  [ "$code" -eq 0 ] && return 0
+  # BLOCKED already prints the missing precondition and its fix; log tails there
+  # would only add noise. Everything else (a failed step, an unexpected exit) is
+  # worth the tails.
+  [ "$code" -eq "$BLOCKED_EXIT" ] && return 0
+  [ "$dumped_logs" = 1 ] && return 0
+  dumped_logs=1
+  echo "harness: exit $code; component log tails ($LOG_DIR):" >&2
+  dump_logs
+}
+trap on_exit EXIT
+
+# Every lib.mjs call goes through here, so a failure names the step, prints the
+# exact command and shows lib.mjs's own message. The r1 round ended on a bare
+# `usage: lib.mjs --write <runDir>` with nothing saying which call produced it:
+# start.sh imported lib.mjs from `node -e`, argv[1] looked like a direct run,
+# and the --write CLI fired with no --write. lib.mjs no longer mistakes that for
+# a direct run (see isMainModule), and this wrapper makes any recurrence legible.
+run_lib() { # run_lib <step> <args...>; stdout is lib.mjs's output, stderr is teed to lib.log
+  local step=$1
+  shift
+  local output status
+  output="$(node "$HERE/lib.mjs" "$@" 2> "$LOG_DIR/lib.log")" && status=0 || status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "harness: step '$step' failed (exit $status)" >&2
+    echo "  command: node $HERE/lib.mjs $*" >&2
+    echo "  lib.mjs said:" >&2
+    sed 's/^/    /' "$LOG_DIR/lib.log" >&2 || true
+    return "$status"
+  fi
+  printf '%s\n' "$output"
+}
+
 # ---- preconditions -----------------------------------------------------------
 # A missing tool is BLOCKED, not a crash. What can be installed is installed
 # below (see "what this run needs on top of the provisioned VM"); what cannot is
@@ -119,7 +176,8 @@ apt_install() { # apt_install <packages...>
 : > "$RUN_DIR/pids"
 D_SHA="$(git rev-parse HEAD)"
 export D_SHA
-node "$HERE/lib.mjs" --write "$RUN_DIR" > /dev/null || fail "could not pick free ports"
+run_lib "pick the run's ports and env" --write "$RUN_DIR" > /dev/null \
+  || fail "could not pick the run's ports and env (see the step above and $LOG_DIR/lib.log)"
 
 # shellcheck disable=SC1090
 . "$RUN_DIR/ports.env"
@@ -167,11 +225,11 @@ fi
 # server orphaned on the port (scripts/check.sh makes the same choice).
 echo "harness: building the D server..."
 (cd server && go build -o bin/harness-server ./cmd/server) > "$RUN_DIR/logs/server-build.log" 2>&1 \
-  || { tail -20 "$RUN_DIR/logs/server-build.log" >&2; fail "go build ./cmd/server failed"; }
+  || fail "go build ./cmd/server failed (see $RUN_DIR/logs/server-build.log)"
 
 echo "harness: applying migrations..."
 (cd server && DATABASE_URL="$DATABASE_URL" go run ./cmd/migrate up) > "$RUN_DIR/logs/migrate.log" 2>&1 \
-  || { tail -20 "$RUN_DIR/logs/migrate.log" >&2; fail "migrations failed"; }
+  || fail "migrations failed (see $RUN_DIR/logs/migrate.log)"
 
 echo "harness: starting the D server..."
 # The environment is the run's own (server.env, built by lib.mjs), not the VM's
@@ -198,7 +256,7 @@ wait_for() { # wait_for <url> <name> <seconds>
   done
   return 1
 }
-wait_for "$API_ORIGIN/healthz" "the D server" 90 || { tail -20 "$RUN_DIR/logs/server.log" >&2; fail "the D server did not answer /healthz in 90s"; }
+wait_for "$API_ORIGIN/healthz" "the D server" 90 || fail "the D server did not answer /healthz in 90s"
 curl -sf "$API_ORIGIN/readyz" > "$RUN_DIR/logs/readyz.json" \
   || echo "harness: warning: /readyz is not ready yet; the sample AC reads it and decides"
 
@@ -219,8 +277,8 @@ echo "web $WEB_PID $WEB_PORT" >> "$RUN_DIR/pids"
 
 for i in $(seq 1 180); do
   curl -sf -o /dev/null "$WEB_ORIGIN/login" && break
-  kill -0 "$WEB_PID" 2>/dev/null || { tail -20 "$RUN_DIR/logs/web.log" >&2; fail "the D web died while starting"; }
-  [ "$i" -lt 180 ] || { tail -20 "$RUN_DIR/logs/web.log" >&2; fail "the D web did not answer in 180s"; }
+  kill -0 "$WEB_PID" 2>/dev/null || fail "the D web died while starting (see $RUN_DIR/logs/web.log)"
+  [ "$i" -lt 180 ] || fail "the D web did not answer in 180s (see $RUN_DIR/logs/web.log)"
   sleep 1
 done
 
@@ -233,7 +291,9 @@ fi
 
 # One checkout per revision, so two SHAs never share a working tree (lib.mjs
 # owns the layout; sample-ac.mjs reads the same path back).
-FORK_DIR="$(node -e 'import(process.argv[1]).then((m) => process.stdout.write(m.forkCacheDir(process.argv[2], process.argv[3])))' "$HERE/lib.mjs" "$FORK_CACHE" "$FORK_SHA")"
+FORK_DIR="$(run_lib "resolve the fork cache dir" --fork-dir "$FORK_CACHE" "$FORK_SHA")" \
+  || fail "could not resolve the fork cache dir for $FORK_SHA (see the step above and $LOG_DIR/lib.log)"
+[ -n "$FORK_DIR" ] || fail "lib.mjs --fork-dir returned an empty path for $FORK_SHA"
 mkdir -p "$FORK_CACHE"
 if [ ! -d "$FORK_DIR/.git" ]; then
   echo "harness: cloning the fork at $FORK_SHA..."
@@ -277,7 +337,7 @@ if [ -f "$BUILD_MARKER" ] && [ "$(cat "$BUILD_MARKER" 2> /dev/null)" = "$FORK_SH
 else
   echo "harness: building the fork apps (this is the slow step)..."
   (cd "$FORK_DIR" && npm run build:all) > "$RUN_DIR/logs/fork-build.log" 2>&1 \
-    || { tail -20 "$RUN_DIR/logs/fork-build.log" >&2; fail "npm run build:all failed in the fork"; }
+    || fail "npm run build:all failed in the fork (see $RUN_DIR/logs/fork-build.log)"
   printf '%s\n' "$FORK_SHA" > "$BUILD_MARKER"
 fi
 [ -f "$SHELL_MAIN" ] \
@@ -314,7 +374,7 @@ echo "app $APP_PID 0" >> "$RUN_DIR/pids"
 # The dev build boots in seconds; a crash here is a real failure, not a block.
 for i in $(seq 1 60); do
   [ -s "$XVFB_DISPLAY_FILE" ] && break
-  kill -0 "$APP_PID" 2>/dev/null || { tail -30 "$RUN_DIR/logs/app.log" >&2; fail "the Electron app exited while starting (see $RUN_DIR/logs/app.log)"; }
+  kill -0 "$APP_PID" 2>/dev/null || fail "the Electron app exited while starting (see $RUN_DIR/logs/app.log)"
   sleep 1
 done
 [ -s "$XVFB_DISPLAY_FILE" ] || fail "xvfb never reported a display for the app"
