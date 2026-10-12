@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+6a05f4e987b134d116323d3775702ecdbf1e826f
+bd537227949a0c31720be1c092d6b88b7ee8d2f4
+6a05f4e98 fix(ai): read Retry-After in the HTTP-date form too
+1b62ff593 fix(ai): refuse media parts on a tool message of a tool-result turn
+ed96d7772 fix(ai): pair every tool call with exactly one result on a tool-result turn
+cbf2878c1 feat(ai): carry a tool-result turn through Gateway.Complete
+247a4fdbc feat(ai): fill the provider gaps the G6-02 spike assigned to G6-13
+b8d795a39 feat(ai): add the office_uniwork_ai capability policy
