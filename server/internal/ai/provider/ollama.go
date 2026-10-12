@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ func (o *Ollama) Complete(ctx context.Context, req CompletionRequest) (Completio
 		// /api/chat has no tool-result turn: a message this adapter cannot
 		// express is refused, never dropped or flattened into a user turn.
 		if m.Role == "tool" || len(m.ToolCalls) > 0 {
-			return CompletionResponse{}, ErrUnsupported
+			return CompletionResponse{}, fmt.Errorf("ollama: tool calls and tool results cannot be sent to /api/chat: %w", ErrUnsupported)
 		}
 		msgs = append(msgs, map[string]string{"role": m.Role, "content": m.Content})
 	}

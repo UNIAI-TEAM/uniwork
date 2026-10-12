@@ -7,7 +7,8 @@ import (
 
 // Fake is the Provider for tests and for AI_PROVIDER=fake in development and
 // E2E. Reply decides the answer from the request; nil Reply echoes the last
-// user message. It never talks to the network.
+// user message. Err is returned as is, so a test injects a vendor rate limit
+// with &StatusError{Status: 429, RetryAfter: …}. It never talks to the network.
 type Fake struct {
 	Reply func(CompletionRequest) CompletionResponse
 	Err   error
