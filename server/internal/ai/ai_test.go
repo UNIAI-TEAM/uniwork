@@ -511,6 +511,30 @@ func TestFakeReplyCitesEverySource(t *testing.T) {
 	}
 }
 
+// TestFakeReplyReportsUsage pins BE-4: under AI_PROVIDER=fake the gateway
+// builds &provider.Fake{Reply: FakeReply} (config.go), so this response is
+// what every fake turn returns. It must report usage like the scripted
+// provider/fake.go path does; otherwise, once G6-03b reads UsagePresent,
+// every CI and E2E fake turn would take the usage_unknown branch and never
+// reach quota.Record (spec §8.2).
+func TestFakeReplyReportsUsage(t *testing.T) {
+	p, _ := LookupPrompt(PromptCopilotAnswer)
+	cases := []provider.CompletionRequest{
+		{Model: "fake", System: p.System, Messages: []provider.Message{{Role: "user", Content: "Sources: (none)"}}},
+		{Model: "fake", System: "You catch a teammate up", Messages: []provider.Message{{Role: "user", Content: "Sources: (none)"}}},
+		{Model: "fake", System: "meeting", Messages: []provider.Message{{Role: "user", Content: "x"}}},
+	}
+	for _, req := range cases {
+		resp := FakeReply(req)
+		if !resp.UsagePresent || resp.InputTokens <= 0 || resp.OutputTokens <= 0 {
+			t.Fatalf("system %q: usage not reported: %+v", req.System, resp)
+		}
+		if resp.Model != req.Model {
+			t.Fatalf("system %q: model %q", req.System, resp.Model)
+		}
+	}
+}
+
 func TestCloudChargeTable(t *testing.T) {
 	for secs, want := range map[float64]int64{0: 1000, 1: 1000, 60: 1000, 60.5: 2000, 600: 10000} {
 		if got := TranscribeCharge(secs); got != want {
