@@ -4,7 +4,7 @@
 // binding a throwaway listener to port 0, so the node --test file can pin the
 // behaviour without starting the stack.
 import net from "node:net";
-import { writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -167,6 +167,41 @@ export function ticketFromLaunchUrl(url) {
   }
 }
 
+/** How long `--wait-signin` waits for a desktop sign-in when it is given no number. */
+const DEFAULT_SIGNIN_WAIT_SECONDS = 300;
+
+/**
+ * The seconds `--wait-signin [seconds]` asks for, or null when the flag is
+ * absent. A flag without a (positive whole) number waits the default.
+ */
+export function parseWaitSignin(argv) {
+  const at = argv.indexOf("--wait-signin");
+  if (at < 0) return null;
+  const next = argv[at + 1];
+  return typeof next === "string" && /^[1-9][0-9]*$/.test(next) ? Number(next) : DEFAULT_SIGNIN_WAIT_SECONDS;
+}
+
+/**
+ * The account's live native device session for one client and deployment, from
+ * `GET /api/v1/auth/desktop/devices` (sdo.DesktopDeviceDTO), or null. "Live" is
+ * what the server says: not revoked and not past `expires_at`. This is the
+ * server's own record that the desktop app is signed in as that account — the
+ * session itself sits encrypted in the app's userData and is never read.
+ */
+export function activeDesktopDevice(devices, { clientId, deploymentId, now = Date.now() }) {
+  if (!Array.isArray(devices)) return null;
+  return (
+    devices.find(
+      (device) =>
+        device &&
+        device.client_id === clientId &&
+        device.deployment_id === deploymentId &&
+        !device.revoked_at &&
+        (!device.expires_at || Date.parse(device.expires_at) > now),
+    ) ?? null
+  );
+}
+
 /**
  * What the document step can conclude about one launch, given the ticket the D
  * server issued, the deep link it built, and whether the app left a working
@@ -191,7 +226,7 @@ export function documentStepOutcome({ launchUrl, ticket, workingCopyDocumentId, 
   if (!signedIn) {
     return {
       result: "BLOCKED",
-      blocker: "the app has no desktop session to redeem the launch ticket (no OS keyring on this VM; the fork's own suite skips on the same precondition)",
+      blocker: "the app is not signed in: it has no desktop session to redeem the launch ticket (the harness does not automate the sign-in, and a Linux VM without an OS keyring cannot keep one; the fork's own suite skips on the same precondition). Run G7-A01 on a signed-in desktop: see the README, 'Run it on a signed-in desktop'",
       detail: "no signed-in session in the app",
     };
   }
@@ -202,6 +237,37 @@ export function documentStepOutcome({ launchUrl, ticket, workingCopyDocumentId, 
   };
 }
 
+/**
+ * Where the D server is started, and what it finds there. The server also reads
+ * a local `.env` for every key that is empty or unset in its process
+ * environment (server/cmd/server/envfile.go: tryLoadDevEnv looks in the cwd and
+ * three levels up, and `os.Getenv(key) != ""` is its only "already set" test).
+ * So clearing a key in server.env is not enough: an empty
+ * `DESKTOP_AUTH_CLIENT_ID=` is refilled from the checkout's .env and collides
+ * with DESKTOP_AUTH_CLIENTS at boot (cloud round 4), and the cleared LiveKit
+ * settings came back the same way. The server therefore runs three directories
+ * deep inside a directory of its own, where none of the four lookups reaches
+ * the checkout's `.env`, and finds there a copy of that file WITHOUT the keys
+ * the run owns (serverDotEnv). The VM's other settings (PREVIEW_ASSET_TTL, …)
+ * still arrive; the run's own keys are the run's alone.
+ */
+export const SERVER_ENV_LOOKUPS = [".env", "../.env", "../../.env", "../../../.env"];
+export function serverCwd(runDir) {
+  return join(runDir, "server-cwd", "a", "b", "c");
+}
+
+/** `text` (a .env file) without the lines that set one of `ownedKeys`. */
+export function serverDotEnv(text, ownedKeys) {
+  const owned = new Set(ownedKeys);
+  return String(text)
+    .split("\n")
+    .filter((line) => {
+      const at = line.indexOf("=");
+      return at < 0 || !owned.has(line.slice(0, at).trim());
+    })
+    .join("\n");
+}
+
 /** Every file a run writes, in one place so stop.sh and sample-ac.mjs agree with start.sh. */
 export function harnessPaths(runDir) {
   return {
@@ -209,11 +275,89 @@ export function harnessPaths(runDir) {
     envFile: join(runDir, "ports.env"),
     pidFile: join(runDir, "pids"),
     blockedFile: join(runDir, "blocked.json"),
+    startStatus: join(runDir, "start-status.json"),
+    docUser: join(runDir, "doc-user.json"),
+    serverCwd: serverCwd(runDir),
     evidenceFile: join(runDir, "evidence.jsonl"),
     logDir: join(runDir, "logs"),
     userDataDir: join(runDir, "userdata"),
     appSettings: join(runDir, "userdata", "app-settings.json"),
   };
+}
+
+/**
+ * The state start.sh recorded for a run (`start-status.json`): `starting`,
+ * `up`, `failed` or `blocked`, with the reason. null when there is no such file
+ * (a run from before the status existed, or one that never started).
+ */
+export function readStartStatus(runDir) {
+  const file = harnessPaths(runDir).startStatus;
+  if (!existsSync(file)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8"));
+    return parsed && typeof parsed.state === "string" ? parsed : { state: "failed", reason: "start-status.json is not a status record" };
+  } catch {
+    return { state: "failed", reason: "start-status.json is unreadable" };
+  }
+}
+
+/**
+ * What a step after start.sh does with start.sh's own outcome. A start that
+ * failed or never finished is a harness/config bug, so the step FAILs: only a
+ * precondition start.sh itself recorded as missing (BLOCKED) may make a later
+ * step BLOCKED. Cloud round 4 got this wrong: start.sh exited 1, the later steps
+ * found no server and recorded BLOCKED, which reads as "the VM cannot do it".
+ * `proceed` is also the answer for a run without a status file, so older runs
+ * keep their behaviour.
+ */
+export function startGate(status) {
+  if (!status || status.state === "up") return { gate: "proceed", reason: "" };
+  const why = status.reason ? `: ${status.reason}` : "";
+  if (status.state === "blocked") return { gate: "blocked", reason: `start.sh reported BLOCKED${why}` };
+  if (status.state === "starting") return { gate: "fail", reason: "start.sh never finished (the run is still marked starting); the stack is not up" };
+  return { gate: "fail", reason: `start.sh failed${why}; the stack is not up (see the run's logs)` };
+}
+
+/** The fork SHA start.sh wrote into a run's ports.env ("" when there is none). */
+function forkShaOfRun(envFile) {
+  if (!existsSync(envFile)) return "";
+  return /^OFFICE_FORK_SHA=(.*)$/m.exec(readFileSync(envFile, "utf8"))?.[1]?.trim() ?? "";
+}
+
+/**
+ * A step that cannot run because start.sh did not bring the stack up: prints
+ * why, records the evidence line (unless the evidence runner owns the ledger)
+ * and returns the exit code the step must end with, 1 for a failed start and 77
+ * only for a precondition start.sh itself reported missing.
+ */
+export async function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "", fixtureSha256 = "", command, checker, startedAt, argv }) {
+  const blocked = gate.gate === "blocked";
+  const result = blocked ? "BLOCKED" : "FAIL";
+  const exitCode = blocked ? BLOCKED_EXIT : 1;
+  console.error(`${blocked ? "BLOCKED" : "FAILED"}: ${gate.reason}`);
+  const paths = harnessPaths(runDir);
+  const record = evidenceLine({
+    evidenceId: harnessEvidenceId(requirementId),
+    ...(await ledgerIdentity()),
+    fSha: process.env.OFFICE_FORK_SHA || forkShaOfRun(paths.envFile),
+    requirementId,
+    fixtureId,
+    fixtureSha256,
+    platform: `${process.platform}-${process.arch}`,
+    build: `node ${process.versions.node}`,
+    command,
+    argv,
+    exitCode,
+    result,
+    checker,
+    blocker: blocked ? gate.reason : "",
+    startedAt,
+    finishedAt: new Date().toISOString(),
+  });
+  mkdirSync(runDir, { recursive: true });
+  if (blocked) appendFileSync(paths.blockedFile, `${JSON.stringify(record, null, 2)}\n`);
+  if (!process.env.OFFICE_EVIDENCE_ID) appendFileSync(paths.evidenceFile, `${JSON.stringify(record)}\n`);
+  return exitCode;
 }
 
 /** Where the fork is cloned for a pinned revision: one directory per SHA, reused across runs. */
@@ -222,11 +366,92 @@ export function forkCacheDir(cacheRoot, sha) {
 }
 
 /**
+ * The variables the fork's Electron app may inherit from whoever started it: the
+ * process basics, the locale, the session and display it opens on, and the
+ * keyring bus its desktop session is kept in. Everything else of the harness's
+ * environment is withheld, above all the server's: start.sh sources the VM's
+ * `.env` (DATABASE_URL, REDIS_URL, JWT_SECRET, storage and provider keys, ...)
+ * and an app that inherited it would hold every secret of the stack it is
+ * only a client of (reviewer_be H1-8).
+ */
+export const APP_ENV_PASSTHROUGH = [
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TMPDIR",
+  "DISPLAY",
+  "XAUTHORITY",
+  "WAYLAND_DISPLAY",
+  "XDG_RUNTIME_DIR",
+  "XDG_SESSION_TYPE",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_CACHE_HOME",
+  "DBUS_SESSION_BUS_ADDRESS",
+];
+
+/** Names that carry a secret or the server's own wiring; none may reach the app, whatever else changes. */
+const SERVER_SECRET_NAME = /(KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL)|^(DATABASE|REDIS)_URL$/i;
+
+/**
+ * The whole environment of an Electron process the harness starts (the app
+ * itself and the second instance that carries a deep link): the allow-listed
+ * variables of `source`, then what the app needs — the D server's origin, its
+ * userData dir and the few switches the fork reads — and the caller's `extra`.
+ * It throws on a secret-looking name rather than passing it on.
+ */
+export function appEnv({ source = process.env, apiOrigin, userDataDir, extra = {} }) {
+  const env = {};
+  for (const key of APP_ENV_PASSTHROUGH) {
+    if (source[key] !== undefined && source[key] !== "") env[key] = source[key];
+  }
+  Object.assign(env, {
+    UNIWORK_API_ORIGIN: apiOrigin,
+    GENOFFICE_USER_DATA: userDataDir,
+    GENOFFICE_NO_SPARE_VIEW: "1",
+    ELECTRON_DISABLE_SANDBOX: "1",
+    ...extra,
+  });
+  for (const key of Object.keys(env)) {
+    if (SERVER_SECRET_NAME.test(key)) throw new Error(`appEnv refuses ${key}: a server secret must not reach the Electron app`);
+  }
+  return env;
+}
+
+/**
+ * The identity every ledger line carries: the D checkout's HEAD and the web
+ * frame pin that is served, resolved the way the evidence runner resolves them
+ * (resolveDSha / readPin). A harness-written line without them is rejected by
+ * `evidence.mjs verify` ("has an empty dSha / pin", reviewer_be H1-3).
+ */
+export async function ledgerIdentity(env = process.env) {
+  // Imported on use: start.sh runs lib.mjs on its own and never needs the runner.
+  const { readPin, resolveDSha } = await import("../evidence.mjs");
+  return { dSha: resolveDSha(), pin: readPin(env) };
+}
+
+/** A fresh evidence id for a line the harness writes itself (the runner owns ids under OFFICE_EVIDENCE_ID). */
+export function harnessEvidenceId(requirementId) {
+  return `${String(requirementId).toLowerCase()}-harness-${Date.now()}`;
+}
+
+/**
  * One evidence line in the shape the shared contract fixes
  * (scripts/office/g5g6g7/evidence.mjs). Missing fields stay empty strings rather
  * than being dropped, so the runner's field check sees them.
  */
 export function evidenceLine(record) {
+  // The exact argument vector of the command the line stands for. The caller
+  // knows it; this function runs in whatever process writes the line, so it can
+  // not guess without recording a vector that never ran (reviewer_be H1-6). An
+  // empty one is an empty required field for the runner's verify (r2 N1).
+  if (!Array.isArray(record.argv) || record.argv.length === 0) {
+    throw new Error("evidenceLine needs the argv of the command the line stands for");
+  }
   return {
     evidenceId: record.evidenceId ?? "",
     requirementId: record.requirementId ?? "",
@@ -238,12 +463,8 @@ export function evidenceLine(record) {
     fixtureId: record.fixtureId ?? "",
     fixtureSha256: record.fixtureSha256 ?? "",
     command: record.command ?? "",
-    // The exact argument vector, so an argument with a space survives the ledger
-    // (the runner's contract carries both). Defaults to this process's own argv —
-    // the command that actually ran — so a harness-written line (including a
-    // BLOCKED or FAIL one) never lands with an empty `argv`, which the runner's
-    // verify now reports as an empty required field (reviewer_be r2 N1).
-    argv: Array.isArray(record.argv) ? record.argv : [...process.argv],
+    // the exact argument vector, so an argument with a space survives the ledger
+    argv: record.argv,
     exitCode: typeof record.exitCode === "number" ? record.exitCode : -1,
     result: record.result ?? "BLOCKED",
     artifact: record.artifact ?? "",
@@ -282,10 +503,11 @@ export function isMainModule({ argv1 = process.argv[1], execArgv = process.execA
  * Writes one run's files: `ports.env` (the ports, origins, SHAs and later the
  * display) and `server.env` (the server's environment, quoted so a URL with a
  * query still sources in bash). Called by start.sh as
- * `node lib.mjs --write <runDir>`; kept here so the ports, the environment and
+ * `node lib.mjs --write <runDir>` (HARNESS_ENV_FILE names the VM's .env the
+ * server's own copy is made from); kept here so the ports, the environment and
  * the test that pins them cannot drift apart.
  */
-export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "", uploadDir } = {}) {
+export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "", uploadDir, dotenvPath } = {}) {
   const [apiPort, webPort, metricsPort, previewPort] = await freePorts(4);
   const serverEnv = buildServerEnv({
     apiPort,
@@ -317,6 +539,12 @@ export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "
     join(runDir, "server.env"),
     `${Object.entries(serverEnv).map(([key, value]) => `${key}=${quote(value)}`).join("\n")}\n`,
   );
+  // The server's own working directory and the .env it finds there (see serverCwd).
+  const cwd = serverCwd(runDir);
+  mkdirSync(cwd, { recursive: true });
+  if (dotenvPath && existsSync(dotenvPath)) {
+    writeFileSync(join(cwd, ".env"), serverDotEnv(readFileSync(dotenvPath, "utf8"), Object.keys(serverEnv)));
+  }
   return { apiPort, webPort, metricsPort, previewPort, apiOrigin: origin(apiPort), webOrigin: origin(webPort) };
 }
 
@@ -327,6 +555,7 @@ function usage(reason) {
   if (reason) console.error(`lib.mjs: ${reason}`);
   console.error("usage: lib.mjs --write <runDir>");
   console.error("       lib.mjs --fork-dir <cacheRoot> <sha>");
+  console.error("       lib.mjs --app-env <apiOrigin> <userDataDir>");
   process.exit(2);
 }
 
@@ -335,12 +564,18 @@ if (isMainModule()) {
   if (mode === "--write") {
     const [runDir] = rest;
     if (!runDir) usage("--write needs a run dir");
-    writeRunEnv(runDir, { forkSha: process.env.OFFICE_FORK_SHA, dSha: process.env.D_SHA })
+    writeRunEnv(runDir, { forkSha: process.env.OFFICE_FORK_SHA, dSha: process.env.D_SHA, dotenvPath: process.env.HARNESS_ENV_FILE })
       .then((ports) => console.log(JSON.stringify(ports)))
       .catch((error) => {
         console.error(error.message);
         process.exit(1);
       });
+  } else if (mode === "--app-env") {
+    // NUL-delimited KEY=VALUE entries for `env -i` in start.sh
+    const [apiOrigin, userDataDir] = rest;
+    if (!apiOrigin || !userDataDir) usage("--app-env needs an API origin and a userData dir");
+    const env = appEnv({ apiOrigin, userDataDir, extra: { UNIWORK_BRIDGE_SILENT: "1", GENOFFICE_LANG: "en" } });
+    process.stdout.write(Object.entries(env).map(([key, value]) => `${key}=${value}\0`).join(""));
   } else if (mode === "--fork-dir") {
     const [cacheRoot, sha] = rest;
     if (!cacheRoot || !sha) usage("--fork-dir needs a cache root and a fork SHA");

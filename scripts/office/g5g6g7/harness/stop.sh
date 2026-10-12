@@ -15,18 +15,27 @@ REPO_ROOT="$(cd "$HERE/../../../.." && pwd)"
 RUN_DIR="${HARNESS_RUN_DIR:-$REPO_ROOT/.harness-run}"
 PID_FILE="$RUN_DIR/pids"
 
+# What the run wrote outside its logs and evidence, removed by exact path: the
+# uploaded fixture documents (LOCAL_UPLOAD_DIR) and the server's private cwd with
+# its .env copy. Logs, userdata and evidence stay for the round's report.
+remove_run_data() {
+  rm -rf "$RUN_DIR/uploads" "$RUN_DIR/server-cwd"
+}
+
 if [ ! -f "$PID_FILE" ]; then
   echo "harness: no pid file at $PID_FILE; nothing to stop"
+  remove_run_data
   exit 0
 fi
 
-# App, then web, then server: reverse of the start order, so the app stops
-# talking to a web that is still up.
+# Reverse of the start order (handoff, app, web, server), so the app stops
+# talking to a web that is still up. "handoff" is the second Electron instance
+# the document step hands a deep link to; it is listed only while it lives.
 pids=()
 while read -r name pid port; do
   [ -n "${pid:-}" ] || continue
   case "$name" in
-    app|web|server) pids=("$pid" "${pids[@]:-}") ;;
+    app|web|server|handoff) pids=("$pid" "${pids[@]:-}") ;;
     *) echo "harness: ignoring unknown pid line: $name $pid" >&2 ;;
   esac
 done < "$PID_FILE"
@@ -61,4 +70,5 @@ for pid in "${pids[@]:-}"; do
 done
 
 rm -f "$PID_FILE"
+remove_run_data
 echo "harness: stopped $stopped process group(s) from $RUN_DIR"

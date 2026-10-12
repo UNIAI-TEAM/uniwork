@@ -43,6 +43,10 @@ Flags (each has an environment form too, for the spec line):
 | --- | --- | --- |
 | `--dry-run` | `HARNESS_DRY_RUN=1` | pick the ports, check the preconditions, stop before starting anything |
 | `--skip-app` | `HARNESS_SKIP_APP=1` | server + web only (useful while the fork build is being debugged) |
+| `--desktop` | `HARNESS_DESKTOP=1` | open the app on this session's own `DISPLAY` instead of under Xvfb, so a person can sign in to it (BLOCKED without a `DISPLAY`) |
+
+`--dry-run` works in a scratch run dir that it removes: it never touches the
+`pids`, `ports.env` or logs of a run that is up.
 
 Every artifact lands in `.harness-run/` (override with `HARNESS_RUN_DIR`, and
 that directory is gitignored): `ports.env` (this run's ports, origins, SHAs,
@@ -65,6 +69,31 @@ failure from the round log alone — the r1 round ended on a bare
 `node -e`): `node lib.mjs --write <runDir>` writes a run's ports and env, and
 `node lib.mjs --fork-dir <cacheRoot> <sha>` prints the fork checkout path. A
 failed call names its step and the exact command in `start.sh`'s output.
+
+## What start.sh records, and what it hands to the processes it starts
+
+* `start-status.json` (`{"state":"starting|up|failed|blocked","reason":…}`) is
+  start.sh's own outcome. `sample-ac.mjs` and `document-step.mjs` read it first: a
+  start that **failed** (or never finished) makes them **FAIL** (exit 1), and only
+  a precondition start.sh itself reported as missing (**blocked**) makes them
+  BLOCKED (77). Cloud round 4 had start.sh exit 1 and both later steps record
+  BLOCKED, which read as "the VM cannot do it" for a harness bug.
+* The D server runs in a directory of its own, three levels deep in the run dir
+  (`server-cwd/a/b/c`), with a copy of the VM's `.env` that lacks every key the
+  run sets. The server reads a local `.env` for any key that is **empty or
+  unset** in its environment (`server/cmd/server/envfile.go`), so clearing
+  `DESKTOP_AUTH_CLIENT_ID` in `server.env` was undone by the checkout's `.env`
+  and the server died with `set either DESKTOP_AUTH_CLIENTS or
+  DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both` (cloud round 4).
+* The Electron app (and the second instance that carries a deep link) gets an
+  **allow-listed** environment (`appEnv` in `lib.mjs`): the process basics, the
+  locale, the display/session and keyring bus, the D origin, the userData dir and
+  the fork's few switches. start.sh sources the VM's `.env`, and none of it
+  (`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, any `*_KEY`/`*_SECRET`/`*_TOKEN`/
+  `*PASSWORD`) reaches the app; `appEnv` throws on such a name.
+* The deep-link instance is recorded in `pids` as `handoff` while it lives
+  (stop.sh stops it too) and killed as a group if it outlives its timeout.
+* `stop.sh` also removes the run's `uploads/` and `server-cwd/` by exact path.
 
 ## Exit codes
 
@@ -92,6 +121,8 @@ ran, the claim was false).
 | `HARNESS_SKIP_APP` | `0` | `1` = server + web only |
 | `HARNESS_LOG_TAIL_LINES` | `40` | lines of each component log printed on failure |
 | `HARNESS_DOC_WAIT_MS` | `60000` | how long `document-step.mjs` waits for the app's working copy |
+| `HARNESS_HANDOFF_TIMEOUT_MS` | `30000` | how long the second Electron instance that carries the deep link may run before it is killed (as a process group) |
+| `HARNESS_DOC_EMAIL` / `HARNESS_DOC_PASSWORD` | unset | document step, desktop mode: reuse this existing account instead of seeding one (both or neither) |
 
 The harness fills the gap the VM's profile left, as the Advisor's rule requires:
 it installs `xvfb`/`xauth`/`dbus-x11` and the Electron runtime libraries itself
@@ -179,3 +210,62 @@ silent no-op.
 The fork's `npm run build:all` is the slow step (several minutes on a fresh VM)
 and its Rust xlsx sidecar needs `cargo`; `--skip-app` isolates the server + web
 half while that is worked on.
+
+## Run it on a signed-in desktop (G7-A01)
+
+On the cloud VM the document step is **BLOCKED**: the app is not signed in (the
+harness does not automate the sign-in) and a Linux VM without an OS keyring
+cannot keep a desktop session. G7-A01 is therefore run on a desktop whose app can
+sign in — a graphical Linux session with an unlocked Secret Service (GNOME
+keyring / KWallet). The step then needs the **app's** sign-in to be the account
+that owns the document, so it either reuses your account or seeds one you sign in
+as.
+
+```sh
+# 1. from a terminal of the desktop session, in the checkout (the same SHA the round tests)
+cd <checkout>
+export OFFICE_FORK_SHA=0d03b18
+bash scripts/office/g5g6g7/harness/start.sh --desktop      # server + web + the app, on this DISPLAY
+
+# 2. your own account: read the password without echo or history, then run the step
+export HARNESS_DOC_EMAIL='you@example.com'
+read -rs HARNESS_DOC_PASSWORD && export HARNESS_DOC_PASSWORD
+node scripts/office/g5g6g7/evidence.mjs run \
+  --req G7-A01 --fixture fx-docx-report-vi --checker advisor -- \
+  node scripts/office/g5g6g7/harness/document-step.mjs --wait-signin 300
+
+# 3. while it waits it prints the account and the steps: in the app window choose
+#    Sign in, sign in at the web page it opens (the harness web, printed by
+#    start.sh) as that account, approve the desktop consent. Nothing else to type.
+#    (The runner captures the step's output, so the step also writes these
+#    instructions straight to your terminal.)
+
+# 4. tear down, and check the line
+bash scripts/office/g5g6g7/harness/stop.sh
+node scripts/office/g5g6g7/evidence.mjs verify
+```
+
+Without `HARNESS_DOC_EMAIL`/`HARNESS_DOC_PASSWORD` the step seeds a throwaway
+account instead, and `--wait-signin` prints its email; its random password is in
+`.harness-run/doc-user.json` (mode 0600, removed with the account when the step
+ends), never in the output. A reused account's password is read from the
+environment only and is never printed or written; no token, ticket or password
+reaches the output, `document-step.json` or the ledger. The step creates its own
+organization, workspace and document under the account; a **seeded** account and
+its organization are removed again by id (organization deletion request, then
+account deletion), a **reused** account is never cleaned up.
+
+**Expected PASS.** `document step: PASS`, exit `0`, a G7-A01 line with
+`"result":"PASS"` in `test-results/office-g5g6g7-evidence/evidence.jsonl`, and
+these checks in the output: `the server lists a live desktop session for the
+account` (the server's own device list shows a live `uniwork-office-dev` session
+for this deployment), `the D server minted a dev-channel launch link`, `the app
+received the deep link as a second instance`, and `the app opened the fixture
+document` — the app's own working copy and `binding.json` for the fixture
+document under `.harness-run/userdata/uniwork-documents/default/<account>/<doc>/`.
+`evidence.mjs verify` reports nothing about that line.
+
+Other outcomes: `BLOCKED` (77) with `no live uniwork-office-dev desktop session
+for <email>` when nobody signed in within the wait (or the app is signed in as a
+different account); `FAIL` (1) when the app was signed in and handed the link but
+left no working copy, or when the server refused to mint the link.

@@ -33,24 +33,63 @@ RUN_DIR="${HARNESS_RUN_DIR:-$REPO_ROOT/.harness-run}"
 FORK_CACHE="${OFFICE_FORK_CACHE:-$HOME/.cache/uniwork-office-harness}"
 DRY_RUN="${HARNESS_DRY_RUN:-0}"
 SKIP_APP="${HARNESS_SKIP_APP:-0}"
+DESKTOP="${HARNESS_DESKTOP:-0}"
 
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --skip-app) SKIP_APP=1 ;;
+    --desktop) DESKTOP=1 ;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "start.sh: unknown argument $arg (try --help)" >&2; exit 2 ;;
   esac
 done
 
+# --dry-run must never touch a live run: before this, it truncated the run's pids
+# file and rewrote ports.env/server.env/lib.log before reaching its own exit, so
+# stop.sh could no longer find the live server/web/app (reviewer_be H1-2). It
+# gets a scratch run dir of its own instead of the real one.
+DRY_RUN_DIR=""
+if [ "$DRY_RUN" = "1" ]; then
+  DRY_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/harness-dry-run.XXXXXX")"
+  RUN_DIR="$DRY_RUN_DIR"
+fi
 mkdir -p "$RUN_DIR/logs" "$RUN_DIR/userdata"
+# Absolute from here on: the D server is started from another directory, and a
+# relative HARNESS_RUN_DIR would point its log redirect at the wrong place.
+RUN_DIR="$(cd "$RUN_DIR" && pwd)"
+
+# start.sh records its own outcome in start-status.json (state starting | up |
+# failed | blocked, plus the reason). The steps after it (sample-ac.mjs,
+# document-step.mjs) read it: a start that FAILED must fail them too, and only a
+# precondition start.sh itself reported as missing may make them BLOCKED. Cloud
+# round 4 had start.sh exit 1 and both later steps record BLOCKED, which read as
+# "the VM cannot do it" for what was a harness bug.
+STATUS_FILE="$RUN_DIR/start-status.json"
+STATUS_FINAL=0
+write_status() { # write_status <state> [reason]; the reason is one JSON-escaped line
+  local reason="${2:-}"
+  reason="${reason//\\/\\\\}"
+  reason="${reason//\"/\\\"}"
+  reason="${reason//$'\n'/ }"
+  reason="${reason//$'\t'/ }"
+  printf '{"state":"%s","reason":"%s"}\n' "$1" "$reason" > "$STATUS_FILE"
+}
+[ "$DRY_RUN" = "1" ] || write_status starting
 
 blocked() { # blocked <what is missing> <what would fix it>
   echo "BLOCKED: $1" >&2
   echo "  fix: $2" >&2
+  STATUS_FINAL=1
+  write_status blocked "$1 (fix: $2)"
   exit "$BLOCKED_EXIT"
 }
-fail() { echo "FAILED: $1" >&2; exit 1; }
+fail() {
+  echo "FAILED: $1" >&2
+  STATUS_FINAL=1
+  write_status failed "$1"
+  exit 1
+}
 
 # The Electron runtime libraries are probed from `ldconfig -p` captured once,
 # then matched with bash's own substring test — never a `ldconfig -p | grep -q`
@@ -91,9 +130,22 @@ dump_logs() {
   done
   [ "$any" = 1 ] || echo "harness: no component logs in $LOG_DIR" >&2
 }
+# A dry run touches nothing of a live run: it works in a scratch run dir (see
+# DRY_RUN_DIR), removed here once the exit is reported.
 on_exit() {
   local code=$?
+  report_exit "$code"
+  [ -z "${DRY_RUN_DIR:-}" ] || rm -rf "$DRY_RUN_DIR"
+  return 0
+}
+report_exit() {
+  local code=$1
   [ "$code" -eq 0 ] && return 0
+  # An exit nobody called fail()/blocked() for (set -e on a bad command) is still
+  # a failed start, never a quiet "starting".
+  if [ "$STATUS_FINAL" = 0 ] && [ "$DRY_RUN" != "1" ]; then
+    write_status failed "start.sh exited $code before finishing (see the component logs)"
+  fi
   # BLOCKED already prints the missing precondition and its fix; log tails there
   # would only add noise. Everything else (a failed step, an unexpected exit) is
   # worth the tails.
@@ -196,7 +248,12 @@ set +a
 
 NEED_XVFB=0
 LIBS_MISSING=()
-if [ "$SKIP_APP" != "1" ]; then
+if [ "$SKIP_APP" != "1" ] && [ "$DESKTOP" = "1" ]; then
+  # Desktop mode: the app opens on the invoking session's own display, so a
+  # person can sign in to it; no Xvfb is started or installed.
+  [ -n "${DISPLAY:-}" ] \
+    || blocked "--desktop needs a graphical session (DISPLAY is empty)" "run start.sh from a terminal of the desktop session the app should open on"
+elif [ "$SKIP_APP" != "1" ]; then
   command -v xvfb-run > /dev/null 2>&1 || NEED_XVFB=1
   while IFS= read -r lib; do
     [ -n "$lib" ] && LIBS_MISSING+=("$lib")
@@ -228,7 +285,7 @@ apt_install() { # apt_install <packages...>
 : > "$RUN_DIR/pids"
 D_SHA="$(git rev-parse HEAD)"
 export D_SHA
-run_lib "pick the run's ports and env" --write "$RUN_DIR" > /dev/null \
+HARNESS_ENV_FILE="$ENV_FILE" run_lib "pick the run's ports and env" --write "$RUN_DIR" > /dev/null \
   || fail "could not pick the run's ports and env (see the step above and $LOG_DIR/lib.log)"
 
 # shellcheck disable=SC1090
@@ -295,8 +352,19 @@ set -a
 # shellcheck disable=SC1090
 . "$RUN_DIR/server.env"
 set +a
-setsid server/bin/harness-server >> "$RUN_DIR/logs/server.log" 2>&1 &
+# The server also reads a local .env for every key that is empty or unset in its
+# environment (server/cmd/server/envfile.go), so clearing DESKTOP_AUTH_CLIENT_ID
+# in server.env would be undone by the checkout's .env and collide with
+# DESKTOP_AUTH_CLIENTS (cloud round 4). It runs from a directory three levels
+# deep inside the run dir (lib.mjs: serverCwd), where none of its four .env
+# lookups finds the checkout's file; lib.mjs --write put there a copy of the VM's
+# .env without the keys this run owns, so the VM's other settings still arrive.
+SERVER_CWD="$RUN_DIR/server-cwd/a/b/c"
+mkdir -p "$SERVER_CWD"
+cd "$SERVER_CWD"
+setsid "$REPO_ROOT/server/bin/harness-server" >> "$RUN_DIR/logs/server.log" 2>&1 &
 SERVER_PID=$!
+cd "$REPO_ROOT"
 echo "server $SERVER_PID $API_PORT" >> "$RUN_DIR/pids"
 
 wait_for() { # wait_for <url> <name> <seconds>
@@ -338,6 +406,8 @@ done
 if [ "$SKIP_APP" = "1" ]; then
   echo "harness: HARNESS_SKIP_APP=1 — the fork is not cloned and the app is not started"
   echo "harness: up (server + web)"
+  STATUS_FINAL=1
+  write_status up
   exit 0
 fi
 
@@ -503,7 +573,11 @@ fi
 # shell persists into userData/app-settings.json (office-bridge-host.ts:84
 # persistUniWorkApiOriginFromEnv, called at index.ts:5248) — sample-ac.mjs reads
 # it back as proof the running app resolved the D server.
-echo "harness: starting the fork Electron app under xvfb..."
+if [ "$DESKTOP" = "1" ]; then
+  echo "harness: starting the fork Electron app on the desktop display $DISPLAY..."
+else
+  echo "harness: starting the fork Electron app under xvfb..."
+fi
 # The Electron binary is resolved the way the fork's own e2e does
 # (apps/shell/e2e/helpers.ts: require('electron') returns the binary path), and
 # the switches come before the app path so Chromium consumes them.
@@ -518,14 +592,19 @@ fi
 
 XVFB_DISPLAY_FILE="$RUN_DIR/display"
 : > "$XVFB_DISPLAY_FILE"
-setsid env \
-  UNIWORK_API_ORIGIN="$API_ORIGIN" \
-  UNIWORK_BRIDGE_SILENT=1 \
-  GENOFFICE_USER_DATA="$RUN_DIR/userdata" \
-  GENOFFICE_NO_SPARE_VIEW=1 \
-  GENOFFICE_LANG=en \
-  ELECTRON_DISABLE_SANDBOX=1 \
-  xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" \
+# Under xvfb-run the app gets a display of its own; in desktop mode it is started
+# directly and keeps the DISPLAY of the invoking session.
+APP_WRAP=()
+[ "$DESKTOP" = "1" ] || APP_WRAP=(xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24")
+# The app gets an allow-listed environment (lib.mjs: appEnv), never the VM's .env
+# this script sourced above: DATABASE_URL, JWT_SECRET and the rest are the
+# server's, and the app is only its client (reviewer_be H1-8).
+APP_ENV=()
+while IFS= read -r -d '' entry; do APP_ENV+=("$entry"); done \
+  < <(node "$HERE/lib.mjs" --app-env "$API_ORIGIN" "$RUN_DIR/userdata" 2>> "$LOG_DIR/lib.log")
+[ "${#APP_ENV[@]}" -gt 0 ] || fail "could not build the app's environment (see $LOG_DIR/lib.log)"
+setsid env -i "${APP_ENV[@]}" \
+  ${APP_WRAP[@]+"${APP_WRAP[@]}"} \
   bash -c "echo \"\$DISPLAY\" > '$XVFB_DISPLAY_FILE'; exec '$ELECTRON_BIN' --no-sandbox --disable-gpu '$FORK_DIR/apps/shell'" \
   >> "$RUN_DIR/logs/app.log" 2>&1 &
 APP_PID=$!
@@ -553,6 +632,8 @@ DISPLAY_VALUE="$(cat "$XVFB_DISPLAY_FILE")"
 } >> "$RUN_DIR/ports.env"
 echo "harness: app on $DISPLAY_VALUE (pid $APP_PID)"
 
+STATUS_FINAL=1
+write_status up
 echo "harness: up"
 echo "  D server  $API_ORIGIN"
 echo "  D web     $WEB_ORIGIN"
@@ -562,5 +643,5 @@ echo "  next      OFFICE_FORK_SHA=$FORK_SHA HARNESS_RUN_DIR=$RUN_DIR node script
 echo "              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \\"
 echo "              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir $RUN_DIR"
 echo "  next      (document step, its own evidence line) OFFICE_FORK_SHA=$FORK_SHA HARNESS_RUN_DIR=$RUN_DIR \\"
-echo "              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-md-notes-vi --checker tester-cloud -- \\"
+echo "              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \\"
 echo "              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir $RUN_DIR"

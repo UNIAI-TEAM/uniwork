@@ -4,13 +4,14 @@
 // to the server, the web and the app.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { verify } from "../evidence.mjs";
+import { APP_ENV_PASSTHROUGH, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -107,6 +108,15 @@ test("ticketFromLaunchUrl reads the ticket out of the server's link, or null", (
   assert.equal(ticketFromLaunchUrl(null), null);
 });
 
+test("the BLOCKED reason without a session says the app is not signed in, and where to run it", () => {
+  const outcome = documentStepOutcome({ launchUrl: "u://open?ticket=t", ticket: "t", workingCopyDocumentId: null, documentId: "d", signedIn: false });
+  assert.equal(outcome.result, "BLOCKED");
+  assert.match(outcome.blocker, /not signed in/);
+  assert.match(outcome.blocker, /does not automate the sign-in/);
+  assert.match(outcome.blocker, /keyring/);
+  assert.match(outcome.blocker, /Run it on a signed-in desktop/);
+});
+
 test("documentStepOutcome decides from the app's own working copy", () => {
   const base = { launchUrl: "uniwork-office-dev://open?ticket=ticket_abc", ticket: "ticket_abc", documentId: "doc_1", signedIn: true };
   // the working copy names the fixture document: the app opened it
@@ -144,7 +154,7 @@ test("forkCacheDir is keyed by the revision so two SHAs never share a checkout",
 });
 
 test("evidenceLine carries every field the runner contract checks, empty when unknown", () => {
-  const line = evidenceLine({ requirementId: "G7-A05", result: "PASS", exitCode: 0, dSha: "abc", fSha: "0d03b18" });
+  const line = evidenceLine({ argv: ["node", "x.mjs"], requirementId: "G7-A05", result: "PASS", exitCode: 0, dSha: "abc", fSha: "0d03b18" });
   for (const key of ["evidenceId", "requirementId", "dSha", "fSha", "pin", "platform", "build", "fixtureId", "fixtureSha256", "command", "argv", "exitCode", "result", "artifact", "checker", "blocker", "startedAt", "finishedAt"]) {
     assert.ok(key in line, `missing ${key}`);
   }
@@ -153,25 +163,24 @@ test("evidenceLine carries every field the runner contract checks, empty when un
   assert.equal(line.pin, "");
 });
 
-test("evidenceLine defaults argv to the command that ran, never an empty vector", () => {
+test("evidenceLine records the argv it is given and refuses to guess one (H1-6)", () => {
   // The runner's verify reports an empty argv as an empty required field
-  // (reviewer_be r2 N1), so a harness-written line must carry the real vector.
-  const line = evidenceLine({ requirementId: "G7-A05", result: "BLOCKED", exitCode: 77 });
-  assert.ok(Array.isArray(line.argv) && line.argv.length > 0, "argv must not be empty");
-  assert.deepEqual(line.argv, [...process.argv]);
-  // an explicit argv is kept as given
-  assert.deepEqual(evidenceLine({ argv: ["node", "x.mjs"] }).argv, ["node", "x.mjs"]);
+  // (reviewer_be r2 N1); a default of the writer's own process.argv would put a
+  // vector on the line that never ran (H1-6), so the caller must pass the real one.
+  assert.deepEqual(evidenceLine({ argv: ["node", "x.mjs", "--a b"] }).argv, ["node", "x.mjs", "--a b"]);
+  assert.throws(() => evidenceLine({ requirementId: "G7-A05" }), /needs the argv/);
+  assert.throws(() => evidenceLine({ argv: [] }), /needs the argv/);
 });
 
 test("evidenceLine defaults to BLOCKED, never to PASS", () => {
-  assert.equal(evidenceLine({}).result, "BLOCKED");
-  assert.equal(evidenceLine({}).exitCode, -1);
+  assert.equal(evidenceLine({ argv: ["x"] }).result, "BLOCKED");
+  assert.equal(evidenceLine({ argv: ["x"] }).exitCode, -1);
 });
 
 test("evidenceLine keeps a fixture hash and a blocker out of a PASS", () => {
   // The runner's verify refuses a PASS that carries a blocker or a non-zero exit;
   // the writer here must not produce one in the first place.
-  const blocked = evidenceLine({ result: "BLOCKED", blocker: "no D server on http://127.0.0.1:1", exitCode: 77 });
+  const blocked = evidenceLine({ argv: ["x"], result: "BLOCKED", blocker: "no D server on http://127.0.0.1:1", exitCode: 77 });
   assert.equal(blocked.result, "BLOCKED");
   assert.ok(blocked.blocker.length > 0);
   assert.notEqual(blocked.exitCode, 0);
@@ -248,6 +257,43 @@ test("the lib.mjs CLI modes answer and name the mode on a bad call", () => {
 });
 
 /**
+ * A stand-in for the D server's boot that keeps its two real behaviours: the
+ * .env loader (server/cmd/server/envfile.go — the same four lookups, and a key
+ * is skipped only when its value is already NON-EMPTY, so an empty key is
+ * refilled) and the DESKTOP_AUTH check (config.go:306-311). It records its cwd
+ * and the pair it ended up with, and answers /healthz (a file) only once it
+ * booted; a config error is printed the way the server prints it, exit 1.
+ */
+function LOADER_SERVER(root, readyFile) {
+  return [
+    "#!/usr/bin/env node",
+    'const fs = require("fs");',
+    `const LOOKUPS = ${JSON.stringify(SERVER_ENV_LOOKUPS)};`,
+    "for (const path of LOOKUPS) {",
+    "  let text;",
+    '  try { text = fs.readFileSync(path, "utf8"); } catch { continue; }',
+    '  for (const raw of text.split("\\n")) {',
+    "    const line = raw.trim();",
+    '    if (!line || line.startsWith("#")) continue;',
+    '    const at = line.indexOf("=");',
+    "    if (at < 0) continue;",
+    "    const key = line.slice(0, at).trim();",
+    "    if (!key || process.env[key]) continue;",
+    "    process.env[key] = line.slice(at + 1).trim();",
+    "  }",
+    "}",
+    `fs.writeFileSync(${JSON.stringify(join(root, "server-boot.json"))}, JSON.stringify({ cwd: process.cwd(), clients: process.env.DESKTOP_AUTH_CLIENTS ?? "", id: process.env.DESKTOP_AUTH_CLIENT_ID ?? "", uris: process.env.DESKTOP_AUTH_REDIRECT_URIS ?? "", livekit: process.env.LIVEKIT_URL ?? "", previewTtl: process.env.PREVIEW_ASSET_TTL ?? "" }));`,
+    'if ((process.env.DESKTOP_AUTH_CLIENTS ?? "").trim() && (process.env.DESKTOP_AUTH_CLIENT_ID || process.env.DESKTOP_AUTH_REDIRECT_URIS)) {',
+    "  console.error('ERR config component=server err=\"set either DESKTOP_AUTH_CLIENTS or DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both\"');",
+    "  process.exit(1);",
+    "}",
+    `fs.writeFileSync(${JSON.stringify(readyFile)}, "ok");`,
+    "setInterval(() => {}, 1000);",
+    "",
+  ].join("\n");
+}
+
+/**
  * A fake checkout for the bash-level tests: the real start.sh and lib.mjs, a
  * `node_modules` marker so the precondition passes, a `.env`, and stub tools on
  * PATH (`go`, `pnpm`, `curl`, `git`, `ldconfig`, `xvfb-run`) so the whole script
@@ -256,7 +302,7 @@ test("the lib.mjs CLI modes answer and name the mode on a bad call", () => {
  * on the path start.sh execs, pnpm/electron sleep) — this is the "dry-run with a
  * fake server/web" the fix asks for, not a stand-in for the real stack.
  */
-function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false } = {}) {
+function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false, loaderServer = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), "harness-start-"));
   const bin = join(root, "bin");
   const harness = join(root, "scripts", "office", "g5g6g7", "harness");
@@ -276,7 +322,14 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
     writeFileSync(join(bin, name), body);
     chmodSync(join(bin, name), 0o755);
   };
-  shim("go", "#!/usr/bin/env bash\nif [ \"$1\" = build ]; then mkdir -p bin && : > bin/harness-server && chmod +x bin/harness-server; exit 0; fi\nexit 0\n");
+  // `loaderServer` swaps the empty stub server for one that runs the real
+  // server's boot order: the .env loader (envfile.go), then the DESKTOP_AUTH
+  // check (config.go) — see LOADER_SERVER below. Its /healthz answers only once
+  // it got through that, so a server that dies at boot is seen as dead.
+  const readyFile = join(root, "server-ready");
+  const serverSource = join(root, "fake-server.cjs");
+  if (loaderServer) writeFileSync(serverSource, LOADER_SERVER(root, readyFile));
+  shim("go", `#!/usr/bin/env bash\nif [ "$1" = build ]; then mkdir -p bin && ${loaderServer ? `cp ${JSON.stringify(serverSource)} bin/harness-server` : ": > bin/harness-server"} && chmod +x bin/harness-server; exit 0; fi\nexit 0\n`);
   // The harness puts nvm's Node 22 first on PATH; the fake nvm hands it this
   // bin dir, so the stubs below keep winning and the test never depends on the
   // host's nvm. `node` here is the real Node (the harness must keep running).
@@ -285,7 +338,9 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
   // The network probe is `curl ... <fork>/info/refs`; the app's own probes are
   // `curl -sf -o /dev/null <url>`. `network:false` fails only the former.
   shim("curl", network
-    ? "#!/usr/bin/env bash\nexit 0\n"
+    ? (loaderServer
+      ? `#!/usr/bin/env bash\nfor a in "$@"; do case "$a" in */healthz) [ -f ${JSON.stringify(readyFile)} ] || exit 7 ;; esac; done\nexit 0\n`
+      : "#!/usr/bin/env bash\nexit 0\n")
     : "#!/usr/bin/env bash\nfor a in \"$@\"; do case \"$a\" in */info/refs*) exit 7 ;; esac; done\nexit 0\n");
   // The default stub lists the five libraries at once. `libsSigpipe` mimics the
   // real `ldconfig -p` (hundreds of lines): it names the five first and then
@@ -305,8 +360,15 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
     shim("ldconfig", "#!/usr/bin/env bash\nprintf 'libnss3.so\\nlibatk-1.0.so.0\\nlibgbm.so.1\nlibasound.so.2\nlibcups.so.2\n'\n");
   }
   shim("git", "#!/usr/bin/env bash\ncase \"$1\" in rev-parse) echo 1111111111111111111111111111111111111111; exit 0 ;; esac\nexit 0\n");
-  shim("xvfb-run", "#!/usr/bin/env bash\nwhile [ \"$#\" -gt 0 ]; do case \"$1\" in --*) shift ;; --*=*) shift ;; *) break ;; esac; done\nexport DISPLAY=:99\nexec \"$@\"\n");
-  shim("fake-electron", "#!/usr/bin/env bash\nsleep 600\n");
+  shim("xvfb-run", [
+    "#!/usr/bin/env bash",
+    `echo used >> ${JSON.stringify(join(root, "xvfb-used"))}`,
+    'while [ "$#" -gt 0 ]; do case "$1" in --*) shift ;; *) break ;; esac; done',
+    "export DISPLAY=:99",
+    'exec "$@"',
+    "",
+  ].join("\n"));
+  shim("fake-electron", `#!/usr/bin/env bash\nenv > ${JSON.stringify(join(root, "electron-env"))}\nsleep 600\n`);
   // Records its argv (the install strategy is asserted from it) and answers with
   // npmExit, so a failing install is exercised without a real npm. `ci
   // --ignore-scripts` on a clean tree leaves the two things start.sh then probes
@@ -355,7 +417,13 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
   }
 
   const envFile = join(root, "env");
-  writeFileSync(envFile, "DATABASE_URL=postgres://u:p@localhost:5432/db?sslmode=disable\nREDIS_URL=redis://localhost:6379/0\n");
+  // The VM's .env, as the cloud runner writes it from .env.example: the
+  // single-client pair, a LiveKit URL, and a setting the server REQUIRES and the
+  // run does not set (PREVIEW_ASSET_TTL). The harness sources it (ENV_FILE) and
+  // the real server reads the same file from the checkout root.
+  const dotenv = "DATABASE_URL=postgres://u:p@localhost:5432/db?sslmode=disable\nREDIS_URL=redis://localhost:6379/0\nDESKTOP_AUTH_CLIENT_ID=uniwork-office\nDESKTOP_AUTH_REDIRECT_URIS=uniwork-office://auth/callback\nLIVEKIT_URL=ws://localhost:7880\nPREVIEW_ASSET_TTL=10m\nJWT_SECRET=jwt-secret-value\nOPENAI_API_KEY=sk-secret-value\nS3_SECRET_ACCESS_KEY=s3-secret-value\nSMTP_PASSWORD=smtp-secret-value\nGITHUB_TOKEN=gh-secret-value\n";
+  writeFileSync(envFile, dotenv);
+  writeFileSync(join(root, ".env"), dotenv);
   // A fake nvm: `nvm which 22` names the stub bin dir, so start.sh's nvm branch
   // is exercised and the stubs stay in front of PATH.
   const nvmDir = join(root, "nvm");
@@ -421,6 +489,225 @@ test("start.sh reaches up through the real lib.mjs fork-dir call (fake stack)", 
   } finally {
     stopFakeStack(stack);
   }
+});
+
+test("the D server boots with exactly DESKTOP_AUTH_CLIENTS although the checkout's .env carries the single-client pair", () => {
+  // Cloud round 4: start.sh exited 1, "set either DESKTOP_AUTH_CLIENTS or
+  // DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both". server.env
+  // cleared the pair to "", but the server's own .env loader treats an empty
+  // key as unset and refilled it from the checkout's .env. The fake server
+  // below runs that loader (same lookups, same non-empty test) and the real
+  // config check, so this fails on the old start.sh (cwd = the checkout).
+  const stack = mkFakeStack({ loaderServer: true });
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const boot = JSON.parse(readFileSync(join(stack.root, "server-boot.json"), "utf8"));
+    assert.match(boot.clients, new RegExp(`${DEV_CLIENT_ID}=${DEV_CLIENT_ID}://auth/callback`));
+    assert.equal(boot.id, "", "the single-client id must still be empty after the .env loader ran");
+    assert.equal(boot.uris, "", "the single-client redirect list must still be empty after the .env loader ran");
+    assert.equal(boot.livekit, "", "the cleared LiveKit setting must not come back from the .env");
+    assert.equal(boot.previewTtl, "10m", "a VM setting the run does not own must still reach the server");
+    // it ran where no .env lookup reaches the checkout
+    assert.equal(realpathSync(boot.cwd), realpathSync(harnessPaths(stack.runDir).serverCwd));
+    assert.deepEqual(readStartStatus(stack.runDir), { state: "up", reason: "" });
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("the same server, started from the checkout the old way, dies of the round-4 config error", () => {
+  // The negative control for the test above: this is what start.sh did before.
+  const stack = mkFakeStack({ loaderServer: true });
+  try {
+    const bin = join(stack.root, "server", "bin");
+    mkdirSync(bin, { recursive: true });
+    copyFileSync(join(stack.root, "fake-server.cjs"), join(bin, "harness-server"));
+    chmodSync(join(bin, "harness-server"), 0o755);
+    const serverEnv = buildServerEnv({ apiPort: 1, webPort: 2, metricsPort: 3, previewPort: 4, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" });
+    const old = spawnSync(join(bin, "harness-server"), [], { cwd: stack.root, env: { ...process.env, PATH: `${stack.bin}:${process.env.PATH}`, ...serverEnv }, encoding: "utf8", timeout: 20_000 });
+    assert.equal(old.status, 1);
+    assert.match(old.stderr, /not both/);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("the server's cwd is three directories deep, so none of its .env lookups leaves the run dir", () => {
+  const runDir = "/x/run";
+  const cwd = serverCwd(runDir);
+  assert.equal(harnessPaths(runDir).serverCwd, cwd);
+  for (const lookup of SERVER_ENV_LOOKUPS) {
+    const target = join(cwd, lookup);
+    assert.ok(target.startsWith(`${runDir}/server-cwd/`) || target === `${runDir}/server-cwd/.env`, `${lookup} resolves to ${target}`);
+  }
+});
+
+test("serverDotEnv drops the lines of the keys the run owns and keeps the rest", () => {
+  const text = "# vm\nPORT=8080\nDESKTOP_AUTH_CLIENT_ID=uniwork-office\n DESKTOP_AUTH_REDIRECT_URIS = x\nPREVIEW_ASSET_TTL=10m\nbad line\n";
+  assert.equal(serverDotEnv(text, ["PORT", "DESKTOP_AUTH_CLIENT_ID", "DESKTOP_AUTH_REDIRECT_URIS"]), "# vm\nPREVIEW_ASSET_TTL=10m\nbad line\n");
+});
+
+test("writeRunEnv leaves the server a .env without any key it owns, in a cwd of its own", async () => {
+  const runDir = mkdtempSync(join(tmpdir(), "harness-dotenv-"));
+  const source = join(runDir, "vm.env");
+  writeFileSync(source, "DESKTOP_AUTH_CLIENT_ID=uniwork-office\nLIVEKIT_URL=ws://x\nPORT=1\nPREVIEW_ASSET_TTL=10m\n");
+  const previous = { DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL };
+  process.env.DATABASE_URL = "postgres://x";
+  process.env.REDIS_URL = "redis://y";
+  try {
+    await writeRunEnv(runDir, { dotenvPath: source });
+    assert.equal(readFileSync(join(serverCwd(runDir), ".env"), "utf8"), "PREVIEW_ASSET_TTL=10m\n");
+    for (const key of Object.keys(buildServerEnv({ apiPort: 1, webPort: 2, metricsPort: 3, previewPort: 4, databaseUrl: "d", redisUrl: "r", uploadDir: "/u" }))) {
+      assert.doesNotMatch(readFileSync(join(serverCwd(runDir), ".env"), "utf8"), new RegExp(`^${key}=`, "m"));
+    }
+  } finally {
+    if (previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.DATABASE_URL;
+    if (previous.REDIS_URL === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = previous.REDIS_URL;
+  }
+});
+
+const SERVER_SECRETS = ["DATABASE_URL", "REDIS_URL", "JWT_SECRET", "OPENAI_API_KEY", "S3_SECRET_ACCESS_KEY", "SMTP_PASSWORD", "GITHUB_TOKEN"];
+
+test("the app start.sh launches gets an allow-listed env, never the VM .env's server secrets (H1-8)", async () => {
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const envFile = join(stack.root, "electron-env");
+    for (let i = 0; i < 40 && !existsSync(envFile); i += 1) await new Promise((r) => setTimeout(r, 100));
+    const seen = Object.fromEntries(readFileSync(envFile, "utf8").split("\n").filter(Boolean).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]));
+    for (const key of SERVER_SECRETS) assert.ok(!(key in seen), `${key} reached the Electron app`);
+    assert.ok(!Object.values(seen).some((value) => /secret-value|^sk-/.test(value)), "no secret value reached the app");
+    // what the app needs is there
+    assert.match(seen.UNIWORK_API_ORIGIN, /^http:\/\/127\.0\.0\.1:\d+$/);
+    assert.equal(seen.GENOFFICE_USER_DATA, join(stack.runDir, "userdata"));
+    assert.ok(seen.PATH && seen.HOME);
+    // and nothing outside the allow-list besides what appEnv adds itself
+    const allowed = new Set([...APP_ENV_PASSTHROUGH, "UNIWORK_API_ORIGIN", "GENOFFICE_USER_DATA", "GENOFFICE_NO_SPARE_VIEW", "ELECTRON_DISABLE_SANDBOX", "UNIWORK_BRIDGE_SILENT", "GENOFFICE_LANG", "_", "PWD", "SHLVL", "OLDPWD"]);
+    const extra = Object.keys(seen).filter((key) => !allowed.has(key));
+    assert.deepEqual(extra, [], `unexpected variables in the app's environment: ${extra.join(", ")}`);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("appEnv passes only the allow-list and refuses a secret by name", () => {
+  const source = { PATH: "/bin", HOME: "/h", DISPLAY: ":1", DATABASE_URL: "x", REDIS_URL: "y", JWT_SECRET: "z", MY_API_KEY: "k", SESSION_TOKEN: "t", DB_PASSWORD: "p", UNRELATED: "u" };
+  const env = appEnv({ source, apiOrigin: "http://127.0.0.1:1", userDataDir: "/ud" });
+  assert.deepEqual(Object.keys(env).sort(), ["DISPLAY", "ELECTRON_DISABLE_SANDBOX", "GENOFFICE_NO_SPARE_VIEW", "GENOFFICE_USER_DATA", "HOME", "PATH", "UNIWORK_API_ORIGIN"]);
+  assert.throws(() => appEnv({ source, apiOrigin: "o", userDataDir: "u", extra: { JWT_SECRET: "s" } }), /server secret/);
+  for (const key of APP_ENV_PASSTHROUGH) assert.doesNotMatch(key, /KEY|SECRET|TOKEN|PASSWORD|DATABASE_URL|REDIS_URL/i);
+});
+
+test("--dry-run leaves a live run's pids, ports and logs untouched (reviewer_be H1-2)", () => {
+  const stack = mkFakeStack();
+  try {
+    mkdirSync(join(stack.runDir, "logs"), { recursive: true });
+    writeFileSync(join(stack.runDir, "pids"), "server 4242 8080\nweb 4243 3000\n");
+    writeFileSync(join(stack.runDir, "ports.env"), "API_PORT=8080\nMARK=live\n");
+    writeFileSync(join(stack.runDir, "server.env"), "PORT='8080'\n");
+    writeFileSync(join(stack.runDir, "logs", "lib.log"), "live\n");
+    const before = ["pids", "ports.env", "server.env", join("logs", "lib.log")].map((f) => readFileSync(join(stack.runDir, f), "utf8"));
+    const result = runStart(stack, { HARNESS_DRY_RUN: "1" });
+    assert.equal(result.status, 0, `start.sh --dry-run exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /--dry-run, stopping before anything is started/);
+    const after = ["pids", "ports.env", "server.env", join("logs", "lib.log")].map((f) => readFileSync(join(stack.runDir, f), "utf8"));
+    assert.deepEqual(after, before);
+    assert.ok(!existsSync(join(stack.runDir, "start-status.json")), "a dry run records no start status");
+    // and it removed its own scratch dir
+    const scratch = /run dir (\S+harness-dry-run\.\S+)/.exec(result.stdout)?.[1];
+    assert.ok(scratch, "the dry run names its scratch run dir");
+    assert.ok(!existsSync(scratch), "the scratch run dir is removed");
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("--desktop opens the app on the invoking session's display, without xvfb", () => {
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack, { HARNESS_DESKTOP: "1", DISPLAY: ":7" });
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /on the desktop display :7/);
+    assert.match(readFileSync(join(stack.runDir, "ports.env"), "utf8"), /^DISPLAY=:7$/m);
+    assert.ok(!existsSync(join(stack.root, "xvfb-used")), "desktop mode must not start Xvfb");
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("--desktop without a graphical session is BLOCKED with the reason", () => {
+  const stack = mkFakeStack();
+  try {
+    const env = { ...process.env, PATH: `${stack.bin}:${process.env.PATH}`, ENV_FILE: stack.envFile, HARNESS_RUN_DIR: stack.runDir, OFFICE_FORK_CACHE: stack.cacheDir, NVM_DIR: stack.nvmDir };
+    delete env.DISPLAY;
+    const result = spawnSync("bash", [join(stack.harness, "start.sh"), "--desktop"], { encoding: "utf8", timeout: 60_000, env });
+    assert.equal(result.status, 77, `expected BLOCKED (77), got ${result.status}\n${result.stderr}`);
+    assert.match(result.stderr, /BLOCKED: --desktop needs a graphical session/);
+    assert.equal(readStartStatus(stack.runDir).state, "blocked");
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("a failed start is recorded as failed, a missing precondition as blocked", () => {
+  const failing = mkFakeStack({ forkTree: "absent", npmExit: 7 });
+  try {
+    assert.equal(runStart(failing).status, 1);
+    const status = readStartStatus(failing.runDir);
+    assert.equal(status.state, "failed");
+    assert.match(status.reason, /npm ci --ignore-scripts failed in the fork/);
+  } finally {
+    stopFakeStack(failing);
+  }
+  const noNetwork = mkFakeStack({ forkTree: "absent", network: false });
+  try {
+    assert.equal(runStart(noNetwork).status, 77);
+    const status = readStartStatus(noNetwork.runDir);
+    assert.equal(status.state, "blocked");
+    assert.match(status.reason, /no network to /);
+  } finally {
+    stopFakeStack(noNetwork);
+  }
+});
+
+test("a server that dies at boot leaves a failed start with its log tail, not an up one", () => {
+  const stack = mkFakeStack({ loaderServer: true });
+  try {
+    // an env file that re-adds the pair AND a cwd that finds it: force the
+    // conflict by making the fake server see the checkout's .env, which only
+    // happens if the server is started from the run's own cwd with a .env in it
+    mkdirSync(join(stack.runDir, "server-cwd", "a", "b", "c"), { recursive: true });
+    writeFileSync(join(stack.runDir, "server-cwd", ".env"), "DESKTOP_AUTH_CLIENT_ID=planted\n");
+    const result = runStart(stack);
+    assert.equal(result.status, 1, `expected FAILED (1), got ${result.status}\n${result.stderr}`);
+    assert.match(result.stderr, /FAILED: the D server died while starting/);
+    assert.match(result.stderr, /not both/);
+    const status = readStartStatus(stack.runDir);
+    assert.equal(status.state, "failed");
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("startGate: only a start that reported BLOCKED may block a later step", () => {
+  assert.equal(startGate(null).gate, "proceed");
+  assert.equal(startGate({ state: "up" }).gate, "proceed");
+  assert.equal(startGate({ state: "failed", reason: "x" }).gate, "fail");
+  assert.match(startGate({ state: "failed", reason: "the D server died while starting" }).reason, /the D server died while starting/);
+  assert.equal(startGate({ state: "starting" }).gate, "fail");
+  assert.equal(startGate({ state: "blocked", reason: "no network" }).gate, "blocked");
+  assert.equal(startGate({ state: "something-new" }).gate, "fail");
+});
+
+test("readStartStatus reads the file, and a torn one reads as failed", () => {
+  const dir = mkdtempSync(join(tmpdir(), "harness-status-"));
+  assert.equal(readStartStatus(dir), null);
+  writeFileSync(harnessPaths(dir).startStatus, '{"state":"up","reason":""}\n');
+  assert.equal(readStartStatus(dir).state, "up");
+  writeFileSync(harnessPaths(dir).startStatus, '{"state":');
+  assert.equal(readStartStatus(dir).state, "failed");
 });
 
 test("a present library is not reported missing when ldconfig writes past a pipe buffer", () => {
@@ -550,8 +837,11 @@ test("start.sh names the failing step and its args when lib.mjs errors", () => {
 // without a stack.
 
 /** A fake D server for the document step; resolves with its origin and a stop(). */
-function mkFakeDocumentServer({ mintLink = true } = {}) {
+function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls = 0, loginPassword = "", failDelete = false } = {}) {
   return new Promise((resolveServer) => {
+    const calls = [];
+    const requests = [];
+    let devicePolls = 0;
     const server = createHttpServer((req, res) => {
       const chunks = [];
       req.on("data", (c) => chunks.push(c));
@@ -561,7 +851,20 @@ function mkFakeDocumentServer({ mintLink = true } = {}) {
           res.end(JSON.stringify(body));
         };
         const url = new URL(req.url, "http://127.0.0.1");
+        calls.push(url.pathname);
+        requests.push({ method: req.method, path: url.pathname, body: Buffer.concat(chunks).toString("utf8") });
+        if (/^\/api\/v1\/orgs\/[^/]+\/privacy\/deletion$/.test(url.pathname) || url.pathname === "/api/v1/me/delete") {
+          return failDelete ? send(409, { error: "owner_must_transfer" }) : send(url.pathname === "/api/v1/me/delete" ? 200 : 202, { status: "ok" });
+        }
         if (url.pathname === "/healthz") return send(200, { status: "ok" });
+        if (url.pathname === "/api/v1/auth/login") {
+          const sent = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+          return sent.password === loginPassword ? send(200, { access_token: "tok", user: { id: "u1" } }) : send(401, { error: "invalid_credentials" });
+        }
+        if (url.pathname === "/api/v1/auth/desktop/devices") {
+          devicePolls += 1;
+          return send(200, { devices: devicePolls > devicesAfterPolls ? devices : [], next_cursor: null });
+        }
         if (url.pathname === "/api/v1/auth/register") return send(201, { access_token: "tok", user: { id: "u1" } });
         if (url.pathname === "/api/v1/me/email/verify") return send(200, { user: { id: "u1" } });
         if (url.pathname === "/api/v1/orgs") return send(201, { organization: { id: "o1", slug: "o1" } });
@@ -576,7 +879,7 @@ function mkFakeDocumentServer({ mintLink = true } = {}) {
     });
     server.listen(0, "127.0.0.1", () => {
       const { port } = server.address();
-      resolveServer({ origin: `http://127.0.0.1:${port}`, stop: () => new Promise((r) => server.close(r)) });
+      resolveServer({ origin: `http://127.0.0.1:${port}`, calls, requests, stop: () => new Promise((r) => server.close(r)) });
     });
   });
 }
@@ -703,4 +1006,357 @@ test("document-step FAILs when a signed-in app is handed the link and does not o
   } finally {
     await server.stop();
   }
+});
+
+// ---- a failed start fails the steps after it (cloud round 4) ------------------
+// start.sh exited 1 and both later steps recorded BLOCKED ("command reported
+// skip"), which reads as "the VM cannot do it". Only a start that itself
+// reported a missing precondition may block them.
+
+const SAMPLE_AC = join(HERE, "sample-ac.mjs");
+const REPO_FIXTURES = join(HERE, "..", "..", "..", "..", "docs", "office", "g5g6g7", "fixtures");
+
+function stepAfterStart(script, state, reason) {
+  const run = mkDocumentRun({ origin: "http://127.0.0.1:1", electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
+  writeFileSync(harnessPaths(run.runDir).startStatus, `${JSON.stringify({ state, reason })}\n`);
+  const result = spawnSync(process.execPath, [script, "--run-dir", run.runDir], { encoding: "utf8", timeout: 60_000, env: { ...process.env, OFFICE_EVIDENCE_ID: "" } });
+  const ledger = join(run.runDir, "evidence.jsonl");
+  const line = existsSync(ledger) ? JSON.parse(readFileSync(ledger, "utf8").trim().split("\n").at(-1)) : null;
+  return { result, line };
+}
+
+for (const [name, script] of [["sample-ac", SAMPLE_AC], ["document-step", DOC_STEP]]) {
+  test(`${name} FAILs (exit 1), not BLOCKED, after a start that failed`, () => {
+    const { result, line } = stepAfterStart(script, "failed", "the D server died while starting");
+    assert.equal(result.status, 1, `expected FAIL (1), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /FAILED: start\.sh failed: the D server died while starting/);
+    assert.doesNotMatch(result.stderr, /BLOCKED/);
+    assert.equal(line.result, "FAIL");
+    assert.equal(line.exitCode, 1);
+    assert.equal(line.blocker, "");
+  });
+
+  test(`${name} FAILs when start.sh never finished`, () => {
+    const { result, line } = stepAfterStart(script, "starting", "");
+    assert.equal(result.status, 1);
+    assert.equal(line.result, "FAIL");
+  });
+
+  test(`${name} is BLOCKED only with the reason start.sh recorded`, () => {
+    const { result, line } = stepAfterStart(script, "blocked", "no network to the fork");
+    assert.equal(result.status, 77);
+    assert.match(result.stderr, /BLOCKED: start\.sh reported BLOCKED: no network to the fork/);
+    assert.equal(line.result, "BLOCKED");
+    assert.match(line.blocker, /no network to the fork/);
+  });
+}
+
+// ---- desktop mode: reuse an account, wait for its sign-in ---------------------
+
+const LIVE_DEVICE = { id: "d1", client_id: DEV_CLIENT_ID, deployment_id: "default", expires_at: "2999-01-01T00:00:00Z", revoked_at: null };
+const REUSED = { HARNESS_DOC_EMAIL: "advisor@example.com", HARNESS_DOC_PASSWORD: "s3cret-Pass-Word" };
+
+/** Everything a run left that could carry a secret: stdout, stderr, the report and the ledger. */
+function everythingWritten(run, result) {
+  const files = ["document-step.json", "evidence.jsonl"].map((name) => (existsSync(join(run.runDir, name)) ? readFileSync(join(run.runDir, name), "utf8") : ""));
+  return [result.stdout, result.stderr, ...files].join("\n");
+}
+
+test("parseWaitSignin reads the flag, with or without a number", () => {
+  assert.equal(parseWaitSignin(["node", "x"]), null);
+  assert.equal(parseWaitSignin(["--wait-signin"]), 300);
+  assert.equal(parseWaitSignin(["--wait-signin", "45", "--run-dir", "r"]), 45);
+  assert.equal(parseWaitSignin(["--wait-signin", "--run-dir", "r"]), 300);
+  assert.equal(parseWaitSignin(["--wait-signin", "0"]), 300);
+});
+
+test("activeDesktopDevice wants the dev client, this deployment, not revoked, not expired", () => {
+  const ask = { clientId: DEV_CLIENT_ID, deploymentId: "default", now: Date.parse("2026-10-12T00:00:00Z") };
+  assert.equal(activeDesktopDevice([LIVE_DEVICE], ask)?.id, "d1");
+  assert.equal(activeDesktopDevice([{ ...LIVE_DEVICE, client_id: "uniwork-office" }], ask), null);
+  assert.equal(activeDesktopDevice([{ ...LIVE_DEVICE, deployment_id: "other" }], ask), null);
+  assert.equal(activeDesktopDevice([{ ...LIVE_DEVICE, revoked_at: "2026-10-11T00:00:00Z" }], ask), null);
+  assert.equal(activeDesktopDevice([{ ...LIVE_DEVICE, expires_at: "2026-10-01T00:00:00Z" }], ask), null);
+  assert.equal(activeDesktopDevice(undefined, ask), null);
+});
+
+test("document-step reuses an account from the environment and writes no secret anywhere", async () => {
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"], REUSED);
+    assert.equal(result.status, 0, `document-step exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.ok(server.calls.includes("/api/v1/auth/login"));
+    assert.ok(!server.calls.includes("/api/v1/auth/register"), "a reused account must not be seeded");
+    const written = everythingWritten(run, result);
+    for (const secret of [REUSED.HARNESS_DOC_PASSWORD, "ticket_abc"]) assert.ok(!written.includes(secret), `${secret} leaked into the output or the evidence`);
+    assert.ok(!/"tok"|bearer/i.test(written), "no token in the output or the evidence");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("document-step is BLOCKED, and delivers nothing, when the reused account has no desktop session", async () => {
+  const server = await mkFakeDocumentServer({ devices: [], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"], REUSED);
+    assert.equal(result.status, 77, `expected BLOCKED (77), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /no live uniwork-office-dev desktop session for advisor@example\.com/);
+    assert.match(result.stderr, /--wait-signin/);
+    assert.ok(!existsSync(linkFile), "no link may be delivered to an app that is not signed in as the account");
+    assert.ok(!server.calls.some((path) => path.endsWith("/office/sessions")), "no ticket may be minted");
+    assert.ok(!everythingWritten(run, result).includes(REUSED.HARNESS_DOC_PASSWORD));
+  } finally {
+    await server.stop();
+  }
+});
+
+test("--wait-signin prints the steps, waits for the sign-in, then opens the document", async () => {
+  // the account is signed out for the first two polls, then the app signs in
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], devicesAfterPolls: 2, loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi", "--wait-signin", "30"], REUSED);
+    assert.equal(result.status, 0, `document-step exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /waiting up to 30s for a desktop sign-in as advisor@example\.com/);
+    assert.match(result.stdout, /Sign in/);
+    assert.match(result.stdout, /document step: PASS/);
+    assert.ok(!everythingWritten(run, result).includes(REUSED.HARNESS_DOC_PASSWORD));
+  } finally {
+    await server.stop();
+  }
+});
+
+test("--wait-signin that never sees a sign-in is BLOCKED with the wait in the reason", async () => {
+  const server = await mkFakeDocumentServer({ devices: [], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--wait-signin", "2"], REUSED);
+    assert.equal(result.status, 77);
+    assert.match(result.stderr, /within 2s/);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("--wait-signin with a seeded account keeps its random password in a 0600 file while it waits, never in the output", async () => {
+  // signed out for three polls (about 6s): long enough to read the file mid-run
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], devicesAfterPolls: 3 });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const finished = runDocumentStep(["--run-dir", run.runDir, "--wait-signin", "30"]);
+    const file = harnessPaths(run.runDir).docUser;
+    for (let i = 0; i < 40 && !existsSync(file); i += 1) await new Promise((r) => setTimeout(r, 100));
+    assert.equal(statSync(file).mode & 0o777, 0o600);
+    const { email, password } = JSON.parse(readFileSync(file, "utf8"));
+    const result = await finished;
+    assert.equal(result.status, 0, `document-step exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.ok(server.calls.includes("/api/v1/auth/register"), "no account given: one is seeded");
+    assert.match(email, /^g7-01-harness-\d+@example\.com$/);
+    assert.ok(password.length >= 16 && password !== "password123", "a waited sign-in gets its own random password");
+    assert.match(result.stdout, new RegExp(`as ${email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    assert.ok(result.stdout.includes(file), "the output points at the credentials file");
+    assert.ok(!everythingWritten(run, result).includes(password), "the seeded password stays out of the output and the evidence");
+    assert.ok(!existsSync(file), "the credentials file goes with the account it was for");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("the unattended cloud run seeds with no sign-in check and no credentials file", async () => {
+  const server = await mkFakeDocumentServer();
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\nprintf '%s\\n' "\${!#}" >> ${JSON.stringify(linkFile)}\nexit 0\n` });
+  try {
+    rmSync(join(run.userData, "uniwork-auth", "session.bin"), { force: true });
+    const result = await runDocumentStep(["--run-dir", run.runDir]);
+    assert.equal(result.status, 77);
+    assert.ok(!server.calls.includes("/api/v1/auth/desktop/devices"), "the cloud run does not poll for a sign-in");
+    assert.ok(!existsSync(harnessPaths(run.runDir).docUser));
+  } finally {
+    await server.stop();
+  }
+});
+
+test("an email without a password (or the reverse) is a usage error, not a guess", async () => {
+  const run = mkDocumentRun({ origin: "http://127.0.0.1:1", electronBody: "#!/usr/bin/env bash\nexit 0\n" });
+  const result = await runDocumentStep(["--run-dir", run.runDir], { HARNESS_DOC_EMAIL: "a@example.com", HARNESS_DOC_PASSWORD: "" });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /go together/);
+});
+
+test("a wrong password for a reused account is a FAIL", async () => {
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], loginPassword: "something-else" });
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir], { ...REUSED, HARNESS_DOC_WAIT_MS: "500" });
+    assert.equal(result.status, 1, `expected FAIL (1), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.ok(!everythingWritten(run, result).includes(REUSED.HARNESS_DOC_PASSWORD));
+  } finally {
+    await server.stop();
+  }
+});
+
+// ---- the ledger lines the harness writes pass `evidence.mjs verify` (H1-3) ----
+
+/** What `verify` says about the one line the harness wrote, ignoring the matrix's own rows. */
+function verifyLine(line, artifactFile) {
+  const outDir = mkdtempSync(join(tmpdir(), "harness-ledger-"));
+  writeFileSync(join(outDir, "evidence.jsonl"), `${JSON.stringify({ ...line, artifact: line.artifact || artifactFile })}\n`);
+  return verify({ outDir }).problems.filter((problem) => problem.startsWith("line 1 "));
+}
+
+test("document-step's own evidence line is complete: verify finds nothing wrong with it", async () => {
+  const server = await mkFakeDocumentServer({ loginPassword: "x" });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const line = JSON.parse(readFileSync(join(run.runDir, "evidence.jsonl"), "utf8").trim().split("\n").at(-1));
+    assert.match(line.dSha, /^[0-9a-f]{40}$/);
+    assert.ok(line.pin.length > 0, "the served frame pin is on the line");
+    assert.ok(line.evidenceId.length > 0);
+    assert.deepEqual(verifyLine(line, join(run.runDir, "document-step.json")), []);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a BLOCKED document-step line and a start-gate line also pass verify", async () => {
+  const server = await mkFakeDocumentServer({ devices: [], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
+  try {
+    const blocked = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"], REUSED);
+    assert.equal(blocked.status, 77);
+    const line = JSON.parse(readFileSync(join(run.runDir, "evidence.jsonl"), "utf8").trim().split("\n").at(-1));
+    assert.equal(line.result, "BLOCKED");
+    assert.deepEqual(verifyLine(line, join(run.runDir, "document-step.json")), []);
+  } finally {
+    await server.stop();
+  }
+  const gated = stepAfterStart(DOC_STEP, "blocked", "no network to the fork");
+  assert.deepEqual(verifyLine({ ...gated.line, fixtureId: "fx-docx-report-vi", fixtureSha256: JSON.parse(readFileSync(join(REPO_FIXTURES, "manifest.json"), "utf8")).fixtures.find((f) => f.id === "fx-docx-report-vi").sha256 }, "/dev/null"), []);
+});
+
+// ---- the deep-link handoff: allow-listed env, recorded and cleaned up (H1-7, H1-8) ----
+
+test("the second instance gets the allow-listed env, not the harness's", async () => {
+  const server = await mkFakeDocumentServer();
+  const root = mkdtempSync(join(tmpdir(), "harness-handoff-"));
+  const envFile = join(root, "env");
+  const body = `#!/usr/bin/env bash\nenv > ${JSON.stringify(envFile)}\nexit 0\n`;
+  const run = mkDocumentRun({ origin: server.origin, electronBody: body, session: true });
+  try {
+    const polluted = Object.fromEntries(SERVER_SECRETS.map((key) => [key, `${key}-secret-value`]));
+    await runDocumentStep(["--run-dir", run.runDir], { ...polluted, HARNESS_DOC_WAIT_MS: "300" });
+    const text = readFileSync(envFile, "utf8");
+    for (const key of SERVER_SECRETS) assert.ok(!text.includes(`${key}=`), `${key} reached the second instance`);
+    assert.match(text, /^UNIWORK_API_ORIGIN=http:\/\/127\.0\.0\.1:\d+$/m);
+    assert.match(text, /^UNIWORK_OFFICE_CHANNEL=dev$/m);
+    assert.match(text, /^DISPLAY=:99$/m);
+    assert.match(text, /^GENOFFICE_USER_DATA=/m);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("the second instance is in the pids file while it lives and gone when it exits", async () => {
+  const server = await mkFakeDocumentServer();
+  const snapshot = join(mkdtempSync(join(tmpdir(), "harness-handoff-")), "pids-during");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\ncp "$GENOFFICE_USER_DATA/../pids" ${JSON.stringify(snapshot)}\nexit 0\n`, session: true });
+  writeFileSync(join(run.runDir, "pids"), "server 1 8080\n");
+  try {
+    await runDocumentStep(["--run-dir", run.runDir], { HARNESS_DOC_WAIT_MS: "300" });
+    assert.match(readFileSync(snapshot, "utf8"), /^handoff \d+ 0$/m, "recorded while it ran");
+    assert.equal(readFileSync(join(run.runDir, "pids"), "utf8"), "server 1 8080\n", "removed once it exited, the rest untouched");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a second instance that does not exit is killed as a group, not left behind", async () => {
+  const server = await mkFakeDocumentServer();
+  const pidFile = join(mkdtempSync(join(tmpdir(), "harness-handoff-")), "child-pid");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\nsleep 300 &\necho $! > ${JSON.stringify(pidFile)}\nwait\n`, session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir], { HARNESS_HANDOFF_TIMEOUT_MS: "1500", HARNESS_DOC_WAIT_MS: "300" });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /did not exit within 1\.5s and was killed/);
+    const child = Number(readFileSync(pidFile, "utf8").trim());
+    await new Promise((r) => setTimeout(r, 300));
+    assert.throws(() => process.kill(child, 0), "the second instance's child must be gone too");
+  } finally {
+    await server.stop();
+  }
+});
+
+// ---- cleanup of what the run seeded (H1-5) ------------------------------------
+
+test("the seeded organization and account are removed by id after the step", async () => {
+  const server = await mkFakeDocumentServer();
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const writes = server.requests.filter((r) => r.method === "POST").map((r) => r.path);
+    const org = writes.indexOf("/api/v1/orgs/o1/privacy/deletion");
+    const account = writes.indexOf("/api/v1/me/delete");
+    assert.ok(org >= 0 && account > org, `organization deletion, then the account (saw ${writes.join(", ")})`);
+    // only ids this run was handed: the org it created, confirmed with its own slug
+    assert.deepEqual(JSON.parse(server.requests.find((r) => r.path === "/api/v1/orgs/o1/privacy/deletion").body), { confirm_slug: "o1" });
+    assert.match(result.stdout, /cleanup ok\s+request deletion of the seeded organization/);
+    const report = JSON.parse(readFileSync(join(run.runDir, "document-step.json"), "utf8"));
+    assert.deepEqual(report.cleanup.steps.map((step) => step.ok), [true, true]);
+    assert.ok(!everythingWritten(run, result).includes("password123"), "the seeded password is not written anywhere");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a reused account is never cleaned up", async () => {
+  const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir], REUSED);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.ok(!server.requests.some((r) => /privacy\/deletion|\/me\/delete/.test(r.path)), "no deletion call for a reused account");
+    assert.match(result.stdout, /cleanup skipped: the account is reused/);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a cleanup that fails is reported and does not change the result", async () => {
+  const server = await mkFakeDocumentServer({ failDelete: true });
+  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
+  try {
+    const result = await runDocumentStep(["--run-dir", run.runDir]);
+    assert.equal(result.status, 0, "the open itself passed");
+    assert.match(result.stdout, /cleanup FAILED\s+request deletion of the seeded organization — .*409/);
+    assert.match(result.stdout, /document step: PASS/);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("stop.sh removes the run's uploads and server cwd by path and keeps logs and evidence", () => {
+  const runDir = mkdtempSync(join(tmpdir(), "harness-stop-"));
+  for (const dir of ["uploads", join("server-cwd", "a", "b", "c"), "logs"]) mkdirSync(join(runDir, dir), { recursive: true });
+  writeFileSync(join(runDir, "uploads", "doc.docx"), "x");
+  writeFileSync(join(runDir, "logs", "server.log"), "log");
+  writeFileSync(join(runDir, "evidence.jsonl"), "{}\n");
+  writeFileSync(join(runDir, "pids"), "");
+  const result = spawnSync("bash", [join(HERE, "stop.sh")], { encoding: "utf8", env: { ...process.env, HARNESS_RUN_DIR: runDir } });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(!existsSync(join(runDir, "uploads")) && !existsSync(join(runDir, "server-cwd")));
+  assert.ok(existsSync(join(runDir, "logs", "server.log")) && existsSync(join(runDir, "evidence.jsonl")));
 });
