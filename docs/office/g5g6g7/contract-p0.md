@@ -225,6 +225,24 @@ Ký: người dùng (vai Lead F + OPS).
   một cờ cho biết đã đổi bản; không bao giờ trả byte cũ kèm revision mới. Bản không còn tồn tại hoặc thuộc tài liệu khác →
   từ chối, frame không mở bản đó.
 
+**Câu trả lời OQ-P3 (X-02, 2026-10-12)** — theo gợi ý trên; `PROTOCOL_VERSION` giữ 1, không thêm mã lỗi.
+
+- **Khóa request:** `api.open {fileId, versionId?}`. `versionId` là `version_id` của `doc.remoteVersion`, cùng giá trị host
+  đặt vào `FileMeta.versionId` (D `packages/core/office/docs-frame-api.ts:122`). Không có khóa → như nay, mở head.
+- **Host mới (G5-03w)** luôn trả **head** đọc trong một lần (`GET /office-frame/documents/{documentID}`): byte, `FileMeta.revision`
+  (chuỗi thập phân) và `FileMeta.versionId` đều của chính head đó; không bao giờ trả byte của version đã xin.
+  - `versionId` = head → reply head, không cờ.
+  - `versionId` là version cũ của **chính tài liệu này** (không còn là head, ví dụ có commit chen giữa event và `api.open`)
+    → reply head kèm cờ `versionChanged: true` trên reply (`ApiOpenResult`). Validator `response:api.open` từ chối
+    `versionChanged: true` khi thiếu `FileMeta.revision`.
+  - `versionId` không thuộc danh sách version của tài liệu (đã dọn, của tài liệu khác, sai dạng) → từ chối bằng
+    `not_found` (mã có sẵn của `PROTOCOL_ERROR_CODES`); frame không mở bản nào, giữ nội dung đang có.
+- **Frame** lấy số và base chỉ từ reply (`FileMeta.revision`, helper `openReplyRevision`), không từ event, không từ khóa
+  đã xin. Host cũ bỏ khóa lạ, trả bản mới nhất không có `revision` → `openReplyRevision` = `null` → thanh không số
+  `uwRemoteUpdatedNoRev`, không bao giờ hiện số đã xin.
+- **Test:** F `web/docs/protocol/test/protocol.test.ts` và D `packages/core/office/docs-frame-host.test.ts` (host giả: commit
+  chen giữa → head với revision khớp và `versionChanged`; version lạ → `not_found`; host cũ → không số). Host thật: G5-03w.
+
 ## 8. Upstream cho dev và cloud runner
 
 Chỉ tên cấu hình (spec §8.4). Giá trị: **theo `~/.codex/config.toml` mục `[model_providers.customlocal]`** trên máy dev;

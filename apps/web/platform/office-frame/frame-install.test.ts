@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
-import { buildPin } from "./frame-bundle.mjs";
-import { assertSafeArchive, checkInstalled, DEFAULT_ARCHIVE_LIMITS, install, loadBundle, locateBundleDir, locateModuleBundle, materialize, offerableFrameVersion, redactSourceUrl } from "./frame-install.mjs";
+import { buildPin, sha256Hex } from "./frame-bundle.mjs";
+import { assertProtocolMatchesPin, assertSafeArchive, checkInstalled, DEFAULT_ARCHIVE_LIMITS, install, loadBundle, locateBundleDir, locateModuleBundle, materialize, offerableFrameVersion, redactSourceUrl } from "./frame-install.mjs";
 import { writeBundle } from "./frame-fixture";
 
 const scratch = () => mkdtempSync(join(tmpdir(), "frame-install-"));
@@ -109,6 +109,36 @@ describe("install / checkInstalled", () => {
     const pin = buildPin(bundle.manifest, bundle.manifestSha256, { ...bundle.headers, "Content-Security-Policy": "default-src 'none'; frame-ancestors 'self'" });
     expect(() => checkInstalled(pin, root)).toThrow(/csp\.json differs/);
     expect(readFileSync(join(target, "manifest.json"), "utf8")).toContain("0.1.0-abc1234");
+  });
+});
+
+describe("frame protocol pin (X-02 protocolSha256)", () => {
+  const protocolSha256 = { protocol: sha256Hex("types"), endpoint: sha256Hex("endpoint"), host: sha256Hex("host") };
+  it("a re-pin keeps the build's protocolSha256 and the installed copy verifies", () => {
+    const root = join(scratch(), "docs");
+    const dir = writeBundle({ protocolSha256 });
+    const bundle = loadBundle(dir);
+    install(dir, bundle, root);
+    const pin = buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers);
+    expect(pin.protocolSha256).toEqual(protocolSha256);
+    expect(checkInstalled(pin, root)).toBe(true);
+  });
+  it("refuses a hand-edited pin hash, though the manifest digest still matches", () => {
+    const root = join(scratch(), "docs");
+    const dir = writeBundle({ protocolSha256 });
+    const bundle = loadBundle(dir);
+    install(dir, bundle, root);
+    const pin = buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers);
+    const edited = { ...pin, protocolSha256: { ...protocolSha256, endpoint: sha256Hex("edited") } };
+    expect(() => assertProtocolMatchesPin(edited, bundle.manifest)).toThrow(/frame protocol differs from the pin \(endpoint\)/);
+    expect(() => checkInstalled(edited, root)).toThrow(/frame protocol differs/);
+    expect(offerableFrameVersion(edited, root)).toBe("");
+  });
+  it("a pin recording the protocol refuses a build that records none; a pin without it checks nothing", () => {
+    const bundle = loadBundle(writeBundle());
+    expect(() => assertProtocolMatchesPin({ protocolSha256 }, bundle.manifest)).toThrow(/records no protocolSha256/);
+    expect(() => assertProtocolMatchesPin({}, bundle.manifest)).not.toThrow();
+    expect(() => assertProtocolMatchesPin({}, loadBundle(writeBundle({ protocolSha256 })).manifest)).not.toThrow();
   });
 });
 
