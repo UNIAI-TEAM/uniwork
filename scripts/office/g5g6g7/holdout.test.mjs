@@ -316,6 +316,47 @@ test('the scorer fails closed when a mustNotContain case reports no text field (
   }
 });
 
+test('zero-width or other invisible-only text counts as blank in the mustNotContain guard (R3-1)', () => {
+  // String.prototype.trim removes whitespace but not the Unicode format characters (\p{Cf}): a reply made only of
+  // those shows nothing, so it cannot show a token was kept out. Escapes keep the invisible characters visible here.
+  const invisible = [
+    '\u200b', // zero width space
+    '\u200c', // zero width non-joiner
+    '\u200d', // zero width joiner
+    '\u2060', // word joiner
+    '\ufeff', // byte order mark
+    '\u00ad', // soft hyphen
+    '\u200e', // left-to-right mark
+    '\u061c', // Arabic letter mark
+    '\u2063', // invisible separator
+    ' \u200b \u2060\n\u00a0\ufeff\u200d\t',
+  ];
+  for (const text of invisible) {
+    assert.match(text, /^[\p{Cf}\s]+$/u, 'the probe must be invisible-only');
+  }
+  const guarded = allCases.filter((c) => c.expected.mustNotContain.length > 0);
+  assert.ok(guarded.length >= 6, `expected mustNotContain cases, found ${guarded.length}`);
+  for (const caseDoc of guarded) {
+    for (const text of invisible) {
+      const answer = referenceAnswerFor(caseDoc);
+      answer.text = text;
+      const result = score(caseDoc, answer);
+      assert.equal(result.status, 'fail', `${caseDoc.id}: invisible-only text must fail (${JSON.stringify(text)})`);
+      assert.ok(
+        result.checks.some((c) => c.id === 'text_reported' && c.status === 'fail'),
+        `${caseDoc.id}: the text_reported check must be the one that fails (${JSON.stringify(text)})`,
+      );
+    }
+    // A visible character among the invisible ones is real text again: the guard must not over-fire.
+    const visible = referenceAnswerFor(caseDoc);
+    visible.text = `\u200b${visible.text}\u200b`;
+    assert.ok(
+      !score(caseDoc, visible).checks.some((c) => c.id === 'text_reported'),
+      `${caseDoc.id}: text with visible characters must pass the blank guard`,
+    );
+  }
+});
+
 test('a cell/formula/table_cell anchor is an identity, not a substring (R1-2)', () => {
   const cellCase = allCases.find((c) => c.expected.structural.some((i) => i.kind === 'cell' && !i.anchor.includes('#')));
   const expected = cellCase.expected.structural.find((i) => i.kind === 'cell' && !i.anchor.includes('#'));
