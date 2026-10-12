@@ -33,12 +33,13 @@ export const VENDORED_FILES = Object.freeze({
 });
 
 /**
- * A vendored file back in the fork's form.
+ * A vendored file back in the fork's form. Lines split on CRLF or LF and are
+ * joined with LF, so a CRLF checkout hashes like the fork's LF bytes.
  * @param {string} text
  * @returns {string}
  */
 export function normaliseVendored(text) {
-  const lines = text.split("\n");
+  const lines = text.split(/\r?\n/);
   let i = 0;
   while (i < lines.length && /^\/\//.test(lines[i])) i += 1;
   while (i < lines.length && /^\/\* eslint-disable .*\*\/$/.test(lines[i])) i += 1;
@@ -81,6 +82,15 @@ test("normalisation strips the vendor header and pragmas and restores the fork's
   );
   // a file without header is its own fork form
   assert.equal(normaliseVendored("export const a = 1\n"), "export const a = 1\n");
+});
+
+test("a CRLF copy of each vendored file normalises to the same hash as the LF file", () => {
+  for (const file of Object.values(VENDORED_FILES)) {
+    const lf = readFileSync(join(OFFICE_DIR, file), "utf8").replaceAll("\r\n", "\n");
+    const crlf = lf.replaceAll("\n", "\r\n");
+    assert.notEqual(crlf, lf);
+    assert.equal(sha256(normaliseVendored(crlf)), sha256(normaliseVendored(lf)), file);
+  }
 });
 
 test("every frame pin records the same protocolSha256, equal to the vendored protocol", (t) => {
