@@ -269,6 +269,7 @@ khi đã biết câu trả lời upstream. Vì v1 là SSE một chunk / JSON (§
 `fmt.Errorf("provider: %s → %d: %s", …)` không có kiểu (`server/internal/ai/provider/openai.go:203-208`), và Gateway
 gói **mọi** lỗi provider thành `ErrProviderError` 502 (`server/internal/ai/gateway.go:162-169`); ngoài proxy BYOK không
 chỗ nào trong `server/internal/ai` đọc 429 hay `Retry-After` của upstream. Việc cần làm:
+- **G6-13 (fake):** `server/internal/ai/fake.go` `FakeReply` phải đặt `UsagePresent` (đang được sửa song song, BE-4) để fake báo usage giống provider scripted `fake.go`.
 - **G6-13 (provider):** openai/anthropic trả một lỗi có kiểu mang HTTP status + `Retry-After` (giây, đã parse; thiếu thì
   0), bọc được bằng `errors.As`; `fake` có kịch bản tiêm lỗi đó.
 - **G6-03a (Gateway/façade):** rẽ theo lỗi có kiểu **trước** `ErrProviderError.wrap` ở `gateway.go:169` — status 429 →
@@ -650,8 +651,19 @@ Phương án đã loại: (a) `document_id` trong body/`x_uniwork` của route o
 cần kiểm chéo org; (b) desktop xin frame token rồi gọi route frame — trộn hai danh tính và kéo grant web
 (`uniwork_ai`) vào desktop; (c) không bind tài liệu trên desktop — mất luật 3/6 và điều kiện dọn theo tài liệu.
 
-Hệ quả cho G6-03a: thêm một route (`apiOp`, `pathParamSDI` đã có `documentID`), một hàng isolation tự phủ vì path
-mang tenant row; cập nhật `uniwork-office-app-api-contract.md` §3. Các seam G6-03a chạm đi nối tiếp qua root theo contract-p0 §2:
+Hệ quả cho G6-03a: thêm một route (`apiOp`, `pathParamSDI` đã có `documentID`) và một hàng isolation **viết tay** — route
+mới không tự phủ được. Path mang tenant row nên ma trận tự gọi nó (không có hàng thì mặc định `isoScoped`, không body,
+`isolation_matrix_test.go:468`), nhưng pass điều khiển của chủ tổ chức (`isolation_matrix_test.go:303`, bỏ qua GET và hàng
+có `skipControl`) không thể đi qua nếu chỉ dựa vào mặc định, vì ba điều kiện: (1) cờ `office_ai_uniwork` mặc định `false`;
+fixture hiện bật mọi cờ trong `featureflags.Catalogue()` (`isolation_world_test.go:205-212`) nên cờ chỉ bật khi G6-03a
+khai nó trong catalogue — hàng/test phải xác nhận cờ bật, vì bị tắt thì chủ nhận `feature_disabled` chứ không phải 2xx; (2) route POST completions cần grant `office.ai_cloud` của gói — `isolation_world_test.go` không
+gán, nên hàng phải bảo đảm grant (cùng cách các hàng `ai/cloud/*` ở `isolation_routes_test.go:374-377` được chủ gọi
+thành công); (3) body mặc định của `isoScoped` rỗng, không có `messages`/`tools` hợp lệ. Nghĩa vụ G6-03a: thêm mục
+`isoRoutes` (`isolation_routes_test.go:173`) cho `POST /api/v1/documents/{documentID}/ai/uniwork/chat/completions`
+(đúng pattern đăng ký ở router) với `body: isoJSON(...)` (`isolation_routes_test.go:157`) là một `messages` tối thiểu hợp lệ
+(`AI_PROVIDER=fake`), bảo đảm cờ + grant `office.ai_cloud` cho tenant trong world để pass chủ trả 2xx; không dùng
+`skipControl` (nếu không, route mất control và một route hỏng sẽ giả làm route cô lập). Ba pass từ chối còn lại
+(cross-tenant, mixed parent/child, ẩn danh 401) chạy từ chính hàng đó; thêm `isoReferences` chỉ khi body có `*_id`. Cập nhật `uniwork-office-app-api-contract.md` §3. Các seam G6-03a chạm đi nối tiếp qua root theo contract-p0 §2:
 `openapi.go`, `router.go`, `server/cmd/server/main.go` (worker TTL trong chuỗi shutdown), migration (thứ tự §5 của
 contract-p0, Advisor giữ thứ tự merge), `isolation_matrix_test.go`; `audit_coverage_test.go` không thêm dòng (§4.15).
 
