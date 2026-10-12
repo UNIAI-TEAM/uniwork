@@ -108,6 +108,15 @@ test("ticketFromLaunchUrl reads the ticket out of the server's link, or null", (
   assert.equal(ticketFromLaunchUrl(null), null);
 });
 
+test("the BLOCKED reason without a session says the app is not signed in, and where to run it", () => {
+  const outcome = documentStepOutcome({ launchUrl: "u://open?ticket=t", ticket: "t", workingCopyDocumentId: null, documentId: "d", signedIn: false });
+  assert.equal(outcome.result, "BLOCKED");
+  assert.match(outcome.blocker, /not signed in/);
+  assert.match(outcome.blocker, /does not automate the sign-in/);
+  assert.match(outcome.blocker, /keyring/);
+  assert.match(outcome.blocker, /Run it on a signed-in desktop/);
+});
+
 test("documentStepOutcome decides from the app's own working copy", () => {
   const base = { launchUrl: "uniwork-office-dev://open?ticket=ticket_abc", ticket: "ticket_abc", documentId: "doc_1", signedIn: true };
   // the working copy names the fixture document: the app opened it

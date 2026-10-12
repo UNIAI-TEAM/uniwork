@@ -226,7 +226,7 @@ export function documentStepOutcome({ launchUrl, ticket, workingCopyDocumentId, 
   if (!signedIn) {
     return {
       result: "BLOCKED",
-      blocker: "the app has no desktop session to redeem the launch ticket (no OS keyring on this VM; the fork's own suite skips on the same precondition)",
+      blocker: "the app is not signed in: it has no desktop session to redeem the launch ticket (the harness does not automate the sign-in, and a Linux VM without an OS keyring cannot keep one; the fork's own suite skips on the same precondition). Run G7-A01 on a signed-in desktop: see the README, 'Run it on a signed-in desktop'",
       detail: "no signed-in session in the app",
     };
   }
