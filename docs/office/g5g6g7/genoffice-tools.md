@@ -1,7 +1,7 @@
 # UniWork Office — Bảng công cụ agent genoffice (G6-01)
 
-> **Trạng thái:** in-progress — cột tay đủ bảy module (agent-core, docs, markdown, html, sheets, slides, pdf); chờ khối
-> trích xuất (W1) và chữ ký cột tay (§10).
+> **Trạng thái:** in-progress — cột cơ học (khối trích xuất tại `0d03b185`) và cột tay đủ bảy module; chờ owner F +
+> Product ký cột tay (§10).
 
 ## 1. Nguồn, cách tái tạo và kiểm tra
 
@@ -22,6 +22,8 @@
   sed -e '1,/^<!-- extract:begin -->$/d' -e '/^<!-- extract:end -->$/,$d' \
     docs/office/g5g6g7/genoffice-tools.md | diff - /tmp/extract.md && echo AC-2 OK
   ```
+
+  Đã chạy ngày 2026-10-12 với script tại fork `919084f` (UNI-1363): `AC-2 OK`; đầu ra trùng từng byte với bản W1 giao.
 
 - Đồng bộ upstream hoặc đổi pin: G7-06 chạy lại script tại SHA mới; cột cơ học lệch → cập nhật khối §3 và mở một hàng
   review tay cho owner F + Product (§10).
@@ -66,8 +68,161 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 ## 3. Cột cơ học (sinh bằng script, không sửa tay)
 
 <!-- extract:begin -->
-PENDING extractor output (W1)
+<!-- genoffice-tools-extract v1 rev=0d03b185c8060bafc4e2afe7173e0a10260465bd -->
+| module | tool | input_schema_sha256 | editor_write | source |
+| --- | --- | --- | --- | --- |
+| docs | accept_changes | 9af09d4b7b735877e734a81a8d86f6dbd6fe1ba184cd649a13dec3fe2e196fe0 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | add_comment | 2c02b65e695409a1779ba442dfe9c681ef389a3f4e5ad33e47ead67291b7777f | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | analyze_media | 4be9eff4d929769f31dfd25837b4f07af62ea6084cc720a88573d595b8711974 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | apply_ops | acc60f5acf92201819c6ff3f7887e6216bb4f8cf54ca4487ea7d7d0fd8c5f613 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | create_document | 8c956443bbd56633e88e3fc40d47cea47048995ccbf4813023736f14dfbb54cf | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | define_style | 18fc6a4f754c0dc3282428b868dba32ea0945ee246839cdcac475fc7b35c6957 | no | apps/docs/src/renderer/ai/style-ops.ts |
+| docs | delete_comment | ca077b8285b224249d6df8bf86f4baf458bacca9e50cfa8434c5d5d0f9fdda53 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | delete_note | 83ab8c2ba74a615ceb5d0e472c28c4d5adcdc8f2eb7cdb4d064c33b385ce8c3d | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | edit_chart | c29264bd21515db11818de1199fe3af4e8d87a1aaab711fe9ef1f176fe635a45 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | edit_note | f465830acda36342513258eff25bc94a37c3cfc7868505a0fefcceabb4bfb055 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | generate_image | f6852b9e5272085ee5e6509a3c6a37dcd28da7f5349151248118e9e4f38c1cde | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/docs/src/renderer/ai/tools.ts |
+| docs | image_search | 874a0d101865e7910d3ba9145ce2d9a29776932ce1a689060beb89d8d04fb699 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | insert_chart | 12fab920f1474bfb8d1ed16c4cc02856f27d322275d274149df02cf2e4b521a4 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | insert_content | 40b05e9c8e06cd3281e3d9f1bdea9b08ccf7a5b7da24bfe2922390dfa79dae4e | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | insert_endnote | c838739e51d952f781dd0b70020c6255ff6bb377131d3059691aadbf08ea44b4 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | insert_footnote | c838739e51d952f781dd0b70020c6255ff6bb377131d3059691aadbf08ea44b4 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | insert_image | 41599e38e0e679b0b256dff03373f7bb0a48bf029f7d5dc3c5af2feb83cb5d9f | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | insert_picture | 59731827ce79f01ecb317d188714938ba88f79f85098e9bd7f7339796a42255e | yes | apps/docs/src/renderer/ai/floating-ops.ts |
+| docs | insert_section_break | 522265b893a991ceef091847c50a816cb64d84ed5be77ca2507241201489d67f | yes | apps/docs/src/renderer/ai/page-setup.ts |
+| docs | insert_text_box | 482ff3f6aa88c8cd184095e0c9dc6f5aa874b9eda71e8870e7ec7baa711fce7a | yes | apps/docs/src/renderer/ai/floating-ops.ts |
+| docs | list_styles | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/docs/src/renderer/ai/style-ops.ts |
+| docs | read_attachment | 8a54dbeec0b943d31f55257b1442d0dbb1b1a1a7138eb41bd6c44677efc8350f | no | apps/docs/src/renderer/ai/files-skill.ts |
+| docs | read_blocks | 488117c5d732c8fe02bd16a962ce6c24ff4fefc34a5f006ed3506a46d98df062 | no | apps/docs/src/renderer/ai/tools.ts |
+| docs | read_comments | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/docs/src/renderer/ai/tools.ts |
+| docs | read_notes | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/docs/src/renderer/ai/tools.ts |
+| docs | read_revisions | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/docs/src/renderer/ai/tools.ts |
+| docs | reject_changes | 9af09d4b7b735877e734a81a8d86f6dbd6fe1ba184cd649a13dec3fe2e196fe0 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | replace_blocks | 1ce77037ff2c09be75505ff7ae12aa56fb96b8a2e2376c726e5e12d3477a1350 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | replace_selection | dc0dcc82ae6d1ab941913cbe80f777df4b81c41a6c2cfbbe2e5c9d5329bed161 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | reply_comment | db11ba65a17724a2e361a1c95d01c0e155440ba1d6f9bda8b298696f5144adf1 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | resolve_comment | ebe1eaf288ea69a42e0f9ec3fb0a59e79c86d99c6d940fef6733927577da3750 | no | apps/docs/src/renderer/ai/tools.ts |
+| docs | set_header_footer | e697d4aab47ae2eda0e96e816204f069edfd5e5fa77b31b614e77ac5e1ca4f6e | no | apps/docs/src/renderer/ai/tools.ts |
+| docs | set_page_setup | cdc7c96a266910c5bf472893f8a3bd3b1e4a3bd84ad546d5c1cf355d8a83b996 | no | apps/docs/src/renderer/ai/page-setup.ts |
+| docs | set_watermark | 7472f1d51802ae0fa36252afb5ec408d9ed7524430337bea08f6ddf94c810256 | yes | apps/docs/src/renderer/ai/floating-ops.ts |
+| docs | web_search | 768c0c31293d6717b7345cc108d9bcd69dbbb7e4a695ee3059600e674670cbf4 | yes | apps/docs/src/renderer/ai/tools.ts |
+| docs | write_document | 72dac356ba2c80721cc2937fff59bece13ddefa491ea862ec4028b832c7ae247 | yes | apps/docs/src/renderer/ai/tools.ts |
+| html | apply_ops | 7ceda385ebf30d139a07335e082b922514da756a956ecebe3a80a1692663fbd2 | yes | apps/html/src/renderer/ai/tools.ts |
+| html | ask_clarification | 7b1327afd202f0d0d47debc5f922fdcbe4541bad90d6f97efe31db002b3373f7 | undeclared | apps/html/src/renderer/ai/tools.ts |
+| html | get_outline | e141e58bb530c31af684002a9588e3bc2a673f1b0816a35f90d7fb7cdf60c985 | no | apps/html/src/renderer/ai/tools.ts |
+| html | plan_page | 58fc7bd38c9ce9fe63b3444bd1cb899291b359a85e53f295806b18549de8455f | yes | apps/html/src/renderer/ai/tools.ts |
+| html | read_attachment | 8a54dbeec0b943d31f55257b1442d0dbb1b1a1a7138eb41bd6c44677efc8350f | no | apps/html/src/renderer/ai/files-skill.ts |
+| html | read_source | 9ed4ae6a05bf9137df0a71a4266f5337a3867e208125c67c64a72c7aae2b179d | no | apps/html/src/renderer/ai/tools.ts |
+| html | web_search | 0190a7f984b61a677dd6b5e3bbe3f4b0bacbde61149c05035f4b3da9b05154ba | no | apps/html/src/renderer/ai/search-skill.ts |
+| html | write_document | f84f720da1d30d480c519e8dbb46ca81bb3b3d69b12332634bd5b3187c63f313 | yes | apps/html/src/renderer/ai/tools.ts |
+| markdown | apply_ops | e796ff6fcf174827819356e0312f2246fd573b42cb7bbb1f0b7052407c1334c3 | yes | apps/markdown/src/renderer/ai/tools.ts |
+| markdown | generate_image | ed7b16fa3ca50a85c50bc04b296613c9b84014231d5c3ea987819284f5561c25 | yes | apps/markdown/src/renderer/ai/tools.ts |
+| markdown | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/markdown/src/renderer/ai/tools.ts |
+| markdown | image_search | 9c4b23b1cd0fe8dae086fe7c3c86dbceb1130a0c36d8ea7f93bbbe8bcfc9de2a | no | apps/markdown/src/renderer/ai/tools.ts |
+| markdown | insert_image | f53e4d066d933c53c73e9025eb6871cbad02f6693f678290fd1f51748b55f726 | yes | apps/markdown/src/renderer/ai/tools.ts |
+| markdown | read_blocks | 43906c937a64ff557e497bbc2db305e16176dec8cf19cd6a2d0fc95fb6b78570 | no | apps/markdown/src/renderer/ai/tools.ts |
+| markdown | read_frontmatter | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/markdown/src/renderer/ai/tools.ts |
+| markdown | web_search | 0190a7f984b61a677dd6b5e3bbe3f4b0bacbde61149c05035f4b3da9b05154ba | no | apps/markdown/src/renderer/ai/search-skill.ts |
+| markdown | write_document | 42efa66d7b2df6b81fac2f67ff52ba129bffb85cc9f7b510e63a0e26f51efea3 | yes | apps/markdown/src/renderer/ai/tools.ts |
+| pdf | add_form_mark | 39c0a9f18cb88678ae33f619a18e2c1999248fa93e659ca03afaa5ecf4b67939 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | add_note | b78909ab881af2b68b8cf305f2fb95aa12970f67e1677ee15dc3b0cb30b28311 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | apply_ops | dc6f7d04bad7922a5d59525553fa7e91122fe16f6d73c909dd4509ee8d495ef2 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | create_document | fe097c873ed74f6402ef15297ef0997bb56954d08b4def2130b0c6b9232f7c3b | undeclared | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | crop_image | c1683f732be87c3f9e50ceb3210ad11e56b913eaa4752a4de99b18687efeea4d | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | crop_pages | 96866da2a702d164f399f1fca3391f63593220bbf53ee92688144905cee0044f | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | delete_image | aa9d7de1d597d6b21ba83a2a9bd9a451ccf8eecf3acefca64284ccee4dcc24a4 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | delete_inserted_text | 4d55d4f349564d7ee4d7f488c5b8b6a5e88fc513b82801f307f2644c9918ff27 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | delete_markup | 65dde718fc4c40634bdbbb0bb7c799b76139c8bd5b57f0671a8b3e46240172b7 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | delete_note | 4e4f6cfea22486f5a0a47782cc9d42033c3dfe7e369c318cd62a1997d531638a | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | edit_block | 93267a67fa162f956614318f8238f3059d014c3b2a8ebdb704e50d885435a15f | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | edit_inserted_text | 28587e819fdb98bd3c9a7c837ad9cfc512ce03c360a137c7dccd097090a9883f | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | edit_note | 08eb258ca30c06765420a5a498a6daeef7337731da9bd8655ec350151328d025 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | edit_text | 52f9b809c4439421eabd53215b12359ff1611d3974d0f75b96b0192cf39c0072 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | extract_pages | 94304d5992c42e07d10e14a81e756808b62a2709e686dbf993d44253aaba72a8 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | flip_image | 58fab356a9986907251da94a202d6947551d844cbea291eb00fab15bbf5927d6 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | generate_image | 6adfeeb2b65038a13a35b6e2089714b958bec217b151984033d7fb690a3c0cc0 | undeclared | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | get_outline | efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49 | no | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | goto_page | d08e1e0482ccb65079ce141caa0264743a830e0b3d9b679e5c3319e27812c3c1 | no | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | image_search | 24d2fbeee56a509e5141ae68ca3fc2b260ced684cd18a6fb4ad4bbf1315fc63f | no | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | insert_blank_page | 94133c62264fed14dc19946811b4546b492d0e57bc36ed17b6bd5040e22b3257 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | insert_image | 5fc2af181dd9794b2a5dcedb906f98013f0a9dd27c70f13f6c31aeeb05d84df9 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | insert_text | 44902101a798fde1e08d05a275981828143647384b61d02f9a755d0fe783f0eb | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | list_form_fields | efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49 | no | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | list_inserted_text | 7ae9c14dd2b9684a3a39a454a872d8ad9cd7f9974a4df090df533e55af8b6905 | no | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | list_page_images | 52a8289c184b879b1e0c79242971986bd567db2c57692c24a46a3c11d8e3871a | no | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | markup_text | 151b7c2f778dc88011252ad826b3e33d166741195e35c954e15c4dd2f544608a | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | merge_pages | f986e106682a79ad266071249c5c7d3a1393b8079c75c090c5fea5e003d16415 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | move_inserted_text | a6fb60a0ed52995372e587bbe8fa674d6470e777779b89306f0d5aa06897673d | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | move_text_block | 5b49a73e30dd1f6725d5d1e6696facd424921284875f9f83d0832c0ce2698511 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | read_annotations | 966d8d2399298271eff60af7f8847c3fa88d3791a48bd4f540c5cdf79dd97bc4 | no | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | read_pages | 744c3b4d39150dbfbfe2b64657a971db07c917f3c4263c1bcd12af7b948a546c | no | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | remove_image_background | 348310d3b49604866cc33ec673115d2fe4c05f33a5a13cce6e93b1492c712da0 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | replace_image | b2c47ae3002c77bb60f173309d1338f90e52cfcaa3ae3f3b95e0cebcc1772d69 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | replace_pages | 24f600e63e5263bcdc4b081a0ceade56000c8be81a576e3e8abe981313db9a2b | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | reply_note | 971b93a1e884302c404a6af72fee61abe32132e98804ee0d54794685a3528769 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | rotate_image | 205c4ecbaf064b2506124f44e0d33a88183d13450921afa7b7750c05f2477a75 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | search_text | 0a232c4fd65e5b7f093b984c0d1ce6e820bed49190ed5fd1c9cba4f814959dc7 | no | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | set_header_footer | be3bce9fa7662a04bae24270dc74601b4f09f72f31d9dc3c678a1c35cda71dfd | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | set_image_opacity | 9dab142b4241cc104fa49155a5ccdc2089979cad208cc7be6024ec0cc42cc2a3 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | set_page_size | 9a467b57f08dbd28cac7981f84feafbf3df81f59b3c56cd6dc253f3bd2a7fccf | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | set_watermark | b05b95260b6bb279d917ed274da04a53558cf60de372e998d45b3019790ae210 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | split_pages | 4dc5cd116949877be22bee4270982e14a3ebb1ddf0206863146d21ce9dd39c14 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | split_pdf | 29524e7ddcfab3d2a128194b02151e91cebbfda6be466ec85084181b886aa3db | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | transform_image | df2862b332437b3a963d607932a4aafff006ee9f6be8515242e1eae94a7b1060 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| sheets | aggregate_range | 32587dfef46690cf453961d118c003224088ce369027e84716595d8a1b24c551 | no | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | create_document | 125a43f66d295e90404e05abadaa0e82e269fa06eaeddb20841497e3d4a692a7 | no | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | find_cells | 2b150624089aafa5e5f49047d7ff2bb3451971257180529846ea79eb415fe8d2 | yes | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | generate_image | df82864f0926591f453c9aaabdd23fb1a9b746228098c5239ecb8ff01f151d69 | no | apps/sheets/src/renderer/ai/image-skill.ts |
+| sheets | get_workbook_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | image_search | 3f5b97d7c6b3a4519fb63c6c2684b872e6e09c378eeb727d226e710be4dd7135 | no | apps/sheets/src/renderer/ai/image-skill.ts |
+| sheets | load_guide | 4b24c5f64409be810b1d584cfd981e98476ef5617a6d2b3f24a3139b2028d6f6 | no | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | merge_attached_workbooks | 23d617b33e9315f6762639a47ccad59f220f6d2edc617b3dcfdf2e2e983aa3c0 | undeclared | apps/sheets/src/renderer/ai/merge-skill.ts |
+| sheets | propose_operations | a88b43f46d8b4363aa78db40b7912648b423731861e2e7f31c7cfd3c8374015f | yes | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | read_attachment | 681c5f1b81a89e7dffd61d75c1156e2e401fac649ce47c837de86da09797f866 | no | apps/sheets/src/renderer/ai/files-skill.ts |
+| sheets | read_cells | 4fc7b92ab7498b96dcc18ac8680f53f8f8cbad07cc9c268d001b8673bcc7d12b | no | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | read_formats | fadf34ccc70f71a2f554a2675263adfed999de7de9806c634d96fd23ca5b460a | no | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | read_range | a24cfa6cf4bdfa061ee716a84a3c3f04cbaa912b2fec21bf912db77c3ec4a5d0 | no | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | read_sheet_features | dbeaf7ccbb6be10d3dcd1b1b0463b3707698c07278731d60e811f2d52499c8cb | no | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | select_range | 5c4bc90b431bfb06f9ee24b68846dde2109f76a79be3c9ebf9fb83ef7bab72c2 | yes | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | trace_dependents | c943056ce23e242700a590848ccf78ad915967ac7a3b03f015d6a7bad0be1459 | yes | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | trace_precedents | ca54e759b883d7b6a58f4dfabbc21d782573ccef76199887c5404c0b8ee78aff | yes | apps/sheets/src/renderer/ai/tools.ts |
+| sheets | web_search | 0190a7f984b61a677dd6b5e3bbe3f4b0bacbde61149c05035f4b3da9b05154ba | no | apps/sheets/src/renderer/ai/search-skill.ts |
+| slides | analyze_media | dbfb29df5c12dc878a617b1f1300a77537e83dbcf62ae9448ce160c174b09ca7 | no | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | apply_ops | deb4af7fbbf172cd483bbb6cfe5f0e476adfc1d6d3479062969b4598ddddf4bf | yes | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | ask_clarification | c85e716881674f5450b0b4ee851f27c3555513844f0910de58697787c41482c7 | no | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | edit_chart | c35f2a3daeeb75bdc7600b3f5d742dc30d9cf0892e14e7bf42d3cc27d948a66a | yes | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | execute_slide_script | c668e7cdaf360955b7c3a45df5fb47a1fa88396341f13e49219a5f9947bb186a | yes | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | generate_deck | 2e80fd0fac52ae549fd9f810be7c38f062c576df8c34a28c0fa5165b3cc4dd2e | yes | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | generate_image | 929e663eb5ee3b01e420979f98004d0c80d63afb770117906e1afb9ff8d77e1a | no | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | image_search | 1b59acae4fdff79780dec2c15f4951dc6d5a0f636a8e575d6e0c82819cad00f6 | no | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | insert_web_image | f4f9d0a026fc42c98cf3b02e0bc351c0bc318bcc9befa1372278e25740d8229b | yes | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | list_style_templates | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | load_guide | 4b43764ff86ea2bbcf7897f723987b02e6e3600db050b6584ead581c7ddfe8c3 | no | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | plan_deck | 5305dfa9952eec88feeb5f2cd10d70a0fdaab0b6edf299df41ebe5d2d67d0862 | no | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | read_attachment | 681c5f1b81a89e7dffd61d75c1156e2e401fac649ce47c837de86da09797f866 | no | apps/slides/src/renderer/ai/files-skill.ts |
+| slides | read_slide | 8289e679005cfd2be6f564ddf548e931a9a2641a7e7b5f017c1742e450fb6378 | no | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | regenerate_slide | 9b1b1b37328e30d044d4e121245a8cd212e3b1a823a137f7e065dc404f685b2e | yes | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | replace_image | c45ddb4760a4345ec58055d3b059195ea404787ece5c3bc8615d12b0d6c1dcf9 | yes | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | save_style_template | a0d566b3cefb088e514beef01988e12e1a9bb32f6f94f4ac7d5af016331937a0 | no | apps/slides/src/renderer/ai/slides-skill.ts |
+| slides | web_search | ad55d2f1724692e27e27fb578dd9095a69f273b356c8ad4b417335248702efc4 | no | apps/slides/src/renderer/ai/slides-skill.ts |
 <!-- extract:end -->
+
+### 3.1 Đối chiếu cột cơ học với cột tay
+
+- **Tên công cụ:** 135 dòng, khớp đúng tập tên của các bảng tay §4 theo từng module — docs 37, markdown 9, html 8, sheets 18,
+  slides 18, pdf 45; `agent-core` không có dòng nào. Không thiếu, không thừa, không trùng.
+- **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Có 26 chỗ hai cột
+  khác nhau, chia thành năm nhóm dưới đây. Cột cơ học không sửa tay; chỗ nào code sai thì sửa ở G6-12, rồi chạy lại script.
+
+| nhóm | module / tool | cơ học | tay | giải thích |
+| --- | --- | --- | --- | --- |
+| A. Code khai báo `false` nhưng công cụ có đổi tài liệu | docs `resolve_comment`, `set_header_footer`, `define_style`, `set_page_setup` | `no` | có | Cột cơ học làm đúng theo khai báo; khai báo sai (§4.2 ghi chú, §9 dòng 5). |
+| B. Cột cơ học ghi `yes` dù nhánh chỉ khai báo `mutated: false` | docs `web_search`, `image_search`, `analyze_media`, `create_document` (`apps/docs/src/renderer/ai/tools.ts:887`, `:908`, `:942`, `:1010`); sheets `find_cells`, `select_range`, `trace_precedents`, `trace_dependents` (`apps/sheets/src/renderer/ai/tools.ts:1153`, `:1185`, `:1202`/`:1233`, `:1268`) | `yes` | không | Nghi script đọc thừa: có thể nó đi theo một hàm phụ hoặc vượt ranh giới nhánh `case`. Đã báo lead để W1 kiểm. Chỗ này sai ở phía script, không phải ở bảng tay. |
+| C. Ghi ra ngoài tài liệu | sheets `create_document`; slides `save_style_template`; pdf `insert_blank_page`, `set_page_size`, `crop_pages`, `extract_pages`, `split_pdf`, `split_pages`, `merge_pages`, `replace_pages` | `no` / `yes` | file | `editor_write` chỉ nói về tài liệu đang mở. Cột tay ghi `file` vì công cụ ghi file, lưu, hoặc tạo version (§5 (c)). Các công cụ cấp file của pdf vừa đổi tài liệu (`yes`) vừa ghi file. |
+| D. Code không khai báo gì | html `ask_clarification`, pdf `generate_image` | `undeclared` | không | Hai công cụ này không đổi tài liệu, chỉ thiếu khai báo `mutated: false`. G6-12 nên thêm để cột cơ học thành `no`. |
+| D. Code không khai báo gì | sheets `merge_attached_workbooks`, pdf `create_document` | `undeclared` | có / file | `merge_attached_workbooks` ghi sheet vào workbook nhưng không đặt `mutated: true`, nên không có snapshot rollback. `create_document` của pdf ghi file mới. G6-12 cần khai báo đúng. |
+
 
 ## 4. Cột tay theo module
 
@@ -248,7 +403,7 @@ cụ được khai báo cho model nhưng bridge trả "unavailable" (`web/module
 | image_search | như web_search (grant `imageSearch`) | `{query, maxResults?}` → imageUrl | mặc định 8 | không | `slides-skill.ts:356` |
 | generate_image | desktop + web (gated `imageGenAvailable`: `cap('imageGeneration')` + provider, `AiPanel.tsx:1357-1359`) | `{prompt, model?, referenceImageUrls?, aspectRatio?, transparentBackground?}` → URL ảnh | web: ≤4 ảnh tham chiếu, chỉ `data:` URL (`web-ai.ts:563-566,731`) | không | `slides-skill.ts:369`. `model` mở các model cloud đặc biệt (xóa nền, upscale…) |
 | analyze_media | desktop + web (gated `mediaAnalysisAvailable`) | `{mediaUrls[], requirements}` → văn bản phân tích | output cắt 6000 ký tự (`slides-skill.ts:1594`); desktop: đường dẫn cục bộ chỉ trong media roots của tài liệu + temp (`ai-ipc.ts:74-76,309-321`); web: ≤4 media `data:` (`web-ai.ts:741-748`) | không | `slides-skill.ts:404`. Gửi nội dung media cho provider BYOK hoặc cloud UniWork |
-| insert_web_image | desktop; web **stub** (`insertImageUrl: async () => null`, `web-slides-api.ts:1121`) | `{slideIndex, url|attachment://name, x,y,w,h}` → id phần tử mới | URL chỉ `http(s)`/`file` (`slides-skill.ts:1618`); main: SSRF guard + trần byte (`ai-ipc.ts:344-380`, `packages/electron-utils/src/remote-image.ts:11,83`) | có (`mutated: true`, `slides-skill.ts:1638`) | `slides-skill.ts:425` |
+| insert_web_image | desktop; web **stub** (`insertImageUrl: async () => null`, `web-slides-api.ts:1121`) | `{slideIndex, url\|attachment://name, x,y,w,h}` → id phần tử mới | URL chỉ `http(s)`/`file` (`slides-skill.ts:1618`); main: SSRF guard + trần byte (`ai-ipc.ts:344-380`, `packages/electron-utils/src/remote-image.ts:11,83`) | có (`mutated: true`, `slides-skill.ts:1638`) | `slides-skill.ts:425` |
 | replace_image | desktop; web stub (`web-slides-api.ts:1122`) | `{slideIndex, sourceId, url, keepCrop?}` → thay nguồn ảnh tại chỗ | như trên (`ai-ipc.ts:417-449`) | có (`slides-skill.ts:1687`) | `slides-skill.ts:447` |
 | ask_clarification | cả hai | `{questions[2–4] {id,label,options≤5,multi?}}` → câu trả lời người dùng (card chờ) | 2–4 câu, ≤5 lựa chọn (mô tả schema) | không | `slides-skill.ts:462`; card `AiPanel.tsx:1033-1038`. **Công cụ hỏi người dùng** |
 | plan_deck | cả hai | `{core_hook, style, pages[]}` → ghi kế hoạch vào state của skill | — | không | `slides-skill.ts:493,1731` |
@@ -308,11 +463,11 @@ Skill: `createPdfSkill` (`apps/pdf/src/renderer/ai/pdf-skill.ts:70-131`), địn
 | list_form_fields | cả hai | `{}` → tên/kiểu/lựa chọn field AcroForm | — | không | `tools.ts:913` |
 | apply_ops | cả hai | `{ops[], dry_run?}` — `rotatePages`, `deletePage`, `setPageOrder`, `setFormValue`, `setMetadata`, `removeMarkup`, `removeTextInsert`, `setNoteContents` | **≤50 op** (`MAX_APPLY_OPS`, `tools.ts:3215,3245`); một transaction, một bước undo | có | `tools.ts:919` |
 | insert_blank_page | cả hai (card xác nhận) | `{after_page}` | — | **file**: lưu mọi chỉnh sửa chờ rồi ghi lại file (desktop) / tạo version mới qua `api.save` (web) | `tools.ts:943`; xem §5(c) |
-| set_page_size | cả hai (card) | `{size? | width, height}` | — | file (như trên) | `tools.ts:959` |
+| set_page_size | cả hai (card) | `{size? \| width, height}` | — | file (như trên) | `tools.ts:959` |
 | crop_pages | cả hai (card) | `{pages, left, top, right, bottom}` | — | file (như trên) | `tools.ts:976` |
 | extract_pages | cả hai (card) | `{pages}` → file mới (desktop) / tải xuống (web) | — | file | `tools.ts:995`; web `webapi.ts:836` |
 | split_pdf | cả hai (card) | `{pages_per_file}` → nhiều file / .zip | 1..số trang−1 | file | `tools.ts:1010`; web `webapi.ts:852` |
-| split_pages | cả hai (card) | `{per_page: 2|4|9}` → file mới / tải xuống | — | file | `tools.ts:1025` |
+| split_pages | cả hai (card) | `{per_page: 2\|4\|9}` → file mới / tải xuống | — | file | `tools.ts:1025` |
 | merge_pages | cả hai (card) | `{per_sheet 2–16, direction?, separator?}` → file mới / tải xuống | — | file | `tools.ts:1037` |
 | replace_pages | desktop; web khi có `filePick` (không gate) | `{pages}` + bộ chọn file → ghi lại file | — | file | `tools.ts:1059` |
 | get_outline | cả hai | `{}` → mục lục | — | không | `tools.ts:1074` |
