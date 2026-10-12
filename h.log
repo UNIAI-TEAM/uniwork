@@ -1,0 +1,72 @@
+$ AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-sync-store.test.ts tests/uniwork-sync-intent-store.test.ts tests/uniwork-sync-feed.test.ts tests/uniwork-sync-capability.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 410 change_cursor_expired is a cursor verdict, never deleted (also through errorFromResponse) 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 400 change_cursor_invalid is a cursor verdict, never deleted 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 401 -> session_expired; anything else -> the documents mapping 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > keeps an int64 revision exact (past 2^53) and compares it as bigint 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > a malformed page is malformed_response 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > sends the cursor in the query only, clamps the limit, and maps the final 401 to session_expired 16ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > cold start: full snapshot, then the feed cursor is saved 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > crash between page apply and cursor save -> the same page replays, one effect 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a replayed page is idempotent, and an older revision never overwrites a newer one 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > crash mid-resync saves no cursor; the next run starts the snapshot over 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > A -> B and a deployment switch never touch the other scope cursor or cache 4ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 410 change_cursor_expired -> full resync, nothing marked deleted 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 400 change_cursor_invalid -> cursor cleared, exactly one full resync, nothing deleted 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > an invalid cursor whose resync is refused again backs off instead of a second resync 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > full resync evicts lost-permission cache entries and keeps drafts 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > resync hitting 410 again -> capped exponential backoff on the clock 3ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > sync_feed off -> no feed request 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > an unknown phase is applied as changes and logged once 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 401 -> session_expired, cursor and cache untouched 0ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > writes a record into the scope namespace and reads it back encrypted 16ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > encrypts each record with its own random IV 18ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > replaces a record in place and leaves no temp file 9ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a missing record and deletes idempotently 6ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > opens as keystore_locked or keyring_unavailable when the keyring is not usable 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record that needs a newer store level and leaves it alone 3ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record older than the store minimum 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record with a newer schema 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses writes from a store registered at a newer level 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a tampered record as corrupt and keeps the file 8ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a record written under another key as corrupt 7ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > round-trips the intent fields and the exact payload bytes 20ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > keeps only the latest intent of a document 16ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > deletes an intent and treats a repeated delete as done 20ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > reads a corrupt record as no intent instead of throwing 19ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > reads a record needing a newer store level as no intent and keeps it 8ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > reports keystore_locked when the keychain is locked 7ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > counts the budget per account in encrypted bytes and refuses past it 37ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a sign-out locks every handle and wipes the scope 28ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a write in flight at lockAndWipe resolves interrupted and leaves nothing readable 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > scrubs temp files a crash left behind at open 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > retries the publish when the filesystem refuses the replace 57ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > rejects unregistered stores, duplicate registrations and invalid registrations 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > rejects a malformed scope 1ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > writes a record and reads it back without plaintext at rest 19ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > a sign-out locks every handle and wipes the scope 17ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > an account switch locks only the switched-out scope 20ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > refuses a record that requires a newer store level and keeps it 10ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > refuses a record older than the store minimum 6ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > counts the budget in encrypted bytes and refuses past it 23ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 8ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > ttl 0 or missing -> 300 s 3ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > honours a server ttl 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > 500 within the TTL keeps the value as is 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > after the TTL a failed read ({"status":500}) keeps the last G5 capabilities, ai_uniwork off 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > after the TTL a failed read ("offline") keeps the last G5 capabilities, ai_uniwork off 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > after the TTL a failed read ({"status":200,"body":{"sync_feed":"yes"}}) keeps the last G5 capabilities, ai_uniwork off 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > never read -> write on, feed / library / AI off 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > org A never applies to org B 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > 401 -> session_expired 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > concurrent reads share one request; clear() drops a read already in flight 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability fetch > reads the org route and maps the final 401 to status 401 13ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability fetch > a network failure rejects (offline) 1ms
+
+ Test Files  4 passed (4)
+      Tests  62 passed (62)
+   Start at  20:21:19
+   Duration  464ms (transform 393ms, setup 0ms, import 509ms, tests 452ms, environment 0ms)
+
