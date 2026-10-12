@@ -23,7 +23,8 @@
       ],
       "role": "editor",
       "sourceAnchors": [
-        "1. Tóm tắt điều hành"
+        "1. Tóm tắt điều hành",
+        "table:1/Bắc/Doanh thu Q1 (đồng)"
       ],
       "tools": {
         "allowed": [
@@ -53,9 +54,9 @@
         ],
         "structural": [
           {
-            "kind": "heading",
-            "anchor": "top_region",
-            "value": "Bắc"
+            "kind": "table_cell",
+            "anchor": "table:1/Bắc/Doanh thu Q1 (đồng)",
+            "value": "9.060.000"
           }
         ],
         "writes": 0,
@@ -63,7 +64,7 @@
       },
       "oracle": {
         "type": "rubric",
-        "source": "fx-docx-report-vi.oracle.json#tables[0].rows; numbers and the top region from the section paragraph (docx body, also oracle table). Wording quality = reviewer rubric; numbers deterministic."
+        "source": "fx-docx-report-vi.oracle.json#tables[0].rows; numbers from the section paragraph (docx body, also oracle table); the top region is the row with the largest Doanh thu Q1 cell (Bắc, 9.060.000), cited as a table_cell. Wording quality = reviewer rubric; numbers deterministic."
       },
       "referenceAnswer": {
         "numeric": {
@@ -72,9 +73,9 @@
         },
         "structural": [
           {
-            "kind": "heading",
-            "anchor": "top_region",
-            "value": "Bắc"
+            "kind": "table_cell",
+            "anchor": "table:1/Bắc/Doanh thu Q1 (đồng)",
+            "value": "9.060.000"
           }
         ],
         "writes": 0,
@@ -677,8 +678,8 @@
       "format": "docx",
       "category": "lookup",
       "query": {
-        "vi": "Mình nhớ trong báo cáo có số 9.060.000 mà không nhớ ở đâu. Nó xuất hiện ở những chỗ nào?",
-        "en": "I remember the figure 9.060.000 appearing somewhere in this report. Where does it show up?"
+        "vi": "Doanh thu quý 1 của khu vực Bắc được nhắc ở những chỗ nào trong báo cáo, và con số đó là bao nhiêu?",
+        "en": "Where in the report is the Bắc region's Q1 revenue mentioned, and what is the figure?"
       },
       "fixtures": [
         {
@@ -1131,7 +1132,11 @@
         "desktop"
       ],
       "role": "editor",
-      "sourceAnchors": [],
+      "sourceAnchors": [
+        "1. Tóm tắt điều hành/p1",
+        "2.1. Ghi chú về dữ liệu/p1",
+        "3. Việc cần làm tiếp/p1"
+      ],
       "tools": {
         "allowed": [
           "read_document",
