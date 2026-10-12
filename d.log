@@ -1,0 +1,943 @@
+$ node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/lucide-aliases.test.mjs scripts/i18n-duplicate-keys.test.mjs scripts/i18n-chat-key-parity.test.mjs scripts/governance.test.mjs scripts/brand-assets.test.mjs scripts/events-catalogue.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/task-parity-manifest.test.mjs scripts/task-api-route-catalogue.test.mjs scripts/tasks-collection-brand-scan.test.mjs scripts/projects-suite-brand-scan.test.mjs scripts/task-detail-brand-scan.test.mjs scripts/agent-integration-brand-scan.test.mjs scripts/tasks-parity-flag-gone.test.mjs scripts/landing-artwork.test.mjs scripts/landing-marks.test.mjs scripts/landing-mascot.test.mjs scripts/landing-motion.test.mjs scripts/landing-studio.test.mjs scripts/office-g0/run-contracts.test.mjs scripts/office/integration.test.mjs scripts/office/acceptance-matrix.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs scripts/office/g5g6g7/evidence.test.mjs scripts/office/g5g6g7/make-fixtures.test.mjs scripts/office/g5g6g7/holdout.test.mjs scripts/office/installer-urls.test.mjs scripts/office-modules.test.mjs scripts/office-g3g4/verify-vectors.test.mjs
+TAP version 13
+# Subtest: slice 6 locale strings have no source brand or Issue domain
+ok 1 - slice 6 locale strings have no source brand or Issue domain
+  ---
+  duration_ms: 51.230781
+  ...
+# Subtest: agent integration suite UI has no source brand or Issue domain
+ok 2 - agent integration suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 47.573639
+  ...
+# Subtest: every alert has a runbook_url whose file exists and is named after the alert
+ok 3 - every alert has a runbook_url whose file exists and is named after the alert
+  ---
+  duration_ms: 2.067369
+  ...
+# Subtest: every runbook has the four sections in order and a status line
+ok 4 - every runbook has the four sections in order and a status line
+  ---
+  duration_ms: 1.684877
+  ...
+# Subtest: every runbook is referenced by an alert
+ok 5 - every runbook is referenced by an alert
+  ---
+  duration_ms: 0.299856
+  ...
+# Subtest: runbook index lists every alert
+ok 6 - runbook index lists every alert
+  ---
+  duration_ms: 0.318801
+  ...
+# Subtest: every raster asset was built from the SVG currently committed
+ok 7 - every raster asset was built from the SVG currently committed
+  ---
+  duration_ms: 1.832306
+  ...
+# Subtest: the link-preview cards were built from the template currently committed
+ok 8 - the link-preview cards were built from the template currently committed
+  ---
+  duration_ms: 0.621159
+  ...
+# Subtest: every SVG source is recorded, and every recorded source exists
+ok 9 - every SVG source is recorded, and every recorded source exists
+  ---
+  duration_ms: 0.660836
+  ...
+# Subtest: every asset the lock names is on disk
+ok 10 - every asset the lock names is on disk
+  ---
+  duration_ms: 0.66016
+  ...
+# Subtest: every platform icon is opaque to its corners
+ok 11 - every platform icon is opaque to its corners
+  ---
+  duration_ms: 4.248564
+  ...
+# Subtest: the Next.js metadata files exist under app/
+ok 12 - the Next.js metadata files exist under app/
+  ---
+  duration_ms: 0.195078
+  ...
+# Subtest: every icon the manifest lists exists in public/
+ok 13 - every icon the manifest lists exists in public/
+  ---
+  duration_ms: 0.325817
+  ...
+# Subtest: the logo gradient never leaks into the token layer
+ok 14 - the logo gradient never leaks into the token layer
+  ---
+  duration_ms: 0.79913
+  ...
+# Subtest: the manifest theme colour is the brand token's value
+ok 15 - the manifest theme colour is the brand token's value
+  ---
+  duration_ms: 0.648704
+  ...
+# Subtest: pnpm catalog declares every shared dependency the port needs
+ok 16 - pnpm catalog declares every shared dependency the port needs
+  ---
+  duration_ms: 0.987135
+  ...
+# Subtest: every variable the server reads is documented in .env.example
+ok 17 - every variable the server reads is documented in .env.example
+  ---
+  duration_ms: 34.916594
+  ...
+# Subtest: the Go catalogue and the documented table agree
+ok 18 - the Go catalogue and the documented table agree
+  ---
+  duration_ms: 10.62667
+  ...
+# Subtest: every catalogue row has the one-line shape this file parses
+ok 19 - every catalogue row has the one-line shape this file parses
+  ---
+  duration_ms: 1.185586
+  ...
+# Subtest: the client knows every event that has a realtime audience
+ok 20 - the client knows every event that has a realtime audience
+  ---
+  duration_ms: 0.829225
+  ...
+# Subtest: event names follow <entity>.<verb> and carry no version
+ok 21 - event names follow <entity>.<verb> and carry no version
+  ---
+  duration_ms: 1.270852
+  ...
+# Subtest: payload keys are ids or revisions; content travels only through Patch
+ok 22 - payload keys are ids or revisions; content travels only through Patch
+  ---
+  duration_ms: 1.277649
+  ...
+# Subtest: the patchable task fields are exactly the ones ADR 0015 accepted
+ok 23 - the patchable task fields are exactly the ones ADR 0015 accepted
+  ---
+  duration_ms: 0.523403
+  ...
+# Subtest: the client decodes exactly the fields task.updated lists in Patch
+ok 24 - the client decodes exactly the fields task.updated lists in Patch
+  ---
+  duration_ms: 0.835414
+  ...
+# Subtest: every event has a scope or is explicitly infrastructure
+ok 25 - every event has a scope or is explicitly infrastructure
+  ---
+  duration_ms: 0.7895
+  ...
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 26 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 2.068896
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 27 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 5.94502
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 28 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.376263
+  ...
+# Subtest: both hooks exist and are executable
+ok 29 - both hooks exist and are executable
+  ---
+  duration_ms: 0.233259
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 30 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 0.852613
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 31 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 52.612798
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 32 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 0.428766
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 33 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.187026
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 34 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 2.078906
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 35 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.510782
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 36 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 2.586433
+  ...
+# Subtest: every plan says whether it shipped
+ok 37 - every plan says whether it shipped
+  ---
+  duration_ms: 19.421335
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 38 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 5.336092
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 39 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 59.165852
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 40 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 0.515556
+  ...
+# Subtest: chat.* i18n keys match between vi and en
+ok 41 - chat.* i18n keys match between vi and en
+  ---
+  duration_ms: 39.027337
+  ...
+# Subtest: packages/core/i18n/locales/vi.json has no duplicate keys
+ok 42 - packages/core/i18n/locales/vi.json has no duplicate keys
+  ---
+  duration_ms: 1698.361443
+  ...
+# Subtest: packages/core/i18n/locales/en.json has no duplicate keys
+ok 43 - packages/core/i18n/locales/en.json has no duplicate keys
+  ---
+  duration_ms: 1553.516647
+  ...
+# Subtest: the scanner reports real duplicates and only those
+ok 44 - the scanner reports real duplicates and only those
+  ---
+  duration_ms: 0.574698
+  ...
+# Subtest: every committed image matches the hash the generator recorded
+ok 45 - every committed image matches the hash the generator recorded
+  ---
+  duration_ms: 3.240915
+  ...
+# Subtest: the prompts, the lock and the files on disk agree
+ok 46 - the prompts, the lock and the files on disk agree
+  ---
+  duration_ms: 0.318537
+  ...
+# Subtest: every image was rendered from the prompt now in the repo
+ok 47 - every image was rendered from the prompt now in the repo
+  ---
+  duration_ms: 0.321335
+  ...
+# Subtest: the component resolver and the prompts agree on what is localized
+ok 48 - the component resolver and the prompts agree on what is localized
+  ---
+  duration_ms: 0.412621
+  ...
+# Subtest: the artwork stays inside its weight budget
+ok 49 - the artwork stays inside its weight budget
+  ---
+  duration_ms: 0.171386
+  ...
+# Subtest: every vendored mark still matches the upstream artwork
+ok 50 - every vendored mark still matches the upstream artwork
+  ---
+  duration_ms: 1.79509
+  ...
+# Subtest: the generated module carries exactly the paths the lock recorded
+ok 51 - the generated module carries exactly the paths the lock recorded
+  ---
+  duration_ms: 0.260754
+  ...
+# Subtest: no vendored mark carries its own colour
+ok 52 - no vendored mark carries its own colour
+  ---
+  duration_ms: 0.329795
+  ...
+# Subtest: horse v2 preserves transparent, lightweight provenance
+ok 53 - horse v2 preserves transparent, lightweight provenance
+  ---
+  duration_ms: 1.484933
+  ...
+# Subtest: horse v2-blink preserves transparent, lightweight provenance
+ok 54 - horse v2-blink preserves transparent, lightweight provenance
+  ---
+  duration_ms: 0.502487
+  ...
+# Subtest: 3D hero uses the shared mark without a hand-drawn brand substitute
+ok 55 - 3D hero uses the shared mark without a hand-drawn brand substitute
+  ---
+  duration_ms: 0.223323
+  ...
+# Subtest: original motion assets match provenance and stay within the mobile budget
+ok 56 - original motion assets match provenance and stay within the mobile budget
+  ---
+  duration_ms: 1.687389
+  ...
+# Subtest: studio assets preserve their exact prompts and optimized WebP byte counts
+ok 57 - studio assets preserve their exact prompts and optimized WebP byte counts
+  ---
+  duration_ms: 1.446014
+  ...
+# Subtest: the committed alias list matches the installed lucide-react
+ok 58 - the committed alias list matches the installed lucide-react
+  ---
+  duration_ms: 15.96906
+  ...
+# Subtest: no source file imports a deprecated lucide alias
+ok 59 - no source file imports a deprecated lucide alias
+  ---
+  duration_ms: 59.126988
+  ...
+# Subtest: spinners go through Spinner, not a raw LoaderCircle
+ok 60 - spinners go through Spinner, not a raw LoaderCircle
+  ---
+  duration_ms: 10.439966
+  ...
+# Subtest: no --uw-* token references remain
+ok 61 - no --uw-* token references remain
+  ---
+  duration_ms: 48.320541
+  ...
+# Subtest: no legacy token utilities remain
+ok 62 - no legacy token utilities remain
+  ---
+  duration_ms: 50.824474
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 63 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 48.521085
+  ...
+# Subtest: no usf branding survives the port
+ok 64 - no usf branding survives the port
+  ---
+  duration_ms: 67.221299
+  ...
+# Subtest: every mandatory fault case from the plan exists exactly once
+ok 65 - every mandatory fault case from the plan exists exactly once
+  ---
+  duration_ms: 1.036769
+  ...
+# Subtest: the plan's verbatim mandatory list is still covered
+ok 66 - the plan's verbatim mandatory list is still covered
+  ---
+  duration_ms: 0.132042
+  ...
+# Subtest: the review findings of the previous artifact are pinned by their own cases
+ok 67 - the review findings of the previous artifact are pinned by their own cases
+  ---
+  duration_ms: 0.076971
+  ...
+# Subtest: every fault case passes against its literal oracle
+ok 68 - every fault case passes against its literal oracle
+  ---
+  duration_ms: 97.877412
+  ...
+# Subtest: the legacy BeginIdempotent gap is a MODELED comparison, not a run claim
+ok 69 - the legacy BeginIdempotent gap is a MODELED comparison, not a run claim
+  ---
+  duration_ms: 216.201573
+  ...
+# Subtest: draft persistence is real and the store never sees a caller's ACL
+ok 70 - draft persistence is real and the store never sees a caller's ACL
+  ---
+  duration_ms: 5.642028
+  ...
+# Subtest: the accepted store fails loudly and the model names a locked recovery
+ok 71 - the accepted store fails loudly and the model names a locked recovery
+  ---
+  duration_ms: 3.214728
+  ...
+# Subtest: a draft is only removed by explicit discard or a confirmed commit
+ok 72 - a draft is only removed by explicit discard or a confirmed commit
+  ---
+  duration_ms: 0.525803
+  ...
+# Subtest: no draft API returns a payload without recovery
+ok 73 - no draft API returns a payload without recovery
+  ---
+  duration_ms: 0.390403
+  ...
+# Subtest: every modeled error carries a status and a class the client can switch on
+ok 74 - every modeled error carries a status and a class the client can switch on
+  ---
+  duration_ms: 0.346287
+  ...
+# Subtest: the evidence records the modeled-authorization limits
+ok 75 - the evidence records the modeled-authorization limits
+  ---
+  duration_ms: 70.773353
+  ...
+# Subtest: the model refuses an unknown session instead of inventing one
+ok 76 - the model refuses an unknown session instead of inventing one
+  ---
+  duration_ms: 1.146945
+  ...
+# Subtest: the PKCE helper matches RFC 7636 Appendix B and uses base64url
+ok 77 - the PKCE helper matches RFC 7636 Appendix B and uses base64url
+  ---
+  duration_ms: 0.196817
+  ...
+# Subtest: only the exact uniwork-office callback is registered
+ok 78 - only the exact uniwork-office callback is registered
+  ---
+  duration_ms: 0.751301
+  ...
+# Subtest: each case runs in its own directory so drafts cannot cross
+ok 79 - each case runs in its own directory so drafts cannot cross
+  ---
+  duration_ms: 74.179902
+  ...
+# Subtest: a failure before replacement is refused and loses no bytes
+ok 80 - a failure before replacement is refused and loses no bytes
+  ---
+  duration_ms: 18.174542
+  ...
+# verified RFC 7636 S256 vector and 8 callback rejection vectors
+# Subtest: RFC 7636 appendix B S256 challenge is reproduced
+ok 81 - RFC 7636 appendix B S256 challenge is reproduced
+  ---
+  duration_ms: 0.748238
+  ...
+# Subtest: every callback rejection vector is rejected at its documented layer
+ok 82 - every callback rejection vector is rejected at its documented layer
+  ---
+  duration_ms: 0.581047
+  ...
+# Subtest: launch ticket vectors pin issuer, size and login-code separation
+ok 83 - launch ticket vectors pin issuer, size and login-code separation
+  ---
+  duration_ms: 0.244004
+  ...
+# Subtest: deep-link vectors allow only one canonical ticket parameter
+ok 84 - deep-link vectors allow only one canonical ticket parameter
+  ---
+  duration_ms: 0.316574
+  ...
+# Subtest: exchange vectors keep the descriptor first-party and receipt-only
+ok 85 - exchange vectors keep the descriptor first-party and receipt-only
+  ---
+  duration_ms: 0.244774
+  ...
+# Subtest: the Go and TypeScript module tables name the same modules, formats, flags and caps
+ok 86 - the Go and TypeScript module tables name the same modules, formats, flags and caps
+  ---
+  duration_ms: 3.784348
+  ...
+# Subtest: every module flag is declared in the catalogue, and every office_*_web flag is a module
+ok 87 - every module flag is declared in the catalogue, and every office_*_web flag is a module
+  ---
+  duration_ms: 0.574969
+  ...
+# Subtest: a pinned module frame's CSP allows eval only where CONTRACT C11 says
+ok 88 - a pinned module frame's CSP allows eval only where CONTRACT C11 says
+  ---
+  duration_ms: 0.613168
+  ...
+# Subtest: acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+ok 89 - acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+  ---
+  duration_ms: 3.671712
+  ...
+# Subtest: acceptance.md says the requirements are an interpretation, not the verbatim spec
+ok 90 - acceptance.md says the requirements are an interpretation, not the verbatim spec
+  ---
+  duration_ms: 0.141353
+  ...
+# Subtest: a PASS row that runs on several fixtures needs one PASS record per fixture
+ok 91 - a PASS row that runs on several fixtures needs one PASS record per fixture
+  ---
+  duration_ms: 17.873153
+  ...
+# Subtest: the summary numbers are checked against the candidate, not the committed matrix (N6)
+ok 92 - the summary numbers are checked against the candidate, not the committed matrix (N6)
+  ---
+  duration_ms: 18.278732
+  ...
+# Subtest: the ledger is read only when the caller names it, and only its own records
+ok 93 - the ledger is read only when the caller names it, and only its own records
+  ---
+  duration_ms: 1.466097
+  ...
+# Subtest: a ledger that is named and does not exist is an error, not a green gate (N5)
+ok 94 - a ledger that is named and does not exist is an error, not a green gate (N5)
+  ---
+  duration_ms: 1.072014
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 95 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 49.943799
+  ...
+# Subtest: acceptance matrix reconciles its inventory, rows, and markdown tables
+ok 96 - acceptance matrix reconciles its inventory, rows, and markdown tables
+  ---
+  duration_ms: 5.593126
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 97 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 30.168357
+  ...
+# Subtest: exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+ok 98 - exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+  ---
+  duration_ms: 26.890779
+  ...
+# Subtest: a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+ok 99 - a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+  ---
+  duration_ms: 71.636197
+  ...
+# Subtest: a command killed by a signal is a FAIL with 128 + the signal number, never a PASS
+ok 100 - a command killed by a signal is a FAIL with 128 + the signal number, never a PASS
+  ---
+  duration_ms: 11.824855
+  ...
+# Subtest: a skip line only turns a clean exit into BLOCKED, and never masks a failure
+ok 101 - a skip line only turns a clean exit into BLOCKED, and never masks a failure
+  ---
+  duration_ms: 4.707015
+  ...
+# Subtest: a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+ok 102 - a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+  ---
+  duration_ms: 9.555096
+  ...
+# Subtest: a run on a fixture the row does not declare is BLOCKED and the command does not run
+ok 103 - a run on a fixture the row does not declare is BLOCKED and the command does not run
+  ---
+  duration_ms: 3.766644
+  ...
+# Subtest: two runs for one requirement cannot share an evidence id or overwrite an artifact
+ok 104 - two runs for one requirement cannot share an evidence id or overwrite an artifact
+  ---
+  duration_ms: 40.499759
+  ...
+# Subtest: the ledger records the argv array beside the readable command
+ok 105 - the ledger records the argv array beside the readable command
+  ---
+  duration_ms: 21.000227
+  ...
+# Subtest: a check that prints more than the default buffer still records its exit code
+ok 106 - a check that prints more than the default buffer still records its exit code
+  ---
+  duration_ms: 38.783221
+  ...
+# Subtest: an explicit blocker reason blocks a run that would otherwise pass
+ok 107 - an explicit blocker reason blocks a run that would otherwise pass
+  ---
+  duration_ms: 2.777294
+  ...
+# Subtest: an unknown requirement id is refused instead of written
+ok 108 - an unknown requirement id is refused instead of written
+  ---
+  duration_ms: 0.706239
+  ...
+# Subtest: reset only touches a lane test database and is a dry run without psql
+ok 109 - reset only touches a lane test database and is a dry run without psql
+  ---
+  duration_ms: 62.271299
+  ...
+# Subtest: verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+ok 110 - verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+  ---
+  duration_ms: 26.776559
+  ...
+# Subtest: verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+ok 111 - verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+  ---
+  duration_ms: 23.694516
+  ...
+# Subtest: the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+ok 112 - the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+  ---
+  duration_ms: 290.453036
+  ...
+# Subtest: a FAIL or BLOCKED run echoes the tail of its output to stderr, a PASS stays quiet
+ok 113 - a FAIL or BLOCKED run echoes the tail of its output to stderr, a PASS stays quiet
+  ---
+  duration_ms: 288.598138
+  ...
+# Subtest: an absolute --out is honoured as given, never nested under the repo
+ok 114 - an absolute --out is honoured as given, never nested under the repo
+  ---
+  duration_ms: 50.081102
+  ...
+# Subtest: the fork SHA comes from the environment and is null when the environment does not name it
+ok 115 - the fork SHA comes from the environment and is null when the environment does not name it
+  ---
+  duration_ms: 6.217277
+  ...
+# Subtest: the matrix the runner reads declares every fixture it needs
+ok 116 - the matrix the runner reads declares every fixture it needs
+  ---
+  duration_ms: 3.084599
+  ...
+# Subtest: case files are present and carry the §9.2 shape and counts (always on, no skip)
+ok 117 - case files are present and carry the §9.2 shape and counts (always on, no skip)
+  ---
+  duration_ms: 1.127733
+  ...
+# Subtest: every case satisfies the shared contract schema
+ok 118 - every case satisfies the shared contract schema
+  ---
+  duration_ms: 2.848751
+  ...
+# Subtest: fixtures[] hash the manifest, the fixtures exist and their oracle sidecars agree
+ok 119 - fixtures[] hash the manifest, the fixtures exist and their oracle sidecars agree
+  ---
+  duration_ms: 8.596584
+  ...
+# Subtest: ground truth comes from the fixture oracle sidecars or a committed derivation
+ok 120 - ground truth comes from the fixture oracle sidecars or a committed derivation
+  ---
+  duration_ms: 170.090432
+  ...
+# Subtest: the committed XLSX truth script agrees with xlsx.json (every number recomputed from the workbook)
+ok 121 - the committed XLSX truth script agrees with xlsx.json (every number recomputed from the workbook)
+  ---
+  duration_ms: 41.404565
+  ...
+# Subtest: the scorer passes every reference answer and never fails one
+ok 122 - the scorer passes every reference answer and never fails one
+  ---
+  duration_ms: 13.075888
+  ...
+# Subtest: a deterministic case with no caveat must be a plain PASS, not needs_reviewer
+ok 123 - a deterministic case with no caveat must be a plain PASS, not needs_reviewer
+  ---
+  duration_ms: 2.708848
+  ...
+# Subtest: the scorer is red on a wrong number, an extra write, a missing tool and a tool outside the allowlist
+ok 124 - the scorer is red on a wrong number, an extra write, a missing tool and a tool outside the allowlist
+  ---
+  duration_ms: 10.115815
+  ...
+# Subtest: the scorer fails closed when the answer reports no tools field (amendment 4)
+ok 125 - the scorer fails closed when the answer reports no tools field (amendment 4)
+  ---
+  duration_ms: 8.844375
+  ...
+# Subtest: the scorer fails closed when a mustNotContain case reports no text field (R1-1)
+ok 126 - the scorer fails closed when a mustNotContain case reports no text field (R1-1)
+  ---
+  duration_ms: 3.935547
+  ...
+# Subtest: zero-width or other invisible-only text counts as blank in the mustNotContain guard (R3-1)
+ok 127 - zero-width or other invisible-only text counts as blank in the mustNotContain guard (R3-1)
+  ---
+  duration_ms: 6.478659
+  ...
+# Subtest: a cell/formula/table_cell anchor is an identity, not a substring (R1-2)
+ok 128 - a cell/formula/table_cell anchor is an identity, not a substring (R1-2)
+  ---
+  duration_ms: 0.675238
+  ...
+# Subtest: a mustNotContain token is still caught when the reply changes its diacritics (R1-3)
+ok 129 - a mustNotContain token is still caught when the reply changes its diacritics (R1-3)
+  ---
+  duration_ms: 1.117119
+  ...
+# Subtest: toNumber accepts a number with its unit and still refuses prose (R1-4)
+ok 130 - toNumber accepts a number with its unit and still refuses prose (R1-4)
+  ---
+  duration_ms: 13.216883
+  ...
+# Subtest: a mustNotContain token echoed inside a structural anchor is caught (R1-8)
+ok 131 - a mustNotContain token echoed inside a structural anchor is caught (R1-8)
+  ---
+  duration_ms: 0.957607
+  ...
+# Subtest: containsToken does not squash separators other than whitespace (R1-9)
+ok 132 - containsToken does not squash separators other than whitespace (R1-9)
+  ---
+  duration_ms: 0.231149
+  ...
+# Subtest: the provenance gate needs a real truth key, not just a .mjs\# citation (R1-5)
+ok 133 - the provenance gate needs a real truth key, not just a .mjs\# citation (R1-5)
+  ---
+  duration_ms: 10.548828
+  ...
+# Subtest: a cell: citation with a multi-word anchor and a range reaches the truth table (R2-3)
+ok 134 - a cell: citation with a multi-word anchor and a range reaches the truth table (R2-3)
+  ---
+  duration_ms: 0.612172
+  ...
+# Subtest: setup.removeCells is accepted and validated (amendment 4, R1-11)
+ok 135 - setup.removeCells is accepted and validated (amendment 4, R1-11)
+  ---
+  duration_ms: 0.522926
+  ...
+# Subtest: an unknown key is refused at every level of a case (R1-12)
+ok 136 - an unknown key is refused at every level of a case (R1-12)
+  ---
+  duration_ms: 0.761
+  ...
+# Subtest: a \#numberFormat probe is documented and graded as a format, not a cell value (N2)
+ok 137 - a \#numberFormat probe is documented and graded as a format, not a cell value (N2)
+  ---
+  duration_ms: 0.526228
+  ...
+# Subtest: the stale group covers stale apply / silent overwrite, not only read-only caveats (reviewer H2)
+ok 138 - the stale group covers stale apply / silent overwrite, not only read-only caveats (reviewer H2)
+  ---
+  duration_ms: 0.154873
+  ...
+# Subtest: no case query contains another case's expected numeric answer (contract amendment 4)
+ok 139 - no case query contains another case's expected numeric answer (contract amendment 4)
+  ---
+  duration_ms: 23.264344
+  ...
+# Subtest: the scorer is red when the reply echoes an injected token
+ok 140 - the scorer is red when the reply echoes an injected token
+  ---
+  duration_ms: 0.857494
+  ...
+# Subtest: the scorer is red on a missing structural fact and on an unknown operation
+ok 141 - the scorer is red on a missing structural fact and on an unknown operation
+  ---
+  duration_ms: 2.336422
+  ...
+# Subtest: a malformed case fails the scorer instead of scoring it
+ok 142 - a malformed case fails the scorer instead of scoring it
+  ---
+  duration_ms: 0.210278
+  ...
+# Subtest: quality bar: each category carries the assertion the spec demands
+ok 143 - quality bar: each category carries the assertion the spec demands
+  ---
+  duration_ms: 0.651494
+  ...
+# Subtest: setup is accepted and validated: overlay, history, selection, serverVersionAhead, activeSheet, revokeAfterTool
+ok 144 - setup is accepted and validated: overlay, history, selection, serverVersionAhead, activeSheet, revokeAfterTool
+  ---
+  duration_ms: 0.574582
+  ...
+# Subtest: case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)
+ok 145 - case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)
+  ---
+  duration_ms: 1031.147287
+  ...
+# Subtest: the leak scan finds an injection payload and a marker outside the holdout dir, binary included (R1-6)
+ok 146 - the leak scan finds an injection payload and a marker outside the holdout dir, binary included (R1-6)
+  ---
+  duration_ms: 54.361183
+  ...
+# Subtest: the leak scan keeps money-scale numbers and finds one planted outside the holdout dir, text and binary (R2-2)
+ok 147 - the leak scan keeps money-scale numbers and finds one planted outside the holdout dir, text and binary (R2-2)
+  ---
+  duration_ms: 49.933619
+  ...
+# Subtest: loadCases reads the directory and refuses a foreign document
+ok 148 - loadCases reads the directory and refuses a foreign document
+  ---
+  duration_ms: 2.721492
+  ...
+# Subtest: two generations are byte-identical (fixtures, oracles, manifest)
+ok 149 - two generations are byte-identical (fixtures, oracles, manifest)
+  ---
+  duration_ms: 35.064364
+  ...
+# Subtest: committed files equal the generator output, with no unexpected files
+ok 150 - committed files equal the generator output, with no unexpected files
+  ---
+  duration_ms: 11.045715
+  ...
+# Subtest: manifest lists the six required formats and matches the files byte for byte
+ok 151 - manifest lists the six required formats and matches the files byte for byte
+  ---
+  duration_ms: 1.021793
+  ...
+# Subtest: --list prints the sha256 of every committed fixture AND its oracle sidecar
+ok 152 - --list prints the sha256 of every committed fixture AND its oracle sidecar
+  ---
+  duration_ms: 122.244361
+  ...
+# Subtest: OOXML fixtures are valid STORE zips with fixed metadata and sorted entries
+ok 153 - OOXML fixtures are valid STORE zips with fixed metadata and sorted entries
+  ---
+  duration_ms: 0.713548
+  ...
+# Subtest: XLSX carries every trait the spec requires
+ok 154 - XLSX carries every trait the spec requires
+  ---
+  duration_ms: 0.443444
+  ...
+# Subtest: the XLSX oracle documents the share basis of Tổng hợp column E and the Z > 1 rule
+ok 155 - the XLSX oracle documents the share basis of Tổng hợp column E and the Z > 1 rule
+  ---
+  duration_ms: 0.304474
+  ...
+# Subtest: PDF has a text layer, one page and embedded fonts; MD/HTML carry their markers
+ok 156 - PDF has a text layer, one page and embedded fonts; MD/HTML carry their markers
+  ---
+  duration_ms: 0.303895
+  ...
+# Subtest: maps every package.mjs artifact to the platform key the server expects
+ok 157 - maps every package.mjs artifact to the platform key the server expects
+  ---
+  duration_ms: 1.572869
+  ...
+# Subtest: the platform key set equals the one the Go config declares
+ok 158 - the platform key set equals the one the Go config declares
+  ---
+  duration_ms: 0.375104
+  ...
+# Subtest: a beta build only picks beta files, a dev file never fills beta
+ok 159 - a beta build only picks beta files, a dev file never fills beta
+  ---
+  duration_ms: 0.543918
+  ...
+# Subtest: macOS keys are supported when a Mac-built asset exists
+ok 160 - macOS keys are supported when a Mac-built asset exists
+  ---
+  duration_ms: 0.13985
+  ...
+# Subtest: stable is refused: no signed release exists
+ok 161 - stable is refused: no signed release exists
+  ---
+  duration_ms: 0.135538
+  ...
+# Subtest: signed-looking or unsafe names are ignored
+ok 162 - signed-looking or unsafe names are ignored
+  ---
+  duration_ms: 0.089173
+  ...
+# Subtest: two installers for one platform is ambiguous
+ok 163 - two installers for one platform is ambiguous
+  ---
+  duration_ms: 0.153025
+  ...
+# Subtest: the base URL must be https without credentials, query or fragment
+ok 164 - the base URL must be https without credentials, query or fragment
+  ---
+  duration_ms: 0.306155
+  ...
+# Subtest: argument parsing rejects unknown and incomplete input
+ok 165 - argument parsing rejects unknown and incomplete input
+  ---
+  duration_ms: 0.430165
+  ...
+# Subtest: the CLI prints the compact JSON for a directory and exits non-zero on bad input
+ok 166 - the CLI prints the compact JSON for a directory and exits non-zero on bad input
+  ---
+  duration_ms: 50.17291
+  ...
+# Subtest: the Go and TypeScript contract identities are the same pin
+ok 167 - the Go and TypeScript contract identities are the same pin
+  ---
+  duration_ms: 0.612723
+  ...
+# Subtest: the evidence doc records the same pin it was produced against
+ok 168 - the evidence doc records the same pin it was produced against
+  ---
+  duration_ms: 0.19132
+  ...
+# Subtest: every in-scope format row names a fixture the manifest knows
+ok 169 - every in-scope format row names a fixture the manifest knows
+  ---
+  duration_ms: 1.116216
+  ...
+# Subtest: the upgrade-replay manifest replays every format on the pinned build
+ok 170 - the upgrade-replay manifest replays every format on the pinned build
+  ---
+  duration_ms: 0.987833
+  ...
+# Subtest: the evidence doc leaves no in-scope format claim without a test
+ok 171 - the evidence doc leaves no in-scope format claim without a test
+  ---
+  duration_ms: 0.280099
+  ...
+# Subtest: the real engine container advertises the pin and the honesty rule
+ok 172 - the real engine container advertises the pin and the honesty rule
+  ---
+  duration_ms: 0.219927
+  ...
+# not_run: OFFICE_ENGINE_TEST_URL is not set, the container rows were not exercised
+# Subtest: projects suite UI has no source brand or Issue domain
+ok 173 - projects suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 8.73011
+  ...
+# Subtest: slice-2 route catalogue pins Work Management API surface
+ok 174 - slice-2 route catalogue pins Work Management API surface
+  ---
+  duration_ms: 3.192563
+  ...
+# Subtest: slice 5 locale strings have no source brand or Issue domain
+ok 175 - slice 5 locale strings have no source brand or Issue domain
+  ---
+  duration_ms: 33.296714
+  ...
+# Subtest: task detail suite UI has no source brand or Issue domain
+ok 176 - task detail suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 64.878531
+  ...
+# Subtest: Tasks parity manifest pins and classifies the complete baseline
+ok 177 - Tasks parity manifest pins and classifies the complete baseline
+  ---
+  duration_ms: 21.089424
+  ...
+# Subtest: Task parity generator emits a byte-stable manifest from a fixed Git fixture
+ok 178 - Task parity generator emits a byte-stable manifest from a fixed Git fixture
+  ---
+  duration_ms: 103.528859
+  ...
+# Subtest: slice-1 verification overlay marks only owned capability entries
+ok 179 - slice-1 verification overlay marks only owned capability entries
+  ---
+  duration_ms: 0.899524
+  ...
+# Subtest: slice-2 verification overlay marks only owned API entries
+ok 180 - slice-2 verification overlay marks only owned API entries
+  ---
+  duration_ms: 0.648385
+  ...
+# Subtest: slice-3 verification overlay marks only owned UI entries
+ok 181 - slice-3 verification overlay marks only owned UI entries
+  ---
+  duration_ms: 0.753758
+  ...
+# Subtest: slice-4 verification overlay marks only owned projects entries
+ok 182 - slice-4 verification overlay marks only owned projects entries
+  ---
+  duration_ms: 1.396064
+  ...
+# Subtest: slice-5 verification overlay marks only owned detail entries
+ok 183 - slice-5 verification overlay marks only owned detail entries
+  ---
+  duration_ms: 2.039642
+  ...
+# Subtest: slice-6 verification overlay marks only owned agent-integration entries
+ok 184 - slice-6 verification overlay marks only owned agent-integration entries
+  ---
+  duration_ms: 0.670363
+  ...
+# Subtest: collection UI has no source brand or Issue domain
+ok 185 - collection UI has no source brand or Issue domain
+  ---
+  duration_ms: 39.94521
+  ...
+# Subtest: parity flag identifier is gone from apps, packages, and server
+ok 186 - parity flag identifier is gone from apps, packages, and server
+  ---
+  duration_ms: 50.220281
+  ...
+1..186
+# tests 186
+# suites 0
+# pass 186
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3449.03373

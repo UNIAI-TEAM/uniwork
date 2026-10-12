@@ -1,0 +1,921 @@
+$ node --test scripts/office/g5g6g7/make-fixtures.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs scripts/office/g5g6g7/evidence.test.mjs scripts/office/g5g6g7/harness/lib.test.mjs scripts/office/g5g6g7/harness/api-contract.test.mjs scripts/office/acceptance-matrix.test.mjs scripts/office/g5g6g7/holdout.test.mjs
+TAP version 13
+# Subtest: acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+ok 1 - acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+  ---
+  duration_ms: 3.768432
+  ...
+# Subtest: acceptance.md says the requirements are an interpretation, not the verbatim spec
+ok 2 - acceptance.md says the requirements are an interpretation, not the verbatim spec
+  ---
+  duration_ms: 0.126096
+  ...
+# Subtest: a PASS row that runs on several fixtures needs one PASS record per fixture
+ok 3 - a PASS row that runs on several fixtures needs one PASS record per fixture
+  ---
+  duration_ms: 17.745282
+  ...
+# Subtest: the summary numbers are checked against the candidate, not the committed matrix (N6)
+ok 4 - the summary numbers are checked against the candidate, not the committed matrix (N6)
+  ---
+  duration_ms: 20.648901
+  ...
+# Subtest: the ledger is read only when the caller names it, and only its own records
+ok 5 - the ledger is read only when the caller names it, and only its own records
+  ---
+  duration_ms: 1.810423
+  ...
+# Subtest: a ledger that is named and does not exist is an error, not a green gate (N5)
+ok 6 - a ledger that is named and does not exist is an error, not a green gate (N5)
+  ---
+  duration_ms: 1.221892
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 7 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 51.632634
+  ...
+# Subtest: acceptance matrix reconciles its inventory, rows, and markdown tables
+ok 8 - acceptance matrix reconciles its inventory, rows, and markdown tables
+  ---
+  duration_ms: 5.505486
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 9 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 28.078045
+  ...
+# Subtest: exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+ok 10 - exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+  ---
+  duration_ms: 30.821661
+  ...
+# Subtest: a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+ok 11 - a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+  ---
+  duration_ms: 69.613285
+  ...
+# Subtest: a command killed by a signal is a FAIL with 128 + the signal number, never a PASS
+ok 12 - a command killed by a signal is a FAIL with 128 + the signal number, never a PASS
+  ---
+  duration_ms: 11.155257
+  ...
+# Subtest: a skip line only turns a clean exit into BLOCKED, and never masks a failure
+ok 13 - a skip line only turns a clean exit into BLOCKED, and never masks a failure
+  ---
+  duration_ms: 4.901181
+  ...
+# Subtest: a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+ok 14 - a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+  ---
+  duration_ms: 9.452929
+  ...
+# Subtest: a run on a fixture the row does not declare is BLOCKED and the command does not run
+ok 15 - a run on a fixture the row does not declare is BLOCKED and the command does not run
+  ---
+  duration_ms: 3.095787
+  ...
+# Subtest: two runs for one requirement cannot share an evidence id or overwrite an artifact
+ok 16 - two runs for one requirement cannot share an evidence id or overwrite an artifact
+  ---
+  duration_ms: 43.197764
+  ...
+# Subtest: the ledger records the argv array beside the readable command
+ok 17 - the ledger records the argv array beside the readable command
+  ---
+  duration_ms: 20.050557
+  ...
+# Subtest: a check that prints more than the default buffer still records its exit code
+ok 18 - a check that prints more than the default buffer still records its exit code
+  ---
+  duration_ms: 39.777461
+  ...
+# Subtest: an explicit blocker reason blocks a run that would otherwise pass
+ok 19 - an explicit blocker reason blocks a run that would otherwise pass
+  ---
+  duration_ms: 2.78292
+  ...
+# Subtest: an unknown requirement id is refused instead of written
+ok 20 - an unknown requirement id is refused instead of written
+  ---
+  duration_ms: 0.695231
+  ...
+# Subtest: reset only touches a lane test database and is a dry run without psql
+ok 21 - reset only touches a lane test database and is a dry run without psql
+  ---
+  duration_ms: 51.753861
+  ...
+# Subtest: verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+ok 22 - verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+  ---
+  duration_ms: 26.300701
+  ...
+# Subtest: verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+ok 23 - verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+  ---
+  duration_ms: 28.174569
+  ...
+# Subtest: the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+ok 24 - the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+  ---
+  duration_ms: 310.644414
+  ...
+# Subtest: a FAIL or BLOCKED run echoes the tail of its output to stderr, a PASS stays quiet
+ok 25 - a FAIL or BLOCKED run echoes the tail of its output to stderr, a PASS stays quiet
+  ---
+  duration_ms: 285.075421
+  ...
+# Subtest: an absolute --out is honoured as given, never nested under the repo
+ok 26 - an absolute --out is honoured as given, never nested under the repo
+  ---
+  duration_ms: 38.371291
+  ...
+# Subtest: the fork SHA comes from the environment and is null when the environment does not name it
+ok 27 - the fork SHA comes from the environment and is null when the environment does not name it
+  ---
+  duration_ms: 4.383449
+  ...
+# Subtest: the matrix the runner reads declares every fixture it needs
+ok 28 - the matrix the runner reads declares every fixture it needs
+  ---
+  duration_ms: 0.486229
+  ...
+# Subtest: the route catalogue is read (guard against a parser that finds nothing)
+ok 29 - the route catalogue is read (guard against a parser that finds nothing)
+  ---
+  duration_ms: 0.854691
+  ...
+# Subtest: register: POST /auth/register is a route the router registers
+ok 30 - register: POST /auth/register is a route the router registers
+  ---
+  duration_ms: 0.107442
+  ...
+# Subtest: register: every path param is an id or slug the handler really passes on
+ok 31 - register: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.492676
+  ...
+# Subtest: register: the body keys are RegisterSDI json fields and every required field is sent
+ok 32 - register: the body keys are RegisterSDI json fields and every required field is sent
+  ---
+  duration_ms: 1.068961
+  ...
+# Subtest: verifyEmail: POST /me/email/verify is a route the router registers
+ok 33 - verifyEmail: POST /me/email/verify is a route the router registers
+  ---
+  duration_ms: 0.080097
+  ...
+# Subtest: verifyEmail: every path param is an id or slug the handler really passes on
+ok 34 - verifyEmail: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.087676
+  ...
+# Subtest: verifyEmail: the body keys are VerifyEmailSDI json fields and every required field is sent
+ok 35 - verifyEmail: the body keys are VerifyEmailSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.760487
+  ...
+# Subtest: login: POST /auth/login is a route the router registers
+ok 36 - login: POST /auth/login is a route the router registers
+  ---
+  duration_ms: 0.061614
+  ...
+# Subtest: login: every path param is an id or slug the handler really passes on
+ok 37 - login: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.207196
+  ...
+# Subtest: login: the body keys are LoginSDI json fields and every required field is sent
+ok 38 - login: the body keys are LoginSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.949462
+  ...
+# Subtest: createOrganization: POST /orgs is a route the router registers
+ok 39 - createOrganization: POST /orgs is a route the router registers
+  ---
+  duration_ms: 0.10929
+  ...
+# Subtest: createOrganization: every path param is an id or slug the handler really passes on
+ok 40 - createOrganization: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.06175
+  ...
+# Subtest: createOrganization: the body keys are CreateOrganizationSDI json fields and every required field is sent
+ok 41 - createOrganization: the body keys are CreateOrganizationSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.859244
+  ...
+# Subtest: createWorkspace: POST /orgs/{org}/workspaces is a route the router registers
+ok 42 - createWorkspace: POST /orgs/{org}/workspaces is a route the router registers
+  ---
+  duration_ms: 0.057027
+  ...
+# Subtest: createWorkspace: every path param is an id or slug the handler really passes on
+ok 43 - createWorkspace: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 13.339264
+  ...
+# Subtest: createWorkspace: the body keys are CreateWorkspaceSDI json fields and every required field is sent
+ok 44 - createWorkspace: the body keys are CreateWorkspaceSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.895649
+  ...
+# Subtest: createFileDocument: POST /workspaces/{workspaceID}/documents/files is a route the router registers
+ok 45 - createFileDocument: POST /workspaces/{workspaceID}/documents/files is a route the router registers
+  ---
+  duration_ms: 0.058498
+  ...
+# Subtest: createFileDocument: every path param is an id or slug the handler really passes on
+ok 46 - createFileDocument: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 1.863701
+  ...
+# Subtest: mintLaunch: POST /documents/{documentID}/office/sessions is a route the router registers
+ok 47 - mintLaunch: POST /documents/{documentID}/office/sessions is a route the router registers
+  ---
+  duration_ms: 0.064529
+  ...
+# Subtest: mintLaunch: every path param is an id or slug the handler really passes on
+ok 48 - mintLaunch: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 2.959538
+  ...
+# Subtest: mintLaunch: the body keys are CreateOfficeLaunchSessionSDI json fields and every required field is sent
+ok 49 - mintLaunch: the body keys are CreateOfficeLaunchSessionSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.847197
+  ...
+# Subtest: desktopDevices: GET /auth/desktop/devices is a route the router registers
+ok 50 - desktopDevices: GET /auth/desktop/devices is a route the router registers
+  ---
+  duration_ms: 0.068085
+  ...
+# Subtest: desktopDevices: every path param is an id or slug the handler really passes on
+ok 51 - desktopDevices: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.05703
+  ...
+# Subtest: requestOrganizationDeletion: POST /orgs/{orgID}/privacy/deletion is a route the router registers
+ok 52 - requestOrganizationDeletion: POST /orgs/{orgID}/privacy/deletion is a route the router registers
+  ---
+  duration_ms: 0.646783
+  ...
+# Subtest: requestOrganizationDeletion: every path param is an id or slug the handler really passes on
+ok 53 - requestOrganizationDeletion: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 10.421009
+  ...
+# Subtest: requestOrganizationDeletion: the body keys are CreatePrivacyDeletionSDI json fields and every required field is sent
+ok 54 - requestOrganizationDeletion: the body keys are CreatePrivacyDeletionSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.828351
+  ...
+# Subtest: deleteAccount: POST /me/delete is a route the router registers
+ok 55 - deleteAccount: POST /me/delete is a route the router registers
+  ---
+  duration_ms: 0.051475
+  ...
+# Subtest: deleteAccount: every path param is an id or slug the handler really passes on
+ok 56 - deleteAccount: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.051225
+  ...
+# Subtest: deleteAccount: the body keys are DeleteAccountSDI json fields and every required field is sent
+ok 57 - deleteAccount: the body keys are DeleteAccountSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.663528
+  ...
+# Subtest: the slug-for-id mistake of cloud round 5 is caught: createWorkspace's {org} reaches the service as an id
+ok 58 - the slug-for-id mistake of cloud round 5 is caught: createWorkspace's {org} reaches the service as an id
+  ---
+  duration_ms: 20.749746
+  ...
+# Subtest: the multipart upload sends the fields the handler reads
+ok 59 - the multipart upload sends the fields the handler reads
+  ---
+  duration_ms: 2.532327
+  ...
+# Subtest: document-step.mjs reaches the server only through the table
+ok 60 - document-step.mjs reaches the server only through the table
+  ---
+  duration_ms: 0.424256
+  ...
+# Subtest: apiPath builds the path from the template and refuses a missing or extra param
+ok 61 - apiPath builds the path from the template and refuses a missing or extra param
+  ---
+  duration_ms: 4.635825
+  ...
+# Subtest: assertBodyKeys refuses a key the table does not list
+ok 62 - assertBodyKeys refuses a key the table does not list
+  ---
+  duration_ms: 0.159688
+  ...
+# Subtest: an ApiError names the method, path and status, and never a token
+ok 63 - an ApiError names the method, path and status, and never a token
+  ---
+  duration_ms: 0.42659
+  ...
+# Subtest: freePorts hands out distinct ports the kernel just released
+ok 64 - freePorts hands out distinct ports the kernel just released
+  ---
+  duration_ms: 8.829488
+  ...
+# Subtest: freePorts refuses a non-positive count
+ok 65 - freePorts refuses a non-positive count
+  ---
+  duration_ms: 0.326433
+  ...
+# Subtest: BLOCKED is 77 so a missing precondition is never mistaken for a pass
+ok 66 - BLOCKED is 77 so a missing precondition is never mistaken for a pass
+  ---
+  duration_ms: 0.08252
+  ...
+# Subtest: the default fork revision is the pinned base
+ok 67 - the default fork revision is the pinned base
+  ---
+  duration_ms: 0.063109
+  ...
+# Subtest: buildServerEnv puts every port-derived origin on the command line
+ok 68 - buildServerEnv puts every port-derived origin on the command line
+  ---
+  duration_ms: 0.233135
+  ...
+# Subtest: buildServerEnv keeps the API origin identical everywhere it is inlined
+ok 69 - buildServerEnv keeps the API origin identical everywhere it is inlined
+  ---
+  duration_ms: 0.080048
+  ...
+# Subtest: the launch deep link is the dev scheme both ends agree on
+ok 70 - the launch deep link is the dev scheme both ends agree on
+  ---
+  duration_ms: 0.177624
+  ...
+# Subtest: the working-copy dir is the fork's own layout
+ok 71 - the working-copy dir is the fork's own layout
+  ---
+  duration_ms: 0.103345
+  ...
+# Subtest: ticketFromLaunchUrl reads the ticket out of the server's link, or null
+ok 72 - ticketFromLaunchUrl reads the ticket out of the server's link, or null
+  ---
+  duration_ms: 0.308567
+  ...
+# Subtest: the BLOCKED reason without a session says the app is not signed in, and where to run it
+ok 73 - the BLOCKED reason without a session says the app is not signed in, and where to run it
+  ---
+  duration_ms: 0.397925
+  ...
+# Subtest: documentStepOutcome decides from the app's own working copy
+ok 74 - documentStepOutcome decides from the app's own working copy
+  ---
+  duration_ms: 0.185495
+  ...
+# Subtest: origin builds a loopback origin for a port
+ok 75 - origin builds a loopback origin for a port
+  ---
+  duration_ms: 0.067303
+  ...
+# Subtest: harnessPaths keeps every run artifact inside the run dir
+ok 76 - harnessPaths keeps every run artifact inside the run dir
+  ---
+  duration_ms: 0.16122
+  ...
+# Subtest: forkCacheDir is keyed by the revision so two SHAs never share a checkout
+ok 77 - forkCacheDir is keyed by the revision so two SHAs never share a checkout
+  ---
+  duration_ms: 0.068859
+  ...
+# Subtest: evidenceLine carries every field the runner contract checks, empty when unknown
+ok 78 - evidenceLine carries every field the runner contract checks, empty when unknown
+  ---
+  duration_ms: 0.117849
+  ...
+# Subtest: evidenceLine records the argv it is given and refuses to guess one (H1-6)
+ok 79 - evidenceLine records the argv it is given and refuses to guess one (H1-6)
+  ---
+  duration_ms: 0.45292
+  ...
+# Subtest: evidenceLine defaults to BLOCKED, never to PASS
+ok 80 - evidenceLine defaults to BLOCKED, never to PASS
+  ---
+  duration_ms: 0.060681
+  ...
+# Subtest: evidenceLine keeps a fixture hash and a blocker out of a PASS
+ok 81 - evidenceLine keeps a fixture hash and a blocker out of a PASS
+  ---
+  duration_ms: 0.056248
+  ...
+# Subtest: writeRunEnv writes a ports file and a server env bash can source
+ok 82 - writeRunEnv writes a ports file and a server env bash can source
+  ---
+  duration_ms: 4.894602
+  ...
+# Subtest: isMainModule is false when node was started with an eval flag
+ok 83 - isMainModule is false when node was started with an eval flag
+  ---
+  duration_ms: 0.158235
+  ...
+# Subtest: importing lib.mjs from node -e does not run the CLI
+ok 84 - importing lib.mjs from node -e does not run the CLI
+  ---
+  duration_ms: 23.412898
+  ...
+# Subtest: the lib.mjs CLI modes answer and name the mode on a bad call
+ok 85 - the lib.mjs CLI modes answer and name the mode on a bad call
+  ---
+  duration_ms: 65.896969
+  ...
+# Subtest: start.sh reaches up through the real lib.mjs fork-dir call (fake stack)
+ok 86 - start.sh reaches up through the real lib.mjs fork-dir call (fake stack)
+  ---
+  duration_ms: 1227.628597
+  ...
+# Subtest: the D server boots with exactly DESKTOP_AUTH_CLIENTS although the checkout's .env carries the single-client pair
+ok 87 - the D server boots with exactly DESKTOP_AUTH_CLIENTS although the checkout's .env carries the single-client pair
+  ---
+  duration_ms: 2229.868556
+  ...
+# Subtest: the same server, started from the checkout the old way, dies of the round-4 config error
+ok 88 - the same server, started from the checkout the old way, dies of the round-4 config error
+  ---
+  duration_ms: 24.780221
+  ...
+# Subtest: the server's cwd is three directories deep, so none of its .env lookups leaves the run dir
+ok 89 - the server's cwd is three directories deep, so none of its .env lookups leaves the run dir
+  ---
+  duration_ms: 0.216515
+  ...
+# Subtest: serverDotEnv drops the lines of the keys the run owns and keeps the rest
+ok 90 - serverDotEnv drops the lines of the keys the run owns and keeps the rest
+  ---
+  duration_ms: 0.169972
+  ...
+# Subtest: writeRunEnv leaves the server a .env without any key it owns, in a cwd of its own
+ok 91 - writeRunEnv leaves the server a .env without any key it owns, in a cwd of its own
+  ---
+  duration_ms: 2.827203
+  ...
+# Subtest: the app start.sh launches gets an allow-listed env, never the VM .env's server secrets (H1-8)
+ok 92 - the app start.sh launches gets an allow-listed env, never the VM .env's server secrets (H1-8)
+  ---
+  duration_ms: 1217.301841
+  ...
+# Subtest: the second instance gets the run's DISPLAY and XAUTHORITY, not the caller's, and nothing else widens
+ok 93 - the second instance gets the run's DISPLAY and XAUTHORITY, not the caller's, and nothing else widens
+  ---
+  duration_ms: 0.58546
+  ...
+# Subtest: describeExit names the signal instead of printing 'exited null'
+ok 94 - describeExit names the signal instead of printing 'exited null'
+  ---
+  duration_ms: 0.10475
+  ...
+# Subtest: appEnv passes only the allow-list and refuses a secret by name
+ok 95 - appEnv passes only the allow-list and refuses a secret by name
+  ---
+  duration_ms: 0.309742
+  ...
+# Subtest: --dry-run leaves a live run's pids, ports and logs untouched (reviewer_be H1-2)
+ok 96 - --dry-run leaves a live run's pids, ports and logs untouched (reviewer_be H1-2)
+  ---
+  duration_ms: 118.599717
+  ...
+# Subtest: under xvfb the run's X auth file lives in the run dir and ports.env records it next to DISPLAY
+ok 97 - under xvfb the run's X auth file lives in the run dir and ports.env records it next to DISPLAY
+  ---
+  duration_ms: 1222.626316
+  ...
+# Subtest: --desktop opens the app on the invoking session's display, without xvfb
+ok 98 - --desktop opens the app on the invoking session's display, without xvfb
+  ---
+  duration_ms: 1223.282233
+  ...
+# Subtest: --desktop without a graphical session is BLOCKED with the reason
+ok 99 - --desktop without a graphical session is BLOCKED with the reason
+  ---
+  duration_ms: 84.827967
+  ...
+# Subtest: a failed start is recorded as failed, a missing precondition as blocked
+ok 100 - a failed start is recorded as failed, a missing precondition as blocked
+  ---
+  duration_ms: 360.234915
+  ...
+# Subtest: a server that dies at boot leaves a failed start with its log tail, not an up one
+ok 101 - a server that dies at boot leaves a failed start with its log tail, not an up one
+  ---
+  duration_ms: 1141.400325
+  ...
+# Subtest: startGate: only a start that reported BLOCKED may block a later step
+ok 102 - startGate: only a start that reported BLOCKED may block a later step
+  ---
+  duration_ms: 0.36657
+  ...
+# Subtest: readStartStatus reads the file, and a torn one reads as failed
+ok 103 - readStartStatus reads the file, and a torn one reads as failed
+  ---
+  duration_ms: 0.573457
+  ...
+# Subtest: a present library is not reported missing when ldconfig writes past a pipe buffer
+ok 104 - a present library is not reported missing when ldconfig writes past a pipe buffer
+  ---
+  duration_ms: 1280.68946
+  ...
+# Subtest: start.sh installs the fork with npm ci --ignore-scripts, never a bare npm ci
+ok 105 - start.sh installs the fork with npm ci --ignore-scripts, never a bare npm ci
+  ---
+  duration_ms: 1228.697365
+  ...
+# Subtest: start.sh does not install a fork whose tree is already complete
+ok 106 - start.sh does not install a fork whose tree is already complete
+  ---
+  duration_ms: 1234.405964
+  ...
+# Subtest: a failing fork install is a FAIL with the log tail, not BLOCKED
+ok 107 - a failing fork install is a FAIL with the log tail, not BLOCKED
+  ---
+  duration_ms: 191.307529
+  ...
+# Subtest: a missing network for the fork is BLOCKED, not FAILED
+ok 108 - a missing network for the fork is BLOCKED, not FAILED
+  ---
+  duration_ms: 162.467239
+  ...
+# Subtest: start.sh names the failing step and its args when lib.mjs errors
+ok 109 - start.sh names the failing step and its args when lib.mjs errors
+  ---
+  duration_ms: 185.595511
+  ...
+# Subtest: document-step PASSes when the app leaves a working copy for the fixture document
+ok 110 - document-step PASSes when the app leaves a working copy for the fixture document
+  ---
+  duration_ms: 124.340447
+  ...
+# Subtest: document-step is BLOCKED when the app has no desktop session and left no working copy
+ok 111 - document-step is BLOCKED when the app has no desktop session and left no working copy
+  ---
+  duration_ms: 109.810082
+  ...
+# Subtest: document-step FAILs, naming the signal, when the handoff itself dies even without a session
+ok 112 - document-step FAILs, naming the signal, when the handoff itself dies even without a session
+  ---
+  duration_ms: 128.242149
+  ...
+# Subtest: document-step FAILs when a signed-in app is handed the link and does not open it
+ok 113 - document-step FAILs when a signed-in app is handed the link and does not open it
+  ---
+  duration_ms: 2088.0622
+  ...
+# Subtest: sample-ac FAILs (exit 1), not BLOCKED, after a start that failed
+ok 114 - sample-ac FAILs (exit 1), not BLOCKED, after a start that failed
+  ---
+  duration_ms: 38.155406
+  ...
+# Subtest: sample-ac FAILs when start.sh never finished
+ok 115 - sample-ac FAILs when start.sh never finished
+  ---
+  duration_ms: 44.469327
+  ...
+# Subtest: sample-ac is BLOCKED only with the reason start.sh recorded
+ok 116 - sample-ac is BLOCKED only with the reason start.sh recorded
+  ---
+  duration_ms: 37.04285
+  ...
+# Subtest: document-step FAILs (exit 1), not BLOCKED, after a start that failed
+ok 117 - document-step FAILs (exit 1), not BLOCKED, after a start that failed
+  ---
+  duration_ms: 40.006346
+  ...
+# Subtest: document-step FAILs when start.sh never finished
+ok 118 - document-step FAILs when start.sh never finished
+  ---
+  duration_ms: 35.446239
+  ...
+# Subtest: document-step is BLOCKED only with the reason start.sh recorded
+ok 119 - document-step is BLOCKED only with the reason start.sh recorded
+  ---
+  duration_ms: 37.044911
+  ...
+# Subtest: parseWaitSignin reads the flag, with or without a number
+ok 120 - parseWaitSignin reads the flag, with or without a number
+  ---
+  duration_ms: 0.203439
+  ...
+# Subtest: activeDesktopDevice wants the dev client, this deployment, not revoked, not expired
+ok 121 - activeDesktopDevice wants the dev client, this deployment, not revoked, not expired
+  ---
+  duration_ms: 0.188737
+  ...
+# Subtest: document-step reuses an account from the environment and writes no secret anywhere
+ok 122 - document-step reuses an account from the environment and writes no secret anywhere
+  ---
+  duration_ms: 106.883328
+  ...
+# Subtest: document-step is BLOCKED, and delivers nothing, when the reused account has no desktop session
+ok 123 - document-step is BLOCKED, and delivers nothing, when the reused account has no desktop session
+  ---
+  duration_ms: 107.86232
+  ...
+# Subtest: --wait-signin prints the steps, waits for the sign-in, then opens the document
+ok 124 - --wait-signin prints the steps, waits for the sign-in, then opens the document
+  ---
+  duration_ms: 4096.736824
+  ...
+# Subtest: --wait-signin that never sees a sign-in is BLOCKED with the wait in the reason
+ok 125 - --wait-signin that never sees a sign-in is BLOCKED with the wait in the reason
+  ---
+  duration_ms: 2083.160791
+  ...
+# Subtest: --wait-signin with a seeded account keeps its random password in a 0600 file while it waits, never in the output
+ok 126 - --wait-signin with a seeded account keeps its random password in a 0600 file while it waits, never in the output
+  ---
+  duration_ms: 6109.601694
+  ...
+# Subtest: the unattended cloud run seeds with no sign-in check and no credentials file
+ok 127 - the unattended cloud run seeds with no sign-in check and no credentials file
+  ---
+  duration_ms: 110.151029
+  ...
+# Subtest: an email without a password (or the reverse) is a usage error, not a guess
+ok 128 - an email without a password (or the reverse) is a usage error, not a guess
+  ---
+  duration_ms: 33.876251
+  ...
+# Subtest: a wrong password for a reused account is a FAIL
+ok 129 - a wrong password for a reused account is a FAIL
+  ---
+  duration_ms: 78.022113
+  ...
+# Subtest: document-step's own evidence line is complete: verify finds nothing wrong with it
+ok 130 - document-step's own evidence line is complete: verify finds nothing wrong with it
+  ---
+  duration_ms: 127.747874
+  ...
+# Subtest: a BLOCKED document-step line and a start-gate line also pass verify
+ok 131 - a BLOCKED document-step line and a start-gate line also pass verify
+  ---
+  duration_ms: 135.817456
+  ...
+# Subtest: the second instance gets the allow-listed env, not the harness's
+ok 132 - the second instance gets the allow-listed env, not the harness's
+  ---
+  duration_ms: 1092.285661
+  ...
+# Subtest: the second instance is in the pids file while it lives and gone when it exits
+ok 133 - the second instance is in the pids file while it lives and gone when it exits
+  ---
+  duration_ms: 1089.943898
+  ...
+# Subtest: a second instance that does not exit is killed as a group, not left behind
+ok 134 - a second instance that does not exit is killed as a group, not left behind
+  ---
+  duration_ms: 1887.515189
+  ...
+# Subtest: the seeded organization is removed by id; the owner account is a logged leftover, not a /me/delete 409
+ok 135 - the seeded organization is removed by id; the owner account is a logged leftover, not a /me/delete 409
+  ---
+  duration_ms: 111.325354
+  ...
+# Subtest: without a seeded organization the seeded account is deleted by the step
+ok 136 - without a seeded organization the seeded account is deleted by the step
+  ---
+  duration_ms: 105.203042
+  ...
+# Subtest: a seeding FAIL prints the failing request and reason, never a token, and cleanup still runs
+ok 137 - a seeding FAIL prints the failing request and reason, never a token, and cleanup still runs
+  ---
+  duration_ms: 100.478985
+  ...
+# Subtest: under the evidence runner a FAIL's reason is in the artifact and echoed to the round log
+ok 138 - under the evidence runner a FAIL's reason is in the artifact and echoed to the round log
+  ---
+  duration_ms: 127.243299
+  ...
+# Subtest: a failed cleanup does not turn a BLOCKED step into a FAIL
+ok 139 - a failed cleanup does not turn a BLOCKED step into a FAIL
+  ---
+  duration_ms: 94.56008
+  ...
+# Subtest: a reused account is never cleaned up
+ok 140 - a reused account is never cleaned up
+  ---
+  duration_ms: 95.851156
+  ...
+# Subtest: a cleanup that fails is reported and does not change the result
+ok 141 - a cleanup that fails is reported and does not change the result
+  ---
+  duration_ms: 99.148801
+  ...
+# Subtest: stop.sh removes the run's uploads and server cwd by path and keeps logs and evidence
+ok 142 - stop.sh removes the run's uploads and server cwd by path and keeps logs and evidence
+  ---
+  duration_ms: 8.631338
+  ...
+# Subtest: case files are present and carry the §9.2 shape and counts (always on, no skip)
+ok 143 - case files are present and carry the §9.2 shape and counts (always on, no skip)
+  ---
+  duration_ms: 1.079686
+  ...
+# Subtest: every case satisfies the shared contract schema
+ok 144 - every case satisfies the shared contract schema
+  ---
+  duration_ms: 2.411217
+  ...
+# Subtest: fixtures[] hash the manifest, the fixtures exist and their oracle sidecars agree
+ok 145 - fixtures[] hash the manifest, the fixtures exist and their oracle sidecars agree
+  ---
+  duration_ms: 4.678021
+  ...
+# Subtest: ground truth comes from the fixture oracle sidecars or a committed derivation
+ok 146 - ground truth comes from the fixture oracle sidecars or a committed derivation
+  ---
+  duration_ms: 154.492227
+  ...
+# Subtest: the committed XLSX truth script agrees with xlsx.json (every number recomputed from the workbook)
+ok 147 - the committed XLSX truth script agrees with xlsx.json (every number recomputed from the workbook)
+  ---
+  duration_ms: 34.795843
+  ...
+# Subtest: the scorer passes every reference answer and never fails one
+ok 148 - the scorer passes every reference answer and never fails one
+  ---
+  duration_ms: 4.385405
+  ...
+# Subtest: a deterministic case with no caveat must be a plain PASS, not needs_reviewer
+ok 149 - a deterministic case with no caveat must be a plain PASS, not needs_reviewer
+  ---
+  duration_ms: 2.310614
+  ...
+# Subtest: the scorer is red on a wrong number, an extra write, a missing tool and a tool outside the allowlist
+ok 150 - the scorer is red on a wrong number, an extra write, a missing tool and a tool outside the allowlist
+  ---
+  duration_ms: 7.982433
+  ...
+# Subtest: the scorer fails closed when the answer reports no tools field (amendment 4)
+ok 151 - the scorer fails closed when the answer reports no tools field (amendment 4)
+  ---
+  duration_ms: 7.502953
+  ...
+# Subtest: the scorer fails closed when a mustNotContain case reports no text field (R1-1)
+ok 152 - the scorer fails closed when a mustNotContain case reports no text field (R1-1)
+  ---
+  duration_ms: 2.008285
+  ...
+# Subtest: zero-width or other invisible-only text counts as blank in the mustNotContain guard (R3-1)
+ok 153 - zero-width or other invisible-only text counts as blank in the mustNotContain guard (R3-1)
+  ---
+  duration_ms: 3.090783
+  ...
+# Subtest: a cell/formula/table_cell anchor is an identity, not a substring (R1-2)
+ok 154 - a cell/formula/table_cell anchor is an identity, not a substring (R1-2)
+  ---
+  duration_ms: 0.45237
+  ...
+# Subtest: a mustNotContain token is still caught when the reply changes its diacritics (R1-3)
+ok 155 - a mustNotContain token is still caught when the reply changes its diacritics (R1-3)
+  ---
+  duration_ms: 0.694364
+  ...
+# Subtest: toNumber accepts a number with its unit and still refuses prose (R1-4)
+ok 156 - toNumber accepts a number with its unit and still refuses prose (R1-4)
+  ---
+  duration_ms: 10.824102
+  ...
+# Subtest: a mustNotContain token echoed inside a structural anchor is caught (R1-8)
+ok 157 - a mustNotContain token echoed inside a structural anchor is caught (R1-8)
+  ---
+  duration_ms: 0.668136
+  ...
+# Subtest: containsToken does not squash separators other than whitespace (R1-9)
+ok 158 - containsToken does not squash separators other than whitespace (R1-9)
+  ---
+  duration_ms: 0.209385
+  ...
+# Subtest: the provenance gate needs a real truth key, not just a .mjs\# citation (R1-5)
+ok 159 - the provenance gate needs a real truth key, not just a .mjs\# citation (R1-5)
+  ---
+  duration_ms: 6.617957
+  ...
+# Subtest: a cell: citation with a multi-word anchor and a range reaches the truth table (R2-3)
+ok 160 - a cell: citation with a multi-word anchor and a range reaches the truth table (R2-3)
+  ---
+  duration_ms: 0.46584
+  ...
+# Subtest: setup.removeCells is accepted and validated (amendment 4, R1-11)
+ok 161 - setup.removeCells is accepted and validated (amendment 4, R1-11)
+  ---
+  duration_ms: 0.372857
+  ...
+# Subtest: an unknown key is refused at every level of a case (R1-12)
+ok 162 - an unknown key is refused at every level of a case (R1-12)
+  ---
+  duration_ms: 0.581586
+  ...
+# Subtest: a \#numberFormat probe is documented and graded as a format, not a cell value (N2)
+ok 163 - a \#numberFormat probe is documented and graded as a format, not a cell value (N2)
+  ---
+  duration_ms: 0.413692
+  ...
+# Subtest: the stale group covers stale apply / silent overwrite, not only read-only caveats (reviewer H2)
+ok 164 - the stale group covers stale apply / silent overwrite, not only read-only caveats (reviewer H2)
+  ---
+  duration_ms: 0.12607
+  ...
+# Subtest: no case query contains another case's expected numeric answer (contract amendment 4)
+ok 165 - no case query contains another case's expected numeric answer (contract amendment 4)
+  ---
+  duration_ms: 17.343854
+  ...
+# Subtest: the scorer is red when the reply echoes an injected token
+ok 166 - the scorer is red when the reply echoes an injected token
+  ---
+  duration_ms: 0.728692
+  ...
+# Subtest: the scorer is red on a missing structural fact and on an unknown operation
+ok 167 - the scorer is red on a missing structural fact and on an unknown operation
+  ---
+  duration_ms: 1.989846
+  ...
+# Subtest: a malformed case fails the scorer instead of scoring it
+ok 168 - a malformed case fails the scorer instead of scoring it
+  ---
+  duration_ms: 0.187886
+  ...
+# Subtest: quality bar: each category carries the assertion the spec demands
+ok 169 - quality bar: each category carries the assertion the spec demands
+  ---
+  duration_ms: 0.534193
+  ...
+# Subtest: setup is accepted and validated: overlay, history, selection, serverVersionAhead, activeSheet, revokeAfterTool
+ok 170 - setup is accepted and validated: overlay, history, selection, serverVersionAhead, activeSheet, revokeAfterTool
+  ---
+  duration_ms: 0.465836
+  ...
+# Subtest: case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)
+ok 171 - case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)
+  ---
+  duration_ms: 832.688825
+  ...
+# Subtest: the leak scan finds an injection payload and a marker outside the holdout dir, binary included (R1-6)
+ok 172 - the leak scan finds an injection payload and a marker outside the holdout dir, binary included (R1-6)
+  ---
+  duration_ms: 51.874193
+  ...
+# Subtest: the leak scan keeps money-scale numbers and finds one planted outside the holdout dir, text and binary (R2-2)
+ok 173 - the leak scan keeps money-scale numbers and finds one planted outside the holdout dir, text and binary (R2-2)
+  ---
+  duration_ms: 54.587565
+  ...
+# Subtest: loadCases reads the directory and refuses a foreign document
+ok 174 - loadCases reads the directory and refuses a foreign document
+  ---
+  duration_ms: 2.335844
+  ...
+# Subtest: two generations are byte-identical (fixtures, oracles, manifest)
+ok 175 - two generations are byte-identical (fixtures, oracles, manifest)
+  ---
+  duration_ms: 20.471803
+  ...
+# Subtest: committed files equal the generator output, with no unexpected files
+ok 176 - committed files equal the generator output, with no unexpected files
+  ---
+  duration_ms: 5.978993
+  ...
+# Subtest: manifest lists the six required formats and matches the files byte for byte
+ok 177 - manifest lists the six required formats and matches the files byte for byte
+  ---
+  duration_ms: 0.958759
+  ...
+# Subtest: --list prints the sha256 of every committed fixture AND its oracle sidecar
+ok 178 - --list prints the sha256 of every committed fixture AND its oracle sidecar
+  ---
+  duration_ms: 58.998068
+  ...
+# Subtest: OOXML fixtures are valid STORE zips with fixed metadata and sorted entries
+ok 179 - OOXML fixtures are valid STORE zips with fixed metadata and sorted entries
+  ---
+  duration_ms: 0.732082
+  ...
+# Subtest: XLSX carries every trait the spec requires
+ok 180 - XLSX carries every trait the spec requires
+  ---
+  duration_ms: 0.446827
+  ...
+# Subtest: the XLSX oracle documents the share basis of Tổng hợp column E and the Z > 1 rule
+ok 181 - the XLSX oracle documents the share basis of Tổng hợp column E and the Z > 1 rule
+  ---
+  duration_ms: 0.291582
+  ...
+# Subtest: PDF has a text layer, one page and embedded fonts; MD/HTML carry their markers
+ok 182 - PDF has a text layer, one page and embedded fonts; MD/HTML carry their markers
+  ---
+  duration_ms: 0.310772
+  ...
+1..182
+# tests 182
+# suites 0
+# pass 182
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 33938.808878

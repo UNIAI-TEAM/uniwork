@@ -1,0 +1,20 @@
+$ node scripts/office/g5g6g7/make-fixtures.mjs --check && node scripts/office/g5g6g7/make-fixtures.mjs --list && sha256sum docs/office/g5g6g7/fixtures/*.xlsx docs/office/g5g6g7/fixtures/*.docx docs/office/g5g6g7/fixtures/*.pptx docs/office/g5g6g7/fixtures/*.pdf docs/office/g5g6g7/fixtures/*.md docs/office/g5g6g7/fixtures/*.html
+make-fixtures --check: OK (6 fixtures, bytes and hashes match)
+a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446  docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.xlsx
+7ecbbe369a5395e87bcc5f501f6ef0f6e64fc40929d5cb7f19730029902b0e32  docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.oracle.json
+5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c  docs/office/g5g6g7/fixtures/fx-docx-report-vi.docx
+d3055d0577a3e47f0fd67d241f6ed6ac490c656f2016ab1cd7be187eb3865709  docs/office/g5g6g7/fixtures/fx-docx-report-vi.oracle.json
+958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20  docs/office/g5g6g7/fixtures/fx-pptx-deck-vi.pptx
+4ecc1fd7635074ce4fd763702c3aae6ccfe8050b14b00185ffc883fad3502697  docs/office/g5g6g7/fixtures/fx-pptx-deck-vi.oracle.json
+17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd  docs/office/g5g6g7/fixtures/fx-pdf-invoice-vi.pdf
+484f2c3fde649fea6fc244ed900f78adfb829513f1d4b9eb32b9bfc68f552cfb  docs/office/g5g6g7/fixtures/fx-pdf-invoice-vi.oracle.json
+e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def  docs/office/g5g6g7/fixtures/fx-md-notes-vi.md
+878bd37758dafd3e2f7eb12da5c8c37bd15f8262ea346cbc15e0bd6091e326b2  docs/office/g5g6g7/fixtures/fx-md-notes-vi.oracle.json
+e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884  docs/office/g5g6g7/fixtures/fx-html-page-vi.html
+f5a56d708059ec979840d33be0caa9e6ee983deb98b0e91eade0f703315c3988  docs/office/g5g6g7/fixtures/fx-html-page-vi.oracle.json
+a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446  docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.xlsx
+5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c  docs/office/g5g6g7/fixtures/fx-docx-report-vi.docx
+958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20  docs/office/g5g6g7/fixtures/fx-pptx-deck-vi.pptx
+17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd  docs/office/g5g6g7/fixtures/fx-pdf-invoice-vi.pdf
+e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def  docs/office/g5g6g7/fixtures/fx-md-notes-vi.md
+e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884  docs/office/g5g6g7/fixtures/fx-html-page-vi.html
