@@ -61,8 +61,8 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 
 	d.Post("/workspaces/{workspaceID}/documents", h.CreateDocument, apiOp{
-		summary: "Create a page document",
-		description: "Tạo trang trong workspace. Body JSON (≤ 2 MiB content + envelope): title, kind=page, parent_id, icon, content ProseMirror {type:\"doc\"} (server sanitize), visibility workspace|restricted. " +
+		summary: "Create a page or folder document",
+		description: "Tạo trang hoặc thư mục trong workspace. Body JSON (≤ 2 MiB content + envelope): title, kind=page|folder, parent_id (trang/thư mục; thư mục chỉ nằm ở gốc hoặc trong thư mục, sai -> 422 document_parent_kind), thư mục không nhận content (-> 422 folder_not_supported), icon, content ProseMirror {type:\"doc\"} (server sanitize), visibility workspace|restricted. " +
 			"Idempotency-Key ràng create với fingerprint payload: replay trả lại trang đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentSDI{},
@@ -401,7 +401,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/move", h.MoveDocument, apiOp{
 		summary:     "Move a document",
-		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình -> 422 document_cycle, quá 5 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
+		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình (kể cả thư mục vào chính nó hoặc thư mục con) -> 422 document_cycle, cha sai loại -> 422 document_parent_kind, quá 5 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
 		tags:        []string{"documents"},
 		sdi:         sdi.MoveDocumentSDI{},
 		sdo:         sdo.DocumentSDO{},
@@ -409,7 +409,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/archive", h.ArchiveDocument, apiOp{
 		summary:     "Archive a document subtree",
-		description: "Đưa tài liệu và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh. Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Đưa tài liệu (hoặc thư mục) và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh. Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,

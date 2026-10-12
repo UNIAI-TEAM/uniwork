@@ -113,7 +113,7 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 			return errDocumentVersionConflict(locked.Revision)
 		}
 		if in.ParentID != "" {
-			if _, err := s.lockPageParent(ctx, q, actor, in.ParentID, locked.OrganizationID, locked.WorkspaceID); err != nil {
+			if _, err := s.lockPageParent(ctx, q, actor, in.ParentID, locked.OrganizationID, locked.WorkspaceID, DocumentKindFile); err != nil {
 				return err
 			}
 		}
