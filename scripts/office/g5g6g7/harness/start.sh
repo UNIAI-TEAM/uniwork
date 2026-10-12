@@ -237,12 +237,17 @@ FORK_DIR="$(node -e 'import(process.argv[1]).then((m) => process.stdout.write(m.
 mkdir -p "$FORK_CACHE"
 if [ ! -d "$FORK_DIR/.git" ]; then
   echo "harness: cloning the fork at $FORK_SHA..."
-  rm -rf "$FORK_DIR"
-  git clone -q "$FORK_REMOTE" "$FORK_DIR" > "$RUN_DIR/logs/fork-clone.log" 2>&1 \
+  # Replace a half-written cache entry through a staging dir, so a failed clone
+  # can never leave a directory that looks like a checkout.
+  rm -rf "$FORK_DIR.staging"
+  git clone -q "$FORK_REMOTE" "$FORK_DIR.staging" > "$RUN_DIR/logs/fork-clone.log" 2>&1 \
     || { tail -20 "$RUN_DIR/logs/fork-clone.log" >&2; blocked "could not clone $FORK_REMOTE" "give the VM network access to the fork, or pre-clone it at OFFICE_FORK_CACHE"; }
+  mv "$FORK_DIR.staging" "$FORK_DIR"
 fi
+# Fetching a bare SHA needs the server to allow it, so a miss fetches the
+# branches (the pinned base is on the default branch) and re-checks.
 if ! git -C "$FORK_DIR" cat-file -e "$FORK_SHA^{commit}" 2> /dev/null; then
-  git -C "$FORK_DIR" fetch -q origin "$FORK_SHA" > "$RUN_DIR/logs/fork-fetch.log" 2>&1 || true
+  git -C "$FORK_DIR" fetch -q origin > "$RUN_DIR/logs/fork-fetch.log" 2>&1 || true
 fi
 git -C "$FORK_DIR" cat-file -e "$FORK_SHA^{commit}" 2> /dev/null \
   || blocked "the fork checkout has no commit $FORK_SHA" "check OFFICE_FORK_SHA; the pinned base is 0d03b18"
