@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4
+05f5aef7a90101e6fca08d4689d8102b93979282
+e6862e5302805bd6a25893e6ff2c082a2dca3a34
+05f5aef7 test(sheets-web): prove WEBSERVICE/FILTERXML never run or reach the network on the wasm engine
+7b0f0041 test(sheets): type the compare_ranges row mock as a successful outcome
+afacde5f feat(sheets): add read-only compare_ranges reconcile tool
+552d28bb test(sheets): pin a read-only compare_ranges reconcile tool

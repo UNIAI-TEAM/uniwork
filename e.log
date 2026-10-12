@@ -1,0 +1,12 @@
+$ npx eslint apps/sheets/src/renderer/App.tsx apps/sheets/src/renderer/ai/aggregate-range.ts apps/sheets/src/renderer/ai/cell-read.ts apps/sheets/src/renderer/ai/range-rows.ts apps/sheets/src/renderer/ai/reconcile.ts apps/sheets/src/renderer/ai/summarize.ts apps/sheets/src/renderer/ai/tools.ts apps/sheets/src/renderer/ai/total-rows.ts apps/sheets/src/renderer/ai/view-only-skill.ts apps/sheets/src/renderer/ai/workbook-readers.ts apps/sheets/src/renderer/univer-sync.ts apps/sheets/tests/g6-12-cell-types.test.ts apps/sheets/tests/g6-12-compare-ranges.test.ts apps/sheets/tests/g6-12-formula-cache-flag.test.ts apps/sheets/tests/g6-12-hidden-rows.test.ts apps/sheets/tests/g6-12-read-cells-truncation.test.ts apps/sheets/tests/g6-12-summarize-range.test.ts apps/sheets/tests/g6-12-total-rows.test.ts apps/sheets/tests/g6-12-unsupported-function.test.ts apps/sheets/tests/g6-12-webservice-engine.test.ts apps/sheets/tests/workbook-skill-tools.test.ts web/modules/sheets/g6-12-webservice-web-engine.test.ts
+
+/home/ubuntu/work/uniwork-office/apps/sheets/src/renderer/App.tsx
+  3367:77  warning  The ref value 'visualInstallTimerRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'visualInstallTimerRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+  3368:43  warning  The ref value 'visualDisposablesRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'visualDisposablesRef.current' to a variable inside the effect, and use that variable in the cleanup function    react-hooks/exhaustive-deps
+  3379:6   warning  React Hook useEffect has missing dependencies: 'handleInspectWorkbook', 'installPageBreakLayers', 'queueChartDataSync', 'recomputeSheetContent', 'visualContext', and 'visualSyncContext'. Either include them or remove the dependency array                                              react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/sheets/src/renderer/ai/workbook-readers.ts
+  542:11  error  The value assigned to 'provenance' is not used in subsequent statements  no-useless-assignment
+
+✖ 4 problems (1 error, 3 warnings)
+

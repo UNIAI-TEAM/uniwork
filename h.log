@@ -1,0 +1,910 @@
+$ git checkout e6862e53 -- apps/sheets/src && (cd apps/sheets && npx vitest run tests/g6-12-cell-types.test.ts tests/g6-12-compare-ranges.test.ts tests/g6-12-formula-cache-flag.test.ts tests/g6-12-hidden-rows.test.ts tests/g6-12-read-cells-truncation.test.ts tests/g6-12-summarize-range.test.ts tests/g6-12-total-rows.test.ts tests/g6-12-unsupported-function.test.ts); RED=$?; git checkout HEAD -- apps/sheets/src; git status --short apps/sheets/src; echo "RED_EXIT=$RED"; test $RED -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+ ❯ tests/g6-12-hidden-rows.test.ts (8 tests | 8 failed) 23ms
+     × demo: includes hidden rows by default and reports how many 6ms
+     × demo: skips hidden and filtered rows on request and reports how many 2ms
+     × lazy: counts file-hidden rows and rows the live filter hides 2ms
+     × includes hidden rows by default and says so with the count 8ms
+     × skips hidden rows when asked and says so with the count 1ms
+     × declares the option in its input schema 1ms
+     × labels hidden and filtered rows in the grid and lists them 1ms
+     × reads row visibility from the live grid 0ms
+ ❯ tests/g6-12-formula-cache-flag.test.ts (14 tests | 8 failed) 34ms
+     × reports the indexed formula and the cache source of a streamed cell 10ms
+     × marks engine-owned formulas as engine results 1ms
+     × read_cells labels cache values and replaces stale ones with "not recalculated" 4ms
+     × read_range shows NOT RECALCULATED in the grid for a stale cache 2ms
+     × aggregate_range withholds statistics built on stale cached formula values 7ms
+     × aggregate_range labels fresh cached formula values 1ms
+     × flags sidecar formula values as cached, stale after an edit 2ms
+     × is not stale when nothing was edited 1ms
+ ❯ tests/g6-12-unsupported-function.test.ts (5 tests | 5 failed) 327ms
+     × lists the functions the running engine lacks 3ms
+     × says nothing before the registry is ready 1ms
+     × demo read of a #NAME? formula names the missing function 5ms
+     × read_cells explains a #NAME? and a blank fallback instead of passing them on silently 3ms
+     × propose_operations read-back names the unsupported function of a written formula 314ms
+ ❯ tests/g6-12-compare-ranges.test.ts (7 tests | 3 failed) 16ms
+     × is declared read-only with an input schema and offered on view-only workbooks 6ms
+     × reports matched / missing / different with coverage 3ms
+     × withholds the comparison when compared values are stale cached formulas 2ms
+ ❯ tests/g6-12-total-rows.test.ts (8 tests | 3 failed) 16ms
+     × lists the skipped total rows with the reason and reads from the first column for labels 5ms
+     × declares includeTotalRows 2ms
+     × lazy: sidecar formulas and journal formulas 2ms
+ ❯ tests/g6-12-summarize-range.test.ts (13 tests | 6 failed) 19ms
+     × is a declared, read-only tool with an input schema, offered on view-only workbooks 5ms
+     × computes in code and reports range, filter, coverage and hidden rows 3ms
+     × rejects sum without a value column and columns outside the range 2ms
+     × withholds a result built on stale cached formula values 1ms
+     × demo: returns values per row with hidden flags 2ms
+     × lazy: merges sidecar cells, journal edits and fills, flags cached formulas 1ms
+ ❯ tests/g6-12-read-cells-truncation.test.ts (2 tests | 1 failed) 12ms
+     × says how many were asked, how many were read, and how to get the rest 10ms
+ ❯ tests/g6-12-cell-types.test.ts (23 tests | 5 failed) 17ms
+     × read_cells tells 10 % from 10 and from the text "10" 7ms
+     × read_range keeps the grid and lists typed cells below it 2ms
+     × describes the convention in the tool descriptions 1ms
+     × a 10 % cell reads the same in both modes 1ms
+     × a plain General number reads the same in both modes 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 39 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-cell-types.test.ts > g6-12 #19: read_cells / read_range carry type, raw value and format > read_cells tells 10 % from 10 and from the text "10"
+AssertionError: expected [ 'A1: 10%', 'A2: 10', 'A3: 10', …(1) ] to deeply equal [ …(4) ]
+
+- Expected
++ Received
+
+  [
+-   "A1: 10% [percent; raw 0.1; format 0%]",
++   "A1: 10%",
+    "A2: 10",
+-   "A3: 10 [text]",
++   "A3: 10",
+    "A4: Hà Nội",
+  ]
+
+ ❯ tests/g6-12-cell-types.test.ts:81:39
+     79|       deps({ readCells: vi.fn().mockReturnValue(cells) }),
+     80|     )
+     81|     expect(result.output.split('\n')).toEqual([
+       |                                       ^
+     82|       'A1: 10% [percent; raw 0.1; format 0%]',
+     83|       'A2: 10',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/39]⎯
+
+ FAIL  tests/g6-12-cell-types.test.ts > g6-12 #19: read_cells / read_range carry type, raw value and format > read_range keeps the grid and lists typed cells below it
+AssertionError: expected 'Read metadata: requested range A1:A4;…' to contain 'Cell types'
+
+- Expected
++ Received
+
+- Cell types
++ Read metadata: requested range A1:A4; worksheet data extent is unknown. Do not infer total rows or records from the requested range.
++ 	A
++ 1	10%
++ 2	10
++ 3	10
++ 4	Hà Nội
+
+ ❯ tests/g6-12-cell-types.test.ts:97:27
+     95|     const lines = result.output.split('\n')
+     96|     expect(lines.slice(1, 6)).toEqual(['\tA', '1\t10%', '2\t10', '3\t1…
+     97|     expect(result.output).toContain('Cell types')
+       |                           ^
+     98|     expect(result.output).toContain('A1: percent; raw 0.1; format 0%')
+     99|     expect(result.output).toContain('A3: text')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/39]⎯
+
+ FAIL  tests/g6-12-cell-types.test.ts > g6-12 #19: read_cells / read_range carry type, raw value and format > describes the convention in the tool descriptions
+AssertionError: expected 'Read current values/formulas of speci…' to contain '[type; raw'
+
+Expected: "[type; raw"
+Received: "Read current values/formulas of specific scattered cells (use read_range for contiguous regions). Always read the affected cells before writing — never assume their contents."
+
+ ❯ tests/g6-12-cell-types.test.ts:107:33
+    105|     for (const name of ['read_cells', 'read_range']) {
+    106|       const tool = WORKBOOK_TOOLS.find((entry) => entry.name === name)
+    107|       expect(tool?.description).toContain('[type; raw')
+       |                                 ^
+    108|     }
+    109|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/39]⎯
+
+ FAIL  tests/g6-12-cell-types.test.ts > g6-12 #19: demo and lazy readers give the same shape > a 10 % cell reads the same in both modes
+AssertionError: expected { value: 0.1 } to deeply equal { value: '10%', rawValue: 0.1, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "numberFormat": "0%",
+-   "rawValue": 0.1,
+-   "type": "percent",
+-   "value": "10%",
++   "value": 0.1,
+  }
+
+ ❯ tests/g6-12-cell-types.test.ts:157:43
+    155|     } as unknown as WorkbookReadContext
+    156|     const expected = { value: '10%', rawValue: 0.1, type: 'percent', n…
+    157|     expect(readCells(demo, ['A1'])['A1']).toEqual(expected)
+       |                                           ^
+    158|     expect(readCells(lazy, ['A1'])['A1']).toEqual(expected)
+    159|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/39]⎯
+
+ FAIL  tests/g6-12-cell-types.test.ts > g6-12 #19: demo and lazy readers give the same shape > a plain General number reads the same in both modes
+AssertionError: expected { value: 10 } to deeply equal { value: '10', rawValue: 10 }
+
+- Expected
++ Received
+
+  {
+-   "rawValue": 10,
+-   "value": "10",
++   "value": 10,
+  }
+
+ ❯ tests/g6-12-cell-types.test.ts:180:43
+    178|       adapterRef: { current: { getSnapshot: () => ({ revision: 0, shee…
+    179|     } as unknown as WorkbookReadContext
+    180|     expect(readCells(demo, ['A1'])['A1']).toEqual(readCells(lazy, ['A1…
+       |                                           ^
+    181|     expect(readCells(demo, ['A1'])['A1']).toMatchObject({ rawValue: 10…
+    182|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/39]⎯
+
+ FAIL  tests/g6-12-compare-ranges.test.ts > g6-12 #24b: compare_ranges tool > is declared read-only with an input schema and offered on view-only workbooks
+AssertionError: expected undefined to match object { type: 'object', required: [ …(4) ] }
+
+- Expected:
+{
+  "required": [
+    "leftRange",
+    "leftKey",
+    "rightRange",
+    "rightKey",
+  ],
+  "type": "object",
+}
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-compare-ranges.test.ts:139:31
+    137|   it('is declared read-only with an input schema and offered on view-o…
+    138|     const tool = WORKBOOK_TOOLS.find((entry) => entry.name === 'compar…
+    139|     expect(tool?.inputSchema).toMatchObject({
+       |                               ^
+    140|       type: 'object',
+    141|       required: ['leftRange', 'leftKey', 'rightRange', 'rightKey'],
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/39]⎯
+
+ FAIL  tests/g6-12-compare-ranges.test.ts > g6-12 #24b: compare_ranges tool > reports matched / missing / different with coverage
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-12-compare-ranges.test.ts:162:28
+    160|       deps({ collectRows }),
+    161|     )) as ToolExecution
+    162|     expect(result.isError).toBeFalsy()
+       |                            ^
+    163|     expect(result.mutated).toBe(false)
+    164|     expect(collectRows).toHaveBeenCalledWith(undefined, expect.objectC…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/39]⎯
+
+ FAIL  tests/g6-12-compare-ranges.test.ts > g6-12 #24b: compare_ranges tool > withholds the comparison when compared values are stale cached formulas
+AssertionError: expected 'Unknown tool: compare_ranges' to contain 'NOT RECALCULATED'
+
+Expected: "NOT RECALCULATED"
+Received: "Unknown tool: compare_ranges"
+
+ ❯ tests/g6-12-compare-ranges.test.ts:222:27
+    220|       deps({ collectRows: vi.fn().mockResolvedValue({ ok: true, rows, …
+    221|     )) as ToolExecution
+    222|     expect(result.output).toContain('NOT RECALCULATED')
+       |                           ^
+    223|     expect(result.output).not.toContain('matched keys')
+    224|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/39]⎯
+
+ FAIL  tests/g6-12-formula-cache-flag.test.ts > g6-12 #22: readCells carries the flag in lazy mode > reports the indexed formula and the cache source of a streamed cell
+AssertionError: expected { value: 7, rawValue: 7 } to match object { formula: '=SUM(A1)', …(2) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "formula": "=SUM(A1)",
+-   "staleCache": true,
+-   "valueSource": "cache",
++   "rawValue": 7,
++   "value": 7,
+  }
+
+ ❯ tests/g6-12-formula-cache-flag.test.ts:149:18
+    147|     const state = lazyState({ formulaText: { '1:0': '=SUM(A1)' }, edit…
+    148|     const cell = readCells(lazyCtx(state, { v: 7, display: 7 }), ['A2'…
+    149|     expect(cell).toMatchObject({ formula: '=SUM(A1)', valueSource: 'ca…
+       |                  ^
+    150|   })
+    151|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/39]⎯
+
+ FAIL  tests/g6-12-formula-cache-flag.test.ts > g6-12 #22: readCells carries the flag in lazy mode > marks engine-owned formulas as engine results
+AssertionError: expected { value: 2, formula: '=1+1', …(1) } to match object { formula: '=1+1', …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "formula": "=1+1",
+-   "valueSource": "engine",
+  }
+
+ ❯ tests/g6-12-formula-cache-flag.test.ts:155:18
+    153|     const state = lazyState({ formulaMode: true })
+    154|     const cell = readCells(lazyCtx(state, { f: '=1+1', v: 2, display: …
+    155|     expect(cell).toMatchObject({ formula: '=1+1', valueSource: 'engine…
+       |                  ^
+    156|     expect(cell?.staleCache).toBeFalsy()
+    157|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/39]⎯
+
+ FAIL  tests/g6-12-formula-cache-flag.test.ts > g6-12 #22: tools never present a stale cache as the answer > read_cells labels cache values and replaces stale ones with "not recalculated"
+AssertionError: expected 'A2: 7 (=SUM(A1))' to contain 'cached value from the file'
+
+Expected: "cached value from the file"
+Received: "A2: 7 (=SUM(A1))"
+
+ ❯ tests/g6-12-formula-cache-flag.test.ts:210:22
+    208|     expect(lines[0]).toBe('A1: 2 (=1+1)')
+    209|     expect(lines[1]).toContain('A2: 7 (=SUM(A1))')
+    210|     expect(lines[1]).toContain('cached value from the file')
+       |                      ^
+    211|     expect(lines[2]).toMatch(/^A3: NOT RECALCULATED \(=SUM\(B1\)\)/)
+    212|     expect(lines[2]).not.toMatch(/^A3: 9/)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/39]⎯
+
+ FAIL  tests/g6-12-formula-cache-flag.test.ts > g6-12 #22: tools never present a stale cache as the answer > read_range shows NOT RECALCULATED in the grid for a stale cache
+AssertionError: expected '3\t9 (=SUM(B1))' to be '3\tNOT RECALCULATED (=SUM(B1))' // Object.is equality
+
+Expected: "3	NOT RECALCULATED (=SUM(B1))"
+Received: "3	9 (=SUM(B1))"
+
+ ❯ tests/g6-12-formula-cache-flag.test.ts:222:22
+    220|     const lines = result.output.split('\n')
+    221|     expect(lines[2]).toBe('1\t2 (=1+1)')
+    222|     expect(lines[4]).toBe('3\tNOT RECALCULATED (=SUM(B1))')
+       |                      ^
+    223|     expect(result.output).toContain('A2: cached value from the file')
+    224|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/39]⎯
+
+ FAIL  tests/g6-12-formula-cache-flag.test.ts > g6-12 #22: tools never present a stale cache as the answer > aggregate_range withholds statistics built on stale cached formula values
+AssertionError: expected 'Statistics for A1:A3:\n- cells: 3, no…' to contain 'NOT RECALCULATED'
+
+- Expected
++ Received
+
+- NOT RECALCULATED
++ Statistics for A1:A3:
++ - cells: 3, non-empty: 3
++ - distinct values: 3
++ - numeric cells: 3, sum: 18, average: 6, min: 2, max: 9
+
+ ❯ tests/g6-12-formula-cache-flag.test.ts:248:27
+    246|       toolDeps({ aggregateRange }),
+    247|     )) as ToolExecution
+    248|     expect(result.output).toContain('NOT RECALCULATED')
+       |                           ^
+    249|     expect(result.output).not.toContain('sum: 18')
+    250|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/39]⎯
+
+ FAIL  tests/g6-12-formula-cache-flag.test.ts > g6-12 #22: tools never present a stale cache as the answer > aggregate_range labels fresh cached formula values
+AssertionError: expected 'Statistics for A1:A3:\n- cells: 3, no…' to contain '2 formula cells'
+
+- Expected
++ Received
+
+- 2 formula cells
++ Statistics for A1:A3:
++ - cells: 3, non-empty: 3
++ - distinct values: 3
++ - numeric cells: 3, sum: 18, average: 6, min: 2, max: 9
+
+ ❯ tests/g6-12-formula-cache-flag.test.ts:275:27
+    273|     )) as ToolExecution
+    274|     expect(result.output).toContain('sum: 18')
+    275|     expect(result.output).toContain('2 formula cells')
+       |                           ^
+    276|     expect(result.output).toContain('cached values from the file')
+    277|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/39]⎯
+
+ FAIL  tests/g6-12-formula-cache-flag.test.ts > g6-12 #22: aggregateWorkbookRange counts cached formula cells > flags sidecar formula values as cached, stale after an edit
+AssertionError: expected undefined to be 2 // Object.is equality
+
+- Expected:
+2
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-formula-cache-flag.test.ts:314:39
+    312|     if (!result.ok) return
+    313|     // A1 is a journal value (5), A2 a sidecar formula, A3 an indexed …
+    314|     expect(result.cachedFormulaCells).toBe(2)
+       |                                       ^
+    315|     expect(result.staleCache).toBe(true)
+    316|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/39]⎯
+
+ FAIL  tests/g6-12-formula-cache-flag.test.ts > g6-12 #22: aggregateWorkbookRange counts cached formula cells > is not stale when nothing was edited
+AssertionError: expected undefined to be 2 // Object.is equality
+
+- Expected:
+2
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-formula-cache-flag.test.ts:324:52
+    322|       hiddenRows: 'include',
+    323|     })
+    324|     expect(result.ok && result.cachedFormulaCells).toBe(2)
+       |                                                    ^
+    325|     expect(result.ok && result.staleCache).toBe(false)
+    326|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/39]⎯
+
+ FAIL  tests/g6-12-hidden-rows.test.ts > g6-12 #20: aggregateWorkbookRange hidden/filtered rows > demo: includes hidden rows by default and reports how many
+AssertionError: expected undefined to be 2 // Object.is equality
+
+- Expected:
+2
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-hidden-rows.test.ts:107:31
+    105|     if (!result.ok) return
+    106|     expect(result.aggregate.sum).toBe(15)
+    107|     expect(result.hiddenRows).toBe(2)
+       |                               ^
+    108|   })
+    109|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/39]⎯
+
+ FAIL  tests/g6-12-hidden-rows.test.ts > g6-12 #20: aggregateWorkbookRange hidden/filtered rows > demo: skips hidden and filtered rows on request and reports how many
+AssertionError: expected 15 to be 9 // Object.is equality
+
+- Expected
++ Received
+
+- 9
++ 15
+
+ ❯ tests/g6-12-hidden-rows.test.ts:119:34
+    117|     expect(result.ok).toBe(true)
+    118|     if (!result.ok) return
+    119|     expect(result.aggregate.sum).toBe(9)
+       |                                  ^
+    120|     expect(result.aggregate.cells).toBe(2)
+    121|     expect(result.hiddenRows).toBe(2)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/39]⎯
+
+ FAIL  tests/g6-12-hidden-rows.test.ts > g6-12 #20: aggregateWorkbookRange hidden/filtered rows > lazy: counts file-hidden rows and rows the live filter hides
+AssertionError: expected undefined to be 2 // Object.is equality
+
+- Expected:
+2
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-hidden-rows.test.ts:131:48
+    129|     })
+    130|     expect(included.ok && included.aggregate.sum).toBe(15)
+    131|     expect(included.ok && included.hiddenRows).toBe(2)
+       |                                                ^
+    132|     const skipped = await aggregateWorkbookRange(ctx, 'sheet-1', parse…
+    133|       hiddenRows: 'skip',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/39]⎯
+
+ FAIL  tests/g6-12-hidden-rows.test.ts > g6-12 #20: aggregate_range tool > includes hidden rows by default and says so with the count
+AssertionError: expected "vi.fn()" to be called with arguments: [ undefined, Anything, …(1) ]
+
+Received:
+
+  1st vi.fn() call:
+
+  [
+    undefined,
+-   Anything,
+    {
+-     "hiddenRows": "include",
++     "endColumn": 0,
++     "endRow": 3,
++     "startColumn": 0,
++     "startRow": 0,
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ tests/g6-12-hidden-rows.test.ts:183:28
+    181|       toolDeps({ aggregateRange }),
+    182|     )
+    183|     expect(aggregateRange).toHaveBeenCalledWith(undefined, expect.anyt…
+       |                            ^
+    184|       hiddenRows: 'include',
+    185|     })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/39]⎯
+
+ FAIL  tests/g6-12-hidden-rows.test.ts > g6-12 #20: aggregate_range tool > skips hidden rows when asked and says so with the count
+AssertionError: expected "vi.fn()" to be called with arguments: [ undefined, Anything, …(1) ]
+
+Received:
+
+  1st vi.fn() call:
+
+  [
+    undefined,
+-   Anything,
+    {
+-     "hiddenRows": "skip",
++     "endColumn": 0,
++     "endRow": 3,
++     "startColumn": 0,
++     "startRow": 0,
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ tests/g6-12-hidden-rows.test.ts:197:28
+    195|       toolDeps({ aggregateRange }),
+    196|     )
+    197|     expect(aggregateRange).toHaveBeenCalledWith(undefined, expect.anyt…
+       |                            ^
+    198|       hiddenRows: 'skip',
+    199|     })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/39]⎯
+
+ FAIL  tests/g6-12-hidden-rows.test.ts > g6-12 #20: aggregate_range tool > declares the option in its input schema
+AssertionError: expected undefined to match object { type: 'boolean' }
+
+- Expected:
+{
+  "type": "boolean",
+}
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-hidden-rows.test.ts:207:39
+    205|     const tool = WORKBOOK_TOOLS.find((entry) => entry.name === 'aggreg…
+    206|     const properties = (tool?.inputSchema as { properties: Record<stri…
+    207|     expect(properties.skipHiddenRows).toMatchObject({ type: 'boolean' …
+       |                                       ^
+    208|   })
+    209| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/39]⎯
+
+ FAIL  tests/g6-12-hidden-rows.test.ts > g6-12 #20: read_range marks hidden rows > labels hidden and filtered rows in the grid and lists them
+AssertionError: expected "vi.fn()" to be called with arguments: [ undefined, ObjectContaining{…} ]
+
+Number of calls: 0
+
+ ❯ tests/g6-12-hidden-rows.test.ts:226:24
+    224|       toolDeps({ readCells, hiddenRows }),
+    225|     )
+    226|     expect(hiddenRows).toHaveBeenCalledWith(
+       |                        ^
+    227|       undefined,
+    228|       expect.objectContaining({ startRow: 0, endRow: 2 }),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/39]⎯
+
+ FAIL  tests/g6-12-hidden-rows.test.ts > g6-12 #20: read_range marks hidden rows > reads row visibility from the live grid
+TypeError: readHiddenRows is not a function
+ ❯ tests/g6-12-hidden-rows.test.ts:239:12
+    237|   it('reads row visibility from the live grid', () => {
+    238|     const ctx = demoCtx(DEMO_CELLS, { hidden: [1], filtered: [3] })
+    239|     expect(readHiddenRows(ctx, parseRange('A1:A4'))).toEqual([
+       |            ^
+    240|       { row: 1, reason: 'hidden' },
+    241|       { row: 3, reason: 'filtered' },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/39]⎯
+
+ FAIL  tests/g6-12-read-cells-truncation.test.ts > g6-12 #23: read_cells reports truncation above 100 addresses > says how many were asked, how many were read, and how to get the rest
+AssertionError: expected 'A1: 1\nA2: 1\nA3: 1\nA4: 1\nA5: 1\nA6…' to contain '130 addresses were requested'
+
+- Expected
++ Received
+
+- 130 addresses were requested
++ A1: 1
++ A2: 1
++ A3: 1
++ A4: 1
++ A5: 1
++ A6: 1
++ A7: 1
++ A8: 1
++ A9: 1
++ A10: 1
++ A11: 1
++ A12: 1
++ A13: 1
++ A14: 1
++ A15: 1
++ A16: 1
++ A17: 1
++ A18: 1
++ A19: 1
++ A20: 1
++ A21: 1
++ A22: 1
++ A23: 1
++ A24: 1
++ A25: 1
++ A26: 1
++ A27: 1
++ A28: 1
++ A29: 1
++ A30: 1
++ A31: 1
++ A32: 1
++ A33: 1
++ A34: 1
++ A35: 1
++ A36: 1
++ A37: 1
++ A38: 1
++ A39: 1
++ A40: 1
++ A41: 1
++ A42: 1
++ A43: 1
++ A44: 1
++ A45: 1
++ A46: 1
++ A47: 1
++ A48: 1
++ A49: 1
++ A50: 1
++ A51: 1
++ A52: 1
++ A53: 1
++ A54: 1
++ A55: 1
++ A56: 1
++ A57: 1
++ A58: 1
++ A59: 1
++ A60: 1
++ A61: 1
++ A62: 1
++ A63: 1
++ A64: 1
++ A65: 1
++ A66: 1
++ A67: 1
++ A68: 1
++ A69: 1
++ A70: 1
++ A71: 1
++ A72: 1
++ A73: 1
++ A74: 1
++ A75: 1
++ A76: 1
++ A77: 1
++ A78: 1
++ A79: 1
++ A80: 1
++ A81: 1
++ A82: 1
++ A83: 1
++ A84: 1
++ A85: 1
++ A86: 1
++ A87: 1
++ A88: 1
++ A89: 1
++ A90: 1
++ A91: 1
++ A92: 1
++ A93: 1
++ A94: 1
++ A95: 1
++ A96: 1
++ A97: 1
++ A98: 1
++ A99: 1
++ A100: 1
+
+ ❯ tests/g6-12-read-cells-truncation.test.ts:45:27
+     43|     expect(readCells).toHaveBeenCalledWith(column(100), undefined)
+     44|     expect(result.isError).toBeFalsy()
+     45|     expect(result.output).toContain('130 addresses were requested')
+       |                           ^
+     46|     expect(result.output).toContain('only the first 100 were read')
+     47|     expect(result.output).toContain('30 were NOT read')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/39]⎯
+
+ FAIL  tests/g6-12-summarize-range.test.ts > g6-12 #21: summarize_range tool > is a declared, read-only tool with an input schema, offered on view-only workbooks
+AssertionError: expected undefined to match object { type: 'object', …(1) }
+
+- Expected:
+{
+  "required": [
+    "range",
+  ],
+  "type": "object",
+}
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-summarize-range.test.ts:151:31
+    149|   it('is a declared, read-only tool with an input schema, offered on v…
+    150|     const tool = WORKBOOK_TOOLS.find((entry) => entry.name === 'summar…
+    151|     expect(tool?.inputSchema).toMatchObject({ type: 'object', required…
+       |                               ^
+    152|     expect(Object.keys((tool?.inputSchema as { properties: object }).p…
+    153|       expect.arrayContaining([
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/39]⎯
+
+ FAIL  tests/g6-12-summarize-range.test.ts > g6-12 #21: summarize_range tool > computes in code and reports range, filter, coverage and hidden rows
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-12-summarize-range.test.ts:178:28
+    176|       deps({ collectRows }),
+    177|     )
+    178|     expect(result.isError).toBeFalsy()
+       |                            ^
+    179|     expect(result.mutated).toBe(false)
+    180|     expect(collectRows).toHaveBeenCalledWith(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/39]⎯
+
+ FAIL  tests/g6-12-summarize-range.test.ts > g6-12 #21: summarize_range tool > rejects sum without a value column and columns outside the range
+AssertionError: expected 'Unknown tool: summarize_range' to contain 'outside the range'
+
+Expected: "outside the range"
+Received: "Unknown tool: summarize_range"
+
+ ❯ tests/g6-12-summarize-range.test.ts:204:28
+    202|     )
+    203|     expect(outside.isError).toBe(true)
+    204|     expect(outside.output).toContain('outside the range')
+       |                            ^
+    205|     expect(collectRows).not.toHaveBeenCalled()
+    206|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/39]⎯
+
+ FAIL  tests/g6-12-summarize-range.test.ts > g6-12 #21: summarize_range tool > withholds a result built on stale cached formula values
+AssertionError: expected 'Unknown tool: summarize_range' to contain 'NOT RECALCULATED'
+
+Expected: "NOT RECALCULATED"
+Received: "Unknown tool: summarize_range"
+
+ ❯ tests/g6-12-summarize-range.test.ts:217:27
+    215|       deps({ collectRows: vi.fn().mockResolvedValue({ ok: true, rows, …
+    216|     )
+    217|     expect(result.output).toContain('NOT RECALCULATED')
+       |                           ^
+    218|     expect(result.output).not.toContain('result: 4')
+    219|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/39]⎯
+
+ FAIL  tests/g6-12-summarize-range.test.ts > g6-12 #21: collectWorkbookRows > demo: returns values per row with hidden flags
+TypeError: rowVisibilityProbe is not a function
+ ❯ collectWorkbookRows src/renderer/ai/range-rows.ts:66:19
+     64|     }
+     65|     const worksheet = workbook?.getSheetBySheetId(sheet.id)
+     66|     const probe = rowVisibilityProbe(ctx, sheet.id)
+       |                   ^
+     67|     const rows: RangeRow[] = []
+     68|     for (let row = bounds.startRow; row <= bounds.endRow; row += 1) {
+ ❯ tests/g6-12-summarize-range.test.ts:253:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/39]⎯
+
+ FAIL  tests/g6-12-summarize-range.test.ts > g6-12 #21: collectWorkbookRows > lazy: merges sidecar cells, journal edits and fills, flags cached formulas
+TypeError: prepareLazyRange is not a function
+ ❯ collectWorkbookRows src/renderer/ai/range-rows.ts:104:20
+    102|   }
+    103|
+    104|   const prepared = prepareLazyRange(
+       |                    ^
+    105|     ctx,
+    106|     state,
+ ❯ tests/g6-12-summarize-range.test.ts:303:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/39]⎯
+
+ FAIL  tests/g6-12-total-rows.test.ts > g6-12 #24: summarize_range reports total rows > lists the skipped total rows with the reason and reads from the first column for labels
+AssertionError: expected "vi.fn()" to be called with arguments: [ undefined, ObjectContaining{…} ]
+
+Number of calls: 0
+
+ ❯ tests/g6-12-total-rows.test.ts:129:25
+    127|       deps({ collectRows }),
+    128|     )) as ToolExecution
+    129|     expect(collectRows).toHaveBeenCalledWith(
+       |                         ^
+    130|       undefined,
+    131|       expect.objectContaining({ startColumn: 0, endColumn: 2 }),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/39]⎯
+
+ FAIL  tests/g6-12-total-rows.test.ts > g6-12 #24: summarize_range reports total rows > declares includeTotalRows
+TypeError: Cannot read properties of undefined (reading 'properties')
+ ❯ tests/g6-12-total-rows.test.ts:142:70
+    140|     const tool = WORKBOOK_TOOLS.find((entry) => entry.name === 'summar…
+    141|     expect(
+    142|       (tool?.inputSchema as { properties: Record<string, unknown> }).p…
+       |                                                                      ^
+    143|     ).toMatchObject({
+    144|       type: 'boolean',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/39]⎯
+
+ FAIL  tests/g6-12-total-rows.test.ts > g6-12 #24: collectWorkbookRows carries formula text > lazy: sidecar formulas and journal formulas
+TypeError: prepareLazyRange is not a function
+ ❯ collectWorkbookRows src/renderer/ai/range-rows.ts:104:20
+    102|   }
+    103|
+    104|   const prepared = prepareLazyRange(
+       |                    ^
+    105|     ctx,
+    106|     state,
+ ❯ tests/g6-12-total-rows.test.ts:195:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/39]⎯
+
+ FAIL  tests/g6-12-unsupported-function.test.ts > g6-12: unsupportedFunctionNames > lists the functions the running engine lacks
+TypeError: unsupportedFunctionNames is not a function
+ ❯ tests/g6-12-unsupported-function.test.ts:46:12
+     44|   it('lists the functions the running engine lacks', () => {
+     45|     installProbe()
+     46|     expect(unsupportedFunctionNames('=IFERROR(WEBSERVICE("https://x"),…
+       |            ^
+     47|       'WEBSERVICE',
+     48|     ])
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[35/39]⎯
+
+ FAIL  tests/g6-12-unsupported-function.test.ts > g6-12: unsupportedFunctionNames > says nothing before the registry is ready
+TypeError: unsupportedFunctionNames is not a function
+ ❯ tests/g6-12-unsupported-function.test.ts:54:12
+     52|   it('says nothing before the registry is ready', () => {
+     53|     setSupportedFunctionProbe({ ready: () => false, supports: () => fa…
+     54|     expect(unsupportedFunctionNames('=FOOBAR(1)')).toEqual([])
+       |            ^
+     55|   })
+     56| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[36/39]⎯
+
+ FAIL  tests/g6-12-unsupported-function.test.ts > g6-12: readers report unsupported functions > demo read of a #NAME? formula names the missing function
+AssertionError: expected { value: '#NAME?', …(1) } to match object { Object (unsupportedFunctions) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "unsupportedFunctions": [
+-     "WEBSERVICE",
+-   ],
++   "formula": "=WEBSERVICE(\"https://x\")",
++   "value": "#NAME?",
+  }
+
+ ❯ tests/g6-12-unsupported-function.test.ts:95:42
+     93|       },
+     94|     } as unknown as WorkbookReadContext
+     95|     expect(readCells(ctx, ['A1'])['A1']).toMatchObject({ unsupportedFu…
+       |                                          ^
+     96|   })
+     97| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[37/39]⎯
+
+ FAIL  tests/g6-12-unsupported-function.test.ts > g6-12: tool output names unsupported functions > read_cells explains a #NAME? and a blank fallback instead of passing them on silently
+AssertionError: expected 'A1: #NAME? (=WEBSERVICE("https://x"))' to contain 'unsupported function: WEBSERVICE'
+
+Expected: "unsupported function: WEBSERVICE"
+Received: "A1: #NAME? (=WEBSERVICE("https://x"))"
+
+ ❯ tests/g6-12-unsupported-function.test.ts:120:19
+    118|     )) as ToolExecution
+    119|     const [first, second] = result.output.split('\n')
+    120|     expect(first).toContain('unsupported function: WEBSERVICE')
+       |                   ^
+    121|     expect(first).toContain('cannot calculate')
+    122|     expect(second).toContain('unsupported function: FILTERXML')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[38/39]⎯
+
+ FAIL  tests/g6-12-unsupported-function.test.ts > g6-12: tool output names unsupported functions > propose_operations read-back names the unsupported function of a written formula
+AssertionError: expected 'Auto-applied 1 change(s) (undo via th…' to contain 'unsupported function: FOOBAR'
+
+- Expected
++ Received
+
+- unsupported function: FOOBAR
++ Auto-applied 1 change(s) (undo via the side panel [Undo] button or ⌘Z): B2: (empty) → =FOOBAR(A1)
++ Formula results: B2 = #NAME?
++ ⚠️ Formula error values present — check references/divisors and fix them.
+
+ ❯ tests/g6-12-unsupported-function.test.ts:166:27
+    164|     )) as ToolExecution
+    165|     expect(result.output).toContain('B2 = #NAME?')
+    166|     expect(result.output).toContain('unsupported function: FOOBAR')
+       |                           ^
+    167|   })
+    168| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[39/39]⎯
+
+
+ Test Files  8 failed (8)
+      Tests  39 failed | 41 passed (80)
+   Start at  14:51:40
+   Duration  6.93s (transform 7.07s, setup 0ms, import 18.57s, tests 464ms, environment 1ms)
+
+RED_EXIT=1
+RED_AS_EXPECTED

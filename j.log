@@ -1,0 +1,18 @@
+$ set -o pipefail; npx vitest run --root web/modules sheets/g6-12-webservice-web-engine.test.ts --reporter=verbose 2>&1 | tee /tmp/ws-web.log; grep -E 'Tests .*passed' /tmp/ws-web.log; if grep -q -E 'skipped' /tmp/ws-web.log; then echo WEB_WASM_TEST_SKIPPED; exit 1; fi
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+ ✓ sheets/g6-12-webservice-web-engine.test.ts > WEBSERVICE / FILTERXML on the web wasm engine (IronCalc recalc_cells) > the module imports nothing but WASI preview 1, with no socket calls 1ms
+ ✓ sheets/g6-12-webservice-web-engine.test.ts > WEBSERVICE / FILTERXML on the web wasm engine (IronCalc recalc_cells) > row 20 =WEBSERVICE("https://example.invalid/rates?x=1") evaluates to "#NAME?" 0ms
+ ✓ sheets/g6-12-webservice-web-engine.test.ts > WEBSERVICE / FILTERXML on the web wasm engine (IronCalc recalc_cells) > row 21 =FILTERXML("<r><v>42</v></r>","//v") evaluates to "#NAME?" 0ms
+ ✓ sheets/g6-12-webservice-web-engine.test.ts > WEBSERVICE / FILTERXML on the web wasm engine (IronCalc recalc_cells) > row 22 =FILTERXML(WEBSERVICE("https://example.invalid/feed.xml"),"//v") evaluates to "#NAME?" 0ms
+ ✓ sheets/g6-12-webservice-web-engine.test.ts > WEBSERVICE / FILTERXML on the web wasm engine (IronCalc recalc_cells) > row 23 =IFERROR(WEBSERVICE("https://example.invalid/y"),"no network") evaluates to "no network" 0ms
+ ✓ sheets/g6-12-webservice-web-engine.test.ts > WEBSERVICE / FILTERXML on the web wasm engine (IronCalc recalc_cells) > row 24 =SUM(1,2)&"-"&"ok" evaluates to "3-ok" 0ms
+ ✓ sheets/g6-12-webservice-web-engine.test.ts > WEBSERVICE / FILTERXML on the web wasm engine (IronCalc recalc_cells) > never touches the network 1ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  14:52:59
+   Duration  746ms (transform 54ms, setup 0ms, import 111ms, tests 58ms, environment 479ms)
+
+      Tests  7 passed (7)
