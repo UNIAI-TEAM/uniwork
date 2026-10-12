@@ -1,0 +1,10 @@
+$ cd apps/html && npx vitest run tests/g6-12-html-edit-fence.test.ts tests/g6-12-html-web-stub-tools.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  15:28:40
+   Duration  1.18s (transform 850ms, setup 0ms, import 1.09s, tests 27ms, environment 682ms)
+

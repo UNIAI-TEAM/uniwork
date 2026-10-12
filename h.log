@@ -1,0 +1,10 @@
+$ cd apps/markdown && npx vitest run tests/g6-12-md-atomic-ops.test.ts tests/g6-12-md-edit-fence.test.ts tests/g6-12-md-web-stub-tools.test.ts tests/ai-tools.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+
+ Test Files  4 passed (4)
+      Tests  68 passed (68)
+   Start at  15:28:37
+   Duration  2.86s (transform 2.67s, setup 0ms, import 3.93s, tests 1.06s, environment 1.49s)
+

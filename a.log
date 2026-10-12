@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4
+223c0cc6de16404b9fbaa615e761a702a29c88f1
+95e7106ef3cc1361c22f1e742f077ca829e4383d
+223c0cc6 fix(markdown): a fenced turn is never retried unfenced; a retry reuses its entry's fence
+3377276a test(markdown): a fenced turn is never retried unfenced; a retry reuses its entry's fence
+244c9677 fix(html): the undelivered-bubble retry keeps the entry's fenced elements
+c5b076bf fix(markdown): a retried AI turn runs with its own fence and the fence ends with the run

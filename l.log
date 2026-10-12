@@ -1,0 +1,20 @@
+$ cd apps/markdown && npx vitest run
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+3:29:05 PM [vite] (client) warning: Duplicate key "loadURL" in object literal
+33 |      loadFile: vi.fn(),
+34 |      loadURL: vi.fn(),
+35 |      loadURL: vi.fn(),
+   |      ^
+36 |      once: vi.fn((event: string, listener: () => void) => listeners.set(event, listener)),
+37 |      send: vi.fn(),
+
+  Plugin: vite:esbuild
+  File: /home/ubuntu/work/uniwork-office/apps/markdown/tests/close-asset-cleanup.test.ts
+
+ Test Files  57 passed (57)
+      Tests  794 passed (794)
+   Start at  15:28:48
+   Duration  24.24s (transform 4.03s, setup 0ms, import 13.91s, tests 31.77s, environment 21.42s)
+
