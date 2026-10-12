@@ -1,16 +1,43 @@
-import type { CalendarProvider } from "@uniwork/core/api/endpoints/calendar";
-
 type ProviderIconProps = {
-  provider: CalendarProvider;
+  /** A calendar provider: its app's mark. */
+  provider: "google" | "outlook";
   className?: string;
 };
 
 /** Product marks stay inline so every host renders the same trusted artwork. */
-export function CalendarProviderIcon({ provider, className }: ProviderIconProps) {
+export function ProviderIcon({ provider, className }: ProviderIconProps) {
   return provider === "google" ? (
     <GoogleCalendarMark className={className} />
   ) : (
     <OutlookMark className={className} />
+  );
+}
+
+/** The account a sign-in uses, not an app: Google's "G" and Microsoft's four squares. */
+export function SignInMark({ provider, className }: { provider: "google" | "microsoft"; className?: string }) {
+  return provider === "google" ? <GoogleMark className={className} /> : <MicrosoftMark className={className} />;
+}
+
+/** Google's four-colour "G". */
+export function GoogleMark({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className={className}>
+      <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.7v3h3.9c2.3-2.1 3.5-5.2 3.5-8.9z" />
+      <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3a7.2 7.2 0 0 1-10.8-3.8H1.3v3.1A12 12 0 0 0 12 24z" />
+      <path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.3a12 12 0 0 0 0 10.8l4-3.1z" />
+      <path fill="#EA4335" d="M12 4.8c1.8 0 3.4.6 4.6 1.8l3.5-3.5A12 12 0 0 0 1.3 6.6l4 3.1A7.2 7.2 0 0 1 12 4.8z" />
+    </svg>
+  );
+}
+
+function MicrosoftMark({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden viewBox="0 0 23 23" className={className}>
+      <path fill="#f35325" d="M1 1h10v10H1z" />
+      <path fill="#81bc06" d="M12 1h10v10H12z" />
+      <path fill="#05a6f0" d="M1 12h10v10H1z" />
+      <path fill="#ffba08" d="M12 12h10v10H12z" />
+    </svg>
   );
 }
 

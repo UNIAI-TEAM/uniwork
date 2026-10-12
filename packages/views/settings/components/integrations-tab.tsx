@@ -38,6 +38,7 @@ function EmailHubRow() {
   const accounts = useEmailHubAccounts(workspace.id);
   const href = paths.workspace(workspace.organization_slug, workspace.slug).email();
   const count = accounts.data?.accounts.length ?? 0;
+  const broken = accounts.data?.accounts.filter((acc) => acc.needs_reconnect).length ?? 0;
   // Until the list arrives (or when it fails) nothing is known about the
   // reader's mailboxes, so neither the badge nor the action claims "none".
   const known = !accounts.isLoading && !accounts.isError;
@@ -47,7 +48,10 @@ function EmailHubRow() {
   ) : accounts.isError ? (
     <SettingsBadge tone="destructive">{t("email_hub.load_error")}</SettingsBadge>
   ) : count > 0 ? (
-    <SettingsBadge tone="success">{t("email_hub.connected", { count })}</SettingsBadge>
+    <SettingsBadge tone={broken > 0 ? "warning" : "success"}>
+      {t("email_hub.connected", { count })}
+      {broken > 0 ? t("email_hub.needs_reconnect", { count: broken }) : null}
+    </SettingsBadge>
   ) : (
     <SettingsBadge tone="muted">{t("email_hub.not_connected")}</SettingsBadge>
   );

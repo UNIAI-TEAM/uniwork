@@ -26,11 +26,17 @@ export function useOAuthPopup({
   name: string;
   messageType?: string;
   onOutcome: (outcome: OAuthPopupOutcome) => void;
-}): { open: (start: () => Promise<string | null | undefined>) => void; pending: boolean } {
+}): {
+  open: (start: () => Promise<string | null | undefined>) => void;
+  pending: boolean;
+  /** Brings the open popup back to the front; does nothing when none is open. */
+  focus: () => void;
+} {
   const [pending, setPending] = useState(false);
   const onOutcomeRef = useRef(onOutcome);
   onOutcomeRef.current = onOutcome;
   const stopRef = useRef<(() => void) | null>(null);
+  const windowRef = useRef<Window | null>(null);
 
   useEffect(() => () => stopRef.current?.(), []);
 
@@ -49,6 +55,7 @@ export function useOAuthPopup({
       const stop = () => {
         done = true;
         stopRef.current = null;
+        windowRef.current = null;
         window.clearInterval(timer);
         if (onMessage) window.removeEventListener("message", onMessage);
       };
@@ -59,6 +66,7 @@ export function useOAuthPopup({
         onOutcomeRef.current(outcome);
       };
       stopRef.current = stop;
+      windowRef.current = popup;
       setPending(true);
       void (async () => {
         let url: string | null | undefined;
@@ -99,5 +107,7 @@ export function useOAuthPopup({
     [name, messageType],
   );
 
-  return { open, pending };
+  const focus = useCallback(() => windowRef.current?.focus(), []);
+
+  return { open, pending, focus };
 }

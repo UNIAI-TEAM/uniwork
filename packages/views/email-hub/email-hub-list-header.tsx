@@ -170,7 +170,13 @@ export function EmailHubListHeader({
           <EmailHubFolderMenu {...nav} />
         </div>
         {/* Below `lg` the folder menu shows the name; the heading stays for screen readers. */}
-        <h1 className="sr-only min-w-0 truncate px-1 text-title font-semibold lg:not-sr-only">{folderLabel}</h1>
+        <h1
+          data-email-hub-list-heading=""
+          tabIndex={-1}
+          className="sr-only min-w-0 truncate px-1 text-title font-semibold lg:not-sr-only"
+        >
+          {folderLabel}
+        </h1>
         {countText ? (
           <span className="hidden shrink-0 px-1 text-caption tabular-nums text-muted-foreground sm:inline">
             {countText}

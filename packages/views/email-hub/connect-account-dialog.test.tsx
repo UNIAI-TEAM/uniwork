@@ -5,6 +5,10 @@ import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { requestMock, wrap } from "../test/api-mock";
 import { ConnectAccountDialog } from "./connect-account-dialog";
 
+const toastSuccess = vi.hoisted(() => vi.fn());
+const toastInfo = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, info: toastInfo, error: vi.fn() } }));
+
 const accountJSON = {
   id: "acc1",
   email_address: "ha.do@unicomhub.com",
@@ -65,6 +69,8 @@ function serve(
 
 beforeEach(() => {
   requestMock.mockReset();
+  toastSuccess.mockReset();
+  toastInfo.mockReset();
   serve({ accounts: [] });
 });
 
@@ -73,7 +79,7 @@ afterEach(() => {
 });
 
 const customOption = () => screen.getByRole("button", { name: /^Tên miền riêng \(IMAP\/SMTP\)/ });
-const appPasswordOption = () => screen.getByRole("button", { name: /^Dùng mật khẩu ứng dụng/ });
+const appPasswordOption = () => screen.getByRole("button", { name: /^Dùng App Password/ });
 const googleOption = () => screen.queryByRole("button", { name: /^Đăng nhập bằng Google/ });
 const microsoftOption = () => screen.queryByRole("button", { name: /^Đăng nhập bằng Microsoft/ });
 
@@ -83,7 +89,7 @@ function fillAndSubmit(email: string | null, submitName: string) {
   fireEvent.click(screen.getByRole("button", { name: submitName }));
 }
 
-type FakePopup = { closed: boolean; close: () => void; location: { href: string } };
+type FakePopup = { closed: boolean; close: () => void; focus: () => void; location: { href: string } };
 
 /** window.open answers a fake popup; the dialog only points it at a URL or closes it. */
 function fakePopup() {
@@ -92,6 +98,7 @@ function fakePopup() {
     close: vi.fn(() => {
       popup.closed = true;
     }),
+    focus: vi.fn(),
     location: { href: "" },
   };
   const open = vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
@@ -137,7 +144,7 @@ describe("ConnectAccountDialog", () => {
 
     fireEvent.click(appPasswordOption());
     expect(screen.getByLabelText("App Password")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Xem hướng dẫn từng bước kèm minh họa" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hướng dẫn cho Gmail" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Quay lại" }));
     expect(screen.queryByLabelText("App Password")).not.toBeInTheDocument();
     expect(customOption()).toBeInTheDocument();
@@ -226,8 +233,13 @@ describe("ConnectAccountDialog", () => {
     // Until the list says the mailbox is not custom, the app-password form must not submit.
     fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh" } });
     const submit = screen.getByRole("button", { name: "Kết nối lại" });
-    if (blocked) expect(submit).toBeDisabled();
-    else await waitFor(() => expect(submit).toBeEnabled());
+    if (blocked) {
+      expect(submit).toBeDisabled();
+      expect(screen.getByRole("status")).toHaveTextContent("Đang tải hộp thư…");
+    } else {
+      await waitFor(() => expect(submit).toBeEnabled());
+      expect(screen.queryByRole("status")).toBeNull();
+    }
   });
 
   it("reconnects the named mailbox with a new app password, without letting the address change", async () => {
@@ -256,6 +268,7 @@ describe("ConnectAccountDialog", () => {
     fireEvent.click(submit);
 
     await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc1"));
+    expect(toastSuccess).toHaveBeenCalledWith("Đã kết nối ha.do@unicomhub.com");
     expect(requestMock).toHaveBeenCalledWith(ACCOUNTS_PATH, {
       method: "POST",
       body: { email_address: "ha.do@unicomhub.com", app_password: "abcdefghijklmnop" },
@@ -273,6 +286,13 @@ describe("ConnectAccountDialog", () => {
     fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh ijkl mnop" } });
     expect(screen.getByRole("button", { name: "Kết nối lại" })).toBeDisabled();
     expect(requestMock).not.toHaveBeenCalledWith(ACCOUNTS_PATH, expect.objectContaining({ method: "POST" }));
+    const loadFailed = screen.getByRole("alert");
+    expect(loadFailed).toHaveTextContent("Không tải được thông tin hộp thư. Thử lại.");
+    expect(loadFailed.querySelector("svg")).not.toBeNull();
+
+    const reads = accountListReads();
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(accountListReads()).toBeGreaterThan(reads));
   });
 
   it("keeps the reconnect title and fixed address while the dialog closes", () => {
@@ -321,7 +341,81 @@ describe("ConnectAccountDialog", () => {
 
     fillAndSubmit("an@gmail.com", "Kết nối");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(text);
+    const description = await screen.findByText(
+      (_, el) => el?.getAttribute("data-slot") === "alert-description" && el.textContent!.includes(text),
+    );
+    const alert = description.closest("[data-slot=alert]");
+    // A long form may have scrolled it out of view: focus brings it back and reads it out, once (no live role too).
+    await waitFor(() => expect(alert).toHaveFocus());
+    expect(alert).not.toHaveAttribute("role");
+  });
+
+  it("keeps the submit enabled and asks for a missing address or app password next to its field", async () => {
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+    fireEvent.click(appPasswordOption());
+    const submit = screen.getByRole("button", { name: "Kết nối" });
+    expect(submit).toBeEnabled();
+
+    fireEvent.click(submit);
+    const email = screen.getByLabelText("Email");
+    expect(email).toHaveAccessibleDescription("Nhập địa chỉ email, ví dụ ban@gmail.com.");
+    expect(email).toHaveFocus();
+
+    fireEvent.change(email, { target: { value: "an@gmail.com" } });
+    fireEvent.click(submit);
+    const password = screen.getByLabelText("App Password");
+    expect(password).toHaveAttribute("aria-invalid", "true");
+    expect(password).toHaveAccessibleDescription("Nhập App Password của hộp thư.");
+    expect(password).toHaveFocus();
+    expect(requestMock).not.toHaveBeenCalledWith(ACCOUNTS_PATH, expect.objectContaining({ method: "POST" }));
+  });
+
+  it.each([
+    ["an app-password mailbox", accountJSON, "App Password"],
+    ["a custom-server mailbox", customJSON, "Mật khẩu"],
+  ])("puts focus on the password, not the fixed address, when reconnecting %s", async (_, acc, label) => {
+    serve({ accounts: [acc] });
+    // Reconnect opens from a banner or the menu, with the list already loaded.
+    const { rerender } = render(wrap(<ConnectAccountDialog wsId="ws1" open={false} onOpenChange={() => {}} />));
+    await waitFor(() => expect(accountListReads()).toBeGreaterThan(0));
+    await act(async () => {});
+
+    rerender(wrap(<ConnectAccountDialog wsId="ws1" open reconnectEmail={acc.email_address} onOpenChange={() => {}} />));
+
+    await waitFor(() => expect(screen.getByLabelText(label)).toHaveFocus());
+  });
+
+  it("opens the Gmail guide inside the dialog and comes back with the typed values", () => {
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+    fireEvent.click(appPasswordOption());
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "an@gmail.com" } });
+    fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Hướng dẫn cho Gmail" }));
+
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByText("Cách lấy App Password cho Gmail")).toBeInTheDocument();
+    expect(screen.queryByLabelText("App Password")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Quay lại" }));
+
+    expect(screen.getByLabelText("Email")).toHaveValue("an@gmail.com");
+    expect(screen.getByLabelText("App Password")).toHaveValue("abcd efgh");
+  });
+
+  it("gives an example app password and help for Outlook and Yahoo too", () => {
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+    fireEvent.click(appPasswordOption());
+
+    expect(screen.getByLabelText("App Password")).toHaveAttribute("placeholder", "abcd efgh ijkl mnop");
+    for (const [name, href] of [
+      ["Outlook", "https://support.microsoft.com/account-billing/how-to-get-and-use-app-passwords-5896ed9b-4263-e681-128a-a6f2979a7944"],
+      ["Yahoo", "https://help.yahoo.com/kb/SLN15241.html"],
+    ] as const) {
+      const link = screen.getByRole("link", { name: new RegExp(`^${name}`) });
+      expect(link).toHaveAttribute("href", href);
+      expect(link).toHaveAttribute("target", "_blank");
+    }
   });
 });
 
@@ -441,7 +535,7 @@ describe("ConnectAccountDialog sign-in with Google or Microsoft", () => {
     expect(screen.getByText(/^Đăng nhập lại bằng đúng tài khoản này/)).toBeInTheDocument();
     expect(googleOption()).toBeNull();
     expect(screen.queryByRole("button", { name: /^Tên miền riêng/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Dùng mật khẩu ứng dụng/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Dùng App Password/ })).toBeNull();
     expect(screen.queryByLabelText("App Password")).toBeNull();
 
     fireEvent.click(microsoft);
@@ -450,5 +544,193 @@ describe("ConnectAccountDialog sign-in with Google or Microsoft", () => {
     expect(startCall("microsoft")?.[1]).toEqual(
       expect.objectContaining({ method: "POST", body: expect.objectContaining({ login_hint: "lan@contoso.vn" }) }),
     );
+  });
+
+  it("holds two placeholder cards while the providers load, then none when neither is enabled", async () => {
+    let answer: (value: unknown) => void = () => {};
+    requestMock.mockImplementation((path: string) =>
+      path === PROVIDERS_PATH
+        ? new Promise((resolve) => {
+            answer = resolve;
+          })
+        : Promise.resolve({ accounts: [] }),
+    );
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+
+    // Each placeholder draws the card it stands for: a mark and two lines of text.
+    await waitFor(() => expect(document.querySelectorAll("[data-oauth-placeholder]")).toHaveLength(2));
+    for (const card of document.querySelectorAll("[data-oauth-placeholder]")) {
+      expect(card.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(3);
+    }
+    await act(async () => answer(NO_PROVIDERS));
+    await waitFor(() => expect(document.querySelectorAll("[data-oauth-placeholder]")).toHaveLength(0));
+    expect(googleOption()).toBeNull();
+  });
+
+  it("closes from a Cancel-only footer on the method step and on the OAuth reconnect", async () => {
+    const onOpenChange = vi.fn();
+    const { unmount } = render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={onOpenChange} />));
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("button", { name: "Kết nối" })).toBeNull();
+    unmount();
+
+    serve({ accounts: [microsoftJSON] }, undefined, { providers: BOTH });
+    render(wrap(<ConnectAccountDialog wsId="ws1" open reconnectEmail="lan@contoso.vn" onOpenChange={onOpenChange} />));
+    await screen.findByRole("button", { name: /^Đăng nhập bằng Microsoft/ });
+    onOpenChange.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("holds every way in while the popup is open, keeps them in the tab order, and can bring the popup back", async () => {
+    serve({ accounts: [] }, undefined, { providers: BOTH });
+    const { popup, open } = fakePopup();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+    await startGoogleSignIn(popup);
+
+    // aria-disabled, not disabled: the clicked card keeps its place, so focus does not fall to the page.
+    for (const option of [googleOption()!, microsoftOption()!, customOption(), appPasswordOption()]) {
+      expect(option).toHaveAttribute("aria-disabled", "true");
+      expect(option).not.toBeDisabled();
+    }
+    expect(screen.getByRole("status")).toHaveTextContent("Hoàn tất đăng nhập trong cửa sổ vừa mở.");
+    const showWindow = screen.getByRole("button", { name: "Mở lại cửa sổ" });
+    await waitFor(() => expect(showWindow).toHaveFocus());
+
+    fireEvent.click(microsoftOption()!);
+    fireEvent.click(customOption());
+    fireEvent.click(appPasswordOption());
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(document.getElementById("email-hub-custom-form")).toBeNull();
+    expect(screen.queryByLabelText("App Password")).toBeNull();
+
+    fireEvent.click(showWindow);
+    expect(popup.focus).toHaveBeenCalled();
+  });
+
+  it("selects the new mailbox, says so and closes when the popup reports connected", async () => {
+    const list = { accounts: [accountJSON] as unknown[] };
+    serve(list, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onOpenChange = vi.fn();
+    const onConnected = vi.fn();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={onOpenChange} onConnected={onConnected} />));
+    await screen.findByRole("button", { name: /^Đăng nhập bằng Google/ });
+    await waitFor(() => expect(accountListReads()).toBeGreaterThan(0));
+    await act(async () => {});
+    await startGoogleSignIn(popup);
+    list.accounts = [accountJSON, { ...accountJSON, id: "acc9", email_address: "moi@gmail.com", auth_kind: "oauth_google" }];
+
+    postResult(popup, true, "connected");
+
+    await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc9"));
+    expect(toastSuccess).toHaveBeenCalledWith("Đã kết nối moi@gmail.com");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("selects the reconnected mailbox when its popup closes without a message but the list shows it fixed", async () => {
+    const list = { accounts: [microsoftJSON] as unknown[] };
+    serve(list, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onOpenChange = vi.fn();
+    const onConnected = vi.fn();
+    render(
+      wrap(
+        <ConnectAccountDialog wsId="ws1" open reconnectEmail="lan@contoso.vn" onOpenChange={onOpenChange} onConnected={onConnected} />,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /^Đăng nhập bằng Microsoft/ }));
+    await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
+    list.accounts = [{ ...microsoftJSON, needs_reconnect: false, auth_failed_reason: "" }];
+
+    popup.closed = true;
+
+    await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc3"), { timeout: 2000 });
+    expect(toastSuccess).toHaveBeenCalledWith("Đã kết nối lan@contoso.vn");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it.each([
+    ["names neither mailbox it cannot identify", [] as unknown[], "Đã đăng nhập bằng một hộp thư khác. lan@contoso.vn vẫn cần kết nối lại.", null],
+    [
+      "names the mailbox it connected instead",
+      [{ ...accountJSON, id: "acc9", email_address: "moi@outlook.com", auth_kind: "oauth_microsoft" }],
+      "Đã đăng nhập bằng moi@outlook.com. lan@contoso.vn vẫn cần kết nối lại.",
+      "acc9",
+    ],
+  ])("says a reconnect signed in as another mailbox and %s, without claiming the target", async (_, added, text, selected) => {
+    const list = { accounts: [microsoftJSON] as unknown[] };
+    serve(list, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onOpenChange = vi.fn();
+    const onConnected = vi.fn();
+    render(
+      wrap(
+        <ConnectAccountDialog wsId="ws1" open reconnectEmail="lan@contoso.vn" onOpenChange={onOpenChange} onConnected={onConnected} />,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /^Đăng nhập bằng Microsoft/ }));
+    await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
+    // Signed in with another mailbox: the one to reconnect is still refused.
+    list.accounts = [microsoftJSON, ...added];
+
+    postResult(popup, true, "connected");
+
+    await waitFor(() => expect(toastInfo).toHaveBeenCalledWith(text));
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(onConnected).not.toHaveBeenCalledWith("acc3");
+    if (selected) expect(onConnected).toHaveBeenCalledWith(selected);
+    else expect(onConnected).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("finds the new mailbox when the list was still loading as the sign-in started", async () => {
+    let firstList: (value: unknown) => void = () => {};
+    const list = { accounts: [accountJSON] as unknown[] };
+    let listReads = 0;
+    requestMock.mockImplementation((path: string) => {
+      if (path === PROVIDERS_PATH) return Promise.resolve(BOTH);
+      if (path.endsWith("/start")) return Promise.resolve({ authorization_url: AUTH_URL });
+      if (path !== ACCOUNTS_PATH) return Promise.resolve({});
+      listReads += 1;
+      return listReads === 1
+        ? new Promise((resolve) => {
+            firstList = resolve;
+          })
+        : Promise.resolve(list);
+    });
+    const { popup } = fakePopup();
+    const onConnected = vi.fn();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} onConnected={onConnected} />));
+    await startGoogleSignIn(popup);
+    // The list lands while the popup is open; a short wait lets the parsed answer reach the screen.
+    await act(async () => {
+      firstList({ accounts: [accountJSON] });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    list.accounts = [accountJSON, { ...accountJSON, id: "acc9", email_address: "moi@gmail.com", auth_kind: "oauth_google" }];
+
+    postResult(popup, true, "connected");
+
+    await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc9"));
+    expect(toastSuccess).toHaveBeenCalledWith("Đã kết nối moi@gmail.com");
+  });
+
+  it("notes, without an error, that the popup closed before connecting", async () => {
+    serve({ accounts: [accountJSON] }, undefined, { providers: BOTH });
+    const { popup } = fakePopup();
+    const onConnected = vi.fn();
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} onConnected={onConnected} />));
+    await startGoogleSignIn(popup);
+
+    popup.closed = true;
+
+    expect(
+      await screen.findByText("Cửa sổ đăng nhập đã đóng trước khi kết nối xong. Thử lại.", undefined, { timeout: 2000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(onConnected).not.toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 });

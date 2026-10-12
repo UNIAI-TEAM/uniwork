@@ -9,7 +9,8 @@ import type { Organization } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
 import { isSlugConflict } from "../../workspace/slug";
-import { pickerCardClass, RadioCardGroup, RadioMark } from "../components/option-card";
+import { pickerCardClass } from "../../common/picker-card";
+import { RadioCardGroup, RadioMark } from "../components/option-card";
 import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
 import { SlugFields, useSlugForm } from "../slug-field";
 

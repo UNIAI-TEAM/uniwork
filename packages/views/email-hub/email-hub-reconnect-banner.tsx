@@ -10,12 +10,14 @@ export function EmailHubReconnectBanner({ onReconnect }: { onReconnect: () => vo
   const { t } = useTranslation();
   return (
     <div className="px-3 pt-3 lg:px-4">
-      <Alert variant="destructive">
+      {/* A recoverable standing state, not an event: no live role, so a remount does not announce it again. */}
+      <Alert variant="warning" role={undefined}>
         <CircleAlert aria-hidden />
         <AlertTitle>{t("email_hub.reconnect.banner_title")}</AlertTitle>
-        <AlertDescription>{t("email_hub.reconnect.banner_body")}</AlertDescription>
+        {/* text-pretty: the primitive balances below md, which breaks a phone-width line early. */}
+        <AlertDescription className="text-pretty">{t("email_hub.reconnect.banner_body")}</AlertDescription>
         <div className="col-start-2 mt-2">
-          <Button type="button" size="sm" variant="outline" onClick={onReconnect}>
+          <Button type="button" size="sm" onClick={onReconnect}>
             <RefreshCw aria-hidden />
             {t("email_hub.reconnect.action")}
           </Button>
