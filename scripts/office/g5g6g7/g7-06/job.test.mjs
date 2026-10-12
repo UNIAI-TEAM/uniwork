@@ -9,3 +9,4 @@
 // register their tests on this file when imported.
 import "./test-cases/protocol.cases.mjs";
 import "./test-cases/extractor.cases.mjs";
+import "./test-cases/golden.cases.mjs";

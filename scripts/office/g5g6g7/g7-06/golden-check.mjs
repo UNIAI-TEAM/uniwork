@@ -1,0 +1,226 @@
+// The `golden` check (contract 2.3): every capture against the committed golden
+// of the same host and fixture. Pixel regions listed as masks in
+// goldens/manifest.json (a caret, a clock, a version label — each with a
+// reason) are ignored; everything else is "untouched" and must match.
+//
+// The tolerances live in the manifest, not here: `channel` is how far one
+// channel may differ before a pixel counts as different (default 16), `ratio`
+// how large a share of the unmasked pixels may differ before the pair drifts
+// (default 0.001). The golden's own sha256 must equal its manifest entry.
+//
+// In `--update-goldens` mode the captures are copied into the goldens dir and
+// the manifest is rewritten; masks are hand-owned and stay untouched.
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { sha256Hex } from "../../../../apps/web/platform/office-frame/frame-bundle.mjs";
+import { DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonIfPresent, relativeToOut } from "./job-lib.mjs";
+
+export const DEFAULT_TOLERANCE = Object.freeze({ channel: 16, ratio: 0.001 });
+
+/** Tolerances come from the manifest; the defaults only fill an absent value. */
+export function tolerancesOf(manifest) {
+  return {
+    channel: typeof manifest?.tolerance?.channel === "number" ? manifest.tolerance.channel : DEFAULT_TOLERANCE.channel,
+    ratio: typeof manifest?.tolerance?.ratio === "number" ? manifest.tolerance.ratio : DEFAULT_TOLERANCE.ratio,
+  };
+}
+
+/** The per-fixture status the capture provider recorded, when it left a meta.json. */
+function captureStatus(capturesDir, host, fixture) {
+  const meta = readJsonIfPresent(join(capturesDir, host, "meta.json"));
+  const status = meta?.fixtures?.[fixture]?.status;
+  return typeof status === "string" ? status : null;
+}
+
+/** A pixel is masked when any mask rectangle covers it; stray masks are clamped. */
+function maskGrid(masks, width, height) {
+  const grid = new Uint8Array(width * height);
+  for (const mask of Array.isArray(masks) ? masks : []) {
+    if (!mask || typeof mask !== "object") continue;
+    const x0 = Math.max(0, Math.min(width, Number(mask.x) || 0));
+    const y0 = Math.max(0, Math.min(height, Number(mask.y) || 0));
+    const x1 = Math.max(0, Math.min(width, x0 + (Number(mask.w) || 0)));
+    const y1 = Math.max(0, Math.min(height, y0 + (Number(mask.h) || 0)));
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) grid[y * width + x] = 1;
+    }
+  }
+  return grid;
+}
+
+/**
+ * Compare two decoded PNGs: the changed-pixel ratio over the pixels outside
+ * the masks, plus the diff image (red on changed pixels, masks greyed).
+ * @param {{ width: number, height: number, data: Buffer }} actual
+ * @param {{ width: number, height: number, data: Buffer }} expected
+ * @param {{ channel: number }} tolerance
+ * @param {{ x: number, y: number, w: number, h: number }[]} masks
+ */
+export function comparePixels(actual, expected, tolerance, masks) {
+  const { width, height } = actual;
+  const masksGrid = maskGrid(masks, width, height);
+  const diff = new Uint8Array(width * height * 4);
+  let outside = 0;
+  let changed = 0;
+  for (let i = 0; i < width * height; i += 1) {
+    const at = i * 4;
+    const masked = masksGrid[i] === 1;
+    let differs = false;
+    if (!masked) {
+      outside += 1;
+      for (let channel = 0; channel < 4; channel += 1) {
+        if (Math.abs(actual.data[at + channel] - expected.data[at + channel]) > tolerance.channel) {
+          differs = true;
+          break;
+        }
+      }
+      if (differs) changed += 1;
+    }
+    if (masked) diff.set([0x80, 0x80, 0x80, 0xff], at);
+    else if (differs) diff.set([0xff, 0x00, 0x00, 0xff], at);
+    else diff.set(actual.data.subarray(at, at + 4), at);
+  }
+  return { outside, changed, ratio: outside > 0 ? changed / outside : 0, diff };
+}
+
+/** A pair's report: pass/fail/blocked, named reasons, the numbers behind them. */
+function pairBlocked(pair, reason) {
+  return { ...pair, status: "BLOCKED", reasons: [reason] };
+}
+
+/**
+ * Run the check and write <out>/golden/summary.json plus, per pair,
+ * .actual.png / .expected.png / .diff.png under <out>/golden/<host>/.
+ * @param {{ capturesDir: string | null, goldensDir?: string, outDir: string, fixtures?: string[], hosts?: string[] }} options
+ */
+export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, outDir, fixtures = fixtureIds(), hosts = HOSTS }) {
+  if (!capturesDir || !existsSync(capturesDir)) {
+    return { status: "BLOCKED", reasons: ["captures_missing"], artifacts: [] };
+  }
+  const { PNG } = loadPngjs();
+  const manifestPath = join(goldensDir, "manifest.json");
+  let manifest = readJsonIfPresent(manifestPath) ?? {};
+  const tolerance = tolerancesOf(manifest);
+  const entries = manifest.entries ?? {};
+  const pairs = [];
+  const artifacts = [];
+
+  for (const host of hosts) {
+    for (const fixture of fixtures) {
+      const pair = { host, fixture };
+      const capturePath = join(capturesDir, host, `${fixture}.png`);
+      const goldenPath = join(goldensDir, host, `${fixture}.png`);
+      const entry = entries[`${host}/${fixture}`] ?? null;
+      const metaStatus = captureStatus(capturesDir, host, fixture);
+      let report;
+      if (!existsSync(capturePath)) report = pairBlocked(pair, "capture_missing");
+      else if (metaStatus === "failed") report = pairBlocked(pair, "capture_failed");
+      else if (metaStatus === "blocked") report = pairBlocked(pair, "capture_blocked");
+      else if (!entry || !existsSync(goldenPath)) report = { ...pair, status: "FAIL", reasons: ["golden_missing"] };
+      else {
+        const outDirForPair = join(outDir, "golden", host);
+        mkdirSync(outDirForPair, { recursive: true });
+        const actualPath = join(outDirForPair, `${fixture}.actual.png`);
+        const expectedPath = join(outDirForPair, `${fixture}.expected.png`);
+        copyFileSync(capturePath, actualPath);
+        copyFileSync(goldenPath, expectedPath);
+        artifacts.push(relativeToOut(outDir, actualPath), relativeToOut(outDir, expectedPath));
+        const actualBytes = readFileSync(capturePath);
+        const goldenBytes = readFileSync(goldenPath);
+        if (sha256Hex(goldenBytes) !== entry.sha256) {
+          report = { ...pair, status: "FAIL", reasons: ["golden_tampered"] };
+        } else {
+          let actual;
+          let expected;
+          try {
+            actual = PNG.sync.read(actualBytes);
+            expected = PNG.sync.read(goldenBytes);
+          } catch (error) {
+            report = { ...pair, status: "FAIL", reasons: [`png_unreadable (${error.message})`] };
+          }
+          if (actual && expected) {
+            if (actual.width !== expected.width || actual.height !== expected.height) {
+              report = { ...pair, status: "FAIL", reasons: ["size_mismatch"], size: { actual: [actual.width, actual.height], expected: [expected.width, expected.height] } };
+            } else {
+              const result = comparePixels(actual, expected, tolerance, entry.masks ?? []);
+              const drift = result.ratio > tolerance.ratio;
+              report = {
+                ...pair,
+                status: drift ? "FAIL" : "PASS",
+                reasons: drift ? ["golden_drift"] : [],
+                pixels: { outside: result.outside, changed: result.changed, ratio: result.ratio },
+              };
+              const diffPath = join(outDirForPair, `${fixture}.diff.png`);
+              const image = new PNG({ width: actual.width, height: actual.height });
+              Buffer.from(result.diff).copy(image.data);
+              writeFileSync(diffPath, PNG.sync.write(image));
+              artifacts.push(relativeToOut(outDir, diffPath));
+            }
+          }
+        }
+      }
+      pairs.push(report);
+    }
+  }
+
+  const fail = [...new Set(pairs.filter((pair) => pair.status === "FAIL").flatMap((pair) => pair.reasons))];
+  const blocked = [...new Set(pairs.filter((pair) => pair.status === "BLOCKED").flatMap((pair) => pair.reasons))];
+  const status = fail.length > 0 ? "FAIL" : blocked.length > 0 ? "BLOCKED" : "PASS";
+  const summaryPath = join(outDir, "golden", "summary.json");
+  mkdirSync(dirname(summaryPath), { recursive: true });
+  writeFileSync(summaryPath, `${JSON.stringify({ status, tolerances: tolerance, pinVersion: manifest.pinVersion ?? null, pairs }, null, 2)}\n`);
+  artifacts.unshift(relativeToOut(outDir, summaryPath));
+  return { status, reasons: status === "FAIL" ? fail : status === "BLOCKED" ? blocked : [], artifacts };
+}
+
+/**
+ * `--update-goldens`: copy the captures into the goldens dir and rewrite
+ * <goldensDir>/manifest.json. Masks stay hand-owned: an entry keeps the masks
+ * it had; a capture that is missing leaves its entry alone and blocks the run.
+ * @param {{ capturesDir: string | null, goldensDir?: string, fixtures?: string[], hosts?: string[], pinVersion?: string | null, forkSha?: string | null, outDir: string }} options
+ */
+export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, fixtures = fixtureIds(), hosts = HOSTS, pinVersion = null, forkSha = null, outDir }) {
+  if (!capturesDir || !existsSync(capturesDir)) {
+    return { status: "BLOCKED", reasons: ["captures_missing"], artifacts: [] };
+  }
+  const manifestPath = join(goldensDir, "manifest.json");
+  const previous = readJsonIfPresent(manifestPath) ?? {};
+  const entries = { ...(previous.entries ?? {}) };
+  const blocked = [];
+  const metaOf = (host) => readJsonIfPresent(join(capturesDir, host, "meta.json"));
+  const metas = hosts.map((host) => metaOf(host));
+  for (const host of hosts) {
+    for (const fixture of fixtures) {
+      const capturePath = join(capturesDir, host, `${fixture}.png`);
+      if (!existsSync(capturePath) || captureStatus(capturesDir, host, fixture) !== "ok") {
+        blocked.push(`capture_missing:${host}/${fixture}`);
+        continue;
+      }
+      const target = join(goldensDir, host, `${fixture}.png`);
+      mkdirSync(dirname(target), { recursive: true });
+      copyFileSync(capturePath, target);
+      entries[`${host}/${fixture}`] = { sha256: sha256Hex(readFileSync(target)), masks: entries[`${host}/${fixture}`]?.masks ?? [] };
+    }
+  }
+  const meta = metas.find((value) => value && value.viewport) ?? {};
+  const manifest = {
+    schema: 1,
+    pinVersion: pinVersion ?? meta.pinVersion ?? previous.pinVersion ?? null,
+    forkSha: forkSha ?? meta.forkSha ?? previous.forkSha ?? null,
+    capturedOn: meta.capturedAt ?? previous.capturedOn ?? new Date().toISOString(),
+    viewport: meta.viewport ?? previous.viewport ?? { w: 1440, h: 900 },
+    deviceScaleFactor: meta.deviceScaleFactor ?? previous.deviceScaleFactor ?? 1,
+    tolerance: tolerancesOf(previous),
+    entries,
+  };
+  mkdirSync(goldensDir, { recursive: true });
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  const summaryPath = join(outDir, "golden", "update.json");
+  mkdirSync(dirname(summaryPath), { recursive: true });
+  writeFileSync(summaryPath, `${JSON.stringify({ entries: Object.keys(entries).length, blocked }, null, 2)}\n`);
+  return {
+    status: blocked.length > 0 ? "BLOCKED" : "PASS",
+    reasons: blocked,
+    artifacts: [relativeToOut(outDir, summaryPath), relativeToOut(outDir, manifestPath)],
+  };
+}
