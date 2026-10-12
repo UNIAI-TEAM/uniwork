@@ -13,6 +13,8 @@ export interface FixtureOptions {
   files?: Record<string, string>;
   csp?: unknown;
   dirty?: boolean;
+  /** the build's protocolSha256 (X-02); absent like a build from before it */
+  protocolSha256?: unknown;
 }
 
 /** Writes a fork-shaped build (files + manifest.json + csp.json) and returns its directory. */
@@ -25,7 +27,7 @@ export function writeBundle(options: FixtureOptions = {}): string {
     writeFileSync(join(dir, path), text);
     return { path, bytes: Buffer.byteLength(text), sha256: sha256Hex(text) };
   });
-  const manifest = { ...(options.module ? { module: options.module } : {}), version, gitSha: options.gitSha ?? "abc1234def5678", builtAt: "2026-10-08T00:00:00Z", entry: "index.html", dirty: options.dirty, files: rows };
+  const manifest = { ...(options.module ? { module: options.module } : {}), version, gitSha: options.gitSha ?? "abc1234def5678", builtAt: "2026-10-08T00:00:00Z", entry: "index.html", dirty: options.dirty, files: rows, ...(options.protocolSha256 ? { protocolSha256: options.protocolSha256 } : {}) };
   writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest, null, 2));
   writeFileSync(join(dir, "csp.json"), JSON.stringify(options.csp ?? { "Content-Security-Policy": CSP }));
   return dir;

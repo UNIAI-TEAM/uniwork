@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertMatchesPin, assertModule, assertSafeBundlePath, assertSafeVersion, buildPin, enforceFrameAncestors,
-  frameUrlRoot, parseCspDocuments, parseCspManifest, parseManifest, parsePin, sha256Hex,
+  frameUrlRoot, parseCspDocuments, parseCspManifest, parseManifest, parsePin, parseProtocolSha256, sha256Hex,
 } from "./frame-bundle.mjs";
 
 const sha = sha256Hex("x");
@@ -55,6 +55,38 @@ describe("parseManifest", () => {
     ["duplicate path", manifest({ files: [{ path: "index.html", bytes: 1, sha256: sha }, { path: "index.html", bytes: 1, sha256: sha }] })],
   ])("refuses %s", (_name, raw) => {
     expect(() => parseManifest(raw)).toThrow();
+  });
+});
+
+describe("protocolSha256 (X-02 frame protocol pin)", () => {
+  const protocolSha256 = { protocol: sha256Hex("types"), endpoint: sha256Hex("endpoint"), host: sha256Hex("host") };
+  it("is optional in a manifest and kept, in key order, when present", () => {
+    expect(parseManifest(manifest())).not.toHaveProperty("protocolSha256");
+    const reordered = { host: protocolSha256.host, endpoint: protocolSha256.endpoint, protocol: protocolSha256.protocol };
+    const m = parseManifest(manifest({ protocolSha256: reordered }));
+    expect(m.protocolSha256).toEqual(protocolSha256);
+    expect(Object.keys(m.protocolSha256 ?? {})).toEqual(["protocol", "endpoint", "host"]);
+  });
+  it.each([
+    ["not an object", "abc"],
+    ["a list", [sha, sha, sha]],
+    ["a missing digest", { protocol: sha, endpoint: sha }],
+    ["a bad digest", { protocol: sha, endpoint: sha, host: "XYZ" }],
+    ["an upper-case digest", { protocol: sha.toUpperCase(), endpoint: sha, host: sha }],
+    ["an unknown key", { protocol: sha, endpoint: sha, host: sha, client: sha }],
+  ])("refuses %s, in a manifest and in a pin", (_name, raw) => {
+    expect(() => parseManifest(manifest({ protocolSha256: raw }))).toThrow(/manifest\.protocolSha256/);
+    expect(() => parseProtocolSha256(raw, "pin")).toThrow(/pin\.protocolSha256/);
+  });
+  it("buildPin copies it from the manifest and parsePin keeps it; a pin without it keeps its old shape", () => {
+    const headers = parseCspManifest({ policy: "default-src 'self'" });
+    const pin = buildPin(parseManifest(manifest({ protocolSha256 })), sha, headers);
+    expect(pin.protocolSha256).toEqual(protocolSha256);
+    expect(parsePin(JSON.parse(JSON.stringify(pin)))).toEqual(pin);
+    const old = buildPin(parseManifest(manifest()), sha, headers);
+    expect(old).not.toHaveProperty("protocolSha256");
+    expect(parsePin(JSON.parse(JSON.stringify(old)))).toEqual(old);
+    expect(() => parsePin({ ...pin, protocolSha256: { ...protocolSha256, host: "0" } })).toThrow(/pin\.protocolSha256\.host/);
   });
 });
 

@@ -69,13 +69,44 @@ export function assertSafeBundlePath(path) {
 }
 
 /**
+ * The sha256 of the frame protocol sources a build was compiled against (X-02):
+ * the fork's web/docs/protocol/{types,endpoint,host}.ts, which this repo
+ * vendors as packages/core/office/docs-frame-{protocol,endpoint,host}.ts
+ * (scripts/office/frame-protocol-vendor.test.mjs keeps the two in step).
+ * @typedef {{ protocol: string, endpoint: string, host: string }} ProtocolSha256
+ */
+
+/** The three digests, in the fork manifest's key order. */
+export const PROTOCOL_SHA256_KEYS = Object.freeze(["protocol", "endpoint", "host"]);
+
+/**
+ * Validates a protocolSha256 object: exactly the three keys, each a hex digest.
+ * Returns a fresh object in key order, so a pin and a manifest compare equal as JSON.
+ * @param {unknown} raw
+ * @param {string} what where it came from, for the error
+ * @returns {ProtocolSha256}
+ */
+export function parseProtocolSha256(raw, what) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error(`${what}.protocolSha256 is not an object`);
+  const r = /** @type {Record<string, unknown>} */ (raw);
+  const extra = Object.keys(r).filter((key) => !PROTOCOL_SHA256_KEYS.includes(key));
+  if (extra.length) throw new Error(`${what}.protocolSha256 has unknown keys ${extra.join(", ")}`);
+  for (const key of PROTOCOL_SHA256_KEYS) {
+    const value = r[key];
+    if (typeof value !== "string" || !SHA256_RE.test(value)) throw new Error(`${what}.protocolSha256.${key} is not a hex digest`);
+  }
+  return { protocol: /** @type {string} */ (r.protocol), endpoint: /** @type {string} */ (r.endpoint), host: /** @type {string} */ (r.host) };
+}
+
+/**
  * @typedef {{ path: string, bytes: number, sha256: string }} ManifestFile
- * @typedef {{ module: string, version: string, gitSha: string, entry: string, dirty: boolean, files: ManifestFile[] }} FrameManifest
+ * @typedef {{ module: string, version: string, gitSha: string, entry: string, dirty: boolean, files: ManifestFile[], protocolSha256?: ProtocolSha256 }} FrameManifest
  */
 
 /**
- * Validates the fork's manifest.json ({module?, version, gitSha, entry, files[]});
- * an absent module is docs (builds from before modules existed). Any other
+ * Validates the fork's manifest.json ({module?, version, gitSha, entry, files[],
+ * protocolSha256?}); an absent module is docs (builds from before modules
+ * existed), an absent protocolSha256 a build from before X-02. Any other
  * field (builtAt, totalBytes, gzipBytes) is informational and ignored.
  * @param {unknown} raw
  * @returns {FrameManifest}
@@ -100,7 +131,8 @@ export function parseManifest(raw) {
     return { path, bytes: f.bytes, sha256: f.sha256 };
   });
   if (!seen.has(entry)) throw new Error(`manifest entry ${entry} is not in files`);
-  return { module, version, gitSha: m.gitSha, entry, dirty: m.dirty === true, files };
+  const protocol = m.protocolSha256 === undefined ? {} : { protocolSha256: parseProtocolSha256(m.protocolSha256, "manifest") };
+  return { module, version, gitSha: m.gitSha, entry, dirty: m.dirty === true, files, ...protocol };
 }
 
 /**
@@ -279,7 +311,7 @@ export function parseCspDocuments(raw) {
 }
 
 /**
- * @typedef {{ schema: 1, version: string, gitSha: string, entry: string, manifestSha256: string, headers: Record<string, string>, documents?: FrameDocumentPolicy[] }} FramePin
+ * @typedef {{ schema: 1, version: string, gitSha: string, entry: string, manifestSha256: string, headers: Record<string, string>, documents?: FrameDocumentPolicy[], protocolSha256?: ProtocolSha256 }} FramePin
  */
 
 /**
@@ -300,7 +332,9 @@ export function parsePin(raw) {
   if (typeof p.manifestSha256 !== "string" || !SHA256_RE.test(p.manifestSha256)) throw new Error("pin manifestSha256 is not a hex digest");
   const headers = parseCspManifest({ headers: p.headers });
   const documents = normalizeDocuments(p.documents);
-  return { schema: 1, version, gitSha: p.gitSha, entry, manifestSha256: p.manifestSha256, headers, ...(documents.length ? { documents } : {}) };
+  // optional until every pin is re-pinned from a fork release that records it (X-02)
+  const protocol = p.protocolSha256 === undefined ? {} : { protocolSha256: parseProtocolSha256(p.protocolSha256, "pin") };
+  return { schema: 1, version, gitSha: p.gitSha, entry, manifestSha256: p.manifestSha256, headers, ...(documents.length ? { documents } : {}), ...protocol };
 }
 
 /**
@@ -308,10 +342,11 @@ export function parsePin(raw) {
  * @param {string} manifestSha256
  * @param {Record<string, string>} headers
  * @param {FrameDocumentPolicy[]} [documents] the bundle's per-document policies; left out of the pin when there are none
- * @returns {FramePin}
+ * @returns {FramePin} carries the manifest's protocolSha256 when the build recorded one
  */
 export function buildPin(manifest, manifestSha256, headers, documents = []) {
-  return { schema: 1, version: manifest.version, gitSha: manifest.gitSha, entry: manifest.entry, manifestSha256, headers, ...(documents.length ? { documents } : {}) };
+  const protocol = manifest.protocolSha256 ? { protocolSha256: { ...manifest.protocolSha256 } } : {};
+  return { schema: 1, version: manifest.version, gitSha: manifest.gitSha, entry: manifest.entry, manifestSha256, headers, ...(documents.length ? { documents } : {}), ...protocol };
 }
 
 /**

@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { URL } from "node:url";
-import { assertMatchesPin, assertModule, assertSafeVersion, parseCspDocuments, parseCspManifest, parseManifest, sha256Hex } from "./frame-bundle.mjs";
+import { assertMatchesPin, assertModule, assertSafeVersion, parseCspDocuments, parseCspManifest, parseManifest, PROTOCOL_SHA256_KEYS, sha256Hex } from "./frame-bundle.mjs";
 
 /**
  * The source for logs: scheme and host only. A source URL is a secret (token in the query, userinfo
@@ -194,12 +194,26 @@ export function assertHeadersMatchPin(pin, headers, documents = []) {
   }
 }
 
+/**
+ * A pin that records the frame protocol (X-02) only accepts a build compiled
+ * against exactly that protocol: a build without the digests, or with other
+ * ones, is refused. A pin without protocolSha256 (before the re-pin) checks
+ * nothing here; its manifestSha256 still pins the whole build.
+ */
+export function assertProtocolMatchesPin(pin, manifest) {
+  if (!pin.protocolSha256) return;
+  if (!manifest.protocolSha256) throw new Error("the build records no protocolSha256 but the pin does; re-pin deliberately with --pin");
+  const differs = PROTOCOL_SHA256_KEYS.filter((key) => manifest.protocolSha256[key] !== pin.protocolSha256[key]);
+  if (differs.length) throw new Error(`frame protocol differs from the pin (${differs.join(", ")}); re-pin deliberately with --pin`);
+}
+
 /** Re-verifies the installed copy against the pin; returns false when it is not installed. */
 export function checkInstalled(pin, root) {
   const dir = join(root, pin.version);
   if (!existsSync(join(dir, "manifest.json"))) return false;
   const bundle = loadBundle(dir, { allowDirty: true });
   assertMatchesPin(pin, bundle.manifest, bundle.manifestSha256);
+  assertProtocolMatchesPin(pin, bundle.manifest);
   assertHeadersMatchPin(pin, bundle.headers, bundle.documents);
   return true;
 }
