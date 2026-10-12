@@ -1,0 +1,1673 @@
+$ node --test scripts/office/g5g6g7/g7-06/job.test.mjs scripts/office/g5g6g7/g7-06/capture.test.mjs scripts/office/g5g6g7/harness/lib.test.mjs scripts/office/g5g6g7/harness/readme-blocks.test.mjs scripts/office/g5g6g7/harness/api-contract.test.mjs scripts/office/g5g6g7/evidence.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs
+TAP version 13
+# Subtest: acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+ok 1 - acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+  ---
+  duration_ms: 6.270953
+  ...
+# Subtest: acceptance.md says the requirements are an interpretation, not the verbatim spec
+ok 2 - acceptance.md says the requirements are an interpretation, not the verbatim spec
+  ---
+  duration_ms: 0.135747
+  ...
+# Subtest: a PASS row that runs on several fixtures needs one PASS record per fixture
+ok 3 - a PASS row that runs on several fixtures needs one PASS record per fixture
+  ---
+  duration_ms: 22.522951
+  ...
+# Subtest: the summary numbers are checked against the candidate, not the committed matrix (N6)
+ok 4 - the summary numbers are checked against the candidate, not the committed matrix (N6)
+  ---
+  duration_ms: 21.773828
+  ...
+# Subtest: the ledger is read only when the caller names it, and only its own records
+ok 5 - the ledger is read only when the caller names it, and only its own records
+  ---
+  duration_ms: 2.241823
+  ...
+# Subtest: a ledger that is named and does not exist is an error, not a green gate (N5)
+ok 6 - a ledger that is named and does not exist is an error, not a green gate (N5)
+  ---
+  duration_ms: 2.160093
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 7 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 55.765739
+  ...
+# Subtest: exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+ok 8 - exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+  ---
+  duration_ms: 33.22963
+  ...
+# Subtest: a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+ok 9 - a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+  ---
+  duration_ms: 63.331681
+  ...
+# Subtest: a command killed by a signal is a FAIL with 128 + the signal number, never a PASS
+ok 10 - a command killed by a signal is a FAIL with 128 + the signal number, never a PASS
+  ---
+  duration_ms: 12.821071
+  ...
+# Subtest: a skip line only turns a clean exit into BLOCKED, and never masks a failure
+ok 11 - a skip line only turns a clean exit into BLOCKED, and never masks a failure
+  ---
+  duration_ms: 4.256667
+  ...
+# Subtest: a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+ok 12 - a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+  ---
+  duration_ms: 10.47962
+  ...
+# Subtest: a run on a fixture the row does not declare is BLOCKED and the command does not run
+ok 13 - a run on a fixture the row does not declare is BLOCKED and the command does not run
+  ---
+  duration_ms: 2.596556
+  ...
+# Subtest: two runs for one requirement cannot share an evidence id or overwrite an artifact
+ok 14 - two runs for one requirement cannot share an evidence id or overwrite an artifact
+  ---
+  duration_ms: 34.640102
+  ...
+# Subtest: the ledger records the argv array beside the readable command
+ok 15 - the ledger records the argv array beside the readable command
+  ---
+  duration_ms: 19.054212
+  ...
+# Subtest: a check that prints more than the default buffer still records its exit code
+ok 16 - a check that prints more than the default buffer still records its exit code
+  ---
+  duration_ms: 43.919605
+  ...
+# Subtest: an explicit blocker reason blocks a run that would otherwise pass
+ok 17 - an explicit blocker reason blocks a run that would otherwise pass
+  ---
+  duration_ms: 3.229707
+  ...
+# Subtest: an unknown requirement id is refused instead of written
+ok 18 - an unknown requirement id is refused instead of written
+  ---
+  duration_ms: 0.798515
+  ...
+# Subtest: reset only touches a lane test database and is a dry run without psql
+ok 19 - reset only touches a lane test database and is a dry run without psql
+  ---
+  duration_ms: 81.986559
+  ...
+# Subtest: verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+ok 20 - verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+  ---
+  duration_ms: 23.308623
+  ...
+# Subtest: verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+ok 21 - verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+  ---
+  duration_ms: 25.830737
+  ...
+# Subtest: the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+ok 22 - the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+  ---
+  duration_ms: 242.49821
+  ...
+# Subtest: a FAIL or BLOCKED run echoes the tail of its output to stderr, a PASS stays quiet
+ok 23 - a FAIL or BLOCKED run echoes the tail of its output to stderr, a PASS stays quiet
+  ---
+  duration_ms: 156.314835
+  ...
+# Subtest: an absolute --out is honoured as given, never nested under the repo
+ok 24 - an absolute --out is honoured as given, never nested under the repo
+  ---
+  duration_ms: 16.492275
+  ...
+# Subtest: the fork SHA comes from the environment and is null when the environment does not name it
+ok 25 - the fork SHA comes from the environment and is null when the environment does not name it
+  ---
+  duration_ms: 3.930637
+  ...
+# Subtest: the matrix the runner reads declares every fixture it needs
+ok 26 - the matrix the runner reads declares every fixture it needs
+  ---
+  duration_ms: 0.710795
+  ...
+# Subtest: settle
+    # Subtest: settles after two identical consecutive frames
+    ok 1 - settles after two identical consecutive frames
+      ---
+      duration_ms: 1.223502
+      ...
+    # Subtest: a busy poll restarts the count: a frame taken under a spinner never counts
+    ok 2 - a busy poll restarts the count: a frame taken under a spinner never counts
+      ---
+      duration_ms: 0.262343
+      ...
+    # Subtest: times out as still_busy when the spinner never goes
+    ok 3 - times out as still_busy when the spinner never goes
+      ---
+      duration_ms: 0.153018
+      ...
+    # Subtest: times out as frames_differ when every frame is new (a ticking clock)
+    ok 4 - times out as frames_differ when every frame is new (a ticking clock)
+      ---
+      duration_ms: 0.387966
+      ...
+    # Subtest: identical frames only settle once they have been identical for quietMs (a pause is not a settled screen)
+    ok 5 - identical frames only settle once they have been identical for quietMs (a pause is not a settled screen)
+      ---
+      duration_ms: 0.350916
+      ...
+    # Subtest: a timeout names what was still busy
+    ok 6 - a timeout names what was still busy
+      ---
+      duration_ms: 0.270693
+      ...
+    # Subtest: a streaming load gets the 90 s budget: still loading at 60 s is waited out, and the shot is the settled one (cloud round 2: not_settled after 45 s)
+    ok 7 - a streaming load gets the 90 s budget: still loading at 60 s is waited out, and the shot is the settled one (cloud round 2: not_settled after 45 s)
+      ---
+      duration_ms: 1.6391
+      ...
+    # Subtest: a streaming load that is still going after 90 s is a FAIL not_settled, never a mask
+    ok 8 - a streaming load that is still going after 90 s is a FAIL not_settled, never a mask
+      ---
+      duration_ms: 2.986073
+      ...
+    # Subtest: anything that is not a streaming load keeps the 45 s budget (spinner, toast, a plain in-progress status)
+    ok 9 - anything that is not a streaming load keeps the 45 s budget (spinner, toast, a plain in-progress status)
+      ---
+      duration_ms: 3.714008
+      ...
+    # Subtest: the extended budget is only for a status that reports a streaming load
+    ok 10 - the extended budget is only for a status that reports a streaming load
+      ---
+      duration_ms: 0.486622
+      ...
+    # Subtest: refuses a single-frame 'settle'
+    ok 11 - refuses a single-frame 'settle'
+      ---
+      duration_ms: 0.465112
+      ...
+    # Subtest: frameHash is content-addressed
+    ok 12 - frameHash is content-addressed
+      ---
+      duration_ms: 0.196867
+      ...
+    1..12
+ok 27 - settle
+  ---
+  duration_ms: 13.239018
+  type: 'suite'
+  ...
+# Subtest: text assembly
+    # Subtest: title, trimmed non-empty body lines, then distinct attribute values; no URL anywhere
+    ok 1 - title, trimmed non-empty body lines, then distinct attribute values; no URL anywhere
+      ---
+      duration_ms: 0.259881
+      ...
+    # Subtest: empty blocks are dropped and the result ends with a newline
+    ok 2 - empty blocks are dropped and the result ends with a newline
+      ---
+      duration_ms: 0.136924
+      ...
+    # Subtest: visibleChars ignores whitespace
+    ok 3 - visibleChars ignores whitespace
+      ---
+      duration_ms: 0.087834
+      ...
+    1..3
+ok 28 - text assembly
+  ---
+  duration_ms: 0.61819
+  type: 'suite'
+  ...
+# Subtest: arguments and exit codes
+    # Subtest: parses host, out, fixtures and run dir
+    ok 1 - parses host, out, fixtures and run dir
+      ---
+      duration_ms: 0.722592
+      ...
+    # Subtest: rejects a missing host/out, an unknown host, an unknown flag, a valueless flag
+    ok 2 - rejects a missing host/out, an unknown host, an unknown flag, a valueless flag
+      ---
+      duration_ms: 0.216562
+      ...
+    # Subtest: the run dir defaults to HARNESS_RUN_DIR
+    ok 3 - the run dir defaults to HARNESS_RUN_DIR
+      ---
+      duration_ms: 0.080656
+      ...
+    # Subtest: exit: 0 all ok, 1 any failed (even beside blocked), 77 blocked or nothing
+    ok 4 - exit: 0 all ok, 1 any failed (even beside blocked), 77 blocked or nothing
+      ---
+      duration_ms: 0.143256
+      ...
+    # Subtest: meta carries the contract fields and the fixed shot settings
+    ok 5 - meta carries the contract fields and the fixed shot settings
+      ---
+      duration_ms: 0.77645
+      ...
+    # Subtest: a fixture that is not ok leaves no stale png/txt
+    ok 6 - a fixture that is not ok leaves no stale png/txt
+      ---
+      duration_ms: 0.883456
+      ...
+    # Subtest: the web host's text around the frame goes to <id>.host.txt, the desktop shell's to <id>.shell.txt, and a failed fixture clears both
+    ok 7 - the web host's text around the frame goes to <id>.host.txt, the desktop shell's to <id>.shell.txt, and a failed fixture clears both
+      ---
+      duration_ms: 0.898858
+      ...
+    # Subtest: meta records each shot's real size and whether its frame is canvas only
+    ok 8 - meta records each shot's real size and whether its frame is canvas only
+      ---
+      duration_ms: 0.262776
+      ...
+    # Subtest: the viewport is per host (Amendment 4): desktop 1440x900, web 1720x980 so the module frame is as wide as the desktop view
+    ok 9 - the viewport is per host (Amendment 4): desktop 1440x900, web 1720x980 so the module frame is as wide as the desktop view
+      ---
+      duration_ms: 0.223746
+      ...
+    # Subtest: the SETTLE budget needs two identical frames, defaults to 45 s and allows 90 s for a streaming load
+    ok 10 - the SETTLE budget needs two identical frames, defaults to 45 s and allows 90 s for a streaming load
+      ---
+      duration_ms: 0.090031
+      ...
+    1..10
+ok 29 - arguments and exit codes
+  ---
+  duration_ms: 4.607796
+  type: 'suite'
+  ...
+# Subtest: fixtures
+    # Subtest: the manifest's six fixtures, each with a module and an existing file
+    ok 1 - the manifest's six fixtures, each with a module and an existing file
+      ---
+      duration_ms: 0.332602
+      ...
+    # Subtest: --fixtures picks in manifest order and names unknown ids
+    ok 2 - --fixtures picks in manifest order and names unknown ids
+      ---
+      duration_ms: 0.23696
+      ...
+    1..2
+ok 30 - fixtures
+  ---
+  duration_ms: 0.658126
+  type: 'suite'
+  ...
+# Subtest: run gate
+    # Subtest: no ports.env = blocked; start.sh failed = fail; start.sh blocked = blocked; up = proceed
+    ok 1 - no ports.env = blocked; start.sh failed = fail; start.sh blocked = blocked; up = proceed
+      ---
+      duration_ms: 1.406732
+      ...
+    # Subtest: CLI, no harness run: exit 77, meta.json lists every fixture as blocked, no png
+    ok 2 - CLI, no harness run: exit 77, meta.json lists every fixture as blocked, no png
+      ---
+      duration_ms: 360.522352
+      ...
+    # Subtest: CLI, start.sh failed: exit 1 (a harness bug is not a missing precondition)
+    ok 3 - CLI, start.sh failed: exit 1 (a harness bug is not a missing precondition)
+      ---
+      duration_ms: 287.808301
+      ...
+    # Subtest: CLI usage errors exit 2 and write nothing
+    ok 4 - CLI usage errors exit 2 and write nothing
+      ---
+      duration_ms: 74.673912
+      ...
+    # Subtest: Playwright not installed is BLOCKED, named
+    ok 5 - Playwright not installed is BLOCKED, named
+      ---
+      duration_ms: 1.160085
+      ...
+    1..5
+ok 31 - run gate
+  ---
+  duration_ms: 725.839014
+  type: 'suite'
+  ...
+# Subtest: desktop host
+    # Subtest: a run without the fork app, a display or a binary is blocked with the reason
+    ok 1 - a run without the fork app, a display or a binary is blocked with the reason
+      ---
+      duration_ms: 1.759062
+      ...
+    # Subtest: the instance env is the harness allow-list plus fixed locale, zone and the run's display and X auth; no server secret
+    ok 2 - the instance env is the harness allow-list plus fixed locale, zone and the run's display and X auth; no server secret
+      ---
+      duration_ms: 0.470858
+      ...
+    # Subtest: the desktop instance pins the device scale factor instead of trusting the display's DPI
+    ok 3 - the desktop instance pins the device scale factor instead of trusting the display's DPI
+      ---
+      duration_ms: 0.079718
+      ...
+    # Subtest: the shell text is every window title plus the text of every shell page, never the module view
+    ok 4 - the shell text is every window title plus the text of every shell page, never the module view
+      ---
+      duration_ms: 0.464333
+      ...
+    # Subtest: with no reusable app every fixture is blocked and nothing is launched
+    ok 5 - with no reusable app every fixture is blocked and nothing is launched
+      ---
+      duration_ms: 2.613022
+      ...
+    1..5
+ok 32 - desktop host
+  ---
+  duration_ms: 5.569363
+  type: 'suite'
+  ...
+# Subtest: web seeding
+    # Subtest: register -> verify -> org -> workspace(org id) -> onboarding -> one upload per fixture, token on every authed call
+    ok 1 - register -> verify -> org -> workspace(org id) -> onboarding -> one upload per fixture, token on every authed call
+      ---
+      duration_ms: 96.25792
+      ...
+    # Subtest: a refused call surfaces as an error naming the request, and a failed cleanup does not throw
+    ok 2 - a refused call surfaces as an error naming the request, and a failed cleanup does not throw
+      ---
+      duration_ms: 9.63374
+      ...
+    1..2
+ok 33 - web seeding
+  ---
+  duration_ms: 106.067099
+  type: 'suite'
+  ...
+# Subtest: web frame install state
+    # Subtest: a module is installed only when its pinned bundle verifies on disk
+    ok 1 - a module is installed only when its pinned bundle verifies on disk
+      ---
+      duration_ms: 0.378535
+      ...
+    # Subtest: the real pins of this checkout all carry a version and the docs pin names the fork sha
+    ok 2 - the real pins of this checkout all carry a version and the docs pin names the fork sha
+      ---
+      duration_ms: 0.779574
+      ...
+    1..2
+ok 34 - web frame install state
+  ---
+  duration_ms: 1.236497
+  type: 'suite'
+  ...
+# \# browser-backed capture tests run with @playwright/test (via /workspace/e2e) 1.62.1
+# Subtest: browser-backed capture
+    # Subtest: collects title, body, visible attribute values and the iframe's text; leaves hidden things out
+    ok 1 - collects title, body, visible attribute values and the iframe's text; leaves hidden things out
+      ---
+      duration_ms: 123.777083
+      ...
+    # Subtest: a blank page yields (almost) no visible characters
+    ok 2 - a blank page yields (almost) no visible characters
+      ---
+      duration_ms: 45.302751
+      ...
+    # Subtest: captureOpenFrame: a ready frame region is captured, settled, with its text
+    ok 3 - captureOpenFrame: a ready frame region is captured, settled, with its text
+      ---
+      duration_ms: 299.939766
+      ...
+    # Subtest: captureOpenFrame: a frame narrower than 1400 px fails frame_too_small (web at 1176 px cut the xlsx sheet's column G), never a shot
+    ok 4 - captureOpenFrame: a frame narrower than 1400 px fails frame_too_small (web at 1176 px cut the xlsx sheet's column G), never a shot
+      ---
+      duration_ms: 933.162602
+      ...
+    # Subtest: captureOpenFrame: the same page twice gives byte-identical shots (determinism of the settle + clip path)
+    ok 5 - captureOpenFrame: the same page twice gives byte-identical shots (determinism of the settle + clip path)
+      ---
+      duration_ms: 615.734745
+      ...
+    # Subtest: captureOpenFrame: a failure notice is a FAILED fixture with its kind, not a shot of the notice
+    ok 6 - captureOpenFrame: a failure notice is a FAILED fixture with its kind, not a shot of the notice
+      ---
+      duration_ms: 43.185162
+      ...
+    # Subtest: captureOpenFrame: no frame host at all is failed with the page's own words; booting forever is not_ready
+    ok 7 - captureOpenFrame: no frame host at all is failed with the page's own words; booting forever is not_ready
+      ---
+      duration_ms: 2107.218136
+      ...
+    # Subtest: captureOpenFrame: a spinner that never leaves is not_settled:still_busy, never a shot
+    ok 8 - captureOpenFrame: a spinner that never leaves is not_settled:still_busy, never a shot
+      ---
+      duration_ms: 675.502788
+      ...
+    # Subtest: captureOpenFrame: waits out an in-progress status message and shoots the finished one (round 1: 5177 px apart)
+    ok 9 - captureOpenFrame: waits out an in-progress status message and shoots the finished one (round 1: 5177 px apart)
+      ---
+      duration_ms: 1692.923316
+      ...
+    # Subtest: captureOpenFrame: a toast that fades is waited out, not masked: the shot is the one without it
+    ok 10 - captureOpenFrame: a toast that fades is waited out, not masked: the shot is the one without it
+      ---
+      duration_ms: 2190.319155
+      ...
+    # Subtest: captureOpenFrame: a notification that never goes fails the fixture and says which
+    ok 11 - captureOpenFrame: a notification that never goes fails the fixture and says which
+      ---
+      duration_ms: 873.277468
+      ...
+    # Subtest: captureOpenFrame: a finished status message and an ordinary live region do not hold the shot
+    ok 12 - captureOpenFrame: a finished status message and an ordinary live region do not hold the shot
+      ---
+      duration_ms: 473.591024
+      ...
+    # Subtest: PROGRESS_TEXT reads Vietnamese and English in-progress messages, not finished ones
+    ok 13 - PROGRESS_TEXT reads Vietnamese and English in-progress messages, not finished ones
+      ---
+      duration_ms: 0.490541
+      ...
+    # Subtest: web: the .txt is the module frame's text only; a blank frame under a busy host page has no rendered text (FS-1)
+    ok 14 - web: the .txt is the module frame's text only; a blank frame under a busy host page has no rendered text (FS-1)
+      ---
+      duration_ms: 1374.795123
+      ...
+    # Subtest: collects open shadow roots (nested too), ::before / ::after content, input / textarea / select values and SVG text; never a password (FS-4)
+    ok 15 - collects open shadow roots (nested too), ::before / ::after content, input / textarea / select values and SVG text; never a password (FS-4)
+      ---
+      duration_ms: 54.458797
+      ...
+    # Subtest: brand text that only exists in a shadow root, a pseudo-element or an input value reaches the text (what the brand check reads)
+    ok 16 - brand text that only exists in a shadow root, a pseudo-element or an input value reaches the text (what the brand check reads)
+      ---
+      duration_ms: 44.63712
+      ...
+    # Subtest: a frame that paints mainly into a canvas says so (canvasOnly); an ordinary page does not (FS-9)
+    ok 17 - a frame that paints mainly into a canvas says so (canvasOnly); an ordinary page does not (FS-9)
+      ---
+      duration_ms: 122.906878
+      ...
+    # Subtest: the Next dev overlay (a toast-like badge in a nextjs-portal shadow root) neither holds the shot nor lands in the text
+    ok 18 - the Next dev overlay (a toast-like badge in a nextjs-portal shadow root) neither holds the shot nor lands in the text
+      ---
+      duration_ms: 78.970664
+      ...
+    # Subtest: a spinner inside a shadow root counts as busy (FS-6)
+    ok 19 - a spinner inside a shadow root counts as busy (FS-6)
+      ---
+      duration_ms: 76.740528
+      ...
+    # Subtest: readFrameState reports the module's own host only
+    ok 20 - readFrameState reports the module's own host only
+      ---
+      duration_ms: 42.994972
+      ...
+    1..20
+ok 35 - browser-backed capture
+  ---
+  duration_ms: 11871.342318
+  type: 'suite'
+  ...
+# Subtest: web sign-in
+    # Subtest: redactUrl keeps the path and the names of the query fields, never their values
+    ok 1 - redactUrl keeps the path and the names of the query fields, never their values
+      ---
+      duration_ms: 0.318677
+      ...
+    1..1
+ok 36 - web sign-in
+  ---
+  duration_ms: 0.385781
+  type: 'suite'
+  ...
+# Subtest: web sign-in in a browser
+    # Subtest: waits for the form to hydrate before it fills and clicks (a click before it is a native GET, the round 1 failure)
+    ok 1 - waits for the form to hydrate before it fills and clicks (a click before it is a native GET, the round 1 failure)
+      ---
+      duration_ms: 1631.344259
+      ...
+    # Subtest: a page that never hydrates fails fast, names why, and the message carries the URL and heading
+    ok 2 - a page that never hydrates fails fast, names why, and the message carries the URL and heading
+      ---
+      duration_ms: 638.173255
+      ...
+    # Subtest: a form that hydrated but still submits natively reports the URL reached with the query values hidden
+    ok 3 - a form that hydrated but still submits natively reports the URL reached with the query values hidden
+      ---
+      duration_ms: 941.848188
+      ...
+    # Subtest: a rejected login reports the alert text the page shows
+    ok 4 - a rejected login reports the alert text the page shows
+      ---
+      duration_ms: 912.526889
+      ...
+    1..4
+ok 37 - web sign-in in a browser
+  ---
+  duration_ms: 4124.229616
+  type: 'suite'
+  ...
+# Subtest: sign-in failure message
+    # Subtest: the password is redacted every time it occurs in the error line, not only the first (N-4)
+    ok 1 - the password is redacted every time it occurs in the error line, not only the first (N-4)
+      ---
+      duration_ms: 0.390736
+      ...
+    1..1
+ok 38 - sign-in failure message
+  ---
+  duration_ms: 0.450639
+  type: 'suite'
+  ...
+# Subtest: browser suite prerequisites
+    # Subtest: a missing pngjs gives a printed skip reason, not a failing test (N-6)
+    ok 1 - a missing pngjs gives a printed skip reason, not a failing test (N-6)
+      ---
+      duration_ms: 0.150652
+      ...
+    1..1
+ok 39 - browser suite prerequisites
+  ---
+  duration_ms: 0.184804
+  type: 'suite'
+  ...
+# Subtest: protocol: fork = manifest = pins is a PASS
+ok 40 - protocol: fork = manifest = pins is a PASS
+  ---
+  duration_ms: 63.011362
+  ...
+# Subtest: protocol: nothing recording it is a NOTE, never a PASS
+ok 41 - protocol: nothing recording it is a NOTE, never a PASS
+  ---
+  duration_ms: 39.796099
+  ...
+# Subtest: protocol: one byte in fork host.ts is manifest_mismatch:host and pin_mismatch:*:host
+ok 42 - protocol: one byte in fork host.ts is manifest_mismatch:host and pin_mismatch:*:host
+  ---
+  duration_ms: 57.066863
+  ...
+# Subtest: protocol: recording on one side only is recorded_on_one_side
+ok 43 - protocol: recording on one side only is recorded_on_one_side
+  ---
+  duration_ms: 45.83013
+  ...
+# Subtest: protocol: a pin that differs from the others is pins_disagree
+ok 44 - protocol: a pin that differs from the others is pins_disagree
+  ---
+  duration_ms: 39.185183
+  ...
+# Subtest: protocol: five of six pins recording it is pins_disagree too
+ok 45 - protocol: five of six pins recording it is pins_disagree too
+  ---
+  duration_ms: 35.53578
+  ...
+# Subtest: protocol: a missing installed bundle is BLOCKED, never PASS
+ok 46 - protocol: a missing installed bundle is BLOCKED, never PASS
+  ---
+  duration_ms: 34.8174
+  ...
+# Subtest: protocol: an installed manifest of another commit is installed_manifest_mismatch:gitSha
+ok 47 - protocol: an installed manifest of another commit is installed_manifest_mismatch:gitSha
+  ---
+  duration_ms: 41.747218
+  ...
+# Subtest: protocol: a stale bundle at the installed root is installed_manifest_mismatch, never PASS
+ok 48 - protocol: a stale bundle at the installed root is installed_manifest_mismatch, never PASS
+  ---
+  duration_ms: 37.34673
+  ...
+# Subtest: protocol: a pin mismatch is a FAIL even without an installed bundle
+ok 49 - protocol: a pin mismatch is a FAIL even without an installed bundle
+  ---
+  duration_ms: 44.047708
+  ...
+# Subtest: protocol: pins that disagree on gitSha fail the default fork sha
+ok 50 - protocol: pins that disagree on gitSha fail the default fork sha
+  ---
+  duration_ms: 46.067398
+  ...
+# Subtest: real repo: protocol PASSes at the current pin and FAILs on a planted pin edit
+ok 51 - real repo: protocol PASSes at the current pin and FAILs on a planted pin edit
+  ---
+  duration_ms: 17.76492
+  ...
+# Subtest: extractor: the committed block is a PASS and the blob sha is recorded
+ok 52 - extractor: the committed block is a PASS and the blob sha is recorded
+  ---
+  duration_ms: 67.963831
+  ...
+# Subtest: extractor: one editor_write cell flipped opens the manual review row
+ok 53 - extractor: one editor_write cell flipped opens the manual review row
+  ---
+  duration_ms: 52.931403
+  ...
+# Subtest: extractor: an added row is a mechanical_column_changed with its own review row
+ok 54 - extractor: an added row is a mechanical_column_changed with its own review row
+  ---
+  duration_ms: 57.176291
+  ...
+# Subtest: extractor: a removed row is reported too
+ok 55 - extractor: a removed row is reported too
+  ---
+  duration_ms: 56.505169
+  ...
+# Subtest: extractor: a different rev= alone is not a row difference
+ok 56 - extractor: a different rev= alone is not a row difference
+  ---
+  duration_ms: 29342.495029
+  ...
+# Subtest: extractor: a clean exit with no extract block on stdout is extractor_failed, never PASS
+ok 57 - extractor: a clean exit with no extract block on stdout is extractor_failed, never PASS
+  ---
+  duration_ms: 159.819987
+  ...
+# Subtest: extractor: a failing extractor is extractor_failed with its stderr tail
+ok 58 - extractor: a failing extractor is extractor_failed with its stderr tail
+  ---
+  duration_ms: 52.729921
+  ...
+# Subtest: extractor: no fork checkout, no revision or no extractor file is BLOCKED, never a FAIL
+ok 59 - extractor: no fork checkout, no revision or no extractor file is BLOCKED, never a FAIL
+  ---
+  duration_ms: 28.58049
+  ...
+# Subtest: golden: identical captures pass on both hosts
+ok 60 - golden: identical captures pass on both hosts
+  ---
+  duration_ms: 52.79987
+  ...
+# Subtest: golden: a block outside the masks drifts
+ok 61 - golden: a block outside the masks drifts
+  ---
+  duration_ms: 8.713685
+  ...
+# Subtest: golden: the same block inside a mask is still a PASS
+ok 62 - golden: the same block inside a mask is still a PASS
+  ---
+  duration_ms: 8.29259
+  ...
+# Subtest: golden: one changed pixel stays under the ratio tolerance
+ok 63 - golden: one changed pixel stays under the ratio tolerance
+  ---
+  duration_ms: 6.672219
+  ...
+# Subtest: golden: a mask without a reason is invalid_mask, never a silent blank
+ok 64 - golden: a mask without a reason is invalid_mask, never a silent blank
+  ---
+  duration_ms: 5.613856
+  ...
+# Subtest: golden: a mask outside the frame is invalid_mask, never clamped
+ok 65 - golden: a mask outside the frame is invalid_mask, never clamped
+  ---
+  duration_ms: 15.153691
+  ...
+# Subtest: golden: a mask over the per-mask area cap is invalid_mask, a smaller one passes
+ok 66 - golden: a mask over the per-mask area cap is invalid_mask, a smaller one passes
+  ---
+  duration_ms: 12.803155
+  ...
+# Subtest: golden: masks whose total passes the entry cap are invalid_mask
+ok 67 - golden: masks whose total passes the entry cap are invalid_mask
+  ---
+  duration_ms: 11.153822
+  ...
+# Subtest: golden: the mask limits come from manifest.json, not from code
+ok 68 - golden: the mask limits come from manifest.json, not from code
+  ---
+  duration_ms: 5.059232
+  ...
+# Subtest: golden: the tolerance comes from manifest.json, not from code
+ok 69 - golden: the tolerance comes from manifest.json, not from code
+  ---
+  duration_ms: 6.444649
+  ...
+# Subtest: golden: another size is size_mismatch
+ok 70 - golden: another size is size_mismatch
+  ---
+  duration_ms: 5.550668
+  ...
+# Subtest: golden: edited golden bytes are golden_tampered
+ok 71 - golden: edited golden bytes are golden_tampered
+  ---
+  duration_ms: 5.331247
+  ...
+# Subtest: golden: a missing golden is golden_missing, never auto-created
+ok 72 - golden: a missing golden is golden_missing, never auto-created
+  ---
+  duration_ms: 4.353981
+  ...
+# Subtest: golden: a missing capture is BLOCKED
+ok 73 - golden: a missing capture is BLOCKED
+  ---
+  duration_ms: 4.498355
+  ...
+# Subtest: golden: a capture the provider marked failed is BLOCKED
+ok 74 - golden: a capture the provider marked failed is BLOCKED
+  ---
+  duration_ms: 3.626242
+  ...
+# Subtest: golden: a meta.json that is not valid JSON is BLOCKED, never a crash
+ok 75 - golden: a meta.json that is not valid JSON is BLOCKED, never a crash
+  ---
+  duration_ms: 4.722821
+  ...
+# Subtest: golden: captures from another build are BLOCKED, never compared
+ok 76 - golden: captures from another build are BLOCKED, never compared
+  ---
+  duration_ms: 6.701013
+  ...
+# Subtest: golden: a host without meta.json is BLOCKED, not treated as ok
+ok 77 - golden: a host without meta.json is BLOCKED, not treated as ok
+  ---
+  duration_ms: 2.971271
+  ...
+# Subtest: golden: a pair status the provider does not write is BLOCKED, not ok
+ok 78 - golden: a pair status the provider does not write is BLOCKED, not ok
+  ---
+  duration_ms: 3.739775
+  ...
+# Subtest: golden: a meta with the full fork SHA matches the pin's short one
+ok 79 - golden: a meta with the full fork SHA matches the pin's short one
+  ---
+  duration_ms: 5.685708
+  ...
+# Subtest: golden: no captures at all is BLOCKED, not a pass
+ok 80 - golden: no captures at all is BLOCKED, not a pass
+  ---
+  duration_ms: 0.379415
+  ...
+# Subtest: golden: a goldens dir without manifest.json is BLOCKED, not a golden_missing
+ok 81 - golden: a goldens dir without manifest.json is BLOCKED, not a golden_missing
+  ---
+  duration_ms: 2.433646
+  ...
+# Subtest: --update-goldens copies the captures, keeps the masks and passes afterwards
+ok 82 - --update-goldens copies the captures, keeps the masks and passes afterwards
+  ---
+  duration_ms: 8.877603
+  ...
+# Subtest: --update-goldens with a missing capture blocks instead of inventing it
+ok 83 - --update-goldens with a missing capture blocks instead of inventing it
+  ---
+  duration_ms: 3.417867
+  ...
+# Subtest: --update-goldens refuses a pair the brand check fails
+ok 84 - --update-goldens refuses a pair the brand check fails
+  ---
+  duration_ms: 3.256442
+  ...
+# Subtest: --update-goldens refuses a pair whose brand text sits only in the host page text (host.txt), as the brand check does (R2-1)
+ok 85 - --update-goldens refuses a pair whose brand text sits only in the host page text (host.txt), as the brand check does (R2-1)
+  ---
+  duration_ms: 3.953535
+  ...
+# Subtest: --update-goldens refuses a pair whose brand text sits only in the desktop shell text (shell.txt), as the brand check does (R2-1)
+ok 86 - --update-goldens refuses a pair whose brand text sits only in the desktop shell text (shell.txt), as the brand check does (R2-1)
+  ---
+  duration_ms: 3.32847
+  ...
+# Subtest: --update-goldens refuses a pair under the no_rendered_text threshold
+ok 87 - --update-goldens refuses a pair under the no_rendered_text threshold
+  ---
+  duration_ms: 3.111783
+  ...
+# Subtest: --update-goldens refuses a pair without rendered text or with a failed capture
+ok 88 - --update-goldens refuses a pair without rendered text or with a failed capture
+  ---
+  duration_ms: 6.929843
+  ...
+# Subtest: the job's fixtures are the six the G7-A04 row names
+ok 89 - the job's fixtures are the six the G7-A04 row names
+  ---
+  duration_ms: 0.447399
+  ...
+# Subtest: the committed goldens manifest is the schema, with no entries yet
+ok 90 - the committed goldens manifest is the schema, with no entries yet
+  ---
+  duration_ms: 0.128582
+  ...
+# Subtest: golden: the old flat viewport shape in manifest.json is BLOCKED invalid_manifest, never read as one for both hosts
+ok 91 - golden: the old flat viewport shape in manifest.json is BLOCKED invalid_manifest, never read as one for both hosts
+  ---
+  duration_ms: 11.798264
+  ...
+# Subtest: golden: each pair is compared at its host's viewport; a capture taken at another one is BLOCKED, the other host still passes
+ok 92 - golden: each pair is compared at its host's viewport; a capture taken at another one is BLOCKED, the other host still passes
+  ---
+  duration_ms: 4.288845
+  ...
+# Subtest: golden: a capture meta without a viewport cannot prove its host's viewport and is BLOCKED
+ok 93 - golden: a capture meta without a viewport cannot prove its host's viewport and is BLOCKED
+  ---
+  duration_ms: 3.869232
+  ...
+# Subtest: --update-goldens runs the same capture/pin identity check as the compare path: captures of another build are BLOCKED, never blessed (N-2)
+ok 94 - --update-goldens runs the same capture/pin identity check as the compare path: captures of another build are BLOCKED, never blessed (N-2)
+  ---
+  duration_ms: 9.572488
+  ...
+# Subtest: --update-goldens carries maskLimits and tolerance of the previous manifest instead of resetting them to the defaults (N-3)
+ok 95 - --update-goldens carries maskLimits and tolerance of the previous manifest instead of resetting them to the defaults (N-3)
+  ---
+  duration_ms: 6.346585
+  ...
+# Subtest: brand: clean rendered text passes
+ok 96 - brand: clean rendered text passes
+  ---
+  duration_ms: 4.274129
+  ...
+# Subtest: brand: camel case in the rendered text is brand_text
+ok 97 - brand: camel case in the rendered text is brand_text
+  ---
+  duration_ms: 3.837666
+  ...
+# Subtest: brand: a zero-width character in the rendered text is brand_text
+ok 98 - brand: a zero-width character in the rendered text is brand_text
+  ---
+  duration_ms: 3.563703
+  ...
+# Subtest: brand: upper case in the rendered text is brand_text
+ok 99 - brand: upper case in the rendered text is brand_text
+  ---
+  duration_ms: 2.717674
+  ...
+# Subtest: brand: a hyphen in the rendered text is brand_text
+ok 100 - brand: a hyphen in the rendered text is brand_text
+  ---
+  duration_ms: 2.941771
+  ...
+# Subtest: brand: a Greek omicron in the rendered text is brand_text
+ok 101 - brand: a Greek omicron in the rendered text is brand_text
+  ---
+  duration_ms: 3.308371
+  ...
+# Subtest: brand: a Cyrillic е in the rendered text is brand_text
+ok 102 - brand: a Cyrillic е in the rendered text is brand_text
+  ---
+  duration_ms: 5.876889
+  ...
+# Subtest: brand: a Cyrillic ѕ in the rendered text is brand_text
+ok 103 - brand: a Cyrillic ѕ in the rendered text is brand_text
+  ---
+  duration_ms: 2.857519
+  ...
+# Subtest: brand: fullwidth letters in the rendered text is brand_text
+ok 104 - brand: fullwidth letters in the rendered text is brand_text
+  ---
+  duration_ms: 2.809468
+  ...
+# Subtest: brand: Cyrillic and Greek text that spells no brand still passes
+ok 105 - brand: Cyrillic and Greek text that spells no brand still passes
+  ---
+  duration_ms: 3.090195
+  ...
+# Subtest: brand: an empty or near-empty render is no_rendered_text
+ok 106 - brand: an empty or near-empty render is no_rendered_text
+  ---
+  duration_ms: 5.581181
+  ...
+# Subtest: brand: a missing .txt is BLOCKED for that pair
+ok 107 - brand: a missing .txt is BLOCKED for that pair
+  ---
+  duration_ms: 3.230699
+  ...
+# Subtest: brand: no captures at all is BLOCKED
+ok 108 - brand: no captures at all is BLOCKED
+  ---
+  duration_ms: 0.267443
+  ...
+# Subtest: brand: a meta.json that is not valid JSON is BLOCKED, never a crash
+ok 109 - brand: a meta.json that is not valid JSON is BLOCKED, never a crash
+  ---
+  duration_ms: 2.674912
+  ...
+# Subtest: brand: captures from another build are BLOCKED, never scanned
+ok 110 - brand: captures from another build are BLOCKED, never scanned
+  ---
+  duration_ms: 3.235705
+  ...
+# Subtest: brand: a host without meta.json is BLOCKED, not treated as ok
+ok 111 - brand: a host without meta.json is BLOCKED, not treated as ok
+  ---
+  duration_ms: 2.687957
+  ...
+# Subtest: brand: a brand string only in the host page text is brand_text naming host.txt
+ok 112 - brand: a brand string only in the host page text is brand_text naming host.txt
+  ---
+  duration_ms: 2.835893
+  ...
+# Subtest: brand: a brand string only in the shell window titles text is brand_text naming shell.txt
+ok 113 - brand: a brand string only in the shell window titles text is brand_text naming shell.txt
+  ---
+  duration_ms: 3.071152
+  ...
+# Subtest: brand: a blank .txt with a populated .host.txt is still no_rendered_text
+ok 114 - brand: a blank .txt with a populated .host.txt is still no_rendered_text
+  ---
+  duration_ms: 3.187226
+  ...
+# Subtest: brand: clean .host.txt and .shell.txt pass
+ok 115 - brand: clean .host.txt and .shell.txt pass
+  ---
+  duration_ms: 2.834172
+  ...
+# Subtest: job-lib carries no dead exports: mergeStatus/STATUSES/STATUS_RANK are gone
+ok 116 - job-lib carries no dead exports: mergeStatus/STATUSES/STATUS_RANK are gone
+  ---
+  duration_ms: 0.208289
+  ...
+# Subtest: the CLI runs the checked-in fake captures green through --checks brand
+ok 117 - the CLI runs the checked-in fake captures green through --checks brand
+  ---
+  duration_ms: 35.702859
+  ...
+# Subtest: the CLI exits 1 on a brand hit and writes it into result.json
+ok 118 - the CLI exits 1 on a brand hit and writes it into result.json
+  ---
+  duration_ms: 36.918342
+  ...
+# Subtest: a corrupt capture meta blocks the pairs and still writes result.json
+ok 119 - a corrupt capture meta blocks the pairs and still writes result.json
+  ---
+  duration_ms: 36.243438
+  ...
+# Subtest: a check that throws is BLOCKED with its reason and result.json still exists
+ok 120 - a check that throws is BLOCKED with its reason and result.json still exists
+  ---
+  duration_ms: 31.786269
+  ...
+# Subtest: the CLI exits 77 when protocol has no installed bundle
+ok 121 - the CLI exits 77 when protocol has no installed bundle
+  ---
+  duration_ms: 31.229647
+  ...
+# Subtest: the CLI exits 1 for a fork that is not the pinned one
+ok 122 - the CLI exits 1 for a fork that is not the pinned one
+  ---
+  duration_ms: 64.707217
+  ...
+# Subtest: the CLI refuses an unknown check name with the usage line
+ok 123 - the CLI refuses an unknown check name with the usage line
+  ---
+  duration_ms: 28.346979
+  ...
+# Subtest: --update-goldens refuses --checks: it is an explicit bootstrap step that runs alone
+ok 124 - --update-goldens refuses --checks: it is an explicit bootstrap step that runs alone
+  ---
+  duration_ms: 36.399601
+  ...
+# Subtest: --extractor points the check at another script and records its blob sha
+ok 125 - --extractor points the check at another script and records its blob sha
+  ---
+  duration_ms: 88.282303
+  ...
+# Subtest: every flag has its env form, and a flag wins over its env
+ok 126 - every flag has its env form, and a flag wins over its env
+  ---
+  duration_ms: 0.149171
+  ...
+# Subtest: a NOTE verdict is exit 77, never 0 (contract Amendment 3)
+ok 127 - a NOTE verdict is exit 77, never 0 (contract Amendment 3)
+  ---
+  duration_ms: 35.169217
+  ...
+# Subtest: a NOTE run through the evidence runner can never log a PASS
+ok 128 - a NOTE run through the evidence runner can never log a PASS
+  ---
+  duration_ms: 71.334123
+  ...
+# Subtest: the route catalogue is read (guard against a parser that finds nothing)
+ok 129 - the route catalogue is read (guard against a parser that finds nothing)
+  ---
+  duration_ms: 0.763461
+  ...
+# Subtest: register: POST /auth/register is a route the router registers
+ok 130 - register: POST /auth/register is a route the router registers
+  ---
+  duration_ms: 0.106005
+  ...
+# Subtest: register: every path param is an id or slug the handler really passes on
+ok 131 - register: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.658238
+  ...
+# Subtest: register: the body keys are RegisterSDI json fields and every required field is sent
+ok 132 - register: the body keys are RegisterSDI json fields and every required field is sent
+  ---
+  duration_ms: 4.277124
+  ...
+# Subtest: verifyEmail: POST /me/email/verify is a route the router registers
+ok 133 - verifyEmail: POST /me/email/verify is a route the router registers
+  ---
+  duration_ms: 0.091603
+  ...
+# Subtest: verifyEmail: every path param is an id or slug the handler really passes on
+ok 134 - verifyEmail: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.117349
+  ...
+# Subtest: verifyEmail: the body keys are VerifyEmailSDI json fields and every required field is sent
+ok 135 - verifyEmail: the body keys are VerifyEmailSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.870062
+  ...
+# Subtest: login: POST /auth/login is a route the router registers
+ok 136 - login: POST /auth/login is a route the router registers
+  ---
+  duration_ms: 0.065819
+  ...
+# Subtest: login: every path param is an id or slug the handler really passes on
+ok 137 - login: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.21001
+  ...
+# Subtest: login: the body keys are LoginSDI json fields and every required field is sent
+ok 138 - login: the body keys are LoginSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.932365
+  ...
+# Subtest: createOrganization: POST /orgs is a route the router registers
+ok 139 - createOrganization: POST /orgs is a route the router registers
+  ---
+  duration_ms: 0.106257
+  ...
+# Subtest: createOrganization: every path param is an id or slug the handler really passes on
+ok 140 - createOrganization: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.063487
+  ...
+# Subtest: createOrganization: the body keys are CreateOrganizationSDI json fields and every required field is sent
+ok 141 - createOrganization: the body keys are CreateOrganizationSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.839001
+  ...
+# Subtest: createWorkspace: POST /orgs/{org}/workspaces is a route the router registers
+ok 142 - createWorkspace: POST /orgs/{org}/workspaces is a route the router registers
+  ---
+  duration_ms: 0.06277
+  ...
+# Subtest: createWorkspace: every path param is an id or slug the handler really passes on
+ok 143 - createWorkspace: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 160.684988
+  ...
+# Subtest: createWorkspace: the body keys are CreateWorkspaceSDI json fields and every required field is sent
+ok 144 - createWorkspace: the body keys are CreateWorkspaceSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.978589
+  ...
+# Subtest: createFileDocument: POST /workspaces/{workspaceID}/documents/files is a route the router registers
+ok 145 - createFileDocument: POST /workspaces/{workspaceID}/documents/files is a route the router registers
+  ---
+  duration_ms: 0.06646
+  ...
+# Subtest: createFileDocument: every path param is an id or slug the handler really passes on
+ok 146 - createFileDocument: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 1.873228
+  ...
+# Subtest: mintLaunch: POST /documents/{documentID}/office/sessions is a route the router registers
+ok 147 - mintLaunch: POST /documents/{documentID}/office/sessions is a route the router registers
+  ---
+  duration_ms: 0.063215
+  ...
+# Subtest: mintLaunch: every path param is an id or slug the handler really passes on
+ok 148 - mintLaunch: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 2.785012
+  ...
+# Subtest: mintLaunch: the body keys are CreateOfficeLaunchSessionSDI json fields and every required field is sent
+ok 149 - mintLaunch: the body keys are CreateOfficeLaunchSessionSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.790758
+  ...
+# Subtest: desktopDevices: GET /auth/desktop/devices is a route the router registers
+ok 150 - desktopDevices: GET /auth/desktop/devices is a route the router registers
+  ---
+  duration_ms: 0.064129
+  ...
+# Subtest: desktopDevices: every path param is an id or slug the handler really passes on
+ok 151 - desktopDevices: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.051195
+  ...
+# Subtest: requestOrganizationDeletion: POST /orgs/{orgID}/privacy/deletion is a route the router registers
+ok 152 - requestOrganizationDeletion: POST /orgs/{orgID}/privacy/deletion is a route the router registers
+  ---
+  duration_ms: 0.073124
+  ...
+# Subtest: requestOrganizationDeletion: every path param is an id or slug the handler really passes on
+ok 153 - requestOrganizationDeletion: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 10.188574
+  ...
+# Subtest: requestOrganizationDeletion: the body keys are CreatePrivacyDeletionSDI json fields and every required field is sent
+ok 154 - requestOrganizationDeletion: the body keys are CreatePrivacyDeletionSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.85013
+  ...
+# Subtest: deleteAccount: POST /me/delete is a route the router registers
+ok 155 - deleteAccount: POST /me/delete is a route the router registers
+  ---
+  duration_ms: 0.057319
+  ...
+# Subtest: deleteAccount: every path param is an id or slug the handler really passes on
+ok 156 - deleteAccount: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.050284
+  ...
+# Subtest: deleteAccount: the body keys are DeleteAccountSDI json fields and every required field is sent
+ok 157 - deleteAccount: the body keys are DeleteAccountSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.701492
+  ...
+# Subtest: the slug-for-id mistake of cloud round 5 is caught: createWorkspace's {org} reaches the service as an id
+ok 158 - the slug-for-id mistake of cloud round 5 is caught: createWorkspace's {org} reaches the service as an id
+  ---
+  duration_ms: 24.678411
+  ...
+# Subtest: the multipart upload sends the fields the handler reads
+ok 159 - the multipart upload sends the fields the handler reads
+  ---
+  duration_ms: 2.535827
+  ...
+# Subtest: document-step.mjs reaches the server only through the table
+ok 160 - document-step.mjs reaches the server only through the table
+  ---
+  duration_ms: 1.597778
+  ...
+# Subtest: apiPath builds the path from the template and refuses a missing or extra param
+ok 161 - apiPath builds the path from the template and refuses a missing or extra param
+  ---
+  duration_ms: 4.904521
+  ...
+# Subtest: assertBodyKeys refuses a key the table does not list
+ok 162 - assertBodyKeys refuses a key the table does not list
+  ---
+  duration_ms: 0.158731
+  ...
+# Subtest: an ApiError names the method, path and status, and never a token
+ok 163 - an ApiError names the method, path and status, and never a token
+  ---
+  duration_ms: 0.443443
+  ...
+# Subtest: freePorts hands out distinct ports the kernel just released
+ok 164 - freePorts hands out distinct ports the kernel just released
+  ---
+  duration_ms: 8.414309
+  ...
+# Subtest: freePorts refuses a non-positive count
+ok 165 - freePorts refuses a non-positive count
+  ---
+  duration_ms: 0.415073
+  ...
+# Subtest: BLOCKED is 77 so a missing precondition is never mistaken for a pass
+ok 166 - BLOCKED is 77 so a missing precondition is never mistaken for a pass
+  ---
+  duration_ms: 0.117334
+  ...
+# Subtest: the default fork revision is the pinned base
+ok 167 - the default fork revision is the pinned base
+  ---
+  duration_ms: 0.189612
+  ...
+# Subtest: buildServerEnv puts every port-derived origin on the command line
+ok 168 - buildServerEnv puts every port-derived origin on the command line
+  ---
+  duration_ms: 0.446588
+  ...
+# Subtest: the web and the API are served as localhost, never 127.0.0.1 (G7-06 round 1: no web page ever hydrated)
+ok 169 - the web and the API are served as localhost, never 127.0.0.1 (G7-06 round 1: no web page ever hydrated)
+  ---
+  duration_ms: 0.359393
+  ...
+# Subtest: ports.env and the returned origins use the same localhost origins the server was started with
+ok 170 - ports.env and the returned origins use the same localhost origins the server was started with
+  ---
+  duration_ms: 4.315865
+  ...
+# Subtest: buildServerEnv keeps the API origin identical everywhere it is inlined
+ok 171 - buildServerEnv keeps the API origin identical everywhere it is inlined
+  ---
+  duration_ms: 0.149362
+  ...
+# Subtest: the launch deep link is the dev scheme both ends agree on
+ok 172 - the launch deep link is the dev scheme both ends agree on
+  ---
+  duration_ms: 0.248995
+  ...
+# Subtest: the working-copy dir is the fork's own layout
+ok 173 - the working-copy dir is the fork's own layout
+  ---
+  duration_ms: 0.220257
+  ...
+# Subtest: ticketFromLaunchUrl reads the ticket out of the server's link, or null
+ok 174 - ticketFromLaunchUrl reads the ticket out of the server's link, or null
+  ---
+  duration_ms: 0.154744
+  ...
+# Subtest: the BLOCKED reason without a session says the app is not signed in, and where to run it
+ok 175 - the BLOCKED reason without a session says the app is not signed in, and where to run it
+  ---
+  duration_ms: 0.156528
+  ...
+# Subtest: documentStepOutcome decides from the app's own working copy
+ok 176 - documentStepOutcome decides from the app's own working copy
+  ---
+  duration_ms: 0.16346
+  ...
+# Subtest: origin builds a loopback origin for a port
+ok 177 - origin builds a loopback origin for a port
+  ---
+  duration_ms: 0.061413
+  ...
+# Subtest: harnessPaths keeps every run artifact inside the run dir
+ok 178 - harnessPaths keeps every run artifact inside the run dir
+  ---
+  duration_ms: 0.138463
+  ...
+# Subtest: forkCacheDir is keyed by the revision so two SHAs never share a checkout
+ok 179 - forkCacheDir is keyed by the revision so two SHAs never share a checkout
+  ---
+  duration_ms: 0.073423
+  ...
+# Subtest: evidenceLine carries every field the runner contract checks, empty when unknown
+ok 180 - evidenceLine carries every field the runner contract checks, empty when unknown
+  ---
+  duration_ms: 0.155688
+  ...
+# Subtest: evidenceLine records the argv it is given and refuses to guess one (H1-6)
+ok 181 - evidenceLine records the argv it is given and refuses to guess one (H1-6)
+  ---
+  duration_ms: 0.562097
+  ...
+# Subtest: evidenceLine defaults to BLOCKED, never to PASS
+ok 182 - evidenceLine defaults to BLOCKED, never to PASS
+  ---
+  duration_ms: 0.091487
+  ...
+# Subtest: evidenceLine keeps a fixture hash and a blocker out of a PASS
+ok 183 - evidenceLine keeps a fixture hash and a blocker out of a PASS
+  ---
+  duration_ms: 0.094534
+  ...
+# Subtest: writeRunEnv writes a ports file and a server env bash can source
+ok 184 - writeRunEnv writes a ports file and a server env bash can source
+  ---
+  duration_ms: 4.555507
+  ...
+# Subtest: isMainModule is false when node was started with an eval flag
+ok 185 - isMainModule is false when node was started with an eval flag
+  ---
+  duration_ms: 0.241713
+  ...
+# Subtest: importing lib.mjs from node -e does not run the CLI
+ok 186 - importing lib.mjs from node -e does not run the CLI
+  ---
+  duration_ms: 31.679644
+  ...
+# Subtest: the lib.mjs CLI modes answer and name the mode on a bad call
+ok 187 - the lib.mjs CLI modes answer and name the mode on a bad call
+  ---
+  duration_ms: 82.561184
+  ...
+# Subtest: start.sh reaches up through the real lib.mjs fork-dir call (fake stack)
+ok 188 - start.sh reaches up through the real lib.mjs fork-dir call (fake stack)
+  ---
+  duration_ms: 1201.673657
+  ...
+# Subtest: the chunk fallback of the sample AC reads loopback origins as the build spells them, so it follows API_ORIGIN (R2-4)
+ok 189 - the chunk fallback of the sample AC reads loopback origins as the build spells them, so it follows API_ORIGIN (R2-4)
+  ---
+  duration_ms: 0.383649
+  ...
+# Subtest: start.sh puts the localhost WebSocket URL on the web's command line, the same host as the API origin (d8115227b)
+ok 190 - start.sh puts the localhost WebSocket URL on the web's command line, the same host as the API origin (d8115227b)
+  ---
+  duration_ms: 1199.564542
+  ...
+# Subtest: the D server boots with exactly DESKTOP_AUTH_CLIENTS although the checkout's .env carries the single-client pair
+ok 191 - the D server boots with exactly DESKTOP_AUTH_CLIENTS although the checkout's .env carries the single-client pair
+  ---
+  duration_ms: 2227.566376
+  ...
+# Subtest: the same server, started from the checkout the old way, dies of the round-4 config error
+ok 192 - the same server, started from the checkout the old way, dies of the round-4 config error
+  ---
+  duration_ms: 25.577716
+  ...
+# Subtest: the server's cwd is three directories deep, so none of its .env lookups leaves the run dir
+ok 193 - the server's cwd is three directories deep, so none of its .env lookups leaves the run dir
+  ---
+  duration_ms: 0.206091
+  ...
+# Subtest: serverDotEnv drops the lines of the keys the run owns and keeps the rest
+ok 194 - serverDotEnv drops the lines of the keys the run owns and keeps the rest
+  ---
+  duration_ms: 0.169645
+  ...
+# Subtest: writeRunEnv leaves the server a .env without any key it owns, in a cwd of its own
+ok 195 - writeRunEnv leaves the server a .env without any key it owns, in a cwd of its own
+  ---
+  duration_ms: 2.76748
+  ...
+# Subtest: the server's cwd is 0700 and its .env copy and server.env are 0600, even over a looser pre-existing file (R2-2)
+ok 196 - the server's cwd is 0700 and its .env copy and server.env are 0600, even over a looser pre-existing file (R2-2)
+  ---
+  duration_ms: 2.941348
+  ...
+# Subtest: the app start.sh launches gets an allow-listed env, never the VM .env's server secrets (H1-8)
+ok 197 - the app start.sh launches gets an allow-listed env, never the VM .env's server secrets (H1-8)
+  ---
+  duration_ms: 1206.885315
+  ...
+# Subtest: the second instance gets the run's DISPLAY and XAUTHORITY, not the caller's, and nothing else widens
+ok 198 - the second instance gets the run's DISPLAY and XAUTHORITY, not the caller's, and nothing else widens
+  ---
+  duration_ms: 0.624741
+  ...
+# Subtest: describeExit names the signal instead of printing 'exited null'
+ok 199 - describeExit names the signal instead of printing 'exited null'
+  ---
+  duration_ms: 0.102438
+  ...
+# Subtest: appEnv passes only the allow-list and refuses a secret by name
+ok 200 - appEnv passes only the allow-list and refuses a secret by name
+  ---
+  duration_ms: 0.329195
+  ...
+# Subtest: --dry-run leaves a live run's pids, ports and logs untouched (reviewer_be H1-2)
+ok 201 - --dry-run leaves a live run's pids, ports and logs untouched (reviewer_be H1-2)
+  ---
+  duration_ms: 111.769302
+  ...
+# Subtest: under xvfb the run's X auth file lives in the run dir and ports.env records it next to DISPLAY
+ok 202 - under xvfb the run's X auth file lives in the run dir and ports.env records it next to DISPLAY
+  ---
+  duration_ms: 1197.920664
+  ...
+# Subtest: --desktop opens the app on the invoking session's display, without xvfb
+ok 203 - --desktop opens the app on the invoking session's display, without xvfb
+  ---
+  duration_ms: 1201.699765
+  ...
+# Subtest: --desktop without a graphical session is BLOCKED with the reason
+ok 204 - --desktop without a graphical session is BLOCKED with the reason
+  ---
+  duration_ms: 70.767354
+  ...
+# Subtest: a failed start is recorded as failed, a missing precondition as blocked
+ok 205 - a failed start is recorded as failed, a missing precondition as blocked
+  ---
+  duration_ms: 314.755882
+  ...
+# Subtest: a server that dies at boot leaves a failed start with its log tail, not an up one
+ok 206 - a server that dies at boot leaves a failed start with its log tail, not an up one
+  ---
+  duration_ms: 1132.450244
+  ...
+# Subtest: startGate: only a start that reported BLOCKED may block a later step
+ok 207 - startGate: only a start that reported BLOCKED may block a later step
+  ---
+  duration_ms: 0.258829
+  ...
+# Subtest: readStartStatus reads the file, and a torn one reads as failed
+ok 208 - readStartStatus reads the file, and a torn one reads as failed
+  ---
+  duration_ms: 1.234745
+  ...
+# Subtest: a present library is not reported missing when ldconfig writes past a pipe buffer
+ok 209 - a present library is not reported missing when ldconfig writes past a pipe buffer
+  ---
+  duration_ms: 1260.897164
+  ...
+# Subtest: start.sh installs the fork with npm ci --ignore-scripts, never a bare npm ci
+ok 210 - start.sh installs the fork with npm ci --ignore-scripts, never a bare npm ci
+  ---
+  duration_ms: 1232.836203
+  ...
+# Subtest: start.sh does not install a fork whose tree is already complete
+ok 211 - start.sh does not install a fork whose tree is already complete
+  ---
+  duration_ms: 1209.756741
+  ...
+# Subtest: a failing fork install is a FAIL with the log tail, not BLOCKED
+ok 212 - a failing fork install is a FAIL with the log tail, not BLOCKED
+  ---
+  duration_ms: 193.028377
+  ...
+# Subtest: a missing network for the fork is BLOCKED, not FAILED
+ok 213 - a missing network for the fork is BLOCKED, not FAILED
+  ---
+  duration_ms: 177.957181
+  ...
+# Subtest: start.sh names the failing step and its args when lib.mjs errors
+ok 214 - start.sh names the failing step and its args when lib.mjs errors
+  ---
+  duration_ms: 162.576711
+  ...
+# Subtest: document-step PASSes when the app leaves a working copy for the fixture document
+ok 215 - document-step PASSes when the app leaves a working copy for the fixture document
+  ---
+  duration_ms: 124.860525
+  ...
+# Subtest: document-step is BLOCKED when the app has no desktop session and left no working copy
+ok 216 - document-step is BLOCKED when the app has no desktop session and left no working copy
+  ---
+  duration_ms: 104.09683
+  ...
+# Subtest: document-step FAILs, naming the signal, when the handoff itself dies even without a session
+ok 217 - document-step FAILs, naming the signal, when the handoff itself dies even without a session
+  ---
+  duration_ms: 103.451725
+  ...
+# Subtest: document-step FAILs when a signed-in app is handed the link and does not open it
+ok 218 - document-step FAILs when a signed-in app is handed the link and does not open it
+  ---
+  duration_ms: 2093.205821
+  ...
+# Subtest: sample-ac FAILs (exit 1), not BLOCKED, after a start that failed
+ok 219 - sample-ac FAILs (exit 1), not BLOCKED, after a start that failed
+  ---
+  duration_ms: 34.945581
+  ...
+# Subtest: sample-ac FAILs when start.sh never finished
+ok 220 - sample-ac FAILs when start.sh never finished
+  ---
+  duration_ms: 33.801379
+  ...
+# Subtest: sample-ac is BLOCKED only with the reason start.sh recorded
+ok 221 - sample-ac is BLOCKED only with the reason start.sh recorded
+  ---
+  duration_ms: 35.267201
+  ...
+# Subtest: document-step FAILs (exit 1), not BLOCKED, after a start that failed
+ok 222 - document-step FAILs (exit 1), not BLOCKED, after a start that failed
+  ---
+  duration_ms: 34.785507
+  ...
+# Subtest: document-step FAILs when start.sh never finished
+ok 223 - document-step FAILs when start.sh never finished
+  ---
+  duration_ms: 36.019486
+  ...
+# Subtest: document-step is BLOCKED only with the reason start.sh recorded
+ok 224 - document-step is BLOCKED only with the reason start.sh recorded
+  ---
+  duration_ms: 33.439911
+  ...
+# Subtest: parseWaitSignin reads the flag, with or without a number
+ok 225 - parseWaitSignin reads the flag, with or without a number
+  ---
+  duration_ms: 0.231707
+  ...
+# Subtest: activeDesktopDevice wants the dev client, this deployment, not revoked, not expired
+ok 226 - activeDesktopDevice wants the dev client, this deployment, not revoked, not expired
+  ---
+  duration_ms: 0.16578
+  ...
+# Subtest: document-step reuses an account from the environment and writes no secret anywhere
+ok 227 - document-step reuses an account from the environment and writes no secret anywhere
+  ---
+  duration_ms: 97.567004
+  ...
+# Subtest: document-step is BLOCKED, and delivers nothing, when the reused account has no desktop session
+ok 228 - document-step is BLOCKED, and delivers nothing, when the reused account has no desktop session
+  ---
+  duration_ms: 96.914345
+  ...
+# Subtest: --wait-signin prints the steps, waits for the sign-in, then opens the document
+ok 229 - --wait-signin prints the steps, waits for the sign-in, then opens the document
+  ---
+  duration_ms: 4092.039135
+  ...
+# Subtest: --wait-signin that never sees a sign-in is BLOCKED with the wait in the reason
+ok 230 - --wait-signin that never sees a sign-in is BLOCKED with the wait in the reason
+  ---
+  duration_ms: 2091.925511
+  ...
+# Subtest: --wait-signin with a seeded account keeps its random password in a 0600 file while it waits, never in the output
+ok 231 - --wait-signin with a seeded account keeps its random password in a 0600 file while it waits, never in the output
+  ---
+  duration_ms: 6093.223566
+  ...
+# Subtest: the unattended cloud run seeds with no sign-in check and no credentials file
+ok 232 - the unattended cloud run seeds with no sign-in check and no credentials file
+  ---
+  duration_ms: 101.300613
+  ...
+# Subtest: an email without a password (or the reverse) is a usage error, not a guess
+ok 233 - an email without a password (or the reverse) is a usage error, not a guess
+  ---
+  duration_ms: 29.970026
+  ...
+# Subtest: a wrong password for a reused account is a FAIL
+ok 234 - a wrong password for a reused account is a FAIL
+  ---
+  duration_ms: 63.546135
+  ...
+# Subtest: document-step's own evidence line is complete: verify finds nothing wrong with it
+ok 235 - document-step's own evidence line is complete: verify finds nothing wrong with it
+  ---
+  duration_ms: 108.142027
+  ...
+# Subtest: a BLOCKED document-step line and a start-gate line also pass verify
+ok 236 - a BLOCKED document-step line and a start-gate line also pass verify
+  ---
+  duration_ms: 98.469834
+  ...
+# Subtest: sample-ac's start-gate blocked line carries its fixture and an artifact, so verify accepts it (R2-1)
+ok 237 - sample-ac's start-gate blocked line carries its fixture and an artifact, so verify accepts it (R2-1)
+  ---
+  duration_ms: 35.484659
+  ...
+# Subtest: sample-ac's start-gate failed line carries its fixture and an artifact, so verify accepts it (R2-1)
+ok 238 - sample-ac's start-gate failed line carries its fixture and an artifact, so verify accepts it (R2-1)
+  ---
+  duration_ms: 32.589004
+  ...
+# Subtest: document-step's start-gate blocked line carries its fixture and an artifact, so verify accepts it (R2-1)
+ok 239 - document-step's start-gate blocked line carries its fixture and an artifact, so verify accepts it (R2-1)
+  ---
+  duration_ms: 32.919845
+  ...
+# Subtest: document-step's start-gate failed line carries its fixture and an artifact, so verify accepts it (R2-1)
+ok 240 - document-step's start-gate failed line carries its fixture and an artifact, so verify accepts it (R2-1)
+  ---
+  duration_ms: 34.444317
+  ...
+# Subtest: the second instance gets the allow-listed env, not the harness's
+ok 241 - the second instance gets the allow-listed env, not the harness's
+  ---
+  duration_ms: 1081.117224
+  ...
+# Subtest: the second instance is in the pids file while it lives and gone when it exits
+ok 242 - the second instance is in the pids file while it lives and gone when it exits
+  ---
+  duration_ms: 1086.412709
+  ...
+# Subtest: a second instance that does not exit is killed as a group, not left behind
+ok 243 - a second instance that does not exit is killed as a group, not left behind
+  ---
+  duration_ms: 1887.354606
+  ...
+# Subtest: the seeded organization is removed by id; the owner account is a logged leftover, not a /me/delete 409
+ok 244 - the seeded organization is removed by id; the owner account is a logged leftover, not a /me/delete 409
+  ---
+  duration_ms: 105.150107
+  ...
+# Subtest: without a seeded organization the seeded account is deleted by the step
+ok 245 - without a seeded organization the seeded account is deleted by the step
+  ---
+  duration_ms: 103.706651
+  ...
+# Subtest: a seeding FAIL prints the failing request and reason, never a token, and cleanup still runs
+ok 246 - a seeding FAIL prints the failing request and reason, never a token, and cleanup still runs
+  ---
+  duration_ms: 105.250672
+  ...
+# Subtest: under the evidence runner a FAIL's reason is in the artifact and echoed to the round log
+ok 247 - under the evidence runner a FAIL's reason is in the artifact and echoed to the round log
+  ---
+  duration_ms: 126.926062
+  ...
+# Subtest: a failed cleanup does not turn a BLOCKED step into a FAIL
+ok 248 - a failed cleanup does not turn a BLOCKED step into a FAIL
+  ---
+  duration_ms: 102.318417
+  ...
+# Subtest: a reused account is never cleaned up
+ok 249 - a reused account is never cleaned up
+  ---
+  duration_ms: 127.340096
+  ...
+# Subtest: a cleanup that fails is reported and does not change the result
+ok 250 - a cleanup that fails is reported and does not change the result
+  ---
+  duration_ms: 125.300642
+  ...
+# Subtest: stop.sh removes the run's uploads and server cwd by path and keeps logs and evidence
+ok 251 - stop.sh removes the run's uploads and server cwd by path and keeps logs and evidence
+  ---
+  duration_ms: 7.880001
+  ...
+# Subtest: stop.sh removes the Xauthority file also when there is no pid file (R2-3)
+ok 252 - stop.sh removes the Xauthority file also when there is no pid file (R2-3)
+  ---
+  duration_ms: 6.248524
+  ...
+# Subtest: document-step's precondition BLOCKED line (no D server up) carries its fixture and an artifact log (R2-1)
+ok 253 - document-step's precondition BLOCKED line (no D server up) carries its fixture and an artifact log (R2-1)
+  ---
+  duration_ms: 50.812374
+  ...
+# Subtest: no harness-* temp dir of this file is left in os.tmpdir()
+ok 254 - no harness-* temp dir of this file is left in os.tmpdir()
+  ---
+  duration_ms: 0.39246
+  ...
+# Subtest: every ```sh block of the harness README passes bash -n
+ok 255 - every ```sh block of the harness README passes bash -n
+  ---
+  duration_ms: 4.145982
+  ...
+# Subtest: shBlocks takes the sh fences only, in file order
+ok 256 - shBlocks takes the sh fences only, in file order
+  ---
+  duration_ms: 1.876913
+  ...
+# Subtest: every ```sh block of the harness README passes bash -n
+ok 257 - every ```sh block of the harness README passes bash -n
+  ---
+  duration_ms: 5.062677
+  ...
+# Subtest: the desktop block uses $UNIWORK_CHECKOUT and no angle-bracket placeholder
+ok 258 - the desktop block uses $UNIWORK_CHECKOUT and no angle-bracket placeholder
+  ---
+  duration_ms: 0.275533
+  ...
+# Subtest: the old placeholder would have failed bash -n (red case)
+ok 259 - the old placeholder would have failed bash -n (red case)
+  ---
+  duration_ms: 3.081984
+  ...
+1..259
+# tests 314
+# suites 13
+# pass 314
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 36037.231996
