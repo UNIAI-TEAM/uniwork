@@ -1397,7 +1397,7 @@ UPDATE billing_payment_intents SET
   provider_transaction_no = COALESCE($4, provider_transaction_no),
   provider_order_info = COALESCE($5, provider_order_info),
   provider_pay_date = COALESCE($6, provider_pay_date)
-WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed')
+WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed', 'expired')
 RETURNING id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date
 `
 

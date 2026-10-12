@@ -149,7 +149,9 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		}
 		return errIntentAlreadyCompleted
 	}
-	if intent.Status != "pending" && intent.Status != "failed" {
+	// expired stays payable: the VNPay URL has no expiry, so a superseded
+	// checkout can still be paid. Amount and quota checks below still apply.
+	if intent.Status != "pending" && intent.Status != "failed" && intent.Status != "expired" {
 		return fmt.Errorf("billing: intent %q not payable (status=%s)", intent.ID, intent.Status)
 	}
 	if ev.Amount != intent.Amount {

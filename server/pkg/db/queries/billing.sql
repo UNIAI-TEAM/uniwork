@@ -152,7 +152,7 @@ UPDATE billing_payment_intents SET
   provider_transaction_no = COALESCE(sqlc.narg('provider_transaction_no'), provider_transaction_no),
   provider_order_info = COALESCE(sqlc.narg('provider_order_info'), provider_order_info),
   provider_pay_date = COALESCE(sqlc.narg('provider_pay_date'), provider_pay_date)
-WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed')
+WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed', 'expired')
 RETURNING *;
 
 -- name: PatchBillingPaymentIntentProviderMeta :exec
