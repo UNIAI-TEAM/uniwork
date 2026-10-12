@@ -99,8 +99,14 @@ export function buildServerEnv({
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
     DESKTOP_AUTH_DEPLOYMENT_IDS: deploymentId,
-    // The cloud VM has no LiveKit; the meeting provider is not part of this AC.
-    SKIP_LIVEKIT: "1",
+    // No LiveKit on the VM. The server wires a conference provider only when
+    // LIVEKIT_URL/KEY/SECRET are all set (cmd/server/main.go:203); they are
+    // cleared explicitly, because the VM's .env carries .env.example's
+    // ws://localhost:7880 and this run must not inherit a setting that points
+    // at a service the harness never starts.
+    LIVEKIT_URL: "",
+    LIVEKIT_API_KEY: "",
+    LIVEKIT_API_SECRET: "",
   };
 }
 

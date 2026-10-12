@@ -197,13 +197,20 @@ async function apiOriginFromBrowser() {
   } catch {
     return { origin: null, how: "playwright is not installed in this checkout" };
   }
-  const browser = await chromium.launch();
+  // A browser that will not launch (no Chromium binary on the VM) is a missing
+  // precondition, not a failed claim: fall through to the chunk scan.
+  let browser;
+  try {
+    browser = await chromium.launch();
+  } catch (error) {
+    return { origin: null, how: `headless Chromium did not launch (${error.message.split("\n")[0]})` };
+  }
   try {
     const page = await browser.newPage();
     const request = page.waitForRequest((r) => new URL(r.url()).pathname.startsWith("/api/v1/"), { timeout: 30_000 });
     await page.goto(`${WEB_ORIGIN}/login`);
     const seen = await request.catch(() => null);
-    if (!seen) throw new Error(`the web at ${WEB_ORIGIN} made no /api/v1/ request within 30 s`);
+    if (!seen) return { origin: null, how: `the web at ${WEB_ORIGIN} made no /api/v1/ request within 30 s` };
     return { origin: new URL(seen.url()).origin, how: `first /api/v1/ request from the page (${new URL(seen.url()).pathname})` };
   } finally {
     await browser.close();

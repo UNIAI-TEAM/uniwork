@@ -54,6 +54,10 @@ test("buildServerEnv puts every port-derived origin on the command line", () => 
   assert.notEqual(env.PREVIEW_ORIGIN, env.FRONTEND_ORIGIN);
   assert.equal(env.STORAGE_BACKEND, "local");
   assert.equal(env.DATABASE_URL, "postgres://u:p@localhost:5432/db?sslmode=disable");
+  // A stale .env LIVEKIT_URL must not reach the harness server (main.go:203).
+  assert.equal(env.LIVEKIT_URL, "");
+  assert.equal(env.LIVEKIT_API_KEY, "");
+  assert.equal(env.LIVEKIT_API_SECRET, "");
 });
 
 test("buildServerEnv keeps the API origin identical everywhere it is inlined", () => {
