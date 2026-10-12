@@ -25,6 +25,9 @@ import { appPlaces, clip } from "./scrub.mjs";
 import { collectRenderedText, joinBlocks } from "./text.mjs";
 
 export const ELECTRON_ARGS = ["--no-sandbox", "--disable-gpu", "--lang=vi-VN", "--force-device-scale-factor=1", "--force-color-profile=srgb", "--font-render-hinting=none", "--disable-lcd-text"];
+/** Raw error or screen text in a reason: first line, credentials and home/run/app paths scrubbed, clipped. */
+const reasonText = (text, ports, length = 300) => clip(String(text).split("\n")[0], length, { app: appPlaces(ports) });
+
 const SIGN_IN_WORDS = /\b(sign in|log in|login)\b|đăng nhập/i;
 
 /** Why the harness app cannot be reused for a capture, or "" when it can. */
@@ -171,11 +174,11 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
     try {
       app = await playwright._electron.launch({ executablePath: ports.ELECTRON_BIN, args: [...ELECTRON_ARGS, ports.SHELL_APP_DIR, file], env: desktopEnv(ports, userData), timeout: 60_000 });
     } catch (error) {
-      return failed(`electron_launch_failed: ${String(error.message).split("\n")[0]}`);
+      return failed(`electron_launch_failed: ${reasonText(error.message, ports)}`);
     }
     const page = await findModulePage(app, fixture.module, OPEN_TIMEOUT_MS, now);
     if (!page) {
-      const screen = await shellScreenText(app);
+      const screen = reasonText(await shellScreenText(app), ports, 160);
       if (SIGN_IN_WORDS.test(screen)) return blocked(`shell_requires_sign_in: the shell shows "${screen}" instead of opening ${basename(fixture.path)}`);
       return failed(`module_view_not_found: no ://${fixture.module}/ page within ${OPEN_TIMEOUT_MS / 1000}s; the shell shows "${screen}"`);
     }
@@ -205,7 +208,7 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
     const shellText = await collectShellText(app, page);
     return ok({ png: result.frame, text, shellText, canvasOnly });
   } catch (error) {
-    return failed(`capture_error: ${String(error.message).split("\n")[0]}`);
+    return failed(`capture_error: ${reasonText(error.message, ports)}`);
   } finally {
     if (app) await closeApp(app);
     rmSync(dir, { recursive: true, force: true });
@@ -213,7 +216,7 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
 }
 
 /** Captures every fixture on the desktop host; `results[id]` is ok (png/text) | blocked | failed. */
-export async function captureDesktop({ ports, fixtures, playwright, log = () => {}, forkShaFallback = "" }) {
+export async function captureDesktop({ ports, fixtures, playwright, log = () => {}, forkShaFallback = "", now }) {
   // the pin the D checkout names: the version the desktop run is compared against too
   const base = { forkSha: ports.OFFICE_FORK_SHA || forkShaFallback, pinVersion: readPins().docs?.version ?? "", notes: [] };
   const why = desktopPrecondition(ports);
@@ -223,7 +226,7 @@ export async function captureDesktop({ ports, fixtures, playwright, log = () => 
   try {
     for (const fixture of fixtures) {
       results[fixture.id] = fixture.module
-        ? await captureWithRetry(() => captureOne({ ports, fixture, playwright, scratch, log }))
+        ? await captureWithRetry(() => captureOne({ ports, fixture, playwright, scratch, log, now }))
         : failed(`no module for format ${fixture.format}`);
     }
   } finally {

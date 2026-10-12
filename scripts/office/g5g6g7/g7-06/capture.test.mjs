@@ -15,7 +15,7 @@ import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseArgs, runCapture } from "./capture.mjs";
 import { HOSTS, MIN_FRAME_WIDTH, SETTLE, STREAMING_TIMEOUT_MS, VIEWPORTS } from "./capture/constants.mjs";
-import { ELECTRON_ARGS, captureWithRetry, collectShellText, desktopEnv, desktopPrecondition, isRetryableTimeout, watchConsole } from "./capture/desktop.mjs";
+import { ELECTRON_ARGS, captureDesktop, captureWithRetry, collectShellText, desktopEnv, desktopPrecondition, isRetryableTimeout, watchConsole } from "./capture/desktop.mjs";
 import { readFixtures, selectFixtures } from "./capture/fixtures.mjs";
 import { blocked, buildMeta, clearCapture, exitCodeFor, failed, metaEntry, ok, pngSize, writeCapture } from "./capture/meta.mjs";
 import { loadPlaywright } from "./capture/playwright.mjs";
@@ -562,6 +562,45 @@ describe("diagnostics paths", () => {
     assert.equal(clip("connect postgres://u:p4ssw0rd@db:5432/x failed", 400), "connect postgres://<redacted>@db:5432/x failed");
     assert.equal(clip("redis://:onlypass@cache:6379 and ssh+git://deploy@git.example/r.git", 400), "redis://<redacted>@cache:6379 and ssh+git://<redacted>@git.example/r.git");
     assert.equal(clip("see https://host.example/a@b and mail me@example.com", 400), "see https://host.example/a@b and mail me@example.com");
+  });
+
+  describe("failure reasons are scrubbed like the diagnostics (N-11)", () => {
+    const appDir = scratch();
+    const bin = join(appDir, "electron");
+    writeFileSync(bin, "");
+    const ports = { API_ORIGIN: "http://x", ELECTRON_BIN: bin, SHELL_APP_DIR: appDir, DISPLAY: ":99" };
+    const dirty = `ENOENT ${homedir()}/work/x token=abc111 https://u:pw9@h.example/p run ${tmpdir()}/g7/y app ${appDir}/main.js`;
+    const fixture = readFixtures().find((f) => f.module);
+    const reasonOf = async (playwright, now) => (await captureDesktop({ ports, fixtures: [fixture], playwright, now })).results[fixture.id];
+    const assertClean = (reason) => {
+      for (const secret of ["abc111", "pw9", homedir(), tmpdir(), appDir]) assert.ok(!reason.includes(secret), `"${secret}" survived in: ${reason}`);
+      for (const placeholder of ["<home>", "<run>", "<app>"]) assert.ok(reason.includes(placeholder), `${placeholder} missing in: ${reason}`);
+    };
+
+    test("electron_launch_failed", async () => {
+      const result = await reasonOf({ _electron: { launch: async () => { throw new Error(dirty); } } });
+      assert.match(result.reason, /^electron_launch_failed: /);
+      assertClean(result.reason);
+    });
+
+    test("module_view_not_found and shell_requires_sign_in show the shell text scrubbed", async () => {
+      let tick = 0;
+      const now = () => (tick += 100_000);
+      const app = (screen) => ({
+        windows: () => [],
+        waitForEvent: async () => {},
+        firstWindow: async () => ({ evaluate: async () => screen }),
+        process: () => ({ exitCode: 0, signalCode: null }),
+        evaluate: async () => {},
+        close: async () => {},
+      });
+      const missing = await reasonOf({ _electron: { launch: async () => app(dirty) } }, now);
+      assert.match(missing.reason, /^module_view_not_found: /);
+      assertClean(missing.reason);
+      const signIn = await reasonOf({ _electron: { launch: async () => app(`Sign in ${dirty}`) } }, now);
+      assert.match(signIn.reason, /^shell_requires_sign_in: /);
+      assertClean(signIn.reason);
+    });
   });
 
   test("the console watcher scrubs paths and secrets with the app dir it was given", () => {
