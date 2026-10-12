@@ -48,6 +48,7 @@ describe("the landing header's Office menu", () => {
       ["Office", "/office"],
       ["Bảng giá", "/pricing"],
       ["Doanh nghiệp", "/enterprise"],
+      ["Nhật ký cập nhật", "/changelog"],
     ]);
   });
 
