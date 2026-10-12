@@ -1,0 +1,2 @@
+$ set -a && . ./.env && set +a && node scripts/office/build-upstream.mjs
+{"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}

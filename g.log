@@ -1,0 +1,2 @@
+$ set -a && . ./.env && set +a && node scripts/bundle-budget.mjs --print
+bundle-budget: /workspace/apps/web/.next/build-manifest.json missing — run `pnpm --filter @uniwork/web build` first

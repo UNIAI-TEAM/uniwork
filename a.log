@@ -1,0 +1,104 @@
+$ set -a && . ./.env && set +a && pnpm exec turbo build typecheck
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/core, @uniwork/e2e, @uniwork/eslint-config, @uniwork/office-contracts, @uniwork/office-engine, @uniwork/office-engine-app, @uniwork/office-upstream, @uniwork/tsconfig, @uniwork/ui, @uniwork/views, @uniwork/web
+   • Running build, typecheck in 11 packages
+   • Remote caching disabled
+
+@uniwork/office-upstream:build: cache miss, executing 5d348449d08da480
+@uniwork/office-contracts:typecheck: cache miss, executing b6c2e76fa0aa3f9b
+@uniwork/ui:typecheck: cache miss, executing ecd7a404914a8324
+@uniwork/core:typecheck: cache miss, executing 78145ce7877a346b
+@uniwork/office-engine-app:build: cache miss, executing 97e553e13e4a9b54
+@uniwork/web:build: cache miss, executing 8f0d06ca2cee66c4
+@uniwork/ui:typecheck: 
+@uniwork/ui:typecheck: > @uniwork/ui@0.0.0 typecheck /workspace/packages/ui
+@uniwork/ui:typecheck: > tsc --noEmit
+@uniwork/ui:typecheck: 
+@uniwork/office-upstream:build: 
+@uniwork/office-upstream:build: > @uniwork/office-upstream@0.0.0 build /workspace/packages/office-upstream
+@uniwork/office-upstream:build: > node ../../scripts/office/build-upstream.mjs
+@uniwork/office-upstream:build: 
+@uniwork/web:build: 
+@uniwork/web:build: > @uniwork/web@0.0.0 build /workspace/apps/web
+@uniwork/web:build: > node scripts/office-frame-sync.mjs --ensure && next build
+@uniwork/web:build: 
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-contracts:typecheck: > @uniwork/office-contracts@0.0.0 typecheck /workspace/packages/office-contracts
+@uniwork/office-contracts:typecheck: > tsc --noEmit
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-engine-app:build: 
+@uniwork/office-engine-app:build: > @uniwork/office-engine-app@0.0.0 build /workspace/apps/office-engine
+@uniwork/office-engine-app:build: > node scripts/build.mjs
+@uniwork/office-engine-app:build: 
+@uniwork/core:typecheck: 
+@uniwork/core:typecheck: > @uniwork/core@0.0.0 typecheck /workspace/packages/core
+@uniwork/core:typecheck: > tsc --noEmit
+@uniwork/core:typecheck: 
+@uniwork/office-engine-app:build: office-engine bundle written to dist/
+@uniwork/web:build: office-frame: docs 46 files verified, installed at /workspace/apps/web/public/office-frame/docs/0.1.0-0d03b18
+@uniwork/web:build: office-frame: pdf 229 files verified, installed at /workspace/apps/web/public/office-frame/pdf/0.1.0-0d03b18
+@uniwork/web:build: office-frame: markdown 90 files verified, installed at /workspace/apps/web/public/office-frame/markdown/0.1.0-0d03b18
+@uniwork/web:build: office-frame: html 7 files verified, installed at /workspace/apps/web/public/office-frame/html/0.1.0-0d03b18
+@uniwork/web:build: office-frame: slides 19 files verified, installed at /workspace/apps/web/public/office-frame/slides/0.1.0-0d03b18
+@uniwork/web:build: office-frame: sheets 219 files verified, installed at /workspace/apps/web/public/office-frame/sheets/0.1.0-0d03b18
+@uniwork/office-engine:typecheck: cache miss, executing 4148bbb4765c9d9a
+@uniwork/web:build: ▲ Next.js 16.3.8 (Turbopack)
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine:typecheck: > @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+@uniwork/office-engine:typecheck: > tsc --noEmit
+@uniwork/office-engine:typecheck: 
+@uniwork/web:build: ✓ Running next.config.mjs took 268ms
+@uniwork/web:build: 
+@uniwork/web:build:   Creating an optimized production build ...
+@uniwork/office-engine-app:typecheck: cache miss, executing 7fccf10316c372ef
+@uniwork/office-upstream:build: {"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
+@uniwork/office-engine-app:typecheck: 
+@uniwork/office-engine-app:typecheck: > @uniwork/office-engine-app@0.0.0 typecheck /workspace/apps/office-engine
+@uniwork/office-engine-app:typecheck: > tsc --noEmit
+@uniwork/office-engine-app:typecheck: 
+@uniwork/views:typecheck: cache miss, executing 5be33086f1f5e23c
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: > @uniwork/views@0.0.0 typecheck /workspace/packages/views
+@uniwork/views:typecheck: > tsc --noEmit
+@uniwork/views:typecheck: 
+@uniwork/web:build: Found 2 warnings while optimizing generated CSS:
+@uniwork/web:build: 
+@uniwork/web:build: Issue #1:
+@uniwork/web:build: [2m│   }[22m
+@uniwork/web:build: [2m│ }[22m
+@uniwork/web:build: [2m│[22m ::highlight(task-find) {
+@uniwork/web:build: [2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+@uniwork/web:build: [2m┆[22m
+@uniwork/web:build: [2m│   background-color: var(--selection);[22m
+@uniwork/web:build: [2m│   color: var(--selection-foreground);[22m
+@uniwork/web:build: 
+@uniwork/web:build: Issue #2:
+@uniwork/web:build: [2m│   color: var(--selection-foreground);[22m
+@uniwork/web:build: [2m│ }[22m
+@uniwork/web:build: [2m│[22m ::highlight(task-find-active) {
+@uniwork/web:build: [2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+@uniwork/web:build: [2m┆[22m
+@uniwork/web:build: [2m│   background-color: var(--brand);[22m
+@uniwork/web:build: [2m│   color: var(--brand-foreground);[22m
+@uniwork/web:build: 
+@uniwork/views:typecheck: documents/documents-visual-r1.test.tsx(49,41): error TS2345: Argument of type '{ id: string; workspace_id: string; kind: string; title: string; revision: string; updated_at: string; organization_id: string; current_version: number; my_level: string; }' is not assignable to parameter of type '{ id: string; organization_id: string; workspace_id: string; kind: string; title: string; visibility: string; revision: string; current_version: number; position: number; created_by: string; created_by_kind: string; ... 13 more ...; archived_at?: string | ... 1 more ... | undefined; }'.
+@uniwork/views:typecheck:   Type '{ id: string; workspace_id: string; kind: string; title: string; revision: string; updated_at: string; organization_id: string; current_version: number; my_level: string; }' is missing the following properties from type '{ id: string; organization_id: string; workspace_id: string; kind: string; title: string; visibility: string; revision: string; current_version: number; position: number; created_by: string; created_by_kind: string; ... 13 more ...; archived_at?: string | ... 1 more ... | undefined; }': visibility, position, created_by, created_by_kind, and 3 more.
+@uniwork/views:typecheck: documents/documents-visual-r1.test.tsx(52,16): error TS2741: Property 'title' is missing in type '{ key: string; rows: LibraryRow[]; }' but required in type 'RowGroup'.
+@uniwork/views:typecheck: documents/documents-visual-r1.test.tsx(72,44): error TS2345: Argument of type '{ id: string; workspace_id: string; kind: string; title: string; revision: string; updated_at: string; organization_id: string; current_version: number; my_level: string; }' is not assignable to parameter of type '{ id: string; organization_id: string; workspace_id: string; kind: string; title: string; visibility: string; revision: string; current_version: number; position: number; created_by: string; created_by_kind: string; ... 13 more ...; archived_at?: string | ... 1 more ... | undefined; }'.
+@uniwork/views:typecheck:   Type '{ id: string; workspace_id: string; kind: string; title: string; revision: string; updated_at: string; organization_id: string; current_version: number; my_level: string; }' is missing the following properties from type '{ id: string; organization_id: string; workspace_id: string; kind: string; title: string; visibility: string; revision: string; current_version: number; position: number; created_by: string; created_by_kind: string; ... 13 more ...; archived_at?: string | ... 1 more ... | undefined; }': visibility, position, created_by, created_by_kind, and 3 more.
+@uniwork/views:typecheck: documents/documents-visual-r1.test.tsx(106,29): error TS2345: Argument of type '{ id: string; workspace_id: string; kind: string; title: string; revision: string; updated_at: string; organization_id: string; current_version: number; my_level: string; }' is not assignable to parameter of type '{ id: string; organization_id: string; workspace_id: string; kind: string; title: string; visibility: string; revision: string; current_version: number; position: number; created_by: string; created_by_kind: string; ... 13 more ...; archived_at?: string | ... 1 more ... | undefined; }'.
+@uniwork/views:typecheck:   Type '{ id: string; workspace_id: string; kind: string; title: string; revision: string; updated_at: string; organization_id: string; current_version: number; my_level: string; }' is missing the following properties from type '{ id: string; organization_id: string; workspace_id: string; kind: string; title: string; visibility: string; revision: string; current_version: number; position: number; created_by: string; created_by_kind: string; ... 13 more ...; archived_at?: string | ... 1 more ... | undefined; }': visibility, position, created_by, created_by_kind, and 3 more.
+@uniwork/views:typecheck: documents/documents-visual-r1.test.tsx(112,29): error TS2345: Argument of type '{ id: string; workspace_id: string; kind: string; title: string; revision: string; updated_at: string; organization_id: string; current_version: number; my_level: string; }' is not assignable to parameter of type '{ id: string; organization_id: string; workspace_id: string; kind: string; title: string; visibility: string; revision: string; current_version: number; position: number; created_by: string; created_by_kind: string; ... 13 more ...; archived_at?: string | ... 1 more ... | undefined; }'.
+@uniwork/views:typecheck:   Type '{ id: string; workspace_id: string; kind: string; title: string; revision: string; updated_at: string; organization_id: string; current_version: number; my_level: string; }' is missing the following properties from type '{ id: string; organization_id: string; workspace_id: string; kind: string; title: string; visibility: string; revision: string; current_version: number; position: number; created_by: string; created_by_kind: string; ... 13 more ...; archived_at?: string | ... 1 more ... | undefined; }': visibility, position, created_by, created_by_kind, and 3 more.
+@uniwork/views:typecheck:  ELIFECYCLE  Command failed with exit code 2.
+@uniwork/web:build:  ELIFECYCLE  Command failed.
+@uniwork/views#typecheck:  ERROR  command (/workspace/packages/views) /home/ubuntu/.local/share/pnpm/.tools/pnpm/10.28.2/bin/pnpm run typecheck exited (2)
+
+ Tasks:    7 successful, 9 total
+Cached:    0 cached, 9 total
+  Time:    1m5.544s 
+Failed:    @uniwork/views#typecheck
+
+ WARNING  no output files found for task @uniwork/office-upstream#build. Please check your `outputs` key in `turbo.json`
+ ERROR  run failed: command  exited (2)
