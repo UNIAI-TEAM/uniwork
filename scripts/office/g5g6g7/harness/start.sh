@@ -35,7 +35,7 @@ for arg in "$@"; do
     --dry-run) DRY_RUN=1 ;;
     --skip-app) SKIP_APP=1 ;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "start.sh: unknown argument $arg" >&2; exit 2 ;;
+    *) echo "start.sh: unknown argument $arg (try --help)" >&2; exit 2 ;;
   esac
 done
 
