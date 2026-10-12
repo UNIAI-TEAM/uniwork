@@ -1,0 +1,3 @@
+$ node scripts/genoffice-tools-extract.mjs --rev badrev-xyz; test $? -ne 0 && echo BAD_REV_NONZERO
+genoffice-tools-extract: cannot read rev "badrev-xyz" in /home/ubuntu/work/uniwork-office: Command failed: git -C /home/ubuntu/work/uniwork-office rev-parse --verify badrev-xyz^{commit}
+BAD_REV_NONZERO

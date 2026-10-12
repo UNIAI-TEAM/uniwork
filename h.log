@@ -1,0 +1,2 @@
+$ node scripts/genoffice-tools-extract.mjs --rev e6862e53 > /tmp/a.md; LC_ALL=C TZ=UTC node scripts/genoffice-tools-extract.mjs --rev e6862e53 > /tmp/b.md; cmp /tmp/a.md /tmp/b.md && echo DETERMINISTIC
+DETERMINISTIC

@@ -1,0 +1,10 @@
+$ npx eslint scripts/genoffice-tools-extract.mjs scripts/genoffice-tools-extract.test.mjs
+
+/home/ubuntu/work/uniwork-office/scripts/genoffice-tools-extract.mjs
+   653:7   error  The value assigned to 'param' is not used in subsequent statements        no-useless-assignment
+   714:9   error  The value assigned to 'key' is not used in subsequent statements          no-useless-assignment
+  1086:47  error  'ctx' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+  1340:52  error  'owners' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+✖ 4 problems (4 errors, 0 warnings)
+
