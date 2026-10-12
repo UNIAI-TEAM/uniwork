@@ -152,7 +152,7 @@ test('the XLSX oracle documents the share basis of Tổng hợp column E and the
   assert.equal(share.column, 'E');
   assert.equal(share.basis, 'Q1+Q2', 'column E shares over Q1+Q2, unlike the Q1-only share in the text formats');
   assert.equal(share.denominator, oracle.sheets['Tổng hợp'].grandTotals.q1 + oracle.sheets['Tổng hợp'].grandTotals.q2);
-  // 20.160.000 / 40.570.000 = 49,7% — the workbook figures the reviewer recomputed.
+  // Q1+Q2 total of the first region over the grand total = 49,7% (the figure the reviewer recomputed).
   assert.deepEqual(share.rows.map((r) => r.shareText), ['49,7%', '27,7%', '22,6%']);
   assert.deepEqual(share.rows.map((r) => r.cell), ['E2', 'E3', 'E4']);
   assert.ok(share.rows.every((r) => Math.abs(r.share - r.total / share.denominator) < 1e-12));
