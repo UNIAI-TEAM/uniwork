@@ -1,0 +1,15 @@
+$ cd apps/sheets && npm run native:build && npx vitest run
+
+> @genoffice/sheets@0.1.0 native:build
+> cargo build --release --manifest-path native/xlsx-engine/Cargo.toml --config native/xlsx-engine/.cargo/config.toml
+
+    Finished `release` profile [optimized] target(s) in 0.12s
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+
+ Test Files  347 passed | 1 skipped (348)
+      Tests  3561 passed | 1 skipped (3562)
+   Start at  18:52:17
+   Duration  96.76s (transform 17.16s, setup 0ms, import 218.41s, tests 34.23s, environment 3.68s)
+

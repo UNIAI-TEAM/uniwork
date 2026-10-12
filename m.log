@@ -1,0 +1,140 @@
+$ git checkout 64ca4c8a -- apps/slides/src packages/ui/src && (cd apps/slides && npx vitest run tests/ai-panel-model-need.test.ts); A=$?; (cd packages/ui && npx vitest run tests/ai-model-need.test.ts tests/ai-model-picker-options.test.ts); U=$?; git checkout HEAD -- apps/slides/src packages/ui/src; git status --short apps packages; echo "RED_EXIT_R1 slides=$A ui=$U"; test $A -ne 0 -a $U -ne 0 && echo RED_AS_EXPECTED_R1
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+stderr | tests/ai-panel-model-need.test.ts > AiPanel model need (slides) > no model known: Send is off, the hint says why, Enter sends nothing
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/ai-panel-model-need.test.ts > AiPanel model need (slides) > no model known: Send is off, the hint says why, Enter sends nothing
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/ai-panel-model-need.test.ts > AiPanel model need (slides) > the hint has its own full-width row above the footer, not a slot beside the model chip
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/ai-panel-model-need.test.ts > AiPanel model need (slides) > the hint has its own full-width row above the footer, not a slot beside the model chip
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/ai-panel-model-need.test.ts > AiPanel model need (slides) > the hint opens the AI settings when the host offers that action
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/ai-panel-model-need.test.ts > AiPanel model need (slides) > the hint opens the AI settings when the host offers that action
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ❯ tests/ai-panel-model-need.test.ts (4 tests | 3 failed) 77ms
+     × no model known: Send is off, the hint says why, Enter sends nothing 49ms
+     × the hint has its own full-width row above the footer, not a slot beside the model chip 9ms
+     × the hint opens the AI settings when the host offers that action 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ai-panel-model-need.test.ts > AiPanel model need (slides) > no model known: Send is off, the hint says why, Enter sends nothing
+AssertionError: expected undefined to be 'Choose a model to send' // Object.is equality
+
+- Expected:
+"Choose a model to send"
+
++ Received:
+undefined
+
+ ❯ tests/ai-panel-model-need.test.ts:99:68
+     97|     expect(send.disabled).toBe(true)
+     98|     expect(send.getAttribute('data-tip')).toBe(HINT)
+     99|     expect(container.querySelector('.ai-input-need')?.textContent).toB…
+       |                                                                    ^
+    100|     act(() => {
+    101|       textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Ente…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/ai-panel-model-need.test.ts > AiPanel model need (slides) > the hint has its own full-width row above the footer, not a slot beside the model chip
+TypeError: Cannot read properties of null (reading 'getAttribute')
+ ❯ tests/ai-panel-model-need.test.ts:112:17
+    110|     act(() => setAiModelNeedHint(HINT))
+    111|     const need = container.querySelector('.ai-input-need')!
+    112|     expect(need.getAttribute('role')).toBe('status')
+       |                 ^
+    113|     const footer = container.querySelector('.ai-input-footer')!
+    114|     expect(footer.contains(need)).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/ai-panel-model-need.test.ts > AiPanel model need (slides) > the hint opens the AI settings when the host offers that action
+TypeError: Cannot read properties of null (reading 'textContent')
+ ❯ tests/ai-panel-model-need.test.ts:124:17
+    122|     act(() => setAiModelNeedHint(HINT, open))
+    123|     const link = container.querySelector<HTMLButtonElement>('.ai-input…
+    124|     expect(link.textContent).toBe(HINT)
+       |                 ^
+    125|     act(() => link.click())
+    126|     expect(open).toHaveBeenCalledTimes(1)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed (4)
+   Start at  18:54:37
+   Duration  2.55s (transform 1.49s, setup 0ms, import 2.06s, tests 77ms, environment 321ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+ ❯ tests/ai-model-need.test.ts (11 tests | 2 failed) 81ms
+   × custom with a model but no server URL asks for the URL, not an API key (desktop and web frame) 6ms
+   × every locale has all three hints 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ai-model-need.test.ts > custom with a model but no server URL asks for the URL, not an API key (desktop and web frame)
+AssertionError: false: expected 'Add an API key in AI settings to use …' to be undefined // Object.is equality
+
+- Expected:
+undefined
+
++ Received:
+"Add an API key in AI settings to use the assistant."
+
+ ❯ tests/ai-model-need.test.ts:174:40
+    172|     expect(chip, String(requireModel)).toBe(AI_MODEL_PICKER_STRINGS.en…
+    173|     expect(send.disabled, String(requireModel)).toBe(true)
+    174|     expect(hint, String(requireModel)).toBe(AI_MODEL_PICKER_STRINGS.en…
+       |                                        ^
+    175|     expect(hint, String(requireModel)).not.toBe(AI_MODEL_PICKER_STRING…
+    176|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/ai-model-need.test.ts > every locale has all three hints
+AssertionError: zh: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/ai-model-need.test.ts:183:39
+    181|     expect(strings.needModel, lang).toBeTruthy()
+    182|     expect(strings.needKey, lang).toBeTruthy()
+    183|     expect(strings.needBaseUrl, lang).toBeTruthy()
+       |                                       ^
+    184|   }
+    185|   expect(AI_MODEL_PICKER_STRINGS.en.needBaseUrl).toBe(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  2 failed | 20 passed (22)
+   Start at  18:54:40
+   Duration  754ms (transform 422ms, setup 0ms, import 560ms, tests 87ms, environment 327ms)
+
+RED_EXIT_R1 slides=1 ui=1
+RED_AS_EXPECTED_R1

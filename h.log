@@ -1,0 +1,14 @@
+$ npm run test -w @genoffice/ai-provider
+
+> @genoffice/ai-provider@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ai-provider
+
+
+ Test Files  38 passed (38)
+      Tests  492 passed (492)
+   Start at  18:49:35
+   Duration  2.58s (transform 659ms, setup 0ms, import 1.36s, tests 3.12s, environment 2ms)
+

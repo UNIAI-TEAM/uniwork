@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4
+7afb67698ebb1fa73b3e546a43d186d2f653a8cd
+cb76dde5928f8ea9cf66af938d3f83bd1278f78c
+7afb6769 fix(ai): give the slides need-hint its own row and ask for the server URL on custom
+d99fa285 test(ai): pin the slides need-hint row and the add-the-server-URL hint
+64ca4c8a fix(ai): keep the chosen AI provider selected instead of falling back to uniAI
+7e327c99 test(ai): pin that a stored provider choice is never replaced by uniAI

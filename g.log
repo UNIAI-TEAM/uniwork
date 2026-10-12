@@ -1,0 +1,185 @@
+$ git checkout 66169a9a -- packages/ai-provider/src packages/ui/src && (cd packages/ai-provider && npx vitest run tests/uni-1395-selected-provider.test.ts); A=$?; (cd packages/ui && npx vitest run tests/uni-1395-picker-keeps-selection.test.ts); U=$?; git checkout HEAD -- packages/ai-provider/src packages/ui/src; git status --short packages; echo "RED_EXIT ai-provider=$A ui=$U"; test $A -ne 0 -a $U -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ai-provider
+
+ ❯ tests/uni-1395-selected-provider.test.ts (7 tests | 7 failed) 10ms
+     × keeps an unusable provider selected and says what is missing 3ms
+     × custom endpoints need a base URL, then a model; the key stays optional 1ms
+     × a fresh install and a hand-edited unknown id still land on uniAI 0ms
+     × reading a stored file keeps the provider and heals a blank model to the default 3ms
+     × reading a stored file with no key keeps the provider (needs-key, not uniAI) 1ms
+     × a provider without a default model keep a blank model as a choose-model state 1ms
+     × load + save round trip never writes a coerced provider or a blank default-able model 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uni-1395-selected-provider.test.ts > UNI-1395: a stored provider choice is never replaced by uniAI > keeps an unusable provider selected and says what is missing
+TypeError: selectedProvider is not a function
+ ❯ selectedProvider tests/uni-1395-selected-provider.test.ts:10:68
+      8| // failure is an assertion, not a missing-export compile error
+      9| const selectedProvider = (s: unknown): string =>
+     10|   (providers as unknown as Record<string, (s: unknown) => string>).sel…
+       |                                                                    ^
+     11| const providerNeed = (s: unknown, id: string): string | null =>
+     12|   (providers as unknown as Record<string, (s: unknown, id: string) => …
+ ❯ tests/uni-1395-selected-provider.test.ts:24:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/uni-1395-selected-provider.test.ts > UNI-1395: a stored provider choice is never replaced by uniAI > custom endpoints need a base URL, then a model; the key stays optional
+TypeError: selectedProvider is not a function
+ ❯ selectedProvider tests/uni-1395-selected-provider.test.ts:10:68
+      8| // failure is an assertion, not a missing-export compile error
+      9| const selectedProvider = (s: unknown): string =>
+     10|   (providers as unknown as Record<string, (s: unknown) => string>).sel…
+       |                                                                    ^
+     11| const providerNeed = (s: unknown, id: string): string | null =>
+     12|   (providers as unknown as Record<string, (s: unknown, id: string) => …
+ ❯ tests/uni-1395-selected-provider.test.ts:38:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/uni-1395-selected-provider.test.ts > UNI-1395: a stored provider choice is never replaced by uniAI > a fresh install and a hand-edited unknown id still land on uniAI
+TypeError: selectedProvider is not a function
+ ❯ selectedProvider tests/uni-1395-selected-provider.test.ts:10:68
+      8| // failure is an assertion, not a missing-export compile error
+      9| const selectedProvider = (s: unknown): string =>
+     10|   (providers as unknown as Record<string, (s: unknown) => string>).sel…
+       |                                                                    ^
+     11| const providerNeed = (s: unknown, id: string): string | null =>
+     12|   (providers as unknown as Record<string, (s: unknown, id: string) => …
+ ❯ tests/uni-1395-selected-provider.test.ts:47:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/uni-1395-selected-provider.test.ts > UNI-1395: a stored provider choice is never replaced by uniAI > reading a stored file keeps the provider and heals a blank model to the default
+AssertionError: expected '' to be 'gpt-5.6-terra' // Object.is equality
+
+- Expected
++ Received
+
+- gpt-5.6-terra
+
+ ❯ tests/uni-1395-selected-provider.test.ts:59:45
+     57|     )
+     58|     expect(resolved.provider).toBe('openai')
+     59|     expect(resolved.providers.openai.model).toBe(openaiDefault)
+       |                                             ^
+     60|     expect(providerNeed(resolved, 'openai')).toBeNull()
+     61|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/uni-1395-selected-provider.test.ts > UNI-1395: a stored provider choice is never replaced by uniAI > reading a stored file with no key keeps the provider (needs-key, not uniAI)
+TypeError: providerNeed is not a function
+ ❯ providerNeed tests/uni-1395-selected-provider.test.ts:12:87
+     10|   (providers as unknown as Record<string, (s: unknown) => string>).sel…
+     11| const providerNeed = (s: unknown, id: string): string | null =>
+     12|   (providers as unknown as Record<string, (s: unknown, id: string) => …
+       |                                                                                       ^
+     13|     s,
+     14|     id,
+ ❯ tests/uni-1395-selected-provider.test.ts:69:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/uni-1395-selected-provider.test.ts > UNI-1395: a stored provider choice is never replaced by uniAI > a provider without a default model keep a blank model as a choose-model state
+TypeError: providerNeed is not a function
+ ❯ providerNeed tests/uni-1395-selected-provider.test.ts:12:87
+     10|   (providers as unknown as Record<string, (s: unknown) => string>).sel…
+     11| const providerNeed = (s: unknown, id: string): string | null =>
+     12|   (providers as unknown as Record<string, (s: unknown, id: string) => …
+       |                                                                                       ^
+     13|     s,
+     14|     id,
+ ❯ tests/uni-1395-selected-provider.test.ts:81:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/uni-1395-selected-provider.test.ts > UNI-1395: a stored provider choice is never replaced by uniAI > load + save round trip never writes a coerced provider or a blank default-able model
+AssertionError: expected '' to be 'gpt-5.6-terra' // Object.is equality
+
+- Expected
++ Received
+
+- gpt-5.6-terra
+
+ ❯ tests/uni-1395-selected-provider.test.ts:91:43
+     89|     const saved = sanitizeAiSettings(loaded)
+     90|     expect(saved?.provider).toBe('openai')
+     91|     expect(saved?.providers.openai.model).toBe(openaiDefault)
+       |                                           ^
+     92|     // a renderer that still sends a blank model gets the default on w…
+     93|     const blank = sanitizeAiSettings({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed (7)
+   Start at  18:49:33
+   Duration  267ms (transform 131ms, setup 0ms, import 155ms, tests 10ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+ ❯ tests/uni-1395-picker-keeps-selection.test.ts (3 tests | 3 failed) 7ms
+     × stored openai without a key stays openai (needs-key), not uniAI 5ms
+     × stored custom endpoint with a blank model stays custom (choose-model) 1ms
+     × a usable selection and uniAI report no need 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uni-1395-picker-keeps-selection.test.ts > UNI-1395: the picker keeps an unusable selection > stored openai without a key stays openai (needs-key), not uniAI
+AssertionError: expected 'genspark' to be 'openai' // Object.is equality
+
+Expected: "openai"
+Received: "genspark"
+
+ ❯ tests/uni-1395-picker-keeps-selection.test.ts:14:55
+     12|     const settings = defaultAiSettings()
+     13|     settings.provider = 'openai'
+     14|     expect(aiModelPickerSelection(settings).provider).toBe('openai')
+       |                                                       ^
+     15|     expect(aiModelPickerNeed(settings)).toBe('key')
+     16|     // nothing usable to list, so the chip reads "Choose model"
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/uni-1395-picker-keeps-selection.test.ts > UNI-1395: the picker keeps an unusable selection > stored custom endpoint with a blank model stays custom (choose-model)
+AssertionError: expected 'genspark' to be 'custom' // Object.is equality
+
+Expected: "custom"
+Received: "genspark"
+
+ ❯ tests/uni-1395-picker-keeps-selection.test.ts:24:55
+     22|     settings.provider = 'custom'
+     23|     settings.providers.custom = { apiKey: '', model: '', baseUrl: 'htt…
+     24|     expect(aiModelPickerSelection(settings).provider).toBe('custom')
+       |                                                       ^
+     25|     expect(aiModelPickerNeed(settings)).toBe('model')
+     26|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/uni-1395-picker-keeps-selection.test.ts > UNI-1395: the picker keeps an unusable selection > a usable selection and uniAI report no need
+TypeError: aiModelPickerNeed is not a function
+ ❯ aiModelPickerNeed tests/uni-1395-picker-keeps-selection.test.ts:8:73
+      6| // not on the base commit: read it off the module so the failure is an…
+      7| const aiModelPickerNeed = (s: unknown): string | null =>
+      8|   (options as unknown as Record<string, (s: unknown) => string | null>…
+       |                                                                         ^
+      9|
+     10| describe('UNI-1395: the picker keeps an unusable selection', () => {
+ ❯ tests/uni-1395-picker-keeps-selection.test.ts:32:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  18:49:34
+   Duration  341ms (transform 201ms, setup 0ms, import 241ms, tests 7ms, environment 0ms)
+
+RED_EXIT ai-provider=1 ui=1
+RED_AS_EXPECTED
