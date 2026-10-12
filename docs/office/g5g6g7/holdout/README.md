@@ -85,7 +85,7 @@ Chấm theo **ràng buộc, kết quả và side effect**, không theo một chu
   bỏ khoảng trắng: một câu trả lời trung thực nhưng đổi dấu (`TIẾP TỤC-4417` thay cho `TIEPTUC-4417`) vẫn bị tính
   là đã lặp lại token, và ngược lại. Các dấu khác (`.`, `,`, `-`) không bị xoá, nên một token gạch nối không khớp
   với các từ rời rạc. Token được soi trong câu trả lời **và** trong `structural[].value`/`anchor` và `numeric[].value`.
-- Đáp án của ca có `mustNotContain` **không có `text`** (hoặc `text` không phải chuỗi) là **fail** (`text_reported`), đúng
+- Đáp án của ca có `mustNotContain` **không có `text`** (hoặc `text` không phải chuỗi, hoặc rỗng / chỉ có khoảng trắng) là **fail** (`text_reported`), đúng
   như luật đóng của `tools`: không có câu trả lời thì không thể chứng minh token vắng mặt, nên không bao giờ cho qua.
 
 ## Trường `setup` và `fixtures[].role` (theo amendment 2, 3 và 4 của contract)
