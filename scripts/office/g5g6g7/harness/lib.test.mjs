@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { verify } from "../evidence.mjs";
 import { bashSyntaxError, shBlocks } from "./readme-sh-blocks.mjs";
 import { routeCatalogue, routeMatches } from "./server-contract.helper.mjs";
-import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, appOrigin, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -85,11 +85,11 @@ test("buildServerEnv puts every port-derived origin on the command line", () => 
     uploadDir: "/tmp/harness-uploads",
   });
   assert.equal(env.PORT, "18080");
-  assert.equal(env.FRONTEND_ORIGIN, "http://127.0.0.1:13000");
-  assert.equal(env.API_PUBLIC_URL, "http://127.0.0.1:18080");
-  assert.equal(env.NEXT_PUBLIC_API_URL, "http://127.0.0.1:18080");
-  assert.equal(env.NEXT_PUBLIC_WS_URL, "ws://127.0.0.1:18080");
-  assert.equal(env.E2E_BASE_URL, "http://127.0.0.1:13000");
+  assert.equal(env.FRONTEND_ORIGIN, "http://localhost:13000");
+  assert.equal(env.API_PUBLIC_URL, "http://localhost:18080");
+  assert.equal(env.NEXT_PUBLIC_API_URL, "http://localhost:18080");
+  assert.equal(env.NEXT_PUBLIC_WS_URL, "ws://localhost:18080");
+  assert.equal(env.E2E_BASE_URL, "http://localhost:13000");
   // METRICS_ADDR is the listen address, not an origin (metrics/config.go:14).
   assert.equal(env.METRICS_ADDR, "127.0.0.1:19090");
   // The server refuses a PREVIEW_ORIGIN equal to FRONTEND_ORIGIN.
@@ -101,6 +101,41 @@ test("buildServerEnv puts every port-derived origin on the command line", () => 
   assert.equal(env.LIVEKIT_URL, "");
   assert.equal(env.LIVEKIT_API_KEY, "");
   assert.equal(env.LIVEKIT_API_SECRET, "");
+});
+
+test("the web and the API are served as localhost, never 127.0.0.1 (G7-06 round 1: no web page ever hydrated)", () => {
+  // Next 16 `next dev` blocks /_next/hmr from any host but localhost (allowedDevOrigins),
+  // so a page opened on http://127.0.0.1:<port> is server-rendered but never hydrated:
+  // a click on "Log in" is a native GET submit and no API request is ever made. The
+  // API is localhost too, so the refresh cookie it sets is same-site for the web page
+  // (the e2e suite runs localhost:3000 against localhost:8080 for the same reason).
+  const env = buildServerEnv({ apiPort: 18080, webPort: 13000, metricsPort: 19090, previewPort: 13001, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" });
+  for (const key of ["FRONTEND_ORIGIN", "API_PUBLIC_URL", "NEXT_PUBLIC_API_URL", "NEXT_PUBLIC_WS_URL", "NEXT_PUBLIC_APP_URL", "E2E_BASE_URL", "LOCAL_UPLOAD_BASE_URL"]) {
+    assert.match(env[key], /^(http|ws):\/\/localhost:\d+$/, key);
+  }
+  assert.equal(appOrigin(8080), "http://localhost:8080");
+  assert.equal(appOrigin(8080, "ws"), "ws://localhost:8080");
+});
+
+test("ports.env and the returned origins use the same localhost origins the server was started with", async () => {
+  const runDir = tmpDir("harness-origins-");
+  const previous = { DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL };
+  process.env.DATABASE_URL = "postgres://u:p@localhost:5432/db?sslmode=disable";
+  process.env.REDIS_URL = "redis://localhost:6379/0";
+  let ports;
+  try {
+    ports = await writeRunEnv(runDir, { forkSha: "x", dSha: "y" });
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+  const env = readFileSync(join(runDir, "ports.env"), "utf8");
+  assert.ok(env.includes(`\nAPI_ORIGIN=http://localhost:${ports.apiPort}\n`), env);
+  assert.ok(env.includes(`\nWEB_ORIGIN=http://localhost:${ports.webPort}\n`), env);
+  assert.equal(ports.apiOrigin, `http://localhost:${ports.apiPort}`);
+  assert.equal(ports.webOrigin, `http://localhost:${ports.webPort}`);
 });
 
 test("buildServerEnv keeps the API origin identical everywhere it is inlined", () => {
@@ -650,7 +685,7 @@ test("the app start.sh launches gets an allow-listed env, never the VM .env's se
     for (const key of SERVER_SECRETS) assert.ok(!(key in seen), `${key} reached the Electron app`);
     assert.ok(!Object.values(seen).some((value) => /secret-value|^sk-/.test(value)), "no secret value reached the app");
     // what the app needs is there
-    assert.match(seen.UNIWORK_API_ORIGIN, /^http:\/\/127\.0\.0\.1:\d+$/);
+    assert.match(seen.UNIWORK_API_ORIGIN, /^http:\/\/localhost:\d+$/);
     assert.equal(seen.GENOFFICE_USER_DATA, join(stack.runDir, "userdata"));
     assert.ok(seen.PATH && seen.HOME);
     // and nothing outside the allow-list besides what appEnv adds itself
