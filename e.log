@@ -1,0 +1,49 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=1 -v ./internal/ai/ -run 'TestPolicy|TestRequestMessages|TestGatewayToolResultTurn|TestGateway|TestPromptSnapshots|TestSystemPromptsEndWithUntrustedFooter'
+=== RUN   TestPolicyFailClosed
+--- PASS: TestPolicyFailClosed (0.00s)
+=== RUN   TestPolicyOverrideOutsideAllowlist
+2026/10/12 18:29:22 WARN ai: model override outside allowlist, using default capability=meeting_summarization override=totally-made-up default=claude-opus-5
+--- PASS: TestPolicyOverrideOutsideAllowlist (0.00s)
+=== RUN   TestSystemPromptsEndWithUntrustedFooter
+--- PASS: TestSystemPromptsEndWithUntrustedFooter (0.00s)
+=== RUN   TestPromptSnapshots
+--- PASS: TestPromptSnapshots (0.00s)
+=== RUN   TestGatewayMetersBeforeAndAfter
+2026/10/12 18:29:22 INFO ai: call usage_event_id=01M4RP0RM9VAGZTYTHD18JNSVP capability=copilot_answer latency_ms=0
+2026/10/12 18:29:22 INFO ai: call usage_event_id=01M4RP0RMHS06144BMFB0WH7HB capability=copilot_answer latency_ms=0
+2026/10/12 18:29:22 INFO ai: call usage_event_id=01M4RP0RMMZ338V034H91NXN52 capability=copilot_answer latency_ms=0
+--- PASS: TestGatewayMetersBeforeAndAfter (0.60s)
+=== RUN   TestGatewayProviderErrorMarksFailed
+2026/10/12 18:29:23 WARN ai: provider error usage_event_id=01M4RP0S5BSTQ6TZNE20XY475E capability=copilot_answer latency_ms=0 err=boom
+--- PASS: TestGatewayProviderErrorMarksFailed (0.53s)
+=== RUN   TestGatewayToolNotAllowed
+--- PASS: TestGatewayToolNotAllowed (0.45s)
+=== RUN   TestGatewayQuotaRejected
+--- PASS: TestGatewayQuotaRejected (0.65s)
+=== RUN   TestGatewayDisabledAndUnknownPrompt
+--- PASS: TestGatewayDisabledAndUnknownPrompt (0.00s)
+=== RUN   TestGatewayCloudMeters
+2026/10/12 18:29:24 INFO ai: cloud call usage_event_id=01M4RP0TSWKZCCTQ25W7QJW9MN capability=cloud_search latency_ms=0
+2026/10/12 18:29:24 INFO ai: cloud call usage_event_id=01M4RP0TSZXWNCHZDN97SJSFQ7 capability=cloud_transcribe latency_ms=0
+2026/10/12 18:29:24 WARN ai: cloud tool error usage_event_id=01M4RP0TT0XSFTG77Z45FYR49X capability=cloud_image_generate latency_ms=0 err="vendor down"
+--- PASS: TestGatewayCloudMeters (0.59s)
+=== RUN   TestGatewayMediaAttachments
+2026/10/12 18:29:25 INFO ai: call usage_event_id=01M4RP0VERJKJJGN5HG80TRTVN capability=media_analysis latency_ms=0
+2026/10/12 18:29:25 WARN ai: provider error usage_event_id=01M4RP0VEWAQ8A5V4RCRFV2QGP capability=media_analysis latency_ms=0 err="ai: media type unsupported by provider"
+--- PASS: TestGatewayMediaAttachments (0.67s)
+=== RUN   TestPolicyOfficeUniworkAI
+--- PASS: TestPolicyOfficeUniworkAI (0.00s)
+=== RUN   TestRequestMessages
+--- PASS: TestRequestMessages (0.00s)
+=== RUN   TestGatewayToolResultTurn
+--- PASS: TestGatewayToolResultTurn (0.51s)
+=== RUN   TestGatewayCloudSettlesAfterClientHangUp
+--- PASS: TestGatewayCloudSettlesAfterClientHangUp (0.55s)
+=== RUN   TestGatewayCompleteSettlesAfterClientHangUp
+--- PASS: TestGatewayCompleteSettlesAfterClientHangUp (0.59s)
+=== RUN   TestGatewayProxyStreamsAndMetersBYOK
+--- PASS: TestGatewayProxyStreamsAndMetersBYOK (0.48s)
+=== RUN   TestGatewayProxyAuthFailureSettlesRow
+--- PASS: TestGatewayProxyAuthFailureSettlesRow (0.51s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/ai	7.144s

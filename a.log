@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+cbf2878c1557b9800cb9e02fc65f5edf6d3c0fba
+bd537227949a0c31720be1c092d6b88b7ee8d2f4
+cbf2878c1 feat(ai): carry a tool-result turn through Gateway.Complete
+247a4fdbc feat(ai): fill the provider gaps the G6-02 spike assigned to G6-13
+b8d795a39 feat(ai): add the office_uniwork_ai capability policy
+531ff1484 docs(office): dev-upstream setup note and UniWork AI upstream runbook section
+bd5372279 docs(office): apply sign-off batch 2 (G6-D1) to contract-p0 and EXPERIENCE
+30d3f0ac5 docs(office): merge the G6-12 genoffice tools doc at fork 66169a9a (UNI-1366)
