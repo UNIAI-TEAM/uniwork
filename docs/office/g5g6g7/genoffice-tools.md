@@ -39,9 +39,10 @@ Mọi đường dẫn tính từ gốc fork tại `0d03b185`.
 | **MCP** | Server MCP **cục bộ** của app cho agent bên ngoài (Claude Code, Codex…): `McpServerService`, HTTP `/mcp` + SSE cũ, bind `127.0.0.1:3093`, không token (chỉ kiểm Host/Origin), **tắt mặc định** (`mcpEnabled === true` mới bật). Công cụ MCP (`create_docx`, `read_docx`, `apply_ops`, `read_sheet`, `apply_sheet_ops`, `read_deck`, `apply_slide_ops`, `read_pdf`, `open_documents`…) điều khiển editor đang mở qua bridge main→renderer, dùng lại executor của panel — chiều MCP → editor, không phải chiều ngược lại | `apps/shell/src/main/mcp/mcp-server.ts:13-14`, `mcp-server.ts:49`, `mcp-server.ts:93`, `apps/shell/src/main/index.ts:579`, `apps/docs/src/renderer/mcp-bridge.ts:1-15` |
 | **Agent skills** (`@genoffice/cli/agent-skills`) | Bộ cài `skills/genoffice/SKILL.md` vào thư mục skills của agent bên ngoài (Claude Code `~/.claude/skills`, Codex, Cursor, Gemini CLI, Copilot, OpenCode, Windsurf), chỉ khi người dùng bấm ở Settings → Integrations hoặc gõ `genoffice skill`. Là prompt cho agent ngoài, không phải `AgentSkill` | `packages/cli/src/agent-skills.ts:17-118`, `skills/genoffice/SKILL.md:1-12` |
 | **CLI** (`genoffice`) | Có server MCP riêng (stdio, hoặc HTTP loopback) cho agent ngoài. Chỗ duy nhất app spawn CLI là công cụ MCP headless | `packages/cli/src/mcp/http.ts:48-52`, `apps/shell/src/main/mcp/cli-runner.ts:92` |
-| **`UNIWORK_CLOUD_TOOLS`** | Năm công cụ đám mây tốn credit của UniWork: `web_search`, `image_search`, `image_generate`, `media_analyze`, `transcribe`. Desktop: transport đặt ở shell main, gọi `/api/v1/orgs/{orgID}/ai/cloud*` bằng bearer của chính tài khoản UniWork đang đăng nhập (renderer không thấy token). Web: `/v1/office-frame/documents/{id}/ai/cloud*` bằng frame token (một tài liệu, `credentials:'omit'`). Entitlement `office.ai_cloud` và credit do server UniWork chặn. Đây là backend của các công cụ agent `web_search`, `image_search`, `generate_image`, `analyze_media`; tên trong mảng này **không** phải tên công cụ agent (`image_generate` ≠ `generate_image`) | `packages/ai-provider/src/uniwork-cloud.ts:20-29`, `apps/shell/src/main/uniwork-auth/cloud.ts:19-22`, `cloud.ts:195`, `cloud.ts:225`, `web/modules/shared/ai/client.ts:5-24` |
+| **`UNIWORK_CLOUD_TOOLS`** | Năm công cụ đám mây tốn credit của UniWork: `web_search`, `image_search`, `image_generate`, `media_analyze`, `transcribe`. Desktop: transport đặt ở shell main, gọi `/api/v1/orgs/{orgID}/ai/cloud*` bằng bearer của chính tài khoản UniWork đang đăng nhập (renderer không thấy token). Web: `/v1/office-frame/documents/{id}/ai/cloud*` bằng frame token (một tài liệu, `credentials:'omit'`). Entitlement `office.ai_cloud` và credit do server UniWork chặn. Đây là backend của các công cụ agent `web_search`, `image_search`, `generate_image`, `analyze_media`; tên trong mảng này **không** phải tên công cụ agent (`image_generate` ≠ `generate_image`) | `packages/ai-provider/src/uniwork-cloud.ts:20-26`, `apps/shell/src/main/uniwork-auth/cloud.ts:19-22`, `cloud.ts:195`, `cloud.ts:225`, `web/modules/shared/ai/client.ts:5-24` |
 
-**Vòng agent trong app có gọi được CLI hoặc MCP không? Không — cả desktop lẫn web.**
+**Vòng agent trong app có gọi được CLI hoặc MCP không? Không qua công cụ nào — cả desktop lẫn web; riêng desktop, nhà cung
+cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).**
 
 - Công cụ chạy trong renderer qua `executeTool` của các skill mà từng `AiPanel` gộp; ra khỏi renderer chỉ qua các kênh IPC cố
   định `ai:stream`, `ai:web-search`, `ai:image-search`, `ai:generate-image`, `ai:analyze-media`, `ai:fetch-image`
@@ -51,6 +52,13 @@ Mọi đường dẫn tính từ gốc fork tại `0d03b185`.
   `https://search.parallel.ai/mcp`, dùng làm backend dự phòng không khóa **bên trong** công cụ `web_search` trên desktop. Model
   không thấy nó như một công cụ; nó không mở thêm năng lực nào ngoài `web_search`.
 - Web không có Node, không có code MCP trong module hay bridge.
+- Desktop, nhà cung cấp `codex`: `ai:stream` → `streamForProvider` chạy **Codex CLI** làm backend model, `spawn(cliPath,
+  codexAppServerLaunchArgs())` (`packages/ai-provider/src/codex-app-server.ts:379`). Công cụ/MCP riêng của Codex bị chặn bằng
+  instruction ("Never … run shell commands, browse, call MCP", `codex-app-server.ts:70`, `codex-app-server.ts:693`) và bằng
+  `approvalPolicy: 'never'` + profile quyền hoặc sandbox `read-only` dự phòng (`codex-app-server.ts:803-855`) — tức là chặn bằng
+  cấu hình, không phải vì không có. Web loại `codex` và `genspark` (`web/modules/shared/ai/web-ai.ts:71-73`). Đường này nằm
+  ngoài phạm vi nhà cung cấp UniWork AI: allowlist G6-12 khóa theo nhà cung cấp (§9 dòng 35), nên lượt UniWork AI không đi
+  qua Codex CLI.
 - Hệ quả cho spec §6.2 "MCP và skills tắt": với nhà cung cấp UniWork AI, MCP và agent skills **không bao giờ** nằm trong lượt
   chạy. Allowlist chỉ cần lọc trên tên công cụ của `AgentSkill` (cột `tool` ở §3); công cụ đám mây trong allowlist chỉ khi tổ
   chức có `office.ai_cloud`.
@@ -104,22 +112,22 @@ view-only) chỉ giữ `READ_ONLY_TOOLS` (`docs-skill.ts:37-46`), công cụ kh�
 | replace_blocks | cả hai | khoảng block, `html` → số block | kế thừa định dạng; bảng giữ độ rộng/viền | có | công cụ chính cho "viết lại đoạn" |
 | replace_selection | cả hai | `html` inline → cũ → mới (cắt 200 ký tự) | chỉ một block văn bản; từ chối vùng chọn nhiều block hoặc nội dung khóa | có | dùng vùng chọn đông cứng của lượt |
 | apply_ops | cả hai | `ops[]`, `dryRun` → tóm tắt | nguyên tử (một op sai → bỏ cả lô); `dryRun` xem trước | có | `insertField` xem §5 (a) |
-| read_revisions | cả hai | — → danh sách tracked change | 200 mục trong context (`protocol.ts:627`) | không | |
+| read_revisions | cả hai | — → danh sách tracked change | 200 mục trong context (`protocol.ts:627`) | không | view-only giữ |
 | accept_changes | cả hai | bộ chọn (all/ids/author/type/block) → id bị ảnh hưởng | bộ chọn được kiểm | có | |
 | reject_changes | cả hai | như trên | như trên | có | |
-| read_comments | cả hai | — → các luồng comment | 20 luồng trong context (`protocol.ts:708`) | không | |
+| read_comments | cả hai | — → các luồng comment | 20 luồng trong context (`protocol.ts:708`) | không | view-only giữ |
 | reply_comment | cả hai | `parentId`, text → ack | luồng phải tồn tại | có | |
 | resolve_comment | cả hai | id → ack | — | có (code khai báo `false`) | |
 | insert_footnote | cả hai | blockIndex, `afterText`, text → id | text không rỗng | có | |
 | insert_endnote | cả hai | như trên | như trên | có | |
 | delete_note | cả hai | kind, id → ack | từ chối block khóa | có | |
 | edit_note | cả hai | id, find, replace → ack | — | có | |
-| read_notes | cả hai | — → danh sách chú thích | — | không | |
+| read_notes | cả hai | — → danh sách chú thích | — | không | view-only giữ |
 | add_comment | cả hai | blockIndex, text neo, comment, author → id | author mặc định là tác giả AI | có | |
 | delete_comment | cả hai | id, `withReplies` → ack | gốc có trả lời bị từ chối nếu thiếu `withReplies` | có | |
-| web_search | cả hai, gate `webSearch` | query, maxResults → tiêu đề/URL/trích | mặc định 6; web cắt query 400 ký tự, 1–10 kết quả (`web/modules/shared/ai/web-ai.ts:576`, `web-ai.ts:677-679`) | không | gửi query ra backend tìm kiếm; tốn credit nếu qua UniWork cloud |
-| image_search | cả hai, gate `imageSearch` | query, maxResults → URL ảnh | mặc định 8; web cùng kẹp | không | |
-| analyze_media | cả hai, cần model media | blockIndex, `mediaUrls`, yêu cầu → văn bản phân tích | đầu ra cắt 6 000 ký tự (`docs/ai/tools.ts:937`); web chỉ `data:`, tối đa 4, yêu cầu 4 000 ký tự (`web-ai.ts:563-566`, `web-ai.ts:741-750`); desktop 200 MB, 12 mục (`packages/ai-search/src/media-tools.ts:46-53`) | không | web âm thầm bỏ URL không phải `data:` |
+| web_search | cả hai, gate `webSearch` | query, maxResults → tiêu đề/URL/trích | mặc định 6; web cắt query 400 ký tự, 1–10 kết quả (`web/modules/shared/ai/web-ai.ts:576-577`, `web-ai.ts:677-679`) | không | gửi query ra backend tìm kiếm; tốn credit nếu qua UniWork cloud; view-only giữ |
+| image_search | cả hai, gate `imageSearch` | query, maxResults → URL ảnh | mặc định 8; web cùng kẹp | không | view-only giữ |
+| analyze_media | cả hai, cần model media | blockIndex, `mediaUrls`, yêu cầu → văn bản phân tích | đầu ra cắt 6 000 ký tự (`docs/ai/tools.ts:937`); web chỉ `data:`, tối đa 4, yêu cầu 4 000 ký tự (`web-ai.ts:563-566`, `web-ai.ts:741-750`); desktop 200 MB, 12 mục (`packages/ai-search/src/media-tools.ts:46-53`) | không | web âm thầm bỏ URL không phải `data:`; view-only giữ |
 | insert_image | cả hai | `url` http(s), maxWidthPx → ack | PNG/JPG/GIF theo magic byte; desktop 50 MB (`packages/electron-utils/src/remote-image.ts:11`) | có | tải URL do model đưa, xem §5 (b) |
 | generate_image | cả hai, gate `imageGeneration` + model media | prompt, aspectRatio → ack | web cắt prompt 4 000 ký tự | có | tốn credit |
 | insert_chart | cả hai | kind (bar/line/pie), categories, series → ack | giá trị ép về số hữu hạn hoặc null | có | |
@@ -183,7 +191,7 @@ Trình soạn thảo là mã nguồn (CodeMirror) + preview iframe.
 
 ### 4.5 Gắn công cụ theo host — sheets, slides, pdf
 
-Trong 4.5–4.7, §5, §6, §7, §8.1 và các dòng 16–36 của §9, đường dẫn rút gọn là của module đang nói: `tools.ts`, `files-skill.ts`, `merge-skill.ts`, `search-skill.ts`, `image-skill.ts`, `view-only-skill.ts`, `workbook-readers.ts`, `aggregate.ts`, `AiChatPanel.tsx` = `apps/sheets/src/renderer/ai/…` (sheets) hoặc `apps/pdf/src/renderer/ai/…` (pdf); `slides-skill.ts`, `AiPanel.tsx`, `edit-queue.ts`, `layout-script*.ts` = `apps/slides/src/renderer/ai/…`; `App.tsx` = `apps/<module>/src/renderer/App.tsx`; `ai-ipc.ts`, `slides-main.ts` = `apps/slides/src/main/…`; `install.ts`, `webapi.ts` (pdf) = `web/modules/pdf/…`.
+Trong 4.5–4.8, §5, §6, §7, §8.1 và các dòng 16–35 của §9, đường dẫn rút gọn là của module đang nói: `tools.ts`, `files-skill.ts`, `merge-skill.ts`, `search-skill.ts`, `image-skill.ts`, `view-only-skill.ts`, `workbook-readers.ts`, `aggregate.ts`, `AiChatPanel.tsx` = `apps/sheets/src/renderer/ai/…` (sheets) hoặc `apps/pdf/src/renderer/ai/…` (pdf); `slides-skill.ts`, `AiPanel.tsx`, `edit-queue.ts`, `layout-script*.ts` = `apps/slides/src/renderer/ai/…`; `App.tsx` = `apps/<module>/src/renderer/App.tsx`; `ai-ipc.ts`, `slides-main.ts` = `apps/slides/src/main/…`; `install.ts`, `webapi.ts` (pdf) = `web/modules/pdf/…`.
 
 - Desktop: renderer gọi `window.desktopApi` / `slidesApi` / `pdfApi` (preload Electron), không đặt `capabilities` → mọi `cap()`
   bật (`apps/sheets/src/renderer/capabilities.ts:4-6`). Chat đi qua IPC transport (`apps/sheets/src/renderer/ai/transport.ts:6`).
@@ -191,7 +199,7 @@ Trong 4.5–4.7, §5, §6, §7, §8.1 và các dòng 16–36 của §9, đườn
   grant AI lấy từ host (`aiHostGrants`, `web/docs/bridge/module-bridge.ts:149`). Khi có grant `ai`: `aiStream` đi proxy BYOK của
   UniWork; `webSearch`/`imageSearch`/`generateImage`/`analyzeMedia` đi công cụ cloud UniWork bằng frame token
   (`web/modules/shared/ai/web-ai.ts:674,690,726-740,741`), mỗi cái cần capability riêng + công tắc `GET cloud` của server.
-- Công cụ cloud desktop (`UNIWORK_CLOUD_TOOLS`, `packages/ai-provider/src/uniwork-cloud.ts:19-25`) chạy ở main process với
+- Công cụ cloud desktop (`UNIWORK_CLOUD_TOOLS`, `packages/ai-provider/src/uniwork-cloud.ts:20-26`) chạy ở main process với
   bearer token của phiên UniWork người dùng (`apps/shell/src/main/uniwork-auth/index.ts:210,263`); token không tới renderer.
 - "Gated" = công cụ ẩn khỏi danh sách tool gửi cho model khi capability/điều kiện tắt (getter `tools` đọc lại trước mỗi request).
   "Stub" = công cụ vẫn được khai báo cho model nhưng bridge web trả lỗi "unavailable".
@@ -221,7 +229,7 @@ Web: `createDocument`, `attachments`, `mergeWorkbooks` luôn tắt; `webSearch`/
 | create_document | desktop (gated `createDocument`; web luôn tắt, bridge stub `web/modules/sheets/bridge.ts:820`) | `{type: xlsx/csv/docx/pdf/md/html, sheetId?, title?, content?}` → file mới trong thư mục lưu mặc định, mở tab mới | content rỗng/echo bị từ chối (`tools.ts:1433-1438`) | file | `tools.ts:527`; gate ở `workbook-skill.ts:16-21` và `tools.ts:1390`; ghi đĩa ở `apps/sheets/src/main/sheets-main.ts:1524,1570,3184` |
 | read_attachment | desktop (gated `attachments`; web tắt) | `{index, offset?}` → text trích của file đính kèm, phân trang | 24.000 ký tự/khúc (`files-skill.ts:12`) | không | `files-skill.ts:34`. Đọc file cục bộ người dùng đã đính kèm |
 | merge_attached_workbooks | desktop (gated `mergeWorkbooks`; web tắt) | `{indexes?}` → nhập mọi sheet của file đính kèm (xlsx/xlsm/xls/csv/tsv) vào workbook đang mở | chỉ phần mở rộng bảng tính (`merge-skill.ts:13`) | có (cờ: không đặt `mutated` → extractor `undeclared`) | `merge-skill.ts:42`; công thức nguồn nhập thành giá trị |
-| web_search | desktop luôn; web khi có grant `webSearch` + công tắc cloud | `{query, maxResults?}` → title/url/snippet (+ answer) | mặc định 6; web cắt query 400 ký tự, kết quả 1–10 (`web-ai.ts:676-678,577`) | không | `search-skill.ts:20`. Desktop: UniWork cloud nếu bật, nếu không chuỗi keyless Serper/DuckDuckGo (`packages/ai-search/src/search-tools.ts:4-5,36`; IPC `sheets-main.ts:3843-3853`) |
+| web_search | desktop luôn; web khi có grant `webSearch` + công tắc cloud | `{query, maxResults?}` → title/url/snippet (+ answer) | mặc định 6; web cắt query 400 ký tự, kết quả 1–10 (`web-ai.ts:677-679,576-577`) | không | `search-skill.ts:20`. Desktop: UniWork cloud nếu bật, nếu không chuỗi keyless Serper/DuckDuckGo (`packages/ai-search/src/search-tools.ts:4-5,36`; IPC `sheets-main.ts:3843-3853`) |
 | image_search | desktop luôn; web khi có grant `imageSearch` | `{query, maxResults?}` → danh sách imageUrl + kích thước | mặc định 8 | không | `image-skill.ts:38`; `sheets-main.ts:3855-3864` |
 | generate_image | desktop khi có model media BYOK hoặc cloud; web khi có grant `imageGeneration` | `{prompt, aspectRatio?}` → URL ảnh (web: `data:` URL) | web: prompt ≤4000 ký tự (`web-ai.ts:727`) | không (chỉ trả URL; chèn qua `add_image`) | `image-skill.ts:52`; gate `App.tsx:1424-1429` |
 
@@ -249,7 +257,7 @@ cụ được khai báo cho model nhưng bridge trả "unavailable" (`web/module
 | save_style_template | desktop; web stub (`web-slides-api.ts:1133`) | `{name}` → lưu style + skeleton | tên ≤64 ký tự sau khi lọc (`ai-ipc.ts:520`) | file (`userData/style-templates/<name>.json`, `ai-ipc.ts:507-525`) | `slides-skill.ts:663` (`mutated: false`) |
 | list_style_templates | desktop; web trả `[]` | `{}` → danh sách template | — | không | `slides-skill.ts:678` |
 | edit_chart | cả hai | `{slideIndex, sourceId, kind?, categories?, series?, dataSource?, …}` → chart đã sửa | `series` cần `dataSource` | có (`slides-skill.ts:2571`) | `slides-skill.ts:684` |
-| apply_ops | cả hai (engine `slides:apply-txn`, `web-slides-api.ts:999`) | `{ops[], dry_run?, isolation?}` → bản ghi op, id mới, audit layout | mô tả "at most 50" (`slides-skill.ts:757`) — **không thấy kiểm số lượng trong code** (grep `slides-skill.ts`, `packages/pptx-ops/src`) | có (`slides-skill.ts:2621`; dry run `mutated: false`) | `slides-skill.ts:741`. Atomic mặc định |
+| apply_ops | cả hai (engine `slides:apply-txn`, `web-slides-api.ts:999`) | `{ops[], dry_run?, isolation?}` → bản ghi op, id mới, audit layout | ≤ 50 op mỗi transaction, kiểm ở `apps/slides/src/session/apply-txn.ts:27-31` (mô tả `slides-skill.ts:757`) | có (`slides-skill.ts:2621`; dry run `mutated: false`) | `slides-skill.ts:741`. Atomic mặc định |
 | load_guide | cả hai | `{groups[]}` → tài liệu op group | enum `OP_GROUPS` | không | `slides-skill.ts:770` |
 | read_attachment | desktop (web: không có kho đính kèm) | `{index, offset?}` → text đính kèm | 24.000 ký tự/khúc (tương tự sheets) | không | `apps/slides/src/renderer/ai/files-skill.ts:38` |
 
@@ -257,8 +265,9 @@ cụ được khai báo cho model nhưng bridge trả "unavailable" (`web/module
 
 Skill: `createPdfSkill` (`apps/pdf/src/renderer/ai/pdf-skill.ts:70-131`), định nghĩa công cụ `AGENT_TOOLS`
 (`apps/pdf/src/renderer/ai/tools.ts:228-1160`). View-only/mã hóa → chỉ `READ_ONLY_TOOLS` (`pdf-skill.ts:48-58,77-83,118-127`);
-`generate_image` ẩn khi không có provider (`pdf-skill.ts:80-82`). Web: `imageGeneration`, `ocr`, `insertPages` (tới khi có
-`filePick`) tắt (`web/modules/pdf/install.ts:43-64`); `pdfTextEdit`/`pdfImageEdit` tắt khi pdfium không chạy được
+`generate_image` ẩn khi không có provider (`pdf-skill.ts:80-82`). Web: `ocr`, `insertPages` (tới khi có `filePick`) tắt (`web/modules/pdf/install.ts:43-64`); `imageGeneration` mặc định tắt
+(`install.ts:55`) nhưng `installModuleBridge` gộp `aiHostGrants` trước `pdfGrants`, nên nó bật khi host cấp `ai` + `imageGeneration`
+(`web/docs/bridge/module-bridge.ts:142-153`, `web/docs/bridge/hide.ts:88-96`, `web/modules/shared/ai/web-ai.ts:59-67`); `pdfTextEdit`/`pdfImageEdit` tắt khi pdfium không chạy được
 (`install.ts:109-110`) nhưng **các công cụ AI tương ứng không gate theo capability này** (chỉ `generate_image` có `cap()`,
 `AiPanel.tsx:392`). `createDocument` web là stub (`web/modules/pdf/webapi.ts:995`); `fetchImage` web là stub `null`
 (`web/docs/bridge/ai.ts:121`, dùng ở `webapi.ts:1012`).
@@ -285,7 +294,7 @@ Skill: `createPdfSkill` (`apps/pdf/src/renderer/ai/pdf-skill.ts:70-131`), địn
 | move_inserted_text | cả hai | `{id, x?, y?, dx?, dy?}` | — | có | `tools.ts:615` |
 | delete_inserted_text | cả hai | `{id}` | — | có | `tools.ts:631` |
 | image_search | desktop; web khi grant `imageSearch` | `{query, max_results?}` → imageUrl | mặc định 8 | không | `tools.ts:643` |
-| generate_image | desktop (provider); web tắt (`install.ts:55`) | `{prompt, aspectRatio?}` → URL | — | không | `tools.ts:656`; desktop IPC `apps/pdf/src/main/pdf-main.ts:1683-1690` |
+| generate_image | desktop (provider); web khi có grant `imageGeneration` (+ công tắc cloud) (`web-ai.ts:59-67`, `module-bridge.ts:142-153`) | `{prompt, aspectRatio?}` → URL | — | không | `tools.ts:656`; desktop IPC `apps/pdf/src/main/pdf-main.ts:1683-1690` |
 | list_page_images | cả hai | `{page?}` → ảnh theo trang, số thứ tự | — | không | `tools.ts:676` |
 | insert_image | desktop; web chỉ khi có cách tải (stub `fetchImage` → luôn lỗi) | `{page, url, anchor_text?, placement?, x?, y?, width?, layer?}` | một chỉnh sửa/ảnh/lần lưu (prompt) | có | `tools.ts:690`; tải ở `tools.ts:2811` → `App.tsx:5830-5831` → handler shell `ai:fetch-image` (`apps/docs/src/main/docs-main.ts:3949`, SSRF guard) |
 | transform_image | cả hai (cần pdfium) | `{page, image, x?, y?, width?, height?, layer?}` | — | có | `tools.ts:733` |
@@ -319,7 +328,7 @@ mở; (d) gọi API UniWork bằng quyền khác phiên người dùng. Kết lu
 | module | kiểm | kết luận | bằng chứng và lý do |
 | --- | --- | --- | --- |
 | agent-core | (a)–(d) | n/a | Không công cụ; vòng lặp không tải URL, không ghi file, không gọi API (`packages/agent-core/src/loop.ts`, `skill.ts`). |
-| docs | (a) | **vi phạm** | Không có thực thi macro/VBA (không đọc `vbaProject`). Nhưng op `insertField` của `apply_ops` dùng **danh sách chặn**: chỉ chặn `TOC INDEX XE HYPERLINK INCLUDEPICTURE INCLUDETEXT EMBED FORM* ADDIN` (`apps/docs/src/renderer/ai/field-ops.ts:21-33`); mọi từ khóa `^[A-Za-z]+$` khác qua được (`field-ops.ts:636-640`), gồm `DDE`, `DDEAUTO`, `LINK`, `IMPORT`, `DATABASE`. Trường được ghi `dirty` để Word tính lại khi mở → nội dung bị prompt injection có thể khiến AI chèn trường DDE vào file. Cần danh sách cho phép. `updateFields scope:"all"` cũng đánh dấu `dirty` cả trường DDE/INCLUDETEXT có sẵn trong file (`field-ops.ts:589-598`). |
+| docs | (a) | **vi phạm** | Không có thực thi macro/VBA (không đọc `vbaProject`). Nhưng op `insertField` của `apply_ops` dùng **danh sách chặn**: chỉ chặn `TOC INDEX XE HYPERLINK INCLUDEPICTURE INCLUDETEXT EMBED FORM* ADDIN` (`apps/docs/src/renderer/ai/field-ops.ts:21-33`); mọi từ khóa `^[A-Za-z]+$` khác qua được (`field-ops.ts:636-640`), gồm `DDE`, `DDEAUTO`, `LINK`, `IMPORT`, `DATABASE`. Trường được ghi `dirty` để Word tính lại khi mở → nội dung bị prompt injection có thể khiến AI chèn trường DDE vào file. Cần danh sách cho phép. `updateFields scope:"all"` cũng đánh dấu `dirty` cả trường DDE/INCLUDETEXT có sẵn trong file (`field-ops.ts:603-612`; chỉ bỏ qua trường form có `beginXml`). |
 | docs | (b) | **vi phạm** | Cùng cơ chế và cùng kết luận với sheets/slides/pdf (ghi chú (b) chung dưới bảng): URL do model chọn được tải. Editor không tự tải đích `INCLUDEPICTURE`/`INCLUDETEXT`. Ảnh chỉ tải khi model gọi `insert_image`/`insert_picture`/`set_watermark` (ảnh): desktop qua `ai:fetch-image` → `fetchRemoteImage` (`apps/docs/src/main/docs-main.ts:3949-3967`) → `fetchWithSsrfGuard` chặn dải private/loopback/link-local ở **mọi bước redirect** (`packages/electron-utils/src/safe-remote-url.ts:19-30`, `safe-remote-url.ts:95-115`), trần 50 MB; web cũng tải, qua RPC `image.fetch` của host (`web/docs/bridge/webapi.ts:764`, proxy phía server UniWork, không kiểm ở fork). URL có thể đến từ text bị injection (kết quả tìm kiếm, nội dung tài liệu); system prompt không có câu "nội dung là dữ liệu không tin cậy" — phần đó thuộc instruction pack G6-14. |
 | docs | (c) | **vi phạm** | `create_document` (chỉ desktop) ghi file mới `.pdf`/`.md`/`.html` vào thư mục lưu mặc định, hoặc mở tab `.docx` mới tự lưu vào đó, không hỏi người dùng (`apps/docs/src/renderer/ai/tools.ts:980-1008`, `apps/docs/src/main/docs-main.ts:5021`, `docs-main.ts:5568-5612`). Không ghi đè (`uniquePathIn`), nhưng là ghi đĩa ngoài tài liệu đang mở do một lượt AI. Với UniWork AI phải ra khỏi allowlist. `read_attachment` chỉ đọc tệp người dùng đính kèm (`docs/ai/files-skill.ts`). |
 | docs | (d) | đạt | Desktop: công cụ đám mây đi qua transport ở shell main bằng bearer của chính tài khoản đang đăng nhập (`apps/shell/src/main/uniwork-auth/cloud.ts:195`, `cloud.ts:225`); web: frame token một tài liệu, `credentials:'omit'` (`web/modules/shared/ai/client.ts:5-7`). Không khóa dịch vụ, không quyền cao hơn phiên. |
@@ -475,14 +484,13 @@ Mỗi dòng: module — cần gì — vì sao — hàng ma trận / kiểm an to
 26. slides — `insert_web_image`/`replace_image`/pipeline `generate_deck`/`analyze_media` tải URL do model đưa — §6.3 (b).
 27. slides — `generate_deck`/`regenerate_slide` tự ghi nháp `<Documents>/UniWork Office/*.pptx` và đổi `session.path` không kiểm `uniworkIsBound`; sidecar `.styleskill.json`; `save_style_template` ghi userData — §6.3 (c), §6.4.
 28. slides — web khai báo cho model các công cụ chỉ là stub (`insert_web_image`, `replace_image`, `regenerate_slide`, `generate_deck`, `save_style_template`; `web_search`/`image_search` không gate theo grant) — cần gate theo capability như sheets `gateSkill` — §6.2 allowlist ("chỉ công cụ editor của module đang mở").
-29. slides — `apply_ops` mô tả ≤50 op nhưng không thấy kiểm trong code — giới hạn công cụ (§6.3 bảng giới hạn).
-30. slides — `generate_deck`/`regenerate_slide` gọi LLM nội bộ ngoài vòng tool (style, outline, từng trang) — với UniWork AI cần đi qua cùng run id/trần lượt (§6.2 trần vòng tool) hoặc bị loại khỏi allowlist v1.
-31. pdf — `insert_blank_page`/`set_page_size`/`crop_pages`/`replace_pages` lưu chỉnh sửa chờ và tạo version mới (web `api.save`) / ghi lại file (desktop), không hoàn tác được — §6.3 (c), §6.4 "một lượt AI không tạo upload/version/save".
-32. pdf — `extract_pages`/`split_pdf`/`split_pages`/`merge_pages`/`create_document` ghi file mới (desktop) / tải xuống (web) — §6.3 (c).
-33. pdf — `insert_image`/`replace_image` tải URL do model đưa (desktop) — §6.3 (b).
-34. pdf — undo gộp theo lượt AI + nút hoàn tác lượt (đang một bước/công cụ, stack 50) — §6.4 hiển thị/hoàn tác.
-35. pdf — gate công cụ sửa text/ảnh theo `pdfTextEdit`/`pdfImageEdit`, `create_document` và tải ảnh trên web (đang khai báo nhưng stub/lỗi) — §6.2 allowlist.
-36. sheets, slides, pdf — chưa có cách phân biệt nhà cung cấp UniWork AI trong skill để áp allowlist v1 (MCP/skills tắt, cloud chỉ khi `office.ai_cloud`) — §6.2; G6-12 cần một predicate "provider = uniwork" cho getter `tools`.
+29. slides — `generate_deck`/`regenerate_slide` gọi LLM nội bộ ngoài vòng tool (style, outline, từng trang) — với UniWork AI cần đi qua cùng run id/trần lượt (§6.2 trần vòng tool) hoặc bị loại khỏi allowlist v1.
+30. pdf — `insert_blank_page`/`set_page_size`/`crop_pages`/`replace_pages` lưu chỉnh sửa chờ và tạo version mới (web `api.save`) / ghi lại file (desktop), không hoàn tác được — §6.3 (c), §6.4 "một lượt AI không tạo upload/version/save".
+31. pdf — `extract_pages`/`split_pdf`/`split_pages`/`merge_pages`/`create_document` ghi file mới (desktop) / tải xuống (web) — §6.3 (c).
+32. pdf — `insert_image`/`replace_image` tải URL do model đưa (desktop) — §6.3 (b).
+33. pdf — undo gộp theo lượt AI + nút hoàn tác lượt (đang một bước/công cụ, stack 50) — §6.4 hiển thị/hoàn tác.
+34. pdf — gate công cụ sửa text/ảnh theo `pdfTextEdit`/`pdfImageEdit`, `create_document` và tải ảnh trên web (đang khai báo nhưng stub/lỗi) — §6.2 allowlist.
+35. sheets, slides, pdf — chưa có cách phân biệt nhà cung cấp UniWork AI trong skill để áp allowlist v1 (MCP/skills tắt, cloud chỉ khi `office.ai_cloud`) — §6.2; G6-12 cần một predicate "provider = uniwork" cho getter `tools`.
 
 ### 9.1 Nghi vấn còn mở cho Product / owner F
 
