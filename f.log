@@ -1,0 +1,24 @@
+$ git checkout -b d1-f-office-shots && git add apps/web/public/landing/office && git -c user.name=Zone17th -c user.email=zone17@habichthuy.com commit -m "feat(landing): Office page editor screenshots captured on the e2e stack" -m "Refs: UNI-1307" && git push origin d1-f-office-shots; echo push_exit=$?
+Switched to a new branch 'd1-f-office-shots'
+→ GATE_LEVEL=fast: lint + typecheck left to CI (docs/engineering/GATE_LEVELS.md)
+[d1-f-office-shots 1dc30f988] feat(landing): Office page editor screenshots captured on the e2e stack
+ 12 files changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 apps/web/public/landing/office/docs.en.webp
+ create mode 100644 apps/web/public/landing/office/docs.vi.webp
+ create mode 100644 apps/web/public/landing/office/html.en.webp
+ create mode 100644 apps/web/public/landing/office/html.vi.webp
+ create mode 100644 apps/web/public/landing/office/markdown.en.webp
+ create mode 100644 apps/web/public/landing/office/markdown.vi.webp
+ create mode 100644 apps/web/public/landing/office/pdf.en.webp
+ create mode 100644 apps/web/public/landing/office/pdf.vi.webp
+ create mode 100644 apps/web/public/landing/office/sheets.en.webp
+ create mode 100644 apps/web/public/landing/office/sheets.vi.webp
+ create mode 100644 apps/web/public/landing/office/slides.en.webp
+ create mode 100644 apps/web/public/landing/office/slides.vi.webp
+remote: 
+remote: Create a pull request for 'd1-f-office-shots' on GitHub by visiting:        
+remote:      https://github.com/UNIAI-TEAM/uniwork/pull/new/d1-f-office-shots        
+remote: 
+To https://github.com/UNIAI-TEAM/uniwork
+ * [new branch]          d1-f-office-shots -> d1-f-office-shots
+push_exit=0
