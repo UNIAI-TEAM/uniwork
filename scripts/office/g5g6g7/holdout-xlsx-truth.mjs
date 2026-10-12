@@ -149,6 +149,9 @@ export function computeTruth(sheets = readWorkbook()) {
   T.plain10_cell_count = orders.filter((o) => o.z === 10).length;
   T.blank_z_cell_count = orders.filter((o) => o.z === null).length;
   T.q1_discount_orders_all = of('Q1').filter((o) => discount(o.z) > 0).length;
+  // HO-XLSX-035: "Z greater than 10" has two readings with different answers, which is why the case asks.
+  T.z_raw_gt_10_orders_all = orders.filter((o) => (o.z ?? 0) > 10).length;
+  T.z_gt_10pct_orders_all = orders.filter((o) => discount(o.z) > 0.1).length;
 
   T['cell:Tổng hợp!D5'] = T.total_revenue_all;
   T['cell:Doanh thu Q1!G8'] = T.q1_revenue_all;
