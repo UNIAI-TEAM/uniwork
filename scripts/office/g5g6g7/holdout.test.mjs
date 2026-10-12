@@ -290,11 +290,11 @@ test('the scorer fails closed when a mustNotContain case reports no text field (
   const guarded = allCases.filter((c) => c.expected.mustNotContain.length > 0);
   assert.ok(guarded.length >= 6, `expected mustNotContain cases, found ${guarded.length}`);
   for (const caseDoc of guarded) {
-    for (const broken of [undefined, null, 0, { text: 'x' }]) {
+    for (const broken of [undefined, null, 0, { text: 'x' }, '', '   ', '\n\t ']) {
       const answer = referenceAnswerFor(caseDoc);
       if (broken === undefined) delete answer.text;
       else answer.text = broken;
-      assert.equal(score(caseDoc, answer).status, 'fail', `${caseDoc.id}: a missing/non-string text must fail (${JSON.stringify(broken)})`);
+      assert.equal(score(caseDoc, answer).status, 'fail', `${caseDoc.id}: a missing, non-string or empty text must fail (${JSON.stringify(broken)})`);
     }
   }
 });
