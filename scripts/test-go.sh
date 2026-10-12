@@ -24,7 +24,11 @@ mkdir -p "$(dirname "$cover_out")"
 
 usage() { echo "usage: $0 [--race] [--shard=all|service|handler|rest] [--skip-static] [--skip-floor]" >&2; }
 
-go_test_args=(test -count=1 -timeout 30m)
+# 30m was enough without the race detector. Under -race the service shard
+# now spends the whole half hour on the sequential DB tests (they take one
+# advisory lock) and the parallel ones never start. 60m is the ceiling, not
+# the expected duration.
+go_test_args=(test -count=1 -timeout 60m)
 race_requested=false
 shard=all
 run_static=true

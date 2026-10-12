@@ -14,13 +14,13 @@
 2. Env: `BILLING_PROVIDER=vnpay`, `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `API_PUBLIC_URL` khớp sandbox/production.
 3. Tra intent: `SELECT id, status, amount, plan_id, expires_at FROM billing_payment_intents WHERE provider_txn_ref = '<vnp_TxnRef>'`.
 4. Tra inbox: `SELECT id, status, attempt_count, last_error FROM webhook_inbox WHERE provider = 'vnpay' ORDER BY received_at DESC LIMIT 20`.
-5. Log server tại thời điểm IPN: tìm `vnpay webhook apply` hoặc `trace_id` từ response VNPay (`RspCode=99` = apply thất bại trong tx S1).
+5. Log server tại thời điểm IPN: tìm `vnpay webhook apply` hoặc `RspCode` `99` (áp dụng thất bại trong tx S1). Phản hồi luôn là HTTP 200 JSON `{"RspCode","Message"}`.
 
 ## Khắc phục
 
 | Nguyên nhân | Hành động |
 |-------------|-----------|
-| Chữ ký / TMN / amount lệch | Sửa `VNPAY_*`; không trả `RspCode=00` khi apply fail (S1). |
+| Chữ ký / TMN / amount lệch | Sửa `VNPAY_*`. Chữ ký sai trả `RspCode` `97`; lệch số tiền trả `04`. Không trả `00` khi apply fail (S1). |
 | IPN không tới | Sửa tunnel / firewall; restart API sau khi đổi `API_PUBLIC_URL`. |
 | Intent `expired`, đã trả trong 72h | Sửa lỗi apply, replay từ payload inbox hoặc gọi lại IPN từ VNPay nếu portal hỗ trợ. |
 | Row DEAD sau bug code | Hotfix, deploy; replay inbox `PENDING` hoặc `ApplyProviderEvent` từ payload đã lưu (idempotent khi intent `completed`). |

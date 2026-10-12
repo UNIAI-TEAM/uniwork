@@ -94,12 +94,12 @@ func TestHandleProviderWebhookDedupesInbox(t *testing.T) {
 		t.Fatal(err)
 	}
 	ok, err := f.billing.HandleProviderWebhook(f.ctx, ev, payload)
-	if err != nil || !ok {
-		t.Fatalf("first webhook: ok=%v err=%v", ok, err)
+	if err != nil || ok != "00" {
+		t.Fatalf("first webhook: code=%s err=%v", ok, err)
 	}
 	ok, err = f.billing.HandleProviderWebhook(f.ctx, ev, payload)
-	if err != nil || !ok {
-		t.Fatalf("duplicate webhook: ok=%v err=%v", ok, err)
+	if err != nil || ok != "02" {
+		t.Fatalf("duplicate webhook: code=%s err=%v", ok, err)
 	}
 	var invCount int
 	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM invoices WHERE organization_id = $1`, f.orgID).Scan(&invCount); err != nil || invCount != 1 {
@@ -136,13 +136,81 @@ func TestHandleProviderWebhookAcksTerminalAmountMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ok, err := f.billing.HandleProviderWebhook(f.ctx, ev, payload)
-	if err != nil || !ok {
-		t.Fatalf("terminal mismatch should ack: ok=%v err=%v", ok, err)
+	code, err := f.billing.HandleProviderWebhook(f.ctx, ev, payload)
+	if err != nil || code != "04" {
+		t.Fatalf("terminal mismatch should ack 04: code=%s err=%v", code, err)
 	}
 	var status string
 	if err := f.pool.QueryRow(f.ctx, `SELECT status FROM billing_payment_intents WHERE id = $1`, intentID).Scan(&status); err != nil || status != "failed" {
 		t.Fatalf("intent status = %q err=%v", status, err)
+	}
+}
+
+func TestHandleProviderWebhookUnknownTxnRef(t *testing.T) {
+	f := newBillingFixture(t)
+	prov := billing.FromConfig(config.Config{BillingProvider: "vnpay", VNPayTMNCode: "TMN", VNPayHashSecret: "secret"})
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, prov)
+	ev := billing.Event{
+		ProviderEventID: "missing-txn-1",
+		ProviderTxnRef:  "01NOINTENT0000000000",
+		Type:            "invoice.paid",
+		Paid:            true,
+		Amount:          500000,
+		Currency:        "VND",
+	}
+	payload, err := ProviderWebhookPayloadJSON(ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := f.billing.HandleProviderWebhook(f.ctx, ev, payload)
+	if err != nil || code != "01" {
+		t.Fatalf("unknown txn: code=%s err=%v", code, err)
+	}
+}
+
+func TestHandleProviderWebhookCompletedIntentIsAlreadyConfirmed(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
+	intentID := "01TESTVNAPYINTENT00005"
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO billing_payment_intents (
+		id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
+		amount, currency, status, expires_at
+	) SELECT $1, s.organization_id, s.id, $2, 'vnpay', $1, 500000, 'VND', 'pending', now() + interval '15 minutes'
+	  FROM subscriptions s WHERE s.organization_id = $3`,
+		intentID, "01TESTPLANpaid_team", f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	prov := billing.FromConfig(config.Config{BillingProvider: "vnpay", VNPayTMNCode: "TMN", VNPayHashSecret: "secret"})
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, prov)
+	first := billing.Event{
+		ProviderEventID: "completed-event-1",
+		ProviderTxnRef:  intentID,
+		Type:            "invoice.paid",
+		Paid:            true,
+		Amount:          500000,
+		Currency:        "VND",
+	}
+	payload, err := ProviderWebhookPayloadJSON(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := f.billing.HandleProviderWebhook(f.ctx, first, payload)
+	if err != nil || code != "00" {
+		t.Fatalf("first paid IPN: code=%s err=%v", code, err)
+	}
+	again := first
+	again.ProviderEventID = "completed-event-2"
+	payload, err = ProviderWebhookPayloadJSON(again)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err = f.billing.HandleProviderWebhook(f.ctx, again, payload)
+	if err != nil || code != "02" {
+		t.Fatalf("new event on completed intent: code=%s err=%v", code, err)
+	}
+	var invCount int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM invoices WHERE organization_id = $1`, f.orgID).Scan(&invCount); err != nil || invCount != 1 {
+		t.Fatalf("invoices: %d %v", invCount, err)
 	}
 }
 
