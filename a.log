@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+919084f73360ccc8f44689f1350430b8364bea77
+0d03b185c8060bafc4e2afe7173e0a10260465bd
+919084f7 test(tools): cover the genoffice tool extractor and run it in the root test list
+857c3b58 feat(tools): add the deterministic genoffice agent-tool extractor
+0d03b185 fix(shell): prettier on the G files; the signed-out reopen test waits for the save instead of sleeping 20 ms

@@ -1,0 +1,4 @@
+$ node scripts/genoffice-tools-extract.mjs --rev 0d03b185 > /tmp/ext-a.md && node scripts/genoffice-tools-extract.mjs --rev 0d03b185 > /tmp/ext-b.md && cmp /tmp/ext-a.md /tmp/ext-b.md && echo IDENTICAL && sha256sum /tmp/ext-a.md && wc -l /tmp/ext-a.md
+IDENTICAL
+7507d230be73ac85f621ed103683d1545153c4392ac6742386a59829ee187293  /tmp/ext-a.md
+138 /tmp/ext-a.md

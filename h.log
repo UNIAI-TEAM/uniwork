@@ -1,0 +1,5 @@
+$ node scripts/genoffice-tools-extract.mjs > /tmp/ext-h1.md && node scripts/genoffice-tools-extract.mjs > /tmp/ext-h2.md && cmp /tmp/ext-h1.md /tmp/ext-h2.md && echo IDENTICAL_HEAD && head -3 /tmp/ext-h1.md
+IDENTICAL_HEAD
+<!-- genoffice-tools-extract v1 rev=919084f73360ccc8f44689f1350430b8364bea77 -->
+| module | tool | input_schema_sha256 | editor_write | source |
+| --- | --- | --- | --- | --- |
