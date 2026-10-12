@@ -306,3 +306,125 @@ func TestOllamaRefusesToolMessages(t *testing.T) {
 		}
 	}
 }
+
+// ---- G6-13 gap fill ---------------------------------------------------------
+
+// TestOpenAISendsStreamFalse: Complete always says stream:false, because an
+// upstream that reads a missing field as stream:true answers in SSE (spike
+// G6-02 §8.1).
+func TestOpenAISendsStreamFalse(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`{"model":"m","choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	defer srv.Close()
+	if _, err := NewOpenAI(srv.URL, "", time.Second).Complete(context.Background(), CompletionRequest{Model: "m", Messages: []Message{{Role: "user", Content: "q"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := got["stream"]; !ok || v != false {
+		t.Fatalf("stream must be sent as false: %v", got)
+	}
+}
+
+// TestProviderStatusError: a non-2xx vendor answer is a typed error carrying
+// the status and the parsed Retry-After, for the façade to route a 429.
+func TestProviderStatusError(t *testing.T) {
+	for _, tc := range []struct {
+		header string
+		want   time.Duration
+	}{{"7", 7 * time.Second}, {"", 0}, {"soon", 0}} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if tc.header != "" {
+				w.Header().Set("Retry-After", tc.header)
+			}
+			w.WriteHeader(429)
+			_, _ = w.Write([]byte(`{"error":"slow down"}`))
+		}))
+		_, err := NewOpenAI(srv.URL, "", time.Second).Complete(context.Background(), CompletionRequest{Model: "m"})
+		srv.Close()
+		var se *StatusError
+		if !errors.As(err, &se) || se.Status != 429 || se.RetryAfter != tc.want {
+			t.Fatalf("openai Retry-After %q: %#v", tc.header, err)
+		}
+		if !strings.Contains(err.Error(), "429") || !strings.Contains(err.Error(), "slow down") {
+			t.Fatalf("message lost: %v", err)
+		}
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Retry-After", "3")
+		w.WriteHeader(429)
+		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"rate_limit_error","message":"slow"}}`))
+	}))
+	defer srv.Close()
+	a := &Anthropic{client: anthropic.NewClient(option.WithAPIKey("k"), option.WithBaseURL(srv.URL), option.WithMaxRetries(0))}
+	_, err := a.Complete(context.Background(), CompletionRequest{Model: "claude-x", MaxTokens: 8, Messages: []Message{{Role: "user", Content: "q"}}})
+	var se *StatusError
+	if !errors.As(err, &se) || se.Status != 429 || se.RetryAfter != 3*time.Second {
+		t.Fatalf("anthropic: %#v", err)
+	}
+	// The fake injects the same error, so a façade test needs no network.
+	f := &Fake{Err: &StatusError{Status: 429, RetryAfter: 7 * time.Second}}
+	if _, err := f.Complete(context.Background(), CompletionRequest{}); !errors.As(err, &se) || se.RetryAfter != 7*time.Second {
+		t.Fatalf("fake: %v", err)
+	}
+}
+
+// TestAnthropicParallelToolResults: two calls in one assistant turn are
+// answered in ONE user turn holding both tool_result blocks, the last message
+// of the request (the Messages API wants every result right after the turn
+// that asked).
+func TestAnthropicParallelToolResults(t *testing.T) {
+	var body map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"msg_2","type":"message","role":"assistant","model":"claude-x","content":[{"type":"text","text":"done"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
+	}))
+	defer srv.Close()
+	a := &Anthropic{client: anthropic.NewClient(option.WithAPIKey("k"), option.WithBaseURL(srv.URL), option.WithMaxRetries(0))}
+	resp, err := a.Complete(context.Background(), CompletionRequest{
+		Model: "claude-x", MaxTokens: 64,
+		Messages: []Message{
+			{Role: "user", Content: "sum A1 and B1"},
+			{Role: "assistant", Content: "reading", ToolCalls: []ToolCall{
+				{ID: "toolu_a", Name: "get_cell", Input: json.RawMessage(`{"cell":"A1"}`)},
+				{ID: "toolu_b", Name: "get_cell", Input: json.RawMessage(`{"cell":"B1"}`)},
+			}},
+			{Role: "tool", ToolCallID: "toolu_a", Content: "1"},
+			{Role: "tool", ToolCallID: "toolu_b", Content: "2"},
+		},
+	})
+	if err != nil || resp.Text != "done" {
+		t.Fatalf("%+v %v", resp, err)
+	}
+	msgs := body["messages"].([]any)
+	if len(msgs) != 3 {
+		t.Fatalf("want user, assistant, one user turn of results: %v", msgs)
+	}
+	asst := msgs[1].(map[string]any)["content"].([]any)
+	if len(asst) != 3 || asst[0].(map[string]any)["type"] != "text" || asst[2].(map[string]any)["id"] != "toolu_b" {
+		t.Fatalf("assistant %v", asst)
+	}
+	last := msgs[2].(map[string]any)
+	blocks := last["content"].([]any)
+	if last["role"] != "user" || len(blocks) != 2 {
+		t.Fatalf("results %v", last)
+	}
+	for i, id := range []string{"toolu_a", "toolu_b"} {
+		b := blocks[i].(map[string]any)
+		if b["type"] != "tool_result" || b["tool_use_id"] != id {
+			t.Fatalf("block %d %v", i, b)
+		}
+	}
+}
+
+// TestOllamaRefusalIsExplicit: the refusal says what is missing, not only
+// ErrUnsupported.
+func TestOllamaRefusalIsExplicit(t *testing.T) {
+	_, err := NewOllama("", time.Second).Complete(context.Background(), CompletionRequest{Model: "m", Messages: []Message{{Role: "tool", ToolCallID: "c", Content: "1"}}})
+	if !errors.Is(err, ErrUnsupported) || !strings.Contains(err.Error(), "ollama") || !strings.Contains(err.Error(), "tool") {
+		t.Fatalf("%v", err)
+	}
+}

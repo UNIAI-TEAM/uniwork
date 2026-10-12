@@ -10,6 +10,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // ErrUnsupported is returned by an adapter for an operation its vendor does
@@ -19,6 +24,46 @@ var ErrUnsupported = errors.New("ai: unsupported by provider")
 
 // ErrRefused is returned when the model declined to answer.
 var ErrRefused = errors.New("ai: request refused")
+
+// StatusError is a vendor's non-2xx answer: the HTTP status and the
+// Retry-After it asked for (0 when absent or unreadable), so a caller can
+// tell a rate limit from an outage with errors.As (spike G6-02 §4.5). Detail
+// is the first bytes of the vendor's body, which is what an operator needs
+// and nothing a log should not hold.
+type StatusError struct {
+	Status     int
+	RetryAfter time.Duration
+	URL        string // the endpoint, for HTTP adapters without an SDK
+	Detail     string
+	Err        error // the vendor SDK's own error, when there is one
+}
+
+func (e *StatusError) Error() string {
+	if e.URL != "" {
+		return fmt.Sprintf("provider: %s → %d: %s", e.URL, e.Status, e.Detail)
+	}
+	return fmt.Sprintf("provider: %d: %s", e.Status, e.Detail)
+}
+
+func (e *StatusError) Unwrap() error { return e.Err }
+
+// retryAfter reads a Retry-After header given in seconds; the HTTP-date form
+// and anything unreadable count as absent.
+func retryAfter(h http.Header) time.Duration {
+	n, err := strconv.Atoi(strings.TrimSpace(h.Get("Retry-After")))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return time.Duration(n) * time.Second
+}
+
+// snippet caps a vendor body for an error message.
+func snippet(b []byte) string {
+	if len(b) > 200 {
+		b = b[:200]
+	}
+	return string(b)
+}
 
 type Message struct {
 	Role    string // "user" | "assistant" | "tool"

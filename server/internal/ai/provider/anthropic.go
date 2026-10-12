@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -31,7 +32,7 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 	if req.Temperature > 0 {
 		params.Temperature = param.NewOpt(req.Temperature)
 	}
-	for _, m := range req.Messages {
+	for i, m := range req.Messages {
 		block := anthropic.NewTextBlock(m.Content)
 		switch {
 		case m.Role == "assistant":
@@ -48,8 +49,15 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 			params.Messages = append(params.Messages, anthropic.NewAssistantMessage(blocks...))
 		case m.Role == "tool":
 			// A tool result is not a turn of its own there: it rides the user
-			// turn, addressed to the tool_use id it answers.
-			params.Messages = append(params.Messages, anthropic.NewUserMessage(anthropic.NewToolResultBlock(m.ToolCallID, m.Content, false)))
+			// turn, addressed to the tool_use id it answers. Results of
+			// parallel calls share that one user turn, since the API wants
+			// every result right after the assistant turn that asked.
+			result := anthropic.NewToolResultBlock(m.ToolCallID, m.Content, false)
+			if n := len(params.Messages); n > 0 && i > 0 && req.Messages[i-1].Role == "tool" {
+				params.Messages[n-1].Content = append(params.Messages[n-1].Content, result)
+				continue
+			}
+			params.Messages = append(params.Messages, anthropic.NewUserMessage(result))
 		default:
 			blocks := make([]anthropic.ContentBlockParamUnion, 0, len(m.Parts)+1)
 			for _, p := range m.Parts {
@@ -73,6 +81,14 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 	}
 	resp, err := a.client.Messages.New(ctx, params)
 	if err != nil {
+		var apiErr *anthropic.Error
+		if errors.As(err, &apiErr) {
+			se := &StatusError{Status: apiErr.StatusCode, Detail: snippet([]byte(apiErr.RawJSON())), Err: err}
+			if apiErr.Response != nil {
+				se.RetryAfter = retryAfter(apiErr.Response.Header)
+			}
+			return CompletionResponse{}, se
+		}
 		return CompletionResponse{}, err
 	}
 	if resp.StopReason == anthropic.StopReasonRefusal {
