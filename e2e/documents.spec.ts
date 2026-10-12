@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { verifyEmail } from "./auth-nav";
 import { workspaceSeed, type WorkspaceSeed } from "./onboard";
-import { newPageCard } from "./documents-onboard";
+import { libraryRowButton, newPageCard } from "./documents-onboard";
 
 /**
  * Golden paths of G1-06 (a + b) on the H1 API: a page is created, typed into
@@ -177,7 +177,7 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
   // the server's own row count. The sidebar tree lists folders only.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
   const list = page.getByRole("table", { name: "Tài liệu" });
-  await expect(list.getByRole("button", { name: /^Trang mới/ })).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("treeitem", { name: /Trang mới/ })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: /Tất cả/ })).toContainText("1");
 
@@ -194,15 +194,15 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
   await page.getByRole("button", { name: "Docs", exact: true }).click();
   await expect(page.getByText("Không có tài liệu khớp bộ lọc")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Bỏ bộ lọc" }).click();
-  await expect(list.getByRole("button", { name: /^Trang mới/ })).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
 
   // The row opens the document.
-  await list.getByRole("button", { name: /^Trang mới/ }).click();
+  await libraryRowButton(list, /Trang mới/).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
 
   // Dark and mobile screenshots, then English, on the same library.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
-  await expect(list.getByRole("button", { name: /^Trang mới/ })).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
   await page.evaluate(() => document.documentElement.classList.add("dark"));
   await shot(page, "documents-library-dark-vi");
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
