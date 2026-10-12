@@ -330,7 +330,7 @@ function forkShaOfRun(envFile) {
  * and returns the exit code the step must end with, 1 for a failed start and 77
  * only for a precondition start.sh itself reported missing.
  */
-export async function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "", fixtureSha256 = "", command, checker, startedAt, argv }) {
+export async function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "", command, checker, startedAt, argv }) {
   const blocked = gate.gate === "blocked";
   const result = blocked ? "BLOCKED" : "FAIL";
   const exitCode = blocked ? BLOCKED_EXIT : 1;
@@ -342,22 +342,50 @@ export async function concludeAtStartGate(gate, { runDir, requirementId, fixture
     fSha: process.env.OFFICE_FORK_SHA || forkShaOfRun(paths.envFile),
     requirementId,
     fixtureId,
-    fixtureSha256,
+    fixtureSha256: await fixtureSha256Of(fixtureId),
     platform: `${process.platform}-${process.arch}`,
     build: `node ${process.versions.node}`,
     command,
     argv,
     exitCode,
     result,
+    artifact: writeStepArtifact(runDir, requirementId, command, [`${blocked ? "BLOCKED" : "FAILED"}: ${gate.reason}`]),
     checker,
     blocker: blocked ? gate.reason : "",
     startedAt,
     finishedAt: new Date().toISOString(),
   });
-  mkdirSync(runDir, { recursive: true });
   if (blocked) appendFileSync(paths.blockedFile, `${JSON.stringify(record, null, 2)}\n`);
   if (!process.env.OFFICE_EVIDENCE_ID) appendFileSync(paths.evidenceFile, `${JSON.stringify(record)}\n`);
   return exitCode;
+}
+
+/**
+ * The manifest hash of fixture `fixtureId` ("" when there is none or the id is
+ * not in the manifest, which verify then reports for what it is). Read through
+ * the runner's own manifest reader, so the hash never comes from a copy.
+ */
+export async function fixtureSha256Of(fixtureId) {
+  if (!fixtureId) return "";
+  const { readManifest } = await import("../evidence.mjs");
+  try {
+    return readManifest().fixtures.find((fixture) => fixture.id === fixtureId)?.sha256 ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * The artifact of a step that ended before it could produce one: a log under
+ * the run's logs/ holding the command and why it stopped, so the ledger line
+ * names a file that exists instead of "". Returns its absolute path.
+ */
+export function writeStepArtifact(runDir, requirementId, command, lines) {
+  const logDir = harnessPaths(runDir).logDir;
+  mkdirSync(logDir, { recursive: true });
+  const file = join(logDir, `${requirementId}-step.log`);
+  appendFileSync(file, `$ ${command}\n\n${lines.join("\n")}\n`);
+  return file;
 }
 
 /** Where the fork is cloned for a pinned revision: one directory per SHA, reused across runs. */

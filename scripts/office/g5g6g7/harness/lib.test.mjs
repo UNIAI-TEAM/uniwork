@@ -1313,9 +1313,9 @@ test("a wrong password for a reused account is a FAIL", async () => {
 // ---- the ledger lines the harness writes pass `evidence.mjs verify` (H1-3) ----
 
 /** What `verify` says about the one line the harness wrote, ignoring the matrix's own rows. */
-function verifyLine(line, artifactFile) {
+function verifyLine(line) {
   const outDir = mkdtempSync(join(tmpdir(), "harness-ledger-"));
-  writeFileSync(join(outDir, "evidence.jsonl"), `${JSON.stringify({ ...line, artifact: line.artifact || artifactFile })}\n`);
+  writeFileSync(join(outDir, "evidence.jsonl"), `${JSON.stringify(line)}\n`);
   return verify({ outDir }).problems.filter((problem) => problem.startsWith("line 1 "));
 }
 
@@ -1330,7 +1330,7 @@ test("document-step's own evidence line is complete: verify finds nothing wrong 
     assert.match(line.dSha, /^[0-9a-f]{40}$/);
     assert.ok(line.pin.length > 0, "the served frame pin is on the line");
     assert.ok(line.evidenceId.length > 0);
-    assert.deepEqual(verifyLine(line, join(run.runDir, "document-step.json")), []);
+    assert.deepEqual(verifyLine(line), []);
   } finally {
     await server.stop();
   }
@@ -1344,13 +1344,28 @@ test("a BLOCKED document-step line and a start-gate line also pass verify", asyn
     assert.equal(blocked.status, 77);
     const line = JSON.parse(readFileSync(join(run.runDir, "evidence.jsonl"), "utf8").trim().split("\n").at(-1));
     assert.equal(line.result, "BLOCKED");
-    assert.deepEqual(verifyLine(line, join(run.runDir, "document-step.json")), []);
+    assert.ok(existsSync(line.artifact), "a BLOCKED line names an artifact on disk");
+    assert.deepEqual(verifyLine(line), []);
   } finally {
     await server.stop();
   }
-  const gated = stepAfterStart(DOC_STEP, "blocked", "no network to the fork");
-  assert.deepEqual(verifyLine({ ...gated.line, fixtureId: "fx-docx-report-vi", fixtureSha256: JSON.parse(readFileSync(join(REPO_FIXTURES, "manifest.json"), "utf8")).fixtures.find((f) => f.id === "fx-docx-report-vi").sha256 }, "/dev/null"), []);
 });
+
+// R2-1: the line a start gate writes (a direct run whose start.sh reported blocked or
+// failed) is complete as written: fixture id + hash from the manifest, an artifact log.
+for (const [name, script, fixtureId] of [["sample-ac", SAMPLE_AC, "fx-md-notes-vi"], ["document-step", DOC_STEP, "fx-docx-report-vi"]]) {
+  for (const state of ["blocked", "failed"]) {
+    test(`${name}'s start-gate ${state} line carries its fixture and an artifact, so verify accepts it (R2-1)`, () => {
+      const { line } = stepAfterStart(script, state, "the D server is not up");
+      const manifest = JSON.parse(readFileSync(join(REPO_FIXTURES, "manifest.json"), "utf8"));
+      assert.equal(line.fixtureId, fixtureId);
+      assert.equal(line.fixtureSha256, manifest.fixtures.find((fixture) => fixture.id === fixtureId).sha256);
+      assert.ok(existsSync(line.artifact), `artifact ${line.artifact} exists`);
+      assert.match(readFileSync(line.artifact, "utf8"), /the D server is not up/);
+      assert.deepEqual(verifyLine(line), []);
+    });
+  }
+}
 
 // ---- the deep-link handoff: allow-listed env, recorded and cleaned up (H1-7, H1-8) ----
 
@@ -1556,4 +1571,14 @@ test("stop.sh removes the run's uploads and server cwd by path and keeps logs an
   assert.equal(result.status, 0, result.stderr);
   assert.ok(!existsSync(join(runDir, "uploads")) && !existsSync(join(runDir, "server-cwd")));
   assert.ok(existsSync(join(runDir, "logs", "server.log")) && existsSync(join(runDir, "evidence.jsonl")));
+});
+
+test("document-step's precondition BLOCKED line (no D server up) carries its fixture and an artifact log (R2-1)", () => {
+  const { result, line } = stepAfterStart(DOC_STEP, "up", "");
+  assert.equal(result.status, 77, `${result.stdout}\n${result.stderr}`);
+  assert.match(line.blocker, /no D server on http:\/\/127\.0\.0\.1:1/);
+  assert.equal(line.fixtureId, "fx-docx-report-vi");
+  assert.match(line.fixtureSha256, /^[0-9a-f]{64}$/);
+  assert.match(readFileSync(line.artifact, "utf8"), /BLOCKED: no D server on/);
+  assert.deepEqual(verifyLine(line), []);
 });

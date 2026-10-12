@@ -45,6 +45,8 @@ import { concludeAtStartGate, evidenceLine, harnessEvidenceId, harnessPaths, led
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..", "..");
 const BLOCKED = 77;
+/** The fixture G7-A05 declares in the acceptance rows: the line a start gate writes names it. */
+const FIXTURE_ID = "fx-md-notes-vi";
 
 function argValue(flag, fallback) {
   const i = process.argv.indexOf(flag);
@@ -82,6 +84,7 @@ if (gate.gate !== "proceed") {
   process.exit(await concludeAtStartGate(gate, {
     runDir,
     requirementId: "G7-A05",
+    fixtureId: FIXTURE_ID,
     command: `node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir ${runDir}`,
     checker: "harness:start.sh+sample-ac.mjs",
     startedAt,
