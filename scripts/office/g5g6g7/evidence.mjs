@@ -490,12 +490,29 @@ function parseArgs(argv) {
   return args;
 }
 
+/** The last lines of a non-PASS run's artifact, on stderr (the artifact starts with the `$ command` line and a blank one). */
+function echoOutputTail(record, maxLines = 40) {
+  try {
+    const lines = fs.readFileSync(abs(record.artifact), 'utf8').split('\n').slice(2);
+    while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+    const tail = lines.slice(-maxLines);
+    if (tail.length === 0) return;
+    process.stderr.write(`evidence: ${record.evidenceId} ${record.result}; last ${tail.length} line(s) of ${record.artifact}:\n${tail.map((line) => `  | ${line}`).join('\n')}\n`);
+  } catch {
+    // the artifact is only a convenience copy of what the command printed
+  }
+}
+
 function main(argv) {
   const args = parseArgs(argv);
   const outDir = args.outDir ?? abs(DEFAULT_OUT_DIR);
   if (args.mode === 'run') {
     const record = runEvidence({ ...args, outDir });
     process.stdout.write(`${JSON.stringify(record)}\n`);
+    // The artifact holds the command's whole output, but a cloud round log only
+    // has what this process prints: for a FAIL or BLOCKED, echo the tail of that
+    // output to stderr so the reason (which check, which request) is in the log.
+    if (record.result !== 'PASS') echoOutputTail(record);
     return record.result === 'PASS' ? 0 : record.result === 'BLOCKED' ? SKIP_EXIT_CODE : 1;
   }
   if (args.mode === 'reset') {

@@ -49,6 +49,7 @@ import { randomBytes } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { API_CALLS, ApiError, apiPath, assertBodyKeys, failureInfo } from "./api-contract.mjs";
 import { DEV_CLIENT_ID, activeDesktopDevice, appEnv, concludeAtStartGate, documentStepOutcome, evidenceLine, harnessPaths, harnessEvidenceId, ledgerIdentity, officeDeepLink, parseWaitSignin, readStartStatus, startGate, ticketFromLaunchUrl, workingCopyDir } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -106,25 +107,31 @@ function readPorts() {
   );
 }
 
-async function jsonRequest(method, url, { token, body, form } = {}) {
+/**
+ * One call of the D server API, named in api-contract.mjs (the table the node
+ * test pins against the server's routes). A non-2xx answer throws an ApiError
+ * naming the method, path and status; the origin and the token are not in it.
+ */
+async function apiCall(name, { params, token, body, form } = {}) {
+  const call = API_CALLS[name];
+  const path = apiPath(name, params);
+  if (body !== undefined) assertBodyKeys(name, body);
   const headers = {};
   if (token) headers.authorization = `Bearer ${token}`;
   if (body !== undefined) headers["content-type"] = "application/json";
-  const res = await fetch(url, {
-    method,
+  const res = await fetch(`${API_ORIGIN}${path}`, {
+    method: call.method,
     headers,
     body: form ?? (body !== undefined ? JSON.stringify(body) : undefined),
     signal: AbortSignal.timeout(30_000),
   });
   const text = await res.text();
-  let parsed = null;
+  if (!res.ok) throw new ApiError({ method: call.method, path, status: res.status, bodyText: text });
   try {
-    parsed = text ? JSON.parse(text) : null;
+    return text ? JSON.parse(text) : null;
   } catch {
-    parsed = null;
+    return null;
   }
-  if (!res.ok) throw new Error(`${method} ${url} -> ${res.status}: ${text.slice(0, 200)}`);
-  return parsed;
 }
 
 /** The fixture's path and hash from the manifest, or a BlockedError naming why. */
@@ -321,10 +328,10 @@ let token = "";
 /** null = not checked (cloud), true = the server lists a live desktop session for the account, false = it does not. */
 let desktopSession = null;
 /** What this run created and may therefore remove, by id (never a pattern over the VM's data). */
-const seeded = { org: null };
+const seeded = { org: null, userId: null };
 
 async function login() {
-  const session = await jsonRequest("POST", `${API_ORIGIN}/api/v1/auth/login`, { body: { email, password } });
+  const session = await apiCall("login", { body: { email, password } });
   token = session.access_token;
   return session;
 }
@@ -339,35 +346,38 @@ try {
     // random password, kept in a 0600 file in the run dir and never printed;
     // the unattended cloud run keeps its fixed throwaway one.
     password = waitSeconds !== null ? randomBytes(15).toString("base64url") : "password123";
-    session = await jsonRequest("POST", `${API_ORIGIN}/api/v1/auth/register`, {
+    session = await apiCall("register", {
       body: { email, password, display_name: "G7-01 harness" },
     });
     token = session.access_token;
-    await jsonRequest("POST", `${API_ORIGIN}/api/v1/me/email/verify`, { token, body: { code: "123456" } });
+    seeded.userId = typeof session.user?.id === "string" ? session.user.id : null;
+    await apiCall("verifyEmail", { token, body: { code: "123456" } });
     if (waitSeconds !== null) {
       mkdirSync(runDir, { recursive: true });
       writeFileSync(paths.docUser, `${JSON.stringify({ email, password })}\n`, { mode: 0o600 });
     }
   }
   const slug = `g7-01-${Date.now().toString(36)}`;
-  const org = await jsonRequest("POST", `${API_ORIGIN}/api/v1/orgs`, {
+  const org = await apiCall("createOrganization", {
     token,
     body: { name: "G7-01 harness", slug: `o-${slug}` },
   });
   seeded.org = { id: org.organization.id, slug: org.organization.slug };
-  const workspace = await jsonRequest("POST", `${API_ORIGIN}/api/v1/orgs/${org.organization.slug}/workspaces`, {
+  const workspace = await apiCall("createWorkspace", {
+    // {org} of this route is the organization ID (the slug answers 403: not a member of an org called that)
+    params: { org: org.organization.id },
     token,
     body: { name: "G7-01 harness", slug: `w-${slug}` },
   });
   const form = new FormData();
   form.append("file", new Blob([readFileSync(fixture.absPath)], { type: fixture.mime ?? "application/octet-stream" }), fixture.path.split("/").pop());
   form.append("title", fixture.path.split("/").pop());
-  const created = await jsonRequest("POST", `${API_ORIGIN}/api/v1/workspaces/${workspace.workspace.id}/documents/files`, { token, form });
+  const created = await apiCall("createFileDocument", { params: { workspaceID: workspace.workspace.id }, token, form });
   documentId = created.document.id;
   checks.push({ name: "the D server created a file document from the fixture", result: "PASS", detail: documentId });
 } catch (error) {
   mintError = error.message;
-  checks.push({ name: "the D server created the account and the fixture document", result: "FAIL", detail: mintError });
+  checks.push({ name: "the D server created the account and the fixture document", result: "FAIL", detail: mintError, failure: failureInfo(error) });
 }
 
 // ---- 2. desktop mode: is the app signed in as this account? ------------------
@@ -390,7 +400,7 @@ function tell(line) {
 
 async function desktopSessionLive() {
   try {
-    const list = await jsonRequest("GET", `${API_ORIGIN}/api/v1/auth/desktop/devices`, { token });
+    const list = await apiCall("desktopDevices", { token });
     return activeDesktopDevice(list?.devices, { clientId: DEV_CLIENT_ID, deploymentId }) !== null;
   } catch (error) {
     // an expired access token is the one expected failure over a long wait
@@ -434,7 +444,8 @@ if (!mintError && desktopMode) {
 // After any wait, so the ticket is fresh when it is delivered.
 if (!mintError && !(desktopMode && !desktopSession)) {
   try {
-    const launch = await jsonRequest("POST", `${API_ORIGIN}/api/v1/documents/${documentId}/office/sessions`, {
+    const launch = await apiCall("mintLaunch", {
+      params: { documentID: documentId },
       token,
       body: { operation: "edit", deployment_id: deploymentId, client_id: DEV_CLIENT_ID, return_hint: "office" },
     });
@@ -452,7 +463,7 @@ if (!mintError && !(desktopMode && !desktopSession)) {
     checks.push({ name: "the D server minted a dev-channel launch link", result: "PASS", detail: launchUrl.replace(/ticket=[^&]+/, "ticket=<redacted>") });
   } catch (error) {
     mintError = error.message;
-    checks.push({ name: "the D server minted a launch session for the fixture document", result: "FAIL", detail: mintError });
+    checks.push({ name: "the D server minted a launch session for the fixture document", result: "FAIL", detail: mintError, failure: failureInfo(error) });
   }
 }
 
@@ -485,12 +496,11 @@ if (!mintError && ticket && launchUrl) {
   }
 }
 
-// No outcome when a desktop precondition already blocked the step: nothing was
-// delivered, so there is no working copy to judge.
-if (mintError || !(desktopMode && !desktopSession)) {
-  const outcome = mintError
-    ? { result: "FAIL", blocker: null, detail: mintError }
-    : documentStepOutcome({ launchUrl, ticket, workingCopyDocumentId, documentId, signedIn });
+// No outcome when a seeding or mint failure already failed the step (its check
+// carries the request that failed) or a desktop precondition blocked it: nothing
+// was delivered, so there is no working copy to judge.
+if (!mintError && !(desktopMode && !desktopSession)) {
+  const outcome = documentStepOutcome({ launchUrl, ticket, workingCopyDocumentId, documentId, signedIn });
   checks.push({
     name: outcome.result === "PASS" ? "the app opened the fixture document" : "the app's working copy names the fixture document",
     result: outcome.result,
@@ -501,28 +511,48 @@ if (mintError || !(desktopMode && !desktopSession)) {
 
 // ---- clean up what this run seeded (reviewer_be H1-5) -------------------------
 // The VM's database is shared and the harness never resets it, so a run removes
-// what it made, by the ids it was handed: a request to delete the seeded
-// organization (the product's own erasure of the organization, its workspaces,
-// documents and files; the server's job runs it after its grace period), then
-// the seeded account (anonymised). A reused account is a person's own and is
-// never touched. A cleanup that fails is reported and never changes the result:
-// it says nothing about the claim under test.
-const cleanup = { skipped: reused ? "the account is reused, not seeded" : null, steps: [] };
+// what it made, by the ids it was handed. The product erases an organization
+// asynchronously: POST /orgs/{orgID}/privacy/deletion only queues it (202) and
+// the server's job erases it after 5 days. Until then the seeded account is
+// still the organization's owner, and POST /me/delete refuses an owner with 409
+// (AuthService.DeleteAccount: owner_must_transfer), so the account is not
+// deleted in this run when an organization was seeded: it is a documented
+// leftover (id and email below, no secret) that goes with the organization's
+// erasure. Without a seeded organization the account is deleted right away.
+// A reused account is a person's own and is never touched. A cleanup that
+// fails or is deferred is reported in document-step.json and on stdout and
+// never changes the result: it says nothing about the claim under test.
+const cleanup = { skipped: reused ? "the account is reused, not seeded" : null, steps: [], leftovers: [] };
 async function cleanupStep(name, run) {
   try {
     await run();
     cleanup.steps.push({ name, ok: true });
+    return true;
   } catch (error) {
     cleanup.steps.push({ name, ok: false, detail: error.message });
+    return false;
   }
 }
 if (!reused && token) {
   if (seeded.org) {
-    await cleanupStep("request deletion of the seeded organization", () =>
-      jsonRequest("POST", `${API_ORIGIN}/api/v1/orgs/${seeded.org.id}/privacy/deletion`, { token, body: { confirm_slug: seeded.org.slug } }),
+    const requested = await cleanupStep("request deletion of the seeded organization", () =>
+      apiCall("requestOrganizationDeletion", { params: { orgID: seeded.org.id }, token, body: { confirm_slug: seeded.org.slug } }),
     );
+    cleanup.leftovers.push({
+      what: "organization",
+      id: seeded.org.id,
+      slug: seeded.org.slug,
+      reason: requested ? "erasure is queued; the server's job removes it after its grace period (5 days)" : "the deletion request failed (see steps); it stays until someone removes it",
+    });
+    cleanup.leftovers.push({
+      what: "account",
+      id: seeded.userId,
+      email,
+      reason: "still the owner of the organization above, so POST /me/delete answers 409 until the organization is erased",
+    });
+  } else {
+    await cleanupStep("delete the seeded account", () => apiCall("deleteAccount", { token, body: { password } }));
   }
-  await cleanupStep("delete the seeded account", () => jsonRequest("POST", `${API_ORIGIN}/api/v1/me/delete`, { token, body: { password } }));
   rmSync(paths.docUser, { force: true });
 }
 
@@ -535,7 +565,8 @@ const forkSha = process.env.OFFICE_FORK_SHA || ports.OFFICE_FORK_SHA || "";
 const command = `node scripts/office/g5g6g7/harness/document-step.mjs --run-dir ${runDir} --req ${requirementId} --fixture ${fixtureId}`;
 mkdirSync(runDir, { recursive: true });
 const artifactPath = join(runDir, "document-step.json");
-const report = { schemaVersion: 1, kind: "uniwork-office-g5g6g7-document-step", requirementId, fixtureId, documentId, deploymentId, checks, blockers, cleanup, result };
+const failures = failed.map((check) => ({ check: check.name, ...(check.failure ?? { reason: check.detail }) }));
+const report = { schemaVersion: 1, kind: "uniwork-office-g5g6g7-document-step", requirementId, fixtureId, documentId, deploymentId, checks, blockers, failures, cleanup, result };
 appendFileSync(artifactPath, `${JSON.stringify(report, null, 2)}\n`);
 
 if (!process.env.OFFICE_EVIDENCE_ID) {
@@ -563,8 +594,12 @@ if (!process.env.OFFICE_EVIDENCE_ID) {
 
 for (const c of checks) console.log(`  ${c.result.padEnd(7)} ${c.name}${c.detail ? ` — ${c.detail}` : ""}`);
 for (const step of cleanup.steps) console.log(`  cleanup ${step.ok ? "ok     " : "FAILED "} ${step.name}${step.ok ? "" : ` — ${step.detail}`}`);
+for (const left of cleanup.leftovers) console.log(`  cleanup left   ${left.what} ${left.id ?? left.email ?? ""} — ${left.reason}`);
 if (cleanup.skipped) console.log(`  cleanup skipped: ${cleanup.skipped}`);
 console.log(`document step: ${result}`);
 for (const b of blockers) console.error(`  blocked: ${b}`);
+// A FAIL says why on stderr too: under the evidence runner the output goes to the
+// artifact, and the runner echoes a failing step's output into the round log.
+for (const f of failures) console.error(`  FAILED: ${f.check} — ${f.reason}${f.request ? ` [request ${f.request.method} ${f.request.path} -> ${f.request.status}]` : ""}`);
 console.log(`document step artifact: ${artifactPath}`);
 process.exit(exitCode);
