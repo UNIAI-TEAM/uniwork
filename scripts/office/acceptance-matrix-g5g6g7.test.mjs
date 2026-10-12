@@ -3,7 +3,9 @@
 // touched here; this file owns the G5/G6/G7 rows, their markdown mirror and the
 // evidence records they may not claim without.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +15,16 @@ const matrixPath = path.join(repoRoot, 'docs/office/g5g6g7/acceptance-rows.json'
 const acceptancePath = path.join(repoRoot, 'docs/office/g5g6g7/acceptance.md');
 const matrix = JSON.parse(fs.readFileSync(matrixPath, 'utf8'));
 const acceptanceDoc = fs.readFileSync(acceptancePath, 'utf8');
+
+// A PASS record has to point at an artifact that exists, so the tests write real
+// scratch artifacts outside the checkout and reference them by absolute path.
+const artifactDir = fs.mkdtempSync(path.join(os.tmpdir(), 'office-matrix-test-'));
+test.after(() => fs.rmSync(artifactDir, { recursive: true, force: true }));
+const writeArtifact = (name) => {
+  const file = path.join(artifactDir, name);
+  fs.writeFileSync(file, `$ check ${name}\n\nexit 0\n`);
+  return file;
+};
 
 // Spec Section 9.1, one id per requirement. A new requirement is added here and
 // in acceptance-rows.json together; the count below is the other half.
@@ -24,11 +36,10 @@ const requirementIds = [
 const oracleTypes = new Set(['receipt', 'object/part', 'extraction', 'render diff', 'deterministic score', 'security probe', 'manifest']);
 const hosts = new Set(['web', 'desktop']);
 const statuses = new Set(['PASS', 'FAIL', 'BLOCKED', 'NOT_RUN']);
-// A result the runner can record. NOT_RUN and BLOCKED are results, not passes:
-// a skip is the runner's own name for the same thing.
-const evidenceResults = new Set(['PASS', 'FAIL', 'BLOCKED', 'NOT_RUN', 'skip']);
-const nonPassResults = new Set(['FAIL', 'BLOCKED', 'NOT_RUN', 'skip']);
-const emptyArray = (value) => Array.isArray(value) && value.length === 0;
+// The exact result vocabulary of the runner (evidence.mjs RESULTS). A hand-written
+// line that says "skipped", "SKIP" or "" is not a result at all and fails, rather
+// than sliding past a PASS row as neither a pass nor a non-pass (R1-08).
+const evidenceResults = new Set(['PASS', 'FAIL', 'BLOCKED']);
 
 function range(prefix, from, to) {
   const ids = [];
@@ -59,17 +70,45 @@ function parseMarkdownRows(markdown) {
   return rows;
 }
 
-/** Evidence records declared in the matrix plus the runner's ledger when it exists. */
-function readEvidence(candidate) {
+/**
+ * The revision this matrix is reviewed on: HEAD of this checkout. A PASS record
+ * has to name it, so a record from an older revision cannot back a PASS row.
+ */
+function reviewedRevision() {
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' });
+  if (head.status !== 0) throw new Error(`cannot resolve the reviewed revision: ${head.stderr?.trim()}`);
+  return head.stdout.trim();
+}
+
+/**
+ * The ledger is read only when the caller names it (OFFICE_EVIDENCE_LEDGER). The
+ * default path is gitignored, so reading it implicitly would validate records
+ * that were run on another revision — or on no revision at all, on a checkout
+ * that never ran the cloud round (R1-04).
+ */
+function ledgerPathFor(env = process.env) {
+  const explicit = env.OFFICE_EVIDENCE_LEDGER?.trim();
+  if (!explicit) return null;
+  return path.isAbsolute(explicit) ? explicit : path.join(repoRoot, explicit);
+}
+
+/** Evidence records the matrix declares, plus the ledger when a caller names one. */
+function readEvidence(candidate, env = process.env) {
   const records = Array.isArray(candidate.evidence) ? [...candidate.evidence] : [];
-  const ledgerPath = path.join(repoRoot, candidate.evidenceLedger ?? '');
-  if (candidate.evidenceLedger && fs.existsSync(ledgerPath)) {
+  const ledgerPath = ledgerPathFor(env);
+  if (ledgerPath && fs.existsSync(ledgerPath)) {
     for (const rawLine of fs.readFileSync(ledgerPath, 'utf8').split('\n')) {
       const line = rawLine.trim();
       if (line) records.push(JSON.parse(line));
     }
   }
   return records;
+}
+
+/** An artifact path from the ledger is repo-relative unless it is absolute. */
+function artifactExists(artifact) {
+  if (!isFilled(artifact)) return false;
+  return fs.existsSync(path.isAbsolute(artifact) ? artifact : path.join(repoRoot, artifact));
 }
 
 function validateMatrix(candidate, doc = acceptanceDoc) {
@@ -85,7 +124,6 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
   const evidenceById = new Map(evidence.map((record) => [record.evidenceId, record]));
 
   const ids = new Set();
-  const blockers = [];
   const byStatus = { PASS: 0, FAIL: 0, BLOCKED: 0, NOT_RUN: 0 };
   for (const row of candidate.rows) {
     assert.ok(isFilled(row.id), 'row id must not be empty');
@@ -106,6 +144,7 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
       assert.ok(fixture, `${row.id} references unknown fixture ${reference.id}`);
       assert.equal(reference.sha256, fixture.sha256, `${row.id} fixture ${reference.id} hash drifted from the manifest`);
     }
+    assert.ok(isFilled(row.evidenceRequired), `${row.id} needs a non-empty evidenceRequired (what proves it)`);
     assert.ok(Array.isArray(row.negativeCases) && row.negativeCases.length >= 2, `${row.id} needs two negative cases`);
     assert.ok(row.negativeCases.every(isFilled), `${row.id} has an empty negative case`);
     assert.ok(Array.isArray(row.tasks) && row.tasks.length > 0, `${row.id} needs the plan tasks that assert it`);
@@ -117,21 +156,26 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
     for (const evidenceId of row.evidence) {
       assert.ok(isFilled(evidenceId), `${row.id} has an empty evidence id`);
       assert.ok(evidenceById.has(evidenceId), `${row.id} names evidence ${evidenceId} that no record declares`);
+      // R1-08: the vocabulary is exactly PASS | FAIL | BLOCKED. "skipped",
+      // "SKIP", "not_run" and "" are not results and fail here.
+      assert.ok(
+        evidenceResults.has(evidenceById.get(evidenceId).result),
+        `${row.id} evidence ${evidenceId} has an unsupported result ${JSON.stringify(evidenceById.get(evidenceId).result)}`,
+      );
     }
     if (row.status === 'BLOCKED') {
       assert.ok(row.blocker && typeof row.blocker === 'object', `${row.id} blocked row needs a blocker`);
       assert.ok(isFilled(row.blocker.gate), `${row.id} blocked row needs blocker.gate`);
       assert.ok(isFilled(row.blocker.owner), `${row.id} blocked row needs blocker.owner`);
       assert.ok(isFilled(row.blocker.reason), `${row.id} blocked row needs blocker.reason`);
-      blockers.push(row.id);
     } else {
       assert.equal(row.blocker, null, `${row.id} carries a blocker without being BLOCKED`);
     }
     if (row.status === 'PASS') {
       // A PASS needs a recorded run on this revision whose own result is PASS.
       assert.ok(row.evidence.length > 0, `${row.id} PASS row needs evidence`);
-      // A skip, a BLOCKED or a NOT_RUN result is never a pass, whatever the row says.
-      assert.equal(row.evidence.some((id) => nonPassResults.has(evidenceById.get(id)?.result)), false, `${row.id} counts a non-PASS result as PASS`);
+      // No record beside a PASS may carry anything but PASS, whatever the row says.
+      assert.equal(row.evidence.some((id) => evidenceById.get(id)?.result !== 'PASS'), false, `${row.id} counts a non-PASS result as PASS`);
       const passing = row.evidence.map((id) => evidenceById.get(id)).filter((record) => record?.result === 'PASS');
       assert.ok(passing.length > 0, `${row.id} PASS row needs an evidence record whose result is PASS`);
       // A PASS record must have run on one of the row's fixtures, on that
@@ -139,9 +183,17 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
       for (const record of passing) {
         assert.equal(record.requirementId, row.id, `${row.id} PASS evidence ${record.evidenceId} names requirement ${record.requirementId}`);
         assert.ok(isFilled(record.artifact), `${row.id} PASS evidence ${record.evidenceId} needs an artifact`);
+        // R1-05: the artifact has to be on disk, not just named, and the run has
+        // to have exited 0 — the runner's own verify rules, enforced here too so
+        // the repo gate catches them without the cloud round.
+        assert.ok(artifactExists(record.artifact), `${row.id} PASS evidence ${record.evidenceId} artifact ${record.artifact} is not on disk`);
+        assert.equal(record.exitCode, 0, `${row.id} PASS evidence ${record.evidenceId} has exit code ${record.exitCode}`);
+        // R1-04: the run must be on the revision under review.
+        assert.equal(record.dSha, reviewedRevision(), `${row.id} PASS evidence ${record.evidenceId} was run on ${record.dSha}, not on the reviewed revision`);
         const reference = row.fixtures.find((fixture) => fixture.id === record.fixtureId);
         assert.ok(reference, `${row.id} PASS evidence ${record.evidenceId} was run on another fixture`);
         assert.equal(record.fixtureSha256, reference.sha256, `${row.id} PASS evidence ${record.evidenceId} has a stale fixture hash`);
+        assert.ok(isDigest(record.fixtureSha256), `${row.id} PASS evidence ${record.evidenceId} needs a fixture digest`);
       }
       // Every fixture the row names needs its own PASS record: a row that runs
       // on two fixtures cannot pass on one of them.
@@ -161,12 +213,9 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
   };
   assert.deepEqual(candidate.rowCounts, counts, 'rowCounts must reconcile with the rows');
   assert.deepEqual(counts, { G5: 8, G6: 10, G7: 5, total: 23 }, 'the spec Section 9.1 split must not change silently');
-  // The committed slice carries no PASS row yet. The assertion is made against
-  // the committed matrix, not the candidate: a candidate built in a test has to
-  // be able to reach PASS (with a record per fixture) for the rule above to be
-  // exercised at all.
-  assert.ok(emptyArray(matrix.rows.filter((row) => row.status === 'PASS')), 'no row is PASS in this slice');
-  assert.ok(blockers.length > 0, 'a row blocked by an open gate keeps its blocker instead of NOT_RUN');
+  // R1-14: today's slice is not frozen here. A row that legitimately becomes PASS,
+  // or a gate that closes and leaves no BLOCKED row, must not fail a correct
+  // matrix; the rows' own rules and the prose count table are what is pinned.
 
   // acceptance.md repeats these rows cell for cell; the test fails on any drift.
   const markdownRows = parseMarkdownRows(doc);
@@ -241,7 +290,9 @@ test('a PASS row that runs on several fixtures needs one PASS record per fixture
     fixtureId: reference.id,
     fixtureSha256: reference.sha256,
     result: 'PASS',
-    artifact: `test-results/office-g5g6g7-evidence/${id}-${index}.json`,
+    artifact: writeArtifact(`${id}-${index}.log`),
+    exitCode: 0,
+    dSha: reviewedRevision(),
   });
   const complete = structuredClone(matrix);
   complete.evidence.push(...target.fixtures.map(recordFor));
@@ -262,6 +313,19 @@ test('a PASS row that runs on several fixtures needs one PASS record per fixture
   assert.throws(() => validateMatrix(foreign, markdown), /was run on another fixture/, 'a PASS record on a foreign fixture is rejected');
 });
 
+test('the ledger is read only when the caller names it, and only its own records', () => {
+  // R1-04: the default ledger path is gitignored, so it is never read implicitly.
+  assert.equal(ledgerPathFor({}), null, 'no env var, no ledger');
+  assert.equal(ledgerPathFor({ OFFICE_EVIDENCE_LEDGER: 'x.jsonl' }), path.join(repoRoot, 'x.jsonl'));
+  assert.equal(ledgerPathFor({ OFFICE_EVIDENCE_LEDGER: '/tmp/x.jsonl' }), '/tmp/x.jsonl');
+  const declared = matrix.rows[0].evidence.length;
+  assert.equal(readEvidence(matrix, {}).length, declared, 'without an env var only the declared records are read');
+  const ledger = path.join(artifactDir, 'ledger.jsonl');
+  fs.writeFileSync(ledger, `${JSON.stringify({ evidenceId: 'ev-from-ledger', result: 'PASS' })}\n`);
+  assert.equal(readEvidence(matrix, { OFFICE_EVIDENCE_LEDGER: ledger }).length, declared + 1);
+  fs.rmSync(ledger);
+});
+
 test('acceptance matrix rejects candidate regressions', () => {
   const passRow = () => {
     const candidate = structuredClone(matrix);
@@ -273,7 +337,9 @@ test('acceptance matrix rejects candidate regressions', () => {
       fixtureId: row.fixtures[0].id,
       fixtureSha256: row.fixtures[0].sha256,
       result: 'PASS',
-      artifact: 'test-results/office-g5g6g7-evidence/tmp.json',
+      artifact: writeArtifact('tmp.log'),
+      exitCode: 0,
+      dSha: reviewedRevision(),
     };
     candidate.evidence.push(record);
     row.evidence.push(record.evidenceId);
@@ -299,13 +365,19 @@ test('acceptance matrix rejects candidate regressions', () => {
     { name: 'PASS whose evidence has no artifact', mutate: (c) => { c.evidence[0].artifact = ''; return c; }, build: passRow, expected: /needs an artifact/ },
     { name: 'PASS whose evidence was run on another fixture', mutate: (c) => { c.evidence[0].fixtureId = 'fx-html-page-vi'; return c; }, build: passRow, expected: /was run on another fixture/ },
     { name: 'PASS on a two-fixture row with a record for only one', mutate: () => 'no change to the json', build: passRow, expected: /has no PASS record for fixture/ },
+    { name: 'PASS whose evidence has a missing artifact', mutate: (c) => { c.evidence[0].artifact = path.join(os.tmpdir(), 'no-such-artifact.log'); return c; }, build: passRow, expected: /is not on disk/ },
+    { name: 'PASS whose evidence exited non-zero', mutate: (c) => { c.evidence[0].exitCode = 1; return c; }, build: passRow, expected: /has exit code 1/ },
+    { name: 'PASS whose evidence ran on another revision', mutate: (c) => { c.evidence[0].dSha = '0'.repeat(40); return c; }, build: passRow, expected: /was run on .*, not on the reviewed revision/ },
+    { name: 'PASS whose evidence has an unknown result vocabulary', mutate: (c) => { c.evidence[0].result = 'skipped'; return c; }, build: passRow, expected: /unsupported result "skipped"/ },
+    { name: 'PASS whose evidence has an empty result', mutate: (c) => { c.evidence[0].result = ''; return c; }, build: passRow, expected: /unsupported result ""/ },
+    { name: 'row without evidenceRequired', mutate: (c) => { c.rows[0].evidenceRequired = ''; }, expected: /needs a non-empty evidenceRequired/ },
     { name: 'markdown count table drift', mutate: () => 'no change to the json', doc: (doc) => doc.replace('| 3 NOT_RUN, 2 BLOCKED |', '| 2 NOT_RUN, 3 BLOCKED |'), expected: /count table does not match/ },
     { name: 'markdown totals row drift', mutate: () => 'no change to the json', doc: (doc) => doc.replace('**19 NOT_RUN, 4 BLOCKED, 0 PASS**', '**18 NOT_RUN, 5 BLOCKED, 0 PASS**'), expected: /totals row does not match/ },
     { name: 'markdown blocked count word drift', mutate: () => 'no change to the json', doc: (doc) => doc.replace('Bốn dòng bị chặn hôm nay', 'Năm dòng bị chặn hôm nay'), expected: /blocked count must read/ },
     { name: 'markdown group heading promoted back to a sibling', mutate: () => 'no change to the json', doc: (doc) => doc.replace('### Nghiệm thu G6', '## Nghiệm thu G6'), expected: /must be a ### subsection/ },
     { name: 'PASS whose evidence has a stale fixture hash', mutate: (c) => { c.evidence[0].fixtureSha256 = '0'.repeat(64); return c; }, build: passRow, expected: /stale fixture hash/ },
-    { name: 'skip result counted as PASS', mutate: (c) => { c.evidence[0].result = 'skip'; return c; }, build: passRow, expected: /counts a non-PASS result as PASS/ },
-    { name: 'NOT_RUN result counted as PASS', mutate: (c) => { c.evidence[0].result = 'NOT_RUN'; return c; }, build: passRow, expected: /counts a non-PASS result as PASS/ },
+    { name: 'skip result is not in the result vocabulary', mutate: (c) => { c.evidence[0].result = 'skip'; return c; }, build: passRow, expected: /unsupported result "skip"/ },
+    { name: 'NOT_RUN result is not in the result vocabulary', mutate: (c) => { c.evidence[0].result = 'NOT_RUN'; return c; }, build: passRow, expected: /unsupported result "NOT_RUN"/ },
     { name: 'BLOCKED result counted as PASS', mutate: (c) => { c.evidence[0].result = 'BLOCKED'; return c; }, build: passRow, expected: /counts a non-PASS result as PASS/ },
     { name: 'markdown mirror drift', mutate: () => 'no change to the json', build: (c) => c, doc: (doc) => doc.replace('| NOT_RUN |', '| BLOCKED |'), expected: /drifted from the JSON matrix/ },
     { name: 'markdown mirror missing a row', mutate: () => 'no change to the json', build: (c) => c, doc: (doc) => doc.replace(/\n\| G5-A02 \|[^\n]*/, ''), expected: /acceptance.md must have one row per matrix row/ },
