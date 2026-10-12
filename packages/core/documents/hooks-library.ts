@@ -52,6 +52,11 @@ export function useDocumentSources(
     getNextPageParam: (last) => last.next_cursor || undefined,
     retry: (failureCount, error) => !isEndpointMissing(error) && failureCount < 3,
     enabled: (opts?.enabled ?? true) && !!wsId,
+    // Source files appear without a `document.*` frame, and the meeting
+    // recording frame only reaches a socket inside that meeting: coming back
+    // to the tab (stale after the 15 s default) is the catch-all refresh. The
+    // other frames refresh it in packages/core/realtime/source-events.ts.
+    refetchOnWindowFocus: true,
   });
 }
 

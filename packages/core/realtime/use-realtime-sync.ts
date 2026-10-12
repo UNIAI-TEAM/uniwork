@@ -32,6 +32,7 @@ import {
   TRANSCRIPT_INVALIDATE_MS,
 } from "./invalidate-scheduler";
 import { shouldInvalidateCalendar } from "./should-invalidate-calendar";
+import { SOURCES_INVALIDATE_MS, sourcesWaveFor } from "./source-events";
 
 /** The projector trails a task event (ADR 0019); the second graph refresh waits it out. */
 const GRAPH_INVALIDATE_MS = 3_000;
@@ -508,6 +509,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
     const transcriptScheduler = createInvalidateScheduler(qc, TRANSCRIPT_INVALIDATE_MS);
     const tallyScheduler = createInvalidateScheduler(qc, MOTION_TALLY_INVALIDATE_MS);
     const graphScheduler = createInvalidateScheduler(qc, GRAPH_INVALIDATE_MS);
+    const sourcesScheduler = createInvalidateScheduler(qc, SOURCES_INVALIDATE_MS);
     const chatScheduler = createChatRealtimePatchScheduler(qc, wsId);
 
     const offAny = client.onAny((msg: WSMessage) => {
@@ -520,6 +522,11 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         scheduler.schedule(graphKeys.workspace(wsId));
         graphScheduler.schedule(graphKeys.workspace(wsId));
       }
+      // Ahead of the chat and email early returns: those frames are the ones
+      // that may carry a source file (documents home, "other modules").
+      const sourcesWave = sourcesWaveFor(wsId, eventType, payload);
+      if (sourcesWave === "slow") sourcesScheduler.schedule(documentKeys.sourcesRoot(wsId));
+      else if (sourcesWave === "now") scheduler.schedule(documentKeys.sourcesRoot(wsId));
       if (handleChatRealtimeEvent(chatScheduler, eventType, payload)) {
         if (
           payload.room_id &&
@@ -578,6 +585,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       transcriptScheduler.dispose();
       tallyScheduler.dispose();
       graphScheduler.dispose();
+      sourcesScheduler.dispose();
       void chatScheduler.dispose();
     };
   }, [client, wsId, qc]);
