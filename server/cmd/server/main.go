@@ -330,10 +330,18 @@ func main() {
 	documentSvc.SetEntitlements(service.NewEntitlementService(pool, q))
 	if reg != nil {
 		documentSvc.SetMetrics(reg.Documents)
+		documentSvc.SetIntentMetrics(reg.Office)
 	}
+	// File commit intents (G5-07): the claim TTL and resume window, and
+	// office_sync_write read through the same evaluator as /api/v1/config.
+	documentSvc.SetCommitIntentPolicy(service.CommitIntentPolicy{
+		ClaimTTL: cfg.DocumentCommitIntentClaimTTL, Retention: cfg.DocumentCommitIntentRetention,
+	})
+	documentSvc.SetFlags(flags)
 	// The document maintenance worker (auto-version, purge, compaction -
-	// G1-04b) runs on the same service the routes use; it is awaited in the
-	// shutdown sequence below, so a sweep never outlives the process.
+	// G1-04b - and the commit intent sweep of G5-07) runs on the same service
+	// the routes use; it is awaited in the shutdown sequence below, so a sweep
+	// never outlives the process.
 	docWorkers := documentSvc.NewDocumentWorkers()
 	officeLaunchSvc := service.NewOfficeLaunchService(documentSvc, cfg)
 	docWorkers.SetOfficeLaunchService(officeLaunchSvc)
@@ -454,8 +462,8 @@ func main() {
 	// in the shutdown sequence below, so a sweep never outlives the process.
 	fileGCDone := make(chan struct{})
 	go func() { fileGC.Run(runCtx); close(fileGCDone) }()
-	// The document worker (auto-version, purge, compaction) stops with
-	// runCancel and is awaited below like the file collector.
+	// The document worker (auto-version, purge, compaction, commit intent
+	// sweep) stops with runCancel and is awaited below like the file collector.
 	docWorkersDone := make(chan struct{})
 	go func() { docWorkers.Run(runCtx); close(docWorkersDone) }()
 	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
