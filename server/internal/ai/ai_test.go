@@ -750,6 +750,10 @@ func TestRequestMessages(t *testing.T) {
 	repeated[1].ToolCalls = append(repeated[1].ToolCalls, provider.ToolCall{ID: "call_1", Name: "get_cell"})
 	nameless := toolTurnHistory("call_1")
 	nameless[1].ToolCalls = append([]provider.ToolCall{{Name: "get_cell"}}, nameless[1].ToolCalls...)
+	// Parts on a role "tool" message would reach the vendor as media on a tool
+	// result (BE13-4).
+	withParts := toolTurnHistory("call_1")
+	withParts[2].Parts = []provider.Part{{MIME: "image/png", Data: []byte{1}}}
 
 	for name, bad := range map[string]Request{
 		"empty history":   {ToolResultTurn: true},
@@ -762,6 +766,7 @@ func TestRequestMessages(t *testing.T) {
 		"dup result id":   {ToolResultTurn: true, History: duplicate},
 		"dup call id":     {ToolResultTurn: true, History: repeated},
 		"call w/o id":     {ToolResultTurn: true, History: nameless},
+		"parts on result": {ToolResultTurn: true, History: withParts},
 	} {
 		if _, err := requestMessages(bad, p); err == nil {
 			t.Fatalf("%s: accepted", name)

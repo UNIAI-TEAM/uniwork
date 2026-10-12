@@ -226,6 +226,11 @@ func requestMessages(req Request, prompt Prompt) ([]provider.Message, error) {
 	if len(req.Attachments) > 0 {
 		return nil, errPolicy("tool-result turn carries attachments")
 	}
+	for _, m := range req.History {
+		if m.Role == "tool" && len(m.Parts) > 0 {
+			return nil, errPolicy("tool-result turn carries media parts on a tool message")
+		}
+	}
 	i := len(req.History)
 	for i > 0 && req.History[i-1].Role == "tool" {
 		i--
