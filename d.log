@@ -1,0 +1,10 @@
+$ cd apps/sheets && npx vitest run tests/g6-12-clarify-receipts.test.ts tests/g6-12-ask-clarification.test.ts tests/g6-12-clarify-panel-open.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+
+ Test Files  3 passed (3)
+      Tests  21 passed (21)
+   Start at  16:27:10
+   Duration  2.39s (transform 2.44s, setup 0ms, import 3.16s, tests 76ms, environment 334ms)
+

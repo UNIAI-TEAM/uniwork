@@ -1,0 +1,10 @@
+$ cd apps/docs && npx vitest run tests/g6-12-clarify-receipts.test.ts tests/g6-12-ask-clarification.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+   Start at  16:27:03
+   Duration  3.91s (transform 4.38s, setup 0ms, import 6.07s, tests 469ms, environment 704ms)
+

@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+66169a9ae1d3d7497d6585efbf5c7be9d94aa96c
+673fc5639438fff6c246d4d4c7b85b131b4e468e
+66169a9a fix(sheets): keep an answered clarification as a receipt under the user message
+f4150855 test(sheets): pin the answered clarification receipt in the AI panel
+e87b3819 fix(markdown): keep an answered clarification as a receipt under the user message
