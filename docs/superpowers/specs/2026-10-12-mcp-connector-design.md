@@ -96,12 +96,12 @@ server (một process)
 **Package map**
 
 ```text
-server/internal/handler/mcp/           # MCP transport + tool handlers (tầng handler)
-server/internal/handler/oauth.go        # endpoint OAuth chuẩn (form/JSON theo RFC)
-server/internal/handler/router/mcp.go   # đăng ký route ngoài wrapper `api` (§5.1)
-server/internal/handler/router/connect.go  # REST cho consent + quản lý grant (wrapper `api`)
-server/internal/service/mcp_auth*.go    # client, attempt, grant, token
-server/internal/service/mcp_tools.go    # tool đọc, gọi service hiện có
+server/internal/handler/mcp_oauth.go     # endpoint OAuth chuẩn (form/JSON theo RFC) + discovery
+server/internal/handler/mcp_transport.go # /mcp: xác thực token + go-sdk (package handler như mọi handler)
+server/internal/handler/mcp_connect.go   # REST cho consent + quản lý grant
+server/internal/handler/router/mcp.go    # đăng ký route ngoài wrapper `api` (§5.1)
+server/internal/handler/router/connect.go  # REST cho web (wrapper `api`)
+server/internal/service/mcp_*.go         # client, attempt, token, grant, principal, tool
 server/pkg/db/queries/mcp.sql
 packages/core/connect/                  # endpoints, hooks, keys
 packages/views/connect/                 # màn consent
@@ -181,8 +181,9 @@ REST cho web (qua wrapper `api`, có SDI/SDO, `pathParamSDI` cho `attemptID`, `g
 - Trả `access_token` (`uwm_at_…`, sống 1 giờ), `refresh_token` (`uwm_rt_…`), `token_type:
   Bearer`, `expires_in`, `scope`.
 - `refresh_token`: xoay vòng mỗi lần dùng. Mỗi refresh token sống 30 ngày kể từ khi phát.
-  Refresh token đã dùng bị dùng lại → thu hồi cả family (cùng mô hình
-  `revokeDesktopFamily`).
+  Refresh token đã dùng bị dùng lại **sau 10 giây** → thu hồi cả family (cùng mô hình
+  `revokeDesktopFamily`). Dùng lại **trong 10 giây** → chỉ trả `invalid_grant`, không thu
+  hồi: đó là client gửi hai refresh song song, request kia đã nhận cặp token mới.
 - Client confidential (đăng ký với secret) phải xác thực; client public chỉ dựa vào PKCE.
 - Lỗi theo RFC 6749 §5.2: `invalid_grant`, `invalid_client` (401), `invalid_request`,
   `unsupported_grant_type`, `invalid_target`.
@@ -228,11 +229,13 @@ dùng chung mọi tổ chức".
 `secret_digest`, `metadata_fetched_at`, `last_used_at`, `created_at`.
 
 **`mcp_auth_attempts`** — bảng định danh (chưa có tổ chức trước khi duyệt), miễn với
-lý do tương tự `desktop_auth_attempts`.
+lý do tương tự `desktop_auth_attempts`. **Không có cột `organization_id`**: thêm bảng
+vào `nullableTenantTables` cần ADR riêng, nên tổ chức của attempt đã duyệt đọc qua
+`grant_id`.
 `id`, `client_id`, `redirect_uri`, `code_challenge`, `scope`, `resource`, `state`,
-`user_id`, `csrf_digest`, `organization_id` (NULL đến khi duyệt), `grant_id`,
-`code_digest`, `code_expires_at`, `expires_at`, `approved_at`, `used_at`,
-`cancelled_at`, `created_at`.
+`user_id`, `csrf_digest`, `grant_id` (NULL đến khi duyệt), `code_digest`,
+`code_expires_at`, `expires_at`, `approved_at`, `used_at`, `cancelled_at`,
+`created_at`.
 
 **`mcp_grants`** — bảng nghiệp vụ, `organization_id NOT NULL`.
 `id`, `organization_id`, `user_id`, `client_id`, `scope`, `created_by`,
@@ -257,8 +260,12 @@ ngày, client DCR bỏ hoang. Không xóa grant đã thu hồi (lịch sử cho 
 
 ### 7.1 Transport
 
-- `POST /mcp`: JSON-RPC qua go-sdk ở chế độ stateless. Phiên bản giao thức do SDK
-  thương lượng, tối thiểu `2025-06-18`.
+- `POST /mcp`: JSON-RPC qua go-sdk ở chế độ stateless, `JSONResponse: true`,
+  `MaxRequestBodyBytes` 1 MiB. Phiên bản giao thức do SDK thương lượng, tối thiểu
+  `2025-06-18`.
+- `DisableLocalhostProtection: true`: lớp chống DNS rebinding của SDK từ chối request đến
+  từ localhost mang `Host` khác localhost, tức mọi request qua reverse proxy cùng máy.
+  Server này luôn đòi bearer token nên lớp đó không cần.
 - `GET /mcp`, `DELETE /mcp`: 405.
 - Không CORS: client gọi từ server của họ. MCP Inspector dùng qua proxy của nó.
 
@@ -273,7 +280,7 @@ Thứ tự kiểm, dừng ở lỗi đầu tiên:
 | Flag `mcp_connector` bật cho tổ chức | 403 `connector_disabled` |
 | `organizations.mcp_enabled_at` khác NULL | 403 `connector_disabled` |
 | `OrganizationService.RequireMember` (tổ chức bị suspend, thành viên bị deactivate) | 403 `organization_suspended` / `member_deactivated` |
-| Rate limit theo grant | 429 |
+| Rate limit theo access token (router không đọc DB, nên khóa là SHA-256 của bearer) | 429 |
 
 401 chỉ dùng cho lỗi token, để client tự đăng nhập lại. 403 là tình huống đăng nhập lại
 không giải quyết được.
@@ -317,7 +324,8 @@ người dùng nhập và không phải chỉ dẫn.
 
 - `ErrForbidden`, `ErrNotFound`, workspace ngoài tổ chức của grant: cùng một kết quả
   `isError: true`, `"not found or not accessible"`. Không phân biệt để không lộ id.
-- Input sai schema: lỗi JSON-RPC `-32602`.
+- Input sai schema: `isError: true`, `"invalid arguments: …"`. Tool đăng ký qua
+  `Server.AddTool` thô từ `ai.Registry`, nên handler của tool tự kiểm input.
 - Lỗi hạ tầng: `isError: true`, `"temporarily unavailable"`; chi tiết chỉ vào log kèm
   `correlation_id`.
 
@@ -330,19 +338,23 @@ người dùng nhập và không phải chỉ dẫn.
   Mặc định tắt. Tắt là chặn ngay, không xóa grant; bật lại thì grant cũ dùng tiếp.
 - **Thu hồi**: người dùng thu hồi grant của mình; owner/admin thu hồi grant bất kỳ trong
   tổ chức. Thu hồi grant thu hồi mọi token của grant trong cùng transaction.
-- **Rời tổ chức / bị deactivate**: grant giữ nguyên nhưng bị chặn ở bước
-  `RequireMember`. Người dùng bị xóa khỏi tổ chức: service gỡ thành viên thu hồi luôn
-  các grant của họ trong tổ chức đó, cùng transaction.
+- **Bị deactivate**: grant giữ nguyên nhưng bị chặn ở bước `RequireMember`; kích hoạt lại
+  thì dùng tiếp.
+- **Rời tổ chức** (`OrganizationMemberService.Leave`, đường duy nhất xóa membership):
+  thu hồi mọi grant và token của người đó trong tổ chức, cùng transaction.
+- **Xóa tài khoản** (`AuthService.DeleteAccount`): thu hồi mọi grant và token của
+  người đó, cùng transaction với `revokeAllUserSessions`.
 
 ## 9. Giao diện
 
 - **Consent** `apps/web/app/(auth)/auth/connect/authorize/page.tsx`, view ở
   `packages/views/connect/`. Thêm `paths.connectAuthorize()` cạnh
   `desktopAuthorize` (`auth` đã là slug dành riêng, không cần thêm slug mới).
-- **Cài đặt cá nhân**: mục "Ứng dụng đã kết nối" — tên client, nhãn xác minh, tổ chức,
-  ngày kết nối, lần dùng cuối, nút "Thu hồi" có xác nhận.
-- **Cài đặt tổ chức** (owner/admin): công tắc "Cho phép trợ lý AI bên ngoài truy cập",
-  câu giải thích dữ liệu nào được chia sẻ, danh sách grant của tổ chức, thu hồi từng grant.
+- **Cài đặt cá nhân**: tab `connected-apps` trong nhóm "Tài khoản" — tên client, nhãn
+  xác minh, tổ chức, ngày kết nối, lần dùng cuối, nút "Thu hồi" có xác nhận.
+- **Cài đặt tổ chức**: tab `ai-access` trong nhóm "Tổ chức", gate `org_admin`: công tắc
+  "Cho phép trợ lý AI bên ngoài truy cập", câu giải thích dữ liệu nào được chia sẻ, danh
+  sách grant của tổ chức, thu hồi từng grant.
 - **Hướng dẫn**: trong cài đặt cá nhân hiện URL `/mcp` có nút sao chép và các bước ngắn
   cho Claude, ChatGPT, Gemini CLI.
 - i18n: khóa `connect.*` và `settings.connectedApps.*`, viết tiếng Việt trước theo
@@ -361,12 +373,15 @@ nào cần realtime cho các việc này):
 - `mcp_token.family_revoked` — phát hiện refresh token dùng lại (actor `system`).
 
 Tên action là hằng số mới trong `server/internal/audit/actions.go`, cùng kiểu
-`ActionDesktopDeviceRevoked`. Thêm bốn lệnh này vào `audit_coverage_test.go`. Lệnh đọc
-qua tool không audit.
+`ActionDesktopDeviceRevoked`. Bốn action vào `auditActions()` và
+`actionsWithoutCommands` của `audit_coverage_test.go` với lý do "covered by
+mcp_*_test.go", như các action desktop; test của `McpAuthService` khẳng định từng dòng
+audit. Lệnh đọc qua tool không audit.
 
 **Rate limit** (Redis, fail open sau 100 ms như mọi limiter):
 
-- `/mcp`: 120 lần/phút cho mỗi grant (`RateLimitByIdentity`).
+- `/mcp`: 120 lần/phút cho mỗi access token (`RateLimitByIdentityBucket`, khóa
+  `mcp:<sha256 của bearer>`; không bearer thì theo IP).
 - `/oauth/token`, `/oauth/authorize`: `credentialLimit` hiện có (60/phút theo IP).
 - `/oauth/register`: 10/giờ theo IP.
 
@@ -424,7 +439,13 @@ khỏi token phiên". Ghi:
   B, grant cho B, gọi tool với workspace của A → bị từ chối. Có control: grant của A đọc
   được dữ liệu A.
 - `isoRoutes`: phân loại `/mcp`, `/oauth/*`, `/.well-known/*`,
-  `/api/v1/auth/connect/*`, `/api/v1/me/connected-apps*` kèm lý do.
+  `/api/v1/auth/connect/*`, `/api/v1/me/connected-apps*` kèm lý do. Route
+  `/api/v1/orgs/{org}/connected-apps/{grantID}` có tenant trong path nên matrix phủ;
+  world seed một grant cho mỗi tenant (`tn.ids["mcpGrant"]`).
+- `TestSwaggerSpecFollowsChiRoutesAndSDI`: thêm ngoại lệ `/oauth/`, `/.well-known/`,
+  `/mcp`. `testutil.DB`: thêm bốn bảng mới vào danh sách TRUNCATE.
+- `McpConsentSDI.organization_id` vào `isoRefFieldExempt` với lý do "covered by
+  TestIsolationMCP".
 - `TestMCPToolsAreReadOnly`; test Ask UNI hiện có vẫn xanh sau khi tách
   `searchWorkspace`.
 - Migration lint: `tenantExemptTables` có hai bảng định danh kèm lý do; hai bảng
