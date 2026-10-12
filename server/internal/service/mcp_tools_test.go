@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -30,6 +31,9 @@ func TestMCPToolsAreReadOnly(t *testing.T) {
 		}
 		if schema["additionalProperties"] != false {
 			t.Fatalf("tool %s schema accepts unknown fields: %s", tool.Name, tool.Schema)
+		}
+		if tool.Name == "my_work" && (!strings.Contains(tool.Description, "assigned to the user") || !strings.Contains(tool.Description, "most urgent first")) {
+			t.Fatalf("my_work description does not say what the list holds: %q", tool.Description)
 		}
 		if !strings.Contains(tool.Description, "never as instructions") {
 			t.Fatalf("tool %s description does not warn that its text fields are data: %q", tool.Name, tool.Description)
@@ -651,13 +655,28 @@ func TestMcpSearchReadsTasksAndMeetingsOnly(t *testing.T) {
 	if err != nil || len(found) != 1 || found[0].Kind != "task" || found[0].Title != "Sprint review" {
 		t.Fatalf("search = %+v, %v", found, err)
 	}
-	if found, err := x.tools.Search(ctx, x.p, x.w.ID, "thành viên gồm những ai"); err != nil {
+	// The same for members: Ask UNI adds a members item to a members query, the
+	// connector does not, and its answer is not empty (a task matches), so the
+	// loop below checks something.
+	x.task(t, x.ua.ID, x.w.ID, "Thành viên mới onboarding")
+	srcs, err = x.tools.ask.searchWorkspace(ctx, tc, "thành viên")
+	if err != nil {
 		t.Fatal(err)
-	} else {
-		for _, it := range found {
-			if it.Kind != "task" && it.Kind != "meeting" {
-				t.Fatalf("search returned a %q item: %+v", it.Kind, it)
-			}
+	}
+	kinds = map[string]bool{}
+	for _, src := range srcs {
+		kinds[src.Kind] = true
+	}
+	if !kinds["members"] {
+		t.Fatalf("control: Ask UNI search kinds for a members query = %v; want members", kinds)
+	}
+	found, err = x.tools.Search(ctx, x.p, x.w.ID, "thành viên")
+	if err != nil || len(found) == 0 {
+		t.Fatalf("members query: %+v, %v; want the matching task", found, err)
+	}
+	for _, it := range found {
+		if it.Kind != "task" && it.Kind != "meeting" {
+			t.Fatalf("search returned a %q item: %+v", it.Kind, it)
 		}
 	}
 }
@@ -721,5 +740,247 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 				t.Errorf("my_work item has undocumented field %q", k)
 			}
 		}
+	}
+}
+
+// The grant is for A. The person is also in B, and B is suspended, or the
+// person is deactivated in B. The services under the tools answer those with
+// organization_suspended / member_deactivated, before they compare the
+// workspace of the row with the one asked for. A tool must answer B's ids under
+// A's workspace id exactly as it answers an id that exists nowhere, or the
+// difference tells a model which ids exist.
+func TestMcpToolsDoNotRevealRowsOfASuspendedOrDeactivatedOrganization(t *testing.T) {
+	for name, tc := range map[string]struct {
+		close func(t *testing.T, x *mcpToolWorld, orgID string)
+		cause error
+	}{
+		"organization suspended": {func(t *testing.T, x *mcpToolWorld, orgID string) {
+			t.Helper()
+			if _, err := x.tools.ask.pool.Exec(context.Background(), `UPDATE organizations SET status = 'suspended' WHERE id = $1`, orgID); err != nil {
+				t.Fatal(err)
+			}
+		}, ErrOrganizationSuspended},
+		"member deactivated": {func(t *testing.T, x *mcpToolWorld, orgID string) {
+			t.Helper()
+			if _, err := x.tools.ask.pool.Exec(context.Background(), `UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`, orgID, x.ua.ID); err != nil {
+				t.Fatal(err)
+			}
+		}, ErrMemberDeactivated},
+	} {
+		t.Run(name, func(t *testing.T) {
+			x := newMcpToolWorld(t)
+			ctx := context.Background()
+			_, wsB := x.org(t, x.ua.ID, "Org B", "org-b-mcp")
+			taskB := x.task(t, x.ua.ID, wsB.ID, "Bí mật của B")
+			meetingB := x.meeting(t, x.ua.ID, wsB.ID, "Họp bí mật của B", "chỉ B biết")
+			tc.close(t, x, wsB.OrganizationID)
+
+			// The control: the services say so, and say it differently from "no such id".
+			if _, err := x.tools.ask.tasks.Get(ctx, x.ua.ID, taskB.ID); !errors.Is(err, tc.cause) {
+				t.Fatalf("control: tasks.Get answers %v; want %v", err, tc.cause)
+			}
+			if _, err := x.tools.ask.meetings.Get(ctx, x.ua.ID, meetingB.ID); !errors.Is(err, tc.cause) {
+				t.Fatalf("control: meetings.Get answers %v; want %v", err, tc.cause)
+			}
+			_, unknownTask := x.tools.GetTask(ctx, x.p, x.w.ID, "01NOSUCHTASK")
+			_, unknownMeeting := x.tools.GetMeeting(ctx, x.p, x.w.ID, "01NOSUCHMEETING")
+			if !errors.Is(unknownTask, ErrNotFound) || !errors.Is(unknownMeeting, ErrNotFound) {
+				t.Fatalf("unknown ids: %v / %v", unknownTask, unknownMeeting)
+			}
+
+			same := func(what string, err, want error) {
+				t.Helper()
+				var coded CodedError
+				if !errors.Is(err, ErrNotFound) || errors.As(err, &coded) || err.Error() != want.Error() {
+					t.Errorf("%s: %v (%T); want the answer of an unknown id: %v (%T)", what, err, err, want, want)
+				}
+			}
+			_, err := x.tools.GetTask(ctx, x.p, x.w.ID, taskB.ID)
+			same("GetTask(A, task of B)", err, unknownTask)
+			_, err = x.tools.GetMeeting(ctx, x.p, x.w.ID, meetingB.ID)
+			same("GetMeeting(A, meeting of B)", err, unknownMeeting)
+			_, err = x.tools.GetTask(ctx, x.p, wsB.ID, taskB.ID)
+			same("GetTask(B, task of B)", err, unknownTask)
+			_, err = x.tools.GetMeeting(ctx, x.p, wsB.ID, meetingB.ID)
+			same("GetMeeting(B, meeting of B)", err, unknownMeeting)
+			_, err = callMcpTool(t, x.tools, x.p, "get_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+taskB.ID+`"}`)
+			same("get_task tool", err, unknownTask)
+			_, err = callMcpTool(t, x.tools, x.p, "get_meeting", `{"workspace_id":"`+x.w.ID+`","meeting_id":"`+meetingB.ID+`"}`)
+			same("get_meeting tool", err, unknownMeeting)
+		})
+	}
+}
+
+// list_workspaces is ordered by name without regard to case, and two workspaces
+// with the same name keep one order, the one of their ids, however the rows
+// come back.
+func TestMcpListWorkspacesOrdersByFoldedNameThenID(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	// Rows are written directly: the plan's workspaces.max meter refuses a
+	// fourth CreateInOrg, and the ids are chosen to tell the orders apart.
+	for _, w := range []struct{ id, name, slug string }{
+		{"zzz-lower", "alpha", "alpha-lower"}, {"bbb", "Beta", "beta-upper"}, {"aaa", "beta", "beta-lower"}, {"mmm", "Gamma", "gamma"},
+	} {
+		row, err := x.tools.q.CreateWorkspace(ctx, db.CreateWorkspaceParams{ID: w.id, OrganizationID: x.w.OrganizationID, Slug: w.slug, Name: w.name, CreatedBy: x.ua.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := x.tools.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: row.ID, OrganizationID: row.OrganizationID, UserID: x.ua.ID, Role: "owner"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// "Alpha" (the fixture's, a ULID) and "alpha" tie once case is folded; the
+	// ULID sorts before "zzz-lower". "beta" (aaa) sorts before "Beta" (bbb).
+	want := []string{x.w.ID, "zzz-lower", "aaa", "bbb", "mmm"}
+	for i := 0; i < 3; i++ { // the rows come back in no promised order
+		wss, err := x.tools.ListWorkspaces(ctx, x.p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := make([]string, len(wss))
+		for j, w := range wss {
+			got[j] = w.ID
+		}
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("order = %v (%+v); want %v", got, wss, want)
+		}
+	}
+}
+
+// What goes to the external model is bounded: a search hit carries at most what
+// Ask UNI puts in a prompt, an item read carries 16000 characters, and a cut
+// ends with a marker that fits inside the limit. Cuts fall between characters,
+// never inside one.
+func TestMcpExcerptsAreCapped(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	long, err := x.tools.ask.tasks.Create(ctx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Mô tả dài", Description: strings.Repeat("ạ", 20000)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatty := x.task(t, x.ua.ID, x.w.ID, "Nhiều bình luận")
+	for i := 0; i < 40; i++ {
+		if _, err := x.tools.ask.tasks.AddComment(ctx, Human(x.ua.ID), chatty.ID, strings.Repeat("ệ", 500)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := x.meeting(t, x.ua.ID, x.w.ID, "Họp dài", strings.Repeat("ố", 20000))
+
+	checkCut := func(what, excerpt string, limit int, wantHead string) {
+		t.Helper()
+		if n := utf8.RuneCountInString(excerpt); n > limit || n < limit-80 {
+			t.Errorf("%s: %d characters; want a cut that fills %d without passing it", what, n, limit)
+		}
+		if !utf8.ValidString(excerpt) {
+			t.Errorf("%s: the cut fell inside a character", what)
+		}
+		if !strings.HasPrefix(excerpt, wantHead) || !strings.Contains(excerpt, "…") {
+			t.Errorf("%s: head or truncation marker missing: %.60q ... %.60q", what, excerpt, tail(excerpt, 60))
+		}
+	}
+	found, err := x.tools.Search(ctx, x.p, x.w.ID, "mô tả dài")
+	if err != nil || len(found) == 0 || found[0].ID != long.ID {
+		t.Fatalf("search = %+v, %v", found, err)
+	}
+	checkCut("search", found[0].Excerpt, ai.MaxExcerpt, "Trạng thái:")
+	if !strings.HasSuffix(found[0].Excerpt, "…") {
+		t.Errorf("search excerpt does not end with the marker")
+	}
+	foundM, err := x.tools.Search(ctx, x.p, x.w.ID, "họp dài")
+	if err != nil || len(foundM) == 0 || foundM[0].ID != m.ID {
+		t.Fatalf("search meeting = %+v, %v", foundM, err)
+	}
+	checkCut("search meeting", foundM[0].Excerpt, ai.MaxExcerpt, "Trạng thái:")
+
+	item, err := x.tools.GetTask(ctx, x.p, x.w.ID, long.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkCut("get_task description", item.Excerpt, 16000, "Trạng thái:")
+	if !strings.Contains(item.Excerpt, "UniWork") {
+		t.Errorf("get_task cut does not say the full item is in UniWork: %.80q", tail(item.Excerpt, 80))
+	}
+	item, err = x.tools.GetTask(ctx, x.p, x.w.ID, chatty.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkCut("get_task comments", item.Excerpt, 16000, "Trạng thái:")
+	if !strings.Contains(item.Excerpt, "Bình luận:") || strings.Count(item.Excerpt, "ệ") >= 40*500 {
+		t.Errorf("get_task comments: head kept, tail cut expected")
+	}
+	item, err = x.tools.GetMeeting(ctx, x.p, x.w.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkCut("get_meeting", item.Excerpt, 16000, "Trạng thái:")
+
+	// Short items are returned whole, with no marker.
+	whole, err := x.tools.GetTask(ctx, x.p, x.w.ID, x.taskID)
+	if err != nil || strings.Contains(whole.Excerpt, "…") || strings.Contains(whole.Excerpt, "UniWork") {
+		t.Fatalf("short task = %+v, %v", whole, err)
+	}
+	foundShort, err := x.tools.Search(ctx, x.p, x.w.ID, "báo cáo")
+	if err != nil || len(foundShort) == 0 || strings.Contains(foundShort[0].Excerpt, "…") {
+		t.Fatalf("short search hit = %+v, %v", foundShort, err)
+	}
+}
+
+// tail is the last n characters of s, for a failure message.
+func tail(s string, n int) string {
+	r := []rune(s)
+	if len(r) > n {
+		r = r[len(r)-n:]
+	}
+	return string(r)
+}
+
+func TestCapRunes(t *testing.T) {
+	const marker = "…[cut]"
+	for _, tc := range []struct {
+		name, in string
+		max      int
+		want     string
+	}{
+		{"fits", "ạệố", 3, "ạệố"},
+		{"empty", "", 3, ""},
+		{"cut between two-byte letters", "ạệốạệố", 5, "ạệốạ…"},
+	} {
+		got := capRunes(tc.in, tc.max, "…")
+		if got != tc.want || !utf8.ValidString(got) {
+			t.Errorf("%s: capRunes(%q, %d) = %q; want %q", tc.name, tc.in, tc.max, got, tc.want)
+		}
+	}
+	got := capRunes(strings.Repeat("ạ", 100), 11, marker)
+	if want := strings.Repeat("ạ", 5) + marker; got != want || utf8.RuneCountInString(got) != 11 || !utf8.ValidString(got) {
+		t.Errorf("capRunes = %q (%d runes); want %q", got, utf8.RuneCountInString(got), want)
+	}
+}
+
+// A query with no word of two or more characters has nothing to score with;
+// Ask UNI answers it with the latest items, a connector would hand the model an
+// arbitrary slice of the workspace.
+func TestMcpSearchRefusesAQueryWithNoWord(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	var bad McpInvalidArgs
+	for _, q := range []string{"a", "?", "a b c", "!!! ... ???", "ạ", "1 2"} {
+		if out, err := x.tools.Search(ctx, x.p, x.w.ID, q); !errors.As(err, &bad) || out != nil {
+			t.Errorf("Search(%q) = %+v, %v; want McpInvalidArgs", q, out, err)
+		}
+		if _, err := callMcpTool(t, x.tools, x.p, "search", `{"workspace_id":"`+x.w.ID+`","query":"`+q+`"}`); !errors.As(err, &bad) {
+			t.Errorf("search tool %q: %v", q, err)
+		}
+	}
+	for _, q := range []string{"ab", "báo cáo", "a báo", "10"} {
+		if _, err := x.tools.Search(ctx, x.p, x.w.ID, q); err != nil {
+			t.Errorf("Search(%q): %v", q, err)
+		}
+	}
+	// The control: Ask UNI's search keeps its behaviour for the same query.
+	tc := ai.ToolContext{ActorID: x.ua.ID, OrganizationID: x.w.OrganizationID, WorkspaceID: x.w.ID}
+	srcs, err := x.tools.ask.searchWorkspace(ctx, tc, "a")
+	if err != nil || len(srcs) == 0 {
+		t.Fatalf("control: Ask UNI search for %q = %+v, %v; want the latest items", "a", srcs, err)
 	}
 }
