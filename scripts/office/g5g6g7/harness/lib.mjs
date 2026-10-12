@@ -330,7 +330,7 @@ function forkShaOfRun(envFile) {
  * and returns the exit code the step must end with, 1 for a failed start and 77
  * only for a precondition start.sh itself reported missing.
  */
-export async function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "", fixtureSha256 = "", command, checker, startedAt, argv = [...process.argv] }) {
+export async function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "", fixtureSha256 = "", command, checker, startedAt, argv }) {
   const blocked = gate.gate === "blocked";
   const result = blocked ? "BLOCKED" : "FAIL";
   const exitCode = blocked ? BLOCKED_EXIT : 1;
@@ -445,6 +445,13 @@ export function harnessEvidenceId(requirementId) {
  * than being dropped, so the runner's field check sees them.
  */
 export function evidenceLine(record) {
+  // The exact argument vector of the command the line stands for. The caller
+  // knows it; this function runs in whatever process writes the line, so it can
+  // not guess without recording a vector that never ran (reviewer_be H1-6). An
+  // empty one is an empty required field for the runner's verify (r2 N1).
+  if (!Array.isArray(record.argv) || record.argv.length === 0) {
+    throw new Error("evidenceLine needs the argv of the command the line stands for");
+  }
   return {
     evidenceId: record.evidenceId ?? "",
     requirementId: record.requirementId ?? "",
@@ -456,12 +463,8 @@ export function evidenceLine(record) {
     fixtureId: record.fixtureId ?? "",
     fixtureSha256: record.fixtureSha256 ?? "",
     command: record.command ?? "",
-    // The exact argument vector, so an argument with a space survives the ledger
-    // (the runner's contract carries both). Defaults to this process's own argv —
-    // the command that actually ran — so a harness-written line (including a
-    // BLOCKED or FAIL one) never lands with an empty `argv`, which the runner's
-    // verify now reports as an empty required field (reviewer_be r2 N1).
-    argv: Array.isArray(record.argv) ? record.argv : [...process.argv],
+    // the exact argument vector, so an argument with a space survives the ledger
+    argv: record.argv,
     exitCode: typeof record.exitCode === "number" ? record.exitCode : -1,
     result: record.result ?? "BLOCKED",
     artifact: record.artifact ?? "",

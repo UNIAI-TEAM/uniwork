@@ -154,7 +154,7 @@ test("forkCacheDir is keyed by the revision so two SHAs never share a checkout",
 });
 
 test("evidenceLine carries every field the runner contract checks, empty when unknown", () => {
-  const line = evidenceLine({ requirementId: "G7-A05", result: "PASS", exitCode: 0, dSha: "abc", fSha: "0d03b18" });
+  const line = evidenceLine({ argv: ["node", "x.mjs"], requirementId: "G7-A05", result: "PASS", exitCode: 0, dSha: "abc", fSha: "0d03b18" });
   for (const key of ["evidenceId", "requirementId", "dSha", "fSha", "pin", "platform", "build", "fixtureId", "fixtureSha256", "command", "argv", "exitCode", "result", "artifact", "checker", "blocker", "startedAt", "finishedAt"]) {
     assert.ok(key in line, `missing ${key}`);
   }
@@ -163,25 +163,24 @@ test("evidenceLine carries every field the runner contract checks, empty when un
   assert.equal(line.pin, "");
 });
 
-test("evidenceLine defaults argv to the command that ran, never an empty vector", () => {
+test("evidenceLine records the argv it is given and refuses to guess one (H1-6)", () => {
   // The runner's verify reports an empty argv as an empty required field
-  // (reviewer_be r2 N1), so a harness-written line must carry the real vector.
-  const line = evidenceLine({ requirementId: "G7-A05", result: "BLOCKED", exitCode: 77 });
-  assert.ok(Array.isArray(line.argv) && line.argv.length > 0, "argv must not be empty");
-  assert.deepEqual(line.argv, [...process.argv]);
-  // an explicit argv is kept as given
-  assert.deepEqual(evidenceLine({ argv: ["node", "x.mjs"] }).argv, ["node", "x.mjs"]);
+  // (reviewer_be r2 N1); a default of the writer's own process.argv would put a
+  // vector on the line that never ran (H1-6), so the caller must pass the real one.
+  assert.deepEqual(evidenceLine({ argv: ["node", "x.mjs", "--a b"] }).argv, ["node", "x.mjs", "--a b"]);
+  assert.throws(() => evidenceLine({ requirementId: "G7-A05" }), /needs the argv/);
+  assert.throws(() => evidenceLine({ argv: [] }), /needs the argv/);
 });
 
 test("evidenceLine defaults to BLOCKED, never to PASS", () => {
-  assert.equal(evidenceLine({}).result, "BLOCKED");
-  assert.equal(evidenceLine({}).exitCode, -1);
+  assert.equal(evidenceLine({ argv: ["x"] }).result, "BLOCKED");
+  assert.equal(evidenceLine({ argv: ["x"] }).exitCode, -1);
 });
 
 test("evidenceLine keeps a fixture hash and a blocker out of a PASS", () => {
   // The runner's verify refuses a PASS that carries a blocker or a non-zero exit;
   // the writer here must not produce one in the first place.
-  const blocked = evidenceLine({ result: "BLOCKED", blocker: "no D server on http://127.0.0.1:1", exitCode: 77 });
+  const blocked = evidenceLine({ argv: ["x"], result: "BLOCKED", blocker: "no D server on http://127.0.0.1:1", exitCode: 77 });
   assert.equal(blocked.result, "BLOCKED");
   assert.ok(blocked.blocker.length > 0);
   assert.notEqual(blocked.exitCode, 0);

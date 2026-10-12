@@ -85,6 +85,7 @@ if (gate.gate !== "proceed") {
     command: `node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir ${runDir}`,
     checker: "harness:start.sh+sample-ac.mjs",
     startedAt,
+    argv: [...process.argv],
   }));
 }
 const checks = [];

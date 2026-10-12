@@ -247,6 +247,7 @@ if (startedGate.gate !== "proceed") {
     checker: "harness:start.sh+document-step.mjs",
     fixtureId,
     startedAt,
+    argv: [...process.argv],
   }));
 }
 
