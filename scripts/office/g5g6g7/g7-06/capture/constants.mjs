@@ -25,8 +25,12 @@ export const MODULE_OF_FORMAT = {
   html: "html",
 };
 
-/** Settle: poll interval, how many identical consecutive frames end it, and the budget. */
-export const SETTLE = { intervalMs: 300, identicalFrames: 2, timeoutMs: 45_000 };
+/**
+ * Settle: poll interval, how many identical consecutive frames end it, how long
+ * they must have been identical (the sheets view repaints its status bar when a
+ * streaming load finishes seconds after the grid first looks complete), and the budget.
+ */
+export const SETTLE = { intervalMs: 300, identicalFrames: 2, quietMs: 2_500, timeoutMs: 45_000 };
 
 /** How long a module takes to show up (a tab/WebContentsView on desktop, the frame's ready state on web). */
 export const OPEN_TIMEOUT_MS = 90_000;

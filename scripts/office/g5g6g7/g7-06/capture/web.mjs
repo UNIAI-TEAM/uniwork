@@ -9,7 +9,7 @@ import { offerableFrameVersion } from "../../../../../apps/web/platform/office-f
 import { readPins } from "../../../../../apps/web/platform/office-frame/frame-headers.mjs";
 import { blocked, failed, ok } from "./meta.mjs";
 import { COLOR_SCHEME, DEVICE_SCALE_FACTOR, LOCALE, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORT } from "./constants.mjs";
-import { pageIsBusy, realSleep, settle } from "./settle.mjs";
+import { notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
 import { collectRenderedText } from "./text.mjs";
 import { REPO_ROOT } from "./playwright.mjs";
 import { cleanupSeed, seedWorkspace } from "./seed.mjs";
@@ -77,7 +77,7 @@ export async function captureOpenFrame(page, module, { settleOptions = SETTLE, s
     now,
     ...settleOptions,
   });
-  if (result.status !== "settled") return failed(`not_settled:${result.reason} after ${result.waitedMs}ms (${result.frames} frames)`);
+  if (result.status !== "settled") return failed(notSettledReason(result));
   const { text } = await collectRenderedText(page);
   return ok({ png: result.frame, text });
 }

@@ -21,7 +21,7 @@ import { blocked, buildMeta, clearCapture, exitCodeFor, failed, ok, writeCapture
 import { loadPlaywright } from "./capture/playwright.mjs";
 import { readRun } from "./capture/run-dir.mjs";
 import { cleanupSeed, seedWorkspace } from "./capture/seed.mjs";
-import { frameHash, settle } from "./capture/settle.mjs";
+import { PROGRESS_TEXT, frameHash, notSettledReason, settle } from "./capture/settle.mjs";
 import { frameBlock, joinBlocks, visibleChars } from "./capture/text.mjs";
 import { redactUrl, signIn } from "./capture/signin.mjs";
 import { frameInstallState, captureOpenFrame, readFrameState } from "./capture/web.mjs";
@@ -81,6 +81,28 @@ describe("settle", () => {
     assert.equal(r.status, "timeout");
     assert.equal(r.reason, "frames_differ");
     assert.ok(r.frames >= 2);
+  });
+
+  test("identical frames only settle once they have been identical for quietMs (a pause is not a settled screen)", async () => {
+    const clock = fakeClock();
+    const r = await settle({ grab: async () => Buffer.from("same"), isBusy: async () => false, quietMs: 1_000, intervalMs: 300, ...clock });
+    assert.equal(r.status, "settled");
+    assert.ok(r.waitedMs >= 1_000, `settled after ${r.waitedMs}ms`);
+    // a change inside the window restarts it
+    const changing = fakeClock();
+    let n = 0;
+    const frames = ["a", "a", "a", "b", "b", "b", "b", "b"];
+    const late = await settle({ grab: async () => Buffer.from(frames[Math.min(n++, frames.length - 1)]), isBusy: async () => false, quietMs: 1_000, intervalMs: 300, ...changing });
+    assert.equal(late.status, "settled");
+    assert.equal(late.frame.toString(), "b");
+  });
+
+  test("a timeout names what was still busy", async () => {
+    const clock = fakeClock();
+    const r = await settle({ grab: async () => Buffer.from("x"), isBusy: async () => 'notification "Đã tải"', timeoutMs: 1_000, ...clock });
+    assert.equal(r.reason, "still_busy");
+    assert.equal(r.busyWhy, 'notification "Đã tải"');
+    assert.match(notSettledReason(r), /^not_settled:still_busy \(notification "Đã tải"\) after \d+ms \(0 frames\)$/);
   });
 
   test("refuses a single-frame 'settle'", async () => {
@@ -447,6 +469,49 @@ describe("browser-backed capture", { skip: browserSkip || false }, () => {
     const r = await withPage(FRAME_HOST("ready", spinner), (page) => captureOpenFrame(page, "docs", { timeoutMs: 2_000, settleOptions: { intervalMs: 50, identicalFrames: 2, timeoutMs: 600 } }));
     assert.equal(r.status, "failed");
     assert.match(r.reason, /not_settled:still_busy/);
+  });
+
+  const QUICK = { intervalMs: 100, identicalFrames: 2, quietMs: 300, timeoutMs: 10_000 };
+  const timed = (extra, script) => `<!doctype html><html><body><main>
+<section data-office-docs-frame data-office-module="docs" data-state="ready">${extra}
+<iframe title="Khung tài liệu" srcdoc="<!doctype html><title>Tài liệu</title><h1>Báo cáo quý I</h1><p>Doanh thu tăng trưởng ổn định.</p>"></iframe></section></main><script>${script}</script></body></html>`;
+
+  test("captureOpenFrame: waits out an in-progress status message and shoots the finished one (round 1: 5177 px apart)", async () => {
+    const page = timed(
+      '<span class="status-msg" role="status">Đang tải theo luồng a.xlsx: 9 hàng khả dụng.</span>',
+      'setTimeout(function () { document.querySelector(".status-msg").textContent = "Đã tải đầy đủ sổ làm việc."; }, 1200);',
+    );
+    const r = await withPage(page, (p) => captureOpenFrame(p, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
+    assert.equal(r.status, "ok", r.reason);
+    assert.match(r.text, /Đã tải đầy đủ sổ làm việc\./);
+    assert.ok(!/Đang tải theo luồng/.test(r.text), r.text);
+  });
+
+  test("captureOpenFrame: a toast that fades is waited out, not masked: the shot is the one without it", async () => {
+    const page = timed('<div class="toast" style="position:absolute;top:0;right:0">Đã mở tài liệu</div>', 'setTimeout(function () { document.querySelector(".toast").remove(); }, 1200);');
+    const clean = await withPage(timed("", ""), (p) => captureOpenFrame(p, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
+    const r = await withPage(page, (p) => captureOpenFrame(p, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
+    assert.equal(r.status, "ok", r.reason);
+    assert.ok(!r.text.includes("Đã mở tài liệu"), r.text);
+    assert.equal(frameHash(r.png), frameHash(clean.png), "the shot taken after the toast went equals the shot of a page that never had one");
+  });
+
+  test("captureOpenFrame: a notification that never goes fails the fixture and says which", async () => {
+    const page = timed('<div role="alert">Không lưu được</div>', "");
+    const r = await withPage(page, (p) => captureOpenFrame(p, "docs", { timeoutMs: 2_000, settleOptions: { ...QUICK, timeoutMs: 800 } }));
+    assert.equal(r.status, "failed");
+    assert.match(r.reason, /not_settled:still_busy \(notification "Không lưu được"\)/);
+  });
+
+  test("captureOpenFrame: a finished status message and an ordinary live region do not hold the shot", async () => {
+    const page = timed('<span role="status">Đã tải đầy đủ sổ làm việc.</span><div aria-live="polite">Tổng cộng 12 hàng</div>', "");
+    const r = await withPage(page, (p) => captureOpenFrame(p, "docs", { timeoutMs: 2_000, settleOptions: QUICK }));
+    assert.equal(r.status, "ok", r.reason);
+  });
+
+  test("PROGRESS_TEXT reads Vietnamese and English in-progress messages, not finished ones", () => {
+    for (const busy of ["Đang tải theo luồng a.xlsx: 9 hàng khả dụng.", "Đang mở sổ làm việc", "Loading workbook", "Đang lập chỉ mục a: 3 hàng đã sẵn sàng.", "Saving…"]) assert.ok(PROGRESS_TEXT.test(busy), busy);
+    for (const done of ["Đã tải đầy đủ sổ làm việc — công thức tính toán trực tiếp.", "Sẵn sàng", "Đã lưu", "Tổng cộng 12 hàng"]) assert.ok(!PROGRESS_TEXT.test(done), done);
   });
 
   test("readFrameState reports the module's own host only", async () => {

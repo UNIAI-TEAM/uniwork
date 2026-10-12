@@ -20,7 +20,7 @@ import { readPins } from "../../../../../apps/web/platform/office-frame/frame-he
 import { appEnv } from "../../harness/lib.mjs";
 import { blocked, failed, ok } from "./meta.mjs";
 import { COLOR_SCHEME, OPEN_TIMEOUT_MS, SETTLE, TIMEZONE, VIEWPORT } from "./constants.mjs";
-import { pageIsBusy, realSleep, settle } from "./settle.mjs";
+import { notSettledReason, pageIsBusy, realSleep, settle } from "./settle.mjs";
 import { collectRenderedText } from "./text.mjs";
 
 const ELECTRON_ARGS = ["--no-sandbox", "--disable-gpu", "--lang=vi-VN", "--force-color-profile=srgb", "--font-render-hinting=none", "--disable-lcd-text"];
@@ -133,7 +133,7 @@ async function captureOne({ ports, fixture, playwright, scratch, log, now = Date
       now,
       ...SETTLE,
     });
-    if (result.status !== "settled") return failed(`not_settled:${result.reason} after ${result.waitedMs}ms (${result.frames} frames)`);
+    if (result.status !== "settled") return failed(notSettledReason(result));
     const { text } = await collectRenderedText(page);
     return ok({ png: result.frame, text });
   } catch (error) {
