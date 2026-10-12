@@ -192,8 +192,13 @@ export function OfficeModuleFrame({
     setLeaveHeld(false);
     resolve?.(allowed);
   };
+  // The editor failed for good and its failure screen replaced the leave dialog: the leave that
+  // was pending (a Save in flight, or the dialog being read) ends as refused, since nothing is
+  // left to answer it. Later leaves have no editor to save, so the guard below is not registered.
+  const failed = session.status === "failed";
+  useEffect(() => { if (failed) finishLeave(false); }, [failed]);
   useEffect(() => {
-    if (!dirty) return undefined;
+    if (!dirty || failed) return undefined;
     const unregister = registerLeaveGuard(() => new Promise<boolean>((resolve) => {
       leaveResolve.current?.(false);
       leaveResolve.current = resolve;
@@ -202,7 +207,7 @@ export function OfficeModuleFrame({
     const onBeforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => { unregister(); window.removeEventListener("beforeunload", onBeforeUnload); };
-  }, [dirty]);
+  }, [dirty, failed]);
   useEffect(() => () => { leaveResolve.current?.(false); }, []);
   // Closing the leave dialog (Stay, Escape, the close button) hands keyboard focus back to the
   // editor in the frame, so Ctrl+S works without a click. Returning false keeps Base UI from

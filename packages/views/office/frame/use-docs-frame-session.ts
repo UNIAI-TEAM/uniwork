@@ -466,6 +466,9 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         if (booted && !frameDocGone) frameGone();
         booted = true;
         bindFrameDocument();
+        // A new document starts with no dialog open: it reports its own from here on.
+        modalOpen.current = false;
+        setModal(false);
         setSlow(false);
         setStatus((now) => (now === "failed" ? now : "ready"));
       },
@@ -483,8 +486,9 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       else setSaveState((now) => (now === "dirty" ? (savedOnce.current ? "saved" : "ready") : now));
     });
     endpoint.on("modal", ({ open }) => {
-      // A frame that failed has no dialog left to report.
-      if (life.state !== "live") return;
+      // A frame that failed, or whose document is known gone, has no dialog left to report: a
+      // message queued before its teardown must not make the page inert with nothing to lift it.
+      if (life.state !== "live" || frameDocGone) return;
       modalOpen.current = open;
       setModal(open);
       // A dialog the user reads stops the watchdog; one that closes without an answer restarts it.
