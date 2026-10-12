@@ -1,0 +1,2 @@
+$ set -a && . ./.env && set +a && cd server && go test ./internal/handler/router -count=1
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	1.918s

@@ -1,0 +1,2 @@
+$ set -a && . ./.env && set +a && cd server && go test ./internal/handler -run "TestIsolationMatrix|TestIsolationRealtime|TestEveryBodyIDFieldHasAReferenceCase|TestSwagger" -count=1
+ok  	github.com/unicomhub/uniwork/server/internal/handler	195.440s

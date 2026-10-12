@@ -1,0 +1,2 @@
+$ set -a && . ./.env && set +a && cd server && go run ./cmd/migrate up
+04:03:41.286 INF migrate done component=server dir=up

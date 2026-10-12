@@ -1,0 +1,2 @@
+$ set -a && . ./.env && set +a && cd server && go test ./migrations -run "TestEveryQueryNamesItsTenant|TestTenantReasonsSitOnTenantQueries" -count=1
+ok  	github.com/unicomhub/uniwork/server/migrations	0.087s
