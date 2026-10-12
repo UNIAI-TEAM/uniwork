@@ -134,13 +134,19 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
       assert.equal(row.evidence.some((id) => nonPassResults.has(evidenceById.get(id)?.result)), false, `${row.id} counts a non-PASS result as PASS`);
       const passing = row.evidence.map((id) => evidenceById.get(id)).filter((record) => record?.result === 'PASS');
       assert.ok(passing.length > 0, `${row.id} PASS row needs an evidence record whose result is PASS`);
+      // A PASS record must have run on one of the row's fixtures, on that
+      // fixture's current hash — not on a fixture the row never names.
       for (const record of passing) {
         assert.equal(record.requirementId, row.id, `${row.id} PASS evidence ${record.evidenceId} names requirement ${record.requirementId}`);
         assert.ok(isFilled(record.artifact), `${row.id} PASS evidence ${record.evidenceId} needs an artifact`);
-        for (const reference of row.fixtures) {
-          assert.equal(record.fixtureId, reference.id, `${row.id} PASS evidence ${record.evidenceId} was run on another fixture`);
-          assert.equal(record.fixtureSha256, reference.sha256, `${row.id} PASS evidence ${record.evidenceId} has a stale fixture hash`);
-        }
+        const reference = row.fixtures.find((fixture) => fixture.id === record.fixtureId);
+        assert.ok(reference, `${row.id} PASS evidence ${record.evidenceId} was run on another fixture`);
+        assert.equal(record.fixtureSha256, reference.sha256, `${row.id} PASS evidence ${record.evidenceId} has a stale fixture hash`);
+      }
+      // Every fixture the row names needs its own PASS record: a row that runs
+      // on two fixtures cannot pass on one of them.
+      for (const reference of row.fixtures) {
+        assert.ok(passing.some((record) => record.fixtureId === reference.id), `${row.id} PASS row has no PASS record for fixture ${reference.id}`);
       }
     }
     byStatus[row.status] += 1;
@@ -155,7 +161,11 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
   };
   assert.deepEqual(candidate.rowCounts, counts, 'rowCounts must reconcile with the rows');
   assert.deepEqual(counts, { G5: 8, G6: 10, G7: 5, total: 23 }, 'the spec Section 9.1 split must not change silently');
-  assert.ok(emptyArray(candidate.rows.filter((row) => row.status === 'PASS')), 'no row is PASS in this slice');
+  // The committed slice carries no PASS row yet. The assertion is made against
+  // the committed matrix, not the candidate: a candidate built in a test has to
+  // be able to reach PASS (with a record per fixture) for the rule above to be
+  // exercised at all.
+  assert.ok(emptyArray(matrix.rows.filter((row) => row.status === 'PASS')), 'no row is PASS in this slice');
   assert.ok(blockers.length > 0, 'a row blocked by an open gate keeps its blocker instead of NOT_RUN');
 
   // acceptance.md repeats these rows cell for cell; the test fails on any drift.
@@ -165,11 +175,91 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
     assert.ok(markdownRows.has(row.id), `acceptance.md is missing row ${row.id}`);
     assert.equal(markdownRows.get(row.id), expectedMarkdownRow(row), `acceptance.md row ${row.id} drifted from the JSON matrix`);
   }
+
+  // The prose around the table is prose, but the numbers in it are the matrix's,
+  // so the test recomputes them: a status change that the summary does not
+  // follow is a regression (reviewer_fe F1).
+  const perGroup = {};
+  for (const row of matrix.rows) {
+    const group = row.id.slice(0, 2);
+    perGroup[group] ??= { NOT_RUN: 0, BLOCKED: 0, PASS: 0, FAIL: 0 };
+    perGroup[group][row.status] += 1;
+  }
+  const counted = (statuses, counts) => statuses.filter((status) => counts[status] > 0).map((status) => `${counts[status]} ${status}`).join(', ');
+  const groupRange = (group) => {
+    const ids = requirementIds.filter((id) => id.startsWith(`${group}-`));
+    return `${group} (${ids[0]}...${ids[ids.length - 1]})`;
+  };
+  for (const [group, statuses] of Object.entries(perGroup)) {
+    const line = `| ${groupRange(group)} | ${matrix.rows.filter((row) => row.id.startsWith(`${group}-`)).length} | ${counted(['NOT_RUN', 'BLOCKED', 'PASS', 'FAIL'], statuses)} |`;
+    assert.ok(doc.includes(line), `acceptance.md count table does not match the rows: expected ${line}`);
+  }
+  // The totals row names all three statuses plus the zeroes it wants to show.
+  const totals = { NOT_RUN: 0, BLOCKED: 0, PASS: 0, FAIL: 0 };
+  for (const row of matrix.rows) totals[row.status] += 1;
+  const totalLine = `**${totals.NOT_RUN} NOT_RUN, ${totals.BLOCKED} BLOCKED, ${totals.PASS} PASS**`;
+  assert.ok(doc.includes(totalLine), `acceptance.md totals row does not match the rows: expected ${totalLine}`);
+  const blocked = matrix.rows.filter((row) => row.status === 'BLOCKED').map((row) => row.id);
+  const gateSection = doc.split('## Gate đang mở')[1]?.split('\n## ')[0] ?? '';
+  assert.deepEqual(
+    [...new Set(gateSection.match(/G[567]-A\d\d/g) ?? [])].sort(),
+    [...blocked].sort(),
+    'the open-gate section must name exactly the BLOCKED rows',
+  );
+  const words = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín', 'mười'];
+  const blockedPhrase = `${words[blocked.length]} dòng bị chặn hôm nay`;
+  assert.ok(doc.toLowerCase().includes(blockedPhrase), `the blocked count must read "${blockedPhrase}"`);
+
+  // The group tables are subsections of the matrix section, not siblings of it
+  // (reviewer_fe F3).
+  for (const group of ['G5', 'G6', 'G7']) {
+    assert.ok(doc.includes(`### Nghiệm thu ${group} `), `the ${group} table must be a ### subsection`);
+  }
+  assert.equal(/^## Nghiệm thu /m.test(doc), false, 'the group headings are subsections of the matrix table, not siblings');
   return true;
 }
 
 test('acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence', () => {
   assert.equal(validateMatrix(matrix), true);
+});
+
+test('acceptance.md says the requirements are an interpretation, not the verbatim spec', () => {
+  assert.ok(acceptanceDoc.includes('diễn giải từ spec §9.1'), 'the requirements are an interpretation and must say so');
+  assert.equal(acceptanceDoc.includes('nguyên văn'), false, 'the rows are English rewrites, not the verbatim Vietnamese spec text');
+  assert.ok(acceptanceDoc.includes('test đi kèm'), 'the sibling test is the accompanying test');
+  assert.equal(acceptanceDoc.includes('test anh em'), false, '"test anh em" is a calque of "sibling test"');
+});
+
+test('a PASS row that runs on several fixtures needs one PASS record per fixture', () => {
+  // G5-A01 names two fixtures, so a single record can never carry its PASS.
+  const target = matrix.rows.find((candidate) => candidate.fixtures.length > 1);
+  const id = target.id;
+  const evidenceIds = target.fixtures.map((_, index) => `ev-${id.toLowerCase()}-${index}`);
+  const recordFor = (reference, index) => ({
+    evidenceId: evidenceIds[index],
+    requirementId: id,
+    fixtureId: reference.id,
+    fixtureSha256: reference.sha256,
+    result: 'PASS',
+    artifact: `test-results/office-g5g6g7-evidence/${id}-${index}.json`,
+  });
+  const complete = structuredClone(matrix);
+  complete.evidence.push(...target.fixtures.map(recordFor));
+  const completeRow = complete.rows.find((candidate) => candidate.id === id);
+  completeRow.status = 'PASS';
+  completeRow.evidence.push(...evidenceIds);
+  const markdown = acceptanceDoc.replace(new RegExp(`^\\| ${id} \\|.*$`, 'm'), expectedMarkdownRow(completeRow));
+  assert.equal(validateMatrix(complete, markdown), true, 'one PASS record per fixture validates');
+
+  // Drop one fixture's record: the row can no longer claim PASS.
+  const short = structuredClone(complete);
+  short.rows.find((candidate) => candidate.id === id).evidence.pop();
+  assert.throws(() => validateMatrix(short, markdown), /has no PASS record for fixture/, 'a fixture without its own PASS record is rejected');
+
+  // A record on a fixture the row does not name is not one of its runs.
+  const foreign = structuredClone(complete);
+  foreign.evidence.find((record) => record.evidenceId === evidenceIds[0]).fixtureId = 'fx-html-page-vi';
+  assert.throws(() => validateMatrix(foreign, markdown), /was run on another fixture/, 'a PASS record on a foreign fixture is rejected');
 });
 
 test('acceptance matrix rejects candidate regressions', () => {
@@ -207,7 +297,12 @@ test('acceptance matrix rejects candidate regressions', () => {
     { name: 'PASS without evidence', mutate: (c) => { c.rows[0].status = 'PASS'; }, expected: /PASS row needs evidence/ },
     { name: 'PASS naming evidence that no record declares', mutate: (c) => { const r = passRow(); r.rows[0].evidence.push('ev-missing'); return r; }, expected: /that no record declares/ },
     { name: 'PASS whose evidence has no artifact', mutate: (c) => { c.evidence[0].artifact = ''; return c; }, build: passRow, expected: /needs an artifact/ },
-    { name: 'PASS whose evidence was run on another fixture', mutate: (c) => { c.evidence[0].fixtureId = 'fx-docx-report-vi'; return c; }, build: passRow, expected: /was run on another fixture/ },
+    { name: 'PASS whose evidence was run on another fixture', mutate: (c) => { c.evidence[0].fixtureId = 'fx-html-page-vi'; return c; }, build: passRow, expected: /was run on another fixture/ },
+    { name: 'PASS on a two-fixture row with a record for only one', mutate: () => 'no change to the json', build: passRow, expected: /has no PASS record for fixture/ },
+    { name: 'markdown count table drift', mutate: () => 'no change to the json', doc: (doc) => doc.replace('| 3 NOT_RUN, 2 BLOCKED |', '| 2 NOT_RUN, 3 BLOCKED |'), expected: /count table does not match/ },
+    { name: 'markdown totals row drift', mutate: () => 'no change to the json', doc: (doc) => doc.replace('**19 NOT_RUN, 4 BLOCKED, 0 PASS**', '**18 NOT_RUN, 5 BLOCKED, 0 PASS**'), expected: /totals row does not match/ },
+    { name: 'markdown blocked count word drift', mutate: () => 'no change to the json', doc: (doc) => doc.replace('Bốn dòng bị chặn hôm nay', 'Năm dòng bị chặn hôm nay'), expected: /blocked count must read/ },
+    { name: 'markdown group heading promoted back to a sibling', mutate: () => 'no change to the json', doc: (doc) => doc.replace('### Nghiệm thu G6', '## Nghiệm thu G6'), expected: /must be a ### subsection/ },
     { name: 'PASS whose evidence has a stale fixture hash', mutate: (c) => { c.evidence[0].fixtureSha256 = '0'.repeat(64); return c; }, build: passRow, expected: /stale fixture hash/ },
     { name: 'skip result counted as PASS', mutate: (c) => { c.evidence[0].result = 'skip'; return c; }, build: passRow, expected: /counts a non-PASS result as PASS/ },
     { name: 'NOT_RUN result counted as PASS', mutate: (c) => { c.evidence[0].result = 'NOT_RUN'; return c; }, build: passRow, expected: /counts a non-PASS result as PASS/ },
