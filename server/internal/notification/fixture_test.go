@@ -55,6 +55,7 @@ func newFixture(t *testing.T) *fixture {
 		meetings: service.NewMeetingService(pool, q, ws, service.NopPublisher{}, nil, service.MeetingRuntime{}),
 		consumer: NewConsumer(pool, q, ws),
 	}
+	f.consumer.SetOrgMembers(orgs)
 	f.owner = f.register(t, auth, "owner@example.com", "Chủ Nhóm")
 	f.member = f.register(t, auth, "member@example.com", "Thành Viên")
 	org, err := orgs.Create(ctx, f.owner.ID, "Notif Org", "notif-org")

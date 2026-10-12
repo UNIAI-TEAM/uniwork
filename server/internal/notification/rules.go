@@ -24,6 +24,13 @@ type MemberChecker interface {
 	RequireMember(ctx context.Context, workspaceID, userID string) (db.WorkspaceMember, error)
 }
 
+// OrgMemberChecker is the organization membership gate for organization-level
+// notifications. OrganizationService satisfies it without this package
+// importing internal/service.
+type OrgMemberChecker interface {
+	RequireMember(ctx context.Context, orgID, userID string) (db.OrganizationMember, error)
+}
+
 // DocumentReadChecker is the document permission port the document comment
 // rules filter recipients through: a person is only notified while they can
 // read the document right now. DocumentService implements it; it is
@@ -61,6 +68,7 @@ type Draft struct {
 type env struct {
 	q         *db.Queries
 	members   MemberChecker
+	orgs      OrgMemberChecker
 	docs      DocumentReadChecker
 	summaries SummaryChecker
 }
@@ -528,6 +536,15 @@ func ruleEmailHubNewMail(ctx context.Context, e env, ev outbox.Row, p map[string
 	if acc.UserID != p["user_id"] {
 		return nil, nil
 	}
+	// A mailbox row and its queued event can outlive the recipient's access.
+	// Re-check current organization membership before reading unread state or
+	// producing any in-app/push delivery.
+	if e.orgs == nil {
+		return nil, nil
+	}
+	if _, err := e.orgs.RequireMember(ctx, acc.OrganizationID, acc.UserID); err != nil {
+		return nil, nil
+	}
 	counts, err := e.q.CountEmailHubThreads(ctx, db.CountEmailHubThreadsParams{
 		AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: "INBOX", LabelFilter: "",
 	})
@@ -541,6 +558,14 @@ func ruleEmailHubNewMail(ctx context.Context, e env, ev outbox.Row, p map[string
 	if wsID == "" {
 		if wsID, err = userWorkspaceIn(ctx, e.q, p["user_id"], acc.OrganizationID); err != nil {
 			return nil, err
+		}
+	}
+	if wsID != "" {
+		if e.members == nil {
+			return nil, nil
+		}
+		if _, err := e.members.RequireMember(ctx, wsID, acc.UserID); err != nil {
+			return nil, nil
 		}
 	}
 	params := map[string]string{
