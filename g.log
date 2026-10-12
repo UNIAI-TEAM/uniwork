@@ -1,0 +1,10 @@
+$ cd apps/sheets && npx vitest run tests/g6-12-cell-types.test.ts tests/g6-12-compare-ranges.test.ts tests/g6-12-formula-cache-flag.test.ts tests/g6-12-hidden-rows.test.ts tests/g6-12-read-cells-truncation.test.ts tests/g6-12-summarize-range.test.ts tests/g6-12-total-rows.test.ts tests/g6-12-unsupported-function.test.ts tests/g6-12-webservice-engine.test.ts tests/workbook-skill-tools.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+
+ Test Files  10 passed (10)
+      Tests  170 passed (170)
+   Start at  15:00:50
+   Duration  9.08s (transform 7.58s, setup 0ms, import 21.52s, tests 2.90s, environment 1ms)
+
