@@ -1,7 +1,10 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -242,5 +245,60 @@ func TestMcpCancelRedirectsAccessDenied(t *testing.T) {
 	}
 	if u, _ := url.Parse(to); u.Query().Get("error") != "access_denied" || u.Query().Get("state") != "s" {
 		t.Fatalf("cancel redirect = %s", to)
+	}
+}
+
+// Ruling 32: a client that vanishes between Start and the consent page (its
+// metadata document withdrawn, a registered client swept) is a 410 the page
+// can word, not the raw sentinel that mapServiceError turns into a 500.
+func TestMcpConsentOfAWithdrawnClientIsGone(t *testing.T) {
+	type setup struct {
+		prepare  func(t *testing.T, w *mcpWorld) (clientID, redirect string)
+		withdraw func(t *testing.T, w *mcpWorld, clientID string)
+	}
+	cimdID := "https://client.example/oauth/metadata.json"
+	var doc *fakeCIMD
+	cases := map[string]setup{
+		"metadata document withdrawn": {
+			prepare: func(t *testing.T, w *mcpWorld) (string, string) {
+				body, _ := json.Marshal(map[string]any{"client_id": cimdID, "client_name": "Doc Client", "redirect_uris": []string{"https://client.example/cb"}})
+				doc = &fakeCIMD{body: body}
+				w.svc.SetFetcher(doc)
+				return cimdID, "https://client.example/cb"
+			},
+			withdraw: func(t *testing.T, w *mcpWorld, _ string) {
+				// The document is gone and the 24 h cache has run out. The
+				// attempt itself stays live: the claim reads the database clock.
+				doc.err = fmt.Errorf("%w: status 404", errCIMDRejected)
+				w.svc.now = func() time.Time { return time.Now().Add(25 * time.Hour) }
+			},
+		},
+		"registered client swept": {
+			prepare: func(t *testing.T, w *mcpWorld) (string, string) {
+				return w.publicClient(t, "https://x.test/cb").ClientID, "https://x.test/cb"
+			},
+			withdraw: func(t *testing.T, w *mcpWorld, clientID string) {
+				if _, err := w.pool.Exec(w.ctx, `DELETE FROM mcp_clients WHERE client_id = $1`, clientID); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			w := newMcpWorld(t)
+			w.enable(t)
+			clientID, redirect := c.prepare(t, w)
+			id := w.startAttempt(t, McpClient{ClientID: clientID}, redirect, "")
+			c.withdraw(t, w, clientID)
+			_, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+			var ce CodedError
+			if !errors.As(err, &ce) || ce.Code != "client_unavailable" || ce.Status != http.StatusGone || ce.Msg == "" {
+				t.Fatalf("consent of a withdrawn client = %v, want CodedError client_unavailable (410) with a message", err)
+			}
+			if errors.Is(err, errMcpClientUnknown) || !errors.Is(err, ErrMcpClientUnavailable) {
+				t.Fatalf("err = %v, want it to wrap ErrMcpClientUnavailable and not the raw sentinel", err)
+			}
+		})
 	}
 }

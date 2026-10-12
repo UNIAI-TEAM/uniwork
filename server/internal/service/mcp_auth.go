@@ -98,6 +98,7 @@ var errInvalidGrant = OAuthError{Code: "invalid_grant", Description: "the author
 var (
 	ErrMcpCSRF              = errors.New("csrf_invalid")
 	ErrMcpAttemptExpired    = errors.New("attempt_expired")
+	ErrMcpClientUnavailable = errors.New("client_unavailable")
 	ErrMcpConnectorDisabled = errors.New("connector_disabled")
 	ErrMcpTokenInvalid      = errors.New("invalid_token")
 )
@@ -108,6 +109,14 @@ func mcpCSRFError() error {
 
 func mcpAttemptExpired() error {
 	return CodedError{Code: "attempt_expired", Status: http.StatusGone, Msg: "yêu cầu kết nối đã hết hạn; hãy bắt đầu lại từ ứng dụng AI", Err: ErrMcpAttemptExpired}
+}
+
+// mcpClientUnavailable is what the consent page hears when the client that
+// opened the attempt is gone by the time the person reads it (its metadata
+// document withdrawn, a registered client swept). Start refuses an unknown
+// client before any attempt exists, so this only happens in between.
+func mcpClientUnavailable() error {
+	return CodedError{Code: "client_unavailable", Status: http.StatusGone, Msg: "ứng dụng AI này không còn khả dụng; hãy bắt đầu lại từ ứng dụng AI", Err: ErrMcpClientUnavailable}
 }
 
 func errMcpConnectorDisabled() error {

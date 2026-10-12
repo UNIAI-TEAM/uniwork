@@ -112,6 +112,9 @@ func (s *McpAuthService) Consent(ctx context.Context, userID, attemptID string) 
 		return McpConsent{}, err
 	}
 	client, err := s.ResolveClient(ctx, row.ClientID)
+	if errors.Is(err, errMcpClientUnknown) {
+		return McpConsent{}, mcpClientUnavailable()
+	}
 	if err != nil {
 		return McpConsent{}, err
 	}
