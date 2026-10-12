@@ -40,6 +40,7 @@ export const paths = {
   features: () => "/features",
   feature: (slug: string) => `/features/${encodeURIComponent(slug)}`,
   learn: () => "/learn",
+  changelog: () => "/changelog",
   pricing: () => "/pricing",
   enterprise: () => "/enterprise",
   /**
@@ -117,6 +118,7 @@ export const GLOBAL_PREFIXES = [
   "/features",
   "/why-uniwork",
   "/learn",
+  "/changelog",
   "/pricing",
   "/enterprise",
 ] as const;

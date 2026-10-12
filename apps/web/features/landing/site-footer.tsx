@@ -90,6 +90,11 @@ export function SiteFooter() {
               </Link>
             </li>
             <li>
+              <Link className={LINK} href={paths.changelog()}>
+                {t("changelog.title")}
+              </Link>
+            </li>
+            <li>
               <a className={LINK} href={href(ANCHORS.roadmap)}>
                 {t("landing.footer.roadmap")}
               </a>

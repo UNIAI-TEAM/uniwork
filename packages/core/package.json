@@ -9,6 +9,7 @@
     "lint": "eslint . --max-warnings 0"
   },
   "exports": {
+    "./changelog": "./changelog/releases.ts",
     ".": "./index.ts",
     "./types": "./types/index.ts",
     "./api": "./api/index.ts",
