@@ -61,6 +61,7 @@ function builderTemplates(): string[] {
     paths.features(),
     paths.feature(ID),
     paths.learn(),
+    paths.changelog(),
     paths.pricing(),
     paths.enterprise(),
     paths.office(),

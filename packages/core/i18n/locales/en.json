@@ -1,4 +1,43 @@
 {
+  "changelog": {
+    "title": "Changelog",
+    "description": "New features, improvements and fixes in UniWork.",
+    "allReleases": "All releases",
+    "latest": "Latest",
+    "copyLink": "Copy link to version {{version}}",
+    "copied": "Release link copied",
+    "copyError": "Could not copy the link. You can copy the page address from your browser.",
+    "explore": "Explore the features",
+    "sections": {
+      "features": "New features",
+      "improvements": "Improvements",
+      "fixes": "Bug fixes"
+    },
+    "releases": {
+      "initial": {
+        "title": "Work, conversations and documents, together.",
+        "summary": "Version 1.0.0 brings the team's everyday tools into its organization workspace, from assigning work to meetings, conversations and documents.",
+        "features": {
+          "work": "Manage tasks and projects with status boards, assignees, due dates, comments and attachments.",
+          "chat": "Talk in your workspace with messages, replies and shared files, keeping the conversation close to the work.",
+          "meetings": "Schedule and join online meetings, with chat, notes and participant tracking in the meeting room.",
+          "office": "Open and work with Docs, Sheets, Slides, PDF, HTML and Markdown through UniWork Office's integrated editors.",
+          "email": "Connect mailboxes to Email Hub to read and send email, and see each account's connection state.",
+          "ask": "Ask UNI to find information and inspect its sources within your access permissions."
+        },
+        "improvements": {
+          "senderImages": "Allow images from trusted email senders and manage the list of senders you have approved.",
+          "connectionForms": "Mailbox connection forms explain missing information, connection state and the steps to reconnect.",
+          "publicPages": "Feature, solution and getting-started pages share their layout, illustrations and navigation."
+        },
+        "fixes": {
+          "mailboxStatus": "Account status reflects a disconnected mailbox, and the reconnect notice uses the screen's full width.",
+          "smallDialogs": "Form dialogs stay clear of small-screen edges and stack their leading content for easier interaction."
+        },
+        "note": "Email connections and AI features need the organization's corresponding configuration. Each feature follows the application's access permissions."
+      }
+    }
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -5316,6 +5355,10 @@
       }
     },
     "meta": {
+      "changelog": {
+        "title": "Changelog",
+        "description": "Follow UniWork features, improvements and bug fixes, release by release."
+      },
       "home": {
         "title": "UniWork Business OS",
         "description": "One platform where people and AI agents talk, plan, execute and turn knowledge into results."
