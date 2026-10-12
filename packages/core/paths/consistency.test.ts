@@ -63,6 +63,7 @@ function builderTemplates(): string[] {
     paths.learn(),
     paths.pricing(),
     paths.enterprise(),
+    paths.office(),
     paths.solutions.operations(),
     paths.whyUniwork(),
     paths.admin.root(),

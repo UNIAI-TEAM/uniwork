@@ -23,6 +23,7 @@ const GROUPS = [
 ] as const;
 const LINKS = [
   { label: "landing.workforce.badge", to: paths.feature("agents") },
+  { label: "landing.nav.office", to: paths.office() },
   { label: "landing.footer.pricing", to: paths.pricing() },
   { label: "landing.productPages.enterprise", to: paths.enterprise() },
 ] as const;
