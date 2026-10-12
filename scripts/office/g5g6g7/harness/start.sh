@@ -82,10 +82,14 @@ set +a
 # that the harness installs what it needs itself, so the gap is filled here — and
 # a gap that cannot be filled is BLOCKED with the reason, never an obscure
 # loader failure later. Detection only: the install runs after --dry-run.
+# The web dev server is started through pnpm, so the checkout must be installed.
+[ -d "$REPO_ROOT/node_modules" ] \
+  || blocked "this checkout has no node_modules" "run pnpm install (the cloud runner's install.sh does it)"
+
 NEED_XVFB=0
-command -v xvfb-run > /dev/null 2>&1 || NEED_XVFB=1
 LIBS_MISSING=()
 if [ "$SKIP_APP" != "1" ]; then
+  command -v xvfb-run > /dev/null 2>&1 || NEED_XVFB=1
   for lib in libnss3.so libatk-1.0.so.0 libgbm.so.1 libasound.so.2 libcups.so.2; do
     ldconfig -p 2> /dev/null | grep -q "$lib" || LIBS_MISSING+=("$lib")
   done
