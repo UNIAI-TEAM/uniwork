@@ -46,7 +46,7 @@ describe("desktop open rule of the module frames", () => {
     const props = frameDesktopOpen({ id: "doc-1", organization_id: "org-1", current_version: 4 }, "dep-1", "dev");
     await expect(props.downloadInstaller?.("linux-x64-deb")).resolves.toBe("UniWork-Office_0.11.0-dev.7_amd64.deb");
     expect(request).toHaveBeenCalledWith("/api/v1/office/desktop/download?organization_id=org-1&channel=dev&platform=linux-x64-deb");
-    expect(clicked).toEqual([{ href: url, download: "UniWork-Office_0.11.0-dev.7_amd64.deb", target: "_blank" }]);
+    expect(clicked).toEqual([{ href: url, download: "UniWork-Office_0.11.0-dev.7_amd64.deb", target: "" }]);
     expect(createObjectURL).not.toHaveBeenCalled();
     expect(document.querySelector("a[download]")).toBeNull();
     request.mockResolvedValueOnce(null);
