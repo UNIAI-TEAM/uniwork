@@ -2,13 +2,13 @@
 // captures against goldens built from them (green), and each planted pixel,
 // size or byte mutation (red, with the reason the contract names).
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { sha256Hex } from "../../../../../apps/web/platform/office-frame/frame-bundle.mjs";
 import { runBrandCheck } from "../brand-check.mjs";
 import { runGoldenCheck, updateGoldens } from "../golden-check.mjs";
-import { HOSTS, REPO_ROOT } from "../job-lib.mjs";
+import { DEFAULT_PIN_DIR, HOSTS, REPO_ROOT, sameRevision } from "../job-lib.mjs";
 import * as fx from "../test-fixtures/capture-fixtures.mjs";
 import { FAKE_CAPTURE } from "../test-fixtures/fake-capture.mjs";
 import { FIXTURES, JOB_DIR, ONE, outDir, readJson, tmpDir } from "../test-fixtures/test-env.mjs";
@@ -327,13 +327,30 @@ test("the job's fixtures are the six the G7-A04 row names", () => {
   assert.equal(FIXTURES.length, 6);
 });
 
-test("the committed goldens manifest is the schema, with no entries yet", () => {
+test("the committed goldens manifest matches its PNG files", () => {
   const manifest = readJson(join(JOB_DIR, "goldens", "manifest.json"));
+  const pin = readJson(join(DEFAULT_PIN_DIR, "docs.pin.json"));
   assert.equal(manifest.schema, 1);
-  assert.deepEqual(manifest.entries, {});
+  assert.deepEqual(manifest.viewport, { desktop: { w: 1440, h: 900 }, web: { w: 1720, h: 980 } });
+  assert.equal(manifest.pinVersion, pin.version);
+  assert.ok(sameRevision(manifest.forkSha, pin.gitSha), `${manifest.forkSha} vs ${pin.gitSha}`);
   assert.deepEqual(manifest.tolerance, { channel: 16, ratio: 0.001 });
   assert.deepEqual(manifest.maskLimits, { maxAreaSharePerMask: 0.05, maxAreaSharePerEntry: 0.1 });
-  assert.deepEqual(manifest.viewport, { desktop: { w: 1440, h: 900 }, web: { w: 1720, h: 980 } });
+  const expected = HOSTS.flatMap((host) => FIXTURES.map((fixture) => `${host}/${fixture}`));
+  assert.equal(expected.length, 12);
+  assert.deepEqual(Object.keys(manifest.entries).sort(), [...expected].sort());
+  for (const [key, entry] of Object.entries(manifest.entries)) {
+    const file = join(JOB_DIR, "goldens", `${key}.png`);
+    assert.ok(existsSync(file), `${key}: PNG missing`);
+    assert.equal(entry.sha256, sha256Hex(readFileSync(file)), `${key}: sha256 differs from the PNG on disk`);
+    assert.ok(Array.isArray(entry.masks), `${key}: masks is not an array`);
+  }
+  for (const host of HOSTS) {
+    const onDisk = readdirSync(join(JOB_DIR, "goldens", host)).filter((name) => name.endsWith(".png"));
+    for (const name of onDisk) {
+      assert.ok(`${host}/${name.slice(0, -4)}` in manifest.entries, `${host}/${name}: PNG without a manifest entry`);
+    }
+  }
 });
 
 test("golden: the old flat viewport shape in manifest.json is BLOCKED invalid_manifest, never read as one for both hosts", () => {
