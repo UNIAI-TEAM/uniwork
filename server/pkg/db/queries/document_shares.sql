@@ -23,6 +23,17 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND revoked_at IS NULL
 ORDER BY created_at, id;
 
+-- The live grants on a page of documents of one workspace, read once so a list
+-- can resolve every row's level without a query per row. Only the columns
+-- the level rule needs.
+-- name: ListLiveSharesForDocuments :many
+SELECT document_id, principal_type, principal_id, level
+FROM document_shares
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = ANY(sqlc.arg(document_ids)::text[])
+  AND revoked_at IS NULL;
+
 -- The live grant for a principal on a document, used when re-granting.
 -- name: GetDocumentShare :one
 SELECT *
