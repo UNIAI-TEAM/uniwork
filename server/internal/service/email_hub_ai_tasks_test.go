@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -78,5 +79,72 @@ func TestCreateTasksFromThreadSummaryKeepsTheHumanChoice(t *testing.T) {
 		if !strings.Contains(got.Description, want) {
 			t.Fatalf("description %q lacks %q", got.Description, want)
 		}
+	}
+}
+
+func TestCreateTasksFromThreadSummaryIsAtomicAndRetryable(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	svc.Tasks = NewTaskService(pool, q, svc.ws, nil)
+	account := seedEmailHubAccount(t, q, testEmailHubBox(t), user.ID, ws.OrganizationID)
+	thread := seedEmailHubThread(t, q, account.ID, ws.OrganizationID)
+
+	items := []SummaryTaskItem{
+		{Title: "Gọi khách hàng"},
+		{Title: "Gửi báo giá"},
+		{Title: "Chốt hợp đồng", Priority: "invalid"},
+	}
+	created, err := svc.CreateTasksFromThreadSummary(ctx, Human(user.ID), ws.ID, account.ID, thread.ID, items)
+	if err == nil {
+		t.Fatal("expected the third item to fail")
+	}
+	if len(created) != 0 {
+		t.Fatalf("failed batch returned %d partial tasks", len(created))
+	}
+	assertEmailSummaryTaskBatchState(t, ctx, svc.Tasks, q, ws, 0)
+
+	items[2].Priority = "low"
+	created, err = svc.CreateTasksFromThreadSummary(ctx, Human(user.ID), ws.ID, account.ID, thread.ID, items)
+	if err != nil {
+		t.Fatalf("valid retry: %v", err)
+	}
+	if len(created) != len(items) {
+		t.Fatalf("created %d tasks, want %d", len(created), len(items))
+	}
+	for i, task := range created {
+		if task.Title != items[i].Title {
+			t.Fatalf("task %d title = %q, want %q", i, task.Title, items[i].Title)
+		}
+	}
+	assertEmailSummaryTaskBatchState(t, ctx, svc.Tasks, q, ws, len(items))
+}
+
+func assertEmailSummaryTaskBatchState(
+	t *testing.T,
+	ctx context.Context,
+	tasks *TaskService,
+	q *db.Queries,
+	ws db.Workspace,
+	want int,
+) {
+	t.Helper()
+	rows, err := tasks.List(ctx, ws.CreatedBy, ws.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != want {
+		t.Fatalf("persisted tasks = %d, want %d", len(rows), want)
+	}
+	audits, err := q.ListAuditEvents(ctx, db.ListAuditEventsParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    pgtype.Text{String: ws.ID, Valid: true},
+		Action:         pgtype.Text{String: "task.created", Valid: true},
+		LimitN:         100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(audits) != want {
+		t.Fatalf("task.created audits = %d, want %d", len(audits), want)
 	}
 }

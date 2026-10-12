@@ -361,6 +361,37 @@ func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID strin
 	return task, nil
 }
 
+// CreateMany creates every input in one transaction. Membership and the
+// workspace are resolved once, while each task still goes through the same
+// validation, entitlement, audit, and outbox path as Create.
+func (s *TaskService) CreateMany(ctx context.Context, actor Actor, workspaceID string, inputs []CreateTaskInput) ([]db.Task, error) {
+	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+		return nil, err
+	}
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	tasks := make([]db.Task, 0, len(inputs))
+	for _, in := range inputs {
+		task, err := s.createTaskInTx(ctx, q, actor, ws, workspaceID, in)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
 // createTaskInTx inserts a task and its audit/outbox rows using q (caller owns the tx).
 func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor Actor, ws db.Workspace, workspaceID string, in CreateTaskInput) (db.Task, error) {
 	if strings.TrimSpace(in.Title) == "" {

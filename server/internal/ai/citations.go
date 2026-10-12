@@ -143,6 +143,15 @@ func ParseEmailThreadSummaryJSON(s string) (EmailThreadSummary, error) {
 	if out.ActionItems == nil {
 		out.ActionItems = []ActionItem{}
 	}
+	kept := make([]ActionItem, 0, len(out.ActionItems))
+	for _, item := range out.ActionItems {
+		item.Title = strings.TrimSpace(item.Title)
+		if item.Title == "" {
+			continue
+		}
+		kept = append(kept, item)
+	}
+	out.ActionItems = kept
 	return out, nil
 }
 
