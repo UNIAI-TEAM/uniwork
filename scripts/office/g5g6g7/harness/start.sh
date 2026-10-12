@@ -30,6 +30,15 @@ FORK_CACHE="${OFFICE_FORK_CACHE:-$HOME/.cache/uniwork-office-harness}"
 DRY_RUN="${HARNESS_DRY_RUN:-0}"
 SKIP_APP="${HARNESS_SKIP_APP:-0}"
 
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=1 ;;
+    --skip-app) SKIP_APP=1 ;;
+    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "start.sh: unknown argument $arg" >&2; exit 2 ;;
+  esac
+done
+
 mkdir -p "$RUN_DIR/logs" "$RUN_DIR/userdata"
 
 blocked() { # blocked <what is missing> <what would fix it>
