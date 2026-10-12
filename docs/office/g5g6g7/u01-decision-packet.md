@@ -1,6 +1,6 @@
 # UniWork Office G5/G6/G7 — Gói quyết định U-01 (spine UX, đóng G5-D3)
 
-> **Trạng thái:** in-progress — draft chờ người dùng ký
+> **Trạng thái:** shipped — người dùng ký 2026-10-12 (U-15, "duyệt theo gợi ý"); U-01 áp các câu trả lời vào EXPERIENCE.md
 
 **Issue:** UNI-1341 (U-01), parent UNI-660 (`Refs: UNI-635`), tài liệu UNI-923.
 **Đầu vào:** [EXPERIENCE.md](ux/EXPERIENCE.md) › Open questions (dòng 1003–1018) và String catalogue (dòng 731–1002), plan

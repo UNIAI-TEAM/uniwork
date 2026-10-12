@@ -1,6 +1,6 @@
 # UniWork Office G5/G6/G7 — Gói hợp đồng P0 (X-01)
 
-> **Trạng thái:** in-progress — draft chờ người dùng ký
+> **Trạng thái:** in-progress — người dùng đã ký lô #1 ngày 2026-10-12 (U-15, "duyệt theo gợi ý": mọi khuyến nghị ở đây có hiệu lực); còn chờ điền N′ (bản dev đầu tiên có G5-04g), lệnh harness (g7-qa) và số G6-D1 (báo cáo G6-02)
 
 **Issue:** UNI-1338 (X-01), parent UNI-660 (`Refs: UNI-635, UNI-661`), tài liệu UNI-923.
 **Nguồn ràng buộc:** [spec v1.2](../../superpowers/specs/2026-10-02-office-g5-g6-g7-design.md) (duyệt U-13),
