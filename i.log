@@ -1,0 +1,10 @@
+$ cd apps/pdf && npx vitest run tests/g6-12-pdf-ask.test.ts tests/g6-12-pdf-bound.test.ts tests/g6-12-pdf-fetch-guard.test.ts tests/g6-12-pdf-flags.test.ts tests/uniwork-view-only-ai.test.ts
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/pdf
+
+
+ Test Files  5 passed (5)
+      Tests  78 passed (78)
+   Start at  14:35:36
+   Duration  2.11s (transform 2.23s, setup 298ms, import 2.95s, tests 125ms, environment 1.86s)
+

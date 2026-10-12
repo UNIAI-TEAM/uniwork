@@ -1,0 +1,13 @@
+$ npx eslint apps/html/src/renderer/ai/tools.ts apps/html/tests/g6-12-html-ask-flag.test.ts apps/pdf/src/renderer/App.tsx apps/pdf/src/renderer/ai/AiPanel.tsx apps/pdf/src/renderer/ai/ClarifyCard.tsx apps/pdf/src/renderer/ai/pdf-skill.ts apps/pdf/src/renderer/ai/tools.ts apps/pdf/src/renderer/ai/use-clarify.ts apps/pdf/tests/g6-12-pdf-ask.test.ts apps/pdf/tests/g6-12-pdf-bound.test.ts apps/pdf/tests/g6-12-pdf-fetch-guard.test.ts apps/pdf/tests/g6-12-pdf-flags.test.ts apps/pdf/tests/uniwork-view-only-ai.test.ts
+
+/home/ubuntu/work/uniwork-office/apps/pdf/src/renderer/App.tsx
+  2126:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+  2160:6  warning  React Hook useEffect has a missing dependency: 'resolveDocFont'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  3501:6  warning  React Hook useEffect has a missing dependency: 't'. Either include it or remove the dependency array               react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/pdf/src/renderer/ai/AiPanel.tsx
+  327:5  warning  React Hook useEffect has a missing dependency: 'clarify'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 4 problems (0 errors, 4 warnings)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

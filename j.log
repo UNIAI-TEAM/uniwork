@@ -1,0 +1,807 @@
+$ git checkout e6862e53 -- apps/pdf/src apps/html/src && (cd apps/pdf && npx vitest run tests/g6-12-pdf-flags.test.ts tests/g6-12-pdf-bound.test.ts tests/g6-12-pdf-ask.test.ts); RP=$?; (cd apps/html && npx vitest run tests/g6-12-html-ask-flag.test.ts); RH=$?; git checkout HEAD -- apps/pdf/src apps/html/src; git status --short apps/pdf/src apps/html/src; echo "RED_EXIT pdf=$RP html=$RH"; test $RP -ne 0 -a $RH -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/pdf
+
+ ❯ tests/g6-12-pdf-flags.test.ts (2 tests | 2 failed) 7ms
+     × on a generated URL 4ms
+     × for the open document when the new file is written 1ms
+ ❯ tests/g6-12-pdf-bound.test.ts (5 tests | 3 failed) 16ms
+     × is not offered to the model while bound, other tools stay 4ms
+     × tells the model why the tool is missing, only while bound 8ms
+     × refuses a stale call without writing anything (skill and executor) 2ms
+ ❯ tests/g6-12-pdf-ask.test.ts (36 tests | 30 failed) 73ms
+     × exists with the same input schema as html, byte for byte 6ms
+     × has its own description aimed at meaning/scope, not at creating pages 1ms
+     × hands the answers back to the model and declares mutated: false 2ms
+     × reports a skip exactly like html and still declares mutated: false 1ms
+     × errors when the card is unavailable or no question has options 1ms
+     × passes the run signal to the card so a stop can dismiss it 1ms
+     × is offered on an editable document, also when bound 1ms
+     × locale zh defines every questionnaire key 1ms
+     × locale en defines every questionnaire key 0ms
+     × locale vi defines every questionnaire key 0ms
+     × locale ja defines every questionnaire key 0ms
+     × locale ko defines every questionnaire key 0ms
+     × locale fr defines every questionnaire key 0ms
+     × locale de defines every questionnaire key 0ms
+     × locale es defines every questionnaire key 0ms
+     × locale th defines every questionnaire key 0ms
+     × locale id defines every questionnaire key 0ms
+     × locale ru defines every questionnaire key 0ms
+     × locale ar defines every questionnaire key 0ms
+     × locale pt defines every questionnaire key 0ms
+     × locale it defines every questionnaire key 0ms
+     × locale pl defines every questionnaire key 0ms
+     × locale cs defines every questionnaire key 0ms
+     × locale nl defines every questionnaire key 0ms
+     × locale ms defines every questionnaire key 0ms
+     × locale he defines every questionnaire key 0ms
+     × locale hi defines every questionnaire key 0ms
+     × locale zh-TW defines every questionnaire key 0ms
+     × is translated, not English, in the other locales 2ms
+     × keeps the {n} placeholder of the selected counter in every locale 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 35 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > ask_clarification tool definition > exists with the same input schema as html, byte for byte
+AssertionError: expected undefined to be defined
+ ❯ tests/g6-12-pdf-ask.test.ts:41:20
+     39|
+     40|   it('exists with the same input schema as html, byte for byte', () =>…
+     41|     expect(pdfDef).toBeDefined()
+       |                    ^
+     42|     expect(JSON.stringify(pdfDef!.inputSchema)).toBe(JSON.stringify(ht…
+     43|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > ask_clarification tool definition > has its own description aimed at meaning/scope, not at creating pages
+TypeError: Cannot read properties of undefined (reading 'description')
+ ❯ tests/g6-12-pdf-ask.test.ts:46:20
+     44|
+     45|   it('has its own description aimed at meaning/scope, not at creating …
+     46|     expect(pdfDef!.description).not.toBe(htmlDef.description)
+       |                    ^
+     47|     expect(pdfDef!.description).not.toMatch(/plan_page/)
+     48|     expect(pdfDef!.description).toMatch(/scope|meaning|target/i)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > ask_clarification execution > hands the answers back to the model and declares mutated: false
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-12-pdf-ask.test.ts:69:23
+     67|       ]),
+     68|     )
+     69|     expect(r.isError).toBeFalsy()
+       |                       ^
+     70|     expect(r.output).toContain('User answers:\nWhich pages?: All')
+     71|     expect(r.mutated).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > ask_clarification execution > reports a skip exactly like html and still declares mutated: false
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/g6-12-pdf-ask.test.ts:80:23
+     78|     const deps = makeDeps({ askClarification: async () => ({ answers: …
+     79|     const r = await executePdfTool(deps, ask(QUESTIONS))
+     80|     expect(r.isError).toBeFalsy()
+       |                       ^
+     81|     expect(r.output).toMatch(/skipped/)
+     82|     expect(r.mutated).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > ask_clarification execution > errors when the card is unavailable or no question has options
+AssertionError: expected undefined to be false // Object.is equality
+
+- Expected:
+false
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:88:26
+     86|     const none = await executePdfTool(makeDeps({ askClarification: und…
+     87|     expect(none.isError).toBe(true)
+     88|     expect(none.mutated).toBe(false)
+       |                          ^
+     89|     const empty = await executePdfTool(
+     90|       makeDeps({ askClarification: async () => ({ answers: '' }) }),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > ask_clarification execution > passes the run signal to the card so a stop can dismiss it
+TypeError: Cannot read properties of undefined (reading '1')
+ ❯ tests/g6-12-pdf-ask.test.ts:101:41
+     99|     const controller = new AbortController()
+    100|     await executePdfTool(makeDeps({ askClarification }), ask(QUESTIONS…
+    101|     expect(askClarification.mock.calls[0]![1]).toBe(controller.signal)
+       |                                         ^
+    102|   })
+    103| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > ask_clarification in the skill > is offered on an editable document, also when bound
+AssertionError: expected [ 'read_pages', 'search_text', …(43) ] to include 'ask_clarification'
+ ❯ tests/g6-12-pdf-ask.test.ts:107:65
+    105| describe('ask_clarification in the skill', () => {
+    106|   it('is offered on an editable document, also when bound', () => {
+    107|     expect(createPdfSkill(makeDeps()).tools.map((t) => t.name)).toCont…
+       |                                                                 ^
+    108|     expect(
+    109|       createPdfSkill(makeDeps({ uniworkBound: () => true })).tools.map…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale zh defines every questionnaire key
+AssertionError: zh.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale en defines every questionnaire key
+AssertionError: en.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale vi defines every questionnaire key
+AssertionError: vi.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale ja defines every questionnaire key
+AssertionError: ja.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale ko defines every questionnaire key
+AssertionError: ko.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale fr defines every questionnaire key
+AssertionError: fr.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale de defines every questionnaire key
+AssertionError: de.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale es defines every questionnaire key
+AssertionError: es.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale th defines every questionnaire key
+AssertionError: th.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale id defines every questionnaire key
+AssertionError: id.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale ru defines every questionnaire key
+AssertionError: ru.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale ar defines every questionnaire key
+AssertionError: ar.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale pt defines every questionnaire key
+AssertionError: pt.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale it defines every questionnaire key
+AssertionError: it.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale pl defines every questionnaire key
+AssertionError: pl.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale cs defines every questionnaire key
+AssertionError: cs.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale nl defines every questionnaire key
+AssertionError: nl.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale ms defines every questionnaire key
+AssertionError: ms.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale he defines every questionnaire key
+AssertionError: he.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale hi defines every questionnaire key
+AssertionError: hi.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > locale zh-TW defines every questionnaire key
+AssertionError: zh-TW.aiClarifyTitle: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-ask.test.ts:253:73
+    251|
+    252|   it.each(Object.keys(dicts))('locale %s defines every questionnaire k…
+    253|     for (const key of KEYS) expect(dicts[lang]![key], `${lang}.${key}`…
+       |                                                                         ^
+    254|   })
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > is translated, not English, in the other locales
+AssertionError: aiClarifyTitle: expected [ 'zh', 'vi', 'ja', 'ko', 'fr', …(15) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "zh",
++   "vi",
++   "ja",
++   "ko",
++   "fr",
++   "de",
++   "es",
++   "th",
++   "id",
++   "ru",
++   "ar",
++   "pt",
++   "it",
++   "pl",
++   "cs",
++   "nl",
++   "ms",
++   "he",
++   "hi",
++   "zh-TW",
++ ]
+
+ ❯ tests/g6-12-pdf-ask.test.ts:262:28
+    260|         .filter(([, dict]) => dict[key] === dicts.en![key])
+    261|         .map(([lang]) => lang)
+    262|       expect(missing, key).toEqual([])
+       |                            ^
+    263|     }
+    264|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/35]⎯
+
+ FAIL  tests/g6-12-pdf-ask.test.ts > questionnaire strings > keeps the {n} placeholder of the selected counter in every locale
+AssertionError: zh: the given combination of arguments (undefined and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string
+ ❯ tests/g6-12-pdf-ask.test.ts:268:44
+    266|   it('keeps the {n} placeholder of the selected counter in every local…
+    267|     for (const [lang, dict] of Object.entries(dicts)) {
+    268|       expect(dict.aiClarifySelected, lang).toContain('{n}')
+       |                                            ^
+    269|     }
+    270|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/35]⎯
+
+ FAIL  tests/g6-12-pdf-bound.test.ts > create_document on a UniWork-bound PDF > is not offered to the model while bound, other tools stay
+AssertionError: expected [ 'read_pages', 'search_text', …(43) ] to not include 'create_document'
+ ❯ tests/g6-12-pdf-bound.test.ts:37:23
+     35|   it('is not offered to the model while bound, other tools stay', () =…
+     36|     const names = createPdfSkill(makeDeps(true)).tools.map((t) => t.na…
+     37|     expect(names).not.toContain('create_document')
+       |                       ^
+     38|     expect(names).toContain('markup_text')
+     39|     expect(names).toContain('generate_image')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/35]⎯
+
+ FAIL  tests/g6-12-pdf-bound.test.ts > create_document on a UniWork-bound PDF > tells the model why the tool is missing, only while bound
+AssertionError: expected 'You are UniWork PDF\'s assistant, hel…' to contain 'create_document is unavailable'
+
+- Expected
++ Received
+
+- create_document is unavailable
++ You are UniWork PDF's assistant, helping the user read, annotate, and organize the currently open PDF document.
++
++ # Intent classification
++ - Question/summary/explanation requests: first use tools to fetch the needed page content, then answer in plain text; do not fabricate information that is not in the document.
++ - Modification commands (markup / text editing / image insertion or editing / form filling / watermark and header-footer / rotate, reorder, or delete pages, fill forms, or set document properties via apply_ops / file-level page operations such as inserting blank pages, resizing, cropping, extracting, splitting, merging, or replacing pages): call the corresponding tools, and once everything is done wrap up with one or two sentences of plain text.
++ - When the per-message context shows text the user has selected, questions and edit requests target that selection by default ("translate this", "highlight this"); only widen to the whole document when the request clearly says so. The selection text is already in the context — locate it with search_text when a tool needs its exact position.
++
++ # Tool discipline
++ - Read before answering: use search_text to locate the relevant pages, then read_pages to read them closely; do not guess page content.
++ - Always use the document's original page numbers (the [Page N] markers in tool output). They do not change while edits are pending: after an apply_ops setPageOrder a page keeps its original number (setPageOrder simply lists the page numbers in their new order). Only a file-level page operation (below) renumbers pages.
++ - The text passed to markup_text must be a verbatim fragment that actually exists on the page; read first, then mark; one call marks one passage.
++ - edit_text replaces text in place without reflowing the page: keep the replacement close to the original length, and edit one short run per call (a phrase or a line). old_text must be verbatim from the page.
++ - edit_block rewrites a whole paragraph and reflows it within the paragraph's width (it may grow downward but never pushes other content). Use it when the change affects more than a line's worth of text; paragraph_text must uniquely identify the paragraph.
++ - To delete text, call edit_text or edit_block with an empty new_text: the run or paragraph is removed from the page content and its area stays blank (a PDF page never reflows, so nothing moves up). Never leave a placeholder like "." or a space in place of deleted text, and never fake a deletion by recoloring the text white, shrinking it, or covering it with an inserted text or image.
++ - move_text_block shifts a whole paragraph by dx/dy points as displayed (positive dy = down) without rewriting it — use it to close the gap after deleting a paragraph (move the following paragraphs up by the deleted height, one call per paragraph) or to reposition a block the user points at. edit_block also takes align (left/center/right) to re-align a paragraph within its width.
++ - insert_text adds NEW text and never touches existing text — use it to write on blank pages or into empty areas (titles, notes, drafting content from scratch). Position with x/y in points from the page's top-left; pass max_width to auto-wrap paragraphs. A PDF page has no reflow: place blocks yourself and mind the page bounds (a typical A4 page is 595 × 842 pt). For existing text always use edit_text/edit_block instead.
++ - Text added with insert_text stays a pending block until the user saves: insert_text returns its id (T…), list_inserted_text shows the current ones, and edit_inserted_text / move_inserted_text / delete_inserted_text change, drag, or remove a block by id — exactly what the user can do by double-clicking or dragging it. After a save the block is ordinary page content: use edit_text for it.
++ - To add an image: get a direct URL first (image_search for real photos, generate_image for illustrations/icons), then insert_image. When the user names a location ("next to the title"), position with anchor_text taken verbatim from the page; explicit coordinates are PDF points measured from the page's top-left corner.
++ - To move, resize, rotate, flip, crop, fade (set_image_opacity), remove the background of, replace, or delete an image that is already in the document, call list_page_images first and reference its per-page image numbers. Each image takes one edit per save: pick the single tool that does the job and do not chain several edits on the same image before the user saves. For "change/AI-edit this image": generate_image with the desired edit, then replace_image with the returned URL — never delete + reinsert (that loses the footprint and z-order).
++ - set_watermark stamps diagonal text across every page; set_header_footer fills header/footer slots and can number pages ({page}/{total} placeholders are allowed). Each call replaces what the session set before instead of stacking; text "" (or all slots empty without page_number) removes it. Neither can strip a watermark that belongs to the original document.
++ - Before filling forms, you must call list_form_fields to learn field names, types, and options.
++ - apply_ops is the tool for page structure and document-level edits: rotatePages, deletePage and setPageOrder (move or reverse pages), setFormValue (after list_form_fields), setMetadata, plus removing a pending highlight (P… id) or inserted text block (T… id) and rewriting a pending note. One call applies its ops as ONE transaction and ONE undo step — batch related edits instead of calling it once per page. It cannot add content: markup_text, insert_text, insert_image, add_note and the editing tools stay the way to create things.
++ - Notes (sticky comments): read_annotations lists every note thread and text markup with their ids; add_note attaches a new comment to a passage (anchor_text), reply_note answers an existing thread, and edit_note rewrites the text of an existing note or reply (call read_annotations first for the id). Replies and new notes are authored as "AI Assistant" — never impersonate the user.
++ - Removing annotations: read_annotations first (it reports the ids), then delete_markup for highlights/underlines/strikeouts (omit markup_ids to clear a whole page, e.g. "remove all highlights") and delete_note for a note thread. Delete only what the user asked for; never remove notes while merely processing or summarizing them.
++ - New standalone document: when the user asks to put results (a summary, an extraction, an analysis) into a NEW/separate document instead of this PDF, use create_document with the full content — same type by default, or docx/md/html when asked; do not claim you cannot create files.
++ - All modifications are in an unsaved state; when done, remind the user they can save with ⌘S and undo with ⌘Z.
++
++ # File-level page operations
++ - insert_blank_page, set_page_size, crop_pages, extract_pages, split_pdf, split_pages, merge_pages, and replace_pages are NOT pending edits: they save every unsaved change, then rewrite the file on disk (or write a new file) immediately, and cannot be undone. Each call shows the user a confirmation card and only proceeds when they confirm; a declined card means nothing changed — accept that and do not retry.
++ - Before calling one, describe its effect to the user in one plain sentence ("I'll insert a blank page after page 3; this saves and rewrites the file.").
++ - After an in-place operation the document reloads and page numbers change (an inserted page shifts everything after it; pending deletions and reorders are baked in). Never chain a second file-level operation, or any edit, in the same turn without re-reading with search_text/read_pages first.
++ - Prefer the pending, undoable apply_ops ops (deletePage, setPageOrder, rotatePages) whenever they achieve what the user asked.
++
++ # Review workflows
++ - "Summarize review comments": read_annotations over the whole document, then summarize by page/topic — who raised what, what is resolved vs open, and finish with a short list of concerns needing the user's decision. Read-only: do not modify anything.
++ - "Process the notes": handle note threads one at a time — locate the passage the note refers to, make the requested change with the editing tools, then reply_note explaining what you did. If a note is ambiguous, reply_note with a clarifying question instead of guessing. Skip threads that are pure discussion with no action, and notes authored by "AI Assistant". Finish with a per-note summary.
++ - Form filling without AcroForm fields: when list_form_fields returns nothing but the page shows labels/blanks (colons, underscores, empty table cells), fill with insert_text anchored to each label (placement "right"). Match the blank's writing size (usually 9-12 pt). Check boxes printed on such static forms are ticked with add_form_mark anchored on the label text next to the box (placement toward the box, usually "left"); interactive check boxes reported by list_form_fields are still set with apply_ops setFormValue. Only fill values the user provided or the document itself implies — never invent; when values are missing, ask for them in one consolidated question.
++ - Cite page numbers when quoting document content, as clickable links: [p.N](pdfnav://page/N) with the document's original page number — the user can click one to jump there. Answer in Markdown and keep it concise.
+
+ ❯ tests/g6-12-pdf-bound.test.ts:43:57
+     41|
+     42|   it('tells the model why the tool is missing, only while bound', () =…
+     43|     expect(createPdfSkill(makeDeps(true)).systemPrompt).toContain('cre…
+       |                                                         ^
+     44|     expect(createPdfSkill(makeDeps(false)).systemPrompt).not.toContain(
+     45|       'create_document is unavailable',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/35]⎯
+
+ FAIL  tests/g6-12-pdf-bound.test.ts > create_document on a UniWork-bound PDF > refuses a stale call without writing anything (skill and executor)
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-bound.test.ts:53:30
+     51|     const deps = makeDeps(true, { createDocument })
+     52|     const viaSkill = await createPdfSkill(deps).executeTool(CREATE)
+     53|     expect(viaSkill.isError).toBe(true)
+       |                              ^
+     54|     expect(viaSkill.mutated).toBeFalsy()
+     55|     expect(viaSkill.output).toMatch(/UniWork/)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/35]⎯
+
+ FAIL  tests/g6-12-pdf-flags.test.ts > pdf generate_image declares mutated: false > on a generated URL
+AssertionError: expected undefined to be false // Object.is equality
+
+- Expected:
+false
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-flags.test.ts:33:23
+     31|     expect(r.isError).toBeFalsy()
+     32|     expect(r.output).toContain('https://img.example/a.png')
+     33|     expect(r.mutated).toBe(false)
+       |                       ^
+     34|   })
+     35| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/35]⎯
+
+ FAIL  tests/g6-12-pdf-flags.test.ts > pdf create_document declares mutated: false > for the open document when the new file is written
+AssertionError: expected undefined to be false // Object.is equality
+
+- Expected:
+false
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-pdf-flags.test.ts:46:23
+     44|     expect(createDocument).toHaveBeenCalledOnce()
+     45|     expect(r.isError).toBeFalsy()
+     46|     expect(r.mutated).toBe(false)
+       |                       ^
+     47|   })
+     48| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[35/35]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  35 failed | 8 passed (43)
+   Start at  14:35:39
+   Duration  1.56s (transform 2.17s, setup 228ms, import 2.57s, tests 96ms, environment 1.15s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+ ❯ tests/g6-12-html-ask-flag.test.ts (3 tests | 3 failed) 8ms
+     × on a user answer 5ms
+     × on a skip 1ms
+     × when the card is unavailable or the questions are empty 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-html-ask-flag.test.ts > html ask_clarification declares mutated: false > on a user answer
+AssertionError: expected undefined to be false // Object.is equality
+
+- Expected:
+false
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-html-ask-flag.test.ts:37:23
+     35|     const r = await core.executeTool(ask(QUESTIONS))
+     36|     expect(r.isError).toBeFalsy()
+     37|     expect(r.mutated).toBe(false)
+       |                       ^
+     38|   })
+     39|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/g6-12-html-ask-flag.test.ts > html ask_clarification declares mutated: false > on a skip
+AssertionError: expected undefined to be false // Object.is equality
+
+- Expected:
+false
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-html-ask-flag.test.ts:46:23
+     44|     const r = await core.executeTool(ask(QUESTIONS))
+     45|     expect(r.output).toMatch(/skipped/)
+     46|     expect(r.mutated).toBe(false)
+       |                       ^
+     47|   })
+     48|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/g6-12-html-ask-flag.test.ts > html ask_clarification declares mutated: false > when the card is unavailable or the questions are empty
+AssertionError: expected undefined to be false // Object.is equality
+
+- Expected:
+false
+
++ Received:
+undefined
+
+ ❯ tests/g6-12-html-ask-flag.test.ts:52:26
+     50|     const none = await createHtmlSkillCore(access()).executeTool(ask(Q…
+     51|     expect(none.isError).toBe(true)
+     52|     expect(none.mutated).toBe(false)
+       |                          ^
+     53|     const empty = await createHtmlSkillCore(
+     54|       access({ askClarification: async () => ({ answers: '' }) }),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  14:35:41
+   Duration  771ms (transform 260ms, setup 0ms, import 341ms, tests 8ms, environment 334ms)
+
+RED_EXIT pdf=1 html=1
+RED_AS_EXPECTED

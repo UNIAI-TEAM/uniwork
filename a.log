@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4
+de305c1901932d3fa4d2ed4695a81cc7ab2b133e
+e6862e5302805bd6a25893e6ff2c082a2dca3a34
+de305c19 test(pdf): pin the SSRF guard and size cap behind insert_image/replace_image
+3a173635 feat(pdf): ask_clarification tool with questionnaire card in the AI panel
+3d2e95c9 test(pdf): ask_clarification tool, card, blocking hook and strings (C-ASK)
+5616a235 fix(pdf): hide and refuse create_document for a UniWork-bound PDF
