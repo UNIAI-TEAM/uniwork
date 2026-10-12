@@ -212,15 +212,15 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 
 - **Tên công cụ:** 135 dòng, khớp đúng tập tên của các bảng tay §4 theo từng module — docs 37, markdown 9, html 8, sheets 18,
   slides 18, pdf 45; `agent-core` không có dòng nào. Không thiếu, không thừa, không trùng.
-- **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Có 19 chỗ hai cột
-  khác nhau, chia thành bốn nhóm dưới đây. (Bản trước của tài liệu này có 26 chỗ: 9 ô `editor_write` bị extractor ghi `yes` thừa — docs
+- **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Có 20 chỗ hai cột
+  khác nhau, chia thành ba nhóm dưới đây. (Bản trước của tài liệu này có 26 chỗ: 9 ô `editor_write` bị extractor ghi `yes` thừa — docs
   `web_search`, `image_search`, `analyze_media`, `create_document`, `set_watermark`; sheets `find_cells`, `select_range`,
   `trace_precedents`, `trace_dependents`. Lỗi ở script, đã sửa tại fork `e8a692c`; các ô đó nay là `no` trong khối §3.) Cột cơ học không sửa tay; chỗ nào code sai thì sửa ở G6-12, rồi chạy lại script.
 
 | nhóm | module / tool | cơ học | tay | giải thích |
 | --- | --- | --- | --- | --- |
 | A. Code khai báo `false` nhưng công cụ có đổi tài liệu | docs `resolve_comment`, `set_header_footer`, `define_style`, `set_page_setup`, `set_watermark` | `no` | có | Cột cơ học làm đúng theo khai báo; khai báo sai (§4.2 ghi chú, §9 dòng 5). |
-| B. Ghi ra ngoài tài liệu | sheets `create_document`; slides `save_style_template`; pdf `insert_blank_page`, `set_page_size`, `crop_pages`, `extract_pages`, `split_pdf`, `split_pages`, `merge_pages`, `replace_pages` | `no` / `yes` | file | `editor_write` chỉ nói về tài liệu đang mở. Cột tay ghi `file` vì công cụ ghi file, lưu, hoặc tạo version (§5 (c)). Các công cụ cấp file của pdf vừa đổi tài liệu (`yes`) vừa ghi file. |
+| B. Ghi ra ngoài tài liệu | docs `create_document`; sheets `create_document`; slides `save_style_template`; pdf `insert_blank_page`, `set_page_size`, `crop_pages`, `extract_pages`, `split_pdf`, `split_pages`, `merge_pages`, `replace_pages` | `no` / `yes` | file | `editor_write` chỉ nói về tài liệu đang mở. Cột tay ghi `file` vì công cụ ghi file, lưu, hoặc tạo version (§5 (c)). Các công cụ cấp file của pdf vừa đổi tài liệu (`yes`) vừa ghi file. |
 | C. Code không khai báo gì | html `ask_clarification`, pdf `generate_image` | `undeclared` | không | Hai công cụ này không đổi tài liệu, chỉ thiếu khai báo `mutated: false`. G6-12 nên thêm để cột cơ học thành `no`. |
 | C. Code không khai báo gì | sheets `merge_attached_workbooks`, pdf `create_document` | `undeclared` | có / file | `merge_attached_workbooks` ghi sheet vào workbook nhưng không đặt `mutated: true`, nên không có snapshot rollback. `create_document` của pdf ghi file mới. G6-12 cần khai báo đúng. |
 
@@ -289,7 +289,7 @@ view-only) chỉ giữ `READ_ONLY_TOOLS` (`docs-skill.ts:37-46`), công cụ kh�
 | insert_chart | cả hai | kind (bar/line/pie), categories, series → ack | giá trị ép về số hữu hạn hoặc null | có | |
 | edit_chart | cả hai | blockIndex, title, categories, series → ack | số điểm phải khớp bản gốc | có | |
 | set_header_footer | cả hai | kind, text, view → ack | 2 000 ký tự (`docs/ai/tools.ts:1890`) | có (code khai báo `false`, `tools.ts:1901`) | ngoài cây ProseMirror: rollback không trả lại |
-| create_document | **chỉ desktop**, gate `createDocument` | type (docx/pdf/md/html), title, content → đường dẫn | title làm sạch 80 ký tự; không trần kích thước nội dung | không (đúng: không đổi tài liệu đang mở) | **ghi file mới ra đĩa**, xem §5 (c) |
+| create_document | **chỉ desktop**, gate `createDocument` | type (docx/pdf/md/html), title, content → đường dẫn | title làm sạch 80 ký tự; không trần kích thước nội dung | file (không đổi tài liệu đang mở; ghi file mới, xem §5 (c)) | **ghi file mới ra đĩa**, xem §5 (c) |
 | define_style | cả hai | styleId, name, type, pPr/rPr → ack | styleId `^[A-Za-z0-9_-]{1,64}$`, heading 1–9 | có (code khai báo `false`, `tools.ts:1991`) | mô tả nhắc `apply_style` — không tồn tại, đúng là op `applyStyle` của `apply_ops` (`docs/ai/style-ops.ts:51-54`) |
 | list_styles | cả hai | — → danh mục style | — | không | bị lọc ở view-only dù chỉ đọc |
 | set_page_setup | cả hai | section/blockIndex, khổ, hướng, lề, cột → từng section | lề ≤ 50 400 twip, cột 1–12 (`docs/ai/page-setup.ts:89`, `page-setup.ts:410`) | có (code khai báo `false`, `tools.ts:1945`) | ngoài cây ProseMirror |
