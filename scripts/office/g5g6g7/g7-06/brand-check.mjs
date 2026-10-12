@@ -1,6 +1,7 @@
 // The `brand` check (contract 2.4): the rendered text the capture provider
 // wrote per fixture, after NFKC, minus format and combining marks, lowercased,
-// with whitespace / '-' / '_' / '.' between letters collapsed. `genoffice` or
+// with Cyrillic/Greek look-alikes folded to ASCII (F-06) and whitespace /
+// '-' / '_' / '.' between letters collapsed. `genoffice` or
 // `genspark` in that form is a FAIL, and so is a blank render: an empty or
 // under-20-visible-character .txt cannot pass a brand check.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -12,12 +13,25 @@ const VISIBLE = /[^\s\p{Cc}\p{Cf}\p{Mn}]/gu;
 /** A render under this many visible characters is a failure, not a check (2.4). */
 export const MIN_VISIBLE_CHARS = 20;
 
+/**
+ * The common Latin look-alikes of Cyrillic and Greek letters, folded to ASCII
+ * before matching (F-06): `GenΟffice` (Greek omicron) and `Gеnoffice`
+ * (Cyrillic е) are the same brand as `GenOffice`. NFKC already covers the
+ * fullwidth forms; this map holds the shapes a reader cannot tell apart.
+ */
+const CONFUSABLES = Object.freeze({
+  а: "a", в: "b", е: "e", к: "k", м: "m", н: "h", о: "o", п: "n", р: "p", с: "c", т: "t", у: "y", х: "x", ѕ: "s", і: "i", ј: "j", һ: "h",
+  α: "a", ε: "e", η: "n", ι: "i", κ: "k", ν: "v", ο: "o", ρ: "p", τ: "t", υ: "u", χ: "x", ω: "w", ϲ: "c",
+});
+const CONFUSABLE = new RegExp(`[${Object.keys(CONFUSABLES).join("")}]`, "gu");
+
 /** How the check reads the text; exported so a test can pin the transform. */
 export function normalizeBrandText(text) {
   return String(text)
     .normalize("NFKC")
     .replace(/[\p{Cf}\p{Mn}]/gu, "")
     .toLowerCase()
+    .replace(CONFUSABLE, (character) => CONFUSABLES[character])
     .replace(/(?<=\p{L})[\s\-_.]+(?=\p{L})/gu, "");
 }
 

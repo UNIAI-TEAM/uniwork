@@ -56,6 +56,21 @@ for (const [name, hit] of [["camel case", "GenOffice"], ["a zero-width character
   });
 }
 
+for (const [name, hit] of [["a Greek omicron", "GenΟffice"], ["a Cyrillic е", "Gеnoffice"], ["a Cyrillic ѕ", "Genѕpark"], ["fullwidth letters", "ＧｅｎＯｆｆｉｃｅ"]]) {
+  test(`brand: ${name} in the rendered text is brand_text`, () => {
+    const { check, artifact } = brandWorld({ text: `Báo cáo doanh thu quý 1 — tổng hợp theo khu vực.\n${hit}\n` });
+    assert.equal(check.status, "FAIL");
+    assert.deepEqual(check.reasons, ["brand_text"]);
+    const pair = artifact.pairs.find((candidate) => candidate.host === "desktop");
+    assert.equal(pair.hits.length, 1);
+  });
+}
+
+test("brand: Cyrillic and Greek text that spells no brand still passes", () => {
+  const { check } = brandWorld({ text: "Ký tự Hy Lạp và Kirin trong tài liệu: αβγδ абвгд настройки, không có nhãn cũ.\n" });
+  assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
+});
+
 test("brand: an empty or near-empty render is no_rendered_text", () => {
   const empty = brandWorld({ text: "" });
   assert.equal(empty.check.status, "FAIL");
