@@ -285,6 +285,10 @@ type CreateFileDocumentInput struct {
 	// engine is the provenance of bytes the Office engine produced (blank
 	// create); set only inside the service, never from a request.
 	engine DocumentEngineInfo
+	// sourceFileID is the "other sources" file the bytes were copied from
+	// (document_sources.go); set only inside the service, recorded on the
+	// audit row as provenance.
+	sourceFileID string
 }
 
 const idempotencyScopeDocumentFileCreate = "documents.files.create"
@@ -410,6 +414,12 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
+	created := map[string]any{
+		"title": doc.Title, "kind": doc.Kind, "visibility": doc.Visibility, "version_id": version.ID, "file_id": string(file.ID),
+	}
+	if in.sourceFileID != "" {
+		created["source_file_id"] = in.sourceFileID
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID,
 		WorkspaceID:    workspaceID,
@@ -417,9 +427,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		Action:         audit.ActionDocumentCreated,
 		ResourceType:   "document",
 		ResourceID:     doc.ID,
-		Changes: audit.Diff(nil, map[string]any{
-			"title": doc.Title, "kind": doc.Kind, "visibility": doc.Visibility, "version_id": version.ID, "file_id": string(file.ID),
-		}),
+		Changes:        audit.Diff(nil, created),
 	}, audit.Event{Topic: "document.created", Payload: map[string]string{
 		"document_id": doc.ID, "workspace_id": workspaceID,
 	}}); err != nil {
