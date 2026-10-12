@@ -213,9 +213,9 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 - **Tên công cụ:** 135 dòng, khớp đúng tập tên của các bảng tay §4 theo từng module — docs 37, markdown 9, html 8, sheets 18,
   slides 18, pdf 45; `agent-core` không có dòng nào. Không thiếu, không thừa, không trùng.
 - **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Có 20 chỗ hai cột
-  khác nhau, chia thành ba nhóm dưới đây. (Bản trước của tài liệu này có 26 chỗ: 9 ô `editor_write` bị extractor ghi `yes` thừa — docs
+  khác nhau, chia thành ba nhóm dưới đây. (Bản trước của tài liệu này có 26 chỗ. Khi đó extractor ghi `yes` thừa ở 9 ô `editor_write`: docs
   `web_search`, `image_search`, `analyze_media`, `create_document`, `set_watermark`; sheets `find_cells`, `select_range`,
-  `trace_precedents`, `trace_dependents`. Lỗi ở script, đã sửa tại fork `e8a692c`; các ô đó nay là `no` trong khối §3.) Cột cơ học không sửa tay; chỗ nào code sai thì sửa ở G6-12, rồi chạy lại script.
+  `trace_precedents`, `trace_dependents`. Trong 9 ô đó, 8 ô nằm trong 26 chỗ khác nhau (mọi ô trừ docs `set_watermark`, vì ô này khi ấy `yes` nên trùng cột tay `có`, không tính là khác). Lỗi ở script, đã sửa tại fork `e8a692c`; các ô đó nay là `no` trong khối §3. Tính lại: 26 − 8 = 18; docs `set_watermark` nay là `no` so với tay `có` nên thành chỗ khác thật (nhóm A): 19; docs `create_document` có cột tay đổi thành `file` (nhóm B): 20.) Cột cơ học không sửa tay; chỗ nào code sai thì sửa ở G6-12, rồi chạy lại script.
 
 | nhóm | module / tool | cơ học | tay | giải thích |
 | --- | --- | --- | --- | --- |
