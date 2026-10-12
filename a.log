@@ -1,0 +1,4 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git merge-base --is-ancestor origin/main HEAD && echo REBASED_OK
+cb76dde5928f8ea9cf66af938d3f83bd1278f78c
+66169a9ae1d3d7497d6585efbf5c7be9d94aa96c
+REBASED_OK

@@ -1,0 +1,5 @@
+$ npm run typecheck -w @genoffice/sheets
+
+> @genoffice/sheets@0.1.0 typecheck
+> tsc --noEmit
+
