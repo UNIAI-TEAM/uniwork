@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/http";
-import { useEmailHubLiveSync } from "./hooks-sync";
+import { useEmailHubLazyFolderSync, useEmailHubLiveSync } from "./hooks-sync";
+import { emailHubKeys } from "./query-cache";
 
 vi.mock("../api/endpoints/email-hub", () => ({
   subscribeEmailHubInboxWatch: vi.fn(() => Promise.resolve({ subscribed: true })),
@@ -43,6 +44,22 @@ describe("useEmailHubLiveSync", () => {
     expect(api.syncEmailHub).not.toHaveBeenCalled();
   });
 
+  it("invalidates unread and scoped sidebar counts after a successful live sync", async () => {
+    vi.mocked(api.syncEmailHub).mockResolvedValueOnce({ synced: true });
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    renderHook(() => useEmailHubLiveSync("ws1", "acc1"), { wrapper: wrapperFor(qc) });
+
+    await waitFor(() => expect(api.syncEmailHub).toHaveBeenCalledWith("ws1", "acc1", "INBOX", false, true, false));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: emailHubKeys.sidebarCounts("ws1", "acc1") }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: emailHubKeys.unread("ws1") });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: emailHubKeys.unread("ws2") });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: emailHubKeys.sidebarCounts("ws1", "acc2") });
+  });
+
   it("refetches the account list once when the mailbox needs reconnecting", async () => {
     const reauth = () => new ApiError("needs reconnect", "email_hub_reauth_required", 409);
     vi.mocked(api.subscribeEmailHubInboxWatch).mockRejectedValueOnce(reauth());
@@ -73,5 +90,26 @@ describe("useEmailHubLiveSync", () => {
     await Promise.allSettled(calls);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe("useEmailHubLazyFolderSync", () => {
+  it("invalidates unread and scoped sidebar counts after a successful SNOOZED refresh", async () => {
+    vi.mocked(api.syncEmailHub).mockResolvedValueOnce({ synced: true });
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    renderHook(
+      () => useEmailHubLazyFolderSync("ws1", "acc1", "SNOOZED", { listFetched: true, listTotal: 1 }),
+      { wrapper: wrapperFor(qc) },
+    );
+
+    await waitFor(() => expect(api.syncEmailHub).toHaveBeenCalledWith("ws1", "acc1", "INBOX", false, false, false));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: emailHubKeys.sidebarCounts("ws1", "acc1") }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: emailHubKeys.unread("ws1") });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: emailHubKeys.unread("ws2") });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: emailHubKeys.sidebarCounts("ws1", "acc2") });
   });
 });
