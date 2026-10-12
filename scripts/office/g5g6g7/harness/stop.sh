@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Tear down one harness run (UNI-1376, G7-01 item C). It kills exactly the PIDs
-# start.sh recorded in the run dir — never a process by name, never another
-# run's server, and never the shared PostgreSQL/Redis the VM provides.
+# Tear down one harness run (UNI-1376, G7-01 item C). It signals exactly the
+# process groups start.sh recorded in the run dir — never a process by name,
+# never another run's server, and never the shared PostgreSQL/Redis the VM
+# provides. start.sh starts each piece with setsid, so the recorded PID is its
+# group leader and one signal reaches its children too (this is what takes down
+# the Xvfb that xvfb-run started for this run, and nothing else's).
 #
-# Exit codes: 0 torn down (or nothing to tear down), 1 the pid file could not be
-# read. A PID that is already gone is not an error.
+# Exit codes: 0 torn down (or nothing to tear down). A PID that is already gone
+# is not an error; the run dir keeps its logs and artifacts.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,46 +20,45 @@ if [ ! -f "$PID_FILE" ]; then
   exit 0
 fi
 
-# Children first (the app, the web, then the server), and by process group so a
-# `go build`/Next child that forked is not left behind. start.sh puts every
-# process in its own group with setsid, so -PID is that group.
-stopped=0
+# App, then web, then server: reverse of the start order, so the app stops
+# talking to a web that is still up.
+pids=()
 while read -r name pid port; do
   [ -n "${pid:-}" ] || continue
-  case "$name" in app|web|server) ;; *) echo "harness: ignoring unknown pid line: $name $pid" >&2; continue ;; esac
-  if kill -0 "$pid" 2>/dev/null; then
-    kill -TERM "-$pid" 2> /dev/null || kill -TERM "$pid" 2> /dev/null || true
+  case "$name" in
+    app|web|server) pids=("$pid" "${pids[@]:-}") ;;
+    *) echo "harness: ignoring unknown pid line: $name $pid" >&2 ;;
+  esac
+done < "$PID_FILE"
+
+signal_group() { # signal_group <signal> <pid>
+  kill "-$1" "-$2" 2> /dev/null || kill "-$1" "$2" 2> /dev/null || true
+}
+
+stopped=0
+for pid in "${pids[@]:-}"; do
+  [ -n "$pid" ] || continue
+  if kill -0 "$pid" 2> /dev/null; then
+    signal_group TERM "$pid"
     stopped=$((stopped + 1))
   fi
-done < <(tac "$PID_FILE")
+done
 
-# Give the group a moment, then make sure it is gone. Only PIDs we started.
+# Give the groups a moment to exit, then make sure they are gone.
 for _ in $(seq 1 10); do
   alive=0
-  while read -r name pid port; do
-    [ -n "${pid:-}" ] || continue
-    kill -0 "$pid" 2>/dev/null && alive=1
-  done < "$PID_FILE"
+  for pid in "${pids[@]:-}"; do
+    [ -n "$pid" ] || continue
+    kill -0 "$pid" 2> /dev/null && alive=1
+  done
   [ "$alive" = 0 ] && break
   sleep 1
 done
-while read -r name pid port; do
-  [ -n "${pid:-}" ] || continue
-  kill -0 "$pid" 2>/dev/null || continue
-  kill -KILL "-$pid" 2> /dev/null || kill -KILL "$pid" 2> /dev/null || true
-done < "$PID_FILE"
-
-# An xvfb-run wrapper leaves the Xvfb it started when it is killed directly;
-# it only cleans up on its own exit. Kill the recorded display's server by
-# looking at what this run started, never by name across the machine.
-if [ -f "$RUN_DIR/display" ]; then
-  display="$(cat "$RUN_DIR/display")"
-  if [ -n "$display" ] && command -v pgrep > /dev/null 2>&1; then
-    for pid in $(pgrep -f "Xvfb $display" 2> /dev/null || true); do
-      kill -TERM "$pid" 2> /dev/null || true
-    done
-  fi
-fi
+for pid in "${pids[@]:-}"; do
+  [ -n "$pid" ] || continue
+  kill -0 "$pid" 2> /dev/null || continue
+  signal_group KILL "$pid"
+done
 
 rm -f "$PID_FILE"
-echo "harness: stopped $stopped process(es) from $RUN_DIR"
+echo "harness: stopped $stopped process group(s) from $RUN_DIR"

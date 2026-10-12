@@ -11,8 +11,11 @@ Linux runner VM and records one evidence line through the G7-01 evidence runner.
 
 Fresh ports matter: a warm cloud VM still holds `:3000`/`:8080` from an earlier
 round, and a run that silently reuses them tests old code against new specs.
-Nothing outside the run's own PID file is ever touched — `stop.sh` kills exactly
-the PIDs `start.sh` started, never a process by name.
+Nothing outside the run's own PID file is ever touched — `stop.sh` signals
+exactly the process groups `start.sh` recorded, never a process by name. Each
+piece starts with `setsid`, so the recorded PID is its group leader and one
+signal reaches its children too (that is what takes down the `Xvfb` this run's
+`xvfb-run` started, and leaves every other display alone).
 
 ## Run it
 
