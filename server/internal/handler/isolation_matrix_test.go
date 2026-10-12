@@ -1051,6 +1051,8 @@ var isoUnseeded = map[string]string{
 	"meeting_reminders":       "written only by the meeting reminder job (internal/notification); no route fills it",
 	"graph_dirty":             "written only by the graph marker consumer; the isolation world runs no dispatcher and no route reads it",
 	"file_derivatives":        "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
+	"mcp_grants":              "seeded by Task 9 of the MCP plan; until then only the OAuth flow writes it",
+	"mcp_tokens":              "seeded by Task 9 of the MCP plan; until then only the OAuth flow writes it",
 }
 
 // isoDigestSkip lists tenant tables a refused request is allowed to write:
