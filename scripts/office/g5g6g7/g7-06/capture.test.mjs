@@ -486,6 +486,18 @@ describe("web frame install state", () => {
 });
 
 // ---- browser-backed tests ---------------------------------------------------
+/** Why the tests that decode PNGs cannot run (pngjs is a devDependency of packages/office-engine), or "" when they can. */
+function pngjsSkipReason(load = loadPngjs) {
+  try {
+    load();
+    return "";
+  } catch (error) {
+    return `pngjs is not installed (run pnpm install; or point NODE_PATH at a node_modules that has it): ${String(error.message).split("\n")[0]}`;
+  }
+}
+const pngjsSkip = pngjsSkipReason();
+if (pngjsSkip) console.log(`# SKIPPED the shot-comparing browser tests: ${pngjsSkip}`);
+
 const playwright = loadPlaywright();
 let browser = null;
 let browserSkip = playwright ? "" : "Playwright is not resolvable from the e2e workspace (set G7_06_PLAYWRIGHT_FROM to a dir whose node_modules has it)";
@@ -608,7 +620,7 @@ describe("browser-backed capture", { skip: browserSkip || false }, () => {
     assert.ok(!/Đang tải theo luồng/.test(r.hostText), r.hostText);
   });
 
-  test("captureOpenFrame: a toast that fades is waited out, not masked: the shot is the one without it", async () => {
+  test("captureOpenFrame: a toast that fades is waited out, not masked: the shot is the one without it", { skip: pngjsSkip || false }, async () => {
     const page = timed('<div class="toast" style="position:absolute;top:0;right:0">Đã mở tài liệu</div>', 'setTimeout(function () { document.querySelector(".toast").remove(); }, 1200);');
     const clean = await withPage(timed("", ""), (p) => captureOpenFrame(p, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
     const r = await withPage(page, (p) => captureOpenFrame(p, "docs", { timeoutMs: 5_000, settleOptions: QUICK }));
@@ -799,5 +811,34 @@ describe("web sign-in in a browser", { skip: browserSkip || false }, () => {
     await withLogin({ hydrateAfterMs: 0, handler: "reject" }, async (page, origin) => {
       await assert.rejects(signIn(page, origin, seed, { hydrateTimeoutMs: 5_000, loginTimeoutMs: 800 }), /url \/login, heading "Đăng nhập UniWork", notice "Email hoặc mật khẩu không đúng"/);
     });
+  });
+});
+
+// ---- sign-in diagnostics without a browser ---------------------------------
+describe("sign-in failure message", () => {
+  test("the password is redacted every time it occurs in the error line, not only the first (N-4)", async () => {
+    const seed = { email: "g7-06-capture@example.com", password: "hunter2-secret" };
+    const field = { fill: async () => { throw new Error(`locator.fill: bad value ${seed.password} while typing ${seed.password}\n  call log`); } };
+    const page = {
+      goto: async () => {},
+      waitForFunction: async () => {},
+      getByLabel: () => field,
+      evaluate: async () => ({ title: "", heading: "Đăng nhập", notices: [] }),
+      url: () => "http://x/login",
+    };
+    await assert.rejects(signIn(page, "http://x", seed), (error) => {
+      assert.ok(!error.message.includes(seed.password), error.message);
+      assert.equal(error.message.split("<password>").length - 1, 2, error.message);
+      return true;
+    });
+  });
+});
+
+// ---- the browser suite's own prerequisites ---------------------------------
+describe("browser suite prerequisites", () => {
+  test("a missing pngjs gives a printed skip reason, not a failing test (N-6)", () => {
+    const reason = pngjsSkipReason(() => { throw new Error("Cannot find module 'pngjs'"); });
+    assert.match(reason, /pngjs is not installed.*Cannot find module/);
+    assert.equal(pngjsSkipReason(() => ({})), "");
   });
 });

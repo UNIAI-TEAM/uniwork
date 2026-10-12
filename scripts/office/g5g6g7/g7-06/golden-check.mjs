@@ -99,12 +99,6 @@ function viewportBlocker(metaState, expected) {
   return isSize(used) && used.w === expected.w && used.h === expected.h ? null : "captures_at_another_viewport";
 }
 
-/** The per-fixture status the capture provider recorded, when its meta.json parsed. */
-function captureStatus(metaState, fixture) {
-  const status = metaState?.value?.fixtures?.[fixture]?.status;
-  return typeof status === "string" ? status : null;
-}
-
 /**
  * A pixel is masked when any mask rectangle covers it. The masks are validated
  * before the comparison (bounds, reason, area — `maskProblem`), so the clamp
@@ -308,10 +302,10 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
         blocked.push(`capture_missing:${host}/${fixture}`);
         continue;
       }
-      const status = captureStatus(metaState, fixture);
-      if (status !== "ok") {
-        const reason = status === "failed" ? "capture_failed" : status === "blocked" ? "capture_blocked" : "capture_status_unknown";
-        blocked.push(`${reason}:${host}/${fixture}`);
+      // the compare path's own check: a capture of another fork/pin than the one being blessed is never copied in (N-2)
+      const blocker = capturePairBlocker(metaState, fixture, { forkSha, pinVersion });
+      if (blocker) {
+        blocked.push(`${blocker}:${host}/${fixture}`);
         continue;
       }
       const textPath = join(capturesDir, host, `${fixture}.txt`);
@@ -351,6 +345,7 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
     viewport,
     deviceScaleFactor: meta.deviceScaleFactor ?? previous.deviceScaleFactor ?? 1,
     tolerance: tolerancesOf(previous),
+    maskLimits: maskLimitsOf(previous),
     entries,
   };
   mkdirSync(goldensDir, { recursive: true });

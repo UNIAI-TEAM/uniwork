@@ -24,6 +24,9 @@ function patchMeta(captures, patch) {
   }
 }
 
+/** The build the fake captures come from: what --update-goldens is told it is blessing. */
+const UPDATE_ID = { pinVersion: FAKE_CAPTURE.pinVersion, forkSha: FAKE_CAPTURE.forkSha };
+
 function goldenWorld({ fixtures = [ONE], mutateCapture = null, transform = null, masks = {}, tolerance = null, maskLimits = null, viewport = undefined, removeGolden = null, metaStatus = null, meta = null } = {}) {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
   const goldens = fx.writeGoldens(tmpDir("g7-06-goldens-"), { capturesDir: captures, fixtures, hosts: HOSTS, masks, tolerance, maskLimits, viewport, transform: transform ?? undefined });
@@ -253,7 +256,7 @@ test("--update-goldens copies the captures, keeps the masks and passes afterward
   const goldens = tmpDir("g7-06-goldens-");
   mkdirSync(join(goldens, "desktop"), { recursive: true });
   writeFileSync(join(goldens, "manifest.json"), JSON.stringify({ schema: 1, entries: { [`desktop/${ONE}`]: { sha256: "0".repeat(64), masks: [{ x: 1, y: 1, w: 2, h: 2, reason: "old mask" }] } } }));
-  const updated = updateGoldens({ capturesDir: captures, goldensDir: goldens, fixtures: [ONE], hosts: HOSTS, pinVersion: "0.1.0-fake", forkSha: "f".repeat(7), outDir: outDir("golden-update") });
+  const updated = updateGoldens({ capturesDir: captures, goldensDir: goldens, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update") });
   assert.equal(updated.status, "PASS", JSON.stringify(updated.reasons));
   const manifest = readJson(join(goldens, "manifest.json"));
   assert.deepEqual(manifest.entries[`desktop/${ONE}`].masks, [{ x: 1, y: 1, w: 2, h: 2, reason: "old mask" }]);
@@ -268,7 +271,7 @@ test("--update-goldens copies the captures, keeps the masks and passes afterward
 test("--update-goldens with a missing capture blocks instead of inventing it", () => {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
   rmSync(join(captures, "desktop", `${ONE}.png`));
-  const updated = updateGoldens({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, outDir: outDir("golden-update-blocked") });
+  const updated = updateGoldens({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-blocked") });
   assert.equal(updated.status, "BLOCKED");
   assert.deepEqual(updated.reasons, [`capture_missing:desktop/${ONE}`]);
 });
@@ -276,7 +279,7 @@ test("--update-goldens with a missing capture blocks instead of inventing it", (
 test("--update-goldens refuses a pair the brand check fails", () => {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
   writeFileSync(join(captures, "desktop", `${ONE}.txt`), "GenOffice — báo cáo doanh thu quý một của khu vực.\n");
-  const updated = updateGoldens({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, outDir: outDir("golden-update-brand") });
+  const updated = updateGoldens({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-brand") });
   assert.equal(updated.status, "BLOCKED");
   assert.deepEqual(updated.reasons, [`brand_text:desktop/${ONE}`]);
 });
@@ -284,7 +287,7 @@ test("--update-goldens refuses a pair the brand check fails", () => {
 test("--update-goldens refuses a pair under the no_rendered_text threshold", () => {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
   writeFileSync(join(captures, "desktop", `${ONE}.txt`), "quá ngắn");
-  const updated = updateGoldens({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, outDir: outDir("golden-update-short") });
+  const updated = updateGoldens({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-short") });
   assert.equal(updated.status, "BLOCKED");
   assert.deepEqual(updated.reasons, [`no_rendered_text:desktop/${ONE}`]);
 });
@@ -292,11 +295,11 @@ test("--update-goldens refuses a pair under the no_rendered_text threshold", () 
 test("--update-goldens refuses a pair without rendered text or with a failed capture", () => {
   const noText = fx.mkCaptures(tmpDir("g7-06-captures-"));
   rmSync(join(noText, "desktop", `${ONE}.txt`));
-  const missing = updateGoldens({ capturesDir: noText, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, outDir: outDir("golden-update-notext") });
+  const missing = updateGoldens({ capturesDir: noText, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-notext") });
   assert.equal(missing.status, "BLOCKED");
   assert.deepEqual(missing.reasons, [`rendered_text_missing:desktop/${ONE}`]);
   const failedWorld = goldenWorld({ metaStatus: { fixture: ONE, status: "failed" } });
-  const failed = updateGoldens({ capturesDir: failedWorld.captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, outDir: outDir("golden-update-failed") });
+  const failed = updateGoldens({ capturesDir: failedWorld.captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-failed") });
   assert.equal(failed.status, "BLOCKED");
   assert.ok(failed.reasons.includes(`capture_failed:desktop/${ONE}`), JSON.stringify(failed.reasons));
 });
@@ -350,4 +353,38 @@ test("golden: a capture meta without a viewport cannot prove its host's viewport
   const { check } = goldenRun(world, { name: "golden-no-viewport" });
   assert.equal(check.status, "BLOCKED");
   assert.deepEqual(check.reasons, ["captures_at_another_viewport"]);
+});
+
+test("--update-goldens runs the same capture/pin identity check as the compare path: captures of another build are BLOCKED, never blessed (N-2)", () => {
+  for (const [label, patch] of [["pin", { pinVersion: "0.1.0-other" }], ["sha", { forkSha: "a".repeat(40) }]]) {
+    const world = goldenWorld({ meta: patch });
+    const goldens = tmpDir("g7-06-goldens-");
+    const updated = updateGoldens({ capturesDir: world.captures, goldensDir: goldens, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir(`golden-update-other-${label}`) });
+    assert.equal(updated.status, "BLOCKED", label);
+    assert.deepEqual(updated.reasons, [`captures_from_another_pin:desktop/${ONE}`, `captures_from_another_pin:web/${ONE}`], label);
+    assert.equal(existsSync(join(goldens, "desktop", `${ONE}.png`)), false, `${label}: nothing was copied`);
+    assert.deepEqual(readJson(join(goldens, "manifest.json")).entries, {}, label);
+  }
+  // no identity to bless against is the same block, not a free pass
+  const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
+  const anonymous = updateGoldens({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, outDir: outDir("golden-update-anonymous") });
+  assert.equal(anonymous.status, "BLOCKED");
+  assert.deepEqual(anonymous.reasons, [`captures_from_another_pin:desktop/${ONE}`, `captures_from_another_pin:web/${ONE}`]);
+});
+
+test("--update-goldens carries maskLimits and tolerance of the previous manifest instead of resetting them to the defaults (N-3)", () => {
+  const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
+  const goldens = tmpDir("g7-06-goldens-");
+  const limits = { maxAreaSharePerMask: 0.02, maxAreaSharePerEntry: 0.04 };
+  const tolerance = { channel: 8, ratio: 0.0005 };
+  writeFileSync(join(goldens, "manifest.json"), JSON.stringify({ schema: 1, tolerance, maskLimits: limits, entries: {} }));
+  const updated = updateGoldens({ capturesDir: captures, goldensDir: goldens, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-limits") });
+  assert.equal(updated.status, "PASS", JSON.stringify(updated.reasons));
+  const manifest = readJson(join(goldens, "manifest.json"));
+  assert.deepEqual(manifest.maskLimits, limits);
+  assert.deepEqual(manifest.tolerance, tolerance);
+  // a manifest that never had them gets the documented defaults, written out so they live in the file
+  const fresh = tmpDir("g7-06-goldens-");
+  updateGoldens({ capturesDir: captures, goldensDir: fresh, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-limits-fresh") });
+  assert.deepEqual(readJson(join(fresh, "manifest.json")).maskLimits, { maxAreaSharePerMask: 0.05, maxAreaSharePerEntry: 0.1 });
 });

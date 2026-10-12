@@ -70,7 +70,7 @@ export async function signIn(page, webOrigin, seed, { hydrateTimeoutMs = HYDRATE
     await page.getByRole("button", { name: /^(Đăng nhập|Log in)$/ }).click();
     await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: loginTimeoutMs });
   } catch (error) {
-    const what = String(error.message).split("\n")[0].replace(seed.password, "<password>");
+    const what = String(error.message).split("\n")[0].replaceAll(seed.password, "<password>");
     throw new Error(`${what}; ${await describeScreen(page)}`);
   }
 }
