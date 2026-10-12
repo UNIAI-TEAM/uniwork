@@ -1,0 +1,208 @@
+$ cat test-results/office-g5g6g7-evidence/evidence.jsonl; ls -la .harness-run .harness-run/logs 2>/dev/null; for f in .harness-run/logs/*.log .harness-run/*/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 60 "$f"; }; done; true
+{"evidenceId":"ev-g7-a05-0001","requirementId":"G7-A05","dSha":"f0beee576561492b1e67526a225c1f6e5d5ec559","fSha":"0d03b18","pin":"0.1.0-0d03b18","platform":"linux-x64","build":"dev","fixtureId":"fx-md-notes-vi","fixtureSha256":"e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def","command":"node scripts/office/g5g6g7/harness/sample-ac.mjs","argv":["node","scripts/office/g5g6g7/harness/sample-ac.mjs"],"exitCode":0,"result":"PASS","artifact":"test-results/office-g5g6g7-evidence/artifacts/ev-g7-a05-0001.log","checker":"tester-cloud","blocker":null,"startedAt":"2026-10-12T16:01:46.957Z","finishedAt":"2026-10-12T16:02:18.790Z"}
+{"evidenceId":"ev-g7-a01-0001","requirementId":"G7-A01","dSha":"f0beee576561492b1e67526a225c1f6e5d5ec559","fSha":"0d03b18","pin":"0.1.0-0d03b18","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/harness/document-step.mjs --run-dir .harness-run","argv":["node","scripts/office/g5g6g7/harness/document-step.mjs","--run-dir",".harness-run"],"exitCode":1,"result":"FAIL","artifact":"test-results/office-g5g6g7-evidence/artifacts/ev-g7-a01-0001.log","checker":"tester-cloud","blocker":null,"startedAt":"2026-10-12T16:02:18.849Z","finishedAt":"2026-10-12T16:02:19.099Z"}
+.harness-run:
+total 52
+drwxr-xr-x  6 ubuntu ubuntu 4096 Oct 12 16:02 .
+drwxr-xr-x 24 ubuntu ubuntu 4096 Oct 12 16:01 ..
+-rw-r--r--  1 ubuntu ubuntu    4 Oct 12 16:01 display
+-rw-r--r--  1 ubuntu ubuntu 1322 Oct 12 16:02 document-step.json
+drwxr-xr-x  2 ubuntu ubuntu 4096 Oct 12 16:01 logs
+-rw-r--r--  1 ubuntu ubuntu   47 Oct 12 16:01 pids
+-rw-r--r--  1 ubuntu ubuntu  721 Oct 12 16:01 ports.env
+-rw-r--r--  1 ubuntu ubuntu 1579 Oct 12 16:02 sample-ac.json
+drwxr-xr-x  3 ubuntu ubuntu 4096 Oct 12 15:58 server-cwd
+-rw-r--r--  1 ubuntu ubuntu 1000 Oct 12 15:58 server.env
+-rw-r--r--  1 ubuntu ubuntu   27 Oct 12 16:01 start-status.json
+drwxr-xr-x  2 ubuntu ubuntu 4096 Oct 12 15:58 uploads
+drwxr-xr-x 15 ubuntu ubuntu 4096 Oct 12 16:01 userdata
+
+.harness-run/logs:
+total 92
+drwxr-xr-x 2 ubuntu ubuntu  4096 Oct 12 16:01 .
+drwxr-xr-x 6 ubuntu ubuntu  4096 Oct 12 16:02 ..
+-rw-r--r-- 1 ubuntu ubuntu  1281 Oct 12 16:01 app.log
+-rw-r--r-- 1 ubuntu ubuntu 51076 Oct 12 16:01 fork-build.log
+-rw-r--r-- 1 ubuntu ubuntu     0 Oct 12 15:59 fork-clone.log
+-rw-r--r-- 1 ubuntu ubuntu  1349 Oct 12 15:59 fork-install.log
+-rw-r--r-- 1 ubuntu ubuntu     0 Oct 12 15:59 lib.log
+-rw-r--r-- 1 ubuntu ubuntu    54 Oct 12 15:58 migrate.log
+-rw-r--r-- 1 ubuntu ubuntu   202 Oct 12 15:58 readyz.json
+-rw-r--r-- 1 ubuntu ubuntu     0 Oct 12 15:58 server-build.log
+-rw-r--r-- 1 ubuntu ubuntu  3420 Oct 12 16:02 server.log
+-rw-r--r-- 1 ubuntu ubuntu  6752 Oct 12 16:01 web.log
+=== .harness-run/logs/app.log
+[27084:1012/160146.603566:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[27084:1012/160146.667126:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[27084:1012/160146.688486:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[27084:1012/160146.709087:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[27084:1012/160146.709251:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[27084:1012/160146.721834:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[27084:1012/160146.722909:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+=== .harness-run/logs/fork-build.log
+✓ 1938 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/text-edit.ts is dynamically imported by /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/save-pdf.ts but also statically imported by /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/annot-delete.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/image-edit.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/read-text.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/redaction.ts, dynamic import will not move module into another chunk.
+
+out/main/chunks/menu-pdf-IWzaKAPM.png                 0.11 kB
+out/main/chunks/menu-pptx-B-5nlFu-.png                0.27 kB
+out/main/chunks/menu-xlsx-D1ETn33r.png                0.30 kB
+out/main/chunks/menu-docx-CaJ93Biu.png                0.30 kB
+out/main/chunks/menu-md-D1G8pv4K.png                  0.42 kB
+out/main/chunks/menu-pptx@2x-k-uSrZ_N.png             0.43 kB
+out/main/chunks/menu-html-BqQjM_T0.png                0.43 kB
+out/main/chunks/menu-pdf@2x-BlOOpVEW.png              0.49 kB
+out/main/chunks/menu-xlsx@2x-BCbWE1PH.png             0.50 kB
+out/main/chunks/menu-home@2x-DklesmJt.png             0.52 kB
+out/main/chunks/menu-docx@2x-xjkcfgR-.png             0.53 kB
+out/main/chunks/menu-md@2x-DqJbAJX3.png               0.77 kB
+out/main/chunks/menu-html@2x-DPfkhFFT.png             0.90 kB
+out/main/chunks/ppt-d10PvgLp.js                      42.36 kB
+out/main/chunks/harfbuzz-CVplwa31.wasm              421.96 kB
+out/main/chunks/Carlito-Italic-KkZUqxJW.ttf         619.05 kB
+out/main/chunks/Carlito-Regular-Cbe9FLjp.ttf        631.71 kB
+out/main/chunks/Carlito-Bold-BhbXr__n.ttf           686.24 kB
+out/main/chunks/Carlito-BoldItalic-0dXjwGA0.ttf     812.34 kB
+out/main/chunks/pdf-B6l8FRA5.js                   1,013.76 kB
+out/main/extract-worker-CRafWYnY.js               1,547.97 kB
+out/main/chunks/pdf.worker-NB1PBVQH.js            2,340.46 kB
+out/main/ocr-DylNBwk4.js                              1.57 kB
+out/main/annot-delete-DubhLpER.js                     3.66 kB
+out/main/image-edit-C15DSi-_.js                      14.61 kB
+out/main/index-CrqKaREP.js                           16.42 kB
+out/main/ppt-BHIGZr4q.js                             42.29 kB
+out/main/index-MbjUHvFF.js                          268.21 kB
+out/main/index-DlHob_LR.js                          750.47 kB
+out/main/pdf-B6l8FRA5.js                          1,013.76 kB
+out/main/pdf.worker-NB1PBVQH.js                   2,340.46 kB
+out/main/index.js                                11,271.69 kB
+✓ built in 17.90s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 29 modules transformed.
+rendering chunks...
+out/preload/pdf-password.js   0.89 kB
+out/preload/update.js         1.05 kB
+out/preload/index.js         73.11 kB
+✓ built in 87ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 341 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                                        0.67 kB
+../../out/renderer/update.html                                       5.14 kB
+../../out/renderer/pdf-password.html                                 9.18 kB
+../../out/renderer/assets/app-icon-D9R8oDUQ.png                     27.10 kB
+../../out/renderer/assets/health-body-mannequin-3d-C8O8L483.jpg    109.64 kB
+../../out/renderer/assets/index-meejS0WP.css                       212.34 kB
+../../out/renderer/assets/update-BVAMVo1e.js                         2.24 kB
+../../out/renderer/assets/pdf-password-BczXYSzC.js                   2.77 kB
+../../out/renderer/assets/index-CO_8VvJ9.js                      2,688.23 kB
+✓ built in 1.52s
+=== .harness-run/logs/fork-clone.log
+=== .harness-run/logs/fork-install.log
+npm warn deprecated rimraf@2.6.3: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated boolean@3.2.0: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated crypto-js@4.2.0: Active development of CryptoJS has been discontinued. This library is no longer maintained.
+
+added 1081 packages, and audited 1114 packages in 17s
+
+240 packages are looking for funding
+  run `npm fund` for details
+
+18 vulnerabilities (2 low, 8 moderate, 6 high, 2 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+=== .harness-run/logs/lib.log
+=== .harness-run/logs/migrate.log
+15:58:50.791 INF migrate done component=server dir=up
+=== .harness-run/logs/server-build.log
+=== .harness-run/logs/server.log
+15:58:50.809 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+15:58:50.809 INF metrics listening component=server addr=127.0.0.1:41537
+15:58:50.809 INF local storage adapter ready dir=/workspace/.harness-run/uploads
+15:58:50.815 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/12 15:58:50 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+15:58:50.817 INF mail: log mode, messages are printed component=server
+15:58:50.817 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+15:58:51.321 INF mail: outbox worker started component=server tick=5s
+15:58:51.321 INF listening component=server port=37189 swagger=http://localhost:37189/swagger/index.html
+16:01:47.255 INF http request method=GET path=/api/v1/config status=200 duration=26.026ms request_id=cursor/OsrBUd9OFZ-000006 correlation_id=1c4a9e7e2c0c088b8af54561c1f12b03 trace_id=1c4a9e7e2c0c088b8af54561c1f12b03 span_id=194bc50e53eb4a6b
+16:02:18.992 INF mail not configured, printing message component=server kind=verification_code to=g7-01-harness-1791820938914@example.com subject="862448 is your UniWork verification code" text="Verify your email\n\nEnter the code below to finish signing up for UniWork:\n\n    862448\n\nThe code is valid for 10 minutes and can be used once.\n\nNever share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.\n"
+16:02:19.000 INF http request method=POST path=/api/v1/auth/register status=200 duration=83.068ms request_id=cursor/OsrBUd9OFZ-000008 correlation_id=b8357899c416558c8c25a262bdd82511 trace_id=b8357899c416558c8c25a262bdd82511 span_id=99a728e762eb42a9
+16:02:19.008 INF http request method=POST path=/api/v1/me/email/verify status=200 duration=5.997ms request_id=cursor/OsrBUd9OFZ-000009 correlation_id=9b3eb03ae2ff803f197be88b25afe587 trace_id=9b3eb03ae2ff803f197be88b25afe587 span_id=346cc8e70a74e891 actor_id=01M4RDKFPWPPZYHBY9CC52R81G actor_kind=human
+16:02:19.031 INF http request method=POST path=/api/v1/orgs status=201 duration=20.772ms request_id=cursor/OsrBUd9OFZ-000010 correlation_id=0bfb84fcc53d5c691cfdb3dc53c8b3c3 trace_id=0bfb84fcc53d5c691cfdb3dc53c8b3c3 span_id=4efcd2728115017c actor_id=01M4RDKFPWPPZYHBY9CC52R81G actor_kind=human
+16:02:19.034 WRN http request method=POST path=/api/v1/orgs/o-g7-01-mv5fx91d/workspaces status=403 duration=1.341ms request_id=cursor/OsrBUd9OFZ-000011 correlation_id=494557d46e7f19eba46e9592ad6b567a trace_id=494557d46e7f19eba46e9592ad6b567a span_id=ff02814c929e67f4 actor_id=01M4RDKFPWPPZYHBY9CC52R81G actor_kind=human
+16:02:19.039 INF http request method=POST path=/api/v1/orgs/01M4RDKFR3RXWWJTN5T2FMHZM6/privacy/deletion status=202 duration=3.555ms request_id=cursor/OsrBUd9OFZ-000012 correlation_id=dbe89d0ea2274fe2b2a2df96b92207df trace_id=dbe89d0ea2274fe2b2a2df96b92207df span_id=b8a1090c8eb316a5 actor_id=01M4RDKFPWPPZYHBY9CC52R81G actor_kind=human
+16:02:19.095 WRN http request method=POST path=/api/v1/me/delete status=409 duration=53.814ms request_id=cursor/OsrBUd9OFZ-000013 correlation_id=695fe137bfc4842fde6db446d27dce3a trace_id=695fe137bfc4842fde6db446d27dce3a span_id=d0ba99de0a5b435c actor_id=01M4RDKFPWPPZYHBY9CC52R81G actor_kind=human
+=== .harness-run/logs/web.log
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11319:13
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login 200 in 56ms (next.js: 4ms, application-code: 53ms)
+⚠ ./apps/web/app/globals.css:11319:13
+Warning: Parsing CSS source code failed
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11319:13
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login 200 in 76ms (next.js: 4ms, application-code: 72ms)
+⚠ Blocked cross-origin request to Next.js dev resource /_next/hmr from "127.0.0.1".
+Cross-origin access to Next.js dev resources is blocked by default for safety.
+
+To allow this host in development, add it to "allowedDevOrigins" in next.config.js and restart the dev server:
+
+// next.config.js
+module.exports = {
+  allowedDevOrigins: ['127.0.0.1'],
+}
+
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
