@@ -111,6 +111,21 @@ export function tail(text, n = 20) {
   return lines.slice(-n).join("\n");
 }
 
+/**
+ * Whether two recorded revisions name the same commit. Short and full SHAs are
+ * both in use — the pins carry 7 characters, the harness and the capture
+ * provider often the full 40 — so one being a prefix of the other is a match;
+ * anything shorter than 7 characters on either side is not comparable (F-03,
+ * F-04).
+ * @param {unknown} a @param {unknown} b
+ */
+export function sameRevision(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const length = Math.min(a.length, b.length);
+  if (length < 7) return false;
+  return a.slice(0, length) === b.slice(0, length);
+}
+
 /** A path as it will be written into result.json: relative to the run's out dir. */
 export function relativeToOut(outDir, file) {
   const abs = resolve(file);

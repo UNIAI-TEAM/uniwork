@@ -1,6 +1,8 @@
 // The `protocol` check (contract 2.1): the three fork protocol sources at the
 // pin SHA, read as raw bytes through `git -C <fork> show <sha>:<path>`, against
-// the installed bundle's manifest.protocolSha256 and the six *.pin.json.
+// the installed bundle's manifest.protocolSha256 and the six *.pin.json. The
+// installed manifest must also name the pin it claims to hold — its own version
+// and gitSha (F-03): equal digests from another build are a FAIL, never a pass.
 //
 // A pin before X-02 records nothing: then the check is NOTE (said out loud,
 // never a PASS) and the artifact carries the recomputed digests.
@@ -19,6 +21,7 @@ import {
   relativeToOut,
   resolveInstalledBundle,
   runGit,
+  sameRevision,
   tail,
 } from "./job-lib.mjs";
 
@@ -147,6 +150,15 @@ export function runProtocolCheck({ forkDir, forkSha, installedRoot, pinDir = DEF
     }
   } else {
     blocked.push(`installed_bundle_missing (${installed.missing})`);
+  }
+
+  // F-03: the digests can agree while the installed bundle is another build —
+  // the check proves the bundle that would be served is the pin's, so the
+  // manifest's own version and gitSha must name the pin too. The tolerant
+  // candidate (the bundle directory itself) passes only when they do.
+  if (manifest) {
+    if (docsPin?.gitSha && !sameRevision(manifest.gitSha, docsPin.gitSha)) fail.push("installed_manifest_mismatch:gitSha");
+    if (docsPin?.version && manifest.version !== docsPin.version) fail.push("installed_manifest_mismatch:version");
   }
 
   fail.push(...compareProtocol({ recomputed: recomputed.hashes, manifestRecord, manifestMissing: manifestPath === null, pins }));

@@ -97,6 +97,41 @@ test("protocol: a missing installed bundle is BLOCKED, never PASS", () => {
   assert.deepEqual(artifact.recomputed, world.fork.digests, "the fork half still ran");
 });
 
+test("protocol: an installed manifest of another commit is installed_manifest_mismatch:gitSha", () => {
+  const world = protocolWorld();
+  const other = fx.writeInstalled(tmpDir("g7-06-installed-"), { version: "0.1.0-fake", gitSha: "0".repeat(7), protocolSha256: world.fork.digests });
+  const { check, artifact } = protocolRun({ ...world, installedRoot: other, name: "protocol-other-commit" });
+  assert.equal(check.status, "FAIL");
+  assert.ok(check.reasons.includes("installed_manifest_mismatch:gitSha"), JSON.stringify(check.reasons));
+  assert.ok(!check.reasons.includes("installed_manifest_mismatch:version"), "the version is the pin's; the build is not");
+  assert.deepEqual(artifact.recomputed, world.fork.digests, "the hashes agree — only the bundle identity does not");
+});
+
+test("protocol: a stale bundle at the installed root is installed_manifest_mismatch, never PASS", () => {
+  const world = protocolWorld();
+  const root = tmpDir("g7-06-stale-");
+  writeFileSync(
+    join(root, "manifest.json"),
+    JSON.stringify(
+      {
+        module: "docs",
+        version: "0.0.1-old",
+        gitSha: "0".repeat(7),
+        entry: "index.html",
+        dirty: false,
+        files: [{ path: "index.html", bytes: 1, sha256: "2".repeat(64) }],
+        protocolSha256: world.fork.digests,
+      },
+      null,
+      2,
+    ),
+  );
+  const { check } = protocolRun({ ...world, installedRoot: root, name: "protocol-stale" });
+  assert.equal(check.status, "FAIL");
+  assert.ok(check.reasons.includes("installed_manifest_mismatch:version"), JSON.stringify(check.reasons));
+  assert.ok(check.reasons.includes("installed_manifest_mismatch:gitSha"));
+});
+
 test("protocol: a pin mismatch is a FAIL even without an installed bundle", () => {
   const world = protocolWorld();
   const pinDir = fx.writePins(tmpDir("g7-06-pins-"), { gitSha: world.fork.sha, protocolSha256: { ...world.fork.digests, host: "0".repeat(64) } });
