@@ -13,9 +13,11 @@ import {
   MATRIX_PATH,
   REQUIRED_FIELDS,
   SKIP_EXIT_CODE,
+  assertEvidenceOutDir,
   assertLaneTestDatabase,
   classifyResult,
   databaseNameFromUrl,
+  exitCodeOf,
   laneTestDbPrefix,
   readManifest,
   readMatrix,
@@ -25,6 +27,7 @@ import {
   resolveFSha,
   runEvidence,
   sha256File,
+  signalExitCode,
   verify,
 } from './evidence.mjs';
 
@@ -152,6 +155,67 @@ test('a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED',
   assert.equal(classifyResult({ exitCode: 0, output: 'SKIP: not here' }).result, 'BLOCKED');
 });
 
+test('a command killed by a signal is a FAIL with 128 + the signal number, never a PASS', () => {
+  // spawnSync reports a killed process as status null plus a signal name; the
+  // old `status ?? 0` read that as a clean exit and recorded PASS.
+  for (const [signal, number] of [['SIGKILL', 9], ['SIGTERM', 15], ['SIGSEGV', 11]]) {
+    const killed = spawnSync('sh', ['-c', `kill -${signal.slice(3)} $$`]);
+    assert.equal(killed.status, null, `${signal} leaves no status`);
+    assert.equal(killed.signal, signal);
+    assert.equal(exitCodeOf(killed), 128 + number, `${signal} is 128 + ${number}`);
+    assert.deepEqual(classifyResult({ exitCode: exitCodeOf(killed), output: '' }), { result: 'FAIL', blocker: null });
+  }
+  assert.equal(signalExitCode('SIGKILL'), 137);
+  assert.equal(signalExitCode('SIGTERM'), 143);
+  assert.equal(signalExitCode('SIGSEGV'), 139);
+  assert.equal(signalExitCode('SIGWEIRD'), 128, 'an unknown signal is still not a success');
+  assert.equal(exitCodeOf({ status: null, signal: null, error: null }), 128, 'a null status with no signal is not a pass');
+  assert.equal(exitCodeOf({ status: null, signal: null, error: new Error('spawn ENOENT') }), 127);
+  assert.equal(exitCodeOf({ status: 0 }), 0);
+  assert.equal(exitCodeOf({ status: 7 }), 7);
+
+  const outDir = tempDir();
+  const record = runEvidence({
+    requirementId: 'G5-A01',
+    fixtureId: 'fx-xlsx-revenue-xyz',
+    checker: 'tester-cloud',
+    command: ['sh', '-c', 'kill -9 $$'],
+    outDir,
+  });
+  assert.equal(record.result, 'FAIL');
+  assert.equal(record.exitCode, 137);
+  assert.equal(record.blocker, null);
+  assert.equal(readLines(outDir)[0].result, 'FAIL', 'the ledger line a killed command writes is not a PASS');
+});
+
+test('a skip line only turns a clean exit into BLOCKED, and never masks a failure', () => {
+  assert.deepEqual(classifyResult({ exitCode: 0, output: 'SKIP: no xvfb on this VM' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: SKIP: no xvfb on this VM',
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '  skip - not applicable  ' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: skip - not applicable',
+  });
+  // A failing command that prints a skip-shaped line stays a FAIL.
+  assert.deepEqual(classifyResult({ exitCode: 1, output: 'SKIP: no xvfb\nboom' }), { result: 'FAIL', blocker: null });
+  assert.deepEqual(classifyResult({ exitCode: 137, output: 'skip' }), { result: 'FAIL', blocker: null });
+  assert.deepEqual(classifyResult({ exitCode: SKIP_EXIT_CODE, output: '' }), {
+    result: 'BLOCKED',
+    blocker: `command reported skip (exit ${SKIP_EXIT_CODE})`,
+  });
+
+  const masked = runEvidence({
+    requirementId: 'G5-A01',
+    fixtureId: 'fx-xlsx-revenue-xyz',
+    checker: 'tester-cloud',
+    command: ['sh', '-c', 'echo "skip: pretending this is fine"; exit 1'],
+    outDir: tempDir(),
+  });
+  assert.equal(masked.result, 'FAIL', 'a skip line must not hide a genuine failure');
+  assert.equal(masked.exitCode, 1);
+});
+
 test('a missing or drifted fixture is BLOCKED and never PASS, and the command does not run', () => {
   const missing = runEvidence({
     requirementId: 'G5-A01',
@@ -216,6 +280,11 @@ test('reset only touches a lane test database and is a dry run without psql', ()
   assert.throws(() => assertLaneTestDatabase('dev_uniwork_test', 'lane_'), /not under the lane test prefix lane_/);
   assert.equal(databaseNameFromUrl('postgres://uniwork:uniwork@localhost:5432/uniwork_x_1_test?sslmode=disable'), 'uniwork_x_1_test');
   assert.equal(databaseNameFromUrl('not a url'), null);
+  // F6: the name is percent-decoded, so a quoted identifier matches the real DB.
+  assert.equal(databaseNameFromUrl('postgres://uniwork:uniwork@localhost:5432/uniwork_a%22b_test'), 'uniwork_a"b_test');
+  assert.equal(databaseNameFromUrl('postgres://uniwork:uniwork@localhost:5432/uniwork_a%25_test'), 'uniwork_a%_test');
+  assert.equal(databaseNameFromUrl('postgres://uniwork:uniwork@localhost:5432/uniwork_bad%_test'), 'uniwork_bad%_test');
+  assert.equal(assertLaneTestDatabase(databaseNameFromUrl('postgres://uniwork:uniwork@localhost:5432/uniwork_a%22b_test')), 'uniwork_a"b_test');
   assert.equal(laneTestDbPrefix({}), 'uniwork_');
   assert.equal(laneTestDbPrefix({ OFFICE_LANE_TEST_DB_PREFIX: 'lane_' }), 'lane_');
 
@@ -229,6 +298,21 @@ test('reset only touches a lane test database and is a dry run without psql', ()
   assert.throws(() => reset({ outDir, env: { DATABASE_URL: 'postgres://uniwork:uniwork@localhost:5432/uniwork_shared' }, dryRun: true }), /refuses database/);
   assert.throws(() => reset({ outDir, env: {}, dryRun: true }), /no database name/);
 
+  // The out dir is a second guard: reset clears the evidence dir, nothing else.
+  assert.equal(assertEvidenceOutDir(outDir), path.resolve(outDir), 'a dir holding a ledger is the evidence dir');
+  const scratch = tempDir();
+  assert.throws(() => assertEvidenceOutDir(scratch), /refuses --out/);
+  assert.throws(
+    () => reset({ outDir: scratch, env: { TEST_DATABASE_URL: 'postgres://uniwork:uniwork@localhost:5432/uniwork_x_1_test?sslmode=disable' } }),
+    /refuses --out/,
+  );
+  fs.writeFileSync(path.join(scratch, 'keep.txt'), 'not evidence');
+  assert.throws(
+    () => reset({ outDir: scratch, env: { TEST_DATABASE_URL: 'postgres://uniwork:uniwork@localhost:5432/uniwork_x_1_test?sslmode=disable' } }),
+    /refuses --out/,
+  );
+  assert.equal(fs.readFileSync(path.join(scratch, 'keep.txt'), 'utf8'), 'not evidence', 'a refused reset deletes nothing');
+
   const dry = run(['reset', '--dry-run'], { TEST_DATABASE_URL: 'postgres://uniwork:uniwork@localhost:5432/uniwork_x_1_test?sslmode=disable' });
   assert.equal(dry.status, 0);
   assert.match(dry.stdout, /would drop database uniwork_x_1_test/);
@@ -239,14 +323,17 @@ test('reset only touches a lane test database and is a dry run without psql', ()
 
 test('verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker', () => {
   const outDir = tempDir();
+  // verify reports a null fork SHA as an empty field, so a "clean" record has to
+  // name one — the cloud runner always does (the harness sets OFFICE_FORK_SHA).
   const record = runEvidence({
     requirementId: 'G5-A01',
     fixtureId: 'fx-xlsx-revenue-xyz',
     checker: 'tester-cloud',
     command: [process.execPath, '-e', 'process.exit(0)'],
     outDir,
+    env: { ...process.env, OFFICE_FORK_SHA: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' },
   });
-  assert.equal(verify({ outDir }).ok, true);
+  assert.equal(verify({ outDir }).ok, true, verify({ outDir }).problems.join('; '));
 
   const ledgerFile = path.join(outDir, 'evidence.jsonl');
   const ledger = readLines(outDir);
@@ -272,6 +359,24 @@ test('verify accepts a clean ledger and rejects a pass without an artifact, a st
   delete ledger[0].pin;
   fs.writeFileSync(ledgerFile, `${ledger.map((line) => JSON.stringify(line)).join('\n')}\n`);
   assert.ok(verify({ outDir }).problems.some((problem) => /is missing pin/.test(problem)));
+
+  // A field that is present but null or blank is as useless as an absent one.
+  ledger[0].pin = '';
+  ledger[0].fSha = null;
+  ledger[0].result = 'FAIL';
+  fs.writeFileSync(ledgerFile, `${ledger.map((line) => JSON.stringify(line)).join('\n')}\n`);
+  const empty = verify({ outDir });
+  assert.ok(empty.problems.some((problem) => /has an empty pin/.test(problem)), 'a blank pin is reported');
+  assert.ok(empty.problems.some((problem) => /has an empty fSha/.test(problem)), 'a null fork SHA is reported');
+
+  // blocker/exitCode are legitimately null and are not reported as empty.
+  ledger[0].pin = '0.1.0-0d03b18';
+  ledger[0].fSha = 'deadbeef';
+  ledger[0].blocker = null;
+  ledger[0].exitCode = null;
+  fs.writeFileSync(ledgerFile, `${ledger.map((line) => JSON.stringify(line)).join('\n')}\n`);
+  const clean = verify({ outDir });
+  assert.equal(clean.problems.some((problem) => /has an empty (blocker|exitCode)/.test(problem)), false);
 });
 
 test('verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker', () => {

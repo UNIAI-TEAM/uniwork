@@ -9,7 +9,8 @@
 // The rule the runner exists for (spec Section 9.1): a run's outcome is PASS
 // only when the command exited 0 on a fixture whose bytes still match the
 // manifest. A skip, an exit 77, a missing fixture or a drifted hash is BLOCKED
-// and never PASS, and nothing here rewrites a status by hand.
+// and never PASS; a command killed by a signal is a FAIL, never a PASS; and
+// nothing here rewrites a status by hand.
 
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
@@ -29,7 +30,9 @@ const LEDGER_NAME = 'evidence.jsonl';
 
 // Exit 77 is the harness convention for "this environment cannot run the check"
 // (the C harness exits 77 when the cloud VM lacks xvfb or Electron libs), and a
-// line that starts with SKIP is the same statement in text form.
+// line that starts with SKIP is the same statement in text form — but only for a
+// command that exited 0. A failure whose output happens to contain a line
+// starting with "skip" stays a FAIL.
 export const SKIP_EXIT_CODE = 77;
 const SKIP_LINE = /^(?:SKIP|skip)\b/;
 
@@ -104,18 +107,46 @@ export function readPin(env = process.env) {
   return [...versions].join(',');
 }
 
+/**
+ * 128 + the signal number, the code a shell reports for a command killed by a
+ * signal (`SIGKILL` -> 137, `SIGTERM` -> 143); 128 when the name is unknown.
+ * A killed command has `status === null`, so it must never be read as a pass.
+ */
+export function signalExitCode(signal) {
+  const number = os.constants?.signals?.[signal];
+  return Number.isInteger(number) ? 128 + number : 128;
+}
+
+/**
+ * The exit code a spawnSync result stands for. A status of null with a signal
+ * means the process was killed (128 + signal); a spawn error (a command that
+ * does not exist) is 127; a null status with neither is not a success either.
+ */
+export function exitCodeOf(run) {
+  if (typeof run.status === 'number') return run.status;
+  if (run.signal) return signalExitCode(run.signal);
+  if (run.error) return 127;
+  return signalExitCode(null);
+}
+
 function platformLabel() {
   return `${process.platform}-${os.arch()}`;
 }
 
-/** A non-zero exit is FAIL; 77 is BLOCKED; a SKIP line in the output is BLOCKED. */
+/**
+ * A non-zero exit is FAIL; 77 is BLOCKED; a SKIP line turns a clean exit into
+ * BLOCKED. The skip line is read only after the exit code: a command that failed
+ * and printed a line starting with "skip" is a FAIL, so a skip can never mask a
+ * genuine failure.
+ */
 export function classifyResult({ exitCode, output }) {
   if (exitCode === SKIP_EXIT_CODE) return { result: 'BLOCKED', blocker: `command reported skip (exit ${SKIP_EXIT_CODE})` };
+  if (exitCode !== 0) return { result: 'FAIL', blocker: null };
   const skipLine = String(output ?? '')
     .split('\n')
     .find((line) => SKIP_LINE.test(line.trim()));
   if (skipLine) return { result: 'BLOCKED', blocker: `command reported skip: ${skipLine.trim()}` };
-  return exitCode === 0 ? { result: 'PASS', blocker: null } : { result: 'FAIL', blocker: null };
+  return { result: 'PASS', blocker: null };
 }
 
 const readLedger = (outDir) => {
@@ -137,6 +168,21 @@ const readLedger = (outDir) => {
 
 function missingFields(record) {
   return REQUIRED_FIELDS.filter((field) => !(field in record));
+}
+
+/**
+ * Fields that must carry a value: a field that is present but null or blank is
+ * as useless as an absent one. Three fields are exempt because they are
+ * legitimately null — `blocker` outside a BLOCKED record, `exitCode` when the
+ * command never ran, and `fixtureSha256` for a fixture the manifest does not
+ * have (which verify already reports on its own).
+ */
+const VALUE_FIELDS = REQUIRED_FIELDS.filter((field) => !['blocker', 'exitCode', 'fixtureSha256'].includes(field));
+
+function emptyFields(record) {
+  return VALUE_FIELDS.filter(
+    (field) => field in record && (record[field] === null || (typeof record[field] === 'string' && record[field].trim() === '')),
+  );
 }
 
 function nextEvidenceId(outDir, requirementId) {
@@ -202,7 +248,7 @@ export function runEvidence({
 
   if (blocker === null) {
     const run = spawnSync(command[0], command.slice(1), { cwd, encoding: 'utf8', env: { ...env, OFFICE_EVIDENCE_ID: evidenceId } });
-    exitCode = run.status ?? (run.error ? 127 : 0);
+    exitCode = exitCodeOf(run);
     output = `${run.stdout ?? ''}${run.stderr ?? ''}${run.error ? String(run.error.message) : ''}`;
     const classified = classifyResult({ exitCode, output });
     result = classified.result;
@@ -258,7 +304,13 @@ export function assertLaneTestDatabase(name, prefix = laneTestDbPrefix()) {
 export function databaseNameFromUrl(url) {
   if (!url) return null;
   try {
-    return new URL(url).pathname.replace(/^\//, '');
+    const name = new URL(url).pathname.replace(/^\//, '');
+    try {
+      // A URL may percent-encode the name; the DB is named by the decoded text.
+      return decodeURIComponent(name);
+    } catch {
+      return name; // a stray '%' is not an encoding, so keep the raw name
+    }
   } catch {
     return null;
   }
@@ -278,7 +330,21 @@ function resetPlan(env = process.env) {
   ];
 }
 
+/**
+ * reset may only clear the evidence out dir: the default one, or a directory
+ * that already holds a ledger (which is what an evidence dir looks like). Any
+ * other directory — a home dir, a checkout, a scratch tree — is refused before
+ * a single file is removed.
+ */
+export function assertEvidenceOutDir(outDir) {
+  const dir = path.resolve(outDir);
+  if (dir === abs(DEFAULT_OUT_DIR)) return dir;
+  if (fs.existsSync(path.join(dir, LEDGER_NAME))) return dir;
+  throw new Error(`reset refuses --out ${outDir}: not the evidence out dir ${DEFAULT_OUT_DIR} and it holds no ${LEDGER_NAME}`);
+}
+
 export function reset({ outDir = abs(DEFAULT_OUT_DIR), env = process.env, dryRun = false } = {}) {
+  assertEvidenceOutDir(outDir);
   const plan = resetPlan(env);
   const done = [];
   for (const item of plan) {
@@ -315,6 +381,7 @@ export function verify({ outDir = abs(DEFAULT_OUT_DIR), matrixPath = MATRIX_PATH
   const byId = new Map();
   for (const [index, record] of ledger.entries()) {
     for (const field of missingFields(record)) problems.push(`line ${index + 1} (${record.evidenceId ?? '?'}) is missing ${field}`);
+    for (const field of emptyFields(record)) problems.push(`line ${index + 1} (${record.evidenceId ?? '?'}) has an empty ${field}`);
     if (record.evidenceId) byId.set(record.evidenceId, record);
     if (!RESULTS.includes(record.result)) problems.push(`line ${index + 1} has an unsupported result ${record.result}`);
     const fixture = fixtures.get(record.fixtureId);
