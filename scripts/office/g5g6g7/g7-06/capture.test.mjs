@@ -356,6 +356,7 @@ function fakeApi() {
       if (req.url === "/api/v1/orgs/org1/workspaces") return json({ workspace: { id: "ws1", slug: "w-x" } });
       if (req.url === "/api/v1/me/onboarding/complete") return json({});
       if (req.url === "/api/v1/workspaces/ws1/documents/files") return json({ document: { id: `doc${calls.length}` } });
+      if (/^\/api\/v1\/documents\/doc\d+\/archive$/.test(req.url)) return json({}, 200);
       if (req.url === "/api/v1/orgs/org1/privacy/deletion") return json({}, 202);
       return json({ error: "nope" }, 404);
     });
@@ -384,9 +385,21 @@ describe("web seeding", () => {
       assert.match(api.calls[5].type, /^multipart\/form-data/);
       assert.ok(api.calls[5].body.includes(fixtures[0].path.split("/").pop()));
       assert.deepEqual(Object.keys(seed.documents), fixtures.map((f) => f.id));
+      const before = api.calls.length;
       const cleaned = await cleanupSeed({ apiOrigin: api.origin, seed });
       assert.equal(cleaned.ok, true);
+      // every seeded document is archived through the API, then the organization goes into the erasure queue
+      assert.deepEqual(api.calls.slice(before).map((c) => `${c.method} ${c.path}`), [
+        ...Object.values(seed.documents).map((id) => `POST /api/v1/documents/${id}/archive`),
+        "POST /api/v1/orgs/org1/privacy/deletion",
+      ]);
+      assert.ok(api.calls.slice(before).every((c) => c.auth === "Bearer tok"));
       assert.deepEqual(JSON.parse(api.calls.at(-1).body), { confirm_slug: "o-x" });
+      assert.deepEqual(cleaned.archived, fixtures.map((f) => f.id));
+      // what stays is spelled out: the trash, the organization, the account
+      assert.match(cleaned.leftover, /^stays: 2 document\(s\) archived into the trash/);
+      assert.match(cleaned.leftover, /organization org1 \(erasure queued, runs in 5 days; its workspace ws1 stays until then\)/);
+      assert.match(cleaned.leftover, /owner account g7-06-capture-1700000000000@example\.com \(it cannot be deleted while it owns an organization\)/);
     } finally {
       api.server.close();
     }
@@ -396,8 +409,11 @@ describe("web seeding", () => {
     const api = await fakeApi();
     try {
       await assert.rejects(seedWorkspace({ apiOrigin: `${api.origin}/wrong`, fixtures: [] }), /-> 404/);
-      const cleaned = await cleanupSeed({ apiOrigin: api.origin, seed: { organization: { id: "other", slug: "s" }, token: "t", email: "e@x" } });
+      const cleaned = await cleanupSeed({ apiOrigin: api.origin, seed: { organization: { id: "other", slug: "s" }, token: "t", email: "e@x", documents: { fx: "nope" } } });
       assert.equal(cleaned.ok, false);
+      assert.deepEqual(cleaned.notArchived.length, 1);
+      assert.match(cleaned.leftover, /NOT archived: fx \(/);
+      assert.match(cleaned.leftover, /deletion request FAILED/);
     } finally {
       api.server.close();
     }

@@ -174,8 +174,8 @@ export async function captureWeb({ ports, fixtures, playwright, log = () => {}, 
     await browser?.close().catch(() => {});
     if (seed) {
       const cleaned = await cleanupSeed({ apiOrigin, seed, fetchImpl });
-      base.notes.push(`cleanup ${cleaned.ok ? "queued" : "FAILED"}: ${cleaned.leftover}`);
-      log(`web: cleanup ${cleaned.ok ? "queued" : "FAILED"}: ${cleaned.leftover}`);
+      base.notes.push(`cleanup ${cleaned.ok ? "done" : "INCOMPLETE"}: ${cleaned.leftover}`);
+      log(`web: cleanup ${cleaned.ok ? "done" : "INCOMPLETE"}: ${cleaned.leftover}`);
     }
   }
 }

@@ -66,15 +66,38 @@ export async function seedWorkspace({ apiOrigin, fixtures, fetchImpl = fetch, no
 }
 
 /**
- * Asks the server to erase the seeded organization (queued, 5 days; the account
- * stays its owner until then, the same leftover the document step reports).
- * Never throws: a cleanup says nothing about the shots.
+ * Cleans up what `seedWorkspace` made, as far as the API allows, and says
+ * exactly what stays. Documents have no purge route: each one is archived (the
+ * trash, kept). The organization is put in the erasure queue (5 days); the
+ * owner account cannot be deleted while it owns an organization, so it stays
+ * too, and so does the workspace until the erasure runs. Never throws: a
+ * cleanup says nothing about the shots.
  */
 export async function cleanupSeed({ apiOrigin, seed, fetchImpl = fetch }) {
-  try {
-    await call({ apiOrigin, fetchImpl, name: "requestOrganizationDeletion", params: { orgID: seed.organization.id }, token: seed.token, body: { confirm_slug: seed.organization.slug } });
-    return { ok: true, leftover: `organization ${seed.organization.id} (erasure queued) and its owner account ${seed.email}` };
-  } catch (error) {
-    return { ok: false, leftover: `organization ${seed.organization.id} and account ${seed.email} (deletion request failed: ${error.message})` };
+  const base = { apiOrigin, fetchImpl, token: seed.token };
+  const archived = [];
+  const notArchived = [];
+  for (const [fixtureId, documentId] of Object.entries(seed.documents ?? {})) {
+    try {
+      await call({ ...base, raw: { method: "POST", path: `${API_PREFIX}/documents/${documentId}/archive` } });
+      archived.push(fixtureId);
+    } catch (error) {
+      notArchived.push(`${fixtureId} (${error.message})`);
+    }
   }
+  let erasureQueued = true;
+  let erasureError = "";
+  try {
+    await call({ ...base, name: "requestOrganizationDeletion", params: { orgID: seed.organization.id }, body: { confirm_slug: seed.organization.slug } });
+  } catch (error) {
+    erasureQueued = false;
+    erasureError = error.message;
+  }
+  const parts = [
+    `${archived.length} document(s) archived into the trash (the API has no purge; kept until the organization is erased)`,
+    ...(notArchived.length > 0 ? [`NOT archived: ${notArchived.join("; ")}`] : []),
+    erasureQueued ? `organization ${seed.organization.id} (erasure queued, runs in 5 days; its workspace ${seed.workspace?.id ?? "?"} stays until then)` : `organization ${seed.organization.id} and workspace ${seed.workspace?.id ?? "?"} (deletion request FAILED: ${erasureError})`,
+    `owner account ${seed.email} (it cannot be deleted while it owns an organization)`,
+  ];
+  return { ok: notArchived.length === 0 && erasureQueued, archived, notArchived, erasureQueued, leftover: `stays: ${parts.join("; ")}` };
 }
