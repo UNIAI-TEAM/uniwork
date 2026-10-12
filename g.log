@@ -1,0 +1,136 @@
+$ node --test scripts/governance.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/events-catalogue.test.mjs
+TAP version 13
+# Subtest: every variable the server reads is documented in .env.example
+ok 1 - every variable the server reads is documented in .env.example
+  ---
+  duration_ms: 54.314858
+  ...
+# Subtest: the Go catalogue and the documented table agree
+ok 2 - the Go catalogue and the documented table agree
+  ---
+  duration_ms: 49.664865
+  ...
+# Subtest: every catalogue row has the one-line shape this file parses
+ok 3 - every catalogue row has the one-line shape this file parses
+  ---
+  duration_ms: 1.616732
+  ...
+# Subtest: the client knows every event that has a realtime audience
+ok 4 - the client knows every event that has a realtime audience
+  ---
+  duration_ms: 2.044731
+  ...
+# Subtest: event names follow <entity>.<verb> and carry no version
+ok 5 - event names follow <entity>.<verb> and carry no version
+  ---
+  duration_ms: 2.700061
+  ...
+# Subtest: payload keys are ids or revisions; content travels only through Patch
+ok 6 - payload keys are ids or revisions; content travels only through Patch
+  ---
+  duration_ms: 4.356995
+  ...
+# Subtest: the patchable task fields are exactly the ones ADR 0015 accepted
+ok 7 - the patchable task fields are exactly the ones ADR 0015 accepted
+  ---
+  duration_ms: 0.565889
+  ...
+# Subtest: the client decodes exactly the fields task.updated lists in Patch
+ok 8 - the client decodes exactly the fields task.updated lists in Patch
+  ---
+  duration_ms: 6.240161
+  ...
+# Subtest: every event has a scope or is explicitly infrastructure
+ok 9 - every event has a scope or is explicitly infrastructure
+  ---
+  duration_ms: 2.290007
+  ...
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 10 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 8.258634
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 11 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 6.149178
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 12 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 1.169485
+  ...
+# Subtest: both hooks exist and are executable
+ok 13 - both hooks exist and are executable
+  ---
+  duration_ms: 0.21801
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 14 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 1.646703
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 15 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 86.421933
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 16 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 0.996674
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 17 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.202653
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 18 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 4.247869
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 19 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.535152
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 20 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 10.951531
+  ...
+# Subtest: every plan says whether it shipped
+ok 21 - every plan says whether it shipped
+  ---
+  duration_ms: 42.620214
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 22 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 0.926784
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 23 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 296.839665
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 24 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 0.704448
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 25 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 45.479285
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 536.910963

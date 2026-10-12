@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -7
+75cf97b5e20584e8e1a5c15c57fa53ee58c4e87a
+25ba113b79034f853f5f84bf899274d681c1db3f
+75cf97b5e test(office): pin every capability flag key to the registry
+b101cfbcc fix(office): answer the app capability route with office_not_configured
+e12a45942 docs(office): document the app organization capability route (UNI-1340)
+b94424531 feat(office): add the app organization capability route (UNI-1340)
+563960309 feat(office): reserve the G5/G6 wire codes as unclassified (UNI-1340)
+bec752a4e feat(office): declare the Office G5/G6 app capability flags (UNI-1340)
+25ba113b7 docs: record U-15, the user signs sign-off batch #1 as recommended (UNI-1338)
