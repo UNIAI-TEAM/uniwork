@@ -114,7 +114,8 @@ func TestDocumentOfficeLifecycleThroughTheDocumentRoute(t *testing.T) {
 // OQ-P1 (a1) reaches the office job submission - both the document-scoped
 // wrapper (StartOfficeJobForDocument) and loadBase (StartOfficeJob): a base
 // behind a rename still describes the same bytes, so the job starts on the
-// document's current revision; a base behind a content change is still
+// document's current revision and both submit paths store that revision as
+// the job's base_revision; a base behind a content change is still
 // base_version_mismatch and writes no job row.
 func TestDocumentOfficeSubmitAcceptsAMetadataBase(t *testing.T) {
 	ctx := context.Background()
@@ -179,6 +180,37 @@ func TestDocumentOfficeSubmitAcceptsAMetadataBase(t *testing.T) {
 		bad.DocumentID, bad.BaseVersionID, bad.BaseRevision = other, ver, rev
 		if _, err := svc.StartOfficeJob(ctx, f.actor, bad); office.ErrorCode(err) != "base_version_mismatch" {
 			t.Fatalf("job on a base behind a content change: %v", err)
+		}
+	})
+
+	t.Run("both submit paths store the same base for a pre-rename base", func(t *testing.T) {
+		f := newOfficeFixture(t, "one base\n")
+		svc := f.service(newScriptedEngine())
+		title := "Tài liệu một gốc"
+		renamed, err := f.docs.UpdateDocument(ctx, f.actor, f.doc, UpdateDocumentInput{Revision: f.rev, Title: &title})
+		mustf(t, err, "rename")
+		if renamed.Document.Revision <= f.rev || renamed.Document.ContentRevision != f.rev {
+			t.Fatalf("rename: revision %d content_revision %d, want a metadata bump",
+				renamed.Document.Revision, renamed.Document.ContentRevision)
+		}
+
+		req := serialize("k-same-base-route")
+		req.HasBaseRevision, req.BaseRevision = true, f.rev
+		route, err := svc.StartOfficeJobForDocument(ctx, f.actor, f.doc, req)
+		mustf(t, err, "the document-scoped submit")
+
+		in := f.input("k-same-base-raw")
+		in.BaseRevision = f.rev
+		// A different model reference: the second live job is not the same work.
+		in.DocumentModelRef = "model-other"
+		raw, err := svc.StartOfficeJob(ctx, f.actor, in)
+		mustf(t, err, "the raw submit")
+
+		if route.BaseRevision != raw.BaseRevision {
+			t.Fatalf("submit paths store different bases: %d and %d", route.BaseRevision, raw.BaseRevision)
+		}
+		if raw.BaseRevision != renamed.Document.Revision {
+			t.Fatalf("job base = %d, want the current revision %d", raw.BaseRevision, renamed.Document.Revision)
 		}
 	})
 }
