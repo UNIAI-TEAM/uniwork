@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4
+64ca4c8a34e53aa5a5b57cb1f882610e4330d1f2
+66169a9ae1d3d7497d6585efbf5c7be9d94aa96c
+64ca4c8a fix(ai): keep the chosen AI provider selected instead of falling back to uniAI
+7e327c99 test(ai): pin that a stored provider choice is never replaced by uniAI
+66169a9a fix(sheets): keep an answered clarification as a receipt under the user message
+f4150855 test(sheets): pin the answered clarification receipt in the AI panel
