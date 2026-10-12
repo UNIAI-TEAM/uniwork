@@ -587,6 +587,25 @@ func (q *Queries) GetOrganizationMcpPolicy(ctx context.Context, id string) (GetO
 	return i, err
 }
 
+const getOrganizationMcpPolicyForUpdate = `-- name: GetOrganizationMcpPolicyForUpdate :one
+SELECT id, mcp_enabled_at, mcp_enabled_by FROM organizations WHERE id = $1 FOR UPDATE
+`
+
+type GetOrganizationMcpPolicyForUpdateRow struct {
+	ID           string             `json:"id"`
+	McpEnabledAt pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy pgtype.Text        `json:"mcp_enabled_by"`
+}
+
+// SetPolicy reads the value it is about to change under the row lock, so the
+// audit row's before/after is true and a repeated toggle writes no second row.
+func (q *Queries) GetOrganizationMcpPolicyForUpdate(ctx context.Context, id string) (GetOrganizationMcpPolicyForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getOrganizationMcpPolicyForUpdate, id)
+	var i GetOrganizationMcpPolicyForUpdateRow
+	err := row.Scan(&i.ID, &i.McpEnabledAt, &i.McpEnabledBy)
+	return i, err
+}
+
 const listMcpGrantsForOrganization = `-- name: ListMcpGrantsForOrganization :many
 SELECT g.id, g.organization_id, g.user_id, u.display_name AS user_name, g.client_id, c.client_name,
        c.redirect_uris, g.scope, g.created_at, g.last_used_at
@@ -687,6 +706,71 @@ func (q *Queries) ListMcpGrantsForUser(ctx context.Context, userID string) ([]Li
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockAllMcpGrantsForUser = `-- name: LockAllMcpGrantsForUser :many
+SELECT id FROM mcp_grants
+WHERE user_id = $1 AND revoked_at IS NULL
+ORDER BY id
+FOR UPDATE
+`
+
+// tenant: self
+// The same first step for DeleteAccount, across every organization.
+func (q *Queries) LockAllMcpGrantsForUser(ctx context.Context, userID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, lockAllMcpGrantsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockMcpGrantsForUserInOrganization = `-- name: LockMcpGrantsForUserInOrganization :many
+SELECT id FROM mcp_grants
+WHERE organization_id = $1 AND user_id = $2 AND revoked_at IS NULL
+ORDER BY id
+FOR UPDATE
+`
+
+type LockMcpGrantsForUserInOrganizationParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+// First step of revoking a person's grants in bulk (Leave): lock them in id
+// order, so a mint or rotation in flight on one of them commits before the
+// revocation reads its tokens, and two bulk revocations of one person take
+// their grants in the same sequence. Lock order everywhere: grant, then token.
+func (q *Queries) LockMcpGrantsForUserInOrganization(ctx context.Context, arg LockMcpGrantsForUserInOrganizationParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, lockMcpGrantsForUserInOrganization, arg.OrganizationID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

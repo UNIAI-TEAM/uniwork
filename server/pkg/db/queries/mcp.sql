@@ -117,6 +117,24 @@ JOIN mcp_clients c ON c.client_id = g.client_id
 WHERE g.organization_id = $1 AND g.revoked_at IS NULL
 ORDER BY g.created_at DESC;
 
+-- name: LockMcpGrantsForUserInOrganization :many
+-- First step of revoking a person's grants in bulk (Leave): lock them in id
+-- order, so a mint or rotation in flight on one of them commits before the
+-- revocation reads its tokens, and two bulk revocations of one person take
+-- their grants in the same sequence. Lock order everywhere: grant, then token.
+SELECT id FROM mcp_grants
+WHERE organization_id = sqlc.arg(organization_id) AND user_id = sqlc.arg(user_id) AND revoked_at IS NULL
+ORDER BY id
+FOR UPDATE;
+
+-- name: LockAllMcpGrantsForUser :many
+-- tenant: self
+-- The same first step for DeleteAccount, across every organization.
+SELECT id FROM mcp_grants
+WHERE user_id = $1 AND revoked_at IS NULL
+ORDER BY id
+FOR UPDATE;
+
 -- name: RevokeMcpTokensForUserInOrganization :execrows
 UPDATE mcp_tokens t SET revoked_at = now()
 WHERE t.organization_id = sqlc.arg(organization_id) AND t.revoked_at IS NULL
@@ -163,6 +181,11 @@ UPDATE mcp_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS 
 
 -- name: GetOrganizationMcpPolicy :one
 SELECT id, mcp_enabled_at, mcp_enabled_by FROM organizations WHERE id = $1;
+
+-- name: GetOrganizationMcpPolicyForUpdate :one
+-- SetPolicy reads the value it is about to change under the row lock, so the
+-- audit row's before/after is true and a repeated toggle writes no second row.
+SELECT id, mcp_enabled_at, mcp_enabled_by FROM organizations WHERE id = $1 FOR UPDATE;
 
 -- name: SetOrganizationMcpPolicy :one
 UPDATE organizations SET

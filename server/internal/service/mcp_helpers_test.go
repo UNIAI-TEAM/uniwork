@@ -98,21 +98,27 @@ func attemptID(t *testing.T, consentURL string) string {
 // approve walks Start → Consent → Approve for the owner and returns the code.
 func (w *mcpWorld) approve(t *testing.T, c McpClient, redirect string) string {
 	t.Helper()
+	return w.approveAs(t, w.owner, c, redirect)
+}
+
+// approveAs is approve for any member of the world's organization.
+func (w *mcpWorld) approveAs(t *testing.T, u db.User, c McpClient, redirect string) string {
+	t.Helper()
 	consentURL, err := w.svc.Start(w.ctx, McpAuthorizeInput{ResponseType: "code", ClientID: c.ClientID, RedirectURI: redirect, CodeChallenge: mcpTestChallenge(), CodeChallengeMethod: "S256", State: "st"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	id := attemptID(t, consentURL)
-	consent, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+	consent, err := w.svc.Consent(w.ctx, u.ID, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID)
+	to, err := w.svc.Approve(w.ctx, u.ID, id, consent.CSRFToken, w.org.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	u, _ := url.Parse(to)
-	return u.Query().Get("code")
+	parsed, _ := url.Parse(to)
+	return parsed.Query().Get("code")
 }
 
 // issue runs the whole flow for the owner and returns a fresh token pair.
@@ -121,6 +127,19 @@ func (w *mcpWorld) issue(t *testing.T) (McpClient, McpTokenPair) {
 	w.enable(t)
 	c := w.publicClient(t, "https://x.test/cb")
 	code := w.approve(t, c, "https://x.test/cb")
+	pair, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, Code: code, CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c, pair
+}
+
+// issueAs gives u (already a member of w.org) a token pair for a new client.
+func (w *mcpWorld) issueAs(t *testing.T, u db.User) (McpClient, McpTokenPair) {
+	t.Helper()
+	w.enable(t)
+	c := w.publicClient(t, "https://x.test/cb")
+	code := w.approveAs(t, u, c, "https://x.test/cb")
 	pair, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, Code: code, CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"})
 	if err != nil {
 		t.Fatal(err)
