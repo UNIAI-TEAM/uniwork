@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -648,5 +649,49 @@ func TestGatewayMediaAttachments(t *testing.T) {
 		Vars: map[string]any{}, Attachments: []provider.Part{{MIME: "video/mp4"}},
 	}); !errors.Is(err, ErrMediaUnsupported) {
 		t.Fatalf("unsupported media: %v", err)
+	}
+}
+
+// ---- office_uniwork_ai (G6-13, G6-D1 A1) -----------------------------------
+
+func TestPolicyOfficeUniworkAI(t *testing.T) {
+	for prov, want := range map[string]string{"anthropic": "claude-opus-5", "openai": "gpt-4o", "fake": "fake"} {
+		p, model, err := ResolveModel(CapOfficeUniworkAI, prov, nil, nil)
+		if err != nil || model != want || p.MaxTokens != 4096 || p.Temperature != 0 {
+			t.Fatalf("%s: %+v %s %v", prov, p, model, err)
+		}
+	}
+	// No ollama default: UniWork AI is not configured on an ollama deployment,
+	// and the refusal says for which capability.
+	if _, _, err := ResolveModel(CapOfficeUniworkAI, "ollama", nil, nil); err == nil || !strings.Contains(err.Error(), "office_uniwork_ai") {
+		t.Fatalf("ollama must refuse office_uniwork_ai: %v", err)
+	}
+	env := func(v string) func(string) string {
+		return func(k string) string {
+			if k == "AI_MODEL_OFFICE_UNIWORK_AI" {
+				return v
+			}
+			return ""
+		}
+	}
+	if _, m, _ := ResolveModel(CapOfficeUniworkAI, "openai", env("gpt-4o-mini"), nil); m != "gpt-4o-mini" {
+		t.Fatalf("override in allowlist ignored: %s", m)
+	}
+	if _, m, _ := ResolveModel(CapOfficeUniworkAI, "openai", env("dev-model"), []string{"dev-model"}); m != "dev-model" {
+		t.Fatalf("AI_MODEL_ALLOW not honoured: %s", m)
+	}
+	var logs strings.Builder
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	defer slog.SetDefault(prev)
+	if _, m, _ := ResolveModel(CapOfficeUniworkAI, "openai", env("dev-model"), nil); m != "gpt-4o" {
+		t.Fatalf("override outside allowlist accepted: %s", m)
+	}
+	if out := logs.String(); !strings.Contains(out, "outside allowlist") || !strings.Contains(out, "office_uniwork_ai") || !strings.Contains(out, "dev-model") {
+		t.Fatalf("no warning logged: %q", out)
+	}
+	// Existing capabilities keep their policies: ollama still has a default.
+	if _, m, err := ResolveModel(CapCopilotAnswer, "ollama", nil, nil); err != nil || m != "llama3.1" {
+		t.Fatalf("copilot on ollama: %s %v", m, err)
 	}
 }
