@@ -16,7 +16,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { OPERATIONS, loadCases, referenceAnswerFor, score, validateCase } from './holdout-score.mjs';
+import { containsToken, loadCases, OPERATIONS, referenceAnswerFor, score, splitAnchor, toNumber, validateCase } from './holdout-score.mjs';
+import { computeTruth } from './holdout-xlsx-truth.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const CASES_DIR = path.join(repoRoot, 'docs/office/g5g6g7/holdout/cases');
@@ -34,6 +35,10 @@ const EXPECTED = [
   { file: 'cross.json', prefix: 'HO-CROSS-', format: 'cross', count: 20 },
 ];
 const CROSS_CATEGORIES = ['permission', 'stale', 'ambiguity', 'error', 'injection'];
+const TRUTH_SCRIPT = 'scripts/office/g5g6g7/holdout-xlsx-truth.mjs';
+// The committed XLSX truth table: every key a case may cite after "<truth script>#". Imported, not re-derived here,
+// so the provenance gate can check the cited key actually exists (R1-5).
+const XLSX_TRUTH = computeTruth();
 const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, MANIFEST), 'utf8'));
 const fixtureById = new Map(manifest.fixtures.map((fixture) => [fixture.id, fixture]));
 const oracleTextById = new Map(
@@ -97,6 +102,19 @@ function derivableFrom(values) {
   return out;
 }
 
+/**
+ * The truth keys a case cites after "<script>.mjs#": the fragment runs to the end of the line or to the first space
+ * or "(", then splits on commas. "…mjs#q1_revenue_all,q2_revenue_all (revenue is unchanged)" cites two keys.
+ */
+function citedTruthKeys(source) {
+  const fragment = /\.mjs#([^\s(]+)/.exec(String(source));
+  if (!fragment) return [];
+  return fragment[1].split(',').map((key) => key.trim()).filter(Boolean);
+}
+
+/** Strips tone marks, for the diacritic-echo mutation tests (R1-3). */
+const foldForTest = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd');
+
 const numericAssertions = (caseDoc) => [
   ...caseDoc.expected.numeric.map((item) => ({ label: `numeric ${item.name}`, value: item.value })),
   ...caseDoc.expected.structural
@@ -152,26 +170,40 @@ test('fixtures[] hash the manifest, the fixtures exist and their oracle sidecars
   }
 });
 
-test('ground truth comes from the fixture oracle sidecars or a committed derivation', () => {
-  const unexplained = [];
-  for (const caseDoc of allCases) {
-    const sidecar = new Set();
-    for (const fixture of caseDoc.fixtures) {
-      for (const value of numbersInText(oracleTextById.get(fixture.id))) sidecar.add(value);
-    }
-    const derivable = derivableFrom([...sidecar]);
-    const source = caseDoc.oracle.source;
-    const sourceNumbers = numbersInText(source);
-    const derivedByScript = /\.mjs#/.test(source);
-    for (const assertion of numericAssertions(caseDoc)) {
-      const ok = derivable.has(assertion.value) || sourceNumbers.has(assertion.value) || derivedByScript;
-      if (!ok) unexplained.push(`${caseDoc.id}: ${assertion.label} = ${assertion.value} is in no oracle sidecar or derivation`);
-    }
-    if (!/oracle\.json|\.mjs|spec |lane brief|role = |fixture/i.test(source)) {
-      unexplained.push(`${caseDoc.id}: oracle.source names no fixture, sidecar or committed derivation`);
-    }
+/**
+ * Every number of a case must be explained: it is derivable from the fixture sidecars, written in the source text, or
+ * covered by a truth key the source cites. R1-5: a ".mjs#<key>" citation is not a free pass — it must name the one
+ * committed truth script and a key that exists in the imported truth table, and the key must actually hold the value.
+ */
+function provenanceProblems(caseDoc) {
+  const problems = [];
+  const sidecar = new Set();
+  for (const fixture of caseDoc.fixtures) {
+    for (const value of numbersInText(oracleTextById.get(fixture.id))) sidecar.add(value);
   }
-  assert.deepEqual(unexplained, []);
+  const derivable = derivableFrom([...sidecar]);
+  const source = caseDoc.oracle.source;
+  const sourceNumbers = numbersInText(source);
+  const scriptCitation = /\.mjs#/.test(source);
+  const citedKeys = scriptCitation ? citedTruthKeys(source) : null;
+  if (scriptCitation && !source.includes(TRUTH_SCRIPT)) {
+    problems.push(`${caseDoc.id}: oracle.source cites a .mjs# key outside ${TRUTH_SCRIPT}`);
+  }
+  for (const assertion of numericAssertions(caseDoc)) {
+    let ok = derivable.has(assertion.value) || sourceNumbers.has(assertion.value);
+    if (!ok && citedKeys !== null) {
+      ok = citedKeys.some((key) => (key.startsWith('cell:') ? assertion.value === XLSX_TRUTH[key] : XLSX_TRUTH[key] === assertion.value));
+    }
+    if (!ok) problems.push(`${caseDoc.id}: ${assertion.label} = ${assertion.value} is in no oracle sidecar, cited truth key or derivation`);
+  }
+  if (!/oracle\.json|\.mjs|spec |lane brief|role = |fixture/i.test(source)) {
+    problems.push(`${caseDoc.id}: oracle.source names no fixture, sidecar or committed derivation`);
+  }
+  return problems;
+}
+
+test('ground truth comes from the fixture oracle sidecars or a committed derivation', () => {
+  assert.deepEqual(allCases.flatMap((caseDoc) => provenanceProblems(caseDoc)), []);
 });
 
 test('the committed XLSX truth script agrees with xlsx.json (every number recomputed from the workbook)', () => {
@@ -250,6 +282,183 @@ test('the scorer fails closed when the answer reports no tools field (amendment 
     emptyUsed.tools = { used: null };
     assert.equal(score(caseDoc, emptyUsed).status, 'fail', `${caseDoc.id}: tools.used that is not an array must fail`);
   }
+});
+
+test('the scorer fails closed when a mustNotContain case reports no text field (R1-1)', () => {
+  // The mirror of the tools rule: a case whose point is what the reply must NOT say cannot be checked without the
+  // reply text, so a runner that drops `text` must not score a pass on it. 18 cases carry mustNotContain today.
+  const guarded = allCases.filter((c) => c.expected.mustNotContain.length > 0);
+  assert.ok(guarded.length >= 6, `expected mustNotContain cases, found ${guarded.length}`);
+  for (const caseDoc of guarded) {
+    for (const broken of [undefined, null, 0, { text: 'x' }]) {
+      const answer = referenceAnswerFor(caseDoc);
+      if (broken === undefined) delete answer.text;
+      else answer.text = broken;
+      assert.equal(score(caseDoc, answer).status, 'fail', `${caseDoc.id}: a missing/non-string text must fail (${JSON.stringify(broken)})`);
+    }
+  }
+});
+
+test('a cell/formula/table_cell anchor is an identity, not a substring (R1-2)', () => {
+  const cellCase = allCases.find((c) => c.expected.structural.some((i) => i.kind === 'cell' && !i.anchor.includes('#')));
+  const expected = cellCase.expected.structural.find((i) => i.kind === 'cell' && !i.anchor.includes('#'));
+  for (const wrong of [`${expected.anchor} extra`, `x ${expected.anchor}`, `${expected.anchor}:${expected.anchor}`, `${expected.anchor}0`]) {
+    const answer = structuredClone(referenceAnswerFor(cellCase));
+    const item = answer.structural.find((i) => i.anchor === expected.anchor);
+    item.anchor = wrong;
+    assert.equal(score(cellCase, answer).status, 'fail', `${cellCase.id}: a cell anchor "${wrong}" must not match "${expected.anchor}"`);
+  }
+  // A topic anchor stays lenient: a heading reported with extra words still matches.
+  const headingCase = allCases.find((c) => c.expected.structural.some((i) => i.kind === 'heading' && !i.anchor.includes('#')));
+  if (headingCase) {
+    const heading = headingCase.expected.structural.find((i) => i.kind === 'heading' && !i.anchor.includes('#'));
+    const answer = structuredClone(referenceAnswerFor(headingCase));
+    answer.structural.find((i) => i.anchor === heading.anchor).anchor = `${heading.anchor} (heading)`;
+    assert.notEqual(score(headingCase, answer).status, 'fail', `${headingCase.id}: a heading anchor stays a topic match`);
+  }
+});
+
+test('a mustNotContain token is still caught when the reply changes its diacritics (R1-3)', () => {
+  // The locale concern: an injection marker echoed with the tone marks stripped (or a money token written without its
+  // diacritics) is the same echo. The samples are built from the case tokens, never written here, so no case marker
+  // is copied out of the holdout directory.
+  const lettered = allCases.flatMap((c) => c.expected.mustNotContain).find((t) => /^[A-Za-z]+-\d+$/.test(t));
+  assert.ok(lettered, 'the set needs a lettered marker token');
+  assert.ok(containsToken(`Chuỗi là ${foldForTest(lettered)}`, lettered), 'a diacritic-stripped echo must match');
+  const accented = allCases.flatMap((c) => c.expected.mustNotContain).find((t) => /[^\x00-\x7f]/.test(t));
+  assert.ok(accented, 'the set needs a token that carries Vietnamese diacritics');
+  assert.ok(containsToken(`Con số là ${foldForTest(accented)}`, accented), 'a diacritic-stripped money token must match');
+  assert.ok(!containsToken('không có gì liên quan', lettered), 'an unrelated reply must not match');
+  for (const caseDoc of allCases.filter((c) => c.expected.mustNotContain.length > 0)) {
+    const token = caseDoc.expected.mustNotContain[0];
+    if (!/[A-Za-z]/.test(token)) continue;
+    const answer = referenceAnswerFor(caseDoc);
+    answer.text = `${answer.text} ${foldForTest(token)}`;
+    assert.equal(score(caseDoc, answer).status, 'fail', `${caseDoc.id}: echoing ${token} diacritic-folded must fail`);
+  }
+});
+
+test('toNumber accepts a number with its unit and still refuses prose (R1-4)', () => {
+  assert.equal(toNumber('22.060.000 đồng'), 22060000);
+  assert.equal(toNumber('22.060.000 VND'), 22060000);
+  assert.equal(toNumber('22.060.000 đ'), 22060000);
+  assert.equal(toNumber('₫22.060.000'), 22060000);
+  assert.equal(toNumber('22.060.000'), 22060000);
+  assert.equal(toNumber('10%'), 10);
+  assert.equal(toNumber('10 %'), 10);
+  assert.equal(toNumber('hai mươi hai triệu'), null);
+  assert.equal(toNumber('không rõ'), null);
+  // A compliant reply that writes the unit is graded on the value, not refused as a wrong number.
+  const unitCase = allCases.find((c) => c.expected.numeric.some((n) => n.unit === 'VND'));
+  const expected = unitCase.expected.numeric.find((n) => n.unit === 'VND');
+  const answer = referenceAnswerFor(unitCase);
+  answer.numeric[expected.name] = `${expected.value.toLocaleString('vi-VN')} đồng`;
+  const result = score(unitCase, answer);
+  assert.ok(
+    result.checks.find((c) => c.id === `numeric:${expected.name}`)?.status === 'pass',
+    `${unitCase.id}: a value written with its unit must pass`,
+  );
+});
+
+test('a mustNotContain token echoed inside a structural anchor is caught (R1-8)', () => {
+  for (const caseDoc of allCases.filter((c) => c.expected.mustNotContain.length > 0)) {
+    const token = caseDoc.expected.mustNotContain[0];
+    const answer = structuredClone(referenceAnswerFor(caseDoc));
+    answer.structural = [...answer.structural, { kind: 'cell', anchor: token, value: 'x' }];
+    assert.equal(score(caseDoc, answer).status, 'fail', `${caseDoc.id}: echoing ${token} as an anchor must fail`);
+  }
+});
+
+test('containsToken does not squash separators other than whitespace (R1-9)', () => {
+  // Over-matching turned a compliant reply into a failure: with every separator squashed, a hyphenated token matched
+  // unrelated words. Only whitespace is squashed now, so a hyphen stays significant.
+  assert.ok(!containsToken('the value a b 12 appears here', 'AB-12'), 'unrelated words must not create a match');
+  assert.ok(!containsToken('ab 12', 'AB-12'), 'a hyphen in the token is not whitespace');
+  assert.ok(containsToken('ab-12', 'AB-12'), 'the exact token still matches');
+  // Whitespace inside the token is still tolerated: a diacritic-folded echo inserts a space where the token had none.
+  const marker = allCases.flatMap((c) => c.expected.mustNotContain).find((t) => /^[A-Z]+-\d{4}$/.test(t));
+  assert.ok(containsToken(marker.replace(/^([A-Z]+)-/, '$1 -'), marker), 'a space inside the letters still matches');
+});
+
+test('the provenance gate needs a real truth key, not just a .mjs# citation (R1-5)', () => {
+  // A fabricated number with a made-up "holdout-xlsx-truth.mjs#whatever" citation used to explain every value.
+  const numericCase = allCases.find((c) => c.oracle.source.includes('holdout-xlsx-truth.mjs#') && c.expected.numeric.length > 0);
+  const fabricated = 123456789;
+  const broken = structuredClone(numericCase);
+  broken.oracle.source = `${TRUTH_SCRIPT}#not_a_real_key`;
+  broken.expected.numeric[0].value = fabricated;
+  broken.referenceAnswer.numeric[broken.expected.numeric[0].name] = fabricated;
+  assert.ok(provenanceProblems(broken).length > 0, `${numericCase.id}: a fabricated value with a bogus truth key must be reported`);
+  // A citation of another script is refused too.
+  const foreign = structuredClone(numericCase);
+  foreign.oracle.source = `scripts/office/g5g6g7/holdout-score.mjs#${numericCase.expected.numeric[0].name}`;
+  foreign.expected.numeric[0].value = fabricated;
+  foreign.referenceAnswer.numeric[foreign.expected.numeric[0].name] = fabricated;
+  assert.ok(provenanceProblems(foreign).some((p) => /outside/.test(p)), 'a citation outside the truth script must be reported');
+  // A real key still explains its value (the fix does not break the legitimate citations).
+  const valid = allCases.find((c) => /holdout-xlsx-truth\.mjs#[a-z_]+/.test(c.oracle.source) && c.expected.numeric.length > 0);
+  assert.deepEqual(provenanceProblems(valid), [], `${valid.id}: a real truth key must still be accepted`);
+});
+
+test('setup.removeCells is accepted and validated (amendment 4, R1-11)', () => {
+  const caseDoc = allCases[0];
+  const withRemove = structuredClone(caseDoc);
+  withRemove.setup = { ...(withRemove.setup ?? {}), removeCells: ['Ghi chú!A4', 'Doanh thu Q1!F1'] };
+  assert.deepEqual(validateCase(withRemove), [], 'a well-formed removeCells must validate');
+  for (const bad of ['Ghi chú!A4 extra', 'GhiChuA4', '', 'A4']) {
+    const broken = structuredClone(withRemove);
+    broken.setup.removeCells = [bad];
+    assert.ok(validateCase(broken).some((p) => /removeCells/.test(p)), `removeCells entry ${JSON.stringify(bad)} must be refused`);
+  }
+  const empty = structuredClone(withRemove);
+  empty.setup.removeCells = [];
+  assert.ok(validateCase(empty).some((p) => /removeCells/.test(p)), 'an empty removeCells must be refused');
+});
+
+test('an unknown key is refused at every level of a case (R1-12)', () => {
+  const caseDoc = allCases.find((c) => c.expected.numeric.length > 0 && c.expected.structural.length > 0);
+  const withUnknown = (mutate) => {
+    const broken = structuredClone(caseDoc);
+    mutate(broken);
+    return validateCase(broken);
+  };
+  const cases = [
+    ['case', (c) => { c.bogusTopLevel = 1; }],
+    ['query', (c) => { c.query.typo = 'x'; }],
+    ['expected', (c) => { c.expected.typoKey = 1; }],
+    ['fixture', (c) => { c.fixtures[0].path = 'x'; }],
+    ['fixture overlay (amendment 2)', (c) => { c.fixtures[0].overlay = [{ value: 'x' }]; }],
+    ['numeric item', (c) => { c.expected.numeric[0].typo = 1; }],
+    ['structural item', (c) => { c.expected.structural[0].typo = 1; }],
+    ['tools', (c) => { c.tools.typo = 1; }],
+    ['oracle', (c) => { c.oracle.typo = 1; }],
+    ['referenceAnswer', (c) => { c.referenceAnswer.typo = 1; }],
+    ['setup', (c) => { c.setup = { ...(c.setup ?? {}), typo: 1 }; }],
+  ];
+  for (const [label, mutate] of cases) {
+    assert.ok(withUnknown(mutate).some((p) => /unknown field/.test(p)), `an unknown ${label} key must be reported`);
+  }
+});
+
+test('a #numberFormat probe is documented and graded as a format, not a cell value (N2)', () => {
+  const probeCase = allCases.find((c) => c.expected.structural.some((i) => i.anchor.includes('#numberFormat')));
+  assert.ok(probeCase, 'the set needs a #numberFormat case');
+  const item = probeCase.expected.structural.find((i) => i.anchor.includes('#numberFormat'));
+  assert.ok(['percent', 'number', 'text', 'currency', 'date'].includes(item.value), `unsupported numberFormat value ${item.value}`);
+  const parts = splitAnchor(item.anchor);
+  assert.equal(parts.probe, 'numberFormat', 'the probe suffix must be recognised');
+  assert.ok(!parts.base.includes('#'), 'the probe is stripped from the location');
+  assert.equal(splitAnchor('Doanh thu Q1!G8').probe, null, 'a plain cell anchor carries no probe');
+  // A runner that reads the probe anchor as a plain cell still scores: the value is a format name, graded by equality.
+  const answer = referenceAnswerFor(probeCase);
+  assert.notEqual(score(probeCase, answer).status, 'fail', `${probeCase.id}: the reference probe answer must score`);
+  // A wrong format fails, and a probe on a non-cell kind is refused by the schema.
+  const wrong = structuredClone(answer);
+  wrong.structural.find((i) => i.anchor.includes('#numberFormat')).value = 'currency';
+  assert.equal(score(probeCase, wrong).status, 'fail', `${probeCase.id}: a wrong number format must fail`);
+  const broken = structuredClone(probeCase);
+  broken.expected.structural.find((i) => i.anchor.includes('#numberFormat')).kind = 'heading';
+  assert.ok(validateCase(broken).some((p) => /probe/.test(p)), 'a probe on a heading must be refused');
 });
 
 test('the stale group covers stale apply / silent overwrite, not only read-only caveats (reviewer H2)', () => {
@@ -460,35 +669,109 @@ test('setup is accepted and validated: overlay, history, selection, serverVersio
   }
 });
 
-test('case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)', () => {
-  const patterns = new Set();
-  const fixtureText = [...oracleTextById.values()].join('\n');
+/**
+ * A needle is only a leak signal when it identifies the case's own content. A URL scheme, a bare number or a reserved
+ * example domain (RFC 2606) occurs legitimately all over the repo, so scanning for it would only produce noise; the
+ * high-value needles are the injection payloads (setup.overlay / setup.history values) and the mustNotContain markers,
+ * which are exactly what must never reach an instruction pack. R1-6 names those two classes; a bare number is left out
+ * on purpose and a money-scale number (>= 7 digits, e.g. 22.060.000) is kept.
+ */
+const GENERIC_NEEDLES = [
+  /^https?:\/\/$/i, // a URL scheme on its own, not a payload
+  /^[\d.,]+$/, // a bare number
+  /(^|\.)example\.(com|invalid|org|net)$/i, // a reserved example domain (RFC 2606)
+];
+const MIN_NUMBER_DIGITS = 7;
+const isDistinctive = (needle) => !GENERIC_NEEDLES.some((pattern) => pattern.test(needle));
+
+/** A number as a reader could type it: plain, en-grouped and vi-grouped (the leak scan looks for any of them). */
+function numberForms(value) {
+  if (!Number.isInteger(value)) return [...new Set([String(value), String(value).replace('.', ',')])];
+  const en = value.toLocaleString('en-US');
+  return [...new Set([String(value), en, en.replace(/,/g, '.')])];
+}
+
+/** The needles the leak scan looks for (R1-6), before the fixture-owned ones are dropped. */
+function leakNeedles() {
+  const needles = new Set();
   for (const caseDoc of allCases) {
-    patterns.add(caseDoc.query.vi);
-    patterns.add(caseDoc.query.en);
-    patterns.add(caseDoc.referenceAnswer.text);
+    needles.add(caseDoc.query.vi);
+    needles.add(caseDoc.query.en);
+    needles.add(caseDoc.referenceAnswer.text);
     for (const item of caseDoc.expected.structural) {
       // A structural value may legitimately quote the document (a heading, a cell text); the fixture owns that string.
-      if (typeof item.value === 'string' && item.value.length > 20 && !fixtureText.includes(item.value)) patterns.add(item.value);
+      if (typeof item.value === 'string' && item.value.length > 20 && !fixtureText.includes(item.value)) needles.add(item.value);
+    }
+    // R1-6: the injection payloads and the markers are the highest-value needles and were not scanned before.
+    for (const token of caseDoc.expected.mustNotContain) if (isDistinctive(token)) needles.add(token);
+    for (const entry of caseDoc.setup?.overlay ?? []) if (typeof entry.value === 'string' && entry.value.length >= 4) needles.add(entry.value);
+    for (const turn of caseDoc.setup?.history ?? []) if (typeof turn.text === 'string' && turn.text.length >= 4) needles.add(turn.text);
+    for (const item of caseDoc.expected.numeric) {
+      const digits = String(Math.abs(item.value)).replace(/[.,]/g, '');
+      if (!Number.isFinite(item.value) || digits.length < MIN_NUMBER_DIGITS) continue;
+      for (const form of numberForms(item.value)) needles.add(form);
     }
   }
-  const list = [...patterns];
+  return [...needles].filter(isDistinctive);
+}
+
+/**
+ * Runs one git-grep pass over the tracked tree outside the holdout directory. Binary files are NOT skipped (R1-6:
+ * `-I` would hide a payload baked into a fixture or another artefact), so a leak in a binary is caught too.
+ */
+function findLeaks(needles, cwd = repoRoot) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'holdout-leak-'));
   const patternFile = path.join(dir, 'patterns.txt');
-  fs.writeFileSync(patternFile, `${list.join('\n')}\n`, 'utf8');
+  fs.writeFileSync(patternFile, `${needles.join('\n')}\n`, 'utf8');
   try {
     const out = execFileSync(
       'git',
-      ['grep', '-F', '-I', '-l', '-f', patternFile, '--', '.', `:(exclude)${HOLDOUT_DIR}/**`],
-      { cwd: repoRoot, encoding: 'utf8' },
+      ['grep', '-F', '-l', '-f', patternFile, '--', '.', `:(exclude)${HOLDOUT_DIR}/**`],
+      { cwd, encoding: 'utf8' },
     );
-    assert.fail(`case text leaked outside ${HOLDOUT_DIR}: ${out.trim().split('\n').join(', ')}`);
+    return out.trim() ? out.trim().split('\n') : [];
   } catch (error) {
-    if (error.status === 1) return; // git grep exits 1 when nothing matched: no leak.
-    if (error.status === undefined || error.status === null) throw error;
+    if (error.status === 1) return []; // git grep exits 1 when nothing matched: no leak.
     throw new Error(`git grep failed (exit ${error.status}): ${error.stderr ?? error.message}`);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const fixtureText = [...oracleTextById.values()].join('\n');
+const fixtureBytes = [...new Set(manifest.fixtures.map((f) => f.path))]
+  .map((file) => fs.readFileSync(path.join(repoRoot, file)).toString('latin1'))
+  .join('\n');
+const needleOwnedByFixture = (needle) => fixtureText.includes(needle) || fixtureBytes.includes(needle);
+
+test('case text stays inside the holdout directory (spec §9.2: answers never reach a prompt or the dev set)', () => {
+  const outside = findLeaks(leakNeedles().filter((needle) => !needleOwnedByFixture(needle)));
+  assert.deepEqual(outside, [], `case text leaked outside ${HOLDOUT_DIR}: ${outside.join(', ')}`);
+});
+
+test('the leak scan finds an injection payload and a marker outside the holdout dir, binary included (R1-6)', () => {
+  // The scan used to skip binary files (-I) and never looked for the injection payloads or the markers, so a leak of
+  // the most dangerous text was invisible. This proves the scan fails on a payload, on a marker, and on a payload
+  // hidden in a binary artefact.
+  const marker = allCases.find((c) => c.expected.mustNotContain.some((t) => /^[A-Z]+-\d{4}$/.test(t)))
+    .expected.mustNotContain.find((t) => /^[A-Z]+-\d{4}$/.test(t));
+  const payloadCase = allCases.find((c) => c.setup?.overlay?.some((e) => typeof e.value === 'string' && e.value.length > 20));
+  const payload = payloadCase.setup.overlay.find((e) => typeof e.value === 'string' && e.value.length > 20).value;
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'holdout-leak-repo-'));
+  const git = (args) => execFileSync('git', ['-C', scratch, '-c', 'user.email=t@example.invalid', '-c', 'user.name=t', ...args], { encoding: 'utf8' });
+  try {
+    git(['init', '-q']);
+    fs.writeFileSync(path.join(scratch, 'leaked.md'), `instruction pack note: ${marker}\n`, 'utf8');
+    fs.writeFileSync(path.join(scratch, 'leaked.bin'), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(payload, 'utf8')]));
+    fs.writeFileSync(path.join(scratch, 'clean.md'), 'a file with nothing of the case in it\n', 'utf8');
+    git(['add', '.']);
+    git(['commit', '-qm', 'scratch']);
+    const found = findLeaks([marker, payload], scratch);
+    assert.ok(found.includes('leaked.md'), `the marker leak was not found: ${found.join(', ')}`);
+    assert.ok(found.includes('leaked.bin'), `a payload inside a binary file was not found: ${found.join(', ')}`);
+    assert.ok(!found.includes('clean.md'), 'the scan reported a file that carries no needle');
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
   }
 });
 
