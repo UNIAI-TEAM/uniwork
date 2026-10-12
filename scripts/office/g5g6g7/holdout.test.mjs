@@ -103,13 +103,30 @@ function derivableFrom(values) {
 }
 
 /**
- * The truth keys a case cites after "<script>.mjs#": the fragment runs to the end of the line or to the first space
- * or "(", then splits on commas. "…mjs#q1_revenue_all,q2_revenue_all (revenue is unchanged)" cites two keys.
+ * The truth keys a case cites after "<script>.mjs#". The citation is a comma list: a plain key ends at a space, "(", ";"
+ * or ","; a `cell:` key is an anchor, which holds spaces ("cell:Doanh thu Q1!AA2..AA7"), so it runs to the next ",",
+ * " (", ";" or the end of the line. A same-column range ("AA2..AA7", R2-3) names each cell of it, because the truth
+ * table is keyed per cell. "…mjs#q1_revenue_all,q2_revenue_all (revenue is unchanged)" cites two keys.
  */
 function citedTruthKeys(source) {
-  const fragment = /\.mjs#([^\s(]+)/.exec(String(source));
+  const fragment = /\.mjs#(.*)/.exec(String(source));
   if (!fragment) return [];
-  return fragment[1].split(',').map((key) => key.trim()).filter(Boolean);
+  const keys = [];
+  let rest = fragment[1];
+  for (;;) {
+    const token = (rest.startsWith('cell:') ? /^[^,;(]*?(?=\s\(|[,;]|$)/ : /^[^\s,(;]+/).exec(rest)?.[0].trim() ?? '';
+    if (token === '') break;
+    const range = /^(cell:.+!)([A-Z]+)(\d+)\.\.\2?(\d+)$/.exec(token);
+    if (range) {
+      for (let row = Number(range[3]); row <= Number(range[4]); row += 1) keys.push(`${range[1]}${range[2]}${row}`);
+    } else {
+      keys.push(token);
+    }
+    rest = rest.slice(rest.indexOf(token) + token.length);
+    if (!rest.startsWith(',')) break; // only a comma continues the list; anything else is the free-text note
+    rest = rest.slice(1).trimStart();
+  }
+  return keys;
 }
 
 /** Strips tone marks, for the diacritic-echo mutation tests (R1-3). */
@@ -192,7 +209,7 @@ function provenanceProblems(caseDoc) {
   for (const assertion of numericAssertions(caseDoc)) {
     let ok = derivable.has(assertion.value) || sourceNumbers.has(assertion.value);
     if (!ok && citedKeys !== null) {
-      ok = citedKeys.some((key) => (key.startsWith('cell:') ? assertion.value === XLSX_TRUTH[key] : XLSX_TRUTH[key] === assertion.value));
+      ok = citedKeys.some((key) => XLSX_TRUTH[key] === assertion.value);
     }
     if (!ok) problems.push(`${caseDoc.id}: ${assertion.label} = ${assertion.value} is in no oracle sidecar, cited truth key or derivation`);
   }
@@ -398,6 +415,29 @@ test('the provenance gate needs a real truth key, not just a .mjs# citation (R1-
   // A real key still explains its value (the fix does not break the legitimate citations).
   const valid = allCases.find((c) => /holdout-xlsx-truth\.mjs#[a-z_]+/.test(c.oracle.source) && c.expected.numeric.length > 0);
   assert.deepEqual(provenanceProblems(valid), [], `${valid.id}: a real truth key must still be accepted`);
+});
+
+test('a cell: citation with a multi-word anchor and a range reaches the truth table (R2-3)', () => {
+  // citedTruthKeys used to stop at the first space, so "cell:Doanh thu Q1!AA2..AA7" became the key "cell:Doanh".
+  const base = `${TRUTH_SCRIPT}#`;
+  assert.deepEqual(citedTruthKeys(`${base}cell:Doanh thu Q2!J2..J4`), ['cell:Doanh thu Q2!J2', 'cell:Doanh thu Q2!J3', 'cell:Doanh thu Q2!J4']);
+  assert.deepEqual(citedTruthKeys(`${base}cell:Doanh thu Q1!AA2..AA3 (note; with, punctuation)`), ['cell:Doanh thu Q1!AA2', 'cell:Doanh thu Q1!AA3']);
+  assert.deepEqual(citedTruthKeys(`${base}cell:Tổng hợp!D5,q1_revenue_all (note)`), ['cell:Tổng hợp!D5', 'q1_revenue_all']);
+  assert.deepEqual(citedTruthKeys(`${base}q1_revenue_all,q2_revenue_all (revenue is unchanged)`), ['q1_revenue_all', 'q2_revenue_all']);
+  assert.deepEqual(citedTruthKeys(`${base}z_raw_gt_10_orders_all = 0 versus z_gt_10pct_orders_all = 3`), ['z_raw_gt_10_orders_all']);
+  // Through the gate: a case with no fixture sidecar can only be explained by the cited cell keys.
+  const cells = [2, 3, 4].map((row) => `Doanh thu Q2!J${row}`);
+  const make = (source, values) => ({
+    id: 'HO-SCRATCH',
+    fixtures: [],
+    oracle: { source },
+    expected: { numeric: [], structural: cells.map((anchor, i) => ({ kind: 'cell', anchor, value: values[i] })) },
+  });
+  const truth = cells.map((anchor) => XLSX_TRUTH[`cell:${anchor}`]);
+  assert.ok(truth.every((value) => typeof value === 'number'), 'the truth table holds the J cells');
+  assert.deepEqual(provenanceProblems(make(`${base}cell:Doanh thu Q2!J2..J4`, truth)), [], 'the cited range explains its cells');
+  assert.ok(provenanceProblems(make(`${base}cell:Doanh thu Q2!J2..J4`, [truth[0], truth[1], truth[2] + 1])).length > 0, 'a wrong value is still reported');
+  assert.ok(provenanceProblems(make(`${base}cell:Doanh thu Q2!J2..J3`, truth)).length > 0, 'a cell outside the cited range is not explained');
 });
 
 test('setup.removeCells is accepted and validated (amendment 4, R1-11)', () => {

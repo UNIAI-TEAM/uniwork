@@ -10,9 +10,12 @@ tham chiếu, giá trị cấu trúc, **payload injection** (`setup.overlay`/`se
 nào của ca xuất hiện ở đường dẫn khác ngoài `docs/office/g5g6g7/holdout/`. Lần quét không bỏ qua tệp nhị phân (không
 dùng `git grep -I`), nên một payload giấu trong một tệp nhị phân cũng bị bắt. Một needle trùng với chính fixture
 (sidecar hoặc file gốc) thì không tính là rò rỉ, vì fixture sở hữu chuỗi đó. Ba loại needle không
-mang thông tin riêng của ca bị bỏ qua để khỏi báo động giả: scheme `https://`/`http://` trần, một con số trần, và
-miền ví dụ `example.invalid` (RFC 2606) — chúng xuất hiện hợp lệ khắp repo. Payload thật thì vẫn được soi nguyên vẹn
-(ví dụ cả URL trong `setup.overlay` của ca HTML-005), và chỉ những con số đủ dài để định danh (>= 7 chữ số) mới thành needle.
+mang thông tin riêng của ca bị bỏ qua để khỏi báo động giả: scheme `https://`/`http://` trần, một con số trần **ngắn** (dưới 7
+chữ số) và miền ví dụ `example.invalid` (RFC 2606) — chúng xuất hiện hợp lệ khắp repo. Payload thật thì vẫn được soi nguyên vẹn
+(ví dụ cả URL trong `setup.overlay` của ca HTML-005). Một con số cỡ tiền (>= 7 chữ số) **là** needle ở cả ba dạng (liền,
+chấm nghìn kiểu vi, phẩy nghìn kiểu en), vì chính nó là đáp án. Ngoại lệ có tên duy nhất: dạng liền `12345678` (dãy đếm
+1-8, là chuỗi con của mọi bảng chữ số và seed test trong 50 tệp); dạng có dấu nhóm của nó vẫn được soi. Con số nằm trong
+fixture thì fixture sở hữu nó nên không tính là rò rỉ (như mọi needle khác).
 
 ## Thành phần
 
@@ -135,6 +138,9 @@ từ `scripts/office/g5g6g7/holdout-xlsx-truth.mjs` (tính lại từ ô trong w
 trên các số đó (hiệu, tổng, tỷ lệ, làm tròn). `holdout.test.mjs` kiểm lại điều này cho từng giá trị số.
 Một trích dẫn `oracle.source` dạng `<script>.mjs#<key>` không phải là sự miễn trừ: script phải là
 `holdout-xlsx-truth.mjs`, và `<key>` phải là một khoá có thật trong bảng chân lý với đúng giá trị của ca.
+`<key>` có thể là một danh sách ngăn bằng dấu phẩy; khoá `cell:<anchor>` được phép chứa dấu cách
+(`cell:Doanh thu Q1!AA2..AA7`) và một dải cùng cột được khai triển thành từng ô (bảng chân lý khoá theo ô). Phần ghi chú tự
+do đứng sau ` (` hoặc `;` (một khoá thường kết thúc ở dấu cách).
 
 ## Điểm mở (do fixture, không phải lỗi của bộ ca)
 
