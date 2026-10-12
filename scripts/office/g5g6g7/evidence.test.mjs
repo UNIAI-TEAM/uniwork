@@ -106,7 +106,7 @@ test('exit 0 records PASS with every contract field, the D SHA, the fork SHA and
   assert.equal(record.dSha, resolveDSha());
   assert.equal(record.fSha, 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef');
   assert.equal(record.pin, readPin());
-  assert.match(record.pin, /^0\.1\.0-0d03b18$/);
+  assert.equal(record.pin, JSON.parse(fs.readFileSync(path.join(repoRoot, 'apps/web/platform/office-frame/docs.pin.json'), 'utf8')).version);
   assert.equal(record.platform, 'linux-x64');
   assert.equal(record.build, 'dev');
   assert.equal(record.checker, 'tester-cloud');
@@ -457,7 +457,7 @@ test('verify accepts a clean ledger and rejects a pass without an artifact, a st
   assert.ok(empty.problems.some((problem) => /has an empty fSha/.test(problem)), 'a null fork SHA is reported');
 
   // blocker/exitCode are legitimately null and are not reported as empty.
-  ledger[0].pin = '0.1.0-0d03b18';
+  ledger[0].pin = readPin();
   ledger[0].fSha = 'deadbeef';
   ledger[0].blocker = null;
   ledger[0].exitCode = null;
