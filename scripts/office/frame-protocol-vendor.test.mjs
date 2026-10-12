@@ -1,0 +1,108 @@
+// X-02 (UNI-1339): the frame protocol this repo vendors in packages/core/office
+// must be the protocol every pinned genoffice frame bundle was built against.
+// The fork records sha256 of its raw web/docs/protocol/{types,endpoint,host}.ts
+// in each bundle's manifest.json (protocolSha256), the sync script copies it
+// into apps/web/platform/office-frame/<module>.pin.json, and this test hashes
+// the vendored copies normalised back to the fork form and compares.
+//
+// Normalisation (the same rule on both sides, agreed with the vendoring lane):
+// drop the leading `//` vendor header lines, then the `/* eslint-disable ... */`
+// lines right after them, and rewrite the import specifiers to the fork's
+// ('./docs-frame-protocol' -> './types', './docs-frame-endpoint' -> './endpoint').
+//
+// protocolSha256 is optional in pins until the re-pin from a fork release
+// (Advisor x-contracts:2, option A): pins without it must all agree on that,
+// and the test says so out loud instead of passing silently.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const OFFICE_DIR = join(repoRoot, "packages", "core", "office");
+const PIN_DIR = join(repoRoot, "apps", "web", "platform", "office-frame");
+const MODULES = ["docs", "pdf", "markdown", "html", "slides", "sheets"];
+
+/** pin key -> vendored file (fork file: types.ts, endpoint.ts, host.ts) */
+export const VENDORED_FILES = Object.freeze({
+  protocol: "docs-frame-protocol.ts",
+  endpoint: "docs-frame-endpoint.ts",
+  host: "docs-frame-host.ts",
+});
+
+/**
+ * A vendored file back in the fork's form.
+ * @param {string} text
+ * @returns {string}
+ */
+export function normaliseVendored(text) {
+  const lines = text.split("\n");
+  let i = 0;
+  while (i < lines.length && /^\/\//.test(lines[i])) i += 1;
+  while (i < lines.length && /^\/\* eslint-disable .*\*\/$/.test(lines[i])) i += 1;
+  return lines
+    .slice(i)
+    .join("\n")
+    .replaceAll("'./docs-frame-protocol'", "'./types'")
+    .replaceAll("'./docs-frame-endpoint'", "'./endpoint'");
+}
+
+const sha256 = (text) => createHash("sha256").update(text, "utf8").digest("hex");
+
+/** @returns {{ protocol: string, endpoint: string, host: string }} */
+export function vendoredProtocolSha256(dir = OFFICE_DIR) {
+  return Object.fromEntries(
+    Object.entries(VENDORED_FILES).map(([key, file]) => [key, sha256(normaliseVendored(readFileSync(join(dir, file), "utf8")))]),
+  );
+}
+
+function readPins() {
+  return MODULES.map((module) => ({ module, pin: JSON.parse(readFileSync(join(PIN_DIR, `${module}.pin.json`), "utf8")) }));
+}
+
+test("normalisation strips the vendor header and pragmas and restores the fork's import specifiers", () => {
+  const vendored = [
+    "// Vendored from the genoffice fork,",
+    "// web/docs/protocol/host.ts at abc",
+    "/* eslint-disable max-lines -- vendored contract file */",
+    "/**",
+    " * Host side.",
+    " */",
+    "import { createEndpoint } from './docs-frame-endpoint'",
+    "import type { Api } from './docs-frame-protocol'",
+    "// a comment inside the body stays",
+    "",
+  ].join("\n");
+  assert.equal(
+    normaliseVendored(vendored),
+    ["/**", " * Host side.", " */", "import { createEndpoint } from './endpoint'", "import type { Api } from './types'", "// a comment inside the body stays", ""].join("\n"),
+  );
+  // a file without header is its own fork form
+  assert.equal(normaliseVendored("export const a = 1\n"), "export const a = 1\n");
+});
+
+test("every frame pin records the same protocolSha256, equal to the vendored protocol", (t) => {
+  const pins = readPins();
+  const recorded = pins.filter(({ pin }) => pin.protocolSha256 !== undefined);
+  if (recorded.length === 0) {
+    // Not a skip: all six pins agree that none records the protocol yet.
+    t.diagnostic(
+      "NOTE: no frame pin records protocolSha256 yet; the re-pin is pending the fork release (X-02 r2). " +
+        `Vendored protocol sha256: ${JSON.stringify(vendoredProtocolSha256())}`,
+    );
+    console.log("frame-protocol-vendor: no pin records protocolSha256 yet (all six agree); the re-pin is pending the fork release (X-02 r2)");
+    return;
+  }
+  const missing = pins.filter(({ pin }) => pin.protocolSha256 === undefined).map(({ module }) => module);
+  assert.deepEqual(missing, [], `some pins record protocolSha256 and some do not (missing: ${missing.join(", ")}); re-pin all six together`);
+  const expected = vendoredProtocolSha256();
+  for (const { module, pin } of pins) {
+    assert.deepEqual(
+      pin.protocolSha256,
+      expected,
+      `${module}.pin.json was built against another frame protocol than packages/core/office vendors; re-vendor or re-pin`,
+    );
+  }
+});
