@@ -287,17 +287,7 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 			return DocumentFileResult{}, err
 		}
 		if committed {
-			// Another attempt committed after the peek: its ledger answer
-			// is the one to replay.
-			replay, err := PeekIdempotent(ctx, s.q, doc.OrganizationID, doc.WorkspaceID, idempotencyScopeDocumentVersionCommit, in.IdempotencyKey, actor.ID, opts)
-			if err != nil {
-				return DocumentFileResult{}, NormalizeIdempotencyError(err)
-			}
-			if replay == nil {
-				return DocumentFileResult{}, NormalizeIdempotencyError(ErrIdempotencyInFlight)
-			}
-			s.intentCounters().IncOfficeIdempotentReplay()
-			return replayWithAccess(replay.Body, current)
+			return s.replayCommittedIntent(ctx, actor, doc, in, opts, current)
 		}
 		claim = &c
 	}
@@ -309,6 +299,24 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 		s.intentCounters().IncOfficeIdempotentReplay()
 	}
 	return res, err
+}
+
+// replayCommittedIntent answers the post-claim race: the intent was already
+// committed when this attempt claimed it (another attempt committed after our
+// ledger peek), so its ledger answer is the one to replay. The commit is
+// counted as a replay like every other path that answers from the ledger.
+func (s *DocumentService) replayCommittedIntent(
+	ctx context.Context, actor Actor, doc db.Document, in CommitFileVersionInput, opts IdempotencyOptions, current DocumentAccess,
+) (DocumentFileResult, error) {
+	replay, err := PeekIdempotent(ctx, s.q, doc.OrganizationID, doc.WorkspaceID, idempotencyScopeDocumentVersionCommit, in.IdempotencyKey, actor.ID, opts)
+	if err != nil {
+		return DocumentFileResult{}, NormalizeIdempotencyError(err)
+	}
+	if replay == nil {
+		return DocumentFileResult{}, NormalizeIdempotencyError(ErrIdempotencyInFlight)
+	}
+	s.intentCounters().IncOfficeIdempotentReplay()
+	return replayWithAccess(replay.Body, current)
 }
 
 // commitClaimedFileVersion is the commit after the intent claim: the format

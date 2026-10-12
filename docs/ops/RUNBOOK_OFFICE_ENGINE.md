@@ -100,7 +100,11 @@ with the variables above exported (Node 22).
 - Engine readiness is `EngineReady` (metric `uniwork_office_engine_ready`), never part of the API's `/readyz`: an
   engine outage does not take the API, Documents list or download out of rotation.
 - Go metrics: `uniwork_office_jobs_total{operation,outcome}`, `uniwork_office_job_duration_seconds{operation}`,
-  `uniwork_office_engine_ready`, `uniwork_office_engine_queue_depth`.
+  `uniwork_office_engine_ready`, `uniwork_office_engine_queue_depth`, and the G5-07 commit intents:
+  `uniwork_office_intent_lookups_total{outcome}` (`committed` | `not_committed` | `in_flight` | `unknown`),
+  `uniwork_office_idempotent_replays_total`, `uniwork_office_commit_intents_swept_total`. The 409 at commit is the
+  shared `uniwork_document_conflicts_total{kind="file",code="document_version_conflict"}` (reuse decision, G5-07),
+  not a separate office counter.
 - Today the real FileService keeps the `document_file` purpose disabled until G1-03 opens it, so a real deployment
   refuses office jobs at `RegisterProviderOutput` (`file_purpose_disabled`) until then.
 
