@@ -48,7 +48,7 @@ export function visibleChars(text) {
 }
 
 /** Every brand hit, each with ±40 characters of the normalised text around it. */
-export function brandHits(text) {
+function brandHits(text) {
   const normalised = normalizeBrandText(text);
   const hits = [];
   for (const brand of BRANDS) {
@@ -59,6 +59,21 @@ export function brandHits(text) {
     }
   }
   return hits;
+}
+
+/**
+ * Every brand hit of one capture: the module text plus the host page and the
+ * desktop shell texts (optional, older capture dirs have none). Each file is
+ * scanned on its own so a hit names its file and a brand cannot be glued
+ * together across two files. `--update-goldens` calls this too, so a pair is
+ * blessed only when this check would pass it.
+ * @param {string} hostDir `<captures>/<host>`
+ * @param {string} fixture
+ * @param {string} text the already-read `<fixture>.txt`
+ */
+export function captureBrandHits(hostDir, fixture, text) {
+  return [{ file: `${fixture}.txt`, text }, ...EXTRA_TEXTS.map((suffix) => ({ file: `${fixture}${suffix}`, text: readOptional(join(hostDir, `${fixture}${suffix}`)) }))]
+    .flatMap((source) => (source.text === null ? [] : brandHits(source.text).map((hit) => ({ ...hit, file: source.file }))));
 }
 
 /**
@@ -93,11 +108,7 @@ export function runBrandCheck({ capturesDir, outDir, fixtures = fixtureIds(), ho
         pairs.push({ ...pair, status: "FAIL", reasons: ["no_rendered_text"], hits: [], visible });
         continue;
       }
-      // The host page and the desktop shell texts are optional (older capture
-      // dirs have none); each is scanned on its own so a hit names its file and
-      // a brand cannot be glued together across two files.
-      const hits = [{ file: `${fixture}.txt`, text }, ...EXTRA_TEXTS.map((suffix) => ({ file: `${fixture}${suffix}`, text: readOptional(join(capturesDir, host, `${fixture}${suffix}`)) }))]
-        .flatMap((source) => (source.text === null ? [] : brandHits(source.text).map((hit) => ({ ...hit, file: source.file }))));
+      const hits = captureBrandHits(join(capturesDir, host), fixture, text);
       pairs.push({ ...pair, status: hits.length > 0 ? "FAIL" : "PASS", reasons: hits.length > 0 ? ["brand_text"] : [], hits, visible });
     }
   }

@@ -20,7 +20,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { dirname, join } from "node:path";
 import { sha256Hex } from "../../../../apps/web/platform/office-frame/frame-bundle.mjs";
 import { VIEWPORTS } from "./capture/constants.mjs";
-import { brandHits, MIN_VISIBLE_CHARS, visibleChars } from "./brand-check.mjs";
+import { captureBrandHits, MIN_VISIBLE_CHARS, visibleChars } from "./brand-check.mjs";
 import { capturePairBlocker, DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonState, relativeToOut } from "./job-lib.mjs";
 
 export const DEFAULT_TOLERANCE = Object.freeze({ channel: 16, ratio: 0.001 });
@@ -318,7 +318,7 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
         blocked.push(`no_rendered_text:${host}/${fixture}`);
         continue;
       }
-      if (brandHits(text).length > 0) {
+      if (captureBrandHits(join(capturesDir, host), fixture, text).length > 0) {
         blocked.push(`brand_text:${host}/${fixture}`);
         continue;
       }

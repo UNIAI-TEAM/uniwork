@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { test } from "node:test";
 import { sha256Hex } from "../../../../../apps/web/platform/office-frame/frame-bundle.mjs";
+import { runBrandCheck } from "../brand-check.mjs";
 import { runGoldenCheck, updateGoldens } from "../golden-check.mjs";
 import { HOSTS, REPO_ROOT } from "../job-lib.mjs";
 import * as fx from "../test-fixtures/capture-fixtures.mjs";
@@ -283,6 +284,21 @@ test("--update-goldens refuses a pair the brand check fails", () => {
   assert.equal(updated.status, "BLOCKED");
   assert.deepEqual(updated.reasons, [`brand_text:desktop/${ONE}`]);
 });
+
+for (const [name, file] of [["host page", "host.txt"], ["desktop shell", "shell.txt"]]) {
+  test(`--update-goldens refuses a pair whose brand text sits only in the ${name} text (${file}), as the brand check does (R2-1)`, () => {
+    const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
+    for (const host of HOSTS) writeFileSync(join(captures, host, `${ONE}.${file}`), "Tài liệu mở trong GenOffice\n");
+    const goldens = tmpDir("g7-06-goldens-");
+    const updated = updateGoldens({ capturesDir: captures, goldensDir: goldens, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir(`golden-update-brand-${file}`) });
+    assert.equal(updated.status, "BLOCKED");
+    assert.deepEqual(updated.reasons, [`brand_text:desktop/${ONE}`, `brand_text:web/${ONE}`]);
+    assert.equal(existsSync(join(goldens, "desktop", `${ONE}.png`)), false, "nothing was blessed");
+    // the same captures fail the brand check, so the bootstrap and the check can never disagree
+    const brand = runBrandCheck({ capturesDir: captures, outDir: outDir("golden-update-brand-check"), fixtures: [ONE], ...UPDATE_ID });
+    assert.equal(brand.status, "FAIL");
+  });
+}
 
 test("--update-goldens refuses a pair under the no_rendered_text threshold", () => {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
