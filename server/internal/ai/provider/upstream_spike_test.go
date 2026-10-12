@@ -107,7 +107,12 @@ func TestUpstreamSpike(t *testing.T) {
 	summary.Latency = spikeLatency(call1, call2, full)
 
 	if mode == "dev" {
-		summary.ModelNames, summary.ModelListStatus = spikeModelNames(ctx, timeout)
+		var names []string
+		names, summary.ModelNameCount, summary.ModelListStatus = spikeModelNames(ctx, timeout)
+		summary.ModelNames = names
+		if summary.ModelNameCount > len(names) {
+			summary.Notes = append(summary.Notes, fmt.Sprintf("model list truncated to the first %d names", spikeModelNameCap))
+		}
 		summary.Stream = spikeStreamProbe(ctx, timeout, model, tools)
 		summary.recordStreamErrors(summary.Stream)
 	}
@@ -291,41 +296,52 @@ func spikeStreamProbe(ctx context.Context, timeout time.Duration, model string, 
 // ---- model list (dev only) ------------------------------------------------
 
 // spikeModelNames reads GET /v1/models. Only names and a count are kept: the
-// base URL, host and key never reach the summary.
-func spikeModelNames(ctx context.Context, timeout time.Duration) ([]string, int) {
+// base URL, host and key never reach the summary. The list can be thousands of
+// names long, so at most spikeModelNameCap of them are returned; total is the
+// real length.
+func spikeModelNames(ctx context.Context, timeout time.Duration) (names []string, total, status int) {
 	base, key := os.Getenv("OPENAI_BASE_URL"), os.Getenv("OPENAI_API_KEY")
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(cctx, http.MethodGet, strings.TrimSuffix(base, "/")+"/models", nil)
 	if err != nil {
-		return nil, 0
+		return nil, 0, 0
 	}
 	if key != "" {
 		req.Header.Set("Authorization", "Bearer "+key)
 	}
 	res, err := (&http.Client{Timeout: timeout}).Do(req)
 	if err != nil {
-		return nil, 0
+		return nil, 0, 0
 	}
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		return nil, res.StatusCode
+		return nil, 0, res.StatusCode
 	}
 	var out struct {
 		Data []struct {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&out) != nil {
-		return nil, res.StatusCode
+	// This upstream lists thousands of names; read generously but keep only a
+	// bounded sample so the summary stays small.
+	if json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(&out) != nil {
+		return nil, 0, res.StatusCode
 	}
-	names := make([]string, 0, len(out.Data))
+	names = make([]string, 0, len(out.Data))
 	for _, m := range out.Data {
 		names = append(names, m.ID)
 	}
 	sort.Strings(names)
-	return names, res.StatusCode
+	total = len(names)
+	if len(names) > spikeModelNameCap {
+		names = names[:spikeModelNameCap]
+	}
+	return names, total, res.StatusCode
 }
+
+// spikeModelNameCap bounds how many model names the summary carries.
+const spikeModelNameCap = 200
 
 // ---- summary --------------------------------------------------------------
 
@@ -345,6 +361,7 @@ type spikeSummary struct {
 	Usage             spikeUsage    `json:"usage"`
 	Latency           spikeLatencyT `json:"latency_ms"`
 	ModelNames        []string      `json:"model_names,omitempty"`
+	ModelNameCount    int           `json:"model_name_count,omitempty"`
 	ModelListStatus   int           `json:"model_list_status,omitempty"`
 	Stream            *spikeStream  `json:"stream,omitempty"`
 	Errors            []spikeError  `json:"errors"`
@@ -471,7 +488,7 @@ func spikeText(s *spikeSummary) string {
 	fmt.Fprintf(&b, "UNI-1364 G6-02 upstream spike — mode=%s provider=%s model=%s\n", s.Mode, s.Provider, s.Model)
 	fmt.Fprintf(&b, "started %s, %d loops\n", s.StartedAt, s.Loops)
 	if len(s.ModelNames) > 0 {
-		fmt.Fprintf(&b, "GET /v1/models → %d (status %d): %s\n", len(s.ModelNames), s.ModelListStatus, strings.Join(s.ModelNames, ", "))
+		fmt.Fprintf(&b, "GET /v1/models → status %d, %d names (first %d): %s\n", s.ModelListStatus, s.ModelNameCount, len(s.ModelNames), strings.Join(s.ModelNames, ", "))
 	} else {
 		fmt.Fprintf(&b, "GET /v1/models → status %d, no names read\n", s.ModelListStatus)
 	}
