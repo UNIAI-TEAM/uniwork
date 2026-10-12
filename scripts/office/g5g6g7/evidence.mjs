@@ -176,17 +176,23 @@ function missingFields(record) {
 
 /**
  * Fields that must carry a value: a field that is present but null or blank is
- * as useless as an absent one. Three fields are exempt because they are
+ * as useless as an absent one (an empty `argv` array included). Three fields are exempt because they are
  * legitimately null — `blocker` outside a BLOCKED record, `exitCode` when the
  * command never ran, and `fixtureSha256` for a fixture the manifest does not
  * have (which verify already reports on its own).
  */
 const VALUE_FIELDS = REQUIRED_FIELDS.filter((field) => !['blocker', 'exitCode', 'fixtureSha256'].includes(field));
 
+// `argv` is the one array-valued field: an empty array, or anything that is not
+// an array, carries no argument vector and is as empty as a blank string (N1).
+function isEmptyValue(field, value) {
+  if (value === null) return true;
+  if (field === 'argv') return !Array.isArray(value) || value.length === 0;
+  return typeof value === 'string' && value.trim() === '';
+}
+
 function emptyFields(record) {
-  return VALUE_FIELDS.filter(
-    (field) => field in record && (record[field] === null || (typeof record[field] === 'string' && record[field].trim() === '')),
-  );
+  return VALUE_FIELDS.filter((field) => field in record && isEmptyValue(field, record[field]));
 }
 
 /**

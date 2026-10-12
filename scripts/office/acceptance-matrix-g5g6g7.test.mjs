@@ -81,22 +81,28 @@ function reviewedRevision() {
 }
 
 /**
- * The ledger is read only when the caller names it (OFFICE_EVIDENCE_LEDGER). The
- * default path is gitignored, so reading it implicitly would validate records
- * that were run on another revision — or on no revision at all, on a checkout
- * that never ran the cloud round (R1-04).
+ * The ledger is read only when the caller names it (OFFICE_EVIDENCE_LEDGER, or
+ * the explicit argument). The default path is gitignored, so reading it
+ * implicitly would validate records that were run on another revision — or on no
+ * revision at all, on a checkout that never ran the cloud round (R1-04).
  */
-function ledgerPathFor(env = process.env) {
-  const explicit = env.OFFICE_EVIDENCE_LEDGER?.trim();
-  if (!explicit) return null;
-  return path.isAbsolute(explicit) ? explicit : path.join(repoRoot, explicit);
+function ledgerPathFor(env = process.env, explicit = env.OFFICE_EVIDENCE_LEDGER) {
+  const named = explicit?.trim();
+  if (!named) return null;
+  return path.isAbsolute(named) ? named : path.join(repoRoot, named);
 }
 
-/** Evidence records the matrix declares, plus the ledger when a caller names one. */
-function readEvidence(candidate, env = process.env) {
+/**
+ * Evidence records the matrix declares, plus the ledger when a caller names one.
+ * A ledger that is named and absent is a misconfiguration (a typo, the wrong
+ * worktree, a run that never happened), so it throws instead of validating the
+ * declared records alone and passing green (N5).
+ */
+function readEvidence(candidate, env = process.env, explicit = env.OFFICE_EVIDENCE_LEDGER) {
   const records = Array.isArray(candidate.evidence) ? [...candidate.evidence] : [];
-  const ledgerPath = ledgerPathFor(env);
-  if (ledgerPath && fs.existsSync(ledgerPath)) {
+  const ledgerPath = ledgerPathFor(env, explicit);
+  if (ledgerPath) {
+    if (!fs.existsSync(ledgerPath)) throw new Error(`the evidence ledger ${ledgerPath} is named but does not exist`);
     for (const rawLine of fs.readFileSync(ledgerPath, 'utf8').split('\n')) {
       const line = rawLine.trim();
       if (line) records.push(JSON.parse(line));
@@ -109,6 +115,79 @@ function readEvidence(candidate, env = process.env) {
 function artifactExists(artifact) {
   if (!isFilled(artifact)) return false;
   return fs.existsSync(path.isAbsolute(artifact) ? artifact : path.join(repoRoot, artifact));
+}
+
+const gateMarker = '## Gate đang mở';
+const countWords = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín', 'mười'];
+
+/**
+ * The numbers acceptance.md repeats in prose, recomputed from a candidate: the
+ * per-group count lines, the totals row, the BLOCKED ids and the blocked-count
+ * phrase.
+ */
+function summarize(candidate) {
+  const perGroup = {};
+  const totals = { NOT_RUN: 0, BLOCKED: 0, PASS: 0, FAIL: 0 };
+  for (const row of candidate.rows) {
+    const group = row.id.slice(0, 2);
+    perGroup[group] ??= { NOT_RUN: 0, BLOCKED: 0, PASS: 0, FAIL: 0 };
+    perGroup[group][row.status] += 1;
+    totals[row.status] += 1;
+  }
+  const counted = (counts) => ['NOT_RUN', 'BLOCKED', 'PASS', 'FAIL'].filter((status) => counts[status] > 0).map((status) => `${counts[status]} ${status}`).join(', ');
+  const groupRange = (group) => {
+    const ids = requirementIds.filter((id) => id.startsWith(`${group}-`));
+    return `${group} (${ids[0]}...${ids[ids.length - 1]})`;
+  };
+  const groupLines = Object.entries(perGroup).map(([group, counts]) => ({
+    group,
+    line: `| ${groupRange(group)} | ${candidate.rows.filter((row) => row.id.startsWith(`${group}-`)).length} | ${counted(counts)} |`,
+  }));
+  // The totals row names all three statuses plus the zeroes it wants to show.
+  const totalLine = `**${totals.NOT_RUN} NOT_RUN, ${totals.BLOCKED} BLOCKED, ${totals.PASS} PASS**`;
+  const blocked = candidate.rows.filter((row) => row.status === 'BLOCKED').map((row) => row.id);
+  return { groupLines, totalLine, blocked, blockedPhrase: `${countWords[blocked.length]} dòng bị chặn hôm nay` };
+}
+
+/**
+ * acceptance.md rewritten to mirror a candidate: its rows, count lines, totals
+ * row and open-gate section (which carries the blocked-count word). The self-tests build their
+ * cases from a synthetic matrix and this doc, so no case depends on which rows
+ * the committed matrix has moved to PASS.
+ */
+function mirrorDoc(candidate, doc = acceptanceDoc) {
+  const summary = summarize(candidate);
+  let out = doc;
+  for (const row of candidate.rows) out = out.replace(new RegExp(`^\\| ${row.id} \\|.*$`, 'm'), () => expectedMarkdownRow(row));
+  for (const { group, line } of summary.groupLines) out = out.replace(new RegExp(`^\\| ${group} \\(.*$`, 'm'), () => line);
+  out = out.replace(/\*\*\d+ NOT_RUN, \d+ BLOCKED, \d+ PASS\*\*/, () => summary.totalLine);
+  // The blocked-count phrase and the BLOCKED ids both live in the open-gate
+  // section, so the section is rewritten whole.
+  const [head, tail] = out.split(gateMarker);
+  const end = tail.indexOf('\n## ');
+  const phrase = summary.blockedPhrase;
+  const section = `\n\n${phrase[0].toUpperCase()}${phrase.slice(1)}:\n\n- ${summary.blocked.join(', ')}\n`;
+  return `${head}${gateMarker}${section}${end === -1 ? '' : tail.slice(end)}`;
+}
+
+/**
+ * A matrix the self-tests own: the committed rows with every status set by the
+ * test (all NOT_RUN, the last row BLOCKED), no evidence, and a doc mirrored from
+ * it. A row that legitimately becomes PASS in the committed matrix changes
+ * nothing here.
+ */
+function syntheticBase() {
+  const base = structuredClone(matrix);
+  base.evidence = [];
+  const last = base.rows.length - 1;
+  base.rows.forEach((row, index) => {
+    row.evidence = [];
+    row.status = index === last ? 'BLOCKED' : 'NOT_RUN';
+    row.blocker = index === last ? { gate: 'G7-D2', owner: 'QA', reason: 'synthetic blocker for the self-tests' } : null;
+  });
+  const sampleIndex = base.rows.findIndex((row, index) => index !== last && row.fixtures.length > 1);
+  assert.ok(sampleIndex >= 0, 'the self-tests need a multi-fixture row that is not the last row');
+  return { base, doc: mirrorDoc(base), sampleIndex };
 }
 
 function validateMatrix(candidate, doc = acceptanceDoc) {
@@ -225,39 +304,22 @@ function validateMatrix(candidate, doc = acceptanceDoc) {
     assert.equal(markdownRows.get(row.id), expectedMarkdownRow(row), `acceptance.md row ${row.id} drifted from the JSON matrix`);
   }
 
-  // The prose around the table is prose, but the numbers in it are the matrix's,
-  // so the test recomputes them: a status change that the summary does not
-  // follow is a regression (reviewer_fe F1).
-  const perGroup = {};
-  for (const row of matrix.rows) {
-    const group = row.id.slice(0, 2);
-    perGroup[group] ??= { NOT_RUN: 0, BLOCKED: 0, PASS: 0, FAIL: 0 };
-    perGroup[group][row.status] += 1;
-  }
-  const counted = (statuses, counts) => statuses.filter((status) => counts[status] > 0).map((status) => `${counts[status]} ${status}`).join(', ');
-  const groupRange = (group) => {
-    const ids = requirementIds.filter((id) => id.startsWith(`${group}-`));
-    return `${group} (${ids[0]}...${ids[ids.length - 1]})`;
-  };
-  for (const [group, statuses] of Object.entries(perGroup)) {
-    const line = `| ${groupRange(group)} | ${matrix.rows.filter((row) => row.id.startsWith(`${group}-`)).length} | ${counted(['NOT_RUN', 'BLOCKED', 'PASS', 'FAIL'], statuses)} |`;
+  // The prose around the table is prose, but the numbers in it are the
+  // candidate's, so the test recomputes them from the candidate it was handed: a
+  // status change that the summary does not follow is a regression (reviewer_fe
+  // F1, N6).
+  const summary = summarize(candidate);
+  for (const { line } of summary.groupLines) {
     assert.ok(doc.includes(line), `acceptance.md count table does not match the rows: expected ${line}`);
   }
-  // The totals row names all three statuses plus the zeroes it wants to show.
-  const totals = { NOT_RUN: 0, BLOCKED: 0, PASS: 0, FAIL: 0 };
-  for (const row of matrix.rows) totals[row.status] += 1;
-  const totalLine = `**${totals.NOT_RUN} NOT_RUN, ${totals.BLOCKED} BLOCKED, ${totals.PASS} PASS**`;
-  assert.ok(doc.includes(totalLine), `acceptance.md totals row does not match the rows: expected ${totalLine}`);
-  const blocked = matrix.rows.filter((row) => row.status === 'BLOCKED').map((row) => row.id);
-  const gateSection = doc.split('## Gate đang mở')[1]?.split('\n## ')[0] ?? '';
+  assert.ok(doc.includes(summary.totalLine), `acceptance.md totals row does not match the rows: expected ${summary.totalLine}`);
+  const gateSection = doc.split(gateMarker)[1]?.split('\n## ')[0] ?? '';
   assert.deepEqual(
     [...new Set(gateSection.match(/G[567]-A\d\d/g) ?? [])].sort(),
-    [...blocked].sort(),
+    [...summary.blocked].sort(),
     'the open-gate section must name exactly the BLOCKED rows',
   );
-  const words = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín', 'mười'];
-  const blockedPhrase = `${words[blocked.length]} dòng bị chặn hôm nay`;
-  assert.ok(doc.toLowerCase().includes(blockedPhrase), `the blocked count must read "${blockedPhrase}"`);
+  assert.ok(doc.toLowerCase().includes(summary.blockedPhrase), `the blocked count must read "${summary.blockedPhrase}"`);
 
   // The group tables are subsections of the matrix section, not siblings of it
   // (reviewer_fe F3).
@@ -279,27 +341,33 @@ test('acceptance.md says the requirements are an interpretation, not the verbati
   assert.equal(acceptanceDoc.includes('test anh em'), false, '"test anh em" is a calque of "sibling test"');
 });
 
-test('a PASS row that runs on several fixtures needs one PASS record per fixture', () => {
-  // G5-A01 names two fixtures, so a single record can never carry its PASS.
-  const target = matrix.rows.find((candidate) => candidate.fixtures.length > 1);
-  const id = target.id;
-  const evidenceIds = target.fixtures.map((_, index) => `ev-${id.toLowerCase()}-${index}`);
-  const recordFor = (reference, index) => ({
-    evidenceId: evidenceIds[index],
-    requirementId: id,
+// A PASS candidate for one row of the synthetic base: one PASS record per fixture
+// the row names, each on a real scratch artifact and on the reviewed revision.
+function passCandidate(base, sampleIndex, { fixtureCount } = {}) {
+  const candidate = structuredClone(base);
+  const row = candidate.rows[sampleIndex];
+  const references = row.fixtures.slice(0, fixtureCount ?? row.fixtures.length);
+  const records = references.map((reference, index) => ({
+    evidenceId: `ev-${row.id.toLowerCase()}-${index}`,
+    requirementId: row.id,
     fixtureId: reference.id,
     fixtureSha256: reference.sha256,
     result: 'PASS',
-    artifact: writeArtifact(`${id}-${index}.log`),
+    artifact: writeArtifact(`${row.id}-${index}.log`),
     exitCode: 0,
     dSha: reviewedRevision(),
-  });
-  const complete = structuredClone(matrix);
-  complete.evidence.push(...target.fixtures.map(recordFor));
-  const completeRow = complete.rows.find((candidate) => candidate.id === id);
-  completeRow.status = 'PASS';
-  completeRow.evidence.push(...evidenceIds);
-  const markdown = acceptanceDoc.replace(new RegExp(`^\\| ${id} \\|.*$`, 'm'), expectedMarkdownRow(completeRow));
+  }));
+  row.status = 'PASS';
+  candidate.evidence.push(...records);
+  row.evidence.push(...records.map((record) => record.evidenceId));
+  return candidate;
+}
+
+test('a PASS row that runs on several fixtures needs one PASS record per fixture', () => {
+  const { base, sampleIndex } = syntheticBase();
+  const id = base.rows[sampleIndex].id;
+  const complete = passCandidate(base, sampleIndex);
+  const markdown = mirrorDoc(complete);
   assert.equal(validateMatrix(complete, markdown), true, 'one PASS record per fixture validates');
 
   // Drop one fixture's record: the row can no longer claim PASS.
@@ -309,8 +377,37 @@ test('a PASS row that runs on several fixtures needs one PASS record per fixture
 
   // A record on a fixture the row does not name is not one of its runs.
   const foreign = structuredClone(complete);
-  foreign.evidence.find((record) => record.evidenceId === evidenceIds[0]).fixtureId = 'fx-html-page-vi';
+  foreign.evidence[0].fixtureId = 'fx-not-named-by-this-row';
   assert.throws(() => validateMatrix(foreign, markdown), /was run on another fixture/, 'a PASS record on a foreign fixture is rejected');
+});
+
+test('the summary numbers are checked against the candidate, not the committed matrix (N6)', () => {
+  const { base, doc, sampleIndex } = syntheticBase();
+  const complete = passCandidate(base, sampleIndex);
+  const row = complete.rows[sampleIndex];
+  assert.equal(validateMatrix(base, doc), true, 'the synthetic base validates against its own doc');
+
+  // The candidate moves a row to PASS and the row line follows, but the count
+  // table still says everything is NOT_RUN: the cross-check has to catch it.
+  const rowOnly = doc.replace(new RegExp(`^\\| ${row.id} \\|.*$`, 'm'), () => expectedMarkdownRow(row));
+  assert.throws(() => validateMatrix(complete, rowOnly), /count table does not match/, 'a status change the count table does not follow is caught');
+
+  // The count lines follow, the totals row does not.
+  const staleTotals = mirrorDoc(complete).replace(/\*\*\d+ NOT_RUN, \d+ BLOCKED, \d+ PASS\*\*/, () => summarize(base).totalLine);
+  assert.throws(() => validateMatrix(complete, staleTotals), /totals row does not match/, 'a status change the totals row does not follow is caught');
+
+  // A NOT_RUN row that turns BLOCKED changes the blocked-count word and the
+  // open-gate section.
+  const blockedCandidate = structuredClone(base);
+  const flipped = blockedCandidate.rows[sampleIndex];
+  flipped.status = 'BLOCKED';
+  flipped.blocker = { gate: 'G5-D1', owner: 'QA', reason: 'synthetic' };
+  const mirrored = mirrorDoc(blockedCandidate);
+  assert.equal(validateMatrix(blockedCandidate, mirrored), true, 'a doc mirrored from the candidate validates');
+  const staleWord = mirrored.replace(/hai dòng bị chặn hôm nay/i, () => summarize(base).blockedPhrase);
+  assert.throws(() => validateMatrix(blockedCandidate, staleWord), /blocked count must read/, 'a BLOCKED row the count word does not follow is caught');
+  const staleGate = mirrored.replace(`- ${flipped.id}, `, '- ');
+  assert.throws(() => validateMatrix(blockedCandidate, staleGate), /open-gate section must name exactly/, 'a BLOCKED row the gate section does not name is caught');
 });
 
 test('the ledger is read only when the caller names it, and only its own records', () => {
@@ -318,33 +415,37 @@ test('the ledger is read only when the caller names it, and only its own records
   assert.equal(ledgerPathFor({}), null, 'no env var, no ledger');
   assert.equal(ledgerPathFor({ OFFICE_EVIDENCE_LEDGER: 'x.jsonl' }), path.join(repoRoot, 'x.jsonl'));
   assert.equal(ledgerPathFor({ OFFICE_EVIDENCE_LEDGER: '/tmp/x.jsonl' }), '/tmp/x.jsonl');
-  const declared = matrix.rows[0].evidence.length;
-  assert.equal(readEvidence(matrix, {}).length, declared, 'without an env var only the declared records are read');
+  assert.equal(ledgerPathFor({}, 'y.jsonl'), path.join(repoRoot, 'y.jsonl'), 'an explicit argument names a ledger too');
+  const { base } = syntheticBase();
+  base.evidence.push({ evidenceId: 'ev-declared', result: 'PASS' });
+  assert.equal(readEvidence(base, {}).length, 1, 'without an env var only the declared records are read');
   const ledger = path.join(artifactDir, 'ledger.jsonl');
   fs.writeFileSync(ledger, `${JSON.stringify({ evidenceId: 'ev-from-ledger', result: 'PASS' })}\n`);
-  assert.equal(readEvidence(matrix, { OFFICE_EVIDENCE_LEDGER: ledger }).length, declared + 1);
+  assert.equal(readEvidence(base, { OFFICE_EVIDENCE_LEDGER: ledger }).length, 2);
+  assert.equal(readEvidence(base, {}, ledger).length, 2, 'an explicit ledger argument is read too');
   fs.rmSync(ledger);
 });
 
+test('a ledger that is named and does not exist is an error, not a green gate (N5)', () => {
+  const { base } = syntheticBase();
+  const missing = path.join(artifactDir, 'no-such-ledger.jsonl');
+  assert.throws(() => readEvidence(base, { OFFICE_EVIDENCE_LEDGER: missing }), /named but does not exist/, 'a missing ledger named by the environment throws');
+  assert.throws(() => readEvidence(base, {}, missing), /named but does not exist/, 'a missing ledger named by an argument throws');
+  assert.throws(() => readEvidence(base, { OFFICE_EVIDENCE_LEDGER: 'no-such-dir/ledger.jsonl' }), /named but does not exist/, 'a repo-relative typo throws');
+  // The gate itself reads the process environment, so it fails too.
+  const previous = process.env.OFFICE_EVIDENCE_LEDGER;
+  process.env.OFFICE_EVIDENCE_LEDGER = missing;
+  try {
+    assert.throws(() => validateMatrix(matrix), /named but does not exist/, 'the matrix gate does not pass over a missing ledger');
+  } finally {
+    if (previous === undefined) delete process.env.OFFICE_EVIDENCE_LEDGER;
+    else process.env.OFFICE_EVIDENCE_LEDGER = previous;
+  }
+});
+
 test('acceptance matrix rejects candidate regressions', () => {
-  const passRow = () => {
-    const candidate = structuredClone(matrix);
-    const row = candidate.rows[0];
-    row.status = 'PASS';
-    const record = {
-      evidenceId: 'ev-tmp-0001',
-      requirementId: row.id,
-      fixtureId: row.fixtures[0].id,
-      fixtureSha256: row.fixtures[0].sha256,
-      result: 'PASS',
-      artifact: writeArtifact('tmp.log'),
-      exitCode: 0,
-      dSha: reviewedRevision(),
-    };
-    candidate.evidence.push(record);
-    row.evidence.push(record.evidenceId);
-    return candidate;
-  };
+  const { base, doc: baseDoc, sampleIndex } = syntheticBase();
+  const passRow = (candidate) => passCandidate(candidate, sampleIndex, { fixtureCount: 1 });
   const regressions = [
     { name: 'row without an owner', mutate: (c) => delete c.rows[0].owner, expected: /needs an owner/ },
     { name: 'row without a title', mutate: (c) => delete c.rows[0].title, expected: /needs a title/ },
@@ -361,34 +462,38 @@ test('acceptance matrix rejects candidate regressions', () => {
     { name: 'NOT_RUN row carrying a blocker', mutate: (c) => { c.rows.find((r) => r.status === 'NOT_RUN').blocker = { gate: 'G5-D1', owner: 'x', reason: 'y' }; }, expected: /carries a blocker without being BLOCKED/ },
     { name: 'rowCounts drift', mutate: (c) => { c.rowCounts.total += 1; }, expected: /rowCounts must reconcile/ },
     { name: 'PASS without evidence', mutate: (c) => { c.rows[0].status = 'PASS'; }, expected: /PASS row needs evidence/ },
-    { name: 'PASS naming evidence that no record declares', mutate: (c) => { const r = passRow(); r.rows[0].evidence.push('ev-missing'); return r; }, expected: /that no record declares/ },
-    { name: 'PASS whose evidence has no artifact', mutate: (c) => { c.evidence[0].artifact = ''; return c; }, build: passRow, expected: /needs an artifact/ },
-    { name: 'PASS whose evidence was run on another fixture', mutate: (c) => { c.evidence[0].fixtureId = 'fx-html-page-vi'; return c; }, build: passRow, expected: /was run on another fixture/ },
-    { name: 'PASS on a two-fixture row with a record for only one', mutate: () => 'no change to the json', build: passRow, expected: /has no PASS record for fixture/ },
-    { name: 'PASS whose evidence has a missing artifact', mutate: (c) => { c.evidence[0].artifact = path.join(os.tmpdir(), 'no-such-artifact.log'); return c; }, build: passRow, expected: /is not on disk/ },
-    { name: 'PASS whose evidence exited non-zero', mutate: (c) => { c.evidence[0].exitCode = 1; return c; }, build: passRow, expected: /has exit code 1/ },
-    { name: 'PASS whose evidence ran on another revision', mutate: (c) => { c.evidence[0].dSha = '0'.repeat(40); return c; }, build: passRow, expected: /was run on .*, not on the reviewed revision/ },
-    { name: 'PASS whose evidence has an unknown result vocabulary', mutate: (c) => { c.evidence[0].result = 'skipped'; return c; }, build: passRow, expected: /unsupported result "skipped"/ },
-    { name: 'PASS whose evidence has an empty result', mutate: (c) => { c.evidence[0].result = ''; return c; }, build: passRow, expected: /unsupported result ""/ },
+    { name: 'PASS naming evidence that no record declares', mutate: (c) => { c.rows[sampleIndex].evidence.push('ev-missing'); }, build: passRow, expected: /that no record declares/ },
+    { name: 'PASS whose evidence has no artifact', mutate: (c) => { c.evidence[0].artifact = ''; }, build: passRow, expected: /needs an artifact/ },
+    { name: 'PASS whose evidence was run on another fixture', mutate: (c) => { c.evidence[0].fixtureId = 'fx-not-named-by-this-row'; }, build: passRow, expected: /was run on another fixture/ },
+    { name: 'PASS on a two-fixture row with a record for only one', mutate: () => {}, build: passRow, expected: /has no PASS record for fixture/ },
+    { name: 'PASS whose evidence has a missing artifact', mutate: (c) => { c.evidence[0].artifact = path.join(os.tmpdir(), 'no-such-artifact.log'); }, build: passRow, expected: /is not on disk/ },
+    { name: 'PASS whose evidence exited non-zero', mutate: (c) => { c.evidence[0].exitCode = 1; }, build: passRow, expected: /has exit code 1/ },
+    { name: 'PASS whose evidence ran on another revision', mutate: (c) => { c.evidence[0].dSha = '0'.repeat(40); }, build: passRow, expected: /was run on .*, not on the reviewed revision/ },
+    { name: 'PASS whose evidence has an unknown result vocabulary', mutate: (c) => { c.evidence[0].result = 'skipped'; }, build: passRow, expected: /unsupported result "skipped"/ },
+    { name: 'PASS whose evidence has an empty result', mutate: (c) => { c.evidence[0].result = ''; }, build: passRow, expected: /unsupported result ""/ },
     { name: 'row without evidenceRequired', mutate: (c) => { c.rows[0].evidenceRequired = ''; }, expected: /needs a non-empty evidenceRequired/ },
-    { name: 'markdown count table drift', mutate: () => 'no change to the json', doc: (doc) => doc.replace('| 3 NOT_RUN, 2 BLOCKED |', '| 2 NOT_RUN, 3 BLOCKED |'), expected: /count table does not match/ },
-    { name: 'markdown totals row drift', mutate: () => 'no change to the json', doc: (doc) => doc.replace('**19 NOT_RUN, 4 BLOCKED, 0 PASS**', '**18 NOT_RUN, 5 BLOCKED, 0 PASS**'), expected: /totals row does not match/ },
-    { name: 'markdown blocked count word drift', mutate: () => 'no change to the json', doc: (doc) => doc.replace('Bốn dòng bị chặn hôm nay', 'Năm dòng bị chặn hôm nay'), expected: /blocked count must read/ },
-    { name: 'markdown group heading promoted back to a sibling', mutate: () => 'no change to the json', doc: (doc) => doc.replace('### Nghiệm thu G6', '## Nghiệm thu G6'), expected: /must be a ### subsection/ },
-    { name: 'PASS whose evidence has a stale fixture hash', mutate: (c) => { c.evidence[0].fixtureSha256 = '0'.repeat(64); return c; }, build: passRow, expected: /stale fixture hash/ },
-    { name: 'skip result is not in the result vocabulary', mutate: (c) => { c.evidence[0].result = 'skip'; return c; }, build: passRow, expected: /unsupported result "skip"/ },
-    { name: 'NOT_RUN result is not in the result vocabulary', mutate: (c) => { c.evidence[0].result = 'NOT_RUN'; return c; }, build: passRow, expected: /unsupported result "NOT_RUN"/ },
-    { name: 'BLOCKED result counted as PASS', mutate: (c) => { c.evidence[0].result = 'BLOCKED'; return c; }, build: passRow, expected: /counts a non-PASS result as PASS/ },
-    { name: 'markdown mirror drift', mutate: () => 'no change to the json', build: (c) => c, doc: (doc) => doc.replace('| NOT_RUN |', '| BLOCKED |'), expected: /drifted from the JSON matrix/ },
-    { name: 'markdown mirror missing a row', mutate: () => 'no change to the json', build: (c) => c, doc: (doc) => doc.replace(/\n\| G5-A02 \|[^\n]*/, ''), expected: /acceptance.md must have one row per matrix row/ },
+    // The synthetic base has 22 NOT_RUN rows and one BLOCKED row (the last), so
+    // these drifts name its own numbers, not the committed matrix's.
+    { name: 'markdown count table drift', doc: (doc) => doc.replace('| 4 NOT_RUN, 1 BLOCKED |', '| 3 NOT_RUN, 2 BLOCKED |'), expected: /count table does not match/ },
+    { name: 'markdown totals row drift', doc: (doc) => doc.replace('**22 NOT_RUN, 1 BLOCKED, 0 PASS**', '**21 NOT_RUN, 2 BLOCKED, 0 PASS**'), expected: /totals row does not match/ },
+    { name: 'markdown blocked count word drift', doc: (doc) => doc.replace(/một dòng bị chặn hôm nay/i, 'Hai dòng bị chặn hôm nay'), expected: /blocked count must read/ },
+    { name: 'open-gate section naming a row that is not BLOCKED', doc: (doc) => doc.replace('hôm nay:\n\n- ', 'hôm nay:\n\n- G5-A01, '), expected: /open-gate section must name exactly/ },
+    { name: 'markdown group heading promoted back to a sibling', doc: (doc) => doc.replace('### Nghiệm thu G6', '## Nghiệm thu G6'), expected: /must be a ### subsection/ },
+    { name: 'PASS whose evidence has a stale fixture hash', mutate: (c) => { c.evidence[0].fixtureSha256 = '0'.repeat(64); }, build: passRow, expected: /stale fixture hash/ },
+    { name: 'skip result is not in the result vocabulary', mutate: (c) => { c.evidence[0].result = 'skip'; }, build: passRow, expected: /unsupported result "skip"/ },
+    { name: 'NOT_RUN result is not in the result vocabulary', mutate: (c) => { c.evidence[0].result = 'NOT_RUN'; }, build: passRow, expected: /unsupported result "NOT_RUN"/ },
+    { name: 'BLOCKED result counted as PASS', mutate: (c) => { c.evidence[0].result = 'BLOCKED'; }, build: passRow, expected: /counts a non-PASS result as PASS/ },
+    { name: 'markdown mirror drift', doc: (doc) => doc.replace('| NOT_RUN |', '| BLOCKED |'), expected: /drifted from the JSON matrix/ },
+    { name: 'markdown mirror missing a row', doc: (doc) => doc.replace(/\n\| G5-A02 \|[^\n]*/, ''), expected: /acceptance.md must have one row per matrix row/ },
   ];
-  for (const { name, mutate, build = (c) => c, doc, expected } of regressions) {
-    const candidate = build(structuredClone(matrix));
-    const result = mutate(candidate);
-    // A mutate may return a replacement candidate (the PASS cases build one);
-    // `delete` and string returns are not candidates, so they keep the clone.
-    const target = result && typeof result === 'object' ? result : candidate;
-    const markdown = doc ? doc(acceptanceDoc) : acceptanceDoc;
-    assert.throws(() => validateMatrix(target, markdown), expected, `matrix validation accepted a regression: ${name}`);
+  // Control: the unmutated synthetic base and a one-fixture PASS candidate of a
+  // multi-fixture row differ only in the cases below, so a case that throws does
+  // so for the stated reason and not because the base is broken.
+  assert.equal(validateMatrix(structuredClone(base), baseDoc), true, 'the synthetic base validates');
+  for (const { name, mutate = () => {}, build = (c) => c, doc, expected } of regressions) {
+    const candidate = build(structuredClone(base));
+    mutate(candidate);
+    const markdown = doc ? doc(baseDoc) : baseDoc;
+    assert.throws(() => validateMatrix(candidate, markdown), expected, `matrix validation accepted a regression: ${name}`);
   }
 });

@@ -430,7 +430,8 @@
       "negativeCases": [
         "A client-supplied system or assistant turn must never reach the model, and an inflated tool result must be ignored in favour of the server transcript.",
         "A run id of another user, organization, workspace or document must be refused, and a revoked or downgraded permission must drop write tools from the next turn.",
-        "A tool call outside the allowlist must be dropped with its reason and never reach the client as a usable call."
+        "A tool call outside the allowlist must be dropped with its reason and never reach the client as a usable call.",
+        "Text inside a document, a cell or a tool result that tells the model to ignore its instructions or call a tool must not change the run, and the server transcript must stay unchanged by it."
       ],
       "tasks": ["G6-03a", "G6-03b", "G6-03c", "G6-05", "G6-05u", "G7-12"],
       "gate": "G6-D1",
