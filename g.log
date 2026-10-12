@@ -1,0 +1,174 @@
+$ cat test-results/office-g5g6g7-evidence/evidence.jsonl; ls -la .harness-run .harness-run/logs 2>/dev/null; for f in .harness-run/logs/*.log .harness-run/*/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 60 "$f"; }; done; true
+{"evidenceId":"ev-g7-a05-0001","requirementId":"G7-A05","dSha":"dc2eb6d2f5a6b224332652f93cc72a912b275044","fSha":"0d03b18","pin":"0.1.0-0d03b18","platform":"linux-x64","build":"dev","fixtureId":"fx-md-notes-vi","fixtureSha256":"e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def","command":"node scripts/office/g5g6g7/harness/sample-ac.mjs","argv":["node","scripts/office/g5g6g7/harness/sample-ac.mjs"],"exitCode":0,"result":"PASS","artifact":"test-results/office-g5g6g7-evidence/artifacts/ev-g7-a05-0001.log","checker":"tester-cloud","blocker":null,"startedAt":"2026-10-12T13:06:24.797Z","finishedAt":"2026-10-12T13:06:56.460Z"}
+.harness-run:
+total 40
+drwxr-xr-x  5 ubuntu ubuntu 4096 Oct 12 13:06 .
+drwxr-xr-x 24 ubuntu ubuntu 4096 Oct 12 13:06 ..
+-rw-r--r--  1 ubuntu ubuntu    4 Oct 12 13:06 display
+drwxr-xr-x  2 ubuntu ubuntu 4096 Oct 12 13:06 logs
+-rw-r--r--  1 ubuntu ubuntu   47 Oct 12 13:06 pids
+-rw-r--r--  1 ubuntu ubuntu  352 Oct 12 13:06 ports.env
+-rw-r--r--  1 ubuntu ubuntu 1579 Oct 12 13:06 sample-ac.json
+-rw-r--r--  1 ubuntu ubuntu  821 Oct 12 13:03 server.env
+drwxr-xr-x  2 ubuntu ubuntu 4096 Oct 12 13:03 uploads
+drwxr-xr-x 15 ubuntu ubuntu 4096 Oct 12 13:06 userdata
+
+.harness-run/logs:
+total 88
+drwxr-xr-x 2 ubuntu ubuntu  4096 Oct 12 13:06 .
+drwxr-xr-x 5 ubuntu ubuntu  4096 Oct 12 13:06 ..
+-rw-r--r-- 1 ubuntu ubuntu  1281 Oct 12 13:06 app.log
+-rw-r--r-- 1 ubuntu ubuntu 51075 Oct 12 13:06 fork-build.log
+-rw-r--r-- 1 ubuntu ubuntu     0 Oct 12 13:03 fork-install.log
+-rw-r--r-- 1 ubuntu ubuntu     0 Oct 12 13:03 lib.log
+-rw-r--r-- 1 ubuntu ubuntu    54 Oct 12 13:03 migrate.log
+-rw-r--r-- 1 ubuntu ubuntu   202 Oct 12 13:03 readyz.json
+-rw-r--r-- 1 ubuntu ubuntu     0 Oct 12 13:03 server-build.log
+-rw-r--r-- 1 ubuntu ubuntu  1150 Oct 12 13:06 server.log
+-rw-r--r-- 1 ubuntu ubuntu  6432 Oct 12 13:06 web.log
+=== .harness-run/logs/app.log
+[23922:1012/130624.669770:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[23922:1012/130624.753970:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[23922:1012/130624.786799:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[23922:1012/130624.814763:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[23922:1012/130624.815036:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[23922:1012/130624.825081:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[23922:1012/130624.828234:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+=== .harness-run/logs/fork-build.log
+✓ 1938 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/text-edit.ts is dynamically imported by /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/save-pdf.ts but also statically imported by /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/annot-delete.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/image-edit.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/read-text.ts, /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-0d03b18/apps/pdf/src/main/redaction.ts, dynamic import will not move module into another chunk.
+
+out/main/chunks/menu-pdf-IWzaKAPM.png                 0.11 kB
+out/main/chunks/menu-pptx-B-5nlFu-.png                0.27 kB
+out/main/chunks/menu-xlsx-D1ETn33r.png                0.30 kB
+out/main/chunks/menu-docx-CaJ93Biu.png                0.30 kB
+out/main/chunks/menu-md-D1G8pv4K.png                  0.42 kB
+out/main/chunks/menu-pptx@2x-k-uSrZ_N.png             0.43 kB
+out/main/chunks/menu-html-BqQjM_T0.png                0.43 kB
+out/main/chunks/menu-pdf@2x-BlOOpVEW.png              0.49 kB
+out/main/chunks/menu-xlsx@2x-BCbWE1PH.png             0.50 kB
+out/main/chunks/menu-home@2x-DklesmJt.png             0.52 kB
+out/main/chunks/menu-docx@2x-xjkcfgR-.png             0.53 kB
+out/main/chunks/menu-md@2x-DqJbAJX3.png               0.77 kB
+out/main/chunks/menu-html@2x-DPfkhFFT.png             0.90 kB
+out/main/chunks/ppt-d10PvgLp.js                      42.36 kB
+out/main/chunks/harfbuzz-CVplwa31.wasm              421.96 kB
+out/main/chunks/Carlito-Italic-KkZUqxJW.ttf         619.05 kB
+out/main/chunks/Carlito-Regular-Cbe9FLjp.ttf        631.71 kB
+out/main/chunks/Carlito-Bold-BhbXr__n.ttf           686.24 kB
+out/main/chunks/Carlito-BoldItalic-0dXjwGA0.ttf     812.34 kB
+out/main/chunks/pdf-B6l8FRA5.js                   1,013.76 kB
+out/main/extract-worker-CRafWYnY.js               1,547.97 kB
+out/main/chunks/pdf.worker-NB1PBVQH.js            2,340.46 kB
+out/main/ocr-DylNBwk4.js                              1.57 kB
+out/main/annot-delete-DubhLpER.js                     3.66 kB
+out/main/image-edit-C15DSi-_.js                      14.61 kB
+out/main/index-CrqKaREP.js                           16.42 kB
+out/main/ppt-BHIGZr4q.js                             42.29 kB
+out/main/index-MbjUHvFF.js                          268.21 kB
+out/main/index-DlHob_LR.js                          750.47 kB
+out/main/pdf-B6l8FRA5.js                          1,013.76 kB
+out/main/pdf.worker-NB1PBVQH.js                   2,340.46 kB
+out/main/index.js                                11,271.69 kB
+✓ built in 16.95s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 29 modules transformed.
+rendering chunks...
+out/preload/pdf-password.js   0.89 kB
+out/preload/update.js         1.05 kB
+out/preload/index.js         73.11 kB
+✓ built in 75ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 341 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                                        0.67 kB
+../../out/renderer/update.html                                       5.14 kB
+../../out/renderer/pdf-password.html                                 9.18 kB
+../../out/renderer/assets/app-icon-D9R8oDUQ.png                     27.10 kB
+../../out/renderer/assets/health-body-mannequin-3d-C8O8L483.jpg    109.64 kB
+../../out/renderer/assets/index-meejS0WP.css                       212.34 kB
+../../out/renderer/assets/update-BVAMVo1e.js                         2.24 kB
+../../out/renderer/assets/pdf-password-BczXYSzC.js                   2.77 kB
+../../out/renderer/assets/index-CO_8VvJ9.js                      2,688.23 kB
+✓ built in 1.47s
+=== .harness-run/logs/fork-install.log
+=== .harness-run/logs/lib.log
+=== .harness-run/logs/migrate.log
+13:03:48.612 INF migrate done component=server dir=up
+=== .harness-run/logs/server-build.log
+=== .harness-run/logs/server.log
+13:03:48.629 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+13:03:48.629 INF metrics listening component=server addr=127.0.0.1:40461
+13:03:48.629 INF local storage adapter ready dir=/workspace/.harness-run/uploads
+13:03:48.633 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/12 13:03:48 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+13:03:48.634 INF mail: log mode, messages are printed component=server
+13:03:48.634 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+13:03:49.127 INF mail: outbox worker started component=server tick=5s
+13:03:49.127 INF listening component=server port=36641 swagger=http://localhost:36641/swagger/index.html
+13:06:25.143 INF http request method=GET path=/api/v1/config status=200 duration=11.515ms request_id=cursor/7F5GrbNAJX-000006 correlation_id=d9fb134c89a621522083c93bc569c646 trace_id=d9fb134c89a621522083c93bc569c646 span_id=ecda47894d38b769
+=== .harness-run/logs/web.log
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11319:13
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login 200 in 55ms (next.js: 4ms, application-code: 51ms)
+⚠ ./apps/web/app/globals.css:11319:13
+Warning: Parsing CSS source code failed
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:11319:13
+  [90m11317 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11318 |[0m }
+[33m[1m>[0m [90m11319 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11320 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11321 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11322 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login 200 in 65ms (next.js: 4ms, application-code: 62ms)
+⚠ Blocked cross-origin request to Next.js dev resource /_next/hmr from "127.0.0.1".
+Cross-origin access to Next.js dev resources is blocked by default for safety.
+
+To allow this host in development, add it to "allowedDevOrigins" in next.config.js and restart the dev server:
+
+// next.config.js
+module.exports = {
+  allowedDevOrigins: ['127.0.0.1'],
+}
+
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
