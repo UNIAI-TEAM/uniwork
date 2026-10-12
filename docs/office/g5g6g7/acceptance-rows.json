@@ -1,0 +1,660 @@
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-g5g6g7-acceptance-matrix",
+  "featureId": "g7-qa",
+  "issue": "UNI-1376",
+  "parentIssue": "UNI-661",
+  "plan": "docs/superpowers/plans/2026-10-12-office-g5-g6-g7.md",
+  "planRevision": "b6a0f4150",
+  "spec": "docs/superpowers/specs/2026-10-02-office-g5-g6-g7-design.md",
+  "specSection": "9.1",
+  "fixtureManifest": "docs/office/g5g6g7/fixtures/manifest.json",
+  "evidenceLedger": "test-results/office-g5g6g7-evidence/evidence.jsonl",
+  "evidenceRunner": "scripts/office/g5g6g7/evidence.mjs",
+  "statusVocabulary": {
+    "NOT_RUN": "No run on the final lane revision has been recorded yet; the status of every row that no open gate blocks.",
+    "BLOCKED": "An open decision gate (plan Section 3) or a missing machine prevents a valid run; the row carries a blocker with gate, owner and reason.",
+    "PASS": "A run recorded on the final revision whose evidence record has result PASS, a matching fixture hash and an artifact. No row is PASS in this slice.",
+    "FAIL": "A run recorded on the final revision whose evidence record has result FAIL. No row is FAIL in this slice."
+  },
+  "oracleTypes": [
+    "receipt",
+    "object/part",
+    "extraction",
+    "render diff",
+    "deterministic score",
+    "security probe",
+    "manifest"
+  ],
+  "rowRules": [
+    "One row per requirement id in spec Section 9.1: G5-A01..G5-A08, G6-A01..G6-A10, G7-A01..G7-A05.",
+    "fixtures[] name a manifest id and repeat that manifest entry's sha256; the sibling test reads the hash from the manifest and never hardcodes it.",
+    "A row is PASS only with an evidence record whose result is PASS, exit code 0, an artifact on disk and one record per fixture it names; a result other than PASS is never counted as PASS.",
+    "Every row carries evidenceRequired: the artifacts and records that would prove it, so a row without an evidence plan fails even while it is NOT_RUN.",
+    "A BLOCKED row carries blocker.gate (plan Section 3), blocker.owner and blocker.reason.",
+    "gate records the open decision gate that affects the row even when the row is NOT_RUN; null when no gate affects it.",
+    "acceptance.md repeats these rows cell for cell; the sibling test fails on any drift between the two, and it recomputes the count table and the open-gate section from these rows.",
+    "The sibling test reads the runner ledger only when OFFICE_EVIDENCE_LEDGER names it; evidenceLedger above is the path the runner writes, never read implicitly (it is gitignored)."
+  ],
+  "rowCounts": {
+    "G5": 8,
+    "G6": 10,
+    "G7": 5,
+    "total": 23
+  },
+  "reviewerGate": "pending reviewer_be (UNI-1376)",
+  "evidence": [],
+  "rows": [
+    {
+      "id": "G5-A01",
+      "title": "Snapshot nhiều trang + concurrent writers + retention không mất thay đổi; cursor tiến qua sự kiện bị lọc",
+      "owner": "Lead D + Lead F",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert the paged snapshot is consistent at its high-water mark, a commit that lands between the snapshot and the first feed page appears exactly once, retention never drops a change the client has not acknowledged, and a cursor advances past a page whose events are all filtered."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the change-feed receipts for the concurrent-writer and retention cases.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A commit that lands between the snapshot and the first feed page must not be lost or delivered twice.",
+        "A page made only of filtered events must not leave the cursor stuck, and an expired cursor must answer change_cursor_expired instead of a partial page.",
+        "Retention must never drop a change the client has not acknowledged."
+      ],
+      "tasks": ["G5-01a", "G5-01b", "G5-02", "G5-04"],
+      "gate": "G5-D2",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G5-A02",
+      "title": "Grant/revoke/tombstone/move/Work Product ACL không lộ metadata và không resurrect file",
+      "owner": "Lead D",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert the incremental feed leaks no metadata of a document the caller lost access to, a revocation removal payload carries ids and revision only, and a tombstone never resurrects an archived or deleted document."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-md-notes-vi with result PASS, each with its artifact, plus the ACL removal payloads showing ids and revision only.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
+        { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" }
+      ],
+      "negativeCases": [
+        "A grant, revoke, move, archive or restore must not leak a title, name or metadata the caller may no longer read.",
+        "A tombstone must not resurrect a deleted document on a later page.",
+        "A Work Product ACL fan-out must not create a private ACL of its own while the C-14 owner resolver is absent."
+      ],
+      "tasks": ["G5-01b"],
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G5-A03",
+      "title": "Web lưu → desktop nhận và desktop lưu → web nhận, cùng version/checksum; dirty editor không bị thay",
+      "owner": "Lead F + Lead D + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert both directions of a cross-host save land on the same version id and checksum, and a dirty editor is never replaced by the incoming version."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS from both hosts, each with its artifact, plus the version ids and checksums the two hosts report.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A web save must not reach the desktop app as a different version or checksum.",
+        "An incoming version must not overwrite or silently discard a dirty editor buffer.",
+        "A missed realtime event must be recovered from the change feed rather than left as a silent divergence."
+      ],
+      "tasks": ["G5-03w", "G5-03a", "G7-10", "G7-04"],
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G5-A04",
+      "title": "Offline pin đủ file/assets/checksum; interrupted download/disk full/corrupt cache không báo ready giả",
+      "owner": "Lead F + QA",
+      "host": ["desktop"],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "Assert the offline pin holds every declared file, asset and checksum, and an interrupted download, a full disk or a corrupt cache never reports the library as ready."
+      },
+      "evidenceRequired": "A recorded run on fx-pdf-invoice-vi and one on fx-html-page-vi with result PASS, each with its artifact, plus the pin manifest of files, assets and checksums the app resolved.",
+      "fixtures": [
+        { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" },
+        { "id": "fx-html-page-vi", "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884" }
+      ],
+      "negativeCases": [
+        "An interrupted download, a disk-full write or a corrupt cache must not mark the pin ready.",
+        "A missing asset or a checksum mismatch must fail the pin instead of being served from a partial cache.",
+        "An offline capability that a gate has not approved must not be enabled by a passing local run."
+      ],
+      "tasks": ["G5-05", "G5-05u", "G7-03b"],
+      "gate": "G5-D1",
+      "blocker": {
+        "gate": "G5-D1",
+        "owner": "Auth + Lead F + G5",
+        "reason": "The offline lease policy needs the approved DOC-005 amendment and threat model; until it is approved the offline capability stays off, so this row cannot run and is BLOCKED(G5-D1)."
+      },
+      "evidence": [],
+      "status": "BLOCKED",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G5-A05",
+      "title": "Save offline → crash/restart → reconnect: một receipt/version; N+1 còn dirty, không tự lưu",
+      "owner": "Lead F + QA",
+      "host": ["desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert one offline save that survives a crash and a restart produces exactly one receipt and one version after reconnect, and an edit made while the save runs stays dirty."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the receipt and version rows the reconnect produced after the crash.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A crash or restart between the local checkpoint and the commit must not create a second version or a duplicate receipt.",
+        "An edit made while save N runs (N+1) must not be submitted with N's payload or auto-saved on reconnect.",
+        "A queue limit that the G5-D3 spine decision has not fixed must not be treated as an approved limit."
+      ],
+      "tasks": ["G5-06", "G5-06u", "G5-10", "G7-10", "G7-03a"],
+      "gate": "G5-D3",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G5-A06",
+      "title": "Expired upload/idempotency, timeout-after-commit, cancel race và late response không duplicate/overwrite",
+      "owner": "G1/FileService + Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert an expired upload, a timeout after commit, a cancel race and a late response each reconcile to one version with no duplicate upload and no overwrite."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the version and upload rows each of the four race cases reconciled to.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+      ],
+      "negativeCases": [
+        "A timeout after commit must not produce a second version or a second upload of the same bytes.",
+        "A cancel race or a late response must not overwrite a newer version or resurrect a fenced attempt.",
+        "An intent lookup whose retention window has been purged must answer unknown with its own code, never a fabricated not-committed."
+      ],
+      "tasks": ["G5-06", "G5-07", "G7-03a"],
+      "gate": "G5-D2",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G5-A07",
+      "title": "Lease/expiry/clock rollback/revoke/logout A→B/deployment switch/keystore lock đúng policy được duyệt",
+      "owner": "Auth + Lead F + QA",
+      "host": ["desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert an expired lease, a rolled-back clock, a revocation, a logout A to B, a deployment switch and a locked keystore each follow the approved policy with no plaintext left behind."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the lease decisions and the keystore state for each policy case.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A rolled-back clock or an expired lease must not extend offline rights beyond the approved policy.",
+        "A logout A to B or a deployment switch must not leave account A's key, plaintext or ciphertext readable by B.",
+        "A locked keystore must block the save path instead of degrading to an unprotected store."
+      ],
+      "tasks": ["G5-04", "G5-08s", "G5-08c", "G5-11", "G7-03b"],
+      "gate": "G5-D1",
+      "blocker": {
+        "gate": "G5-D1",
+        "owner": "Auth + Lead F + G5",
+        "reason": "The lease, expiry and clock-rollback rules are exactly what the unapproved DOC-005 amendment and threat model define, so the lease half of this row cannot run and the row is BLOCKED(G5-D1)."
+      },
+      "evidence": [],
+      "status": "BLOCKED",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G5-A08",
+      "title": "Conflict giữ hai bản, copy giữ owner/ACL/provenance; queue cancel không mất nháp",
+      "owner": "Lead F + Lead D + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert a conflict keeps both copies with the copy retaining owner, ACL and provenance, and cancelling a queued intent loses no draft."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-pptx-deck-vi with result PASS, each with its artifact, plus both conflicting copies with their owner, ACL and provenance.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" }
+      ],
+      "negativeCases": [
+        "A conflict must not overwrite or delete either copy, and the losing side must not rebase a binary automatically.",
+        "A downloaded or copied copy must not lose its owner, ACL or provenance.",
+        "Cancelling a queued intent must not discard the draft or the local checkpoint."
+      ],
+      "tasks": ["G5-09w", "G5-09", "G5-10", "G5-12", "G7-03a"],
+      "gate": "G5-D3",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G6-A01",
+      "title": "XLSX xác định đúng sheet/range/types/filters; phép tính toàn phạm vi đúng oracle, không dựa sample",
+      "owner": "AI Platform + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "deterministic score",
+        "assertion": "Assert the resolved sheet, range, cell types and filters match the workbook oracle, and a whole-range calculation matches the ground truth rather than a sampled subset."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the resolved sheet, range, cell types and filters the score compares with the oracle.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+      ],
+      "negativeCases": [
+        "A sampled or cached range must not be scored as a whole-range calculation.",
+        "Z stored as the plain number 10 and as 10% (0.1) must both be read as a 10 percent discount, and a blank Z as no discount.",
+        "Hidden rows and the two totals rows must be resolved per the oracle instead of being treated as absent."
+      ],
+      "tasks": ["G6-08", "G7-12"],
+      "gate": "G7-D1",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G6-A02",
+      "title": "Yêu cầu mơ hồ hỏi lại; unsupported formula, cache stale, blank/error/locale/rounding được xử lý rõ",
+      "owner": "AI Platform + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "deterministic score",
+        "assertion": "Assert an ambiguous request asks back, an unsupported formula is refused with its reason, a stale calculation cache is not used as the answer, and blank, error, locale and rounding cases resolve as the case declares."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the ask-back question and the refusal reasons the ambiguous and unsupported cases returned.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+      ],
+      "negativeCases": [
+        "An ambiguous request must not be answered with a guess instead of a clarification question.",
+        "A stale cached formula value must not be reported as the computed answer.",
+        "An error cell (#DIV/0!, #N/A, #REF!) must not be silently replaced by zero or by a fabricated value."
+      ],
+      "tasks": ["G6-08", "G7-12"],
+      "gate": "G7-D1",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G6-A03",
+      "title": "Một lượt AI (mọi nhà cung cấp) không tạo upload/version/save intent; chỉ thao tác Lưu của người dùng mới commit",
+      "owner": "Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert the server version count is unchanged and no save intent is created after a full AI turn for every provider, and only an explicit user Save commits."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the version count and the save intents the server recorded after each AI turn.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "An AI turn must not upload bytes, create a version or create a save intent, on any provider.",
+        "An AI turn must not call the commit route even when the tool wrote into the editor.",
+        "A provider error or a stopped run must not be retried into an implicit save."
+      ],
+      "tasks": ["G6-05", "G7-08", "G7-10"],
+      "gate": "G6-D1",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G6-A04",
+      "title": "Thay đổi do AI nhìn thấy được và hoàn tác được trước khi Lưu; Lưu sau AI đúng `base_revision`, 409 giữ bản cục bộ, double click/retry không nhân đôi version",
+      "owner": "Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert an AI change is visible and undoable before Save, the Save after an AI turn uses the current base_revision, a 409 keeps the local copy, and a double click or a retry does not create a second version."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-xlsx-revenue-xyz with result PASS, each with its artifact, plus the base_revision of the Save and the 409 outcome.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+      ],
+      "negativeCases": [
+        "An AI change must not be committed without an explicit user Save.",
+        "A Save after an AI turn must not send a stale base_revision or auto-rebase on a 409.",
+        "A double click or a retry of the same Save must not create a second version."
+      ],
+      "tasks": ["G6-09", "G7-03a", "G7-08"],
+      "gate": "G6-D4",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G6-A05",
+      "title": "DOCX mở → AI sửa trong editor → người dùng xem và Lưu → version mới → tải và mở Word; version cũ checksum không đổi",
+      "owner": "QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "Assert the AI edit round-trips through the DOCX validator, a new version appears only after the user Save, the file opens in Word, and the previous version's checksum is unchanged."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the validator output, the new version and the unchanged checksum of the previous one.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A missing OOXML part or a broken round trip must not be reported as accepted.",
+        "The previous version's checksum must not change after the new commit.",
+        "A Word open failure must be recorded as a blocker instead of being waived."
+      ],
+      "tasks": ["G7-08"],
+      "gate": "G6-D4",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G6-A06",
+      "title": "Các format còn lại theo §6.5, có oracle structure/render và giới hạn capability đúng host (web frame / desktop)",
+      "owner": "Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "Assert every remaining Section 6.5 format has a structure or render oracle per host, and a format without a capability is refused on that host rather than shown as disabled."
+      },
+      "evidenceRequired": "A recorded run on each of fx-pptx-deck-vi, fx-pdf-invoice-vi, fx-md-notes-vi and fx-html-page-vi with result PASS, each with its artifact, plus the structure or render oracle per host.",
+      "fixtures": [
+        { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" },
+        { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" },
+        { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" },
+        { "id": "fx-html-page-vi", "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884" }
+      ],
+      "negativeCases": [
+        "A missing format, slide, page or heading count must stay measured and blocked rather than called pass.",
+        "A capability the host does not hold must be absent, not a disabled control that implies it exists.",
+        "A client-only pass must not be cited to close a host whose capability is missing."
+      ],
+      "tasks": ["G6-12", "G7-08"],
+      "gate": "G6-D4",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G6-A07",
+      "title": "Entitlement/frame token/ACL mất quyền giữa chừng/cross-org/cross-workspace/prompt injection/history replay đều được chặn; UniWork AI ẩn khi không đủ điều kiện và hiện khi chỉ có `uniworkAi` (không BYOK); tool call ngoài allowlist bị từ chối; vượt trần lượt trả `run_limit_reached`; system prompt/instruction pack do server giữ, client không thay được",
+      "owner": "AI Platform + Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "security probe",
+        "assertion": "Assert each probe is refused: a revoked entitlement or ACL mid-run, a stale frame token, a cross-organization or cross-workspace run id, a client-supplied system or assistant turn, a prompt-injection payload, a replayed history, and a tool call outside the allowlist; the run limit answers run_limit_reached; and the panel is hidden while UniWork AI is not eligible and appears on uniworkAi alone with no BYOK."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-xlsx-revenue-xyz with result PASS, each with its artifact, plus the refusal code of every probe and the panel state with and without uniworkAi.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+      ],
+      "negativeCases": [
+        "A client-supplied system or assistant turn must never reach the model, and an inflated tool result must be ignored in favour of the server transcript.",
+        "A run id of another user, organization, workspace or document must be refused, and a revoked or downgraded permission must drop write tools from the next turn.",
+        "A tool call outside the allowlist must be dropped with its reason and never reach the client as a usable call.",
+        "Text inside a document, a cell or a tool result that tells the model to ignore its instructions or call a tool must not change the run, and the server transcript must stay unchanged by it."
+      ],
+      "tasks": ["G6-03a", "G6-03b", "G6-03c", "G6-05", "G6-05u", "G7-12"],
+      "gate": "G6-D1",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G6-A08",
+      "title": "Upstream model timeouts/outage, `credits_exhausted`, rate limit, disconnect và cancel có bounded outcome; không phá editor, BYOK vẫn chạy",
+      "owner": "AI Platform + Lead F",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert an upstream timeout or outage, credits_exhausted, a rate limit, a client disconnect and a cancel each end in a bounded structured outcome, the editor keeps its state, and a BYOK turn still completes while UniWork AI fails."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the bounded outcome of each failure case and the BYOK turn that still completed.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+      ],
+      "negativeCases": [
+        "An upstream timeout or outage must not retry unboundedly or leave the editor unusable.",
+        "A 402 credits_exhausted or a 429 must not call the gateway or record usage, and a 429 must carry Retry-After.",
+        "A UniWork AI failure must not disable a BYOK provider."
+      ],
+      "tasks": ["G6-03a", "G6-03b", "G6-03c", "G6-05", "G6-05u"],
+      "gate": "G6-D1",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G6-A09",
+      "title": "Từng lượt gọi model có attribution/quota/usage; unknown usage được reconcile, không bỏ sót",
+      "owner": "AI Platform",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert every model call in a run carries attribution, quota and usage; a disconnect mid-run still records usage; and a provider that returns no usage lands as unknown with a reconciliation row counted once."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the usage rows with attribution and quota, and the reconciliation row counted once.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+      ],
+      "negativeCases": [
+        "A client disconnect or a kill switch mid-run must still record the usage already spent.",
+        "A retry under the same run id must not record usage twice.",
+        "Missing upstream usage must be recorded as unknown and reconciled exactly once, never dropped or invented."
+      ],
+      "tasks": ["G6-03b"],
+      "gate": "G6-D1",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G6-A10",
+      "title": "Instruction pack có version: mỗi lượt truy được `prompt_id` + provider/model đã resolve; đổi version hoặc rollback không làm model gọi/nhắc công cụ ngoài allowlist hay bịa công cụ (U-12 thay nội dung corpus/retrieval cũ)",
+      "owner": "AI Platform + Product + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "deterministic score",
+        "assertion": "Assert a run's usage line carries prompt_id and the resolved provider and model, every tool name the pack mentions exists in the genoffice tool table, and a version change or rollback never makes the model name a tool outside the allowlist or invent one."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the prompt_id, provider and model of the usage line and the tool names against the genoffice table.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A run must not be scored when its usage line lacks prompt_id or the resolved provider and model.",
+        "The pack must not name a tool that the genoffice tool table does not list.",
+        "Changing the pack content without bumping its version must fail, and a rollback must not reintroduce a tool outside the allowlist."
+      ],
+      "tasks": ["G6-14", "G7-12"],
+      "gate": "G6-D1",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G7-A01",
+      "title": "Full loop: web edit-save → mở bằng app từ web → desktop offline edit-save → reconnect → web thấy version → AI sửa + Lưu → hai host thấy cùng kết quả",
+      "owner": "QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert the loop closes through the harness on the real stack: a web edit-save, opening the app from web, a desktop offline edit-save, a reconnect that lets web see the version, and an AI turn plus Save all leave both hosts on the same result; the version count grows by exactly one per user Save and by zero per AI turn and the final checksum is identical on both hosts."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS through the harness on the real stack, each with its artifact, plus the version count per Save and the checksum both hosts report.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A step that cannot run must be recorded as BLOCKED, never folded into a PASS for the whole loop.",
+        "A web-only or fake-provider run must not close this row.",
+        "A checksum divergence between the two hosts must fail the row instead of being reported as a delay."
+      ],
+      "tasks": ["G7-04"],
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G7-A02",
+      "title": "Lượt AI đang chạy gặp G5 remote update/conflict/revoke; kết quả không tự áp lên bản mới, revoke chặn lượt gọi tiếp",
+      "owner": "QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert an AI result that arrives after a remote update, a conflict or a revocation is not applied to the newer base, and a revocation answers the next AI turn with 403 and no new version."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the base each late AI result was refused against and the 403 of the next turn after a revocation.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "An AI result must not be auto-applied over a newer remote version.",
+        "A conflict during an AI turn must not silently overwrite either side.",
+        "A revoked permission must block the next AI turn instead of letting it run and fail late."
+      ],
+      "tasks": ["G7-03a", "G7-04"],
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G7-A03",
+      "title": "Upgrade/rollback bản dev, namespace/key/store migration; file cục bộ không gọi mạng khi chưa đăng nhập; signed update/tamper/wrong channel chỉ khi mở backlog chứng chỉ (U-11)",
+      "owner": "Lead F + QA + OPS",
+      "host": ["desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert a dev build upgrades and rolls back across the store schema with no lost data and no new intent, opening a local file while signed out sends zero network requests, and the support matrix states the known unsigned-dev limit."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the store migration and rollback evidence and the zero-network capture of the signed-out local open.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A rollback to a build below the guard must not read or migrate a newer store, and must not create an intent or upload.",
+        "Opening a local file while signed out must send zero network requests.",
+        "A signed-update, tamper or wrong-channel case must not be claimed while the certificate backlog is closed."
+      ],
+      "tasks": ["G5-11", "G7-05"],
+      "gate": "G7-D2",
+      "blocker": {
+        "gate": "G7-D2",
+        "owner": "Owner F + OPS + QA",
+        "reason": "The row needs the platform, OS/arch and channel list that G7-D2 has not fixed, so the installer rows cannot run and the row is BLOCKED(G7-D2)."
+      },
+      "evidence": [],
+      "status": "BLOCKED",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G7-A04",
+      "title": "i18n vi/en, keyboard/screen reader, dark/light, responsive, performance và fidelity đủ bằng chứng",
+      "owner": "QA + Lead F + UX + OPS",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "render diff",
+        "assertion": "Assert the automated contrast, forced-colors, zoom, DOM-order, keyboard and focus checks pass in both themes and both locales, the layout stays responsive at the committed widths, the performance budget is measured, the screen reader walkthrough is recorded on the real machine, and the fidelity regression over the six fixtures keeps unchanged regions intact."
+      },
+      "evidenceRequired": "A recorded run on each of the six fixtures with result PASS, each with its artifact, plus the contrast, forced-colors, zoom, DOM-order, keyboard and focus results in both themes and both locales and the recorded screen-reader walkthrough.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
+        { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" },
+        { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" },
+        { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" },
+        { "id": "fx-html-page-vi", "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884" }
+      ],
+      "negativeCases": [
+        "An unstyled, placeholder or broken dark mode must block the row.",
+        "A screen reader or macOS pass must not be inferred from a Chromium run or a simulated WebKit.",
+        "A fidelity drift in a region the change did not touch must be reported as a finding, not waived by a screenshot."
+      ],
+      "tasks": ["G7-05", "G7-06", "G7-09"],
+      "gate": "G7-D2",
+      "blocker": {
+        "gate": "G7-D2",
+        "owner": "Owner F + OPS + QA",
+        "reason": "The macOS VoiceOver and Safari evidence needs the real machine that G7-D2 has not assigned; with that machine missing the platform row is BLOCKED(G7-D2)."
+      },
+      "evidence": [],
+      "status": "BLOCKED",
+      "reviewer": "pending reviewer_fe (UNI-1376)"
+    },
+    {
+      "id": "G7-A05",
+      "title": "Instruction pack (version) + cấu hình upstream không secret + bảng công cụ genoffice + runtime manifest (SHA fork, pin bundle) dựng lại được; runbook outage/recovery và support matrix khớp artifact",
+      "owner": "OPS + Coordinator + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "manifest",
+        "assertion": "Assert a clean-environment rebuild reproduces the same artifact hashes for the instruction pack version, the non-secret upstream configuration, the genoffice tool table and the runtime manifest (fork SHA, bundle pin), and the runbooks and support matrix match those artifacts."
+      },
+      "evidenceRequired": "A recorded run on fx-md-notes-vi with result PASS and its artifact, plus the artifact hashes of the instruction pack, the upstream configuration, the tool table and the runtime manifest.",
+      "fixtures": [
+        { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" }
+      ],
+      "negativeCases": [
+        "A rebuild whose artifact hash differs from the recorded one must fail instead of being accepted as equivalent.",
+        "A runtime manifest that names a fork SHA or bundle pin other than the deployed one must not be reported as matching.",
+        "A secret value (host, port or key) must never appear in the manifest, the evidence or the report."
+      ],
+      "tasks": ["G7-07", "G7-11"],
+      "gate": "G7-D1",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1376)"
+    }
+  ]
+}
