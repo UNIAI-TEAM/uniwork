@@ -35,11 +35,15 @@ export const PROTOCOL_FILES = Object.freeze({
   host: "web/docs/protocol/host.ts",
 });
 
-/** The exit code a run ends with: 1 any FAIL, else 77 any BLOCKED, else 0. */
+/**
+ * The exit code a run ends with: 1 any FAIL, else 77 any BLOCKED or NOTE, else
+ * 0. A NOTE is a comparison that never ran, and the G7-01 ledger only knows
+ * PASS/FAIL/BLOCKED — mapping it to 0 would log a PASS (amendment 3).
+ */
 export function exitCodeFor(checks) {
   const statuses = Object.values(checks).map((check) => check.status);
   if (statuses.includes("FAIL")) return 1;
-  if (statuses.includes("BLOCKED")) return BLOCKED_EXIT;
+  if (statuses.includes("BLOCKED") || statuses.includes("NOTE")) return BLOCKED_EXIT;
   return 0;
 }
 

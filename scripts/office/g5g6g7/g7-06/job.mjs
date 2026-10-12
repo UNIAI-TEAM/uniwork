@@ -6,8 +6,9 @@
 // line through scripts/office/g5g6g7/evidence.mjs; the job never touches the
 // ledger itself.
 //
-// Exit codes: 0 every requested check PASS (or NOTE), 1 any FAIL, 77 no FAIL
-// and at least one BLOCKED (a missing precondition is never a PASS).
+// Exit codes: 0 every requested check PASS, 1 any FAIL, 77 no FAIL and at
+// least one BLOCKED or NOTE (a missing precondition is never a PASS, and a
+// NOTE — a comparison that never ran — is not one either; amendment 3).
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -131,7 +132,10 @@ export function summaryLines(result, outDir) {
   }
   const counts = { PASS: 0, FAIL: 0, BLOCKED: 0, NOTE: 0 };
   for (const check of Object.values(result.checks)) counts[check.status] += 1;
-  const verdict = counts.FAIL > 0 ? "FAIL" : counts.BLOCKED > 0 ? "BLOCKED" : "PASS";
+  // A NOTE is printed as its own count but reads as BLOCKED, matching the exit
+  // code (amendment 3): the summary must not say PASS over a comparison that
+  // never ran.
+  const verdict = counts.FAIL > 0 ? "FAIL" : counts.BLOCKED + counts.NOTE > 0 ? "BLOCKED" : "PASS";
   lines.push(
     `g7-06 job: ${verdict} (${counts.FAIL} fail, ${counts.BLOCKED} blocked, ${counts.PASS} pass, ${counts.NOTE} note) — artifacts in ${outDir}`,
   );

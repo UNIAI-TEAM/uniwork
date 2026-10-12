@@ -9,14 +9,16 @@
 // register their tests on this file when imported.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { pathToFileURL } from "node:url";
+import { SKIP_EXIT_CODE, runEvidence } from "../evidence.mjs";
 import { optionsFromEnv, parseArgs, runJob } from "./job.mjs";
-import { DEFAULT_PIN_DIR } from "./job-lib.mjs";
+import { DEFAULT_PIN_DIR, exitCodeFor } from "./job-lib.mjs";
 import * as cx from "./test-fixtures/capture-fixtures.mjs";
 import * as fx from "./test-fixtures/fork-fixtures.mjs";
-import { CAPTURES, ONE, cli, outDir, readJson, tmpDir } from "./test-fixtures/test-env.mjs";
+import { CAPTURES, JOB, JOB_DIR, ONE, cli, outDir, readJson, tmpDir } from "./test-fixtures/test-env.mjs";
 import "./test-cases/protocol.cases.mjs";
 import "./test-cases/extractor.cases.mjs";
 import "./test-cases/golden.cases.mjs";
@@ -142,4 +144,57 @@ test("every flag has its env form, and a flag wins over its env", () => {
     { forkDir: "/f", forkSha: "abc1234", installedRoot: "/i", capturesDir: "/c", extractor: "/e.mjs", outDir: "/o" },
   );
   assert.equal(optionsFromEnv({ forkSha: "def5678" }, env).forkSha, "def5678");
+});
+
+// ---- Amendment 3: a NOTE is 77, and the ledger never reads it as a PASS ------
+
+/** The world where the `protocol` check has nothing to compare: nobody records. */
+function noteWorld() {
+  const fork = fx.mkFakeFork(tmpDir("g7-06-fork-"));
+  const pinDir = fx.writePins(tmpDir("g7-06-pins-"), { gitSha: fork.sha });
+  const installedRoot = fx.writeInstalled(tmpDir("g7-06-installed-"), { version: "0.1.0-fake", gitSha: fork.sha });
+  return { fork, pinDir, installedRoot };
+}
+
+test("a NOTE verdict is exit 77, never 0 (contract Amendment 3)", () => {
+  const { fork, pinDir, installedRoot } = noteWorld();
+  const result = runJob({ checks: ["protocol"], forkDir: fork.dir, forkSha: fork.sha, installedRoot, pinDir, outDir: outDir("note-exit") });
+  assert.equal(result.checks.protocol.status, "NOTE");
+  assert.deepEqual(result.checks.protocol.reasons, ["protocol_sha256_not_recorded"]);
+  assert.equal(exitCodeFor(result.checks), 77);
+});
+
+test("a NOTE run through the evidence runner can never log a PASS", () => {
+  const { fork, pinDir, installedRoot } = noteWorld();
+  const runDir = outDir("note-run");
+  const evidenceDir = outDir("note-evidence");
+  // The job CLI reads the checkout's own pins, which all record protocolSha256,
+  // so a NOTE world is driven through runJob + exitCodeFor — the same pair
+  // main() uses — by a tiny wrapper command.
+  const wrapper = join(tmpDir("g7-06-note-"), "note-run.mjs");
+  writeFileSync(
+    wrapper,
+    [
+      `import { runJob } from ${JSON.stringify(pathToFileURL(JOB).href)};`,
+      `import { exitCodeFor } from ${JSON.stringify(pathToFileURL(join(JOB_DIR, "job-lib.mjs")).href)};`,
+      `const result = runJob({ checks: ["protocol"], forkDir: ${JSON.stringify(fork.dir)}, forkSha: ${JSON.stringify(fork.sha)}, installedRoot: ${JSON.stringify(installedRoot)}, pinDir: ${JSON.stringify(pinDir)}, outDir: ${JSON.stringify(runDir)} });`,
+      `process.stdout.write(JSON.stringify(result.checks.protocol));`,
+      `process.exitCode = exitCodeFor(result.checks);`,
+    ].join("\n"),
+  );
+  const record = runEvidence({
+    requirementId: "G7-A04",
+    fixtureId: "fx-xlsx-revenue-xyz",
+    checker: "tester-cloud",
+    outDir: evidenceDir,
+    command: [process.execPath, wrapper],
+  });
+  assert.equal(record.result, "BLOCKED", record.blocker ?? "");
+  assert.match(record.blocker, new RegExp(`exit ${SKIP_EXIT_CODE}`));
+  const ledger = readFileSync(join(evidenceDir, "evidence.jsonl"), "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  assert.equal(ledger[0].result, "BLOCKED", "the ledger line a NOTE run writes is not a PASS");
+  assert.equal(ledger[0].exitCode, SKIP_EXIT_CODE);
 });
