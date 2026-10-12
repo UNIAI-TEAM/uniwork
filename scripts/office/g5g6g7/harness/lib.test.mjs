@@ -12,7 +12,7 @@ import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { verify } from "../evidence.mjs";
 import { routeCatalogue, routeMatches } from "./server-contract.helper.mjs";
-import { APP_ENV_PASSTHROUGH, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -364,8 +364,12 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
   shim("xvfb-run", [
     "#!/usr/bin/env bash",
     `echo used >> ${JSON.stringify(join(root, "xvfb-used"))}`,
-    'while [ "$#" -gt 0 ]; do case "$1" in --*) shift ;; *) break ;; esac; done',
+    `echo "$@" >> ${JSON.stringify(join(root, "xvfb-argv"))}`,
+    // like the real one: -f FILE names the auth file it exports as XAUTHORITY
+    'auth=""',
+    'while [ "$#" -gt 0 ]; do case "$1" in -f) auth="$2"; shift 2 ;; --*) shift ;; *) break ;; esac; done',
     "export DISPLAY=:99",
+    'export XAUTHORITY="${auth:-/tmp/private-xauth}"',
     'exec "$@"',
     "",
   ].join("\n"));
@@ -593,6 +597,26 @@ test("the app start.sh launches gets an allow-listed env, never the VM .env's se
   }
 });
 
+test("the second instance gets the run's DISPLAY and XAUTHORITY, not the caller's, and nothing else widens", () => {
+  const ports = { API_ORIGIN: "http://127.0.0.1:1", UNIWORK_USER_DATA: "/ud", DISPLAY: ":99", XAUTHORITY: "/run/dir/xauthority" };
+  const source = { PATH: "/bin", HOME: "/h", DISPLAY: ":1", XAUTHORITY: "/home/u/.Xauthority", DATABASE_URL: "x", JWT_SECRET: "z", UNRELATED: "u" };
+  const env = handoffEnv(ports, source);
+  assert.equal(env.DISPLAY, ":99");
+  assert.equal(env.XAUTHORITY, "/run/dir/xauthority");
+  assert.deepEqual(Object.keys(env).sort(), ["DISPLAY", "ELECTRON_DISABLE_SANDBOX", "GENOFFICE_NO_SPARE_VIEW", "GENOFFICE_USER_DATA", "HOME", "PATH", "UNIWORK_API_ORIGIN", "UNIWORK_OFFICE_CHANNEL", "XAUTHORITY"]);
+  // a desktop run records no XAUTHORITY: the caller's own session variable passes through the allow-list
+  const desktop = handoffEnv({ ...ports, DISPLAY: ":7", XAUTHORITY: undefined }, source);
+  assert.equal(desktop.DISPLAY, ":7");
+  assert.equal(desktop.XAUTHORITY, "/home/u/.Xauthority");
+});
+
+test("describeExit names the signal instead of printing 'exited null'", () => {
+  assert.equal(describeExit(0, null), "exited 0");
+  assert.equal(describeExit(1, null), "exited 1");
+  assert.equal(describeExit(null, "SIGSEGV"), "was killed by SIGSEGV");
+  assert.equal(describeExit(null, null), "ended without an exit code or a signal");
+});
+
 test("appEnv passes only the allow-list and refuses a secret by name", () => {
   const source = { PATH: "/bin", HOME: "/h", DISPLAY: ":1", DATABASE_URL: "x", REDIS_URL: "y", JWT_SECRET: "z", MY_API_KEY: "k", SESSION_TOKEN: "t", DB_PASSWORD: "p", UNRELATED: "u" };
   const env = appEnv({ source, apiOrigin: "http://127.0.0.1:1", userDataDir: "/ud" });
@@ -625,6 +649,21 @@ test("--dry-run leaves a live run's pids, ports and logs untouched (reviewer_be 
   }
 });
 
+test("under xvfb the run's X auth file lives in the run dir and ports.env records it next to DISPLAY", () => {
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const ports = readFileSync(join(stack.runDir, "ports.env"), "utf8");
+    assert.match(ports, /^DISPLAY=:99$/m);
+    assert.ok(ports.includes(`\nXAUTHORITY=${join(stack.runDir, "xauthority")}\n`), `ports.env: ${ports}`);
+    assert.match(readFileSync(join(stack.root, "xvfb-argv"), "utf8"), new RegExp(`-f ${join(stack.runDir, "xauthority").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    assert.equal(statSync(join(stack.runDir, "xauthority")).mode & 0o077, 0, "the auth file holds the display's cookie: owner only");
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
 test("--desktop opens the app on the invoking session's display, without xvfb", () => {
   const stack = mkFakeStack();
   try {
@@ -633,6 +672,7 @@ test("--desktop opens the app on the invoking session's display, without xvfb", 
     assert.match(result.stdout, /on the desktop display :7/);
     assert.match(readFileSync(join(stack.runDir, "ports.env"), "utf8"), /^DISPLAY=:7$/m);
     assert.ok(!existsSync(join(stack.root, "xvfb-used")), "desktop mode must not start Xvfb");
+    assert.ok(!/^XAUTHORITY=/m.test(readFileSync(join(stack.runDir, "ports.env"), "utf8")), "no X auth file is invented for the desktop session");
   } finally {
     stopFakeStack(stack);
   }
@@ -924,6 +964,7 @@ function mkDocumentRun({ origin, electronBody, session = false }) {
       `WEB_ORIGIN=${origin}`,
       `OFFICE_FORK_SHA=0d03b18`,
       `DISPLAY=:99`,
+      `XAUTHORITY=/run/dir/xauthority`,
       `UNIWORK_USER_DATA=${userData}`,
       `ELECTRON_BIN=${bin}`,
       `SHELL_APP_DIR=/fake/shell`,
@@ -1007,6 +1048,25 @@ test("document-step is BLOCKED when the app has no desktop session and left no w
     const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"]);
     assert.equal(result.status, 77, `expected BLOCKED (77), got ${result.status}\n${result.stdout}\n${result.stderr}`);
     assert.match(result.stdout, /document step: BLOCKED/);
+    // BLOCKED only after the handoff itself was proven: the link reached the app
+    assert.match(readFileSync(linkFile, "utf8"), /^[a-z-]+:\/\/open\?.*ticket=/m);
+    assert.match(result.stdout, /the app received the deep link as a second instance/);
+    assert.ok(!/FAIL/.test(result.stdout.replace(/document step: BLOCKED/, "")), `no check may FAIL:\n${result.stdout}`);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("document-step FAILs, naming the signal, when the handoff itself dies even without a session", async () => {
+  const server = await mkFakeDocumentServer();
+  // the second instance is killed by SIGSEGV: a harness/app defect, not a missing sign-in
+  const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nkill -SEGV $$\n" });
+  try {
+    rmSync(join(run.userData, "uniwork-auth", "session.bin"), { force: true });
+    const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"]);
+    assert.equal(result.status, 1, `expected FAIL (1), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /the second instance was killed by SIGSEGV/);
+    assert.ok(!/exited null/.test(result.stdout));
   } finally {
     await server.stop();
   }
@@ -1278,6 +1338,7 @@ test("the second instance gets the allow-listed env, not the harness's", async (
     assert.match(text, /^UNIWORK_API_ORIGIN=http:\/\/127\.0\.0\.1:\d+$/m);
     assert.match(text, /^UNIWORK_OFFICE_CHANNEL=dev$/m);
     assert.match(text, /^DISPLAY=:99$/m);
+    assert.match(text, /^XAUTHORITY=\/run\/dir\/xauthority$/m);
     assert.match(text, /^GENOFFICE_USER_DATA=/m);
   } finally {
     await server.stop();
