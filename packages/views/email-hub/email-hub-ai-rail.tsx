@@ -58,7 +58,7 @@ export function EmailHubAiRail({ wide, open, onOpenChange, ...panel }: EmailHubA
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <EmailHubAiPanel {...panel} />
+          <EmailHubAiPanel key={panel.threadId} {...panel} />
         </div>
       </aside>
     );
@@ -75,7 +75,7 @@ export function EmailHubAiRail({ wide, open, onOpenChange, ...panel }: EmailHubA
           <SheetDescription className="sr-only">{t("email_hub.ai_description")}</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <EmailHubAiPanel {...panel} />
+          <EmailHubAiPanel key={panel.threadId} {...panel} />
         </div>
       </SheetContent>
     </Sheet>

@@ -1,11 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { EmailHubAiPanel } from "./email-hub-ai-panel";
+import { EmailHubAiRail } from "./email-hub-ai-rail";
 
 const me: User = {
   id: "u1",
@@ -73,5 +74,65 @@ describe("EmailHubAiPanel", () => {
         }),
       ),
     );
+  });
+
+  it.each([
+    { layout: "wide rail", wide: true },
+    { layout: "sheet", wide: false },
+  ])("does not apply thread A's pending summary to thread B in the $layout", async ({ wide }) => {
+    let resolveThreadASummary!: (value: typeof summary) => void;
+    const pendingThreadASummary = new Promise<typeof summary>((resolve) => {
+      resolveThreadASummary = resolve;
+    });
+    const onSummaryChange = vi.fn();
+
+    requestMock.mockImplementation((path: unknown, opts?: { method?: string }) => {
+      const p = String(path);
+      if (p.endsWith("/ai/capabilities")) return Promise.resolve({ enabled: true });
+      if (p.includes("/threads/thread-a/ai/summarize") && opts?.method === "POST") {
+        return pendingThreadASummary;
+      }
+      if (p.includes("/ai/summary?")) return Promise.resolve(null);
+      if (p.includes("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({});
+    });
+
+    const renderRail = (threadId: string) =>
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={me}>
+          <EmailHubAiRail
+            wide={wide}
+            open
+            onOpenChange={vi.fn()}
+            wsId="w1"
+            accountId="a1"
+            threadId={threadId}
+            bodyReady
+            onSummaryChange={onSummaryChange}
+          />
+        </WorkspaceProvider>,
+      );
+
+    const view = render(renderRail("thread-a"));
+    const summarizeButton = await screen.findByRole("button", { name: "Tóm tắt email" });
+    await waitFor(() => expect(summarizeButton).toBeEnabled());
+    fireEvent.click(summarizeButton);
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/w1/email-hub/threads/thread-a/ai/summarize",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+
+    view.rerender(renderRail("thread-b"));
+    await act(async () => {
+      resolveThreadASummary(summary);
+      await pendingThreadASummary;
+    });
+
+    expect(await screen.findByRole("button", { name: "Tóm tắt email" })).toBeEnabled();
+    expect(screen.queryByText(summary.summary)).not.toBeInTheDocument();
+    expect(screen.queryByText(summary.action_items[0]!.title)).not.toBeInTheDocument();
+    expect(onSummaryChange).not.toHaveBeenCalled();
   });
 });
