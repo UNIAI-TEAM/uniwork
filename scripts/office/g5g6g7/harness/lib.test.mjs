@@ -4,13 +4,13 @@
 // to the server, the web and the app.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -248,6 +248,43 @@ test("the lib.mjs CLI modes answer and name the mode on a bad call", () => {
 });
 
 /**
+ * A stand-in for the D server's boot that keeps its two real behaviours: the
+ * .env loader (server/cmd/server/envfile.go — the same four lookups, and a key
+ * is skipped only when its value is already NON-EMPTY, so an empty key is
+ * refilled) and the DESKTOP_AUTH check (config.go:306-311). It records its cwd
+ * and the pair it ended up with, and answers /healthz (a file) only once it
+ * booted; a config error is printed the way the server prints it, exit 1.
+ */
+function LOADER_SERVER(root, readyFile) {
+  return [
+    "#!/usr/bin/env node",
+    'const fs = require("fs");',
+    `const LOOKUPS = ${JSON.stringify(SERVER_ENV_LOOKUPS)};`,
+    "for (const path of LOOKUPS) {",
+    "  let text;",
+    '  try { text = fs.readFileSync(path, "utf8"); } catch { continue; }',
+    '  for (const raw of text.split("\\n")) {',
+    "    const line = raw.trim();",
+    '    if (!line || line.startsWith("#")) continue;',
+    '    const at = line.indexOf("=");',
+    "    if (at < 0) continue;",
+    "    const key = line.slice(0, at).trim();",
+    "    if (!key || process.env[key]) continue;",
+    "    process.env[key] = line.slice(at + 1).trim();",
+    "  }",
+    "}",
+    `fs.writeFileSync(${JSON.stringify(join(root, "server-boot.json"))}, JSON.stringify({ cwd: process.cwd(), clients: process.env.DESKTOP_AUTH_CLIENTS ?? "", id: process.env.DESKTOP_AUTH_CLIENT_ID ?? "", uris: process.env.DESKTOP_AUTH_REDIRECT_URIS ?? "", livekit: process.env.LIVEKIT_URL ?? "", previewTtl: process.env.PREVIEW_ASSET_TTL ?? "" }));`,
+    'if ((process.env.DESKTOP_AUTH_CLIENTS ?? "").trim() && (process.env.DESKTOP_AUTH_CLIENT_ID || process.env.DESKTOP_AUTH_REDIRECT_URIS)) {',
+    "  console.error('ERR config component=server err=\"set either DESKTOP_AUTH_CLIENTS or DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both\"');",
+    "  process.exit(1);",
+    "}",
+    `fs.writeFileSync(${JSON.stringify(readyFile)}, "ok");`,
+    "setInterval(() => {}, 1000);",
+    "",
+  ].join("\n");
+}
+
+/**
  * A fake checkout for the bash-level tests: the real start.sh and lib.mjs, a
  * `node_modules` marker so the precondition passes, a `.env`, and stub tools on
  * PATH (`go`, `pnpm`, `curl`, `git`, `ldconfig`, `xvfb-run`) so the whole script
@@ -256,7 +293,7 @@ test("the lib.mjs CLI modes answer and name the mode on a bad call", () => {
  * on the path start.sh execs, pnpm/electron sleep) — this is the "dry-run with a
  * fake server/web" the fix asks for, not a stand-in for the real stack.
  */
-function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false } = {}) {
+function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false, loaderServer = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), "harness-start-"));
   const bin = join(root, "bin");
   const harness = join(root, "scripts", "office", "g5g6g7", "harness");
@@ -276,7 +313,14 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
     writeFileSync(join(bin, name), body);
     chmodSync(join(bin, name), 0o755);
   };
-  shim("go", "#!/usr/bin/env bash\nif [ \"$1\" = build ]; then mkdir -p bin && : > bin/harness-server && chmod +x bin/harness-server; exit 0; fi\nexit 0\n");
+  // `loaderServer` swaps the empty stub server for one that runs the real
+  // server's boot order: the .env loader (envfile.go), then the DESKTOP_AUTH
+  // check (config.go) — see LOADER_SERVER below. Its /healthz answers only once
+  // it got through that, so a server that dies at boot is seen as dead.
+  const readyFile = join(root, "server-ready");
+  const serverSource = join(root, "fake-server.cjs");
+  if (loaderServer) writeFileSync(serverSource, LOADER_SERVER(root, readyFile));
+  shim("go", `#!/usr/bin/env bash\nif [ "$1" = build ]; then mkdir -p bin && ${loaderServer ? `cp ${JSON.stringify(serverSource)} bin/harness-server` : ": > bin/harness-server"} && chmod +x bin/harness-server; exit 0; fi\nexit 0\n`);
   // The harness puts nvm's Node 22 first on PATH; the fake nvm hands it this
   // bin dir, so the stubs below keep winning and the test never depends on the
   // host's nvm. `node` here is the real Node (the harness must keep running).
@@ -285,7 +329,9 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
   // The network probe is `curl ... <fork>/info/refs`; the app's own probes are
   // `curl -sf -o /dev/null <url>`. `network:false` fails only the former.
   shim("curl", network
-    ? "#!/usr/bin/env bash\nexit 0\n"
+    ? (loaderServer
+      ? `#!/usr/bin/env bash\nfor a in "$@"; do case "$a" in */healthz) [ -f ${JSON.stringify(readyFile)} ] || exit 7 ;; esac; done\nexit 0\n`
+      : "#!/usr/bin/env bash\nexit 0\n")
     : "#!/usr/bin/env bash\nfor a in \"$@\"; do case \"$a\" in */info/refs*) exit 7 ;; esac; done\nexit 0\n");
   // The default stub lists the five libraries at once. `libsSigpipe` mimics the
   // real `ldconfig -p` (hundreds of lines): it names the five first and then
@@ -355,7 +401,13 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
   }
 
   const envFile = join(root, "env");
-  writeFileSync(envFile, "DATABASE_URL=postgres://u:p@localhost:5432/db?sslmode=disable\nREDIS_URL=redis://localhost:6379/0\n");
+  // The VM's .env, as the cloud runner writes it from .env.example: the
+  // single-client pair, a LiveKit URL, and a setting the server REQUIRES and the
+  // run does not set (PREVIEW_ASSET_TTL). The harness sources it (ENV_FILE) and
+  // the real server reads the same file from the checkout root.
+  const dotenv = "DATABASE_URL=postgres://u:p@localhost:5432/db?sslmode=disable\nREDIS_URL=redis://localhost:6379/0\nDESKTOP_AUTH_CLIENT_ID=uniwork-office\nDESKTOP_AUTH_REDIRECT_URIS=uniwork-office://auth/callback\nLIVEKIT_URL=ws://localhost:7880\nPREVIEW_ASSET_TTL=10m\n";
+  writeFileSync(envFile, dotenv);
+  writeFileSync(join(root, ".env"), dotenv);
   // A fake nvm: `nvm which 22` names the stub bin dir, so start.sh's nvm branch
   // is exercised and the stubs stay in front of PATH.
   const nvmDir = join(root, "nvm");
@@ -421,6 +473,141 @@ test("start.sh reaches up through the real lib.mjs fork-dir call (fake stack)", 
   } finally {
     stopFakeStack(stack);
   }
+});
+
+test("the D server boots with exactly DESKTOP_AUTH_CLIENTS although the checkout's .env carries the single-client pair", () => {
+  // Cloud round 4: start.sh exited 1, "set either DESKTOP_AUTH_CLIENTS or
+  // DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both". server.env
+  // cleared the pair to "", but the server's own .env loader treats an empty
+  // key as unset and refilled it from the checkout's .env. The fake server
+  // below runs that loader (same lookups, same non-empty test) and the real
+  // config check, so this fails on the old start.sh (cwd = the checkout).
+  const stack = mkFakeStack({ loaderServer: true });
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const boot = JSON.parse(readFileSync(join(stack.root, "server-boot.json"), "utf8"));
+    assert.match(boot.clients, new RegExp(`${DEV_CLIENT_ID}=${DEV_CLIENT_ID}://auth/callback`));
+    assert.equal(boot.id, "", "the single-client id must still be empty after the .env loader ran");
+    assert.equal(boot.uris, "", "the single-client redirect list must still be empty after the .env loader ran");
+    assert.equal(boot.livekit, "", "the cleared LiveKit setting must not come back from the .env");
+    assert.equal(boot.previewTtl, "10m", "a VM setting the run does not own must still reach the server");
+    // it ran where no .env lookup reaches the checkout
+    assert.equal(realpathSync(boot.cwd), realpathSync(harnessPaths(stack.runDir).serverCwd));
+    assert.deepEqual(readStartStatus(stack.runDir), { state: "up", reason: "" });
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("the same server, started from the checkout the old way, dies of the round-4 config error", () => {
+  // The negative control for the test above: this is what start.sh did before.
+  const stack = mkFakeStack({ loaderServer: true });
+  try {
+    const bin = join(stack.root, "server", "bin");
+    mkdirSync(bin, { recursive: true });
+    copyFileSync(join(stack.root, "fake-server.cjs"), join(bin, "harness-server"));
+    chmodSync(join(bin, "harness-server"), 0o755);
+    const serverEnv = buildServerEnv({ apiPort: 1, webPort: 2, metricsPort: 3, previewPort: 4, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" });
+    const old = spawnSync(join(bin, "harness-server"), [], { cwd: stack.root, env: { ...process.env, PATH: `${stack.bin}:${process.env.PATH}`, ...serverEnv }, encoding: "utf8", timeout: 20_000 });
+    assert.equal(old.status, 1);
+    assert.match(old.stderr, /not both/);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("the server's cwd is three directories deep, so none of its .env lookups leaves the run dir", () => {
+  const runDir = "/x/run";
+  const cwd = serverCwd(runDir);
+  assert.equal(harnessPaths(runDir).serverCwd, cwd);
+  for (const lookup of SERVER_ENV_LOOKUPS) {
+    const target = join(cwd, lookup);
+    assert.ok(target.startsWith(`${runDir}/server-cwd/`) || target === `${runDir}/server-cwd/.env`, `${lookup} resolves to ${target}`);
+  }
+});
+
+test("serverDotEnv drops the lines of the keys the run owns and keeps the rest", () => {
+  const text = "# vm\nPORT=8080\nDESKTOP_AUTH_CLIENT_ID=uniwork-office\n DESKTOP_AUTH_REDIRECT_URIS = x\nPREVIEW_ASSET_TTL=10m\nbad line\n";
+  assert.equal(serverDotEnv(text, ["PORT", "DESKTOP_AUTH_CLIENT_ID", "DESKTOP_AUTH_REDIRECT_URIS"]), "# vm\nPREVIEW_ASSET_TTL=10m\nbad line\n");
+});
+
+test("writeRunEnv leaves the server a .env without any key it owns, in a cwd of its own", async () => {
+  const runDir = mkdtempSync(join(tmpdir(), "harness-dotenv-"));
+  const source = join(runDir, "vm.env");
+  writeFileSync(source, "DESKTOP_AUTH_CLIENT_ID=uniwork-office\nLIVEKIT_URL=ws://x\nPORT=1\nPREVIEW_ASSET_TTL=10m\n");
+  const previous = { DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL };
+  process.env.DATABASE_URL = "postgres://x";
+  process.env.REDIS_URL = "redis://y";
+  try {
+    await writeRunEnv(runDir, { dotenvPath: source });
+    assert.equal(readFileSync(join(serverCwd(runDir), ".env"), "utf8"), "PREVIEW_ASSET_TTL=10m\n");
+    for (const key of Object.keys(buildServerEnv({ apiPort: 1, webPort: 2, metricsPort: 3, previewPort: 4, databaseUrl: "d", redisUrl: "r", uploadDir: "/u" }))) {
+      assert.doesNotMatch(readFileSync(join(serverCwd(runDir), ".env"), "utf8"), new RegExp(`^${key}=`, "m"));
+    }
+  } finally {
+    if (previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.DATABASE_URL;
+    if (previous.REDIS_URL === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = previous.REDIS_URL;
+  }
+});
+
+test("a failed start is recorded as failed, a missing precondition as blocked", () => {
+  const failing = mkFakeStack({ forkTree: "absent", npmExit: 7 });
+  try {
+    assert.equal(runStart(failing).status, 1);
+    const status = readStartStatus(failing.runDir);
+    assert.equal(status.state, "failed");
+    assert.match(status.reason, /npm ci --ignore-scripts failed in the fork/);
+  } finally {
+    stopFakeStack(failing);
+  }
+  const noNetwork = mkFakeStack({ forkTree: "absent", network: false });
+  try {
+    assert.equal(runStart(noNetwork).status, 77);
+    const status = readStartStatus(noNetwork.runDir);
+    assert.equal(status.state, "blocked");
+    assert.match(status.reason, /no network to /);
+  } finally {
+    stopFakeStack(noNetwork);
+  }
+});
+
+test("a server that dies at boot leaves a failed start with its log tail, not an up one", () => {
+  const stack = mkFakeStack({ loaderServer: true });
+  try {
+    // an env file that re-adds the pair AND a cwd that finds it: force the
+    // conflict by making the fake server see the checkout's .env, which only
+    // happens if the server is started from the run's own cwd with a .env in it
+    mkdirSync(join(stack.runDir, "server-cwd", "a", "b", "c"), { recursive: true });
+    writeFileSync(join(stack.runDir, "server-cwd", ".env"), "DESKTOP_AUTH_CLIENT_ID=planted\n");
+    const result = runStart(stack);
+    assert.equal(result.status, 1, `expected FAILED (1), got ${result.status}\n${result.stderr}`);
+    assert.match(result.stderr, /FAILED: the D server died while starting/);
+    assert.match(result.stderr, /not both/);
+    const status = readStartStatus(stack.runDir);
+    assert.equal(status.state, "failed");
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("startGate: only a start that reported BLOCKED may block a later step", () => {
+  assert.equal(startGate(null).gate, "proceed");
+  assert.equal(startGate({ state: "up" }).gate, "proceed");
+  assert.equal(startGate({ state: "failed", reason: "x" }).gate, "fail");
+  assert.match(startGate({ state: "failed", reason: "the D server died while starting" }).reason, /the D server died while starting/);
+  assert.equal(startGate({ state: "starting" }).gate, "fail");
+  assert.equal(startGate({ state: "blocked", reason: "no network" }).gate, "blocked");
+  assert.equal(startGate({ state: "something-new" }).gate, "fail");
+});
+
+test("readStartStatus reads the file, and a torn one reads as failed", () => {
+  const dir = mkdtempSync(join(tmpdir(), "harness-status-"));
+  assert.equal(readStartStatus(dir), null);
+  writeFileSync(harnessPaths(dir).startStatus, '{"state":"up","reason":""}\n');
+  assert.equal(readStartStatus(dir).state, "up");
+  writeFileSync(harnessPaths(dir).startStatus, '{"state":');
+  assert.equal(readStartStatus(dir).state, "failed");
 });
 
 test("a present library is not reported missing when ldconfig writes past a pipe buffer", () => {
@@ -704,3 +891,45 @@ test("document-step FAILs when a signed-in app is handed the link and does not o
     await server.stop();
   }
 });
+
+// ---- a failed start fails the steps after it (cloud round 4) ------------------
+// start.sh exited 1 and both later steps recorded BLOCKED ("command reported
+// skip"), which reads as "the VM cannot do it". Only a start that itself
+// reported a missing precondition may block them.
+
+const SAMPLE_AC = join(HERE, "sample-ac.mjs");
+
+function stepAfterStart(script, state, reason) {
+  const run = mkDocumentRun({ origin: "http://127.0.0.1:1", electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
+  writeFileSync(harnessPaths(run.runDir).startStatus, `${JSON.stringify({ state, reason })}\n`);
+  const result = spawnSync(process.execPath, [script, "--run-dir", run.runDir], { encoding: "utf8", timeout: 60_000, env: { ...process.env, OFFICE_EVIDENCE_ID: "" } });
+  const ledger = join(run.runDir, "evidence.jsonl");
+  const line = existsSync(ledger) ? JSON.parse(readFileSync(ledger, "utf8").trim().split("\n").at(-1)) : null;
+  return { result, line };
+}
+
+for (const [name, script] of [["sample-ac", SAMPLE_AC], ["document-step", DOC_STEP]]) {
+  test(`${name} FAILs (exit 1), not BLOCKED, after a start that failed`, () => {
+    const { result, line } = stepAfterStart(script, "failed", "the D server died while starting");
+    assert.equal(result.status, 1, `expected FAIL (1), got ${result.status}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /FAILED: start\.sh failed: the D server died while starting/);
+    assert.doesNotMatch(result.stderr, /BLOCKED/);
+    assert.equal(line.result, "FAIL");
+    assert.equal(line.exitCode, 1);
+    assert.equal(line.blocker, "");
+  });
+
+  test(`${name} FAILs when start.sh never finished`, () => {
+    const { result, line } = stepAfterStart(script, "starting", "");
+    assert.equal(result.status, 1);
+    assert.equal(line.result, "FAIL");
+  });
+
+  test(`${name} is BLOCKED only with the reason start.sh recorded`, () => {
+    const { result, line } = stepAfterStart(script, "blocked", "no network to the fork");
+    assert.equal(result.status, 77);
+    assert.match(result.stderr, /BLOCKED: start\.sh reported BLOCKED: no network to the fork/);
+    assert.equal(line.result, "BLOCKED");
+    assert.match(line.blocker, /no network to the fork/);
+  });
+}

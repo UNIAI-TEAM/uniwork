@@ -44,13 +44,41 @@ for arg in "$@"; do
 done
 
 mkdir -p "$RUN_DIR/logs" "$RUN_DIR/userdata"
+# Absolute from here on: the D server is started from another directory, and a
+# relative HARNESS_RUN_DIR would point its log redirect at the wrong place.
+RUN_DIR="$(cd "$RUN_DIR" && pwd)"
+
+# start.sh records its own outcome in start-status.json (state starting | up |
+# failed | blocked, plus the reason). The steps after it (sample-ac.mjs,
+# document-step.mjs) read it: a start that FAILED must fail them too, and only a
+# precondition start.sh itself reported as missing may make them BLOCKED. Cloud
+# round 4 had start.sh exit 1 and both later steps record BLOCKED, which read as
+# "the VM cannot do it" for what was a harness bug.
+STATUS_FILE="$RUN_DIR/start-status.json"
+STATUS_FINAL=0
+write_status() { # write_status <state> [reason]; the reason is one JSON-escaped line
+  local reason="${2:-}"
+  reason="${reason//\\/\\\\}"
+  reason="${reason//\"/\\\"}"
+  reason="${reason//$'\n'/ }"
+  reason="${reason//$'\t'/ }"
+  printf '{"state":"%s","reason":"%s"}\n' "$1" "$reason" > "$STATUS_FILE"
+}
+[ "$DRY_RUN" = "1" ] || write_status starting
 
 blocked() { # blocked <what is missing> <what would fix it>
   echo "BLOCKED: $1" >&2
   echo "  fix: $2" >&2
+  STATUS_FINAL=1
+  write_status blocked "$1 (fix: $2)"
   exit "$BLOCKED_EXIT"
 }
-fail() { echo "FAILED: $1" >&2; exit 1; }
+fail() {
+  echo "FAILED: $1" >&2
+  STATUS_FINAL=1
+  write_status failed "$1"
+  exit 1
+}
 
 # The Electron runtime libraries are probed from `ldconfig -p` captured once,
 # then matched with bash's own substring test — never a `ldconfig -p | grep -q`
@@ -94,6 +122,11 @@ dump_logs() {
 on_exit() {
   local code=$?
   [ "$code" -eq 0 ] && return 0
+  # An exit nobody called fail()/blocked() for (set -e on a bad command) is still
+  # a failed start, never a quiet "starting".
+  if [ "$STATUS_FINAL" = 0 ] && [ "$DRY_RUN" != "1" ]; then
+    write_status failed "start.sh exited $code before finishing (see the component logs)"
+  fi
   # BLOCKED already prints the missing precondition and its fix; log tails there
   # would only add noise. Everything else (a failed step, an unexpected exit) is
   # worth the tails.
@@ -228,7 +261,7 @@ apt_install() { # apt_install <packages...>
 : > "$RUN_DIR/pids"
 D_SHA="$(git rev-parse HEAD)"
 export D_SHA
-run_lib "pick the run's ports and env" --write "$RUN_DIR" > /dev/null \
+HARNESS_ENV_FILE="$ENV_FILE" run_lib "pick the run's ports and env" --write "$RUN_DIR" > /dev/null \
   || fail "could not pick the run's ports and env (see the step above and $LOG_DIR/lib.log)"
 
 # shellcheck disable=SC1090
@@ -295,8 +328,19 @@ set -a
 # shellcheck disable=SC1090
 . "$RUN_DIR/server.env"
 set +a
-setsid server/bin/harness-server >> "$RUN_DIR/logs/server.log" 2>&1 &
+# The server also reads a local .env for every key that is empty or unset in its
+# environment (server/cmd/server/envfile.go), so clearing DESKTOP_AUTH_CLIENT_ID
+# in server.env would be undone by the checkout's .env and collide with
+# DESKTOP_AUTH_CLIENTS (cloud round 4). It runs from a directory three levels
+# deep inside the run dir (lib.mjs: serverCwd), where none of its four .env
+# lookups finds the checkout's file; lib.mjs --write put there a copy of the VM's
+# .env without the keys this run owns, so the VM's other settings still arrive.
+SERVER_CWD="$RUN_DIR/server-cwd/a/b/c"
+mkdir -p "$SERVER_CWD"
+cd "$SERVER_CWD"
+setsid "$REPO_ROOT/server/bin/harness-server" >> "$RUN_DIR/logs/server.log" 2>&1 &
 SERVER_PID=$!
+cd "$REPO_ROOT"
 echo "server $SERVER_PID $API_PORT" >> "$RUN_DIR/pids"
 
 wait_for() { # wait_for <url> <name> <seconds>
@@ -338,6 +382,8 @@ done
 if [ "$SKIP_APP" = "1" ]; then
   echo "harness: HARNESS_SKIP_APP=1 — the fork is not cloned and the app is not started"
   echo "harness: up (server + web)"
+  STATUS_FINAL=1
+  write_status up
   exit 0
 fi
 
@@ -553,6 +599,8 @@ DISPLAY_VALUE="$(cat "$XVFB_DISPLAY_FILE")"
 } >> "$RUN_DIR/ports.env"
 echo "harness: app on $DISPLAY_VALUE (pid $APP_PID)"
 
+STATUS_FINAL=1
+write_status up
 echo "harness: up"
 echo "  D server  $API_ORIGIN"
 echo "  D web     $WEB_ORIGIN"
@@ -562,5 +610,5 @@ echo "  next      OFFICE_FORK_SHA=$FORK_SHA HARNESS_RUN_DIR=$RUN_DIR node script
 echo "              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \\"
 echo "              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir $RUN_DIR"
 echo "  next      (document step, its own evidence line) OFFICE_FORK_SHA=$FORK_SHA HARNESS_RUN_DIR=$RUN_DIR \\"
-echo "              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-md-notes-vi --checker tester-cloud -- \\"
+echo "              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \\"
 echo "              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir $RUN_DIR"

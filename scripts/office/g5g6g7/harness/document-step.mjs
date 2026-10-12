@@ -39,7 +39,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, appendFileSync } from
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { DEV_CLIENT_ID, documentStepOutcome, evidenceLine, harnessPaths, officeDeepLink, ticketFromLaunchUrl, workingCopyDir } from "./lib.mjs";
+import { DEV_CLIENT_ID, concludeAtStartGate, documentStepOutcome, evidenceLine, harnessPaths, officeDeepLink, readStartStatus, startGate, ticketFromLaunchUrl, workingCopyDir } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..", "..");
@@ -182,6 +182,20 @@ function sleep(ms) {
 
 const ports = readPorts();
 const API_ORIGIN = ports.API_ORIGIN;
+
+// start.sh's own outcome decides first: a start that failed is a FAIL here too,
+// not "no server, so BLOCKED" (cloud round 4).
+const startedGate = startGate(readStartStatus(runDir));
+if (startedGate.gate !== "proceed") {
+  process.exit(concludeAtStartGate(startedGate, {
+    runDir,
+    requirementId,
+    command: `node scripts/office/g5g6g7/harness/document-step.mjs --run-dir ${runDir} --req ${requirementId} --fixture ${fixtureId}`,
+    checker: "harness:start.sh+document-step.mjs",
+    fixtureId,
+    startedAt,
+  }));
+}
 
 // ---- preconditions: is there a run whose app can receive a link? -------------
 const preconditions = [];

@@ -40,7 +40,7 @@ import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { evidenceLine, harnessPaths } from "./lib.mjs";
+import { concludeAtStartGate, evidenceLine, harnessPaths, readStartStatus, startGate } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..", "..");
@@ -74,6 +74,19 @@ const ports = Object.fromEntries(
 const API_ORIGIN = ports.API_ORIGIN;
 const WEB_ORIGIN = ports.WEB_ORIGIN;
 const startedAt = new Date().toISOString();
+
+// start.sh's own outcome decides first: a start that failed is a FAIL here too,
+// not "no server, so BLOCKED" (cloud round 4).
+const gate = startGate(readStartStatus(runDir));
+if (gate.gate !== "proceed") {
+  process.exit(concludeAtStartGate(gate, {
+    runDir,
+    requirementId: "G7-A05",
+    command: `node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir ${runDir}`,
+    checker: "harness:start.sh+sample-ac.mjs",
+    startedAt,
+  }));
+}
 const checks = [];
 const blockers = [];
 

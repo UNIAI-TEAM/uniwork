@@ -4,7 +4,7 @@
 // binding a throwaway listener to port 0, so the node --test file can pin the
 // behaviour without starting the stack.
 import net from "node:net";
-import { writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -202,6 +202,37 @@ export function documentStepOutcome({ launchUrl, ticket, workingCopyDocumentId, 
   };
 }
 
+/**
+ * Where the D server is started, and what it finds there. The server also reads
+ * a local `.env` for every key that is empty or unset in its process
+ * environment (server/cmd/server/envfile.go: tryLoadDevEnv looks in the cwd and
+ * three levels up, and `os.Getenv(key) != ""` is its only "already set" test).
+ * So clearing a key in server.env is not enough: an empty
+ * `DESKTOP_AUTH_CLIENT_ID=` is refilled from the checkout's .env and collides
+ * with DESKTOP_AUTH_CLIENTS at boot (cloud round 4), and the cleared LiveKit
+ * settings came back the same way. The server therefore runs three directories
+ * deep inside a directory of its own, where none of the four lookups reaches
+ * the checkout's `.env`, and finds there a copy of that file WITHOUT the keys
+ * the run owns (serverDotEnv). The VM's other settings (PREVIEW_ASSET_TTL, …)
+ * still arrive; the run's own keys are the run's alone.
+ */
+export const SERVER_ENV_LOOKUPS = [".env", "../.env", "../../.env", "../../../.env"];
+export function serverCwd(runDir) {
+  return join(runDir, "server-cwd", "a", "b", "c");
+}
+
+/** `text` (a .env file) without the lines that set one of `ownedKeys`. */
+export function serverDotEnv(text, ownedKeys) {
+  const owned = new Set(ownedKeys);
+  return String(text)
+    .split("\n")
+    .filter((line) => {
+      const at = line.indexOf("=");
+      return at < 0 || !owned.has(line.slice(0, at).trim());
+    })
+    .join("\n");
+}
+
 /** Every file a run writes, in one place so stop.sh and sample-ac.mjs agree with start.sh. */
 export function harnessPaths(runDir) {
   return {
@@ -209,11 +240,79 @@ export function harnessPaths(runDir) {
     envFile: join(runDir, "ports.env"),
     pidFile: join(runDir, "pids"),
     blockedFile: join(runDir, "blocked.json"),
+    startStatus: join(runDir, "start-status.json"),
+    serverCwd: serverCwd(runDir),
     evidenceFile: join(runDir, "evidence.jsonl"),
     logDir: join(runDir, "logs"),
     userDataDir: join(runDir, "userdata"),
     appSettings: join(runDir, "userdata", "app-settings.json"),
   };
+}
+
+/**
+ * The state start.sh recorded for a run (`start-status.json`): `starting`,
+ * `up`, `failed` or `blocked`, with the reason. null when there is no such file
+ * (a run from before the status existed, or one that never started).
+ */
+export function readStartStatus(runDir) {
+  const file = harnessPaths(runDir).startStatus;
+  if (!existsSync(file)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8"));
+    return parsed && typeof parsed.state === "string" ? parsed : { state: "failed", reason: "start-status.json is not a status record" };
+  } catch {
+    return { state: "failed", reason: "start-status.json is unreadable" };
+  }
+}
+
+/**
+ * What a step after start.sh does with start.sh's own outcome. A start that
+ * failed or never finished is a harness/config bug, so the step FAILs: only a
+ * precondition start.sh itself recorded as missing (BLOCKED) may make a later
+ * step BLOCKED. Cloud round 4 got this wrong: start.sh exited 1, the later steps
+ * found no server and recorded BLOCKED, which reads as "the VM cannot do it".
+ * `proceed` is also the answer for a run without a status file, so older runs
+ * keep their behaviour.
+ */
+export function startGate(status) {
+  if (!status || status.state === "up") return { gate: "proceed", reason: "" };
+  const why = status.reason ? `: ${status.reason}` : "";
+  if (status.state === "blocked") return { gate: "blocked", reason: `start.sh reported BLOCKED${why}` };
+  if (status.state === "starting") return { gate: "fail", reason: "start.sh never finished (the run is still marked starting); the stack is not up" };
+  return { gate: "fail", reason: `start.sh failed${why}; the stack is not up (see the run's logs)` };
+}
+
+/**
+ * A step that cannot run because start.sh did not bring the stack up: prints
+ * why, records the evidence line (unless the evidence runner owns the ledger)
+ * and returns the exit code the step must end with, 1 for a failed start and 77
+ * only for a precondition start.sh itself reported missing.
+ */
+export function concludeAtStartGate(gate, { runDir, requirementId, fixtureId = "", fixtureSha256 = "", command, checker, startedAt, argv = [...process.argv] }) {
+  const blocked = gate.gate === "blocked";
+  const result = blocked ? "BLOCKED" : "FAIL";
+  const exitCode = blocked ? BLOCKED_EXIT : 1;
+  console.error(`${blocked ? "BLOCKED" : "FAILED"}: ${gate.reason}`);
+  const paths = harnessPaths(runDir);
+  const record = evidenceLine({
+    requirementId,
+    fixtureId,
+    fixtureSha256,
+    platform: `${process.platform}-${process.arch}`,
+    build: `node ${process.versions.node}`,
+    command,
+    argv,
+    exitCode,
+    result,
+    checker,
+    blocker: blocked ? gate.reason : "",
+    startedAt,
+    finishedAt: new Date().toISOString(),
+  });
+  mkdirSync(runDir, { recursive: true });
+  if (blocked) appendFileSync(paths.blockedFile, `${JSON.stringify(record, null, 2)}\n`);
+  if (!process.env.OFFICE_EVIDENCE_ID) appendFileSync(paths.evidenceFile, `${JSON.stringify(record)}\n`);
+  return exitCode;
 }
 
 /** Where the fork is cloned for a pinned revision: one directory per SHA, reused across runs. */
@@ -282,10 +381,11 @@ export function isMainModule({ argv1 = process.argv[1], execArgv = process.execA
  * Writes one run's files: `ports.env` (the ports, origins, SHAs and later the
  * display) and `server.env` (the server's environment, quoted so a URL with a
  * query still sources in bash). Called by start.sh as
- * `node lib.mjs --write <runDir>`; kept here so the ports, the environment and
+ * `node lib.mjs --write <runDir>` (HARNESS_ENV_FILE names the VM's .env the
+ * server's own copy is made from); kept here so the ports, the environment and
  * the test that pins them cannot drift apart.
  */
-export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "", uploadDir } = {}) {
+export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "", uploadDir, dotenvPath } = {}) {
   const [apiPort, webPort, metricsPort, previewPort] = await freePorts(4);
   const serverEnv = buildServerEnv({
     apiPort,
@@ -317,6 +417,12 @@ export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "
     join(runDir, "server.env"),
     `${Object.entries(serverEnv).map(([key, value]) => `${key}=${quote(value)}`).join("\n")}\n`,
   );
+  // The server's own working directory and the .env it finds there (see serverCwd).
+  const cwd = serverCwd(runDir);
+  mkdirSync(cwd, { recursive: true });
+  if (dotenvPath && existsSync(dotenvPath)) {
+    writeFileSync(join(cwd, ".env"), serverDotEnv(readFileSync(dotenvPath, "utf8"), Object.keys(serverEnv)));
+  }
   return { apiPort, webPort, metricsPort, previewPort, apiOrigin: origin(apiPort), webOrigin: origin(webPort) };
 }
 
@@ -335,7 +441,7 @@ if (isMainModule()) {
   if (mode === "--write") {
     const [runDir] = rest;
     if (!runDir) usage("--write needs a run dir");
-    writeRunEnv(runDir, { forkSha: process.env.OFFICE_FORK_SHA, dSha: process.env.D_SHA })
+    writeRunEnv(runDir, { forkSha: process.env.OFFICE_FORK_SHA, dSha: process.env.D_SHA, dotenvPath: process.env.HARNESS_ENV_FILE })
       .then((ports) => console.log(JSON.stringify(ports)))
       .catch((error) => {
         console.error(error.message);
