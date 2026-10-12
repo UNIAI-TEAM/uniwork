@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -103,5 +104,29 @@ func TestMcpResolveCIMD(t *testing.T) {
 	f.body, _ = json.Marshal(map[string]any{"client_id": other, "client_name": "X", "redirect_uris": []string{"https://client.example/cb"}, "token_endpoint_auth_method": "client_secret_basic"})
 	if _, err := w.svc.ResolveClient(w.ctx, other); !errors.Is(err, errMcpClientUnknown) {
 		t.Fatalf("a metadata document cannot carry a shared secret: %v", err)
+	}
+}
+
+// Only an unknown client is the client's fault (401 invalid_client); a database
+// fault must surface unchanged so a handler answers 500 and the MCP client
+// keeps its registration.
+func TestMcpAuthenticateClientPropagatesInfrastructureErrors(t *testing.T) {
+	w := newMcpWorld(t)
+	var oe OAuthError
+	if _, err := w.svc.authenticateClient(w.ctx, "mcpc_does_not_exist", ""); !errors.As(err, &oe) || oe.Code != "invalid_client" || oe.Status != 401 {
+		t.Fatalf("unknown DCR id: err = %v, want 401 invalid_client", err)
+	}
+
+	ctx, cancel := context.WithCancel(w.ctx)
+	cancel()
+	_, err := w.svc.authenticateClient(ctx, "mcpc_x", "")
+	if err == nil {
+		t.Fatal("cancelled context: want an error")
+	}
+	if errors.As(err, &oe) {
+		t.Fatalf("a database fault became an OAuth error %+v; clients would drop their registration", oe)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want the context error propagated", err)
 	}
 }

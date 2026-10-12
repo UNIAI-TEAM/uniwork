@@ -182,8 +182,11 @@ func (s *McpAuthService) resolveCIMD(ctx context.Context, clientID string) (McpC
 // clients rely on PKCE, confidential ones must present their secret.
 func (s *McpAuthService) authenticateClient(ctx context.Context, clientID, secret string) (McpClient, error) {
 	c, err := s.ResolveClient(ctx, clientID)
-	if err != nil {
+	if errors.Is(err, errMcpClientUnknown) {
 		return McpClient{}, oauthErr(http.StatusUnauthorized, "invalid_client", "unknown client")
+	}
+	if err != nil {
+		return McpClient{}, err // infrastructure fault: not the client's, so not invalid_client
 	}
 	if c.AuthMethod == "none" {
 		return c, nil
