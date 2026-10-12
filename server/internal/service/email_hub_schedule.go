@@ -192,10 +192,13 @@ func (s *EmailHubService) deliverScheduledSend(ctx context.Context, row db.Email
 func (s *EmailHubService) deliverScheduledSendOutbound(
 	ctx context.Context, acc db.EmailHubAccount, organizationID string, in SendEmailHubInput,
 ) error {
+	send := s.sendOutboundMail
 	if s.testHookScheduledSend != nil {
-		return s.testHookScheduledSend(ctx, acc, organizationID, in)
+		send = func(ctx context.Context, acc db.EmailHubAccount, organizationID string, in SendEmailHubInput) (EmailHubThreadView, error) {
+			return EmailHubThreadView{}, s.testHookScheduledSend(ctx, acc, organizationID, in)
+		}
 	}
-	_, err := s.sendOutboundMail(ctx, acc, organizationID, in)
+	_, err := send(ctx, acc, organizationID, in)
 	if errors.Is(err, errEmailHubSentNotCached) {
 		s.log.Warn("email hub scheduled send not cached", "account_id", acc.ID, "err", err)
 		return nil
