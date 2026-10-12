@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -4
+bf9d9c0f1708203182fa261cca1cb66660d3cc30
+673fc5639438fff6c246d4d4c7b85b131b4e468e
+bf9d9c0f test(slides): pin the bound-deck wiring and the explicit Save after an AI landing
+6a48a186 fix(slides): report no draft when the AI draft write fails
+b6f2c357 test(slides): pin that a failed AI draft write reports no draft
+7cdbd6fb test(slides): pin the SSRF guard and byte caps on every AI URL fetch

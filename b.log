@@ -1,0 +1,7 @@
+$ npx eslint apps/slides/src/main/slides-main.ts apps/slides/src/renderer/App.tsx apps/slides/src/renderer/ai/AiPanel.tsx apps/slides/src/renderer/ai/slides-skill.ts apps/slides/tests/g6-12-bound-draft.test.ts apps/slides/tests/g6-12-bound-sidecar.test.ts apps/slides/tests/g6-12-url-fetch-guard.test.ts apps/slides/tests/g6-12-bound-wiring.test.ts
+
+/home/ubuntu/work/uniwork-office/apps/slides/src/renderer/App.tsx
+  933:5  warning  React Hook useCallback has an unnecessary dependency: 'fitZoom'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+
