@@ -1,0 +1,163 @@
+$ node --test scripts/office/g5g6g7/harness/lib.test.mjs scripts/office/g5g6g7/evidence.test.mjs
+TAP version 13
+# evidence: G5-A01 does not declare fixture fx-not-a-fixture; recording it anyway
+# evidence: G5-A01 does not declare fixture fx-html-page-vi; recording it anyway
+# Subtest: exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+ok 1 - exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+  ---
+  duration_ms: 22.953651
+  ...
+# Subtest: a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+ok 2 - a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+  ---
+  duration_ms: 54.340435
+  ...
+# Subtest: a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+ok 3 - a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+  ---
+  duration_ms: 7.122488
+  ...
+# Subtest: an explicit blocker reason blocks a run that would otherwise pass
+ok 4 - an explicit blocker reason blocks a run that would otherwise pass
+  ---
+  duration_ms: 2.221693
+  ...
+# Subtest: an unknown requirement id is refused instead of written
+ok 5 - an unknown requirement id is refused instead of written
+  ---
+  duration_ms: 0.658288
+  ...
+# Subtest: reset only touches a lane test database and is a dry run without psql
+ok 6 - reset only touches a lane test database and is a dry run without psql
+  ---
+  duration_ms: 45.312618
+  ...
+# Subtest: verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+ok 7 - verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+  ---
+  duration_ms: 18.652838
+  ...
+# Subtest: verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+ok 8 - verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+  ---
+  duration_ms: 20.040548
+  ...
+# Subtest: the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+ok 9 - the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+  ---
+  duration_ms: 193.437914
+  ...
+# Subtest: an absolute --out is honoured as given, never nested under the repo
+ok 10 - an absolute --out is honoured as given, never nested under the repo
+  ---
+  duration_ms: 16.107258
+  ...
+# Subtest: the fork SHA comes from the environment and is null when the environment does not name it
+ok 11 - the fork SHA comes from the environment and is null when the environment does not name it
+  ---
+  duration_ms: 4.255081
+  ...
+# Subtest: the matrix the runner reads declares every fixture it needs
+ok 12 - the matrix the runner reads declares every fixture it needs
+  ---
+  duration_ms: 0.405423
+  ...
+# Subtest: freePorts hands out distinct ports the kernel just released
+ok 13 - freePorts hands out distinct ports the kernel just released
+  ---
+  duration_ms: 7.281589
+  ...
+# Subtest: freePorts refuses a non-positive count
+ok 14 - freePorts refuses a non-positive count
+  ---
+  duration_ms: 0.368623
+  ...
+# Subtest: BLOCKED is 77 so a missing precondition is never mistaken for a pass
+ok 15 - BLOCKED is 77 so a missing precondition is never mistaken for a pass
+  ---
+  duration_ms: 0.069351
+  ...
+# Subtest: the default fork revision is the pinned base
+ok 16 - the default fork revision is the pinned base
+  ---
+  duration_ms: 0.061476
+  ...
+# Subtest: buildServerEnv puts every port-derived origin on the command line
+ok 17 - buildServerEnv puts every port-derived origin on the command line
+  ---
+  duration_ms: 0.230558
+  ...
+# Subtest: buildServerEnv keeps the API origin identical everywhere it is inlined
+ok 18 - buildServerEnv keeps the API origin identical everywhere it is inlined
+  ---
+  duration_ms: 0.073993
+  ...
+# Subtest: origin builds a loopback origin for a port
+ok 19 - origin builds a loopback origin for a port
+  ---
+  duration_ms: 0.094918
+  ...
+# Subtest: harnessPaths keeps every run artifact inside the run dir
+ok 20 - harnessPaths keeps every run artifact inside the run dir
+  ---
+  duration_ms: 0.180681
+  ...
+# Subtest: forkCacheDir is keyed by the revision so two SHAs never share a checkout
+ok 21 - forkCacheDir is keyed by the revision so two SHAs never share a checkout
+  ---
+  duration_ms: 0.213969
+  ...
+# Subtest: evidenceLine carries every field the runner contract checks, empty when unknown
+ok 22 - evidenceLine carries every field the runner contract checks, empty when unknown
+  ---
+  duration_ms: 0.313703
+  ...
+# Subtest: evidenceLine defaults to BLOCKED, never to PASS
+ok 23 - evidenceLine defaults to BLOCKED, never to PASS
+  ---
+  duration_ms: 0.105695
+  ...
+# Subtest: evidenceLine keeps a fixture hash and a blocker out of a PASS
+ok 24 - evidenceLine keeps a fixture hash and a blocker out of a PASS
+  ---
+  duration_ms: 0.062897
+  ...
+# Subtest: writeRunEnv writes a ports file and a server env bash can source
+ok 25 - writeRunEnv writes a ports file and a server env bash can source
+  ---
+  duration_ms: 3.736284
+  ...
+# Subtest: isMainModule is false when node was started with an eval flag
+ok 26 - isMainModule is false when node was started with an eval flag
+  ---
+  duration_ms: 0.194855
+  ...
+# Subtest: importing lib.mjs from node -e does not run the CLI
+ok 27 - importing lib.mjs from node -e does not run the CLI
+  ---
+  duration_ms: 21.320772
+  ...
+# Subtest: the lib.mjs CLI modes answer and name the mode on a bad call
+ok 28 - the lib.mjs CLI modes answer and name the mode on a bad call
+  ---
+  duration_ms: 61.227653
+  ...
+# Subtest: start.sh reaches up through the real lib.mjs fork-dir call (fake stack)
+ok 29 - start.sh reaches up through the real lib.mjs fork-dir call (fake stack)
+  ---
+  duration_ms: 1123.577841
+  ...
+# Subtest: start.sh names the failing step and its args when lib.mjs errors
+ok 30 - start.sh names the failing step and its args when lib.mjs errors
+  ---
+  duration_ms: 109.706236
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1375.129797
