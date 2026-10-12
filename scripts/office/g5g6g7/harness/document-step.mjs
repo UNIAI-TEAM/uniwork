@@ -374,6 +374,20 @@ try {
 // The server lists an account's native device sessions
 // (GET /api/v1/auth/desktop/devices); a live one for the dev client and this
 // deployment is the server's own record of the app's sign-in.
+/**
+ * The sign-in instructions go to stdout and, best effort, to the controlling
+ * terminal: under the evidence runner stdout is captured into the artifact and
+ * would only be read after the wait it explains.
+ */
+function tell(line) {
+  console.log(line);
+  try {
+    appendFileSync("/dev/tty", `${line}\n`);
+  } catch {
+    // no controlling terminal (CI, cloud): stdout is all there is
+  }
+}
+
 async function desktopSessionLive() {
   try {
     const list = await jsonRequest("GET", `${API_ORIGIN}/api/v1/auth/desktop/devices`, { token });
@@ -393,10 +407,10 @@ async function desktopSessionLive() {
 
 if (!mintError && desktopMode) {
   if (waitSeconds !== null) {
-    console.log(`document step: waiting up to ${waitSeconds}s for a desktop sign-in as ${email}`);
-    console.log(`  1. in the app window${ports.DISPLAY ? ` (display ${ports.DISPLAY})` : ""} choose Sign in; the browser opens the consent page of ${ports.WEB_ORIGIN}`);
-    console.log(`  2. sign in there as ${email}${reused ? " (your own password)" : ` (the throwaway account's password is in ${paths.docUser}, mode 0600)`} and approve the desktop consent`);
-    console.log("  3. leave the app running; this step carries on by itself once the sign-in shows");
+    tell(`document step: waiting up to ${waitSeconds}s for a desktop sign-in as ${email}`);
+    tell(`  1. in the app window${ports.DISPLAY ? ` (display ${ports.DISPLAY})` : ""} choose Sign in; the browser opens the consent page of ${ports.WEB_ORIGIN}`);
+    tell(`  2. sign in there as ${email}${reused ? " (your own password)" : ` (the throwaway account's password is in ${paths.docUser}, mode 0600)`} and approve the desktop consent`);
+    tell("  3. leave the app running; this step carries on by itself once the sign-in shows");
     const deadline = Date.now() + waitSeconds * 1_000;
     desktopSession = await desktopSessionLive();
     while (!desktopSession && Date.now() < deadline) {

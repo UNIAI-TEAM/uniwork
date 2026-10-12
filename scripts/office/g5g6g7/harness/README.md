@@ -237,6 +237,8 @@ node scripts/office/g5g6g7/evidence.mjs run \
 # 3. while it waits it prints the account and the steps: in the app window choose
 #    Sign in, sign in at the web page it opens (the harness web, printed by
 #    start.sh) as that account, approve the desktop consent. Nothing else to type.
+#    (The runner captures the step's output, so the step also writes these
+#    instructions straight to your terminal.)
 
 # 4. tear down, and check the line
 bash scripts/office/g5g6g7/harness/stop.sh

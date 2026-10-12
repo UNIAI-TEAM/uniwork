@@ -168,7 +168,7 @@ export function ticketFromLaunchUrl(url) {
 }
 
 /** How long `--wait-signin` waits for a desktop sign-in when it is given no number. */
-export const DEFAULT_SIGNIN_WAIT_SECONDS = 300;
+const DEFAULT_SIGNIN_WAIT_SECONDS = 300;
 
 /**
  * The seconds `--wait-signin [seconds]` asks for, or null when the flag is
