@@ -14,11 +14,8 @@ func ClientSupportsGmailLabels(cl *client.Client) bool {
 	if cl == nil {
 		return false
 	}
-	caps, err := cl.Capability()
-	if err != nil {
-		return false
-	}
-	return caps["X-GM-EXT-1"]
+	supported, err := cl.Support("X-GM-EXT-1")
+	return err == nil && supported
 }
 
 func parseGmailLabels(msg *imap.Message) []string {
