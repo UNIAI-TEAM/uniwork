@@ -1,21 +1,27 @@
 "use client";
 import { Check } from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { OFFICE_EDITOR_ICONS, OFFICE_EDITOR_KEYS, officeShotSrc, type OfficeEditorKey } from "./office-data";
 
 /**
  * A real capture of the editor. A shot that cannot load removes its frame
- * instead of leaving a broken image behind.
+ * instead of leaving a broken image behind. An image that failed before React
+ * attached `onError` (server HTML, slow hydration) is caught by the effect.
  */
 export function OfficeShot({ editor, priority = false }: { editor: OfficeEditorKey; priority?: boolean }) {
   const { t, i18n } = useTranslation();
   const [failed, setFailed] = useState(false);
+  const image = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    const img = image.current;
+    if (img?.complete && img.naturalWidth === 0) setFailed(true);
+  }, []);
   if (failed) return null;
   return <figure className="office-shot">
-    <Image src={officeShotSrc(editor, i18n.language)} width={2400} height={1500} alt={t("landing.office.editors.imageAlt", { editor: t(`landing.office.editors.${editor}.name`) })}
+    <Image ref={image} src={officeShotSrc(editor, i18n.language)} width={2400} height={1500} alt={t("landing.office.editors.imageAlt", { editor: t(`landing.office.editors.${editor}.name`) })}
       sizes="(min-width: 1360px) 1296px, 100vw" priority={priority} unoptimized onError={() => setFailed(true)} />
   </figure>;
 }
