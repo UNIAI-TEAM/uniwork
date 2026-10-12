@@ -36,7 +36,7 @@ S12–S15 (bảng chuỗi đầy đủ, mockup) và Advisor duyệt thay ngườ
   `apps/pdf/src/renderer/NoteMargin.tsx`; `apps/{slides,pdf,sheets}/src/main/*` (nguồn tác giả, G8-02); preload của sáu app
   (`uniworkComments.*`); `apps/shell/src/main/uniwork-docs/{comments,client,service}.ts`, `uniwork-auth/{index,manager,transport}.ts`,
   handler deep link; `apps/shell/src/renderer/src/` panel Discussion cạnh `UniworkChrome.tsx`, `AccountPane.tsx`,
-  `UniworkOpenDialog.tsx`, `uniwork-docs-model.ts`; `web/docs/protocol/*`; `web/modules/shared/` (panel frame). Reviewer fork
+  `UniworkOpenDialog.tsx`, `uniwork-docs-model.ts`; `web/docs/protocol/*`; `web/modules/shared/` (panel frame); shard i18n của từng app/shell mà G8-02, G8-11, G8-16, G8-17 yêu cầu (`apps/*/src/renderer/i18n/app/*`, `apps/shell/src/renderer/src/i18n/uniwork-documents/*`; chỉ khóa mới của G8 trong shard của chính lane). Reviewer fork
   từ chối file ngoài danh sách này trong PR G8. G8-09 sửa danh sách khi tên file thật khác (ghi lý do).
 - **Nội dung bình luận:** phụ lục §4.2 (Markdown con + mention token; chip lấy tên hiện tại theo id).
 - **Đồng bộ:** web theo realtime; desktop tải lại khi focus và mỗi 30 s chỉ khi tab hiển thị và panel mở (phụ lục §4.7).
@@ -44,8 +44,8 @@ S12–S15 (bảng chuỗi đầy đủ, mockup) và Advisor duyệt thay ngườ
 - **AI:** chỉ đề xuất bản nháp trong composer; người bấm Gửi (phụ lục bất biến 7). Bản nháp từ AI mang nhãn
   `collabAiDraftLabel` tới khi người dùng sửa hoặc gửi.
 - **Vị trí chuỗi:** component dùng chung → `packages/ui/src/strings-collab-*.ts` (21 locale); shell (S13 desktop, S16–S18) →
-  `apps/shell/src/renderer/src/i18n/uniwork-documents/*`; web D (panel D, S15) → `packages/core/i18n/locales/{vi,en}/`
-  (D chỉ có vi/en). Số đếm: một khóa trung tính với số (EXPERIENCE › String catalogue › Số đếm).
+  `apps/shell/src/renderer/src/i18n/uniwork-documents/*`; web D (panel D, S15) → `packages/core/i18n/locales/{en,vi}.json`
+  (hai file phẳng, D chỉ có vi/en; `parity.test.ts` giữ vi↔en). Số đếm: một khóa trung tính với số (EXPERIENCE › String catalogue › Số đếm).
 
 ## Information Architecture
 
