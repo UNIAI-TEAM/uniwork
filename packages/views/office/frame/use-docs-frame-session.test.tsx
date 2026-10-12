@@ -310,6 +310,33 @@ describe("useDocsFrameSession: a Save whose frame stops being usable", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("ignores a dialog the frame reports after its document went away, and starts a new handshake with none open", async () => {
+    const frame = setup();
+    const { saving } = await startSave(frame, "navigate");
+    await frame.event("modal", { open: true });
+    act(() => { frame.iframe.contentWindow!.dispatchEvent(new Event("pagehide")); });
+    await expect(saving).resolves.toBe("failed");
+    await settle();
+    expect(frame.hook.result.current.modal).toBe(false);
+    // A message queued before the teardown arrives late: nothing is left to close that dialog.
+    await frame.event("modal", { open: true });
+    expect(frame.hook.result.current.modal).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+    // A replacement load lifts nothing and restores nothing.
+    act(() => { frame.iframe.dispatchEvent(new Event("load")); });
+    await settle();
+    expect(frame.hook.result.current.modal).toBe(false);
+    await frame.event("modal", { open: true });
+    expect(frame.hook.result.current.modal).toBe(false);
+    // The new document that shook hands reports its own dialogs again, from a clean start.
+    await frame.event("ready", { protocolVersion: 1, capabilities: {}, module: "docs", instanceId: "i-2" });
+    await settle();
+    expect(frame.hook.result.current.status).toBe("ready");
+    expect(frame.hook.result.current.modal).toBe(false);
+    await frame.event("modal", { open: true });
+    expect(frame.hook.result.current.modal).toBe(true);
+  });
+
   it("does not re-arm the watchdog when the frame's api.save ends after the Save was answered", async () => {
     let finish!: (value: unknown) => void;
     const save = vi.fn(() => new Promise((resolve) => { finish = resolve; }));

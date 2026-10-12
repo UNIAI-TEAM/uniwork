@@ -693,6 +693,77 @@ describe("OfficeDocsFrame", () => {
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeTruthy();
   });
 
+  describe("a leave that is pending when the frame fails for good", () => {
+    const flip = () => screen.getByRole("button", { name: "flip" });
+    const FATAL = { error: { code: "internal", message: "editor crashed" }, fatal: true };
+
+    async function dirtyFrame() {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      spyFrameFocus();
+      return frame;
+    }
+
+    async function leavingWithSave() {
+      const frame = await dirtyFrame();
+      const leaving = leaveGuardAllows("/elsewhere");
+      fireEvent.click(await screen.findByRole("button", { name: "Lưu lên UniWork" }));
+      await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
+      await frame.event("modal", { open: true });
+      return { frame, leaving };
+    }
+
+    it("refuses the leave when a fatal error ends its Save under the frame's dialog", async () => {
+      const { frame, leaving } = await leavingWithSave();
+      await frame.event("error", FATAL);
+      expect(screen.getByTestId("office-docs-frame-failed")).toBeInTheDocument();
+      await expect(leaving).resolves.toBe(false);
+      expect(flip()).not.toHaveAttribute("inert");
+      expect(toastError).toHaveBeenCalledTimes(1);
+    });
+
+    it("refuses the leave when a new frame instance fails its handshake during the Save", async () => {
+      const { frame, leaving } = await leavingWithSave();
+      await frame.event("ready", { protocolVersion: 99, capabilities: {}, module: "docs", instanceId: "i-2" });
+      expect(await screen.findByTestId("office-docs-frame-failed")).toBeInTheDocument();
+      await expect(leaving).resolves.toBe(false);
+      expect(flip()).not.toHaveAttribute("inert");
+    });
+
+    it("refuses the leave a user is still reading when the frame fails", async () => {
+      const frame = await dirtyFrame();
+      const leaving = leaveGuardAllows("/elsewhere");
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      await frame.event("error", FATAL);
+      expect(screen.getByTestId("office-docs-frame-failed")).toBeInTheDocument();
+      await expect(leaving).resolves.toBe(false);
+    });
+
+    it("does not hold a later leave behind a failure screen that has no editor to save", async () => {
+      const frame = await dirtyFrame();
+      await frame.event("error", FATAL);
+      await expect(leaveGuardAllows("/elsewhere")).resolves.toBe(true);
+    });
+
+    it("keeps the page usable when the frame reports a dialog after its document went away", async () => {
+      const frame = await dirtyFrame();
+      await frame.event("modal", { open: true });
+      expect(flip()).toHaveAttribute("inert");
+      act(() => { frame.win.dispatchEvent(new Event("pagehide")); });
+      await waitFor(() => expect(flip()).not.toHaveAttribute("inert"));
+      await frame.event("modal", { open: true });
+      expect(flip()).not.toHaveAttribute("inert");
+      expect(document.querySelector("[data-office-docs-frame]")).not.toHaveAttribute("data-frame-modal");
+      // A replacement load lifts nothing and leaves the page as usable as it was.
+      const iframe = screen.getByTestId("office-docs-frame-iframe");
+      act(() => { iframe.dispatchEvent(new Event("load")); });
+      expect(flip()).not.toHaveAttribute("inert");
+      expect(document.querySelector("[data-office-docs-frame]")).not.toHaveAttribute("data-frame-modal");
+    });
+  });
+
   it("dims the page chrome while the frame shows a modal dialog of its own", async () => {
     serveTokens();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
