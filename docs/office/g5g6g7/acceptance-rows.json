@@ -404,7 +404,7 @@
       "host": ["web", "desktop"],
       "oracle": {
         "type": "security probe",
-        "assertion": "Assert each probe is refused: a revoked entitlement or ACL mid-run, a cross-organization or cross-workspace run id, a client-supplied system or assistant turn, a replayed history, and a tool call outside the allowlist; the run limit answers run_limit_reached; and the panel appears on uniworkAi alone with no BYOK."
+        "assertion": "Assert each probe is refused: a revoked entitlement or ACL mid-run, a stale frame token, a cross-organization or cross-workspace run id, a client-supplied system or assistant turn, a prompt-injection payload, a replayed history, and a tool call outside the allowlist; the run limit answers run_limit_reached; and the panel is hidden while UniWork AI is not eligible and appears on uniworkAi alone with no BYOK."
       },
       "fixtures": [
         { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
@@ -502,7 +502,7 @@
       "host": ["web", "desktop"],
       "oracle": {
         "type": "receipt",
-        "assertion": "Assert the version count grows by exactly one per user Save and by zero per AI turn, the final checksum is identical on both hosts, and the loop closes through the harness on the real stack."
+        "assertion": "Assert the loop closes through the harness on the real stack: a web edit-save, opening the app from web, a desktop offline edit-save, a reconnect that lets web see the version, and an AI turn plus Save all leave both hosts on the same result; the version count grows by exactly one per user Save and by zero per AI turn and the final checksum is identical on both hosts."
       },
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
@@ -580,7 +580,7 @@
       "host": ["web", "desktop"],
       "oracle": {
         "type": "render diff",
-        "assertion": "Assert the automated contrast, forced-colors, zoom, DOM-order and focus checks pass in both themes and both locales, the screen reader walkthrough is recorded on the real machine, and the fidelity regression over the six fixtures keeps unchanged regions intact."
+        "assertion": "Assert the automated contrast, forced-colors, zoom, DOM-order, keyboard and focus checks pass in both themes and both locales, the layout stays responsive at the committed widths, the performance budget is measured, the screen reader walkthrough is recorded on the real machine, and the fidelity regression over the six fixtures keeps unchanged regions intact."
       },
       "fixtures": [
         { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
