@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+a5b0cafeed86343fd1ebdaaf91ed73f04c8943cc
+cb76dde5928f8ea9cf66af938d3f83bd1278f78c
+a5b0cafe fix(web): the conflict answer follows the variant the user closes, the loaded head and the current edit access
+014f6b9d test(web): pin the conflict dialog's retry answer, the Reload head and Slides edit access
+417013ef test(e2e): confirm Overwrite… in the conflict dialog step
