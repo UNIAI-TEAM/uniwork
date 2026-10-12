@@ -35,9 +35,9 @@ export interface DocumentRequestOpts {
 
 export interface CreateDocumentBody {
   title: string;
-  /** Only "page" is valid on this route; a file document is created through
-   *  createDocumentFile on the multipart route. */
-  kind?: "page";
+  /** "page" (default) or "folder" (a container with no content). A file
+   *  document is created through createDocumentFile on the multipart route. */
+  kind?: "page" | "folder";
   parent_id?: string;
   icon?: string;
   content?: unknown;

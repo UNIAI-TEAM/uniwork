@@ -43,6 +43,8 @@ export const paths = {
   changelog: () => "/changelog",
   pricing: () => "/pricing",
   enterprise: () => "/enterprise",
+  /** Public page of the UniWork Office desktop app (landing menu "Office"). */
+  office: () => "/office",
   /**
    * Positioning page: what the platforms a buyer already owns do not cover.
    * Hyphenated root, the third after forgot-password and reset-password; the
@@ -121,6 +123,7 @@ export const GLOBAL_PREFIXES = [
   "/changelog",
   "/pricing",
   "/enterprise",
+  "/office",
 ] as const;
 
 export function isGlobalPath(path: string): boolean {

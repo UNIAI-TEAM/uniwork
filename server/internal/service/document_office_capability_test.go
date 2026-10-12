@@ -95,17 +95,15 @@ func TestDocumentOfficeCapability(t *testing.T) {
 		t.Fatalf("convert row = %+v", convert)
 	}
 
-	// A pdf document has no blank generator: the action is withheld, never a
-	// zero-byte Office file.
+	// A pdf document has a blank generator too: a one-page A4 seed the engine
+	// serializes.
 	f.reseed(t, "report.pdf", pdfBody("cap-pdf-"+util.NewID()[20:]))
 	pdfCaps, err := svc.Capability(ctx, f.actor, f.doc)
 	if err != nil {
 		t.Fatalf("pdf capability: %v", err)
 	}
-	if pdfBlank := capabilityRow(t, pdfCaps, officeBlankOperation); pdfBlank.ProductSupported || pdfBlank.EngineBound {
+	if pdfBlank := capabilityRow(t, pdfCaps, officeBlankOperation); !pdfBlank.ProductSupported || !pdfBlank.EngineBound {
 		t.Fatalf("pdf create_blank row = %+v", pdfBlank)
-	} else if pdfBlank.Reason == "" {
-		t.Fatal("pdf create_blank row has no reason")
 	}
 
 	// A page document is not an engine target.
@@ -205,27 +203,31 @@ func TestDocumentOfficeBlankRefusals(t *testing.T) {
 	before := f.documentCount(t)
 
 	// A format with no blank generator stores nothing at all.
-	if _, err := svc.CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: string(office.FormatPDF), Title: "Trong"}); err == nil {
-		t.Fatal("pdf blank create succeeded")
-	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "blank_not_bound" {
-		t.Fatalf("pdf blank refusal = %+v", ee)
+	for _, format := range []office.Format{office.FormatXLS, office.FormatODT} {
+		if _, err := svc.CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: string(format), Title: "Trong"}); err == nil {
+			t.Fatalf("%s blank create succeeded", format)
+		} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "blank_not_bound" {
+			t.Fatalf("%s blank refusal = %+v", format, ee)
+		}
+	}
+	// An unknown format is a caller error and stores nothing either.
+	if _, err := svc.CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: "rtf", Title: "Trong"}); err == nil {
+		t.Fatal("rtf blank create succeeded")
 	}
 	if after := f.documentCount(t); after != before {
-		t.Fatalf("pdf blank create wrote %d documents", after-before)
-	}
-
-	// The same rule holds for the Office packages: an empty DOCX is not a document.
-	if _, err := svc.CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: string(office.FormatDOCX), Title: "Trong"}); err == nil {
-		t.Fatal("docx blank create succeeded")
+		t.Fatalf("refused blank creates wrote %d documents", after-before)
 	}
 	// An agent never writes documents directly (ADR 0010).
 	agent := Actor{Kind: audit.KindAgent, ID: f.tn.agent}
 	if _, err := svc.CreateBlankFile(ctx, agent, f.ws, BlankFileInput{Format: string(office.FormatMD), Title: "Trong"}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("agent blank create = %v, want forbidden", err)
 	}
-	// No engine: refused before anything exists.
-	if _, err := f.service(nil).CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: string(office.FormatMD), Title: "Trong"}); !errors.Is(err, office.ErrNotConfigured) {
-		t.Fatalf("unconfigured blank create = %v", err)
+	// No engine: refused before anything exists - for every format whose
+	// bytes the engine serializes.
+	for _, format := range []office.Format{office.FormatMD, office.FormatXLSX, office.FormatPDF} {
+		if _, err := f.service(nil).CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: string(format), Title: "Trong"}); !errors.Is(err, office.ErrNotConfigured) {
+			t.Fatalf("unconfigured %s blank create = %v", format, err)
+		}
 	}
 	// Engine drift: refused before anything exists.
 	drift := newScriptedEngine()
@@ -271,8 +273,11 @@ func TestDocumentOfficeBlankRefusalsKeyOfAPlainUpload(t *testing.T) {
 // A blank seed is always non-empty: the file validator refuses zero bytes, so
 // the engine must produce a real first version, never an empty file.
 func TestBlankSeedIsNeverEmpty(t *testing.T) {
-	for _, format := range []office.Format{office.FormatMD, office.FormatHTML, office.FormatXLSX} {
+	for _, format := range []office.Format{office.FormatMD, office.FormatHTML, office.FormatXLSX, office.FormatDOCX, office.FormatPPTX, office.FormatPDF} {
 		seed, filename, ok := blankSeedFor(format, "Tieu de")
+		if want := "untitled." + string(format); ok && filename != want {
+			t.Fatalf("seed %s filename = %q, want %q", format, filename, want)
+		}
 		if !ok || len(seed) == 0 || filename == "" {
 			t.Fatalf("seed %s = %d bytes, %q, ok=%v", format, len(seed), filename, ok)
 		}
@@ -283,7 +288,7 @@ func TestBlankSeedIsNeverEmpty(t *testing.T) {
 		!bytes.Equal(seed, blankXLSXSeed()) {
 		t.Fatal("the xlsx blank seed is not a stable SpreadsheetML package")
 	}
-	for _, format := range []office.Format{office.FormatDOCX, office.FormatPPTX, office.FormatPDF, office.FormatXLS, office.FormatODT} {
+	for _, format := range []office.Format{office.FormatXLS, office.FormatODT} {
 		if _, _, ok := blankSeedFor(format, "Tieu de"); ok {
 			t.Fatalf("unsupported format %s has a blank seed", format)
 		}

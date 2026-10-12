@@ -50,6 +50,11 @@ export function SiteFooter() {
                 {t("landing.workforce.badge")}
               </Link>
             </li>
+            <li>
+              <Link className={LINK} href={paths.office()}>
+                {t("landing.nav.office")}
+              </Link>
+            </li>
           </ul>
         </nav>
 

@@ -53,12 +53,15 @@ type DocumentView struct {
 	File        *DocumentFileInfo
 }
 
-// CreatePageInput is POST /workspaces/{ws}/documents with kind page.
-// Visibility empty means the parent's (children inherit it at create time,
+// CreatePageInput is POST /workspaces/{ws}/documents with kind page or
+// folder (Kind empty means page). A folder carries no content and sits at the
+// root or in another folder; a page sits at the root, in a page or in a
+// folder. Visibility empty means the parent's (children inherit it at create time,
 // C-01 §4), or workspace at the root. A non-empty IdempotencyKey binds the
 // create to its payload fingerprint (DOC-005 §3.1): a retry replays the page,
 // another payload under the same key is idempotency_payload_mismatch.
 type CreatePageInput struct {
+	Kind           string
 	ParentID       string
 	Title          string
 	Icon           string
@@ -135,12 +138,24 @@ func sanitizePage(raw json.RawMessage) (sanitizedPage, error) {
 	return sanitizedPage{content: content, text: text}, nil
 }
 
-// CreatePage creates a page in a workspace the caller belongs to, at the root
-// or under a page they may edit. Agents never write documents directly
-// (ADR 0010).
+// CreatePage creates a page or a folder in a workspace the caller belongs
+// to, at the root or under a page or folder they may edit. Agents never write
+// documents directly (ADR 0010).
 func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspaceID string, in CreatePageInput) (DocumentView, error) {
 	if actor.Kind != audit.KindHuman || !validActor(actor) {
 		return DocumentView{}, ErrForbidden
+	}
+	kind := in.Kind
+	switch kind {
+	case "":
+		kind = DocumentKindPage
+	case DocumentKindPage:
+	case DocumentKindFolder:
+		if len(in.Content) > 0 {
+			return DocumentView{}, errFolderUnsupported()
+		}
+	default:
+		return DocumentView{}, Invalid("kind phải là page hoặc folder")
 	}
 	title, err := cleanDocumentTitle(in.Title)
 	if err != nil {
@@ -184,9 +199,15 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		return DocumentView{}, err
 	}
 	sum := sha256.Sum256(page.content)
+	parts := []string{idempotencyScopeDocumentPageCreate, workspaceID, in.ParentID,
+		title, icon.String, in.Visibility, hex.EncodeToString(sum[:])}
+	if kind != DocumentKindPage {
+		// Only a folder adds its kind, so a page create keeps the fingerprint
+		// a retry in flight across a deploy was claimed with.
+		parts = append(parts, kind)
+	}
 	opts := IdempotencyOptions{
-		Fingerprint: IdempotencyFingerprint(idempotencyScopeDocumentPageCreate, workspaceID, in.ParentID,
-			title, icon.String, in.Visibility, hex.EncodeToString(sum[:])),
+		Fingerprint:        IdempotencyFingerprint(parts...),
 		RequireFingerprint: true,
 	}
 	replay, commit, err := BeginIdempotent(ctx, q, w.OrganizationID, workspaceID, idempotencyScopeDocumentPageCreate, in.IdempotencyKey, actor.ID, opts)
@@ -204,11 +225,12 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	}
 	visibility := in.Visibility
 	if in.ParentID != "" {
-		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, w.OrganizationID, workspaceID)
+		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, w.OrganizationID, workspaceID, kind)
 		if err != nil {
 			return DocumentView{}, err
 		}
 		if visibility == "" {
+			// Inherited at create only; a later move leaves visibility alone.
 			visibility = parent.Visibility
 		}
 	}
@@ -230,7 +252,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		OrganizationID: w.OrganizationID,
 		WorkspaceID:    workspaceID,
 		ParentID:       nullText(in.ParentID),
-		Kind:           DocumentKindPage,
+		Kind:           kind,
 		Title:          title,
 		Icon:           icon,
 		Visibility:     visibility,
@@ -314,9 +336,10 @@ func (s *DocumentService) replayCreatedPage(ctx context.Context, q *db.Queries, 
 }
 
 // lockPageParent locks the parent row for the rest of the create (an archive
-// or move of the parent waits for it) and checks it: a live page of the same
-// tenant pair, outside any work product, that the caller may edit, with room
-// for one more level below it.
+// or move of the parent waits for it) and checks it: a live page or folder of
+// the same tenant pair (childKindAllowed decides which for childKind),
+// outside any work product, that the caller may edit, with room for one more
+// level below it.
 // authorizeParentIn is the pre-flight of a create that names a parent page
 // before its transaction (blank, copy, convert): the caller may edit the
 // parent, and the parent is a page of the workspace the new document lands
@@ -334,7 +357,7 @@ func (s *DocumentService) authorizeParentIn(ctx context.Context, actor Actor, pa
 	return nil
 }
 
-func (s *DocumentService) lockPageParent(ctx context.Context, q *db.Queries, actor Actor, parentID, orgID, workspaceID string) (db.Document, error) {
+func (s *DocumentService) lockPageParent(ctx context.Context, q *db.Queries, actor Actor, parentID, orgID, workspaceID, childKind string) (db.Document, error) {
 	// Classify before locking: a parent outside this tenant pair answers
 	// not_found without ever taking its row lock, so a create in one
 	// workspace never queues on a foreign workspace's writer
@@ -368,8 +391,8 @@ func (s *DocumentService) lockPageParent(ctx context.Context, q *db.Queries, act
 	if parent.ArchivedAt.Valid {
 		return db.Document{}, ErrNotFound
 	}
-	if parent.Kind != DocumentKindPage {
-		return db.Document{}, Invalid("chỉ trang mới chứa được trang con")
+	if !childKindAllowed(parent.Kind, childKind) {
+		return db.Document{}, errDocumentParentKind()
 	}
 	depth, err := documentDepth(ctx, q, parent)
 	if err != nil {
@@ -566,6 +589,9 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 		if doc.ArchivedAt.Valid {
 			// The trash is read-only; the same answer as version and restore.
 			return errDocumentDeleted()
+		}
+		if in.Content != nil && doc.Kind == DocumentKindFolder {
+			return errFolderUnsupported()
 		}
 		if in.Content != nil && doc.Kind != DocumentKindPage {
 			return Invalid("tài liệu file không nhận content")

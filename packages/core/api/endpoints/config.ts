@@ -39,6 +39,8 @@ const ConfigSchema = z.object({
   office_installer_urls: OfficeInstallerURLsSchema.optional(),
   office_installers: InstallerChannelsSchema.optional(),
   office_deployment_id: z.string().trim().min(1).optional(),
+  // A drifted origin drops to "absent": links then carry no profile and the app keeps its server.
+  office_api_origin: z.string().trim().min(1).optional().catch(undefined),
 });
 
 export interface PublicConfig {
@@ -49,6 +51,8 @@ export interface PublicConfig {
   office_installers?: { dev: OfficeInstallerOption[]; beta: OfficeInstallerOption[]; stable: OfficeInstallerOption[] };
   /** Server-selected deployment binding for Office launch tickets. */
   office_deployment_id?: string;
+  /** Public API origin the desktop app signs in to; carried on every web -> app link. */
+  office_api_origin?: string;
 }
 
 // No guessed fallback here: an id the server never advertised must leave the
@@ -82,6 +86,7 @@ export async function getPublicConfig(organizationId?: string): Promise<PublicCo
     work_management_capabilities: parsed.work_management_capabilities,
     office_installers: channels,
     office_deployment_id: parsed.office_deployment_id,
+    office_api_origin: parsed.office_api_origin,
   };
 }
 

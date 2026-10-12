@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { verifyEmail } from "./auth-nav";
 import { workspaceSeed, type WorkspaceSeed } from "./onboard";
+import { libraryRowButton, newPageCard } from "./documents-onboard";
 
 /**
  * Golden paths of G1-06 (a + b) on the H1 API: a page is created, typed into
@@ -86,10 +87,7 @@ test("a page is created, typed into, and survives a reload", async ({ page }) =>
   await expect(page.getByRole("heading", { name: "Chưa có tài liệu" })).toBeVisible();
   await shot(page, "documents-library-light-vi");
 
-  await page
-    .getByRole("button", { name: "Trang mới" })
-    .first()
-    .click();
+  await newPageCard(page).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
 
   const surface = page.getByRole("textbox", { name: "Nội dung tài liệu" });
@@ -133,7 +131,7 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
 
   await page.goto(`/${fileSeed.orgSlug}/${fileSeed.wsSlug}/documents`);
   await page
-    .getByRole("button", { name: "Tải tệp" })
+    .getByRole("button", { name: "Tải file lên" })
     .first()
     .click();
   await page.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
@@ -169,51 +167,50 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
   });
 
   // Create one page; its editor opens on it.
-  await page.getByRole("button", { name: "Trang mới" }).first().click();
+  await newPageCard(page).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
   await expect(page.getByRole("textbox", { name: "Nội dung tài liệu" })).toBeVisible({
     timeout: 60_000,
   });
 
-  // Back to the library: the list row and the tree both carry the new page,
-  // and the tab count is the server's own row count.
+  // Back to the library: the table carries the new page, and the tab count is
+  // the server's own row count. The sidebar tree lists folders only.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
-  const list = page.getByRole("list", { name: "Tài liệu" });
-  await expect(list.getByRole("button", { name: /Trang mới/ })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("treeitem", { name: /Trang mới/ })).toBeVisible();
+  const list = page.getByRole("table", { name: "Tài liệu" });
+  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("treeitem", { name: /Trang mới/ })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: /Tất cả/ })).toContainText("1");
 
   // The other tabs read their own endpoints (nothing is shared with anyone).
   await page.getByRole("tab", { name: /Gần đây/ }).click();
   await expect(page.getByRole("tab", { name: /Gần đây/ })).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("tab", { name: /Được chia sẻ với tôi/ }).click();
+  await page.getByRole("tab", { name: /Được chia sẻ/ }).click();
   await expect(page.getByRole("heading", { name: "Chưa có tài liệu" })).toBeVisible({
     timeout: 30_000,
   });
   await page.getByRole("tab", { name: /Tất cả/ }).click();
 
-  // Filters are the server's: a file filter drops the page row.
-  await page.getByRole("combobox", { name: "Loại tài liệu" }).click();
-  await page.getByRole("option", { name: "Tệp" }).click();
+  // A type chip drops the page row.
+  await page.getByRole("button", { name: "Docs", exact: true }).click();
   await expect(page.getByText("Không có tài liệu khớp bộ lọc")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Bỏ bộ lọc" }).click();
-  await expect(list.getByRole("button", { name: /Trang mới/ })).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
 
-  // The tree opens the document.
-  await page.getByRole("treeitem", { name: /Trang mới/ }).click();
+  // The row opens the document.
+  await libraryRowButton(list, /Trang mới/).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
 
   // Dark and mobile screenshots, then English, on the same library.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
-  await expect(list.getByRole("button", { name: /Trang mới/ })).toBeVisible({ timeout: 30_000 });
+  await expect(libraryRowButton(list, /Trang mới/)).toBeVisible({ timeout: 30_000 });
   await page.evaluate(() => document.documentElement.classList.add("dark"));
   await shot(page, "documents-library-dark-vi");
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
 
-  // Below xl the tree folds into a sheet; the trigger opens it.
+  // Below xl the navigation folds into a sheet; the trigger opens it.
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Cây" }).click();
-  await expect(page.getByRole("treeitem", { name: /Trang mới/ })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Điều hướng" }).click();
+  await expect(page.getByRole("button", { name: "Trang chủ Tài liệu" })).toBeVisible({ timeout: 30_000 });
   await shot(page, "documents-library-mobile-tree-vi");
   await page.keyboard.press("Escape");
 

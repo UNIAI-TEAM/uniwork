@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, File, FileText, FolderTree, RefreshCw } from "lucide-react";
+import { ChevronRight, RefreshCw } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -15,188 +15,24 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { apiErrorMessage } from "@uniwork/core/api";
-import { getDocument } from "@uniwork/core/api/endpoints/documents";
+import { useQueryClient } from "@tanstack/react-query";
 import { useDocumentTree, useMoveDocument } from "@uniwork/core/documents/hooks-collections";
-import { documentKeys } from "@uniwork/core/documents/keys";
-import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-
-/* ---- pure tree helpers (unit-tested on their own) ----------------------- */
-
-/** One visible row of the flattened forest, in render order. */
-export interface TreeRow {
-  node: DocumentTreeNode;
-  depth: number;
-  parentId: string | null;
-  hasChildren: boolean;
-}
-
-/** The visible rows: children of expanded nodes only, depth-first. */
-export function flattenTree(
-  nodes: DocumentTreeNode[],
-  expanded: ReadonlySet<string>,
-  depth = 0,
-  parentId: string | null = null,
-): TreeRow[] {
-  const rows: TreeRow[] = [];
-  for (const node of nodes) {
-    rows.push({ node, depth, parentId, hasChildren: node.children.length > 0 });
-    if (node.children.length > 0 && expanded.has(node.id)) {
-      rows.push(...flattenTree(node.children, expanded, depth + 1, node.id));
-    }
-  }
-  return rows;
-}
-
-/** Every id under `rootId`, the root included; empty when it is not in the forest. */
-export function subtreeIds(nodes: DocumentTreeNode[], rootId: string): Set<string> {
-  const ids = new Set<string>();
-  const collect = (node: DocumentTreeNode) => {
-    ids.add(node.id);
-    for (const child of node.children) collect(child);
-  };
-  const walk = (list: DocumentTreeNode[]): boolean => {
-    for (const node of list) {
-      if (node.id === rootId) {
-        collect(node);
-        return true;
-      }
-      if (walk(node.children)) return true;
-    }
-    return false;
-  };
-  walk(nodes);
-  return ids;
-}
-
-/**
- * A drop is refused before any request when it would move a node onto itself
- * or into its own subtree (the cycle the server also refuses). The tree keeps
- * its position because there is nothing to undo — no optimistic move exists.
- */
-export function moveRefused(
-  nodes: DocumentTreeNode[],
-  draggedId: string,
-  targetId: string,
-): boolean {
-  if (!draggedId || !targetId || draggedId === targetId) return true;
-  return subtreeIds(nodes, draggedId).has(targetId);
-}
-
-/** The server's tree limit: five levels, a root page counting as level one. */
-export const TREE_MAX_LEVEL = 5;
-
-/** The forest node with this id, or null when it is not in the loaded forest. */
-export function findTreeNode(nodes: DocumentTreeNode[], id: string): DocumentTreeNode | null {
-  for (const node of nodes) {
-    if (node.id === id) return node;
-    const found = findTreeNode(node.children, id);
-    if (found) return found;
-  }
-  return null;
-}
-
-/** How many levels hang below this node (0 for a leaf). */
-export function subtreeHeight(node: DocumentTreeNode): number {
-  let height = 0;
-  for (const child of node.children) height = Math.max(height, 1 + subtreeHeight(child));
-  return height;
-}
-
-/** 1-based level of a node in the forest; null when it is not there. */
-export function nodeLevel(nodes: DocumentTreeNode[], id: string): number | null {
-  let level: number | null = null;
-  const walk = (list: DocumentTreeNode[], depth: number) => {
-    for (const node of list) {
-      if (level !== null) return;
-      if (node.id === id) {
-        level = depth;
-        return;
-      }
-      walk(node.children, depth + 1);
-    }
-  };
-  walk(nodes, 1);
-  return level;
-}
-
-/**
- * True when the move would push the dragged subtree past five levels. The
- * server refuses it too (422 document_too_deep); refusing here saves the
- * round-trip and says why.
- */
-export function moveTooDeep(
-  nodes: DocumentTreeNode[],
-  draggedId: string,
-  targetId: string,
-): boolean {
-  const dragged = findTreeNode(nodes, draggedId);
-  const targetLevel = nodeLevel(nodes, targetId);
-  if (!dragged || targetLevel === null) return false;
-  return targetLevel + 1 + subtreeHeight(dragged) > TREE_MAX_LEVEL;
-}
-
-/**
- * The position that places `index` before (`-1`) or after (`+1`) its nearest
- * sibling: the midpoint to that sibling, or a step past the edge. Null means
- * there is no sibling in that direction.
- */
-export function siblingMovePosition(
-  siblings: DocumentTreeNode[],
-  index: number,
-  direction: -1 | 1,
-): number | null {
-  if (direction === -1) {
-    const prev = siblings[index - 1];
-    if (!prev) return null;
-    const prevPrev = siblings[index - 2];
-    return prevPrev ? (prevPrev.position + prev.position) / 2 : prev.position - 1;
-  }
-  const next = siblings[index + 1];
-  if (!next) return null;
-  const nextNext = siblings[index + 2];
-  return nextNext ? (next.position + nextNext.position) / 2 : next.position + 1;
-}
-
-/** Direct children of `parentId` in position order (`null` = the roots). */
-export function siblingsOf(nodes: DocumentTreeNode[], parentId: string | null): DocumentTreeNode[] {
-  if (parentId === null) return nodes;
-  return findTreeNode(nodes, parentId)?.children ?? [];
-}
-
-/**
- * The revision a move must carry, read fresh from the detail endpoint: the
- * tree payload has no revision, and a cached one could be stale (a stale base
- * is answered 422). Null means the server answer cannot be trusted as a base.
- */
-export async function loadMoveRevision(
-  queryClient: QueryClient,
-  wsId: string,
-  documentId: string,
-): Promise<string | null> {
-  const doc = await queryClient.fetchQuery({
-    queryKey: documentKeys.detail(wsId, documentId),
-    queryFn: ({ signal }) => getDocument(documentId, signal),
-    // A cached copy is never fresh enough to prove a base for a write.
-    staleTime: 0,
-  });
-  if (!doc) return null;
-  // The same identity check `requireVerifiableDocument` makes: a parse that
-  // dropped id/revision is not a base a write may be sent on.
-  if (!doc.id || !doc.revision) return null;
-  return doc.revision;
-}
+import { documentErrorMessage } from "./document-error-message";
+import { documentIconFormat, DocumentTypeIcon } from "./document-type-icon";
+import {
+  findTreeNode,
+  flattenTree,
+  foldersOnly,
+  loadMoveRevision,
+  moveRefused,
+  moveTooDeep,
+  siblingMovePosition,
+  siblingsOf,
+  type TreeRow,
+} from "./document-tree-model";
 
 /* ---- rows --------------------------------------------------------------- */
 
@@ -204,6 +40,7 @@ interface TreeRowItemProps {
   row: TreeRow;
   expanded: boolean;
   focused: boolean;
+  current: boolean;
   tabbable: boolean;
   moving: boolean;
   dragDisabled: boolean;
@@ -218,6 +55,7 @@ function TreeRowItem({
   row,
   expanded,
   focused,
+  current,
   tabbable,
   moving,
   dragDisabled,
@@ -248,6 +86,7 @@ function TreeRowItem({
       aria-level={row.depth + 1}
       aria-expanded={row.hasChildren ? expanded : undefined}
       aria-selected={focused}
+      aria-current={current || undefined}
       aria-busy={moving || undefined}
       aria-keyshortcuts="Control+ArrowUp Control+ArrowDown Control+ArrowLeft Control+ArrowRight Meta+ArrowUp Meta+ArrowDown Meta+ArrowLeft Meta+ArrowRight"
       data-tree-node={row.node.id}
@@ -263,7 +102,8 @@ function TreeRowItem({
         "group/row flex min-h-9 w-full cursor-pointer items-center gap-1 rounded-md pr-2 text-body",
         "pointer-coarse:min-h-11",
         "hover:bg-accent/60",
-        focused && "bg-accent",
+        (focused || current) && "bg-accent",
+        current && "font-medium",
         isOver && "ring-2 ring-ring",
         (isDragging || moving) && "opacity-60",
       )}
@@ -283,7 +123,7 @@ function TreeRowItem({
             event.stopPropagation();
             onToggle();
           }}
-          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground pointer-coarse:size-11"
+          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground pointer-coarse:-mx-2.5 pointer-coarse:size-11"
         >
           <ChevronRight
             aria-hidden
@@ -291,15 +131,13 @@ function TreeRowItem({
           />
         </button>
       ) : (
-        <span aria-hidden className="size-6 shrink-0 pointer-coarse:size-11" />
+        <span aria-hidden className="size-6 shrink-0" />
       )}
       <span aria-hidden className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
         {row.node.icon ? (
           <span className="text-body leading-none">{row.node.icon}</span>
-        ) : row.node.kind === "file" ? (
-          <File className="size-3.5" />
         ) : (
-          <FileText className="size-3.5" />
+          <DocumentTypeIcon format={documentIconFormat(row.node.kind, row.node.title)} className="size-4" />
         )}
       </span>
       <span className="truncate">{row.node.title || t("documents.detail.untitled")}</span>
@@ -318,6 +156,12 @@ export interface DocumentTreeProps {
   onOpen?: (documentId: string) => void;
   enabled?: boolean;
   className?: string;
+  /** Show folders only (the Documents sidebar); pages and files stay in the library. */
+  folders?: boolean;
+  /** The open folder, drawn as current. */
+  currentId?: string | null;
+  /** Shown instead of the generic empty line. */
+  emptyLabel?: string;
 }
 
 /**
@@ -340,7 +184,7 @@ export interface DocumentTreeProps {
  * changes when that answer lands and the workspace keys are invalidated. A
  * refused or failed move therefore leaves every position exactly where it was.
  */
-export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className }: DocumentTreeProps) {
+export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className, folders = false, currentId = null, emptyLabel }: DocumentTreeProps) {
   const { t } = useTranslation();
   const query = useDocumentTree(wsId, rootId, { enabled });
   const move = useMoveDocument(wsId);
@@ -351,7 +195,10 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className }
   const [movingId, setMovingId] = useState<string | null>(null);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
-  const nodes = useMemo(() => query.data?.documents ?? [], [query.data]);
+  const nodes = useMemo(() => {
+    const forest = query.data?.documents ?? [];
+    return folders ? foldersOnly(forest) : forest;
+  }, [query.data, folders]);
   const rows = useMemo(() => flattenTree(nodes, expanded), [nodes, expanded]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -391,7 +238,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className }
       await move.mutateAsync({ documentId, parent_id: parentId, position, revision });
       revealAfterMove();
     } catch (error) {
-      toast.error(apiErrorMessage(error) ?? t("documents.tree.move_failed"));
+      toast.error(documentErrorMessage(error, t, "documents.tree.move_failed"));
     } finally {
       setMovingId(null);
     }
@@ -539,7 +386,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className }
   }
 
   if (rows.length === 0) {
-    return <p className={cn("px-3 py-4 text-caption text-muted-foreground", className)}>{t("documents.tree.empty")}</p>;
+    return <p className={cn("px-3 py-4 text-caption text-muted-foreground", className)}>{emptyLabel ?? t("documents.tree.empty")}</p>;
   }
 
   return (
@@ -552,6 +399,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className }
               row={row}
               expanded={expanded.has(row.node.id)}
               focused={focusedId === row.node.id}
+              current={currentId === row.node.id}
               tabbable={focusedId ? focusedId === row.node.id : index === 0}
               moving={movingId === row.node.id}
               dragDisabled={movingId !== null}
@@ -577,29 +425,5 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className }
         </p>
       ) : null}
     </div>
-  );
-}
-
-export interface DocumentTreeSheetProps extends DocumentTreeProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-/** The small-screen tree: the same tree inside a left sheet. */
-export function DocumentTreeSheet({ open, onOpenChange, ...tree }: DocumentTreeSheetProps) {
-  const { t } = useTranslation();
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="flex w-full flex-col gap-0 p-0 sm:max-w-xs" closeLabel={t("common.close")}>
-        <SheetHeader className="border-b border-border px-4 py-3 text-left">
-          <SheetTitle className="flex items-center gap-2 text-title">
-            <FolderTree aria-hidden className="size-4 text-muted-foreground" />
-            {t("documents.tree.sheet_title")}
-          </SheetTitle>
-          <SheetDescription className="mt-0.5">{t("documents.tree.sheet_description")}</SheetDescription>
-        </SheetHeader>
-        <DocumentTree {...tree} className="flex-1" />
-      </SheetContent>
-    </Sheet>
   );
 }

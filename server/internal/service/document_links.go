@@ -101,6 +101,11 @@ func (s *DocumentService) CreateDocumentLink(ctx context.Context, actor Actor, d
 	if err := requireDocumentACLChange(doc, access); err != nil {
 		return CreatedDocumentLink{}, err
 	}
+	// A folder has nothing to publish: its contents are separate documents with
+	// their own links. Refused after the access gate so a stranger still gets 404.
+	if err := refuseFolder(doc); err != nil {
+		return CreatedDocumentLink{}, err
+	}
 	if s.entitlements == nil {
 		return CreatedDocumentLink{}, errEntitlementRequired(FeatureDocumentsPublicLinks)
 	}
@@ -328,6 +333,10 @@ func (s *DocumentService) resolvePublicLink(ctx context.Context, token string) (
 	}
 	if doc.OrganizationID != link.OrganizationID || doc.WorkspaceID != link.WorkspaceID ||
 		doc.ArchivedAt.Valid || doc.OwnerKind.Valid {
+		return PublicDocument{}, ErrNotFound
+	}
+	// A folder is never public, whatever link a past write left behind.
+	if doc.Kind == DocumentKindFolder {
 		return PublicDocument{}, ErrNotFound
 	}
 	org, err := s.q.GetOrganizationByID(ctx, doc.OrganizationID)

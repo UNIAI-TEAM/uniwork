@@ -10,12 +10,12 @@ import "encoding/json"
 // and provenance are assigned by the service (C-01 §14.3).
 
 // CreateDocumentSDI is POST /api/v1/workspaces/{workspaceID}/documents
-// (+ Idempotency-Key header). It creates a page; a file document is created
-// by CreateDocumentFileSDI on the multipart route.
+// (+ Idempotency-Key header). It creates a page or a folder; a file document
+// is created by CreateDocumentFileSDI on the multipart route.
 type CreateDocumentSDI struct {
-	Title      string           `json:"title" minLength:"1" description:"Tiêu đề trang, 1–500 ký tự" example:"Kế hoạch Q4"`
-	Kind       string           `json:"kind" description:"Chỉ page với endpoint này; file dùng route multipart /documents/files" example:"page"`
-	ParentID   *string          `json:"parent_id" description:"ULID trang cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Title      string           `json:"title" minLength:"1" description:"Tiêu đề trang hoặc tên thư mục, 1–500 ký tự" example:"Kế hoạch Q4"`
+	Kind       string           `json:"kind" description:"page (mặc định) hoặc folder; file dùng route multipart /documents/files. Thư mục không nhận content" example:"page"`
+	ParentID   *string          `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; thư mục chỉ nằm trong thư mục; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Icon       *string          `json:"icon" description:"Emoji ≤ 8 ký tự" example:"📄"`
 	Content    *json.RawMessage `json:"content" description:"ProseMirror JSON {type:\"doc\"}; server sanitize trước khi lưu"`
 	Visibility string           `json:"visibility" description:"workspace (mặc định) hoặc restricted" example:"workspace"`
@@ -31,7 +31,7 @@ type CreateDocumentSDI struct {
 // to the sanitized filename.
 type CreateDocumentFileSDI struct {
 	File     []byte  `formData:"file" description:"Byte tài liệu; MIME phải trong allowlist document_file và khớp magic bytes"`
-	ParentID *string `formData:"parent_id" description:"ULID trang cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	ParentID *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Title    *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`
 }
 
@@ -134,9 +134,9 @@ type UpdateDocumentCommentSDI struct {
 // permission filter runs inside the query, so cursor pages stay stable and
 // never fetch-then-filter.
 type ListDocumentsSDI struct {
-	ParentID    *string `query:"parent_id" description:"ULID trang cha; bỏ trống = danh sách phẳng toàn workspace, chuỗi rỗng = các tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	ParentID    *string `query:"parent_id" description:"ULID trang hoặc thư mục cha; bỏ trống = danh sách phẳng toàn workspace, chuỗi rỗng = các tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Query       *string `query:"q" description:"Tìm văn bản đã fold; kết quả kèm snippet ≤ 160 ký tự" example:"kế hoạch quý 4"`
-	Kind        *string `query:"kind" description:"Lọc page hoặc file" example:"page"`
+	Kind        *string `query:"kind" description:"Lọc page, file hoặc folder" example:"page"`
 	Archived    *bool   `query:"archived" description:"1 = thùng rác (chỉ manage); bỏ trống = tài liệu sống" example:"false"`
 	UpdatedBy   *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
@@ -176,7 +176,7 @@ type DocumentTreeSDI struct {
 // absent appends last. parent_id null (or absent) moves to the workspace root.
 // A stale revision, a cycle, a depth past five or a foreign parent is refused.
 type MoveDocumentSDI struct {
-	ParentID *string  `json:"parent_id" description:"ULID trang cha mới cùng workspace; null = về gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	ParentID *string  `json:"parent_id" description:"ULID trang hoặc thư mục cha mới cùng workspace (thư mục chỉ vào thư mục); null = về gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	Position *float64 `json:"position" description:"Thứ tự giữa các sibling; bỏ trống = cuối danh sách" example:"1.5"`
 	Revision string   `json:"revision" description:"Revision nền dạng chuỗi thập phân" example:"41"`
 }

@@ -71,6 +71,10 @@ type Deps struct {
 	// Documents is the C-01 document service (UNI-679, G1-05a); nil answers
 	// 501 on the document routes until the server wires it.
 	Documents *service.DocumentService
+	// DocumentSources lists, streams and saves the files of Chat, Tasks,
+	// Meetings and Email Hub on the documents home (UNI-1305). When omitted,
+	// New derives it from Documents and the domain services.
+	DocumentSources *service.DocumentSourceService
 
 	// Signatures is the per-user saved-signature store (UNI-925 B6); nil
 	// answers 501 on the signature routes until the server wires it.
@@ -140,6 +144,11 @@ func New(d Deps) http.Handler {
 	}
 	if d.OfficeLaunch == nil && d.Documents != nil {
 		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
+	}
+	if d.DocumentSources == nil && d.Documents != nil {
+		d.DocumentSources = service.NewDocumentSourceService(service.DocumentSourceDeps{
+			Documents: d.Documents, Chat: d.Chat, Tasks: d.Tasks, Meetings: d.Meetings, EmailHub: d.EmailHub,
+		})
 	}
 	if d.OfficeFrame == nil && d.Documents != nil {
 		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
@@ -619,6 +628,9 @@ func New(d Deps) http.Handler {
 		ExchangeOfficeLaunch:    h.exchangeOfficeLaunch,
 		RevokeOfficeLaunch:      h.revokeOfficeLaunch,
 		CopyDocument:            h.copyDocument,
+		ListDocumentSources:     h.listDocumentSources,
+		DownloadDocumentSource:  h.downloadDocumentSource,
+		SaveDocumentSource:      h.saveDocumentSource,
 		GetDocument:             h.getDocument,
 		PatchDocument:           h.patchDocument,
 		UploadDocumentFile:      h.uploadDocumentFile,

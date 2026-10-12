@@ -1,0 +1,251 @@
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { documentMatrix, type DocumentMatrix } from "./documents-fixtures";
+import { libraryRowButton, onboardDocumentsUser } from "./documents-onboard";
+import { loginViaUi } from "./meeting-recording-fixture";
+import { workspaceSeed } from "./onboard";
+import { captureAuth } from "./tasks-seed";
+
+/**
+ * The Documents home flows of GO-D1 (UNI-1305) on the real stack: a blank Office
+ * card opens its editor, a folder takes the breadcrumb, a file moves into it,
+ * the "other modules" section shows only when its API answers, the header
+ * "Mở UniWork Office" falls back to the installer dialog when no desktop app
+ * answers, and a viewer sees neither create controls nor commands their level
+ * does not allow.
+ *
+ * Needs the app on E2E_BASE_URL with the `documents` flag ON (FF_DOCUMENTS),
+ * Postgres + Redis + storage up and this worktree's migrations applied - the
+ * same environment as documents.spec.ts. Run by the cloud runner, not locally.
+ */
+test.describe.configure({ timeout: 360_000 });
+
+const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const stamp = Date.now();
+const DOCUMENT_URL = /\/documents\/[0-9A-HJKMNP-TV-Z]{26}$/;
+const DOCX_TITLE = "Tài liệu chưa đặt tên.docx";
+const FOLDER_TITLE = "Thư mục mới";
+const SOURCE_FILE = `ghi-chu-e2e-${stamp}.txt`;
+
+const owner = workspaceSeed("dochome", "owner", stamp);
+
+function createCard(page: Page, label: RegExp) {
+  return page.getByRole("list", { name: "Tạo mới" }).getByRole("button", { name: label });
+}
+
+function sidebar(page: Page) {
+  return page.getByRole("navigation", { name: "Điều hướng tài liệu" });
+}
+
+function library(page: Page) {
+  return page.getByRole("table", { name: "Tài liệu" });
+}
+
+async function openLibrary(page: Page, orgSlug: string, wsSlug: string) {
+  await page.goto(`/${orgSlug}/${wsSlug}/documents`);
+  await expect(page.getByRole("tab", { name: /Tất cả/ })).toBeVisible({ timeout: 60_000 });
+}
+
+test("create card, folder, move and the other-modules section on the owner's home", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await onboardDocumentsUser(page, owner);
+
+  // A task attachment is a file from another module: it feeds "Từ nơi khác".
+  const auth = await captureAuth(page);
+  const task = await page.request.post(`${auth.api}/api/v1/workspaces/${auth.wsId}/tasks`, {
+    headers: { authorization: auth.auth, "content-type": "application/json" },
+    data: { title: `Việc có tệp ${stamp}` },
+  });
+  expect(task.status(), await task.text()).toBe(200);
+  const taskId = ((await task.json()) as { task: { id: string } }).task.id;
+  const attached = await page.request.post(`${auth.api}/api/v1/tasks/${taskId}/attachments`, {
+    headers: { authorization: auth.auth },
+    multipart: { file: { name: SOURCE_FILE, mimeType: "text/plain", buffer: Buffer.from(`ghi chú ${stamp}\n`) } },
+  });
+  expect(attached.status(), await attached.text()).toBe(200);
+
+  // 1. A blank docx from its card: created in the open folder (the root) and opened at once.
+  await openLibrary(page, owner.orgSlug, owner.wsSlug);
+  await createCard(page, /^AI Docs/).click();
+  await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 90_000 });
+  // The Office module frame mounts on the document page; its inner title is the
+  // module's own text, so the check is the frame element, not what it renders.
+  await expect(page.locator('iframe[src*="/office-frame/"]').first()).toBeAttached({ timeout: 60_000 });
+
+  // 2. A folder: created with its default name, opened, and named in the breadcrumb.
+  await openLibrary(page, owner.orgSlug, owner.wsSlug);
+  await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
+  await sidebar(page).getByRole("button", { name: "Tạo thư mục" }).click();
+  const crumbs = page.getByRole("navigation", { name: "Đường dẫn thư mục" });
+  await expect(crumbs).toBeVisible({ timeout: 30_000 });
+  await expect(crumbs.getByText(FOLDER_TITLE, { exact: true })).toHaveAttribute("aria-current", "page");
+  await crumbs.getByRole("button", { name: "Tài liệu" }).click();
+
+  // 3. Move the docx into the folder from its row menu, then find it inside.
+  await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: `Thao tác cho ${DOCX_TITLE}` }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển" }).click();
+  const dialog = page.getByRole("dialog");
+  const folderOption = dialog.getByRole("button", { name: FOLDER_TITLE });
+  await folderOption.click();
+  await expect(folderOption).toHaveAttribute("aria-pressed", "true");
+  await dialog.getByRole("button", { name: "Di chuyển" }).click();
+  await expect(page.getByText("Đã di chuyển.")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("treeitem", { name: new RegExp(FOLDER_TITLE) }).click();
+  await expect(page.getByRole("navigation", { name: "Đường dẫn thư mục" }).getByText(FOLDER_TITLE, { exact: true })).toBeVisible();
+  await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
+
+  // 4. Other modules: visible while the API answers, with the task's file under
+  // "Công việc"; hidden when the route is missing (an older server answers 404).
+  await openLibrary(page, owner.orgSlug, owner.wsSlug);
+  await expect(sidebar(page).getByText("Từ nơi khác")).toBeVisible({ timeout: 30_000 });
+  await sidebar(page).getByRole("button", { name: "Công việc" }).click();
+  await expect(page.getByText(SOURCE_FILE).first()).toBeVisible({ timeout: 30_000 });
+
+  await page.route("**/api/v1/workspaces/*/documents/sources**", (route) =>
+    route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "not_found" } }) }),
+  );
+  await openLibrary(page, owner.orgSlug, owner.wsSlug);
+  await expect(sidebar(page).getByText("Thư mục", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(sidebar(page).getByText("Từ nơi khác")).toHaveCount(0);
+  await page.unroute("**/api/v1/workspaces/*/documents/sources**");
+});
+
+test("the header Open UniWork Office falls back to the installer dialog when no app answers", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // The header button shows only for a platform the installers cover, and the
+  // guess reads the browser's UA hints: pin a Windows x64 desktop so the test
+  // does not depend on the runner's OS or architecture (linux arm64 is unsupported).
+  await page.addInitScript(() => {
+    const hints = {
+      platform: "Windows",
+      mobile: false,
+      brands: [],
+      getHighEntropyValues: () => Promise.resolve({ architecture: "x86", bitness: "64" }),
+    };
+    Object.defineProperty(navigator, "userAgentData", { value: hints, configurable: true });
+  });
+  // The e2e server publishes no installer (OFFICE_INSTALLER_*_URLS stay empty), and
+  // the dialog then offers no "Mở lại"; answer the installers route with one stable
+  // Windows installer, with the CORS headers the cross-origin API call needs.
+  await page.route("**/api/v1/office/desktop/download**", (route) => {
+    const cors = {
+      "access-control-allow-origin": route.request().headers().origin ?? "*",
+      "access-control-allow-credentials": "true",
+      "access-control-allow-headers": "authorization, content-type",
+    };
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: cors,
+      body: JSON.stringify({
+        installers: [{ platform: "win32-x64", kind: ".exe", url: "https://downloads.example.test/UniWork-Office-Setup.exe" }],
+        supported_platforms: ["win32-x64"],
+        server_origin: "https://office.example.test/",
+        channel: "stable",
+        client_id: "uniwork-office",
+        deployment_id: "e2e-deployment",
+      }),
+    });
+  });
+  const seed = workspaceSeed("dochome", "launch", stamp);
+  await onboardDocumentsUser(page, seed);
+
+  // The bare-scheme launch carries no document, so no launch ticket may be asked for.
+  const sessionCalls: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && /\/office\/sessions/.test(request.url())) sessionCalls.push(request.url());
+  });
+
+  await openLibrary(page, seed.orgSlug, seed.wsSlug);
+  // Headless Chromium has no handler for the scheme and the page never loses
+  // focus, so the launcher reports "not installed" after its wait.
+  const open = page.getByRole("button", { name: "Mở UniWork Office" });
+  await expect(open).toBeVisible({ timeout: 30_000 });
+  await open.click();
+  const installer = page.getByRole("dialog", { name: "Tải UniWork Office cho máy tính" });
+  await expect(installer).toBeVisible({ timeout: 30_000 });
+  await expect(installer.getByRole("button", { name: "Mở lại" })).toBeVisible();
+  expect(sessionCalls).toEqual([]);
+});
+
+/* ---- a viewer: no create controls, no commands the level refuses ------------------ */
+
+let m: DocumentMatrix;
+let sharedFolderTitle: string;
+let sharedPageTitle: string;
+
+function authHeaders(token: string): Record<string, string> {
+  return { authorization: `Bearer ${token}`, "content-type": "application/json" };
+}
+
+async function userId(request: APIRequestContext, token: string): Promise<string> {
+  const me = await request.get(`${api}/api/v1/me`, { headers: authHeaders(token) });
+  expect(me.status(), await me.text()).toBe(200);
+  return ((await me.json()) as { user: { id: string } }).user.id;
+}
+
+/** A restricted document of the owner's, shared with `viewerToken`'s user at view level. */
+async function shareRestricted(request: APIRequestContext, kind: "folder" | "page", title: string, viewerId: string) {
+  const created = await request.post(`${api}/api/v1/workspaces/${m.aOwner.wsId}/documents`, {
+    headers: authHeaders(m.aOwner.token),
+    data: { kind, title, visibility: "restricted" },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const id = ((await created.json()) as { document: { id: string } }).document.id;
+  const shared = await request.post(`${api}/api/v1/documents/${id}/shares`, {
+    headers: authHeaders(m.aOwner.token),
+    data: { principal_type: "user", principal_id: viewerId, level: "view" },
+  });
+  expect(shared.status(), await shared.text()).toBe(201);
+}
+
+test.describe("a view-only member", () => {
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    try {
+      m = await documentMatrix(page, api, `dochome-viewer-${stamp}`);
+      const viewerId = await userId(page.request, m.aOther.token);
+      sharedFolderTitle = `Thư mục chỉ xem ${stamp}`;
+      sharedPageTitle = `Trang chỉ xem ${stamp}`;
+      await shareRestricted(page.request, "folder", sharedFolderTitle, viewerId);
+      await shareRestricted(page.request, "page", sharedPageTitle, viewerId);
+    } finally {
+      await page.close();
+    }
+  });
+
+  test("sees create cards at the root, none inside a folder shared at view level", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginViaUi(page, m.aOther.email);
+    await openLibrary(page, m.aOwner.orgSlug, m.aOwner.wsSlug);
+
+    // The root is open to every member of the workspace.
+    await expect(page.getByRole("list", { name: "Tạo mới" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: "Tạo mới", exact: true })).toBeVisible();
+
+    // The shared folder opens from the shared tab; inside it the viewer creates nothing.
+    await page.getByRole("tab", { name: /Được chia sẻ/ }).click();
+    await libraryRowButton(library(page), sharedFolderTitle).click();
+    await expect(page.getByRole("navigation", { name: "Đường dẫn thư mục" }).getByText(sharedFolderTitle)).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByRole("list", { name: "Tạo mới" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Tạo mới", exact: true })).toHaveCount(0);
+    await expect(sidebar(page).getByRole("button", { name: "Tạo thư mục" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Đổi tên thư mục" })).toHaveCount(0);
+  });
+
+  test("gets no Move or Archive on a row shared at view level", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginViaUi(page, m.aOther.email);
+    await openLibrary(page, m.aOwner.orgSlug, m.aOwner.wsSlug);
+
+    // The row is on the home list (the share admits it) with the viewer's own level.
+    await expect(libraryRowButton(library(page), sharedPageTitle)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: `Thao tác cho ${sharedPageTitle}` }).click();
+    await expect(page.getByRole("menuitem", { name: "Mở trên web" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Di chuyển" })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: "Lưu trữ" })).toHaveCount(0);
+  });
+});
