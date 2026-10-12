@@ -20,7 +20,11 @@ import (
 // audit row.
 func (h *handlers) officeAppCapabilities(w http.ResponseWriter, r *http.Request) {
 	if h.OfficeCapabilities == nil {
-		respondError(w, http.StatusServiceUnavailable, "office_capabilities_unavailable", "office capabilities are not configured")
+		// The same wire code the sibling Office routes answer when a
+		// dependency is missing (handler/office.go:48): a client switches on
+		// the code, so a second name for one condition is a name no client
+		// knows.
+		respondError(w, http.StatusServiceUnavailable, "office_not_configured", "office capabilities are not configured")
 		return
 	}
 	caps, err := h.OfficeCapabilities.Get(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"))
