@@ -8,3 +8,4 @@
 // ci.yml name; each check's cases live in test-cases/<check>.cases.mjs and
 // register their tests on this file when imported.
 import "./test-cases/protocol.cases.mjs";
+import "./test-cases/extractor.cases.mjs";
