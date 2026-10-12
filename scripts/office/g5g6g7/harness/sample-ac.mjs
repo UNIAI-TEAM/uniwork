@@ -35,6 +35,7 @@
 // Run directly, it writes the same JSON line into the run dir instead.
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { evidenceLine } from "./lib.mjs";
@@ -71,13 +72,20 @@ const startedAt = new Date().toISOString();
 const checks = [];
 const blockers = [];
 
-/** Records one check; a thrown error is a FAIL, never a pass. */
+/** A precondition that is absent inside a check: BLOCKED, not FAIL and not PASS. */
+class BlockedError extends Error {}
+
+/** Records one check; a thrown error is a FAIL, a BlockedError is BLOCKED, never a pass. */
 async function check(name, run) {
   try {
     const detail = await run();
     checks.push({ name, result: "PASS", detail: detail ?? "" });
     return true;
   } catch (error) {
+    if (error instanceof BlockedError) {
+      noteBlocker(name, error.message);
+      return false;
+    }
     checks.push({ name, result: "FAIL", detail: error.message });
     return false;
   }
@@ -167,13 +175,40 @@ await check("D web answers on this run's web port", async () => {
 });
 
 /**
- * The API origin baked into the build. The served HTML carries script tags, not
- * the inlined value, so the chunks are fetched and searched. Three outcomes,
- * each recorded as itself: the run's origin is there (PASS), only some other
- * loopback port is (FAIL — a stale build), nothing at all (BLOCKED — cannot
- * prove either way, and a check that cannot prove anything is not a pass).
+ * The API origin the web actually calls. Two ways to see it, best first:
+ *
+ *  1. a headless Chromium opens /login and the first /api/v1/ request is read
+ *     off the page — exactly what e2e/api-url.ts asserts for the spec suite, and
+ *     the only way to see the origin the app really uses at runtime;
+ *  2. the served client chunks are fetched and searched for a loopback origin,
+ *     when Playwright is not installed on this VM.
+ *
+ * Three outcomes, each recorded as itself: this run's origin (PASS), a different
+ * origin (FAIL — a stale build), or nothing that can be read (BLOCKED — a check
+ * that proves nothing is not a pass).
  */
-async function inlinedApiOrigins(html) {
+async function apiOriginFromBrowser() {
+  const require = createRequire(join(REPO_ROOT, "e2e", "package.json"));
+  let chromium;
+  try {
+    ({ chromium } = require("@playwright/test"));
+  } catch {
+    return { origin: null, how: "playwright is not installed in this checkout" };
+  }
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    const request = page.waitForRequest((r) => new URL(r.url()).pathname.startsWith("/api/v1/"), { timeout: 30_000 });
+    await page.goto(`${WEB_ORIGIN}/login`);
+    const seen = await request.catch(() => null);
+    if (!seen) throw new Error(`the web at ${WEB_ORIGIN} made no /api/v1/ request within 30 s`);
+    return { origin: new URL(seen.url()).origin, how: `first /api/v1/ request from the page (${new URL(seen.url()).pathname})` };
+  } finally {
+    await browser.close();
+  }
+}
+
+async function apiOriginFromChunks(html) {
   const srcs = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => m[1]).slice(0, 40);
   const found = new Set();
   let fetched = 0;
@@ -185,7 +220,7 @@ async function inlinedApiOrigins(html) {
       if (!res.ok) continue;
       fetched += 1;
       const body = await res.text();
-      for (const match of body.matchAll(/https?:\/\/127\.0\.0\.1:\d+/g)) found.add(match[0]);
+      for (const match of body.matchAll(/https?:\/\/(?:127\.0\.0\.1|localhost):\d+/g)) found.add(match[0].replace("localhost", "127.0.0.1"));
     } catch {
       // a chunk that does not load is not evidence either way
     }
@@ -193,15 +228,18 @@ async function inlinedApiOrigins(html) {
   return { found: [...found], fetched };
 }
 
-await check("the web build inlines this run's API origin", async () => {
+await check("the web calls this run's API origin", async () => {
   if (!loginHtml) throw new Error("the web did not answer, so the build cannot be checked");
-  const { found, fetched } = await inlinedApiOrigins(loginHtml);
-  if (found.includes(API_ORIGIN)) return `${API_ORIGIN} (from ${fetched} chunk(s))`;
-  if (fetched === 0) throw new Error("no same-origin script chunk could be fetched to read the inlined API origin");
-  const other = found.filter((origin) => origin !== API_ORIGIN);
-  throw new Error(other.length > 0
-    ? `the served build inlines ${other.join(", ")}, not ${API_ORIGIN}: this is a stale build from an earlier run`
-    : `the served build inlines no loopback API origin (${fetched} chunk(s) read), so ${API_ORIGIN} cannot be proven`);
+  const observed = await apiOriginFromBrowser();
+  if (observed.origin === API_ORIGIN) return `${API_ORIGIN} — ${observed.how}`;
+  if (observed.origin) {
+    throw new Error(`the page calls ${observed.origin}, not ${API_ORIGIN}: this is a stale build from an earlier run`);
+  }
+  // No browser: fall back to reading the build's inlined value out of its chunks.
+  const { found, fetched } = await apiOriginFromChunks(loginHtml);
+  if (found.includes(API_ORIGIN)) return `${API_ORIGIN} (inlined in the served build)`;
+  if (found.length > 0) throw new Error(`the served build inlines ${found.join(", ")}, not ${API_ORIGIN}: this is a stale build from an earlier run`);
+  throw new BlockedError(`${observed.how}; read ${fetched} chunk(s) and found no loopback API origin either`);
 });
 
 // ---- 4. the running app resolved the same origin -----------------------------

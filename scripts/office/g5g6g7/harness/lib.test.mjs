@@ -4,7 +4,11 @@
 // to the server, the web and the app.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BLOCKED_EXIT, DEFAULT_FORK_SHA, buildServerEnv, evidenceLine, forkCacheDir, freePorts, harnessPaths, origin } from "./lib.mjs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { BLOCKED_EXIT, DEFAULT_FORK_SHA, buildServerEnv, evidenceLine, forkCacheDir, freePorts, harnessPaths, origin, writeRunEnv } from "./lib.mjs";
 
 test("freePorts hands out distinct ports the kernel just released", async () => {
   const ports = await freePorts(3);
@@ -32,6 +36,7 @@ test("buildServerEnv puts every port-derived origin on the command line", () => 
     apiPort: 18080,
     webPort: 13000,
     metricsPort: 19090,
+    previewPort: 13001,
     databaseUrl: "postgres://u:p@localhost:5432/db?sslmode=disable",
     redisUrl: "redis://localhost:6379",
     uploadDir: "/tmp/harness-uploads",
@@ -42,15 +47,17 @@ test("buildServerEnv puts every port-derived origin on the command line", () => 
   assert.equal(env.NEXT_PUBLIC_API_URL, "http://127.0.0.1:18080");
   assert.equal(env.NEXT_PUBLIC_WS_URL, "ws://127.0.0.1:18080");
   assert.equal(env.E2E_BASE_URL, "http://127.0.0.1:13000");
-  assert.equal(env.METRICS_ADDR, "http://127.0.0.1:19090");
+  // METRICS_ADDR is the listen address, not an origin (metrics/config.go:14).
+  assert.equal(env.METRICS_ADDR, "127.0.0.1:19090");
   // The server refuses a PREVIEW_ORIGIN equal to FRONTEND_ORIGIN.
+  assert.equal(env.PREVIEW_ORIGIN, "http://127.0.0.1:13001");
   assert.notEqual(env.PREVIEW_ORIGIN, env.FRONTEND_ORIGIN);
   assert.equal(env.STORAGE_BACKEND, "local");
   assert.equal(env.DATABASE_URL, "postgres://u:p@localhost:5432/db?sslmode=disable");
 });
 
 test("buildServerEnv keeps the API origin identical everywhere it is inlined", () => {
-  const env = buildServerEnv({ apiPort: 12345, webPort: 12300, metricsPort: 12400, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" });
+  const env = buildServerEnv({ apiPort: 12345, webPort: 12300, metricsPort: 12400, previewPort: 12301, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" });
   assert.equal(env.API_PUBLIC_URL, env.NEXT_PUBLIC_API_URL);
   assert.equal(env.API_PUBLIC_URL, env.LOCAL_UPLOAD_BASE_URL);
 });
@@ -86,4 +93,29 @@ test("evidenceLine carries every field the runner contract checks, empty when un
 test("evidenceLine defaults to BLOCKED, never to PASS", () => {
   assert.equal(evidenceLine({}).result, "BLOCKED");
   assert.equal(evidenceLine({}).exitCode, -1);
+});
+
+test("writeRunEnv writes a ports file and a server env bash can source", async () => {
+  const runDir = mkdtempSync(join(tmpdir(), "harness-lib-"));
+  const previous = { DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL };
+  process.env.DATABASE_URL = "postgres://u:p@localhost:5432/db?sslmode=disable";
+  process.env.REDIS_URL = "redis://localhost:6379/0";
+  try {
+    const ports = await writeRunEnv(runDir, { forkSha: "0d03b18", dSha: "deadbeef" });
+    assert.ok(ports.apiPort > 0 && ports.webPort > 0 && ports.metricsPort > 0 && ports.previewPort > 0);
+    assert.equal(new Set([ports.apiPort, ports.webPort, ports.metricsPort, ports.previewPort]).size, 4);
+
+    const portsFile = readFileSync(join(runDir, "ports.env"), "utf8");
+    assert.match(portsFile, new RegExp(`API_ORIGIN=${ports.apiOrigin.replace(/\./g, "\\.")}`));
+    assert.match(portsFile, /OFFICE_FORK_SHA=0d03b18/);
+    assert.match(portsFile, /D_SHA=deadbeef/);
+
+    // The env file is sourced by start.sh, so prove bash agrees with it — a URL
+    // with a query string is the case that breaks an unquoted writer.
+    const sourced = execFileSync("bash", ["-c", `. "${join(runDir, "server.env")}"; printf '%s|%s|%s' "$PORT" "$NEXT_PUBLIC_API_URL" "$DATABASE_URL"`], { encoding: "utf8" });
+    assert.equal(sourced, `${ports.apiPort}|${ports.apiOrigin}|postgres://u:p@localhost:5432/db?sslmode=disable`);
+  } finally {
+    if (previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.DATABASE_URL;
+    if (previous.REDIS_URL === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = previous.REDIS_URL;
+  }
 });

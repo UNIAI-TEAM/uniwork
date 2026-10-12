@@ -81,33 +81,21 @@ if [ "$SKIP_APP" != "1" ]; then
   fi
 fi
 
-# ---- fresh ports -------------------------------------------------------------
-PORTS_JSON="$(node -e '
-import(process.argv[1]).then(async (m) => {
-  const [api, web, metrics] = await m.freePorts(3);
-  process.stdout.write(JSON.stringify({ api, web, metrics }));
-}).catch((error) => { console.error(error.message); process.exit(1); });
-' "$HERE/lib.mjs")" || fail "could not pick free ports"
-API_PORT="$(node -p "JSON.parse(process.argv[1]).api" "$PORTS_JSON")"
-WEB_PORT="$(node -p "JSON.parse(process.argv[1]).web" "$PORTS_JSON")"
-METRICS_PORT="$(node -p "JSON.parse(process.argv[1]).metrics" "$PORTS_JSON")"
-API_ORIGIN="http://127.0.0.1:$API_PORT"
-WEB_ORIGIN="http://127.0.0.1:$WEB_PORT"
-
+# ---- fresh ports and the environment derived from them -----------------------
+# Ports and the server's environment come from lib.mjs (buildServerEnv), the same
+# function scripts/office/g5g6g7/harness/lib.test.mjs pins, so the web, the app
+# and the sample AC cannot drift from what the server was started with.
 mkdir -p "$RUN_DIR/logs" "$RUN_DIR/userdata"
-rm -f "$RUN_DIR/BLOCKED" "$RUN_DIR/pids"
+rm -f "$RUN_DIR/BLOCKED"
 : > "$RUN_DIR/pids"
-cat > "$RUN_DIR/ports.env" <<EOF
-# Written by scripts/office/g5g6g7/harness/start.sh — one run's ports and origins.
-HARNESS_RUN_DIR=$RUN_DIR
-API_PORT=$API_PORT
-WEB_PORT=$WEB_PORT
-METRICS_PORT=$METRICS_PORT
-API_ORIGIN=$API_ORIGIN
-WEB_ORIGIN=$WEB_ORIGIN
-OFFICE_FORK_SHA=$FORK_SHA
-D_SHA=$(git rev-parse HEAD)
-EOF
+D_SHA="$(git rev-parse HEAD)"
+export D_SHA
+node "$HERE/lib.mjs" --write "$RUN_DIR" > /dev/null || fail "could not pick free ports"
+
+# shellcheck disable=SC1090
+. "$RUN_DIR/ports.env"
+API_PORT="$API_PORT" WEB_PORT="$WEB_PORT" METRICS_PORT="$METRICS_PORT" PREVIEW_PORT="$PREVIEW_PORT"
+API_ORIGIN="$API_ORIGIN" WEB_ORIGIN="$WEB_ORIGIN"
 
 echo "harness: run dir $RUN_DIR"
 echo "harness: D server  $API_ORIGIN (metrics 127.0.0.1:$METRICS_PORT)"
@@ -131,24 +119,18 @@ echo "harness: applying migrations..."
   || { tail -20 "$RUN_DIR/logs/migrate.log" >&2; fail "migrations failed"; }
 
 echo "harness: starting the D server..."
-setsid env \
-  PORT="$API_PORT" \
-  FRONTEND_ORIGIN="$WEB_ORIGIN" \
-  PREVIEW_ORIGIN="http://127.0.0.1:$((WEB_PORT + 1))" \
-  PREVIEW_CAPABILITY_SECRET="${PREVIEW_CAPABILITY_SECRET:-harness-preview-capability-secret-32b}" \
-  API_PUBLIC_URL="$API_ORIGIN" \
-  METRICS_ADDR="127.0.0.1:$METRICS_PORT" \
-  LOCAL_UPLOAD_BASE_URL="$API_ORIGIN" \
-  NEXT_PUBLIC_API_URL="$API_ORIGIN" \
-  STORAGE_BACKEND="${STORAGE_BACKEND:-local}" \
-  LOCAL_UPLOAD_DIR="${LOCAL_UPLOAD_DIR:-$RUN_DIR/uploads}" \
-  JWT_SECRET="${JWT_SECRET:-harness-dev-secret}" \
-  APP_ENV=development \
-  DEV_VERIFICATION_CODE="${DEV_VERIFICATION_CODE:-123456}" \
-  DATABASE_URL="$DATABASE_URL" \
-  REDIS_URL="$REDIS_URL" \
-  LOG_LEVEL="${LOG_LEVEL:-info}" \
-  server/bin/harness-server >> "$RUN_DIR/logs/server.log" 2>&1 &
+# The environment is the run's own (server.env, built by lib.mjs), not the VM's
+# .env: a stray PORT or FRONTEND_ORIGIN there must not move this run onto a
+# shared port. Values are exported, not pasted through `env`, so a URL with a
+# `?` or `&` in it survives.
+STORAGE_BACKEND="${STORAGE_BACKEND:-local}"
+JWT_SECRET="${JWT_SECRET:-harness-dev-secret}"
+LOG_LEVEL="${LOG_LEVEL:-info}"
+set -a
+# shellcheck disable=SC1090
+. "$RUN_DIR/server.env"
+set +a
+setsid server/bin/harness-server >> "$RUN_DIR/logs/server.log" 2>&1 &
 SERVER_PID=$!
 echo "server $SERVER_PID $API_PORT" >> "$RUN_DIR/pids"
 
@@ -166,8 +148,8 @@ curl -sf "$API_ORIGIN/readyz" > "$RUN_DIR/logs/readyz.json" \
   || echo "harness: warning: /readyz is not ready yet; the sample AC reads it and decides"
 
 # ---- D web -------------------------------------------------------------------
-# NEXT_PUBLIC_API_URL is inlined at build/start time, so it goes on the command
-# line, and it is the same origin the specs use (e2e/api-url.ts asserts this).
+# NEXT_PUBLIC_API_URL is inlined by the web build, so it goes on the command
+# line; it is the same origin the specs use (e2e/api-url.ts asserts this).
 echo "harness: starting the D web with NEXT_PUBLIC_API_URL=$API_ORIGIN ..."
 setsid env \
   NEXT_PUBLIC_API_URL="$API_ORIGIN" \
@@ -194,7 +176,9 @@ if [ "$SKIP_APP" = "1" ]; then
   exit 0
 fi
 
-FORK_DIR="$(node -p "require('node:path').join(process.argv[1], 'uniwork-office-' + process.argv[2])" "$FORK_CACHE" "$FORK_SHA")"
+# One checkout per revision, so two SHAs never share a working tree (lib.mjs
+# owns the layout; sample-ac.mjs reads the same path back).
+FORK_DIR="$(node -e 'import(process.argv[1]).then((m) => process.stdout.write(m.forkCacheDir(process.argv[2], process.argv[3])))' "$HERE/lib.mjs" "$FORK_CACHE" "$FORK_SHA")"
 mkdir -p "$FORK_CACHE"
 if [ ! -d "$FORK_DIR/.git" ]; then
   echo "harness: cloning the fork at $FORK_SHA..."
@@ -233,16 +217,24 @@ echo "harness: building the fork apps (this is the slow step)..."
 # persistUniWorkApiOriginFromEnv, called at index.ts:5248) — sample-ac.mjs reads
 # it back as proof the running app resolved the D server.
 echo "harness: starting the fork Electron app under xvfb..."
+# The Electron binary is resolved the way the fork's own e2e does
+# (apps/shell/e2e/helpers.ts: require('electron') returns the binary path), and
+# the switches come before the app path so Chromium consumes them.
+ELECTRON_BIN="$(cd "$FORK_DIR/apps/shell" && node -p 'require("electron")' 2> /dev/null || true)"
+[ -n "$ELECTRON_BIN" ] && [ -x "$ELECTRON_BIN" ] \
+  || blocked "the Electron binary is not installed in the fork" "the harness downloads it with node node_modules/electron/install.js; see $RUN_DIR/logs/fork-electron.log"
+
 XVFB_DISPLAY_FILE="$RUN_DIR/display"
-rm -f "$XVFB_DISPLAY_FILE"
+: > "$XVFB_DISPLAY_FILE"
 setsid env \
   UNIWORK_API_ORIGIN="$API_ORIGIN" \
   UNIWORK_BRIDGE_SILENT=1 \
   GENOFFICE_USER_DATA="$RUN_DIR/userdata" \
   GENOFFICE_NO_SPARE_VIEW=1 \
   GENOFFICE_LANG=en \
+  ELECTRON_DISABLE_SANDBOX=1 \
   xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" \
-  bash -c "echo \"\$DISPLAY\" > '$XVFB_DISPLAY_FILE'; exec node '$FORK_DIR/node_modules/electron/cli.js' '$FORK_DIR/apps/shell' --no-sandbox --disable-gpu" \
+  bash -c "echo \"\$DISPLAY\" > '$XVFB_DISPLAY_FILE'; exec '$ELECTRON_BIN' --no-sandbox --disable-gpu '$FORK_DIR/apps/shell'" \
   >> "$RUN_DIR/logs/app.log" 2>&1 &
 APP_PID=$!
 echo "app $APP_PID 0" >> "$RUN_DIR/pids"

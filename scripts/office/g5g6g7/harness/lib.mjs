@@ -4,7 +4,9 @@
 // binding a throwaway listener to port 0, so the node --test file can pin the
 // behaviour without starting the stack.
 import net from "node:net";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 /** Exit code every harness script uses for "a precondition is missing", never for "the check failed". */
 export const BLOCKED_EXIT = 77;
@@ -62,6 +64,7 @@ export function buildServerEnv({
   apiPort,
   webPort,
   metricsPort,
+  previewPort,
   databaseUrl,
   redisUrl,
   jwtSecret = "harness-dev-secret",
@@ -75,12 +78,14 @@ export function buildServerEnv({
   return {
     PORT: String(apiPort),
     FRONTEND_ORIGIN: webOrigin,
-    // The server refuses a PREVIEW_ORIGIN equal to FRONTEND_ORIGIN; the web port
-    // is taken, so preview takes the next one.
-    PREVIEW_ORIGIN: origin(webPort + 1),
+    // The server refuses a PREVIEW_ORIGIN equal to FRONTEND_ORIGIN, so preview
+    // gets its own port from the run's set rather than webPort + 1 (which could
+    // land on the API or metrics port).
+    PREVIEW_ORIGIN: origin(previewPort),
     PREVIEW_CAPABILITY_SECRET: previewCapabilitySecret,
     API_PUBLIC_URL: apiOrigin,
-    METRICS_ADDR: origin(metricsPort),
+    // METRICS_ADDR is a bare host:port the server listens on, not an origin.
+    METRICS_ADDR: `127.0.0.1:${metricsPort}`,
     NEXT_PUBLIC_API_URL: apiOrigin,
     NEXT_PUBLIC_WS_URL: `ws://127.0.0.1:${apiPort}`,
     NEXT_PUBLIC_APP_URL: webOrigin,
@@ -143,4 +148,62 @@ export function evidenceLine(record) {
     startedAt: record.startedAt ?? "",
     finishedAt: record.finishedAt ?? "",
   };
+}
+
+
+/**
+ * Writes one run's files: `ports.env` (the ports, origins, SHAs and later the
+ * display) and `server.env` (the server's environment, quoted so a URL with a
+ * query still sources in bash). Called by start.sh as
+ * `node lib.mjs --write <runDir>`; kept here so the ports, the environment and
+ * the test that pins them cannot drift apart.
+ */
+export async function writeRunEnv(runDir, { forkSha = DEFAULT_FORK_SHA, dSha = "", uploadDir } = {}) {
+  const [apiPort, webPort, metricsPort, previewPort] = await freePorts(4);
+  const serverEnv = buildServerEnv({
+    apiPort,
+    webPort,
+    metricsPort,
+    previewPort,
+    databaseUrl: process.env.DATABASE_URL,
+    redisUrl: process.env.REDIS_URL,
+    uploadDir: uploadDir ?? join(runDir, "uploads"),
+  });
+  writeFileSync(
+    join(runDir, "ports.env"),
+    [
+      "# Written by scripts/office/g5g6g7/harness/lib.mjs (start.sh) - one run's ports and origins.",
+      `HARNESS_RUN_DIR=${runDir}`,
+      `API_PORT=${apiPort}`,
+      `WEB_PORT=${webPort}`,
+      `METRICS_PORT=${metricsPort}`,
+      `PREVIEW_PORT=${previewPort}`,
+      `API_ORIGIN=${origin(apiPort)}`,
+      `WEB_ORIGIN=${origin(webPort)}`,
+      `OFFICE_FORK_SHA=${forkSha}`,
+      `D_SHA=${dSha}`,
+      "",
+    ].join("\n"),
+  );
+  const quote = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
+  writeFileSync(
+    join(runDir, "server.env"),
+    `${Object.entries(serverEnv).map(([key, value]) => `${key}=${quote(value)}`).join("\n")}\n`,
+  );
+  return { apiPort, webPort, metricsPort, previewPort, apiOrigin: origin(apiPort), webOrigin: origin(webPort) };
+}
+
+// CLI: node lib.mjs --write <runDir>
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const writeIndex = process.argv.indexOf("--write");
+  if (writeIndex === -1 || !process.argv[writeIndex + 1]) {
+    console.error("usage: lib.mjs --write <runDir>");
+    process.exit(2);
+  }
+  writeRunEnv(process.argv[writeIndex + 1], { forkSha: process.env.OFFICE_FORK_SHA, dSha: process.env.D_SHA })
+    .then((ports) => console.log(JSON.stringify(ports)))
+    .catch((error) => {
+      console.error(error.message);
+      process.exit(1);
+    });
 }
