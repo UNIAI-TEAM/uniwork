@@ -37,9 +37,13 @@ export const MODULE_OF_FORMAT = {
 /**
  * Settle: poll interval, how many identical consecutive frames end it, how long
  * they must have been identical (the sheets view repaints its status bar when a
- * streaming load finishes seconds after the grid first looks complete), and the budget.
+ * streaming load finishes seconds after the grid first looks complete), and the
+ * budget: 45 s by default, 90 s once a module status reports a streaming load
+ * (the desktop xlsx still read "Đang tải theo luồng ...: 9 hàng khả dụng." after 45 s in cloud
+ * round 2). Still loading after the budget is a failed fixture, never a mask.
  */
-export const SETTLE = { intervalMs: 300, identicalFrames: 2, quietMs: 2_500, timeoutMs: 45_000 };
+export const STREAMING_TIMEOUT_MS = 90_000;
+export const SETTLE = { intervalMs: 300, identicalFrames: 2, quietMs: 2_500, timeoutMs: 45_000, streamingTimeoutMs: STREAMING_TIMEOUT_MS };
 
 /** How long a module takes to show up (a tab/WebContentsView on desktop, the frame's ready state on web). */
 export const OPEN_TIMEOUT_MS = 90_000;

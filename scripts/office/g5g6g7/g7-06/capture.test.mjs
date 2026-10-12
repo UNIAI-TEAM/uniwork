@@ -14,14 +14,14 @@ import { dirname, join, resolve } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseArgs, runCapture } from "./capture.mjs";
-import { HOSTS, MIN_FRAME_WIDTH, SETTLE, VIEWPORTS } from "./capture/constants.mjs";
+import { HOSTS, MIN_FRAME_WIDTH, SETTLE, STREAMING_TIMEOUT_MS, VIEWPORTS } from "./capture/constants.mjs";
 import { ELECTRON_ARGS, collectShellText, desktopEnv, desktopPrecondition } from "./capture/desktop.mjs";
 import { readFixtures, selectFixtures } from "./capture/fixtures.mjs";
 import { blocked, buildMeta, clearCapture, exitCodeFor, failed, ok, pngSize, writeCapture } from "./capture/meta.mjs";
 import { loadPlaywright } from "./capture/playwright.mjs";
 import { readRun } from "./capture/run-dir.mjs";
 import { cleanupSeed, seedWorkspace } from "./capture/seed.mjs";
-import { PROGRESS_TEXT, frameHash, notSettledReason, pageIsBusy, settle } from "./capture/settle.mjs";
+import { PROGRESS_TEXT, frameHash, isStreamingStatus, notSettledReason, pageIsBusy, settle } from "./capture/settle.mjs";
 import { collectRenderedText, frameBlock, joinBlocks, visibleChars } from "./capture/text.mjs";
 import { redactUrl, signIn } from "./capture/signin.mjs";
 import { loadPngjs } from "./job-lib.mjs";
@@ -104,6 +104,43 @@ describe("settle", () => {
     assert.equal(r.reason, "still_busy");
     assert.equal(r.busyWhy, 'notification "Đã tải"');
     assert.match(notSettledReason(r), /^not_settled:still_busy \(notification "Đã tải"\) after \d+ms \(0 frames\)$/);
+  });
+
+  const STREAMING = 'status "Đang tải theo luồng fx-xlsx-revenue-xyz.xlsx: 9 hàng khả dụng."';
+
+  test("a streaming load gets the 90 s budget: still loading at 60 s is waited out, and the shot is the settled one (cloud round 2: not_settled after 45 s)", async () => {
+    const clock = fakeClock();
+    const r = await settle({ grab: async () => Buffer.from("loaded"), isBusy: async () => (clock.now() < 60_000 ? STREAMING : false), timeoutMs: 45_000, quietMs: 2_500, ...clock });
+    assert.equal(r.status, "settled");
+    assert.ok(r.waitedMs >= 60_000 && r.waitedMs < 90_000, `settled after ${r.waitedMs}ms`);
+  });
+
+  test("a streaming load that is still going after 90 s is a FAIL not_settled, never a mask", async () => {
+    const clock = fakeClock();
+    const r = await settle({ grab: async () => Buffer.from("x"), isBusy: async () => STREAMING, timeoutMs: 45_000, ...clock });
+    assert.equal(r.status, "timeout");
+    assert.equal(r.reason, "still_busy");
+    assert.ok(r.waitedMs >= STREAMING_TIMEOUT_MS && r.waitedMs < STREAMING_TIMEOUT_MS + 1_000, `gave up after ${r.waitedMs}ms`);
+    assert.match(notSettledReason(r), /^not_settled:still_busy \(status "Đang tải theo luồng .*9 hàng khả dụng\."\) after 90\d{3}ms/);
+  });
+
+  test("anything that is not a streaming load keeps the 45 s budget (spinner, toast, a plain in-progress status)", async () => {
+    for (const why of ["spinner progressbar", 'notification "Đã tải"', 'status "Đang lưu tài liệu..."']) {
+      const clock = fakeClock();
+      const r = await settle({ grab: async () => Buffer.from("x"), isBusy: async () => why, timeoutMs: 45_000, ...clock });
+      assert.equal(r.status, "timeout", why);
+      assert.ok(r.waitedMs >= 45_000 && r.waitedMs < 46_000, `${why}: gave up after ${r.waitedMs}ms`);
+    }
+  });
+
+  test("the extended budget is only for a status that reports a streaming load", () => {
+    assert.equal(isStreamingStatus(STREAMING), true);
+    assert.equal(isStreamingStatus('status "Streaming a.xlsx: 9 rows available."'), true);
+    assert.equal(isStreamingStatus('status "Đang lưu tài liệu..."'), false);
+    assert.equal(isStreamingStatus('notification "Đang tải theo luồng a.xlsx"'), false);
+    assert.equal(isStreamingStatus(""), false);
+    assert.equal(isStreamingStatus(false), false);
+    assert.equal(isStreamingStatus(undefined), false);
   });
 
   test("refuses a single-frame 'settle'", async () => {
@@ -216,8 +253,11 @@ describe("arguments and exit codes", () => {
     assert.equal(MIN_FRAME_WIDTH, 1400);
   });
 
-  test("the SETTLE budget needs two identical frames", () => {
+  test("the SETTLE budget needs two identical frames, defaults to 45 s and allows 90 s for a streaming load", () => {
     assert.ok(SETTLE.identicalFrames >= 2);
+    assert.equal(SETTLE.timeoutMs, 45_000);
+    assert.equal(SETTLE.streamingTimeoutMs, 90_000);
+    assert.equal(STREAMING_TIMEOUT_MS, 90_000);
   });
 });
 

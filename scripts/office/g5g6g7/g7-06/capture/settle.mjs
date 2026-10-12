@@ -14,6 +14,8 @@ export function frameHash(buffer) {
  * or in-progress status message on screen, fonts still loading, the frame not
  * ready) restarts the count, so a frame taken under a spinner never counts.
  * `isBusy` may answer a string saying what is busy; it comes back as `busyWhy`.
+ * The budget is `timeoutMs`, or `streamingTimeoutMs` once a poll reported a
+ * streaming-load status (`isStreamingStatus`).
  *
  * The quiet window exists because two identical frames 300 ms apart settle on
  * any pause: round 1 shot the sheets view in the middle of "Đang tải theo
@@ -24,7 +26,7 @@ export function frameHash(buffer) {
  * `still_busy` (the last poll was busy) or `frames_differ` (the page never
  * stopped changing: animation, a ticking clock or a caret nobody hid).
  */
-export async function settle({ grab, isBusy, sleep, now = Date.now, intervalMs = 300, identicalFrames = 2, quietMs = 0, timeoutMs = 45_000 }) {
+export async function settle({ grab, isBusy, sleep, now = Date.now, intervalMs = 300, identicalFrames = 2, quietMs = 0, timeoutMs = 45_000, streamingTimeoutMs = 90_000 }) {
   if (!Number.isInteger(identicalFrames) || identicalFrames < 2) throw new Error("settle needs identicalFrames >= 2");
   const started = now();
   let streak = 0;
@@ -33,8 +35,11 @@ export async function settle({ grab, isBusy, sleep, now = Date.now, intervalMs =
   let lastFrame = null;
   let lastBusy = false;
   let frames = 0;
+  let budgetMs = timeoutMs;
   for (;;) {
     lastBusy = await isBusy();
+    // a module that says it is streaming its document in gets the longer budget (kept for the rest of the run)
+    if (isStreamingStatus(lastBusy)) budgetMs = Math.max(timeoutMs, streamingTimeoutMs);
     if (lastBusy) {
       streak = 0;
       lastHash = "";
@@ -51,11 +56,21 @@ export async function settle({ grab, isBusy, sleep, now = Date.now, intervalMs =
       lastFrame = frame;
       if (streak >= identicalFrames && now() - streakSince >= quietMs) return { status: "settled", frame, frames, waitedMs: now() - started };
     }
-    if (now() - started >= timeoutMs) {
+    if (now() - started >= budgetMs) {
       return { status: "timeout", reason: lastBusy ? "still_busy" : "frames_differ", busyWhy: typeof lastBusy === "string" ? lastBusy : "", frame: lastFrame, frames, waitedMs: now() - started };
     }
     await sleep(intervalMs);
   }
+}
+
+/**
+ * A busy answer of the status kind that says the document is being streamed in
+ * ("Đang tải theo luồng a.xlsx: 9 hàng khả dụng.", "Streaming ..."). Only this
+ * earns the longer settle budget: a spinner, a toast or any other in-progress
+ * status keeps the default.
+ */
+export function isStreamingStatus(busyWhy) {
+  return typeof busyWhy === "string" && /^status "/.test(busyWhy) && /đang\s+tải\s+theo\s+luồng|\bstreaming\b/i.test(busyWhy);
 }
 
 /** Selectors whose visible match means "still loading" on either host. */
