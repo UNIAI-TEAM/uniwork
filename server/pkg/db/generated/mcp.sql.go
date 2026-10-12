@@ -15,6 +15,7 @@ const approveMcpAuthAttempt = `-- name: ApproveMcpAuthAttempt :one
 UPDATE mcp_auth_attempts
 SET approved_at = now(), grant_id = $2, code_digest = $3, code_expires_at = $4
 WHERE id = $1 AND approved_at IS NULL AND cancelled_at IS NULL
+  AND used_at IS NULL AND expires_at > now()
 RETURNING id, client_id, redirect_uri, code_challenge, scope, resource, state, user_id, csrf_digest, grant_id, code_digest, code_expires_at, expires_at, approved_at, used_at, cancelled_at, created_at
 `
 
@@ -751,13 +752,13 @@ func (q *Queries) RedeemMcpAuthAttempt(ctx context.Context, arg RedeemMcpAuthAtt
 }
 
 const revokeAllMcpGrantsForUser = `-- name: RevokeAllMcpGrantsForUser :execrows
-UPDATE mcp_grants SET revoked_at = now(), revoked_by = $1, revoked_by_kind = 'human'
+UPDATE mcp_grants SET revoked_at = now(), revoked_by = $1::text, revoked_by_kind = 'human'
 WHERE user_id = $1 AND revoked_at IS NULL
 `
 
 // tenant: self
-func (q *Queries) RevokeAllMcpGrantsForUser(ctx context.Context, revokedBy pgtype.Text) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeAllMcpGrantsForUser, revokedBy)
+func (q *Queries) RevokeAllMcpGrantsForUser(ctx context.Context, dollar_1 string) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeAllMcpGrantsForUser, dollar_1)
 	if err != nil {
 		return 0, err
 	}
@@ -812,13 +813,13 @@ func (q *Queries) RevokeMcpGrantTokens(ctx context.Context, grantID string) (int
 }
 
 const revokeMcpGrantsForUserInOrganization = `-- name: RevokeMcpGrantsForUserInOrganization :execrows
-UPDATE mcp_grants SET revoked_at = now(), revoked_by = $1, revoked_by_kind = 'human'
+UPDATE mcp_grants SET revoked_at = now(), revoked_by = $1::text, revoked_by_kind = 'human'
 WHERE organization_id = $2 AND user_id = $1 AND revoked_at IS NULL
 `
 
 type RevokeMcpGrantsForUserInOrganizationParams struct {
-	UserID         pgtype.Text `json:"user_id"`
-	OrganizationID string      `json:"organization_id"`
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
 }
 
 func (q *Queries) RevokeMcpGrantsForUserInOrganization(ctx context.Context, arg RevokeMcpGrantsForUserInOrganizationParams) (int64, error) {

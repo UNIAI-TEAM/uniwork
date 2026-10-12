@@ -51,6 +51,7 @@ RETURNING *;
 UPDATE mcp_auth_attempts
 SET approved_at = now(), grant_id = $2, code_digest = $3, code_expires_at = $4
 WHERE id = $1 AND approved_at IS NULL AND cancelled_at IS NULL
+  AND used_at IS NULL AND expires_at > now()
 RETURNING *;
 
 -- name: CancelMcpAuthAttempt :exec
@@ -122,7 +123,7 @@ WHERE t.organization_id = sqlc.arg(organization_id) AND t.revoked_at IS NULL
   AND t.grant_id IN (SELECT g.id FROM mcp_grants g WHERE g.organization_id = sqlc.arg(organization_id) AND g.user_id = sqlc.arg(user_id));
 
 -- name: RevokeMcpGrantsForUserInOrganization :execrows
-UPDATE mcp_grants SET revoked_at = now(), revoked_by = sqlc.arg(user_id), revoked_by_kind = 'human'
+UPDATE mcp_grants SET revoked_at = now(), revoked_by = sqlc.arg(user_id)::text, revoked_by_kind = 'human'
 WHERE organization_id = sqlc.arg(organization_id) AND user_id = sqlc.arg(user_id) AND revoked_at IS NULL;
 
 -- name: RevokeAllMcpTokensForUser :execrows
@@ -132,7 +133,7 @@ WHERE revoked_at IS NULL AND grant_id IN (SELECT id FROM mcp_grants WHERE user_i
 
 -- name: RevokeAllMcpGrantsForUser :execrows
 -- tenant: self
-UPDATE mcp_grants SET revoked_at = now(), revoked_by = $1, revoked_by_kind = 'human'
+UPDATE mcp_grants SET revoked_at = now(), revoked_by = $1::text, revoked_by_kind = 'human'
 WHERE user_id = $1 AND revoked_at IS NULL;
 
 -- name: CreateMcpToken :one
