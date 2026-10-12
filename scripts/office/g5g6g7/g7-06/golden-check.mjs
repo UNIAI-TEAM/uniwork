@@ -329,8 +329,9 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
         blocked.push(`no_rendered_text:${host}/${fixture}`);
         continue;
       }
-      if (captureBrandHits(join(capturesDir, host), fixture, text).length > 0) {
-        blocked.push(`brand_text:${host}/${fixture}`);
+      const brandFiles = [...new Set(captureBrandHits(join(capturesDir, host), fixture, text).map((hit) => hit.file))];
+      if (brandFiles.length > 0) {
+        blocked.push(...brandFiles.map((file) => `brand_text:${host}/${fixture}/${file}`));
         continue;
       }
       const target = join(goldensDir, host, `${fixture}.png`);

@@ -282,7 +282,7 @@ test("--update-goldens refuses a pair the brand check fails", () => {
   writeFileSync(join(captures, "desktop", `${ONE}.txt`), "GenOffice — báo cáo doanh thu quý một của khu vực.\n");
   const updated = updateGoldens({ capturesDir: captures, goldensDir: tmpDir("g7-06-goldens-"), fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-brand") });
   assert.equal(updated.status, "BLOCKED");
-  assert.deepEqual(updated.reasons, [`brand_text:desktop/${ONE}`]);
+  assert.deepEqual(updated.reasons, [`brand_text:desktop/${ONE}/${ONE}.txt`]);
 });
 
 for (const [name, file] of [["host page", "host.txt"], ["desktop shell", "shell.txt"]]) {
@@ -292,7 +292,7 @@ for (const [name, file] of [["host page", "host.txt"], ["desktop shell", "shell.
     const goldens = tmpDir("g7-06-goldens-");
     const updated = updateGoldens({ capturesDir: captures, goldensDir: goldens, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir(`golden-update-brand-${file}`) });
     assert.equal(updated.status, "BLOCKED");
-    assert.deepEqual(updated.reasons, [`brand_text:desktop/${ONE}`, `brand_text:web/${ONE}`]);
+    assert.deepEqual(updated.reasons, [`brand_text:desktop/${ONE}/${ONE}.${file}`, `brand_text:web/${ONE}/${ONE}.${file}`]);
     assert.equal(existsSync(join(goldens, "desktop", `${ONE}.png`)), false, "nothing was blessed");
     // the same captures fail the brand check, so the bootstrap and the check can never disagree
     const brand = runBrandCheck({ capturesDir: captures, outDir: outDir("golden-update-brand-check"), fixtures: [ONE], ...UPDATE_ID });

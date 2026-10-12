@@ -52,7 +52,8 @@ test("the CLI exits 1 on a brand hit and writes it into result.json", () => {
   const dir = outDir("cli-brand-red");
   const run = cli(["--checks", "brand", "--captures", captures, "--out", dir]);
   assert.equal(run.status, 1);
-  assert.deepEqual(readJson(join(dir, "result.json")).checks.brand.reasons, ["brand_text"]);
+  assert.deepEqual(readJson(join(dir, "result.json")).checks.brand.reasons, [`brand_text:desktop/${ONE}/${ONE}.txt`]);
+  assert.ok(run.stdout.includes(`brand_text:desktop/${ONE}/${ONE}.txt`), run.stdout);
 });
 
 test("a corrupt capture meta blocks the pairs and still writes result.json", () => {

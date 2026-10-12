@@ -53,7 +53,7 @@ for (const [name, hit] of [["camel case", "GenOffice"], ["a zero-width character
   test(`brand: ${name} in the rendered text is brand_text`, () => {
     const { check, artifact } = brandWorld({ text: `Báo cáo doanh thu quý 1 — tổng hợp theo khu vực.\n${hit}\n` });
     assert.equal(check.status, "FAIL");
-    assert.deepEqual(check.reasons, ["brand_text"]);
+    assert.deepEqual(check.reasons, [`brand_text:desktop/${ONE}/${ONE}.txt`]);
     const pair = artifact.pairs.find((candidate) => candidate.host === "desktop");
     assert.equal(pair.hits.length, 1);
     assert.ok(pair.hits[0].context.includes(pair.hits[0].brand), pair.hits[0].context);
@@ -64,11 +64,24 @@ for (const [name, hit] of [["a Greek omicron", "GenΟffice"], ["a Cyrillic е", 
   test(`brand: ${name} in the rendered text is brand_text`, () => {
     const { check, artifact } = brandWorld({ text: `Báo cáo doanh thu quý 1 — tổng hợp theo khu vực.\n${hit}\n` });
     assert.equal(check.status, "FAIL");
-    assert.deepEqual(check.reasons, ["brand_text"]);
+    assert.deepEqual(check.reasons, [`brand_text:desktop/${ONE}/${ONE}.txt`]);
     const pair = artifact.pairs.find((candidate) => candidate.host === "desktop");
     assert.equal(pair.hits.length, 1);
   });
 }
+
+for (const [name, hit] of [["a combining acute that composes with n", "Ge\u006E\u0301office"], ["a combining circumflex that composes with o", "Geno\u0302ffice"], ["a combining mark on a letter with no precomposed form", "Genof\u0301fice"]]) {
+  test(`brand: ${name} cannot hide the brand (F-1)`, () => {
+    const { check } = brandWorld({ text: `Báo cáo doanh thu quý 1 — tổng hợp theo khu vực.\n${hit}\n` });
+    assert.equal(check.status, "FAIL");
+    assert.ok(check.reasons.every((reason) => reason.startsWith("brand_text:")), JSON.stringify(check.reasons));
+  });
+}
+
+test("brand: Vietnamese text with its own diacritics still passes after the mark strip", () => {
+  const { check } = brandWorld({ text: "Tổng hợp doanh thu quý một của khu vực Đồng bằng sông Cửu Long — cần được phê duyệt.\n" });
+  assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
+});
 
 test("brand: Cyrillic and Greek text that spells no brand still passes", () => {
   const { check } = brandWorld({ text: "Ký tự Hy Lạp và Kirin trong tài liệu: αβγδ абвгд настройки, không có nhãn cũ.\n" });
@@ -122,7 +135,7 @@ for (const [name, option, file] of [["host page", "hostText", "host.txt"], ["she
   test(`brand: a brand string only in the ${name} text is brand_text naming ${file}`, () => {
     const { check, artifact } = brandWorld({ [option]: `${CLEAN}GenSpark\n` });
     assert.equal(check.status, "FAIL");
-    assert.deepEqual(check.reasons, ["brand_text"]);
+    assert.deepEqual(check.reasons, [`brand_text:desktop/${ONE}/${ONE}.${file}`]);
     const pair = artifact.pairs.find((candidate) => candidate.host === "desktop");
     assert.equal(pair.hits.length, 1);
     assert.equal(pair.hits[0].file, `${ONE}.${file}`);

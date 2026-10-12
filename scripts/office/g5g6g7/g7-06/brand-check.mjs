@@ -1,5 +1,6 @@
 // The `brand` check (contract 2.4): the rendered text the capture provider
-// wrote per fixture, after NFKC, minus format and combining marks, lowercased,
+// wrote per fixture, after NFKD (so a letter that NFKC would compose with its
+// mark, `n` + U+0301 -> `ń`, is split first), minus format and combining marks, lowercased,
 // with Cyrillic/Greek look-alikes folded to ASCII (F-06) and whitespace /
 // '-' / '_' / '.' between letters collapsed. `genoffice` or
 // `genspark` in that form is a FAIL, and so is a blank render: an empty or
@@ -17,7 +18,7 @@ export const MIN_VISIBLE_CHARS = 20;
  * The common Latin look-alikes of Cyrillic and Greek letters, folded to ASCII
  * before matching (F-06): `GenΟffice` (Greek omicron) and `Gеnoffice`
  * (Cyrillic е) are the same brand as `GenOffice`. NFKC already covers the
- * fullwidth forms; this map holds the shapes a reader cannot tell apart.
+ * fullwidth forms (and NFKD the accented ones); this map holds the shapes a reader cannot tell apart.
  */
 const CONFUSABLES = Object.freeze({
   а: "a", в: "b", е: "e", к: "k", м: "m", н: "h", о: "o", п: "n", р: "p", с: "c", т: "t", у: "y", х: "x", ѕ: "s", і: "i", ј: "j", һ: "h",
@@ -35,7 +36,7 @@ function readOptional(path) {
 /** How the check reads the text; exported so a test can pin the transform. */
 export function normalizeBrandText(text) {
   return String(text)
-    .normalize("NFKC")
+    .normalize("NFKD")
     .replace(/[\p{Cf}\p{Mn}]/gu, "")
     .toLowerCase()
     .replace(CONFUSABLE, (character) => CONFUSABLES[character])
@@ -109,7 +110,9 @@ export function runBrandCheck({ capturesDir, outDir, fixtures = fixtureIds(), ho
         continue;
       }
       const hits = captureBrandHits(join(capturesDir, host), fixture, text);
-      pairs.push({ ...pair, status: hits.length > 0 ? "FAIL" : "PASS", reasons: hits.length > 0 ? ["brand_text"] : [], hits, visible });
+      // the reason names each file with a hit (F-2), so the stdout summary says where without opening brand.json
+      const reasons = [...new Set(hits.map((hit) => `brand_text:${host}/${fixture}/${hit.file}`))];
+      pairs.push({ ...pair, status: reasons.length > 0 ? "FAIL" : "PASS", reasons, hits, visible });
     }
   }
   const fail = [...new Set(pairs.filter((pair) => pair.status === "FAIL").flatMap((pair) => pair.reasons))];
