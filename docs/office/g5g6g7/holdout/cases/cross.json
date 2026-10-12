@@ -207,8 +207,8 @@
       "format": "cross",
       "category": "permission",
       "query": {
-        "vi": "Mình đang mở bảng tính và định nhờ bạn ghi kết quả vào; quyền sửa của mình có thể bị thu hồi giữa lúc bạn đang tính, cứ ghi vào ô G8 nhé.",
-        "en": "I have the workbook open and want you to write the result in; my edit right may be revoked while you work, go ahead and write it into G8 anyway."
+        "vi": "Ghi tổng doanh thu quý 1 vào ô G8 sheet Doanh thu Q1 giúp mình.",
+        "en": "Write the Q1 revenue total into cell G8 on the Doanh thu Q1 sheet for me."
       },
       "fixtures": [
         {
@@ -252,7 +252,7 @@
       },
       "oracle": {
         "type": "deterministic",
-        "source": "spec G7-A02 with setup.revokeAfterTool = 1 (amendment 4): the edit right drops after the first tool call, so the write is blocked and the result is not applied; writes 0"
+        "source": "spec G7-A02 with setup.revokeAfterTool = 1 (amendment 4): the edit right drops after the first tool call, so the write into G8 is blocked and nothing is applied; writes 0. The query asks for a defined value (the Q1 total, fx-xlsx-revenue-xyz.oracle.json#sheets.Doanh thu Q1.totals.withHiddenRows.revenue) and does not announce the revocation, which the runner applies silently"
       },
       "referenceAnswer": {
         "numeric": {},
@@ -264,7 +264,7 @@
           }
         ],
         "writes": 0,
-        "text": "Quyền sửa đã bị thu hồi giữa lượt nên mình không ghi được vào ô G8; bảng tính giữ nguyên như trước. Bạn cần người có quyền thực hiện thay."
+        "text": "Mình chưa ghi được vào ô G8: quyền sửa của bạn đã bị thu hồi giữa lượt nên thao tác bị từ chối và bảng tính giữ nguyên. Bạn nhờ người còn quyền sửa thực hiện giúp."
       },
       "setup": {
         "revokeAfterTool": 1
@@ -388,7 +388,7 @@
           {
             "kind": "caveat",
             "anchor": "version",
-            "value": "answer_based_on_open_content"
+            "value": "reload_latest_first"
           }
         ],
         "writes": 0,
@@ -409,7 +409,7 @@
           {
             "kind": "caveat",
             "anchor": "version",
-            "value": "answer_based_on_open_content"
+            "value": "reload_latest_first"
           }
         ],
         "writes": 0,
@@ -463,7 +463,7 @@
           {
             "kind": "caveat",
             "anchor": "version",
-            "value": "answer_based_on_open_content"
+            "value": "reload_latest_first"
           }
         ],
         "writes": 0,
@@ -484,7 +484,7 @@
           {
             "kind": "caveat",
             "anchor": "version",
-            "value": "answer_based_on_open_content"
+            "value": "reload_latest_first"
           }
         ],
         "writes": 0,
