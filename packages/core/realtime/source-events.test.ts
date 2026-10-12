@@ -18,6 +18,11 @@ describe("sourcesWaveFor", () => {
     expect(sourcesWaveFor("ws1", "attachment.uploaded", { workspace_id: "ws2" })).toBeNull();
   });
 
+  it("ignores new mail stamped for another workspace, keeps one for this one", () => {
+    expect(sourcesWaveFor("ws1", "email_hub.new_mail", { account_id: "a1", workspace_id: "ws2" })).toBeNull();
+    expect(sourcesWaveFor("ws1", "email_hub.new_mail", { account_id: "a1", workspace_id: "ws1" })).toBe("slow");
+  });
+
   it.each(["chat.message.updated", "chat.typing", "recording.started", "document.updated", "task.updated"] as const)(
     "leaves %s alone",
     (type) => {

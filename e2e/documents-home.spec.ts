@@ -67,7 +67,9 @@ test("create card, folder, move and the other-modules section on the owner's hom
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
   await createCard(page, /^AI Docs/).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 90_000 });
-  await expect(page.getByText(DOCX_TITLE).first()).toBeVisible({ timeout: 60_000 });
+  // The Office module frame mounts on the document page; its inner title is the
+  // module's own text, so the check is the frame element, not what it renders.
+  await expect(page.locator('iframe[src*="/office-frame/"]').first()).toBeAttached({ timeout: 60_000 });
 
   // 2. A folder: created with its default name, opened, and named in the breadcrumb.
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
@@ -83,7 +85,9 @@ test("create card, folder, move and the other-modules section on the owner's hom
   await page.getByRole("button", { name: `Thao tác cho ${DOCX_TITLE}` }).click();
   await page.getByRole("menuitem", { name: "Di chuyển" }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByRole("radio", { name: FOLDER_TITLE }).click();
+  const folderOption = dialog.getByRole("button", { name: FOLDER_TITLE });
+  await folderOption.click();
+  await expect(folderOption).toHaveAttribute("aria-pressed", "true");
   await dialog.getByRole("button", { name: "Di chuyển" }).click();
   await expect(page.getByText("Đã di chuyển.")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("treeitem", { name: new RegExp(FOLDER_TITLE) }).click();
@@ -108,6 +112,18 @@ test("create card, folder, move and the other-modules section on the owner's hom
 
 test("the header Open UniWork Office falls back to the installer dialog when no app answers", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  // The header button shows only for a platform the installers cover, and the
+  // guess reads the browser's UA hints: pin a Windows x64 desktop so the test
+  // does not depend on the runner's OS or architecture (linux arm64 is unsupported).
+  await page.addInitScript(() => {
+    const hints = {
+      platform: "Windows",
+      mobile: false,
+      brands: [],
+      getHighEntropyValues: () => Promise.resolve({ architecture: "x86", bitness: "64" }),
+    };
+    Object.defineProperty(navigator, "userAgentData", { value: hints, configurable: true });
+  });
   const seed = workspaceSeed("dochome", "launch", stamp);
   await onboardDocumentsUser(page, seed);
 

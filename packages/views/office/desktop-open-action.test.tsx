@@ -44,6 +44,17 @@ describe("DesktopOpenAction", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("toasts again when the same row launch fails twice in a row", async () => {
+    vi.mocked(toast.error).mockClear();
+    const createSession = vi.fn(async () => null);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} placement="row" createSession={createSession} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in app" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Open in app" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(toast.error).mock.calls[1]).toEqual(vi.mocked(toast.error).mock.calls[0]);
+  });
+
   it("renders one split button whose label stays accessible below lg", () => {
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} />);
     const edit = screen.getByRole("button", { name: "Open in UniWork Office" });
