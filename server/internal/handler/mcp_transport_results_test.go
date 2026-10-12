@@ -38,16 +38,16 @@ func TestMcpToolResultMapping(t *testing.T) {
 		"scalar":      {out: `"s"`, outcome: "ok", text: `"s"`},
 		"not json":    {out: `not json`, outcome: "ok", text: `not json`},
 
-		"invalid arguments":         {err: service.McpInvalidArgs{Msg: "x is required"}, outcome: "invalid", text: "invalid arguments: x is required", isError: true},
-		"wrapped invalid arguments": {err: fmt.Errorf("decode: %w", service.McpInvalidArgs{Msg: "y"}), outcome: "invalid", text: "invalid arguments: y", isError: true},
-		"not found":                 {err: service.ErrNotFound, outcome: "not_found", text: notFound, isError: true},
-		"forbidden":                 {err: service.ErrForbidden, outcome: "not_found", text: notFound, isError: true},
-		"wrapped not found":         {err: fmt.Errorf("read: %w", service.ErrNotFound), outcome: "not_found", text: notFound, isError: true},
-		"failure":                   {err: errors.New("pq: connection refused to 10.0.0.5"), outcome: "error", text: "temporarily unavailable", isError: true},
-		"cancelled":                 {err: context.Canceled, outcome: "error", text: "temporarily unavailable", isError: true},
+		"invalid arguments":             {err: service.McpInvalidArgs{Msg: "x is required"}, outcome: "invalid", text: "invalid arguments: x is required", isError: true},
+		"wrapped invalid arguments":     {err: fmt.Errorf("decode: %w", service.McpInvalidArgs{Msg: "y"}), outcome: "invalid", text: "invalid arguments: y", isError: true},
+		"not found":                     {err: service.ErrNotFound, outcome: "not_found", text: notFound, isError: true},
+		"forbidden":                     {err: service.ErrForbidden, outcome: "not_found", text: notFound, isError: true},
+		"wrapped not found":             {err: fmt.Errorf("read: %w", service.ErrNotFound), outcome: "not_found", text: notFound, isError: true},
+		"failure":                       {err: errors.New("pq: connection refused to 10.0.0.5"), outcome: "error", text: "temporarily unavailable", isError: true},
+		"canceled under a live context": {err: context.Canceled, outcome: "error", text: "temporarily unavailable", isError: true},
 	} {
 		t.Run(name, func(t *testing.T) {
-			outcome, res := mcpToolResult(json.RawMessage(c.out), c.err)
+			outcome, res := mcpToolResult(context.Background(), json.RawMessage(c.out), c.err)
 			if outcome != c.outcome || res.IsError != c.isError {
 				t.Fatalf("outcome %q isError %v, want %q %v", outcome, res.IsError, c.outcome, c.isError)
 			}
@@ -70,7 +70,7 @@ func TestMcpToolResultMapping(t *testing.T) {
 
 func mcpServeAs(h http.Handler, p service.McpPrincipal) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), mcpPrincipalKey{}, p)))
+		h.ServeHTTP(w, r.WithContext(mcpCallContext(r, p)))
 	})
 }
 
@@ -92,6 +92,18 @@ func mcpDirectCall(t *testing.T, h http.Handler, body string) map[string]any {
 type mcpToolCounts struct {
 	mu    sync.Mutex
 	calls []string
+}
+
+func (m *mcpToolCounts) count() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.calls)
+}
+
+func (m *mcpToolCounts) joined() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return strings.Join(m.calls, ",")
 }
 
 func (m *mcpToolCounts) IncOAuth(string) {}
@@ -216,7 +228,7 @@ func TestMcpHandlerRefusesAToolWithABrokenSchema(t *testing.T) {
 // unavailable" result and logs it with the tool's name and a stack.
 func TestMcpHandlerSurvivesAPanickingTool(t *testing.T) {
 	registry := ai.Registry{{Name: "panics", Kind: ai.ToolRead, Schema: json.RawMessage(`{"type":"object"}`), Handle: func(context.Context, ai.ToolContext, json.RawMessage) (json.RawMessage, error) {
-		panic("tool bug")
+		panic("tool bug hunter2")
 	}}}
 	var logs bytes.Buffer
 	counts := &mcpToolCounts{}
@@ -226,7 +238,7 @@ func TestMcpHandlerSurvivesAPanickingTool(t *testing.T) {
 	if result["isError"] != true || resultText(result) != "temporarily unavailable" {
 		t.Fatalf("result = %v", out)
 	}
-	for _, want := range []string{"mcp tool panic", "tool=panics", "grant_id=g1", "tool bug", "mcp_transport"} {
+	for _, want := range []string{"mcp tool panic", "tool=panics", "grant_id=g1", "panic=string", "mcp_transport"} {
 		if !strings.Contains(logs.String(), want) {
 			t.Errorf("log lacks %q: %s", want, logs.String())
 		}

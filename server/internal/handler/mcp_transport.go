@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -27,6 +28,19 @@ const mcpMaxBody = 1 << 20
 
 type mcpPrincipalKey struct{}
 
+// mcpRequestKey carries the HTTP request's own context to the tool. The SDK
+// hands a tool a context that keeps the request's values but not its
+// cancellation (verified on v1.8.0 for the protocol revisions served here: a
+// client that disconnects leaves its tool running to the end, and the HTTP
+// handler waits for it), so the transport ties the two itself.
+type mcpRequestKey struct{}
+
+// mcpCallContext is what mcpServe puts on the request before the SDK reads it.
+func mcpCallContext(r *http.Request, p service.McpPrincipal) context.Context {
+	ctx := context.WithValue(r.Context(), mcpPrincipalKey{}, p)
+	return context.WithValue(ctx, mcpRequestKey{}, r.Context())
+}
+
 func boolPtr(v bool) *bool { return &v }
 
 // newMcpHandler builds the go-sdk server once. Stateless: no session id, no
@@ -38,7 +52,8 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, log *slog.Logg
 	if log == nil {
 		log = slog.Default()
 	}
-	srv := mcp.NewServer(&mcp.Implementation{Name: "uniwork", Title: "UniWork", Version: "1"}, nil)
+	srv := mcp.NewServer(&mcp.Implementation{Name: "uniwork", Title: "UniWork", Version: "1"},
+		&mcp.ServerOptions{SupportedProtocolVersions: mcpProtocolVersions})
 	for _, t := range tools {
 		var schema map[string]any
 		if err := json.Unmarshal(t.Schema, &schema); err != nil {
@@ -56,28 +71,36 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, log *slog.Logg
 		}, func(ctx context.Context, req *mcp.CallToolRequest) (res *mcp.CallToolResult, _ error) {
 			telemetry.SetMCP(ctx, "", "", t.Name)
 			start := time.Now()
+			if reqCtx, ok := ctx.Value(mcpRequestKey{}).(context.Context); ok {
+				// A client that goes away stops its tool, and the database
+				// work behind it, instead of leaving both to run to the end.
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				defer cancel()
+				defer context.AfterFunc(reqCtx, cancel)()
+			}
 			p, ok := ctx.Value(mcpPrincipalKey{}).(service.McpPrincipal)
 			// The SDK runs a tool on a goroutine of its own, outside the HTTP
 			// middleware that recovers every other route's panics; one here
 			// would end the process for every tenant.
 			defer func() {
 				if v := recover(); v != nil {
-					log.ErrorContext(ctx, "mcp tool panic", "tool", t.Name, "grant_id", p.GrantID, "panic", fmt.Sprint(v), "stack", string(debug.Stack()))
+					log.ErrorContext(ctx, "mcp tool panic", "tool", t.Name, "grant_id", p.GrantID, "panic", mcpPanicSummary(v), "stack", string(debug.Stack()))
 					metrics.ObserveTool(t.Name, "error", time.Since(start))
-					_, res = mcpToolResult(nil, errors.New("panic"))
+					_, res = mcpToolResult(ctx, nil, errors.New("panic"))
 				}
 			}()
 			if !ok || p.UserID == "" || p.OrganizationID == "" {
 				// mcpServe puts the principal there before the SDK runs; a
 				// call without one is a wiring bug, and runs nothing.
 				log.ErrorContext(ctx, "mcp tool without a principal", "tool", t.Name)
-				_, res := mcpToolResult(nil, errors.New("no principal"))
+				_, res := mcpToolResult(ctx, nil, errors.New("no principal"))
 				metrics.ObserveTool(t.Name, "error", time.Since(start))
 				return res, nil
 			}
 			args, _ := json.Marshal(req.Params.Arguments)
 			out, err := t.Handle(ctx, p.ToolContext(), args)
-			outcome, res := mcpToolResult(out, err)
+			outcome, res := mcpToolResult(ctx, out, err)
 			if outcome == "error" {
 				// Ids and the error only: never the token or the arguments.
 				log.ErrorContext(ctx, "mcp tool", "tool", t.Name, "grant_id", p.GrantID, "err", err)
@@ -92,10 +115,10 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, log *slog.Logg
 }
 
 // mcpToolResult turns a tool outcome into an MCP result and the label the
-// metrics count it under. A model's mistake is an isError result it can read
+// metrics count it under (ok, invalid, not_found, cancelled, error). A model's mistake is an isError result it can read
 // and fix, never a JSON-RPC error. Not found and forbidden read the same, so
 // an id's existence never leaks (spec §7.5).
-func mcpToolResult(out json.RawMessage, err error) (string, *mcp.CallToolResult) {
+func mcpToolResult(ctx context.Context, out json.RawMessage, err error) (string, *mcp.CallToolResult) {
 	text := func(s string) []mcp.Content { return []mcp.Content{&mcp.TextContent{Text: s}} }
 	var bad service.McpInvalidArgs
 	switch {
@@ -115,9 +138,23 @@ func mcpToolResult(out json.RawMessage, err error) (string, *mcp.CallToolResult)
 		return "invalid", &mcp.CallToolResult{IsError: true, Content: text(bad.Error())}
 	case errors.Is(err, service.ErrNotFound), errors.Is(err, service.ErrForbidden):
 		return "not_found", &mcp.CallToolResult{IsError: true, Content: text("not found or not accessible")}
+	case ctx.Err() != nil:
+		// The client went away or the server is stopping: nothing of ours
+		// failed, so it is neither an error line nor an error in the metrics.
+		return "cancelled", &mcp.CallToolResult{IsError: true, Content: text("temporarily unavailable")}
 	default:
 		return "error", &mcp.CallToolResult{IsError: true, Content: text("temporarily unavailable")}
 	}
+}
+
+// mcpPanicSummary is what a panic puts in the log: its type, and for a runtime
+// error its message (the runtime's own text carries nothing of ours). A panic
+// value a tool chose can hold the row or the argument it was working on.
+func mcpPanicSummary(v any) string {
+	if e, ok := v.(runtime.Error); ok {
+		return e.Error()
+	}
+	return fmt.Sprintf("%T", v)
 }
 
 // bearerToken reads an Authorization: Bearer credential. The scheme is
@@ -171,5 +208,8 @@ func (h *handlers) mcpServe(w http.ResponseWriter, r *http.Request) {
 	telemetry.SetActor(r.Context(), p.UserID, "human", "mcp")
 	telemetry.SetTenant(r.Context(), p.OrganizationID, "")
 	telemetry.SetMCP(r.Context(), p.ClientID, p.GrantID, "")
-	h.mcpHandler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), mcpPrincipalKey{}, p)))
+	if h.mcpGuard(w, r) {
+		return
+	}
+	h.mcpHandler.ServeHTTP(&noStoreWriter{ResponseWriter: w}, r.WithContext(mcpCallContext(r, p)))
 }
