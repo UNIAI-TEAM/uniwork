@@ -1,0 +1,1 @@
+$ bash -n scripts/office/g5g6g7/harness/start.sh && bash -n scripts/office/g5g6g7/harness/stop.sh

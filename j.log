@@ -1,0 +1,2 @@
+$ bash scripts/office/g5g6g7/harness/stop.sh
+harness: stopped 2 process group(s) from /workspace/.harness-run

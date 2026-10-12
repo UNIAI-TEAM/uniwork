@@ -1,0 +1,6 @@
+$ ENV_FILE=.env HARNESS_DRY_RUN=1 bash scripts/office/g5g6g7/harness/start.sh
+harness: run dir /workspace/.harness-run
+harness: D server  http://127.0.0.1:35453 (metrics 127.0.0.1:45843)
+harness: D web     http://127.0.0.1:42289
+harness: fork      0d03b18
+harness: --dry-run, stopping before anything is started

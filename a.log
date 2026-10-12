@@ -1,0 +1,178 @@
+$ node --test scripts/office/g5g6g7/make-fixtures.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs scripts/office/g5g6g7/evidence.test.mjs scripts/office/g5g6g7/harness/lib.test.mjs
+TAP version 13
+# Subtest: acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+ok 1 - acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+  ---
+  duration_ms: 2.151961
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 2 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 12.21546
+  ...
+# evidence: G5-A01 does not declare fixture fx-not-a-fixture; recording it anyway
+# evidence: G5-A01 does not declare fixture fx-html-page-vi; recording it anyway
+# Subtest: exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+ok 3 - exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+  ---
+  duration_ms: 24.369482
+  ...
+# Subtest: a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+ok 4 - a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+  ---
+  duration_ms: 54.296542
+  ...
+# Subtest: a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+ok 5 - a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+  ---
+  duration_ms: 7.392012
+  ...
+# Subtest: an explicit blocker reason blocks a run that would otherwise pass
+ok 6 - an explicit blocker reason blocks a run that would otherwise pass
+  ---
+  duration_ms: 2.493436
+  ...
+# Subtest: an unknown requirement id is refused instead of written
+ok 7 - an unknown requirement id is refused instead of written
+  ---
+  duration_ms: 0.648837
+  ...
+# Subtest: reset only touches a lane test database and is a dry run without psql
+ok 8 - reset only touches a lane test database and is a dry run without psql
+  ---
+  duration_ms: 48.032607
+  ...
+# Subtest: verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+ok 9 - verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+  ---
+  duration_ms: 19.347946
+  ...
+# Subtest: verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+ok 10 - verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+  ---
+  duration_ms: 20.304939
+  ...
+# Subtest: the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+ok 11 - the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+  ---
+  duration_ms: 203.556329
+  ...
+# Subtest: an absolute --out is honoured as given, never nested under the repo
+ok 12 - an absolute --out is honoured as given, never nested under the repo
+  ---
+  duration_ms: 17.04511
+  ...
+# Subtest: the fork SHA comes from the environment and is null when the environment does not name it
+ok 13 - the fork SHA comes from the environment and is null when the environment does not name it
+  ---
+  duration_ms: 4.209944
+  ...
+# Subtest: the matrix the runner reads declares every fixture it needs
+ok 14 - the matrix the runner reads declares every fixture it needs
+  ---
+  duration_ms: 0.492976
+  ...
+# Subtest: freePorts hands out distinct ports the kernel just released
+ok 15 - freePorts hands out distinct ports the kernel just released
+  ---
+  duration_ms: 7.417691
+  ...
+# Subtest: freePorts refuses a non-positive count
+ok 16 - freePorts refuses a non-positive count
+  ---
+  duration_ms: 0.326898
+  ...
+# Subtest: BLOCKED is 77 so a missing precondition is never mistaken for a pass
+ok 17 - BLOCKED is 77 so a missing precondition is never mistaken for a pass
+  ---
+  duration_ms: 0.076685
+  ...
+# Subtest: the default fork revision is the pinned base
+ok 18 - the default fork revision is the pinned base
+  ---
+  duration_ms: 0.06668
+  ...
+# Subtest: buildServerEnv puts every port-derived origin on the command line
+ok 19 - buildServerEnv puts every port-derived origin on the command line
+  ---
+  duration_ms: 1.224184
+  ...
+# Subtest: buildServerEnv keeps the API origin identical everywhere it is inlined
+ok 20 - buildServerEnv keeps the API origin identical everywhere it is inlined
+  ---
+  duration_ms: 0.097569
+  ...
+# Subtest: origin builds a loopback origin for a port
+ok 21 - origin builds a loopback origin for a port
+  ---
+  duration_ms: 0.1186
+  ...
+# Subtest: harnessPaths keeps every run artifact inside the run dir
+ok 22 - harnessPaths keeps every run artifact inside the run dir
+  ---
+  duration_ms: 0.14502
+  ...
+# Subtest: forkCacheDir is keyed by the revision so two SHAs never share a checkout
+ok 23 - forkCacheDir is keyed by the revision so two SHAs never share a checkout
+  ---
+  duration_ms: 0.206068
+  ...
+# Subtest: evidenceLine carries every field the runner contract checks, empty when unknown
+ok 24 - evidenceLine carries every field the runner contract checks, empty when unknown
+  ---
+  duration_ms: 0.296922
+  ...
+# Subtest: evidenceLine defaults to BLOCKED, never to PASS
+ok 25 - evidenceLine defaults to BLOCKED, never to PASS
+  ---
+  duration_ms: 0.107485
+  ...
+# Subtest: evidenceLine keeps a fixture hash and a blocker out of a PASS
+ok 26 - evidenceLine keeps a fixture hash and a blocker out of a PASS
+  ---
+  duration_ms: 0.061906
+  ...
+# Subtest: writeRunEnv writes a ports file and a server env bash can source
+ok 27 - writeRunEnv writes a ports file and a server env bash can source
+  ---
+  duration_ms: 5.614844
+  ...
+# Subtest: two generations are byte-identical (fixtures, oracles, manifest)
+ok 28 - two generations are byte-identical (fixtures, oracles, manifest)
+  ---
+  duration_ms: 19.104136
+  ...
+# Subtest: committed files equal the generator output, with no unexpected files
+ok 29 - committed files equal the generator output, with no unexpected files
+  ---
+  duration_ms: 8.186557
+  ...
+# Subtest: manifest lists the six required formats and matches the files byte for byte
+ok 30 - manifest lists the six required formats and matches the files byte for byte
+  ---
+  duration_ms: 0.802208
+  ...
+# Subtest: OOXML fixtures are valid STORE zips with fixed metadata and sorted entries
+ok 31 - OOXML fixtures are valid STORE zips with fixed metadata and sorted entries
+  ---
+  duration_ms: 0.684489
+  ...
+# Subtest: XLSX carries every trait the spec requires
+ok 32 - XLSX carries every trait the spec requires
+  ---
+  duration_ms: 0.379357
+  ...
+# Subtest: PDF has a text layer, one page and embedded fonts; MD/HTML carry their markers
+ok 33 - PDF has a text layer, one page and embedded fonts; MD/HTML carry their markers
+  ---
+  duration_ms: 0.384919
+  ...
+1..33
+# tests 33
+# suites 0
+# pass 33
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 456.453789

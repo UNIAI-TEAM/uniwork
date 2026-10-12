@@ -1,0 +1,14 @@
+$ node scripts/office/g5g6g7/make-fixtures.mjs --check && node scripts/office/g5g6g7/make-fixtures.mjs --list && sha256sum docs/office/g5g6g7/fixtures/*.xlsx docs/office/g5g6g7/fixtures/*.docx docs/office/g5g6g7/fixtures/*.pptx docs/office/g5g6g7/fixtures/*.pdf docs/office/g5g6g7/fixtures/*.md docs/office/g5g6g7/fixtures/*.html
+make-fixtures --check: OK (6 fixtures, bytes and hashes match)
+a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446  docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.xlsx
+5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c  docs/office/g5g6g7/fixtures/fx-docx-report-vi.docx
+958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20  docs/office/g5g6g7/fixtures/fx-pptx-deck-vi.pptx
+17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd  docs/office/g5g6g7/fixtures/fx-pdf-invoice-vi.pdf
+e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def  docs/office/g5g6g7/fixtures/fx-md-notes-vi.md
+e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884  docs/office/g5g6g7/fixtures/fx-html-page-vi.html
+a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446  docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.xlsx
+5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c  docs/office/g5g6g7/fixtures/fx-docx-report-vi.docx
+958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20  docs/office/g5g6g7/fixtures/fx-pptx-deck-vi.pptx
+17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd  docs/office/g5g6g7/fixtures/fx-pdf-invoice-vi.pdf
+e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def  docs/office/g5g6g7/fixtures/fx-md-notes-vi.md
+e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884  docs/office/g5g6g7/fixtures/fx-html-page-vi.html
