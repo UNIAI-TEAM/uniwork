@@ -130,14 +130,14 @@ func (s *EmailHubService) OpenAttachment(
 	if row.SizeBytes > maxEmailHubAttachmentBytes {
 		return EmailHubAttachmentView{}, nil, Invalid("attachment too large")
 	}
-	sess, mailboxes, err := s.openIMAPInteractive(acc)
+	sess, mailboxes, err := s.openIMAPInteractive(ctx, acc)
 	if err != nil {
-		return EmailHubAttachmentView{}, nil, err
+		return EmailHubAttachmentView{}, nil, redactEmailHubMailErr(err)
 	}
 	meta, data, err := sess.FetchAttachment(mailboxes.Resolve(thread.Folder), uint32(thread.ImapUid), row.PartID)
 	_ = sess.Close()
 	if err != nil {
-		return EmailHubAttachmentView{}, nil, err
+		return EmailHubAttachmentView{}, nil, redactEmailHubMailErr(err)
 	}
 	view := attachmentView(row)
 	if view.Filename == "" && meta.Filename != "" {

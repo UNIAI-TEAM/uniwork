@@ -35,7 +35,7 @@ func (s *EmailHubService) backfillOlderThreads(
 
 	var fetched int
 	err := s.gov.withIMAP(acc.ID, func() error {
-		sess, mailboxes, err := s.openIMAPInteractive(acc)
+		sess, mailboxes, err := s.openIMAPInteractive(ctx, acc)
 		if err != nil {
 			return err
 		}

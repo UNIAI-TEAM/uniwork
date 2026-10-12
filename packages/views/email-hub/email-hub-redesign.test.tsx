@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
-import { EmailHubAccountMenu } from "./email-hub-account-menu";
+import { EmailHubAccountMenu, focusTargetAfterConnect } from "./email-hub-account-menu";
+import { EmailHubReconnectBanner } from "./email-hub-reconnect-banner";
 import { emailHubThreadCapabilities } from "./email-hub-thread-toolbar";
 import { EmailHubScheduledDetail } from "./email-hub-scheduled-detail";
 import { EmailHubFolderSidebar } from "./email-hub-folder-sidebar";
@@ -14,6 +15,9 @@ const account = {
   email_address: "ha.do@unicomhub.com",
   provider: "gmail",
   connected_at: "2026-09-01T00:00:00Z",
+  auth_kind: "password",
+  needs_reconnect: false,
+  auth_failed_reason: "",
 };
 
 function thread(partial: Partial<EmailHubThread>): EmailHubThread {
@@ -46,10 +50,13 @@ describe("EmailHubAccountMenu", () => {
         onSelectAccount={() => {}}
         onDisconnect={onDisconnect}
         onAddAccount={() => {}}
+        onReconnect={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Hộp thư: ha.do@unicomhub.com/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Ngắt kết nối ha.do@unicomhub.com/ }));
+    const disconnectItem = await screen.findByRole("menuitem", { name: /Ngắt kết nối ha.do@unicomhub.com/ });
+    expect(screen.queryByRole("menuitem", { name: /Kết nối lại/ })).not.toBeInTheDocument();
+    fireEvent.click(disconnectItem);
 
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog).toHaveTextContent("Ngắt kết nối ha.do@unicomhub.com?");
@@ -57,6 +64,119 @@ describe("EmailHubAccountMenu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Ngắt kết nối" }));
     await waitFor(() => expect(onDisconnect).toHaveBeenCalledWith("acc1", expect.any(Function)));
+  });
+
+  it("flags a mailbox that needs reconnecting and offers to reconnect it", async () => {
+    const onReconnect = vi.fn();
+    render(
+      <EmailHubAccountMenu
+        accounts={[{ ...account, needs_reconnect: true, auth_failed_reason: "imap_auth_failed" }]}
+        activeAccountId="acc1"
+        disconnectPending={false}
+        onSelectAccount={() => {}}
+        onDisconnect={() => {}}
+        onAddAccount={() => {}}
+        onReconnect={onReconnect}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hộp thư: ha.do@unicomhub.com — cần kết nối lại" }));
+    expect(await screen.findByText("Cần kết nối lại")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Kết nối lại ha.do@unicomhub.com/ }));
+    expect(onReconnect).toHaveBeenCalledWith("acc1");
+  });
+});
+
+describe("EmailHubAccountMenu on mailboxes that need reconnecting", () => {
+  const broken = { ...account, needs_reconnect: true, auth_failed_reason: "imap_auth_failed" };
+  const accounts = [
+    { ...account, id: "acc1", email_address: "an@gmail.com", auth_kind: "oauth_google" },
+    { ...broken, id: "acc2", email_address: "binh@outlook.com", auth_kind: "oauth_microsoft" },
+    { ...broken, id: "acc3", email_address: "chi@unicomhub.vn", provider: "custom" },
+    { ...account, id: "acc4", email_address: "dung@yahoo.com", provider: "yahoo" },
+  ];
+  const renderMenu = (activeAccountId: string, onReconnect = vi.fn()) =>
+    render(
+      <EmailHubAccountMenu
+        accounts={accounts}
+        activeAccountId={activeAccountId}
+        disconnectPending={false}
+        onSelectAccount={() => {}}
+        onDisconnect={() => {}}
+        onAddAccount={() => {}}
+        onReconnect={onReconnect}
+      />,
+    );
+
+  it("marks the trigger when the mailbox in use needs reconnecting, counting it with the others", () => {
+    const { container } = renderMenu("acc2");
+    expect(screen.getByRole("button", { name: "Hộp thư: binh@outlook.com — 2 hộp thư cần kết nối lại" })).toBeInTheDocument();
+    expect(container.querySelector(".bg-warning-solid")).not.toBeNull();
+  });
+
+  it("marks the trigger when another mailbox needs reconnecting, and says how many", () => {
+    const { container } = renderMenu("acc1");
+    expect(screen.getByRole("button", { name: "Hộp thư: an@gmail.com — 2 hộp thư cần kết nối lại" })).toBeInTheDocument();
+    expect(container.querySelector(".bg-warning-solid")).not.toBeNull();
+  });
+
+  it("keeps the trigger plain when every mailbox is fine", () => {
+    const { container } = render(
+      <EmailHubAccountMenu
+        accounts={[accounts[0]!, accounts[3]!]}
+        activeAccountId="acc1"
+        disconnectPending={false}
+        onSelectAccount={() => {}}
+        onDisconnect={() => {}}
+        onAddAccount={() => {}}
+        onReconnect={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Hộp thư: an@gmail.com" })).toBeInTheDocument();
+    expect(container.querySelector(".bg-warning-solid")).toBeNull();
+  });
+
+  it("offers to reconnect every broken mailbox, not only the one in use", async () => {
+    const onReconnect = vi.fn();
+    renderMenu("acc1", onReconnect);
+    fireEvent.click(screen.getByRole("button", { name: /Hộp thư: an@gmail.com/ }));
+    expect(await screen.findByRole("menuitem", { name: "Kết nối lại binh@outlook.com" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Kết nối lại chi@unicomhub.vn" }));
+    expect(onReconnect).toHaveBeenCalledWith("acc3");
+    expect(screen.queryByRole("menuitem", { name: /Kết nối lại an@gmail.com/ })).toBeNull();
+  });
+
+  it("flags a broken row with an icon and its words, and marks each row by how it signs in", async () => {
+    renderMenu("acc1");
+    fireEvent.click(screen.getByRole("button", { name: /Hộp thư: an@gmail.com/ }));
+    const row = await screen.findByRole("menuitemradio", { name: /binh@outlook.com/ });
+    const flag = within(row).getByTitle("Cần kết nối lại");
+    expect(flag).toHaveTextContent("Cần kết nối lại");
+    expect(flag.querySelector("svg")).toHaveClass("text-warning");
+    expect(row.querySelector("[data-slot=badge]")).toBeNull();
+
+    const mark = (email: string) =>
+      screen.getByRole("menuitemradio", { name: new RegExp(email) }).querySelector("[data-account-mark]")?.getAttribute("data-account-mark");
+    expect(mark("an@gmail.com")).toBe("google");
+    expect(mark("binh@outlook.com")).toBe("microsoft");
+    expect(mark("chi@unicomhub.vn")).toBe("server");
+    expect(mark("dung@yahoo.com")).toBe("mail");
+  });
+});
+
+describe("focusTargetAfterConnect", () => {
+  it("lands on the account menu trigger on screen, else on the list heading, never on a hidden trigger", () => {
+    document.body.innerHTML =
+      '<button data-email-hub-account-trigger="">hidden</button><button data-email-hub-account-trigger="">shown</button>' +
+      '<h1 data-email-hub-list-heading="" tabindex="-1">Hộp đến</h1>';
+    const [hidden, shown] = Array.from(document.querySelectorAll("button"));
+    const heading = document.querySelector("h1");
+    // jsdom lays nothing out: every trigger reads as hidden until one is given a box.
+    expect(focusTargetAfterConnect()).toBe(heading);
+
+    vi.spyOn(shown!, "getClientRects").mockReturnValue([{}] as unknown as DOMRectList);
+    expect(focusTargetAfterConnect()).toBe(shown);
+    expect(focusTargetAfterConnect()).not.toBe(hidden);
+    document.body.innerHTML = "";
   });
 });
 
@@ -166,6 +286,7 @@ describe("EmailHubFolderSidebar", () => {
           onSelectAccount: () => {},
           onDisconnect: () => {},
           onAddAccount: () => {},
+          onReconnect: () => {},
         }}
       />,
     );
@@ -173,5 +294,24 @@ describe("EmailHubFolderSidebar", () => {
     expect(screen.getByRole("button", { name: /Hộp đến/ })).not.toHaveAttribute("aria-current");
     expect(screen.getByText("Sắp có")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Nhãn và quy tắc tự động/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("EmailHubReconnectBanner", () => {
+  it("says the mailbox needs reconnecting, that synced mail stays, and offers the way back", () => {
+    const onReconnect = vi.fn();
+    const { container } = render(<EmailHubReconnectBanner onReconnect={onReconnect} />);
+    const banner = container.querySelector<HTMLElement>("[data-slot=alert]")!;
+    expect(banner).toHaveTextContent("Hộp thư cần kết nối lại");
+    expect(banner).toHaveTextContent("Thư đã đồng bộ vẫn đọc được.");
+    // A standing state, not an event: a remount must not announce it again.
+    expect(banner).not.toHaveAttribute("role");
+    expect(banner.className).toContain("bg-warning-soft");
+    // Wraps across the full width on a phone: text-balance would break it early and leave a ragged right edge.
+    const body = within(banner).getByText(/Thư đã đồng bộ vẫn đọc được/);
+    expect(body).toHaveClass("text-pretty");
+    expect(body).not.toHaveClass("text-balance");
+    fireEvent.click(within(banner).getByRole("button", { name: "Kết nối lại" }));
+    expect(onReconnect).toHaveBeenCalled();
   });
 });

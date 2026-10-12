@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,6 +45,9 @@ type emailHubAccountGate struct {
 	lastFullSync  time.Time
 	// One run per folder/query: a text search spans several folders at once.
 	searches map[emailHubSearchIndexKey]emailHubSearchRun
+	// Snapshots with an older credential_version describe a previous IMAP
+	// server; their cache writes are dropped on this node (fenceSnapshots).
+	minCredentialVersion atomic.Int64
 }
 
 type emailHubGovernor struct {
@@ -76,6 +80,14 @@ func (g *emailHubGovernor) mailboxes(accountID string) (imapclient.MailboxMap, b
 	return m, ok
 }
 
+// forgetMailboxes drops the cached mailbox map, so the next sync LISTs the
+// account's current server instead of resolving names from the old one.
+func (g *emailHubGovernor) forgetMailboxes(accountID string) {
+	g.mailboxMu.Lock()
+	defer g.mailboxMu.Unlock()
+	delete(g.mailboxMaps, accountID)
+}
+
 func (g *emailHubGovernor) gate(accountID string) *emailHubAccountGate {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -106,6 +118,23 @@ func (g *emailHubGovernor) loginRefused(accountID string) int32 {
 
 func (g *emailHubGovernor) loginSucceeded(accountID string) {
 	atomic.StoreInt32(&g.gate(accountID).refusedLogins, 0)
+}
+
+// fenceSnapshots marks every credential snapshot older than version stale on
+// this node. A reconnect to another IMAP server raises it before the cache
+// wipe, so work that began against the old server stops writing rows.
+func (g *emailHubGovernor) fenceSnapshots(accountID string, version int64) {
+	gt := g.gate(accountID)
+	for {
+		cur := gt.minCredentialVersion.Load()
+		if version <= cur || gt.minCredentialVersion.CompareAndSwap(cur, version) {
+			return
+		}
+	}
+}
+
+func (g *emailHubGovernor) staleSnapshot(accountID string, version int64) bool {
+	return version < g.gate(accountID).minCredentialVersion.Load()
 }
 
 func (g *emailHubGovernor) beginInteractive(accountID string) {
@@ -180,6 +209,31 @@ func (g *emailHubGovernor) withIMAP(accountID string, fn func() error) error {
 	gt.imapMu.Lock()
 	defer gt.imapMu.Unlock()
 	return fn()
+}
+
+// withIMAPCtx is withIMAP whose wait for the lock ends with ctx. sync.Mutex has
+// no cancellable Lock, so a goroutine takes it and hands it straight back when
+// ctx won the race.
+func (g *emailHubGovernor) withIMAPCtx(ctx context.Context, accountID string, fn func() error) error {
+	gt := g.gate(accountID)
+	locked := make(chan struct{})
+	abandoned := make(chan struct{})
+	go func() {
+		gt.imapMu.Lock()
+		select {
+		case locked <- struct{}{}:
+		case <-abandoned:
+			gt.imapMu.Unlock()
+		}
+	}()
+	select {
+	case <-locked:
+		defer gt.imapMu.Unlock()
+		return fn()
+	case <-ctx.Done():
+		close(abandoned)
+		return ctx.Err()
+	}
 }
 
 // tryWithIMAP runs fn only when no other background IMAP work holds the lock.

@@ -45,12 +45,15 @@ func jsonArrayAt(t *testing.T, out map[string]any, key string) []any {
 	return arr
 }
 
-func setupEmailHubHTTP(t *testing.T) (*httptest.Server, string, string, string, *secretbox.Box) {
+func setupEmailHubHTTP(t *testing.T, configure ...func(*Deps)) (*httptest.Server, string, string, string, *secretbox.Box) {
 	t.Helper()
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	box := testEmailHubSecretBox(t)
 	q := db.New(pool)
 	d.EmailHub = service.NewEmailHubService(q, d.Workspaces, box)
+	for _, c := range configure {
+		c(&d)
+	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 
@@ -205,8 +208,9 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	if _, err := q.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
 		ID: accID, UserID: userID, OrganizationID: orgID,
 		EmailAddress: "seed@gmail.com", Provider: "gmail",
-		ImapHost: "127.0.0.1", ImapPort: 1,
-		SmtpHost: "127.0.0.1", SmtpPort: 1,
+		ImapHost: "127.0.0.1", ImapPort: 1, ImapSecurity: "tls",
+		SmtpHost: "127.0.0.1", SmtpPort: 1, SmtpSecurity: "starttls",
+		AuthKind:    "password",
 		PasswordEnc: base64.StdEncoding.EncodeToString(sealed),
 	}); err != nil {
 		t.Fatal(err)
@@ -460,4 +464,46 @@ func orgIDFromWorkspace(t *testing.T, q *db.Queries, wsID string) string {
 		t.Fatal(err)
 	}
 	return ws.OrganizationID
+}
+
+// A live mailbox is refused with a stable 409 before any dial (spec §3).
+func TestEmailHubConnectAlreadyConnectedIs409(t *testing.T) {
+	srv, token, wsID, userID, box := setupEmailHubHTTP(t)
+	q := db.New(testPool)
+	orgID := orgIDFromWorkspace(t, q, wsID)
+	sealed, err := box.Seal([]byte("app-password"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.CreateEmailHubAccount(context.Background(), db.CreateEmailHubAccountParams{
+		ID: util.NewID(), UserID: userID, OrganizationID: orgID,
+		EmailAddress: "dup@gmail.com", Provider: "gmail",
+		ImapHost: "imap.gmail.com", ImapPort: 993, ImapSecurity: "tls",
+		SmtpHost: "smtp.gmail.com", SmtpPort: 587, SmtpSecurity: "starttls",
+		AuthKind: "password", PasswordEnc: base64.StdEncoding.EncodeToString(sealed),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/email-hub/accounts", token, map[string]string{
+		"email_address": "Dup@Gmail.com", "app_password": "another-app-password",
+	})
+	if res.StatusCode != http.StatusConflict || errorCode(out) != "email_hub_already_connected" {
+		t.Fatalf("duplicate connect: %d %v", res.StatusCode, out)
+	}
+}
+
+// Server fields are checked before any dial, and the refusal names the field
+// the client marks (spec §5.2).
+func TestEmailHubConnectBadServerFieldIs400WithTheField(t *testing.T) {
+	srv, token, wsID, _, _ := setupEmailHubHTTP(t)
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/email-hub/accounts", token, map[string]any{
+		"email_address": "me@acme.example", "app_password": "server-password-1",
+		"imap_host": "mail.acme.example", "imap_port": 8080, "imap_security": "tls",
+		"smtp_host": "mail.acme.example", "smtp_port": 587, "smtp_security": "starttls",
+	})
+	errObj, _ := out["error"].(map[string]any)
+	fields, _ := errObj["fields"].(map[string]any)
+	if res.StatusCode != http.StatusBadRequest || errorCode(out) != "email_hub_invalid_server" || fields["field"] != "imap_port" {
+		t.Fatalf("bad imap_port: %d %v", res.StatusCode, out)
+	}
 }

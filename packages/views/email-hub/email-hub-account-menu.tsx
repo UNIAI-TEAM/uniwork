@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronsUpDown, Plus, Unplug } from "lucide-react";
+import { ChevronsUpDown, CircleAlert, Mail, Plus, RefreshCw, Server, Unplug } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubAccount } from "@uniwork/core/types/email-hub";
 import {
@@ -17,6 +17,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
+import { SignInMark } from "../common/provider-icons";
 import { EmailSenderAvatar } from "./email-hub-view-parts";
 
 export interface EmailHubAccountMenuProps {
@@ -26,6 +27,35 @@ export interface EmailHubAccountMenuProps {
   onSelectAccount: (accountId: string) => void;
   onDisconnect: (accountId: string, onDone: () => void) => void;
   onAddAccount: () => void;
+  onReconnect: (accountId: string) => void;
+}
+
+/** How the mailbox signs in, at a glance: the account's provider for OAuth, a server for an own domain, else mail. */
+function AccountMark({ account }: { account: EmailHubAccount }) {
+  switch (account.auth_kind) {
+    case "oauth_google":
+      return <span data-account-mark="google" className="inline-flex"><SignInMark provider="google" className="size-4" /></span>;
+    case "oauth_microsoft":
+      return <span data-account-mark="microsoft" className="inline-flex"><SignInMark provider="microsoft" className="size-4" /></span>;
+    default:
+      return account.provider === "custom" ? (
+        <Server data-account-mark="server" className="text-muted-foreground" aria-hidden />
+      ) : (
+        <Mail data-account-mark="mail" className="text-muted-foreground" aria-hidden />
+      );
+  }
+}
+
+/**
+ * Where focus goes after a connect closed the dialog: the account menu trigger on screen (the sidebar's at lg, the
+ * list header's below it), else the list heading. A hidden trigger cannot take focus.
+ */
+export function focusTargetAfterConnect(): HTMLElement | null {
+  const triggers = Array.from(document.querySelectorAll<HTMLElement>("[data-email-hub-account-trigger]"));
+  return (
+    triggers.find((el) => el.getClientRects().length > 0) ??
+    document.querySelector<HTMLElement>("[data-email-hub-list-heading]")
+  );
 }
 
 /**
@@ -40,6 +70,7 @@ export function EmailHubAccountMenu({
   onSelectAccount,
   onDisconnect,
   onAddAccount,
+  onReconnect,
   className,
   compact = false,
 }: EmailHubAccountMenuProps & { className?: string; compact?: boolean }) {
@@ -47,20 +78,37 @@ export function EmailHubAccountMenu({
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const active = accounts.find((acc) => acc.id === activeAccountId) ?? null;
   const confirming = accounts.find((acc) => acc.id === confirmId) ?? null;
+  const broken = accounts.filter((acc) => acc.needs_reconnect);
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
+          data-email-hub-account-trigger=""
           className={cn(
             "flex min-h-10 min-w-0 items-center gap-2 rounded-control px-2 py-1.5 text-left transition-colors duration-(--duration-fast) hover:bg-muted aria-expanded:bg-muted pointer-coarse:min-h-11",
             compact ? "justify-center px-1.5" : "w-full",
             className,
           )}
-          aria-label={t("email_hub.account_menu", { email: active?.email_address ?? "" })}
+          // The dot stands for any broken mailbox, not only the one in use: the label says which, or how many.
+          aria-label={
+            broken.length === 0
+              ? t("email_hub.account_menu", { email: active?.email_address ?? "" })
+              : broken.length === 1 && active?.needs_reconnect
+                ? t("email_hub.account_menu_needs_reconnect", { email: active.email_address })
+                : t("email_hub.account_menu_broken", { email: active?.email_address ?? "", count: broken.length })
+          }
         >
           {active ? (
-            <EmailSenderAvatar fromAddr={active.email_address} className="size-7 text-caption" />
+            <span className="relative inline-flex shrink-0">
+              <EmailSenderAvatar fromAddr={active.email_address} className="size-7 text-caption" />
+              {broken.length > 0 ? (
+                <span
+                  aria-hidden
+                  className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-warning-solid ring-2 ring-background"
+                />
+              ) : null}
+            </span>
           ) : null}
           {compact ? null : (
             <>
@@ -84,12 +132,25 @@ export function EmailHubAccountMenu({
             >
               {accounts.map((acc) => (
                 <DropdownMenuRadioItem key={acc.id} value={acc.id}>
+                  <AccountMark account={acc} />
                   <span className="truncate">{acc.email_address}</span>
+                  {acc.needs_reconnect ? (
+                    <span className="ml-auto inline-flex" title={t("email_hub.reconnect.badge")}>
+                      <CircleAlert className="text-warning" aria-hidden />
+                      <span className="sr-only">{t("email_hub.reconnect.badge")}</span>
+                    </span>
+                  ) : null}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          {broken.map((acc) => (
+            <DropdownMenuItem key={acc.id} onClick={() => onReconnect(acc.id)}>
+              <RefreshCw aria-hidden />
+              {t("email_hub.reconnect.menu", { email: acc.email_address })}
+            </DropdownMenuItem>
+          ))}
           <DropdownMenuItem onClick={onAddAccount}>
             <Plus aria-hidden />
             {t("email_hub.add_account")}

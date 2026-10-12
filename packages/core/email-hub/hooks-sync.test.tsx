@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../api/http";
 import { useEmailHubLiveSync } from "./hooks-sync";
 
 vi.mock("../api/endpoints/email-hub", () => ({
@@ -11,15 +12,20 @@ vi.mock("../api/endpoints/email-hub", () => ({
 
 const api = await import("../api/endpoints/email-hub");
 
+function wrapperFor(qc: QueryClient) {
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  };
+}
+
+beforeEach(() => vi.clearAllMocks());
+
 describe("useEmailHubLiveSync", () => {
   it("keeps the server watch when the reader opens a message, and drops it on unmount", () => {
     const qc = new QueryClient();
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-    );
     const { rerender, unmount } = renderHook(
       ({ reading }: { reading: boolean }) => useEmailHubLiveSync("ws1", "acc1", true, reading),
-      { wrapper, initialProps: { reading: false } },
+      { wrapper: wrapperFor(qc), initialProps: { reading: false } },
     );
     rerender({ reading: true });
     // The server stops the watch on DELETE, so a toggle must not send one.
@@ -28,5 +34,44 @@ describe("useEmailHubLiveSync", () => {
 
     unmount();
     expect(api.unsubscribeEmailHubInboxWatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends neither a watch nor a pull while disabled", () => {
+    const qc = new QueryClient();
+    renderHook(() => useEmailHubLiveSync("ws1", "acc1", false), { wrapper: wrapperFor(qc) });
+    expect(api.subscribeEmailHubInboxWatch).not.toHaveBeenCalled();
+    expect(api.syncEmailHub).not.toHaveBeenCalled();
+  });
+
+  it("refetches the account list once when the mailbox needs reconnecting", async () => {
+    const reauth = () => new ApiError("needs reconnect", "email_hub_reauth_required", 409);
+    vi.mocked(api.subscribeEmailHubInboxWatch).mockRejectedValueOnce(reauth());
+    vi.mocked(api.syncEmailHub).mockRejectedValueOnce(reauth());
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    renderHook(() => useEmailHubLiveSync("ws1", "acc1"), { wrapper: wrapperFor(qc) });
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["email-hub", "ws1", "accounts"] }));
+    await waitFor(() => expect(api.syncEmailHub).toHaveBeenCalled());
+    // Both the watch and the pull answered 409; one refetch is enough to bring needs_reconnect.
+    expect(invalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not touch the account list on an ordinary failure", async () => {
+    vi.mocked(api.subscribeEmailHubInboxWatch).mockRejectedValueOnce(new Error("offline"));
+    vi.mocked(api.syncEmailHub).mockRejectedValueOnce(new ApiError("boom", "internal", 500));
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    renderHook(() => useEmailHubLiveSync("ws1", "acc1"), { wrapper: wrapperFor(qc) });
+
+    await waitFor(() => expect(api.syncEmailHub).toHaveBeenCalled());
+    // Wait until both rejections have reached the hook's catch blocks, then one more task for anything they queue.
+    const calls = [api.subscribeEmailHubInboxWatch, api.syncEmailHub].map((fn) => vi.mocked(fn).mock.results[0]?.value);
+    expect(calls.every((call) => call instanceof Promise)).toBe(true);
+    await Promise.allSettled(calls);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });

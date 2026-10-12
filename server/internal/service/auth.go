@@ -40,6 +40,9 @@ type AuthService struct {
 	// files selects the FileService path for avatars (UNI-744); nil keeps the
 	// legacy storage path. Wired through SetFiles — never both at once.
 	files files.Service
+	// emailHub is optional: wired, DeleteAccount revokes the OAuth grants of
+	// the mailboxes it disconnects (spec §5.5).
+	emailHub *EmailHubService
 }
 
 func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
@@ -51,6 +54,10 @@ func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, 
 func (s *AuthService) SetMail(r mail.Renderer, out mail.Enqueuer) {
 	s.render, s.out = r, out
 }
+
+// SetEmailHub lets DeleteAccount revoke the refresh tokens it removes; main
+// wires it once EmailHubService exists.
+func (s *AuthService) SetEmailHub(h *EmailHubService) { s.emailHub = h }
 
 // SessionMeta is what a session remembers about the client that opened it.
 // The handler puts it on the context; every path that mints a session

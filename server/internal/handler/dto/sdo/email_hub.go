@@ -2,11 +2,28 @@ package sdo
 
 // EmailHubAccountSDO is one connected IMAP mailbox.
 type EmailHubAccountSDO struct {
-	ID           string `json:"id" example:"01JABC1234567890ABCDEFGH"`
-	EmailAddress string `json:"email_address" example:"you@gmail.com"`
-	Provider     string `json:"provider" example:"gmail"`
-	ConnectedAt  string `json:"connected_at" format:"date-time"`
-	LastSyncAt   string `json:"last_sync_at,omitempty" format:"date-time"`
+	ID               string `json:"id" example:"01JABC1234567890ABCDEFGH"`
+	EmailAddress     string `json:"email_address" example:"you@gmail.com"`
+	Provider         string `json:"provider" example:"gmail"`
+	ConnectedAt      string `json:"connected_at" format:"date-time"`
+	LastSyncAt       string `json:"last_sync_at,omitempty" format:"date-time"`
+	AuthKind         string `json:"auth_kind" description:"How the mailbox signs in" example:"password"`
+	NeedsReconnect   bool   `json:"needs_reconnect" description:"The provider refused the stored credential; reconnect to resume sync and send" example:"false"`
+	AuthFailedReason string `json:"auth_failed_reason" description:"Why the credential was refused; empty while connected" example:"imap_auth_failed"`
+	ImapHost         string `json:"imap_host" description:"Máy chủ IMAP đã lưu" example:"imap.gmail.com"`
+	ImapPort         int    `json:"imap_port" description:"Cổng IMAP" example:"993"`
+	ImapSecurity     string `json:"imap_security" description:"tls hoặc starttls" example:"tls"`
+	SmtpHost         string `json:"smtp_host" description:"Máy chủ SMTP đã lưu" example:"smtp.gmail.com"`
+	SmtpPort         int    `json:"smtp_port" description:"Cổng SMTP" example:"587"`
+	SmtpSecurity     string `json:"smtp_security" description:"tls hoặc starttls" example:"starttls"`
+	Username         string `json:"username" description:"Tên đăng nhập; rỗng nghĩa là dùng địa chỉ email" example:"you"`
+}
+
+// EmailHubProvidersSDO is GET .../email-hub/providers: the sign-in buttons the
+// connect dialog shows.
+type EmailHubProvidersSDO struct {
+	Google    bool `json:"google" description:"Có thể kết nối bằng đăng nhập Google" example:"true"`
+	Microsoft bool `json:"microsoft" description:"Có thể kết nối bằng đăng nhập Microsoft" example:"false"`
 }
 
 // EmailHubWatchSDO is POST .../email-hub/watch.
@@ -133,4 +150,9 @@ type EmailHubThreadSummarySDO struct {
 	Model        string                 `json:"model,omitempty"`
 	Cached       bool                   `json:"cached"`
 	SummarizedAt string                 `json:"summarized_at,omitempty" format:"date-time"`
+}
+
+// EmailHubOAuthStartSDO is POST .../email-hub/oauth/{provider}/start.
+type EmailHubOAuthStartSDO struct {
+	AuthorizationURL string `json:"authorization_url" description:"URL đăng nhập của nhà cung cấp, mở trong cửa sổ bật lên" example:"https://accounts.google.com/o/oauth2/v2/auth?client_id=..."`
 }

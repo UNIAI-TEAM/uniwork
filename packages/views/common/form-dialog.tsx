@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
@@ -36,15 +36,28 @@ export function FormDialogContent({
   size = "md",
   className,
   children,
+  initialFocus,
+  finalFocus,
 }: {
   size?: keyof typeof WIDTH;
   className?: string;
   children: ReactNode;
+  /** Where focus lands on open; the default is the first tabbable element. */
+  initialFocus?: ComponentProps<typeof DialogContent>["initialFocus"];
+  /** Where focus lands on close; the default is the opener. */
+  finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
 }) {
   const { t } = useTranslation();
   return (
     <DialogContent
-      className={cn("gap-0 overflow-hidden p-0", WIDTH[size], className)}
+      // Never taller than the screen less a 1rem margin: the body (inside a form or not) shrinks and scrolls instead.
+      className={cn(
+        "flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 [&>form]:flex [&>form]:min-h-0 [&>form]:flex-col",
+        WIDTH[size],
+        className,
+      )}
+      initialFocus={initialFocus}
+      finalFocus={finalFocus}
       showCloseButton
       closeLabel={t("common.close")}
     >
@@ -69,7 +82,8 @@ export function FormDialogBody({ className, children }: { className?: string; ch
 /**
  * Cancel, then the primary action. While the action runs its label becomes
  * the "…ing" form and both buttons hold still, so a second click cannot
- * send twice.
+ * send twice. Without a submitLabel the footer is Cancel alone: a step whose
+ * choices act on their own (pick a method, sign in in a popup).
  */
 export function FormDialogFooter({
   onCancel,
@@ -86,7 +100,7 @@ export function FormDialogFooter({
 }: {
   onCancel: () => void;
   cancelLabel?: string;
-  submitLabel: string;
+  submitLabel?: string;
   submittingLabel?: string;
   submitting?: boolean;
   submitDisabled?: boolean;
@@ -95,26 +109,28 @@ export function FormDialogFooter({
   /** Id of the form the primary button submits, when the footer sits outside it. */
   form?: string;
   destructive?: boolean;
-  /** Left-aligned content: a hint about why the action is not ready yet. */
+  /** Left-aligned content (a hint about why the action is not ready yet, a Back button); below sm it stacks under Cancel. */
   leading?: ReactNode;
 }) {
   const { t } = useTranslation();
   return (
     <DialogFooter className="items-center px-5 py-3">
-      {leading ? <div className="mr-auto min-w-0 text-caption text-muted-foreground">{leading}</div> : null}
+      {leading ? <div className="min-w-0 text-caption text-muted-foreground sm:mr-auto">{leading}</div> : null}
       <Button type="button" variant="outline" disabled={submitting} onClick={onCancel}>
         {cancelLabel ?? t("common.cancel")}
       </Button>
-      <Button
-        type={submitType}
-        form={form}
-        variant={destructive ? "destructive" : "default"}
-        disabled={submitDisabled || submitting}
-        aria-busy={submitting || undefined}
-        onClick={onSubmit}
-      >
-        {submitting && submittingLabel ? submittingLabel : submitLabel}
-      </Button>
+      {submitLabel ? (
+        <Button
+          type={submitType}
+          form={form}
+          variant={destructive ? "destructive" : "default"}
+          disabled={submitDisabled || submitting}
+          aria-busy={submitting || undefined}
+          onClick={onSubmit}
+        >
+          {submitting && submittingLabel ? submittingLabel : submitLabel}
+        </Button>
+      ) : null}
     </DialogFooter>
   );
 }

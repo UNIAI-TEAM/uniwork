@@ -1,14 +1,20 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
-// tag: email-hub — IMAP mailboxes connected with App Password (Phase 1).
+// tag: email-hub — IMAP mailboxes connected with an App Password on a preset
+// provider, with the password of the member's own IMAP/SMTP server, or by
+// signing in with Google or Microsoft.
 //
+//	GET    /api/v1/workspaces/{workspaceID}/email-hub/providers
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/accounts
 //	POST   /api/v1/workspaces/{workspaceID}/email-hub/accounts
+//	POST   /api/v1/workspaces/{workspaceID}/email-hub/oauth/{provider}/start
 //	DELETE /api/v1/workspaces/{workspaceID}/email-hub/accounts/{accountID}
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/threads
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}
@@ -19,7 +25,7 @@ import (
 //	POST   /api/v1/workspaces/{workspaceID}/email-hub/inbox-watch
 //	DELETE /api/v1/workspaces/{workspaceID}/email-hub/inbox-watch
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}/attachments/{attachmentID}
-func registerEmailHub(r api, h Routes) {
+func registerEmailHub(r api, h Routes, connectLimit func(http.Handler) http.Handler) {
 	r.Get("/workspaces/{workspaceID}/email-hub/accounts", h.ListEmailHubAccounts, apiOp{
 		summary: "List connected mailboxes",
 		tags:    []string{"email-hub"},
@@ -40,13 +46,37 @@ func registerEmailHub(r api, h Routes) {
 		sdo:         sdo.EmailHubSidebarCountsSDO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/email-hub/accounts", h.ConnectEmailHubAccount, apiOp{
-		summary:     "Connect IMAP mailbox",
-		description: "Verifies IMAP login with an App Password, stores encrypted credentials, and runs an initial INBOX sync.",
+	r.Get("/workspaces/{workspaceID}/email-hub/providers", h.GetEmailHubProviders, apiOp{
+		summary:     "Sign-in providers for connecting a mailbox",
+		description: "Nhà cung cấp nào có thể kết nối hộp thư bằng đăng nhập (OAuth). Một nhà cung cấp chỉ bật khi máy chủ có OAuth client riêng của Email Hub và khoá mã hoá thông tin đăng nhập.",
 		tags:        []string{"email-hub"},
-		sdi:         sdi.ConnectEmailHubAccountSDI{},
-		sdo:         sdo.EmailHubAccountSDO{},
+		sdo:         sdo.EmailHubProvidersSDO{},
 		auth:        true,
+	})
+	r.With(connectLimit).Post("/workspaces/{workspaceID}/email-hub/accounts", h.ConnectEmailHubAccount, apiOp{
+		summary: "Connect IMAP mailbox",
+		description: "Verifies IMAP and SMTP login, stores encrypted credentials, and runs an initial sync. " +
+			"Without imap_host the server comes from the address's domain preset (App Password); with it, all six " +
+			"server fields are required (TLS mandatory, ports 993/143/465/587/25) and are checked before any dial: " +
+			"400 email_hub_invalid_server or email_hub_host_not_allowed, with error.fields.field naming the field. " +
+			"An address that needs a reconnect keeps its id; a live one on the same IMAP server answers 409 " +
+			"email_hub_already_connected before any dial. 10 requests per 10 minutes per user.",
+		tags: []string{"email-hub"},
+		sdi:  sdi.ConnectEmailHubAccountSDI{},
+		sdo:  sdo.EmailHubAccountSDO{},
+		auth: true,
+	})
+	r.With(connectLimit).Post("/workspaces/{workspaceID}/email-hub/oauth/{provider}/start", h.StartEmailHubOAuth, apiOp{
+		summary: "Start Google or Microsoft sign-in for a mailbox",
+		description: "provider is google or microsoft; one without an Email Hub OAuth client answers 404. " +
+			"Returns the provider's authorization URL (offline access, PKCE S256) and sets the HttpOnly " +
+			"uniwork_email_oauth nonce cookie on /api/v1/email-hub-connections/ for the callback, so the web " +
+			"app and the API must be same-site. login_hint pre-selects the account on a reconnect. " +
+			"10 requests per 10 minutes per user.",
+		tags: []string{"email-hub"},
+		sdi:  sdi.StartEmailHubOAuthSDI{},
+		sdo:  sdo.EmailHubOAuthStartSDO{},
+		auth: true,
 	})
 	r.Delete("/workspaces/{workspaceID}/email-hub/accounts/{accountID}", h.DisconnectEmailHubAccount, apiOp{
 		summary: "Disconnect mailbox",
@@ -164,5 +194,24 @@ func registerEmailHub(r api, h Routes) {
 		tags:    []string{"email-hub"},
 		sdo:     sdo.EmailHubInboxWatchSDO{},
 		auth:    true,
+	})
+}
+
+// registerEmailHubCallback mounts the OAuth redirect target outside the authed
+// group: the provider's redirect carries no bearer token. It is registered
+// next to registerAuth, on the credential budget, like /auth/google/callback.
+//
+//	GET /api/v1/email-hub-connections/{provider}/callback  (credential rate limit)
+func registerEmailHubCallback(v1 api, h Routes, credentialLimit func(http.Handler) http.Handler) {
+	v1.With(credentialLimit).Get("/email-hub-connections/{provider}/callback", h.CompleteEmailHubOAuth, apiOp{
+		summary: "Complete Email Hub OAuth",
+		description: "Provider redirect target for a mailbox connected with Google or Microsoft sign-in; no session. " +
+			"Query: state, code, or error from the provider. Checks the sealed state against the nonce cookie set by " +
+			"start, exchanges the code with PKCE, verifies XOAUTH2 IMAP and SMTP and connects or reconnects the mailbox. " +
+			"Always answers 200 with a small HTML page that posts {type: \"uniwork:email-hub-oauth\", ok, code} to the " +
+			"frontend origin and closes. code is one of connected, denied, state_invalid, email_unavailable, " +
+			"imap_not_enabled, smtp_disabled, already_connected, consent_required, failed. 60 requests per minute per address.",
+		tags:     []string{"email-hub"},
+		produces: "text/html",
 	})
 }

@@ -31,6 +31,9 @@ describe("IntegrationsTab", () => {
     renderTab([]);
     const available = screen.getByRole("list", { name: "Dùng được" });
     expect(within(available).getByText("Email Hub")).toBeInTheDocument();
+    expect(
+      within(available).getByText("Mỗi người tự kết nối hộp thư: Gmail, Outlook, Yahoo hoặc tên miền riêng"),
+    ).toBeInTheDocument();
     expect(await within(available).findByText("Bạn chưa kết nối")).toBeInTheDocument();
     expect(within(available).getByRole("link", { name: "Kết nối hộp thư" })).toHaveAttribute("href", "/acme/team/email");
   });
@@ -39,6 +42,15 @@ describe("IntegrationsTab", () => {
     renderTab([{ id: "a1", email_address: "an@gmail.com", provider: "gmail", connected_at: "2026-09-01T00:00:00Z" }]);
     expect(await screen.findByText("Bạn đã kết nối 1 hộp thư")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Mở Email Hub" })).toBeInTheDocument();
+  });
+
+  it("adds how many of the reader's mailboxes need reconnecting", async () => {
+    const mailbox = { provider: "gmail", connected_at: "2026-09-01T00:00:00Z" };
+    renderTab([
+      { ...mailbox, id: "a1", email_address: "an@gmail.com", needs_reconnect: true },
+      { ...mailbox, id: "a2", email_address: "binh@gmail.com" },
+    ]);
+    expect(await screen.findByText("Bạn đã kết nối 2 hộp thư · 1 hộp thư cần kết nối lại")).toBeInTheDocument();
   });
 
   it("says the count failed to load and offers a neutral way in, not \"connect\"", async () => {
@@ -55,9 +67,10 @@ describe("IntegrationsTab", () => {
   it("shows only documented plans, locked, and prints the description once", () => {
     renderTab([]);
     const planned = screen.getByRole("list", { name: "Trong lộ trình" });
-    expect(within(planned).getAllByText("Sắp có")).toHaveLength(2);
-    expect(within(planned).getByText("Gmail và Microsoft 365")).toBeInTheDocument();
+    expect(within(planned).getAllByText("Sắp có")).toHaveLength(1);
     expect(within(planned).getByText("Webhook")).toBeInTheDocument();
+    // Google and Microsoft sign-in shipped inside Email Hub (GĐ3); it is no longer a plan.
+    expect(within(planned).queryByText("Gmail và Microsoft 365")).toBeNull();
     expect(within(planned).queryByRole("link")).toBeNull();
     expect(within(planned).queryByRole("button")).toBeNull();
     expect(screen.queryByText(/Slack/i)).toBeNull();

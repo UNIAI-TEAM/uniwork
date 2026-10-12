@@ -1,6 +1,6 @@
 "use client";
 
-import { Lock, Mail, Webhook } from "lucide-react";
+import { Lock, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEmailHubAccounts } from "@uniwork/core/email-hub/hooks";
 import { paths } from "@uniwork/core/paths";
@@ -19,9 +19,6 @@ import { SettingsBadge, SettingsList, SettingsListItem, SettingsSection, Setting
  * Nothing here is clickable until it ships.
  */
 const PLANNED = [
-  // docs/roadmap/FEATURE_ROADMAP.md A-10 (Email integration: Gmail / Microsoft
-  // Graph), docs/vision/PROJECT_VISION.md §5.2 mục 18.
-  { key: "mail_oauth", icon: Mail },
   // docs/roadmap/FEATURE_ROADMAP.md A-07 (Webhook ký HMAC + SDK TypeScript),
   // docs/vision/PROJECT_VISION.md (webhook ký HMAC cho sự kiện domain).
   { key: "webhooks", icon: Webhook },
@@ -29,8 +26,11 @@ const PLANNED = [
 
 /**
  * Email Hub is the one connection that works today: each person links their
- * own Gmail, Outlook or Yahoo mailbox with an app password
- * (server/internal/emailhub/provider.go). The count is the reader's own.
+ * own mailbox by signing in with Google or Microsoft
+ * (server/internal/service/email_hub_oauth_callback.go), with an app password for
+ * Gmail, Outlook or Yahoo (server/internal/emailhub/provider.go), or on their
+ * own domain's IMAP/SMTP server (server/internal/service/email_hub_connect_server.go).
+ * The count is the reader's own.
  */
 function EmailHubRow() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.integrations" });
@@ -38,6 +38,7 @@ function EmailHubRow() {
   const accounts = useEmailHubAccounts(workspace.id);
   const href = paths.workspace(workspace.organization_slug, workspace.slug).email();
   const count = accounts.data?.accounts.length ?? 0;
+  const broken = accounts.data?.accounts.filter((acc) => acc.needs_reconnect).length ?? 0;
   // Until the list arrives (or when it fails) nothing is known about the
   // reader's mailboxes, so neither the badge nor the action claims "none".
   const known = !accounts.isLoading && !accounts.isError;
@@ -47,7 +48,10 @@ function EmailHubRow() {
   ) : accounts.isError ? (
     <SettingsBadge tone="destructive">{t("email_hub.load_error")}</SettingsBadge>
   ) : count > 0 ? (
-    <SettingsBadge tone="success">{t("email_hub.connected", { count })}</SettingsBadge>
+    <SettingsBadge tone={broken > 0 ? "warning" : "success"}>
+      {t("email_hub.connected", { count })}
+      {broken > 0 ? t("email_hub.needs_reconnect", { count: broken }) : null}
+    </SettingsBadge>
   ) : (
     <SettingsBadge tone="muted">{t("email_hub.not_connected")}</SettingsBadge>
   );

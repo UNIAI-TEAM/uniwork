@@ -6,6 +6,29 @@ export const EmailHubAccountSchema = z.object({
   provider: z.string(),
   connected_at: z.string(),
   last_sync_at: z.string().optional(),
+  // An older server sends none of these; the defaults read as a healthy password account.
+  auth_kind: z.string().default("password"),
+  needs_reconnect: z.boolean().default(false),
+  auth_failed_reason: z.string().default(""),
+  // The mail server, so reconnecting a custom account can prefill its form. Each field
+  // degrades alone: a drifted value drops that field, never the whole account.
+  imap_host: z.string().optional().catch(undefined),
+  imap_port: z.number().optional().catch(undefined),
+  imap_security: z.string().optional().catch(undefined),
+  smtp_host: z.string().optional().catch(undefined),
+  smtp_port: z.number().optional().catch(undefined),
+  smtp_security: z.string().optional().catch(undefined),
+  username: z.string().optional().catch(undefined),
+});
+
+/** Which sign-in buttons to show. Anything but `true`, a missing key included, hides that provider. */
+export const EmailHubProvidersSchema = z.object({
+  google: z.boolean().catch(false),
+  microsoft: z.boolean().catch(false),
+});
+
+export const EmailHubOAuthStartSchema = z.object({
+  authorization_url: z.string(),
 });
 
 export const EmailHubWatchSchema = z.object({
@@ -112,7 +135,23 @@ export interface EmailHubThreadFilters {
   hasAttachmentsOnly?: boolean;
 }
 
+type EmailHubServerSecurity = "tls" | "starttls";
+
+/** A custom IMAP/SMTP server for connect. Keys are the request's JSON names; the password travels beside it. */
+export interface EmailHubCustomServer {
+  imap_host: string;
+  imap_port: number;
+  imap_security: EmailHubServerSecurity;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_security: EmailHubServerSecurity;
+  /** Login name when it is not the address; empty or absent means the address. */
+  username?: string;
+}
+
 export type EmailHubAccount = z.infer<typeof EmailHubAccountSchema>;
+export type EmailHubProviders = z.infer<typeof EmailHubProvidersSchema>;
+export type EmailHubOAuthProvider = "google" | "microsoft";
 export type EmailHubWatch = z.infer<typeof EmailHubWatchSchema>;
 export type EmailHubInboxWatch = z.infer<typeof EmailHubInboxWatchSchema>;
 export type EmailHubSync = z.infer<typeof EmailHubSyncSchema>;

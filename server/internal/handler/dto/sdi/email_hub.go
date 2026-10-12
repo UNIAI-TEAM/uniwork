@@ -1,9 +1,18 @@
 package sdi
 
 // ConnectEmailHubAccountSDI is POST /api/v1/workspaces/{workspaceID}/email-hub/accounts.
+// Without imap_host the server comes from the address's domain preset; with it,
+// all six server fields are required and the mailbox is stored as provider custom.
 type ConnectEmailHubAccountSDI struct {
 	EmailAddress string `json:"email_address" minLength:"3" maxLength:"254" format:"email" example:"you@gmail.com"`
-	AppPassword  string `json:"app_password" minLength:"8" maxLength:"128" example:"abcd efgh ijkl mnop"`
+	AppPassword  string `json:"app_password" minLength:"8" maxLength:"128" description:"Mật khẩu ứng dụng, hoặc mật khẩu hộp thư khi dùng máy chủ riêng" example:"abcd efgh ijkl mnop"`
+	ImapHost     string `json:"imap_host,omitempty" maxLength:"253" description:"Máy chủ IMAP: tên miền hoặc địa chỉ IP, không kèm giao thức hay cổng. Bỏ trống để dùng cấu hình sẵn theo tên miền email" example:"mail.example.com"`
+	ImapPort     int    `json:"imap_port,omitempty" description:"Cổng IMAP: 993, 143, 465, 587 hoặc 25" example:"993"`
+	ImapSecurity string `json:"imap_security,omitempty" enum:"tls,starttls" description:"tls: mã hoá ngay khi kết nối; starttls: bắt buộc nâng cấp bằng STARTTLS" example:"tls"`
+	SmtpHost     string `json:"smtp_host,omitempty" maxLength:"253" description:"Máy chủ SMTP: tên miền hoặc địa chỉ IP, không kèm giao thức hay cổng" example:"mail.example.com"`
+	SmtpPort     int    `json:"smtp_port,omitempty" description:"Cổng SMTP: 993, 143, 465, 587 hoặc 25" example:"587"`
+	SmtpSecurity string `json:"smtp_security,omitempty" enum:"tls,starttls" description:"tls: mã hoá ngay khi kết nối; starttls: bắt buộc nâng cấp bằng STARTTLS" example:"starttls"`
+	Username     string `json:"username,omitempty" maxLength:"320" description:"Tên đăng nhập nếu khác địa chỉ email" example:"you"`
 }
 
 // SendEmailHubAttachmentSDI is one base64 attachment on send.
@@ -48,4 +57,9 @@ type PatchEmailHubThreadSDI struct {
 	MoveTo      string  `json:"move_to,omitempty" enum:"INBOX,ARCHIVE,TRASH,SPAM" example:"ARCHIVE"`
 	SnoozeUntil *string `json:"snooze_until,omitempty" format:"date-time" example:"2026-09-25T09:00:00Z"`
 	ClearSnooze *bool   `json:"clear_snooze,omitempty" example:"true"`
+}
+
+// StartEmailHubOAuthSDI is POST /api/v1/workspaces/{workspaceID}/email-hub/oauth/{provider}/start.
+type StartEmailHubOAuthSDI struct {
+	LoginHint string `json:"login_hint,omitempty" maxLength:"320" description:"Địa chỉ gợi ý để nhà cung cấp chọn sẵn tài khoản khi kết nối lại" example:"you@gmail.com"`
 }

@@ -7,13 +7,16 @@ import (
 	"fmt"
 	"html"
 	"log/slog"
+	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/emailhub"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient"
@@ -28,6 +31,10 @@ var (
 	ErrEmailHubUnsupported   = errors.New("unsupported email provider")
 	ErrEmailHubConnectFailed = errors.New("imap connection failed")
 	ErrEmailHubSendFailed    = errors.New("smtp send failed")
+	// ErrEmailHubReauthRequired: the mailbox's credential was refused; only a
+	// reconnect by the owner brings it back.
+	ErrEmailHubReauthRequired = errors.New("email hub account needs reconnect")
+	ErrEmailHubSMTPDisabled   = errors.New("smtp auth disabled for mailbox")
 	// errEmailHubSentNotCached wraps failures after SMTP accepted the mail: the
 	// recipient has it, only our Sent copy is missing, so it must not be retried.
 	errEmailHubSentNotCached = errors.New("sent but not cached")
@@ -42,17 +49,34 @@ type EmailHubService struct {
 	log      *slog.Logger
 	gov      *emailHubGovernor
 	hubWatch *emailHubHubWatcher
+
+	// refreshLocks holds one *sync.Mutex per account id (refreshLock).
+	refreshLocks sync.Map
 	// AI and Tasks are wired from main after construction; nil disables summarize → task.
 	AI    *ai.Gateway
 	Tasks *TaskService
+	// oauth holds the sign-in providers ConfigureOAuth enabled; oauthHTTP
+	// bounds every token and revoke call. Tests point both at httptest servers.
+	oauth     map[string]*emailHubOAuthProvider
+	oauthHTTP *http.Client
 
-	// scheduleWorkerOwnerFn and testHookScheduledSend are set only in tests.
+	// scheduleWorkerOwnerFn, testHookScheduledSend, testHookSMTPSend and
+	// testHookAppendSent are set only in tests.
 	scheduleWorkerOwnerFn func() string
 	testHookScheduledSend func(context.Context, db.EmailHubAccount, string, SendEmailHubInput) error
+	testHookSMTPSend      func(context.Context, smtpclient.Credentials, smtpclient.Message) (string, []byte, error)
+	testHookAppendSent    func(ctx context.Context, acc db.EmailHubAccount, raw []byte) (uint32, error)
+	// testHookVerify replaces the IMAP+SMTP login check and testHookInitialSync
+	// the first sync after Connect; both are set only in tests.
+	testHookVerify      func(ctx context.Context, imap imapclient.Credentials, smtp smtpclient.Credentials) error
+	testHookInitialSync func(ctx context.Context, acc db.EmailHubAccount)
 }
 
 func NewEmailHubService(q *db.Queries, ws *WorkspaceService, box *secretbox.Box) *EmailHubService {
-	svc := &EmailHubService{q: q, ws: ws, box: box, log: slog.Default(), gov: newEmailHubGovernor()}
+	svc := &EmailHubService{
+		q: q, ws: ws, box: box, log: slog.Default(), gov: newEmailHubGovernor(),
+		oauthHTTP: &http.Client{Timeout: 15 * time.Second},
+	}
 	svc.hubWatch = newEmailHubHubWatcher(svc)
 	return svc
 }
@@ -62,11 +86,22 @@ func (s *EmailHubService) Enabled() bool {
 }
 
 type EmailHubAccountView struct {
-	ID           string
-	EmailAddress string
-	Provider     string
-	ConnectedAt  time.Time
-	LastSyncAt   *time.Time
+	ID               string
+	EmailAddress     string
+	Provider         string
+	ConnectedAt      time.Time
+	LastSyncAt       *time.Time
+	AuthKind         string
+	NeedsReconnect   bool
+	AuthFailedReason string
+	// Server settings refill the reconnect form; the password never leaves the row.
+	ImapHost     string
+	ImapPort     int
+	ImapSecurity string
+	SmtpHost     string
+	SmtpPort     int
+	SmtpSecurity string
+	Username     string
 }
 
 type EmailHubThreadView struct {
@@ -125,79 +160,6 @@ func (s *EmailHubService) ListAccounts(ctx context.Context, actor Actor, workspa
 	return out, nil
 }
 
-type ConnectEmailHubInput struct {
-	EmailAddress string
-	AppPassword  string
-}
-
-func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID string, in ConnectEmailHubInput) (EmailHubAccountView, error) {
-	if !s.Enabled() {
-		return EmailHubAccountView{}, ErrEmailHubNotConfigured
-	}
-	ws, err := s.workspace(ctx, actor, workspaceID)
-	if err != nil {
-		return EmailHubAccountView{}, err
-	}
-	email := strings.ToLower(strings.TrimSpace(in.EmailAddress))
-	password := strings.TrimSpace(in.AppPassword)
-	if email == "" || password == "" {
-		return EmailHubAccountView{}, Invalid("email and app password required")
-	}
-	prov, ok := emailhub.ProviderForEmail(email)
-	if !ok {
-		return EmailHubAccountView{}, ErrEmailHubUnsupported
-	}
-	creds := imapclient.Credentials{
-		Host: prov.IMAPHost, Port: prov.IMAPPort, Email: email, Password: password,
-	}
-	if err := imapclient.VerifyLogin(creds); err != nil {
-		s.log.Warn("email hub connect failed", "provider", prov.Name, "user_id", actor.ID, "err", err)
-		return EmailHubAccountView{}, fmt.Errorf("%w: %v", ErrEmailHubConnectFailed, err)
-	}
-	if err := smtpclient.VerifyLogin(smtpclient.Credentials{
-		Host: prov.SMTPHost, Port: prov.SMTPPort, Email: email, Password: password,
-	}); err != nil {
-		s.log.Warn("email hub smtp verify failed", "provider", prov.Name, "user_id", actor.ID, "err", err)
-		return EmailHubAccountView{}, fmt.Errorf("%w: %v", ErrEmailHubConnectFailed, err)
-	}
-	existing, err := s.q.ListEmailHubAccountsByUser(ctx, db.ListEmailHubAccountsByUserParams{
-		UserID: actor.ID, OrganizationID: ws.OrganizationID,
-	})
-	if err != nil {
-		return EmailHubAccountView{}, err
-	}
-	for _, row := range existing {
-		if row.EmailAddress == email {
-			return EmailHubAccountView{}, Invalid("this email is already connected")
-		}
-	}
-	sealed, err := s.box.Seal([]byte(password))
-	if err != nil {
-		return EmailHubAccountView{}, err
-	}
-	id := util.NewID()
-	row, err := s.q.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
-		ID: id, UserID: actor.ID, OrganizationID: ws.OrganizationID,
-		EmailAddress: email, Provider: prov.Name,
-		ImapHost: prov.IMAPHost, ImapPort: int32(prov.IMAPPort),
-		SmtpHost: prov.SMTPHost, SmtpPort: int32(prov.SMTPPort),
-		PasswordEnc: base64.StdEncoding.EncodeToString(sealed),
-	})
-	if err != nil {
-		return EmailHubAccountView{}, err
-	}
-	if _, _, syncErr := s.syncAccount(ctx, row, false, true); syncErr != nil {
-		s.log.Warn("email hub initial sync failed", "account_id", id, "err", syncErr)
-	}
-	updated, err := s.q.GetEmailHubAccount(ctx, db.GetEmailHubAccountParams{
-		ID: id, UserID: actor.ID, OrganizationID: ws.OrganizationID,
-	})
-	if err != nil {
-		return accountView(row), nil
-	}
-	return accountView(updated), nil
-}
-
 func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspaceID, accountID string) error {
 	ws, err := s.workspace(ctx, actor, workspaceID)
 	if err != nil {
@@ -207,13 +169,34 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 	// disconnect. Nothing below may run for any other id: the cleanup deletes
 	// a mailbox's cached mail, and the account id is all a caller supplies
 	// (ADR 0008 isolation matrix).
-	n, err := s.q.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
-		ID: accountID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
-	})
+	tx, err := s.ws.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if n == 0 {
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := s.q.WithTx(tx)
+	old, err := qtx.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
+		ID: accountID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
+	})
+	disconnected := err == nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if disconnected {
+		if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+			OrganizationID: ws.OrganizationID,
+			Actor:          actor,
+			Action:         audit.ActionEmailHubAccountDisconnected,
+			ResourceType:   "email_hub_account",
+			ResourceID:     accountID,
+		}); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if !disconnected {
 		// Either not the caller's mailbox, or theirs and already disconnected.
 		// The second case runs the cleanup again: the flip and the deletes
 		// are not one transaction, so a cleanup that failed last time must
@@ -230,6 +213,8 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 		}
 	}
 	s.hubWatch.forceStop(accountID)
+	// old is the zero row on a repeated disconnect: no token is left to revoke.
+	s.revokeEmailHubToken(ctx, accountID, old.AuthKind, old.OauthRefreshTokenEnc)
 	return cleanUpDisconnectedEmailHubAccount(ctx, s.q, accountID, ws.OrganizationID)
 }
 
@@ -247,14 +232,18 @@ func cleanUpDisconnectedEmailHubAccount(ctx context.Context, q *db.Queries, acco
 }
 
 // cleanUpEmailHubAccountsAfterCommit cleans up the mailboxes a lifecycle
-// command (leave, account deletion) disconnected; that command already
-// committed, so a failure is logged rather than returned. Nobody can retry it
-// (the caller is gone from the organization), so it outlives the request.
-func cleanUpEmailHubAccountsAfterCommit(ctx context.Context, q *db.Queries, rows []db.DisconnectEmailHubAccountsForUserRow) {
+// command (leave, account deletion) disconnected, and revokes the refresh
+// tokens that command removed when hub is wired (nil: no revoke). That command
+// already committed, so a failure is logged rather than returned. Nobody can
+// retry it (the caller is gone from the organization), so it outlives the request.
+func cleanUpEmailHubAccountsAfterCommit(ctx context.Context, q *db.Queries, hub *EmailHubService, rows []db.DisconnectEmailHubAccountsForUserRow) {
 	ctx = context.WithoutCancel(ctx)
 	for _, r := range rows {
 		if err := cleanUpDisconnectedEmailHubAccount(ctx, q, r.ID, r.OrganizationID); err != nil {
 			slog.Warn("email hub cleanup after disconnect failed", "account_id", r.ID, "err", err)
+		}
+		if hub != nil {
+			hub.revokeEmailHubToken(ctx, r.ID, r.AuthKind, r.OauthRefreshTokenEnc)
 		}
 	}
 }
@@ -315,14 +304,15 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 			return view, nil
 		}
 	}
-	if !s.Enabled() {
+	// needs_reconnect: serve what is cached, never dial (spec §3).
+	if !s.Enabled() || acc.AuthFailedAt.Valid {
 		return view, nil
 	}
 	s.gov.beginInteractive(accountID)
 	defer s.gov.endInteractive(accountID)
 	body, err := s.fetchThreadBodyInteractive(ctx, acc, row)
 	if err != nil {
-		s.log.Warn("email hub fetch body failed", "thread_id", threadID, "err", err)
+		s.log.Warn("email hub fetch body failed", "thread_id", threadID, "code", emailHubErrCode(err))
 		return view, nil
 	}
 	if imapclient.BodyIsSnippetPlaceholder(body.HTML, body.Text, view.Snippet) {
@@ -358,7 +348,9 @@ func (s *EmailHubService) markThreadReadIfNeeded(
 		}); err != nil {
 			continue
 		}
-		go s.syncMarkReadOnIMAP(acc, r, r.ID)
+		if !acc.AuthFailedAt.Valid {
+			go s.syncMarkReadOnIMAP(acc, r, r.ID)
+		}
 		if r.ID == row.ID {
 			view.IsRead = true // keep the view's body and attachments as they are
 		}
@@ -438,25 +430,49 @@ func (s *EmailHubService) sendOutboundMail(
 	if subject == "" {
 		return EmailHubThreadView{}, Invalid("subject required")
 	}
-	password, err := s.openPassword(acc.PasswordEnc)
+	creds, err := s.credentials(ctx, acc)
 	if err != nil {
+		// A token endpoint that is down is retryable like an SMTP outage; the code, never the provider's text, travels on.
+		if errors.Is(err, errEmailHubOAuthRefreshFailed) || errors.Is(err, errEmailHubOAuthNotConfigured) {
+			code := emailHubErrCode(err)
+			s.log.Warn("email hub send failed", "account_id", acc.ID, "code", code)
+			return EmailHubThreadView{}, fmt.Errorf("%w: %s", ErrEmailHubSendFailed, code)
+		}
 		return EmailHubThreadView{}, err
 	}
-	msgID, err := smtpclient.Send(ctx, smtpclient.Credentials{
-		Host: acc.SmtpHost, Port: int(acc.SmtpPort), Email: acc.EmailAddress, Password: password,
-	}, smtpclient.Message{
+	send := smtpclient.Send
+	if s.testHookSMTPSend != nil {
+		send = s.testHookSMTPSend
+	}
+	msgID, raw, err := send(ctx, creds.SMTP, smtpclient.Message{
 		To: to, Cc: cleanEmailList(in.Cc), Bcc: cleanEmailList(in.Bcc), Subject: subject,
 		BodyText: body, BodyHTML: bodyHTML, Attachments: attachments, InReplyTo: inReplyTo, References: references,
 	})
 	if err != nil {
-		s.log.Warn("email hub send failed", "account_id", acc.ID, "err", err)
+		code, _ := classifyEmailHubConnectError(err) // the raw reply carries hosts and addresses
+		s.log.Warn("email hub send failed", "account_id", acc.ID, "code", code)
+		// Classified before wrapping: the handler maps these sentinels, not ErrEmailHubSendFailed.
+		switch {
+		case errors.Is(err, smtpclient.ErrSMTPAuthDisabled):
+			return EmailHubThreadView{}, ErrEmailHubSMTPDisabled
+		case errors.Is(err, smtpclient.ErrAuthFailed):
+			s.handleAuthError(ctx, acc, creds.Version, err)
+			return EmailHubThreadView{}, ErrEmailHubReauthRequired
+		}
 		return EmailHubThreadView{}, fmt.Errorf("%w: %v", ErrEmailHubSendFailed, err)
 	}
 	now := time.Now().UTC()
+	// Placeholder until the Sent sync adopts the server's copy by Message-ID.
+	uid := int32(now.Unix() & 0x7fffffff)
+	if acc.Provider == "custom" && !emailhub.ServerSavesSent(acc.ImapHost) {
+		if appended := s.appendSentCopy(ctx, acc, raw, now); appended != 0 {
+			uid = int32(appended)
+		}
+	}
 	snippet := imapclient.CleanSnippet(imapclient.SnippetFromBody(body, bodyHTML))
 	row, err := s.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
 		ID: util.NewID(), AccountID: acc.ID, OrganizationID: organizationID,
-		Folder: emailhub.FolderSent, ImapUid: int32(now.Unix() & 0x7fffffff),
+		Folder: emailhub.FolderSent, ImapUid: uid,
 		MessageID: pgtype.Text{String: msgID, Valid: true},
 		Subject:   subject, Snippet: snippet, FromAddr: acc.EmailAddress,
 		ToAddrs: to, SentAt: pgtype.Timestamptz{Time: now, Valid: true},
@@ -518,6 +534,9 @@ func (s *EmailHubService) MarkThreadRead(ctx context.Context, actor Actor, works
 		}
 		return EmailHubThreadView{}, err
 	}
+	if acc.AuthFailedAt.Valid {
+		return EmailHubThreadView{}, ErrEmailHubReauthRequired
+	}
 	row, err := s.q.GetEmailHubThread(ctx, db.GetEmailHubThreadParams{
 		ID: threadID, AccountID: accountID, OrganizationID: ws.OrganizationID,
 	})
@@ -572,6 +591,9 @@ func (s *EmailHubService) MarkThreadStarred(
 		}
 		return EmailHubThreadView{}, err
 	}
+	if acc.AuthFailedAt.Valid {
+		return EmailHubThreadView{}, ErrEmailHubReauthRequired
+	}
 	row, err := s.q.GetEmailHubThread(ctx, db.GetEmailHubThreadParams{
 		ID: threadID, AccountID: accountID, OrganizationID: ws.OrganizationID,
 	})
@@ -597,15 +619,15 @@ func (s *EmailHubService) MarkThreadStarred(
 
 func (s *EmailHubService) syncMarkUnreadOnIMAP(acc db.EmailHubAccount, row db.EmailHubThread, threadID string) {
 	_ = s.gov.withIMAP(acc.ID, func() error {
-		sess, mailboxes, err := s.openIMAPWithMailboxes(acc)
+		sess, mailboxes, err := s.openIMAPWithMailboxes(context.Background(), acc)
 		if err != nil {
-			s.log.Warn("email hub mark unread imap failed", "thread_id", threadID, "err", err)
+			s.log.Warn("email hub mark unread imap failed", "thread_id", threadID, "code", emailHubErrCode(err))
 			return err
 		}
 		defer sess.Close()
 		mailbox := mailboxes.Resolve(row.Folder)
 		if imapErr := sess.MarkUnread(mailbox, uint32(row.ImapUid)); imapErr != nil {
-			s.log.Warn("email hub mark unread imap failed", "thread_id", threadID, "err", imapErr)
+			s.log.Warn("email hub mark unread imap failed", "thread_id", threadID, "code", emailHubErrCode(imapErr))
 			return imapErr
 		}
 		return nil
@@ -614,15 +636,15 @@ func (s *EmailHubService) syncMarkUnreadOnIMAP(acc db.EmailHubAccount, row db.Em
 
 func (s *EmailHubService) syncMarkReadOnIMAP(acc db.EmailHubAccount, row db.EmailHubThread, threadID string) {
 	_ = s.gov.withIMAP(acc.ID, func() error {
-		sess, mailboxes, err := s.openIMAPWithMailboxes(acc)
+		sess, mailboxes, err := s.openIMAPWithMailboxes(context.Background(), acc)
 		if err != nil {
-			s.log.Warn("email hub mark read imap failed", "thread_id", threadID, "err", err)
+			s.log.Warn("email hub mark read imap failed", "thread_id", threadID, "code", emailHubErrCode(err))
 			return err
 		}
 		defer sess.Close()
 		mailbox := mailboxes.Resolve(row.Folder)
 		if imapErr := sess.MarkRead(mailbox, uint32(row.ImapUid)); imapErr != nil {
-			s.log.Warn("email hub mark read imap failed", "thread_id", threadID, "err", imapErr)
+			s.log.Warn("email hub mark read imap failed", "thread_id", threadID, "code", emailHubErrCode(imapErr))
 			return imapErr
 		}
 		return nil
@@ -631,15 +653,15 @@ func (s *EmailHubService) syncMarkReadOnIMAP(acc db.EmailHubAccount, row db.Emai
 
 func (s *EmailHubService) syncMarkStarredOnIMAP(acc db.EmailHubAccount, row db.EmailHubThread, threadID string, starred bool) {
 	_ = s.gov.withIMAP(acc.ID, func() error {
-		sess, mailboxes, err := s.openIMAPWithMailboxes(acc)
+		sess, mailboxes, err := s.openIMAPWithMailboxes(context.Background(), acc)
 		if err != nil {
-			s.log.Warn("email hub mark starred imap failed", "thread_id", threadID, "err", err)
+			s.log.Warn("email hub mark starred imap failed", "thread_id", threadID, "code", emailHubErrCode(err))
 			return err
 		}
 		defer sess.Close()
 		mailbox := mailboxes.Resolve(row.Folder)
 		if imapErr := sess.MarkStarred(mailbox, uint32(row.ImapUid), starred); imapErr != nil {
-			s.log.Warn("email hub mark starred imap failed", "thread_id", threadID, "err", imapErr)
+			s.log.Warn("email hub mark starred imap failed", "thread_id", threadID, "code", emailHubErrCode(imapErr))
 			return imapErr
 		}
 		return nil
@@ -662,6 +684,9 @@ func (s *EmailHubService) Sync(
 		}
 		return false, err
 	}
+	if acc.AuthFailedAt.Valid {
+		return false, ErrEmailHubReauthRequired
+	}
 	folder = normalizeEmailHubFolder(folder)
 	beforeUnread := s.inboxUnreadForAccount(ctx, acc)
 	var synced bool
@@ -673,7 +698,7 @@ func (s *EmailHubService) Sync(
 		synced, newUnread, syncErr = s.syncSingleFolder(ctx, acc, folder, reconcile, force, live, false)
 	}
 	if syncErr != nil {
-		return false, syncErr
+		return false, redactEmailHubMailErr(syncErr)
 	}
 	if synced {
 		s.emitInboxChanged(ctx, acc)
@@ -725,6 +750,10 @@ func accountView(r db.EmailHubAccount) EmailHubAccountView {
 	return EmailHubAccountView{
 		ID: r.ID, EmailAddress: r.EmailAddress, Provider: r.Provider,
 		ConnectedAt: r.CreatedAt.Time, LastSyncAt: lastSyncFromState(r.SyncState),
+		AuthKind: r.AuthKind, NeedsReconnect: r.AuthFailedAt.Valid, AuthFailedReason: r.AuthFailedReason,
+		ImapHost: r.ImapHost, ImapPort: int(r.ImapPort), ImapSecurity: r.ImapSecurity,
+		SmtpHost: r.SmtpHost, SmtpPort: int(r.SmtpPort), SmtpSecurity: r.SmtpSecurity,
+		Username: r.Username,
 	}
 }
 

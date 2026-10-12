@@ -47,7 +47,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { CalendarProviderIcon } from "./calendar-provider-icons";
+import { ProviderIcon } from "../common/provider-icons";
+import { useOAuthPopup } from "../integrations/use-oauth-popup";
 
 const PROVIDERS: CalendarProvider[] = ["google", "outlook"];
 
@@ -55,7 +56,8 @@ export function CalendarConnectionsDialog({ workspaceId }: { workspaceId: string
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState(false);
+  // An i18n key: a blocked popup gets its own advice, anything else the generic failure.
+  const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<CalendarProvider | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<CalendarProvider | null>(null);
   const connections = useCalendarConnections(workspaceId);
@@ -65,46 +67,33 @@ export function CalendarConnectionsDialog({ workspaceId }: { workspaceId: string
   const refreshCalendar = () =>
     queryClient.invalidateQueries({ queryKey: calendarKeys.all(workspaceId) });
 
-  const connect = async (provider: CalendarProvider) => {
-    setError(false);
+  // The calendar callback page only closes itself, so the closed poll is the signal.
+  const oauthPopup = useOAuthPopup({
+    name: "uniwork-calendar-oauth",
+    onOutcome: (outcome) => {
+      setConnecting(null);
+      if (outcome.kind === "blocked") setError("calendar.connection_popup_blocked");
+      else if (outcome.kind === "failed") setError("calendar.connection_error");
+      else void refreshCalendar();
+    },
+  });
+
+  const connect = (provider: CalendarProvider) => {
+    setError(null);
     setConnecting(provider);
-    const popup = window.open(
-      "about:blank",
-      "uniwork-calendar-oauth",
-      "popup,width=560,height=720",
-    );
-    if (!popup) {
-      setConnecting(null);
-      setError(true);
-      return;
-    }
-    try {
-      const url = await startCalendarConnection(workspaceId, provider);
-      if (!url) throw new Error("Missing calendar authorization URL");
-      popup.location.href = url;
-      const timer = window.setInterval(() => {
-        if (!popup.closed) return;
-        window.clearInterval(timer);
-        setConnecting(null);
-        void refreshCalendar();
-      }, 400);
-    } catch {
-      popup.close();
-      setConnecting(null);
-      setError(true);
-    }
+    oauthPopup.open(() => startCalendarConnection(workspaceId, provider));
   };
 
   const disconnect = async () => {
     if (!disconnectTarget) return;
     const provider = disconnectTarget;
     setDisconnectTarget(null);
-    setError(false);
+    setError(null);
     try {
       await disconnectCalendarConnection(workspaceId, provider);
       await refreshCalendar();
     } catch {
-      setError(true);
+      setError("calendar.connection_error");
     }
   };
 
@@ -185,7 +174,7 @@ export function CalendarConnectionsDialog({ workspaceId }: { workspaceId: string
                   connection={connection}
                   onChanged={refreshCalendar}
                   onDisconnect={() => setDisconnectTarget(connection.provider)}
-                  onError={() => setError(true)}
+                  onError={() => setError("calendar.connection_error")}
                 />
               ))}
             </div>
@@ -212,9 +201,9 @@ export function CalendarConnectionsDialog({ workspaceId }: { workspaceId: string
                     <DropdownMenuItem
                       key={provider}
                       className="gap-3 px-2 py-2"
-                      onClick={() => void connect(provider)}
+                      onClick={() => connect(provider)}
                     >
-                      <CalendarProviderIcon provider={provider} className="size-6" />
+                      <ProviderIcon provider={provider} className="size-6" />
                       <span translate="no" className="font-medium">
                         {providerName(t, provider)}
                       </span>
@@ -227,7 +216,7 @@ export function CalendarConnectionsDialog({ workspaceId }: { workspaceId: string
 
           {error || connections.isError ? (
             <p role="alert" aria-live="polite" className="text-body text-destructive">
-              {t("calendar.connection_error")}
+              {t(error ?? "calendar.connection_error")}
             </p>
           ) : null}
         </DialogContent>
@@ -291,7 +280,7 @@ function ConnectedProviderRow({
   return (
     <section className="py-3">
       <div className="flex min-w-0 items-center gap-3">
-        <CalendarProviderIcon provider={provider} className="size-8 shrink-0" />
+        <ProviderIcon provider={provider} className="size-8 shrink-0" />
         <div className="min-w-0 flex-1">
           <p translate="no" className="truncate text-body font-medium text-foreground">
             {providerName(t, provider)}

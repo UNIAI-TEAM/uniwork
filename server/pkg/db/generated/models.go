@@ -642,20 +642,30 @@ type Email struct {
 }
 
 type EmailHubAccount struct {
-	ID             string             `json:"id"`
-	UserID         string             `json:"user_id"`
-	OrganizationID string             `json:"organization_id"`
-	EmailAddress   string             `json:"email_address"`
-	Provider       string             `json:"provider"`
-	ImapHost       string             `json:"imap_host"`
-	ImapPort       int32              `json:"imap_port"`
-	SmtpHost       string             `json:"smtp_host"`
-	SmtpPort       int32              `json:"smtp_port"`
-	PasswordEnc    string             `json:"password_enc"`
-	SyncState      []byte             `json:"sync_state"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	DisconnectedAt pgtype.Timestamptz `json:"disconnected_at"`
+	ID                   string             `json:"id"`
+	UserID               string             `json:"user_id"`
+	OrganizationID       string             `json:"organization_id"`
+	EmailAddress         string             `json:"email_address"`
+	Provider             string             `json:"provider"`
+	ImapHost             string             `json:"imap_host"`
+	ImapPort             int32              `json:"imap_port"`
+	SmtpHost             string             `json:"smtp_host"`
+	SmtpPort             int32              `json:"smtp_port"`
+	PasswordEnc          string             `json:"password_enc"`
+	SyncState            []byte             `json:"sync_state"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	DisconnectedAt       pgtype.Timestamptz `json:"disconnected_at"`
+	AuthKind             string             `json:"auth_kind"`
+	ImapSecurity         string             `json:"imap_security"`
+	SmtpSecurity         string             `json:"smtp_security"`
+	Username             string             `json:"username"`
+	OauthRefreshTokenEnc string             `json:"oauth_refresh_token_enc"`
+	OauthAccessTokenEnc  string             `json:"oauth_access_token_enc"`
+	OauthAccessExpiresAt pgtype.Timestamptz `json:"oauth_access_expires_at"`
+	AuthFailedAt         pgtype.Timestamptz `json:"auth_failed_at"`
+	AuthFailedReason     string             `json:"auth_failed_reason"`
+	CredentialVersion    int64              `json:"credential_version"`
 }
 
 type EmailHubAttachment struct {

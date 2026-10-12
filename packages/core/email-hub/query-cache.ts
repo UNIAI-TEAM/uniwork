@@ -9,6 +9,7 @@ export type EmailHubThreadListPage = {
 
 export const emailHubKeys = {
   accounts: (wsId: string) => ["email-hub", wsId, "accounts"] as const,
+  providers: (wsId: string) => ["email-hub", wsId, "providers"] as const,
   threads: (wsId: string, accountId: string, folder: string, filters: EmailHubThreadFilters) =>
     ["email-hub", wsId, "threads", accountId, folder, filters] as const,
   thread: (wsId: string, accountId: string, threadId: string) =>
@@ -116,7 +117,7 @@ export function invalidateEmailHubForRealtime(
   invalidateEmailHubReadingCachesForAccount(qc, wsId, accountId);
   invalidateEmailHubUnread(qc, wsId);
   void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "sidebar-counts", accountId] });
-  // inbox_changed also announces a mailbox the server disconnected after refused logins.
+  // inbox_changed also announces a mailbox whose login the server now refuses (needs_reconnect).
   if (inboxChanged) void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
 }
 

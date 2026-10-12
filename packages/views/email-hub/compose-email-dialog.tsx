@@ -21,6 +21,7 @@ import {
   buildReplyAllRecipients,
   composeModeDescriptionKey,
   composeModeTitleKey,
+  composeSendErrorKey,
   forwardSubject,
   replySubject,
   type ComposeMode,
@@ -217,15 +218,7 @@ export function ComposeEmailDialog({
     onOpenChange(false);
   };
 
-  const sendErrorKey = (() => {
-    if (!send.isError) return null;
-    switch (errorCode(send.error)) {
-      case "email_hub_not_configured":
-        return "email_hub.connect.error_not_configured";
-      default:
-        return "email_hub.compose.error";
-    }
-  })();
+  const sendErrorKey = send.isError ? composeSendErrorKey(errorCode(send.error)) : null;
 
   const buildPayload = async (sendAt?: string) => {
     const trimmedBody = draft.body.trim();

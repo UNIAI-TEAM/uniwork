@@ -60,6 +60,9 @@ func (s *EmailHubService) ScheduleSend(
 		}
 		return EmailHubScheduledSendView{}, err
 	}
+	if acc.AuthFailedAt.Valid {
+		return EmailHubScheduledSendView{}, ErrEmailHubReauthRequired
+	}
 	if err := validateSendInput(in); err != nil {
 		return EmailHubScheduledSendView{}, err
 	}
@@ -154,13 +157,24 @@ func (s *EmailHubService) deliverScheduledSend(ctx context.Context, row db.Email
 		markFailed("mailbox disconnected")
 		return
 	}
+	if acc.AuthFailedAt.Valid { // before the reply's parent lookup, which may 404 (spec §3)
+		markFailed("auth_required")
+		return
+	}
 	sendErr := s.deliverScheduledSendOutbound(ctx, acc, row.OrganizationID, SendEmailHubInput{
 		AccountID: row.AccountID, To: payload.To, Cc: payload.Cc, Bcc: payload.Bcc, Subject: payload.Subject,
 		BodyText: payload.BodyText, BodyHTML: payload.BodyHTML, Attachments: attachments,
 		ReplyToThreadID: payload.ReplyToThreadID,
 	})
 	if sendErr != nil {
-		markFailed(sendErr.Error())
+		switch {
+		case errors.Is(sendErr, ErrEmailHubReauthRequired): // also a needs_reconnect account, refused before SMTP
+			markFailed("auth_required")
+		case errors.Is(sendErr, ErrEmailHubSMTPDisabled):
+			markFailed("smtp_disabled")
+		default:
+			markFailed(sendErr.Error())
+		}
 		return
 	}
 	n, err := s.q.MarkEmailHubScheduledSendSent(markCtx, db.MarkEmailHubScheduledSendSentParams{

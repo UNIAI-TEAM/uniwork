@@ -29,7 +29,7 @@ func (s *EmailHubService) indexSearchResults(
 
 	var searchErr error
 	if !s.gov.tryWithIMAP(acc.ID, func() error {
-		sess, mailboxes, err := s.openIMAPInteractive(acc)
+		sess, mailboxes, err := s.openIMAPInteractive(ctx, acc)
 		if err != nil {
 			searchErr = err
 			return err

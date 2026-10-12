@@ -11,10 +11,17 @@ import (
 
 // Credentials for authenticated SMTP submission.
 type Credentials struct {
-	Host     string
-	Port     int
-	Email    string
+	Host  string
+	Port  int
+	Email string // envelope sender, From header and Message-ID domain
+	// Username is the AUTH login; empty means Email.
+	Username string
 	Password string
+	// Security is "tls" (implicit TLS) or "starttls" (required); empty means "tls".
+	Security string
+	// AccessToken is an OAuth access token; when set, AUTH XOAUTH2 replaces
+	// PLAIN/LOGIN and Password is ignored.
+	AccessToken string
 }
 
 // Message is one outbound mail.
@@ -35,53 +42,55 @@ type Message struct {
 func VerifyLogin(c Credentials) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
 	defer cancel()
-	client, err := authenticate(ctx, c.Host, c.Port, c.Email, c.Password)
+	client, err := authenticate(ctx, c)
 	if err != nil {
 		return err
 	}
 	return client.Close()
 }
 
-// Send delivers a message via STARTTLS on the configured port (587 by default).
-func Send(ctx context.Context, c Credentials, msg Message) (string, error) {
+// Send delivers a message over implicit TLS or required STARTTLS, per c.Security.
+// It returns the Message-ID and the MIME exactly as written after DATA (no Bcc
+// header, before dot-stuffing), which the caller can file in the Sent mailbox.
+func Send(ctx context.Context, c Credentials, msg Message) (string, []byte, error) {
 	if err := ctx.Err(); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	to := cleanAddrs(msg.To)
 	if len(to) == 0 {
-		return "", fmt.Errorf("smtp: at least one recipient required")
+		return "", nil, fmt.Errorf("smtp: at least one recipient required")
 	}
 	msgID := strings.TrimSpace(msg.MessageID)
 	if msgID == "" {
 		msgID = newMessageID(c.Email)
 	}
-	raw := buildRaw(c.Email, to, msg.Cc, msg.Bcc, msg.Subject, msg.BodyText, msg.BodyHTML, msg.Attachments, msgID, msg.InReplyTo, msg.References)
+	raw := []byte(buildRaw(c.Email, to, msg.Cc, msg.Bcc, msg.Subject, msg.BodyText, msg.BodyHTML, msg.Attachments, msgID, msg.InReplyTo, msg.References))
 
-	client, err := authenticate(ctx, c.Host, c.Port, c.Email, c.Password)
+	client, err := authenticate(ctx, c)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer func() { _ = client.Close() }()
 
 	if err := client.Mail(c.Email); err != nil {
-		return "", fmt.Errorf("smtp mail from: %w", err)
+		return "", nil, fmt.Errorf("smtp mail from: %w", err)
 	}
 	for _, rcpt := range append(append(to, cleanAddrs(msg.Cc)...), cleanAddrs(msg.Bcc)...) {
 		if err := client.Rcpt(rcpt); err != nil {
-			return "", fmt.Errorf("smtp rcpt %s: %w", rcpt, err)
+			return "", nil, fmt.Errorf("smtp rcpt %s: %w", rcpt, err)
 		}
 	}
 	w, err := client.Data()
 	if err != nil {
-		return "", fmt.Errorf("smtp data: %w", err)
+		return "", nil, fmt.Errorf("smtp data: %w", err)
 	}
-	if _, err := w.Write([]byte(raw)); err != nil {
-		return "", fmt.Errorf("smtp write: %w", err)
+	if _, err := w.Write(raw); err != nil {
+		return "", nil, fmt.Errorf("smtp write: %w", err)
 	}
 	if err := w.Close(); err != nil {
-		return "", fmt.Errorf("smtp close data: %w", err)
+		return "", nil, fmt.Errorf("smtp close data: %w", err)
 	}
-	return msgID, nil
+	return msgID, raw, nil
 }
 
 func cleanAddrs(in []string) []string {

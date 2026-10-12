@@ -16,15 +16,6 @@ export function RadioMark({ selected }: { selected: boolean }) {
   );
 }
 
-/** Card chọn có viền đậm khi chọn (dùng cho org/workspace có sẵn, tạo mới). */
-export const pickerCardClass = (selected: boolean) =>
-  cn(
-    "w-full rounded-lg border bg-card text-left transition-[color,background-color,border-color,box-shadow]",
-    selected
-      ? "border-foreground shadow-[inset_0_0_0_1px_var(--foreground)]"
-      : "border-border hover:border-input hover:bg-muted/60",
-  );
-
 const NAV_KEYS = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"];
 
 /**
