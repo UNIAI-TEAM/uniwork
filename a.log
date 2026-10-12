@@ -1,0 +1,16 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -12; git merge-base --is-ancestor e6862e53 HEAD && echo base-ok
+09bbd43d6628e13ea00a63b4bd9f019fbace834e
+e6862e5302805bd6a25893e6ff2c082a2dca3a34
+09bbd43d docs(office): document protocolSha256 in the frame manifest field table
+07356474 fix(office): frame client omits an empty run_id in aiRun
+e9b5c5c3 fix(office): a crashed editor renderer clears its AI run flag
+f2e0ec6d feat(office): bundle manifest records protocolSha256 of the frame protocol
+0b0b5a34 feat(office): editorDirtyStates and detached windows report aiRunning
+3234ead7 feat(office): docs, sheets, slides, markdown and html preloads expose reportAiRun
+bf03960e feat(office): AI run signal registry in shell main + pdf preload bridge
+ed34e66c feat(office): every frame claims download; uniworkAi stays unclaimed
+f2509832 feat(office): frame protocol messages for new versions, downloads and AI turns
+e6862e53 Merge G6-01 genoffice tool table extractor (UNI-1363)
+c68a5956 test(tools): pin the name anchor and the dispatcher rule (R2-3)
+85c0c339 fix(tools): narrow the extractor's name anchor and dispatcher rule
+base-ok
