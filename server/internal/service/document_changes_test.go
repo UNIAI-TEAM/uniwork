@@ -1,12 +1,15 @@
 package service
 
 import (
+	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
@@ -128,22 +131,263 @@ func TestDocumentChangesSnapshotIsStableUnderConcurrentWriters(t *testing.T) {
 		}
 	}
 	// The last page hands out a feed cursor whose high-water mark excludes
-	// every commit after the snapshot: G5-01b continues from it.
+	// every commit after the snapshot: G5-01b continues from it. The check is
+	// a real concurrent transaction (BE-F1-2): its xid8 is fixed before the
+	// snapshot opens, so the mark must not see it.
 	claims, err := w.svc.codec.verify(last.NextCursor, changeCursorScope{
 		deployment: "dep-test", userID: w.tn.member.ID, organization: w.tn.orgID, workspace: w.tn.wsA,
 	}, w.now)
 	if err != nil || claims.Phase != changeCursorPhaseFeed || claims.HighWater == "" {
 		t.Fatalf("last cursor = %+v, %v", claims, err)
 	}
-	var visible bool
-	if err := w.f.pool.QueryRow(w.f.ctx, `SELECT pg_visible_in_snapshot(pg_current_xact_id(), $1::pg_snapshot)`, claims.HighWater).Scan(&visible); err != nil {
-		t.Fatal(err)
-	}
-	if visible {
-		t.Fatal("a transaction after the snapshot is visible in its high-water mark")
+	if hwmSeesTxn(t, w, claims.HighWater, concurrentXID(t, w)) {
+		t.Fatal("a transaction open when the snapshot began is visible in its high-water mark")
 	}
 	if _, err := w.list(t, w.tn.member.ID, last.NextCursor, 2); !codedIs(err, "unsupported_operation") {
 		t.Fatalf("feed cursor before G5-01b: %v, want unsupported_operation", err)
+	}
+}
+
+// concurrentXID opens a real transaction, keeps it open for the rest of the
+// test and answers its xid8: a transaction that was in progress when the
+// high-water mark was taken must never be visible in it.
+func concurrentXID(t *testing.T, w *changeWorld) string {
+	t.Helper()
+	tx, err := w.f.pool.Begin(w.f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(w.f.ctx) })
+	var xid string
+	if err := tx.QueryRow(w.f.ctx, `SELECT pg_current_xact_id()::text`).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	return xid
+}
+
+func hwmSeesTxn(t *testing.T, w *changeWorld, hwm, xid string) bool {
+	t.Helper()
+	var visible bool
+	if err := w.f.pool.QueryRow(w.f.ctx,
+		`SELECT pg_visible_in_snapshot($1::xid8, $2::pg_snapshot)`, xid, hwm).Scan(&visible); err != nil {
+		t.Fatal(err)
+	}
+	return visible
+}
+
+// TestDocumentChangesHighWaterHandoffCommitsMidBuild is the BE-F1-2 guard: a
+// writer that commits WHILE the snapshot is being built must sit on one side
+// of the high-water mark, exactly. The snapshot is taken at the mark, so the
+// row is in the snapshot IF AND ONLY IF the mark sees the writer's xid8:
+// visible but missing loses the change (G5-01b de-duplicates it away),
+// present but invisible delivers it twice. The writer's document is inserted
+// before its commit and its commit is held behind the row lock the item read
+// blocks on, so the interleave is deterministic.
+//
+// The test fails on a READ COMMITTED openSnapshot (the regression the finding
+// names): there the item read re-snapshots after the writer commits, so the
+// live document lands in the snapshot while the high-water mark still cannot
+// see the writer - present but invisible.
+func TestDocumentChangesHighWaterHandoffCommitsMidBuild(t *testing.T) {
+	w := newChangeWorld(t, "chghwm", nil)
+	base := w.docs(t, 1, "workspace")[0]
+
+	writer, err := w.f.pool.Begin(w.f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = writer.Rollback(w.f.ctx) }()
+
+	type opened struct {
+		snapshotID string
+		orgID      string
+		err        error
+	}
+	openedCh := make(chan opened, 1)
+	go func() {
+		snapshotID, orgID, err := w.svc.openSnapshot(w.f.ctx, Human(w.tn.member.ID), w.tn.wsA)
+		openedCh <- opened{snapshotID: snapshotID, orgID: orgID, err: err}
+	}()
+
+	// The build must not finish before the writer commits: lock the row its
+	// item read scans, then park on that lock - the INSERT ... SELECT waits.
+	if _, err := writer.Exec(w.f.ctx, `UPDATE documents SET revision = revision + 1 WHERE id = $1`, base.ID); err != nil {
+		t.Fatal(err)
+	}
+	midBuildID := util.NewID()
+	if _, err := writer.Exec(w.f.ctx,
+		`INSERT INTO documents (id, organization_id, workspace_id, kind, title, visibility, created_by, updated_by)
+		 VALUES ($1, $2, $3, 'page', 'committed mid-build', 'workspace', $4, $4)`,
+		midBuildID, w.tn.orgID, w.tn.wsA, w.tn.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	var xid string
+	if err := writer.QueryRow(w.f.ctx, `SELECT pg_current_xact_id()::text`).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	waitForBlockedChangeBuild(t, w)
+	if err := writer.Commit(w.f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	got := <-openedCh
+	if got.err != nil {
+		t.Fatalf("openSnapshot: %v", got.err)
+	}
+
+	page, err := w.list(t, w.tn.member.ID, "", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.HasMore {
+		t.Fatal("expected the whole snapshot on one page")
+	}
+	claims, err := w.svc.codec.verify(page.NextCursor, changeCursorScope{
+		deployment: "dep-test", userID: w.tn.member.ID, organization: got.orgID, workspace: w.tn.wsA,
+	}, w.now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claims.HighWater == "" {
+		t.Fatalf("feed cursor carries no high-water mark: %+v", claims)
+	}
+	inSnapshot := false
+	for _, c := range page.Changes {
+		if c.DocumentID == midBuildID {
+			inSnapshot = true
+		}
+	}
+	hwmSees := hwmSeesTxn(t, w, claims.HighWater, xid)
+	switch {
+	case hwmSees && !inSnapshot:
+		t.Fatal("the high-water mark sees the writer but the snapshot misses it: G5-01b de-duplicates the change away (lost update)")
+	case !hwmSees && inSnapshot:
+		t.Fatal("the snapshot holds the writer but the high-water mark cannot see it: the change would be delivered twice")
+	}
+	// This writer commits after the high-water mark was taken, so the correct
+	// side is: absent from the snapshot and invisible in the mark, delivered
+	// by the incremental feed (G5-01b) once it continues from the mark.
+	if inSnapshot || hwmSees {
+		t.Fatalf("a commit after the high-water mark must be on neither side: in snapshot=%v, hwm sees=%v", inSnapshot, hwmSees)
+	}
+}
+
+// waitForBlockedChangeBuild polls until the snapshot row of the parked build
+// exists, i.e. its transaction is past CurrentChangeHighWater and is inside
+// the item insert (which blocks on the held row lock).
+func waitForBlockedChangeBuild(t *testing.T, w *changeWorld) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		var n int
+		if err := w.f.pool.QueryRow(w.f.ctx, `SELECT count(*) FROM document_change_snapshots`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("the snapshot build never reached its item insert")
+}
+
+// TestDocumentChangesPageReadSurvivesConcurrentSweep is the BE-F1-3 guard: a
+// sweep that commits between a page's snapshot-row read and its item read
+// must never turn the page short. The page answers the complete expected
+// rows, or runs into the expiry check and answers 410 - never a short or
+// empty 200.
+//
+// The hook fires exactly in that window (the transaction snapshot is fixed by
+// the row read) and runs the sweep the worker runs - the same three
+// statements in one transaction. The snapshot is expired first, so an
+// implementation that re-checked expiry between those statements answers 410:
+// that is inside the contract too.
+//
+// The test fails on a READ COMMITTED page read: there the item read takes a
+// fresh snapshot and sees the swept-away items as zero rows.
+func TestDocumentChangesPageReadSurvivesConcurrentSweep(t *testing.T) {
+	w := newChangeWorld(t, "chgmid", nil)
+	docs := w.docs(t, 4, "workspace")
+	want := map[string]int64{}
+	for _, d := range docs {
+		want[d.ID] = d.Revision
+	}
+	page, err := w.list(t, w.tn.member.ID, "", 2)
+	if err != nil || !page.HasMore {
+		t.Fatalf("page 1 = %+v, %v", page, err)
+	}
+	// Expire the snapshot without deleting it: the page read must still see
+	// the row (it already read it) and its items; the DELETE below models the
+	// sweep landing between the two statements.
+	if _, err := w.f.pool.Exec(w.f.ctx, `UPDATE document_change_snapshots SET expires_at = now() - interval '1 second'`); err != nil {
+		t.Fatal(err)
+	}
+	w.svc.pageItemHook = func() {
+		w.svc.pageItemHook = nil
+		if _, err := w.f.pool.Exec(w.f.ctx, `DELETE FROM document_change_snapshot_items`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page2, err := w.list(t, w.tn.member.ID, page.NextCursor, 2)
+	if err != nil {
+		if !codedIs(err, "change_cursor_expired") {
+			t.Fatalf("page 2 after the sweep committed mid-read: %v, want the page or 410", err)
+		}
+		return
+	}
+	if len(page2.Changes) != 2 {
+		t.Fatalf("page 2 = %d rows; a sweep committing mid-read must not shorten the page", len(page2.Changes))
+	}
+	for _, c := range page2.Changes {
+		if c.Revision != want[c.DocumentID] {
+			t.Errorf("document %s revision = %d, want %d", c.DocumentID, c.Revision, want[c.DocumentID])
+		}
+	}
+}
+
+// TestDocumentChangesMembershipRevokedMidBuildLeavesNoSnapshot is the BE-F1-4
+// guard: a role revoked after the caller-side gate read but before the
+// snapshot's item insert must be seen by the in-transaction gate re-read, so
+// no snapshot is materialised under stale privileges. The hook fires between
+// the two reads, exactly the window the finding names.
+func TestDocumentChangesMembershipRevokedMidBuildLeavesNoSnapshot(t *testing.T) {
+	w := newChangeWorld(t, "chgtoctou", nil)
+	open := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "workspace", createdBy: w.tn.creator.ID})
+	restricted := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", createdBy: w.tn.creator.ID})
+
+	// Control first: without the revoke, the member sees the open document
+	// (and not the restricted one).
+	control, err := w.list(t, w.tn.member.ID, "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(control.Changes) != 1 || control.Changes[0].DocumentID != open.ID {
+		t.Fatalf("control snapshot = %+v, want exactly the open document", control.Changes)
+	}
+
+	w.svc.afterScopeHook = func() {
+		w.svc.afterScopeHook = nil
+		if _, err := w.f.pool.Exec(w.f.ctx,
+			`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`,
+			w.tn.wsA, w.tn.member.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page, err := w.list(t, w.tn.member.ID, "", 10)
+	if err == nil {
+		for _, c := range page.Changes {
+			if c.DocumentID == restricted.ID {
+				t.Fatal("a role revoked mid-build still materialised a snapshot holding the restricted document")
+			}
+		}
+		t.Fatal("a role revoked mid-build still opened a snapshot")
+	}
+	var n int
+	if err := w.f.pool.QueryRow(w.f.ctx,
+		`SELECT count(*) FROM document_change_snapshots WHERE created_by = $1`, w.tn.member.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("the refused build left %d snapshots behind", n)
 	}
 }
 
@@ -223,6 +467,106 @@ func TestDocumentChangesSweepKeepsLiveSnapshots(t *testing.T) {
 	}
 }
 
+// changeSweepRecorder is the DocumentChangeSweepMetrics fake. The worker
+// goroutine writes and the test goroutine reads, so it holds a lock.
+type changeSweepRecorder struct {
+	mu               sync.Mutex
+	snapshots, items int64
+	observations     int
+}
+
+func (r *changeSweepRecorder) ObserveChangeSnapshotSweep(snapshots, items int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.snapshots += snapshots
+	r.items += items
+	r.observations++
+}
+
+func (r *changeSweepRecorder) snapshot() (snapshots, items int64, observations int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.snapshots, r.items, r.observations
+}
+
+// TestDocumentChangesSweepWorkerRunCountsRows pins the worker's own Run path
+// (T-6): the first pass sweeps expired snapshots, counts both tables and
+// reports them to the metrics recorder, and Run stops on context
+// cancellation instead of spinning.
+func TestDocumentChangesSweepWorkerRunCountsRows(t *testing.T) {
+	w := newChangeWorld(t, "chgrun", nil)
+	w.docs(t, 2, "workspace")
+	live, err := w.list(t, w.tn.member.ID, "", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// One expired snapshot with two items, beside the live one.
+	if _, err := w.f.pool.Exec(w.f.ctx,
+		`INSERT INTO document_change_snapshots (id, organization_id, workspace_id, created_by, created_by_kind, high_water, item_count, expires_at)
+		 VALUES ('01EXPIREDSWEEP0000000000000', $1, $2, $3, 'human', '1:1:', 2, now() - interval '1 minute')`,
+		w.tn.orgID, w.tn.wsA, w.tn.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.f.pool.Exec(w.f.ctx,
+		`INSERT INTO document_change_snapshot_items (snapshot_id, organization_id, workspace_id, document_id, kind, revision, current_version)
+		 VALUES ('01EXPIREDSWEEP0000000000000', $1, $2, '01DOCSWEEP00000000000000001', 'page', 1, 0),
+		        ('01EXPIREDSWEEP0000000000000', $1, $2, '01DOCSWEEP00000000000000002', 'page', 1, 0)`,
+		w.tn.orgID, w.tn.wsA); err != nil {
+		t.Fatal(err)
+	}
+
+	sweep := w.svc.NewSnapshotSweeper(nil)
+	rec := &changeSweepRecorder{}
+	sweep.SetMetrics(rec)
+	ctx, cancel := context.WithCancel(w.f.ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		sweep.Run(ctx)
+	}()
+	// The first pass is synchronous inside Run; cancel once it has landed.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, _, obs := rec.snapshot(); obs > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Run's first pass never reported metrics")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not stop on context cancellation")
+	}
+	snapshots, items, observations := rec.snapshot()
+	if observations != 1 || snapshots != 1 || items != 2 {
+		t.Fatalf("metrics = (%d snapshots, %d items, %d observations), want one observation of (1, 2)",
+			snapshots, items, observations)
+	}
+	var wiped, liveItems int
+	if err := w.f.pool.QueryRow(w.f.ctx,
+		`SELECT count(*) FROM document_change_snapshots WHERE id = '01EXPIREDSWEEP0000000000000'`).Scan(&wiped); err != nil {
+		t.Fatal(err)
+	}
+	if wiped != 0 {
+		t.Fatal("Run left the expired snapshot behind")
+	}
+	if err := w.f.pool.QueryRow(w.f.ctx,
+		`SELECT count(*) FROM document_change_snapshot_items WHERE snapshot_id = '01EXPIREDSWEEP0000000000000'`).Scan(&liveItems); err != nil {
+		t.Fatal(err)
+	}
+	if liveItems != 0 {
+		t.Fatal("Run left the expired snapshot's items behind")
+	}
+	// The live snapshot is untouched: its cursor still pages.
+	if _, err := w.list(t, w.tn.member.ID, live.NextCursor, 1); err != nil {
+		t.Fatalf("page 2 of the live snapshot after the sweep: %v", err)
+	}
+}
+
 func TestDocumentChangesExpiredCursorAnswersGone(t *testing.T) {
 	w := newChangeWorld(t, "chgexp", nil)
 	w.docs(t, 2, "workspace")
@@ -275,6 +619,25 @@ func TestDocumentChangesForeignCursorIsInvalidWithoutScope(t *testing.T) {
 		},
 		"tampered": func() error {
 			_, err := w.list(t, w.tn.member.ID, page.NextCursor[:len(page.NextCursor)-2]+"AA", 1)
+			return err
+		},
+		"expired feed cursor of another scope": func() error {
+			// Genuine signature, foreign workspace, expired: the scope check
+			// runs before expiry, so the answer must be invalid, never 410 -
+			// a 410 would confirm the foreign scope exists.
+			claims, err := w.svc.codec.verify(page.NextCursor, changeCursorScope{
+				deployment: "dep-test", userID: w.tn.member.ID, organization: w.tn.orgID, workspace: w.tn.wsA,
+			}, w.now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			claims.Phase, claims.HighWater = changeCursorPhaseFeed, "1:1:"
+			claims.ExpiresAt = w.now.Add(-time.Hour).Unix()
+			token, err := w.svc.codec.sign(claims)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = w.svc.List(w.f.ctx, Human(w.tn.bMember.ID), w.tn.wsB, DocumentChangeListInput{Cursor: token, Limit: 1})
 			return err
 		},
 	}
