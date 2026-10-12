@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"net/url"
 	"testing"
 	"time"
 
@@ -71,4 +72,45 @@ func (w *mcpWorld) publicClient(t *testing.T, redirect string) McpClient {
 		t.Fatal(err)
 	}
 	return reg.Client
+}
+
+// enable turns the connector on for the world's organization.
+func (w *mcpWorld) enable(t *testing.T) {
+	t.Helper()
+	if _, err := w.q.SetOrganizationMcpPolicy(w.ctx, db.SetOrganizationMcpPolicyParams{ID: w.org.ID, Enabled: true, ActorID: w.owner.ID}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+const mcpTestVerifier = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+
+func mcpTestChallenge() string { return pkceChallenge(mcpTestVerifier) }
+
+func attemptID(t *testing.T, consentURL string) string {
+	t.Helper()
+	u, err := url.Parse(consentURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u.Query().Get("attempt")
+}
+
+// approve walks Start → Consent → Approve for the owner and returns the code.
+func (w *mcpWorld) approve(t *testing.T, c McpClient, redirect string) string {
+	t.Helper()
+	consentURL, err := w.svc.Start(w.ctx, McpAuthorizeInput{ResponseType: "code", ClientID: c.ClientID, RedirectURI: redirect, CodeChallenge: mcpTestChallenge(), CodeChallengeMethod: "S256", State: "st"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := attemptID(t, consentURL)
+	consent, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(to)
+	return u.Query().Get("code")
 }

@@ -216,6 +216,13 @@ const (
 	// An operator closed a desktop device session family on the owner's behalf.
 	ActionDesktopDeviceRevoked = "desktop_device.revoked"
 
+	// MCP connector (UNI-1308): consent creates a grant; a person or an org
+	// admin revokes it; a replayed code or refresh token closes its family.
+	ActionMcpGrantCreated              = "mcp_grant.created"
+	ActionMcpGrantRevoked              = "mcp_grant.revoked"
+	ActionMcpTokenFamilyRevoked        = "mcp_token.family_revoked"
+	ActionOrganizationMcpPolicyChanged = "organization.mcp_policy_changed"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"
