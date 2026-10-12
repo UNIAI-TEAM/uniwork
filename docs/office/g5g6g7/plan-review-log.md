@@ -163,3 +163,26 @@ và task sở hữu ghi OQ ở dòng Unknown + điều kiện xong.
 Kiểm sau vòng 7: cây ticket 55 entry (thêm `unknown` OQ-P cho 8 entry), `tickets.py status` không
 `unpinned_after`/`undeclared_after`/`order_conflict`, chuỗi dài nhất 10 bước; đồng bộ thẻ plan → cây và so phụ thuộc: 0
 lệch; UX ở hai nơi giống từng byte; LF.
+
+## U-12 bỏ Dify (spec v1.2, plan v2.6, 2026-10-12)
+
+Quyết định người dùng 2026-10-12 (nguyên văn): "k cần giao task cho bên đó đâu bro. bỏ luôn đi cũng được. về url dify
+config thì có thể test tạm bằng config của custom provider trong codex". Không phải finding review; ghi ở đây để các
+vòng trên (nhắc G6-04, G6-06, G6-07a/s/b, G6-11, corpus, Dify) đọc như lịch sử.
+
+| Mục | Đã đổi |
+| --- | --- |
+| Spec | v1.2: thêm U-12; U-02 gạch, U-03 và U-09 viết lại; §1.1, §1.3 (baseline Gateway/provider + upstream dev), §2 (phạm vi G6, ngoài phạm vi thêm Dify/RAG), §3 (sơ đồ, bảng ba đường AI); §6.1 (điều kiện `uniwork_ai` = Gateway bật + capability có model), §6.2 (bỏ hai cách nối và quy tắc dựng query; thêm "Khoảng trống của provider có sẵn": id tool call và message kết quả công cụ chưa có ở `provider.go`/`openai.go`); §7 viết lại thành instruction pack (prompt có version trong registry Gateway); §8 viết lại thành upstream model sau Gateway (§8.1 capability `office_uniwork_ai` + override `AI_MODEL_OFFICE_UNIWORK_AI`, §8.4 upstream dev = custom provider `customlocal` của Codex, CI = `fake`); §9.1 G6-A07/A08/A09/A10, G7-A05 viết lại (G6-A10 thành version instruction pack + không bịa công cụ); §9.2 bỏ recall@5, retrieval latency; §10–§12 bỏ Knowledge release, retrieval no-match, runbook index/import; §13.1 G6-D1/G6-D2 viết lại (giữ mã, bỏ phần Dify); §14 thay nguồn Dify bằng file code đã đọc |
+| Plan — task đã bỏ | G6-04, G6-06, G6-07a, G6-07s, G6-07b, G6-11 (danh sách duy nhất ở plan §1); lane L8 bỏ, L13 thành "Instruction pack" |
+| Plan — task đổi nội dung | G6-02 thành spike upstream + hợp đồng façade (W1, chỉ chờ X-01); G6-08 thành dev set + tinh chỉnh instruction pack (chờ G6-14, G6-05; không chờ G7-01 để epic G6 không phụ thuộc epic G7) |
+| Plan — task mới | G6-13 (capability `office_uniwork_ai`, mở rộng vòng tool-result của provider có sẵn, `.env.example`, ghi chú `docs/office/g5g6g7/dev-upstream.md`, mục RUNBOOK_AI); G6-14 (instruction pack `office_uniwork_ai@1` + golden + script tên công cụ trong `scripts/check.sh`) |
+| Plan — phụ thuộc | G6-03a, G6-03c chờ thêm G6-13; G6-10 sweep đổi danh sách; G7-10 chờ G6-14 thay G6-04/G6-07s; G7-12 chờ G6-14 thay G6-04/G6-07b (lên W7); G7-07 bỏ G6-04 |
+| Plan — bảng | Plan §2 (C2: thêm G6-13, G6-14 vì PR #219 cũng sửa `provider.go`/`openai.go`/`policy.go`/`prompts.go`; danh sách chạy trước C2/C3), §3 (G6-D1, G6-D2, G7-D1), §4 (luật upstream bằng cấu hình, không ghi host/khóa), §5.6 (G6-A01/A02/A07/A08/A09/A10, G7-A05), §6.1 (lane, wave), §6.2 (đường găng tính lại: 10 bước, ba chuỗi qua G6-02 → G6-13 → G6-03a → G6-03b → G6-05), §6.3 (seam `check.sh`; seam mới provider/policy/prompt), §6.4 (sơ đồ), §6.5 (P0/P1/P2), §8 (rủi ro upstream, một Gateway cho mọi tính năng, lộ host/khóa), §9 |
+| UX | Spine và mockup không có trạng thái Dify/retrieval nào; chỉ đổi dòng "spec v1.1" → "v1.2" trong EXPERIENCE.md (hai bản giống từng byte) |
+| Cây ticket | Xóa entry 3.4, 3.6, 3.7a, 3.7s, 3.7b, 3.11; thêm 3.13, 3.14; 3.2, 3.8 đổi; tiêu đề epic G6 và initiative bỏ Dify; ghi chú quyết định U-12 ở initiative và epic G6 |
+| Roadmap | Ghi chú sau hàng C-17 bỏ Dify |
+
+Kiểm sau U-12: cây ticket 51 entry, đồng bộ thẻ plan → cây (title/description/verify) và so phụ thuộc: 0 lệch;
+`tickets.py status` không `unpinned_after`/`undeclared_after`/`order_conflict`, `longest_remaining_chain` 10 bước
+(X-01 → G6-02 → G6-13 → G6-03a → G6-03b → G6-05 → G6-05u → G7-04 → G7-05 → G7-11); mọi phụ thuộc của thẻ nằm ở wave
+trước; `node --test scripts/governance.test.mjs` xanh.

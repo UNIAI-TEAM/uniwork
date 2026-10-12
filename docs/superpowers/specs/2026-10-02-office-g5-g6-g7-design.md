@@ -1,7 +1,7 @@
-# UniWork Office G5/G6/G7 — Đồng bộ, AI Office với Dify và nghiệm thu phát hành
+# UniWork Office G5/G6/G7 — Đồng bộ, AI Office (UniWork AI) và nghiệm thu phát hành
 
-> **Trạng thái:** in-progress — spec v1.1 bàn giao (đề xuất, chờ duyệt), ngày 2026-10-11 (v1.0 ngày 2026-10-02). Đội lập phase này không triển khai;
-> G5/G6/G7 giao cho đội khác (quyết định người dùng 2026-10-11). Chưa khởi chạy triển khai, nạp Knowledge, cấu hình Dify hoặc nghiệm thu sản phẩm.
+> **Trạng thái:** in-progress — spec v1.2 bàn giao (đề xuất, chờ duyệt), ngày 2026-10-12 (v1.1 ngày 2026-10-11, v1.0 ngày 2026-10-02). Đội lập phase này không triển khai;
+> G5/G6/G7 giao cho đội khác (quyết định người dùng 2026-10-11). v1.2 bỏ Dify khỏi phạm vi (U-12). Chưa khởi chạy triển khai, cấu hình upstream model hoặc nghiệm thu sản phẩm.
 
 **Issue tài liệu:** UNI-923, parent UNI-437; Roadmap C-01, liên quan C-15/C-16.
 **Issue triển khai:** G5 UNI-660 · G6 UNI-635 · G7 UNI-661 (đội nhận bàn giao giữ các issue này).
@@ -11,8 +11,13 @@ v1.1 cập nhật theo pivot genoffice (UNI-1001, 2026-10-08), ADR 0028/0029 và
 
 **Thay đổi chính của v1.1:** hai host editor không còn là G3 (`packages/views/office`) và `apps/office-desktop`
 mà là genoffice: app desktop ở repo fork `UNIAI-TEAM/uniwork-office`, web nạp renderer genoffice trong iframe
-`office-frame`. AI trong editor là AI có sẵn của genoffice (ADR 0028/0029); Dify vào UniWork như **một nhà cung cấp
+`office-frame`. AI trong editor là AI có sẵn của genoffice (ADR 0028/0029); UniWork thêm **một nhà cung cấp
 "UniWork AI"** sau `ai.Gateway`, không phải một đường AI riêng có tool broker và proposal service (§6, §8).
+
+**Thay đổi chính của v1.2 (U-12, 2026-10-12):** bỏ Dify hoàn toàn — không deployment Dify, không adapter Dify, không
+Knowledge/corpus/retrieval, không giao việc Dify cho đội nào. "UniWork AI" giữ nguyên ở phía client và API; phía sau
+`ai.Gateway` là upstream model chỉ bằng cấu hình (provider openai-compatible có sẵn, §8). Kiến thức quy trình Office là
+một instruction pack nhỏ có version trong repo (§7), không RAG.
 
 ## 1. Mục tiêu, quyết định đã có và đầu vào
 
@@ -21,7 +26,7 @@ mà là genoffice: app desktop ở repo fork `UNIAI-TEAM/uniwork-office`, web n�
 Người dùng mở cùng Document trên web và desktop, chủ động lưu và nhìn thấy đúng phiên bản ở thiết bị khác;
 desktop có thư viện được chọn để dùng offline, hàng đợi bền và cách xử lý xung đột không mất dữ liệu.
 Trong editor, người dùng hỏi hoặc yêu cầu AI xử lý nội dung qua panel AI của genoffice. Khi chọn nhà cung cấp
-"UniWork AI", Dify truy xuất kiến thức về **cách thực hiện**; công cụ của genoffice đọc và xử lý **dữ liệu thật**
+"UniWork AI", server gắn instruction pack Office (**cách thực hiện**) vào lượt gọi model; công cụ của genoffice đọc và xử lý **dữ liệu thật**
 trong editor; người dùng xem kết quả trong editor và tự bấm Lưu.
 G7 kiểm đường đi đầy đủ trên API, renderer, trình duyệt và bộ cài thật trước khi phát hành.
 
@@ -34,19 +39,20 @@ Nếu yêu cầu ghi công thức, thay đổi chỉ nằm trong editor để ng
 | ID | Quyết định | Hệ quả |
 | --- | --- | --- |
 | U-01 | G5/G6/G7 được thiết kế thành một phase, có thể chạy song song | G7 chuẩn bị QA ngay; nghiệm thu cuối chờ các phần phụ thuộc |
-| U-02 | Dùng Dify cho kiến thức RAG về thao tác Office | Có deliverable Knowledge + Dify app + integration + eval, không chỉ một bộ Markdown |
-| U-03 | Xây bộ kiến thức/hướng dẫn AI Office trong phase này | Spec quy định cấu trúc và nghiệm thu; phiên viết spec chưa tạo corpus hay deploy Dify |
+| U-02 | ~~Dùng Dify cho kiến thức RAG về thao tác Office~~ — thay bởi U-12 | Không còn Knowledge, Dify app hay retrieval |
+| U-03 | Xây hướng dẫn AI Office trong phase này; từ U-12 là instruction pack nhỏ có version trong repo (§7), không corpus RAG | Spec quy định cấu trúc và nghiệm thu; phiên viết spec chưa tạo instruction pack |
 | U-04 | Ưu tiên use case XLSX chat/tính toán trên cột/vùng và AI sửa DOCX | Thứ tự bàn giao, không âm thầm thu hẹp phạm vi sáu định dạng |
 | U-05 | File Office lưu thủ công; web không autosave (xác nhận lại 2026-10-09) | Checkpoint local, reconnect, phản hồi AI không tự tạo save intent |
 | U-06 | ~~AI đề xuất → người xác nhận → service thực thi~~ — thay bởi U-09 | ADR 0010 vẫn giữ cho agent runtime phía server; AI trong editor theo ADR 0028/0029 |
 | U-07 | Desktop dùng được với file cục bộ không cần đăng nhập (hành vi sẵn có của genoffice) | Không nhập nhằng file cục bộ với thư viện cloud offline; giữ gate phát hành riêng |
 | U-08 | Pivot genoffice (UNI-1001, 2026-10-08): desktop = repo fork `UNIAI-TEAM/uniwork-office`; web = renderer genoffice trong iframe; G3 web editors và `apps/office-desktop` bị gỡ (mục GO-B7/UNI-1017 của plan; người dùng 2026-10-11 gộp việc gỡ vào lane UNI-1240, ghi ở nhật ký điều phối local, nhánh lane `c4-5-remove-g3`; coordinator cần thêm comment trên UNI-1240 và UNI-1017) | Mọi việc phía host của G5/G6 nằm trong repo fork hoặc frame protocol, không trong `packages/views/office` |
-| U-09 | Hướng A (2026-10-11): Dify chỉ là một đầu API — nhà cung cấp "UniWork AI" trong panel AI genoffice, gọi qua UniWork API → `ai.Gateway` → Dify | Công cụ đọc/sửa là của genoffice ở client; người dùng áp dụng trong editor rồi tự Lưu; không dựng tool broker hay proposal service riêng |
+| U-09 | Hướng A (2026-10-11): nhà cung cấp "UniWork AI" trong panel AI genoffice, gọi qua UniWork API → `ai.Gateway` → upstream model (từ U-12 không còn Dify ở đầu này) | Công cụ đọc/sửa là của genoffice ở client; người dùng áp dụng trong editor rồi tự Lưu; không dựng tool broker hay proposal service riêng |
 | U-10 | G5/G6/G7 do đội khác triển khai (2026-10-11) | Spec này là tài liệu bàn giao; đội nhận lập plan, sub-issue và chốt các gate §13 |
 | U-11 | Mọi việc liên quan chứng chỉ (ký số, notarization, kênh stable, update feed có ký) ở backlog đến khi có chứng chỉ | Không là gate của G7 cho bản dev; chỉ thành gate khi người dùng mở lại |
+| U-12 | Bỏ Dify (người dùng 2026-10-12: "k cần giao task cho bên đó đâu bro. bỏ luôn đi cũng được. về url dify config thì có thể test tạm bằng config của custom provider trong codex") | Không deployment Dify (staging hay production), không adapter Dify, không Dify app, không Knowledge API, không pipeline nhập corpus, không POC retrieval, không giao việc cho đội khác. UniWork AI → UniWork API → `ai.Gateway` → upstream model là cấu hình của provider openai-compatible có sẵn (§8); upstream dev/test là custom provider của Codex trên máy dev (§8.4); CI và unit test dùng provider `fake` |
 
-“Training RAG” trong phạm vi này là biên soạn kiến thức, lập chỉ mục, chỉnh retrieval/prompt/workflow và
-đánh giá. Không có fine-tuning trọng số, tự học từ hội thoại khách hàng hay cam kết model ghi nhớ lâu dài.
+Không có RAG, fine-tuning trọng số, tự học từ hội thoại khách hàng hay cam kết model ghi nhớ lâu dài. “Kiến thức”
+trong phase này là instruction pack có version, review và eval (§7).
 
 ### 1.3 Baseline đã đọc và độ tin cậy
 
@@ -57,7 +63,8 @@ Nếu yêu cầu ghi công thức, thay đổi chỉ nằm trong editor để ng
 | `dev-uniwork` `feature/UNI-1001-office-genoffice-plan` | head `945266504`, **chỉ có ở local** (manifest điều phối `office-g3g4`, mục `genoffice_pivot.plan`, ghi commit đầu `7d8bcf85e`, "local, not pushed"); người dùng dặn không đẩy plan ngày 2026-10-08, chỉ ghi trong ghi chú của coordinator, chưa có trên issue; nội dung cần cho spec tóm tắt ở §1.4 |
 | Repo fork `UNIAI-TEAM/uniwork-office` | `main` `fcfcd29d`, tag `v0.11.0-dev.6`. Bản cài mà server đang trỏ tới trên PR #219 là `0.11.0-dev.5`. Pin bundle web là nội dung `apps/web/platform/office-frame/*.pin.json` tại SHA bàn giao (PR #219: `web-0.1.0-8b2e84a`; lane UNI-1240 đổi pin sang fork `fcfcd29`) |
 | Tracker G5/G6/G7 | Mô tả issue đã đọc ngày 02/10, trạng thái `todo`. Không dùng trạng thái đó thay kiểm tra trước triển khai |
-| Dify | Đọc tài liệu chính thức ngày 02/10/2026 (§14); chưa kiểm một deployment Dify cụ thể |
+| `ai.Gateway` và provider | Đọc tại `b4f917cb8` (2026-10-12): `server/internal/ai/{gateway,policy,config,prompts}.go`, `server/internal/ai/provider/{provider,openai}.go`, khối "AI gateway (F-09)" của `.env.example` (§8, §14) |
+| Upstream dev | Custom provider `customlocal` của Codex trên máy dev, coordinator kiểm ngày 2026-10-12: `/v1/chat/completions` trả đúng định dạng chat OpenAI, `/v1/models` liệt kê model (§8.4) |
 
 Tài liệu nền trên `develop`:
 [Documents](2026-09-08-documents-design.md),
@@ -108,11 +115,11 @@ Quyết định mới có bằng chứng ưu tiên hơn mô tả cũ; khác bi�
 | Luồng | Phạm vi phải bàn giao | Giữ ở owner hiện có |
 | --- | --- | --- |
 | G5 / UNI-660 | Change feed, snapshot/cursor/tombstone; online sync; thư viện cloud offline desktop; queue bền; conflict/recovery; sync UI | G1 quyền/version; FileService byte/claim/GC; app fork: phiên thiết bị, kho khóa, I/O cục bộ, Mở/Lưu UniWork (GO-A5/A6); frame web: draft recovery C18 |
-| G6 / UNI-635 | Nhà cung cấp "UniWork AI" (endpoint + adapter Dify sau Gateway); kiến thức quy trình Office, Dify app, eval; đánh giá AI genoffice trên các ca bắt buộc XLSX/DOCX và ma trận §6.5 | AI Gateway policy/metering, BYOK proxy và công cụ đám mây (GO-A7, ADR 0029); panel AI và công cụ agent của genoffice (fork, đồng bộ upstream); Documents commit; Work Product owner ACL |
+| G6 / UNI-635 | Nhà cung cấp "UniWork AI" (endpoint façade sau Gateway, upstream model bằng cấu hình); instruction pack quy trình Office có version, eval; đánh giá AI genoffice trên các ca bắt buộc XLSX/DOCX và ma trận §6.5 | AI Gateway policy/metering, BYOK proxy và công cụ đám mây (GO-A7, ADR 0029); panel AI và công cụ agent của genoffice (fork, đồng bộ upstream); Documents commit; Work Product owner ACL |
 | G7 / UNI-661 | Harness xuyên host và xuyên hai repo; format/fault/privacy/AI eval; số đo; bộ cài/update/rollback bản dev; hồi quy sau mỗi lần đồng bộ upstream; support matrix và runbook | Không tự nghiệm thu hộ provider; không tự cấp quyền phát hành; phần chứng chỉ ở backlog (U-11) |
 
 Ngoài phạm vi: coauthoring đồng thời/CRDT (UNI-662), Knowledge/wiki và search toàn công ty của A-04,
-fine-tuning, OCR PDF scan, model chạy offline, arbitrary code/macros do model thực thi, tự tải dữ liệu từ URL
+Dify và mọi dạng RAG/retrieval cho Office AI (U-12), fine-tuning, OCR PDF scan, model chạy offline, arbitrary code/macros do model thực thi, tự tải dữ liệu từ URL
 trong workbook, tự ghi nghiệp vụ không có người duyệt, dựng lại panel AI hoặc bộ công cụ agent song song với genoffice.
 Offline web đầy đủ không được thêm vào G5; web giữ draft recovery của frame (C18) và online sync.
 Page JSON giữ autosave C-01; quy tắc file Office không thay page.
@@ -136,7 +143,7 @@ flowchart LR
   P -->|"Web BYOK proxy, công cụ đám mây (ADR 0029)"| G["ai.Gateway: policy, quota, usage"]
   P -->|"UniWork AI (U-09)"| G
   G --> V
-  G --> D["Dify app: Knowledge quy trình Office + model"]
+  G --> U["Upstream model openai-compatible (cấu hình) + instruction pack Office"]
   S --> F["Documents + FileService"]
   P --> E["Engine trong renderer: docx / xlsx WASM / pptx"]
   E --> W
@@ -149,10 +156,10 @@ Ba đường AI tồn tại song song và **không trộn**:
 | --- | --- | --- |
 | Desktop BYOK / CLI cục bộ | Người dùng; UniWork không thấy | ADR 0028; ngoài Gateway, ngoài ADR 0010 |
 | Web BYOK proxy | Người dùng; UniWork đo usage, `credits=0` | ADR 0029; pass-through, khóa lưu mã hóa phía server |
-| UniWork AI (Dify) và công cụ đám mây | Credit UniWork, meter `ai.tokens` | Qua `ai.Gateway`, entitlement của tổ chức; G6 xây đường UniWork AI |
+| UniWork AI và công cụ đám mây | Credit UniWork, meter `ai.tokens` | Qua `ai.Gateway`, entitlement của tổ chức; G6 xây đường UniWork AI |
 
-Các adapter Dify/endpoint UniWork AI chưa có sẵn. Không đưa Dify credential, khóa nhà cung cấp của UniWork
-hay token thiết bị vào renderer, prompt hoặc bundle.
+Endpoint UniWork AI chưa có sẵn; upstream model dùng provider openai-compatible có sẵn của Gateway (§8). Không đưa khóa
+upstream, khóa nhà cung cấp của UniWork hay token thiết bị vào renderer, prompt hoặc bundle.
 
 1. Documents giữ identity/quyền/version; FileService giữ byte/upload/provider-output/claim/GC.
    Một đường commit: `POST /documents/{documentID}/uploads` rồi
@@ -165,7 +172,7 @@ hay token thiết bị vào renderer, prompt hoặc bundle.
 4. Realtime chỉ invalidation; change feed là đường bù. Trên host web, TanStack Query giữ server state, Zustand chỉ UI state;
    trong renderer genoffice, state theo kiến trúc của fork. Store queue/draft bền nằm sau host (Electron main hoặc
    IndexedDB của frame) và không thành nguồn quyền.
-5. Scope do Go/host xác thực suy ra (phiên, frame token); không tin org/account/workspace mà Dify, model hoặc renderer tự khai.
+5. Scope do Go/host xác thực suy ra (phiên, frame token); không tin org/account/workspace mà model hoặc renderer tự khai.
 6. Thay đổi nghiệp vụ, audit, outbox và kết quả idempotency cùng transaction. Không log payload tài liệu, prompt hay response.
 7. Receipt khớp intent mới là đã lưu; upload, tool success hoặc câu “đã xong” của model không là receipt.
 8. Không xóa queue/nháp chưa xác định kết quả của **desktop** vì lỗi khóa, rollback hoặc GC cloud; logout khóa chúng, không xóa.
@@ -312,12 +319,12 @@ trạng thái `signed-out` / `not-entitled` / `subscription-inactive` / `credits
 lấy từ `GET /orgs/{orgID}/ai/cloud`. G6 **mở rộng seam này**, không tạo nhãn "UniWork AI" thứ hai:
 thêm công cụ `chat` vào danh sách công cụ cloud, và thêm một mục nhà cung cấp `uniwork` trong
 `packages/ai-provider/src/providers.ts` (bên cạnh `anthropic`, `openai`, `codex`, `custom`…) mà panel chỉ hiện khi
-trạng thái cloud là `ready` và `tools.chat` bật. Khi chọn, lượt chạy dùng credit UniWork và kiến thức quy trình Office trên Dify.
+trạng thái cloud là `ready` và `tools.chat` bật. Khi chọn, lượt chạy dùng credit UniWork và instruction pack Office của server (§7).
 
 - **Desktop** phát hiện qua `GET /orgs/{orgID}/ai/cloud` (trường mới `tools.chat`), bằng phiên thiết bị.
 - **Web**: grant `ai` của frame token hiện chỉ bật khi có `office.ai_byok` và kho khóa đã cấu hình (`AIBYOKService.Enabled`),
   và các khóa cloud chỉ đi kèm `ai`. G6 phải tách UniWork AI khỏi BYOK: thêm trường grant `uniwork_ai` (cấp khi
-  `RequireMember` + entitlement + Dify đã cấu hình, không cần BYOK) và capability key `uniworkAi` trong frame protocol;
+  `RequireMember` + entitlement + Gateway bật và capability UniWork AI có model (§8.1), không cần BYOK) và capability key `uniworkAi` trong frame protocol;
   panel mở được khi chỉ có `uniworkAi`. Đây là thay đổi hai repo (bất biến 9, §11).
 - Thiếu bất kỳ điều kiện nào thì ẩn mục, không hiện lỗi giả. Người chỉ có quyền xem vẫn hỏi được (như AI web hiện nay)
   nhưng không Lưu được.
@@ -330,8 +337,8 @@ trạng thái cloud là `ready` và `tools.chat` bật. Khi chọn, lượt ch�
 
 **Ngữ cảnh là nội dung đang mở trong editor**, kể cả phần chưa lưu, vì công cụ genoffice đọc thẳng editor.
 Đây là thay đổi so với đề xuất G6-D3 cũ (chỉ chạy trên bản đã commit). Hệ quả: nội dung chưa lưu đi tới
-UniWork và nhà cung cấp model trong lượt chạy. Phần nào tới **Dify** phụ thuộc cách nối ở §6.2 (quy tắc dựng query);
-chính sách lưu giữ và xóa ở Dify thuộc gate G6-D2. Kết quả AI không gắn với một version server;
+UniWork và upstream model trong lượt chạy; chính sách lưu giữ và xóa ở upstream thuộc gate G6-D2.
+Kết quả AI không gắn với một version server;
 trả lời phải nói rõ là theo nội dung đang mở.
 
 ### 6.2 Luồng một lượt UniWork AI
@@ -340,25 +347,13 @@ trả lời phải nói rõ là theo nội dung đang mở.
    tới endpoint UniWork AI bằng phiên UniWork (desktop) hoặc frame token (web). Không khóa nhà cung cấp nào nằm ở client.
 2. Server: `RequireMember` → entitlement → `CheckQuota(ai.tokens)` → `ai.Gateway`. Scope (user, org, document nếu có)
    suy từ phiên hoặc frame token, không từ body.
-3. Gateway gọi Dify qua adapter trong `server/internal/ai/provider` (luật `TestProviderSDKOnlyInAIProvider`).
-   Dify truy xuất procedure đã duyệt (§7) theo filter cứng do server đặt (release corpus, format, locale).
+3. Gateway gọi upstream model qua provider openai-compatible có sẵn trong `server/internal/ai/provider`
+   (luật `TestProviderSDKOnlyInAIProvider`), với system prompt là instruction pack Office (§7) do server chọn theo
+   module/định dạng đang mở. Không retrieval, không bước truy xuất nào trước lượt gọi model.
 4. Model trả lời hoặc trả **tool calls**. Tool calls về client nguyên trạng; công cụ genoffice chạy trong renderer,
-   đọc/tính/sửa trong editor, rồi gửi tool result ở request tiếp theo. Dify không gọi ngược API UniWork trong v1.
-5. Gateway ghi usage cho mọi lượt model/embedding/rerank thuộc run (§8.2), kể cả khi client ngắt kết nối.
+   đọc/tính/sửa trong editor, rồi gửi tool result ở request tiếp theo. Upstream không gọi ngược API UniWork.
+5. Gateway ghi usage cho mọi lượt model thuộc run (§8.2), kể cả khi client ngắt kết nối.
 6. Panel hiển thị kết quả. Không có side effect ghi phía server; Lưu là thao tác riêng của người dùng (§6.4).
-
-Hai cách nối Dify là lựa chọn của gate G6-D1, phải POC trước khi chốt:
-
-| Cách | Mô tả | Ưu / nhược |
-| --- | --- | --- |
-| (a) Knowledge API | Gateway gọi Dify Knowledge Retrieval API lấy chunks, chèn vào prompt, rồi gọi model qua `Complete` của Gateway, sau một façade mới (dưới) | Đề xuất. Tool calling giữ nguyên định dạng; streaming theo quyết định G6-D1 (façade); usage đo trực tiếp; Dify chỉ là đầu API truy xuất |
-| (b) Chatflow | Gateway gọi một Dify chatflow app; Dify gọi model | Phải chứng minh Dify chuyển tool calls/streaming đúng định dạng client cần và cho Gateway đo từng lượt model; nếu không được thì loại |
-
-**Quy tắc dựng query gửi Dify.** Cách (a): server dựng query từ câu của người dùng cộng gợi ý mức schema
-(định dạng, intent, tên cột/heading), giới hạn độ dài; **không** gửi giá trị ô, đoạn văn hay nội dung tài liệu.
-Khi đó Dify chỉ nhận câu hỏi và tên cột/heading (vẫn là dữ liệu của khách hàng, có giới hạn độ dài), không nhận giá trị ô
-hay đoạn văn; G6-D2 vẫn phải chốt log và retention của query ở Dify.
-Cách (b): Dify nhận cả hội thoại và nội dung công cụ trả về, nên G6-D2 phải đóng trước khi có dữ liệu thật.
 
 **Hợp đồng đề xuất (chốt ở G6-D1, chưa phải API đã có):**
 
@@ -382,6 +377,14 @@ khai báo công cụ của allowlist qua `ai.Request.Tools` để tool call lạ
 G6-D1 chốt streaming thật (thêm method stream vào `provider.Provider`) hay SSE một chunk ở v1; adapter `uniwork`
 phải chịu được cả hai.
 
+**Khoảng trống của provider có sẵn (đọc tại `b4f917cb8`; head PR #219 `1da9b2e0f` thêm `Message.Parts` cho media và
+capability cloud nhưng chưa đổi phần dưới, và cùng sửa `provider.go`/`openai.go`/`policy.go`).** `provider.Message` chỉ có `Role` `user`/`assistant` và
+`Content`; `provider.ToolCall` chỉ có `Name`/`Input`, không có id; adapter `openai.go` không gửi `tool_call_id`, không có
+message role `tool` và bỏ id của tool call trong response; `ai.Request` chỉ nhận `History` + một câu user cuối. Vòng
+tool-result của openai-compatible cần id đi hai chiều, nên G6 **mở rộng kiểu và adapter có sẵn** (id tool call, message
+kết quả công cụ, cùng thay đổi ở `anthropic.go`/`fake.go` cho đủ interface) — không thêm provider package mới. Đây là
+thay đổi trong `server/internal/ai/provider` + `server/internal/ai`, không chạm boundary repo.
+
 **Giới hạn công cụ và vòng lặp.** Agent của fork còn có MCP server, skills và công cụ đám mây tốn credit, ngoài công cụ editor.
 Với nhà cung cấp UniWork AI trong v1:
 - Allowlist cứng: chỉ công cụ editor của module đang mở. MCP và skills tắt; nếu sau này bật thì theo từng lượt, có thông báo rõ.
@@ -399,7 +402,7 @@ Công cụ đọc/tính/sửa là công cụ agent của từng module genoffice
 phía server trong v1. Việc của G6:
 
 - Lập bảng công cụ theo module và host (tên, input/output, giới hạn, có ghi editor hay không, chỉ desktop hay cả web),
-  lấy từ code fork tại SHA đã pin; bảng này là nguồn cho nhóm "Tool contracts" của corpus (§7.2).
+  lấy từ code fork tại SHA đã pin; bảng này là nguồn cho phần công cụ của instruction pack (§7.2).
 - Đối chiếu với ma trận §6.5. Thiếu công cụ → yêu cầu thay đổi ở fork (ưu tiên đẩy lên upstream để giảm lệch),
   không vá trong dev-uniwork.
 - Kiểm các ràng buộc an toàn trên công cụ genoffice: không chạy macro/VBA/DDE, không tự tải URL trong workbook,
@@ -435,7 +438,7 @@ không tuyên bố genoffice hiện hỗ trợ hết.
 | Markdown | Hỏi/tóm tắt theo heading/source range | Sửa vùng chọn, giữ frontmatter/link/assets ngoài vùng | Source diff + render + assets |
 | HTML | Hỏi/tóm tắt nội dung | Sửa text/DOM targets được phép | DOM/source diff, assets, CSP/sandbox của frame |
 
-Mỗi hàng chạy với cả UniWork AI và ít nhất một đường BYOK, trên web và desktop, để phân biệt lỗi của corpus/Dify
+Mỗi hàng chạy với cả UniWork AI và ít nhất một đường BYOK, trên web và desktop, để phân biệt lỗi của instruction pack/upstream
 với lỗi của công cụ genoffice.
 
 Đối với XLSX:
@@ -455,111 +458,70 @@ Z=phần trăm giảm giá thì tính `X * Y * (1 - Z)`; nếu Z là số tiền
 nghĩa khi chưa rõ. Chat chỉ trả kết quả; “ghi vào cột AA” sửa trong editor, không tự Lưu.
 Phải có fixture ô Z lưu 10 và 10%, dòng ẩn, hàng tổng, ô lỗi, nhiều sheet và dữ liệu tiếng Việt.
 
-## 7. G6 — Bộ kiến thức RAG cho Dify
+## 7. G6 — Kiến thức quy trình Office: instruction pack (không RAG)
 
 ### 7.1 Ba lớp không trộn lẫn
 
 | Lớp | Nội dung / nguồn sự thật |
 | --- | --- |
-| Kiến thức quy trình Office | Corpus do UniWork biên soạn và review: định dạng, intent, playbook, tool contract, ví dụ; quản lý trong Git, nạp Dify theo release |
-| Policy và schema bắt buộc | Quyền, capability, tool allowlist, confirmation, budget, schema validation nằm trong code/contract; không phụ thuộc có retrieve đúng một đoạn Markdown |
-| Nội dung tài liệu người dùng | Công cụ genoffice đọc trong editor đang mở; không nhập workbook khách hàng vào corpus dùng chung; quyền nằm ở UniWork |
+| Kiến thức quy trình Office | Instruction pack do UniWork biên soạn và review: cách làm theo định dạng/intent, quy tắc hỏi lại, cách dùng công cụ genoffice, dạng output; quản lý trong Git như prompt có version của Gateway, gửi kèm mỗi lượt qua `ai.Gateway` |
+| Policy và schema bắt buộc | Quyền, capability, tool allowlist, budget, schema validation nằm trong code/contract; không phụ thuộc model có làm theo một câu trong instruction pack |
+| Nội dung tài liệu người dùng | Công cụ genoffice đọc trong editor đang mở; không nhập workbook khách hàng vào instruction pack; quyền nằm ở UniWork |
 
 Nguồn nghiệp vụ do người dùng chọn phục vụ tác vụ hiện tại có thể được đưa vào context theo C-14,
-cùng workspace/quyền và provenance; phase này không xây kho RAG toàn doanh nghiệp A-04.
+cùng workspace/quyền và provenance; phase này không xây kho RAG nào (cả A-04 lẫn Office).
 Nội dung file, công thức, comment, metadata và tool output là dữ liệu không tin cậy, không là system instruction.
 
-### 7.2 Tám nhóm tài liệu phải xây trong G6
+### 7.2 Instruction pack
 
-| Nhóm | Nội dung | Điều kiện chất lượng |
-| --- | --- | --- |
-| Capabilities | Format/operation/host/build, giới hạn, unsupported cases | Trỏ đúng registry/engine evidence; không tự mô tả tính năng chưa có là available |
-| Document models | Workbook/sheet/table/cell/formula, DOCX parts/anchors, slide/text, PDF/page, Markdown/HTML | Có locator và semantics dữ liệu, không chỉ hướng dẫn UI |
-| Intent catalogue | Cách diễn đạt vi/en, synonyms, slots bắt buộc, quy tắc hỏi lại | Ví dụ mơ hồ lẫn rõ ràng; phân biệt read/compute/propose |
-| Playbooks | Preconditions, steps, tool dependencies, branches/errors, output/verification | Một tác vụ tự đọc được; không hardcode sheet name/cột từ fixture thành quy tắc chung |
-| Tool contracts | Công cụ agent genoffice theo module/host: chức năng, input/output, limits/errors, side effects | Sinh/đối chiếu từ code fork tại SHA pin (§6.3); đồng bộ upstream đổi công cụ thì corpus liên quan cần review lại |
-| Policies/recovery guide | Giải thích confirm/save/conflict/permission/offline cho model và người dùng | Bản giải thích bổ trợ code policy; không được ghi đè policy bằng retrieval |
-| Worked examples/anti-examples | Yêu cầu → bước đọc → tool calls → kết quả → lý do kiểm chứng | Dữ liệu tổng hợp hoặc được phép dùng; có ví dụ thất bại và hỏi lại |
-| Evaluation specification | Fixture/query, relevant playbooks/tools, expected output/operations và oracle | Test holdout tách khỏi Knowledge và ví dụ huấn luyện prompt |
+U-12 bỏ retrieval: không corpus, không lập chỉ mục, không bước truy xuất. Phần "cách thực hiện" mà v1.1 định nạp vào Dify
+thu lại thành một instruction pack nhỏ, là **system prompt có version trong registry prompt có sẵn của Gateway**
+(`server/internal/ai/prompts.go`, khóa dạng `<id>@<version>` như `copilot_answer@1`, golden trong
+`server/internal/ai/testdata/`). Lý do chọn chỗ này: `ai.Gateway.Complete` đã chỉ nhận prompt qua `PromptID`
+(`LookupPrompt`), dòng usage đã ghi `prompt_id`, nên dấu vết "lượt nào dùng instruction pack nào" có sẵn mà không thêm bảng.
 
-Phạm vi corpus bắt đầu bằng XLSX và DOCX nhưng phải bao phủ các hàng đã cam kết của §6.5.
-Không tải lên toàn repo, logs, secrets hoặc tài liệu khách hàng làm “training” mặc định.
+| Mục | Quy định |
+| --- | --- |
+| Nội dung | Phần chung (vai trò, luật an toàn §6.2 về dữ liệu không tin cậy, quy tắc hỏi lại, dạng kết quả: trả lời / cần làm rõ / đã sửa trong editor / không hỗ trợ / lỗi) + một đoạn theo module/định dạng (XLSX: sheet/range/kiểu dữ liệu/locale/rounding/recalc theo §6.5, tính bằng công cụ không nhẩm; DOCX: giữ bảng và phần không sửa; các định dạng còn lại theo hàng §6.5) |
+| Công cụ | Chỉ tên và cách dùng công cụ genoffice có trong bảng công cụ tại SHA fork đã pin (§6.3); không nhắc công cụ ngoài allowlist. Đồng bộ upstream đổi công cụ → review lại đoạn liên quan |
+| Kích thước | Có trần token cứng (chốt ở G6-D1); không chép bảng công cụ đầy đủ — schema công cụ đã đi qua `tools` của request |
+| Chọn đoạn | Server chọn theo module của lượt chạy (route frame: theo tài liệu; route phiên: theo module khai báo, chỉ để chọn đoạn, không cấp quyền) |
+| Version | Đổi nội dung = version mới (`office_uniwork_ai@N+1`), bản cũ giữ trong registry để dòng usage cũ vẫn truy được; golden test cho từng version |
+| Review | Owner AI Platform + Product duyệt; không dữ liệu khách hàng, không đáp án của holdout G7 (§9.2) |
+| Rollback | Trỏ lại version trước bằng deploy (không có UI sửa prompt trên production) |
 
-### 7.3 Schema của một tài liệu kiến thức
+Không tải lên toàn repo, logs, secrets hoặc tài liệu khách hàng vào instruction pack. Không lưu chain-of-thought riêng tư;
+chỉ trình tự thao tác và cách kiểm chứng. Instruction pack bổ trợ policy trong code, không bao giờ thay nó.
 
-Cấu trúc source đề xuất là Markdown với metadata riêng được validator đọc, không mặc định Dify hiểu frontmatter.
-Pipeline ánh xạ metadata sang document metadata của Dify theo version được chọn.
+## 8. G6 — Upstream model sau AI Gateway
 
-```yaml
-id: office.xlsx.aggregate.filtered-total
-revision: 1
-status: draft
-format: xlsx
-intent: aggregate
-operation: calculate
-locale: vi
-risk: read_only
-required_capabilities: [range_read, aggregate]
-genoffice_tools_ref: uniwork-office@<sha>
-owner: office-ai
-source_refs: []
-eval_case_ids: []
-```
+### 8.1 Trách nhiệm và cấu hình
 
-Các field trên là schema đề xuất; `genoffice_tools_ref` trỏ bảng công cụ genoffice tại SHA fork đã pin, không phải API UniWork.
-Bản approved phải có reviewer, reviewed_at, source refs cụ thể, engine/capability compatibility và content hash.
-Dify dataset/document ids nằm trong deployment manifest, không dùng làm stable knowledge id trong source.
+UniWork AI là façade sau `ai.Gateway`; phía sau Gateway là **upstream model chỉ bằng cấu hình** (U-12). UniWork giữ danh
+tính, entitlement, quota, usage, audit và instruction pack; genoffice giữ panel và công cụ. Upstream không giữ quyền đọc
+tài liệu, không gọi API UniWork, không có quyền ghi.
 
-Body gồm: mục đích; dùng khi nào/không dùng khi nào; ví dụ utterances; slots đầu vào; dữ liệu cần đọc;
-preconditions; từng bước và tool reference; nhánh hỏi lại/lỗi; kiểm chứng; dạng output; ví dụ và phản ví dụ;
-liên kết bài liên quan. Không lưu chain-of-thought riêng tư; chỉ cần trình tự thao tác và bằng chứng kiểm.
+Upstream dùng **provider openai-compatible có sẵn** (`server/internal/ai/provider/openai.go`; đổi `OPENAI_BASE_URL` là
+đổi vendor) với các biến đã có trong khối "AI gateway (F-09)" của `.env.example`: `AI_PROVIDER=openai`,
+`OPENAI_BASE_URL`, `OPENAI_API_KEY`, `AI_MODEL_ALLOW` và override theo capability `AI_MODEL_<CAPABILITY>`
+(`server/internal/ai/policy.go`). Không thêm provider package mới; phần cần sửa trong provider có sẵn là vòng tool-result
+(§6.2 "Khoảng trống của provider có sẵn").
 
-### 7.4 Chunking, retrieval và tính nhanh
+**Capability riêng, cơ chế override có sẵn.** `Capability` của Gateway là enum đóng (capability không có policy bị từ chối).
+UniWork AI thêm một capability `office_uniwork_ai` (`CapOfficeUniworkAI` trong `policy.go`) với `ModelPolicy` riêng
+(default theo provider như `flagship`, `MaxTokens` theo trần G6-D1, `Temperature: 0`), không dùng lại `copilot_answer`:
+Ask UNI có trần 1500 token và prompt riêng, còn lượt Office cần trần, model và nhãn usage/metric tách được. Model cho
+UniWork AI chọn bằng `AI_MODEL_OFFICE_UNIWORK_AI` (cơ chế override có sẵn: phải nằm trong allowlist, `AI_MODEL_ALLOW`
+mở rộng cho tên tự host; override ngoài allowlist bị bỏ và dùng default kèm cảnh báo). Biến mới chỉ là dòng ví dụ
+`AI_MODEL_OFFICE_UNIWORK_AI=` trong `.env.example`.
 
-- Chunk theo một procedure hoặc section có nghĩa. Preconditions/warnings/verification phải đi cùng procedure
-  bằng chunk đầy đủ hoặc cơ chế fetch parent; cắt rời một công thức khỏi điều kiện áp dụng là lỗi corpus.
-- Map metadata: stable id, revision/status, format, intent, operation, locale, tool contract version và capability.
-  Tên mã lỗi/công cụ/công thức được giữ nguyên để tìm chính xác, bổ sung từ đồng nghĩa tiếng Việt.
-- Server cung cấp filter cứng: approved corpus release + format + tool contract tương thích. LLM có thể gợi ý
-  intent, nhưng không được bỏ scope/version filters. Multi-capability matching kiểm thêm ngoài metadata nếu cần.
-- Điểm khởi đầu để đo: hybrid lexical/semantic, top-k 5, rerank tùy kết quả eval; chunk size và threshold được
-  tune trên dev set, không gọi một bộ tham số là tối ưu trước khi đo. Có token budget cứng cho retrieved context.
-- Explicit workflow/tool identifiers có thể lookup chính xác trước semantic search. Cache chỉ corpus procedure
-  theo release/query/locale/capability; không cache chung kết quả tài liệu khách hàng hoặc bỏ kiểm quyền.
-- Retrieval trả id/revision/chunk/source/score; runtime lưu dấu vết chọn playbook. Không match đáng tin thì hỏi lại
-  hoặc báo chưa hỗ trợ, không gọi tool ngoài allowlist để thử.
-- Dữ liệu số lớn không đi qua RAG để tính; gửi về model schema/summary và kết quả tool vừa đủ.
-  Đo latency riêng retrieval, tool/engine, model và end-to-end để biết phần nào chậm.
+Gateway là một cho cả server: `AI_PROVIDER`/`OPENAI_*` đổi upstream của mọi tính năng AI (Ask UNI, tóm tắt họp…) trên
+deployment đó; chỉ model là tách theo capability. Muốn UniWork AI dùng upstream khác các tính năng còn lại thì đó là
+thay đổi Gateway riêng (nhiều provider theo capability), cần ADR, không thuộc v1.
 
-### 7.5 Vòng đời corpus và bàn giao
-
-Draft → kiểm schema/link/tool references → reviewer duyệt → import staging → retrieval/agent eval →
-release manifest → rollout. Corpus dùng release id/hash, Dify DSL hash, model/embedding/rerank revisions
-và capability contract; workflow chỉ dùng bộ tương thích.
-
-Xây staging dataset riêng rồi switch manifest sau khi indexing sẵn sàng và smoke pass; không trộn các
-revision đang index dở. Import có idempotency/mapping source id → Dify ids, xử lý remove/deprecate và verify
-không còn retrieve bản cũ. Model embedding thay đổi phải reindex và chạy lại eval.
-Rollback trỏ về manifest tương thích, không chỉ đổi prompt trong UI.
-
-Dify DSL export không bao gồm dữ liệu Knowledge; gói bàn giao phải có source corpus, metadata, import mapping,
-rebuild procedure và eval riêng. Secret/env nhạy cảm phải được loại khỏi DSL trước commit.
-Yêu cầu này dựa trên Dify [Manage Apps](https://docs.dify.ai/en/cloud/use-dify/workspace/app-management);
-không coi export DSL là backup đầy đủ của một ứng dụng RAG.
-
-## 8. G6 — Tích hợp Dify với AI Gateway
-
-### 8.1 Trách nhiệm
-
-Dify là **một đầu API phía sau `ai.Gateway`** (U-09): kho Knowledge quy trình Office và, tùy cách nối ở §6.2,
-một ứng dụng gọi model. Deployment/model/plugin/version chưa chốt. UniWork giữ danh tính, entitlement, quota,
-usage, audit; genoffice giữ panel và công cụ. Dify không giữ quyền đọc tài liệu, không gọi API UniWork,
-không có quyền ghi.
-
-Spec không giả định Dify tự cung cấp ACL Document, tính đúng XLSX, hay đo đếm thay Gateway.
-Các khả năng cụ thể cần kiểm lại trên phiên bản deployment được chọn:
-[Knowledge Retrieval](https://docs.dify.ai/en/cloud/use-dify/nodes/knowledge-retrieval),
-[Tool node](https://docs.dify.ai/en/cloud/use-dify/nodes/tools).
+Điều kiện "UniWork AI có cấu hình" mà `tools.chat`/grant `uniwork_ai` đọc (§6.1): `ai.Gateway.Enabled()` và
+`ResolveModel(office_uniwork_ai, provider, …)` không lỗi. Provider `fake` thỏa điều kiện này để CI/E2E chạy được; production
+không bật UniWork AI cho tổ chức nào khi provider là `fake` (kiểm ở rollout §12).
 
 ### 8.2 Không bỏ qua AI Gateway
 
@@ -569,8 +531,8 @@ ADR 0029). UniWork AI thêm một façade mới (§6.2) — không dùng lại p
 (`entitlement_required` 403, `credits_exhausted` 402, 429, `provider_unreachable` 502, `cloud_unavailable` 503).
 
 Gate G6-D1 yêu cầu chứng minh:
-- Run identity do server cấp, đi theo mọi lượt gọi Dify/model/embedding/rerank của lượt chạy, kể cả retry và
-  các request tool-result tiếp theo của cùng hội thoại; không lấy từ input người dùng hoặc model.
+- Run identity do server cấp, đi theo mọi lượt gọi model của lượt chạy, kể cả retry và các request tool-result tiếp
+  theo của cùng hội thoại; không lấy từ input người dùng hoặc model.
 - `CheckQuota` trước, `RecordUsage` theo usage thật; usage thiếu là unknown/reconciliation, không mặc định 0.
   Không đếm trùng lượt bao ngoài và từng lượt model con. Chốt usage trên context tách khỏi request như ADR 0029.
 - Entitlement: đề xuất v1 **dùng lại `office.ai_cloud`**, để `chat` là một công cụ cloud như các công cụ khác và máy trạng thái
@@ -579,37 +541,47 @@ Gate G6-D1 yêu cầu chứng minh:
   entitlement riêng, cả ở `GET .../ai/cloud` lẫn grant frame. Khóa mới seed bằng migration, đọc qua `EntitlementService.Can` (fail-closed).
 - Provider transport đúng boundary repo; `internal/ai` không import service nghiệp vụ hoặc đọc business tables
   (`TestAIPackageOnlyCallsAiQueries`).
-- Dify timeout/cancel không đồng nghĩa vendor chưa tốn token; không tự chạy lại.
-- Knowledge ingestion embeddings là công việc quản trị có quota/attribution riêng, không gán vào tenant bất kỳ.
+- Upstream timeout/cancel không đồng nghĩa vendor chưa tốn token; không tự chạy lại.
+- Vòng tool-result qua provider openai-compatible giữ đúng id tool call hai chiều (§6.2), với upstream dev (§8.4) và `fake`.
 
-Nếu deployment Dify được chọn không cho Gateway kiểm soát/đo các lượt gọi model, dùng cách (a) ở §6.2
-(Dify chỉ truy xuất) hoặc trình ADR thay đổi ranh giới. Không chấp nhận bypass Gateway bằng “Dify có log”.
-PoC có thể dùng data tổng hợp trong staging; không là quyền đưa dữ liệu khách hàng lên dịch vụ chưa duyệt.
+Không chấp nhận bypass Gateway bằng "upstream có log". Upstream dev/test chỉ nhận dữ liệu tổng hợp; không là quyền đưa
+dữ liệu khách hàng lên dịch vụ chưa duyệt.
 
 ### 8.3 Privacy, hội thoại, cache và vận hành
 
-- Client chỉ gọi UniWork; Dify app API key và model credentials ở secrets của server/deployment, không trong DSL Git,
-  không trong bundle fork.
+- Client chỉ gọi UniWork; khóa upstream (`OPENAI_API_KEY`) ở secrets của server/deployment, không trong Git, không trong
+  bundle fork, không trong log.
 - Mỗi lượt chạy bind actor + tenant (+ document khi chạy trong frame). Không dùng chung conversation hoặc memory
-  của Dify giữa tài liệu/tài khoản để tiết kiệm token; ở cách (a) Dify không giữ hội thoại.
-- Nội dung đang mở (kể cả chưa lưu, §6.1) đi tới UniWork và nhà cung cấp model. Tới Dify chỉ phần mà quy tắc dựng query
-  ở §6.2 cho phép. Corpus procedure trên Dify không chứa nội dung khách hàng.
+  giữa tài liệu/tài khoản để tiết kiệm token; upstream không giữ hội thoại (mỗi lượt là một request độc lập).
+- Nội dung đang mở (kể cả chưa lưu, §6.1) đi tới UniWork và upstream model.
 - Log/audit vận hành chỉ ids, tool names, status, durations, counts, hashes và correlation;
   raw prompt, response, cell contents, titles hoặc token không được ghi vào log chung.
-- Các bản sao trong Dify history/tracing, model provider và cache phải có inventory và chính sách xóa.
-  G6-D2 chốt cloud/self-host, region, retention và ai được truy cập Dify admin trước khi dùng dữ liệu thật.
-  Tắt tracing chứa content nếu deployment cho phép; không chứng minh được thì chưa mở UniWork AI cho tenant production.
-- Dify/LLM/retrieval outage chỉ làm UniWork AI unavailable; editor, Lưu, BYOK và G5 vẫn hoạt động.
+- Các bản sao ở upstream (log/retention của vendor) và ở UniWork (transcript hội thoại phía server, cache) phải có
+  inventory và chính sách xóa. G6-D2 chốt vendor/self-host, region, retention và tắt log nội dung của upstream trước khi
+  dùng dữ liệu thật; không chứng minh được thì chưa mở UniWork AI cho tenant production.
+- Upstream outage chỉ làm UniWork AI unavailable; editor, Lưu, BYOK và G5 vẫn hoạt động.
   Không fallback âm thầm sang nhà cung cấp khác.
-- Phiên bản Dify app/corpus đã phát hành bất biến theo manifest. Cập nhật prompt trên production đi qua
-  quy trình release/eval. Lưu dấu vết kỹ thuật đủ truy ngược kết quả tới model, prompt, corpus và build genoffice.
+- Instruction pack đã phát hành bất biến theo version (§7.2). Lưu dấu vết kỹ thuật đủ truy ngược kết quả tới
+  provider/model đã resolve, `prompt_id` và build genoffice.
+
+### 8.4 Upstream cho dev/test
+
+- **CI và unit test:** provider `fake` (`AI_PROVIDER=fake`, trả lời xác định, không mạng). Test vòng tool-result dùng
+  fake có tool call (mở rộng `provider/fake.go` khi cần), không gọi mạng.
+- **Máy dev:** dùng tạm custom provider của Codex trên máy dev — mục `[model_providers.customlocal]` trong
+  `~/.codex/config.toml` (`base_url` + `env_key`). Coordinator kiểm ngày 2026-10-12: `/v1/chat/completions` trả đúng định
+  dạng chat OpenAI và `/v1/models` liệt kê model. Cách cấu hình: đặt `AI_PROVIDER=openai`, `OPENAI_BASE_URL` = giá trị
+  `base_url` của `customlocal`, `OPENAI_API_KEY` = giá trị của biến môi trường mà `env_key` trỏ tới, thêm model muốn dùng
+  vào `AI_MODEL_ALLOW` và đặt `AI_MODEL_OFFICE_UNIWORK_AI` bằng model đó (lấy tên từ `/v1/models`).
+  **Không bao giờ ghi host/IP, cổng hay khóa vào repo, issue hoặc bằng chứng**; tài liệu chỉ trỏ tới file cấu hình.
+- Upstream dev chỉ nhận fixture tổng hợp. Upstream production chọn ở G6-D2.
 
 ## 9. G7 — Ma trận nghiệm thu và bằng chứng
 
 ### 9.1 Chuẩn bị song song, nghiệm thu theo dependency
 
 G7 tạo fixture, oracle, runner, data reset, OS/browser matrix và reporting ngay khi có contract.
-Fake phục vụ unit/contract tests; full acceptance cần service/DB/FileService/engine/Dify và binary thật.
+Fake phục vụ unit/contract tests; full acceptance cần service/DB/FileService/engine/upstream model và binary thật.
 Mọi dòng bằng chứng có requirement id, SHA, platform/build, fixture/hash, command, result,
 artifact, người kiểm và blocker. “Chưa chạy”, “skip”, “không có máy” là BLOCKED, không là PASS.
 
@@ -629,22 +601,22 @@ artifact, người kiểm và blocker. “Chưa chạy”, “skip”, “không
 | G6-A04 | Thay đổi do AI nhìn thấy được và hoàn tác được trước khi Lưu; Lưu sau AI đúng `base_revision`, 409 giữ bản cục bộ, double click/retry không nhân đôi version |
 | G6-A05 | DOCX mở → AI sửa trong editor → người dùng xem và Lưu → version mới → tải và mở Word; version cũ checksum không đổi |
 | G6-A06 | Các format còn lại theo §6.5, có oracle structure/render và giới hạn capability đúng host (web frame / desktop) |
-| G6-A07 | Entitlement/frame token/ACL mất quyền giữa chừng/cross-org/cross-workspace/prompt injection/history replay đều được chặn; UniWork AI ẩn khi không đủ điều kiện và hiện khi chỉ có `uniworkAi` (không BYOK); tool call ngoài allowlist bị từ chối; vượt trần lượt trả `run_limit_reached`; theo cách (a), query tới Dify không chứa giá trị ô/nội dung |
-| G6-A08 | Dify/retrieval/model timeouts, `credits_exhausted`, rate limit, disconnect và cancel có bounded outcome; không phá editor, BYOK vẫn chạy |
-| G6-A09 | Từng model/embedding/rerank call có attribution/quota/usage; unknown usage được reconcile, không bỏ sót |
-| G6-A10 | Corpus version/filter/deprecation/index switch/rollback không retrieve procedure sai hoặc bịa tool |
+| G6-A07 | Entitlement/frame token/ACL mất quyền giữa chừng/cross-org/cross-workspace/prompt injection/history replay đều được chặn; UniWork AI ẩn khi không đủ điều kiện và hiện khi chỉ có `uniworkAi` (không BYOK); tool call ngoài allowlist bị từ chối; vượt trần lượt trả `run_limit_reached`; system prompt/instruction pack do server giữ, client không thay được |
+| G6-A08 | Upstream model timeouts/outage, `credits_exhausted`, rate limit, disconnect và cancel có bounded outcome; không phá editor, BYOK vẫn chạy |
+| G6-A09 | Từng lượt gọi model có attribution/quota/usage; unknown usage được reconcile, không bỏ sót |
+| G6-A10 | Instruction pack có version: mỗi lượt truy được `prompt_id` + provider/model đã resolve; đổi version hoặc rollback không làm model gọi/nhắc công cụ ngoài allowlist hay bịa công cụ (U-12 thay nội dung corpus/retrieval cũ) |
 | G7-A01 | Full loop: web edit-save → mở bằng app từ web → desktop offline edit-save → reconnect → web thấy version → AI sửa + Lưu → hai host thấy cùng kết quả |
 | G7-A02 | Lượt AI đang chạy gặp G5 remote update/conflict/revoke; kết quả không tự áp lên bản mới, revoke chặn lượt gọi tiếp |
 | G7-A03 | Upgrade/rollback bản dev, namespace/key/store migration; file cục bộ không gọi mạng khi chưa đăng nhập; signed update/tamper/wrong channel chỉ khi mở backlog chứng chỉ (U-11) |
 | G7-A04 | i18n vi/en, keyboard/screen reader, dark/light, responsive, performance và fidelity đủ bằng chứng |
-| G7-A05 | Corpus + Dify app/DSL + bảng công cụ genoffice + runtime manifest (SHA fork, pin bundle) dựng lại được; runbook outage/recovery và support matrix khớp artifact |
+| G7-A05 | Instruction pack (version) + cấu hình upstream không secret + bảng công cụ genoffice + runtime manifest (SHA fork, pin bundle) dựng lại được; runbook outage/recovery và support matrix khớp artifact |
 
 ### 9.2 Bộ đánh giá AI độc lập
 
-G6 giao ví dụ authoring/dev set; G7 giữ test set độc lập không nhập Knowledge, không đặt đáp án vào prompt.
+G6 giao ví dụ authoring/dev set; G7 giữ test set độc lập, không đặt đáp án vào instruction pack hay prompt.
 Đề xuất tối thiểu 100 tình huống test giữ riêng: 40 XLSX, 20 DOCX, 5 mỗi PPTX/PDF/Markdown/HTML,
 20 trường hợp liên định dạng về quyền, stale version, ambiguity, lỗi và prompt injection.
-Mỗi case có query vi/en, fixture/version, source anchors, expected relevant knowledge ids,
+Mỗi case có query vi/en, fixture/version, source anchors,
 allowed/required tool operations, expected numeric/structural outputs, expected writes (thường là zero) và oracle.
 
 Không bắt model theo một chuỗi call duy nhất khi nhiều cách đều đúng; chấm ràng buộc, kết quả và side effects.
@@ -655,16 +627,15 @@ LLM judge chỉ bổ trợ, không được tự xác nhận phép tính hoặc 
 
 | Chỉ số | Đề xuất |
 | --- | --- |
-| Retrieval recall@5 với query có relevant procedure đã gán nhãn | ≥95%; đo riêng vi/en và từng format |
-| Lấy nhầm procedure revoked/incompatible hoặc vượt scope filter | 0 ca trong suite |
+| Gọi hoặc nhắc công cụ ngoài allowlist, bịa công cụ | 0 ca trong suite |
 | Kết quả numeric/formula required cases | 100% khớp oracle theo rounding/tolerance ghi từng case |
 | Unauthorized write/leak, stale apply, silent overwrite, lost acknowledged draft | 0 ca; bất kỳ lỗi nào chặn phát hành |
 | End-to-end task success cho tác vụ AI được hỗ trợ | ≥95% tổng thể và không format nào dưới 90%; lỗi critical vẫn chặn |
-| Retrieval latency | p95 ≤1,5 giây warm và ≤3 giây cold trên môi trường/corpus đã pin |
+| Latency lượt model đầu tiên (time to first result) | p95 chốt ở G7-D1 trên upstream/model đã pin |
 | Tính ổn định | Chạy suite AI ít nhất 3 lần trên release tuple; báo phân bố, không chọn lần đẹp nhất |
 
-Đo retrieval độc lập với model/tool; cold/warm definition, concurrency, corpus size, query count và phần mạng
-phải được ghi. Đề xuất ít nhất 100 queries đo mỗi chế độ. Trần end-to-end, compute job, peak memory,
+Đo latency model độc lập với công cụ/engine; concurrency, upstream/model, query count và phần mạng phải được ghi.
+Trần end-to-end, compute job, peak memory,
 offline library size và chi phí/run phải chốt theo fixture/load profile tại G7-D1; không suy số liệu G0 thành SLO.
 “0 lỗi trong suite” chỉ là kết quả phạm vi đã thử, không chứng minh không thể có lỗi ngoài suite.
 
@@ -693,7 +664,7 @@ suite đầy đủ chạy trên cloud runner của nhóm (quy tắc 2026-10-09).
 | Offline lease/pin/cache | G5 + app fork (main process, kho khóa); scope, rights/expiry/epoch, manifest/checksum/key reference |
 | Durable save queue | Host store; logical intent, attempts, immutable snapshot, base, receipt và trạng thái |
 | AI run và usage | `ai.Gateway`; tái dùng bảng usage/meter `ai.tokens` của ADR 0029; scope, budget, release tuple, child calls |
-| Knowledge release | Source Git + deployment manifest; corpus/DSL/model/tool versions, source→Dify mapping, eval evidence |
+| Instruction pack | Registry prompt của Gateway (`prompts.go` + golden); version, đoạn theo module, eval evidence; không bảng mới |
 
 Không tạo bảng duplicate khi owner đã có thực thể tương đương. Schema review tuân ULID TEXT,
 organization scope, no FK, index CONCURRENTLY, attribution pair và transaction audit/outbox của repo.
@@ -712,7 +683,7 @@ Số migration và endpoint mới chốt khi lập plan/contract với provider,
 | `quota_exceeded` 403 / file quá lớn 413 | Giữ nháp, nêu quota/size; quota org không phải 50 MiB |
 | Unauthorized/revoked/forbidden | Khóa đúng scope, giữ ciphertext, không trả model output/content cũ |
 | Engine incompatible / recovery locked | Không fallback ghi rỗng hoặc dùng engine khác chưa chứng minh |
-| AI timeout/cancel/retrieval no-match/tool limit, `credits_exhausted` 402, `entitlement_required` 403 | Trạng thái có cấu trúc trong panel, không tự Lưu hoặc claim answer đúng |
+| AI timeout/cancel/tool limit, `credits_exhausted` 402, `entitlement_required` 403 | Trạng thái có cấu trúc trong panel, không tự Lưu hoặc claim answer đúng |
 
 Các mã Office dùng bảng lỗi C-01 §5.5 và amendment §14.5 (bảng gộp, `error_class` trên wire); không dùng lại HTTP quota 413 từ model G0.
 Mã mới của AI/offline lease chỉ là semantic categories trong spec; owner phát hành code/error_class/HTTP,
@@ -722,7 +693,7 @@ SDI/SDO, malformed-response tests và event catalogue trước consumer.
 
 SHA của dev-uniwork và fork, pin bundle web; schema/contract/frame protocol revision; owner; import/API; fixtures/hashes; sample request/response;
 errors; lệnh và kết quả thực; scope/capability limits; migration compatibility; source/binary artifacts.
-AI thêm Dify version/DSL hash/corpus release/model/embedding/rerank, bảng công cụ genoffice và eval report.
+AI thêm `prompt_id` của instruction pack, provider/model đã resolve (không base URL, không khóa), bảng công cụ genoffice và eval report.
 Không chứa token, PII, file khách hàng hoặc signing key trong issue/evidence công khai.
 
 ## 11. Các luồng song song và mốc phase
@@ -734,15 +705,15 @@ Không chứa token, PII, file khách hàng hoặc signing key trong issue/evide
 | --- | --- | --- |
 | G5 protocol + server | Feed/snapshot/cursor và fixtures | G1 quyền/version/outbox, owner ACL contract |
 | G5 host + UX (fork) | Queue/draft trong Electron main, sync center, message "có version mới" trong frame protocol/IPC, test fault | Mở/Lưu UniWork GO-A6, phiên thiết bị GO-A5, frame protocol đã vendor |
-| G6 knowledge + Dify | Corpus schema, intent/playbooks, dev examples, Dify staging trên data tổng hợp | Bảng công cụ genoffice tại SHA pin; G6-D1/D2 trước data thật |
-| G6 UniWork AI provider | Façade openai-compatible mới trên `Complete` (§6.2) + adapter Dify sau Gateway, mount frame token, entitlement, usage, trần lượt chạy; `tools.chat` trong `GET .../ai/cloud`; grant `uniwork_ai`; mục `uniwork` trong `providers.ts` và allowlist công cụ (fork) | ADR 0029 routes (GO-A7), PR #219 đã merge; capability key `uniworkAi` thêm ở fork, vendor lại ba file protocol, đổi pin bundle; chỗ lưu "My AI"/model theo tài khoản của UNI-1240 |
+| G6 upstream + instruction pack | Capability `office_uniwork_ai` + override model, vòng tool-result trong provider có sẵn, instruction pack và dev examples trên upstream dev (§8.4) | Bảng công cụ genoffice tại SHA pin; G6-D2 trước data thật |
+| G6 UniWork AI provider | Façade openai-compatible mới trên `Complete` (§6.2) sau Gateway, mount frame token, entitlement, usage, trần lượt chạy; `tools.chat` trong `GET .../ai/cloud`; grant `uniwork_ai`; mục `uniwork` trong `providers.ts` và allowlist công cụ (fork) | ADR 0029 routes (GO-A7), PR #219 đã merge; capability key `uniworkAi` thêm ở fork, vendor lại ba file protocol, đổi pin bundle; chỗ lưu "My AI"/model theo tài khoản của UNI-1240 |
 | G7 QA + release | Holdout eval, E2E harness hai repo, platform inventory, evidence runner, hồi quy upstream | Từng handoff thật để chạy integration; không cần đợi phase cuối mới kiểm |
 
 | Mốc | Điều kiện ra | Mở khóa |
 | --- | --- | --- |
 | P0 — Contract | Handoff revisions hai repo, owner từng seam, quyết định chặn thiết kế được xác định; G5/G6/G7 test matrix | Triển khai các lát đủ dependency, fake được version cùng provider |
-| P1 — Vertical slices | Một vòng G5 save/reconcile thật trên app; façade UniWork AI chạy với adapter `uniwork` của fork; UniWork AI trả lời ca XLSX X/Y/Z và sửa DOCX trong editor rồi Lưu; POC Gateway–Dify (§6.2) đạt | Mở rộng format và fault cases; không gọi là pilot |
-| P2 — Hội tụ | G5 offline policy đạt, corpus/Dify đạt eval, mọi hàng AI/format trong phạm vi có evidence | Full suite G7 trên release candidate |
+| P1 — Vertical slices | Một vòng G5 save/reconcile thật trên app; façade UniWork AI chạy với adapter `uniwork` của fork; UniWork AI trả lời ca XLSX X/Y/Z và sửa DOCX trong editor rồi Lưu trên upstream dev (§8.4); spike upstream (G6-D1) đạt | Mở rộng format và fault cases; không gọi là pilot |
+| P2 — Hội tụ | G5 offline policy đạt, UniWork AI (instruction pack + upstream) đạt eval, mọi hàng AI/format trong phạm vi có evidence | Full suite G7 trên release candidate |
 | P3 — Nghiệm thu | G7-A01..05, quyết định còn chặn release đã đóng, support matrix/runbooks/reviewer đầy đủ | Người có thẩm quyền quyết định phát hành và human-only done |
 
 P0..P3 là mốc nội bộ phase G5/G6/G7. G6 không cần đợi offline queue G5; G5/G6 cùng dùng commit/ACL contract
@@ -758,20 +729,21 @@ Không tự tạo ACL riêng khi owner contract chưa sẵn sàng; phần đó g
 1. Chốt contract/ADR cần thiết và deployment profile; dựng staging với synthetic fixtures.
 2. Rollout server compatible trước client; feature flags tách sync/offline/AI và per-format capabilities.
    Flag không cấp quyền, không tắt recovery hoặc xóa dữ liệu.
-3. Từng vertical slice qua G7 rồi tăng phạm vi; Dify/corpus release manifest đi cùng capability và SHA fork.
+3. Từng vertical slice qua G7 rồi tăng phạm vi; version instruction pack và model đi cùng capability và SHA fork.
+   Không bật UniWork AI cho tổ chức nào trên deployment có `AI_PROVIDER=fake`.
 4. Production/pilot chỉ khi gate đúng platform/channel đạt và được người có thẩm quyền phát hành.
    Spec không cấp signing credential hay quyền deploy.
 
 Kill switch UniWork AI dừng lượt chạy mới và ẩn nhà cung cấp trong panel, không ảnh hưởng BYOK; vẫn đối soát usage
 đang chạy. Tắt sync write dừng dispatch intent mới, giữ queue/draft và khả năng reconcile.
-Rollback Dify app/corpus phải tương thích bảng công cụ genoffice đang phát hành.
+Rollback instruction pack phải tương thích bảng công cụ genoffice đang phát hành.
 Không down migration/purge FileService như cách rollback.
 
 Runbook phải có: cursor expired/resync; queue mắc reconciling; upload expired; quota/engine outage;
-keystore/lease lỗi; revoke; Dify/model outage; corpus index/import hỏng; usage reconciliation;
+keystore/lease lỗi; revoke; upstream model outage/đổi upstream; usage reconciliation;
 installer/update rollback; cảnh báo mất khả năng checkpoint.
 Metrics không nội dung: feed lag, oldest queued age, retry/conflict counts, blocked leases,
-retrieval latency/no-match, tool failures, usage unknown,
+model latency, tool failures, usage unknown,
 end-to-end latency/cost và crash rate. Alert thresholds chốt từ load profile và trực vận hành.
 
 ## 13. Quyết định mở, điều kiện duyệt và bước kế tiếp
@@ -783,14 +755,14 @@ end-to-end latency/cost và crash rate. Alert thresholds chốt từ load profil
 | G5-D1 | Chủ auth/quyền + owner app fork + G5: offline lease có TTL, đề xuất tối đa 24h; quy tắc cold start/clock/revoke; amendment live-ACL recovery của DOC-005 | Unlock cloud offline, nghiệm thu offline library |
 | G5-D2 | G1/FileService/G5: feed/snapshot/idempotency retention, durable logical intent lookup, attempt fencing và claim refresh; phải định lượng windows trước code | Durable retry và cursor production |
 | G5-D3 | G5 + UX: một outstanding intent/Document, N+1 chờ outcome N; queue/cache limits và cách pause/cancel | Queue UX/acceptance |
-| G6-D1 | AI Platform + Dify + owner fork: cách nối (a) Knowledge API hay (b) chatflow và quy tắc dựng query (§6.2), hợp đồng route/wire/run id (header hay body)/rate limit, streaming thật hay SSE một chunk ở v1, deployment version, model/embedding/rerank, khóa entitlement, quota semantics, trần lượt chạy | UniWork AI production; cần ADR nếu thay boundary |
-| G6-D2 | Chủ dữ liệu/OPS: Dify self-host hay cloud, region, history/tracing retention/purge, quyền admin, secrets và backup | Dữ liệu thật vào Dify/provider |
+| G6-D1 | AI Platform + owner fork: hợp đồng façade route/wire/run id (header hay body)/rate limit, streaming thật hay SSE một chunk ở v1, mở rộng vòng tool-result của provider có sẵn (§6.2), `ModelPolicy` của `office_uniwork_ai` (trần token, model mặc định), trần instruction pack, khóa entitlement, quota semantics, trần lượt chạy (U-12 bỏ phần cách nối Dify) | UniWork AI production; cần ADR nếu thay boundary |
+| G6-D2 | Chủ dữ liệu/OPS: upstream model production (vendor hay self-host), region, retention/log nội dung của vendor, secrets; transcript phía server (U-12 bỏ phần Dify) | Dữ liệu thật tới upstream model |
 | G6-D3 | ~~v1 AI chỉ dùng committed snapshot~~ — đóng: AI genoffice đọc nội dung đang mở (§6.1); phần còn lại chuyển vào G6-D2 (lưu giữ nội dung chưa lưu) | — |
 | G6-D4 | G6 + owner fork + Product: chốt ma trận §6.5 theo bảng công cụ genoffice; cách hiển thị thay đổi AI trước khi Lưu theo từng module | Tiêu chí AI từng format |
 | G7-D1 | QA + Product + OPS: duyệt thresholds §9.2, fixture/load profile, cost/run và end-to-end SLO | Kết luận chất lượng/hiệu năng |
 | G7-D2 | Owner fork + OPS + QA: máy/OS/arch, stage/channel từng platform; ký số theo backlog chứng chỉ (U-11) | Cam kết platform và phát hành |
 
-Chỉ U-01..11 là quyết định đã có; bảng trên là đề xuất có chủ đích, chưa được duyệt.
+Chỉ U-01..12 là quyết định đã có; bảng trên là đề xuất có chủ đích, chưa được duyệt.
 Gate chưa đóng không cấm chuẩn bị độc lập, nhưng không cho runtime fallback vượt policy.
 Không đặt ngày hoàn thành từ số nhóm; estimate sau khi đội nhận bàn giao có capacity và thử P1.
 
@@ -804,26 +776,31 @@ Không đặt ngày hoàn thành từ số nhóm; estimate sau khi đội nhận
 - Coordinator đối chiếu UNI-660/635/661 và roadmap với scope được duyệt. Mô tả UNI-635 cũ ("web không làm trình soạn
   thảo khối", AI panel riêng) phải reconcile với U-08/U-09.
 - Plan ánh xạ task lớn thành sub-issue, DAG/owner/file boundaries theo repo, public contracts, tests/oracles và evidence.
-- Hạng mục **xây corpus, nhập Knowledge, Dify app, endpoint UniWork AI và eval** phải hiện thành việc thực sự
+- Hạng mục **instruction pack, cấu hình upstream, endpoint UniWork AI và eval** phải hiện thành việc thực sự
   trong G6/G7, không đánh dấu hoàn thành bằng tài liệu spec này.
 
 ### 13.3 Trạng thái giao tài liệu
 
-Phiên UNI-923 chỉ viết spec, plan bàn giao và tham chiếu roadmap ở mức đề xuất. Không tạo corpus/knowledge dataset,
-không cấu hình Dify/model, không chạy E2E acceptance và không thay đổi status của issue implementation.
+Phiên UNI-923 chỉ viết spec, plan bàn giao và tham chiếu roadmap ở mức đề xuất. Không tạo instruction pack,
+không cấu hình upstream/model, không chạy E2E acceptance và không thay đổi status của issue implementation.
 Triển khai do đội khác (U-10); chỉ người dùng quyết định duyệt spec và giao phase.
 
-## 14. Tham chiếu Dify đã kiểm tra
+## 14. Tham chiếu đã kiểm tra
 
-Các nguồn dưới đây hỗ trợ khả năng nền tảng, không thay nghiệm thu deployment của UniWork. Ngày đọc: 2026-10-02.
+Đọc tại `dev-uniwork` `b4f917cb8` ngày 2026-10-12; mô tả khả năng có sẵn, không thay nghiệm thu deployment của UniWork.
 
-- [Dify Knowledge Retrieval](https://docs.dify.ai/en/cloud/use-dify/nodes/knowledge-retrieval): query, metadata filtering, retrieval output và nối vào workflow.
-- [Dify Tool node](https://docs.dify.ai/en/cloud/use-dify/nodes/tools): kết nối external service/API qua tools.
-- [Dify Manage Apps](https://docs.dify.ai/en/cloud/use-dify/workspace/app-management): DSL import/export và các thành phần không được đóng gói cùng.
-- [Dify Knowledge Pipeline](https://www.dify.ai/rag): xử lý tài liệu và tổ chức knowledge cho ứng dụng.
+- `server/internal/ai/provider/openai.go`: provider openai-compatible, một POST `/chat/completions`, đổi `OPENAI_BASE_URL`
+  là đổi vendor; chưa mang id tool call và message role `tool` (§6.2).
+- `server/internal/ai/provider/provider.go`: `Message`, `ToolSpec`, `ToolCall`, `CompletionRequest/Response`, interface
+  `Provider` (không có stream).
+- `server/internal/ai/policy.go`: enum `Capability` đóng, `ModelPolicy`, allowlist model, `ResolveModel` với override
+  `AI_MODEL_<CAPABILITY>` và `AI_MODEL_ALLOW`.
+- `server/internal/ai/config.go`: chọn provider theo `AI_PROVIDER` hoặc credential; `fake` cho dev/E2E.
+- `server/internal/ai/gateway.go`, `prompts.go`, `prompt.go`: `Complete` chỉ nhận prompt có version qua `PromptID`,
+  dòng usage ghi `prompt_id`, tool call ngoài `Tools` → `ErrToolNotAllowed`.
+- `.env.example` khối "AI gateway (F-09)".
+- Upstream dev: `~/.codex/config.toml` `[model_providers.customlocal]` trên máy dev (§8.4); không ghi giá trị vào repo.
 
-Các đề xuất về ACL, offline lease, Gateway, tool scopes, approval và numeric oracles trong spec là thiết kế
-của UniWork dựa trên hợp đồng repo; không phải lời khẳng định Dify mặc định đã cung cấp những bảo đảm đó.
-
-
-
+v1.1 có các nguồn tài liệu Dify (Knowledge Retrieval, Tool node, Manage Apps, Knowledge Pipeline); từ v1.2 chúng không còn
+là đầu vào (U-12). Các đề xuất về ACL, offline lease, Gateway, tool scopes và numeric oracles trong spec là thiết kế của
+UniWork dựa trên hợp đồng repo.
