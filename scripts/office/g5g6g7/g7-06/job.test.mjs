@@ -9,10 +9,10 @@
 // register their tests on this file when imported.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { optionsFromEnv } from "./job.mjs";
+import { optionsFromEnv, parseArgs, runJob } from "./job.mjs";
 import { DEFAULT_PIN_DIR } from "./job-lib.mjs";
 import * as cx from "./test-fixtures/capture-fixtures.mjs";
 import * as fx from "./test-fixtures/fork-fixtures.mjs";
@@ -94,6 +94,23 @@ test("the CLI refuses an unknown check name with the usage line", () => {
   assert.equal(run.status, 2);
   assert.match(run.stderr, /--checks takes/);
   assert.match(run.stderr, /usage: node scripts\/office\/g5g6g7\/g7-06\/job\.mjs/);
+});
+
+test("--update-goldens refuses --checks: it is an explicit bootstrap step that runs alone", () => {
+  assert.throws(() => parseArgs(["--update-goldens", "--checks", "protocol"]), /--update-goldens/);
+  assert.throws(() => parseArgs(["--checks", "golden", "--update-goldens"]), /--update-goldens/);
+  const goldens = tmpDir("g7-06-goldens-");
+  assert.throws(
+    () => runJob({ updateGoldens: true, checks: ["protocol"], capturesDir: CAPTURES, goldensDir: goldens, outDir: outDir("update-guard") }),
+    /--update-goldens/,
+  );
+  assert.equal(existsSync(join(goldens, "manifest.json")), false, "the refused call wrote nothing");
+  // Through the CLI the refusal is a usage error, and it never runs the update.
+  const dir = outDir("cli-update-guard");
+  const run = cli(["--update-goldens", "--checks", "protocol", "--out", dir]);
+  assert.equal(run.status, 2, `${run.stdout}\n${run.stderr}`);
+  assert.match(run.stderr, /--update-goldens/);
+  assert.ok(!/golden\s+PASS/.test(run.stdout));
 });
 
 test("--extractor points the check at another script and records its blob sha", () => {

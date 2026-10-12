@@ -36,7 +36,7 @@ const USAGE = `usage: node scripts/office/g5g6g7/g7-06/job.mjs [options]
   --extractor <file>  G706_EXTRACTOR   extractor to run; default <fork-dir>/scripts/genoffice-tools-extract.mjs
   --out <dir>         G706_OUT         artifact dir (default ${DEFAULT_OUT}, gitignored)
   --checks a,b                         protocol,extractor,golden,brand (default all four)
-  --update-goldens                     copy captures into the goldens dir and rewrite goldens/manifest.json
+  --update-goldens                     copy captures into the goldens dir and rewrite goldens/manifest.json (runs alone)
 `;
 
 /** @param {string[]} argv */
@@ -61,6 +61,12 @@ export function parseArgs(argv) {
     else if (flag === "--help" || flag === "-h") args.help = true;
     else throw new Error(`unknown argument ${flag}`);
   }
+  // F-02: the flag is an explicit bootstrap step, never a side effect of a
+  // check run — `--update-goldens --checks protocol` used to rewrite the
+  // committed goldens and never run the requested check.
+  if (args.updateGoldens && args.checks) {
+    throw new Error("--update-goldens is a bootstrap step: it runs alone, never together with --checks");
+  }
   return args;
 }
 
@@ -84,6 +90,10 @@ export function runJob({
   fixtures = fixtureIds(),
   hosts = HOSTS,
 }) {
+  // Same guard as parseArgs, for callers that skip the CLI (F-02).
+  if (update && checks !== CHECK_NAMES) {
+    throw new Error("--update-goldens is a bootstrap step: it runs alone, never together with --checks");
+  }
   mkdirSync(outDir, { recursive: true });
   const pins = readPins(pinDir);
   const docsPin = pins.find((pin) => pin.module === "docs") ?? null;
