@@ -39,6 +39,15 @@ var (
 	ErrProviderError    = &Error{Code: "ai_provider_error", Status: 502, Msg: "nhà cung cấp AI không trả lời được"}
 	ErrOutputInvalid    = &Error{Code: "ai_output_invalid", Status: 502, Msg: "câu trả lời của mô hình không đúng định dạng"}
 	ErrContextForbidden = &Error{Code: "ai_context_forbidden", Status: 403, Msg: "bạn không có quyền xem dữ liệu này"}
+
+	// BYOK proxy (UNI-1008). Messages never carry the key or the vendor URL.
+	ErrProviderNotSupported = &Error{Code: "provider_not_supported", Status: 400, Msg: "nhà cung cấp này không dùng được qua proxy cho thao tác này"}
+	ErrBaseURLRefused       = &Error{Code: "base_url_refused", Status: 400, Msg: "địa chỉ nhà cung cấp không được phép (chỉ https, máy chủ công khai)"}
+	ErrProxyBadRequest      = &Error{Code: "invalid_request", Status: 400, Msg: "thân yêu cầu không đúng định dạng của nhà cung cấp"}
+	ErrProviderAuthFailed   = &Error{Code: "provider_auth_failed", Status: 424, Msg: "nhà cung cấp từ chối khóa API đã lưu"}
+	ErrProviderUnreachable  = &Error{Code: "provider_unreachable", Status: 502, Msg: "không kết nối được nhà cung cấp AI"}
+	ErrCloudUnavailable     = &Error{Code: "cloud_unavailable", Status: 503, Msg: "công cụ AI đám mây chưa được cấu hình trên server"}
+	ErrMediaUnsupported     = &Error{Code: "media_unsupported", Status: 422, Msg: "mô hình không nhận loại tệp này"}
 )
 
 func errPolicy(msg string) error {

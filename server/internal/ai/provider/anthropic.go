@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/base64"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -33,9 +34,17 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 		block := anthropic.NewTextBlock(m.Content)
 		if m.Role == "assistant" {
 			params.Messages = append(params.Messages, anthropic.NewAssistantMessage(block))
-		} else {
-			params.Messages = append(params.Messages, anthropic.NewUserMessage(block))
+			continue
 		}
+		blocks := make([]anthropic.ContentBlockParamUnion, 0, len(m.Parts)+1)
+		for _, p := range m.Parts {
+			b, err := anthropicPart(p)
+			if err != nil {
+				return CompletionResponse{}, err
+			}
+			blocks = append(blocks, b)
+		}
+		params.Messages = append(params.Messages, anthropic.NewUserMessage(append(blocks, block)...))
 	}
 	for _, t := range req.Tools {
 		props, required := schemaParts(t.Schema)
@@ -70,6 +79,19 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 	}
 	out.Text = text.String()
 	return out, nil
+}
+
+// anthropicPart maps a media part onto the Messages API: images and PDFs
+// only; audio and video are not model inputs there.
+func anthropicPart(p Part) (anthropic.ContentBlockParamUnion, error) {
+	data := base64.StdEncoding.EncodeToString(p.Data)
+	switch p.MIME {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+		return anthropic.NewImageBlockBase64(p.MIME, data), nil
+	case "application/pdf":
+		return anthropic.NewDocumentBlock(anthropic.Base64PDFSourceParam{Data: data}), nil
+	}
+	return anthropic.ContentBlockParamUnion{}, ErrUnsupportedMedia
 }
 
 func (a *Anthropic) Embed(context.Context, EmbedRequest) (EmbedResponse, error) {

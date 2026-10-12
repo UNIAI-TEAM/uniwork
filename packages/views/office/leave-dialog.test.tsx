@@ -3,7 +3,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import { DraftRecoveryPrompt, LeaveDialog } from "./leave-dialog";
+import { LeaveDialog } from "./leave-dialog";
 
 initI18n();
 
@@ -57,50 +57,60 @@ describe("LeaveDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it("names the corner close button Close, so Stay is announced once", () => {
+    render(<LeaveDialog open onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} />);
+    expect(screen.getAllByRole("button", { name: "Stay" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+  });
+
+  // The reference look every frame dialog is aligned to: filled primary, close X, blurred scrim.
+  it("is the reference dialog: filled primary, outlined/ghost others, blurred scrim", () => {
+    render(<LeaveDialog open onOpenChange={vi.fn()} onSave={async () => true} onKeepDraft={async () => true} onDiscard={async () => true} />);
+    const save = screen.getByRole("button", { name: "Save to UniWork" });
+    expect(save.className).toContain("bg-primary");
+    expect(screen.getByRole("button", { name: "Keep draft on this device" }).className).not.toContain("bg-primary");
+    const scrim = document.querySelector('[data-slot="dialog-overlay"]');
+    expect(scrim?.className).toContain("backdrop-blur");
+  });
+
+  it("moves focus into the dialog and keeps it there while it is open", async () => {
+    render(<button type="button">page</button>);
+    const page = screen.getByRole("button", { name: "page" });
+    page.focus();
+    render(<LeaveDialog open onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} />);
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    // Tab from the last control wraps inside the dialog instead of reaching the page.
+    const buttons = Array.from(dialog.querySelectorAll("button"));
+    buttons[buttons.length - 1]!.focus();
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(page).not.toHaveFocus();
+  });
+
+  it("hands focus to the host's finalFocus when it closes (the editor frame, not the page)", async () => {
+    const finalFocus = vi.fn(() => false);
+    const view = render(<LeaveDialog open onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} finalFocus={finalFocus} />);
+    await screen.findByRole("dialog");
+    view.rerender(<LeaveDialog open={false} onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} finalFocus={finalFocus} />);
+    await waitFor(() => expect(finalFocus).toHaveBeenCalled());
+  });
+
   it("closes on Stay without running a write", () => {
     const onOpenChange = vi.fn();
     const onSave = vi.fn(async () => true);
     render(<LeaveDialog open onOpenChange={onOpenChange} onSave={onSave} onKeepDraft={async () => true} onDiscard={async () => true} />);
-    fireEvent.click(screen.getAllByRole("button", { name: "Stay" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Stay" }));
     expect(onSave).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
 
-describe("DraftRecoveryPrompt", () => {
-  it("formats the recovery timestamp with the active locale", async () => {
-    await setLocale("vi");
-    const updatedAt = Date.UTC(2026, 9, 3, 12, 58, 23);
-    render(<DraftRecoveryPrompt open metadata={{ draftId: "draft", generation: 1, checksum: "sha256:abc", byteLength: 1, updatedAt, identity: { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", base: { version: "1", revision: "1" } } }} onRecover={async () => true} onDiscard={async () => true} onKeep={async () => true} onOpenChange={vi.fn()} />);
-    const expected = new Intl.DateTimeFormat("vi", { dateStyle: "medium", timeStyle: "short" }).format(new Date(updatedAt));
-    expect(screen.getByRole("dialog")).toHaveTextContent(expected);
-  });
-
-  it("offers recovery for the same base", () => {
-    render(<DraftRecoveryPrompt open metadata={null} onRecover={async () => true} onDiscard={async () => true} onKeep={async () => true} onOpenChange={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Recover draft" })).toBeInTheDocument();
-  });
-
-  it("does not offer silent recovery for a changed base", () => {
-    render(<DraftRecoveryPrompt open conflict metadata={null} onRecover={async () => true} onDiscard={async () => true} onKeep={async () => true} onOpenChange={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Recover draft" })).toBeNull();
-    expect(screen.getByText("Draft conflict")).toBeInTheDocument();
-  });
-
-  it("keeps the destructive action last at every width (F9)", () => {
-    // visual-r2 F9: the footer flipped order between 768 ("Keep draft" first)
-    // and 390 ("Discard draft" first, destructive on top) because the mobile
-    // base was `flex-col-reverse`. The destructive action must never be first.
-    render(<DraftRecoveryPrompt open metadata={null} onRecover={async () => true} onDiscard={async () => true} onKeep={async () => true} onOpenChange={vi.fn()} />);
-    const footer = document.querySelector('[data-slot="dialog-footer"]') as HTMLElement;
-    expect(footer.className).not.toContain("flex-col-reverse");
-    const labels = Array.from(footer.querySelectorAll("button")).map((button) => button.textContent);
-    expect(labels.indexOf("Discard draft")).toBeGreaterThan(labels.indexOf("Keep draft"));
-  });
-
-  it("does not offer recovery when the draft is locked", () => {
-    render(<DraftRecoveryPrompt open recoverable={false} metadata={null} onRecover={async () => true} onDiscard={async () => true} onKeep={async () => true} onOpenChange={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Recover draft" })).toBeNull();
-    expect(screen.getAllByRole("button", { name: "Keep draft" }).some((button) => button.getAttribute("data-slot") !== "dialog-close")).toBe(true);
+describe("LeaveDialog discard", () => {
+  it("paints Discard on the opaque soft destructive pair, not a translucent tint (visual V1 #3)", () => {
+    // In dark the footer's raised fill under bg-destructive/20 measured 4.18:1; the soft pair holds 5.58.
+    render(<LeaveDialog open dirty onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} />);
+    const discard = screen.getByRole("button", { name: "Discard changes" });
+    for (const name of ["bg-destructive-soft", "text-destructive-soft-foreground", "dark:bg-destructive-soft"]) expect(discard.className.split(" ")).toContain(name);
+    expect(discard.className).not.toMatch(/(^| )(dark:)?(hover:)?bg-destructive\/\d+/);
   });
 });

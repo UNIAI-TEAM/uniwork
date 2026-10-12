@@ -319,6 +319,29 @@ beforeEach(() => {
   editorProbe.props = null;
 });
 
+describe("DocumentCommentsPanel on an office file", () => {
+  // The genoffice editor has its own Comments pane for notes inside the document; the host
+  // drawer is the discussion about the file, so the two must not both be called "Comments".
+  it("names the drawer a file discussion, in the trigger, the title, the close button and the empty state", async () => {
+    installApi();
+    renderPanel({ doc: makeDoc({ kind: "file", title: "Plan.docx" }) });
+    expect(screen.queryByRole("button", { name: t("documents.comments.open") })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.comments.file_open") }));
+    const pane = await screen.findByTestId("document-comments-pane");
+    expect(within(pane).getByRole("heading", { name: t("documents.comments.file_title") })).toBeInTheDocument();
+    expect(within(pane).getByRole("button", { name: t("documents.comments.file_close") })).toBeInTheDocument();
+    expect(await screen.findByTestId("document-comments-empty")).toHaveTextContent(t("documents.comments.file_empty"));
+  });
+
+  it("keeps the plain Comments wording for a page", async () => {
+    installApi();
+    renderPanel();
+    const pane = await openPanel();
+    expect(within(pane).getByRole("heading", { name: t("documents.comments.title") })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("documents.comments.file_open") })).toBeNull();
+  });
+});
+
 describe("DocumentCommentsPanel states", () => {
   it("stays behind the documents flag and asks the server nothing", () => {
     installApi();

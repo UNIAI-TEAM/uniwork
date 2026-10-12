@@ -149,6 +149,22 @@ func TestDocumentOfficeCommit(t *testing.T) {
 			}
 		})
 
+		t.Run("an export job's output is never a version", func(t *testing.T) {
+			created := env.createFile(t, member, "export.pdf", pdfBody("export-v1"))
+			job := env.officeJobOp(t, member, created.Document, pdfBody("export-out"), "completed", office.OperationExport)
+			_, err := env.commit(member, created.Document.ID, job.OutputFileID.String, created.Document.Revision, util.NewID())
+			if ce := wantCode(t, err, "document_upload_invalid"); ce.Fields["reason"] != "office_job_export_not_a_version" {
+				t.Fatalf("export commit = %+v", ce)
+			}
+			d := env.doc(t, created.Document.ID)
+			if d.Revision != created.Document.Revision || len(env.versions(t, d)) != 1 {
+				t.Fatal("an export job still wrote a version")
+			}
+			if got := env.job(t, job.ID); got.CommittedVersionID.Valid {
+				t.Fatal("an export job was marked committed")
+			}
+		})
+
 		t.Run("a live or failed job is not committable either", func(t *testing.T) {
 			created := env.createFile(t, member, "states.pdf", pdfBody("states-v1"))
 			running := env.officeJob(t, member, created.Document, pdfBody("states-run"), "running")
@@ -242,6 +258,13 @@ func TestDocumentOfficeCommit(t *testing.T) {
 // (completed, cancelled, running, failed), on the document's current base.
 func (e *docStorageEnv) officeJob(t *testing.T, actor Actor, d db.Document, body []byte, state string) db.OfficeJob {
 	t.Helper()
+	return e.officeJobOp(t, actor, d, body, state, office.OperationSerialize)
+}
+
+// officeJobOp is officeJob for a named operation: serialize is the committable
+// one, export and convert are the operations the commit path refuses.
+func (e *docStorageEnv) officeJobOp(t *testing.T, actor Actor, d db.Document, body []byte, state string, op office.Operation) db.OfficeJob {
+	t.Helper()
 	ctx := context.Background()
 	jobID := util.NewID()
 	scope := files.Scope{OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID}
@@ -269,7 +292,7 @@ func (e *docStorageEnv) officeJob(t *testing.T, actor Actor, d db.Document, body
 	now := pgtype.Timestamptz{Time: time.Now(), Valid: true}
 	job, err := e.f.q.InsertOfficeJob(ctx, db.InsertOfficeJobParams{
 		ID: jobID, OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID, DocumentID: d.ID,
-		Operation: string(office.OperationExport), Format: string(office.FormatPDF),
+		Operation: string(op), Format: string(office.FormatPDF),
 		BaseRevision: d.Revision, BaseVersionID: d.FileVersionID.String,
 		IdempotencyKey: util.NewID(), PayloadFingerprint: util.NewID(),
 		InputChecksum: sum, InputLength: done.SizeBytes, GrantID: util.NewID(),

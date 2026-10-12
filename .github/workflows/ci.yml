@@ -127,8 +127,7 @@ jobs:
         # wiring (AGENTS.md, hooks, doc/hook agreement), and the turbo
         # dependency-hash probe that proves `test` cannot replay a stale pass.
         run: |
-          node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/lucide-aliases.test.mjs scripts/governance.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/landing-artwork.test.mjs scripts/landing-marks.test.mjs scripts/landing-mascot.test.mjs scripts/landing-motion.test.mjs scripts/landing-studio.test.mjs scripts/office/check-boundaries.test.mjs scripts/office/installer-urls.test.mjs
-          node scripts/office/check-boundaries.mjs
+          node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/lucide-aliases.test.mjs scripts/governance.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/landing-artwork.test.mjs scripts/landing-marks.test.mjs scripts/landing-mascot.test.mjs scripts/landing-motion.test.mjs scripts/landing-studio.test.mjs scripts/office/installer-urls.test.mjs scripts/office-modules.test.mjs
           bash scripts/turbo-cache-check.sh
       - name: Build, typecheck
         if: ${{ needs.changes.outputs.frontend == 'true' }}
@@ -462,10 +461,18 @@ jobs:
       NEXT_PUBLIC_WS_URL: ws://localhost:8080
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       E2E_BASE_URL: http://localhost:3000
-      # e2e/office-shell.spec.ts runs only with this set. It seeds its own
-      # account and DOCX file through the API (no OFFICE_DOCUMENT_URL) and
-      # needs no Office engine service: the web DOCX host is in the Next build.
-      OFFICE_SHELL_E2E: "1"
+      # e2e/office-docs-web.spec.ts (UNI-1013). The web build installs the pinned Docs build from
+      # the committed source (apps/web/platform/office-frame/source.json, a public release tarball,
+      # docs/office/docs-web-frame.md), so the frame cases run for forks and PRs too. It needs no
+      # office engine: the PDF step accepts the 503/501 print fallback.
+      OFFICE_DOCS_WEB_E2E: "1"
+      # e2e/office-markdown-web.spec.ts, e2e/office-modules-web.spec.ts and the module helpers
+      # (UNI-1014). Same shape as the Docs spec: the frame cases choose themselves from the
+      # installed manifests (a module pin + the committed source holding that module's build);
+      # without a bundle the markdown spec runs its "bundle not installed" case instead.
+      # The source is a .tar.gz of the fork's whole dist-web root (every pinned module under
+      # <module>/<version>/, docs/office/office-web-modules.md "Pinned builds").
+      OFFICE_MODULES_WEB_E2E: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -485,6 +492,10 @@ jobs:
           go build -o bin/server ./cmd/server
           nohup bin/server > /tmp/server.log 2>&1 &
       - name: Build and start the web app
+        # No NODE_ENV=production here on purpose: that is what makes apps/web/scripts/
+        # office-frame-sync.mjs --ensure fail on a missing module (the image build in
+        # apps/web/Dockerfile sets it); here an offline download only warns. The committed source
+        # installs all six modules, with no secret.
         run: |
           pnpm --filter @uniwork/web build
           # PORT above is the Go server's; `next start` reads the same variable.

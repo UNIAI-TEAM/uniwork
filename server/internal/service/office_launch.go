@@ -43,15 +43,20 @@ func officeLaunchError(status int, code string, err error) error {
 // second permission implementation.
 type OfficeLaunchService struct {
 	docs        *DocumentService
-	clientID    string
+	clients     map[string]struct{}
 	deployments map[string]struct{}
 	now         func() time.Time
 }
 
 func NewOfficeLaunchService(docs *DocumentService, cfg config.Config) *OfficeLaunchService {
-	client := strings.TrimSpace(cfg.DesktopAuthClientID)
-	if client == "" {
-		client = officeClientID
+	clients := make(map[string]struct{}, len(cfg.DesktopClients()))
+	for _, c := range cfg.DesktopClients() {
+		if id := strings.TrimSpace(c.ID); id != "" {
+			clients[id] = struct{}{}
+		}
+	}
+	if len(clients) == 0 {
+		clients[officeClientID] = struct{}{}
 	}
 	deployments := make(map[string]struct{}, len(cfg.DesktopAuthDeploymentIDs))
 	for _, id := range cfg.DesktopAuthDeploymentIDs {
@@ -62,7 +67,7 @@ func NewOfficeLaunchService(docs *DocumentService, cfg config.Config) *OfficeLau
 	if len(deployments) == 0 {
 		deployments["default"] = struct{}{}
 	}
-	return &OfficeLaunchService{docs: docs, clientID: client, deployments: deployments, now: time.Now}
+	return &OfficeLaunchService{docs: docs, clients: clients, deployments: deployments, now: time.Now}
 }
 
 func (s *OfficeLaunchService) SetClock(now func() time.Time) {
@@ -73,7 +78,7 @@ func (s *OfficeLaunchService) SetClock(now func() time.Time) {
 }
 
 func (s *OfficeLaunchService) allowed(clientID, deploymentID string) bool {
-	if clientID != s.clientID || deploymentID == "" {
+	if _, ok := s.clients[clientID]; !ok || deploymentID == "" {
 		return false
 	}
 	_, ok := s.deployments[deploymentID]

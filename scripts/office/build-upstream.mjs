@@ -103,7 +103,6 @@ export function parseArgs(argv) {
     else if (a === '--skip-install') out.skipInstall = true;
     else if (a === '--with-native') out.withNative = true;
     else if (a === '--keep') out.keep = true;
-    else if (a === '--docx-browser') out.docxBrowser = true;
     else if (a === '--json') out.json = true;
     else if (a === '--help' || a === '-h') out.help = true;
     else throw new Error('unknown argument: ' + a);
@@ -469,11 +468,6 @@ export async function buildAll(args) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (args.docxBrowser) {
-    const { buildDocxBrowser } = await import('./build-docx-browser.mjs');
-    console.log(JSON.stringify(await buildDocxBrowser()));
-    return;
-  }
   if (args.help) {
     console.log('usage: build-upstream.mjs [--out <dir>] [--skip-install] [--with-native] [--json]');
     return;

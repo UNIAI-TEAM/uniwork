@@ -112,7 +112,7 @@ function InstallerPicker({
         <DialogDescription id="office-install-description" className="text-body">{t(options.length === 0 && reason === "download" ? "description_unavailable" : reasonKey)}</DialogDescription>
       </div>
     </div>
-    {options.length === 0 ? <Alert role="status"><AlertDescription>{t("unavailable")}</AlertDescription></Alert> : <>
+    {options.length === 0 ? <p role="status" className="text-body text-muted-foreground">{t("unavailable")}</p> : <>
       {!recommended ? <Alert role="status"><AlertDescription>{t("unsupported")}</AlertDescription></Alert> : null}
       <RadioGroup aria-label={t("os_group")} value={selectedOS ?? ""} onValueChange={selectOS} disabled={downloading}
         className="grid auto-cols-fr grid-flow-col gap-2 pt-2 min-[480px]:gap-[10px]">
@@ -154,8 +154,9 @@ function InstallerPicker({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-foreground">{t("version_line", { version: selected.version ?? t("version_unknown"), channel })}</span>
-            {selected.unsigned ? <Badge variant="outline" className="text-caption">{t("unsigned")}</Badge> : null}
+            {selected.unsigned ? <Badge data-testid="installer-unsigned" className="bg-warning-soft text-warning-soft-foreground">{t("unsigned")}</Badge> : null}
           </div>
+          <p>{t("zip_note")}</p>
         </div>
         <InstallerInstructions key={selected.platform} installer={selected} file={filename} open={instructionsOpen} onOpenChange={setInstructionsOpen} />
       </> : null}

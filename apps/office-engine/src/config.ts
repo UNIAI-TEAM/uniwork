@@ -57,6 +57,10 @@ export interface EngineServiceConfig {
   /** Dir holding the patched xlsx-gateway bundle + Rust sidecar binary
    *  (UNIWORK_XLSX_ASSETS). Undefined when the lane is not staged. */
   xlsxAssetsDir?: string;
+  /** Dir holding the pinned genoffice Docs web bundle (`bundle/`) and a
+   *  `chromium` executable for export:docx (UNIWORK_DOCS_PDF_ASSETS, UNI-1013).
+   *  Undefined when the renderer is not staged. */
+  docsPdfAssetsDir?: string;
 }
 
 const MiB = 1024 * 1024;
@@ -180,5 +184,6 @@ export function loadConfig(env: Record<string, string | undefined>, defaults: { 
     shutdownGraceMs: positiveInt(env, "OFFICE_ENGINE_SHUTDOWN_GRACE_MS", 10_000, 120_000),
     sandbox: sandboxConfig(env, maxWorkers),
     ...(env.UNIWORK_XLSX_ASSETS ? { xlsxAssetsDir: env.UNIWORK_XLSX_ASSETS } : {}),
+    ...(env.UNIWORK_DOCS_PDF_ASSETS ? { docsPdfAssetsDir: env.UNIWORK_DOCS_PDF_ASSETS } : {}),
   };
 }

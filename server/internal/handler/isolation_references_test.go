@@ -186,6 +186,10 @@ var isoReferences = []isoReference{
 		"format": "md", "title": isoUnique("ref"), "parent_id": isoRef("document")}, noControl: "the office stub engine never finishes a blank document", covers: []string{"CreateBlankDocumentFileSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/versions/commit", what: "uploaded file", idempotent: true, body: map[string]any{
 		"upload_id": isoRef("docUpload"), "base_revision": "1"}, covers: []string{"CommitDocumentVersionSDI.upload_id"}},
+	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/versions/commit", what: "staged frame upload", idempotent: true, body: map[string]any{
+		"upload_id": isoRef("frameUpload"), "base_revision": isoOwn("frameRevision")}, covers: []string{"CommitOfficeFrameVersionSDI.upload_id"}},
+	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/assets/sign", what: "image of another document", body: map[string]any{
+		"asset_ids": []any{isoRef("frameAsset")}}, covers: []string{"SignOfficeFrameAssetsSDI.asset_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/files/resolve", what: "file ids", allow2xx: true, body: map[string]any{
 		"file_ids": []any{isoRef("file")}}, covers: []string{"ResolveFilesSDI.file_ids"},
 		noControl:      "resolve answers files the caller staged; the fixture's files are already claimed, so B's own answers file_not_found too",

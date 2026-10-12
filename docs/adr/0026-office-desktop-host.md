@@ -1,6 +1,6 @@
 # 0026 — Office desktop host: Electron boundary and typed IPC
 
-**Trạng thái:** accepted (2026-09-29, G4-D2; UNI-830)
+**Trạng thái:** deprecated (2026-10-11, UNI-1240) — `apps/office-desktop` đã bị gỡ khỏi repo cùng các trình soạn G3; tài liệu Office mở trong frame genoffice trên web, còn "Mở trong UniWork Office" chuyển sang ứng dụng desktop dựng từ bản fork genoffice. Quyết định gốc: accepted (2026-09-29, G4-D2; UNI-830). Lịch sử giữ nguyên, không sửa phần còn lại.
 **Issue:** UNI-830 · **Liên quan:** UNI-636, G4-01a, G4-02a
 **Nguồn:** [Office desktop specification](../superpowers/specs/2026-09-27-office-g4-desktop-design.md) §7;
 G4-D1/G4-D2 decided by the product owner on 2026-09-29 (Office G3-G4 run

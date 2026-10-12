@@ -4,10 +4,7 @@ import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import { DesktopOpenAction } from "./desktop-open-action";
-import { DocxErrorState } from "./docx/docx-error-state";
-import { PdfErrorState } from "./pdf/pdf-error-state";
-import { XlsxErrorState } from "./xlsx/xlsx-error-state";
-import { OfficeTooLargeNotice, OfficeTooLargeProvider } from "./too-large-notice";
+import { OfficeFileActions, OfficeTooLargeNotice, OfficeTooLargeProvider } from "./too-large-notice";
 
 // The views suite runs in vi (test/setup.ts).
 const copy = viLocale.office.too_large;
@@ -31,6 +28,18 @@ describe("OfficeTooLargeNotice", () => {
     expect(launch.compareDocumentPosition(download) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("says to download, not to open the app, when the host offers no desktop launch", () => {
+    render(
+      <OfficeTooLargeProvider value={{ onDownload: async () => undefined, desktopAction: null }}>
+        <OfficeTooLargeNotice format="docx" />
+      </OfficeTooLargeProvider>,
+    );
+    expect(screen.getByText(copy.description_download_only.replace("{{format}}", "DOCX"))).toBeInTheDocument();
+    expect(screen.queryByText(/UniWork Office/)).toBeNull();
+    expect(screen.queryByRole("button", { name: launchLabel })).toBeNull();
+    expect(screen.getByRole("button", { name: copy.download })).toBeInTheDocument();
+  });
+
   it("renders only the message without a provider (no buttons to offer)", () => {
     render(<OfficeTooLargeNotice format="xlsx" />);
     expect(screen.getByText(copy.title)).toBeInTheDocument();
@@ -45,20 +54,17 @@ describe("OfficeTooLargeNotice", () => {
     expect(onDownload).toHaveBeenCalledOnce();
   });
 
-  it.each([
-    ["docx", <DocxErrorState key="d" failure={{ outcome: "failed", document_id: "d", format: "docx", failure_class: "too_large" }} />],
-    ["pdf", <PdfErrorState key="p" failure={{ outcome: "failed", document_id: "d", format: "pdf", failure_class: "too_large" }} />],
-    ["xlsx", <XlsxErrorState key="x" failure={{ outcome: "failed", document_id: "d", format: "xlsx", failure_class: "too_large" }} />],
-  ])("%s open failure too_large renders the shared notice with both actions", (_format, node) => {
-    withHost(node, async () => undefined);
-    expect(screen.getByTestId("office-too-large")).toBeInTheDocument();
+  it("puts a leading action (a frame failure's Retry) before the desktop launch and Download", () => {
+    withHost(<OfficeFileActions leading={<button type="button">Thử lại</button>} />, async () => undefined);
+    const buttons = screen.getAllByRole("button").map((button) => button.textContent);
+    expect(buttons[0]).toBe("Thử lại");
     expect(screen.getByRole("button", { name: launchLabel })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: copy.download })).toBeInTheDocument();
   });
 
-  it("keeps a non-size failure on the generic error screen", () => {
-    withHost(<XlsxErrorState failure={{ outcome: "failed", document_id: "d", format: "xlsx", failure_class: "engine_error" }} />);
-    expect(screen.queryByTestId("office-too-large")).not.toBeInTheDocument();
+  it("renders nothing without a provider or a leading action", () => {
+    const { container } = render(<OfficeFileActions />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("an inline desktop action stays visible and does not fill the page-header menu", async () => {

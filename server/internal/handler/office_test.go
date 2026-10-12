@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
@@ -103,6 +104,20 @@ type officeWorld struct {
 
 func newOfficeWorld(t *testing.T, enableFlag bool) *officeWorld {
 	t.Helper()
+	return newOfficeWorldWith(t, enableFlag, func(*filesfake.Fake) service.OfficeEngine { return newHandlerStubEngine(t) })
+}
+
+// newOfficeWorldWith is newOfficeWorld with the engine built over the
+// world's FileService fake, for a stub that writes job outputs into it.
+func newOfficeWorldWith(t *testing.T, enableFlag bool, engine func(*filesfake.Fake) service.OfficeEngine) *officeWorld {
+	t.Helper()
+	return newOfficeWorldTweaked(t, enableFlag, engine, nil)
+}
+
+// newOfficeWorldTweaked is newOfficeWorldWith with a hook that may replace
+// services in the deps before the server starts (nil = none).
+func newOfficeWorldTweaked(t *testing.T, enableFlag bool, engine func(*filesfake.Fake) service.OfficeEngine, tweak func(*Deps, *pgxpool.Pool)) *officeWorld {
+	t.Helper()
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	q := db.New(pool)
 	fake := filesfake.New(filesfake.Options{})
@@ -111,9 +126,12 @@ func newOfficeWorld(t *testing.T, enableFlag bool) *officeWorld {
 	docs.SetFiles(fake)
 	d.Documents = docs
 	d.Office = service.NewDocumentOfficeService(service.DocumentOfficeOptions{
-		Pool: pool, Queries: q, Files: fake, Engine: newHandlerStubEngine(t), Documents: docs,
+		Pool: pool, Queries: q, Files: fake, Engine: engine(fake), Documents: docs,
 		MaxDeadline: time.Minute,
 	})
+	if tweak != nil {
+		tweak(&d, pool)
+	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 

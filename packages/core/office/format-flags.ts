@@ -6,6 +6,9 @@
  */
 export const OFFICE_ENGINE_FLAG = "office_engine";
 
+/** .docx opens in the genoffice Docs frame (UNI-1013); on by default on the server since 2026-10-09. */
+export const OFFICE_DOCS_WEB_FLAG = "office_docs_web";
+
 const OFFICE_FORMAT_FLAGS: Readonly<Record<string, string>> = {
   docx: "office_docx",
   xlsx: "office_xlsx",

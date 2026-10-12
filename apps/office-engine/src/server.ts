@@ -89,14 +89,14 @@ function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
 const isDict = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
 /** Only worker-relevant payload fields cross into the job dir: edits[],
-    locale, and a convert job's target (with the source version for the
+    locale, and a convert or export job's target (with the source version for the
     result's provenance). Byte/checksum fields already became `input`; other
     refs stay on the wire. */
 function buildJobPayload(operation: string, payload: Record<string, unknown>): Record<string, unknown> | null {
   const job: Record<string, unknown> = {};
   if (payload.edits !== undefined) job.edits = payload.edits;
   if (payload.locale !== undefined) job.locale = payload.locale;
-  if (operation === "convert") {
+  if (operation === "convert" || operation === "export") {
     if (payload.target_format !== undefined) job.target_format = payload.target_format;
     if (payload.source_version_id !== undefined) job.source_version_id = payload.source_version_id;
   }
@@ -151,7 +151,7 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
       grantId: typeof env.grant_id === "string" ? env.grant_id : undefined,
       baseRevision: typeof payload.base_revision === "number" ? payload.base_revision : undefined,
       baseVersionId:
-        validated.operation === "convert"
+        validated.operation === "convert" || validated.operation === "export"
           ? validated.sourceVersionId
           : typeof payload.base_version_id === "string"
             ? payload.base_version_id

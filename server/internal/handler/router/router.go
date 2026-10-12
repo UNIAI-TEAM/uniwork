@@ -36,6 +36,9 @@ type Deps struct {
 	// evaluates every catalogue key at its declared default.
 	FeatureFlags *featureflag.Service
 	DeviceStatus func(context.Context, string, string) error
+	// OfficeFrameAuth checks the Office Docs frame token on
+	// /api/v1/office-frame/*; nil refuses every frame route with 404.
+	OfficeFrameAuth func(http.Handler) http.Handler
 }
 
 // New wires middleware and registers routes by OpenAPI tag (auth.go, me.go, …).
@@ -62,6 +65,7 @@ func New(d Deps, h Routes) http.Handler {
 	r.Use(mw.ClientMetadata)
 	r.Use(mw.RequestLogger)
 	r.Use(chimw.Recoverer)
+	r.Use(mw.IdempotencyKeyFormat)
 	r.Use(mw.ContentSecurityPolicy)
 	if d.HTTPMetrics != nil {
 		r.Use(d.HTTPMetrics.Middleware)
@@ -96,6 +100,13 @@ func New(d Deps, h Routes) http.Handler {
 			mw.CorrelationHeader,
 			telemetry.DebugTraceHeader,
 			meetings.GuestSessionHeader,
+			// Vendor headers the BYOK proxy forwards (provider/byok_client.go); a
+			// browser caller needs them in the preflight or the fetch never leaves.
+			"Anthropic-Beta",
+			"Openai-Organization",
+			"Openai-Project",
+			"Http-Referer",
+			"X-Title",
 		},
 		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader, "Retry-After"},
 		AllowCredentials: true,
@@ -130,6 +141,17 @@ func New(d Deps, h Routes) http.Handler {
 		// Preview asset bytes are intentionally outside the app-authenticated
 		// group: the frame is credentialless and presents only its opaque scope.
 		registerPreview(v1, h)
+		// The Docs frame presents only its document-bound frame token.
+		registerOfficeFrame(v1, h, d.FeatureFlags, d.OfficeFrameAuth)
+		registerOfficeFrameExport(v1, h, d.FeatureFlags, d.OfficeFrameAuth,
+			mw.RateLimitByIdentityBucket(d.Redis, "office-frame-export", 20, time.Minute, proxies, frameUser))
+		// GO-A7's AI on the frame token: the same per-person buckets as the
+		// session routes, so a frame and a host tab share one budget.
+		registerOfficeFrameAI(v1, h, d.FeatureFlags, d.OfficeFrameAuth, officeFrameAILimits{
+			credentials: mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, frameUser),
+			byok:        mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, frameUser),
+			cloud:       mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, frameUser),
+		})
 		v1.Group(func(authed api) {
 			if d.DeviceStatus != nil {
 				authed.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))
@@ -145,6 +167,8 @@ func New(d Deps, h Routes) http.Handler {
 			registerBilling(authed, h)
 			registerNotifications(authed, h)
 			registerAI(authed, h)
+			registerAIBYOK(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, bearerUser(d.Minter)))
+			registerAICloud(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
 			registerTasksSuite(authed, h)
@@ -178,7 +202,10 @@ func New(d Deps, h Routes) http.Handler {
 			registerFiles(authed, h)
 			registerDocuments(authed, h, d.FeatureFlags)
 			registerSignatures(authed, h)
+			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).
+			registerAICredentials(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOfficeLaunch(authed, h)
+			registerOfficeFrameToken(authed, h, d.FeatureFlags)
 			registerOfficeDesktopDownload(authed, h, mw.RateLimit(d.Redis, 10, time.Minute, proxies))
 			if d.PlatformRoles != nil {
 				adminLimit := mw.RateLimit(d.Redis, d.Cfg.AdminRateLimitPerMin, time.Minute, proxies)

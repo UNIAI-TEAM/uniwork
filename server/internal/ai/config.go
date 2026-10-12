@@ -16,6 +16,8 @@ type Options struct {
 	Env func(string) string
 	// ExtraAllow extends the model allowlist (AI_MODEL_ALLOW, comma-separated).
 	ExtraAllow []string
+	// Cloud are the UniWork cloud tools (AI_CLOUD_*); nil members are unavailable.
+	Cloud CloudTools
 }
 
 // FromEnv picks the provider from the environment (spec §3.2, OPEN_QUESTIONS
@@ -23,7 +25,7 @@ type Options struct {
 // set", anthropic first. A nil provider means the gateway is disabled: the
 // feature hides, nothing 500s.
 func FromEnv(get func(string) string) (provider.Provider, Options) {
-	opts := Options{Timeout: 60 * time.Second, Env: get}
+	opts := Options{Timeout: 60 * time.Second, Env: get, Cloud: CloudFromEnv(get)}
 	if s := strings.TrimSpace(get("AI_TIMEOUT_SECONDS")); s != "" {
 		if n, err := strconv.Atoi(s); err == nil && n > 0 {
 			opts.Timeout = time.Duration(n) * time.Second

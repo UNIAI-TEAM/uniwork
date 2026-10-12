@@ -297,6 +297,11 @@ func pathParamSDI(path string) any {
 			OrgID       string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
 			SignatureID string `path:"signatureID" description:"ULID chữ ký đã lưu" example:"01K6SIGN1P2Q3R4S5T6U7V8YA"`
 		}{}
+	case "orgID,aiProvider":
+		return struct {
+			OrgID      string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+			AIProvider string `path:"aiProvider" description:"Mã nhà cung cấp AI (openai, anthropic, gemini, custom, …)" example:"openai"`
+		}{}
 	case "orgID,exportID":
 		return struct {
 			OrgID    string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
@@ -407,6 +412,11 @@ func pathParamSDI(path string) any {
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 		}{}
+	case "documentID,aiProvider":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu của token khung" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			AIProvider string `path:"aiProvider" description:"Mã nhà cung cấp AI (openai, anthropic, gemini, custom, …)" example:"openai"`
+		}{}
 	case "documentID,versionNo":
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
@@ -426,6 +436,11 @@ func pathParamSDI(path string) any {
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 			AssetID    string `path:"assetID" description:"ULID asset nhúng trong trang" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "documentID,linkedDocumentID":
+		return struct {
+			DocumentID       string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			LinkedDocumentID string `path:"linkedDocumentID" description:"ULID tài liệu file cùng thư mục (ảnh, CSS, JS) mà tài liệu Markdown/HTML tham chiếu bằng đường dẫn tương đối" example:"01J8X4DOC1N1P2Q3R4S5T6U7"`
 		}{}
 	case "documentID,shareID":
 		return struct {

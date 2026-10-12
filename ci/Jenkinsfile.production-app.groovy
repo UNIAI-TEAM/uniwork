@@ -127,6 +127,8 @@ pipeline {
             script {
               def serviceTag = 'uniwork-fe'
               def imageName = "${env.REGISTRY}/${serviceTag}:${env.IMAGE_TAG}"
+              // The Office frame source is committed (apps/web/platform/office-frame/source.json, a
+              // public release tarball checked by sha256): the image build needs no credential.
               sh """
                 docker build \\
                   --memory=${env.DOCKER_BUILD_MEMORY} \\

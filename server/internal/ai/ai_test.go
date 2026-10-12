@@ -110,6 +110,10 @@ func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 func TestPromptSnapshots(t *testing.T) {
 	quorumMet := true
 	fixtures := map[string]map[string]any{
+		PromptMediaAnalysis: {
+			"locale": "vi", "files": "image/png, application/pdf",
+			"requirements": "Tóm tắt nội dung hai tệp.",
+		},
 		// @1 stays registered for old usage rows. Its key is literal so moving
 		// PromptMeetingSummary to @2 cannot silently re-point this fixture.
 		"meeting_summary@1": {
@@ -504,5 +508,121 @@ func TestFakeReplyCitesEverySource(t *testing.T) {
 	}
 	if _, err := ParseSummaryJSON(FakeReply(provider.CompletionRequest{System: "meeting"}).Text); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCloudChargeTable(t *testing.T) {
+	for secs, want := range map[float64]int64{0: 1000, 1: 1000, 60: 1000, 60.5: 2000, 600: 10000} {
+		if got := TranscribeCharge(secs); got != want {
+			t.Errorf("TranscribeCharge(%v) = %d, want %d", secs, got, want)
+		}
+	}
+	if CloudSearchTokens != 500 || CloudImageTokensPerImage != 4000 || CloudTranscribeTokensPerMinute != 1000 {
+		t.Fatal("contract D5 token-equivalents changed")
+	}
+}
+
+func TestCloudFromEnv(t *testing.T) {
+	env := map[string]string{
+		"AI_CLOUD_SEARCH_PROVIDER": "brave", "AI_CLOUD_SEARCH_API_KEY": "k",
+		"AI_CLOUD_IMAGE_PROVIDER":      "openai", // no key: unavailable
+		"AI_CLOUD_TRANSCRIBE_PROVIDER": "fake",
+	}
+	c := CloudFromEnv(func(k string) string { return env[k] })
+	if c.Search == nil || c.Search.Name() != "brave" || c.Images != nil || c.Transcriber == nil {
+		t.Fatalf("cloud: %+v", c)
+	}
+	g := NewGateway(nil, nil, nil, nil, Options{Cloud: c})
+	a := g.CloudAvailability()
+	if !a.WebSearch || !a.ImageSearch || a.ImageGenerate || !a.Transcribe || a.MediaAnalyze {
+		t.Fatalf("availability: %+v", a)
+	}
+	if _, err := g.CloudImage(context.Background(), CloudCall{}, provider.ImageRequest{}); !errors.Is(err, ErrCloudUnavailable) {
+		t.Fatalf("image unavailable: %v", err)
+	}
+	if empty := CloudFromEnv(func(string) string { return "" }); empty.Search != nil || empty.Images != nil || empty.Transcriber != nil {
+		t.Fatalf("empty env: %+v", empty)
+	}
+}
+
+func TestParseMediaAnalysisJSON(t *testing.T) {
+	if got := ParseMediaAnalysisJSON("```json\n{\"text\":\"ok\"}\n```"); got.Text != "ok" {
+		t.Fatalf("fenced: %q", got.Text)
+	}
+	if got := ParseMediaAnalysisJSON("plain prose"); got.Text != "plain prose" {
+		t.Fatalf("prose: %q", got.Text)
+	}
+}
+
+// A cloud tool call is metered like a completion: a finished usage row whose
+// input_tokens is the token-equivalent the meter was charged; a vendor error
+// marks the row failed and charges nothing; an exhausted quota writes a
+// rejected row and never reaches the vendor.
+func TestGatewayCloudMeters(t *testing.T) {
+	ctx := context.Background()
+	quota := &fakeQuota{}
+	g, q := gatewayFixture(t, &provider.Fake{}, quota)
+	search, images := &provider.FakeSearch{}, &provider.FakeImages{}
+	g.SetCloud(CloudTools{Search: search, Images: images, Transcriber: &provider.FakeTranscriber{}})
+	call := CloudCall{Actor: audit.User("u1"), OrganizationID: "org1"}
+
+	res, err := g.CloudSearch(ctx, call, provider.SearchRequest{Query: "q", Kind: "web", MaxResults: 2})
+	if err != nil || len(res.Results) != 2 {
+		t.Fatalf("search: %+v %v", res, err)
+	}
+	if len(quota.recorded) != 1 || quota.recorded[0].Tokens != CloudSearchTokens {
+		t.Fatalf("search charge: %+v", quota.recorded)
+	}
+	row, err := q.AiGetUsageEvent(ctx, quota.recorded[0].UsageEventID)
+	if err != nil || row.Status != "succeeded" || row.Capability != "cloud_search" || row.InputTokens != int32(CloudSearchTokens) || row.Provider != "fake" || row.WorkspaceID.Valid {
+		t.Fatalf("search row: %+v %v", row, err)
+	}
+
+	if _, err := g.CloudTranscribe(ctx, call, provider.TranscribeRequest{Audio: provider.Part{MIME: "audio/mpeg", Data: make([]byte, 16384*90)}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := quota.recorded[1].Tokens; got != 2*CloudTranscribeTokensPerMinute {
+		t.Fatalf("90 s of audio charged %d", got)
+	}
+
+	images.Err = errors.New("vendor down")
+	if _, err := g.CloudImage(ctx, call, provider.ImageRequest{Prompt: "p"}); !errors.Is(err, ErrProviderError) {
+		t.Fatalf("image error: %v", err)
+	}
+	if len(quota.recorded) != 2 {
+		t.Fatalf("a failed call was charged: %+v", quota.recorded)
+	}
+
+	quota.checkErr = ErrQuotaExceeded
+	calls := search.Calls
+	if _, err := g.CloudSearch(ctx, call, provider.SearchRequest{Query: "q", Kind: "web", MaxResults: 1}); !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("quota: %v", err)
+	}
+	if search.Calls != calls {
+		t.Fatal("vendor called over quota")
+	}
+}
+
+// Media analysis is a completion whose final user message carries the parts.
+func TestGatewayMediaAttachments(t *testing.T) {
+	fp := &provider.Fake{Reply: FakeReply}
+	g, _ := gatewayFixture(t, fp, &fakeQuota{})
+	resp, err := g.Complete(context.Background(), Request{
+		Actor: audit.User("u1"), OrganizationID: "org1", Capability: CapMediaAnalysis, PromptID: PromptMediaAnalysis,
+		Vars:        map[string]any{"requirements": "mô tả", "locale": "vi", "files": "image/png"},
+		Attachments: []provider.Part{{MIME: "image/png", Data: []byte{1}}},
+	})
+	if err != nil || ParseMediaAnalysisJSON(resp.Text).Text != "Phân tích thử nghiệm của 1 tệp." {
+		t.Fatalf("%+v %v", resp, err)
+	}
+	if last := fp.Last.Messages[len(fp.Last.Messages)-1]; len(last.Parts) != 1 {
+		t.Fatalf("parts not sent: %+v", last)
+	}
+	fp.Err = provider.ErrUnsupportedMedia
+	if _, err := g.Complete(context.Background(), Request{
+		Actor: audit.User("u1"), OrganizationID: "org1", Capability: CapMediaAnalysis, PromptID: PromptMediaAnalysis,
+		Vars: map[string]any{}, Attachments: []provider.Part{{MIME: "video/mp4"}},
+	}); !errors.Is(err, ErrMediaUnsupported) {
+		t.Fatalf("unsupported media: %v", err)
 	}
 }

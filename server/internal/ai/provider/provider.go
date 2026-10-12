@@ -23,7 +23,21 @@ var ErrRefused = errors.New("ai: request refused")
 type Message struct {
 	Role    string // "user" | "assistant"
 	Content string
+	// Parts are media inputs sent before Content in a user message (media
+	// analysis). An adapter that cannot send a part's type returns
+	// ErrUnsupportedMedia rather than dropping it.
+	Parts []Part
 }
+
+// Part is one media input: raw bytes and their MIME type.
+type Part struct {
+	MIME string
+	Data []byte
+}
+
+// ErrUnsupportedMedia is returned when a part's MIME type is not one the
+// vendor accepts as model input.
+var ErrUnsupportedMedia = errors.New("ai: media type unsupported by provider")
 
 // ToolSpec is what the model is told it may call. Schema is a JSON Schema
 // object for the tool input.

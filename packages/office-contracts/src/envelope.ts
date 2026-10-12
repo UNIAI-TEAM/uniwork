@@ -67,7 +67,17 @@ export const PAYLOAD_FIELDS: Record<EngineOperation, readonly string[]> = {
     "input_checksum",
     "input_length",
   ],
-  export: ["source_version_id", "target_format", "overwrite_source", "options"],
+  // UNI-1013: export carries the bytes it renders like convert does - the
+  // committed version, or the frame's unsaved edit of it - bound by the grant.
+  export: [
+    "source_version_id",
+    "target_format",
+    "overwrite_source",
+    "options",
+    "input_bytes",
+    "input_checksum",
+    "input_length",
+  ],
   cancel: ["job_id", "reason"],
 };
 
@@ -246,7 +256,7 @@ export interface ValidatedEnvelope {
   inputs: MeasuredInput | null;
   editCount?: number;
   targetFormat?: OfficeFormat;
-  /** convert only: the source version the grant must name as its base. */
+  /** convert and export: the source version the grant must name as its base. */
   sourceVersionId?: string;
 }
 
@@ -380,7 +390,13 @@ export async function validateEnvelope(
   }
 
   if (operation === "export") {
-    requireString(requireKey(p, "source_version_id", "envelope.payload"), "envelope.payload.source_version_id");
+    // UNI-1013 binds export like convert: the rendered bytes ride the payload
+    // as a measured tuple the grant binds, and the source version id is the
+    // grant's base (the version the bytes were opened from).
+    const sourceVersionId = requireString(
+      requireKey(p, "source_version_id", "envelope.payload"),
+      "envelope.payload.source_version_id",
+    );
     const targetFormat = requireEnum(
       requireKey(p, "target_format", "envelope.payload"),
       officeFormats,
@@ -389,7 +405,12 @@ export async function validateEnvelope(
     if (p.overwrite_source !== undefined && p.overwrite_source !== false) {
       violation("envelope.payload.overwrite_source", "must_be_false", "Q7-B forbids overwriting the committed source");
     }
-    return { operation, format, deadlineMs, targetFormat, inputs: null };
+    const inputs = await validateInputBytes(p, "envelope.payload", {
+      required: true,
+      byteBound: ENGINE_LIMITS.max_input_bytes,
+      hash,
+    });
+    return { operation, format, deadlineMs, targetFormat, sourceVersionId, inputs };
   }
 
   if (operation === "serialize") {

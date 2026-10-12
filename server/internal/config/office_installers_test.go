@@ -92,3 +92,22 @@ func TestOfficeInstallerURLsFromCIJob(t *testing.T) {
 		t.Fatalf("stable must stay empty: %+v %v", stable, err)
 	}
 }
+
+func TestLoadOfficeInstallerRedirectHosts(t *testing.T) {
+	setRequired(t)
+	t.Setenv("OFFICE_INSTALLER_REDIRECT_HOSTS", "")
+	cfg, err := Load()
+	if err != nil || strings.Join(cfg.OfficeInstallerRedirectHosts, ",") != "objects.githubusercontent.com,release-assets.githubusercontent.com" {
+		t.Fatalf("default redirect hosts: %v %v", cfg.OfficeInstallerRedirectHosts, err)
+	}
+	t.Setenv("OFFICE_INSTALLER_REDIRECT_HOSTS", " Objects.GitHubUserContent.com ")
+	if cfg, err := Load(); err != nil || len(cfg.OfficeInstallerRedirectHosts) != 1 || cfg.OfficeInstallerRedirectHosts[0] != "objects.githubusercontent.com" {
+		t.Fatalf("custom redirect hosts: %v %v", cfg.OfficeInstallerRedirectHosts, err)
+	}
+	for _, unsafe := range []string{"localhost", "127.0.0.1", "[::1]", "objects.githubusercontent.com:443", "https://objects.githubusercontent.com", "intranet", "nas.local", "a..b.com", "*.githubusercontent.com"} {
+		t.Setenv("OFFICE_INSTALLER_REDIRECT_HOSTS", unsafe)
+		if _, err := Load(); err == nil {
+			t.Errorf("unsafe redirect host %q accepted", unsafe)
+		}
+	}
+}

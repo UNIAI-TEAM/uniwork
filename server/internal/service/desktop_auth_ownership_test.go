@@ -124,6 +124,7 @@ func TestDesktopRefreshUnknownTokenDoesNotRevokeFamily(t *testing.T) {
 	if err != nil {
 		t.Fatalf("real token after unknown attempts: %v", err)
 	}
+	ageRefreshRotation(t, svc, sess.RefreshToken)
 
 	if _, err := svc.Refresh(ctx, sess.DeviceSessionID, sess.RefreshToken, "default"); !errors.Is(err, ErrDesktopRefreshReused) {
 		t.Fatalf("reused token = %v, want ErrDesktopRefreshReused", err)

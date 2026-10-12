@@ -159,13 +159,14 @@ func isoJSON(v any) func(*isoWorld, *isoTenant) isoBody {
 }
 
 const (
-	reasonAuth     = "authentication: there is no tenant before sign-in"
-	reasonProbe    = "process probe or public configuration, no tenant data"
-	reasonProvider = "provider callback authenticated by the provider's signature or OAuth state, not by a member"
-	reasonSelf     = "the caller's own account; the listing pass checks it shows nothing of another tenant"
-	reasonLink     = "the link secret in the path or body is the credential; holding it is the grant"
-	reasonPlatform = "platform console: across tenants by design, closed without users.platform_role"
-	reasonStub     = "catalogue stub: the same 422 capability_unavailable for every caller and id"
+	reasonAuth       = "authentication: there is no tenant before sign-in"
+	reasonProbe      = "process probe or public configuration, no tenant data"
+	reasonBYOKVendor = "the owner's call would reach the real vendor with the seeded key; the proxy path is held by internal/ai TestGatewayProxy* and provider TestBYOKClient*"
+	reasonProvider   = "provider callback authenticated by the provider's signature or OAuth state, not by a member"
+	reasonSelf       = "the caller's own account; the listing pass checks it shows nothing of another tenant"
+	reasonLink       = "the link secret in the path or body is the credential; holding it is the grant"
+	reasonPlatform   = "platform console: across tenants by design, closed without users.platform_role"
+	reasonStub       = "catalogue stub: the same 422 capability_unavailable for every caller and id"
 )
 
 // isoRoutes holds every route that is not plain isoScoped-with-no-body.
@@ -251,6 +252,10 @@ var isoRoutes = map[string]isoSpec{
 		refusedAlso: []int{http.StatusOK}}, // an unknown, revoked or foreign device all answer an idempotent 200 that changes nothing; the untouched subtest checks A's device is still live
 	"POST /api/v1/office/sessions/exchange":             {class: isoSelf, reason: "desktop main: the device bearer's session must be the body's device and the ticket's account; attacked in isoReferences"},
 	"GET /api/v1/preview/assets/{capability}/{assetID}": {class: isoPublic, reason: "the signed preview capability in the path is the credential; it lists the only assets it opens"},
+	// Office Docs web frame: refresh names no row; the frame token it carries
+	// is bound to one document and re-mints only that binding. The document
+	// routes are cross-tenant by default and sent with each caller's own frame
+	// token (isoWorld.frameTokens).
 
 	// Platform console.
 	"GET /api/v1/admin/flags":                    {class: isoPlatform, reason: reasonPlatform},
@@ -331,6 +336,10 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
 	"POST /api/v1/workspaces/{workspaceID}/email-hub/oauth/{provider}/start":     {skipControl: "no OAuth client is configured in tests; the owner gets 404"},
 	"GET /api/v1/meetings/{meetingID}/lobby-ws":                                  {class: isoRealtime, reason: "lobby WebSocket: the auth frame is checked against the knock - TestIsolationRealtime"},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/chat/completions":            {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/messages":                    {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/generate":                    {body: isoJSON(map[string]any{"model": "m", "request": map[string]any{}}), skipControl: reasonBYOKVendor},
+	"GET /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/models":                       {skipControl: reasonBYOKVendor},
 	"GET /api/v1/files/{fileID}/content":                                         {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 
@@ -361,17 +370,42 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/office/jobs":                                                      {body: isoIdem(nil, map[string]any{"operation": "serialize"})},
 	"POST /api/v1/documents/{documentID}/office/sessions":                                                  {body: isoLaunchPost},
 	"POST /api/v1/documents/{documentID}/preview/scopes":                                                   {body: isoPreviewPost},
+	"PUT /api/v1/orgs/{orgID}/ai/credentials/{aiProvider}":                                                 {body: isoAICredentialPut},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/search":                                                            {body: isoJSON(map[string]any{"query": "iso", "kind": "web", "max_results": 1})},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/images":                                                            {body: isoJSON(map[string]any{"prompt": "iso"})},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/media/analyze":                                                     {body: isoJSON(map[string]any{"requirements": "iso", "media": []any{map[string]any{"mime": "image/png", "data_base64": "aXNv"}}})},
+	"POST /api/v1/orgs/{orgID}/ai/cloud/transcribe":                                                        {body: isoJSON(map[string]any{"audio": map[string]any{"mime": "audio/mpeg", "data_base64": "aXNv"}})},
 	"POST /api/v1/orgs/{orgID}/signatures":                                                                 {body: isoSignaturePost},
 	"POST /api/v1/documents/{documentID}/shares":                                                           {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/uploads":                                                          {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
 	"POST /api/v1/documents/{documentID}/versions/commit":                                                  {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
-	"POST /api/v1/documents/{documentID}/versions":                                                         {body: isoJSON(map[string]any{"label": "v"})},
-	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                                          {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
-	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                                 {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
-	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                                                {body: isoJSON(map[string]any{"title": "edited"})},
-	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/ballot":                                          {body: isoJSON(map[string]any{"choice": "YES"})},
-	"PATCH /api/v1/meetings/{meetingID}/participants/{participantID}":                                      {body: isoJSON(map[string]any{"standing": "OBSERVER"})},
-	"POST /api/v1/meetings/{meetingID}/transcript/agent":                                                   {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no member gets past the agent secret (see reason)", reason: "the STT agent authenticates with MEETING_STT_AGENT_SECRET, not a membership; a member is refused the same way"},
+	"POST /api/v1/office-frame/documents/{documentID}/uploads":                                             {body: isoFile("frame.docx", isoDocxMime, isoFrameDocx, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/versions/commit":                                     {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
+	"POST /api/v1/office-frame/documents/{documentID}/assets":                                              {body: isoFile("dot.png", "image/png", docsPNG, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/assets/sign":                                         {body: isoFrameSign},
+	"POST /api/v1/office-frame/documents/{documentID}/assets/resolve":                                      {body: isoJSON(map[string]any{"paths": []string{"missing.png"}})},
+	// A sibling file opens through the signature alone (a frame token is refused 401, so is no
+	// signature): the control and the signed-URL cases are the frame-linked subtest.
+	"GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}":  {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
+	"HEAD /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}": {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
+	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil)},
+	// GO-A7's AI on the frame token (UNI-1014): the same bodies and vendor exemptions as the session rows.
+	"PUT /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider}":            {body: isoAICredentialPut},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/chat/completions": {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/messages":         {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/generate":         {body: isoJSON(map[string]any{"model": "m", "request": map[string]any{}}), skipControl: reasonBYOKVendor},
+	"GET /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/models":            {skipControl: reasonBYOKVendor},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/search":                       {body: isoJSON(map[string]any{"query": "iso", "kind": "web", "max_results": 1})},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/images":                       {body: isoJSON(map[string]any{"prompt": "iso"})},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/media/analyze":                {body: isoJSON(map[string]any{"requirements": "iso", "media": []any{map[string]any{"mime": "image/png", "data_base64": "aXNv"}}})},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/transcribe":                   {body: isoJSON(map[string]any{"audio": map[string]any{"mime": "audio/mpeg", "data_base64": "aXNv"}})},
+	"POST /api/v1/documents/{documentID}/versions":                                           {body: isoJSON(map[string]any{"label": "v"})},
+	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                            {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
+	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                   {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
+	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                                  {body: isoJSON(map[string]any{"title": "edited"})},
+	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/ballot":                            {body: isoJSON(map[string]any{"choice": "YES"})},
+	"PATCH /api/v1/meetings/{meetingID}/participants/{participantID}":                        {body: isoJSON(map[string]any{"standing": "OBSERVER"})},
+	"POST /api/v1/meetings/{meetingID}/transcript/agent":                                     {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no member gets past the agent secret (see reason)", reason: "the STT agent authenticates with MEETING_STT_AGENT_SECRET, not a membership; a member is refused the same way"},
 	"POST /api/v1/orgs/{orgID}/audit/exports": {body: func(*isoWorld, *isoTenant) isoBody {
 		return isoBody{json: map[string]any{"format": "csv", "from": time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), "to": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}}
 	}},

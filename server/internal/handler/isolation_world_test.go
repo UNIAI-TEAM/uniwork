@@ -79,6 +79,15 @@ type isoWorld struct {
 	// digestSQL and refSQL are built once from the schema; see tenantDigest
 	// and referencesTo.
 	digestSQL, refSQL string
+	// frameTokens maps a tenant owner's session token to the Office Docs
+	// frame token minted for their DOCX (buildOfficeFrame). do() sends it in
+	// its place on /api/v1/office-frame/*, the only credential those routes
+	// take, so every pass attacks them as the same caller.
+	frameTokens map[string]string
+	// frameMarkdown is the same for the tenant's Markdown document: session
+	// token -> {document id, its frame token}. do() prefers it on that
+	// document's own routes (resolve, linked), which a DOCX token cannot open.
+	frameMarkdown map[string][2]string
 }
 
 // newIsolationServer wires every service the production binary wires
@@ -96,6 +105,11 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	t.Setenv("LOCAL_UPLOAD_DIR", uploadDir)
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
 	t.Setenv("AI_PROVIDER", "fake")
+	// The Office cloud tools on their fake vendors, so the owner's control
+	// call succeeds and an outsider's refusal proves something.
+	t.Setenv("AI_CLOUD_SEARCH_PROVIDER", "fake")
+	t.Setenv("AI_CLOUD_IMAGE_PROVIDER", "fake")
+	t.Setenv("AI_CLOUD_TRANSCRIBE_PROVIDER", "fake")
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	// The Office desktop bridge: the download profile and the desktop client
 	// the launch and device routes check against.
@@ -162,6 +176,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 		t.Fatal(err)
 	}
 	d.Preview = preview
+	// The run outlives a 10-minute frame token, as it does an access token.
+	d.OfficeFrame = service.NewOfficeFrameService(docs, d.Cfg.JWTSecret)
+	d.OfficeFrame.SetTTL(time.Hour)
 	d.Office = service.NewDocumentOfficeService(service.DocumentOfficeOptions{
 		Pool: pool, Queries: q, Files: docFiles, Engine: newHandlerStubEngine(t), Documents: docs,
 		// The stub engine never finishes a blank document; a short deadline
@@ -266,6 +283,12 @@ func (w *isoWorld) do(t *testing.T, method, path, token string, body isoBody) (i
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
+	}
+	if frame, ok := w.frameTokens[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/") {
+		if md, ok := w.frameMarkdown[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/documents/"+md[0]) {
+			frame = md[1]
+		}
+		token = frame
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -418,6 +441,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	w.buildDocuments(t, tn)
 	w.buildOrganization(t, tn)
 	w.buildOffice(t, tn)
+	w.buildOfficeFrame(t, tn)
 	w.buildSeeded(t, tn)
 	w.buildActivity(t, tn)
 	// The isolation world runs no outbox dispatcher; project the tenant's graph
@@ -439,6 +463,9 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 		}
 		*p.token = tok
 	}
+	// The frame token stays; it is now sent in place of the new session.
+	w.frameTokens[tn.token] = tn.ids["frameToken"]
+	w.frameMarkdown[tn.token] = [2]string{tn.ids["frameMarkdown"], tn.ids["frameMarkdownToken"]}
 	return tn
 }
 

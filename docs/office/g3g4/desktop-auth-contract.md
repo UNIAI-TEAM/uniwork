@@ -71,7 +71,7 @@ production fakes are 02b/03b work and are out of scope for this revision.
 ## Endpoint surface
 
 All paths are relative to the configured deployment API origin (`/api/v1`).
-The `client_id` is the implemented public identifier `uniwork-office`; it is allow-listed and is not a secret. The default deployment allowlist is `default`, and the exact callback allowlist is `uniwork-office://auth/callback`.
+The `client_id` is a public, allow-listed identifier, never a secret. Stable builds use `uniwork-office` with the callback `uniwork-office://auth/callback`; dev builds use `uniwork-office-dev` with `uniwork-office-dev://auth/callback`. One server may accept several clients (UNI-1006): each client has its own exact callback allowlist, a callback listed for one client is refused for another, and a code is redeemed only by the client and callback its attempt started with. The default deployment allowlist is `default`.
 The DTO names below are registered by the 02b server implementation.
 
 ### `GET /auth/desktop/start`
@@ -131,7 +131,7 @@ attempt locally.
 
 | Field | Required | Rule |
 | --- | --- | --- |
-| `client_id` | yes | Same allow-listed client as start. |
+| `client_id` | yes | The client the attempt started with; another configured client gets `auth_code_invalid`. |
 | `code` | yes | Opaque callback code; never a launch ticket. |
 | `code_verifier` | yes | Original RFC 7636 verifier; sent only over TLS in this request. |
 | `redirect_uri` | yes | Exact registered callback URI, byte-for-byte. |
@@ -174,6 +174,23 @@ returns 401 `refresh_reused` and revokes that device session and its native
 family according to the approved auth policy. A token the family never issued
 returns the same 401 `refresh_reused` and changes nothing, so knowing a device
 id is not enough to log its owner out.
+
+**Retry after a lost response (30 s grace).** If a refresh committed but its
+response never reached the client (timeout, reset), the client still holds
+the token just rotated out. For 30 seconds after that rotation, presenting
+exactly that token again, for the same device session and deployment,
+returns 200 with the **same** replacement refresh token and a freshly minted
+access token; nothing rotates, and the device stays live. Each retry writes
+an `auth.desktop_token_rotated` audit row with metadata `replay:
+retry_grace`. The server can answer idempotently without storing any usable
+token: each replacement token is derived from its predecessor and the device
+id with an HMAC keyed from `JWT_SECRET`, so only digests are kept. Everything
+else is reuse as before: a token two or more rotations old (even inside the
+30 s), the previous token after 30 s, or the previous token once the client
+has rotated again returns 401 `refresh_reused` and revokes the family; a
+token from another device stays a plain 401 that changes nothing. The client
+needs no change and sends no idempotency key: it simply retries with the
+token it holds.
 
 **Response:** `sdo.DesktopSessionSDO` with `account_id`, IDs, access token,
 `expires_in`, replacement refresh token and `refresh_rotates: true`. Raw refresh
@@ -281,7 +298,7 @@ anywhere in this table.
 | Consent approve / code issue | `auth.desktop_consent_approved`; human account actor, resource user ID | Account; `NoOrganization` | Approval, code hash and audit are one transaction. CSRF/prefetch/replay failure writes no approval. | None; code is credential material. |
 | Consent cancel | `auth.desktop_consent_cancelled`; human account actor, resource user ID | Account; `NoOrganization` | Cancellation and audit are one transaction; invalid or expired CSRF cannot cancel. | None; no code is issued. |
 | Exchange / device create | `auth.desktop_session_created`; human account actor, resource device-session ID | Account; `NoOrganization` | Code redeem, device row, refresh digest and audit are one transaction. Any failure rolls back all; no duplicate audit on replay. | None (G4-D4: no consumer); a future event must be ids-only and catalogue-backed. |
-| Refresh / rotate | `auth.desktop_token_rotated`; account actor, resource device-session ID | Account; `NoOrganization` | Presented digest revoke, replacement digest and audit are one transaction. Reuse/replay revokes per policy; no raw token in metadata. | None. Credential-only operation. |
+| Refresh / rotate | `auth.desktop_token_rotated`; account actor, resource device-session ID | Account; `NoOrganization` | Presented digest revoke, replacement digest and audit are one transaction. Reuse/replay revokes per policy; a retry of the immediately previous token within 30 s writes this action with metadata `replay: retry_grace` and rotates nothing; no raw token in metadata. | None. Credential-only operation. |
 | Logout device | `auth.desktop_session_revoked`; account actor, resource device-session ID | Account; `NoOrganization` | Device/family revoke and audit commit together. Idempotent repeat produces at most one audit row for the state transition. | None (G4-D4: no consumer). |
 | Revoke-all/password reset | Existing auth action plus native device resources | Account; `NoOrganization` | Existing password/reset transaction must include native rows or explicitly document a compensating policy; failure cannot claim complete revoke. | Existing auth policy; no new credential payload. |
 | Device list | No state change; no audit row by default | Account | Read-only; authorization failure is returned without enumeration. | None. |
@@ -325,10 +342,21 @@ Each item records the G4-D4 decision and the value implemented by this lane.
    `uniwork-office`, deployment `default`, and the exact callback allowlist is
    `uniwork-office://auth/callback`; operators can provide deployment and
    redirect lists through `DESKTOP_AUTH_DEPLOYMENT_IDS` and
-   `DESKTOP_AUTH_REDIRECT_URIS`.
+   `DESKTOP_AUTH_REDIRECT_URIS`. UNI-1006 adds `DESKTOP_AUTH_CLIENTS`
+   (`client_id=redirect[|redirect...]`, comma separated) so the stable
+   `uniwork-office` and dev `uniwork-office-dev` clients sign in against one
+   server, each on its own redirects. When it is set it is the whole client
+   allowlist and the single `DESKTOP_AUTH_CLIENT_ID` /
+   `DESKTOP_AUTH_REDIRECT_URIS` pair must be empty; a malformed entry, a
+   duplicate client or a relative redirect stops the server at startup.
+   Device sessions keep the client they were created with; Office launch
+   accepts any configured client but still binds the ticket to the device
+   session's own client.
 2. **TTL and rotation - implemented.** Codes expire after 120 seconds and
    pending attempts after 10 minutes. Refresh is serialized by a row lock;
-   replay returns 401 `refresh_reused` and revokes the native device. Device
+   replay returns 401 `refresh_reused` and revokes the native device, except
+   a retry of the immediately previous token within 30 s, which returns the
+   same refresh token (see `POST /auth/desktop/refresh`). Device
    lifetime equals the configured web refresh lifetime.
 3. **Session-family relation - implemented.** The native device id is the JWT
    session id and session-family id; middleware resolves that id against

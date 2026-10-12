@@ -262,6 +262,16 @@ type Routes struct {
 	WorkspaceAiUsage     http.HandlerFunc
 	OrganizationAiUsage  http.HandlerFunc
 
+	AiByokChatCompletions http.HandlerFunc
+	AiByokMessages        http.HandlerFunc
+	AiByokGenerate        http.HandlerFunc
+	AiByokModels          http.HandlerFunc
+	AiCloudStatus         http.HandlerFunc
+	AiCloudSearch         http.HandlerFunc
+	AiCloudImages         http.HandlerFunc
+	AiCloudAnalyzeMedia   http.HandlerFunc
+	AiCloudTranscribe     http.HandlerFunc
+
 	ListPlans           http.HandlerFunc
 	GetSubscription     http.HandlerFunc
 	ChangePlan          http.HandlerFunc
@@ -466,6 +476,35 @@ type Routes struct {
 	CreatePreviewScope      http.HandlerFunc
 	GetPreviewAsset         http.HandlerFunc
 
+	// Office Docs web frame (UNI-1013): the session mint, and the frame-token
+	// routes Deps.OfficeFrameAuth guards.
+	MintOfficeFrameToken     http.HandlerFunc
+	OpenOfficeFrameDocument  http.HandlerFunc
+	GetOfficeFrameContent    http.HandlerFunc
+	UploadOfficeFrameFile    http.HandlerFunc
+	CommitOfficeFrameVersion http.HandlerFunc
+	ListOfficeFrameRecents   http.HandlerFunc
+	UploadOfficeFrameAsset   http.HandlerFunc
+	SignOfficeFrameAssets    http.HandlerFunc
+	ResolveOfficeFrameAssets http.HandlerFunc
+	GetOfficeFrameAsset      http.HandlerFunc
+	GetOfficeFrameLinked     http.HandlerFunc
+	// PDF export of the frame's document (UNI-1013, W8).
+	ExportOfficeFramePDF http.HandlerFunc
+	// GO-A7's AI handlers on the frame-token mount (UNI-1014, ADR 0029 D9).
+	OfficeFrameAiCredentialsList     http.HandlerFunc
+	OfficeFrameAiCredentialSave      http.HandlerFunc
+	OfficeFrameAiCredentialDelete    http.HandlerFunc
+	OfficeFrameAiByokChatCompletions http.HandlerFunc
+	OfficeFrameAiByokMessages        http.HandlerFunc
+	OfficeFrameAiByokGenerate        http.HandlerFunc
+	OfficeFrameAiByokModels          http.HandlerFunc
+	OfficeFrameAiCloudStatus         http.HandlerFunc
+	OfficeFrameAiCloudSearch         http.HandlerFunc
+	OfficeFrameAiCloudImages         http.HandlerFunc
+	OfficeFrameAiCloudAnalyzeMedia   http.HandlerFunc
+	OfficeFrameAiCloudTranscribe     http.HandlerFunc
+
 	// Document comments + favorites (G1-07, UNI-681; lane 07b).
 	ListDocumentComments          http.HandlerFunc
 	CreateDocumentComment         http.HandlerFunc
@@ -483,6 +522,11 @@ type Routes struct {
 	ListSavedSignatures  http.HandlerFunc
 	CreateSavedSignature http.HandlerFunc
 	DeleteSavedSignature http.HandlerFunc
+
+	// Personal AI provider credentials (UNI-1008, ADR 0029).
+	ListAICredentials  http.HandlerFunc
+	SaveAICredential   http.HandlerFunc
+	DeleteAICredential http.HandlerFunc
 
 	// Documents collections, lifecycle, sharing and public reads (C-01 §5.1,
 	// §5.3, §5.4; UNI-679, G1-05b).

@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -20,6 +23,16 @@ const (
 	isoOfficeRedirect   = "uniwork-office://auth/callback"
 	isoPreviewOrigin    = "http://preview.invalid"
 )
+
+// isoAIProvider is the provider every tenant saves a key for; a provider is
+// vocabulary, not a row, so both tenants name the same one.
+const isoAIProvider = "openai"
+
+// isoFrameAIProvider is the provider the frame AI routes name: the frame and
+// session routes reach the same personal rows, so each gets its own key, or
+// the frame route's delete control would remove the row the session route's
+// delete control expects.
+const isoFrameAIProvider = "anthropic"
 
 // isoSignaturePNG is a 1x1 PNG, base64 as the signature route takes it.
 const isoSignaturePNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
@@ -38,6 +51,11 @@ func (w *isoWorld) buildOffice(t *testing.T, tn *isoTenant) {
 		"label": tn.marker + " signature", "content_type": "image/png", "image": isoSignaturePNG,
 	})
 	tn.ids["signature"] = isoID(t, out, "signature")
+
+	// A personal AI provider key. The answer carries its hint only, never the
+	// key, so there is no id to keep: the row is named by the provider.
+	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/ai/credentials/"+isoAIProvider, tn.token, isoAICredentialPut(w, tn).json)
+	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/ai/credentials/"+isoFrameAIProvider, tn.token, isoAICredentialPut(w, tn).json)
 
 	out = w.call(t, "POST", "/api/v1/documents/"+tn.ids["fileDocument"]+"/office/sessions", tn.token, map[string]any{
 		"operation": "edit", "client_id": isoOfficeClient, "deployment_id": isoOfficeDeployment,
@@ -131,4 +149,118 @@ func isoLaunchPost(*isoWorld, *isoTenant) isoBody {
 // isoSignaturePost is the body of a saved signature.
 func isoSignaturePost(_ *isoWorld, tn *isoTenant) isoBody {
 	return isoBody{json: map[string]any{"label": tn.marker + " signature", "content_type": "image/png", "image": isoSignaturePNG}}
+}
+
+const isoDocxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+// isoFrameDocx is the DOCX the frame fixtures and bodies upload.
+var isoFrameDocx = func() []byte {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, name := range []string{"[Content_Types].xml", "_rels/.rels", "word/document.xml"} {
+		f, err := zw.Create(name)
+		if err != nil {
+			panic(err)
+		}
+		_, _ = f.Write([]byte("<x>" + name + "</x>"))
+	}
+	if err := zw.Close(); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}()
+
+// buildOfficeFrame gives the tenant an Office Docs frame: a DOCX file
+// document, a frame token minted by the owner's session (registered so do()
+// sends it on the frame routes), bytes staged through the frame for a save,
+// an image attached through the frame and a picture document next to it.
+func (w *isoWorld) buildOfficeFrame(t *testing.T, tn *isoTenant) {
+	t.Helper()
+	out := w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": tn.marker + " Docx"}, filename: strings.ToLower(tn.marker) + ".docx",
+		contentType: isoDocxMime, content: isoFrameDocx,
+	})
+	tn.ids["frameDocument"] = isoID(t, out, "document")
+	// A picture next to it, which a Markdown/HTML frame would load through
+	// .../linked/{linkedDocumentID} (UNI-1232).
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": tn.marker + " Picture"}, filename: strings.ToLower(tn.marker) + ".png",
+		contentType: "image/png", content: docsPNG,
+	})
+	tn.ids["frameSibling"] = isoID(t, out, "document")
+	out = w.call(t, "POST", "/api/v1/documents/"+tn.ids["frameDocument"]+"/office/frame-token", tn.token, nil)
+	tn.ids["frameToken"] = isoString(t, out, "token")
+	if w.frameTokens == nil {
+		w.frameTokens = map[string]string{}
+	}
+	// buildTenant re-registers it under the long-lived session it mints last.
+	w.frameTokens[tn.token] = tn.ids["frameToken"]
+	// A Markdown document that names the picture by its file name: the frame
+	// routes of the text modules (resolve, linked) bind to it, since a DOCX
+	// token opens neither. Its open answer carries the signed URL of the
+	// picture, whose signature the linked-route checks use.
+	picture := strings.ToLower(tn.marker) + ".png"
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": tn.marker + " Notes"}, filename: strings.ToLower(tn.marker) + ".md",
+		contentType: "text/markdown", content: []byte("# notes\n\n![](" + picture + ")\n"),
+	})
+	tn.ids["frameMarkdown"] = isoID(t, out, "document")
+	out = w.call(t, "POST", "/api/v1/documents/"+tn.ids["frameMarkdown"]+"/office/frame-token", tn.token, nil)
+	tn.ids["frameMarkdownToken"] = isoString(t, out, "token")
+	if w.frameMarkdown == nil {
+		w.frameMarkdown = map[string][2]string{}
+	}
+	w.frameMarkdown[tn.token] = [2]string{tn.ids["frameMarkdown"], tn.ids["frameMarkdownToken"]}
+	out = w.call(t, "GET", "/api/v1/office-frame/documents/"+tn.ids["frameMarkdown"], tn.token, nil)
+	signed, _ := out["assets"].(map[string]any)[picture].(string)
+	if _, sig, ok := strings.Cut(signed, "?sig="); ok {
+		tn.ids["frameLinkedSig"] = sig
+	} else {
+		t.Fatalf("markdown open of %s gave no signed picture URL: %v", tn.tag, out["assets"])
+	}
+	base := "/api/v1/office-frame/documents/" + tn.ids["frameDocument"]
+	out = w.upload(t, base+"/uploads", tn.token, isoMultipart{filename: "staged.docx", contentType: isoDocxMime, content: isoFrameDocx})
+	tn.ids["frameUpload"] = isoString(t, out, "upload_id")
+	out = w.upload(t, base+"/assets", tn.token, isoMultipart{filename: "frame.png", contentType: "image/png", content: docsPNG})
+	tn.ids["frameAsset"] = isoString(t, out, "asset_id")
+	out = w.call(t, "GET", base, tn.token, nil)
+	tn.ids["frameRevision"] = isoString(t, out, "revision")
+}
+
+// isoFrameSign asks for a signed URL of the tenant's own frame image.
+func isoFrameSign(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"asset_ids": []string{tn.ids["frameAsset"]}}}
+}
+
+// isoAICredentialPut is the body of a personal AI provider key.
+func isoAICredentialPut(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"api_key": "sk-iso-" + tn.tag + "-0123456789", "label": tn.marker + " ai key"}}
+}
+
+// frameLinkedChecks is the signed-URL half of the sibling route (RA-1): the
+// matrix rows send tokens, which this route refuses, so the owner's control
+// and the credential attacks live here.
+func (w *isoWorld) frameLinkedChecks(t *testing.T) {
+	t.Helper()
+	path := func(tn *isoTenant) string {
+		return "/api/v1/office-frame/documents/" + tn.ids["frameMarkdown"] + "/linked/" + tn.ids["frameSibling"]
+	}
+	for _, tn := range []*isoTenant{w.alpha, w.bravo} {
+		if status, raw := w.do(t, http.MethodGet, path(tn)+"?sig="+tn.ids["frameLinkedSig"], "", isoBody{}); status != http.StatusOK || len(raw) == 0 {
+			t.Errorf("%s owner's signed linked URL = %d, want 200", tn.tag, status)
+		}
+	}
+	for name, c := range map[string]struct{ url, token string }{
+		"A's DOCX frame token":                {path(w.alpha), w.alpha.ids["frameToken"]},
+		"A's Markdown frame token":            {path(w.alpha), w.alpha.ids["frameMarkdownToken"]},
+		"B's frame tokens through the matrix": {path(w.alpha), w.bravo.token},
+		"A's session token":                   {path(w.alpha), w.alpha.token},
+		"no credential":                       {path(w.alpha), ""},
+		"B's signature on A's path":           {path(w.alpha) + "?sig=" + w.bravo.ids["frameLinkedSig"], ""},
+		"A's signature on B's path":           {path(w.bravo) + "?sig=" + w.alpha.ids["frameLinkedSig"], ""},
+	} {
+		if status, raw := w.do(t, http.MethodGet, c.url, c.token, isoBody{}); status != http.StatusUnauthorized {
+			t.Errorf("%s on the linked route = %d, want 401: %s", name, status, isoClip(raw))
+		}
+	}
 }

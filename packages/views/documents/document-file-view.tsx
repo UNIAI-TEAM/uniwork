@@ -9,7 +9,7 @@ import { useOfficeEnabled, type OfficeEnabledState } from "@uniwork/core/documen
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
-import { useOfficeFormatName } from "../office/editor-slot";
+import { useOfficeFormatName } from "../office/format-name";
 import { HeaderActionsFill } from "../layout/header-actions-slot";
 import { leaveGuardAllows } from "../navigation";
 import { DocumentFileMenuItems, useDocumentFileActions } from "./document-file-actions";
@@ -77,7 +77,7 @@ function Fact({ label, value, mono }: { label: string; value: string; mono?: boo
  * (POST uploads + POST versions/commit, C-01 §14.4).
  *
  * There is deliberately no Office "Edit" button: opening an Office format
- * needs the engine consumer and a checked capability (G3), and a button that
+ * needs the engine consumer and a checked capability, and a button that
  * cannot open anything is worse than saying the format is not editable here
  * yet.
  */
@@ -248,7 +248,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
       ) : (
         <Notice tone="info" icon={FileText} layout="inline">
           <span className="font-medium text-foreground">{t("documents.file.no_web_editor_title")}</span>{" "}
-          {t("documents.file.no_web_editor_description")}
+          {t(readonly ? "documents.file.no_web_editor_description_readonly" : "documents.file.no_web_editor_description")}
         </Notice>
       )}
 

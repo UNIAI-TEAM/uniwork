@@ -50,9 +50,14 @@ type Deps struct {
 	Billing             *service.BillingService
 	Notifications       *notification.Service
 	AskUNI              *service.AskUNIService
-	Meetings            *service.MeetingService
-	Chat                *service.ChatService
-	Hub                 *realtime.Hub
+	// AIBYOK is the web host's own-key proxy (UNI-1008); nil answers 503.
+	AIBYOK *service.AIBYOKService
+	// AICloud is the Office cloud tools service (GO-A7); nil answers 503
+	// cloud_unavailable on its routes.
+	AICloud  *service.AICloudService
+	Meetings *service.MeetingService
+	Chat     *service.ChatService
+	Hub      *realtime.Hub
 
 	// Graph is the Work Graph read service (C-11); nil answers 501 on the
 	// graph routes until the server wires it.
@@ -69,6 +74,9 @@ type Deps struct {
 	// Signatures is the per-user saved-signature store (UNI-925 B6); nil
 	// answers 501 on the signature routes until the server wires it.
 	Signatures *service.SignatureService
+	// AICredentials is the per-user AI provider key store (UNI-1008, ADR
+	// 0029); nil answers 503 ai_credentials_unavailable.
+	AICredentials *service.AICredentialService
 
 	// Office is the Office job service (G2-07, UNI-690); nil answers 503
 	// office_not_configured on the office routes, so Documents keeps working
@@ -81,7 +89,10 @@ type Deps struct {
 
 	// OfficeLaunch is the document-scoped single-use launch-ticket service.
 	// When omitted, New derives it from Documents and the deployment config.
-	OfficeLaunch          *service.OfficeLaunchService
+	OfficeLaunch *service.OfficeLaunchService
+	// OfficeFrame mints and checks the Office Docs web frame token
+	// (UNI-1013). When omitted, New derives it from Documents and JWT_SECRET.
+	OfficeFrame           *service.OfficeFrameService
 	OfficeDesktopDownload *service.OfficeDesktopDownloadService
 
 	// Redis is optional: nil disables the rate limiter and any other feature
@@ -129,7 +140,12 @@ func New(d Deps) http.Handler {
 	if d.OfficeLaunch == nil && d.Documents != nil {
 		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
 	}
+	if d.OfficeFrame == nil && d.Documents != nil {
+		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
+	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
+	aiMount := h.aiMountable(sessionAIActor)
+	frameAI := h.aiMountable(h.frameAIActor)
 	return rt.New(rt.Deps{
 		Cfg:           d.Cfg,
 		Minter:        d.Minter,
@@ -144,6 +160,7 @@ func New(d Deps) http.Handler {
 			}
 			return d.DesktopAuth.CheckDeviceSession(ctx, userID, sessionID)
 		},
+		OfficeFrameAuth: h.officeFrameAuth,
 	}, rt.Routes{
 		Health: h.health,
 		Ready:  h.ready,
@@ -399,6 +416,16 @@ func New(d Deps) http.Handler {
 		WorkspaceAiUsage:     h.workspaceAiUsage,
 		OrganizationAiUsage:  h.organizationAiUsage,
 
+		AiByokChatCompletions: aiMount.ByokChatCompletions,
+		AiByokMessages:        aiMount.ByokMessages,
+		AiByokGenerate:        aiMount.ByokGenerate,
+		AiByokModels:          aiMount.ByokModels,
+		AiCloudStatus:         aiMount.CloudStatus,
+		AiCloudSearch:         aiMount.CloudSearch,
+		AiCloudImages:         aiMount.CloudImages,
+		AiCloudAnalyzeMedia:   aiMount.CloudAnalyzeMedia,
+		AiCloudTranscribe:     aiMount.CloudTranscribe,
+
 		ListPlans:           h.listPlans,
 		GetSubscription:     h.getSubscription,
 		ChangePlan:          h.changePlan,
@@ -599,6 +626,32 @@ func New(d Deps) http.Handler {
 		CreatePreviewScope:      h.createPreviewScope,
 		GetPreviewAsset:         h.getPreviewAsset,
 
+		MintOfficeFrameToken:     h.mintOfficeFrameToken,
+		OpenOfficeFrameDocument:  h.openOfficeFrameDocument,
+		GetOfficeFrameContent:    h.getOfficeFrameContent,
+		UploadOfficeFrameFile:    h.uploadOfficeFrameFile,
+		CommitOfficeFrameVersion: h.commitOfficeFrameVersion,
+		ListOfficeFrameRecents:   h.listOfficeFrameRecents,
+		UploadOfficeFrameAsset:   h.uploadOfficeFrameAsset,
+		SignOfficeFrameAssets:    h.signOfficeFrameAssets,
+		ResolveOfficeFrameAssets: h.resolveOfficeFrameAssets,
+		GetOfficeFrameAsset:      h.getOfficeFrameAsset,
+		GetOfficeFrameLinked:     h.getOfficeFrameLinked,
+		ExportOfficeFramePDF:     h.exportOfficeFramePDF,
+
+		OfficeFrameAiCredentialsList:     frameAI.CredentialsList,
+		OfficeFrameAiCredentialSave:      frameAI.CredentialSave,
+		OfficeFrameAiCredentialDelete:    frameAI.CredentialDelete,
+		OfficeFrameAiByokChatCompletions: frameAI.ByokChatCompletions,
+		OfficeFrameAiByokMessages:        frameAI.ByokMessages,
+		OfficeFrameAiByokGenerate:        frameAI.ByokGenerate,
+		OfficeFrameAiByokModels:          frameAI.ByokModels,
+		OfficeFrameAiCloudStatus:         frameAI.CloudStatus,
+		OfficeFrameAiCloudSearch:         frameAI.CloudSearch,
+		OfficeFrameAiCloudImages:         frameAI.CloudImages,
+		OfficeFrameAiCloudAnalyzeMedia:   frameAI.CloudAnalyzeMedia,
+		OfficeFrameAiCloudTranscribe:     frameAI.CloudTranscribe,
+
 		ListDocumentComments:          h.listDocumentComments,
 		CreateDocumentComment:         h.createDocumentComment,
 		UpdateDocumentComment:         h.updateDocumentComment,
@@ -614,6 +667,9 @@ func New(d Deps) http.Handler {
 		ListSavedSignatures:  h.listSavedSignatures,
 		CreateSavedSignature: h.createSavedSignature,
 		DeleteSavedSignature: h.deleteSavedSignature,
+		ListAICredentials:    aiMount.CredentialsList,
+		SaveAICredential:     aiMount.CredentialSave,
+		DeleteAICredential:   aiMount.CredentialDelete,
 
 		ListDocuments:          h.listDocuments,
 		ListRecentDocuments:    h.listRecentDocuments,

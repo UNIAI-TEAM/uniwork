@@ -1,6 +1,8 @@
 # UniWork Office G4 - Desktop, đăng nhập và Office Bridge
 
-> **Trạng thái:** in-progress - spec v1.3 để duyệt, cập nhật 2026-09-29; đã reconcile baseline G1/G2 đã merge và handoff evidence, giữ quyết định bỏ autosave của người dùng; chưa triển khai hoặc nghiệm thu sản phẩm.
+> **Trạng thái:** superseded - phần editor đã bị thay bằng [plan genoffice](../plans/2026-10-08-uniwork-office-genoffice.md) (UNI-1001; plan này vào develop cùng UNI-1001, GO-C3 UNI-1020, 2026-10-09). Phần editor và `apps/office-desktop` (host Electron) đóng băng, không phát triển thêm; app desktop chuyển sang repo fork `UNIAI-TEAM/uniwork-office` (GO-A1..A9, UNI-1002..1010).
+
+> **Còn hiệu lực:** luồng đăng nhập desktop và tải bản cài (UNI-966: `docs/office/g3g4/desktop-auth-contract.md`, `OFFICE_INSTALLER_*`), launch bridge, cùng hợp đồng giữa app và UniWork API ở [uniwork-office-app-api-contract.md](../../office/g3g4/uniwork-office-app-api-contract.md).
 
 **Issue tài liệu:** UNI-819, parent UNI-437. **Issue triển khai:** G4 UNI-636.
 **Roadmap:** C-16, liên quan C-01. **Spec đồng hành:** [G3 web editors](2026-09-27-office-g3-web-editors-design.md).

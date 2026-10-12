@@ -3,7 +3,8 @@ import { lucideAliasPaths } from "@uniwork/eslint-config/base";
 
 export default [
   ...nextConfig,
-  { ignores: [".next/", ".turbo/"] },
+  // public/office-frame/ holds the installed genoffice web bundles (office-frame-sync, gitignored): built fork output.
+  { ignores: [".next/", ".turbo/", "public/office-frame/"] },
   {
     files: ["**/*.test.{ts,tsx}", "**/test/**/*.{ts,tsx}"],
     rules: { "react/display-name": "off" },

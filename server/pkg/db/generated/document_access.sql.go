@@ -661,6 +661,64 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 	return items, nil
 }
 
+const listDocumentVersionsByIDs = `-- name: ListDocumentVersionsByIDs :many
+SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
+FROM document_versions
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND id = ANY($3::text[])
+`
+
+type ListDocumentVersionsByIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+}
+
+// One read for the current versions of many documents of one workspace (the
+// Docs frame's recents); the caller pairs each row with its document.
+func (q *Queries) ListDocumentVersionsByIDs(ctx context.Context, arg ListDocumentVersionsByIDsParams) ([]DocumentVersion, error) {
+	rows, err := q.db.Query(ctx, listDocumentVersionsByIDs, arg.OrganizationID, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DocumentVersion{}
+	for rows.Next() {
+		var i DocumentVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.Version,
+			&i.Kind,
+			&i.Reason,
+			&i.Label,
+			&i.Content,
+			&i.FileID,
+			&i.MimeType,
+			&i.SizeBytes,
+			&i.ChecksumSha256,
+			&i.RestoredFrom,
+			&i.EngineName,
+			&i.EngineVersion,
+			&i.ContractVersion,
+			&i.ProtocolVersion,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLiveDocumentShareLinks = `-- name: ListLiveDocumentShareLinks :many
 SELECT id, organization_id, workspace_id, document_id, token_hash, expires_at, view_count, last_viewed_at, created_by, created_by_kind, revoked_at, revoked_by, created_at
 FROM document_share_links

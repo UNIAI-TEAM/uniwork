@@ -1,0 +1,638 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import { PROTOCOL_NS, PROTOCOL_VERSION, isInitPayload, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { endOfficeDraftSession } from "@uniwork/core/office/draft-session-key";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
+import { ApiError } from "@uniwork/core/api/http";
+import { requestMock, wrap } from "../../test/api-mock";
+import { DocsFrameRefusalContext, useDocsFrameRefusal } from "./docs-frame-refusal";
+import type { FrameDesktopOpenProps } from "./frame-desktop-open";
+import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
+import { leaveGuardAllows } from "../../navigation/leave-guard";
+import { OfficeModuleFrame } from "./office-module-frame";
+import { OfficeModuleOpenSwitch } from "./office-module-open-switch";
+import { OfficeTooLargeProvider } from "../too-large-notice";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+
+const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
+const minted = {
+  token: "tok-1", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
+  document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: true, module: "pdf",
+};
+
+let lastApi: DocsFrameApi | null = null;
+
+function fullApi(): DocsFrameApi {
+  return {
+    open: vi.fn(), save: vi.fn(), recents: vi.fn(), saveAs: vi.fn(), export: vi.fn(), addAttachments: vi.fn(), uploadImage: vi.fn(),
+  } as unknown as DocsFrameApi;
+}
+
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false }: { inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only" } = {}) {
+  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : Promise.reject(new Error(`unexpected ${path}`))));
+  lastApi = fullApi();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const bare = <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} />;
+  const framed = fileActions
+    ? <OfficeTooLargeProvider value={{ desktopAction: fileActions === "download_only" ? null : <button type="button">Mở trong UniWork Office</button>, onDownload: vi.fn() }}>{bare}</OfficeTooLargeProvider>
+    : bare;
+  render(
+    <QueryClientProvider client={client}>
+      <ThemeProvider defaultTheme="light" enableSystem={false}>
+        <DocsFrameRefusalContext.Provider value={refuse ?? null}>
+          {inHeader ? <HeaderActionsSlotProvider><HeaderActionsSlot />{framed}</HeaderActionsSlotProvider> : framed}
+        </DocsFrameRefusalContext.Provider>
+      </ThemeProvider>
+    </QueryClientProvider>,
+  );
+  const iframe = screen.getByTestId("office-docs-frame-iframe") as HTMLIFrameElement;
+  const win = iframe.contentWindow!;
+  const received: Envelope[] = [];
+  let seq = 0;
+  const post = (data: unknown) => act(() => {
+    window.dispatchEvent(new MessageEvent("message", { data, origin: window.location.origin, source: win }));
+  });
+  const envelope = (kind: Envelope["kind"], type: string, payload: unknown, id = `f${(seq += 1)}`): Envelope =>
+    ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind, type, payload });
+  vi.spyOn(win, "postMessage").mockImplementation((message: unknown) => {
+    const m = message as Envelope;
+    received.push(m);
+    if (m.kind === "request" && m.type === "init") {
+      queueMicrotask(() => { void post(envelope("response", "init", { protocolVersion: 1, capabilities: {} }, m.id)); });
+    }
+  });
+  return {
+    iframe,
+    event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
+    ready: (payload: Record<string, unknown>) => post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, ...payload })),
+    inits: () => received.filter((m) => m.kind === "request" && m.type === "init"),
+    request: (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; },
+    answerTo: (id: string) => received.find((m) => m.kind === "response" && m.id === id),
+  };
+}
+
+afterEach(async () => { requestMock.mockReset(); resetAuthStoreForTests(); await endOfficeDraftSession(); });
+
+describe("OfficeModuleFrame", () => {
+  it("serves the module's build and grants it only what its frame implements", async () => {
+    const frame = mountFrame("pdf");
+    expect(frame.iframe.getAttribute("src")).toBe("/office-frame/pdf/1.0.0/index.html");
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({
+      module: "pdf", documentId: "doc-1", token: "tok-1",
+      capabilities: { save: true, saveAs: true, recents: false, print: true, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false },
+    });
+  });
+
+  it("names the signed-in user to the editor", async () => {
+    setSessionUser({ id: "u-1", email: "an@example.test", display_name: "Nguyễn An" } as Parameters<typeof setSessionUser>[0]);
+    const frame = mountFrame("markdown");
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    // images (UNI-1232): pasted pictures upload as document assets through api.images.upload.
+    expect(frame.inits()[0]?.payload).toMatchObject({ user: { displayName: "Nguyễn An" }, capabilities: { exportHtml: true, save: true, images: true } });
+  });
+
+  const ALL_MODULES: OfficeModule[] = ["docs", "pdf", "markdown", "html", "slides", "sheets"];
+
+  const mintWithAI = (module: OfficeModule, ai: unknown) => () => Promise.resolve({ ...minted, module, ai });
+
+  it.each(ALL_MODULES)("grants the %s frame AI as far as the minted token's grant", async (module) => {
+    const frame = mountFrame(module, { mint: mintWithAI(module, { ai: true, web_search: true, image_search: false, image_generation: true }) });
+    await frame.ready({ module });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: true, webSearch: true, imageSearch: false, imageGeneration: true } });
+  });
+
+  it("keeps AI off for a token without AI and for a malformed grant", async () => {
+    const cases: [OfficeModule, unknown][] = [
+      ["pdf", { ai: false, web_search: true, image_search: true, image_generation: true }],
+      ["markdown", "yes"],
+      ["html", undefined],
+    ];
+    for (const [module, ai] of cases) {
+      const frame = mountFrame(module, { mint: mintWithAI(module, ai) });
+      await frame.ready({ module });
+      await waitFor(() => expect(frame.inits()).toHaveLength(1));
+      expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: false, webSearch: false, imageSearch: false, imageGeneration: false } });
+      cleanup();
+    }
+  });
+
+  it("keeps AI for a view-only user, who still cannot save", async () => {
+    const frame = mountFrame("pdf", { mint: () => Promise.resolve({ ...minted, can_edit: false, ai: { ai: true, web_search: false, image_search: false, image_generation: false } }) });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: true, webSearch: false, save: false, saveAs: false } });
+  });
+
+  it.each(ALL_MODULES)("hands the %s frame the session's draft-recovery key and the user:document scope", async (module) => {
+    setSessionUser({ id: "u-1", email: "an@example.test", display_name: "An" } as Parameters<typeof setSessionUser>[0]);
+    const frame = mountFrame(module);
+    await frame.ready({ module, instanceId: "load-1" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const recovery = (frame.inits()[0]?.payload as { recovery?: { key: CryptoKey; scope: string } }).recovery;
+    expect(recovery?.scope).toBe("u-1:doc-1");
+    expect(recovery?.key).toBeInstanceOf(CryptoKey);
+    expect(recovery?.key.extractable).toBe(false);
+    expect(isInitPayload(frame.inits()[0]?.payload)).toBe(true);
+    // A frame reload (a new instance) gets a fresh init with the same key: its drafts stay readable.
+    await frame.ready({ module, instanceId: "load-2" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(2));
+    const again = (frame.inits()[1]?.payload as { recovery?: { key: CryptoKey; scope: string } }).recovery;
+    expect(again?.key).toBe(recovery?.key);
+    expect(again?.scope).toBe("u-1:doc-1");
+  });
+
+  it("sends no recovery to a view-only user or without a signed-in user", async () => {
+    setSessionUser({ id: "u-1", email: "an@example.test", display_name: "An" } as Parameters<typeof setSessionUser>[0]);
+    const viewer = mountFrame("pdf", { canEdit: false });
+    await viewer.ready({ module: "pdf" });
+    await waitFor(() => expect(viewer.inits()).toHaveLength(1));
+    expect(viewer.inits()[0]?.payload).not.toHaveProperty("recovery");
+    cleanup();
+    resetAuthStoreForTests();
+    const anon = mountFrame("pdf");
+    await anon.ready({ module: "pdf" });
+    await waitFor(() => expect(anon.inits()).toHaveLength(1));
+    expect(anon.inits()[0]?.payload).not.toHaveProperty("recovery");
+  });
+
+  it.each([
+    ["the page says readonly", { readonly: true }],
+    ["the minted token cannot edit", { canEdit: false }],
+  ])("gives a view-only user the frame without save or save-as when %s", async (_why, opts) => {
+    const frame = mountFrame("pdf", opts);
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { save: false, saveAs: false, print: true } });
+  });
+
+  it("refuses the writes of a user whose minted token cannot edit, though the page is not readonly", async () => {
+    const frame = mountFrame("markdown", { canEdit: false });
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(1) });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+    expect(lastApi?.save).not.toHaveBeenCalled();
+    // A viewer gets no picture upload either (its relative pictures still resolve through open).
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { images: false } });
+    const upload = frame.request("api.images.upload", { fileId: "doc-1", name: "image-1.png", mimeType: "image/png", data: new ArrayBuffer(1) });
+    await waitFor(() => expect(frame.answerTo(upload)?.error?.code).toBe("forbidden"));
+    expect(lastApi?.uploadImage).not.toHaveBeenCalled();
+  });
+
+  // A1b (UNI-1232): fresh URLs for the open answer's paths and URLs of paths typed after the open.
+  it("answers api.assets.resolve through the API with the frame's own token, a viewer included", async () => {
+    const frame = mountFrame("markdown", { canEdit: false });
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const assets = { "a.png": "/api/v1/office-frame/documents/01J8X4DOC0N1P2Q3R4S5T6U7V8/linked/01J8X4LNK0N1P2Q3R4S5T6U7V8?sig=ofl1.x.y" };
+    const resolveAssets = vi.fn().mockResolvedValue({ assets });
+    (lastApi as { resolveAssets?: unknown }).resolveAssets = resolveAssets;
+    const id = frame.request("api.assets.resolve", { fileId: "doc-1", paths: ["a.png", "./typed.png"] });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toEqual({ assets }));
+    expect(resolveAssets).toHaveBeenCalledWith({ fileId: "doc-1", paths: ["a.png", "./typed.png"] }, expect.objectContaining({ workspaceId: "ws-1", documentId: "doc-1", token: "tok-1" }));
+  });
+
+  it("answers api.assets.resolve unsupported from a host API without it, and malformed when out of bounds", async () => {
+    const frame = mountFrame("markdown");
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const unsupported = frame.request("api.assets.resolve", { paths: ["a.png"] });
+    await waitFor(() => expect(frame.answerTo(unsupported)?.error?.code).toBe("unsupported"));
+    const resolveAssets = vi.fn();
+    (lastApi as { resolveAssets?: unknown }).resolveAssets = resolveAssets;
+    for (const paths of [[], Array.from({ length: 51 }, (_, i) => `p${i}.png`), [""]]) {
+      const bad = frame.request("api.assets.resolve", { paths });
+      await waitFor(() => expect(frame.answerTo(bad)?.error?.code).toBe("malformed"));
+    }
+    expect(resolveAssets).not.toHaveBeenCalled();
+  });
+
+  it("fails with a retry, and no init, when the server minted another module than the frame", async () => {
+    const refuse = vi.fn();
+    const frame = mountFrame("markdown", { refuse, tokenModule: "sheets" });
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
+    await frame.ready({ module: "markdown" });
+    expect(await screen.findByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "failed");
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    expect(refuse).not.toHaveBeenCalled();
+    expect(frame.inits()).toHaveLength(0);
+  });
+
+  it("accepts a token without module from an older server", async () => {
+    const frame = mountFrame("pdf", { tokenModule: undefined, mint: () => Promise.resolve({ ...minted, module: undefined }) });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+  });
+
+  it("refuses a frame that runs another module's editor before any init", async () => {
+    const frame = mountFrame("pdf");
+    // A Docs bundle says ready without a module (= docs).
+    await frame.ready({});
+    expect(await screen.findByTestId("office-docs-frame-failed")).toBeTruthy();
+    expect(frame.inits()).toHaveLength(0);
+  });
+
+  it("asks the switch for the too-large notice when the server refuses a workbook as too large (413)", async () => {
+    const refuse = vi.fn();
+    mountFrame("sheets", { refuse, mint: () => Promise.reject(new ApiError("document is too large for the web frame", "too_large", 413)) });
+    // "size" makes the switch show the open-in-the-app notice instead of an editor.
+    await waitFor(() => expect(refuse).toHaveBeenCalledTimes(1));
+  });
+
+  it("asks the switch for the too-large notice when the Sheets frame refuses a workbook as too_large", async () => {
+    const refuse = vi.fn();
+    const frame = mountFrame("sheets", { refuse });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(refuse).not.toHaveBeenCalled();
+    await frame.event("error", { error: { code: "too_large", message: "worksheet XML over 40 MB" }, fatal: true });
+    await waitFor(() => expect(refuse).toHaveBeenCalledTimes(1));
+  });
+
+  it.each([
+    [true, "Hãy mở tệp trong UniWork Office hoặc tải xuống."],
+    ["download_only", "Hãy tải tệp xuống."],
+  ] as const)("words a turned-off module for the actions the host offers (%s)", async (fileActions, sentence) => {
+    mountFrame("pdf", { fileActions, mint: () => Promise.reject(new ApiError("feature is disabled", "feature_disabled", 403)) });
+    const failed = await screen.findByTestId("office-docs-frame-failed");
+    expect(failed).toHaveAttribute("data-failure-kind", "unavailable");
+    expect(failed).toHaveTextContent(sentence);
+    expect(screen.getByRole("button", { name: "Tải xuống" })).toBeInTheDocument();
+  });
+
+  it("does not ask for the too-large notice for too_large in a module without a size cap", async () => {
+    const refuse = vi.fn();
+    mountFrame("pdf", { refuse, mint: () => Promise.reject(new ApiError("too large", "too_large", 413)) });
+    expect(await screen.findByTestId("office-docs-frame-failed")).toBeTruthy();
+    expect(refuse).not.toHaveBeenCalled();
+  });
+
+  it("keeps the save state in the page header at phone width once there is something to say", async () => {
+    const frame = mountFrame("slides", { inHeader: true });
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
+    await frame.ready({ module: "slides" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const chip = () => document.querySelector("[data-header-actions-slot] [data-testid^='office-save-']")!;
+    // Idle: hidden below sm, shown from sm up.
+    await waitFor(() => expect(chip()).toHaveClass("hidden", "sm:flex"));
+    await frame.event("dirty", { dirty: true });
+    await waitFor(() => expect(chip()).toHaveClass("flex"));
+    expect(chip()).not.toHaveClass("hidden");
+    expect(chip()).toHaveTextContent("Chưa lưu");
+  });
+
+  describe("a frame bundle that never loads (404/5xx on index.html)", () => {
+    afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+
+    it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("fails fast with the load error for %s when the bundle answers 404, never the switch", async (module) => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 404 })));
+      const refuse = vi.fn();
+      mountFrame(module, { refuse });
+      expect(await screen.findByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "load");
+      expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull();
+      expect(refuse).not.toHaveBeenCalled();
+    });
+
+    it("shows a styled retryable error, not the skeleton, with the host's open-in-app and download", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 503 })));
+      mountFrame("slides", { fileActions: true });
+      const failed = await screen.findByTestId("office-docs-frame-failed");
+      expect(failed).toHaveTextContent("Không tải được trình soạn thảo");
+      expect(failed).toHaveTextContent("Hãy thử lại, mở tệp trong UniWork Office hoặc tải xuống.");
+      expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Mở trong UniWork Office" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Tải xuống" })).toBeInTheDocument();
+      expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "failed");
+    });
+
+    it("words the load error for Download alone when the host offers no desktop launch", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 503 })));
+      mountFrame("slides", { fileActions: "download_only" });
+      const failed = await screen.findByTestId("office-docs-frame-failed");
+      expect(failed).toHaveTextContent("Hãy thử lại hoặc tải tệp xuống.");
+      expect(failed).not.toHaveTextContent("UniWork Office");
+      expect(screen.queryByRole("button", { name: "Mở trong UniWork Office" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Tải xuống" })).toBeInTheDocument();
+    });
+
+    it("keeps booting when the probe answers 200 or cannot run", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+      const refuse = vi.fn();
+      mountFrame("html", { refuse });
+      await waitFor(() => expect(fetch).toHaveBeenCalledWith("/office-frame/html/1.0.0/index.html", expect.anything()));
+      expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
+      expect(refuse).not.toHaveBeenCalled();
+    });
+
+    it("fails when the frame never completes its handshake in time", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const refuse = vi.fn();
+      mountFrame("slides", { refuse });
+      await act(async () => { vi.advanceTimersByTime(24_000); });
+      expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
+      await act(async () => { vi.advanceTimersByTime(2_000); });
+      expect(screen.getByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "load");
+      expect(refuse).not.toHaveBeenCalled();
+    });
+
+    describe("an open that takes longer than usual", () => {
+      it("explains the wait after 8 s and offers a retry that restarts it", async () => {
+        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        const refuse = vi.fn();
+        mountFrame("sheets", { refuse });
+        await act(async () => { vi.advanceTimersByTime(7_000); });
+        expect(screen.queryByTestId("office-docs-frame-slow")).toBeNull();
+        expect(screen.getByTestId("office-docs-frame-loading")).toBeInTheDocument();
+        await act(async () => { vi.advanceTimersByTime(2_000); });
+        const slow = screen.getByTestId("office-docs-frame-slow");
+        expect(slow).toHaveTextContent("Trình soạn thảo đang mở lâu hơn bình thường");
+        expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull();
+        act(() => { screen.getByRole("button", { name: "Thử lại" }).click(); });
+        expect(refuse).not.toHaveBeenCalled();
+        expect(screen.queryByTestId("office-docs-frame-slow")).toBeNull();
+        expect(screen.getByTestId("office-docs-frame-loading")).toBeInTheDocument();
+      });
+
+      it("offers the host's open-in-app and download while it waits, not only after the timeout", async () => {
+        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        mountFrame("docs", { fileActions: true });
+        await act(async () => { vi.advanceTimersByTime(9_000); });
+        const slow = screen.getByTestId("office-docs-frame-slow");
+        const buttons = Array.from(slow.querySelectorAll("button")).map((button) => button.textContent);
+        expect(buttons).toEqual(["Thử lại", "Mở trong UniWork Office", "Tải xuống"]);
+      });
+
+      it("drops the slow state once the frame is ready", async () => {
+        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        const frame = mountFrame("pdf");
+        await act(async () => { vi.advanceTimersByTime(9_000); });
+        expect(screen.getByTestId("office-docs-frame-slow")).toBeInTheDocument();
+        await frame.ready({ module: "pdf" });
+        await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+        expect(screen.queryByTestId("office-docs-frame-slow")).toBeNull();
+        expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready");
+      });
+    });
+
+    describe("a frame script that fails to load", () => {
+      // The frame document loads, one of its module scripts does not: the iframe still fires `load`.
+      const loadFrameWithScript = (frame: ReturnType<typeof mountFrame>) => {
+        // jsdom does not load the frame document: give it the one script the real bundle has.
+        const doc = { querySelectorAll: () => [{ src: "http://localhost:3000/office-frame/pdf/1.0.0/assets/index-abc.js" }] };
+        Object.defineProperty(frame.iframe, "contentDocument", { configurable: true, get: () => doc });
+        act(() => { frame.iframe.dispatchEvent(new Event("load")); });
+      };
+
+      it.each([
+        ["a 404", () => Promise.resolve({ status: 404 })],
+        ["a blocked request", () => Promise.reject(new TypeError("Failed to fetch"))],
+      ])("fails at once with the load error on %s", async (_name, answer) => {
+        vi.stubGlobal("fetch", vi.fn((url: string) => (url.endsWith("index.html") ? Promise.resolve({ status: 200 }) : answer())));
+        const frame = mountFrame("pdf");
+        loadFrameWithScript(frame);
+        await waitFor(() => expect(screen.queryByTestId("office-docs-frame-failed")).not.toBeNull());
+        expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/office-frame/pdf/1.0.0/assets/index-abc.js"), expect.objectContaining({ cache: "force-cache" }));
+        expect(await screen.findByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "load");
+      });
+
+      it("leaves a script that loaded alone", async () => {
+        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+        const refuse = vi.fn();
+        const frame = mountFrame("pdf", { refuse });
+        loadFrameWithScript(frame);
+        await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+        await act(async () => { await Promise.resolve(); });
+        expect(refuse).not.toHaveBeenCalled();
+        expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
+      });
+    });
+
+    it("stops the clock once the handshake completes", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const frame = mountFrame("pdf");
+      await act(async () => { await Promise.resolve(); });
+      await frame.ready({ module: "pdf" });
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      await act(async () => { vi.advanceTimersByTime(120_000); });
+      expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
+      expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready");
+    });
+  });
+
+  it("keeps the Docs grant for docs", async () => {
+    const frame = mountFrame("docs");
+    expect(frame.iframe.getAttribute("src")).toBe("/office-frame/docs/1.0.0/index.html");
+    await frame.ready({});
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({
+      module: "docs",
+      capabilities: { save: true, saveAs: true, recents: true, print: true, exportPdf: true, exportHtml: false, attachments: true, images: true, ai: false },
+    });
+  });
+});
+
+function answer(flags: unknown) {
+  requestMock.mockImplementation((path: string) => (path === "/api/v1/config?organization_id=org1"
+    ? Promise.resolve({ flags })
+    : Promise.reject(new Error(`unexpected ${path}`))));
+}
+
+describe("OfficeModuleOpenSwitch", () => {
+  function SizeRefusedFrame() {
+    const refuse = useDocsFrameRefusal();
+    useEffect(() => { refuse?.(); }, [refuse]);
+    return <p>pdf frame</p>;
+  }
+
+  it("shows the too-large notice and no frame when the file is over the module's size cap", async () => {
+    answer({ office_engine: true, office_pdf_web: true });
+    render(wrap(<OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<SizeRefusedFrame />} tooLarge={<p>too large notice</p>} />));
+    expect(await screen.findByText("too large notice")).toBeTruthy();
+    expect(screen.queryByText("pdf frame")).toBeNull();
+  });
+
+  const ui = <OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<p>pdf frame</p>} />;
+
+  it("opens the module's frame when its flag is on or absent (default on, CONTRACT C14)", async () => {
+    answer({ office_engine: true, office_pdf_web: true });
+    render(wrap(ui));
+    expect(await screen.findByText("pdf frame")).toBeTruthy();
+  });
+
+  it("shows the unavailable notice, no retry, when the module's own flag is overridden off", async () => {
+    answer({ office_engine: true, office_pdf_web: false, office_docs_web: true, office_slides_web: true });
+    render(wrap(ui));
+    const failed = await screen.findByTestId("office-docs-frame-failed");
+    expect(failed).toHaveAttribute("data-failure-kind", "unavailable");
+    expect(failed).toHaveTextContent("Tổ chức của bạn chưa bật mở loại tệp này trên web.");
+    expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+    expect(screen.queryByText("pdf frame")).toBeNull();
+  });
+
+  it("mounts the frame when the organization's answer could not be read: the server decides", async () => {
+    requestMock.mockImplementation(() => Promise.reject(new Error("config down")));
+    render(wrap(ui));
+    expect(await screen.findByText("pdf frame")).toBeTruthy();
+  });
+});
+
+describe("Open in desktop app in the module frame", () => {
+  const desktopOpen = (loadInstallers = vi.fn(async () => ({ installers: [] }))): FrameDesktopOpenProps => ({
+    deploymentId: "dep-1", savedVersion: 3, loadInstallers, launch: vi.fn(async () => "not-installed" as const),
+  });
+  const action = () => document.querySelector("[data-office-desktop-action]");
+
+  it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("shows the action for %s once the frame is ready", async (module) => {
+    const frame = mountFrame(module, { desktopOpen: desktopOpen() });
+    expect(action()).toBeNull();
+    await frame.ready(module === "docs" ? {} : { module });
+    await waitFor(() => expect(action()).not.toBeNull());
+  });
+
+  it("asks before handing off unsaved frame edits", async () => {
+    const launch = vi.fn(async () => "launched" as const);
+    const frame = mountFrame("sheets", { desktopOpen: { ...desktopOpen(), launch } });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(action()).not.toBeNull());
+    await frame.event("dirty", { dirty: true });
+    const button = action()!.querySelector("button")!;
+    await act(async () => { button.click(); });
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(launch).not.toHaveBeenCalled();
+  });
+
+  it("is hidden for a user who may only view", async () => {
+    const frame = mountFrame("pdf", { desktopOpen: desktopOpen(), readonly: true });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(action()).toBeNull();
+  });
+
+  it("is hidden for a user whose minted token cannot edit", async () => {
+    const frame = mountFrame("pdf", { desktopOpen: desktopOpen(), canEdit: false });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(action()).toBeNull();
+  });
+
+  it("is absent when the page wires no desktop handoff", async () => {
+    const frame = mountFrame("pdf");
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(action()).toBeNull();
+  });
+});
+
+describe("the leave dialog hands focus back to every module's frame", () => {
+  it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("%s: Stay puts focus on the iframe and its window", async (module) => {
+    const frame = mountFrame(module);
+    await frame.ready(module === "docs" ? {} : { module });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await frame.event("dirty", { dirty: true });
+    // jsdom has no window.focus: the hand-back lands on spies.
+    const focusIframe = vi.spyOn(frame.iframe, "focus");
+    const focusWindow = vi.spyOn(frame.iframe.contentWindow!, "focus").mockImplementation(() => undefined);
+    const leaving = leaveGuardAllows("/elsewhere");
+    fireEvent.click(await screen.findByRole("button", { name: "Ở lại" }));
+    await expect(leaving).resolves.toBe(false);
+    await waitFor(() => expect(focusWindow).toHaveBeenCalledTimes(1));
+    expect(focusIframe).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the frame's app.open request (A7)", () => {
+  const ticket = `ticket_${"a".repeat(40)}`;
+  const wiring = (launch: FrameDesktopOpenProps["launch"], createSession: NonNullable<FrameDesktopOpenProps["createSession"]> = vi.fn(async () => ({ launch_ticket: ticket }) as never)): FrameDesktopOpenProps => ({
+    deploymentId: "dep-1", savedVersion: 3, loadInstallers: vi.fn(async () => ({ installers: [] })), launch, createSession,
+  });
+  const ask = async (frame: ReturnType<typeof mountFrame>) => {
+    const id = frame.request("app.open", { feature: "pdf.ocr" });
+    await waitFor(() => expect(frame.answerTo(id)).toBeTruthy());
+    return frame.answerTo(id)!;
+  };
+
+  it("grants desktopOpen only where the header action exists", async () => {
+    const withAction = mountFrame("pdf", { desktopOpen: wiring(vi.fn(async () => "launched" as const)) });
+    await withAction.ready({ module: "pdf" });
+    await waitFor(() => expect(withAction.inits()).toHaveLength(1));
+    expect(withAction.inits()[0]?.payload).toMatchObject({ capabilities: { desktopOpen: true } });
+    cleanup();
+    const viewer = mountFrame("pdf", { desktopOpen: wiring(vi.fn(async () => "launched" as const)), canEdit: false });
+    await viewer.ready({ module: "pdf" });
+    await waitFor(() => expect(viewer.inits()).toHaveLength(1));
+    expect(viewer.inits()[0]?.payload).toMatchObject({ capabilities: { desktopOpen: false } });
+    cleanup();
+    const bare = mountFrame("pdf");
+    await bare.ready({ module: "pdf" });
+    await waitFor(() => expect(bare.inits()).toHaveLength(1));
+    expect(bare.inits()[0]?.payload).toMatchObject({ capabilities: { desktopOpen: false } });
+  });
+
+  it("launches the app through the header flow and answers launched", async () => {
+    const launch = vi.fn(async () => "launched" as const);
+    const createSession = vi.fn(async () => ({ launch_ticket: ticket }) as never);
+    const frame = mountFrame("pdf", { desktopOpen: wiring(launch, createSession) });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(document.querySelector("[data-office-desktop-action]")).not.toBeNull());
+    const answer = await ask(frame);
+    expect(answer.payload).toEqual({ outcome: "launched" });
+    // The committed version is the current one, so the body leaves `version` out (it would force a read-only session).
+    expect(createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "edit", deployment_id: "dep-1" }));
+    expect(createSession).toHaveBeenCalledWith("doc-1", expect.not.objectContaining({ version: expect.anything() }));
+    expect(launch).toHaveBeenCalledWith(expect.stringContaining("://open?ticket="));
+  });
+
+  it("opens the installer prompt when the app does not answer", async () => {
+    const frame = mountFrame("sheets", { desktopOpen: wiring(vi.fn(async () => "not-installed" as const)) });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(document.querySelector("[data-office-desktop-action]")).not.toBeNull());
+    const answer = await ask(frame);
+    expect(answer.payload).toEqual({ outcome: "installer" });
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
+
+  it("answers unavailable when the ticket cannot be made", async () => {
+    const frame = mountFrame("pdf", { desktopOpen: wiring(vi.fn(), vi.fn(async () => null)) });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(document.querySelector("[data-office-desktop-action]")).not.toBeNull());
+    expect((await ask(frame)).payload).toEqual({ outcome: "unavailable" });
+  });
+
+  it("answers unavailable to a frame the host did not grant it", async () => {
+    const frame = mountFrame("pdf");
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect((await ask(frame)).payload).toEqual({ outcome: "unavailable" });
+  });
+
+  it("waits on the unsaved-changes dialog and answers unavailable when it is cancelled", async () => {
+    const launch = vi.fn(async () => "launched" as const);
+    const frame = mountFrame("pdf", { desktopOpen: wiring(launch) });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(document.querySelector("[data-office-desktop-action]")).not.toBeNull());
+    await frame.event("dirty", { dirty: true });
+    const id = frame.request("app.open", {});
+    await screen.findByRole("dialog");
+    expect(frame.answerTo(id)).toBeUndefined();
+    await act(async () => { screen.getByRole("button", { name: /cancel|hủy/i }).click(); });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toEqual({ outcome: "unavailable" }));
+    expect(launch).not.toHaveBeenCalled();
+  });
+});
+

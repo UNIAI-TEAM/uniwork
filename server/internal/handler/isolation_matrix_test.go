@@ -165,6 +165,12 @@ func TestIsolationMatrix(t *testing.T) {
 		}
 	})
 
+	// A sibling file of a Markdown/HTML document is read through a signature
+	// alone: the owner's own signed URL reads it, and no frame token (a DOCX or
+	// the Markdown document's own, either tenant's), session token, other
+	// tenant's signature or bare path does.
+	t.Run("frame-linked", w.frameLinkedChecks)
+
 	// B's own routes with A's rows named in the body: an assignee, a parent,
 	// a project, a share principal. Each must be refused or ignored, and B's
 	// rows must not come to point at A's.
@@ -547,14 +553,30 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{followUpID}":
 		return tn.get(t, "followUp")
 	case "{documentID}":
+		if under("/office-frame/") && (under("/linked/") || under("/assets/resolve")) {
+			return tn.get(t, "frameMarkdown")
+		}
+		if under("/office-frame/") || under("/office/frame-token") {
+			return tn.get(t, "frameDocument")
+		}
 		if under("/download") || under("/office/") || under("/uploads") || under("/versions/commit") || under("/copies") {
 			return tn.get(t, "fileDocument")
 		}
 		return tn.get(t, "document")
 	case "{assetID}":
+		if under("/office-frame/") {
+			return tn.get(t, "frameAsset")
+		}
 		return tn.get(t, "asset")
+	case "{linkedDocumentID}":
+		return tn.get(t, "frameSibling")
 	case "{signatureID}":
 		return tn.get(t, "signature")
+	case "{aiProvider}":
+		if under("/office-frame/") {
+			return isoFrameAIProvider
+		}
+		return isoAIProvider
 	case "{launchSessionID}":
 		return tn.get(t, "launchSession")
 	case "{deviceSessionID}":
@@ -773,7 +795,7 @@ func isoMixedPath(t *testing.T, pattern, firstKey string, from, to *isoTenant) (
 // isoSharedParams take the same value in both tenants, so swapping them says
 // nothing about isolation.
 var isoSharedParams = map[string]bool{
-	"{provider}": true, "{resourceType}": true, "{itemType}": true, "{versionNo}": true, "{key}": true,
+	"{provider}": true, "{aiProvider}": true, "{resourceType}": true, "{itemType}": true, "{versionNo}": true, "{key}": true,
 	"{code}":          true,
 	"{quickActionID}": true, "{agentTaskID}": true, "{connectionID}": true, "{nodeType}": true,
 }

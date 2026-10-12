@@ -1,6 +1,6 @@
 # 0027 — Script inspector do UniWork sở hữu, chỉ trong chế độ visual-edit của preview HTML
 
-**Trạng thái:** accepted (2026-10-04, UNI-928 S1; quyết định người dùng 2026-10-04 03:13 UTC+7, lựa chọn (a))
+**Trạng thái:** deprecated (2026-10-11, UNI-1240) — chế độ visual-edit và preview HTML đã bị gỡ cùng các trình soạn G3, xem [0030](0030-go-trinh-soan-g3-office-tren-web-chi-con-frame.md). Quyết định gốc: accepted (2026-10-04, UNI-928 S1; quyết định người dùng 2026-10-04 03:13 UTC+7, lựa chọn (a)). Lịch sử giữ nguyên, không sửa phần còn lại.
 **Issue:** UNI-928 (nhánh `feature/UNI-928-md-html-genoffice-parity`) · **Parent:** UNI-659 · **Liên quan:** G3-D2, G3-08, H5-H8.
 **Nguồn quyết định:** `.uniwork-lane/brief/html-visual-edit-inspector-2026-10-04.md` (bản ghi quyết định của người dùng,
 lựa chọn (a) — "a nhé"); `.uniwork-lane/brief/md-html-parity-tasks.md` mục "SECURITY CONFLICT" và hàng S1.

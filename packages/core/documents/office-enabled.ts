@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getPublicConfig } from "../api/endpoints/config";
 import { useFlag } from "../feature-flags";
-import { OFFICE_ENGINE_FLAG, officeFlagsAllow, officeFormatFlagKey } from "../office/format-flags";
+import { OFFICE_DOCS_WEB_FLAG, OFFICE_ENGINE_FLAG, officeFlagsAllow, officeFormatFlagKey } from "../office/format-flags";
 
 const officeConfigKeys = {
   all: ["office-public-config"] as const,
@@ -28,6 +28,16 @@ async function fetchOrganizationConfig(organizationId: string | undefined) {
   return config;
 }
 
+function useOrganizationOfficeConfig(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: officeConfigKeys.organization(organizationId ?? ""),
+    queryFn: () => fetchOrganizationConfig(organizationId),
+    enabled: Boolean(organizationId),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
+
 /**
  * Whether the Office editor may open a document of `format` owned by
  * `organizationId` (UNI-941). Organization-scoped overrides only evaluate when
@@ -43,17 +53,33 @@ export function useOfficeEnabled(organizationId: string | undefined, format: str
   const engine = useFlag(OFFICE_ENGINE_FLAG, false);
   // The format flag defaults on; a format with no flag reads the engine itself.
   const formatOn = useFlag(officeFormatFlagKey(format) ?? OFFICE_ENGINE_FLAG, true);
-  const scoped = useQuery({
-    queryKey: officeConfigKeys.organization(organizationId ?? ""),
-    queryFn: () => fetchOrganizationConfig(organizationId),
-    enabled: Boolean(organizationId),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  });
+  const scoped = useOrganizationOfficeConfig(organizationId);
   const retry = () => { void scoped.refetch(); };
   // When the newest settled answer arrived: a repeat of the same answer is still a new decision point.
   const answeredAt = scoped.dataUpdatedAt;
   if (!organizationId) return { state: engine && formatOn ? "on" : "off", answeredAt, retry };
   if (scoped.data) return { state: officeFlagsAllow(scoped.data.flags, format) ? "on" : "off", answeredAt, retry };
   return { state: scoped.isError ? "unknown" : "loading", answeredAt, retry };
+}
+
+/**
+ * Whether a .docx opens in the genoffice Docs frame instead of the unavailable notice
+ * (`office_docs_web`, UNI-1013; default on, an explicit override of false turns it off). Same organization-scoped answer
+ * and states as `useOfficeEnabled`: only a settled `on` mounts the frame.
+ */
+export function useOfficeDocsWebEnabled(organizationId: string | undefined): OfficeEnabledState {
+  return useOfficeWebFlagEnabled(OFFICE_DOCS_WEB_FLAG, organizationId);
+}
+
+/**
+ * The same answer for any genoffice web module's flag (`office_pdf_web`,
+ * `office_slides_web`, …; UNI-1014/1015/1016): default on like Docs (CONTRACT C14), an explicit
+ * override of false turns it off, an absent key reads on.
+ */
+export function useOfficeWebFlagEnabled(flag: string, organizationId: string | undefined): OfficeEnabledState {
+  const global = useFlag(flag, true);
+  const scoped = useOrganizationOfficeConfig(organizationId);
+  if (!organizationId) return global ? "on" : "off";
+  if (scoped.data) return scoped.data.flags[flag] !== false ? "on" : "off";
+  return scoped.isError ? "unknown" : "loading";
 }

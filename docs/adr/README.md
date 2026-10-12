@@ -32,13 +32,16 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0018](0018-engine-office-chay-o-sidecar-node.md) | Engine Office chạy ở sidecar Node dùng chung với UniWork Office; chỉ DOCX — **superseded by 0021** |
 | [0019](0019-do-thi-cong-viec-la-projection.md) | Đồ thị công việc là projection qua outbox; cấm suy diễn quan hệ |
 | [0020](0020-truy-van-bang-cong-viec-dung-sql-dong-trong-tablequery.md) | View Bảng dựng SQL động trong `pkg/db/tablequery` (whitelist, tham số hóa, luôn lọc tenant); sqlc vẫn là mặc định |
-| [0021](0021-runtime-engine-office-da-dinh-dang.md) | Runtime đa định dạng cho UniWork Office: editor ở trang host qua adapter tiêm, service nội bộ cho phần chạy ngoài trang, engine native riêng; thay thế 0018 |
+| [0021](0021-runtime-engine-office-da-dinh-dang.md) | Runtime đa định dạng cho UniWork Office: editor ở trang host qua adapter tiêm, service nội bộ cho phần chạy ngoài trang, engine native riêng; thay thế 0018 — phần editor ở trang host **superseded by 0030** |
 | [0022](0022-email-hub-cache-retention-trong-postgres.md) | Email Hub: retention cache Postgres (cap metadata, TTL body, prefetch); body offload object storage |
 | [0023](0023-file-theo-tenant-va-ngoai-le-avatar-ca-nhan.md) | FileService giữ `organization_id` cho file theo tenant; NULL chỉ là nhánh avatar cá nhân (purpose `user_avatar` + `user_id`), không phải public hay tenant mờ |
 | [0024](0024-fileservice-so-huu-blob-intent-gc.md) | FileService sở hữu byte, ý định upload và dọn rác của Documents; Documents chỉ giữ `file_id`, claim/release trong transaction của mình; thay phần "sổ object mồ côi" trong QĐ3 của 0021 |
 | [0025](0025-mot-process-cho-api-va-worker.md) | Chưa tách API và worker; khi tách thì cùng binary theo `SERVER_ROLE`; mọi job phải an toàn đa replica trước khi tăng `be.replicaCount` |
-| [0026](0026-office-desktop-host.md) | Desktop host Electron tách main/preload/renderer, sandbox renderer và kiểm IPC allowlist có kiểu |
-| [0027](0027-inspector-script-uniwork-cho-che-do-visual-edit.md) | Script inspector do UniWork sở hữu, chỉ trong chế độ visual-edit của preview HTML (G3-D2 vẫn giữ) |
+| [0026](0026-office-desktop-host.md) | Desktop host Electron tách main/preload/renderer, sandbox renderer và kiểm IPC allowlist có kiểu — **deprecated** (host đã gỡ, UNI-1240) |
+| [0027](0027-inspector-script-uniwork-cho-che-do-visual-edit.md) | Script inspector do UniWork sở hữu, chỉ trong chế độ visual-edit của preview HTML (G3-D2 vẫn giữ) — **deprecated** (gỡ cùng trình soạn G3, UNI-1240) |
+| [0028](0028-ai-phia-client-cua-uniwork-office.md) | AI phía client của UniWork Office: khóa của người dùng gọi thẳng nhà cung cấp; mọi thứ tốn credit/công cụ cloud đi qua UniWork API + `ai.Gateway`; 0010 chỉ điều chỉnh runtime server |
+| [0029](0029-ai-cua-office-tren-web-qua-ai-gateway.md) | AI của Office trên web: khóa của người dùng lưu mã hóa phía server, proxy pass-through qua `ai.Gateway` (rào SSRF, entitlement `office.ai_byok`/`office.ai_cloud`, credit `ai.tokens`); bổ sung dòng frame web của 0028 |
+| [0030](0030-go-trinh-soan-g3-office-tren-web-chi-con-frame.md) | Gỡ các trình soạn G3 và lối vào trình duyệt của engine Office (2026-10-11); web mở tài liệu Office chỉ qua frame genoffice; thay mục editor ở trang host của 0021, 0027 deprecated |
 
 ## Bản nháp
 

@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import type { OfficeSaveCoordinatorLike } from "./office-shell";
+import type { OfficeSaveCoordinatorLike } from "./desktop-open-action";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DesktopOpenAction } from "./desktop-open-action";
@@ -14,7 +14,7 @@ const session = { launch_ticket: ticket, launch_url: `uniwork-office://open?tick
 function coordinator(overrides: Partial<ReturnType<OfficeSaveCoordinatorLike["getState"]> & { save: OfficeSaveCoordinatorLike["save"] }> = {}): OfficeSaveCoordinatorLike {
   return {
     save: overrides.save ?? vi.fn(async () => ({ accepted: true, receipt: { version: 2 } })),
-    getState: () => ({ state: "dirty", identity: {} as never, dirtyGeneration: 2, lastSavedGeneration: 1, activeIntentId: null, error: null, ...overrides }),
+    getState: () => ({ state: "dirty", dirtyGeneration: 2, lastSavedGeneration: 1, ...overrides }),
   };
 }
 
@@ -49,6 +49,16 @@ describe("DesktopOpenAction", () => {
     await waitFor(() => expect(launch).toHaveBeenCalledOnce());
   });
 
+  it("returns focus to the menu trigger when the menu closes with Escape", async () => {
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} />);
+    const trigger = screen.getByRole("button", { name: "UniWork Office options" });
+    fireEvent.click(trigger);
+    const item = await screen.findByRole("menuitem", { name: "Open in UniWork Office" });
+    fireEvent.keyDown(item, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Open in UniWork Office" })).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
   it("folds into the page overflow menu on phones when rendered in a page header", async () => {
     render(
       <HeaderActionsSlotProvider>
@@ -81,7 +91,7 @@ describe("DesktopOpenAction", () => {
     expect(screen.getByRole("button", { name: "Try again" })).not.toBeDisabled();
   });
   it("opens the committed version without leaking document metadata", async () => {
-    const createSession = vi.fn(async (_id: string, body: { version: number }) => { expect(body).toEqual(expect.objectContaining({ version: 2 })); expect(JSON.stringify(body)).not.toMatch(/title|path|token|bytes/i); return session; });
+    const createSession = vi.fn(async (_id: string, body: { version?: number }) => { expect(body).toEqual(expect.objectContaining({ operation: "edit" })); expect(body).not.toHaveProperty("version"); expect(JSON.stringify(body)).not.toMatch(/title|path|token|bytes/i); return session; });
     const launch = vi.fn(async () => "launched" as const);
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={createSession} launch={launch} />);
     fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
@@ -92,10 +102,10 @@ describe("DesktopOpenAction", () => {
   it("offers save/open-saved/cancel for a dirty editor and waits for Save", async () => {
     let saved = false;
     const save = vi.fn(async () => { saved = true; return { accepted: true, receipt: { version: 3 } }; });
-    const createSession = vi.fn(async (_id: string, body: { version: number }) => { expect(body.version).toBe(3); return { ...session, version: 3 }; });
+    const createSession = vi.fn(async (_id: string, body: { version?: number }) => { expect(body).not.toHaveProperty("version"); return { ...session, version: 3 }; });
     const fake: OfficeSaveCoordinatorLike = {
       save,
-      getState: () => ({ state: saved ? "saved" : "dirty", identity: {} as never, dirtyGeneration: saved ? 2 : 2, lastSavedGeneration: saved ? 2 : 1, activeIntentId: null, error: null }),
+      getState: () => ({ state: saved ? "saved" : "dirty", dirtyGeneration: saved ? 2 : 2, lastSavedGeneration: saved ? 2 : 1 }),
     };
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={fake} versionAfterSave={() => 3} createSession={createSession} launch={vi.fn(async () => "launched" as const)} />);
     fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
@@ -113,13 +123,13 @@ describe("DesktopOpenAction", () => {
       revision: "3", checksumSha256: "a", sizeBytes: 1, engineName: "engine", engineVersion: "1",
       contractVersion: "1", protocolVersion: "1",
     } }));
-    const createSession = vi.fn(async (_id: string, body: { version: number }) => {
-      expect(body.version).toBe(3);
+    const createSession = vi.fn(async (_id: string, body: { version?: number }) => {
+      expect(body).not.toHaveProperty("version");
       return { ...session, version: 3 };
     });
     const fake: OfficeSaveCoordinatorLike = {
       save,
-      getState: () => ({ state: "saved", identity: {} as never, dirtyGeneration: 2, lastSavedGeneration: 2, activeIntentId: null, error: null }),
+      getState: () => ({ state: "saved", dirtyGeneration: 2, lastSavedGeneration: 2 }),
     };
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={fake} versionAfterSave={async (outcome) => outcome.receipt?.versionId === "version-3" ? 3 : null} createSession={createSession} launch={vi.fn(async () => "launched" as const)} />);
     fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
@@ -128,13 +138,13 @@ describe("DesktopOpenAction", () => {
   });
 
   it("opens the last committed version or cancels without saving", async () => {
-    const createSession = vi.fn(async (_id: string, body: { version: number }) => ({ ...session, version: body.version }));
+    const createSession = vi.fn(async () => ({ ...session }));
     const save = vi.fn(async () => ({ accepted: true, receipt: { version: 3 } }));
     const saveCoordinator = coordinator({ save });
     const { unmount } = render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={saveCoordinator} createSession={createSession} launch={vi.fn(async () => "launched" as const)} />);
     fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     fireEvent.click(screen.getByRole("button", { name: "Open last saved version" }));
-    await waitFor(() => expect(createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ version: 2 })));
+    await waitFor(() => expect(createSession).toHaveBeenCalledWith("doc-1", expect.not.objectContaining({ version: expect.anything() })));
     expect(save).not.toHaveBeenCalled();
     unmount();
 
@@ -173,6 +183,23 @@ describe("DesktopOpenAction", () => {
     expect(screen.getByText("Install link unavailable")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Not now" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Install UniWork Office" })).not.toBeInTheDocument();
+  });
+
+  it("closes the install prompt when the app takes the focus after the launch timed out (GOA9-r4-05)", async () => {
+    const launch = vi.fn(async () => "not-installed" as const);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={async () => session} launch={launch} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
+    expect(await screen.findByText("Get UniWork Office for desktop")).toBeInTheDocument();
+    act(() => { window.dispatchEvent(new Event("blur")); });
+    await waitFor(() => expect(screen.queryByText("Get UniWork Office for desktop")).not.toBeInTheDocument());
+  });
+
+  it("keeps the Download prompt open when the page loses focus", async () => {
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} />);
+    await openDownload();
+    expect(await screen.findByText("Get UniWork Office for desktop")).toBeInTheDocument();
+    act(() => { window.dispatchEvent(new Event("blur")); });
+    expect(screen.getByText("Get UniWork Office for desktop")).toBeInTheDocument();
   });
 
   it("keeps the editor intact when the ticket callback reports an error", async () => {

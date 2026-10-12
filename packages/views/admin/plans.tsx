@@ -110,7 +110,7 @@ function CreatePlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
       <div className="flex flex-col gap-3 py-2">
         <div className="grid gap-1.5">
           <Label htmlFor="plan-create-code">{t("field.code")}</Label>
-          <Input id="plan-create-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="enterprise" />
+          <Input id="plan-create-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="enterprise" /* plan-literal-ok: input hint in the admin plan form, not a branch */ />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="plan-create-name">{t("field.name")}</Label>

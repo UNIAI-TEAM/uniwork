@@ -4,7 +4,6 @@ import { useCallback, useState, type ReactNode } from "react";
 import { Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
@@ -37,6 +36,7 @@ import { CreateTaskDraftTray } from "../tasks/create-task-draft-tray";
 import { useNavigation } from "../navigation";
 import { GlobalShortcuts } from "./global-shortcuts";
 import { PAGE_GUTTER } from "./page-header";
+import { PreferenceToastProvider, usePreferenceSavedToast } from "./preference-toast";
 import { useWorkspace } from "./workspace-context";
 
 type ThemeValue = "light" | "dark" | "system";
@@ -55,7 +55,7 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
   const { workspace } = useWorkspace();
   const reduceMotion = useReducedMotion() ?? false;
   return (
-    <>
+    <PreferenceToastProvider>
       <WorkspaceTopBar createOpen={createOpen} onCreateOpenChange={setCreateOpen} />
       <GlobalShortcuts onCreateTask={openCreate} />
       <SearchCommand onCreateTask={openCreate} />
@@ -84,7 +84,7 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
         </motion.div>
       </AnimatePresence>
       <CreateTaskDraftTray workspaceId={workspace.id} onOpenDraft={openCreate} />
-    </>
+    </PreferenceToastProvider>
   );
 }
 
@@ -96,6 +96,7 @@ export function WorkspaceTopBar({
   onCreateOpenChange: (open: boolean) => void;
 }) {
   const { t, i18n } = useTranslation();
+  const notifySaved = usePreferenceSavedToast();
   const { workspace } = useWorkspace();
   const { theme, setTheme } = useTheme();
   const localeAdapter = useLocaleAdapter();
@@ -182,9 +183,7 @@ export function WorkspaceTopBar({
               onValueChange={(next) => {
                 if (!next || next === themeValue) return;
                 setTheme(next as ThemeValue);
-                toast.success(t("settings.preferences.toastSaved"), {
-                  id: "settings-auto-save",
-                });
+                notifySaved("theme");
               }}
             >
               {themeOptions.map((option) => {
@@ -230,7 +229,7 @@ export function WorkspaceTopBar({
                 document.documentElement.lang = locale;
                 // The toast text resolves after the language switched, in the new language.
                 void setLocale(locale).then(() => {
-                  toast.success(i18n.t("settings.preferences.toastSaved", { lng: locale }), { id: "settings-auto-save" });
+                  notifySaved("language", locale);
                 });
               }}
             >

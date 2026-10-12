@@ -1,12 +1,14 @@
 import { StrictMode } from "react";
 import type { Editor } from "@tiptap/core";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
+import { PreferenceToastProvider, usePreferenceSavedToast } from "../layout/preference-toast";
 import { DocumentWorkspace } from "./document-workspace";
 
 const { t } = initI18n();
@@ -85,10 +87,17 @@ function patchCalls(): PatchCall[] {
     .map(([, opts]) => opts as PatchCall);
 }
 
+/** Stands in for the workspace top bar: the control that toasts a saved preference. */
+function PreferenceProbe() {
+  const notifySaved = usePreferenceSavedToast();
+  return <button type="button" onClick={() => notifySaved("theme")}>change theme</button>;
+}
+
 function renderWorkspace(
   over: Record<string, unknown> = {},
   refetch = vi.fn(() => Promise.resolve({})),
   strict = false,
+  chrome = false,
 ) {
   const push = vi.fn();
   const adapter: NavigationAdapter = {
@@ -109,7 +118,8 @@ function renderWorkspace(
       />
     </NavigationProvider>,
   );
-  const result = render(strict ? <StrictMode>{tree}</StrictMode> : tree);
+  const inChrome = chrome ? <PreferenceToastProvider><PreferenceProbe />{tree}</PreferenceToastProvider> : tree;
+  const result = render(strict ? <StrictMode>{inChrome}</StrictMode> : inChrome);
   return { push, refetch, ...result };
 }
 
@@ -152,6 +162,26 @@ describe("DocumentWorkspace note page UI", () => {
     expect(screen.queryByRole("button", { name: t("documents.page_ui.change_icon") })).toBeNull();
     expect(screen.getAllByText(t("documents.save.readonly"))).toHaveLength(1);
     expect(screen.queryByText(t("documents.detail.readonly_title"))).toBeNull();
+  });
+});
+
+describe("DocumentWorkspace preference toast (GOA9-r4-08)", () => {
+  it("does not toast Saved for a theme change on a view-only page", async () => {
+    const success = vi.spyOn(toast, "success").mockImplementation(() => "t");
+    renderWorkspace({ my_level: "view" }, undefined, false, true);
+    await findEditor();
+    fireEvent.click(screen.getByRole("button", { name: "change theme" }));
+    expect(success).not.toHaveBeenCalled();
+    success.mockRestore();
+  });
+
+  it("still toasts the saved theme preference on an editable page", async () => {
+    const success = vi.spyOn(toast, "success").mockImplementation(() => "t");
+    renderWorkspace({ my_level: "edit" }, undefined, false, true);
+    await findEditor();
+    fireEvent.click(screen.getByRole("button", { name: "change theme" }));
+    expect(success).toHaveBeenCalledWith("Đã lưu tùy chọn giao diện", { id: "settings-auto-save" });
+    success.mockRestore();
   });
 });
 

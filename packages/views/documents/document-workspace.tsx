@@ -20,6 +20,7 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
+import { QuietPreferenceToast } from "../layout/preference-toast";
 import type { BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
@@ -449,6 +450,8 @@ export function DocumentWorkspace({
 
   return (
     <HeaderActionsSlotProvider>
+      {/* Nothing here can be saved, so a theme or language change must not toast "Saved". */}
+      <QuietPreferenceToast quiet={!canEdit} />
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <BreadcrumbHeader
         leading={
@@ -466,8 +469,10 @@ export function DocumentWorkspace({
           ) : undefined
         }
         segments={breadcrumbSegments}
+        // The back control stands in for the crumbs on a phone, where the title needs the width.
+        collapseAncestors={Boolean(backHref)}
         leaf={
-          <span className="truncate font-medium text-foreground">
+          <span className="truncate font-medium text-foreground" title={(doc.kind === "page" ? pageTitle : doc.title) || t("documents.detail.untitled")}>
             {(doc.kind === "page" ? pageTitle : doc.title) || t("documents.detail.untitled")}
           </span>
         }
@@ -476,11 +481,13 @@ export function DocumentWorkspace({
             {/* An embedded Office editor's save + desktop cluster comes first. */}
             <HeaderActionsSlot />
             {doc.kind === "page" && canEdit && !recoveryNotice ? saveIndicator : null}
-            {!canEdit ? (
-              <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-caption text-muted-foreground"
+            {/* A file's view-only state is announced once, by the banner below with its explanation;
+                a page keeps the chip where that banner is hidden (a phone). */}
+            {!canEdit && doc.kind === "page" ? (
+              <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-caption text-muted-foreground sm:hidden"
                 title={t("documents.detail.readonly_description")}>
                 <Eye aria-hidden className="size-3.5" />
-                {t(doc.kind === "page" ? "documents.save.readonly" : "documents.detail.readonly_title")}
+                {t("documents.save.readonly")}
               </span>
             ) : null}
             <DocumentCommentsHeaderActions />
@@ -491,6 +498,7 @@ export function DocumentWorkspace({
 
       {!canEdit ? (
         <Notice tone="info" icon={Eye} className={doc.kind === "page" ? "hidden sm:flex" : undefined}>
+          {doc.kind === "page" ? null : <strong className="font-semibold">{t("documents.detail.readonly_title")}. </strong>}
           {t("documents.detail.readonly_description")}
         </Notice>
       ) : null}

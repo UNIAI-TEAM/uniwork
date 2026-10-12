@@ -83,6 +83,27 @@ func TestOfficeDesktopDownloadUnsafeOrUnavailableConfig(t *testing.T) {
 	}
 }
 
+func TestOfficeDesktopDownloadPicksTheChannelClientFromSeveral(t *testing.T) {
+	f := newAuditServiceFixture(t)
+	cfg := desktopDownloadConfig()
+	cfg.DesktopAuthClients = []config.DesktopAuthClient{
+		{ID: "uniwork-office", RedirectURIs: []string{"uniwork-office://auth/callback"}},
+		{ID: "uniwork-office-dev", RedirectURIs: []string{"uniwork-office-dev://auth/callback"}},
+	}
+	cfg.OfficeInstallerDevURL = "https://downloads.example.test/office-dev.exe"
+	svc := NewOfficeDesktopDownloadService(f.svc.orgs, cfg)
+	for channel, client := range map[string]string{"stable": "uniwork-office", "dev": "uniwork-office-dev"} {
+		out, err := svc.Get(f.ctx, f.ownerA.ID, f.orgA, channel)
+		if err != nil || out.ClientID != client {
+			t.Fatalf("%s profile: %+v %v", channel, out, err)
+		}
+	}
+	cfg.DesktopAuthClients = cfg.DesktopAuthClients[1:]
+	if _, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.ownerA.ID, f.orgA, "stable"); err == nil {
+		t.Fatal("stable profile served without the stable client configured")
+	}
+}
+
 func TestOfficeDesktopDownloadMultiplePlatforms(t *testing.T) {
 	f := newAuditServiceFixture(t)
 	cfg := desktopDownloadConfig()

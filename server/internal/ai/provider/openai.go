@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,12 +48,25 @@ func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (Completio
 	if req.Temperature > 0 {
 		body["temperature"] = req.Temperature
 	}
-	msgs := make([]oaiMessage, 0, len(req.Messages)+1)
+	msgs := make([]any, 0, len(req.Messages)+1)
 	if req.System != "" {
 		msgs = append(msgs, oaiMessage{Role: "system", Content: req.System})
 	}
 	for _, m := range req.Messages {
-		msgs = append(msgs, oaiMessage{Role: m.Role, Content: m.Content})
+		if len(m.Parts) == 0 {
+			msgs = append(msgs, oaiMessage{Role: m.Role, Content: m.Content})
+			continue
+		}
+		content := make([]map[string]any, 0, len(m.Parts)+1)
+		for _, p := range m.Parts {
+			c, err := openAIPart(p)
+			if err != nil {
+				return CompletionResponse{}, err
+			}
+			content = append(content, c)
+		}
+		content = append(content, map[string]any{"type": "text", "text": m.Content})
+		msgs = append(msgs, map[string]any{"role": m.Role, "content": content})
 	}
 	body["messages"] = msgs
 	if len(req.JSONSchema) > 0 {
@@ -102,6 +116,22 @@ func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (Completio
 		resp.ToolCalls = append(resp.ToolCalls, ToolCall{Name: tc.Function.Name, Input: json.RawMessage(tc.Function.Arguments)})
 	}
 	return resp, nil
+}
+
+// openAIPart maps a media part onto chat-completions content: images as data
+// URLs, wav/mp3 as input_audio (audio-capable models only). Anything else is
+// refused, never silently dropped.
+func openAIPart(p Part) (map[string]any, error) {
+	data := base64.StdEncoding.EncodeToString(p.Data)
+	switch p.MIME {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+		return map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:" + p.MIME + ";base64," + data}}, nil
+	case "audio/wav", "audio/x-wav", "audio/wave":
+		return map[string]any{"type": "input_audio", "input_audio": map[string]any{"data": data, "format": "wav"}}, nil
+	case "audio/mpeg", "audio/mp3":
+		return map[string]any{"type": "input_audio", "input_audio": map[string]any{"data": data, "format": "mp3"}}, nil
+	}
+	return nil, ErrUnsupportedMedia
 }
 
 func (o *OpenAI) Embed(context.Context, EmbedRequest) (EmbedResponse, error) {

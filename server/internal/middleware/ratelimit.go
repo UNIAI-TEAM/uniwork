@@ -97,6 +97,21 @@ func RateLimitByIdentity(rdb *redis.Client, limit int, window time.Duration, tru
 	return rateLimit(rdb, limit, window, trustedProxies, identity, func(r *http.Request) string { return r.URL.Path })
 }
 
+// RateLimitByIdentityBucket is RateLimitByIdentity with one budget shared by
+// every route the limiter wraps: the counter is keyed by bucket instead of
+// the request path, so a group whose paths carry ids (a document, an
+// organization, a provider) is limited per person per group, not per person
+// per URL. An empty bucket keys by path, which is RateLimitByIdentity.
+func RateLimitByIdentityBucket(rdb *redis.Client, bucket string, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc) func(http.Handler) http.Handler {
+	if bucket == "" {
+		return RateLimitByIdentity(rdb, limit, window, trustedProxies, identity)
+	}
+	// "~" never starts a request path or a method-prefixed route pattern, so
+	// a bucket cannot share a path's or a route's counter.
+	scope := "~" + bucket
+	return rateLimit(rdb, limit, window, trustedProxies, identity, func(*http.Request) string { return scope })
+}
+
 // RateLimitPerRoute is RateLimitByIdentity keyed by the matched route pattern
 // instead of the concrete path, so every id under one route shares the
 // caller's budget: keyed by path, each message or room id was a fresh one. It
