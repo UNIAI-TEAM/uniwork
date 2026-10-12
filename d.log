@@ -1,0 +1,246 @@
+$ git checkout a5b0cafe -- web/modules/shared/frame-dialog.ts web/modules/shared/conflict-dialog.ts; (npx vitest run --root web/modules shared/frame-dialog.test.ts shared/conflict-dialog.test.ts); A=$?; git checkout HEAD -- web; git status --short web; echo "RED_EXIT fix2=$A"; test $A -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+ ❯ shared/frame-dialog.test.ts (23 tests | 5 failed) 123ms
+     × the first focus never scrolls the card: the title and description stay in view 11ms
+     × every step starts scrolled to the top of the dialog 3ms
+     × two disabled choices with the same reason show it once, both described by it 4ms
+     × setChoiceDisabled flips a choice live and keeps the reason lines in step 2ms
+     × focus that falls out of the dialog (backdrop click) returns to the last control 10ms
+ ❯ shared/conflict-dialog.test.ts (30 tests | 2 failed) 256ms
+     × offline: the one shared reason is shown once, both buttons described by it 15ms
+     × goes offline and back online while open: Reload and Overwrite follow, with the reason line 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  shared/conflict-dialog.test.ts > step 1 > offline: the one shared reason is shown once, both buttons described by it
+AssertionError: expected [ …(2) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  [
+    "You’re offline. On the web this needs a connection; your changes stay in this browser.",
++   "You’re offline. On the web this needs a connection; your changes stay in this browser.",
+  ]
+
+ ❯ shared/conflict-dialog.test.ts:187:45
+    185|     await shown()
+    186|     const lines = [...card().querySelectorAll('.ow-dlg-reason')]
+    187|     expect(lines.map((l) => l.textContent)).toEqual([t('uwConflictOffl…
+       |                                             ^
+    188|     expect(btn('reload').getAttribute('aria-describedby')).toBe(lines[…
+    189|     expect(btn('overwrite').getAttribute('aria-describedby')).toBe(lin…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  shared/conflict-dialog.test.ts > step 1 > goes offline and back online while open: Reload and Overwrite follow, with the reason line
+AssertionError: expected null to be 'true' // Object.is equality
+
+- Expected:
+"true"
+
++ Received:
+null
+
+ ❯ shared/conflict-dialog.test.ts:205:53
+    203|     window.dispatchEvent(new Event('offline'))
+    204|     for (const id of ['reload', 'overwrite']) {
+    205|       expect(btn(id).getAttribute('aria-disabled')).toBe('true')
+       |                                                     ^
+    206|       expect(document.getElementById(btn(id).getAttribute('aria-descri…
+    207|         t('uwConflictOfflineWeb'),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > the first focus never scrolls the card: the title and description stay in view
+AssertionError: expected undefined to match object { preventScroll: true }
+
+- Expected:
+{
+  "preventScroll": true,
+}
+
++ Received:
+undefined
+
+ ❯ shared/frame-dialog.test.ts:259:23
+    257|     const cancel = btn('cancel')
+    258|     const call = focus.mock.calls.find((_, i) => focus.mock.contexts[i…
+    259|     expect(call?.[0]).toMatchObject({ preventScroll: true })
+       |                       ^
+    260|     focus.mockRestore()
+    261|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > every step starts scrolled to the top of the dialog
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ shared/frame-dialog.test.ts:275:29
+    273|     const topped = () =>
+    274|       scrollTop.mock.contexts.filter((c, i) => c === mask && scrollTop…
+    275|     expect(topped().length).toBe(1)
+       |                             ^
+    276|     void handle.step({
+    277|       title: 'Two',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > two disabled choices with the same reason show it once, both described by it
+AssertionError: expected [ 'You are offline.', …(1) ] to deeply equal [ 'You are offline.' ]
+
+- Expected
++ Received
+
+  [
+    "You are offline.",
++   "You are offline.",
+  ]
+
+ ❯ shared/frame-dialog.test.ts:306:45
+    304|     })
+    305|     const lines = [...document.querySelectorAll('.ow-dlg-reason')]
+    306|     expect(lines.map((l) => l.textContent)).toEqual(['You are offline.…
+       |                                             ^
+    307|     expect(btn('reload').getAttribute('aria-describedby')).toBe(lines[…
+    308|     expect(btn('overwrite').getAttribute('aria-describedby')).toBe(lin…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > setChoiceDisabled flips a choice live and keeps the reason lines in step
+TypeError: handle.setChoiceDisabled is not a function
+ ❯ shared/frame-dialog.test.ts:342:12
+    340|     })
+    341|     expect(document.querySelectorAll('.ow-dlg-reason').length).toBe(0)
+    342|     handle.setChoiceDisabled('reload', 'Offline.')
+       |            ^
+    343|     handle.setChoiceDisabled('overwrite', 'Offline.')
+    344|     expect(btn('reload').getAttribute('aria-disabled')).toBe('true')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  shared/frame-dialog.test.ts > open dialog reflow and focus (S5) > focus that falls out of the dialog (backdrop click) returns to the last control
+AssertionError: expected <body><div …(3)>…(1)</div></body> to be <button type="button" …(2)></button> // Object.is equality
+
+- Expected
++ Received
+
++ <body>
++   <div
++     class="ow-dlg-mask"
++     data-office-web="conflict"
++     data-ow-modal=""
++   >
++     <div
++       aria-describedby="ow-dlg-19-body"
++       aria-labelledby="ow-dlg-19-title"
++       aria-modal="true"
++       class="ow-dlg"
++       role="alertdialog"
++     >
++       <div
++         class="ow-dlg-head"
++       >
++         <h2
++           class="ow-dlg-title"
++           id="ow-dlg-19-title"
++           tabindex="-1"
++         >
++           Changed elsewhere
++         </h2>
++         <p
++           class="ow-dlg-body"
++           id="ow-dlg-19-body"
++         >
++           Someone saved a newer version.
++         </p>
++         <div
++           class="ow-dlg-details"
++         />
++         <div
++           class="ow-dlg-content"
++         />
++         <div
++           class="ow-dlg-alert"
++           role="alert"
++         />
++         <div
++           class="ow-dlg-reasons"
++         />
++       </div>
++       <div
++         class="ow-dlg-actions"
++       >
++         <button
++           class="ow-dlg-btn primary"
++           data-choice="reload"
++           type="button"
++         >
++           Reload latest
++         </button>
+          <button
++           class="ow-dlg-btn danger"
++           data-choice="overwrite"
++           type="button"
++         >
++           Overwrite
++         </button>
++         <button
+            class="ow-dlg-btn ghost"
+            data-choice="cancel"
+            type="button"
+          >
+            Cancel
++         </button>
++       </div>
++       <button
++         aria-label="Close"
++         class="ow-dlg-close"
++         type="button"
++       >
++         <svg
++           aria-hidden="true"
++           focusable="false"
++           height="14"
++           viewBox="0 0 14 14"
++           width="14"
++         >
++           <path
++             d="M3 3l8 8M11 3l-8 8"
++             fill="none"
++             stroke="currentColor"
++             stroke-linecap="round"
++             stroke-width="1.6"
++           />
++         </svg>
+        </button>
++     </div>
++   </div>
++ </body>
+
+ ❯ shared/frame-dialog.test.ts:366:36
+    364|     expect(document.activeElement).toBe(document.body)
+    365|     await new Promise((r) => setTimeout(r, 0))
+    366|     expect(document.activeElement).toBe(btn('cancel'))
+       |                                    ^
+    367|     // the last focused control, not always Cancel
+    368|     keydown('Tab')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  7 failed | 46 passed (53)
+   Start at  22:51:30
+   Duration  877ms (transform 322ms, setup 0ms, import 405ms, tests 379ms, environment 658ms)
+
+RED_EXIT fix2=1
+RED_AS_EXPECTED

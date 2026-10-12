@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+f51e83673bda0ef3f67bc65ca5b4bd2e29f87a20
+180de9c126b0f88777e8bb4462d4aff89ceae24f
+f51e8367 fix(web): the conflict dialog keeps its title in view, shows a shared reason once, holds focus and follows the network
+f5595e6b test(web): pin the conflict dialog's reflow, shared reason line, focus return and live offline state
+a5b0cafe fix(web): the conflict answer follows the variant the user closes, the loaded head and the current edit access
