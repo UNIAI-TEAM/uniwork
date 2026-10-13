@@ -191,15 +191,13 @@ func (s *AIUniworkService) SetDeadline(d time.Duration) {
 func (s *AIUniworkService) Deadline() time.Duration { return s.deadline }
 
 // UniworkScope is who and what one turn acts on. DocumentID/Module are empty
-// on the org route (R1: a local file, S10); Edit reports whether the caller
-// may edit the bound document (rule 6), false when there is none.
+// on the org route (R1: a local file, S10).
 type UniworkScope struct {
 	UserID     string
 	OrgID      string
 	DocumentID string
 	Module     string
 	DeviceID   string
-	Edit       bool
 }
 
 // UniworkTurnInput is one client call: the raw openai-compatible body the
@@ -366,16 +364,6 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 		Response: resp, ConversationID: conv.ID, RunID: run.ID,
 		Step: run.ToolRounds, Limit: ai.UniworkToolStepLimit, Dropped: dropped, Stream: turn.Stream,
 	}, nil
-}
-
-// SweepConversations is the TTL worker's entry (W-B wires it into the
-// shutdown chain): expired conversations, then the organizations whose kill
-// switch is off (A9).
-func (s *AIUniworkService) SweepConversations(ctx context.Context) (int64, error) {
-	if s.store == nil {
-		return 0, nil
-	}
-	return s.store.Sweep(ctx, s.now())
 }
 
 // uniworkDocument is what the bound document (R2/R3) contributes to a turn.
