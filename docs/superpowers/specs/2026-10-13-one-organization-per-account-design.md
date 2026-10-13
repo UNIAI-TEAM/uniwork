@@ -93,7 +93,7 @@ func activeOrganizations(ctx context.Context, q *db.Queries, userID string) ([]d
 | `OrganizationService.Create` | Đầu transaction: `lockMembership`; `activeOrganizations` ≠ rỗng ⇒ 409 `already_in_organization` kèm `details: {organization: {id,name,slug}}` của tổ chức hiện tại (tổ chức của chính người gọi). |
 | `WorkspaceService.AcceptInvite` | Viết lại theo §4.4. |
 | `OrganizationMemberService.Reactivate` | `lockMembership(target)`; target đang thuộc tổ chức khác ⇒ 409 `member_in_other_organization` (không nêu tên tổ chức kia). |
-| `OrganizationMemberService.Leave` | Đầu transaction: `lockMembership`, `LockOrganizationMemberForUpdate`, kiểm lại role trong transaction (owner ⇒ 409 `last_owner`). Không qua `RequireMember` nữa mà qua gate riêng cho phép tổ chức `suspended` / chờ xóa với non-owner (D9); dòng đã deactivate vẫn bị từ chối `member_deactivated`. |
+| `OrganizationMemberService.Leave` | Đầu transaction: `lockMembership`, `LockOrganizationMemberForUpdate`, kiểm lại role trong transaction (owner ⇒ 409 `last_owner`). Không qua `RequireMember` nữa mà qua gate riêng cho phép tổ chức `suspended` / chờ xóa với non-owner (D9); dòng đã deactivate vẫn bị từ chối `member_deactivated`. Handler hiện resolve slug qua `GetBySlug` (đi qua `RequireMemberQ`, chặn `suspended`), nên route leave đổi sang lookup chỉ trả id cho người có dòng membership chưa deactivate — người ngoài vẫn nhận 404 như cũ. |
 | `Close` (mới) | §4.5. |
 | `TransferOwnership` | Không đổi logic; tách thân transaction thành `transferOwnershipQ(ctx, q, …)` để §4.4 gọi lại. Tương tự `leaveQ`. |
 
