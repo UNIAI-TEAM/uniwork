@@ -37,6 +37,55 @@ test("the mechanical table parses into the six pack modules with a plausible too
   }
 });
 
+test("the mechanical table parses a CRLF copy of the doc", () => {
+  const lf = parseMechanicalTable(toolsDoc);
+  const crlfDoc = toolsDoc.replace(/\r?\n/g, "\r\n");
+  assert.ok(crlfDoc.includes("\r\n") && !/[^\r]\n/.test(crlfDoc), "the fixture must use CRLF line ends and no bare LF");
+  const crlf = parseMechanicalTable(crlfDoc);
+  assert.equal(crlf.rowCount, lf.rowCount, "the CRLF copy parsed a different number of tool rows");
+  assert.deepEqual([...crlf.byModule.keys()], [...lf.byModule.keys()]);
+  for (const module of PACK_MODULES) {
+    assert.deepEqual([...crlf.byModule.get(module)], [...lf.byModule.get(module)], `the "${module}" column changed under CRLF`);
+  }
+});
+
+test("a wrapped row inside the mechanical block fails the parse loudly", () => {
+  const header = "| module | tool | input_schema_sha256 | editor_write | source |";
+  const separator = "| --- | --- | --- | --- | --- |";
+  const row = (tool) => `| docs | ${tool} | ${"a".repeat(64)} | yes | apps/docs/x.ts |`;
+  const block = (middle) =>
+    [
+      "<!-- extract:begin -->",
+      "<!-- genoffice-tools-extract v1 rev=deadbeef -->",
+      header,
+      separator,
+      row("accept_changes"),
+      row("add_comment"),
+      middle,
+      row("apply_ops"),
+      row("edit_chart"),
+      row("insert_image"),
+      row("write_document"),
+      "",
+      "<!-- extract:end -->",
+    ].join("\n");
+  // Control: a blank line and the extractor's own provenance comment are not
+  // table rows and must not fail the parse.
+  assert.equal(parseMechanicalTable(block("")).rowCount, 6);
+  // A row the author wrapped: the continuation line is neither a table row, a
+  // blank line nor the provenance comment, so it must fail loudly instead of
+  // being filtered out of the table.
+  let error;
+  assert.throws(() => parseMechanicalTable(block("  apps/docs/x.ts |")), (thrown) => {
+    error = thrown;
+    return true;
+  });
+  assert.ok(error instanceof Error, `expected an Error, got ${error}`);
+  assert.ok(error.message.includes(TOOLS_DOC), error.message);
+  assert.match(error.message, /neither a table row/, error.message);
+  assert.ok(error.message.includes("apps/docs/x.ts |"), error.message);
+});
+
 test("every tool name in a module section is in that module's column", () => {
   const { byModule } = parseMechanicalTable(toolsDoc);
   const goldens = readGoldens(PACK_MODULES);

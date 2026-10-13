@@ -17,6 +17,7 @@ const SNAKE_CASE_TOOL = new RegExp(`^${TOOL_TOKEN_SOURCE}$`);
 const SCHEMA_SHA256 = /^[0-9a-f]{64}$/;
 const MODULE_NAME = /^[a-z][a-z0-9-]*$/;
 const HEADER = ["module", "tool", "input_schema_sha256", "editor_write", "source"];
+const PROVENANCE_COMMENT = /^<!-- genoffice-tools-extract [^>]*-->$/;
 
 /** Every distinct snake_case token in `text`, in order of first appearance. */
 export function snakeCaseTokens(text) {
@@ -26,19 +27,32 @@ export function snakeCaseTokens(text) {
 /**
  * The mechanical block of `genoffice-tools.md` as `Map<module, Set<tool>>`,
  * with the number of tool rows. Throws loudly when the doc layout changed:
- * missing markers, another header, a row that is not five machine-shaped
- * cells, or a repeated (module, tool) pair.
+ * missing markers, another header, a line that is neither a table row, a
+ * blank line nor the extractor's provenance comment (a wrapped row), a row
+ * that is not five machine-shaped cells, or a repeated (module, tool) pair.
  */
 export function parseMechanicalTable(markdown) {
   // The markers also appear inside §1's AC-2 recipe (`sed -e '1,/^<!-- extract:begin -->$/d'`),
-  // so only a marker alone on its line opens the block.
-  const marker = (name) => new RegExp(`^<!-- extract:${name} -->$`, "m").exec(markdown);
+  // so only a marker alone on its line opens the block; `\r?` keeps a CRLF
+  // checkout of the doc parsing (BE14-4).
+  const marker = (name) => new RegExp(`^<!-- extract:${name} -->\r?$`, "m").exec(markdown);
   const begin = marker("begin");
   const end = marker("end");
   if (!begin || !end || end.index < begin.index) {
     throw new Error(`${TOOLS_DOC}: the mechanical block markers (<!-- extract:begin --> / <!-- extract:end -->), each alone on its line, were not found`);
   }
-  const lines = markdown.slice(begin.index + begin[0].length, end.index).split(/\r?\n/).filter((line) => line.startsWith("|"));
+  const lines = [];
+  for (const raw of markdown.slice(begin.index + begin[0].length, end.index).split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    // The block is the extractor's output (§3): the table, its provenance
+    // comment and blank lines. Anything else is a wrapped row or stray text
+    // and must throw instead of being filtered out of the table (BE14-5).
+    if (line.trim() === "" || PROVENANCE_COMMENT.test(line)) continue;
+    if (!line.startsWith("|")) {
+      throw new Error(`${TOOLS_DOC}: the mechanical block has a line that is neither a table row, a blank line nor the extractor provenance comment (a wrapped table row?): ${JSON.stringify(line)}`);
+    }
+    lines.push(line);
+  }
   if (lines.length < HEADER.length + 3) {
     throw new Error(`${TOOLS_DOC}: the mechanical block has ${lines.length} table lines; expected a header, a separator and the tool rows`);
   }
