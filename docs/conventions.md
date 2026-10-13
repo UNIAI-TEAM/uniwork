@@ -199,7 +199,7 @@ fails on drift. One flat namespace, keys nested by section:
 | Work Graph | **Work Graph** | Work Graph | tên hệ thống, không dịch |
 | folder (Documents) | **thư mục** | Folder | dùng lại khóa `"folder": "Thư mục"` có sẵn; UNI-1425 (phụ lục thư mục §3.6) |
 | subfolder | **thư mục con** | Subfolder | luôn đủ cụm, không "mục con" |
-| new folder | **thư mục mới** | New folder | nút và tiêu đề hộp thoại; ở gốc: "Thư mục mới ở Documents (gốc)" |
+| new folder | **thư mục mới** | New folder | nút và tiêu đề hộp thoại; ở gốc: "Thư mục mới ở Documents (gốc)" (tiêu đề hộp thoại từ (+) sidebar) |
 | rename | **đổi tên** | Rename | |
 | move to | **di chuyển tới** | Move to | mục menu "Di chuyển tới…"; toast "Đã chuyển tới {{folder}}" |
 | trash (Documents, archive restorable 30 days) | **thùng rác** | Trash | hành động ghi "Xóa" / "Chuyển vào thùng rác"; khác "Đã xóa" của email |

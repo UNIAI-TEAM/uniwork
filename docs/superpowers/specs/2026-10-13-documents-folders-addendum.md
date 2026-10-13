@@ -250,7 +250,7 @@ Hoãn duyệt: hộp thoại UniWork của app vẫn chỉ tệp (`client.ts:230
 mục đang mở. Không đổi frame protocol.
 
 G8-17 (tạo/tải lên/đổi tên tài liệu từ app) **không** là người dùng `folder_name_taken`: G8-17 chỉ ghi trang/tệp, và theo FD-D10 (a, đã ký)
-server cho trùng tên tài liệu. Hợp đồng chéo (plan G5-G7 thẻ G8-17, không còn gate): tên rỗng/quá 500 → lỗi tại trường; tên trùng tài
+server cho trùng tên tài liệu. Hợp đồng chéo (plan G5-G7 thẻ G8-17, không còn gate): tên rỗng → lỗi tại trường (`uwDocNameEmpty`), quá 500 → lỗi tại trường (`uwDocNameTooLong`, khóa đã ship ở G8-17); tên trùng tài
 liệu khác → được. **Spine:** EXPERIENCE-G8 S18 và mockup `account-library.html` đã sửa trong FD-01 (bỏ ca "tên trùng → lỗi tại
 trường" cho tài liệu, bỏ hai khung mockup S18 "tên trùng", khóa `uwDocNameTaken` ghi "không dùng cho tài liệu"). Tài liệu đang mở bị
 tự đổi tên do di chuyển ở web → tiêu đề desktop đổi theo `document.moved` của feed G5 hoặc làm mới metadata khi focus, và Lưu sau đó
