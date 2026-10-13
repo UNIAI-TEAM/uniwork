@@ -51,6 +51,7 @@ import (
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}
 //	POST   /api/v1/documents/{documentID}/comments/{commentID}/resolve
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}/resolve
+//	GET    /api/v1/documents/{documentID}/comments/{commentID}/revisions   (G8-03)
 //	POST   /api/v1/documents/{documentID}/comments/{commentID}/reactions
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}/reactions
 //	POST   /api/v1/documents/{documentID}/favorite
@@ -283,11 +284,13 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	// the caller's own bookmark), and comment edit/delete is author-or-manage
 	// in the service. G2-07a registers its office routes separately.
 	d.Get("/documents/{documentID}/comments", h.ListDocumentComments, apiOp{
-		summary:     "List document comments",
-		description: "Bình luận của tài liệu, cũ nhất trước, mỗi dòng kèm reactions. Cần quyền xem.",
-		tags:        []string{"documents"},
-		sdo:         sdo.DocumentCommentListSDO{},
-		auth:        true,
+		summary: "List document comments",
+		description: "Bình luận của tài liệu, cũ nhất trước, mỗi dòng kèm reactions; kind lọc comment hoặc discussion (bỏ trống = cả hai). " +
+			"Mọi câu trả lời mang list_token; since_token trùng token hiện tại trả unchanged=true kèm danh sách rỗng. Cần quyền xem.",
+		tags: []string{"documents"},
+		sdi:  sdi.ListDocumentCommentsSDI{},
+		sdo:  sdo.DocumentCommentListSDO{},
+		auth: true,
 	})
 	d.Post("/documents/{documentID}/comments", h.CreateDocumentComment, apiOp{
 		summary: "Add a document comment",
@@ -307,11 +310,12 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		auth:        true,
 	})
 	d.Delete("/documents/{documentID}/comments/{commentID}", h.DeleteDocumentComment, apiOp{
-		summary:     "Delete a document comment",
-		description: "Xóa bình luận kèm reactions của nó: tác giả hoặc người có quyền manage.",
-		tags:        []string{"documents"},
-		sdo:         sdo.StatusSDO{},
-		auth:        true,
+		summary: "Delete a document comment",
+		description: "Xóa bình luận: tác giả hoặc người có quyền manage. Còn phản hồi thì giữ khung \"Nội dung đã bị xóa\" (outcome=tombstoned), " +
+			"không còn phản hồi thì bỏ hẳn dòng (outcome=removed); reactions và lịch sử sửa của chính nó bị xóa thật trong cùng giao dịch.",
+		tags: []string{"documents"},
+		sdo:  sdo.DocumentCommentDeleteSDO{},
+		auth: true,
 	})
 	d.Post("/documents/{documentID}/comments/{commentID}/resolve", h.ResolveDocumentComment, apiOp{
 		summary:     "Resolve a document comment",
@@ -325,6 +329,13 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		description: "Bỏ đánh dấu giải quyết, mở lại bình luận (cần quyền sửa; idempotent).",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentCommentSDO{},
+		auth:        true,
+	})
+	d.Get("/documents/{documentID}/comments/{commentID}/revisions", h.ListDocumentCommentRevisions, apiOp{
+		summary:     "List a document comment's revisions",
+		description: "Lịch sử sửa của bình luận, mới nhất trước; mỗi dòng là nội dung trước một lần sửa. Cần quyền xem. Bình luận đã xóa trả 409 comment_deleted.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentCommentRevisionListSDO{},
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/comments/{commentID}/reactions", h.AddDocumentCommentReaction, apiOp{

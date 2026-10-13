@@ -71,6 +71,9 @@ var errorClassByCode = map[string]string{
 //   office_capability_off  (403, fields.capability) a flag hides the
 //     capability; it is not a permission denial, so the client must not
 //     run its lost-access recovery path (CLAUDE.md > Platform Admin).
+//   comment_deleted        (409) the target comment is a tombstone (G8-03).
+//     "conflict" would send the client down its reload-and-retry path; the
+//     composer shows "Bình luận này đã bị xóa." and keeps its draft instead.
 //
 // commit_intent_unknown (410, plan G5-07) is reserved in the docs only and
 // is not registered until G5-D2 fixes the intent retention.

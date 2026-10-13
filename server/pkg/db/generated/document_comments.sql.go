@@ -11,6 +11,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countDocumentCommentReplies = `-- name: CountDocumentCommentReplies :one
+SELECT count(*) AS replies
+FROM document_comments
+WHERE parent_comment_id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+`
+
+type CountDocumentCommentRepliesParams struct {
+	ParentCommentID pgtype.Text `json:"parent_comment_id"`
+	OrganizationID  string      `json:"organization_id"`
+	WorkspaceID     string      `json:"workspace_id"`
+}
+
+// Any child row keeps the parent alive as a tombstone - a tombstoned reply
+// counts too (the thread structure is what the frame preserves).
+func (q *Queries) CountDocumentCommentReplies(ctx context.Context, arg CountDocumentCommentRepliesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDocumentCommentReplies, arg.ParentCommentID, arg.OrganizationID, arg.WorkspaceID)
+	var replies int64
+	err := row.Scan(&replies)
+	return replies, err
+}
+
 const createDocumentComment = `-- name: CreateDocumentComment :one
 INSERT INTO document_comments (
   id, organization_id, workspace_id, document_id, author_id, author_kind,
@@ -18,7 +41,7 @@ INSERT INTO document_comments (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
-RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at, anchor, anchor_version_id, anchor_state, deleted_at, deleted_by_id, deleted_by_kind
 `
 
 type CreateDocumentCommentParams struct {
@@ -62,6 +85,12 @@ func (q *Queries) CreateDocumentComment(ctx context.Context, arg CreateDocumentC
 		&i.ResolvedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Anchor,
+		&i.AnchorVersionID,
+		&i.AnchorState,
+		&i.DeletedAt,
+		&i.DeletedByID,
+		&i.DeletedByKind,
 	)
 	return i, err
 }
@@ -104,8 +133,28 @@ func (q *Queries) DeleteDocumentCommentReactions(ctx context.Context, arg Delete
 	return err
 }
 
+const deleteDocumentCommentRevisions = `-- name: DeleteDocumentCommentRevisions :exec
+DELETE FROM document_comment_revisions
+WHERE comment_id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+`
+
+type DeleteDocumentCommentRevisionsParams struct {
+	CommentID      string `json:"comment_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// The edit history is deleted for real with its comment (Q8): tombstone and
+// hard delete both drop these rows in their own transaction.
+func (q *Queries) DeleteDocumentCommentRevisions(ctx context.Context, arg DeleteDocumentCommentRevisionsParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentCommentRevisions, arg.CommentID, arg.OrganizationID, arg.WorkspaceID)
+	return err
+}
+
 const getDocumentComment = `-- name: GetDocumentComment :one
-SELECT id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at
+SELECT id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at, anchor, anchor_version_id, anchor_state, deleted_at, deleted_by_id, deleted_by_kind
 FROM document_comments
 WHERE id = $1
   AND organization_id = $2
@@ -137,13 +186,19 @@ func (q *Queries) GetDocumentComment(ctx context.Context, arg GetDocumentComment
 		&i.ResolvedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Anchor,
+		&i.AnchorVersionID,
+		&i.AnchorState,
+		&i.DeletedAt,
+		&i.DeletedByID,
+		&i.DeletedByKind,
 	)
 	return i, err
 }
 
 const getDocumentCommentByID = `-- name: GetDocumentCommentByID :one
 
-SELECT id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at
+SELECT id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at, anchor, anchor_version_id, anchor_state, deleted_at, deleted_by_id, deleted_by_kind
 FROM document_comments
 WHERE id = $1
 `
@@ -172,6 +227,64 @@ func (q *Queries) GetDocumentCommentByID(ctx context.Context, id string) (Docume
 		&i.ResolvedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Anchor,
+		&i.AnchorVersionID,
+		&i.AnchorState,
+		&i.DeletedAt,
+		&i.DeletedByID,
+		&i.DeletedByKind,
+	)
+	return i, err
+}
+
+const insertDocumentCommentRevision = `-- name: InsertDocumentCommentRevision :one
+INSERT INTO document_comment_revisions (
+  id, organization_id, workspace_id, document_id, comment_id,
+  body, revision, created_by, created_by_kind
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, $9
+)
+RETURNING id, organization_id, workspace_id, document_id, comment_id, body, revision, created_by, created_by_kind, created_at
+`
+
+type InsertDocumentCommentRevisionParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+	CommentID      string `json:"comment_id"`
+	Body           string `json:"body"`
+	Revision       int64  `json:"revision"`
+	CreatedBy      string `json:"created_by"`
+	CreatedByKind  string `json:"created_by_kind"`
+}
+
+// One row per edit holds the body being replaced and the revision number that
+// body carried (OQ-C3); created_by is the actor of the edit.
+func (q *Queries) InsertDocumentCommentRevision(ctx context.Context, arg InsertDocumentCommentRevisionParams) (DocumentCommentRevision, error) {
+	row := q.db.QueryRow(ctx, insertDocumentCommentRevision,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.CommentID,
+		arg.Body,
+		arg.Revision,
+		arg.CreatedBy,
+		arg.CreatedByKind,
+	)
+	var i DocumentCommentRevision
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.CommentID,
+		&i.Body,
+		&i.Revision,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -223,10 +336,66 @@ func (q *Queries) ListDocumentCommentReactions(ctx context.Context, arg ListDocu
 	return items, nil
 }
 
+const listDocumentCommentRevisions = `-- name: ListDocumentCommentRevisions :many
+SELECT id, organization_id, workspace_id, document_id, comment_id, body, revision, created_by, created_by_kind, created_at
+FROM document_comment_revisions
+WHERE comment_id = $1
+  AND document_id = $2
+  AND organization_id = $3
+  AND workspace_id = $4
+ORDER BY revision DESC
+`
+
+type ListDocumentCommentRevisionsParams struct {
+	CommentID      string `json:"comment_id"`
+	DocumentID     string `json:"document_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// Newest first; the service proves the comment hangs on the document first.
+func (q *Queries) ListDocumentCommentRevisions(ctx context.Context, arg ListDocumentCommentRevisionsParams) ([]DocumentCommentRevision, error) {
+	rows, err := q.db.Query(ctx, listDocumentCommentRevisions,
+		arg.CommentID,
+		arg.DocumentID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DocumentCommentRevision{}
+	for rows.Next() {
+		var i DocumentCommentRevision
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.CommentID,
+			&i.Body,
+			&i.Revision,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentComments = `-- name: ListDocumentComments :many
 SELECT c.id, c.document_id, c.author_id, c.author_kind, c.body, c.created_at,
        c.parent_comment_id, c.comment_type, c.revision, c.updated_at,
        c.resolved_at, c.resolved_by_type, c.resolved_by_id,
+       c.anchor, c.anchor_version_id, c.anchor_state,
+       c.deleted_at, c.deleted_by_id, c.deleted_by_kind,
        COALESCE(u.display_name, a.name, '')::text AS display_name,
        COALESCE(u.avatar_url, a.avatar_url) AS avatar_url,
        u.avatar_file_id
@@ -259,11 +428,21 @@ type ListDocumentCommentsRow struct {
 	ResolvedAt      pgtype.Timestamptz `json:"resolved_at"`
 	ResolvedByType  pgtype.Text        `json:"resolved_by_type"`
 	ResolvedByID    pgtype.Text        `json:"resolved_by_id"`
+	Anchor          []byte             `json:"anchor"`
+	AnchorVersionID pgtype.Text        `json:"anchor_version_id"`
+	AnchorState     pgtype.Text        `json:"anchor_state"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	DeletedByID     pgtype.Text        `json:"deleted_by_id"`
+	DeletedByKind   pgtype.Text        `json:"deleted_by_kind"`
 	DisplayName     string             `json:"display_name"`
 	AvatarUrl       pgtype.Text        `json:"avatar_url"`
 	AvatarFileID    pgtype.Text        `json:"avatar_file_id"`
 }
 
+// One statement is one snapshot: the list and its list_token come from the
+// same rows, so the token can never run ahead of what the caller received
+// (contract-collab section 6). Both thread kinds and tombstones ride along;
+// the service filters kind in memory.
 func (q *Queries) ListDocumentComments(ctx context.Context, arg ListDocumentCommentsParams) ([]ListDocumentCommentsRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentComments, arg.DocumentID, arg.OrganizationID, arg.WorkspaceID)
 	if err != nil {
@@ -287,6 +466,12 @@ func (q *Queries) ListDocumentComments(ctx context.Context, arg ListDocumentComm
 			&i.ResolvedAt,
 			&i.ResolvedByType,
 			&i.ResolvedByID,
+			&i.Anchor,
+			&i.AnchorVersionID,
+			&i.AnchorState,
+			&i.DeletedAt,
+			&i.DeletedByID,
+			&i.DeletedByKind,
 			&i.DisplayName,
 			&i.AvatarUrl,
 			&i.AvatarFileID,
@@ -312,7 +497,7 @@ WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3
   AND resolved_at IS NULL
-RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at, anchor, anchor_version_id, anchor_state, deleted_at, deleted_by_id, deleted_by_kind
 `
 
 type ResolveDocumentCommentParams struct {
@@ -348,6 +533,72 @@ func (q *Queries) ResolveDocumentComment(ctx context.Context, arg ResolveDocumen
 		&i.ResolvedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Anchor,
+		&i.AnchorVersionID,
+		&i.AnchorState,
+		&i.DeletedAt,
+		&i.DeletedByID,
+		&i.DeletedByKind,
+	)
+	return i, err
+}
+
+const tombstoneDocumentComment = `-- name: TombstoneDocumentComment :one
+UPDATE document_comments
+SET body = '',
+    deleted_at = now(),
+    deleted_by_id = $4,
+    deleted_by_kind = $5,
+    updated_at = now()
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+  AND deleted_at IS NULL
+RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at, anchor, anchor_version_id, anchor_state, deleted_at, deleted_by_id, deleted_by_kind
+`
+
+type TombstoneDocumentCommentParams struct {
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	DeletedByID    pgtype.Text `json:"deleted_by_id"`
+	DeletedByKind  pgtype.Text `json:"deleted_by_kind"`
+}
+
+// A comment with surviving replies keeps its place in the thread: the body
+// goes, the frame stays (G8-03, Q8). The deleted_at guard makes a repeat of a
+// raced delete a no-op instead of an overwrite.
+func (q *Queries) TombstoneDocumentComment(ctx context.Context, arg TombstoneDocumentCommentParams) (DocumentComment, error) {
+	row := q.db.QueryRow(ctx, tombstoneDocumentComment,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DeletedByID,
+		arg.DeletedByKind,
+	)
+	var i DocumentComment
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.ParentCommentID,
+		&i.AuthorID,
+		&i.AuthorKind,
+		&i.Body,
+		&i.CommentType,
+		&i.Revision,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Anchor,
+		&i.AnchorVersionID,
+		&i.AnchorState,
+		&i.DeletedAt,
+		&i.DeletedByID,
+		&i.DeletedByKind,
 	)
 	return i, err
 }
@@ -363,7 +614,7 @@ WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3
   AND resolved_at IS NOT NULL
-RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at, anchor, anchor_version_id, anchor_state, deleted_at, deleted_by_id, deleted_by_kind
 `
 
 type UnresolveDocumentCommentParams struct {
@@ -391,6 +642,12 @@ func (q *Queries) UnresolveDocumentComment(ctx context.Context, arg UnresolveDoc
 		&i.ResolvedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Anchor,
+		&i.AnchorVersionID,
+		&i.AnchorState,
+		&i.DeletedAt,
+		&i.DeletedByID,
+		&i.DeletedByKind,
 	)
 	return i, err
 }
@@ -403,7 +660,7 @@ SET body = $4,
 WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3
-RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at, anchor, anchor_version_id, anchor_state, deleted_at, deleted_by_id, deleted_by_kind
 `
 
 type UpdateDocumentCommentBodyParams struct {
@@ -437,6 +694,12 @@ func (q *Queries) UpdateDocumentCommentBody(ctx context.Context, arg UpdateDocum
 		&i.ResolvedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Anchor,
+		&i.AnchorVersionID,
+		&i.AnchorState,
+		&i.DeletedAt,
+		&i.DeletedByID,
+		&i.DeletedByKind,
 	)
 	return i, err
 }

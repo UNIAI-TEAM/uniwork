@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -36,12 +37,21 @@ func documentCommentDTO(c db.DocumentComment, displayName, avatarURL string, rea
 	}
 	out := sdo.DocumentCommentDTO{
 		ID: c.ID, DocumentID: c.DocumentID, AuthorID: c.AuthorID, AuthorKind: c.AuthorKind,
-		Body: c.Body, Type: c.CommentType, Revision: c.Revision,
+		Body: c.Body, Type: c.CommentType, Kind: c.CommentType, Revision: c.Revision,
 		CreatedAt:   c.CreatedAt.Time.UTC().Format(time.RFC3339),
 		UpdatedAt:   c.UpdatedAt.Time.UTC().Format(time.RFC3339),
 		DisplayName: displayName, AvatarURL: avatarURL,
 		Author:    sdo.ActorDTO{ID: c.AuthorID, Kind: c.AuthorKind, DisplayName: displayName, AvatarURL: avatarURL},
 		Reactions: reactions,
+	}
+	// A nil anchor marshals as null: the field is always present, so a client
+	// reads "no anchor" without a second look at the key list.
+	out.Anchor = json.RawMessage(c.Anchor)
+	if c.AnchorVersionID.Valid {
+		out.AnchorVer = &c.AnchorVersionID.String
+	}
+	if c.AnchorState.Valid {
+		out.AnchorState = &c.AnchorState.String
 	}
 	if c.ParentCommentID.Valid {
 		p := c.ParentCommentID.String
@@ -50,6 +60,16 @@ func documentCommentDTO(c db.DocumentComment, displayName, avatarURL string, rea
 	if c.ResolvedAt.Valid {
 		s := c.ResolvedAt.Time.UTC().Format(time.RFC3339)
 		out.ResolvedAt = &s
+	}
+	if c.DeletedAt.Valid {
+		s := c.DeletedAt.Time.UTC().Format(time.RFC3339)
+		out.DeletedAt = &s
+	}
+	if c.DeletedByID.Valid {
+		out.DeletedByID = &c.DeletedByID.String
+	}
+	if c.DeletedByKind.Valid {
+		out.DeletedKind = &c.DeletedByKind.String
 	}
 	return out
 }
@@ -67,6 +87,8 @@ func documentCommentDTOFromListRow(c db.ListDocumentCommentsRow, reactions []sdo
 		Body: c.Body, CommentType: c.CommentType, Revision: c.Revision,
 		ParentCommentID: c.ParentCommentID, ResolvedAt: c.ResolvedAt,
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
+		Anchor: c.Anchor, AnchorVersionID: c.AnchorVersionID, AnchorState: c.AnchorState,
+		DeletedAt: c.DeletedAt, DeletedByID: c.DeletedByID, DeletedByKind: c.DeletedByKind,
 	}, c.DisplayName, avatar, reactions)
 }
 
@@ -122,7 +144,10 @@ func (h *handlers) requireDocumentComment(w http.ResponseWriter, r *http.Request
 }
 
 // listDocumentComments is GET /documents/{documentID}/comments: the thread for
-// a reader (view level), oldest first, with each comment's reactions.
+// a reader (view level), oldest first, with each comment's reactions. The
+// answer always carries the document's list_token; since_token equal to the
+// current token answers unchanged with no rows, so a polling client keeps the
+// list it already has (contract-collab sections 2.1 and 6).
 func (h *handlers) listDocumentComments(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -130,9 +155,24 @@ func (h *handlers) listDocumentComments(w http.ResponseWriter, r *http.Request) 
 	}
 	actor := service.Human(middleware.UserID(r.Context()))
 	documentID := chi.URLParam(r, "documentID")
-	comments, err := h.Documents.DocumentComments(r.Context(), actor, documentID)
+	list, err := h.Documents.DocumentComments(r.Context(), actor, documentID, service.DocumentCommentListInput{
+		Kind:       r.URL.Query().Get("kind"),
+		SinceToken: r.URL.Query().Get("since_token"),
+	})
 	if err != nil {
 		h.mapServiceError(w, err)
+		return
+	}
+	// The mention name table arrives with G8-05; an empty array keeps the SDO
+	// shape the contract fixes.
+	out := sdo.DocumentCommentListSDO{
+		Comments:  make([]sdo.DocumentCommentDTO, 0, len(list.Rows)),
+		Mentions:  []sdo.DocumentCommentMentionDTO{},
+		ListToken: list.Token,
+		Unchanged: list.Unchanged,
+	}
+	if list.Unchanged {
+		respondJSON(w, http.StatusOK, out)
 		return
 	}
 	reactions, err := h.Documents.DocumentCommentReactions(r.Context(), actor, documentID)
@@ -141,8 +181,7 @@ func (h *handlers) listDocumentComments(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	grouped := groupCommentReactions(reactions)
-	out := sdo.DocumentCommentListSDO{Comments: make([]sdo.DocumentCommentDTO, 0, len(comments))}
-	for _, c := range comments {
+	for _, c := range list.Rows {
 		out.Comments = append(out.Comments, documentCommentDTOFromListRow(c, grouped[c.ID]))
 	}
 	respondJSON(w, http.StatusOK, out)
@@ -162,7 +201,8 @@ func (h *handlers) createDocumentComment(w http.ResponseWriter, r *http.Request)
 	c, err := h.Documents.AddDocumentComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.AddCommentInput{
 		Body:        in.Body,
 		ParentID:    in.ParentID,
-		CommentType: in.Type,
+		CommentType: in.Kind,
+		LegacyType:  in.Type,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -195,7 +235,9 @@ func (h *handlers) updateDocumentComment(w http.ResponseWriter, r *http.Request)
 }
 
 // deleteDocumentComment is DELETE /documents/{documentID}/comments/{commentID}:
-// author or manage; the service removes the comment's reactions with it.
+// author or manage. A comment with surviving replies becomes a tombstone
+// frame (outcome "tombstoned"); one without is removed for real (outcome
+// "removed"). `status` keeps the old value old clients read.
 func (h *handlers) deleteDocumentComment(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -204,11 +246,39 @@ func (h *handlers) deleteDocumentComment(w http.ResponseWriter, r *http.Request)
 	if !h.requireDocumentComment(w, r) {
 		return
 	}
-	if err := h.Documents.DeleteDocumentComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID")); err != nil {
+	outcome, err := h.Documents.DeleteDocumentComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID"))
+	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+	respondJSON(w, http.StatusOK, sdo.DocumentCommentDeleteSDO{Status: "ok", Outcome: outcome})
+}
+
+// listDocumentCommentRevisions is GET
+// /documents/{documentID}/comments/{commentID}/revisions (view level):
+// newest first. The service authorizes the document and binds the comment to
+// it; a comment of another document is 404 and a tombstone answers 409
+// comment_deleted - its history was deleted for real (Q8).
+func (h *handlers) listDocumentCommentRevisions(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	revs, err := h.Documents.DocumentCommentRevisions(r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "documentID"), chi.URLParam(r, "commentID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.DocumentCommentRevisionListSDO{Revisions: make([]sdo.DocumentCommentRevisionDTO, 0, len(revs))}
+	for _, rev := range revs {
+		out.Revisions = append(out.Revisions, sdo.DocumentCommentRevisionDTO{
+			ID: rev.ID, Revision: rev.Revision, Body: rev.Body,
+			CreatedByID: rev.CreatedBy, CreatedByKind: rev.CreatedByKind,
+			CreatedAt: rev.CreatedAt.Time.UTC().Format(time.RFC3339),
+		})
+	}
+	respondJSON(w, http.StatusOK, out)
 }
 
 // resolveDocumentComment is POST /documents/{documentID}/comments/{commentID}/resolve

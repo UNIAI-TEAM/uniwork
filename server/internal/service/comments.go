@@ -88,6 +88,12 @@ type commentIdentity struct {
 	ResourceID string // owning task_id / document_id
 	AuthorID   string
 	AuthorKind string
+	// CommentType is the stored thread kind: a reply with no explicit kind
+	// takes its parent's (documents, G8-03); tasks keep their own default.
+	CommentType string
+	// Deleted marks a row kept as a tombstone - a comment whose body is gone
+	// but whose replies survive (documents, G8-03). Tasks never set it.
+	Deleted bool
 }
 
 // errCommentParentForeign marks a supplied parent that exists but belongs
@@ -108,13 +114,17 @@ type commentAdapter[C any] interface {
 	identity(c C) commentIdentity
 
 	insert(ctx context.Context, q *db.Queries, ref CommentRef, in AddCommentInput, p preparedComment) (C, error)
-	updateBody(ctx context.Context, q *db.Queries, ref CommentRef, c C, body string) (C, error)
+	// updateBody is the edit write; actor is the editor, which the document
+	// adapter records on the revision row it writes in the same step.
+	updateBody(ctx context.Context, q *db.Queries, ref CommentRef, actor Actor, c C, body string) (C, error)
 	remove(ctx context.Context, q *db.Queries, ref CommentRef, c C) error
 	resolve(ctx context.Context, q *db.Queries, ref CommentRef, c C, resolvedByType, resolvedByID string) (C, error)
 	unresolve(ctx context.Context, q *db.Queries, ref CommentRef, c C) (C, error)
 
-	// commentTypes is the allowlist normalizeCommentType applies.
-	commentTypes() []string
+	// resolveCommentType maps the caller's kind onto the stored comment_type.
+	// parentType is the parent's comment_type when the create is a reply, ""
+	// for a root; an empty kind takes the resource's default.
+	resolveCommentType(kind, parentType string) (string, error)
 	// foreignParentError is the Invalid() worded for the resource.
 	foreignParentError() error
 	// canModerate is "author or resource manager" on this comment; the
@@ -171,40 +181,55 @@ func loadInResource[C any](ctx context.Context, q *db.Queries, ad commentAdapter
 
 // checkCommentParent validates an optional reply target: it must exist in
 // the tenant pair and hang on the same resource. A comment id from a
-// sibling task/document is refused - never silently adopted.
-func checkCommentParent[C any](ctx context.Context, q *db.Queries, ad commentAdapter[C], ref CommentRef, parentID *string) (pgtype.Text, error) {
+// sibling task/document is refused - never silently adopted. The loaded
+// parent row rides along: the create needs its thread kind (documents
+// inherit it) and whether it is a tombstone.
+func checkCommentParent[C any](ctx context.Context, q *db.Queries, ad commentAdapter[C], ref CommentRef, parentID *string) (pgtype.Text, C, error) {
+	var zero C
 	if parentID == nil || strings.TrimSpace(*parentID) == "" {
-		return pgtype.Text{}, nil
+		return pgtype.Text{}, zero, nil
 	}
 	pid := strings.TrimSpace(*parentID)
 	parent, err := ad.tenantGet(ctx, q, ref, pid)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return pgtype.Text{}, ErrNotFound
+		return pgtype.Text{}, zero, ErrNotFound
 	}
 	if err != nil {
-		return pgtype.Text{}, err
+		return pgtype.Text{}, zero, err
 	}
 	if ad.identity(parent).ResourceID != ref.ResourceID {
-		return pgtype.Text{}, errCommentParentForeign
+		return pgtype.Text{}, zero, errCommentParentForeign
 	}
-	return pgtype.Text{String: pid, Valid: true}, nil
+	return pgtype.Text{String: pid, Valid: true}, parent, nil
 }
 
-// prepareComment runs the validating half of a create: body, the
-// resource's comment_type allowlist and the same-resource parent check.
+// prepareComment runs the validating half of a create: body, the reply
+// target (same resource, not a tombstone) and the thread kind. An empty kind
+// is the resource's default; documents inherit a reply's kind from its parent
+// and fall back to discussion for a root (G8-03, OQ-C2).
 func prepareComment[C any](ctx context.Context, q *db.Queries, ad commentAdapter[C], ref CommentRef, actor Actor, in AddCommentInput) (preparedComment, error) {
 	body, err := normalizeCommentBody(in.Body)
 	if err != nil {
 		return preparedComment{}, err
 	}
-	commentType, err := normalizeCommentType(in.CommentType, ad.commentTypes())
-	if err != nil {
-		return preparedComment{}, err
-	}
-	parent, err := checkCommentParent(ctx, q, ad, ref, in.ParentID)
+	parent, parentRow, err := checkCommentParent(ctx, q, ad, ref, in.ParentID)
 	if errors.Is(err, errCommentParentForeign) {
 		return preparedComment{}, ad.foreignParentError()
 	}
+	if err != nil {
+		return preparedComment{}, err
+	}
+	parentType := ""
+	if parent.Valid {
+		parentIdentity := ad.identity(parentRow)
+		// A tombstone is a dead thread end: nothing may be appended to it.
+		// Surviving replies keep working - they name a live parent.
+		if parentIdentity.Deleted {
+			return preparedComment{}, errCommentDeleted()
+		}
+		parentType = parentIdentity.CommentType
+	}
+	commentType, err := ad.resolveCommentType(in.CommentType, parentType)
 	if err != nil {
 		return preparedComment{}, err
 	}
@@ -273,7 +298,7 @@ func updateCommentOn[C any](ctx context.Context, q *db.Queries, ad commentAdapte
 	if err != nil {
 		return z, err
 	}
-	c, err = ad.updateBody(ctx, q, ref, c, body)
+	c, err = ad.updateBody(ctx, q, ref, actor, c, body)
 	if err != nil {
 		return z, err
 	}

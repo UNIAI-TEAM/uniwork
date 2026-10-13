@@ -692,6 +692,7 @@ func New(d Deps) http.Handler {
 		ReopenDocumentComment:         h.reopenDocumentComment,
 		AddDocumentCommentReaction:    h.addDocumentCommentReaction,
 		RemoveDocumentCommentReaction: h.removeDocumentCommentReaction,
+		ListDocumentCommentRevisions:  h.listDocumentCommentRevisions,
 		FavoriteDocument:              h.favoriteDocument,
 		UnfavoriteDocument:            h.unfavoriteDocument,
 		ListDocumentFavorites:         h.listDocumentFavorites,

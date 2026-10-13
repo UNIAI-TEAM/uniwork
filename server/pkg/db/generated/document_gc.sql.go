@@ -199,6 +199,67 @@ func (q *Queries) DeleteDocumentAutoVersionsBelow(ctx context.Context, arg Delet
 	return items, nil
 }
 
+const deleteDocumentCommentMentionsByDocument = `-- name: DeleteDocumentCommentMentionsByDocument :exec
+DELETE FROM document_comment_mentions
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+`
+
+type DeleteDocumentCommentMentionsByDocumentParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+func (q *Queries) DeleteDocumentCommentMentionsByDocument(ctx context.Context, arg DeleteDocumentCommentMentionsByDocumentParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentCommentMentionsByDocument, arg.OrganizationID, arg.WorkspaceID, arg.DocumentID)
+	return err
+}
+
+const deleteDocumentCommentReactionsByDocument = `-- name: DeleteDocumentCommentReactionsByDocument :exec
+DELETE FROM comment_reactions r
+USING document_comments c
+WHERE r.comment_id = c.id
+  AND c.document_id = $1
+  AND c.organization_id = $2
+  AND c.workspace_id = $3
+  AND r.organization_id = $2
+  AND r.workspace_id = $3
+`
+
+type DeleteDocumentCommentReactionsByDocumentParams struct {
+	DocumentID     string `json:"document_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// The comment orbit purges in one order: reactions, mentions, revisions, then
+// the comments they hang on. comment_reactions carries no document_id, so its
+// rows are reached through document_comments and must go first (G8-03).
+func (q *Queries) DeleteDocumentCommentReactionsByDocument(ctx context.Context, arg DeleteDocumentCommentReactionsByDocumentParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentCommentReactionsByDocument, arg.DocumentID, arg.OrganizationID, arg.WorkspaceID)
+	return err
+}
+
+const deleteDocumentCommentRevisionsByDocument = `-- name: DeleteDocumentCommentRevisionsByDocument :exec
+DELETE FROM document_comment_revisions
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+`
+
+type DeleteDocumentCommentRevisionsByDocumentParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+func (q *Queries) DeleteDocumentCommentRevisionsByDocument(ctx context.Context, arg DeleteDocumentCommentRevisionsByDocumentParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentCommentRevisionsByDocument, arg.OrganizationID, arg.WorkspaceID, arg.DocumentID)
+	return err
+}
+
 const deleteDocumentComments = `-- name: DeleteDocumentComments :exec
 DELETE FROM document_comments
 WHERE organization_id = $1
