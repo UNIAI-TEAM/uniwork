@@ -10,6 +10,7 @@ import {
   useCreateDocumentComment,
   useDeleteDocumentComment,
   useDocumentComments,
+  useDocumentMentionCandidates,
   useRemoveDocumentCommentReaction,
   useReopenDocumentComment,
   useResolveDocumentComment,
@@ -117,6 +118,33 @@ describe("document comment hooks", () => {
         create.result.current.mutateAsync({ body: "hello", idempotencyKey: "k1" }),
       ).rejects.toBeInstanceOf(DocumentNotVerifiableError);
     });
+  });
+
+  it("loads the mention picker per term and page, and stays idle without ids", async () => {
+    vi.mocked(fetch).mockResolvedValue(json({ candidates: [{ user_id: "u1", display_name: "An" }] }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = wrapperFor(qc);
+
+    const idle = renderHook(() => useDocumentMentionCandidates("", "", ""), { wrapper });
+    expect(idle.result.current.fetchStatus).toBe("idle");
+
+    const closed = renderHook(
+      () => useDocumentMentionCandidates("w1", "d1", "an", { enabled: false }),
+      { wrapper },
+    );
+    expect(closed.result.current.fetchStatus).toBe("idle");
+
+    const picker = renderHook(
+      () => useDocumentMentionCandidates("w1", "d1", "  an  ", { limit: 10 }),
+      { wrapper },
+    );
+    await waitFor(() => expect(picker.result.current.isSuccess).toBe(true));
+    expect(picker.result.current.data?.[0]?.user_id).toBe("u1");
+    // The trimmed term and the page size are in the key, so two pages never
+    // share one cache entry.
+    expect(qc.getQueryData(documentKeys.mentionCandidates("w1", "d1", "an", 10))).toHaveLength(1);
+    const [url] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toContain("/mention-candidates?q=an&limit=10");
   });
 
   it("a malformed delete or reaction answer is not verifiable", async () => {

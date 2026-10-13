@@ -225,3 +225,13 @@ type ListDocumentAccessLogsSDI struct {
 type SetDocumentSettingsSDI struct {
 	PublicLinksEnabled bool `json:"public_links_enabled" description:"Bật/tắt liên kết công khai cho tổ chức" example:"true"`
 }
+
+// ListMentionCandidatesSDI documents the query params of GET
+// /api/v1/documents/{documentID}/mention-candidates (G8-06): the mention
+// picker's people. `q` is folded and matched against the display name and the
+// email, so "nguyen" finds "Nguyễn"; `limit` clamps to the default 20 and the
+// cap 50.
+type ListMentionCandidatesSDI struct {
+	Query *string `query:"q" description:"Từ khóa tìm theo tên hiển thị và email (gấp dấu); bỏ trống = mọi người đọc được" example:"nguyen"`
+	Limit *int32  `query:"limit" description:"Kích thước trang, mặc định 20, tối đa 50; ngoài khoảng bị kẹp" example:"20"`
+}

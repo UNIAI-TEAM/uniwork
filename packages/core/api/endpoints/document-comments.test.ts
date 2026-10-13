@@ -7,6 +7,7 @@ import {
   deleteDocumentComment,
   listDocumentCommentRevisions,
   listDocumentComments,
+  listDocumentMentionCandidates,
   removeDocumentCommentReaction,
   reopenDocumentComment,
   resolveDocumentComment,
@@ -50,6 +51,14 @@ const reactionBody = (over: Record<string, unknown> = {}) => ({
   actor_id: "u1",
   emoji: "👍",
   created_at: "2026-09-28T08:01:00Z",
+  ...over,
+});
+
+const candidateBody = (over: Record<string, unknown> = {}) => ({
+  user_id: "u1",
+  display_name: "Nguyễn Văn An",
+  avatar_url: "https://cdn.example.com/avatars/an.png",
+  email: "an.nguyen@example.com",
   ...over,
 });
 
@@ -286,6 +295,40 @@ describe("document comment endpoints", () => {
       await expect(
         removeDocumentCommentReaction("d1", "c1", { emoji: "👍" }),
       ).resolves.toBe(false);
+    }
+  });
+
+  // ---- mention candidates (G8-06) ---------------------------------------
+
+  it("listDocumentMentionCandidates reads the picker route with q and limit", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ candidates: [candidateBody()] }));
+    const out = await listDocumentMentionCandidates("d1", { q: "nguyen", limit: 10 });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe(
+      "http://api.test/api/v1/documents/d1/mention-candidates?q=nguyen&limit=10",
+    );
+    expect(init?.method).toBe("GET");
+    expect(out).toHaveLength(1);
+    expect(out[0]?.user_id).toBe("u1");
+    expect(out[0]?.display_name).toBe("Nguyễn Văn An");
+    expect(out[0]?.email).toBe("an.nguyen@example.com");
+  });
+
+  it("keeps the picker email-free when the server hides it and defaults the name", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ candidates: [candidateBody({ email: undefined, display_name: undefined })] }),
+    );
+    const out = await listDocumentMentionCandidates("d1");
+    const [url] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/mention-candidates");
+    expect(out[0]?.email).toBeUndefined();
+    expect(out[0]?.display_name).toBe("");
+  });
+
+  it("degrades the candidates to [] when the envelope is malformed", async () => {
+    for (const body of malformedBodies) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(listDocumentMentionCandidates("d1", { q: "an" })).resolves.toEqual([]);
     }
   });
 });
