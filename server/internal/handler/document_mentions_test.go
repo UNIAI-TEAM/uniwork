@@ -74,6 +74,22 @@ func TestDocumentMentionCandidatesRoute(t *testing.T) {
 		}
 	}
 
+	// The share reader may not confirm an address through q: the email leg of
+	// the search is gated like the email field, so the guest cannot find
+	// themselves by their own address - while the owner, who may list the
+	// members, finds them.
+	res, out = doJSON(t, w.srv, "GET", path+"?q=collab-guest@example.com", guest, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("share reader search: %d %v", res.StatusCode, out)
+	}
+	if rows := out["candidates"].([]any); len(rows) != 0 {
+		t.Fatalf("the share reader confirmed an address through q: %v", rows)
+	}
+	res, out = doJSON(t, w.srv, "GET", path+"?q=collab-guest@example.com", w.token, nil)
+	if res.StatusCode != http.StatusOK || len(out["candidates"].([]any)) != 1 {
+		t.Fatalf("the owner cannot search by email: %d %v", res.StatusCode, out)
+	}
+
 	// Someone in no organization at all is refused like every other document
 	// read - not found, never a hint that the document exists.
 	res, out = doJSON(t, w.srv, "GET", path, w.outsider, nil)
@@ -81,9 +97,19 @@ func TestDocumentMentionCandidatesRoute(t *testing.T) {
 		t.Fatalf("outsider = %d %v, want 404", res.StatusCode, out)
 	}
 
-	// A limit that is not an integer is a malformed request, not a clamp.
+	// A limit that is not an integer is a malformed request, not a clamp; an
+	// explicit 0 is the contract's floor of one row, and a huge value is
+	// capped rather than refused.
 	res, out = doJSON(t, w.srv, "GET", path+"?limit=abc", w.token, nil)
 	if code, _ := errCodeClass(out); res.StatusCode != http.StatusBadRequest || code != "invalid_request" {
 		t.Fatalf("limit=abc: %d code=%q", res.StatusCode, code)
+	}
+	res, out = doJSON(t, w.srv, "GET", path+"?limit=0", w.token, nil)
+	if res.StatusCode != http.StatusOK || len(out["candidates"].([]any)) != 1 {
+		t.Fatalf("limit=0: %d %v, want the floor of one row", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "GET", path+"?limit=999", w.token, nil)
+	if res.StatusCode != http.StatusOK || len(out["candidates"].([]any)) > 50 {
+		t.Fatalf("limit=999: %d %v, want a capped page", res.StatusCode, out)
 	}
 }

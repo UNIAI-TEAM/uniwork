@@ -35,7 +35,9 @@ func (h *handlers) listDocumentMentionCandidates(w http.ResponseWriter, r *http.
 			respondError(w, http.StatusBadRequest, "invalid_request", "limit must be an integer")
 			return
 		}
-		in.Limit = n
+		// The pointer is what tells "no limit asked for" (default page) from
+		// an explicit value, which the service clamps into [1, 50].
+		in.Limit = &n
 	}
 	candidates, err := h.Documents.MentionCandidates(
 		r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), in)

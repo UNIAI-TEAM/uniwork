@@ -41,6 +41,10 @@ WHERE om.organization_id = $1::text
           (ds.principal_type = 'user' AND ds.principal_id = u.id)
           OR (ds.principal_type = 'organization' AND ds.principal_id = ds.organization_id)
           OR (ds.principal_type = 'workspace'
+              AND EXISTS (
+                SELECT 1 FROM workspaces w
+                WHERE w.id = ds.principal_id
+                  AND w.organization_id = ds.organization_id)
               AND (om.role IN ('owner', 'admin')
                 OR EXISTS (
                   SELECT 1 FROM workspace_members wm2
@@ -50,10 +54,11 @@ WHERE om.organization_id = $1::text
   AND (
     $6::text IS NULL
     OR uw_fold_search(u.display_name) LIKE '%' || $6::text || '%'
-    OR uw_fold_search(u.email) LIKE '%' || $6::text || '%'
+    OR ($7::boolean
+        AND uw_fold_search(u.email) LIKE '%' || $6::text || '%')
   )
 ORDER BY u.display_name, u.id
-LIMIT $7::int
+LIMIT $8::int
 `
 
 type ListDocumentMentionCandidatesParams struct {
@@ -63,6 +68,7 @@ type ListDocumentMentionCandidatesParams struct {
 	WorkspaceVisible bool        `json:"workspace_visible"`
 	DocumentID       string      `json:"document_id"`
 	Q                pgtype.Text `json:"q"`
+	SeeMembers       bool        `json:"see_members"`
 	RowLimit         int32       `json:"row_limit"`
 }
 
@@ -86,7 +92,9 @@ type ListDocumentMentionCandidatesRow struct {
 // access is delegated to an owning product never reaches it.
 //
 // The search term arrives already folded (foldForSearch) and escaped, and is
-// matched against uw_fold_search of the display name and the email.
+// matched against uw_fold_search of the display name and, only for a caller
+// who may list the workspace's members (see_members), of the email - so the
+// search can never confirm an address the response hides.
 func (q *Queries) ListDocumentMentionCandidates(ctx context.Context, arg ListDocumentMentionCandidatesParams) ([]ListDocumentMentionCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentMentionCandidates,
 		arg.OrganizationID,
@@ -95,6 +103,7 @@ func (q *Queries) ListDocumentMentionCandidates(ctx context.Context, arg ListDoc
 		arg.WorkspaceVisible,
 		arg.DocumentID,
 		arg.Q,
+		arg.SeeMembers,
 		arg.RowLimit,
 	)
 	if err != nil {
@@ -104,6 +113,97 @@ func (q *Queries) ListDocumentMentionCandidates(ctx context.Context, arg ListDoc
 	items := []ListDocumentMentionCandidatesRow{}
 	for rows.Next() {
 		var i ListDocumentMentionCandidatesRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.DisplayName,
+			&i.Email,
+			&i.AvatarUrl,
+			&i.AvatarFileID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnedDocumentMentionCandidates = `-- name: ListOwnedDocumentMentionCandidates :many
+SELECT
+  u.id AS user_id,
+  u.display_name,
+  u.email,
+  u.avatar_url,
+  u.avatar_file_id
+FROM organization_members om
+JOIN users u ON u.id = om.user_id
+WHERE om.organization_id = $1::text
+  AND om.deactivated_at IS NULL
+  AND (
+    om.role IN ('owner', 'admin')
+    OR EXISTS (
+      SELECT 1 FROM workspace_members wm
+      WHERE wm.workspace_id = $2::text
+        AND wm.organization_id = $1::text
+        AND wm.user_id = u.id)
+  )
+  AND (
+    $3::text IS NULL
+    OR uw_fold_search(u.display_name) LIKE '%' || $3::text || '%'
+    OR ($4::boolean
+        AND uw_fold_search(u.email) LIKE '%' || $3::text || '%')
+  )
+ORDER BY u.display_name, u.id
+LIMIT $5::int
+`
+
+type ListOwnedDocumentMentionCandidatesParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Q              pgtype.Text `json:"q"`
+	SeeMembers     bool        `json:"see_members"`
+	RowLimit       int32       `json:"row_limit"`
+}
+
+type ListOwnedDocumentMentionCandidatesRow struct {
+	UserID       string      `json:"user_id"`
+	DisplayName  string      `json:"display_name"`
+	Email        string      `json:"email"`
+	AvatarUrl    pgtype.Text `json:"avatar_url"`
+	AvatarFileID pgtype.Text `json:"avatar_file_id"`
+}
+
+// Mention candidates for an owned document (G8-06, UNI-1401; C-01 section
+// 13.4): an owned document's level comes from its owning product, so its
+// readers cannot be read from membership or shares here. The picker therefore
+// starts from the effective workspace members of the document's workspace -
+// a workspace_members row, or an organization owner/admin, whom RequireMember
+// folds into a workspace admin - and the service keeps only the ones the
+// owner resolver really grants (FilterDocumentReaders). A deactivated
+// organization member is out, like everywhere else. The caller is authorized
+// by the service before this runs.
+//
+// The search term arrives already folded (foldForSearch) and escaped; the
+// email leg applies only for a caller who may list the workspace's members
+// (see_members), so the search can never confirm an address the response
+// hides.
+func (q *Queries) ListOwnedDocumentMentionCandidates(ctx context.Context, arg ListOwnedDocumentMentionCandidatesParams) ([]ListOwnedDocumentMentionCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listOwnedDocumentMentionCandidates,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Q,
+		arg.SeeMembers,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnedDocumentMentionCandidatesRow{}
+	for rows.Next() {
+		var i ListOwnedDocumentMentionCandidatesRow
 		if err := rows.Scan(
 			&i.UserID,
 			&i.DisplayName,
