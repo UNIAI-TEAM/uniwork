@@ -146,7 +146,7 @@ func TestApplyProviderEventRejectsWhenQuotaExceededAtIPN(t *testing.T) {
 	}
 }
 
-func TestApplyProviderEventRejectsSupersededExpiredIntent(t *testing.T) {
+func TestApplyProviderEventAcceptsPaidExpiredIntent(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "paid_team", 500000, nil)
 	oldID := "01TESTVNAPYINTENT00004"
@@ -166,15 +166,38 @@ func TestApplyProviderEventRejectsSupersededExpiredIntent(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ev := billing.Event{ProviderEventID: "old-paid", ProviderTxnRef: oldID, Paid: true, Amount: 500000, Currency: "VND"}
-	if err := f.billing.ApplyProviderEvent(f.ctx, ev); err == nil {
-		t.Fatal("expected superseded expired intent to be rejected")
+	ev := billing.Event{
+		ProviderEventID: "old-paid",
+		ProviderTxnRef:  oldID,
+		Paid:            true,
+		Amount:          500000,
+		Currency:        "VND",
+		RawParams:       map[string]string{"vnp_TransactionNo": "99887766"},
+	}
+	if err := f.billing.ApplyProviderEvent(f.ctx, ev); err != nil {
+		t.Fatal(err)
 	}
 	snap, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snap.Plan.Code == "paid_team" {
-		t.Fatal("subscription must not change on expired intent")
+	if snap.Plan.Code != "paid_team" {
+		t.Fatalf("plan = %s, want paid_team", snap.Plan.Code)
+	}
+	var invCount int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM invoices WHERE organization_id = $1`, f.orgID).Scan(&invCount); err != nil || invCount != 1 {
+		t.Fatalf("invoices = %d (%v), want 1", invCount, err)
+	}
+	var status, txnNo, sibling string
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT status, COALESCE(provider_transaction_no, '') FROM billing_payment_intents WHERE id = $1`,
+		oldID).Scan(&status, &txnNo); err != nil {
+		t.Fatal(err)
+	}
+	if status != "completed" || txnNo != "99887766" {
+		t.Fatalf("expired intent status=%q txn=%q, want completed / 99887766", status, txnNo)
+	}
+	if err := f.pool.QueryRow(f.ctx, `SELECT status FROM billing_payment_intents WHERE id = $1`, newID).Scan(&sibling); err != nil || sibling != "pending" {
+		t.Fatalf("newer intent status = %q (%v), want pending", sibling, err)
 	}
 }

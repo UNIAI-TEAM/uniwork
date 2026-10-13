@@ -22,9 +22,9 @@
 |-------------|-----------|
 | Chữ ký / TMN / amount lệch | Sửa `VNPAY_*`. Chữ ký sai trả `RspCode` `97`; lệch số tiền trả `04`. Không trả `00` khi apply fail (S1). |
 | IPN không tới | Sửa tunnel / firewall; restart API sau khi đổi `API_PUBLIC_URL`. |
-| Intent `expired`, đã trả trong 72h | Sửa lỗi apply, replay từ payload inbox hoặc gọi lại IPN từ VNPay nếu portal hỗ trợ. |
+| Intent `expired`, khách đã trả đúng số tiền | Apply nhận IPN: intent thành `completed`, có hóa đơn, gói đổi, `RspCode` `00`. Không cần sửa tay. |
+| Intent `expired`, số tiền lệch | Intent chuyển `failed`, `RspCode` `04`, gói không đổi. Đối chiếu merchant portal rồi hoàn tiền thủ công. |
 | Row DEAD sau bug code | Hotfix, deploy; replay inbox `PENDING` hoặc `ApplyProviderEvent` từ payload đã lưu (idempotent khi intent `completed`). |
-| DEAD, amount/plan khớp, ngoài grace 72h | Ticket support: đối chiếu merchant portal, hoàn tiền / `ChangePlan` thủ công có audit. |
 
 Sau khi xử lý, counter `uniwork_billing_webhook_dead_total` không tăng thêm; org owner thấy gói và hóa đơn đúng.
 
