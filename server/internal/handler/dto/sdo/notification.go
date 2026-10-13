@@ -11,6 +11,14 @@ type NotificationDTO struct {
 	ResourceType    string `json:"resource_type" description:"task, meeting, workspace, audit_export, chat_message hoặc email_account" example:"task"`
 	ResourceID      string `json:"resource_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
 	ResourceDeleted bool   `json:"resource_deleted" description:"true khi task/meeting/tin nhắn chat đích không còn" example:"false"`
+	// ResourceAccessLost is true when the recipient can no longer read the
+	// document a notification names (G8-07). The link stays; the snippet keys
+	// are removed from params.
+	ResourceAccessLost bool `json:"resource_access_lost" description:"true khi người nhận không còn đọc được tài liệu đích; params đã bỏ snippet" example:"false"`
+	// CommentDeleted is true when the document notification's comment no
+	// longer exists (deleted or tombstoned). The document link still opens
+	// when the document is readable.
+	CommentDeleted bool `json:"comment_deleted" description:"true khi bình luận của thông báo không còn (đã xóa hoặc tombstone)" example:"false"`
 	// ResourceParentID is where a resource with no page of its own lives: a
 	// chat message's room.
 	ResourceParentID string          `json:"resource_parent_id,omitempty" description:"Với chat_message: id phòng chứa tin nhắn" example:"01J8X4K2M0N1P2Q3R4S5T6U7VC"`
