@@ -199,6 +199,29 @@ func TestDocumentCommentAnchorsCreate(t *testing.T) {
 		t.Fatalf("comment rows = %d, want 4", n)
 	}
 
+	// R3-1: the fingerprint also binds base_version_id, so one key with the
+	// same body and anchor but a different valid base version is a mismatch,
+	// never a replay of the comment bound to the first version. Without it a
+	// retry could answer a comment pinned to the wrong version.
+	versionKey := util.NewID()
+	bound := f.anchoredCreate(t, member, d, versions[0].ID, string(anchorRaw("xlsx", nil)), versionKey)
+	if _, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{
+		Body: "có neo", CommentType: "comment",
+		Anchor: json.RawMessage(anchorRaw("xlsx", nil)), BaseVersionID: versions[2].ID,
+	}, versionKey); err == nil {
+		t.Fatal("same key with a different base_version_id was accepted")
+	} else {
+		collabWantCode(t, err, "idempotency_payload_mismatch")
+	}
+	if n := anchorCountRows(t, f, `SELECT count(*) FROM document_comments WHERE document_id = $1`, d.ID); n != 5 {
+		t.Fatalf("comment rows after version mismatch = %d, want 5", n)
+	}
+	// The same key and payload still replays the first version's comment.
+	replayedBound := f.anchoredCreate(t, member, d, versions[0].ID, string(anchorRaw("xlsx", nil)), versionKey)
+	if replayedBound.ID != bound.ID {
+		t.Fatalf("version replay = %s, want %s", replayedBound.ID, bound.ID)
+	}
+
 	// The unresolvable versions share one refusal body and write nothing:
 	// an unknown id and another document's version.
 	d2, v2 := f.anchorDoc(t, tn, "xlsx", 1)
