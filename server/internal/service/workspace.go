@@ -692,6 +692,14 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	if err := lockMembership(ctx, qtx, userID); err != nil {
 		return AcceptResult{}, err
 	}
+	// The organization row, shared, before the invitation row: Close takes it
+	// for update before it counts the members, so a close and this join
+	// cannot both commit (ADR 0032 D5). The invitation's organization never
+	// changes, so the unlocked read above names the right row.
+	org, err := qtx.LockOrganizationForShare(ctx, inv.OrganizationID)
+	if err != nil {
+		return AcceptResult{}, err
+	}
 	inv, err = qtx.LockInvitationByToken(ctx, token)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AcceptResult{}, ErrNotFound
@@ -701,10 +709,6 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	}
 	if inv.AcceptedAt.Valid || inv.RevokedAt.Valid || !inv.ExpiresAt.Time.After(time.Now()) {
 		return AcceptResult{}, ErrNotFound
-	}
-	org, err := qtx.GetOrganizationByID(ctx, inv.OrganizationID)
-	if err != nil {
-		return AcceptResult{}, err
 	}
 	var ws db.Workspace
 	if inv.WorkspaceID.Valid {

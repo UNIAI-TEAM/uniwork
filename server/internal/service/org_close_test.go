@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"testing"
+	"time"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -151,5 +152,68 @@ func TestClosedOrganizationDoesNotBlockAccountDeletion(t *testing.T) {
 	// The owner of a live organization still has to hand it over first.
 	if err := f.auth.DeleteAccount(f.ctx, f.owner.ID, DeleteAccountInput{Password: "password123"}); !errors.Is(err, ErrOwnerMustTransfer) {
 		t.Fatalf("delete the account of an active owner: %v", err)
+	}
+}
+
+// waitForRowLockWaiters blocks until n backends of this database wait on a
+// row or transaction lock (advisory waits are the test lock of other
+// packages), so a race is staged in a known order instead of by sleeping.
+func (f *orgMembersFixture) waitForRowLockWaiters(t *testing.T, n int) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		got := f.count(t, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event <> 'advisory'`)
+		if got >= n {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("fewer than %d transactions waiting on a lock", n)
+}
+
+// Close decides "nobody else is here" (D5) while an acceptance into the same
+// organization may be mid-flight. The acceptance holds the organization row
+// shared from before it locks the invitation, so Close waits for it, counts
+// the new member and refuses; it never archives an organization somebody was
+// just told they joined.
+func TestCloseWaitsForAnAcceptanceIntoTheSameOrganization(t *testing.T) {
+	f := newOrgMembersFixture(t)
+	o := f.soloOrganization(t)
+	joiner := registerVerified(t, f.q, f.auth, "joiner@example.com", "Joiner")
+	token := f.inviteToOrg(t, o.ID, f.other.ID, "joiner@example.com")
+
+	// Holding the subscription row parks the acceptance in Consume, after
+	// it has locked the invitation and before it adds the member.
+	hold, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hold.Rollback(f.ctx) //nolint:errcheck
+	if _, err := hold.Exec(f.ctx, `SELECT 1 FROM subscriptions WHERE organization_id = $1 AND status <> 'canceled' FOR UPDATE`, o.ID); err != nil {
+		t.Fatal(err)
+	}
+	accepted := make(chan error, 1)
+	go func() {
+		_, err := f.ws.AcceptInvite(f.ctx, joiner.ID, token)
+		accepted <- err
+	}()
+	f.waitForRowLockWaiters(t, 1)
+	closed := make(chan error, 1)
+	go func() { closed <- f.svc.Close(f.ctx, f.other.ID, o.ID, "mot-minh") }()
+	f.waitForRowLockWaiters(t, 2)
+	if err := hold.Rollback(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := <-accepted; err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	codedFields(t, <-closed, "organization_has_members")
+	if got, _ := f.q.GetOrganizationByID(f.ctx, o.ID); got.Status != OrganizationActive {
+		t.Fatalf("organization after the race: %s", got.Status)
+	}
+	if m, err := f.svc.member(f.ctx, o.ID, joiner.ID); err != nil || m.DeactivatedAt.Valid {
+		t.Fatalf("joiner after the race: %v %+v", err, m)
 	}
 }

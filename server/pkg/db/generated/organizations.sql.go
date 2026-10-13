@@ -651,6 +651,59 @@ func (q *Queries) ListWorkspacesInOrg(ctx context.Context, organizationID string
 	return items, nil
 }
 
+const lockOrganizationForShare = `-- name: LockOrganizationForShare :one
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at FROM organizations WHERE id = $1 FOR SHARE
+`
+
+// An acceptance holds the organization row shared before it locks the
+// invitation, the order that serializes it against Close without deadlock.
+func (q *Queries) LockOrganizationForShare(ctx context.Context, id string) (Organization, error) {
+	row := q.db.QueryRow(ctx, lockOrganizationForShare, id)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.SuspendedAt,
+		&i.SuspendedReason,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.DeletionScheduledAt,
+	)
+	return i, err
+}
+
+const lockOrganizationForUpdate = `-- name: LockOrganizationForUpdate :one
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at FROM organizations WHERE id = $1 FOR UPDATE
+`
+
+// Close holds the organization row while it counts the other members, so an
+// acceptance into the organization either commits first and is counted, or
+// waits and finds it archived (ADR 0032 D5).
+func (q *Queries) LockOrganizationForUpdate(ctx context.Context, id string) (Organization, error) {
+	row := q.db.QueryRow(ctx, lockOrganizationForUpdate, id)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.SuspendedAt,
+		&i.SuspendedReason,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.DeletionScheduledAt,
+	)
+	return i, err
+}
+
 const lockOrganizationMemberForUpdate = `-- name: LockOrganizationMemberForUpdate :one
 SELECT organization_id, user_id, role, created_at, deactivated_at, deactivated_by, invited_by, updated_at FROM organization_members
 WHERE organization_id = $1 AND user_id = $2

@@ -53,7 +53,10 @@ func (s *OrganizationMemberService) closeQ(ctx context.Context, q *db.Queries, a
 	if err != nil {
 		return nil, err
 	}
-	org, err := q.GetOrganizationByID(ctx, orgID)
+	// The organization row next: an acceptance into it holds the row shared
+	// from before it locks the invitation, so the count below either sees
+	// that member or the acceptance waits and finds the organization closed.
+	org, err := q.LockOrganizationForUpdate(ctx, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +84,7 @@ func (s *OrganizationMemberService) closeQ(ctx context.Context, q *db.Queries, a
 		return nil, err
 	}
 	if closed == 0 {
-		// A platform admin suspended it between the read and the write.
+		// Unreachable while the row is locked; kept as the write's own guard.
 		return nil, ErrConflict
 	}
 	if _, err := q.SetOrganizationMemberDeactivated(ctx, db.SetOrganizationMemberDeactivatedParams{
