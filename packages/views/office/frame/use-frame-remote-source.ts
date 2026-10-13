@@ -50,10 +50,11 @@ function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }:
     const abort = new AbortController();
     const live = () => !abort.signal.aborted;
 
-    const readHead = async () => {
+    // `news` = the head may be offered as a new version; without it the read only gives the block verdict.
+    const readHead = async (news = true) => {
       try {
         const doc = await getDocument(documentId, abort.signal);
-        if (!doc || !live()) return;
+        if (!doc || !live() || !news) return;
         latest.current.onHead({ revision: doc.revision, versionId: doc.file?.version_id ?? null, savedAt: doc.updated_at || new Date().toISOString() });
       } catch (error) {
         if (!live() || !(error instanceof ApiError)) return;
@@ -99,7 +100,9 @@ function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }:
       client.on("document.deleted", (payload) => { if (documentOf(payload) === documentId) latest.current.onBlocked("document_deleted"); }),
       // A revoked share says nothing of who lost access: the head read answers 403 for them only.
       client.on("document.share_revoked", (payload) => { if (documentOf(payload) === documentId) void readHead(); }),
-      client.onReconnect(() => { if (syncFeed) void catchUp(); }),
+      // With the feed off a reconnect still asks the head once: a delete or a revoke while the
+      // socket was down must block now, not at the next refused Save (S11 is flag-independent).
+      client.onReconnect(() => { if (syncFeed) void catchUp(); else void readHead(false); }),
     ];
     return () => { abort.abort(); for (const off of offs) off(); };
   }, [client, documentId, syncFeed, wsId]);

@@ -288,14 +288,16 @@ describe("useDocsFrameSession: doc.remoteVersion", () => {
     expect(frame.save).toHaveBeenCalledWith(expect.objectContaining({ etag: "9" }), expect.anything());
   });
 
-  it("with office_sync_feed off sends nothing and reads no head; a stale Save still meets the conflict", async () => {
+  it("with office_sync_feed off sends nothing and reads no feed (a reconnect reads the head once, for a block only); a stale Save still meets the conflict", async () => {
     flag.syncFeed = false;
     const frame = await openedFrame();
     await frame.commitElsewhere("10", "v2");
     await act(async () => { ws.reconnect(); });
     await flush();
     expect(frame.events("doc.remoteVersion")).toHaveLength(0);
-    expect(requestMock.mock.calls.some(([path]) => path === DOC_PATH || String(path).startsWith(FEED_PATH))).toBe(false);
+    // The reconnect asks the head once for a block verdict (R3-03); no feed, no new-version news.
+    expect(requestMock.mock.calls.filter(([path]) => path === DOC_PATH)).toHaveLength(1);
+    expect(requestMock.mock.calls.some(([path]) => String(path).startsWith(FEED_PATH))).toBe(false);
     frame.save.mockRejectedValueOnce(new DocsProtocolError({ code: "conflict", message: "document_version_conflict (HTTP 409)", status: 409, details: { apiCode: "document_version_conflict" } }));
     const reply = await frame.answer(frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(2), etag: "9" }));
     expect(reply.error).toMatchObject({ code: "conflict", status: 409 });
@@ -550,6 +552,16 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     await act(async () => { ws.emit("document.deleted", { document_id: "doc-1", workspace_id: "ws-1" }); });
     expect(frame.events("doc.blocked").map((p) => (p as { reason: string }).reason)).toEqual(["permission_revoked", "document_deleted"]);
     expect(frame.events("doc.remoteVersion")).toHaveLength(0);
+  });
+
+  it("with office_sync_feed off a reconnect still reads the head once: a delete while offline blocks (R3-03)", async () => {
+    flag.syncFeed = false;
+    const frame = await openedFrame();
+    frame.server.headError = new ApiError("not found", "not_found", 404);
+    await act(async () => { ws.reconnect(); });
+    await waitFor(() => expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: "document_deleted" }]));
+    expect(frame.hook.result.current.blocked).toBe("document_deleted");
+    expect(requestMock.mock.calls.some(([path]) => String(path).startsWith(FEED_PATH))).toBe(false);
   });
 
   it("a block heard before the frame (re)connects reaches it on the handshake", async () => {
