@@ -34,6 +34,9 @@ export type LoginReason = "meeting_invite";
  */
 type Notice = { owner: "email" | "password" | "pair" | "form"; message: string };
 
+/** A document link that names a comment: an Inbox or push deep link (S15). */
+const COMMENT_LINK = /^\/[^/?#]+\/[^/?#]+\/documents\/[^/?#]+\?(?:[^#]*&)?comment=[^&#]/;
+
 /** Enough to catch a missing "@" or domain before the round trip; the server is the judge. */
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -68,7 +71,13 @@ export function LoginView({
   // takes the slot; the old message must not come back when that one clears.
   const [submitted, setSubmitted] = useState(false);
 
-  const reasonMessage = reason === "meeting_invite" ? t("auth.meetingInviteReason") : null;
+  // A deep link to a comment that met no session says why the sign-in stands in its way (S15 row 5).
+  const reasonMessage =
+    reason === "meeting_invite"
+      ? t("auth.meetingInviteReason")
+      : next && COMMENT_LINK.test(next)
+        ? t("documents.collab.inboxSessionExpired")
+        : null;
 
   const serverNotice = ((error: unknown): Notice | null => {
     if (!error) return null;

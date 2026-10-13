@@ -17,7 +17,8 @@ import {
  * Auth + workspace gate for every /{org}/{ws}/* screen.
  *
  *  - session loading            → wait
- *  - anonymous                  → /login?next=<current path>
+ *  - anonymous                  → /login?next=<current path + query>
+ *                                 (a ?comment= deep link survives sign-in)
  *  - signed in, email unverified → /verify
  *  - signed in, not onboarded   → /onboarding (onboarded_at is the single
  *                                 source of truth, never the workspace count)
@@ -32,7 +33,9 @@ export function useDashboardGuard(
   orgSlug: string,
   wsSlug: string,
 ): { user: User | null; workspace: Workspace | null; isLoading: boolean; block: OrganizationBlock } {
-  const { pathname, replace } = useNavigation();
+  const { pathname, replace, searchParams } = useNavigation();
+  const query = searchParams.toString();
+  const here = query ? `${pathname}?${query}` : pathname;
   const { user, status } = useSession();
   const {
     data: workspace,
@@ -43,7 +46,7 @@ export function useDashboardGuard(
   useEffect(() => {
     if (status === "loading") return;
     if (status === "anon") {
-      replace(`${paths.login()}?next=${encodeURIComponent(pathname)}`);
+      replace(`${paths.login()}?next=${encodeURIComponent(here)}`);
       return;
     }
     const step = pendingAuthStep(user);
@@ -55,7 +58,7 @@ export function useDashboardGuard(
     // A drifted response resolves to null rather than an error; both mean
     // "this URL is not a workspace you can see".
     if (error || (!workspaceLoading && workspace === null)) replace(paths.workspaces());
-  }, [status, user, error, workspace, workspaceLoading, replace, pathname]);
+  }, [status, user, error, workspace, workspaceLoading, replace, here]);
 
   const ready = status === "authed" && !!user && pendingAuthStep(user) === null && !!workspace;
   const userId = ready ? user.id : null;
