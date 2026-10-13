@@ -636,3 +636,32 @@ describe("the frame's app.open request (A7)", () => {
   });
 });
 
+
+const ALL_DOWNLOAD_MODULES: OfficeModule[] = ["docs", "pdf", "markdown", "html", "slides", "sheets"];
+
+describe("the frame's api.download (conflict dialog: download my version)", () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+  const EXT: Record<OfficeModule, string> = { docs: "docx", pdf: "pdf", markdown: "md", html: "html", slides: "pptx", sheets: "xlsx" };
+
+  it.each(ALL_DOWNLOAD_MODULES)("%s: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format", async (module) => {
+    const frame = mountFrame(module);
+    await frame.ready({ module });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { download: true } });
+    const clicks: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { clicks.push(this.download); });
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:mine"), revokeObjectURL: vi.fn() });
+    const id = frame.request("api.download", { data: new ArrayBuffer(3) });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toEqual({ delivered: true }));
+    expect(clicks).toEqual([`Scan (bản của tôi).${EXT[module]}`]);
+  });
+
+  it("offers no download to a viewer and refuses one", async () => {
+    const frame = mountFrame("sheets", { canEdit: false });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { download: false } });
+    const id = frame.request("api.download", { data: new ArrayBuffer(3) });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+  });
+});

@@ -8666,13 +8666,7 @@
         "title": "Trình soạn thảo đang mở lâu hơn bình thường",
         "description": "Tài liệu vẫn đang được mở. Điều này có thể xảy ra khi kết nối chậm."
       },
-      "save_conflict": {
-        "title": "Có người vừa lưu phiên bản mới hơn",
-        "description": "Thay đổi của bạn chưa được lưu. Tải lại để xem phiên bản mới nhất; bản này sẽ thay thế nội dung đang mở ở đây. Hoặc giữ nguyên để sao chép phần đã sửa trước.",
-        "keep": "Giữ thay đổi của tôi",
-        "reload": "Tải bản mới nhất",
-        "close": "Đóng"
-      },
+      "mine_file_name": "{{title}} (bản của tôi)",
       "failure": {
         "unavailable": {
           "title": "Chưa mở được tài liệu trên web",
