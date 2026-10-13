@@ -409,6 +409,7 @@ func main() {
 	docChangesSweep := docChanges.NewSnapshotSweeper(log)
 	if reg != nil {
 		docChangesSweep.SetMetrics(reg.OfficeChanges)
+		docChanges.SetFeedLagMetrics(reg.OfficeChanges)
 	}
 	notifConsumer.SetDocumentReaders(documentSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
