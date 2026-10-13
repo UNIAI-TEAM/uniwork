@@ -1,0 +1,2 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go vet ./... ; echo "GO_VET_EXIT=$?"
+GO_VET_EXIT=0
