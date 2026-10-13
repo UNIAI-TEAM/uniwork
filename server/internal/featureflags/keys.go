@@ -53,6 +53,7 @@ var catalogue = []Flag{
 	{Key: "office_sheets_web", Description: "Mở tệp XLSX trên web bằng module genoffice trong iframe cùng origin, token khung theo một tài liệu (UNI-1016; mặc định bật từ 2026-10-09, override tổ chức/người dùng tắt được; chưa cài bundle thì báo máy chủ chưa thiết lập, kèm mở trong UniWork Office và tải xuống)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
 	{Key: "graph", Description: "Work Graph: marker đánh dấu node bẩn cho tổ chức này, worker chiếu (C-11). Bật rồi chạy graph-rebuild --org", Default: false, Public: false, Owner: "graph", ReviewAt: day(2027, 1, 31)},
 	{Key: "graph_ui", Description: "Work Graph: section Liên quan và dòng thời gian trên trang việc (C-11)", Default: false, Public: true, Owner: "graph", ReviewAt: day(2027, 1, 31)},
+	{Key: "mcp_connector", Description: "Connector MCP: client AI bên ngoài (Claude, ChatGPT, Gemini) đọc task và cuộc họp (UNI-1308)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 1, 31)},
 }
 
 // Catalogue returns a copy of the declared flags.

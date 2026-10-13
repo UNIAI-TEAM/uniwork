@@ -42,6 +42,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0028](0028-ai-phia-client-cua-uniwork-office.md) | AI phía client của UniWork Office: khóa của người dùng gọi thẳng nhà cung cấp; mọi thứ tốn credit/công cụ cloud đi qua UniWork API + `ai.Gateway`; 0010 chỉ điều chỉnh runtime server |
 | [0029](0029-ai-cua-office-tren-web-qua-ai-gateway.md) | AI của Office trên web: khóa của người dùng lưu mã hóa phía server, proxy pass-through qua `ai.Gateway` (rào SSRF, entitlement `office.ai_byok`/`office.ai_cloud`, credit `ai.tokens`); bổ sung dòng frame web của 0028 |
 | [0030](0030-go-trinh-soan-g3-office-tren-web-chi-con-frame.md) | Gỡ các trình soạn G3 và lối vào trình duyệt của engine Office (2026-10-11); web mở tài liệu Office chỉ qua frame genoffice; thay mục editor ở trang host của 0021, 0027 deprecated |
+| [0031](0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md) | UniWork là OAuth authorization server cho client AI bên ngoài (Claude, ChatGPT, Gemini): token MCP opaque tách khỏi JWT phiên, chỉ `/mcp` chấp nhận; route OAuth/MCP ngoài wrapper `api`; mặc định tắt theo tổ chức; chỉ đọc |
 
 ## Bản nháp
 

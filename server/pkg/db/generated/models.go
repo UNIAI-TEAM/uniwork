@@ -1102,6 +1102,68 @@ type Invoice struct {
 	PaymentIntentID     pgtype.Text        `json:"payment_intent_id"`
 }
 
+type McpAuthAttempt struct {
+	ID            string             `json:"id"`
+	ClientID      string             `json:"client_id"`
+	RedirectUri   string             `json:"redirect_uri"`
+	CodeChallenge string             `json:"code_challenge"`
+	Scope         string             `json:"scope"`
+	Resource      string             `json:"resource"`
+	State         string             `json:"state"`
+	UserID        pgtype.Text        `json:"user_id"`
+	CsrfDigest    pgtype.Text        `json:"csrf_digest"`
+	GrantID       pgtype.Text        `json:"grant_id"`
+	CodeDigest    pgtype.Text        `json:"code_digest"`
+	CodeExpiresAt pgtype.Timestamptz `json:"code_expires_at"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	ApprovedAt    pgtype.Timestamptz `json:"approved_at"`
+	UsedAt        pgtype.Timestamptz `json:"used_at"`
+	CancelledAt   pgtype.Timestamptz `json:"cancelled_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type McpClient struct {
+	ID                      string             `json:"id"`
+	ClientID                string             `json:"client_id"`
+	Kind                    string             `json:"kind"`
+	ClientName              string             `json:"client_name"`
+	LogoUri                 string             `json:"logo_uri"`
+	RedirectUris            string             `json:"redirect_uris"`
+	TokenEndpointAuthMethod string             `json:"token_endpoint_auth_method"`
+	SecretDigest            pgtype.Text        `json:"secret_digest"`
+	MetadataFetchedAt       pgtype.Timestamptz `json:"metadata_fetched_at"`
+	LastUsedAt              pgtype.Timestamptz `json:"last_used_at"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+}
+
+type McpGrant struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	ClientID       string             `json:"client_id"`
+	Scope          string             `json:"scope"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt     pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RevokedBy      pgtype.Text        `json:"revoked_by"`
+	RevokedByKind  pgtype.Text        `json:"revoked_by_kind"`
+}
+
+type McpToken struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	GrantID        string             `json:"grant_id"`
+	FamilyID       string             `json:"family_id"`
+	Kind           string             `json:"kind"`
+	Digest         string             `json:"digest"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	UsedAt         pgtype.Timestamptz `json:"used_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Meeting struct {
 	ID                    string             `json:"id"`
 	WorkspaceID           string             `json:"workspace_id"`
@@ -1504,6 +1566,8 @@ type Organization struct {
 	Status              string             `json:"status"`
 	SuspendedAt         pgtype.Timestamptz `json:"suspended_at"`
 	SuspendedReason     pgtype.Text        `json:"suspended_reason"`
+	McpEnabledAt        pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy        pgtype.Text        `json:"mcp_enabled_by"`
 	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
 }
 

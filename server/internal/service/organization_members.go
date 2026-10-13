@@ -377,6 +377,10 @@ func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID st
 	}); err != nil {
 		return err
 	}
+	// A person who leaves takes no AI connector access with them (spec §8).
+	if err := revokeMcpGrantsForUserInOrg(ctx, q, orgID, actorID); err != nil {
+		return err
+	}
 	if err := q.LeaveChatRoomsInOrganizationForUser(ctx, db.LeaveChatRoomsInOrganizationForUserParams{
 		OrganizationID: orgID, UserID: actorID,
 	}); err != nil {

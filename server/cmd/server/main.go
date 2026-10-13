@@ -541,6 +541,21 @@ func main() {
 	if reg != nil {
 		graphSvc.SetMetrics(reg.Graph)
 	}
+	// The MCP connector (ADR 0031): UniWork as an OAuth server and a remote MCP
+	// server for external AI clients. The platform flag mcp_connector decides
+	// per person and organization whether it answers at all.
+	homeSvc := service.NewHomeService(q, wsSvc)
+	mcpAuth := service.NewMcpAuthService(pool, q, orgSvc, cfg)
+	mcpAuth.SetFlags(flags)
+	mcpAuth.SetFetcher(service.NewCIMDFetcher(cfg.FrontendOrigin))
+	if reg != nil {
+		mcpAuth.SetMetrics(reg.Mcp)
+	}
+	mcpTools := service.NewMcpToolService(q, askUNI, homeSvc, wsSvc, cfg.FrontendOrigin)
+	// The sweep of expired attempts, tokens and abandoned clients stops with
+	// runCancel and is awaited below.
+	mcpCleanupDone := make(chan struct{})
+	go func() { mcpAuth.Run(runCtx); close(mcpCleanupDone) }()
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
@@ -556,7 +571,7 @@ func main() {
 		Workspaces:          wsSvc,
 		Onboarding:          service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
 		Tasks:               taskSvc,
-		Home:                service.NewHomeService(q, wsSvc),
+		Home:                homeSvc,
 		Calendar:            service.NewCalendarService(q, wsSvc),
 		CalendarConnections: calendarConnectionSvc,
 		EmailHub:            emailHubSvc,
@@ -567,6 +582,8 @@ func main() {
 		Billing:             billingSvc,
 		Notifications:       notifSvc,
 		AskUNI:              askUNI,
+		McpAuth:             mcpAuth,
+		McpTools:            mcpTools,
 		AIBYOK:              aiBYOK,
 		Meetings:            meetingSvc,
 		Chat:                chatSvc,
@@ -693,6 +710,11 @@ func main() {
 	case <-retentionDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("outbox: event retention did not stop in time")
+	}
+	select {
+	case <-mcpCleanupDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("mcp: cleanup sweep did not stop in time")
 	}
 	select {
 	case <-officeDone:

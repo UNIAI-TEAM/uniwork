@@ -79,6 +79,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 		file_jobs, file_upload_sessions, files,
 		file_backfill_items, file_backfill_checkpoints, file_backfill_runs,
 		desktop_auth_attempts, device_sessions,
+		mcp_clients, mcp_auth_attempts, mcp_grants, mcp_tokens,
 		document_access_logs, document_share_links, document_shares,
 		document_assets, document_versions, documents, office_jobs,
 		graph_dirty, graph_node_facts, graph_edges, graph_nodes,
