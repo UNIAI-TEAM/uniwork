@@ -3,6 +3,7 @@
 import {
   Archive,
   Bell,
+  Bot,
   Building2,
   CreditCard,
   FileText,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { Suspense, lazy, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { useAuditPermissions, useBillingPermissions } from "@uniwork/core/permissions";
 import { useOrgMembership } from "@uniwork/core/organizations";
 import { useMyMembership } from "@uniwork/core/workspaces";
@@ -56,6 +58,8 @@ const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.
 const InvoicesTab = lazy(() => import("./invoices-tab").then((m) => ({ default: m.InvoicesTab })));
 const DepartmentsTab = lazy(() => import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })));
 const DocumentsTab = lazy(() => import("./documents-settings").then((m) => ({ default: m.DocumentsSettings })));
+const ConnectedAppsTab = lazy(() => import("./connected-apps-tab").then((m) => ({ default: m.ConnectedAppsTab })));
+const AiAccessTab = lazy(() => import("./ai-access-tab").then((m) => ({ default: m.AiAccessTab })));
 const KeyboardShortcutsTab = lazy(() => import("./keyboard-shortcuts-tab").then((m) => ({ default: m.KeyboardShortcutsTab })));
 const IntegrationsTab = lazy(() => import("./integrations-tab").then((m) => ({ default: m.IntegrationsTab })));
 const MembersTab = lazy(() => import("./members-tab").then((m) => ({ default: m.MembersTab })));
@@ -64,7 +68,7 @@ const OrganizationTab = lazy(() => import("./organization-tab").then((m) => ({ d
 const PreferencesTab = lazy(() => import("./preferences-tab").then((m) => ({ default: m.PreferencesTab })));
 const WorkspaceTab = lazy(() => import("./workspace-tab").then((m) => ({ default: m.WorkspaceTab })));
 
-type Gate = "billing" | "audit" | "workspace_admin" | "org_admin" | "org_owner";
+type Gate = "billing" | "audit" | "workspace_admin" | "org_admin" | "org_owner" | "mcp";
 
 interface TabDef {
   /** The `?tab=` value; links and e2e specs point at these, so they never change. */
@@ -92,6 +96,7 @@ const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
     tabs: [
       { value: "profile", label: "profile", icon: User, Panel: AccountTab },
       { value: "security", label: "security", icon: ShieldCheck, Panel: SecurityTab },
+      { value: "connected-apps", label: "connectedApps", icon: Plug, Panel: ConnectedAppsTab, gate: "mcp" },
       { value: "preferences", label: "preferences", icon: SlidersHorizontal, Panel: PreferencesTab },
       { value: "notifications", label: "notifications", icon: Bell, Panel: NotificationsTab },
       { value: "shortcuts", label: "shortcuts", icon: Keyboard, Panel: KeyboardShortcutsTab },
@@ -105,6 +110,7 @@ const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
       { value: "billing", label: "billing", icon: CreditCard, Panel: BillingTab, gate: "billing" },
       { value: "invoices", label: "invoices", icon: Receipt, Panel: InvoicesTab, gate: "billing" },
       { value: "documents", label: "documents", icon: FileText, Panel: DocumentsTab, gate: "org_admin" },
+      { value: "ai-access", label: "aiAccess", icon: Bot, Panel: AiAccessTab, gate: "org_admin" },
       { value: "audit", label: "audit", icon: ScrollText, Panel: AuditTab, gate: "audit", wide: true },
       { value: "privacy", label: "privacy", icon: Archive, Panel: PrivacyTab, gate: "org_owner" },
     ],
@@ -142,12 +148,14 @@ function useHiddenGates(): Set<Gate> {
   const audit = useAuditPermissions(workspace.organization_id);
   const me = useMyMembership(workspace.id);
   const org = useOrgMembership(workspace.organization_slug);
+  const mcp = useFlag("mcp_connector", false);
   const hidden = new Set<Gate>();
   if (!billing.isLoading && !billing.canView.allowed) hidden.add("billing");
   if (!audit.isLoading && !audit.canRead.allowed) hidden.add("audit");
   if (!me.isLoading && me.data && !ADMIN_ROLES.has(me.data.role)) hidden.add("workspace_admin");
   if (!org.isLoading && org.data && !ADMIN_ROLES.has(org.data.role)) hidden.add("org_admin");
   if (!org.isLoading && org.data && org.data.role !== "owner") hidden.add("org_owner");
+  if (!mcp) hidden.add("mcp");
   return hidden;
 }
 

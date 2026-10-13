@@ -38,12 +38,11 @@ Product intent and design principles live in `PRODUCT.md`.
   (`server/internal/office/` is its client): PDF, XLSX, legacy-format
   conversion and DOCX→PDF export jobs.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
-  Zustand stores, realtime sync, permissions, paths, i18n. Five modules no
-  host reaches yet: `packages/core/analytics/`, `packages/core/connect/`,
+  Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
+  host reaches yet: `packages/core/analytics/`,
   `packages/core/diagnostics/`, `packages/core/modals/`, and
-  `packages/core/navigation/`. The connect module (UNI-1308, the MCP connector
-  hooks) leaves this list when the settings tabs that read it land. The ported four
-  import each other, not the app (the
+  `packages/core/navigation/`. The ported four import each
+  other, not the app (the
   shortcuts module left this list with F-09: ⌘J opens Ask UNI; feature-flags
   with F-11: `GET /api/v1/config` feeds `FeatureFlagsProvider`; inbox, labels,
   task-views and constants left when they were wired or removed — constants
