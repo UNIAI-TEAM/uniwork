@@ -138,6 +138,22 @@ func staleResolution(err error) error {
 	return err
 }
 
+// admitsNewMembers is whether an invitation into o can be accepted: the
+// organization must be active and not waiting out its deletion. A member of
+// an organization being deleted is refused by every gate unless they own it,
+// so a switch into one would cost the person the organization they had and
+// leave them nowhere (spec §4.4 step 3). The row is read under the accept's
+// share lock, so a deletion scheduled meanwhile is seen here.
+func admitsNewMembers(o db.Organization) error {
+	if o.Status != OrganizationActive {
+		return errOrganizationSuspended()
+	}
+	if o.DeletionScheduledAt.Valid {
+		return errOrganizationDeletionScheduled(o.DeletionScheduledAt.Time)
+	}
+	return nil
+}
+
 // acceptOutcome is what the transaction decided, for the work after commit.
 type acceptOutcome struct {
 	org         db.Organization
@@ -292,8 +308,8 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 	case InvitationExpired:
 		return acceptOutcome{}, errInvitationExpired()
 	}
-	if org.Status != OrganizationActive {
-		return acceptOutcome{}, errOrganizationSuspended()
+	if err := admitsNewMembers(org); err != nil {
+		return acceptOutcome{}, err
 	}
 	var ws db.Workspace
 	if inv.WorkspaceID.Valid {

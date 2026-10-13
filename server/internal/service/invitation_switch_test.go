@@ -314,6 +314,50 @@ func TestSwitchKeepsTheOldOrganizationWhenTheInvitationIsGone(t *testing.T) {
 	}
 }
 
+// An organization waiting out its deletion admits nobody new: every gate
+// would refuse a non-owner from the moment they joined, and a switch would
+// have cost them the organization they had. The preview says so before the
+// wizard, and the accept refuses inside its transaction, where the row is
+// held, with the old membership untouched.
+func TestSwitchRefusesAnOrganizationAboutToBeDeleted(t *testing.T) {
+	f := newOrgMembersFixture(t)
+	target, founder, token := f.switchTarget(t, "dich", f.member.Email)
+	if _, err := f.pool.Exec(f.ctx, `UPDATE organizations SET deletion_scheduled_at = now() + interval '5 days' WHERE id = $1`, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.ws.PreviewInvitation(f.ctx, f.member.ID, token); !errors.Is(err, ErrOrganizationDeletionScheduled) {
+		t.Fatalf("preview: %v", err)
+	}
+	_, err := f.ws.AcceptInvite(f.ctx, f.member.ID, token, []SwitchResolution{{OrganizationID: f.org.ID, Action: SwitchActionLeave}})
+	if !codedIs(err, "organization_deletion_scheduled") || !errors.Is(err, ErrOrganizationDeletionScheduled) {
+		t.Fatalf("switch: %v", err)
+	}
+	if got := f.activeOrgIDs(t, f.member.ID); len(got) != 1 || got[0] != f.org.ID {
+		t.Fatalf("old membership touched: %v", got)
+	}
+	if n := f.memberLeftRows(t, f.member.ID); n != 0 {
+		t.Fatalf("member.left written: %d", n)
+	}
+
+	// Somebody with nothing to give up is not let in either.
+	joiner := registerVerified(t, f.q, f.auth, "joiner@example.com", "Người mới")
+	plain := f.inviteToOrg(t, target.ID, founder.ID, joiner.Email)
+	if _, err := f.ws.AcceptInvite(f.ctx, joiner.ID, plain, nil); !errors.Is(err, ErrOrganizationDeletionScheduled) {
+		t.Fatalf("plain accept: %v", err)
+	}
+	if got := f.activeOrgIDs(t, joiner.ID); len(got) != 0 {
+		t.Fatalf("joined an organization being deleted: %v", got)
+	}
+
+	// Once the deletion is cancelled the same invitation works again.
+	if _, err := f.pool.Exec(f.ctx, `UPDATE organizations SET deletion_scheduled_at = NULL WHERE id = $1`, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.ws.AcceptInvite(f.ctx, joiner.ID, plain, nil); err != nil {
+		t.Fatalf("accept after cancel: %v", err)
+	}
+}
+
 // resolve must name exactly the conflicts with exactly their action; anything
 // else answers the fresh conflicts and changes nothing.
 func TestSwitchResolveMustMatchTheConflicts(t *testing.T) {

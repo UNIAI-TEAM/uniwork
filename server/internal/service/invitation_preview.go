@@ -32,7 +32,9 @@ type InvitationPreview struct {
 // the same verified-mailbox checks as accepting it. The conflicts are the
 // ones AcceptInvite will compute again under its locks; a gate that would
 // refuse the accept itself (a deactivated row in the organization) shows no
-// conflicts here and answers on accept.
+// conflicts here and answers on accept. A pending invitation into an
+// organization that admits nobody new (suspended, or being deleted) answers
+// that refusal, so nobody walks through a switch the accept would refuse.
 func (s *WorkspaceService) PreviewInvitation(ctx context.Context, userID, token string) (InvitationPreview, error) {
 	inv, err := s.invitationFor(ctx, userID, token)
 	if err != nil {
@@ -52,6 +54,13 @@ func (s *WorkspaceService) PreviewInvitation(ctx context.Context, userID, token 
 	}
 	if p.Status != InvitationPending {
 		return p, nil
+	}
+	org, err := s.q.GetOrganizationByID(ctx, inv.OrganizationID)
+	if err != nil {
+		return InvitationPreview{}, err
+	}
+	if err := admitsNewMembers(org); err != nil {
+		return InvitationPreview{}, err
 	}
 	_, conflicts, err := s.joinConflicts(ctx, s.q, inv.OrganizationID, userID)
 	switch {

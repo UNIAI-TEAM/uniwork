@@ -102,7 +102,10 @@ func activeOrganizations(ctx context.Context, q *db.Queries, userID string) ([]d
 ### 4.3. `GET /api/v1/invitations/{token}` — xem trước
 
 Cần đăng nhập. Kiểm tra như accept: email đã xác minh (`email_unverified`), đúng
-mailbox (403 `invitation_email_mismatch`). Token không tồn tại ⇒ 404.
+mailbox (403 `invitation_email_mismatch`). Token không tồn tại ⇒ 404. Lời mời
+`pending` vào tổ chức không nhận thêm người (không `active` ⇒ 403
+`organization_suspended`; đang chờ xóa ⇒ 403 `organization_deletion_scheduled`)
+trả đúng lỗi accept sẽ trả, để không ai đi hết wizard chuyển tổ chức rồi mới bị từ chối.
 
 `InvitationPreviewSDO`:
 
@@ -151,8 +154,10 @@ Trong **một** transaction:
    - người gọi đang là thành viên active của tổ chức đó ⇒ **200 với response như lần đầu** (idempotent, EC-12);
    - ngược lại ⇒ 410 `invitation_accepted`.
    `revoked_at` có ⇒ 410 `invitation_revoked`. Hết hạn ⇒ 410 `invitation_expired`.
-3. Tổ chức mời phải `active` (giữ lỗi hiện có `organization_suspended`); dòng
-   deactivate trong tổ chức mời ⇒ `member_deactivated` (giữ F-03).
+3. Tổ chức mời phải `active` (giữ lỗi hiện có `organization_suspended`) và không
+   đang chờ xóa (403 `organization_deletion_scheduled`: mọi gate sẽ từ chối người
+   không phải owner, nên chuyển vào đó là mất tổ chức cũ mà không vào được tổ chức
+   mới); dòng deactivate trong tổ chức mời ⇒ `member_deactivated` (giữ F-03).
 4. Tính lại `conflicts` như §4.3. `resolve` phải phủ **đúng** mọi tổ chức trong
    `conflicts` với **đúng** `required_action`; có `blocked` hoặc lệch ⇒ 409
    `organization_switch_required` kèm `details: {conflicts}` mới nhất.
