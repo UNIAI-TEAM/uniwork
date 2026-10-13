@@ -92,6 +92,7 @@ export function useEmailHubLazyFolderSync(
     );
     return () => {
       cancelled = true;
+      setSyncing(false);
     };
   }, [accountId, folder, opts.skip, qc, wsId]);
 
@@ -125,6 +126,7 @@ export function useEmailHubLazyFolderSync(
     );
     return () => {
       cancelled = true;
+      setSyncing(false);
     };
   }, [accountId, folder, opts.skip, qc, wsId]);
 
@@ -180,6 +182,7 @@ export function useEmailHubLazyFolderSync(
     );
     return () => {
       cancelled = true;
+      setSyncing(false);
     };
   }, [accountId, folder, opts.listFetched, opts.listTotal, opts.skip, qc, wsId]);
 

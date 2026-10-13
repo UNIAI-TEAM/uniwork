@@ -98,13 +98,6 @@ export function EmailHubAiPanel({
   );
 
   useEffect(() => {
-    syncedSummaryKeyRef.current = "";
-    setSummary(null);
-    setPicked(new Set());
-    setAssigneeOverrides({});
-  }, [threadId]);
-
-  useEffect(() => {
     const data = cachedSummary?.summary ? cachedSummary : initialSummary?.summary ? initialSummary : null;
     if (!data?.summary) return;
     const key = summarySyncKey(threadId, data);

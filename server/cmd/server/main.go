@@ -375,6 +375,7 @@ func main() {
 	// delivers notification.push, and two jobs (digest, reminder) run beside
 	// them. VAPID keys missing means push is off, not broken.
 	notifConsumer := notification.NewConsumer(pool, q, wsSvc)
+	notifConsumer.SetOrgMembers(orgSvc)
 	// Document read permission is a DocumentService decision; the consumer
 	// gets the resolver injected so notification never imports the service
 	// package (G1-07).

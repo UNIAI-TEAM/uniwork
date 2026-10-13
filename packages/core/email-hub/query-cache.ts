@@ -127,19 +127,25 @@ export function patchEmailHubThreadInLists(
     { queryKey: ["email-hub", wsId, "threads", accountId], exact: false },
     (old) => {
       if (!old) return old;
+      const previousThread = old.pages
+        .flatMap((page) => page.threads)
+        .find((thread) => thread.id === threadId);
+      const unreadDelta =
+        previousThread && patch.is_read !== undefined && patch.is_read !== previousThread.is_read
+          ? patch.is_read
+            ? -1
+            : 1
+          : 0;
       return {
         ...old,
-        pages: old.pages.map((page) => {
-          const hadUnread = page.threads.some((row) => row.id === threadId && !row.is_read);
-          return {
-            ...page,
-            threads: page.threads.map((row) => (row.id === threadId ? { ...row, ...patch } : row)),
-            counts:
-              patch.is_read === true && hadUnread
-                ? { ...page.counts, unread: Math.max(0, page.counts.unread - 1) }
-                : page.counts,
-          };
-        }),
+        pages: old.pages.map((page, index) => ({
+          ...page,
+          threads: page.threads.map((row) => (row.id === threadId ? { ...row, ...patch } : row)),
+          counts:
+            index === 0 && unreadDelta !== 0
+              ? { ...page.counts, unread: Math.max(0, page.counts.unread + unreadDelta) }
+              : page.counts,
+        })),
       };
     },
   );
