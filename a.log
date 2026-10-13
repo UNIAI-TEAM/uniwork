@@ -1,0 +1,15 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -12
+bca66be93b0829b5ba5f44d5f01c339e1b9a9d59
+39064c47ecaf34b1f14db7abdd2c0c3114b85da0
+bca66be93 fix(office): key each pending frame comment create on its own and reject a token-less full list
+1d8ea1408 test(office): pin a key per pending frame comment create and a token on every full list
+fbb9c4585 refactor(office): keep the frame comment helper types module-private
+14349ae50 chore(office): re-vendor the comments frame protocol at fix r1 (af989c83)
+1dce61c98 feat(office): answer the editor's server comments from the frame host
+67439048a chore(office): vendor the G8-08 comments frame protocol from the fork
+777811fb9 feat(office): map comment realtime frames and the document level for the editor frame
+81c529c1a test(office): pin the realtime-to-comments.changed mapping and the advertised comment level
+f8131ce15 feat(office): add the frame comment proxy endpoints for the editor frame
+c3eddd89c test(office): pin the frame comment proxy endpoints against contract-collab §2
+39064c47e chore(deploy): move the production domain to uniworkos.com
+0d1c89e10 Merge G8-03 anchored comments, discussions and tombstones into the G5-G7 root (UNI-1398)

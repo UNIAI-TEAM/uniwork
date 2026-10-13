@@ -1,0 +1,765 @@
+$ node --test scripts/*.test.mjs scripts/office/*.test.mjs
+TAP version 13
+# Subtest: slice 6 locale strings have no source brand or Issue domain
+ok 1 - slice 6 locale strings have no source brand or Issue domain
+  ---
+  duration_ms: 41.820686
+  ...
+# Subtest: agent integration suite UI has no source brand or Issue domain
+ok 2 - agent integration suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 32.372403
+  ...
+# Subtest: every alert has a runbook_url whose file exists and is named after the alert
+ok 3 - every alert has a runbook_url whose file exists and is named after the alert
+  ---
+  duration_ms: 2.071665
+  ...
+# Subtest: every runbook has the four sections in order and a status line
+ok 4 - every runbook has the four sections in order and a status line
+  ---
+  duration_ms: 1.678792
+  ...
+# Subtest: every runbook is referenced by an alert
+ok 5 - every runbook is referenced by an alert
+  ---
+  duration_ms: 0.29243
+  ...
+# Subtest: runbook index lists every alert
+ok 6 - runbook index lists every alert
+  ---
+  duration_ms: 0.30888
+  ...
+# Subtest: every raster asset was built from the SVG currently committed
+ok 7 - every raster asset was built from the SVG currently committed
+  ---
+  duration_ms: 1.587983
+  ...
+# Subtest: the link-preview cards were built from the template currently committed
+ok 8 - the link-preview cards were built from the template currently committed
+  ---
+  duration_ms: 0.442205
+  ...
+# Subtest: every SVG source is recorded, and every recorded source exists
+ok 9 - every SVG source is recorded, and every recorded source exists
+  ---
+  duration_ms: 3.653882
+  ...
+# Subtest: every asset the lock names is on disk
+ok 10 - every asset the lock names is on disk
+  ---
+  duration_ms: 0.385799
+  ...
+# Subtest: every platform icon is opaque to its corners
+ok 11 - every platform icon is opaque to its corners
+  ---
+  duration_ms: 4.033861
+  ...
+# Subtest: the Next.js metadata files exist under app/
+ok 12 - the Next.js metadata files exist under app/
+  ---
+  duration_ms: 0.154396
+  ...
+# Subtest: every icon the manifest lists exists in public/
+ok 13 - every icon the manifest lists exists in public/
+  ---
+  duration_ms: 0.263998
+  ...
+# Subtest: the logo gradient never leaks into the token layer
+ok 14 - the logo gradient never leaks into the token layer
+  ---
+  duration_ms: 0.462572
+  ...
+# Subtest: the manifest theme colour is the brand token's value
+ok 15 - the manifest theme colour is the brand token's value
+  ---
+  duration_ms: 0.565968
+  ...
+# Subtest: pnpm catalog declares every shared dependency the port needs
+ok 16 - pnpm catalog declares every shared dependency the port needs
+  ---
+  duration_ms: 0.91736
+  ...
+# Subtest: aggregates all authors' commits, suggests a version, and retains ambiguous changes
+ok 17 - aggregates all authors' commits, suggests a version, and retains ambiguous changes
+  ---
+  duration_ms: 1.823565
+  ...
+# Subtest: builds catalog and bilingual content from reviewed notes, preserving unrelated content
+ok 18 - builds catalog and bilingual content from reviewed notes, preserving unrelated content
+  ---
+  duration_ms: 0.949024
+  ...
+# Subtest: rejects unfinished translations, unresolved commits, unapproved notes and invalid tags
+ok 19 - rejects unfinished translations, unresolved commits, unapproved notes and invalid tags
+  ---
+  duration_ms: 0.766676
+  ...
+# Subtest: reruns are idempotent and published versions cannot be rewritten
+ok 20 - reruns are idempotent and published versions cannot be rewritten
+  ---
+  duration_ms: 1.983385
+  ...
+# Subtest: Git integration: drafts collect history; only reviewed tag snapshots can update files
+ok 21 - Git integration: drafts collect history; only reviewed tag snapshots can update files
+  ---
+  duration_ms: 186.274835
+  ...
+# Subtest: Git integration: stale notes and tags outside develop fail before any write
+ok 22 - Git integration: stale notes and tags outside develop fail before any write
+  ---
+  duration_ms: 136.151742
+  ...
+# Subtest: rejects output paths outside the repository before writing
+ok 23 - rejects output paths outside the repository before writing
+  ---
+  duration_ms: 66.541013
+  ...
+# Subtest: classifies Conventional Commits and keeps nonconforming work for review
+ok 24 - classifies Conventional Commits and keeps nonconforming work for review
+  ---
+  duration_ms: 0.738904
+  ...
+# Subtest: drafts require editorial review and escape commit markup
+ok 25 - drafts require editorial review and escape commit markup
+  ---
+  duration_ms: 0.389148
+  ...
+# Subtest: missing integration or unchanged develop does not dispatch a review
+ok 26 - missing integration or unchanged develop does not dispatch a review
+  ---
+  duration_ms: 0.790281
+  ...
+# Subtest: only the approved UniAI endpoint receives fixed develop metadata
+ok 27 - only the approved UniAI endpoint receives fixed develop metadata
+  ---
+  duration_ms: 0.749728
+  ...
+# Subtest: invalid endpoint or event fails before sending anything
+ok 28 - invalid endpoint or event fails before sending anything
+  ---
+  duration_ms: 1.550413
+  ...
+# Subtest: HTTP and transport errors never expose the webhook URL or response body
+ok 29 - HTTP and transport errors never expose the webhook URL or response body
+  ---
+  duration_ms: 0.412767
+  ...
+# Subtest: workflow uses stable release validation and scoped credentials without bypassing checks
+ok 30 - workflow uses stable release validation and scoped credentials without bypassing checks
+  ---
+  duration_ms: 10.580546
+  ...
+# Subtest: every variable the server reads is documented in .env.example
+ok 31 - every variable the server reads is documented in .env.example
+  ---
+  duration_ms: 159.311059
+  ...
+# Subtest: the Go catalogue and the documented table agree
+ok 32 - the Go catalogue and the documented table agree
+  ---
+  duration_ms: 10.492362
+  ...
+# Subtest: every catalogue row has the one-line shape this file parses
+ok 33 - every catalogue row has the one-line shape this file parses
+  ---
+  duration_ms: 1.15197
+  ...
+# Subtest: the client knows every event that has a realtime audience
+ok 34 - the client knows every event that has a realtime audience
+  ---
+  duration_ms: 0.76863
+  ...
+# Subtest: event names follow <entity>.<verb> and carry no version
+ok 35 - event names follow <entity>.<verb> and carry no version
+  ---
+  duration_ms: 1.296572
+  ...
+# Subtest: payload keys are ids or revisions; content travels only through Patch
+ok 36 - payload keys are ids or revisions; content travels only through Patch
+  ---
+  duration_ms: 1.413909
+  ...
+# Subtest: the patchable task fields are exactly the ones ADR 0015 accepted
+ok 37 - the patchable task fields are exactly the ones ADR 0015 accepted
+  ---
+  duration_ms: 0.5232
+  ...
+# Subtest: the client decodes exactly the fields task.updated lists in Patch
+ok 38 - the client decodes exactly the fields task.updated lists in Patch
+  ---
+  duration_ms: 0.773584
+  ...
+# Subtest: every event has a scope or is explicitly infrastructure
+ok 39 - every event has a scope or is explicitly infrastructure
+  ---
+  duration_ms: 1.072283
+  ...
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 40 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 1.929895
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 41 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 3.642166
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 42 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.338902
+  ...
+# Subtest: both hooks exist and are executable
+ok 43 - both hooks exist and are executable
+  ---
+  duration_ms: 0.185838
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 44 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 0.800969
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 45 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 64.055954
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 46 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 0.668657
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 47 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.162697
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 48 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 1.914755
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 49 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.481087
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 50 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 2.595218
+  ...
+# Subtest: every plan says whether it shipped
+ok 51 - every plan says whether it shipped
+  ---
+  duration_ms: 20.607832
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 52 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 0.83187
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 53 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 48.385144
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 54 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 0.544836
+  ...
+# Subtest: chat.* i18n keys match between vi and en
+ok 55 - chat.* i18n keys match between vi and en
+  ---
+  duration_ms: 36.768509
+  ...
+# Subtest: packages/core/i18n/locales/vi.json has no duplicate keys
+ok 56 - packages/core/i18n/locales/vi.json has no duplicate keys
+  ---
+  duration_ms: 1476.49381
+  ...
+# Subtest: packages/core/i18n/locales/en.json has no duplicate keys
+ok 57 - packages/core/i18n/locales/en.json has no duplicate keys
+  ---
+  duration_ms: 1447.32299
+  ...
+# Subtest: the scanner reports real duplicates and only those
+ok 58 - the scanner reports real duplicates and only those
+  ---
+  duration_ms: 0.352807
+  ...
+# Subtest: every committed image matches the hash the generator recorded
+ok 59 - every committed image matches the hash the generator recorded
+  ---
+  duration_ms: 3.199938
+  ...
+# Subtest: the prompts, the lock and the files on disk agree
+ok 60 - the prompts, the lock and the files on disk agree
+  ---
+  duration_ms: 0.285185
+  ...
+# Subtest: every image was rendered from the prompt now in the repo
+ok 61 - every image was rendered from the prompt now in the repo
+  ---
+  duration_ms: 0.308009
+  ...
+# Subtest: the component resolver and the prompts agree on what is localized
+ok 62 - the component resolver and the prompts agree on what is localized
+  ---
+  duration_ms: 0.238596
+  ...
+# Subtest: the artwork stays inside its weight budget
+ok 63 - the artwork stays inside its weight budget
+  ---
+  duration_ms: 0.141484
+  ...
+# Subtest: every vendored mark still matches the upstream artwork
+ok 64 - every vendored mark still matches the upstream artwork
+  ---
+  duration_ms: 5.662355
+  ...
+# Subtest: the generated module carries exactly the paths the lock recorded
+ok 65 - the generated module carries exactly the paths the lock recorded
+  ---
+  duration_ms: 0.281246
+  ...
+# Subtest: no vendored mark carries its own colour
+ok 66 - no vendored mark carries its own colour
+  ---
+  duration_ms: 0.363648
+  ...
+# Subtest: horse v2 preserves transparent, lightweight provenance
+ok 67 - horse v2 preserves transparent, lightweight provenance
+  ---
+  duration_ms: 1.47845
+  ...
+# Subtest: horse v2-blink preserves transparent, lightweight provenance
+ok 68 - horse v2-blink preserves transparent, lightweight provenance
+  ---
+  duration_ms: 0.532793
+  ...
+# Subtest: 3D hero uses the shared mark without a hand-drawn brand substitute
+ok 69 - 3D hero uses the shared mark without a hand-drawn brand substitute
+  ---
+  duration_ms: 0.221474
+  ...
+# Subtest: original motion assets match provenance and stay within the mobile budget
+ok 70 - original motion assets match provenance and stay within the mobile budget
+  ---
+  duration_ms: 1.645226
+  ...
+# Subtest: studio assets preserve their exact prompts and optimized WebP byte counts
+ok 71 - studio assets preserve their exact prompts and optimized WebP byte counts
+  ---
+  duration_ms: 1.584303
+  ...
+# Subtest: the committed alias list matches the installed lucide-react
+ok 72 - the committed alias list matches the installed lucide-react
+  ---
+  duration_ms: 14.987183
+  ...
+# Subtest: no source file imports a deprecated lucide alias
+ok 73 - no source file imports a deprecated lucide alias
+  ---
+  duration_ms: 73.236725
+  ...
+# Subtest: spinners go through Spinner, not a raw LoaderCircle
+ok 74 - spinners go through Spinner, not a raw LoaderCircle
+  ---
+  duration_ms: 12.558509
+  ...
+# Subtest: no --uw-* token references remain
+ok 75 - no --uw-* token references remain
+  ---
+  duration_ms: 53.847783
+  ...
+# Subtest: no legacy token utilities remain
+ok 76 - no legacy token utilities remain
+  ---
+  duration_ms: 49.728915
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 77 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 47.965261
+  ...
+# Subtest: no plan code literal outside the billing package
+ok 78 - no plan code literal outside the billing package
+  ---
+  duration_ms: 240.954423
+  ...
+# Subtest: no usf branding survives the port
+ok 79 - no usf branding survives the port
+  ---
+  duration_ms: 70.240352
+  ...
+# Subtest: the web Dockerfile builds with NODE_ENV=production and takes OFFICE_FRAME_SOURCE only as an optional build arg
+ok 80 - the web Dockerfile builds with NODE_ENV=production and takes OFFICE_FRAME_SOURCE only as an optional build arg
+  ---
+  duration_ms: 0.866394
+  ...
+# Subtest: the web Dockerfile installs git before pnpm install
+ok 81 - the web Dockerfile installs git before pnpm install
+  ---
+  duration_ms: 0.180536
+  ...
+# Subtest: the production Jenkinsfile builds the web image without a frame credential
+ok 82 - the production Jenkinsfile builds the web image without a frame credential
+  ---
+  duration_ms: 0.415262
+  ...
+# Subtest: docker-compose.prod.yml may forward an OFFICE_FRAME_SOURCE override that defaults to empty
+ok 83 - docker-compose.prod.yml may forward an OFFICE_FRAME_SOURCE override that defaults to empty
+  ---
+  duration_ms: 1.644482
+  ...
+# Subtest: the CI e2e job installs the frame from the committed source, not from a secret
+ok 84 - the CI e2e job installs the frame from the committed source, not from a secret
+  ---
+  duration_ms: 0.388853
+  ...
+# Subtest: the committed frame source is a sha256-pinned https tarball of the same fork build as the pins
+ok 85 - the committed frame source is a sha256-pinned https tarball of the same fork build as the pins
+  ---
+  duration_ms: 0.496959
+  ...
+# Subtest: the Go and TypeScript module tables name the same modules, formats, flags and caps
+ok 86 - the Go and TypeScript module tables name the same modules, formats, flags and caps
+  ---
+  duration_ms: 3.131943
+  ...
+# Subtest: every module flag is declared in the catalogue, and every office_*_web flag is a module
+ok 87 - every module flag is declared in the catalogue, and every office_*_web flag is a module
+  ---
+  duration_ms: 0.58242
+  ...
+# Subtest: a pinned module frame's CSP allows eval only where CONTRACT C11 says
+ok 88 - a pinned module frame's CSP allows eval only where CONTRACT C11 says
+  ---
+  duration_ms: 0.562929
+  ...
+# Subtest: acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+ok 89 - acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+  ---
+  duration_ms: 3.189927
+  ...
+# Subtest: acceptance.md says the requirements are an interpretation, not the verbatim spec
+ok 90 - acceptance.md says the requirements are an interpretation, not the verbatim spec
+  ---
+  duration_ms: 0.137643
+  ...
+# Subtest: a PASS row that runs on several fixtures needs one PASS record per fixture
+ok 91 - a PASS row that runs on several fixtures needs one PASS record per fixture
+  ---
+  duration_ms: 16.166562
+  ...
+# Subtest: the summary numbers are checked against the candidate, not the committed matrix (N6)
+ok 92 - the summary numbers are checked against the candidate, not the committed matrix (N6)
+  ---
+  duration_ms: 21.405858
+  ...
+# Subtest: the ledger is read only when the caller names it, and only its own records
+ok 93 - the ledger is read only when the caller names it, and only its own records
+  ---
+  duration_ms: 1.757773
+  ...
+# Subtest: a ledger that is named and does not exist is an error, not a green gate (N5)
+ok 94 - a ledger that is named and does not exist is an error, not a green gate (N5)
+  ---
+  duration_ms: 1.455844
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 95 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 52.607471
+  ...
+# Subtest: acceptance matrix reconciles its inventory, rows, and markdown tables
+ok 96 - acceptance matrix reconciles its inventory, rows, and markdown tables
+  ---
+  duration_ms: 5.359636
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 97 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 27.047361
+  ...
+# Subtest: the recorded arch is the rustc host, whatever arch Node runs as
+ok 98 - the recorded arch is the rustc host, whatever arch Node runs as
+  ---
+  duration_ms: 0.983252
+  ...
+# Subtest: CARGO_BUILD_TARGET wins over the host for a cross build
+ok 99 - CARGO_BUILD_TARGET wins over the host for a cross build
+  ---
+  duration_ms: 0.15664
+  ...
+# Subtest: an unknown or unreadable triple records no arch instead of a guess
+ok 100 - an unknown or unreadable triple records no arch instead of a guess
+  ---
+  duration_ms: 0.103641
+  ...
+# Subtest: normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+ok 101 - normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+  ---
+  duration_ms: 0.62427
+  ...
+# Subtest: a CRLF copy of each vendored file normalises to the same hash as the LF file
+ok 102 - a CRLF copy of each vendored file normalises to the same hash as the LF file
+  ---
+  duration_ms: 2.819418
+  ...
+# Subtest: every frame pin records the same protocolSha256, equal to the vendored protocol
+not ok 103 - every frame pin records the same protocolSha256, equal to the vendored protocol
+  ---
+  duration_ms: 2.147554
+  location: '/workspace/scripts/office/frame-protocol-vendor.test.mjs:96:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    docs.pin.json was built against another frame protocol than packages/core/office vendors; re-vendor or re-pin
+    + actual - expected
+    
+      {
+        endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc',
+    +   host: '8e9ffa8411b89bd147e4aefcece8b0cd56d7da3da8456ca91eabaac194cabc3f',
+    +   protocol: '15e9387098ca7e9b8260851a857b8d48c6bec8a03c25daa35e715ab603182a68'
+    -   host: '6918f975c181f9d2425350a33326d7d0d61be6ca173b1924a838583ebfa97134',
+    -   protocol: '28fb8c4246c6974eaeb5f72b85cd1fcb00ffd6d8243df3eeb68f072f10b03e45'
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    protocol: '28fb8c4246c6974eaeb5f72b85cd1fcb00ffd6d8243df3eeb68f072f10b03e45'
+    endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc'
+    host: '6918f975c181f9d2425350a33326d7d0d61be6ca173b1924a838583ebfa97134'
+  actual:
+    protocol: '15e9387098ca7e9b8260851a857b8d48c6bec8a03c25daa35e715ab603182a68'
+    endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc'
+    host: '8e9ffa8411b89bd147e4aefcece8b0cd56d7da3da8456ca91eabaac194cabc3f'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:112:12)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+ok 104 - the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+  ---
+  duration_ms: 0.699369
+  ...
+# Subtest: the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+ok 105 - the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+  ---
+  duration_ms: 0.923353
+  ...
+# Subtest: the three vendored files name one fork commit in their header
+ok 106 - the three vendored files name one fork commit in their header
+  ---
+  duration_ms: 0.670793
+  ...
+# Subtest: maps every package.mjs artifact to the platform key the server expects
+ok 107 - maps every package.mjs artifact to the platform key the server expects
+  ---
+  duration_ms: 1.168285
+  ...
+# Subtest: the platform key set equals the one the Go config declares
+ok 108 - the platform key set equals the one the Go config declares
+  ---
+  duration_ms: 0.239099
+  ...
+# Subtest: a beta build only picks beta files, a dev file never fills beta
+ok 109 - a beta build only picks beta files, a dev file never fills beta
+  ---
+  duration_ms: 0.460018
+  ...
+# Subtest: macOS keys are supported when a Mac-built asset exists
+ok 110 - macOS keys are supported when a Mac-built asset exists
+  ---
+  duration_ms: 0.102216
+  ...
+# Subtest: stable is refused: no signed release exists
+ok 111 - stable is refused: no signed release exists
+  ---
+  duration_ms: 0.108813
+  ...
+# Subtest: signed-looking or unsafe names are ignored
+ok 112 - signed-looking or unsafe names are ignored
+  ---
+  duration_ms: 0.074144
+  ...
+# Subtest: two installers for one platform is ambiguous
+ok 113 - two installers for one platform is ambiguous
+  ---
+  duration_ms: 0.114667
+  ...
+# Subtest: the base URL must be https without credentials, query or fragment
+ok 114 - the base URL must be https without credentials, query or fragment
+  ---
+  duration_ms: 0.228151
+  ...
+# Subtest: argument parsing rejects unknown and incomplete input
+ok 115 - argument parsing rejects unknown and incomplete input
+  ---
+  duration_ms: 0.325289
+  ...
+# Subtest: the CLI prints the compact JSON for a directory and exits non-zero on bad input
+ok 116 - the CLI prints the compact JSON for a directory and exits non-zero on bad input
+  ---
+  duration_ms: 49.514621
+  ...
+# Subtest: the mechanical table parses into the six pack modules with a plausible tool count
+ok 117 - the mechanical table parses into the six pack modules with a plausible tool count
+  ---
+  duration_ms: 2.605444
+  ...
+# Subtest: the mechanical table parses a CRLF copy of the doc
+ok 118 - the mechanical table parses a CRLF copy of the doc
+  ---
+  duration_ms: 1.814294
+  ...
+# Subtest: a wrapped row inside the mechanical block fails the parse loudly
+ok 119 - a wrapped row inside the mechanical block fails the parse loudly
+  ---
+  duration_ms: 0.574278
+  ...
+# Subtest: every tool name in a module section is in that module's column
+ok 120 - every tool name in a module section is in that module's column
+  ---
+  duration_ms: 1.552167
+  ...
+# Subtest: every tool name in the common section is in all six module columns
+ok 121 - every tool name in the common section is in all six module columns
+  ---
+  duration_ms: 0.973123
+  ...
+# Subtest: a section that names an unknown tool fails, naming token, section and file
+ok 122 - a section that names an unknown tool fails, naming token, section and file
+  ---
+  duration_ms: 0.389714
+  ...
+# Subtest: a section that names another module's tool fails
+ok 123 - a section that names another module's tool fails
+  ---
+  duration_ms: 0.728857
+  ...
+# Subtest: a common-section tool missing in one module fails
+ok 124 - a common-section tool missing in one module fails
+  ---
+  duration_ms: 0.537687
+  ...
+# Subtest: the Go and TypeScript contract identities are the same pin
+ok 125 - the Go and TypeScript contract identities are the same pin
+  ---
+  duration_ms: 0.586534
+  ...
+# Subtest: the evidence doc records the same pin it was produced against
+ok 126 - the evidence doc records the same pin it was produced against
+  ---
+  duration_ms: 0.17573
+  ...
+# Subtest: every in-scope format row names a fixture the manifest knows
+ok 127 - every in-scope format row names a fixture the manifest knows
+  ---
+  duration_ms: 1.153486
+  ...
+# Subtest: the upgrade-replay manifest replays every format on the pinned build
+ok 128 - the upgrade-replay manifest replays every format on the pinned build
+  ---
+  duration_ms: 1.339223
+  ...
+# Subtest: the evidence doc leaves no in-scope format claim without a test
+ok 129 - the evidence doc leaves no in-scope format claim without a test
+  ---
+  duration_ms: 0.260214
+  ...
+# Subtest: the real engine container advertises the pin and the honesty rule
+ok 130 - the real engine container advertises the pin and the honesty rule
+  ---
+  duration_ms: 0.282553
+  ...
+# not_run: OFFICE_ENGINE_TEST_URL is not set, the container rows were not exercised
+# Subtest: projects suite UI has no source brand or Issue domain
+ok 131 - projects suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 9.819036
+  ...
+# Subtest: slice-2 route catalogue pins Work Management API surface
+ok 132 - slice-2 route catalogue pins Work Management API surface
+  ---
+  duration_ms: 3.258872
+  ...
+# Subtest: slice 5 locale strings have no source brand or Issue domain
+ok 133 - slice 5 locale strings have no source brand or Issue domain
+  ---
+  duration_ms: 34.905354
+  ...
+# Subtest: task detail suite UI has no source brand or Issue domain
+ok 134 - task detail suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 49.203124
+  ...
+# Subtest: Tasks parity manifest pins and classifies the complete baseline
+ok 135 - Tasks parity manifest pins and classifies the complete baseline
+  ---
+  duration_ms: 14.681304
+  ...
+# Subtest: Task parity generator emits a byte-stable manifest from a fixed Git fixture
+ok 136 - Task parity generator emits a byte-stable manifest from a fixed Git fixture
+  ---
+  duration_ms: 94.517685
+  ...
+# Subtest: slice-1 verification overlay marks only owned capability entries
+ok 137 - slice-1 verification overlay marks only owned capability entries
+  ---
+  duration_ms: 0.727226
+  ...
+# Subtest: slice-2 verification overlay marks only owned API entries
+ok 138 - slice-2 verification overlay marks only owned API entries
+  ---
+  duration_ms: 0.509305
+  ...
+# Subtest: slice-3 verification overlay marks only owned UI entries
+ok 139 - slice-3 verification overlay marks only owned UI entries
+  ---
+  duration_ms: 0.533707
+  ...
+# Subtest: slice-4 verification overlay marks only owned projects entries
+ok 140 - slice-4 verification overlay marks only owned projects entries
+  ---
+  duration_ms: 0.462451
+  ...
+# Subtest: slice-5 verification overlay marks only owned detail entries
+ok 141 - slice-5 verification overlay marks only owned detail entries
+  ---
+  duration_ms: 1.269748
+  ...
+# Subtest: slice-6 verification overlay marks only owned agent-integration entries
+ok 142 - slice-6 verification overlay marks only owned agent-integration entries
+  ---
+  duration_ms: 0.67189
+  ...
+# Subtest: collection UI has no source brand or Issue domain
+ok 143 - collection UI has no source brand or Issue domain
+  ---
+  duration_ms: 59.997008
+  ...
+# Subtest: parity flag identifier is gone from apps, packages, and server
+ok 144 - parity flag identifier is gone from apps, packages, and server
+  ---
+  duration_ms: 40.881049
+  ...
+1..144
+# tests 144
+# suites 0
+# pass 143
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3377.049585
