@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "pinVersion": "0.1.0-cb76dde",
-  "forkSha": "cb76dde",
-  "capturedOn": "2026-10-12T20:54:16.533Z",
+  "pinVersion": "0.1.0-7e082de",
+  "forkSha": "7e082de",
+  "capturedOn": "2026-10-13T10:05:09.115Z",
   "viewport": {
     "desktop": {
       "w": 1440,
@@ -24,51 +24,51 @@
   },
   "entries": {
     "desktop/fx-xlsx-revenue-xyz": {
-      "sha256": "3c93fe6d79ecd5ce58fe8d2a32dc8023acfc960962c6bb2c9184a1ed4ab533eb",
+      "sha256": "a039945d765f793c49ff66b5e9567d597e7d82fb0a73ae58a4b9f519dbe6155a",
       "masks": []
     },
     "desktop/fx-docx-report-vi": {
-      "sha256": "df15ea8266615048ab2291ddd852a4a1884ee5b123882a0d01114c4f425325b1",
+      "sha256": "91a1f1b96ae275df0c5a3fe80a351386dc3ae039abc808ef701869aca4f25cb4",
       "masks": []
     },
     "desktop/fx-pptx-deck-vi": {
-      "sha256": "a59ad91c5e8986532aa03c2893d8f645f1208250dbb0ed5b67d728cb4f015648",
+      "sha256": "e951144a7da90a9636257c39e8af88f69396c525eecc05f00c5178ebb61dadba",
       "masks": []
     },
     "desktop/fx-pdf-invoice-vi": {
-      "sha256": "53deefa43eaed30c760cc2e485bf749495a7b3a830873743e88ee1cdeda41dcf",
+      "sha256": "4a2fcc0127d20ab93a7b2af2f69cb5acda5ab0ee17abe52512e3e36ff099fe48",
       "masks": []
     },
     "desktop/fx-md-notes-vi": {
-      "sha256": "b7ecd389bff9e8f527d687bbd1db1ed4ebf3d7a10cccb25c391890dbede4c79c",
+      "sha256": "986753cfa9ff94aa2eb0f4ba39675a8d550009d182aa9787539aab68b838d2d7",
       "masks": []
     },
     "desktop/fx-html-page-vi": {
-      "sha256": "91ccc360e2412011e2e2cb00fc233c1b8fe398a175046ed8e0e5093bdbcabdf2",
+      "sha256": "878c2846434db389ad1de3c1111d523ce5104f57c136bd0b808f9e6a8ce53651",
       "masks": []
     },
     "web/fx-xlsx-revenue-xyz": {
-      "sha256": "e4c69ae5cb1455a80b4805820839ffd1f2df8982b066986e6565b4899a5881b3",
+      "sha256": "46e3143143f5524f16ef067e6d79a26cf24d9e2213b55d6838346a8ce39349f3",
       "masks": []
     },
     "web/fx-docx-report-vi": {
-      "sha256": "d3c20f83f60f45e9013839bd10e94cd9957b11fb15673e63373ed8bcf4fe60bd",
+      "sha256": "6839bd8a070760f7719e7ce2efc15f8f34403d582095cac5a3b1bacd87d4a63c",
       "masks": []
     },
     "web/fx-pptx-deck-vi": {
-      "sha256": "ed549e6541db5b1e7270816d779c483a433ea3a261ba680f1593da1c8147dd4c",
+      "sha256": "221fc1740095a8b79b5ff7f564baa7a0be5747aa0263b386c509c143d0045acd",
       "masks": []
     },
     "web/fx-pdf-invoice-vi": {
-      "sha256": "f641f2e02e91dc757e5cfb1fbf6f564f9b2af2bec7919c748cf3ec44ddc78b8d",
+      "sha256": "715ed441b86394a539197c71b365bba339ba88a6cf173eed0ddd9044ae158003",
       "masks": []
     },
     "web/fx-md-notes-vi": {
-      "sha256": "a13511e25c9c2b2b8e1f30a5bec58499babc72ee218ac51dd96baf7a33f728cc",
+      "sha256": "827522f92a86d918045286a9218bd6ba6906b5de644b23cc2a6daab213383272",
       "masks": []
     },
     "web/fx-html-page-vi": {
-      "sha256": "c4166adca6be84b392f62529779d9252ed9b1571d531a3e366ff4b53e2ea2001",
+      "sha256": "7d8a7d5282774a64adee9679c96d2ad30e1a80bcbd083a5578d095ff8424906e",
       "masks": []
     }
   }
