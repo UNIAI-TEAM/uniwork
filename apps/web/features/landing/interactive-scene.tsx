@@ -7,7 +7,8 @@ import { Logo } from "@uniwork/ui/brand";
 import type { createScene } from "./animation/scene-renderer";
 
 export function InteractiveScene() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language.split("-")[0] === "vi" ? "vi" : "en";
   const host = useRef<HTMLDivElement>(null);
   const renderer = useRef<ReturnType<typeof createScene> | null>(null);
   const [reduced, setReduced] = useState(true);
@@ -33,13 +34,14 @@ export function InteractiveScene() {
         if (cancelled) return;
         const style = getComputedStyle(element);
         const colour = (name: string) => toSrgb(style.getPropertyValue(name).trim());
-        renderer.current = create(element, { brand: colour("--brand"), paper: colour("--landing-model-shell"), ink: colour("--landing-deep"), mint: colour("--landing-model-light"), cyan: colour("--landing-close-light"), violet: colour("--landing-close-end"), pink: colour("--brand-accent") }, setSelected, setFailed);
+        const screens = ["tasks", "chat", "meetings", "docs"].map(name => "/landing/screens/" + name + "." + locale + ".webp");
+        renderer.current = create(element, { brand: colour("--brand"), paper: colour("--landing-model-shell"), ink: colour("--landing-deep"), mint: colour("--landing-model-light"), cyan: colour("--landing-close-light"), violet: colour("--landing-close-end"), pink: colour("--brand-accent") }, setSelected, setFailed, screens);
         renderer.current.setState(state.current);
       }).catch(() => { if (!cancelled) setFailed(true); });
     }, { rootMargin: "200px" });
     observer.observe(element);
     return () => { cancelled = true; observer.disconnect(); renderer.current?.dispose(); renderer.current = null; };
-  }, []);
+  }, [locale]);
   return <div className="interactive-scene scene-core" data-scene="core" data-motion={paused ? "paused" : "playing"} data-selection={selected}>
     <div className="hero-context hero-context-work"><Check aria-hidden /><strong>{t("landing.studio.tasksTab")}</strong></div>
     <div className="hero-context hero-context-chat"><MessageSquare aria-hidden /><strong>{t("landing.studio.chatTab")}</strong></div>

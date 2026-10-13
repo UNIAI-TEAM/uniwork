@@ -1,0 +1,62 @@
+{
+  "preparedOn": "2026-10-12",
+  "content": "Real application interfaces with isolated demonstration records; no generated interface artwork.",
+  "assets": [
+    {
+      "file": "tasks.vi.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 26136,
+      "source": "authenticated local app /{org}/{workspace}/tasks"
+    },
+    {
+      "file": "chat.vi.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 35566,
+      "source": "authenticated local app /{org}/{workspace}/chat"
+    },
+    {
+      "file": "meetings.vi.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 23948,
+      "source": "authenticated local app /{org}/{workspace}/meetings"
+    },
+    {
+      "file": "docs.vi.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 50524,
+      "source": "real document editor capture from scripts/office-landing/capture.mjs"
+    },
+    {
+      "file": "tasks.en.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 25258,
+      "source": "authenticated local app /{org}/{workspace}/tasks"
+    },
+    {
+      "file": "chat.en.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 34610,
+      "source": "authenticated local app /{org}/{workspace}/chat"
+    },
+    {
+      "file": "meetings.en.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 23644,
+      "source": "authenticated local app /{org}/{workspace}/meetings"
+    },
+    {
+      "file": "docs.en.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 46364,
+      "source": "real document editor capture from scripts/office-landing/capture.mjs"
+    }
+  ]
+}
