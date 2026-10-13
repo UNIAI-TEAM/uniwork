@@ -22,16 +22,32 @@ func (s *BillingService) ParseProviderWebhook(r *http.Request) (billing.Event, e
 	return s.provider.ParseWebhook(r)
 }
 
-// HandleProviderWebhook applies a provider callback synchronously (S1). Returns
-// whether the gateway should acknowledge success (VNPay RspCode=00).
-func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.Event, payload []byte) (bool, error) {
+// VNPay IPN acknowledgement codes (merchant response, HTTP 200 JSON).
+const (
+	vnpayIPNConfirmed     = "00"
+	vnpayIPNOrderNotFound = "01"
+	vnpayIPNAlreadyDone   = "02"
+	vnpayIPNBadAmount     = "04"
+	vnpayIPNUnknown       = "99"
+)
+
+var (
+	errUnknownTxnRef          = errors.New("billing: unknown txn ref")
+	errIntentAlreadyCompleted = errors.New("billing: intent already completed")
+	errAmountMismatch         = errors.New("billing: amount mismatch")
+	errCurrencyMismatch       = errors.New("billing: currency mismatch")
+)
+
+// HandleProviderWebhook applies a provider callback synchronously (S1).
+// The string is the VNPay RspCode the handler writes back.
+func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.Event, payload []byte) (string, error) {
 	if ev.ProviderEventID == "" {
-		return false, errors.New("billing: missing provider_event_id")
+		return vnpayIPNUnknown, errors.New("billing: missing provider_event_id")
 	}
 	inboxID := util.NewID()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return false, err
+		return vnpayIPNUnknown, err
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
@@ -40,33 +56,51 @@ func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.E
 		EventType: ev.Type, Payload: string(payload),
 	})
 	if err != nil {
-		return false, err
+		return vnpayIPNUnknown, err
 	}
-	// Duplicate IPN: inbox row already committed from a successful apply.
-	if n == 0 {
-		return true, nil
-	}
-	if err := s.applyProviderEvent(ctx, q, ev); err != nil {
-		var term intentTerminalErr
-		if !errors.As(err, &term) {
-			return false, err
-		}
-		// Terminal mismatch/quota: intent→failed is committed; ack VNPay 00 so IPN is not retried forever.
+	ack := func(code string) (string, error) {
 		if err := q.MarkWebhookInboxDone(ctx, inboxID); err != nil {
-			return false, err
+			return vnpayIPNUnknown, err
 		}
 		if err := tx.Commit(ctx); err != nil {
-			return false, err
+			return vnpayIPNUnknown, err
 		}
-		return true, nil
+		return code, nil
 	}
-	if err := q.MarkWebhookInboxDone(ctx, inboxID); err != nil {
-		return false, err
+	// Duplicate IPN: the row was already committed, either applied or queued for the worker.
+	if n == 0 {
+		return vnpayIPNAlreadyDone, nil
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return false, err
+	if err := s.applyProviderEvent(ctx, q, ev); err != nil {
+		if errors.Is(err, errUnknownTxnRef) {
+			// Roll the inbox back so a retry stays 01. A stored row would look like a duplicate (02).
+			return vnpayIPNOrderNotFound, nil
+		}
+		if errors.Is(err, errIntentAlreadyCompleted) {
+			return ack(vnpayIPNAlreadyDone)
+		}
+		var term intentTerminalErr
+		if !errors.As(err, &term) {
+			// Keep the payload outside the rolled-back transaction so the worker
+			// can retry and dead-letter it. Unknown txn refs stay unstored above.
+			_ = tx.Rollback(ctx)
+			if _, qerr := s.q.InsertWebhookInbox(ctx, db.InsertWebhookInboxParams{
+				ID: inboxID, Provider: s.provider.Name(), ProviderEventID: ev.ProviderEventID,
+				EventType: ev.Type, Payload: string(payload),
+			}); qerr != nil {
+				return vnpayIPNUnknown, errors.Join(err, qerr)
+			}
+			s.billingLogWarn("billing webhook queued for retry", err, "provider_event_id", ev.ProviderEventID)
+			return vnpayIPNConfirmed, nil
+		}
+		// Amount or currency mismatch is 04. Quota and other terminal
+		// failures stay 00; UNI-1272 owns the quota reply.
+		if errors.Is(term.cause, errAmountMismatch) || errors.Is(term.cause, errCurrencyMismatch) {
+			return ack(vnpayIPNBadAmount)
+		}
+		return ack(vnpayIPNConfirmed)
 	}
-	return true, nil
+	return ack(vnpayIPNConfirmed)
 }
 
 // intentTerminalErr marks a provider-event failure whose side effects (typically
@@ -84,6 +118,9 @@ func (s *BillingService) ApplyProviderEvent(ctx context.Context, ev billing.Even
 	}
 	err = s.applyProviderEvent(ctx, s.q.WithTx(tx), ev)
 	if err != nil {
+		if errors.Is(err, errIntentAlreadyCompleted) {
+			return tx.Commit(ctx)
+		}
 		var term intentTerminalErr
 		if errors.As(err, &term) {
 			if commitErr := tx.Commit(ctx); commitErr != nil {
@@ -104,7 +141,7 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 	}
 	intent, err := q.GetBillingPaymentIntentByTxnRef(ctx, ev.ProviderTxnRef)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("billing: unknown txn ref %q", ev.ProviderTxnRef)
+		return errUnknownTxnRef
 	}
 	if err != nil {
 		return err
@@ -118,22 +155,27 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		return nil
 	}
 	if intent.Status == "completed" {
-		return s.patchIntentProviderMeta(ctx, q, intent, ev)
+		if err := s.patchIntentProviderMeta(ctx, q, intent, ev); err != nil {
+			return err
+		}
+		return errIntentAlreadyCompleted
 	}
-	if intent.Status != "pending" && intent.Status != "failed" {
+	// expired stays payable: the VNPay URL has no expiry, so a superseded
+	// checkout can still be paid. Amount and quota checks below still apply.
+	if intent.Status != "pending" && intent.Status != "failed" && intent.Status != "expired" {
 		return fmt.Errorf("billing: intent %q not payable (status=%s)", intent.ID, intent.Status)
 	}
 	if ev.Amount != intent.Amount {
 		_ = q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{
 			ID: intent.ID, OrganizationID: intent.OrganizationID,
 		})
-		return intentTerminalErr{cause: fmt.Errorf("billing: amount mismatch")}
+		return intentTerminalErr{cause: errAmountMismatch}
 	}
 	if ev.Currency != "" && ev.Currency != intent.Currency {
 		_ = q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{
 			ID: intent.ID, OrganizationID: intent.OrganizationID,
 		})
-		return intentTerminalErr{cause: fmt.Errorf("billing: currency mismatch")}
+		return intentTerminalErr{cause: errCurrencyMismatch}
 	}
 
 	plan, err := q.GetPlanByID(ctx, intent.PlanID)
@@ -210,8 +252,11 @@ func subscriptionPeriodEnd(start time.Time, billingPeriod string) pgtype.Timesta
 	return pgtype.Timestamptz{Time: end, Valid: true}
 }
 
+// The first eight Crockford characters of a ULID repeat for 256ms. A reconcile
+// batch that pays two intents then collides on idx_invoices_number, the second
+// insert rolls back, and that intent stays pending.
 func invoiceNumber(at time.Time) string {
-	return fmt.Sprintf("UW-%d-%s", at.Year(), util.NewID()[:8])
+	return fmt.Sprintf("UW-%d-%s", at.Year(), util.NewID())
 }
 
 // ProviderWebhookPayloadJSON serialises raw provider params for webhook_inbox.

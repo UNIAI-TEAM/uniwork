@@ -180,7 +180,7 @@ func TestActorConstructedOnlyInService(t *testing.T) {
 // internal/audit is the only caller; everything else goes through
 // audit.Recorder.Record or, for infrastructure topics, Recorder.Emit.
 func TestAuditAndOutboxWritesGoThroughTheAuditPackage(t *testing.T) {
-	writes := regexp.MustCompile(`\.(InsertAuditEvent|InsertDomainOutboxEvent)\(`)
+	writes := regexp.MustCompile(`\.(InsertAuditEvent|InsertAuditEventsBatch|InsertDomainOutboxEvent|InsertDomainOutboxEventsBatch)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err

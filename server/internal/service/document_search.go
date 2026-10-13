@@ -57,6 +57,10 @@ type ListDocumentsInput struct {
 type DocumentListItem struct {
 	Document db.Document
 	Snippet  string
+	Facts    DocumentListFacts
+	// Access is the actor's level on the row (document_list_access.go); the
+	// zero value means the service did not compute it.
+	Access DocumentAccess
 }
 
 // DocumentListPage is one page plus the cursor for the next.
@@ -202,6 +206,14 @@ func escapeLikeQuery(q string) string {
 // last row, so rows created or moved while the client pages change neither
 // the next page's membership nor its order.
 func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
+	page, err := s.listDocumentsPage(ctx, actor, workspaceID, in)
+	if err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListFacts(ctx, page.Items)
+}
+
+func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
 	scope, err := s.documentListScope(ctx, actor, workspaceID)
 	if err != nil {
 		return DocumentListPage{}, err
@@ -224,10 +236,10 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 	kind := pgtype.Text{}
 	switch in.Kind {
 	case "":
-	case DocumentKindPage, DocumentKindFile:
+	case DocumentKindPage, DocumentKindFile, DocumentKindFolder:
 		kind = pgtype.Text{String: in.Kind, Valid: true}
 	default:
-		return DocumentListPage{}, Invalid("kind phải là page hoặc file")
+		return DocumentListPage{}, Invalid("kind phải là page, file hoặc folder")
 	}
 	updatedBy := nullText(in.UpdatedBy)
 	var from, to pgtype.Timestamptz
@@ -265,7 +277,7 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 			}
 			out.Items = append(out.Items, DocumentListItem{Document: d})
 		}
-		return out, nil
+		return out, s.attachListAccess(ctx, scope, workspaceID, actor.Kind == audit.KindAgent, out.Items)
 
 	case in.ParentID != nil && !query.Valid:
 		// One level of the tree, position order. q present searches the
@@ -292,7 +304,7 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 			}
 			out.Items = append(out.Items, DocumentListItem{Document: d})
 		}
-		return out, nil
+		return out, s.attachListAccess(ctx, scope, workspaceID, actor.Kind == audit.KindAgent, out.Items)
 
 	default:
 		var cursorAt pgtype.Timestamptz
@@ -317,7 +329,7 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 			}
 			out.Items = append(out.Items, DocumentListItem{Document: listRowDocument(r), Snippet: r.Snippet})
 		}
-		return out, nil
+		return out, s.attachListAccess(ctx, scope, workspaceID, actor.Kind == audit.KindAgent, out.Items)
 	}
 }
 
@@ -325,6 +337,14 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 // actor opened (access log) or last edited, permission-filtered. Only a
 // person has a "recent"; agents get the plain list.
 func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
+	page, err := s.listRecentDocumentsPage(ctx, actor, workspaceID, in)
+	if err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListFacts(ctx, page.Items)
+}
+
+func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
 	if actor.Kind != audit.KindHuman {
 		return DocumentListPage{}, ErrForbidden
 	}
@@ -364,7 +384,7 @@ func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, 
 		}
 		out.Items = append(out.Items, DocumentListItem{Document: d})
 	}
-	return out, nil
+	return out, s.attachListAccess(ctx, scope, workspaceID, false, out.Items)
 }
 
 // listRowDocument converts the flat-page row (which carries the snippet)
