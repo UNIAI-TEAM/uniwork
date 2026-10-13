@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -337,8 +338,8 @@ func TestMcpDeactivationBlocksButKeepsGrants(t *testing.T) {
 func TestMcpRevokeAllGrantsForUser(t *testing.T) {
 	w := newMcpWorld(t)
 	_, pair := w.issue(t)
-	if err := revokeAllMcpGrantsForUser(w.ctx, w.q, w.owner.ID); err != nil {
-		t.Fatal(err)
+	if n, err := revokeAllMcpGrantsForUser(w.ctx, w.q, w.owner.ID); err != nil || n != 1 {
+		t.Fatalf("revoked %d grants, %v; want 1", n, err)
 	}
 	if _, err := w.svc.Authenticate(w.ctx, pair.AccessToken); !errors.Is(err, ErrMcpTokenInvalid) {
 		t.Fatalf("token after account deletion revoke: %v", err)
@@ -374,6 +375,59 @@ func TestMcpDeleteAccountRevokesEveryGrant(t *testing.T) {
 	}
 	if _, err := w.svc.Authenticate(w.ctx, ownerPair.AccessToken); err != nil {
 		t.Fatalf("someone else's token: %v", err)
+	}
+}
+
+// Ruling 49: a password reset is the answer to a stolen password, and an AI
+// app connected by whoever held it would outlive every session the reset
+// kills. So the reset closes the person's grants in every organization, in
+// the reset's own transaction, and records how many on its revocation row.
+// Someone else's grant is untouched. (Desktop "sign out everywhere" keeps
+// them: that is a session tool, not a credential reset.)
+func TestMcpPasswordResetRevokesEveryGrant(t *testing.T) {
+	w := newMcpWorld(t)
+	member := registerVerified(t, w.q, w.auth, "mcp-reset@example.com", "Reset")
+	addOrgMember(t, w.q, w.org.ID, member.ID)
+	connected, pair := w.issueAs(t, member)
+	pending := w.publicClient(t, "https://x.test/cb")
+	code := w.approveAs(t, member, pending, "https://x.test/cb") // approved before the reset, exchanged after
+	orgB, _ := w.otherOrg(t, "mcp-org-reset")
+	addOrgMember(t, w.q, orgB.ID, member.ID)
+	_ = w.grantIn(t, orgB.ID, member.ID)
+	_, ownerPair := w.issue(t)
+
+	out := &fakeOutbox{}
+	resets := NewPasswordResetService(w.pool, w.q, w.auth, mail.Renderer{AppURL: "https://app.example.test"}, out)
+	if err := resets.Request(w.ctx, "mcp-reset@example.com"); err != nil || len(out.queued) != 1 {
+		t.Fatalf("request: %v, %d mails", err, len(out.queued))
+	}
+	if _, err := resets.Reset(w.ctx, resetToken.FindStringSubmatch(out.queued[0].Text)[1], "newpassword1"); err != nil {
+		t.Fatal(err)
+	}
+
+	if n := w.countRows(t, `SELECT count(*) FROM mcp_grants WHERE user_id = $1 AND revoked_at IS NULL`, member.ID); n != 0 {
+		t.Fatalf("live grants after the reset = %d, want 0", n)
+	}
+	if n := w.liveTokensOf(t, member.ID); n != 0 {
+		t.Fatalf("live tokens after the reset = %d, want 0", n)
+	}
+	if _, err := w.svc.Authenticate(w.ctx, pair.AccessToken); !errors.Is(err, ErrMcpTokenInvalid) {
+		t.Fatalf("access token minted before the reset: %v, want ErrMcpTokenInvalid (401 on /mcp)", err)
+	}
+	var oe OAuthError
+	if _, err := w.svc.Refresh(w.ctx, McpRefreshInput{ClientID: connected.ClientID, RefreshToken: pair.RefreshToken}); !errors.As(err, &oe) || oe.Code != "invalid_grant" {
+		t.Fatalf("refresh token minted before the reset: %v, want invalid_grant", err)
+	}
+	if _, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: pending.ClientID, Code: code, CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"}); !errors.As(err, &oe) || oe.Code != "invalid_grant" {
+		t.Fatalf("code approved before the reset: %v, want invalid_grant", err)
+	}
+	if _, err := w.svc.Authenticate(w.ctx, ownerPair.AccessToken); err != nil {
+		t.Fatalf("someone else's token: %v", err)
+	}
+	var revoked string
+	if err := w.pool.QueryRow(w.ctx, `SELECT metadata::jsonb->>'mcp_grants_revoked' FROM audit_events
+		WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'reason' = 'password_reset'`, audit.ActionAuthSessionRevoked, member.ID).Scan(&revoked); err != nil || revoked != "3" {
+		t.Fatalf("revocation row's mcp_grants_revoked = %q, %v; want 3", revoked, err)
 	}
 }
 

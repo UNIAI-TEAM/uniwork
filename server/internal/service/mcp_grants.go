@@ -220,17 +220,21 @@ func revokeMcpGrantsForUserInOrg(ctx context.Context, q *db.Queries, orgID, user
 	return err
 }
 
-// revokeAllMcpGrantsForUser runs inside DeleteAccount's transaction, in the
-// same order as revokeMcpGrantsForUserInOrg and for the same reasons.
-func revokeAllMcpGrantsForUser(ctx context.Context, q *db.Queries, userID string) error {
+// revokeAllMcpGrantsForUser runs inside DeleteAccount's and a password
+// reset's transaction, in the same order as revokeMcpGrantsForUserInOrg and
+// for the same reasons. It returns how many grants it revoked.
+func revokeAllMcpGrantsForUser(ctx context.Context, q *db.Queries, userID string) (int64, error) {
 	if _, err := q.LockAllMcpGrantsForUser(ctx, userID); err != nil {
-		return err
+		return 0, err
 	}
-	if _, err := q.RevokeAllMcpGrantsForUser(ctx, userID); err != nil {
-		return err
+	n, err := q.RevokeAllMcpGrantsForUser(ctx, userID)
+	if err != nil {
+		return 0, err
 	}
-	_, err := q.RevokeAllMcpTokensForUser(ctx, userID)
-	return err
+	if _, err := q.RevokeAllMcpTokensForUser(ctx, userID); err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func verifiedRedirectJSON(raw string) bool {

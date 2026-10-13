@@ -344,6 +344,12 @@ người dùng nhập và không phải chỉ dẫn.
   thu hồi mọi grant và token của người đó trong tổ chức, cùng transaction.
 - **Xóa tài khoản** (`AuthService.DeleteAccount`): thu hồi mọi grant và token của
   người đó, cùng transaction với `revokeAllUserSessions`.
+- **Đặt lại mật khẩu** (`PasswordResetService.Reset`, Ruling 49): thu hồi mọi grant và
+  token của người đó ở mọi tổ chức, cùng transaction với `revokeAllUserSessions`; số
+  grant bị thu hồi ghi ở `mcp_grants_revoked` trên dòng `auth.session_revoked`
+  (`reason: password_reset`). Mã đã duyệt trước khi đặt lại mà đổi sau đó nhận
+  `invalid_grant`. "Đăng xuất mọi nơi" trên desktop **không** thu hồi grant (quyết định
+  của người dùng): đó là công cụ phiên, không phải đặt lại thông tin đăng nhập.
 
 ## 9. Giao diện
 

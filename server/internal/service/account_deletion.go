@@ -109,7 +109,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err := revokeAllUserSessions(ctx, qtx, userID); err != nil {
 		return err
 	}
-	if err := revokeAllMcpGrantsForUser(ctx, qtx, userID); err != nil {
+	if _, err := revokeAllMcpGrantsForUser(ctx, qtx, userID); err != nil {
 		return err
 	}
 	if err := qtx.RevokeAllPushSubscriptionsForUser(ctx, userID); err != nil {

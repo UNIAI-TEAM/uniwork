@@ -137,7 +137,7 @@ func TestMcpGrantRevocationWaitsForRequestsInFlight(t *testing.T) {
 			return w.inTx(func(q *db.Queries) error { return revokeMcpGrantsForUserInOrg(w.ctx, q, w.org.ID, member.ID) })
 		},
 		"revokeAllMcpGrantsForUser": func(w *mcpWorld, member db.User) error {
-			return w.inTx(func(q *db.Queries) error { return revokeAllMcpGrantsForUser(w.ctx, q, member.ID) })
+			return w.inTx(func(q *db.Queries) error { _, err := revokeAllMcpGrantsForUser(w.ctx, q, member.ID); return err })
 		},
 	}
 	for opName, op := range operations {
@@ -182,7 +182,7 @@ func TestMcpGrantRevocationClosesEveryGrantOfThePerson(t *testing.T) {
 		errs <- w.inTx(func(q *db.Queries) error { return revokeMcpGrantsForUserInOrg(w.ctx, q, w.org.ID, member.ID) })
 	}()
 	go func() {
-		errs <- w.inTx(func(q *db.Queries) error { return revokeAllMcpGrantsForUser(w.ctx, q, member.ID) })
+		errs <- w.inTx(func(q *db.Queries) error { _, err := revokeAllMcpGrantsForUser(w.ctx, q, member.ID); return err })
 	}()
 	for range 2 {
 		if err := <-errs; err != nil {
@@ -289,7 +289,7 @@ func TestMcpRevocationLeavesExpiredTokensToTheCleanupJob(t *testing.T) {
 			return w.inTx(func(q *db.Queries) error { return revokeMcpGrantsForUserInOrg(w.ctx, q, w.org.ID, member.ID) })
 		},
 		"revokeAllMcpGrantsForUser": func(w *mcpWorld, member db.User, _ string) error {
-			return w.inTx(func(q *db.Queries) error { return revokeAllMcpGrantsForUser(w.ctx, q, member.ID) })
+			return w.inTx(func(q *db.Queries) error { _, err := revokeAllMcpGrantsForUser(w.ctx, q, member.ID); return err })
 		},
 	}
 	for name, op := range operations {
