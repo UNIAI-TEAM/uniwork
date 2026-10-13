@@ -6,6 +6,8 @@
 **Issue tài liệu:** UNI-923, parent UNI-437; Roadmap C-01, liên quan C-15/C-16.
 **Issue triển khai:** G5 UNI-660 · G6 UNI-635 · G7 UNI-661 (đội nhận bàn giao giữ các issue này).
 **Phạm vi tài liệu:** một phase với ba luồng song song và các mốc bàn giao; không hợp nhất ba issue thành một.
+**Phụ lục (2026-10-13; quyết định đã ký trừ G8-D3):** [G8 — cộng tác trên tài liệu và liên kết sau đăng nhập](2026-10-13-office-g8-collab-addendum.md)
+(UNI-1331, UNI-1328) thêm luồng thứ tư; spec này không đổi, bất biến §3 áp cho G8.
 **Nguồn quyết định:** trao đổi người dùng ngày 2026-10-02 trong chat `01a0fbad-e4fb-7321-9009-37d2b12b351e`;
 v1.1 cập nhật theo pivot genoffice (UNI-1001, 2026-10-08), ADR 0028/0029 và trao đổi người dùng ngày 2026-10-11.
 
@@ -562,6 +564,10 @@ dữ liệu khách hàng lên dịch vụ chưa duyệt.
 - Các bản sao ở upstream (log/retention của vendor) và ở UniWork (transcript hội thoại phía server, cache) phải có
   inventory và chính sách xóa. G6-D2 chốt vendor/self-host, region, retention và tắt log nội dung của upstream trước khi
   dùng dữ liệu thật; không chứng minh được thì chưa mở UniWork AI cho tenant production.
+- Bản sao cục bộ "Tải bản của tôi về máy" trong hộp thoại xung đột web (`api.download`, X-02 + G5-09w): tệp do trình
+  duyệt và người dùng giữ trên máy, ngoài mọi chính sách xóa của UniWork. Không có hàng `document_access`, không có route
+  server và host không gọi server ghi sự kiện `export` trước khi giao Blob; chỉ người còn `can_edit` trên frame token hiện
+  tại mới tải được. Chấp nhận như vậy, đã ký (OQ-UX14, U-15, 2026-10-12; EXPERIENCE.md › Conflict dialog (S5)).
 - Upstream outage chỉ làm UniWork AI unavailable; editor, Lưu, BYOK và G5 vẫn hoạt động.
   Không fallback âm thầm sang nhà cung cấp khác.
 - Instruction pack đã phát hành bất biến theo version (§7.2). Lưu dấu vết kỹ thuật đủ truy ngược kết quả tới

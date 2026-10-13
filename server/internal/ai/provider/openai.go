@@ -60,7 +60,9 @@ type oaiToolCall struct {
 }
 
 func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error) {
-	body := map[string]any{"model": req.Model, "max_tokens": req.MaxTokens}
+	// stream is explicit: an upstream that reads a missing field as true
+	// answers in SSE, which this JSON reader cannot parse (spike G6-02 §8.1).
+	body := map[string]any{"model": req.Model, "max_tokens": req.MaxTokens, "stream": false}
 	if req.Temperature > 0 {
 		body["temperature"] = req.Temperature
 	}
@@ -175,9 +177,9 @@ func (o *OpenAI) Embed(context.Context, EmbedRequest) (EmbedResponse, error) {
 	return EmbedResponse{}, ErrUnsupported
 }
 
-// postJSON is shared by the HTTP adapters. A non-2xx status is an error
-// carrying the vendor's status code and the first bytes of its body, which
-// is what an operator needs and nothing a log should not hold.
+// postJSON is shared by the HTTP adapters. A non-2xx status is a
+// *StatusError carrying the vendor's status, Retry-After and the first bytes
+// of its body.
 func postJSON(ctx context.Context, client *http.Client, url, bearer string, body any, out any) error {
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -201,11 +203,7 @@ func postJSON(ctx context.Context, client *http.Client, url, bearer string, body
 		return err
 	}
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		snippet := string(data)
-		if len(snippet) > 200 {
-			snippet = snippet[:200]
-		}
-		return fmt.Errorf("provider: %s → %d: %s", url, res.StatusCode, snippet)
+		return &StatusError{Status: res.StatusCode, RetryAfter: retryAfter(res.Header, time.Now()), URL: url, Detail: snippet(data)}
 	}
 	return json.Unmarshal(data, out)
 }

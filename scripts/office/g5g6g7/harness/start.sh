@@ -386,7 +386,7 @@ curl -sf "$API_ORIGIN/readyz" > "$RUN_DIR/logs/readyz.json" \
 echo "harness: starting the D web with NEXT_PUBLIC_API_URL=$API_ORIGIN ..."
 setsid env \
   NEXT_PUBLIC_API_URL="$API_ORIGIN" \
-  NEXT_PUBLIC_WS_URL="ws://127.0.0.1:$API_PORT" \
+  NEXT_PUBLIC_WS_URL="ws://localhost:$API_PORT" \
   NEXT_PUBLIC_APP_URL="$WEB_ORIGIN" \
   E2E_BASE_URL="$WEB_ORIGIN" \
   FRONTEND_PORT="$WEB_PORT" \

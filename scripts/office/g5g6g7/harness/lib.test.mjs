@@ -3,20 +3,55 @@
 // part that decides where a run points: fresh ports and the environment handed
 // to the server, the web and the app.
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { after, afterEach, test } from "node:test";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { verify } from "../evidence.mjs";
+import { bashSyntaxError, shBlocks } from "./readme-sh-blocks.mjs";
 import { routeCatalogue, routeMatches } from "./server-contract.helper.mjs";
-import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, appOrigin, loopbackOriginsIn, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
 const START_SH = join(HERE, "start.sh");
+
+// Every temp dir this file creates goes through tmpDir(), and every one of
+// them is removed by the hook below: `afterEach` so a test cannot leave its
+// own dir behind for the next one (and the last test can prove the file as a
+// whole leaves none), `after` as the final sweep if a hook ever misses one.
+// The snapshot is taken before any test runs, so a `harness-*` dir some other
+// process (or an earlier run) left in os.tmpdir() is not this file's problem.
+const HARNESS_TMP_BEFORE = new Set(readdirSync(tmpdir()).filter((name) => name.startsWith("harness-")));
+const TMP_DIRS = new Set();
+
+function tmpDir(prefix) {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  TMP_DIRS.add(dir);
+  return dir;
+}
+
+function removeTmpDirs() {
+  const failed = [];
+  for (const dir of [...TMP_DIRS]) {
+    try {
+      // A killed stub may still be writing into its run dir for a moment; the
+      // retries are what make "every dir is removed" hold under that race
+      // (ENOTEMPTY/EBUSY). One stubborn dir must not stop the others.
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+      TMP_DIRS.delete(dir);
+    } catch (error) {
+      failed.push(`${dir}: ${error.message}`);
+    }
+  }
+  if (failed.length > 0) throw new Error(`temp dirs not removed: ${failed.join("; ")}`);
+}
+
+afterEach(removeTmpDirs);
+after(removeTmpDirs);
 
 test("freePorts hands out distinct ports the kernel just released", async () => {
   const ports = await freePorts(3);
@@ -50,11 +85,11 @@ test("buildServerEnv puts every port-derived origin on the command line", () => 
     uploadDir: "/tmp/harness-uploads",
   });
   assert.equal(env.PORT, "18080");
-  assert.equal(env.FRONTEND_ORIGIN, "http://127.0.0.1:13000");
-  assert.equal(env.API_PUBLIC_URL, "http://127.0.0.1:18080");
-  assert.equal(env.NEXT_PUBLIC_API_URL, "http://127.0.0.1:18080");
-  assert.equal(env.NEXT_PUBLIC_WS_URL, "ws://127.0.0.1:18080");
-  assert.equal(env.E2E_BASE_URL, "http://127.0.0.1:13000");
+  assert.equal(env.FRONTEND_ORIGIN, "http://localhost:13000");
+  assert.equal(env.API_PUBLIC_URL, "http://localhost:18080");
+  assert.equal(env.NEXT_PUBLIC_API_URL, "http://localhost:18080");
+  assert.equal(env.NEXT_PUBLIC_WS_URL, "ws://localhost:18080");
+  assert.equal(env.E2E_BASE_URL, "http://localhost:13000");
   // METRICS_ADDR is the listen address, not an origin (metrics/config.go:14).
   assert.equal(env.METRICS_ADDR, "127.0.0.1:19090");
   // The server refuses a PREVIEW_ORIGIN equal to FRONTEND_ORIGIN.
@@ -66,6 +101,41 @@ test("buildServerEnv puts every port-derived origin on the command line", () => 
   assert.equal(env.LIVEKIT_URL, "");
   assert.equal(env.LIVEKIT_API_KEY, "");
   assert.equal(env.LIVEKIT_API_SECRET, "");
+});
+
+test("the web and the API are served as localhost, never 127.0.0.1 (G7-06 round 1: no web page ever hydrated)", () => {
+  // Next 16 `next dev` blocks /_next/hmr from any host but localhost (allowedDevOrigins),
+  // so a page opened on http://127.0.0.1:<port> is server-rendered but never hydrated:
+  // a click on "Log in" is a native GET submit and no API request is ever made. The
+  // API is localhost too, so the refresh cookie it sets is same-site for the web page
+  // (the e2e suite runs localhost:3000 against localhost:8080 for the same reason).
+  const env = buildServerEnv({ apiPort: 18080, webPort: 13000, metricsPort: 19090, previewPort: 13001, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" });
+  for (const key of ["FRONTEND_ORIGIN", "API_PUBLIC_URL", "NEXT_PUBLIC_API_URL", "NEXT_PUBLIC_WS_URL", "NEXT_PUBLIC_APP_URL", "E2E_BASE_URL", "LOCAL_UPLOAD_BASE_URL"]) {
+    assert.match(env[key], /^(http|ws):\/\/localhost:\d+$/, key);
+  }
+  assert.equal(appOrigin(8080), "http://localhost:8080");
+  assert.equal(appOrigin(8080, "ws"), "ws://localhost:8080");
+});
+
+test("ports.env and the returned origins use the same localhost origins the server was started with", async () => {
+  const runDir = tmpDir("harness-origins-");
+  const previous = { DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL };
+  process.env.DATABASE_URL = "postgres://u:p@localhost:5432/db?sslmode=disable";
+  process.env.REDIS_URL = "redis://localhost:6379/0";
+  let ports;
+  try {
+    ports = await writeRunEnv(runDir, { forkSha: "x", dSha: "y" });
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+  const env = readFileSync(join(runDir, "ports.env"), "utf8");
+  assert.ok(env.includes(`\nAPI_ORIGIN=http://localhost:${ports.apiPort}\n`), env);
+  assert.ok(env.includes(`\nWEB_ORIGIN=http://localhost:${ports.webPort}\n`), env);
+  assert.equal(ports.apiOrigin, `http://localhost:${ports.apiPort}`);
+  assert.equal(ports.webOrigin, `http://localhost:${ports.webPort}`);
 });
 
 test("buildServerEnv keeps the API origin identical everywhere it is inlined", () => {
@@ -188,7 +258,7 @@ test("evidenceLine keeps a fixture hash and a blocker out of a PASS", () => {
 });
 
 test("writeRunEnv writes a ports file and a server env bash can source", async () => {
-  const runDir = mkdtempSync(join(tmpdir(), "harness-lib-"));
+  const runDir = tmpDir("harness-lib-");
   const previous = { DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL };
   process.env.DATABASE_URL = "postgres://u:p@localhost:5432/db?sslmode=disable";
   process.env.REDIS_URL = "redis://localhost:6379/0";
@@ -304,7 +374,7 @@ function LOADER_SERVER(root, readyFile) {
  * fake server/web" the fix asks for, not a stand-in for the real stack.
  */
 function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true, libsSigpipe = false, loaderServer = false } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "harness-start-"));
+  const root = tmpDir("harness-start-");
   const bin = join(root, "bin");
   const harness = join(root, "scripts", "office", "g5g6g7", "harness");
   const runDir = join(root, "run");
@@ -335,7 +405,8 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
   // bin dir, so the stubs below keep winning and the test never depends on the
   // host's nvm. `node` here is the real Node (the harness must keep running).
   shim("node", `#!/usr/bin/env bash\nexec ${process.execPath} "$@"\n`);
-  shim("pnpm", "#!/usr/bin/env bash\nsleep 600\n");
+  // `pnpm --filter @uniwork/web dev` is the D web: its environment is what the web build inlines, so it is recorded
+  shim("pnpm", `#!/usr/bin/env bash\ncase "$*" in *@uniwork/web*) env > ${JSON.stringify(join(root, "web-env"))} ;; esac\nsleep 600\n`);
   // The network probe is `curl ... <fork>/info/refs`; the app's own probes are
   // `curl -sf -o /dev/null <url>`. `network:false` fails only the former.
   shim("curl", network
@@ -496,6 +567,101 @@ test("start.sh reaches up through the real lib.mjs fork-dir call (fake stack)", 
   }
 });
 
+test("the chunk fallback of the sample AC reads loopback origins as the build spells them, so it follows API_ORIGIN (R2-4)", () => {
+  const apiPort = 18080;
+  const body = `a="${appOrigin(apiPort)}",b="http://127.0.0.1:3000",c='https://localhost:9',d="http://example.com:8080"`;
+  const found = loopbackOriginsIn(body);
+  assert.deepEqual([...found].sort(), ["http://127.0.0.1:3000", "https://localhost:9", "http://localhost:18080"].sort());
+  // a localhost API_ORIGIN is found as is; the old scan rewrote it to 127.0.0.1 and reported a stale build
+  assert.ok(found.includes(appOrigin(apiPort)), JSON.stringify(found));
+  assert.ok(!found.includes(`http://127.0.0.1:${apiPort}`), "localhost is not rewritten to 127.0.0.1");
+  // a build that still inlines the old spelling is not this run's origin: it stays visible as another one
+  assert.deepEqual(loopbackOriginsIn(`x="http://127.0.0.1:${apiPort}"`), [`http://127.0.0.1:${apiPort}`]);
+  assert.deepEqual(loopbackOriginsIn("no origin here"), []);
+});
+
+/** One fake server that is both the API and the web: /login links one client chunk that inlines `inlined`. */
+function mkChunkStack(inlinedFor) {
+  return new Promise((resolveServer) => {
+    const server = createHttpServer((req, res) => {
+      const path = new URL(req.url, "http://localhost").pathname;
+      const json = (body) => {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(body));
+      };
+      if (path === "/healthz") return json({ status: "ok" });
+      if (path === "/readyz") return json({ ok: true });
+      if (path === "/api/v1/config") return json({ office_api_origin: inlinedFor.apiOrigin(), office_deployment_id: "default" });
+      if (path === "/login") {
+        res.writeHead(200, { "content-type": "text/html" });
+        return res.end('<html><script src="/_next/static/chunks/app.js"></script></html>');
+      }
+      if (path === "/_next/static/chunks/app.js") {
+        res.writeHead(200, { "content-type": "application/javascript" });
+        return res.end(`window.__API__="${inlinedFor.inlined()}";`);
+      }
+      res.writeHead(404);
+      return res.end();
+    });
+    server.listen(0, "127.0.0.1", () => resolveServer({ server, port: server.address().port }));
+  });
+}
+
+/** sample-ac.mjs against the fake stack; only the web-origin check line is of interest here. */
+async function sampleAcWebLine(inlinedHost) {
+  const state = { origin: "", host: inlinedHost };
+  const stack = await mkChunkStack({ apiOrigin: () => state.origin, inlined: () => `http://${state.host}:${state.port}` });
+  state.port = stack.port;
+  state.origin = appOrigin(stack.port);
+  const run = mkDocumentRun({ origin: state.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n", session: true });
+  writeFileSync(harnessPaths(run.runDir).appSettings, JSON.stringify({ uniworkApiOrigin: state.origin }));
+  try {
+    const result = await new Promise((resolveRun) => {
+      const child = spawn(process.execPath, [SAMPLE_AC, "--run-dir", run.runDir], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, OFFICE_EVIDENCE_ID: "" } });
+      let stdout = "";
+      child.stdout.on("data", (d) => (stdout += d));
+      const timer = setTimeout(() => child.kill("SIGKILL"), 90_000);
+      child.on("close", () => {
+        clearTimeout(timer);
+        resolveRun(stdout);
+      });
+    });
+    return { line: result.split("\n").find((text) => text.includes("the web calls this run's API origin")) ?? "", origin: state.origin };
+  } finally {
+    await new Promise((done) => stack.server.close(done));
+  }
+}
+
+test("sample-ac accepts a localhost origin inlined in the served chunks and reports 127.0.0.1 as another origin (R3-3)", async () => {
+  const same = await sampleAcWebLine("localhost");
+  assert.match(same.line, /^\s+PASS\s/, same.line);
+  assert.ok(same.line.includes(`${same.origin} (inlined in the served build)`), same.line);
+  const stale = await sampleAcWebLine("127.0.0.1");
+  assert.match(stale.line, /^\s+FAIL\s/, stale.line);
+  assert.ok(stale.line.includes("the served build inlines http://127.0.0.1:"), stale.line);
+  assert.ok(stale.line.includes("stale build"), stale.line);
+});
+
+test("start.sh puts the localhost WebSocket URL on the web's command line, the same host as the API origin (d8115227b)", () => {
+  // The browser opens ws://<host>:<api port>; a 127.0.0.1 here against a localhost page origin is
+  // the round 1 symptom the server's origin allowlist answered with 403. lib.test.mjs pins the env
+  // form (buildServerEnv); the web gets its own copy from start.sh, which this pins.
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const ports = readFileSync(join(stack.runDir, "ports.env"), "utf8");
+    const apiPort = ports.match(/^API_PORT=(\d+)$/m)?.[1];
+    assert.ok(apiPort, ports);
+    const webEnv = readFileSync(join(stack.root, "web-env"), "utf8");
+    assert.match(webEnv, new RegExp(`^NEXT_PUBLIC_WS_URL=ws://localhost:${apiPort}$`, "m"), webEnv);
+    assert.match(webEnv, new RegExp(`^NEXT_PUBLIC_API_URL=http://localhost:${apiPort}$`, "m"), webEnv);
+    assert.doesNotMatch(webEnv, /^NEXT_PUBLIC_(WS|API)_URL=.*127\.0\.0\.1/m, webEnv);
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
 test("the D server boots with exactly DESKTOP_AUTH_CLIENTS although the checkout's .env carries the single-client pair", () => {
   // Cloud round 4: start.sh exited 1, "set either DESKTOP_AUTH_CLIENTS or
   // DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both". server.env
@@ -554,7 +720,7 @@ test("serverDotEnv drops the lines of the keys the run owns and keeps the rest",
 });
 
 test("writeRunEnv leaves the server a .env without any key it owns, in a cwd of its own", async () => {
-  const runDir = mkdtempSync(join(tmpdir(), "harness-dotenv-"));
+  const runDir = tmpDir("harness-dotenv-");
   const source = join(runDir, "vm.env");
   writeFileSync(source, "DESKTOP_AUTH_CLIENT_ID=uniwork-office\nLIVEKIT_URL=ws://x\nPORT=1\nPREVIEW_ASSET_TTL=10m\n");
   const previous = { DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL };
@@ -573,7 +739,7 @@ test("writeRunEnv leaves the server a .env without any key it owns, in a cwd of 
 });
 
 test("the server's cwd is 0700 and its .env copy and server.env are 0600, even over a looser pre-existing file (R2-2)", async () => {
-  const runDir = mkdtempSync(join(tmpdir(), "harness-modes-"));
+  const runDir = tmpDir("harness-modes-");
   const source = join(runDir, "vm.env");
   writeFileSync(source, "POSTGRES_PASSWORD=pg-secret\nMINIO_SECRET_ACCESS_KEY=minio-secret\n");
   const mode = (path) => statSync(path).mode & 0o777;
@@ -615,7 +781,7 @@ test("the app start.sh launches gets an allow-listed env, never the VM .env's se
     for (const key of SERVER_SECRETS) assert.ok(!(key in seen), `${key} reached the Electron app`);
     assert.ok(!Object.values(seen).some((value) => /secret-value|^sk-/.test(value)), "no secret value reached the app");
     // what the app needs is there
-    assert.match(seen.UNIWORK_API_ORIGIN, /^http:\/\/127\.0\.0\.1:\d+$/);
+    assert.match(seen.UNIWORK_API_ORIGIN, /^http:\/\/localhost:\d+$/);
     assert.equal(seen.GENOFFICE_USER_DATA, join(stack.runDir, "userdata"));
     assert.ok(seen.PATH && seen.HOME);
     // and nothing outside the allow-list besides what appEnv adds itself
@@ -773,7 +939,7 @@ test("startGate: only a start that reported BLOCKED may block a later step", () 
 });
 
 test("readStartStatus reads the file, and a torn one reads as failed", () => {
-  const dir = mkdtempSync(join(tmpdir(), "harness-status-"));
+  const dir = tmpDir("harness-status-");
   assert.equal(readStartStatus(dir), null);
   writeFileSync(harnessPaths(dir).startStatus, '{"state":"up","reason":""}\n');
   assert.equal(readStartStatus(dir).state, "up");
@@ -978,7 +1144,7 @@ function mkFakeDocumentServer({ mintLink = true, devices = [], devicesAfterPolls
  * receives the URL; `openDocumentId` is what the binding will name.
  */
 function mkDocumentRun({ origin, electronBody, session = false }) {
-  const runDir = mkdtempSync(join(tmpdir(), "harness-doc-"));
+  const runDir = tmpDir("harness-doc-");
   const userData = join(runDir, "userdata");
   mkdirSync(join(userData, "uniwork-auth"), { recursive: true });
   // the app's own record of a desktop session; no file = no session (the
@@ -1046,7 +1212,7 @@ function runDocumentStep(args, extraEnv = {}) {
 
 test("document-step PASSes when the app leaves a working copy for the fixture document", async () => {
   const server = await mkFakeDocumentServer();
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"]);
@@ -1069,7 +1235,7 @@ test("document-step PASSes when the app leaves a working copy for the fixture do
 
 test("document-step is BLOCKED when the app has no desktop session and left no working copy", async () => {
   const server = await mkFakeDocumentServer();
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   // an Electron that records the link but writes nothing: no session, no copy
   const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\nprintf '%s\\n' "\${!#}" >> ${JSON.stringify(linkFile)}\nexit 0\n` });
   try {
@@ -1104,7 +1270,7 @@ test("document-step FAILs, naming the signal, when the handoff itself dies even 
 
 test("document-step FAILs when a signed-in app is handed the link and does not open it", async () => {
   const server = await mkFakeDocumentServer();
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\nprintf '%s\\n' "\${!#}" >> ${JSON.stringify(linkFile)}\nexit 0\n`, session: true });
   try {
     // a session exists (the step's precondition), yet no working copy appears
@@ -1190,7 +1356,7 @@ test("activeDesktopDevice wants the dev client, this deployment, not revoked, no
 
 test("document-step reuses an account from the environment and writes no secret anywhere", async () => {
   const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"], REUSED);
@@ -1207,7 +1373,7 @@ test("document-step reuses an account from the environment and writes no secret 
 
 test("document-step is BLOCKED, and delivers nothing, when the reused account has no desktop session", async () => {
   const server = await mkFakeDocumentServer({ devices: [], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"], REUSED);
@@ -1225,7 +1391,7 @@ test("document-step is BLOCKED, and delivers nothing, when the reused account ha
 test("--wait-signin prints the steps, waits for the sign-in, then opens the document", async () => {
   // the account is signed out for the first two polls, then the app signs in
   const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], devicesAfterPolls: 2, loginPassword: REUSED.HARNESS_DOC_PASSWORD });
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi", "--wait-signin", "30"], REUSED);
@@ -1254,7 +1420,7 @@ test("--wait-signin that never sees a sign-in is BLOCKED with the wait in the re
 test("--wait-signin with a seeded account keeps its random password in a 0600 file while it waits, never in the output", async () => {
   // signed out for three polls (about 6s): long enough to read the file mid-run
   const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], devicesAfterPolls: 3 });
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
     const finished = runDocumentStep(["--run-dir", run.runDir, "--wait-signin", "30"]);
@@ -1278,7 +1444,7 @@ test("--wait-signin with a seeded account keeps its random password in a 0600 fi
 
 test("the unattended cloud run seeds with no sign-in check and no credentials file", async () => {
   const server = await mkFakeDocumentServer();
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\nprintf '%s\\n' "\${!#}" >> ${JSON.stringify(linkFile)}\nexit 0\n` });
   try {
     rmSync(join(run.userData, "uniwork-auth", "session.bin"), { force: true });
@@ -1314,14 +1480,14 @@ test("a wrong password for a reused account is a FAIL", async () => {
 
 /** What `verify` says about the one line the harness wrote, ignoring the matrix's own rows. */
 function verifyLine(line) {
-  const outDir = mkdtempSync(join(tmpdir(), "harness-ledger-"));
+  const outDir = tmpDir("harness-ledger-");
   writeFileSync(join(outDir, "evidence.jsonl"), `${JSON.stringify(line)}\n`);
   return verify({ outDir }).problems.filter((problem) => problem.startsWith("line 1 "));
 }
 
 test("document-step's own evidence line is complete: verify finds nothing wrong with it", async () => {
   const server = await mkFakeDocumentServer({ loginPassword: "x" });
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir, "--req", "G7-A01", "--fixture", "fx-docx-report-vi"]);
@@ -1371,7 +1537,7 @@ for (const [name, script, fixtureId] of [["sample-ac", SAMPLE_AC, "fx-md-notes-v
 
 test("the second instance gets the allow-listed env, not the harness's", async () => {
   const server = await mkFakeDocumentServer();
-  const root = mkdtempSync(join(tmpdir(), "harness-handoff-"));
+  const root = tmpDir("harness-handoff-");
   const envFile = join(root, "env");
   const body = `#!/usr/bin/env bash\nenv > ${JSON.stringify(envFile)}\nexit 0\n`;
   const run = mkDocumentRun({ origin: server.origin, electronBody: body, session: true });
@@ -1392,7 +1558,7 @@ test("the second instance gets the allow-listed env, not the harness's", async (
 
 test("the second instance is in the pids file while it lives and gone when it exits", async () => {
   const server = await mkFakeDocumentServer();
-  const snapshot = join(mkdtempSync(join(tmpdir(), "harness-handoff-")), "pids-during");
+  const snapshot = join(tmpDir("harness-handoff-"), "pids-during");
   const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\ncp "$GENOFFICE_USER_DATA/../pids" ${JSON.stringify(snapshot)}\nexit 0\n`, session: true });
   writeFileSync(join(run.runDir, "pids"), "server 1 8080\n");
   try {
@@ -1406,7 +1572,7 @@ test("the second instance is in the pids file while it lives and gone when it ex
 
 test("a second instance that does not exit is killed as a group, not left behind", async () => {
   const server = await mkFakeDocumentServer();
-  const pidFile = join(mkdtempSync(join(tmpdir(), "harness-handoff-")), "child-pid");
+  const pidFile = join(tmpDir("harness-handoff-"), "child-pid");
   const run = mkDocumentRun({ origin: server.origin, electronBody: `#!/usr/bin/env bash\nsleep 300 &\necho $! > ${JSON.stringify(pidFile)}\nwait\n`, session: true });
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir], { HARNESS_HANDOFF_TIMEOUT_MS: "1500", HARNESS_DOC_WAIT_MS: "300" });
@@ -1424,7 +1590,7 @@ test("a second instance that does not exit is killed as a group, not left behind
 
 test("the seeded organization is removed by id; the owner account is a logged leftover, not a /me/delete 409", async () => {
   const server = await mkFakeDocumentServer();
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir]);
@@ -1491,7 +1657,7 @@ test("a seeding FAIL prints the failing request and reason, never a token, and c
 test("under the evidence runner a FAIL's reason is in the artifact and echoed to the round log", async () => {
   const server = await mkFakeDocumentServer({ failOn: { method: "POST", path: /\/workspaces$/, status: 403 } });
   const run = mkDocumentRun({ origin: server.origin, electronBody: "#!/usr/bin/env bash\nexit 0\n" });
-  const outDir = mkdtempSync(join(tmpdir(), "harness-evidence-"));
+  const outDir = tmpDir("harness-evidence-");
   try {
     const result = await new Promise((resolveRun) => {
       const child = spawn(process.execPath, [join(HERE, "..", "evidence.mjs"), "run", "--req", "G7-A01", "--fixture", "fx-docx-report-vi", "--checker", "tester-cloud", "--out", outDir, "--", process.execPath, DOC_STEP, "--run-dir", run.runDir], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, OFFICE_FORK_SHA: "0d03b18" } });
@@ -1529,7 +1695,7 @@ test("a failed cleanup does not turn a BLOCKED step into a FAIL", async () => {
 
 test("a reused account is never cleaned up", async () => {
   const server = await mkFakeDocumentServer({ devices: [LIVE_DEVICE], loginPassword: REUSED.HARNESS_DOC_PASSWORD });
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir], REUSED);
@@ -1544,7 +1710,7 @@ test("a reused account is never cleaned up", async () => {
 
 test("a cleanup that fails is reported and does not change the result", async () => {
   const server = await mkFakeDocumentServer({ failDelete: true });
-  const linkFile = join(mkdtempSync(join(tmpdir(), "harness-link-")), "links");
+  const linkFile = join(tmpDir("harness-link-"), "links");
   const run = mkDocumentRun({ origin: server.origin, electronBody: electronWriting("doc_fixture", linkFile), session: true });
   try {
     const result = await runDocumentStep(["--run-dir", run.runDir]);
@@ -1561,7 +1727,7 @@ test("a cleanup that fails is reported and does not change the result", async ()
 });
 
 test("stop.sh removes the run's uploads and server cwd by path and keeps logs and evidence", () => {
-  const runDir = mkdtempSync(join(tmpdir(), "harness-stop-"));
+  const runDir = tmpDir("harness-stop-");
   for (const dir of ["uploads", join("server-cwd", "a", "b", "c"), "logs"]) mkdirSync(join(runDir, dir), { recursive: true });
   writeFileSync(join(runDir, "uploads", "doc.docx"), "x");
   writeFileSync(join(runDir, "logs", "server.log"), "log");
@@ -1576,7 +1742,7 @@ test("stop.sh removes the run's uploads and server cwd by path and keeps logs an
 });
 
 test("stop.sh removes the Xauthority file also when there is no pid file (R2-3)", () => {
-  const runDir = mkdtempSync(join(tmpdir(), "harness-stop-"));
+  const runDir = tmpDir("harness-stop-");
   writeFileSync(join(runDir, "xauthority"), "cookie", { mode: 0o600 });
   const result = spawnSync("bash", [join(HERE, "stop.sh")], { encoding: "utf8", env: { ...process.env, HARNESS_RUN_DIR: runDir } });
   assert.equal(result.status, 0, result.stderr);
@@ -1591,4 +1757,26 @@ test("document-step's precondition BLOCKED line (no D server up) carries its fix
   assert.match(line.fixtureSha256, /^[0-9a-f]{64}$/);
   assert.match(readFileSync(line.artifact, "utf8"), /BLOCKED: no D server on/);
   assert.deepEqual(verifyLine(line), []);
+});
+
+// Contract section 6: every mkdtemp dir of this file goes through tmpDir() and
+// is removed by the after-hooks. This is the last test in the file (node:test
+// runs a file's tests in declaration order), so a dir this file created and
+// did not remove is still visible here.
+test("no harness-* temp dir of this file is left in os.tmpdir()", () => {
+  const leaked = readdirSync(tmpdir()).filter((name) => name.startsWith("harness-") && !HARNESS_TMP_BEFORE.has(name));
+  assert.deepEqual(leaked, [], `temp dirs left behind: ${leaked.join(", ")}`);
+});
+
+// G7-06 section 6: the sh blocks of the harness README must be valid bash —
+// the desktop block used to carry a `cd <checkout>` placeholder, which is a
+// shell syntax error. readme-blocks.test.mjs holds the focused cases; this
+// file carries the assertion because it is the harness test the node --test
+// lists already run.
+test("every ```sh block of the harness README passes bash -n", () => {
+  const blocks = shBlocks(readFileSync(join(HERE, "README.md"), "utf8"));
+  assert.ok(blocks.length >= 2, `expected the README's sh blocks, found ${blocks.length}`);
+  for (const [index, block] of blocks.entries()) {
+    assert.equal(bashSyntaxError(block), null, `README sh block ${index + 1} fails bash -n`);
+  }
 });

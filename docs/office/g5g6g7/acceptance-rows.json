@@ -13,7 +13,7 @@
   "evidenceRunner": "scripts/office/g5g6g7/evidence.mjs",
   "statusVocabulary": {
     "NOT_RUN": "No run on the final lane revision has been recorded yet; the status of every row that no open gate blocks.",
-    "BLOCKED": "An open decision gate (plan Section 3) or a missing machine prevents a valid run; the row carries a blocker with gate, owner and reason.",
+    "BLOCKED": "An open decision gate (plan Section 3) or a missing machine prevents a valid run; the row carries a blocker with gate, owner and reason. G8-A10 is BLOCKED(G8-D3) until G8-18 is done.",
     "PASS": "A run recorded on the final revision whose evidence record has result PASS, a matching fixture hash and an artifact. No row is PASS in this slice.",
     "FAIL": "A run recorded on the final revision whose evidence record has result FAIL. No row is FAIL in this slice."
   },
@@ -27,7 +27,7 @@
     "manifest"
   ],
   "rowRules": [
-    "One row per requirement id in spec Section 9.1: G5-A01..G5-A08, G6-A01..G6-A10, G7-A01..G7-A05.",
+    "One row per requirement id in spec Section 9.1: G5-A01..G5-A08, G6-A01..G6-A10, G7-A01..G7-A05, plus G8-A01..G8-A10 from the G8 addendum (plan Section 5.7 acceptance table, UNI-1331/UNI-1328).",
     "fixtures[] name a manifest id and repeat that manifest entry's sha256; the sibling test reads the hash from the manifest and never hardcodes it.",
     "A row is PASS only with an evidence record whose result is PASS, exit code 0, an artifact on disk and one record per fixture it names; a result other than PASS is never counted as PASS.",
     "Every row carries evidenceRequired: the artifacts and records that would prove it, so a row without an evidence plan fails even while it is NOT_RUN.",
@@ -40,7 +40,8 @@
     "G5": 8,
     "G6": 10,
     "G7": 5,
-    "total": 23
+    "G8": 10,
+    "total": 33
   },
   "reviewerGate": "pending reviewer_be (UNI-1376)",
   "evidence": [],
@@ -655,6 +656,268 @@
       "evidence": [],
       "status": "NOT_RUN",
       "reviewer": "pending reviewer_be (UNI-1376)"
+    },
+    {
+      "id": "G8-A01",
+      "title": "Bình luận có neo trên DOCX/XLSX/PPTX/PDF là một dòng server, tác giả là tài khoản UniWork; AI chỉ đề xuất",
+      "owner": "Lead F + Lead D + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "Assert a comment with an anchor created in each of the DOCX, XLSX, PPTX and PDF editors by a UniWork account is exactly one server row authored by that user, the saved file and every payload carry no operating-system account name, and an AI-suggested comment becomes a record only when the user presses Send, with that user as the author."
+      },
+      "evidenceRequired": "A recorded run on each of the four editor fixtures with result PASS, each with its artifact, plus the single server row per comment, the re-read comment parts of the saved file (comments.xml, threadedComments and persons, commentAuthors.xml, the PDF /T entries) and the request log of the AI draft case.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
+        { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" },
+        { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" }
+      ],
+      "negativeCases": [
+        "A saved file or a payload must not carry the operating-system account name as a comment author, signed in or not.",
+        "An AI comment tool must not call comments.create before the user presses Send, and no comment may be written with created_by_kind agent from an editor.",
+        "A comment created in an editor must not be stored in the bytes of the file or duplicated as a second server row."
+      ],
+      "tasks": ["G8-02", "G8-08", "G8-12", "G8-13", "G8-14", "G8-15", "G8-19", "G8-20"],
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_fe (UNI-1331)"
+    },
+    {
+      "id": "G8-A02",
+      "title": "Neo sống qua Lưu theo số phiên bản, không lùi, version lạ bị từ chối; neo mất giữ trao đổi; reveal tới đúng vị trí",
+      "owner": "Lead D + Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert an edit followed by a Save moves the anchor to the new version compared by the integer version number and never backwards, a version id of another document or one that no longer exists answers the same 400 anchor_version_invalid with nothing written, a deleted target becomes lost while the thread and its replies stay, and a reveal selects the exact paragraph, cell, slide or page without opening another comment."
+      },
+      "evidenceRequired": "A recorded run on each of the four editor fixtures with result PASS, each with its artifact, plus the anchor_state and anchor_version_id receipts after each Save and the identical 400 bodies for the foreign, purged and unknown version cases.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" },
+        { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" }
+      ],
+      "negativeCases": [
+        "A version id of another document, a purged version or an unknown one must answer the same 400 anchor_version_invalid and must never be stored as anchor_version_id.",
+        "An anchor update from an older version must not move a newer stored anchor backwards.",
+        "A lost or stale anchor must open its own thread only and must not open or reveal another comment."
+      ],
+      "tasks": ["G8-04", "G8-12", "G8-13", "G8-14", "G8-15", "G8-19"],
+      "gate": "G8-D2",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1331)"
+    },
+    {
+      "id": "G8-A03",
+      "title": "Một Discussion mỗi tài liệu, giữ qua đổi tên/di chuyển/version; xóa giữ cấu trúc; lịch sử sửa; purge dọn bốn bảng",
+      "owner": "Lead D + Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert one Discussion per document survives a rename, a move and a new version while a copy does not inherit it, deleting a comment that has replies leaves a frame with an empty body, no revisions and no reactions, a reply to a deleted thread answers 409 comment_deleted, an edit leaves one revision row, and a purge leaves zero rows in document_comments, document_comment_revisions, document_comment_mentions and comment_reactions."
+      },
+      "evidenceRequired": "A recorded run on fx-md-notes-vi and one on fx-docx-report-vi with result PASS, each with its artifact, plus the row counts of the four tables before and after the delete and the purge.",
+      "fixtures": [
+        { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" },
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A deleted comment with replies must not keep its body, its revisions or its reactions in the database.",
+        "A reply to a deleted thread must not be stored and must answer 409 comment_deleted.",
+        "A purged document must not leave a row in any of the four comment tables, and a copy must not carry the comments of its source."
+      ],
+      "tasks": ["G8-03", "G8-10", "G8-11", "G8-20"],
+      "gate": "G8-D5",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1331)"
+    },
+    {
+      "id": "G8-A04",
+      "title": "Một bộ dữ liệu cho hai host: thay đổi ở host này thấy ở host kia, một panel mỗi host, server lỗi → chỉ đọc",
+      "owner": "Lead D + Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert a create, edit, delete or resolve on one host is seen on the other (web through realtime, desktop on focus or within 30 seconds, including a hard delete through the changed list_token), each host draws exactly one comments panel, two simultaneous sends become two records, and an unavailable server leaves the panel read-only without losing the text being composed."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-xlsx-revenue-xyz with result PASS, each with its artifact, plus the list_token and since_token exchanges around a hard delete and the panel count per host.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+      ],
+      "negativeCases": [
+        "A hard delete of a thread without replies must not stay visible on the desktop after the next poll, and an unchanged list_token must not redraw the panel.",
+        "A host with an editor that advertises comments must not draw a second comments panel for the same stream.",
+        "An unavailable server or a reload must not discard the draft being composed, and a reply to a thread deleted meanwhile must keep the text with the message \"Bình luận này đã bị xóa.\""
+      ],
+      "tasks": ["G8-08", "G8-10", "G8-11", "G8-19", "G8-04", "G8-20"],
+      "gate": "G8-D1",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_fe (UNI-1331)"
+    },
+    {
+      "id": "G8-A05",
+      "title": "Mention theo id, một định dạng body giữa hai host, một thông báo mỗi người, picker chỉ người đọc được",
+      "owner": "Lead D + Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert a mention is stored by user id and renders with the current display name on both hosts, a duplicate mention yields one notification, an edit that adds B notifies only B, an edit that keeps A notifies nobody even when two edits land before the consumer runs, a self-mention and a deactivated member get nothing, and the picker lists only people who can read the document."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the document_comment_mentions rows (state and notified_at) and the notification rows after each edit step and after an outbox replay.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "An edit that keeps an existing mention, also when two edits land before the consumer runs or the outbox replays, must not notify that person again.",
+        "A person who cannot read the document or is deactivated must not be offered by the picker and must not be notified.",
+        "A mention in a body that is not a valid member token must not create a notification or grant access."
+      ],
+      "tasks": ["G8-05", "G8-06", "G8-10", "G8-20"],
+      "gate": "G8-D4",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1331)"
+    },
+    {
+      "id": "G8-A06",
+      "title": "Inbox đúng bảng UNI-1337: tạo mới không thông báo, gộp mention > reply > resolve, không gửi chính mình, năm mẫu vi/en",
+      "owner": "Lead D + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert each row of the UNI-1337 table produces its notification, creating a comment or thread with no mention notifies nobody, one person gets one notification per event with mention over reply over resolve, the actor never notifies themselves, push is on for a mention and off for a reply or resolve, the five title templates read correctly in vi and en, and read state is per person."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the notification rows per UNI-1337 table row and the vi and en rendered titles.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "Creating a comment or a thread with no mention must not notify anyone, and document_commented must no longer be emitted.",
+        "A reply that also mentions the same person must not yield two notifications for that person and event.",
+        "The actor of an event must not receive a notification of it."
+      ],
+      "tasks": ["G8-05"],
+      "gate": "G8-D4",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1331)"
+    },
+    {
+      "id": "G8-A07",
+      "title": "Deep link mở đúng tài liệu + comment + vị trí trên web và desktop; quyền kiểm lúc mở; snippet ẩn khi mất quyền",
+      "owner": "Lead D + Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert a notification opens the right document, comment or discussion and position on web (one panel, the right thread) and on desktop through the launch ticket (cell B7 of sheet 2 selected), the slug comes from the recipient workspace list with a fall-back to the open workspace for a direct share from another workspace, the five UNI-1389 exceptions show their states, access is checked when the link opens, and a revoked recipient keeps the notification and link but loses the snippet."
+      },
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the opened URL per case, the comments.reveal frames, the launch-ticket comment_id and the Service.List page before and after the revocation.",
+      "fixtures": [
+        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A deep link to a lost or stale anchor must open its own thread only and must not open another comment.",
+        "A notification of a document the recipient can no longer read must not show the stored snippet and must not open the document.",
+        "A push link and a web link for the same notification must agree, and a page of 100 document notifications must not issue an unbounded number of permission queries."
+      ],
+      "tasks": ["G8-07", "G8-08", "G8-19"],
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_fe (UNI-1331)"
+    },
+    {
+      "id": "G8-A08",
+      "title": "Route mới qua isolation matrix, audit + outbox cùng transaction, payload chỉ id, log không PII",
+      "owner": "Lead D + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "security probe",
+        "assertion": "Assert every new route is refused for another tenant including version_id and comment_id named in a body, every command writes its audit and outbox rows in the same transaction as the change, realtime payloads carry ids only, and log lines carry ids and never an email or a name."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the TestIsolationMatrix, audit-coverage, events-catalogue and no-PII-log results for the new routes and events.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A version_id or comment_id of another tenant named in a request body must be refused or skipped without revealing whether it exists.",
+        "A new command must not commit its change without its audit and outbox rows, and a realtime payload must not carry content.",
+        "A log line of a comment route must not contain an email address or a display name."
+      ],
+      "tasks": ["G8-03", "G8-04", "G8-06", "G8-08"],
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1331)"
+    },
+    {
+      "id": "G8-A09",
+      "title": "Sau đăng nhập: chọn tổ chức, workspace + vai trò, tài liệu được chia sẻ, thuộc tính; tạo/đổi tên/lưu trữ từ app",
+      "owner": "Lead F + QA",
+      "host": ["desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert after sign-in an account with several organizations is asked to choose one and the choice is remembered, the library shows workspaces with the role, the shared-with-me section and the document properties with level and version, a create, rename or archive from the app acts on the one UniWork document with no local copy, and a deactivated member loses access with the locked state."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the organization-choice, library and properties captures and the create, rename and archive receipts reread from the server.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "An account with several organizations must not call any organization API before the choice and must not be asked again after signing in again.",
+        "A create, rename or archive from the app must not produce a second local copy or a different document id.",
+        "A deactivated member or a suspended organization must not read the library and must see the locked state with its explanation."
+      ],
+      "tasks": ["G8-16", "G8-17", "G8-19"],
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_fe (UNI-1331)"
+    },
+    {
+      "id": "G8-A10",
+      "title": "Mention người chưa có quyền: báo rõ, không tạo mention hợp lệ, không cấp quyền (pending UNI-1336)",
+      "owner": "Lead D + Lead F + QA",
+      "host": ["web", "desktop"],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert mentioning a person who cannot read the document tells the author clearly, creates no valid mention and sends no notification until the rule signed under G8-D3 is satisfied, and a mention never grants access by itself."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the composer message, the stored mention state and the share rows before and after, once G8-18 and the signed G8-D3 rule exist.",
+      "fixtures": [
+        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+      ],
+      "negativeCases": [
+        "A mention of a person without access must not become an active mention or notify them while the rule is unsatisfied.",
+        "A mention must never create a share or raise the level of the mentioned person."
+      ],
+      "tasks": ["G8-18"],
+      "gate": "G8-D3",
+      "blocker": {
+        "gate": "G8-D3",
+        "owner": "Product + Lead D + Lead F",
+        "reason": "The permission rule for mentioning a person without access (UNI-1336) is not signed, so G8-18 is not built and the row cannot run; it is BLOCKED(G8-D3) until G8-18 is done."
+      },
+      "evidence": [],
+      "status": "BLOCKED",
+      "reviewer": "pending reviewer_be (UNI-1331)"
     }
   ]
 }

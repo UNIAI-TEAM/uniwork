@@ -95,3 +95,29 @@ func (o *Office) SetOfficeEngine(ready bool, queueDepth int) {
 		o.QueueDepth.Set(float64(queueDepth))
 	}
 }
+
+// OfficeChangeFeed counts the change-feed snapshot sweep (G5-01a): rows the
+// TTL worker deleted, by table. It satisfies
+// service.DocumentChangeSweepMetrics.
+type OfficeChangeFeed struct {
+	SnapshotRowsSwept *prometheus.CounterVec
+}
+
+func NewOfficeChangeFeed() *OfficeChangeFeed {
+	return &OfficeChangeFeed{
+		SnapshotRowsSwept: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_office_change_snapshot_rows_swept_total",
+			Help: "Expired Office change-feed snapshot rows deleted by the TTL sweep, by table.",
+		}, []string{"table"}),
+	}
+}
+
+func (o *OfficeChangeFeed) Collectors() []prometheus.Collector {
+	return []prometheus.Collector{o.SnapshotRowsSwept}
+}
+
+// ObserveChangeSnapshotSweep records one committed sweep batch.
+func (o *OfficeChangeFeed) ObserveChangeSnapshotSweep(snapshots, items int64) {
+	o.SnapshotRowsSwept.WithLabelValues("document_change_snapshots").Add(float64(snapshots))
+	o.SnapshotRowsSwept.WithLabelValues("document_change_snapshot_items").Add(float64(items))
+}

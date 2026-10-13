@@ -1,0 +1,4 @@
+Báo cáo doanh thu — fx-pdf-invoice-vi (web)
+Bảng tổng hợp theo khu vực: Bắc, Trung, Nam.
+Số liệu tổng hợp từ sổ làm việc của kỳ này.
+Working notes for the teams reviewing the quarter.

@@ -545,6 +545,7 @@ type Routes struct {
 	// §5.3, §5.4; UNI-679, G1-05b).
 	ListDocuments          http.HandlerFunc
 	ListRecentDocuments    http.HandlerFunc
+	ListDocumentChanges    http.HandlerFunc
 	ListSharedWithMe       http.HandlerFunc
 	DocumentTree           http.HandlerFunc
 	MoveDocument           http.HandlerFunc

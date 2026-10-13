@@ -1,10 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api/http";
-import { documentKeys } from "@uniwork/core/documents/keys";
 import { officeFrameKeys } from "@uniwork/core/documents/office-frame-hooks";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from "@uniwork/core/office/docs-frame-protocol";
@@ -403,88 +402,168 @@ describe("OfficeDocsFrame", () => {
     expect(toastError).toHaveBeenCalledTimes(1);
   });
 
-  describe("a header Save that meets a newer version on the server", () => {
-    const SERVER_SENTENCE = "tài liệu đã có phiên bản mới hơn kể từ lần bạn mở nó";
+  describe("a page Save that meets a newer version: the frame's conflict dialog answers it", () => {
+    const flip = () => screen.getByRole("button", { name: "flip" });
 
-    // jsdom has no window.focus, and a reload swaps in an iframe nobody could spy on yet.
-    let contentWindow: MockInstance;
-    beforeEach(() => {
-      const real = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow")!.get!;
-      contentWindow = vi.spyOn(HTMLIFrameElement.prototype, "contentWindow", "get").mockImplementation(function (this: HTMLIFrameElement) {
-        const win = real.call(this) as Window | null;
-        if (win) win.focus = () => undefined;
-        return win;
+    it("shows no dialog of its own, makes the page inert while the frame's is open, and reads Cancel as unsaved", async () => {
+      const controlsRef = { current: null as { save: () => Promise<boolean>; print: () => Promise<boolean> } | null };
+      mount({ controlsRef });
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      const { focusWindow } = spyFrameFocus();
+      const saving = controlsRef.current!.save();
+      await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
+      expect(frame.sent("request", "save")[0]!.payload).toEqual({ reason: "user" });
+      await frame.event("modal", { open: true });
+      expect(flip()).toHaveAttribute("inert");
+      expect(screen.queryByRole("dialog")).toBeNull();
+      await frame.event("modal", { open: false });
+      expect(flip()).not.toHaveAttribute("inert");
+      // The keyboard goes back into the frame, where the user was.
+      await waitFor(() => expect(focusWindow).toHaveBeenCalled());
+      await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "cancelled", message: "user cancelled" } });
+      await expect(saving).resolves.toBe(false);
+      expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-save-state", "dirty");
+      expect(toastError).not.toHaveBeenCalled();
+    });
+
+    it("suspends the page's Ctrl+P while the frame's dialog is open", async () => {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("modal", { open: true });
+      fireEvent.keyDown(window, { key: "p", ctrlKey: true });
+      expect(frame.sent("request", "print")).toHaveLength(0);
+      await frame.event("modal", { open: false });
+      fireEvent.keyDown(window, { key: "p", ctrlKey: true });
+      await waitFor(() => expect(frame.sent("request", "print")).toHaveLength(1));
+    });
+
+    async function leavingWithSave() {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      spyFrameFocus();
+      const leaving = leaveGuardAllows("/elsewhere");
+      fireEvent.click(await screen.findByRole("button", { name: "Lưu lên UniWork" }));
+      await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
+      const save = frame.sent("request", "save")[0]!;
+      expect(save.payload).toEqual({ reason: "navigate" });
+      return { frame, save, leaving };
+    }
+
+    it("holds the leave until the frame answers, stepping the leave dialog aside while the frame's is open", async () => {
+      const { frame, save, leaving } = await leavingWithSave();
+      let settled = false;
+      void leaving.then(() => { settled = true; });
+      await frame.event("modal", { open: true });
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(settled).toBe(false);
+      await frame.event("modal", { open: false });
+      await frame.respond(save, { ok: true, file: FILE, versionId: "v9" });
+      await expect(leaving).resolves.toBe(true);
+    });
+
+    describe("when the frame's dialog closes before its answer", () => {
+      async function closedBeforeAnswer() {
+        const held = await leavingWithSave();
+        await held.frame.event("modal", { open: true });
+        await held.frame.event("modal", { open: false });
+        // The answer is still on its way: the leave controls must not come back meanwhile.
+        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(screen.queryByRole("button", { name: "Lưu lên UniWork" })).toBeNull();
+        return held;
+      }
+
+      it("keeps the leave dialog closed, then leaves on saved", async () => {
+        const { frame, save, leaving } = await closedBeforeAnswer();
+        await frame.respond(save, { ok: true, file: FILE, versionId: "v10" });
+        await expect(leaving).resolves.toBe(true);
+        expect(screen.queryByRole("dialog")).toBeNull();
+      });
+
+      it("keeps the leave dialog closed, then stays on cancelled without reopening it", async () => {
+        const { frame, save, leaving } = await closedBeforeAnswer();
+        await frame.respond(save, { ok: false, error: { code: "cancelled", message: "user cancelled" } });
+        await expect(leaving).resolves.toBe(false);
+        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(toastError).not.toHaveBeenCalled();
+      });
+
+      it("reopens the leave dialog with its failure line only on a failed answer", async () => {
+        const { frame, save, leaving } = await closedBeforeAnswer();
+        await frame.respond(save, { ok: false, error: { code: "internal", message: "refused", status: 500 } });
+        expect(await screen.findByRole("dialog")).toHaveTextContent("Không thể xác nhận thao tác");
+        expect(screen.getByRole("button", { name: "Lưu lên UniWork" })).not.toBeDisabled();
+        fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+        await expect(leaving).resolves.toBe(false);
       });
     });
-    afterEach(() => { contentWindow.mockRestore(); });
 
-    async function conflicted(props: Partial<OfficeDocsFrameProps> = {}) {
+    it("leaves once Reload latest answered", async () => {
+      const { frame, save, leaving } = await leavingWithSave();
+      await frame.event("modal", { open: true });
+      await frame.event("modal", { open: false });
+      await frame.respond(save, { ok: true, file: FILE });
+      await expect(leaving).resolves.toBe(true);
+    });
+
+    it("stays on the page when the user cancels the frame's dialog, without an error", async () => {
+      const { frame, save, leaving } = await leavingWithSave();
+      await frame.event("modal", { open: true });
+      await frame.respond(save, { ok: false, error: { code: "cancelled", message: "user cancelled" } });
+      await frame.event("modal", { open: false });
+      await expect(leaving).resolves.toBe(false);
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(toastError).not.toHaveBeenCalled();
+      // A later leave starts clean: no failure line left over.
+      const again = leaveGuardAllows("/elsewhere");
+      expect(await screen.findByRole("dialog")).not.toHaveTextContent("Không thể xác nhận thao tác");
+      fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+      await expect(again).resolves.toBe(false);
+    });
+
+    it.each([["unauthorized", 401], ["forbidden", 403], ["not_found", 410], ["internal", 500]] as const)(
+      "says %s (HTTP %i) and keeps the leave dialog open",
+      async (code, status) => {
+        const { frame, save, leaving } = await leavingWithSave();
+        await frame.respond(save, { ok: false, error: { code, message: "refused", status } });
+        await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+        expect(await screen.findByRole("dialog")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+        await expect(leaving).resolves.toBe(false);
+      },
+    );
+
+    it("lifts the inert page and gives up the save when the frame document unloads", async () => {
       const controlsRef = { current: null as { save: () => Promise<boolean>; print: () => Promise<boolean> } | null };
-      const { client } = mount({ controlsRef, ...props });
+      mount({ controlsRef });
       const frame = fakeFrame();
       await boot(frame);
       await frame.event("dirty", { dirty: true });
       const saving = controlsRef.current!.save();
       await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
-      await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "conflict", message: SERVER_SENTENCE, status: 409 } });
+      await frame.event("modal", { open: true });
+      expect(flip()).toHaveAttribute("inert");
+      const iframe = screen.getByTestId("office-docs-frame-iframe");
+      act(() => { iframe.dispatchEvent(new Event("load")); iframe.dispatchEvent(new Event("load")); });
       await expect(saving).resolves.toBe(false);
-      return { frame, client };
-    }
-
-    it("asks Reload latest or Keep my edits in the page language, with neither a toast nor the server's sentence", async () => {
-      await conflicted();
-      const dialog = await screen.findByRole("dialog");
-      expect(dialog).toHaveTextContent("Có người vừa lưu phiên bản mới hơn");
-      expect(dialog).not.toHaveTextContent(SERVER_SENTENCE);
-      expect(screen.getByRole("button", { name: "Tải bản mới nhất" })).toBeInTheDocument();
-      // The safe choice holds focus. The dialog moves focus after it opens, so wait for it rather than
-      // asserting in the same tick (a loaded CI box lands it later than a quiet one).
-      await waitFor(() => expect(screen.getByRole("button", { name: "Giữ thay đổi của tôi" })).toHaveFocus());
-      expect(toastError).not.toHaveBeenCalled();
+      expect(flip()).not.toHaveAttribute("inert");
+      expect(toastError).toHaveBeenCalledTimes(1);
     });
 
-    it("keeps the edits open when asked: the same frame, still unsaved", async () => {
-      await conflicted();
-      const before = screen.getByTestId("office-docs-frame-iframe");
-      const focusIframe = vi.spyOn(before as HTMLIFrameElement, "focus");
-      fireEvent.click(await screen.findByRole("button", { name: "Giữ thay đổi của tôi" }));
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-      expect(screen.getByTestId("office-docs-frame-iframe")).toBe(before);
-      expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-dirty");
-      // Closing the dialog hands the keyboard back to the editor, like the leave dialog does.
-      await waitFor(() => expect(focusIframe).toHaveBeenCalled());
-    });
-
-    it("reloads the newest version into a fresh frame and refetches the page's own copy", async () => {
-      const { client } = await conflicted();
-      const invalidate = vi.spyOn(client, "invalidateQueries");
-      const before = screen.getByTestId("office-docs-frame-iframe");
-      fireEvent.click(await screen.findByRole("button", { name: "Tải bản mới nhất" }));
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-      expect(screen.getByTestId("office-docs-frame-iframe")).not.toBe(before);
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: documentKeys.detail("ws-1", "doc-1") });
-    });
-
-    it("names the newer version in English on an English page", async () => {
-      await setLocale("en");
-      await conflicted();
-      expect(await screen.findByRole("dialog")).toHaveTextContent("Someone saved a newer version");
-      expect(screen.getByRole("button", { name: "Reload latest" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Keep my edits" })).toBeInTheDocument();
-    });
-
-    it("leaves the leave dialog's own save failure alone (no second dialog on top of it)", async () => {
-      mount();
-      const frame = fakeFrame();
-      await boot(frame);
-      await frame.event("dirty", { dirty: true });
-      const leaving = leaveGuardAllows("/elsewhere");
-      fireEvent.click(await screen.findByRole("button", { name: "Lưu lên UniWork" }));
-      await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
-      await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "conflict", message: SERVER_SENTENCE, status: 409 } });
-      await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
-      expect(screen.queryByRole("dialog", { name: "Có người vừa lưu phiên bản mới hơn" })).toBeNull();
-      fireEvent.click(await screen.findByRole("button", { name: "Ở lại" }));
+    it("lifts the inert page and gives up a leave save when the frame document goes away with nothing loaded after it", async () => {
+      const { frame, save, leaving } = await leavingWithSave();
+      await frame.event("modal", { open: true });
+      expect(flip()).toHaveAttribute("inert");
+      act(() => { frame.win.dispatchEvent(new Event("pagehide")); });
+      await waitFor(() => expect(flip()).not.toHaveAttribute("inert"));
+      await waitFor(() => expect(frame.received.some((m) => m.kind === "event" && m.type === "cancel" && (m.payload as { id?: string }).id === save.id)).toBe(true));
+      // The leave is not decided behind the user's back: the leave dialog comes back with its failure line.
+      expect(await screen.findByRole("dialog")).toHaveTextContent("Không thể xác nhận thao tác");
+      fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
       await expect(leaving).resolves.toBe(false);
     });
   });
@@ -612,6 +691,77 @@ describe("OfficeDocsFrame", () => {
     const alert = await screen.findByTestId("office-docs-frame-failed");
     expect(alert.getAttribute("data-failure-kind")).toBe("failed");
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeTruthy();
+  });
+
+  describe("a leave that is pending when the frame fails for good", () => {
+    const flip = () => screen.getByRole("button", { name: "flip" });
+    const FATAL = { error: { code: "internal", message: "editor crashed" }, fatal: true };
+
+    async function dirtyFrame() {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      spyFrameFocus();
+      return frame;
+    }
+
+    async function leavingWithSave() {
+      const frame = await dirtyFrame();
+      const leaving = leaveGuardAllows("/elsewhere");
+      fireEvent.click(await screen.findByRole("button", { name: "Lưu lên UniWork" }));
+      await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
+      await frame.event("modal", { open: true });
+      return { frame, leaving };
+    }
+
+    it("refuses the leave when a fatal error ends its Save under the frame's dialog", async () => {
+      const { frame, leaving } = await leavingWithSave();
+      await frame.event("error", FATAL);
+      expect(screen.getByTestId("office-docs-frame-failed")).toBeInTheDocument();
+      await expect(leaving).resolves.toBe(false);
+      expect(flip()).not.toHaveAttribute("inert");
+      expect(toastError).toHaveBeenCalledTimes(1);
+    });
+
+    it("refuses the leave when a new frame instance fails its handshake during the Save", async () => {
+      const { frame, leaving } = await leavingWithSave();
+      await frame.event("ready", { protocolVersion: 99, capabilities: {}, module: "docs", instanceId: "i-2" });
+      expect(await screen.findByTestId("office-docs-frame-failed")).toBeInTheDocument();
+      await expect(leaving).resolves.toBe(false);
+      expect(flip()).not.toHaveAttribute("inert");
+    });
+
+    it("refuses the leave a user is still reading when the frame fails", async () => {
+      const frame = await dirtyFrame();
+      const leaving = leaveGuardAllows("/elsewhere");
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      await frame.event("error", FATAL);
+      expect(screen.getByTestId("office-docs-frame-failed")).toBeInTheDocument();
+      await expect(leaving).resolves.toBe(false);
+    });
+
+    it("does not hold a later leave behind a failure screen that has no editor to save", async () => {
+      const frame = await dirtyFrame();
+      await frame.event("error", FATAL);
+      await expect(leaveGuardAllows("/elsewhere")).resolves.toBe(true);
+    });
+
+    it("keeps the page usable when the frame reports a dialog after its document went away", async () => {
+      const frame = await dirtyFrame();
+      await frame.event("modal", { open: true });
+      expect(flip()).toHaveAttribute("inert");
+      act(() => { frame.win.dispatchEvent(new Event("pagehide")); });
+      await waitFor(() => expect(flip()).not.toHaveAttribute("inert"));
+      await frame.event("modal", { open: true });
+      expect(flip()).not.toHaveAttribute("inert");
+      expect(document.querySelector("[data-office-docs-frame]")).not.toHaveAttribute("data-frame-modal");
+      // A replacement load lifts nothing and leaves the page as usable as it was.
+      const iframe = screen.getByTestId("office-docs-frame-iframe");
+      act(() => { iframe.dispatchEvent(new Event("load")); });
+      expect(flip()).not.toHaveAttribute("inert");
+      expect(document.querySelector("[data-office-docs-frame]")).not.toHaveAttribute("data-frame-modal");
+    });
   });
 
   it("dims the page chrome while the frame shows a modal dialog of its own", async () => {

@@ -40,7 +40,7 @@ import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { concludeAtStartGate, evidenceLine, harnessEvidenceId, harnessPaths, ledgerIdentity, readStartStatus, startGate } from "./lib.mjs";
+import { concludeAtStartGate, evidenceLine, harnessEvidenceId, harnessPaths, ledgerIdentity, loopbackOriginsIn, readStartStatus, startGate } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..", "..");
@@ -208,8 +208,9 @@ await check("D web answers on this run's web port", async () => {
  *  1. a headless Chromium opens /login and the first /api/v1/ request is read
  *     off the page — exactly what e2e/api-url.ts asserts for the spec suite, and
  *     the only way to see the origin the app really uses at runtime;
- *  2. the served client chunks are fetched and searched for a loopback origin,
- *     when Playwright is not installed on this VM.
+ *  2. the served client chunks are fetched and searched for a loopback origin
+ *     (as the build spells it, `localhost` like API_ORIGIN), when Playwright is
+ *     not installed on this VM.
  *
  * Three outcomes, each recorded as itself: this run's origin (PASS), a different
  * origin (FAIL — a stale build), or nothing that can be read (BLOCKED — a check
@@ -255,7 +256,7 @@ async function apiOriginFromChunks(html) {
       if (!res.ok) continue;
       fetched += 1;
       const body = await res.text();
-      for (const match of body.matchAll(/https?:\/\/(?:127\.0\.0\.1|localhost):\d+/g)) found.add(match[0].replace("localhost", "127.0.0.1"));
+      for (const origin of loopbackOriginsIn(body)) found.add(origin);
     } catch {
       // a chunk that does not load is not evidence either way
     }

@@ -641,6 +641,10 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		headers: map[string]string{"Idempotency-Key": "iso-intent-" + tn.tag},
 	})
 	isoExpect(t, http.MethodPost, "stale commit intent", status, raw, http.StatusConflict)
+	// An open change-feed snapshot (G5-01a): one row per page, so the
+	// snapshot tables hold A's rows and the cursor is A's to replay.
+	out = w.call(t, "GET", "/api/v1/workspaces/"+tn.wsID+"/documents/changes?limit=1", tn.token, nil)
+	tn.ids["changeCursor"] = isoString(t, out, "next_cursor")
 }
 
 func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {

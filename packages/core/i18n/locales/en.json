@@ -8671,13 +8671,7 @@
         "title": "The editor is taking longer than usual",
         "description": "Your document is still opening. This can happen on a slow connection."
       },
-      "save_conflict": {
-        "title": "Someone saved a newer version",
-        "description": "Your changes were not saved. Reload to see the latest version, which replaces what you have open here, or keep your edits open so you can copy them out first.",
-        "keep": "Keep my edits",
-        "reload": "Reload latest",
-        "close": "Close"
-      },
+      "mine_file_name": "{{title}} (my version)",
       "failure": {
         "unavailable": {
           "title": "This document cannot open on the web yet",

@@ -397,6 +397,14 @@ func main() {
 		log.Error("preview broker", "err", previewErr)
 		os.Exit(1)
 	}
+	// The Office change feed (G5-01a) reads through the same DocumentService
+	// the document routes use; its snapshot sweep is awaited in the shutdown
+	// sequence below.
+	docChanges := service.NewDocumentChangesService(docSvc, flags, cfg)
+	docChangesSweep := docChanges.NewSnapshotSweeper(log)
+	if reg != nil {
+		docChangesSweep.SetMetrics(reg.OfficeChanges)
+	}
 	notifConsumer.SetDocumentReaders(docSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
 	var pushSender notification.PushSender
@@ -466,6 +474,10 @@ func main() {
 	// sweep) stops with runCancel and is awaited below like the file collector.
 	docWorkersDone := make(chan struct{})
 	go func() { docWorkers.Run(runCtx); close(docWorkersDone) }()
+	// The change-feed snapshot sweep (G5-01a) stops with runCancel and is
+	// awaited below.
+	docChangesSweepDone := make(chan struct{})
+	go func() { docChangesSweep.Run(runCtx); close(docChangesSweepDone) }()
 	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
 	// callbacks and the provider-event ledger past their windows. It stops with
 	// runCancel and is awaited below.
@@ -585,6 +597,7 @@ func main() {
 		Storage:             store,
 		FileAccess:          fileAccess,
 		Documents:           docSvc,
+		DocumentChanges:     docChanges,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),
 		AICredentials:       aiCredentialSvc,
 		AICloud:             service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway),
@@ -695,6 +708,11 @@ func main() {
 	case <-docWorkersDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("documents: maintenance worker did not stop in time")
+	}
+	select {
+	case <-docChangesSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: change snapshot sweep did not stop in time")
 	}
 	select {
 	case <-retentionDone:
