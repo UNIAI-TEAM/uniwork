@@ -330,6 +330,7 @@
       "gone": "Lời mời đã được dùng, đã bị thu hồi, hoặc link không đúng.",
       "deactivated": "Tài khoản của bạn trong tổ chức này đang bị ngưng. Liên hệ quản trị viên để được mở lại.",
       "suspended": "Tổ chức này đang tạm ngưng hoạt động.",
+      "deletionScheduled": "Tổ chức này đang chờ xóa nên không nhận thêm thành viên.",
       "rateLimited": "Bạn thử quá nhiều lần. Chờ một lát rồi mở lại link.",
       "wrongAccount": "Lời mời này gửi tới một email khác với tài khoản bạn đang đăng nhập.",
       "wrongAccountHint": "Đăng nhập bằng email đã nhận lời mời rồi mở lại link.",

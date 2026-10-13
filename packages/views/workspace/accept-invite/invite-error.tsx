@@ -31,6 +31,9 @@ function reasonKey(error: unknown): string {
     // the code sent at sign-up comes first.
     if (error.code === "email_unverified") return "unverified";
     if (error.code === "organization_suspended") return "suspended";
+    // An organization waiting out its deletion takes nobody new: joining it
+    // would leave the person in an organization every gate refuses them.
+    if (error.code === "organization_deletion_scheduled") return "deletionScheduled";
     if (error.status === 429) return "rateLimited";
   }
   return "failed";

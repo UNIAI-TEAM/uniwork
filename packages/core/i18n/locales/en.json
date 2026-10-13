@@ -332,6 +332,7 @@
       "gone": "The invitation was already used, was revoked, or the link is wrong.",
       "deactivated": "Your account in this organization is deactivated. Ask an admin to reactivate it.",
       "suspended": "This organization is currently suspended.",
+      "deletionScheduled": "This organization is scheduled for deletion, so it isn't taking new members.",
       "rateLimited": "Too many attempts. Wait a moment, then open the link again.",
       "wrongAccount": "This invitation was sent to a different email address than the account you're signed in with.",
       "wrongAccountHint": "Sign in with the address that received the invitation, then open the link again.",

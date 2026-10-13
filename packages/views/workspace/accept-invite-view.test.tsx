@@ -148,6 +148,14 @@ describe("AcceptInviteView", () => {
       expect(screen.getByRole("button", { name: "Dùng tài khoản khác" })).toBeInTheDocument();
     });
 
+    it("says an organization waiting out its deletion takes nobody new", async () => {
+      signIn();
+      serve({ preview: () => Promise.reject(new ApiError("x", "organization_deletion_scheduled", 403)) });
+      renderView();
+      expect(await screen.findByText("Tổ chức này đang chờ xóa nên không nhận thêm thành viên.")).toBeInTheDocument();
+      expect(acceptCalls()).toHaveLength(0);
+    });
+
     it("sends an unverified account to verify its email first", async () => {
       signIn();
       serve({ preview: () => Promise.reject(new ApiError("x", "email_unverified", 403)) });
