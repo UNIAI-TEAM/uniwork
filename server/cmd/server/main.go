@@ -254,6 +254,10 @@ func main() {
 		}
 	} else if os.Getenv(ai.ConversationKeyEnv) != "" {
 		log.Warn("uniwork ai transcript store disabled", "err", err)
+	} else {
+		// Absent, not broken: one line so an operator can tell a
+		// deliberately unconfigured store from a healthy one.
+		log.Info("uniwork ai transcript store not configured")
 	}
 	uniworkConversations := ai.NewConversationStore(pool, q, uniworkConversationBox)
 	// The kill switch hides the capability for one organization; the
