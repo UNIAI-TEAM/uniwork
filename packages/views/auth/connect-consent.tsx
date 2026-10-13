@@ -110,7 +110,7 @@ export function ConnectConsentView({ consent, state = "pending", errorCode, onDe
                   <Check className="mr-2 size-4" aria-hidden />{pending === "approve" ? t("auth.connect.approving") : t("auth.connect.approve")}
                 </Button>
               </>
-            ) : (state === "error" || state === "expired") && onRetry ? (
+            ) : state === "error" && onRetry ? (
               <Button type="button" onClick={onRetry}>{t("auth.connect.retry")}</Button>
             ) : null}
           </div>

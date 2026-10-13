@@ -73,4 +73,13 @@ describe("ConnectConsentView", () => {
     rerender(wrap(<ConnectConsentView consent={null} state="error" errorCode="invalid_client" onDecision={vi.fn(async () => {})} />));
     expect(screen.getByRole("status")).toHaveTextContent("(invalid_client)");
   });
+
+  it("offers Try again for an error but not for an expired request", () => {
+    const onRetry = vi.fn();
+    const { rerender } = render(wrap(<ConnectConsentView consent={null} state="error" onRetry={onRetry} onDecision={vi.fn(async () => {})} />));
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    rerender(wrap(<ConnectConsentView consent={null} state="expired" onRetry={onRetry} onDecision={vi.fn(async () => {})} />));
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+  });
 });
