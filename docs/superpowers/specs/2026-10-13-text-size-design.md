@@ -132,7 +132,7 @@ Hồi quy: mức Mặc định giữ nguyên mọi giá trị px, nên các spec
 
 ## Rủi ro
 
-- E2E chỉ bắt tràn ở cấp trang, không bắt chữ bị cắt trong control có chiều cao cố định (`h-8`, `h-9`) hay trong 38 kích thước `[Npx]`. Trước khi xong, chụp màn hình các màn chính ở mức Rất lớn và sửa những chỗ chật. Những chỗ sửa đó thuộc phạm vi tính năng này. Chưa ước lượng được số chỗ cho tới khi chạy app.
+- E2E chỉ bắt tràn ở cấp trang, không bắt chữ bị cắt trong control có chiều cao cố định (`h-8`, `h-9`) hay trong 38 kích thước `[Npx]`. Trước khi xong, chụp màn hình các màn chính ở mức Rất lớn và sửa những chỗ chật. Những chỗ sửa đó thuộc phạm vi tính năng này. Chưa ước lượng được số chỗ cho tới khi chạy app. Kết quả rà ngày 2026-10-13 (Trang chủ, Công việc, chi tiết việc, Chat, Tài liệu, Cuộc họp, Cài đặt; 1280px và 375px): không có chỗ nào bị cắt dọc, nên không phải sửa. Admin, Email Hub và phòng họp chưa được rà.
 - Phần CSS marketing viết px cứng sẽ đứng yên trong khi phần dùng token trên cùng trang to lên. Chấp nhận, vì trang marketing không phải nơi người dùng đọc lâu. Nếu thấy lệch rõ, giới hạn selector vào khung ứng dụng sau.
 
 ## File chạm
