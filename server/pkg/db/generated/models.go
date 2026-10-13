@@ -105,6 +105,20 @@ type AiUniworkConversation struct {
 	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
 }
 
+type AiUniworkRun struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	ConversationID string             `json:"conversation_id"`
+	ModelCalls     int32              `json:"model_calls"`
+	ToolRounds     int32              `json:"tool_rounds"`
+	Credits        int64              `json:"credits"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt     pgtype.Timestamptz `json:"last_used_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
 type AiUniworkTurn struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

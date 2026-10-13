@@ -260,6 +260,10 @@ func main() {
 		log.Info("uniwork ai transcript store not configured")
 	}
 	uniworkConversations := ai.NewConversationStore(pool, q, uniworkConversationBox)
+	// G6-03b: the run counters (A3) sit behind the same key as the transcript
+	// — a run never outlives its conversation — and both the service (the
+	// take of each turn) and the TTL worker (the sweep) read them.
+	uniworkRuns := ai.NewRunStore(q)
 	// The kill switch hides the capability for one organization; the
 	// transcripts it left behind follow one sweep later (design §9.4).
 	uniworkKillSwitchOff := func(ctx context.Context, organizationID string) (bool, error) {
@@ -274,6 +278,12 @@ func main() {
 		uniworkConversations, uniworkKillSwitchOff, ai.UniworkConversationSweepInterval, log)
 	if reg != nil {
 		uniworkConversationSweep.SetMetrics(reg.AIUniwork)
+		// G6-03b: the run sweep and the unknown-usage reconciliation ride this
+		// worker's clock (design §3.4, §6.3); the meter is the same adapter the
+		// Gateway charges through.
+		uniworkConversationSweep.SetRunMetrics(reg.AIUniwork)
+		uniworkConversationSweep.SetUsageReconciler(ai.NewUsageReconciler(q, uniworkConversationBox,
+			service.NewAIQuota(service.NewEntitlementService(pool, q)), reg.AIUniwork))
 	}
 	if reg != nil && reg.Meetings != nil {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
@@ -621,6 +631,18 @@ func main() {
 	if reg != nil {
 		graphSvc.SetMetrics(reg.Graph)
 	}
+	// The UniWork AI façade (G6-03a) with G6-03b's run counters behind it: the
+	// service reserves each turn's model call here, so the cap holds across
+	// pods through the store rather than in this process.
+	aiUniworkSvc := service.NewAIUniworkService(orgSvc, service.NewEntitlementService(pool, q), documentSvc, flags,
+		gateway, uniworkConversations, rdb)
+	aiUniworkSvc.SetRunStore(uniworkRuns)
+	// The four run/usage counters of §7 the service advances (run seconds and
+	// credits, usage_unknown, dropped tool calls): registered by NewRegistry,
+	// they stayed at 0 in production until this wiring (BE3B-7).
+	if reg != nil {
+		aiUniworkSvc.SetUniworkMetrics(reg.AIUniwork)
+	}
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
@@ -665,9 +687,9 @@ func main() {
 		AICloud:             service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway),
 		// The UniWork AI façade (G6-03a): the org, document and frame routes,
 		// the conversation store why the key above exists, and the process's
-		// own concurrency bounds (A11) — Redis only when there is one.
-		AIUniwork: service.NewAIUniworkService(orgSvc, service.NewEntitlementService(pool, q), documentSvc, flags,
-			gateway, uniworkConversations, rdb),
+		// own concurrency bounds (A11) — Redis only when there is one. G6-03b
+		// attaches the run counters built above.
+		AIUniwork:       aiUniworkSvc,
 		OfficeLaunch:    officeLaunchSvc,
 		Office:          officeSvc,
 		Preview:         previewSvc,

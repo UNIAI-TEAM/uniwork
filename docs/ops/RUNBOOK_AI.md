@@ -121,6 +121,49 @@ Khi có sự cố:
 - **Đọc thẳng trong `psql`**: chỉ thấy bản mã. Nghi plaintext trong `ai_uniwork_turns` = sự cố bảo mật: dừng deploy đó
   và giữ nguyên hiện trường.
 
+## UniWork AI run + usage (G6-03b, design §6–§7)
+
+Mỗi câu hỏi của trợ lý mở một **run** trong `ai_uniwork_runs`: server cấp id qua `X-UniWork-AI-Run`, đếm trần **10 lượt
+gọi model** và **8 vòng tool-result** trên một run (A3). Luật đếm là attempt-based: lượt bị limiter/trần/quota từ chối
+trước Gateway **không** đếm; một 429 của upstream (đã tới Gateway) đếm một `model_calls`, và client gửi lại đúng run id
+đó sau `Retry-After` được nhận — lần thử hỏng có dòng usage `failed` 0 token, **không** tính tiền hai lần. Hết trần:
+409 `run_limit_reached` (`fields.limit` = `model_calls` | `tool_rounds`); client bỏ header run và "hỏi tiếp" — run mới
+trong cùng hội thoại, transcript còn nguyên. Run hết hạn theo TTL của hội thoại (30 phút nhàn rỗi / 24 h tuyệt đối,
+`expires_at` ≤ hạn của conversation); id lạ/hết hạn/không thuộc hội thoại trả 409 `run_expired` (mã mới, pending G6-D1),
+lượt tool-result thiếu header run trả 400 `invalid_request`. Run/usage là hạ tầng AI: **không** có hàng audit mới.
+
+Hết credit `ai.tokens` trả 402 `credits_exhausted` (cùng hình dạng route cloud) **trước** Gateway: không dòng usage,
+không `model_calls`. Provider không trả `usage` ở **capability `office_uniwork_ai`** → dòng `ai_usage_events` mang
+`reason_code = usage_unknown`, token/cost 0, không cộng meter (cộng 0 là nói không ai đếm gì); lượt đối soát trong worker
+TTL **ước lượng token từ transcript đã lưu** (ký tự/4, gồm cả đối số tool call), claim dòng bằng một UPDATE có điều kiện
+(`usage_unknown_reconciled`, 0 hàng = pod khác đã làm) rồi cộng meter **một lần** (idempotent theo id dòng). Dòng usage
+chính là hàng đợi đối soát — không có bảng thứ hai. Nhánh này chỉ thuộc UniWork AI: chỉ nó có lượt đối soát
+(`AiUniworkUnknownUsageEvents` lọc `capability = 'office_uniwork_ai'`). Capability khác giữ nguyên đường đã định giá
+trước 03b: provider không trả usage ⇒ dòng `succeeded` cost 0 và vẫn cộng meter, nên không có hàng nào nằm chờ vô chủ và
+`ObserveAIUsage` vẫn lấy mẫu cho chúng.
+
+Số cần nhìn:
+
+| Metric | Ý nghĩa | Ngưỡng |
+| --- | --- | --- |
+| `uniwork_ai_uniwork_runs_swept_total{reason="expired"}` | Run hết TTL đã xóa | Tăng đều là bình thường |
+| `uniwork_ai_uniwork_runs_swept_total{reason="orphan"}` | Run mồ côi (hội thoại đã bị dọn) | Phải theo sau mỗi lần hội thoại bị dọn trong ≤ 1 phút |
+| `uniwork_ai_uniwork_usage_unknown_total` | Lượt gọi `office_uniwork_ai` mà provider không trả usage (capability khác không vào nhánh này) | Tăng = upstream đổi hành vi, **không** phải sự cố: đối soát định giá sau; đối chiếu `ai_usage_events` reason_code `usage_unknown` (hàng đợi) và `usage_unknown_reconciled` (đã định giá) |
+| `uniwork_ai_uniwork_usage_reconciled_total` | Dòng đối soát đã định giá | Theo sau `usage_unknown`; đứng ở 0 trong khi unknown tăng = lượt quét không chạy, hoặc transcript đã hết hạn trước khi kịp đối soát (log `ai: usage reconcile: transcript gone`) |
+| `uniwork_ai_uniwork_run_seconds` | Tuổi run tại mỗi lượt trả lời | Lượt cuối của run = độ dài run; gần 0 liên tục = client mở run mới mỗi lượt (trần không giữ được) |
+| `uniwork_ai_uniwork_run_credits` | Token run đã tiêu sau mỗi lượt | Lượt cuối = tổng của run; vọt bất thường = điều tra prompt/upstream |
+| `uniwork_ai_uniwork_dropped_tool_calls_total{reason}` | Call bị allowlist bỏ (`view_only`, `not_allowlisted`) | `view_only` tăng = client gửi write tool khi chỉ có quyền xem |
+
+Khi có sự cố:
+
+- **`run_limit_reached` nhiều**: bình thường khi người dùng làm việc dài; nếu tăng vọt, kiểm client có gửi lại header
+  run đúng không (mỗi lượt một run mới = mất trần, xem `run_seconds`).
+- **`run_expired` hàng loạt**: client trộn run id giữa các hội thoại, hoặc giữ id qua TTL nhàn rỗi 30 phút.
+- **Meter không tăng dù lượt thành công**: đọc dòng `ai_usage_events` (reason_code, input/output tokens) và
+  `usage_counters` meter `ai.tokens`; `usage_unknown` đang chờ đối soát — không phải mất tiền.
+- **Đối soát không tiến**: kiểm worker TTL còn chạy (log `uniwork ai conversation sweep`) và khóa `AI_CONVERSATION_KEY`
+  chưa xoay (transcript cũ không giải mã được).
+
 ## Không bao giờ
 
 - Không log prompt, nguồn hay câu trả lời. `ai_messages` là dữ liệu người dùng,

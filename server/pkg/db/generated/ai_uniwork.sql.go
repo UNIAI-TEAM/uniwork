@@ -11,6 +11,82 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const aiUniworkAddRunCredits = `-- name: AiUniworkAddRunCredits :exec
+UPDATE ai_uniwork_runs SET credits = credits + $1::bigint
+WHERE id = $2 AND conversation_id = $3
+`
+
+type AiUniworkAddRunCreditsParams struct {
+	Tokens         int64  `json:"tokens"`
+	RunID          string `json:"run_id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// tenant: by-id
+// What one answered model call cost is added to the run after the call
+// settled; the run was authorized by the turn that reserved the call, and a
+// row already swept is a no-op (the usage row and the meter still carry it).
+func (q *Queries) AiUniworkAddRunCredits(ctx context.Context, arg AiUniworkAddRunCreditsParams) error {
+	_, err := q.db.Exec(ctx, aiUniworkAddRunCredits, arg.Tokens, arg.RunID, arg.ConversationID)
+	return err
+}
+
+const aiUniworkClaimUnknownUsage = `-- name: AiUniworkClaimUnknownUsage :one
+UPDATE ai_usage_events SET
+  reason_code = 'usage_unknown_reconciled', rate_id = $2, input_tokens = $3, output_tokens = $4,
+  cost_micros = $5, completed_at = now()
+WHERE id = $1 AND reason_code = 'usage_unknown'
+RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at
+`
+
+type AiUniworkClaimUnknownUsageParams struct {
+	ID           string      `json:"id"`
+	RateID       pgtype.Text `json:"rate_id"`
+	InputTokens  int32       `json:"input_tokens"`
+	OutputTokens int32       `json:"output_tokens"`
+	CostMicros   int64       `json:"cost_micros"`
+}
+
+// tenant: by-id
+// The claim of §6.3: one row flips usage_unknown -> usage_unknown_reconciled
+// with the estimate. No row means another pass or pod priced it first, so the
+// meter is never recorded twice.
+func (q *Queries) AiUniworkClaimUnknownUsage(ctx context.Context, arg AiUniworkClaimUnknownUsageParams) (AiUsageEvent, error) {
+	row := q.db.QueryRow(ctx, aiUniworkClaimUnknownUsage,
+		arg.ID,
+		arg.RateID,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.CostMicros,
+	)
+	var i AiUsageEvent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ActorID,
+		&i.ActorKind,
+		&i.Capability,
+		&i.PromptID,
+		&i.Provider,
+		&i.Model,
+		&i.RateID,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CostMicros,
+		&i.Status,
+		&i.ReasonCode,
+		&i.LatencyMs,
+		&i.ToolCalls,
+		&i.SourceCount,
+		&i.Truncated,
+		&i.CorrelationID,
+		&i.CreatedAt,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
 const aiUniworkConversationIDsByDocument = `-- name: AiUniworkConversationIDsByDocument :many
 SELECT id FROM ai_uniwork_conversations
 WHERE organization_id = $1 AND document_id = $2
@@ -327,6 +403,22 @@ func (q *Queries) AiUniworkDeleteConversationsByIDs(ctx context.Context, ids []s
 	return err
 }
 
+const aiUniworkDeleteRunsByIDs = `-- name: AiUniworkDeleteRunsByIDs :execrows
+DELETE FROM ai_uniwork_runs WHERE id = ANY($1::text[])
+`
+
+// tenant: system
+// The ids come from AiUniworkExpiredRunIDs / AiUniworkOrphanRunIDs in the same
+// pass; deleting an already-deleted id is a no-op, so two pods sweeping at
+// once is harmless and each reports what its own delete removed.
+func (q *Queries) AiUniworkDeleteRunsByIDs(ctx context.Context, ids []string) (int64, error) {
+	result, err := q.db.Exec(ctx, aiUniworkDeleteRunsByIDs, ids)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const aiUniworkDeleteTurnsByConversations = `-- name: AiUniworkDeleteTurnsByConversations :exec
 DELETE FROM ai_uniwork_turns WHERE conversation_id = ANY($1::text[])
 `
@@ -374,6 +466,42 @@ func (q *Queries) AiUniworkExpiredConversationIDs(ctx context.Context, arg AiUni
 	return items, nil
 }
 
+const aiUniworkExpiredRunIDs = `-- name: AiUniworkExpiredRunIDs :many
+SELECT id FROM ai_uniwork_runs
+WHERE expires_at <= $1::timestamptz
+ORDER BY expires_at
+LIMIT $2::int
+`
+
+type AiUniworkExpiredRunIDsParams struct {
+	Now   pgtype.Timestamptz `json:"now"`
+	Batch int32              `json:"batch"`
+}
+
+// tenant: system
+// The TTL sweep's batch, oldest expiry first: runs whose window has passed
+// (design §3.4). Same clock as the conversation sweep - idle and absolute
+// both land in expires_at.
+func (q *Queries) AiUniworkExpiredRunIDs(ctx context.Context, arg AiUniworkExpiredRunIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, aiUniworkExpiredRunIDs, arg.Now, arg.Batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const aiUniworkGetConversation = `-- name: AiUniworkGetConversation :one
 SELECT id, organization_id, workspace_id, user_id, document_id, module, device_id, created_by, created_by_kind, created_at, last_used_at, expires_at FROM ai_uniwork_conversations
 WHERE id = $1 AND organization_id = $2
@@ -395,6 +523,42 @@ func (q *Queries) AiUniworkGetConversation(ctx context.Context, arg AiUniworkGet
 		&i.DocumentID,
 		&i.Module,
 		&i.DeviceID,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const aiUniworkGetRun = `-- name: AiUniworkGetRun :one
+SELECT r.id, r.organization_id, r.conversation_id, r.model_calls, r.tool_rounds, r.credits, r.created_by, r.created_by_kind, r.created_at, r.last_used_at, r.expires_at FROM ai_uniwork_runs r
+WHERE r.id = $1
+  AND r.conversation_id = $2
+  AND r.organization_id = $3
+`
+
+type AiUniworkGetRunParams struct {
+	ID             string `json:"id"`
+	ConversationID string `json:"conversation_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Distinguishes run_expired from run_limit_reached after a turn reserved
+// nothing, and filters all three columns (id, conversation, organization), so
+// a run of another tenant or conversation is not found rather than refused
+// with a reason (design §3.5).
+func (q *Queries) AiUniworkGetRun(ctx context.Context, arg AiUniworkGetRunParams) (AiUniworkRun, error) {
+	row := q.db.QueryRow(ctx, aiUniworkGetRun, arg.ID, arg.ConversationID, arg.OrganizationID)
+	var i AiUniworkRun
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.ModelCalls,
+		&i.ToolRounds,
+		&i.Credits,
 		&i.CreatedBy,
 		&i.CreatedByKind,
 		&i.CreatedAt,
@@ -548,6 +712,38 @@ func (q *Queries) AiUniworkNextTurnSeq(ctx context.Context, conversationID strin
 	return next_seq, err
 }
 
+const aiUniworkOrphanRunIDs = `-- name: AiUniworkOrphanRunIDs :many
+SELECT r.id FROM ai_uniwork_runs r
+WHERE NOT EXISTS (SELECT 1 FROM ai_uniwork_conversations c WHERE c.id = r.conversation_id)
+ORDER BY r.created_at
+LIMIT $1::int
+`
+
+// tenant: system
+// Runs whose conversation is gone: every path that deletes a conversation
+// leaves its runs to this sweep (design §3.4), so a run outlives its owner by
+// one pass at most - and is unreachable in the meantime, because a turn
+// resumes the conversation first.
+func (q *Queries) AiUniworkOrphanRunIDs(ctx context.Context, batch int32) ([]string, error) {
+	rows, err := q.db.Query(ctx, aiUniworkOrphanRunIDs, batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const aiUniworkRenumberTurns = `-- name: AiUniworkRenumberTurns :exec
 WITH numbered AS (
   SELECT u.id, ROW_NUMBER() OVER (ORDER BY u.seq) AS rn
@@ -581,6 +777,144 @@ type AiUniworkRollbackTurnsParams struct {
 func (q *Queries) AiUniworkRollbackTurns(ctx context.Context, arg AiUniworkRollbackTurnsParams) error {
 	_, err := q.db.Exec(ctx, aiUniworkRollbackTurns, arg.ConversationID, arg.Seq)
 	return err
+}
+
+const aiUniworkStartRun = `-- name: AiUniworkStartRun :one
+
+INSERT INTO ai_uniwork_runs (
+  id, organization_id, conversation_id, model_calls, tool_rounds, credits,
+  created_by, created_by_kind, created_at, last_used_at, expires_at
+)
+SELECT
+  $1::text,
+  c.organization_id,
+  c.id,
+  1,
+  0,
+  0,
+  $2::text,
+  'human',
+  $3::timestamptz,
+  $3::timestamptz,
+  LEAST(
+    $3::timestamptz + make_interval(secs => $4::int),
+    c.created_at + make_interval(secs => $5::int))
+FROM ai_uniwork_conversations c
+WHERE c.id = $6 AND c.organization_id = $7
+RETURNING id, organization_id, conversation_id, model_calls, tool_rounds, credits, created_by, created_by_kind, created_at, last_used_at, expires_at
+`
+
+type AiUniworkStartRunParams struct {
+	ID             string             `json:"id"`
+	CreatedBy      string             `json:"created_by"`
+	Now            pgtype.Timestamptz `json:"now"`
+	IdleSecs       int32              `json:"idle_secs"`
+	AbsoluteSecs   int32              `json:"absolute_secs"`
+	ConversationID string             `json:"conversation_id"`
+	OrganizationID string             `json:"organization_id"`
+}
+
+// Runs (G6-03b, G6-D1 A3/A12; design §3, §4). One run counts what a single
+// question may spend across every pod; the store implementation is RunStorePG
+// in server/internal/ai/run_store_pg.go.
+// Opening a run is the question turn that reached the Gateway: the row is
+// born with model_calls = 1 (design §2.2) and is bound to the conversation it
+// was resumed for - the INSERT ... SELECT also takes the conversation's
+// created_at for the absolute horizon, so the entity that scopes a run is the
+// conversation, filtered by its organization (design §3.3). No rows means the
+// conversation is gone; the store answers run_expired.
+func (q *Queries) AiUniworkStartRun(ctx context.Context, arg AiUniworkStartRunParams) (AiUniworkRun, error) {
+	row := q.db.QueryRow(ctx, aiUniworkStartRun,
+		arg.ID,
+		arg.CreatedBy,
+		arg.Now,
+		arg.IdleSecs,
+		arg.AbsoluteSecs,
+		arg.ConversationID,
+		arg.OrganizationID,
+	)
+	var i AiUniworkRun
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.ModelCalls,
+		&i.ToolRounds,
+		&i.Credits,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const aiUniworkTakeRunTurn = `-- name: AiUniworkTakeRunTurn :one
+UPDATE ai_uniwork_runs AS r SET
+  model_calls = r.model_calls + 1,
+  tool_rounds = r.tool_rounds + (CASE WHEN $1::boolean THEN 1 ELSE 0 END),
+  last_used_at = $2::timestamptz,
+  expires_at = LEAST(
+    $2::timestamptz + make_interval(secs => $3::int),
+    c.created_at + make_interval(secs => $4::int))
+FROM ai_uniwork_conversations c
+WHERE r.conversation_id = c.id
+  AND r.id = $5
+  AND r.conversation_id = $6
+  AND r.organization_id = $7
+  AND r.expires_at > $2::timestamptz
+  AND r.model_calls < $8::int
+  AND (NOT $1::boolean OR r.tool_rounds < $9::int)
+RETURNING r.id, r.organization_id, r.conversation_id, r.model_calls, r.tool_rounds, r.credits, r.created_by, r.created_by_kind, r.created_at, r.last_used_at, r.expires_at
+`
+
+type AiUniworkTakeRunTurnParams struct {
+	ToolRound      bool               `json:"tool_round"`
+	Now            pgtype.Timestamptz `json:"now"`
+	IdleSecs       int32              `json:"idle_secs"`
+	AbsoluteSecs   int32              `json:"absolute_secs"`
+	RunID          string             `json:"run_id"`
+	ConversationID string             `json:"conversation_id"`
+	OrganizationID string             `json:"organization_id"`
+	ModelCallMax   int32              `json:"model_call_max"`
+	ToolRoundMax   int32              `json:"tool_round_max"`
+}
+
+// The whole cap in one conditional UPDATE (design §4.2): the conditions are
+// the live window and both caps, so two pods cannot overspend one run and no
+// service-level read-then-write is needed. The window is refreshed here too -
+// expires_at never passes the conversation's absolute horizon, and the join
+// on the conversation makes an orphaned run unfindable (the store answers
+// run_expired). Zero rows reserved nothing: the store reads AiUniworkGetRun
+// to say which refusal it is.
+func (q *Queries) AiUniworkTakeRunTurn(ctx context.Context, arg AiUniworkTakeRunTurnParams) (AiUniworkRun, error) {
+	row := q.db.QueryRow(ctx, aiUniworkTakeRunTurn,
+		arg.ToolRound,
+		arg.Now,
+		arg.IdleSecs,
+		arg.AbsoluteSecs,
+		arg.RunID,
+		arg.ConversationID,
+		arg.OrganizationID,
+		arg.ModelCallMax,
+		arg.ToolRoundMax,
+	)
+	var i AiUniworkRun
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.ModelCalls,
+		&i.ToolRounds,
+		&i.Credits,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
 }
 
 const aiUniworkTouchConversation = `-- name: AiUniworkTouchConversation :one
@@ -642,4 +976,135 @@ func (q *Queries) AiUniworkTrimTurns(ctx context.Context, arg AiUniworkTrimTurns
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const aiUniworkTurnByUsageEvent = `-- name: AiUniworkTurnByUsageEvent :one
+SELECT id, organization_id, conversation_id, run_id, seq, role, ciphertext, usage_event_id, created_at FROM ai_uniwork_turns
+WHERE organization_id = $1 AND usage_event_id = $2
+`
+
+type AiUniworkTurnByUsageEventParams struct {
+	OrganizationID string      `json:"organization_id"`
+	UsageEventID   pgtype.Text `json:"usage_event_id"`
+}
+
+// The assistant turn a usage row belongs to: it names the conversation and
+// seq the estimate replays from. Scoped by the row's organization so a turn
+// of a foreign tenant can never answer (the usage row carries one).
+func (q *Queries) AiUniworkTurnByUsageEvent(ctx context.Context, arg AiUniworkTurnByUsageEventParams) (AiUniworkTurn, error) {
+	row := q.db.QueryRow(ctx, aiUniworkTurnByUsageEvent, arg.OrganizationID, arg.UsageEventID)
+	var i AiUniworkTurn
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.RunID,
+		&i.Seq,
+		&i.Role,
+		&i.Ciphertext,
+		&i.UsageEventID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const aiUniworkTurnsToUsageEvent = `-- name: AiUniworkTurnsToUsageEvent :many
+SELECT id, organization_id, conversation_id, run_id, seq, role, ciphertext, usage_event_id, created_at FROM ai_uniwork_turns WHERE conversation_id = $1 AND seq <= $2 ORDER BY seq
+`
+
+type AiUniworkTurnsToUsageEventParams struct {
+	ConversationID string `json:"conversation_id"`
+	Seq            int32  `json:"seq"`
+}
+
+// tenant: parent conversation_id
+// Every turn up to and including the assistant turn, oldest first: the
+// estimate reads what the model was sent plus what it answered.
+func (q *Queries) AiUniworkTurnsToUsageEvent(ctx context.Context, arg AiUniworkTurnsToUsageEventParams) ([]AiUniworkTurn, error) {
+	rows, err := q.db.Query(ctx, aiUniworkTurnsToUsageEvent, arg.ConversationID, arg.Seq)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AiUniworkTurn{}
+	for rows.Next() {
+		var i AiUniworkTurn
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.ConversationID,
+			&i.RunID,
+			&i.Seq,
+			&i.Role,
+			&i.Ciphertext,
+			&i.UsageEventID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const aiUniworkUnknownUsageEvents = `-- name: AiUniworkUnknownUsageEvents :many
+
+SELECT id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at FROM ai_usage_events
+WHERE capability = 'office_uniwork_ai' AND reason_code = 'usage_unknown'
+ORDER BY created_at, id
+LIMIT $1::int
+`
+
+// ---- Usage reconciliation (G6-03b, design §6.3) -----------------------------
+// The pass prices the rows whose vendor sent no usage block, from the
+// transcript stored for them. It is a maintenance job that answers no
+// request, like the TTL sweep above.
+// tenant: system
+// The reconciliation queue: UniWork AI calls whose vendor reported no usage
+// block, oldest first, so a row entered once is priced before the queue grows
+// behind it (design §6.3).
+func (q *Queries) AiUniworkUnknownUsageEvents(ctx context.Context, batch int32) ([]AiUsageEvent, error) {
+	rows, err := q.db.Query(ctx, aiUniworkUnknownUsageEvents, batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AiUsageEvent{}
+	for rows.Next() {
+		var i AiUsageEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.ActorID,
+			&i.ActorKind,
+			&i.Capability,
+			&i.PromptID,
+			&i.Provider,
+			&i.Model,
+			&i.RateID,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CostMicros,
+			&i.Status,
+			&i.ReasonCode,
+			&i.LatencyMs,
+			&i.ToolCalls,
+			&i.SourceCount,
+			&i.Truncated,
+			&i.CorrelationID,
+			&i.CreatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

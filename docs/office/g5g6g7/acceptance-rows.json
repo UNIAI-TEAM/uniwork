@@ -639,6 +639,19 @@
             "TestAIUniworkConversationBoundToScope (another member of the same organization, and another document of the same tenant, both get 409 conversation_expired; no cross-workspace claim)",
             "TestAIUniworkWriteToolsDroppedWhenViewOnly"
           ]
+        },
+        {
+          "task": "G6-03b",
+          "revision": "4610db8d168e8daa9e73cd76dbda69ba93027469",
+          "run": "run-8250d0a8-3314-4a0e-8a44-397f21961069",
+          "report": "reports/g6-ai_server/cloud-test-15.md (TEST_GO_EXIT=0, ISOLATION_EXIT=0)",
+          "review": "reports/g6-ai_server/review-be-g03b-2.md (verdict clear)",
+          "tests": [
+            "TestAIUniworkRoutesUseOwnLimiterBucket (router; one 60/min ai-uniwork budget per person across the three routes, separate from ai-byok/ai-cloud)",
+            "TestAIUniworkRunWithinCapNeverHitsLimiter (router; eleven turns of one run, none refused by the bucket)",
+            "TestAIUniworkGlobalLimiterKeysFrameTokenByIdentity (router; the global limiter names the frame token's person and document, so one address no longer pools every frame)",
+            "TestRateLimitBucketRefusalCode (middleware; the ai-uniwork bucket answers ai_rate_limited + Retry-After: 60, another bucket keeps rate_limited)"
+          ]
         }
       ],
       "status": "NOT_RUN",
@@ -689,9 +702,21 @@
             "TestAIUniworkUpstreamTimeout (504 ai_provider_timeout)",
             "TestAIUniworkUpstreamRateLimitedRetryAfter (429 ai_rate_limited, Retry-After)",
             "TestAIUniworkUpstreamRateLimitedHeader",
-            "TestAIUniworkConcurrencyBound (pod bound: 429 ai_uniwork_busy, retry_after 5 -> Retry-After)",
+            "TestAIUniworkConcurrencyBound (pod bound: 429 ai_uniwork_busy, retry_after 5 on the refusal)",
             "TestAIUniworkOrgBoundWithoutRedis (organization bound without Redis: 429 ai_uniwork_busy)",
             "TestAIUniworkLeasesExpireIndependently (lease lifetime/recovery only; asserts no status/code)"
+          ]
+        },
+        {
+          "task": "G6-03b",
+          "revision": "4610db8d168e8daa9e73cd76dbda69ba93027469",
+          "run": "run-8250d0a8-3314-4a0e-8a44-397f21961069",
+          "report": "reports/g6-ai_server/cloud-test-15.md (TEST_GO_EXIT=0, A08_EXIT=0)",
+          "review": "reports/g6-ai_server/review-be-g03b-2.md (verdict clear)",
+          "tests": [
+            "TestAIUniworkBusySetsRetryAfter (handler: the ai_uniwork_busy refusal carries Retry-After: 5)",
+            "TestAIUniworkRateLimitedHasRetryAfter (router: the ai-uniwork bucket answers 429 ai_rate_limited + Retry-After: 60)",
+            "TestAIUniworkStepLimitInJSONAndSSE (handler: x_uniwork.step/limit on the wire at step 0)"
           ]
         }
       ],
@@ -728,6 +753,21 @@
       "gate": "G6-D1",
       "blocker": null,
       "evidence": [],
+      "partialEvidence": [
+        {
+          "task": "G6-03b",
+          "revision": "4610db8d168e8daa9e73cd76dbda69ba93027469",
+          "run": "run-8250d0a8-3314-4a0e-8a44-397f21961069",
+          "report": "reports/g6-ai_server/cloud-test-15.md (TEST_GO_EXIT=0, A09_EXIT=0, EVIDENCE_TESTS_EXIT=0; 21/21 required G6-03b tests PASS, 0 SKIP)",
+          "review": "reports/g6-ai_server/review-be-g03b-2.md (verdict clear)",
+          "tests": [
+            "TestAIUniworkUsageRecordedWhenClientDisconnects",
+            "TestAIUniworkUsageUnknownReconcilesOnce",
+            "TestAIUniworkUsageUnknownRowAndMetric",
+            "TestAIUniworkRunRetryUsageChargedOnce"
+          ]
+        }
+      ],
       "status": "NOT_RUN",
       "reviewer": "pending reviewer_be (UNI-1376)"
     },

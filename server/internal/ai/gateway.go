@@ -36,6 +36,11 @@ type UsageRecord struct {
 	Actor          audit.Actor
 	Tokens         int64
 	UsageEventID   string
+	// MeterKey overrides the idempotency key of this charge (G6-03b): a
+	// caller that can name the logical call (UniWork AI: "uniwork-ai:<run
+	// id>:<seq>") makes a replayed or reconciled charge a no-op. Empty keeps
+	// the per-event key the quota adapter builds from UsageEventID.
+	MeterKey string
 }
 
 // Metrics is satisfied by metrics.AI; nil is fine.
@@ -86,6 +91,9 @@ type Request struct {
 	// Attachments are media parts sent with the rendered prompt (media
 	// analysis); the vendor adapter refuses a type it cannot send.
 	Attachments []provider.Part
+	// MeterKey is the idempotency key of this call's charge when the caller
+	// can name it (G6-03b); empty uses the usage event's own id.
+	MeterKey string
 }
 
 type Response struct {
@@ -96,7 +104,19 @@ type Response struct {
 	Provider     string
 	InputTokens  int
 	OutputTokens int
+	// UsagePresent reports whether the vendor sent a usage block (G6-03b
+	// reads it): false means the usage row is the unknown/reconciliation
+	// branch, not a zero-token call (A16, design §6.3).
+	UsagePresent bool
 }
+
+// The reason_code values of A16's unknown-usage branch (design §6.3): a row
+// whose vendor sent no usage block is the reconciliation queue, and the pass
+// marks it reconciled once it has priced the row from the transcript.
+const (
+	UsageUnknownReason    = "usage_unknown"
+	UsageReconciledReason = "usage_unknown_reconciled"
+)
 
 type Gateway struct {
 	q       *db.Queries
@@ -225,6 +245,37 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		g.observe(req.Capability, "failed", latency)
 		return Response{}, ErrToolNotAllowed.wrap(errors.New("tool " + denied))
 	}
+	// UsagePresent is false only when the vendor positively reported no usage
+	// block. A response that carries token counts did report usage, whatever
+	// its flag says: a path that never learned the field leaves the zero value
+	// (provider/anthropic.go:104, openai.go:149, ollama.go:85 and the fakes
+	// all set it explicitly), and reading that zero as "no usage" would turn
+	// every existing provider path into the reconciliation queue (G6-03b
+	// regression of TestGatewayMetersBeforeAndAfter, ai_test.go:396).
+	if !resp.UsagePresent && (resp.InputTokens > 0 || resp.OutputTokens > 0) {
+		resp.UsagePresent = true
+	}
+	// A vendor that sent no usage block is A16's unknown branch, not a
+	// zero-token call (design §6.3): the row settles succeeded with
+	// reason_code usage_unknown — the reconciliation queue — and the meter is
+	// left alone, because recording zero would claim nobody counted anything.
+	//
+	// The branch belongs to UniWork AI alone (design §6.3): it is the one
+	// capability whose rows a reconciler prices from the stored transcript
+	// (AiUniworkUnknownUsageEvents filters capability = 'office_uniwork_ai'),
+	// and its run meter already keeps a charge idempotent. Every other
+	// capability keeps the pre-03b priced path — a vendor that omitted the
+	// usage block settles succeeded at cost 0, as it did before this branch
+	// existed — so no capability accumulates rows nobody reconciles and
+	// ObserveAIUsage keeps being sampled for them.
+	if !resp.UsagePresent && req.Capability == CapOfficeUniworkAI {
+		if err := g.finish(sctx, row.ID, row.OrganizationID, resp, "succeeded", UsageUnknownReason, latency, calls); err != nil {
+			return Response{}, err
+		}
+		g.observe(req.Capability, "succeeded", latency)
+		g.log.Info("ai: call", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
+		return g.response(resp, row.ID), nil
+	}
 	if err := g.finish(sctx, row.ID, row.OrganizationID, resp, "succeeded", "", latency, calls); err != nil {
 		return Response{}, err
 	}
@@ -232,6 +283,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		if err := g.quota.Record(sctx, UsageRecord{
 			OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID, Actor: req.Actor,
 			Tokens: int64(resp.InputTokens + resp.OutputTokens), UsageEventID: row.ID,
+			MeterKey: req.MeterKey,
 		}); err != nil {
 			g.log.Warn("ai: quota record", "usage_event_id", row.ID, "err", err)
 		}
@@ -248,10 +300,16 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	}
 	g.observe(req.Capability, "succeeded", latency)
 	g.log.Info("ai: call", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
+	return g.response(resp, row.ID), nil
+}
+
+// response is the answered call as the caller reads it: the usage row id it
+// settled under and whether the vendor reported usage at all (A16).
+func (g *Gateway) response(resp provider.CompletionResponse, usageEventID string) Response {
 	return Response{
-		Text: resp.Text, ToolCalls: resp.ToolCalls, UsageEventID: row.ID, Model: resp.Model, Provider: g.p.Name(),
-		InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens,
-	}, nil
+		Text: resp.Text, ToolCalls: resp.ToolCalls, UsageEventID: usageEventID, Model: resp.Model, Provider: g.p.Name(),
+		InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens, UsagePresent: resp.UsagePresent,
+	}
 }
 
 // systemText is the system text the provider is sent: Prompt.System, or for a
@@ -378,7 +436,10 @@ func (g *Gateway) insertUsage(ctx context.Context, req Request, model, status, r
 func (g *Gateway) finish(ctx context.Context, id, orgID string, resp provider.CompletionResponse, status, reason string, latency time.Duration, calls []toolCallAudit) error {
 	var rateID pgtype.Text
 	var cost int64
-	if status == "succeeded" {
+	// A row the vendor sent no usage for is not priced and not observed as a
+	// priced call: the reconciliation pass owns those numbers (A16).
+	priced := status == "succeeded" && reason != UsageUnknownReason
+	if priced {
 		rate, err := g.q.AiLatestRate(ctx, db.AiLatestRateParams{
 			Provider: g.p.Name(), Model: resp.Model, EffectiveAt: pgtype.Timestamptz{Time: g.now(), Valid: true},
 		})
@@ -393,7 +454,7 @@ func (g *Gateway) finish(ctx context.Context, id, orgID string, resp provider.Co
 		calls = []toolCallAudit{}
 	}
 	callsJSON, _ := json.Marshal(calls)
-	if status == "succeeded" && g.metrics != nil {
+	if priced && g.metrics != nil {
 		g.metrics.ObserveAIUsage(g.p.Name(), resp.Model, orgID, resp.InputTokens, resp.OutputTokens, float64(cost)/1_000_000)
 	}
 	_, err := g.q.AiFinishUsageEvent(ctx, db.AiFinishUsageEventParams{
