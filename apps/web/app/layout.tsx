@@ -6,6 +6,7 @@ import "./globals.css";
 import "../platform/runtime-config";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { accentBootScript } from "@uniwork/ui/lib/accent";
+import { textSizeBootScript } from "@uniwork/ui/lib/text-size";
 import { resolveRequestLocale } from "../platform/locale-server";
 import { SITE_DESCRIPTION, SITE_NAME, shareMetadata } from "../platform/share-metadata";
 import { Providers } from "./providers";
@@ -84,6 +85,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             next-themes applies `.dark`. Without it the app paints one
             frame of the default violet and then repaints. */}
         <script dangerouslySetInnerHTML={{ __html: accentBootScript() }} />
+        {/* Same trick for the text size: without it the page paints one
+            frame at the default 14px and then jumps. */}
+        <script dangerouslySetInnerHTML={{ __html: textSizeBootScript() }} />
         <Providers initialLocale={locale} initialDictionary={initialDictionary}>
           {children}
         </Providers>

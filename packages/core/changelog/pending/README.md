@@ -1,16 +1,17 @@
-# Bản nháp phát hành
+# Duyệt nội dung trên GitHub
 
-Sau mỗi push/merge vào `develop`, workflow **Changelog** tạo artifact
-`changelog-unreleased` gồm `unreleased.md` và `unreleased.json`.
+Agent tự viết đầy đủ tiếng Việt và tiếng Anh, rồi mở một PR Changelog.
+Người duyệt đọc mô tả PR hoặc <version>.md, comment/Request changes khi cần
+và approve/merge khi đồng ý. Không cần tải artifact, điền nội dung, đổi tên
+hoặc push file thủ công.
 
-Tải JSON từ lần chạy mới nhất, lưu thành `<version>.json` trong thư mục này.
-Chọn lại số phiên bản nếu cần; viết title, summary, note và các mục cập nhật
-bằng Việt/Anh; quyết định include/exclude cho mọi commit chưa phân loại.
-Đặt `ready: true` sau review và merge file vào develop. Chỉ thay đổi file notes
-ở bước này: `sourceRef` trong bản nháp phải phản ánh code sẽ phát hành.
+PR gồm <version>.json, <version>.md, releases.json và phần Changelog của hai
+locale. Sau merge và deploy web, phiên bản xuất hiện trên /changelog.
+ready: true là kết quả content review của agent; merge là quyết định của người.
 
-Tag `v<version>` trên commit develop đã chứa file duyệt này kích hoạt cập nhật
-catalog và các locale qua PR tự động, sau đó tạo GitHub Release. Catalog công
-khai chỉ nhận nội dung đã duyệt, không nhận các bản nháp.
+CI kiểm snapshot, coverage commit, bản dịch, phạm vi file, dữ liệu cũ và sự
+khớp giữa Markdown/JSON/catalog. Agent dùng scripts/changelog-review-pr.mjs
+để chuẩn bị đề xuất; không tự merge, tag hay publish. Stable tag cũ vẫn là
+lựa chọn cho các lần phát hành GitHub Release.
 
-Hướng dẫn cấu hình và lệnh thử: `docs/public-changelog.md`.
+Xem docs/public-changelog.md và docs/engineering/changelog-review-agent.md.
