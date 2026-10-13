@@ -108,7 +108,7 @@ describe("frame comment endpoints (contract-collab §2)", () => {
   });
 
   it("updates, resolves and reopens on the comment routes", async () => {
-    vi.mocked(fetch).mockResolvedValue(json({ comment: wireComment() }));
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json({ comment: wireComment() })));
     await updateFrameComment("d1", "c1", { body: "x" });
     expect(lastCall().url).toBe("http://api.test/api/v1/documents/d1/comments/c1");
     expect(lastCall().init.method).toBe("PATCH");
@@ -166,7 +166,7 @@ describe("frame comment endpoints (contract-collab §2)", () => {
     ["anchors", () => putFrameCommentAnchors("d1", { version_id: "v", anchors: [] })],
     ["mentions", () => searchFrameMentionCandidates("d1", { q: "a" })],
   ])("a malformed %s answer resolves null instead of throwing", async (_name, run) => {
-    vi.mocked(fetch).mockResolvedValue(json({ nope: true }));
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json({ nope: true })));
     expect(await run()).toBeNull();
   });
 
