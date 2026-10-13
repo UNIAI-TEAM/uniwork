@@ -46,7 +46,13 @@ export function AiAccessTab() {
   const grants = useOrgConnectedApps(org, { enabled: isAdmin });
   const revoke = useRevokeOrgConnectedApp(org);
   const [pending, setPending] = useState<ConnectedApp | null>(null);
-  const day = (iso: string) => new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }).format(new Date(iso));
+  // One formatter per render. A date the server drifted on ("" or garbage)
+  // reads as "", never a RangeError that would unmount the whole tab.
+  const dateFormat = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" });
+  const day = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? "" : dateFormat.format(d);
+  };
 
   if (membership.isLoading) return <SettingsTabSkeleton />;
   if (!isAdmin) {
@@ -61,6 +67,12 @@ export function AiAccessTab() {
 
   const busy = setPolicy.isPending;
   const rows = grants.data ?? [];
+  // A date that did not parse drops out of the line instead of leaving a
+  // dangling "connected ".
+  const metaLine = (g: ConnectedApp) => {
+    const created = day(g.created_at);
+    return created ? t("meta", { user: g.user_name, created }) : g.user_name;
+  };
 
   // The switch appears only once the server has answered: a read that failed,
   // or answered something the schema cannot use, is not "off", and a switch
@@ -128,7 +140,7 @@ export function AiAccessTab() {
                 key={g.id}
                 title={g.client_name}
                 badge={g.verified ? <SettingsBadge tone="success">{i18n.t("settings.connectedApps.verified")}</SettingsBadge> : null}
-                meta={t("meta", { user: g.user_name, created: day(g.created_at) })}
+                meta={metaLine(g)}
                 actions={
                   <Button
                     variant="ghost"

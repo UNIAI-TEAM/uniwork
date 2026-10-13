@@ -33,13 +33,35 @@ export function ConnectedAppsTab() {
   const apps = useMyConnectedApps();
   const revoke = useRevokeMyConnectedApp();
   const [pending, setPending] = useState<ConnectedApp | null>(null);
-  const day = (iso: string) => new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }).format(new Date(iso));
+  // One formatter per render. A date the server drifted on ("" or garbage)
+  // reads as "", never a RangeError that would unmount the whole tab.
+  const dateFormat = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" });
+  const day = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? "" : dateFormat.format(d);
+  };
 
   if (apps.isPending) return <SettingsTabSkeleton />;
 
   const rows = apps.data?.grants ?? [];
+  // A date that did not parse drops out of the line instead of leaving a
+  // dangling "connected " or "last used ".
+  const metaLine = (g: ConnectedApp) => {
+    const created = day(g.created_at);
+    const used = g.last_used_at ? day(g.last_used_at) : "";
+    return [
+      created ? t("meta", { org: g.organization_name, created }) : g.organization_name,
+      used ? t("lastUsed", { when: used }) : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  };
+  // The server always sends the address. A list that came back without it is
+  // the schema's fallback for a response it could not read, not "no apps yet":
+  // the empty line points at an address that is not there.
+  const failed = apps.isError || (rows.length === 0 && !apps.data?.mcp_url);
   let body;
-  if (apps.isError) {
+  if (failed) {
     body = (
       <SettingsCard>
         <SettingsLoadError onRetry={() => void apps.refetch()}>{t("error")}</SettingsLoadError>
@@ -59,12 +81,7 @@ export function ConnectedAppsTab() {
             key={g.id}
             title={g.client_name}
             badge={g.verified ? <SettingsBadge tone="success">{t("verified")}</SettingsBadge> : null}
-            meta={[
-              t("meta", { org: g.organization_name, created: day(g.created_at) }),
-              g.last_used_at ? t("lastUsed", { when: day(g.last_used_at) }) : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
+            meta={metaLine(g)}
             actions={
               <Button variant="ghost" size="sm" aria-label={t("revokeAria", { client: g.client_name })} onClick={() => setPending(g)}>
                 {t("revoke")}

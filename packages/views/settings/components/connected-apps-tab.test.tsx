@@ -70,14 +70,15 @@ describe("ConnectedAppsTab", () => {
   });
 
   it("keeps the dialog open and says so when the revoke fails", async () => {
+    // An error with no message of its own: the toast falls back to our sentence.
     serve([grant], (path, init) =>
-      path === "/api/v1/me/connected-apps/g1" && init?.method === "DELETE" ? Promise.reject(new Error("boom")) : undefined,
+      path === "/api/v1/me/connected-apps/g1" && init?.method === "DELETE" ? Promise.reject(new Error("")) : undefined,
     );
     render(wrapWithNav(<ConnectedAppsTab />));
     fireEvent.click(await screen.findByRole("button", { name: "Thu hồi Claude" }));
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Thu hồi" }));
-    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith(t("settings.connectedApps.revokeFailed")));
     expect(toastSuccess).not.toHaveBeenCalled();
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
   });
@@ -130,6 +131,47 @@ describe("ConnectedAppsTab", () => {
     const address = await screen.findByText(MCP_URL);
     const empty = screen.getByText(t("settings.connectedApps.empty"));
     expect(address.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("renders a row whose created date did not come through, without a dangling fragment", async () => {
+    serve([{ ...grant, created_at: "" }]);
+    render(wrapWithNav(<ConnectedAppsTab />));
+    const list = await screen.findByRole("list", { name: t("settings.connectedApps.section") });
+    expect(within(list).getByText("Claude")).toBeInTheDocument();
+    expect(within(list).getByText("Acme")).toBeInTheDocument();
+    expect(within(list).queryByText(/kết nối/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thu hồi Claude" })).toBeInTheDocument();
+  });
+
+  it("renders a row whose last-used date is garbage, and leaves that part out", async () => {
+    serve([{ ...grant, last_used_at: "not a date" }]);
+    render(wrapWithNav(<ConnectedAppsTab />));
+    const list = await screen.findByRole("list", { name: t("settings.connectedApps.section") });
+    const meta = within(list).getByText(/^Acme · kết nối /);
+    expect(meta.textContent).not.toMatch(/dùng lần cuối|·\s*$/);
+    expect(screen.getByRole("button", { name: "Thu hồi Claude" })).toBeInTheDocument();
+  });
+
+  it("treats a list that came back without the address as a failed load, not as empty", async () => {
+    // A body the schema cannot read falls back to no grants and no address.
+    requestMock.mockResolvedValue({});
+    render(wrapWithNav(<ConnectedAppsTab />));
+    expect(await screen.findByText(t("settings.connectedApps.error"))).toBeInTheDocument();
+    expect(screen.queryByText(t("settings.connectedApps.empty"))).not.toBeInTheDocument();
+    requestMock.mockReset();
+    serve([]);
+    fireEvent.click(screen.getByRole("button", { name: t("settings.state.retry") }));
+    expect(await screen.findByText(MCP_URL)).toBeInTheDocument();
+    expect(screen.getByText(t("settings.connectedApps.empty"))).toBeInTheDocument();
+  });
+
+  it("still lists the apps when the address is missing, so they can be revoked", async () => {
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path === "/api/v1/me/connected-apps" ? { grants: [grant], mcp_url: "" } : {}),
+    );
+    render(wrapWithNav(<ConnectedAppsTab />));
+    expect(await screen.findByRole("button", { name: "Thu hồi Claude" })).toBeInTheDocument();
+    expect(screen.queryByText(t("settings.connectedApps.error"))).not.toBeInTheDocument();
   });
 
   it("shows a retry when the list fails", async () => {

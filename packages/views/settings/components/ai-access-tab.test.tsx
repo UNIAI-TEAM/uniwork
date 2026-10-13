@@ -157,6 +157,8 @@ describe("AiAccessTab", () => {
     release(null);
     expect(await screen.findByRole("alert")).toHaveTextContent(t("settings.aiAccess.saveFailed"));
     await waitFor(() => expect(toggle).not.toHaveAttribute("aria-disabled"));
+    // The write did not land, so the switch must not claim it did.
+    expect(toggle).toHaveAttribute("aria-checked", "false");
   });
 
   it("lists the organization's grants and revokes one only after confirming", async () => {
@@ -178,19 +180,30 @@ describe("AiAccessTab", () => {
     expect(toastSuccess).toHaveBeenCalledWith("Đã thu hồi Claude");
   });
 
+  it("renders a row whose created date did not come through, and keeps the switch", async () => {
+    serve("owner", POLICY, { grants: [{ ...grant, created_at: "" }] });
+    renderTab();
+    const list = await screen.findByRole("list", { name: t("settings.aiAccess.grantsTitle") });
+    expect(within(list).getByText("Claude")).toBeInTheDocument();
+    expect(within(list).getByText("Lan")).toBeInTheDocument();
+    expect(within(list).queryByText(/kết nối/)).not.toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: SWITCH_NAME })).toBeInTheDocument();
+  });
+
   it("keeps the dialog open when the revoke fails, and closes it on cancel", async () => {
     serve("owner", POLICY, { grants: [grant] });
     const base = requestMock.getMockImplementation();
     requestMock.mockImplementation((path: string, init?: Init) =>
       path === "/api/v1/orgs/acme/connected-apps/g1" && init?.method === "DELETE"
-        ? Promise.reject(new Error("boom"))
+        ? Promise.reject(new Error(""))
         : base?.(path, init),
     );
     renderTab();
     fireEvent.click(await screen.findByRole("button", { name: "Thu hồi Claude của Lan" }));
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Thu hồi" }));
-    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    // An error with no message of its own: the toast falls back to our sentence.
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith(t("settings.aiAccess.revokeFailed")));
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: t("common.cancel") }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
