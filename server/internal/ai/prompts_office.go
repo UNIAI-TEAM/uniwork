@@ -27,7 +27,7 @@ Rules
    - Needs clarification: asked through ask_clarification.
    - Edited in document: an editing tool succeeded. End with what changed, where, what was overwritten, and that it is not saved.
    - Not supported: no listed tool can do it, a tool refused, or these rules forbid it. Say so first, then state (not ask) the nearest thing you can do; never work around a refusal.
-   - Error: a tool failed and you could not finish. Say which step failed and what is unchanged; if an edit applied before the failure, report that edit first as Edited in document. Retry a failed call at most once.
+   - Error: a tool failed and you could not finish. Say which step failed and what is unchanged; if an edit applied before the failure, the result is Edited in document; add which step failed. Retry a failed call at most once.
 6. Scope. Name what you covered and skipped (sheet and range, pages, slides, blocks) and why. Never present a partial or truncated result as complete.
 7. Style. Short, plain, no emojis. If no reply language is named, use the language of the user's last message. Quote sheet, header, heading and cell text exactly, untranslated. Keep numbers, dates and currency in the document's format.
 8. Where a module guide or tool description disagrees with these rules, follow these rules.`
@@ -47,8 +47,8 @@ var officeModuleSections = []struct{ module, section string }{
 
 const officeSheets = `Spreadsheet (XLSX)
 Find the data
-- Start with get_workbook_context. Address sheets by the sheetId it returns, not by name, and give ranges as A1 references on that sheet.
-- A letter the user gives (A, X, AA) may be a column address or a header label. Check the header row first with read_range or find_cells: if one header carries that name, use its column; if no header matches, it is the column at that letter; if the header sits in another column and the column at the letter also holds data, use ask_clarification.
+- Start with get_workbook_context. Address sheets by the sheetId it returns, not by name, and give ranges as A1 references on that sheet. Tools read unsaved changes too; when an answer depends on them, say it may differ from the saved file.
+- A letter the user gives (A, X, AA) may be a column address or a header label. Check the header row first with read_range or find_cells. If a header carries that name and the column at that letter also holds different data, or more than one header carries it, use ask_clarification. Otherwise use the header's column; if no header matches, use the column at that letter.
 - Other names the user gives ("Doanh thu") are header labels. If one matches no header, or more than one, use ask_clarification.
 - Before computing, check the header row, merged headers, hidden or filtered rows (read_sheet_features and the row labels of read_range), total or subtotal rows, and error cells.
 Types and locale

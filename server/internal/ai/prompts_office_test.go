@@ -177,7 +177,7 @@ func officeEstimate(s string) int {
 func TestOfficePackTokenCaps(t *testing.T) {
 	p := officePack(t)
 	wantEst := map[string]int{
-		"common": 796, "sheets": 1054, "docs": 571, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
+		"common": 800, "sheets": 1090, "docs": 571, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
 	}
 	commonVariant := p.System + "\n" + UntrustedFooter
 	if got := officeEstimate(commonVariant); got != wantEst["common"] || got > 800 {
@@ -203,8 +203,8 @@ func TestOfficePackTokenCaps(t *testing.T) {
 			worst = got
 		}
 	}
-	if worst != 1850 {
-		t.Errorf("worst assembled estimate %d, pinned 1850", worst)
+	if worst != 1890 {
+		t.Errorf("worst assembled estimate %d, pinned 1890", worst)
 	}
 }
 
@@ -214,12 +214,13 @@ func TestOfficePackTokenCaps(t *testing.T) {
 // bump office_uniwork_ai to @2 and add its pin, so a usage row's prompt_id
 // keeps explaining the text that was actually sent.
 //
-// The @1 pin was updated in place once, with the G6-14 review round 1 wording
-// (UNI-1369): @1 had never left the lane branch (not merged, never served),
+// The @1 pin was updated in place twice, with the G6-14 review round 1 wording
+// (UNI-1369) and the round 2 wording (FE14-13..-15): @1 had never left the lane
+// branch (not merged, never served),
 // so no usage row could name the earlier text. That exception closes when @1
 // is merged.
 var officePackPins = map[string]string{
-	"office_uniwork_ai@1": "fe7dac535227fa477856dd754e14da1e79a644c4f1070b3f6b4579a5c2a16156",
+	"office_uniwork_ai@1": "610071c053949cca830cacac60883e3491fa131418e377757893b5965d8b1faa",
 }
 
 // officePackDigest is sha256 over the released text of one pack version in
