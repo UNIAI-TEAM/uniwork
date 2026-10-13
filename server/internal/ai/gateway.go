@@ -245,6 +245,16 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		g.observe(req.Capability, "failed", latency)
 		return Response{}, ErrToolNotAllowed.wrap(errors.New("tool " + denied))
 	}
+	// UsagePresent is false only when the vendor positively reported no usage
+	// block. A response that carries token counts did report usage, whatever
+	// its flag says: a path that never learned the field leaves the zero value
+	// (provider/anthropic.go:104, openai.go:149, ollama.go:85 and the fakes
+	// all set it explicitly), and reading that zero as "no usage" would turn
+	// every existing provider path into the reconciliation queue (G6-03b
+	// regression of TestGatewayMetersBeforeAndAfter, ai_test.go:396).
+	if !resp.UsagePresent && (resp.InputTokens > 0 || resp.OutputTokens > 0) {
+		resp.UsagePresent = true
+	}
 	// A vendor that sent no usage block is A16's unknown branch, not a
 	// zero-token call (design §6.3): the row settles succeeded with
 	// reason_code usage_unknown — the reconciliation queue — and the meter is
