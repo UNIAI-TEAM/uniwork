@@ -1,0 +1,52 @@
+$ node --test scripts/events-catalogue.test.mjs; echo "G508S_EVENTS_EXIT $?"; true
+TAP version 13
+# Subtest: the Go catalogue and the documented table agree
+ok 1 - the Go catalogue and the documented table agree
+  ---
+  duration_ms: 9.775161
+  ...
+# Subtest: every catalogue row has the one-line shape this file parses
+ok 2 - every catalogue row has the one-line shape this file parses
+  ---
+  duration_ms: 1.171185
+  ...
+# Subtest: the client knows every event that has a realtime audience
+ok 3 - the client knows every event that has a realtime audience
+  ---
+  duration_ms: 0.829284
+  ...
+# Subtest: event names follow <entity>.<verb> and carry no version
+ok 4 - event names follow <entity>.<verb> and carry no version
+  ---
+  duration_ms: 1.258865
+  ...
+# Subtest: payload keys are ids or revisions; content travels only through Patch
+ok 5 - payload keys are ids or revisions; content travels only through Patch
+  ---
+  duration_ms: 1.26124
+  ...
+# Subtest: the patchable task fields are exactly the ones ADR 0015 accepted
+ok 6 - the patchable task fields are exactly the ones ADR 0015 accepted
+  ---
+  duration_ms: 0.582616
+  ...
+# Subtest: the client decodes exactly the fields task.updated lists in Patch
+ok 7 - the client decodes exactly the fields task.updated lists in Patch
+  ---
+  duration_ms: 0.890006
+  ...
+# Subtest: every event has a scope or is explicitly infrastructure
+ok 8 - every event has a scope or is explicitly infrastructure
+  ---
+  duration_ms: 0.987699
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 57.200006
+G508S_EVENTS_EXIT 0

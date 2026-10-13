@@ -1,0 +1,6 @@
+$ pnpm knip; echo "G508S_KNIP_EXIT $?"; true
+
+> uniwork@ knip /workspace
+> knip
+
+G508S_KNIP_EXIT 0
