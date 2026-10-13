@@ -119,6 +119,37 @@ func (f *documentFixture) resolve(t *testing.T, actorID, commentID string) db.Do
 	return c
 }
 
+// sharedCommentAuthor registers a person whose only access to the restricted
+// document is a direct edit share, and returns them with that share: the
+// share is the one path, so revoking it takes document read away.
+func (f *documentFixture) sharedCommentAuthor(t *testing.T, docID, email, name string) (db.User, db.InsertDocumentShareParams) {
+	t.Helper()
+	u := f.user(t, email, name)
+	if err := f.q.AddOrganizationMember(f.ctx, db.AddOrganizationMemberParams{OrganizationID: f.orgID, UserID: u.ID, Role: "member"}); err != nil {
+		t.Fatal(err)
+	}
+	share := db.InsertDocumentShareParams{
+		ID: util.NewID(), OrganizationID: f.orgID, WorkspaceID: f.wsID, DocumentID: docID,
+		PrincipalType: "user", PrincipalID: u.ID, Level: "edit",
+		GrantedBy: f.owner.ID, GrantedByKind: "human",
+	}
+	if _, err := f.q.InsertDocumentShare(f.ctx, share); err != nil {
+		t.Fatal(err)
+	}
+	return u, share
+}
+
+// revokeShare ends the one access path of a sharedCommentAuthor.
+func (f *documentFixture) revokeShare(t *testing.T, share db.InsertDocumentShareParams, docID string) {
+	t.Helper()
+	if err := f.q.RevokeDocumentShare(f.ctx, db.RevokeDocumentShareParams{
+		ID: share.ID, OrganizationID: f.orgID, WorkspaceID: f.wsID, DocumentID: docID,
+		RevokedBy: pgtype.Text{String: f.owner.ID, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // handleAll delivers every committed outbox row of a topic, oldest first, so
 // a test can drive repeated edits through the consumer in one pass.
 func (f *documentFixture) handleAll(t *testing.T, topic string) {
@@ -314,6 +345,47 @@ func TestDocumentCommentResolveNotification(t *testing.T) {
 	f.handleLast(t, "document.comment_resolved")
 	if n := f.inbox(t, f.member.ID); len(n) != 1 {
 		t.Fatalf("discussion resolve added a row: %+v", n)
+	}
+}
+
+// A reply to a comment whose author lost read access notifies nobody: the
+// reply arm re-checks document read at delivery time (R1-3). The author's
+// only access path was a direct share, revoked before the consumer ran.
+func TestDocumentCommentReplyRevokedReader(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "restricted", "Thu hồi phản hồi")
+	author, share := f.sharedCommentAuthor(t, docID, "revoked-reply@example.com", "Người Bị Thu Hồi")
+
+	root := f.commentOf(t, author.ID, docID, "gốc", "comment")
+	f.revokeShare(t, share, docID)
+
+	f.reply(t, f.owner.ID, docID, root.ID, "trả lời")
+	f.handleLast(t, "document.comment_added")
+	if n := f.inbox(t, author.ID); len(n) != 0 {
+		t.Fatalf("revoked parent author got a reply notification: %+v", n)
+	}
+	if n := f.inbox(t, f.owner.ID); len(n) != 0 {
+		t.Fatalf("the replying actor was notified: %+v", n)
+	}
+}
+
+// Resolving a Comment whose author lost read access notifies nobody (R1-3):
+// the resolve arm re-checks document read at delivery time.
+func TestDocumentCommentResolveRevokedReader(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "restricted", "Thu hồi giải quyết")
+	author, share := f.sharedCommentAuthor(t, docID, "revoked-resolve@example.com", "Người Bị Thu Hồi")
+
+	root := f.commentOf(t, author.ID, docID, "cần xử lý", "comment")
+	f.revokeShare(t, share, docID)
+
+	f.resolve(t, f.owner.ID, root.ID)
+	f.handleLast(t, "document.comment_resolved")
+	if n := f.inbox(t, author.ID); len(n) != 0 {
+		t.Fatalf("revoked resolved-comment author got a notification: %+v", n)
+	}
+	if n := f.inbox(t, f.owner.ID); len(n) != 0 {
+		t.Fatalf("the resolving actor was notified: %+v", n)
 	}
 }
 
