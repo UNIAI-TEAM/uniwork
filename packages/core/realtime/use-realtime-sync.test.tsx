@@ -214,6 +214,20 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(emailHubKeys.accounts("ws1")));
   });
 
+  it.each(["email_hub.inbox_changed", "email_hub.new_mail"] as const)(
+    "%s invalidates unread and canonical sidebar counts",
+    (type) => {
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { account_id: "a1", user_id: "u1" } });
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([
+          JSON.stringify(emailHubKeys.unread("ws1")),
+          JSON.stringify(emailHubKeys.sidebarCounts("ws1", "a1")),
+        ]),
+      );
+    },
+  );
+
   it("keeps Email Hub caches intact on new_mail and invalidates them on inbox_changed", () => {
     vi.useFakeTimers();
     const { qc, client } = setup();

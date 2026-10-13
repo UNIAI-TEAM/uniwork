@@ -14,7 +14,7 @@ import { chatKeys } from "../chat/hooks";
 import { catchUpLoadedRoomTimelines, catchUpOnChatSubscribeAck } from "../chat/room-timeline";
 import { documentKeys } from "../documents/keys";
 import { graphKeys } from "../graph/keys";
-import { invalidateEmailHubForInboxChanged } from "../email-hub/query-cache";
+import { invalidateEmailHubCounts, invalidateEmailHubForInboxChanged } from "../email-hub/query-cache";
 import { homeKeys } from "../home/keys";
 import { meetingKeys } from "../meetings/hooks";
 import { MOTION_TALLY_INVALIDATE_MS, motionKeys } from "../meetings/motion-hooks";
@@ -536,6 +536,12 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       }
       if (eventType === "email_hub.inbox_changed" && payload.account_id) {
         invalidateEmailHubForInboxChanged(qc, wsId, payload.account_id);
+        return;
+      }
+      if (eventType === "email_hub.new_mail" && payload.account_id) {
+        // new_mail duplicates the later inbox_changed mailbox refresh. Keep
+        // list/detail caches intact, but refresh the lightweight count badges.
+        invalidateEmailHubCounts(qc, wsId, payload.account_id);
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {

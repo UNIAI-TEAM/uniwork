@@ -15,6 +15,7 @@ import * as api from "../api/endpoints/email-hub";
 import {
   emailHubKeys,
   flushEmailHubListRefresh,
+  invalidateEmailHubCounts,
   invalidateEmailHubThreads,
   invalidateEmailHubUnread,
   invalidateEmailHubReadingCachesForAccount,
@@ -26,6 +27,7 @@ import {
 export {
   emailHubKeys,
   flushEmailHubListRefresh,
+  invalidateEmailHubCounts,
   invalidateEmailHubThreadsForAccount,
   invalidateEmailHubReadingCachesForAccount,
   invalidateEmailHubUnread,
@@ -70,7 +72,7 @@ export function useEmailHubUnreadCount(wsId: string) {
 
 export function useEmailHubSidebarCounts(wsId: string, accountId: string | null) {
   return useQuery({
-    queryKey: ["email-hub", wsId, "sidebar-counts", accountId ?? ""] as const,
+    queryKey: emailHubKeys.sidebarCounts(wsId, accountId ?? ""),
     queryFn: () => api.getEmailHubSidebarCounts(wsId, accountId!),
     enabled: !!accountId,
     staleTime: 60_000,
