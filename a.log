@@ -1,0 +1,5 @@
+$ git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git log --oneline -3
+c021676e6880668a77bbe6cd459d5fe3a2379809
+c021676e6 test(office): cover the web new-version host side
+27449c00a feat(office): announce new versions to the web frame and fill the open revision
+d81027efe Merge G8-06 mention candidates per document into the G5-G7 root (UNI-1401)
