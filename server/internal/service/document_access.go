@@ -284,7 +284,14 @@ var _ DocumentReaderResolver = (*DocumentService)(nil)
 
 // CanReadDocument answers the delivery-time question for one person.
 func (s *DocumentService) CanReadDocument(ctx context.Context, userID, documentID string) (bool, error) {
-	_, _, err := s.authorizeDocument(ctx, Human(userID), documentID, DocumentLevelView)
+	return s.canReadDocumentQ(ctx, s.q, userID, documentID)
+}
+
+// canReadDocumentQ is CanReadDocument read through q; a caller holding a
+// transaction passes its q so the gate never borrows a second pool
+// connection.
+func (s *DocumentService) canReadDocumentQ(ctx context.Context, q *db.Queries, userID, documentID string) (bool, error) {
+	_, _, err := s.authorizeDocumentQ(ctx, q, Human(userID), documentID, DocumentLevelView)
 	switch {
 	case err == nil:
 		return true, nil
@@ -297,9 +304,19 @@ func (s *DocumentService) CanReadDocument(ctx context.Context, userID, documentI
 
 // FilterDocumentReaders keeps the people who read the document now.
 func (s *DocumentService) FilterDocumentReaders(ctx context.Context, documentID string, userIDs []string) ([]string, error) {
+	return s.FilterDocumentReadersQ(ctx, s.q, documentID, userIDs)
+}
+
+// FilterDocumentReadersQ is FilterDocumentReaders read through q: the
+// mention write runs inside the create/edit transaction, which already holds
+// the document row lock and one pool connection, so it resolves the readers
+// on that connection instead of borrowing a second one (the deadlock
+// TestDocumentMutationGateOnSmallPool exists to prevent). Same decision,
+// same errors.
+func (s *DocumentService) FilterDocumentReadersQ(ctx context.Context, q *db.Queries, documentID string, userIDs []string) ([]string, error) {
 	out := make([]string, 0, len(userIDs))
 	for _, id := range userIDs {
-		ok, err := s.CanReadDocument(ctx, id, documentID)
+		ok, err := s.canReadDocumentQ(ctx, q, id, documentID)
 		if err != nil {
 			return nil, err
 		}

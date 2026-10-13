@@ -8,10 +8,13 @@ package service
 // the person is never notified twice for one mention row.
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -130,5 +133,58 @@ func TestDocumentMentionWriteOnEdit(t *testing.T) {
 	}
 	if n := mentionRowCount(t, f, c.ID); n != 3 {
 		t.Fatalf("mention rows = %d, want 3", n)
+	}
+}
+
+// A comment create and an edit that add a mention complete on a
+// one-connection pool while several document mutations run (R1-1). The read
+// gate that decides active vs no_access runs on the transaction's own q, so a
+// mutation that holds the document row lock and its one connection never
+// borrows a second one and waits forever for a connection its siblings hold -
+// the deadlock TestDocumentMutationGateOnSmallPool names, on the mention path
+// its no-op fn never reached.
+func TestDocumentMentionWriteOnSmallPool(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "msmall")
+	docs := make([]db.Document, 3)
+	for i := range docs {
+		docs[i] = f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+	}
+
+	cfg := f.pool.Config().Copy()
+	cfg.MaxConns = 1
+	small, err := pgxpool.NewWithConfig(f.ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer small.Close()
+	svc := newDocumentServiceForTest(small, db.New(small))
+
+	ctx, cancel := context.WithTimeout(f.ctx, 30*time.Second)
+	defer cancel()
+	acl := Human(tn.aclOwner.ID)
+	body := commentMentionToken(tn.member) + " xem giúp " + commentMentionToken(tn.wsAdmin)
+	errs := make(chan error, 6)
+	start := make(chan struct{})
+	for i := 0; i < 6; i++ {
+		d := docs[i%len(docs)]
+		go func() {
+			<-start
+			c, err := svc.AddDocumentComment(ctx, acl, d.ID, AddCommentInput{Body: body, CommentType: "discussion"}, "")
+			if err != nil {
+				errs <- err
+				return
+			}
+			// An edit keeping the mention: the sync runs its diff again on the
+			// same transaction, still without a second connection.
+			_, err = svc.UpdateDocumentComment(ctx, acl, c.ID, UpdateCommentInput{Body: body + " " + commentMentionToken(tn.member)})
+			errs <- err
+		}()
+	}
+	close(start)
+	for i := 0; i < 6; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("mention mutation %d on a 1-connection pool: %v", i, err)
+		}
 	}
 }

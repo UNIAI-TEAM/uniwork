@@ -282,7 +282,11 @@ func (s *DocumentService) syncDocumentCommentMentions(ctx context.Context, q *db
 	if len(added) > 0 {
 		// The read gate decides active vs no_access; it excludes deactivated
 		// members and revoked shares, exactly as the delivery-time gate does.
-		readers, err := s.FilterDocumentReaders(ctx, ref.ResourceID, added)
+		// It runs on the caller's q, never the pool: this sync is inside the
+		// create/edit transaction, which already holds the document row lock
+		// and a connection, so a second borrow could deadlock a saturated
+		// pool (TestDocumentMutationGateOnSmallPool).
+		readers, err := s.FilterDocumentReadersQ(ctx, q, ref.ResourceID, added)
 		if err != nil {
 			return err
 		}
