@@ -147,6 +147,41 @@ func TestAdminConfirmPartialRefundReturnsToPaid(t *testing.T) {
 	}
 }
 
+func TestAdminRefundInvoiceVnpaySecondRefundRefused(t *testing.T) {
+	f := newBillingFixture(t)
+	admin := registerVerified(t, f.q, f.auth, "vnpay-second@example.com", "Platform")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	adminSvc := NewAdminService(f.pool, f.q, f.billing, f.ent)
+	invID := "01TESTINVOICE0000009"
+	var subID string
+	if err := f.pool.QueryRow(f.ctx, `SELECT id FROM subscriptions WHERE organization_id = $1`, f.orgID).Scan(&subID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO invoices (
+		id, organization_id, subscription_id, provider, number, status,
+		amount_due, amount_paid, amount_refunded, currency, period_start, period_end, paid_at
+	) VALUES ($1, $2, $3, 'vnpay', 'UW-TEST-SECOND', 'paid', 1000000, 1000000, 400000, 'VND', $4, $4, $4)`,
+		invID, f.orgID, subID, now); err != nil {
+		t.Fatal(err)
+	}
+	_, err := adminSvc.RefundInvoice(f.ctx, admin.ID, invID, "hoàn lần hai trên VNPay", "", "127.0.0.1", 200000)
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "invoice_not_refundable" {
+		t.Fatalf("second vnpay refund: %v", err)
+	}
+	var status string
+	var refunded int64
+	if err := f.pool.QueryRow(f.ctx, `SELECT status, amount_refunded FROM invoices WHERE id = $1`, invID).Scan(&status, &refunded); err != nil {
+		t.Fatal(err)
+	}
+	if status != "paid" || refunded != 400000 {
+		t.Fatalf("invoice status=%s refunded=%d", status, refunded)
+	}
+}
+
 func TestAdminRefundInvoiceRaceLoserGetsConflict(t *testing.T) {
 	f := newBillingFixture(t)
 	admin := registerVerified(t, f.q, f.auth, "refund-race@example.com", "Platform")
