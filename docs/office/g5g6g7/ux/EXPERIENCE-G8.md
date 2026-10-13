@@ -50,7 +50,7 @@ Chính tả: chữ UI mới viết "xóa" (`docs/conventions.md`, hợp đồng 
   | PDF | `apps/pdf/src/renderer/{NoteMargin.tsx,note-threads.ts,note-margin-layout.ts}` | G8-15 |
   | Nguồn tác giả (đã vào `main`) | `apps/slides/src/main/electron-host-io.ts`, `apps/pdf/src/main/pdf-main.ts`, `apps/sheets/src/main/{sheets-main.ts,comment-author.ts}`, `apps/{docs,sheets,slides,pdf}/src/renderer/comment-author.ts` | G8-02 |
   | Cầu desktop | preload sáu app `apps/{docs,sheets,slides,pdf,markdown,html}/src/preload/index.ts`; `packages/electron-utils/src/{comments-bridge,comments-ipc,comments-poll,comments-reply}.ts` (mới) + `packages/electron-utils/src/index.ts` + `packages/electron-utils/package.json`; `apps/docs/vitest.config.ts` (alias ba mô-đun `comments-*` mới cho test); `apps/shell/src/main/uniwork-docs/{comments,comments-wiring}.ts` (mới), `{service,parse,wiring,launch}.ts`; `apps/shell/src/main/index.ts` | G8-08 |
-  | Liên kết sau đăng nhập | `apps/shell/src/main/uniwork-auth/{index,manager,transport,mapping,session-core}.ts`, `apps/shell/src/main/uniwork-docs/{client,service,parse,wiring}.ts` (`service`, `parse`, `wiring` cũng ở hàng Cầu desktop: G8-16/G8-17 thêm IPC thư viện vào đó), `apps/shell/src/preload/index.ts`, `apps/shell/src/shared/home-api.ts`; renderer `apps/shell/src/renderer/src/{AccountPane.tsx,AccountEntry.tsx,OrgChoiceStep.tsx,UniworkDocInfoPanel.tsx,UniworkOpenDialog.tsx,uniwork-docs-model.ts,uniwork-library-api.ts,home.css,settings.css}` (mới: `OrgChoiceStep.tsx`, `UniworkDocInfoPanel.tsx`, `uniwork-library-api.ts`); chỉ G8-17: `apps/shell/src/renderer/src/UniworkDocActions.tsx` (mới, hộp thoại và menu "…" của S18) + `apps/shell/src/renderer/src/UniworkChrome.tsx` (chỉ nối menu tài liệu tới các thao tác đó) | G8-16, G8-17 |
+  | Liên kết sau đăng nhập | `apps/shell/src/main/uniwork-auth/{index,manager,transport,mapping,session-core}.ts`, `apps/shell/src/main/uniwork-docs/{client,service,parse,wiring}.ts` (`service`, `parse`, `wiring` cũng ở hàng Cầu desktop: G8-16/G8-17 thêm IPC thư viện vào đó), `apps/shell/src/preload/index.ts`, `apps/shell/src/shared/home-api.ts`; renderer `apps/shell/src/renderer/src/{AccountPane.tsx,AccountEntry.tsx,OrgChoiceStep.tsx,UniworkDocInfoPanel.tsx,UniworkOpenDialog.tsx,uniwork-docs-model.ts,uniwork-library-api.ts,home.css,settings.css}` (mới: `OrgChoiceStep.tsx`, `UniworkDocInfoPanel.tsx`, `uniwork-library-api.ts`); chỉ G8-17: `apps/shell/src/renderer/src/UniworkDocActions.tsx` (mới, hộp thoại và menu "…" của S18) + `apps/shell/src/renderer/src/UniworkChrome.tsx` (chỉ nối menu tài liệu tới các thao tác đó); chỉ G8-17, main process: `apps/shell/src/main/uniwork-docs/strings.ts` (chuỗi hộp chọn tệp tải lên của S18) + `apps/shell/src/main/uniwork-sync/{feed/consumer,runtime}.ts` (thông báo đổi mới từ feed cho thư viện: `feed/consumer.ts` nhận sự kiện, `runtime.ts` chuyển tới renderer) | G8-16, G8-17 |
   | Panel Discussion | `apps/shell/src/renderer/src/UniworkDiscussionPanel.tsx` (mới, cạnh `UniworkChrome.tsx`; `UniworkChrome.tsx` chỉ thêm nút mở — G8-17 cũng sửa file này, xem hàng Liên kết sau đăng nhập); `web/modules/shared/collab/*` (mới, panel frame) + `web/modules/shared/capabilities.ts` | G8-11 |
   | Protocol | `web/docs/protocol/{types,endpoint,host,client}.ts` + `web/docs/protocol/README.md` + `web/docs/protocol/test/*`; `web/docs/bridge/testing/mock-port.ts` + `web/docs/bridge/tsconfig.json` (mock port và cấu hình kiểu của bridge chạm hợp đồng mới) | G8-08 |
   | Shard i18n (chỉ khóa G8 của chính lane) | `apps/{docs,sheets,slides,html}/src/renderer/i18n/app/*`; `apps/slides/src/renderer/i18n/panes/*` (chuỗi bình luận của Slides nằm ở đây; G8-02 đã có `paneCommentsNeutralAuthor`, G8-14 chỉ thêm khóa vào đây); `apps/pdf/src/renderer/i18n/strings.ts`; `apps/shell/src/renderer/src/i18n/uniwork-documents/*`; `web/modules/shared/i18n/web/*` + `strings-web.ts` | G8-02, G8-11, G8-14, G8-16, G8-17 |
@@ -58,6 +58,7 @@ Chính tả: chữ UI mới viết "xóa" (`docs/conventions.md`, hợp đồng 
   File test và fixture của chính lane (`**/tests/**`, `**/test/**`, `*.test.ts`, `web/docs/bridge/testing/*`) không phải liệt kê từng
   file: reviewer cho qua khi chúng kiểm đúng file được phép. Cách đối chiếu trước khi mở PR: `git diff --name-only origin/main...<head>`,
   mọi file không phải test phải nằm trong bảng (đã chạy cho đầu nhánh G8-08, G8-16, G8-17 khi sửa spine này).
+  Bảng được đối chiếu với các đầu nhánh lane sau (13-10-2026): G8-08 `7e082de3`, G8-16 `04bc9a66` và `c5984155`, G8-17 `3468e971`; file nào một lane thêm sau các đầu nhánh này thì chính lane đó thêm vào bảng, kèm lý do, trong PR của mình — reviewer fork chặn theo bảng tại merge-base của PR.
 
   Tên đã sửa so với bản r2 (lý do một dòng):
   - `apps/docs/src/renderer/CommentsPanel.tsx` → `apps/docs/src/renderer/components/CommentsPanel.tsx`: file nằm trong `components/`.
@@ -194,7 +195,7 @@ Dùng chung component với S12 (G8-20), khác ở:
 | Rỗng | Câu mời + composer ở cuối (người có `edit`) | `collabEmptyDiscussion` |
 | Danh sách | Bài theo thời gian, cũ nhất trước; không nhãn neo, không `collabGoToAnchor`; trả lời thụt vào; bài đã giải quyết gom cuối như S12 | `collabLabelCount`, `collabResolved` |
 | Composer | Luôn ở cuối panel (không đi từ vùng chọn); placeholder `collabComposerDiscussion`; trả lời dùng `collabComposerReply` | `collabComposerDiscussion`, `collabComposerReply`, `collabSend` |
-| Tombstone, sửa, lịch sử, xóa, giải quyết, mở lại, phiên hết, đang gửi, gửi lỗi, AI nháp, hủy nháp | Như S12 cùng khóa | như S12 |
+| Tombstone, sửa, lịch sử, xóa, giải quyết, mở lại, phiên hết, đang gửi, gửi lỗi, AI nháp, hủy nháp | Như S12 cùng khóa; chữ của bảy khóa dùng chung ở hàng này cũng trung tính theo bề mặt (không nói "bình luận"): menu thao tác, hộp xóa (tiêu đề, thân, nút), lịch sử rỗng, thao tác lỗi, phiên hết. Riêng khung tombstone dùng khóa theo loại (`collabCommentDeleted` / `collabDiscussionDeleted`) | như S12; dùng chung trung tính: `collabActions`, `collabDeleteTitle`, `collabDeleteBody`, `collabDeleteConfirm`, `collabHistoryEmpty`, `collabActionFailed`, `collabSignedOut` |
 | Bài đích bị xóa khi đang soạn | Như S12, câu theo loại luồng | `collabDiscussionDeleted`, `collabCopyText` |
 | Tệp cục bộ / chưa đăng nhập (desktop) | Không có nút, không panel | — |
 
@@ -260,7 +261,7 @@ heading là câu thông điệp, nút `inboxBack` ngay sau; **panel** = tài li�
 | Thao tác | Hành vi |
 | --- | --- |
 | Tài liệu mới | Hộp thoại `uwDocNew`: tên `uwDocName` (bắt buộc), loại `uwDocType`, nơi lưu `uwDocLocation` (hai ô chọn: workspace `uwPickWorkspace` rồi thư mục, mục đầu `uwDocLocationTop`); loại là nhóm radio chỉ mang tên định dạng DOCX / XLSX / PPTX (tên định dạng, không dịch, không khóa); nút `uwDocCreate` / `cancel`; tạo xong mở tab theo id; không tạo bản sao cục bộ thứ hai |
-| Tải lên | `uwDocUpload`: nút `uwDocUploadPick` rồi tên tệp đã chọn → nơi lưu; tiến trình theo pattern Progress của EXPERIENCE, câu `uwDocUploading`; `cancel` |
+| Tải lên | `uwDocUpload`: nút `uwDocUploadPick` (mở hộp chọn tệp của hệ điều hành: `uploadPickTitle`, bộ lọc `uploadPickDocuments` / `uploadPickAll`, chuỗi main process) rồi tên tệp đã chọn → nơi lưu; tiến trình theo pattern Progress của EXPERIENCE, câu `uwDocUploading`; `cancel` |
 | Đổi tên | `uwDocRename`: sửa tại chỗ trong hàng (ô có nhãn ẩn thị giác = `uwDocName` · tên hiện tại) hoặc hộp thoại; Enter lưu, Esc hủy; tên rỗng/trùng → lỗi tại trường (`uwDocNameEmpty`, `uwDocNameTaken`) |
 | Lưu trữ / khôi phục | Menu "…" (nút `aria-label` = `uwDocActionsFor` với `{name}` = tên tài liệu); `uwDocArchive` có xác nhận một bước (`uwDocArchiveConfirm`) / `uwDocRestore`; hàng đã lưu trữ mang chữ `uwDocArchived`; không có "Xóa vĩnh viễn" trong app |
 | Quyền `view` | Mục thao tác không hiện (không phải `aria-disabled`: người xem không có hành động này) |
@@ -355,7 +356,7 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
 | `collabRetry` | Thử lại | Try again | F+D | `documents.comments.retry` |
 | `collabOffline` | Không kết nối được UniWork. Bạn vẫn đọc được nội dung đã tải nhưng chưa gửi được. | Can’t reach UniWork. You can still read what’s already loaded, but you can’t send yet. | F+D | — |
 | `collabServerError` | UniWork đang gặp sự cố. Bạn vẫn đọc được nội dung đã tải nhưng chưa gửi được. | UniWork is having trouble. You can still read what’s already loaded, but you can’t send yet. | F+D | — |
-| `collabSignedOut` | Phiên đăng nhập đã hết. Đăng nhập lại để gửi bình luận. | Your session has ended. Log in again to send comments. | F+D | — |
+| `collabSignedOut` | Phiên đăng nhập đã hết. Đăng nhập lại để gửi. | Your session has ended. Log in again to send. | F+D | — |
 | `collabNoAccess` | Bạn không còn quyền xem nội dung này | You no longer have access to this | F+D | `documents.comments.revoked_title` |
 | `collabNoAccessBody` | Nội dung bị ẩn theo quyền hiện tại của bạn trên tài liệu này. | This is hidden under your current access to this document. | F+D | `documents.comments.revoked_description` |
 | `collabViewOnlyBadge` | Chỉ xem | View only | F+D | — |
@@ -383,15 +384,15 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
 | `collabReopen` | Mở lại | Reopen | F+D | `documents.comments.comment_unresolve` (en đổi "Unresolve") |
 | `collabReply` | Trả lời | Reply | F+D | — |
 | `collabReplyCount` | Trả lời: {count} | Replies: {count} | F+D | — (thay `comment_reply_count_one/_other`) |
-| `collabActions` | Thao tác bình luận | Comment actions | F+D | `documents.comments.comment_actions` |
+| `collabActions` | Thao tác khác | More actions | F+D | `documents.comments.comment_actions` |
 | `collabEdit` | Sửa | Edit | F+D | `documents.comments.comment_edit` |
 | `collabSave` | Lưu | Save | F+D | — |
 | `collabCancel` | Hủy | Cancel | F+D | — |
 | `collabDelete` | Xóa | Delete | F+D | — |
 | `collabCopyText` | Sao chép nội dung | Copy content | F+D | `documents.comments.comment_copy` |
-| `collabDeleteTitle` | Xóa bình luận? | Delete comment? | F+D | `documents.comments.comment_delete_title` |
-| `collabDeleteBody` | Nội dung và lịch sử sửa của bình luận sẽ bị xóa hẳn. Nếu đã có trả lời, các trả lời vẫn còn. | The comment’s text and edit history will be permanently deleted. Any replies stay. | F+D | `documents.comments.comment_delete_description` (giá trị đổi) |
-| `collabDeleteConfirm` | Xóa bình luận | Delete comment | F+D | `documents.comments.comment_delete_confirm` |
+| `collabDeleteTitle` | Xóa nội dung này? | Delete this? | F+D | `documents.comments.comment_delete_title` |
+| `collabDeleteBody` | Nội dung và lịch sử sửa sẽ bị xóa hẳn. Nếu đã có trả lời, các trả lời vẫn còn. | The text and edit history will be permanently deleted. Any replies stay. | F+D | `documents.comments.comment_delete_description` (giá trị đổi) |
+| `collabDeleteConfirm` | Xóa hẳn | Delete permanently | F+D | `documents.comments.comment_delete_confirm` |
 | `collabDeleted` | Nội dung đã bị xóa | This content was deleted | F+D | `documents.comments.comment_deleted` |
 | `collabEdited` | Đã sửa · {time} | Edited · {time} | F+D | `documents.comments.comment_edited_time` |
 | `collabFormerMember` | Cựu thành viên | Former member | F+D | `documents.comments.former_member` (giữ giá trị) |
@@ -399,9 +400,9 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
 | `collabHistoryTitle` | Lịch sử sửa | Edit history | F+D | — |
 | `collabHistoryCurrent` | Bản hiện tại | Current version | F+D | — |
 | `collabHistoryEntry` | {name}, {time} | {name}, {time} | F+D | — |
-| `collabHistoryEmpty` | Bình luận này chưa được sửa. | This comment hasn’t been edited. | F+D | — |
+| `collabHistoryEmpty` | Nội dung này chưa được sửa. | This hasn’t been edited. | F+D | — |
 | `collabHistoryError` | Không tải được lịch sử sửa. | Couldn’t load the edit history. | F+D | — |
-| `collabActionFailed` | Thao tác bình luận chưa thành công | The comment action did not go through | F+D | `documents.comments.action_failed` |
+| `collabActionFailed` | Thao tác chưa thành công | The action did not go through | F+D | `documents.comments.action_failed` |
 
 **`{panel}` của `collabClosePanel`** = đúng giá trị khóa tiêu đề của panel đang đóng (`collabComments` hoặc `collabDiscussion`), giữ nguyên hoa/thường như tiêu đề
 hiển thị: vi "Đóng Bình luận" / "Đóng Thảo luận", en "Close Comments" / "Close Discussion"; host truyền chuỗi đã dịch, khóa không tự tra.
@@ -509,6 +510,16 @@ Shard `uniwork-documents` của shell, 19 locale còn lại dịch máy có revi
 
 Sáu khóa cuối bảng (`uwDocActionsFor` … `uwDocArchived`) do lane G8-17 đã ship (`d2cdfd78`, đủ 21 locale); spine lấy tên và chữ của bản ship, không đặt khóa song song.
 Nút Hủy dùng khóa sẵn có `cancel` của shell, nhãn loại tài liệu là tên định dạng, nhãn ô đổi tên ghép từ `uwDocName` — nên mockup không còn ba khóa tự đặt cho Hủy, loại tài liệu và nhãn ô đổi tên.
+
+Hộp chọn tệp gốc của hệ điều hành mà nút `uwDocUploadPick` mở (S18) là chuỗi **main process**, không thuộc shard renderer: file `apps/shell/src/main/uniwork-docs/strings.ts`, owner G8-17, đã ship ở `3468e971` (vi/en đã review, ngôn ngữ khác rơi về en); spine lấy tên và chữ của bản ship:
+
+| Khóa (main) | vi | en |
+| --- | --- | --- |
+| `uploadPickTitle` | Chọn tệp để tải lên | Choose a file to upload |
+| `uploadPickDocuments` | Tài liệu | Documents |
+| `uploadPickAll` | Mọi tệp | All files |
+
+`uploadPickTitle` là tiêu đề cửa sổ chọn tệp, `uploadPickDocuments` / `uploadPickAll` là hai bộ lọc loại tệp; `uwDocUploadPick` ("Chọn tệp") vẫn là nhãn nút trong hộp Tải lên, hai chuỗi không thay nhau.
 
 Khóa do lane G8-16 thêm khi làm S16/S17 (nhánh `feature/UNI-1411-g8-16-post-login-links`, ghi nhận, không đổi hành vi):
 
