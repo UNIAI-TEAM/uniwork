@@ -442,16 +442,16 @@
       "partialEvidence": [
         {
           "task": "G6-03a",
-          "revision": "185b277fa709f0c4435d22ad5eab9898a7c18f93",
-          "run": "run-90259169-84ed-43bc-91cf-6f0501a62efa",
-          "report": "reports/g6-ai_server/cloud-test-11.md (TEST_GO_EXIT=0)",
-          "review": "reports/g6-ai_server/review-be-g03a-2.md (verdict clear)",
+          "revision": "7822ca7137cefdc642fb3749d0650b1f2d925d72",
+          "run": "run-68976d36-2eee-486e-8907-9bc9d61a05a8",
+          "report": "reports/g6-ai_server/cloud-test-12.md (TEST_GO_EXIT=0)",
+          "review": "reports/g6-ai_server/review-be-g03a-3.md (verdict clear)",
           "tests": [
-            "TestIsolationMatrix (ISOLATION_EXIT=0: cross-organization and cross-workspace refusal on the three UniWork AI routes)",
+            "TestIsolationMatrix (ISOLATION_EXIT=0: cross-organization refusal on the three UniWork AI routes)",
             "TestIsolationRealtime",
             "TestAIUniworkConversationSweptOnPermissionLoss",
             "TestAIUniworkKillSwitchMidRunRecordsUsage",
-            "TestAIUniworkConversationBoundToScope",
+            "TestAIUniworkConversationBoundToScope (another member of the same organization, and another document of the same tenant, both get 409 conversation_expired; no cross-workspace claim)",
             "TestAIUniworkWriteToolsDroppedWhenViewOnly"
           ]
         }
@@ -484,15 +484,17 @@
       "partialEvidence": [
         {
           "task": "G6-03a",
-          "revision": "185b277fa709f0c4435d22ad5eab9898a7c18f93",
-          "run": "run-90259169-84ed-43bc-91cf-6f0501a62efa",
-          "report": "reports/g6-ai_server/cloud-test-11.md (TEST_GO_EXIT=0)",
-          "review": "reports/g6-ai_server/review-be-g03a-2.md (verdict clear)",
+          "revision": "7822ca7137cefdc642fb3749d0650b1f2d925d72",
+          "run": "run-68976d36-2eee-486e-8907-9bc9d61a05a8",
+          "report": "reports/g6-ai_server/cloud-test-12.md (TEST_GO_EXIT=0)",
+          "review": "reports/g6-ai_server/review-be-g03a-3.md (verdict clear)",
           "tests": [
             "TestAIUniworkUpstreamTimeout (504 ai_provider_timeout)",
             "TestAIUniworkUpstreamRateLimitedRetryAfter (429 ai_rate_limited, Retry-After)",
             "TestAIUniworkUpstreamRateLimitedHeader",
-            "TestAIUniworkLeasesExpireIndependently (concurrency 429 ai_uniwork_busy)"
+            "TestAIUniworkConcurrencyBound (pod bound: 429 ai_uniwork_busy, retry_after 5 -> Retry-After)",
+            "TestAIUniworkOrgBoundWithoutRedis (organization bound without Redis: 429 ai_uniwork_busy)",
+            "TestAIUniworkLeasesExpireIndependently (lease lifetime/recovery only; asserts no status/code)"
           ]
         }
       ],
