@@ -115,6 +115,7 @@ export async function listEmailHubThreads(
   filters: EmailHubThreadFilters = {},
   before?: string,
   limit = 50,
+  signal?: AbortSignal,
 ) {
   const q = new URLSearchParams({ account_id: accountId, folder, limit: String(limit) });
   if (filters.q) q.set("q", filters.q);
@@ -123,7 +124,7 @@ export async function listEmailHubThreads(
   if (filters.hasAttachmentsOnly) q.set("has_attachments", "1");
   if (filters.label) q.set("label", filters.label);
   if (before) q.set("before", before);
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/threads?${q}`);
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/threads?${q}`, { signal });
   return parseWithFallback(raw, EmailHubThreadListSchema, EMPTY_THREADS, {
     endpoint: "GET /api/v1/workspaces/{ws}/email-hub/threads",
   });

@@ -19,6 +19,8 @@ export const emailHubKeys = {
   threadSummary: (wsId: string, accountId: string, threadId: string, locale: string) =>
     ["email-hub", wsId, "thread-summary", accountId, threadId, locale] as const,
   unread: (wsId: string) => ["email-hub", wsId, "unread"] as const,
+  sidebarCounts: (wsId: string, accountId: string) =>
+    ["email-hub", wsId, "sidebar-counts", accountId] as const,
   imapLabels: (wsId: string, accountId: string) => ["email-hub", wsId, "imap-labels", accountId] as const,
 };
 
@@ -61,6 +63,11 @@ export function flushEmailHubListRefresh(qc: QueryClient, wsId: string, accountI
 
 export function invalidateEmailHubUnread(qc: QueryClient, wsId: string) {
   void qc.invalidateQueries({ queryKey: emailHubKeys.unread(wsId) });
+}
+
+export function invalidateEmailHubCounts(qc: QueryClient, wsId: string, accountId: string) {
+  invalidateEmailHubUnread(qc, wsId);
+  void qc.invalidateQueries({ queryKey: emailHubKeys.sidebarCounts(wsId, accountId) });
 }
 
 export function invalidateEmailHubThreads(qc: QueryClient, wsId: string, accountId: string) {
@@ -106,19 +113,13 @@ export function invalidateEmailHubReadingCachesForAccount(
   });
 }
 
-/** Applies one realtime email_hub.inbox_changed or email_hub.new_mail frame. */
-export function invalidateEmailHubForRealtime(
-  qc: QueryClient,
-  wsId: string,
-  accountId: string,
-  inboxChanged: boolean,
-) {
+/** Applies the cache refresh announced by one email_hub.inbox_changed frame. */
+export function invalidateEmailHubForInboxChanged(qc: QueryClient, wsId: string, accountId: string) {
   invalidateEmailHubThreadsForAccount(qc, wsId, accountId);
   invalidateEmailHubReadingCachesForAccount(qc, wsId, accountId);
-  invalidateEmailHubUnread(qc, wsId);
-  void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "sidebar-counts", accountId] });
+  invalidateEmailHubCounts(qc, wsId, accountId);
   // inbox_changed also announces a mailbox whose login the server now refuses (needs_reconnect).
-  if (inboxChanged) void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
+  void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
 }
 
 export function patchEmailHubThreadInLists(
