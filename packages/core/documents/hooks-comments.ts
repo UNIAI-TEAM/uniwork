@@ -65,10 +65,10 @@ export function useDocumentMentionCandidates(
   opts?: { enabled?: boolean; limit?: number },
 ) {
   const q = query.trim();
+  const limit = opts?.limit;
   return useQuery({
-    queryKey: documentKeys.mentionCandidates(wsId, documentId, q),
-    queryFn: ({ signal }) =>
-      listDocumentMentionCandidates(documentId, { q, limit: opts?.limit }, signal),
+    queryKey: documentKeys.mentionCandidates(wsId, documentId, q, limit),
+    queryFn: ({ signal }) => listDocumentMentionCandidates(documentId, { q, limit }, signal),
     enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
   });
 }
