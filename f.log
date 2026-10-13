@@ -1,0 +1,380 @@
+$ bash scripts/test-go.sh; echo "G508S_TESTGO_EXIT $?"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/cmd/files-backfill	0.221s	coverage: 37.6% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/graph-rebuild	0.849s	coverage: 70.6% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.024s	coverage: 5.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal	2.290s	coverage: [no statements]
+ok  	github.com/unicomhub/uniwork/server/internal/ai	8.391s	coverage: 88.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	0.371s	coverage: 80.1% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/audit	3.867s	coverage: 74.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/auth	0.334s	coverage: 86.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/billing	0.005s	coverage: 76.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/config	0.010s	coverage: 96.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/document	0.037s	coverage: 93.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub	0.002s	coverage: 87.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/bodystore	0.002s	coverage: 51.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/imapclient	4.417s	coverage: 57.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/netguard	0.003s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/retention	0.002s	coverage: 84.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient	0.307s	coverage: 93.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/events	0.002s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/featureflags	0.004s	coverage: 88.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files	0.005s	coverage: 94.8% of statements
+	github.com/unicomhub/uniwork/server/internal/files/filescontract		coverage: 0.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files/filesfake	0.021s	coverage: 93.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph	3.280s	coverage: 96.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph/projector	13.224s	coverage: 81.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler	421.530s	coverage: 80.8% of statements
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.005s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	2.298s	coverage: 99.4% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/logger	0.005s	coverage: 93.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mail	9.080s	coverage: 79.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/meetings	0.821s	coverage: 76.0% of statements
+	github.com/unicomhub/uniwork/server/internal/mentions		coverage: 0.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	6.893s	coverage: 86.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	1.939s	coverage: 90.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/notification	8.726s	coverage: 76.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/office	0.039s	coverage: 80.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	15.503s	coverage: 87.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/realtime	44.862s	coverage: 90.3% of statements
+2026/10/13 07:28:09 WARN ai: byok vendor unreachable usage_event_id=01M4T2JR718J2F685MFMZDVW3M provider=openai err="provider: vendor unreachable: connection failed"
+2026/10/13 07:28:11 INFO ai: call usage_event_id=01M4T2JT9QCXW2DSXMMF5R7H1T capability=chat_catchup latency_ms=0
+2026/10/13 07:28:11 INFO ai: call usage_event_id=01M4T2JTGQK3HBRCWKSPK9YCRG capability=chat_catchup latency_ms=0
+2026/10/13 07:28:13 INFO ai: call usage_event_id=01M4T2JW56YZX7MYK9S2ZKZ3QT capability=copilot_answer latency_ms=0
+2026/10/13 07:28:13 INFO ai: call usage_event_id=01M4T2JW5EZYD9E6T4R0AQJ2EN capability=copilot_answer latency_ms=0
+2026/10/13 07:28:13 INFO ai: call usage_event_id=01M4T2JWDFDB24SPTCAH86E7NJ capability=copilot_answer latency_ms=0
+2026/10/13 07:28:14 INFO ai: call usage_event_id=01M4T2JX1WGRT3H3GEN6W5CHGR capability=copilot_answer latency_ms=0
+2026/10/13 07:29:11 WARN email hub account needs reconnect account_id=01M4T2MMZP6ZTWYXFJNBW58N6K reason=imap_auth_failed
+2026/10/13 07:29:13 WARN audit export: losing duplicate upload not canceled export=01M4T2MPFC9ABT0BDB3JHB7NVH err="file \"01M4T2MPFDFFB9G4AXVSQQ0H6E\" is already claimed"
+2026/10/13 07:29:14 WARN audit export: losing duplicate upload not canceled export=01M4T2MQ8R568CTHG0G72RCV1M err="file \"01M4T2MQ8TDTQ1TK78FYRZJ79Q\" is already claimed"
+2026/10/13 07:33:48 WARN audit export expiry: release export=01M4T2X2ZRZY7RHH7B34Z3S2WW err="file storage is unavailable"
+2026/10/13 07:34:42 WARN presence: beat not recorded error="presence store down" workspace_id=WS1 user_id=U1
+2026/10/13 07:34:42 WARN presence: leave not recorded error="presence store down" workspace_id=WS1 user_id=U1
+2026/10/13 07:34:42 WARN presence: sweep failed error="presence store down"
+2026/10/13 07:35:00 INFO ai: call usage_event_id=01M4T2Z99N475335ADWJZ82TR8 capability=chat_call_summary latency_ms=0
+2026/10/13 07:35:00 ERROR voice call summary cap unreadable; summary skipped room_id=01M4T2Z9QE3FSBZKMY8E5SP1WX call_id=cap-unreadable error="injected query failure"
+2026/10/13 07:35:05 WARN document access log write failed document=01M4T2ZESH3TKYP3K7X88V4J24 action=download correlation_id="" err="context canceled"
+2026/10/13 07:35:08 INFO document change snapshot sweep snapshots=1 items=2
+2026/10/13 07:35:12 INFO local storage adapter ready dir=/tmp/TestDocumentCommitlocal427840425/001
+2026/10/13 07:35:12 INFO local storage adapter ready dir=/tmp/TestDocumentCopylocal3770402850/001
+2026/10/13 07:35:13 INFO local storage adapter ready dir=/tmp/TestDocumentUploadlocal757076439/001
+2026/10/13 07:35:14 INFO local storage adapter ready dir=/tmp/TestDocumentIdempotencylocal3781331709/001
+2026/10/13 07:35:15 INFO local storage adapter ready dir=/tmp/TestDocumentQuotalocal289463799/001
+2026/10/13 07:35:15 INFO local storage adapter ready dir=/tmp/TestDocumentReferenceslocal2069929410/001
+2026/10/13 07:35:15 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=2 retry=0 quarantined=0 aborted=0
+2026/10/13 07:35:18 WARN documents purge: row failed, next sweep retries document=01M4T2ZV3SG41SNFK9WH0QBAPN err="files: release refused (test)"
+2026/10/13 07:35:19 INFO local storage adapter ready dir=/tmp/TestDocumentUploadQuotaRejectIsCountedlocal660380648/001
+2026/10/13 07:35:22 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeCommitlocal3677764429/001
+2026/10/13 07:35:27 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeQ7local90853757/001
+2026/10/13 07:35:28 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeEngineRollbacklocal1980838460/001
+2026/10/13 07:35:30 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeViewerOpenlocal608050651/001
+2026/10/13 07:35:41 WARN email hub account needs reconnect account_id=01M4T30J010YNKSG8G6SJABVR2 reason=imap_auth_failed
+2026/10/13 07:35:41 WARN email hub watcher load account failed account_id=01M4T30J010YNKSG8G6SJABVR2 err="context canceled"
+2026/10/13 07:35:42 WARN email hub watcher load account failed account_id=01M4T30J6J2J4A1QYM4PYYT2BR err="context canceled"
+2026/10/13 07:35:42 WARN email hub account needs reconnect account_id=01M4T30JCQ69SHS0AADSC7AMFR reason=imap_login_refused
+2026/10/13 07:35:42 WARN email hub account needs reconnect account_id=01M4T30JJKRN4Z6P4SYFKCYZTR reason=smtp_auth_failed
+2026/10/13 07:35:43 WARN email hub account needs reconnect account_id=01M4T30KBY2QCEEPGEATVDC26K reason=imap_auth_failed
+2026/10/13 07:35:46 WARN email hub imap search failed account_id=01M4T30PG7ZFDQNGGVR2JM06JZ folder=SENT code=host_not_allowed
+2026/10/13 07:35:46 WARN email hub imap search failed account_id=01M4T30PG7ZFDQNGGVR2JM06JZ folder=ARCHIVE code=host_not_allowed
+2026/10/13 07:35:47 WARN email hub mark read imap failed thread_id=01M4T30QHNCAF5BHY6GQGJQTM2 code=host_not_allowed
+2026/10/13 07:35:47 WARN email hub mark read imap failed thread_id=01M4T30QHPRCRHT25WBZ9MZGF7 code=host_not_allowed
+2026/10/13 07:35:47 WARN email hub mark read imap failed thread_id=01M4T30QSRAPBMB6YHY3D5FWRT code=host_not_allowed
+2026/10/13 07:35:47 WARN email hub mark read imap failed thread_id=01M4T30QSSNHTNT4VE0NPHT644 code=host_not_allowed
+2026/10/13 07:35:48 WARN email hub mark read imap failed thread_id=01M4T30R9JH69MN5VHWAXYHBGZ code=host_not_allowed
+2026/10/13 07:35:48 WARN email hub mark read imap failed thread_id=01M4T30R9KY5HD6VFRKWTQCBDH code=host_not_allowed
+2026/10/13 07:35:48 WARN email hub mark read imap failed thread_id=01M4T30RN3EE4F3Z9K3QGFGBFZ code=host_not_allowed
+2026/10/13 07:35:48 WARN email hub mark starred imap failed thread_id=01M4T30RN3EE4F3Z9K3QGFGBFZ code=host_not_allowed
+2026/10/13 07:35:50 WARN email hub fetch body failed thread_id=01M4T30T0BQMH7WJVC9Y2ZCBX0 code=host_not_allowed
+2026/10/13 07:35:50 WARN email hub imap search failed account_id=01M4T30TEG1PDE3G37NDNWZQAA folder=INBOX code=host_not_allowed
+2026/10/13 07:35:50 WARN email hub imap search failed account_id=01M4T30TEG1PDE3G37NDNWZQAA folder=SENT code=host_not_allowed
+2026/10/13 07:35:50 WARN email hub imap search failed account_id=01M4T30TEG1PDE3G37NDNWZQAA folder=ARCHIVE code=host_not_allowed
+2026/10/13 07:35:50 WARN email hub send failed account_id=01M4T30TVYR8NG2RZ5J0NCRV25 code=host_not_allowed
+2026/10/13 07:35:51 WARN email hub mark read imap failed thread_id=01M4T30V2EZCS3ZCZQSMB4WHZG code=host_not_allowed
+2026/10/13 07:35:51 WARN email hub mark starred imap failed thread_id=01M4T30VV4Q0ZQQPG2XRETE7FT code=host_not_allowed
+2026/10/13 07:35:53 WARN email hub send failed account_id=01M4T30XNY1T6TXTG93SMEM28S code=auth_failed
+2026/10/13 07:35:53 WARN email hub account needs reconnect account_id=01M4T30XNY1T6TXTG93SMEM28S reason=smtp_auth_failed
+2026/10/13 07:35:54 WARN email hub send failed account_id=01M4T30XX85N640CH6AM3W0VCB code=smtp_disabled
+2026/10/13 07:35:54 WARN email hub send failed account_id=01M4T30Y9Z1SHV0Y3TACES7D93 code=auth_failed
+2026/10/13 07:35:54 WARN email hub account needs reconnect account_id=01M4T30Y9Z1SHV0Y3TACES7D93 reason=smtp_auth_failed
+2026/10/13 07:35:54 WARN email hub send failed account_id=01M4T30YGFT61A3AKDT2TY2RMH code=smtp_disabled
+2026/10/13 07:35:55 WARN email hub oauth callback failed code=state_invalid reason=state provider=google user_id=""
+2026/10/13 07:35:55 WARN email hub oauth callback failed code=state_invalid reason=state provider=google user_id=""
+2026/10/13 07:35:55 WARN email hub oauth callback failed code=state_invalid reason=state provider=google user_id=""
+2026/10/13 07:35:55 WARN email hub oauth callback failed code=state_invalid reason=state provider=microsoft user_id=""
+2026/10/13 07:35:55 WARN email hub oauth callback failed code=state_invalid reason=nonce provider=google user_id=""
+2026/10/13 07:35:55 WARN email hub oauth callback failed code=state_invalid reason=nonce provider=google user_id=""
+2026/10/13 07:35:55 WARN email hub oauth callback failed code=state_invalid reason=state provider=google user_id=""
+2026/10/13 07:35:55 WARN email hub oauth callback failed code=state_invalid reason=nonce provider=google user_id=""
+2026/10/13 07:35:55 WARN email hub oauth callback failed code=denied reason=access_denied provider=google user_id=01M4T30ZGX8856QZBM8GPW327F
+2026/10/13 07:35:55 WARN email hub oauth callback failed code=failed reason=provider_error provider=google user_id=01M4T30ZGX8856QZBM8GPW327F
+2026/10/13 07:35:56 WARN email hub oauth callback failed code=consent_required reason=no_refresh_token provider=google user_id=01M4T30ZYQY8M8XTX5MDT89JZ7
+2026/10/13 07:35:56 WARN email hub oauth callback failed code=email_unavailable reason=id_token provider=google user_id=01M4T30ZYQY8M8XTX5MDT89JZ7
+2026/10/13 07:35:56 WARN email hub oauth callback failed code=email_unavailable reason=id_token provider=google user_id=01M4T30ZYQY8M8XTX5MDT89JZ7
+2026/10/13 07:35:56 WARN email hub oauth callback failed code=failed reason=exchange_invalid_grant provider=google user_id=01M4T30ZYQY8M8XTX5MDT89JZ7
+2026/10/13 07:35:56 WARN email hub oauth callback failed code=failed reason=membership provider=google user_id=01M4T310BRVFRWTFRCPVHC78VX
+2026/10/13 07:35:56 WARN email hub oauth callback failed code=failed reason=membership provider=google user_id=01M4T310BRVFRWTFRCPVHC78VX
+2026/10/13 07:35:56 WARN email hub oauth callback failed code=already_connected reason=duplicate provider=google user_id=01M4T310RQH04S7GB4SMXFEW1K
+2026/10/13 07:35:58 WARN email hub account needs reconnect account_id=01M4T312D2WWJ9WY24DX9W4QSC reason=oauth_invalid_grant
+2026/10/13 07:35:58 WARN email hub account needs reconnect account_id=01M4T312D5HYC31Y7S0S2W85NR reason=oauth_invalid_grant
+2026/10/13 07:35:59 WARN email hub revoke skipped account_id=01M4T312Z0TQ6YACABWJ5RJNJG code=not_configured
+2026/10/13 07:35:59 WARN email hub send failed account_id=01M4T313B6WPZP8SKPRY7DGNKM code=oauth_refresh_failed
+2026/10/13 07:35:59 WARN email hub send failed account_id=01M4T313B6WPZP8SKPRY7DGNKM code=oauth_not_configured
+2026/10/13 07:35:59 WARN email hub send failed account_id=01M4T313B6WPZP8SKPRY7DGNKM code=oauth_not_configured
+2026/10/13 07:36:00 WARN email hub account needs reconnect account_id=01M4T314AM10AF3G0CA27Q4ZF3 reason=imap_auth_failed
+2026/10/13 07:36:00 WARN email hub account needs reconnect account_id=01M4T314ANSFXCSN2CXE3PRVQ6 reason=oauth_invalid_grant
+2026/10/13 07:36:00 WARN email hub revoke failed account_id=01M4T314GJ56JXFM4FSAC6JPBS code=status_500
+2026/10/13 07:36:06 WARN email hub revoke failed account_id=01M4T314QBSJ161HA5GYX5PAFW code=timeout
+2026/10/13 07:36:06 INFO email hub revoke skipped account_id=01M4T319T6H4TQNPN09FDGXBA4 code=grant_shared
+2026/10/13 07:36:07 WARN email hub send failed account_id=01M4T31AWXN83QPQH40CCZHPJJ code=host_not_allowed
+2026/10/13 07:36:14 WARN email hub watcher load account failed account_id=01M4T31HQ92R723ZF0B4QW205H err="context canceled"
+2026/10/13 07:36:18 INFO event retention sweep outbox_done=3 outbox_dead=1 webhook_inbox=2 provider_events=1
+2026/10/13 07:36:18 INFO local storage adapter ready dir=/tmp/TestFileThumbnailIsServedAsAVariantOfItsSource277172870/001
+2026/10/13 07:36:18 INFO local storage adapter ready dir=/tmp/TestFileThumbnailSkipsFilesItCannotImprove3679330807/001
+2026/10/13 07:36:18 INFO local storage adapter ready dir=/tmp/TestFileThumbnailIsCollectedAfterItsSource591960432/001
+2026/10/13 07:36:18 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:19 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:19 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:19 INFO local storage adapter ready dir=/tmp/TestFileGCUnderKeyRoot283897337/001
+2026/10/13 07:36:19 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=4 aborted=0
+2026/10/13 07:36:19 INFO local storage adapter ready dir=/tmp/TestFileGCDefaultIsDryRunAndWritesNothing542540639/001
+2026/10/13 07:36:19 INFO files gc: sweep finished mode=dry_run deleted=0 would_delete=1 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:19 INFO local storage adapter ready dir=/tmp/TestFileGCOffDoesNothing534869741/001
+2026/10/13 07:36:20 INFO local storage adapter ready dir=/tmp/TestFileGCCancelDoesNotResetAge1721984103/001
+2026/10/13 07:36:20 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:20 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:20 INFO local storage adapter ready dir=/tmp/TestFileGCExpiresUnclaimedUploads2847242144/001
+2026/10/13 07:36:20 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:20 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:21 INFO local storage adapter ready dir=/tmp/TestFileGCLastReferenceGone1893265517/001
+2026/10/13 07:36:21 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:21 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/13 07:36:21 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:21 INFO local storage adapter ready dir=/tmp/TestFileGCBarrierClaimWins3268095447/001
+2026/10/13 07:36:21 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:22 INFO local storage adapter ready dir=/tmp/TestFileGCBarrierGCWins1192196996/001
+2026/10/13 07:36:22 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:22 INFO local storage adapter ready dir=/tmp/TestFileGCCancelVersusSave2005137978/001
+2026/10/13 07:36:22 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:22 INFO local storage adapter ready dir=/tmp/TestFileGCTwoWorkers4232589953/001
+2026/10/13 07:36:22 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:23 INFO local storage adapter ready dir=/tmp/TestFileGCCrashAfterBarrierResumes5283191/001
+2026/10/13 07:36:23 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:23 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:23 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:23 INFO local storage adapter ready dir=/tmp/TestFileGCDeleteFailureKeepsJoberror1714936741/001
+2026/10/13 07:36:23 WARN files gc: object delete failed, file kept deleting file=01M4T31TT07HCXHDEVRE8TGYKS code=storage_unavailable err="test: storage adapter is down"
+2026/10/13 07:36:23 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/13 07:36:23 WARN files gc: object delete failed, file kept deleting file=01M4T31TT07HCXHDEVRE8TGYKS code=storage_unavailable err="test: storage adapter is down"
+2026/10/13 07:36:23 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/13 07:36:23 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:23 INFO local storage adapter ready dir=/tmp/TestFileGCDeleteFailureKeepsJobobject_lock474917266/001
+2026/10/13 07:36:23 WARN files gc: object delete failed, file kept deleting file=01M4T31V1KEM5RMW9K6CCE3E49 code=object_still_present err="files: object still present after delete"
+2026/10/13 07:36:23 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/13 07:36:23 WARN files gc: object delete failed, file kept deleting file=01M4T31V1KEM5RMW9K6CCE3E49 code=object_still_present err="files: object still present after delete"
+2026/10/13 07:36:23 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/13 07:36:23 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:24 INFO local storage adapter ready dir=/tmp/TestFileGCProviderErrorAbortsBatch4175724099/001
+2026/10/13 07:36:24 WARN files gc: batch aborted, every file kept jobs=2 err="files: gc batch aborted: files: provider test.holds: provider down"
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=2
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=2 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:24 INFO local storage adapter ready dir=/tmp/TestFileGCMissingProviderDeletesNothing2972286851/001
+2026/10/13 07:36:24 WARN files gc: reference coverage gap, cleanup jobs left untouched err="files: reference providers do not cover every file id column: audit_exports.file_id has no provider \"audit.exports\"; chat_messages.file_id has no provider \"chat.messages\"; data_subject_requests.file_id has no provider \"privacy.exports\"; document_assets.file_id has no provider \"documents.assets\"; document_versions.file_id has no provider \"documents.versions\"; office_jobs.output_file_id has no provider \"office.jobs\""
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:24 INFO local storage adapter ready dir=/tmp/TestFileGCHoldReasonsAndSoftDeleteRestore4103421673/001
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:24 INFO local storage adapter ready dir=/tmp/TestFileGCTwoReferences3749666902/001
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:24 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:25 INFO local storage adapter ready dir=/tmp/TestFileGCDiscoversUnreleasedGarbage4267147994/001
+2026/10/13 07:36:25 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:25 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:25 INFO local storage adapter ready dir=/tmp/TestFileGCCrossTenantQuarantines2542486770/001
+2026/10/13 07:36:25 WARN files gc: cross-tenant reference, file quarantined file=01M4T31WFQS05TEQ9MADGQSVHP source=users.avatar_file_id
+2026/10/13 07:36:25 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=2 aborted=0
+2026/10/13 07:36:25 INFO local storage adapter ready dir=/tmp/TestFileGCNeverDeletesLegacyG0OrSharedObjects3824841466/001
+2026/10/13 07:36:25 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=6 aborted=0
+2026/10/13 07:36:25 INFO local storage adapter ready dir=/tmp/TestFileGCWorkerRunsOncePerDay1202840845/001
+2026/10/13 07:36:25 INFO files gc: sweep finished mode=dry_run deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:25 INFO files gc: sweep finished mode=dry_run deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:25 INFO files gc: sweep finished mode=dry_run deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:26 INFO local storage adapter ready dir=/tmp/TestFileGCConfigRejectsDuplicateProviders4073489076/001
+2026/10/13 07:36:26 INFO local storage adapter ready dir=/tmp/TestFileGCVersionedBucketDeletesOnlyTheRecordedVersion2066740809/001
+2026/10/13 07:36:26 WARN files gc: object delete failed, file kept deleting file=01M4T31XCM1H69FMV0G5CWTDXP code=storage_version_required err="files: gc refuses an unversioned delete on a versioned bucket"
+2026/10/13 07:36:26 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/13 07:36:26 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:26 INFO local storage adapter ready dir=/tmp/TestObjectKeysCarryTheEnvRootlocal903962879/001
+2026/10/13 07:36:26 INFO local storage adapter ready dir=/tmp/TestNewFileServiceRefusesAnUnsafeKeyRoot3539157800/001
+2026/10/13 07:36:26 INFO local storage adapter ready dir=/tmp/TestOpenServesAPresignPurpose3443246414/001
+2026/10/13 07:36:26 INFO local storage adapter ready dir=/tmp/TestFileReconcileAbandonedUploadIntent504443754/001
+2026/10/13 07:36:26 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:26 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:26 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:26 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:27 INFO local storage adapter ready dir=/tmp/TestFileReconcileDryRunWritesNothing3405013359/001
+2026/10/13 07:36:27 INFO files gc: sweep finished mode=dry_run deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:27 INFO local storage adapter ready dir=/tmp/TestFileReconcileProviderOutputLateCompletion1813863341/001
+2026/10/13 07:36:27 WARN files gc: provider output missing after its deadline; kept for confirmation file=01M4T31YDQ1V81KWVB4GM8PMH9
+2026/10/13 07:36:27 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=1 aborted=0
+2026/10/13 07:36:27 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:27 INFO local storage adapter ready dir=/tmp/TestFileReconcileActiveRecordingIsNotExpired3368089796/001
+2026/10/13 07:36:27 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:27 INFO local storage adapter ready dir=/tmp/TestFileReconcileMissingObjectKeepsReference808937906/001
+2026/10/13 07:36:27 WARN files gc: ready file has no object; references kept, recovery needed file=01M4T31YXJ4EPZZQXTMZN2DRPF
+2026/10/13 07:36:27 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=1 aborted=0
+2026/10/13 07:36:28 INFO local storage adapter ready dir=/tmp/TestFileReconcileKeepsAbortMultipartIntent4231261977/001
+2026/10/13 07:36:28 WARN files gc: multipart abort is not supported by the adapter; intent kept file=01M4T31Z5MHN2H1RG79RSY0XGT
+2026/10/13 07:36:28 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=1 aborted=0
+2026/10/13 07:36:28 INFO local storage adapter ready dir=/tmp/TestFileGCSweepsStaleSpoolFiles3067362216/001
+2026/10/13 07:36:28 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:28 INFO local storage adapter ready dir=/tmp/TestFileReconcileTombstoneDeletesTheLateVersion83117300/001
+2026/10/13 07:36:28 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:28 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/13 07:36:28 INFO local storage adapter ready dir=/tmp/TestResolveUploadsIsTheCallersStagedFilesOnly733159948/001
+2026/10/13 07:36:29 INFO local storage adapter ready dir=/tmp/TestResolveUploadsGateAndValidation2748544900/001
+2026/10/13 07:36:29 INFO local storage adapter ready dir=/tmp/TestProxyTicketIsCappedByClaimWindowAndAuthSession1113376784/001
+2026/10/13 07:36:29 INFO local storage adapter ready dir=/tmp/TestResolveUploadsPresignPurposeNamesStorage1784862557/001
+2026/10/13 07:36:29 INFO local storage adapter ready dir=/tmp/TestResolveUploadsReportsRevokedAndDeletingFiles2047411644/001
+2026/10/13 07:36:30 INFO local storage adapter ready dir=/tmp/TestAuthorizeContentChecksEveryRequest3285908593/001
+2026/10/13 07:36:30 INFO local storage adapter ready dir=/tmp/TestAuthorizeContentFollowsSessionAndMembership420087859/001
+2026/10/13 07:36:30 INFO local storage adapter ready dir=/tmp/TestAuthorizeContentExpiresAndFollowsTheFile3229908730/001
+2026/10/13 07:36:30 INFO local storage adapter ready dir=/tmp/TestResolveUploadsQueriesDoNotGrowWithTheBatch2021241705/001
+2026/10/13 07:36:30 INFO local storage adapter ready dir=/tmp/TestResolveKeepsOrderDuplicatesAndPerIDErrors2653590940/001
+2026/10/13 07:36:31 INFO local storage adapter ready dir=/tmp/TestResolveIsolatesTenantsWorkspacesAndTheAvatarBranch1960830000/001
+2026/10/13 07:36:31 INFO local storage adapter ready dir=/tmp/TestResolveSessionStatesAreRefusedPerID3348418710/001
+2026/10/13 07:36:31 INFO local storage adapter ready dir=/tmp/TestResolveModeMismatchFailsTheWholeBatch3054240144/001
+2026/10/13 07:36:31 INFO local storage adapter ready dir=/tmp/TestPresignTTLIsCappedByTwelveHoursClaimWindowAndCredential4228968703/001
+2026/10/13 07:36:31 INFO local storage adapter ready dir=/tmp/TestPresignDispositionComesFromTheSharedFilename3191240518/001
+2026/10/13 07:36:31 INFO local storage adapter ready dir=/tmp/TestResolveManyIsOneQueryPerBatch4179329341/001
+2026/10/13 07:36:32 INFO local storage adapter ready dir=/tmp/TestOpenStreamsWindowsAndPastTheEnd3240058363/001
+2026/10/13 07:36:32 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalpurposeunknown_is_refused3390924385/001
+2026/10/13 07:36:32 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalpurposedisabled_is_refused101792352/001
+2026/10/13 07:36:32 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalscopemissing_and_extra_tenant_fiel2046256763/001
+2026/10/13 07:36:33 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadready_result_carries_the_ver732677203/001
+2026/10/13 07:36:33 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadchecksum_follows_the_policy877576649/001
+2026/10/13 07:36:33 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadover_cap_is_refused2248551451/001
+2026/10/13 07:36:33 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploaddisallowed_type_is_refused1224535045/001
+2026/10/13 07:36:33 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadevery_allowlisted_type_is_ve224643776/001
+2026/10/13 07:36:34 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadfilename_never_moves_bytes_t119968685/001
+2026/10/13 07:36:34 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadpurpose_canonical_types_are_2349555814/001
+2026/10/13 07:36:35 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadidempotency_replay_returns_t2096560156/001
+2026/10/13 07:36:35 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadidempotency_conflict_on_a_di393709536/001
+2026/10/13 07:36:35 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadreplay_after_cancel_does_not824697624/001
+2026/10/13 07:36:35 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalcancelrevokes_a_staged_upload_and_2045569444/001
+2026/10/13 07:36:36 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalcancela_claimed_file_is_refused3922716334/001
+2026/10/13 07:36:36 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalcancelunknown_foreign_scope_and_fo3345088784/001
+2026/10/13 07:36:36 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimready_file_is_attached_and_re2830752305/001
+2026/10/13 07:36:36 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimnot_ready_file_is_refused2607072676/001
+2026/10/13 07:36:36 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimwindow_is_24h_and_claimed_fil110645908/001
+2026/10/13 07:36:37 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimwindow_closes_exactly_at_the_4247197827/001
+2026/10/13 07:36:37 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimforeign_scope_and_wrong_purpo1896200741/001
+2026/10/13 07:36:37 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimvalidates_purpose_and_scope_f3586269541/001
+2026/10/13 07:36:37 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimrollback_leaves_the_file_stag3840785789/001
+2026/10/13 07:36:37 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimreplaces_locks_the_old_file_t3942098479/001
+2026/10/13 07:36:38 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalreleaseunknown_id_is_not_found189437430/001
+2026/10/13 07:36:38 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalreleasecollected_files_are_refused570900100/001
+2026/10/13 07:36:38 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalreleaseafter_collecting_is_a_no_op3252306472/001
+2026/10/13 07:36:38 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalresolvepresign_and_proxy_follow_th1079992301/001
+2026/10/13 07:36:38 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalresolveper_id_errors_leave_the_res3617297601/001
+2026/10/13 07:36:38 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalresolveforeign_tenant_is_not_found1025836419/001
+2026/10/13 07:36:39 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalresolvemode_must_match_the_policy1509726441/001
+2026/10/13 07:36:39 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalprovideroutput_intent_is_idempoten3236855084/001
+2026/10/13 07:36:39 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalproviderwrite_target_carries_the_o2610165377/001
+2026/10/13 07:36:39 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalprovidercompleted_output_becomes_a2182923406/001
+2026/10/13 07:36:39 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalprovidercomplete_replays_and_check2615177515/001
+2026/10/13 07:36:39 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalproviderinvalid_output_is_refused2682541459/001
+2026/10/13 07:36:40 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalprovideroutput_that_disagrees_with4250280727/001
+2026/10/13 07:36:40 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalproviderstorage_unavailable_is_ref241676423/001
+2026/10/13 07:36:40 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalopenreads_bytes_and_range2469445768/001
+2026/10/13 07:36:40 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposepurposeunknown3033277383/001
+2026/10/13 07:36:40 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposepurposedisable3120439385/001
+2026/10/13 07:36:41 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposescopemissing_a2648699346/001
+2026/10/13 07:36:41 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadready_re3225940100/001
+2026/10/13 07:36:41 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadchecksum2516333981/001
+2026/10/13 07:36:41 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadover_cap2487249882/001
+2026/10/13 07:36:41 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploaddisallow2479500979/001
+2026/10/13 07:36:41 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadevery_al616176030/001
+2026/10/13 07:36:42 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadfilename3624538331/001
+2026/10/13 07:36:43 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadpurpose_3016156709/001
+2026/10/13 07:36:43 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadidempote3107379030/001
+2026/10/13 07:36:43 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadidempote1688540814/001
+2026/10/13 07:36:43 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadreplay_a1593639870/001
+2026/10/13 07:36:43 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposecancelrevokes_1688964093/001
+2026/10/13 07:36:43 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposecancela_claime32611254/001
+2026/10/13 07:36:44 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposecancelunknown_4017294453/001
+2026/10/13 07:36:44 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimready_fil2761079861/001
+2026/10/13 07:36:44 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimnot_ready1949831740/001
+2026/10/13 07:36:44 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimwindow_is1369487726/001
+2026/10/13 07:36:45 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimwindow_cl1572212635/001
+2026/10/13 07:36:45 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimforeign_s4120881118/001
+2026/10/13 07:36:45 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimvalidates2470943641/001
+2026/10/13 07:36:45 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimrollback_589508995/001
+2026/10/13 07:36:45 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimreplaces_3564335588/001
+2026/10/13 07:36:45 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposereleaseunknown1533100169/001
+2026/10/13 07:36:46 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposereleasecollect60420837/001
+2026/10/13 07:36:46 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposereleaseafter_c3842425728/001
+2026/10/13 07:36:46 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeresolvepresign2402368165/001
+2026/10/13 07:36:46 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeresolveper_id_4109764159/001
+2026/10/13 07:36:46 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeresolveforeign174288281/001
+2026/10/13 07:36:47 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeresolvemode_mu3002867254/001
+2026/10/13 07:36:47 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeprovideroutput3111965622/001
+2026/10/13 07:36:47 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeproviderwrite_1736291398/001
+2026/10/13 07:36:47 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeprovidercomple2371335131/001
+2026/10/13 07:36:47 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeprovidercomple242099055/001
+2026/10/13 07:36:47 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeproviderinvali534455505/001
+2026/10/13 07:36:48 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeprovideroutput308801964/001
+2026/10/13 07:36:48 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeproviderstorag4131317341/001
+2026/10/13 07:36:48 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeopenreads_byte465924827/001
+2026/10/13 07:36:48 INFO local storage adapter ready dir=/tmp/TestNewFileServiceRefusesBadWiring1353314443/001
+2026/10/13 07:36:48 INFO local storage adapter ready dir=/tmp/TestUploadRefusalsBeforeTheBodyHaveNoSideEffect2491548476/001
+2026/10/13 07:36:49 INFO local storage adapter ready dir=/tmp/TestUploadFraudIsRefusedWithoutStoringBytes2074604929/001
+2026/10/13 07:36:49 INFO local storage adapter ready dir=/tmp/TestUploadReplayNeverReadsTheBody2359699471/001
+2026/10/13 07:36:49 INFO local storage adapter ready dir=/tmp/TestUploadFailureBeforeAndAfterPut3817815289/001
+2026/10/13 07:36:49 INFO local storage adapter ready dir=/tmp/TestUploadDoesNotOpenASecondWriter498970110/001
+2026/10/13 07:36:50 INFO local storage adapter ready dir=/tmp/TestCancelDuringUploadWins1198427918/001
+2026/10/13 07:36:50 INFO local storage adapter ready dir=/tmp/TestClaimAndCancelRace1659768870/001
+2026/10/13 07:36:50 INFO local storage adapter ready dir=/tmp/TestMultiFileClaimIsAllOrNothing2096711278/001
+2026/10/13 07:36:50 INFO local storage adapter ready dir=/tmp/TestClaimRollbackRestoresTheSession12773681/001
+2026/10/13 07:36:50 INFO local storage adapter ready dir=/tmp/TestClaimWindowEdgeAndReclaim275229359/001
+2026/10/13 07:36:51 INFO local storage adapter ready dir=/tmp/TestChecksumFollowsThePolicy2810911686/001
+2026/10/13 07:36:51 INFO local storage adapter ready dir=/tmp/TestObjectKeysFollowTheLayout673013308/001
+2026/10/13 07:36:51 INFO local storage adapter ready dir=/tmp/TestAvatarBranchIsUserBound3415179865/001
+2026/10/13 07:36:51 INFO local storage adapter ready dir=/tmp/TestSystemActorGoesThroughTheSameGrant1232220621/001
+2026/10/13 07:36:51 INFO local storage adapter ready dir=/tmp/TestQuotaRefusalIsRetryable4270599742/001
+2026/10/13 07:36:51 INFO local storage adapter ready dir=/tmp/TestProviderOutputNeedsASigner4010564577/001
+2026/10/13 07:36:52 INFO local storage adapter ready dir=/tmp/TestFinalizeTakesTheFileLockFirst2937041320/001
+2026/10/13 07:36:57 INFO ai: call usage_event_id=01M4T32W345F93SA7ZKH65Z64F capability=meeting_summarization latency_ms=0
+2026/10/13 07:36:57 INFO ai: call usage_event_id=01M4T32W3TYSHMFK48BMHA5KP0 capability=meeting_summarization latency_ms=0
+2026/10/13 07:36:57 INFO ai: call usage_event_id=01M4T32W9QYZPBB2WNZP3VJH7G capability=meeting_summarization latency_ms=0
+2026/10/13 07:36:58 INFO ai: call usage_event_id=01M4T32WHRT2ETK9C6ADPT3HY9 capability=meeting_summarization latency_ms=0
+2026/10/13 07:36:59 INFO ai: call usage_event_id=01M4T32Y6X3BM3ERCYBP66ATVT capability=meeting_summarization latency_ms=0
+2026/10/13 07:37:20 ERROR outbox dead letter lane=all id=01M4T33JBG8877GJPSD4R7YJ4Y topic=provider.end_session attempts=10 err="meeting-provider: conference provider not configured"
+2026/10/13 07:37:26 ERROR recording finish dropped: FileService unwired for FS-backed row recording_id=01M4T33R9FDSEAWSPVQZF24579 egress_id=fake-egress-uw_mtg_01M4T33R9BRQRRPGK4R2NDPYNA
+--- FAIL: TestOfficeLeaseRecheckErrorRevokesTheCommittedLease (0.23s)
+    office_lease_failclosed_test.go:57: ERROR: operator does not exist: text ->> unknown (SQLSTATE 42883)
+2026/10/13 07:37:38 WARN office lease: the fail-closed revoke after a failed membership re-check did not land; the consumer must close it lease=lease-1 document=doc-1 err="revoke down"
+2026/10/13 07:37:50 INFO password reset rate-limited user=01M4T34FT59D4NB4ZXVS3NBY97
+2026/10/13 07:37:51 INFO password reset rate-limited user=01M4T34G7TSC7PFY5A473BXDXP
+2026/10/13 07:37:51 INFO password reset daily cap user=01M4T34GN76BW7DREAGK7VTSH3
+redis: 2026/10/13 07:37:56 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:1: connect: connection refused
+FAIL
+coverage: 71.6% of statements
+FAIL	github.com/unicomhub/uniwork/server/internal/service	624.233s
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	42.955s	coverage: 79.0% of statements
+?   	github.com/unicomhub/uniwork/server/internal/service/templates	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/storage	0.554s	coverage: 77.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/telemetry	0.005s	coverage: 85.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util	0.003s	coverage: 67.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util/secretbox	0.002s	coverage: 88.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/workcapability	0.004s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/migrations	28.369s	coverage: 74.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/db/tablequery	0.003s	coverage: 82.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/featureflag	0.005s	coverage: 85.9% of statements
+FAIL
+G508S_TESTGO_EXIT 1
