@@ -543,6 +543,7 @@ type Document struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	ArchiveBatchID       pgtype.Text        `json:"archive_batch_id"`
+	ContentRevision      int64              `json:"content_revision"`
 }
 
 type DocumentAccessLog struct {
@@ -615,6 +616,61 @@ type DocumentComment struct {
 	ResolvedByID    pgtype.Text        `json:"resolved_by_id"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Anchor          []byte             `json:"anchor"`
+	AnchorVersionID pgtype.Text        `json:"anchor_version_id"`
+	AnchorState     pgtype.Text        `json:"anchor_state"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	DeletedByID     pgtype.Text        `json:"deleted_by_id"`
+	DeletedByKind   pgtype.Text        `json:"deleted_by_kind"`
+}
+
+type DocumentCommentMention struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	CommentID      string             `json:"comment_id"`
+	UserID         string             `json:"user_id"`
+	State          string             `json:"state"`
+	NotifiedAt     pgtype.Timestamptz `json:"notified_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DocumentCommentRevision struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	CommentID      string             `json:"comment_id"`
+	Body           string             `json:"body"`
+	Revision       int64              `json:"revision"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type DocumentCommitIntent struct {
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organization_id"`
+	WorkspaceID        string             `json:"workspace_id"`
+	DocumentID         string             `json:"document_id"`
+	IdempotencyKey     string             `json:"idempotency_key"`
+	PayloadFingerprint string             `json:"payload_fingerprint"`
+	CreatedBy          string             `json:"created_by"`
+	CreatedByKind      string             `json:"created_by_kind"`
+	State              string             `json:"state"`
+	Attempt            int32              `json:"attempt"`
+	ClaimExpiresAt     pgtype.Timestamptz `json:"claim_expires_at"`
+	VersionID          pgtype.Text        `json:"version_id"`
+	Version            pgtype.Int4        `json:"version"`
+	Revision           pgtype.Int8        `json:"revision"`
+	CommittedAt        pgtype.Timestamptz `json:"committed_at"`
+	RetainUntil        pgtype.Timestamptz `json:"retain_until"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 type DocumentFavorite struct {

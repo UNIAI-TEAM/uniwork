@@ -862,3 +862,64 @@ describe("DocumentCommentsPanel accessibility", () => {
     expect(screen.queryByLabelText(/u9/)).toBeNull();
   });
 });
+
+describe("DocumentCommentsPanel tombstones and stale reads (G8-03)", () => {
+  it("draws a deleted root as the frame with no actions while its replies stay live and replyable", async () => {
+    installApi({
+      comments: [
+        makeComment({ body: "", deleted_at: "2026-09-28T05:00:00Z", deleted_by_id: OTHER, deleted_by_kind: "human" }),
+        makeComment({ id: "c2", parent_id: "c1", body: "Trả lời còn sống", author_id: ME }),
+      ],
+    });
+    renderPanel();
+    await openPanel();
+
+    const frame = await screen.findByTestId("document-comment-c1");
+    expect(within(frame).getByText(t("documents.comments.comment_deleted"))).toBeInTheDocument();
+    // Nothing on the frame can be edited, resolved, reacted to or answered.
+    expect(within(frame).queryAllByRole("button")).toHaveLength(0);
+    expect(within(frame).queryByText("Lan")).toBeNull();
+
+    const reply = screen.getByTestId("document-comment-c2");
+    expect(within(reply).getByText("Trả lời còn sống")).toBeInTheDocument();
+    fireEvent.click(within(reply).getByRole("button", { name: t("documents.comments.comment_actions") }));
+    expect(screen.getByRole("menuitem", { name: t("documents.comments.comment_edit") })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    // The thread composer answers the newest surviving reply, never the frame.
+    const composer = screen.getByTestId("document-reply-composer-c1");
+    const editor = await activateComposer(composer);
+    fireEvent.change(editor, { target: { value: "Vẫn trả lời được" } });
+    fireEvent.keyDown(editor, { key: "Enter", ctrlKey: true });
+    await waitFor(() => {
+      const post = requestMock.mock.calls.find(
+        ([path, init]) =>
+          (init as MockInit)?.method === "POST" && path === `/api/v1/documents/${DOC}/comments`,
+      );
+      expect((post?.[1] as MockInit | undefined)?.body).toMatchObject({ body: "Vẫn trả lời được", parent_id: "c2" });
+    });
+  });
+
+  it("keeps the cached list and the composer when a refetch answers malformed", async () => {
+    let malformed = false;
+    installApi({
+      extra: (method, path) =>
+        method === "GET" && path === `/api/v1/documents/${DOC}/comments`
+          ? Promise.resolve(malformed ? { comments: "nope" } : { comments: [makeComment()] })
+          : undefined,
+    });
+    const { client } = renderPanel();
+    await openPanel();
+    expect(await screen.findByTestId("document-comment-c1")).toBeInTheDocument();
+
+    malformed = true;
+    await act(async () => {
+      await client.refetchQueries({ queryKey: documentKeys.comments(WS, DOC) });
+    });
+
+    expect(await screen.findByTestId("document-comments-stale")).toBeInTheDocument();
+    expect(screen.getByTestId("document-comment-c1")).toBeInTheDocument();
+    expect(screen.getByTestId("document-comment-composer")).toBeInTheDocument();
+    expect(screen.queryByTestId("document-comments-error")).toBeNull();
+  });
+});

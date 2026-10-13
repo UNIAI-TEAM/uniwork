@@ -106,14 +106,27 @@ type DownloadDocumentSDI struct {
 }
 
 // CreateDocumentCommentSDI is POST /api/v1/documents/{documentID}/comments
-// (+ Idempotency-Key header, G1-07): a threaded comment on a document. `type`
-// is on the wire for parity with task comments, but the document allowlist is
-// "comment" only, so a public client can never mint a system row; anything
-// else answers 400 invalid_request.
+// (+ Idempotency-Key header, G1-07; kind since G8-03): a threaded comment on a
+// document. `kind` picks the thread flow - comment (anchored) or discussion
+// (the document's shared thread); empty means the parent's kind for a reply
+// and discussion for a root. `type` stays on the wire for old clients: it is
+// validated against its old allowlist ("comment" or empty) and otherwise
+// ignored - it never picks the thread kind.
 type CreateDocumentCommentSDI struct {
 	Body     string  `json:"body" minLength:"1" description:"Nội dung bình luận" example:"Chỗ này cần số liệu Q3."`
 	ParentID *string `json:"parent_id" description:"ULID bình luận cha cùng tài liệu khi trả lời" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
-	Type     string  `json:"type" description:"Chỉ nhận comment; giá trị khác bị từ chối" example:"comment"`
+	Type     string  `json:"type" description:"Trường cũ: chỉ nhận comment; không quyết định loại luồng" example:"comment"`
+	Kind     string  `json:"kind" description:"comment hoặc discussion; bỏ trống = theo cha, gốc là discussion" example:"discussion"`
+}
+
+// ListDocumentCommentsSDI documents the query params of GET
+// /api/v1/documents/{documentID}/comments (G8-03): kind filters the thread
+// kind (empty = both), since_token is the list_token of the caller's previous
+// full list - equal to the current one the answer is {unchanged: true} and
+// carries no rows.
+type ListDocumentCommentsSDI struct {
+	Kind       *string `query:"kind" description:"comment hoặc discussion; bỏ trống = cả hai" example:"discussion"`
+	SinceToken *string `query:"since_token" description:"list_token của lần tải trước; trùng token hiện tại = unchanged" example:"lt1:9f2c1d3e4b5a"`
 }
 
 // UpdateDocumentCommentSDI is the body of PATCH

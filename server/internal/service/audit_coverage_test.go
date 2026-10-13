@@ -1139,6 +1139,35 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// G5-07: a second attempt takes over an intent whose first claim
+		// expired without a commit.
+		audit.ActionDocumentCommitIntentRenewed: func(t *testing.T, f *auditFixture) {
+			svc, created := auditFileDocument(t, f)
+			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
+				Filename: "v2.pdf", Body: bytes.NewReader(pdfBody("audit-intent-v2")),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			key := util.NewID()
+			file, err := resolveUpload(f.ctx, svc.files, documentScope(created.Document.OrganizationID, created.Document.WorkspaceID), up.UploadID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fp := commitFingerprint(created.Document.ID, created.Document.Revision, file.ChecksumSHA256, DocumentEngineInfo{})
+			if _, _, err := svc.claimCommitIntent(f.ctx, Human(f.owner.ID), created.Document, key, fp); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.pool.Exec(f.ctx,
+				`UPDATE document_commit_intents SET claim_expires_at = clock_timestamp() - interval '1 second' WHERE idempotency_key = $1`, key); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CommitFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, CommitFileVersionInput{
+				UploadID: up.UploadID, BaseRevision: created.Document.Revision, IdempotencyKey: key,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentVersionRestored: func(t *testing.T, f *auditFixture) {
 			svc, created := auditFileDocument(t, f)
 			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
@@ -1194,7 +1223,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := svc.DeleteDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+			if _, err := svc.DeleteDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1448,6 +1477,7 @@ func auditActions() []string {
 		audit.ActionDocumentUpdated,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
+		audit.ActionDocumentCommitIntentRenewed,
 		audit.ActionDocumentAssetUploaded,
 		audit.ActionDocumentCommentAdded,
 		audit.ActionDocumentCommentUpdated,

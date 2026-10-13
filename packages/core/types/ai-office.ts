@@ -53,6 +53,8 @@ export const AiCloudToolsSchema = z.object({
   image_generate: z.boolean().optional().default(false),
   media_analyze: z.boolean().optional().default(false),
   transcribe: z.boolean().optional().default(false),
+  /** UniWork AI chat in the Office editors (G6-03c); absent on older servers = off. */
+  chat: z.boolean().optional().default(false),
 });
 export type AiCloudTools = z.infer<typeof AiCloudToolsSchema>;
 
@@ -67,7 +69,10 @@ export type AiCloudCredits = z.infer<typeof AiCloudCreditsSchema>;
 
 export const AiCloudStatusSchema = z.object({
   enabled: z.boolean(),
-  /** `entitlement_required` when the plan lacks `office.ai_cloud`. */
+  /**
+   * `entitlement_required` when the plan lacks `office.ai_cloud`;
+   * `credits_exhausted` beside `enabled: true` once the period's credits are spent.
+   */
   reason: z.string().optional().default(""),
   tools: AiCloudToolsSchema.optional().default({
     web_search: false,
@@ -75,6 +80,7 @@ export const AiCloudStatusSchema = z.object({
     image_generate: false,
     media_analyze: false,
     transcribe: false,
+    chat: false,
   }),
   credits: AiCloudCreditsSchema.optional().default({
     unit: "ai.tokens",

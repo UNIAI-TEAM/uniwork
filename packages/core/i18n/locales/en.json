@@ -8259,6 +8259,7 @@
       "comment_edited_time": "Edited · {{time}}",
       "comment_reply_count_one": "{{count}} reply",
       "comment_reply_count_other": "{{count}} replies",
+      "comment_deleted": "This content was deleted",
       "comment_resolved": "Resolved",
       "comment_actions": "Comment actions",
       "comment_copy": "Copy content",

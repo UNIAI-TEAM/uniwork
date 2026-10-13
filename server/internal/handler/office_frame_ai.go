@@ -38,11 +38,26 @@ func (h *handlers) frameAIActor(r *http.Request) (string, string, error) {
 // when the person could use the BYOK proxy in the document's organization
 // (member, office.ai_byok, a credential store), and each cloud tool only with
 // `ai` and while GO-A7's cloud status says that tool is available
-// (office.ai_cloud and a configured provider). Any failure reads as off: the
+// (office.ai_cloud and a configured provider). `uniwork_ai` (G6-03c) stands
+// apart from BYOK: the cloud status says chat is on (member, office.ai_cloud,
+// UniWork AI configured, office_ai_uniwork) and the format of the token's
+// module has its office_ai_uniwork_<format> on. Any failure reads as off: the
 // grant only shows or hides AI, every AI route still gates itself.
 func (h *handlers) officeFrameAIGrant(ctx context.Context, claims service.OfficeFrameClaims) sdo.OfficeFrameAIGrantSDO {
 	var out sdo.OfficeFrameAIGrantSDO
-	if h.AIBYOK == nil || h.AICredentials == nil || claims.UserID == "" || claims.OrganizationID == "" {
+	if claims.UserID == "" || claims.OrganizationID == "" {
+		return out
+	}
+	var cloud service.AICloudStatus
+	cloudOK := false
+	if h.AICloud != nil {
+		st, err := h.AICloud.Status(ctx, claims.UserID, claims.OrganizationID, h.OfficeCapabilities)
+		if err == nil {
+			cloud, cloudOK = st, true
+			out.UniworkAI = st.UniworkAIFor(claims.ModuleName())
+		}
+	}
+	if h.AIBYOK == nil || h.AICredentials == nil {
 		return out
 	}
 	ok, err := h.AIBYOK.Enabled(ctx, claims.UserID, claims.OrganizationID)
@@ -50,15 +65,11 @@ func (h *handlers) officeFrameAIGrant(ctx context.Context, claims service.Office
 		return out
 	}
 	out.AI = true
-	if h.AICloud == nil {
+	if !cloudOK || !cloud.Enabled {
 		return out
 	}
-	st, err := h.AICloud.Status(ctx, claims.UserID, claims.OrganizationID)
-	if err != nil || !st.Enabled {
-		return out
-	}
-	out.WebSearch = st.Tools.WebSearch
-	out.ImageSearch = st.Tools.ImageSearch
-	out.ImageGeneration = st.Tools.ImageGenerate
+	out.WebSearch = cloud.Tools.WebSearch
+	out.ImageSearch = cloud.Tools.ImageSearch
+	out.ImageGeneration = cloud.Tools.ImageGenerate
 	return out
 }

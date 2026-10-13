@@ -803,6 +803,21 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 			return q.DeleteDocumentAccessLogs(ctx, db.DeleteDocumentAccessLogsParams{
 				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID})
 		},
+		// The comment orbit goes in one order (G8-03): reactions (reached
+		// through document_comments, which carries no document_id of its
+		// own), mentions, revisions, then the comments themselves.
+		func(ctx context.Context) error {
+			return q.DeleteDocumentCommentReactionsByDocument(ctx, db.DeleteDocumentCommentReactionsByDocumentParams{
+				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID})
+		},
+		func(ctx context.Context) error {
+			return q.DeleteDocumentCommentMentionsByDocument(ctx, db.DeleteDocumentCommentMentionsByDocumentParams{
+				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID})
+		},
+		func(ctx context.Context) error {
+			return q.DeleteDocumentCommentRevisionsByDocument(ctx, db.DeleteDocumentCommentRevisionsByDocumentParams{
+				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID})
+		},
 		func(ctx context.Context) error {
 			return q.DeleteDocumentComments(ctx, db.DeleteDocumentCommentsParams{
 				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID})

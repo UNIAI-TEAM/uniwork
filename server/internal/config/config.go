@@ -27,7 +27,12 @@ type Config struct {
 	DesktopAuthDeploymentIDs []string
 	DesktopAuthCodeTTL       time.Duration
 	DesktopAuthAttemptTTL    time.Duration
-	FrontendOrigin           string
+	// DocumentCommitIntentClaimTTL and DocumentCommitIntentRetention are the
+	// G5-07 intent windows (service.DefaultCommitIntentClaimTTL / ...Retention
+	// are the same dev defaults; G5-D2 fixes production).
+	DocumentCommitIntentClaimTTL  time.Duration
+	DocumentCommitIntentRetention time.Duration
+	FrontendOrigin                string
 	// PreviewOrigin is the separate, cookie-less origin used by isolated
 	// Markdown/HTML frames. It must never be the frontend origin.
 	PreviewOrigin string
@@ -248,6 +253,8 @@ func Load() (Config, error) {
 		DesktopAuthDeploymentIDs:      splitList(getenv("DESKTOP_AUTH_DEPLOYMENT_IDS", "default")),
 		DesktopAuthCodeTTL:            parseDuration(os.Getenv("DESKTOP_AUTH_CODE_TTL"), 120*time.Second),
 		DesktopAuthAttemptTTL:         parseDuration(os.Getenv("DESKTOP_AUTH_ATTEMPT_TTL"), 10*time.Minute),
+		DocumentCommitIntentClaimTTL:  parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_CLAIM_TTL"), 2*time.Minute),
+		DocumentCommitIntentRetention: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_RETENTION"), 7*24*time.Hour),
 		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
 		PreviewOrigin:                 os.Getenv("PREVIEW_ORIGIN"),
 		PreviewCapabilitySecret:       os.Getenv("PREVIEW_CAPABILITY_SECRET"),

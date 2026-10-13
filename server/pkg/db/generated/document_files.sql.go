@@ -50,6 +50,7 @@ UPDATE documents
 SET file_version_id = $1,
     current_version = $2,
     revision = revision + 1,
+    content_revision = revision + 1,
     updated_by = $3,
     updated_by_kind = $4,
     last_version_at = now(),
@@ -59,7 +60,7 @@ WHERE id = $5
   AND workspace_id = $7
   AND kind = 'file'
   AND revision = $8
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision
 `
 
 type SetDocumentFileVersionParams struct {
@@ -77,9 +78,10 @@ type SetDocumentFileVersionParams struct {
 // swap, the upload-reuse check the commit, restore and asset commands need
 // (GetDocumentVersionByID lives in document_access.sql, G1-02). Every query carries the tenant pair.
 // Commit/restore of a file version: the pointer moves, the ordinal and the
-// working revision advance. The revision guard is the base check - zero rows
-// means the base went stale between the lock and the write, which the
-// service turns into document_version_conflict.
+// working revision advance; the content changed, so content_revision takes
+// the new revision (OQ-P1). The revision guard repeats the revision the
+// service locked - zero rows means the row moved between the lock and the
+// write, which the service turns into document_version_conflict.
 func (q *Queries) SetDocumentFileVersion(ctx context.Context, arg SetDocumentFileVersionParams) (Document, error) {
 	row := q.db.QueryRow(ctx, setDocumentFileVersion,
 		arg.FileVersionID,
@@ -132,6 +134,7 @@ func (q *Queries) SetDocumentFileVersion(ctx context.Context, arg SetDocumentFil
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArchiveBatchID,
+		&i.ContentRevision,
 	)
 	return i, err
 }

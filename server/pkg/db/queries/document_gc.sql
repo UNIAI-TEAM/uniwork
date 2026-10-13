@@ -67,6 +67,31 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id);
 
+-- The comment orbit purges in one order: reactions, mentions, revisions, then
+-- the comments they hang on. comment_reactions carries no document_id, so its
+-- rows are reached through document_comments and must go first (G8-03).
+-- name: DeleteDocumentCommentReactionsByDocument :exec
+DELETE FROM comment_reactions r
+USING document_comments c
+WHERE r.comment_id = c.id
+  AND c.document_id = sqlc.arg(document_id)
+  AND c.organization_id = sqlc.arg(organization_id)
+  AND c.workspace_id = sqlc.arg(workspace_id)
+  AND r.organization_id = sqlc.arg(organization_id)
+  AND r.workspace_id = sqlc.arg(workspace_id);
+
+-- name: DeleteDocumentCommentMentionsByDocument :exec
+DELETE FROM document_comment_mentions
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id);
+
+-- name: DeleteDocumentCommentRevisionsByDocument :exec
+DELETE FROM document_comment_revisions
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id);
+
 -- name: DeleteDocumentComments :exec
 DELETE FROM document_comments
 WHERE organization_id = sqlc.arg(organization_id)

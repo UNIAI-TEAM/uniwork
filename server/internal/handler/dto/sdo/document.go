@@ -122,6 +122,18 @@ type DocumentVersionResultSDO struct {
 	Version  DocumentVersionDTO `json:"version"`
 }
 
+// CommitIntentSDO answers GET /documents/{id}/versions/commit (G5-07): what
+// became of the caller's commit with the Idempotency-Key header. version and
+// revision are present only when outcome is committed. A key the server holds
+// no intent for (swept after its resume window, never received, or another
+// member's) is not this body but 410 commit_intent_unknown.
+type CommitIntentSDO struct {
+	Outcome   string `json:"outcome" description:"committed | not_committed (claim hết hạn, không attempt nào còn commit được) | in_flight (đang có claim sống) | unknown (chỉ đi kèm 410 commit_intent_unknown)" example:"committed"`
+	VersionID string `json:"version_id,omitempty" description:"ULID version đã tạo, khi committed" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+	Version   *int32 `json:"version,omitempty" description:"Số version đã tạo, khi committed" example:"3"`
+	Revision  string `json:"revision,omitempty" description:"Revision tài liệu sau commit (chuỗi thập phân), khi committed" example:"42"`
+}
+
 // DocumentAssetSDO is POST /documents/{id}/assets (C-01 §5.4): the asset a
 // page embeds via asset://{id}. url is the Go proxy route that serves the
 // bytes (302/presign is not used for documents).
@@ -328,16 +340,25 @@ type PublicDocumentDTO struct {
 // actor_type, actor_id, emoji, created_at) and is never omitted so the client
 // can tell "nobody reacted" ([]) apart from "this server does not send the
 // field"; display_name/avatar_url come from the author join the list query
-// already carries.
+// already carries. `type` keeps its old meaning for old clients; `kind` is the
+// same value under the G8 name, and the anchor/delete fields arrive empty
+// until a comment carries them.
 type DocumentCommentDTO struct {
 	ID          string               `json:"id" description:"ULID bình luận" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
 	DocumentID  string               `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	AuthorID    string               `json:"author_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	AuthorKind  string               `json:"author_kind" description:"human, agent hoặc system" example:"human"`
 	Author      ActorDTO             `json:"author"`
-	Body        string               `json:"body" description:"Nội dung đã trim; request bị chặn ở 1 MiB" example:"Chỗ này cần số liệu Q3."`
+	Body        string               `json:"body" description:"Nội dung đã trim; rỗng khi là khung đã xóa; request bị chặn ở 1 MiB" example:"Chỗ này cần số liệu Q3."`
 	ParentID    *string              `json:"parent_id,omitempty" description:"ULID bình luận cha khi là trả lời" example:"01J8X4CMTN1P2Q3R4S5T6U7W"`
-	Type        string               `json:"type" description:"comment (bình luận công khai); các loại hệ thống không nhận từ client" example:"comment"`
+	Type        string               `json:"type" description:"comment hoặc discussion (trường cũ, giữ cho client cũ); bằng kind" example:"comment"`
+	Kind        string               `json:"kind" description:"comment (bình luận có neo) hoặc discussion (thảo luận của tài liệu)" example:"discussion"`
+	Anchor      json.RawMessage      `json:"anchor" description:"Neo theo định dạng tài liệu; null khi không neo" example:"{\"format\":\"xlsx\",\"v\":1,\"sheet\":\"S1\",\"range\":\"B7\"}"`
+	AnchorState *string              `json:"anchor_state" description:"exact, stale hoặc lost; null khi không neo" example:"stale"`
+	AnchorVer   *string              `json:"anchor_version_id" description:"ULID phiên bản neo đang lưu; null khi không neo" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+	DeletedAt   *string              `json:"deleted_at" description:"Thời điểm xóa mềm; có giá trị = khung \"Nội dung đã bị xóa\"" example:"2026-10-13T09:00:00Z"`
+	DeletedByID *string              `json:"deleted_by_id" description:"ULID người xóa; null khi chưa xóa" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	DeletedKind *string              `json:"deleted_by_kind" description:"human, agent hoặc system; null khi chưa xóa" example:"human"`
 	Revision    int64                `json:"revision" description:"Số lần sửa; tăng sau mỗi lần update" example:"1"`
 	ResolvedAt  *string              `json:"resolved_at,omitempty" description:"Thời điểm đánh dấu đã giải quyết; null khi còn mở" example:"2026-09-28T09:00:00Z"`
 	CreatedAt   string               `json:"created_at" example:"2026-09-28T08:00:00Z"`
@@ -352,10 +373,56 @@ type DocumentCommentSDO struct {
 	Comment DocumentCommentDTO `json:"comment"`
 }
 
+// DocumentCommentMentionDTO is one name-table entry for the mention chips of
+// the returned comments (contract-collab section 2.1): the current display
+// name the server resolved once per full list, or `unavailable` when the
+// account is gone or no longer an effective member - the client then keeps
+// the label written in the token. G8-05 fills the table; until then a list
+// answers an empty array.
+type DocumentCommentMentionDTO struct {
+	UserID      string `json:"user_id" description:"ULID người được nhắc" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	DisplayName string `json:"display_name,omitempty" description:"Tên hiển thị hiện tại; vắng mặt khi state=unavailable" example:"Nguyễn An"`
+	AvatarURL   string `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
+	State       string `json:"state" description:"ok hoặc unavailable" example:"ok"`
+}
+
 // DocumentCommentListSDO is GET /api/v1/documents/{documentID}/comments:
-// oldest first, each row carrying its reactions.
+// oldest first, each row carrying its reactions. unchanged=true means the
+// caller's since_token still describes the document: comments and mentions
+// are then empty and the caller keeps its list (contract-collab section 2.1).
 type DocumentCommentListSDO struct {
-	Comments []DocumentCommentDTO `json:"comments"`
+	Comments  []DocumentCommentDTO        `json:"comments" description:"Cũ nhất trước; rỗng khi unchanged"`
+	Mentions  []DocumentCommentMentionDTO `json:"mentions" description:"Bảng tên của mọi mention trong comments trả về; rỗng khi unchanged"`
+	ListToken string                      `json:"list_token" description:"Token của toàn tài liệu ở lần trả này" example:"lt1:9f2c1d3e4b5a"`
+	Unchanged bool                        `json:"unchanged" description:"true khi since_token bằng token hiện tại" example:"false"`
+}
+
+// DocumentCommentDeleteSDO answers DELETE .../comments/{commentID}: `status`
+// keeps its old value and `outcome` names what the delete did - a comment
+// with surviving replies keeps its frame (tombstoned), one without is removed.
+type DocumentCommentDeleteSDO struct {
+	Status  string `json:"status" description:"ok" example:"ok"`
+	Outcome string `json:"outcome" description:"tombstoned khi khung giữ lại; removed khi dòng bị bỏ hẳn" example:"tombstoned"`
+}
+
+// DocumentCommentRevisionDTO is one edit-history row (contract-collab section
+// 2.7): the body a later edit replaced and the revision number that body
+// carried; created_by is the actor of that edit.
+type DocumentCommentRevisionDTO struct {
+	ID            string `json:"id" example:"01J8X4REVN1P2Q3R4S5T6U7V8"`
+	Revision      int64  `json:"revision" description:"Số revision của nội dung bị thay" example:"1"`
+	Body          string `json:"body" description:"Nội dung trước lần sửa" example:"Chỗ này cần số liệu Q3."`
+	CreatedByID   string `json:"created_by_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedByKind string `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
+	CreatedAt     string `json:"created_at" example:"2026-10-13T09:00:00Z"`
+}
+
+// DocumentCommentRevisionListSDO is GET
+// /api/v1/documents/{documentID}/comments/{commentID}/revisions: newest
+// first; a tombstoned comment answers 409 comment_deleted instead (its
+// history was deleted for real, Q8).
+type DocumentCommentRevisionListSDO struct {
+	Revisions []DocumentCommentRevisionDTO `json:"revisions"`
 }
 
 // DocumentFavoriteDTO is one favorited document in the caller's list. It

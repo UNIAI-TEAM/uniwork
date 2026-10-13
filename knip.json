@@ -25,7 +25,8 @@
         "k6",
         "sharp",
         "jszip",
-        "esbuild"
+        "esbuild",
+        "electron"
       ]
     },
     "apps/web": {

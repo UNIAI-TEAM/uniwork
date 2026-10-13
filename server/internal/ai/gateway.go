@@ -50,9 +50,17 @@ type Request struct {
 	WorkspaceID    string
 	Capability     Capability
 	PromptID       string
-	Vars           map[string]any
+	// Module is the genoffice module of an Office turn (xlsx, docx, pptx,
+	// pdf, md, html); G6-03a sets it. A prompt with Sections
+	// (office_uniwork_ai) sends OfficeSystemPrompt(Module) as its system text
+	// and refuses a missing or unknown module before the usage row; every
+	// other prompt ignores it.
+	Module string
+	Vars   map[string]any
 	// History is prior turns of a conversation, oldest first; the rendered
-	// prompt becomes the final user message.
+	// prompt becomes the final user message. A prompt without Render
+	// (office_uniwork_ai) renders nothing: History is sent as is and must end
+	// with the user's message, which the caller writes (G6-03a).
 	History []provider.Message
 	// ToolResultTurn sends History as is, with no rendered user message: it
 	// answers the assistant's tool calls, so History must end with that
@@ -135,6 +143,10 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	if !ok {
 		return Response{}, errPolicy("unknown prompt " + req.PromptID)
 	}
+	system, err := systemText(req, prompt)
+	if err != nil {
+		return Response{}, err
+	}
 	policy, model, err := ResolveModel(req.Capability, g.p.Name(), g.opts.Env, g.opts.ExtraAllow)
 	if err != nil {
 		return Response{}, err
@@ -163,7 +175,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		schema = nil
 	}
 	creq := provider.CompletionRequest{
-		Model: model, System: prompt.System, MaxTokens: policy.MaxTokens, Temperature: policy.Temperature,
+		Model: model, System: system, MaxTokens: policy.MaxTokens, Temperature: policy.Temperature,
 		JSONSchema: schema,
 	}
 	creq.Messages = msgs
@@ -237,11 +249,40 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	}, nil
 }
 
+// systemText is the system text the provider is sent: Prompt.System, or for a
+// prompt with Sections the variant assembled for req.Module. Only the office
+// pack carries Sections; a missing or unknown module is refused, never
+// defaulted to a section.
+func systemText(req Request, prompt Prompt) (string, error) {
+	if prompt.Sections == nil {
+		return prompt.System, nil
+	}
+	if prompt.Key() != PromptOfficeUniworkAI {
+		return "", errPolicy("prompt " + prompt.Key() + " has sections but no assembler")
+	}
+	text, err := officeAssemble(prompt, req.Module)
+	if err != nil {
+		return "", errPolicy(err.Error())
+	}
+	return text, nil
+}
+
 // requestMessages is what the provider is sent: History plus the rendered
-// prompt as the final user message, or, on a tool-result turn, History
-// exactly — refused unless it ends with tool results that answer every call
-// of the assistant message just before them, each exactly once.
+// prompt as the final user message; for a prompt without Render, History
+// exactly, refused unless it ends with a user message; or, on a tool-result
+// turn, History exactly — refused unless it ends with tool results that
+// answer every call of the assistant message just before them, each exactly
+// once.
 func requestMessages(req Request, prompt Prompt) ([]provider.Message, error) {
+	if !req.ToolResultTurn && prompt.Render == nil {
+		if len(req.Attachments) > 0 {
+			return nil, errPolicy("prompt " + prompt.Key() + " renders no user message to carry attachments")
+		}
+		if len(req.History) == 0 || req.History[len(req.History)-1].Role != "user" {
+			return nil, errPolicy("prompt " + prompt.Key() + " needs History ending with the user's message")
+		}
+		return req.History, nil
+	}
 	if !req.ToolResultTurn {
 		msgs := make([]provider.Message, 0, len(req.History)+1)
 		msgs = append(msgs, req.History...)
