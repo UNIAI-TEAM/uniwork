@@ -274,6 +274,18 @@ describe("useFrameComments: the frame's requests go to the D API with the user's
     expect(errorOf(answer)).toMatchObject({ code: expected, status });
   });
 
+  it("anchors on the route G8-04 has not merged (405) becomes `unsupported`, never `internal`", async () => {
+    const frame = setup({ myLevel: "edit" });
+    await frame.boot();
+    // the real server answers 405 with an empty body: the transport reads the
+    // status alone, so the ApiError carries no server code
+    frame.api.mockRejectedValue(new ApiError("Method Not Allowed", "internal", 405));
+    const answer = await frame.answerOf(
+      await frame.request("comments.anchors", { version_id: "v1", anchors: [{ comment_id: "c1", anchor: { format: "docx", v: 1 }, state: "exact" }] }),
+    );
+    expect(errorOf(answer)).toMatchObject({ code: "unsupported", status: 405, retryable: false });
+  });
+
   it("a network failure is `network`, retryable", async () => {
     const frame = setup({ myLevel: "edit" });
     await frame.boot();
