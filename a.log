@@ -1,0 +1,3 @@
+$ git rev-parse HEAD && git merge-base --is-ancestor 4adb115bc HEAD && echo HAS_G5_07
+42271ec8a7248cec7a7801023e320907778df3b2
+HAS_G5_07

@@ -1,0 +1,44 @@
+$ D_ROOT=$(pwd); export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh" >/dev/null 2>&1; nvm use 22 >/dev/null 2>&1; node -v; ORIGIN=$(grep -m1 '^API_ORIGIN=' "$D_ROOT/.harness-run/ports.env" | cut -d= -f2-); echo "origin set: ${ORIGIN:+yes}"; cd /tmp/uw-g506-ac4 && UNIWORK_LIVE_ORIGIN="$ORIGIN" AI_PROVIDER=fake npx vitest run --root apps/shell tests/live/uniwork-save-queue-live.test.ts --reporter=verbose; rc=$?; echo "LIVE_ON_EXIT=$rc"; [ $rc -eq 0 ]
+v22.14.0
+origin set: yes
+
+ RUN  v4.1.11 /tmp/uw-g506-ac4/apps/shell
+
+ ✓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 1. lookup of a never-received key: 410 commit_intent_unknown, never a false not_committed 5ms
+ ✓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 2. commit with a key: a receipt, and the lookup reports the same version and revision 16ms
+ ✓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 3. replay of the same key: the stored answer, no second version 9ms
+ ✓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 4. a queued intent dispatched by the QueueDispatcher: exactly one version, a second pass does nothing 29ms
+ × tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 5. an intent left committing at rest resolves by lookup to committed, no second version 20ms
+   → 5: settling must never re-upload a byte (only the direct commit uploaded): expected +0 to be 1 // Object.is equality
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 6. lookup in_flight: needs a way to hold a claim open 0ms [6: the server exposes no way to hold a commit-intent claim open for a lookup (the claim is live only inside a real in-flight commit POST, TTL DOCUMENT_COMMIT_INTENT_CLAIM_TTL, default 2m), so in_flight cannot be grounded from the harness; stated gap G5-D2]
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 7. lookup unknown after the retention sweep: pending G5-D2 retention numbers 0ms [7: commit_intent_unknown for a SWEPT intent is only reachable after the server retention sweep (DOCUMENT_COMMIT_INTENT_RETENTION, default 7 days) and the sweep tick is fixed at 10 minutes with no harness/env override, so a short-retention run cannot ground it; the never-received key form of the same 410 is asserted in step 1. Pending G5-D2 retention numbers]
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 8. sync_write off: a queued intent parks paused_admin and no request reaches the server 0ms [8: office_sync_write is on for this run (D keys.go default true); ground the off path by starting the harness server with FF_OFFICE_SYNC_WRITE=false and running with UNIWORK_LIVE_EXPECT_SYNC_WRITE_OFF=1, and do not reuse that origin for steps 4-5]
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 5. an intent left committing at rest resolves by lookup to committed, no second version
+AssertionError: 5: settling must never re-upload a byte (only the direct commit uploaded): expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/live/uniwork-save-queue-live.test.ts:519:7
+    517|       delta(s.counters.upload, start.upload),
+    518|       '5: settling must never re-upload a byte (only the direct commit…
+    519|     ).toBe(1)
+       |       ^
+    520|     expect(
+    521|       delta(s.counters.commit, start.commit),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed | 3 skipped (8)
+   Start at  21:17:26
+   Duration  561ms (transform 191ms, setup 0ms, import 226ms, tests 246ms, environment 0ms)
+
+LIVE_ON_EXIT=1
