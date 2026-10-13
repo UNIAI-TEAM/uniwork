@@ -205,10 +205,10 @@ func TestDocumentCommentRevisionAfterStateChanges(t *testing.T) {
 	d, versions := f.anchorDoc(t, tn, "xlsx", 1)
 	member, acl := Human(tn.member.ID), Human(tn.aclOwner.ID)
 
-	c, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "gốc"}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	// An anchored root kind=comment (R3-3): an anchorless discussion would
+	// hit the PUT's skip branch and write nothing, so the anchor PUT leg below
+	// would pass even if UpdateDocumentCommentAnchor started bumping revision.
+	c := f.anchoredCreate(t, member, d, versions[0].ID, string(anchorRaw("xlsx", nil)), "")
 	up1, err := f.svc.UpdateDocumentComment(f.ctx, member, c.ID, UpdateCommentInput{Body: "sửa 1"})
 	if err != nil || up1.Revision != c.Revision+1 {
 		t.Fatalf("first update = %v %+v", err, up1)
@@ -232,14 +232,20 @@ func TestDocumentCommentRevisionAfterStateChanges(t *testing.T) {
 	if err != nil || up4.Revision != up3.Revision+1 {
 		t.Fatalf("update after reopen = %v %+v", err, up4)
 	}
-	if _, err := f.svc.PutDocumentCommentAnchors(f.ctx, member, d.ID, DocumentCommentAnchorsInput{
+	// A new anchor so the PUT writes the row (R3-3): the same anchor as the
+	// create would be a no-op and leave UpdateDocumentCommentAnchor unexercised.
+	res, err := f.svc.PutDocumentCommentAnchors(f.ctx, member, d.ID, DocumentCommentAnchorsInput{
 		VersionID:      versions[0].ID,
 		AnchorsPresent: true,
 		Anchors: []DocumentCommentAnchorItem{{
-			CommentID: c.ID, Anchor: anchorRaw("xlsx", nil), State: DocumentCommentAnchorExact,
+			CommentID: c.ID, Anchor: anchorRaw("xlsx", map[string]any{"range": "B9"}), State: DocumentCommentAnchorExact,
 		}},
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if len(res.Updated) != 1 || res.Updated[0] != c.ID {
+		t.Fatalf("anchor PUT updated = %v, want [%s]", res.Updated, c.ID)
 	}
 	up5, err := f.svc.UpdateDocumentComment(f.ctx, member, c.ID, UpdateCommentInput{Body: "sửa 5"})
 	if err != nil || up5.Revision != up4.Revision+1 {
