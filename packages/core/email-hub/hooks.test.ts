@@ -2,7 +2,11 @@ import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
-import { getEmailHubProviders, startEmailHubOAuth } from "../api/endpoints/email-hub";
+import {
+  getEmailHubProviders,
+  listEmailHubThreads,
+  startEmailHubOAuth,
+} from "../api/endpoints/email-hub";
 import type { EmailHubThread } from "../types/email-hub";
 import {
   emailHubHasReadableBody,
@@ -13,6 +17,7 @@ import {
   patchEmailHubThreadInLists,
   setEmailHubListRefreshPaused,
   useEmailHubProviders,
+  useEmailHubThreads,
   useStartEmailHubOAuth,
 } from "./hooks";
 
@@ -20,6 +25,9 @@ import {
 vi.mock("../api/endpoints/email-hub", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/endpoints/email-hub")>()),
   getEmailHubProviders: vi.fn(() => Promise.resolve({ google: true, microsoft: false })),
+  listEmailHubThreads: vi.fn(() =>
+    Promise.resolve({ threads: [], counts: { total: 0, unread: 0 }, next_cursor: "" }),
+  ),
   startEmailHubOAuth: vi.fn(() => Promise.resolve("https://accounts.google.com/o/oauth2/auth?state=s1")),
 }));
 
@@ -186,5 +194,18 @@ describe("email hub OAuth hooks", () => {
       "https://accounts.google.com/o/oauth2/auth?state=s1",
     );
     expect(startEmailHubOAuth).toHaveBeenCalledWith("ws1", "google", "an@gmail.com");
+  });
+});
+
+describe("email hub thread hooks", () => {
+  it("passes React Query's abort signal to the thread-list endpoint", async () => {
+    const qc = new QueryClient();
+    const { result } = renderHook(() => useEmailHubThreads("ws1", "acc1"), {
+      wrapper: wrapperFor(qc),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const signal = vi.mocked(listEmailHubThreads).mock.calls[0]?.[6];
+    expect(signal).toBeInstanceOf(AbortSignal);
   });
 });
