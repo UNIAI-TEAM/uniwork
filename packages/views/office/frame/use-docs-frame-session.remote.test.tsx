@@ -354,12 +354,12 @@ describe("useDocsFrameSession: revoke and delete block the frame", () => {
     expect(frame.save).not.toHaveBeenCalled();
   });
 
-  it("a head read refused for an organization reason blocks nothing: the server refuses those Saves itself", async () => {
+  it("a head read refused for an organization reason tells the frame, but refuses no Save here (the server does)", async () => {
     for (const code of ["organization_suspended", "member_deactivated", "document_archived"]) {
       const frame = await openedFrame();
       frame.server.headError = new ApiError(code, code, 403);
       await act(async () => { ws.emit("document.share_revoked", { document_id: "doc-1", workspace_id: "ws-1", share_id: "s-1" }); });
-      await flush();
+      await waitFor(() => expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: code }]));
       expect(frame.hook.result.current.blocked).toBeNull();
       const reply = await frame.answer(frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(2), etag: "9" }));
       expect(reply.error).toBeUndefined();
@@ -466,5 +466,80 @@ describe("useDocsFrameSession: change feed catch-up after a reconnect (G5-02)", 
     expect(feedCalls()).toHaveLength(2);
     expect(headReads()).toBe(0);
     expect(frame.hook.result.current.blocked).toBeNull();
+  });
+});
+
+describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", () => {
+  const share = () => act(async () => { ws.emit("document.share_revoked", { document_id: "doc-1", workspace_id: "ws-1", share_id: "s-1" }); });
+
+  it("a realtime revoke: doc.blocked permission_revoked before any Save", async () => {
+    const frame = await openedFrame();
+    frame.server.headError = new ApiError("forbidden", "forbidden", 403);
+    await share();
+    await waitFor(() => expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: "permission_revoked" }]));
+    expect(frame.save).not.toHaveBeenCalled();
+    expect(requestMock.mock.calls.some(([path]) => path === DOC_PATH)).toBe(true);
+  });
+
+  it("a realtime delete: doc.blocked document_deleted at once, once per reason", async () => {
+    const frame = await openedFrame();
+    await act(async () => { ws.emit("document.deleted", { document_id: "doc-1", workspace_id: "ws-1" }); });
+    expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: "document_deleted" }]);
+    await act(async () => { ws.emit("document.deleted", { document_id: "doc-1", workspace_id: "ws-1" }); });
+    frame.server.headError = new ApiError("forbidden", "forbidden", 403);
+    await share();
+    await flush();
+    expect(frame.events("doc.blocked")).toHaveLength(1);
+  });
+
+  it("another document's delete or revoke sends nothing", async () => {
+    const frame = await openedFrame();
+    await act(async () => {
+      ws.emit("document.deleted", { document_id: "doc-2", workspace_id: "ws-1" });
+      ws.emit("document.share_revoked", { document_id: "doc-2", workspace_id: "ws-1", share_id: "s-2" });
+    });
+    await flush();
+    expect(frame.events("doc.blocked")).toHaveLength(0);
+    expect(frame.hook.result.current.blocked).toBeNull();
+  });
+
+  it("after a reconnect the feed lists the document and its head is gone: doc.blocked document_deleted", async () => {
+    const frame = await openedFrame();
+    frame.server.headError = new ApiError("not found", "not_found", 404);
+    frame.server.feed = {
+      phase: "snapshot", has_more: false, next_cursor: "c-1", expires_at: "2026-10-14T00:00:00Z",
+      changes: [{ document_id: "doc-1", kind: "file", revision: "10", current_version: 2, version_id: "v2" }],
+    };
+    await act(async () => { ws.reconnect(); });
+    await waitFor(() => expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: "document_deleted" }]));
+    expect(frame.hook.result.current.blocked).toBe("document_deleted");
+  });
+
+  it("after a reconnect the feed refuses this viewer: the head read decides (403 -> revoked)", async () => {
+    const frame = await openedFrame();
+    frame.server.headError = new ApiError("forbidden", "forbidden", 403);
+    frame.server.feed = () => { throw new ApiError("forbidden", "forbidden", 403); };
+    await act(async () => { ws.reconnect(); });
+    await waitFor(() => expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: "permission_revoked" }]));
+  });
+
+  it("with office_sync_feed off the realtime delete and revoke still block (the flag turns off S6 news only)", async () => {
+    flag.syncFeed = false;
+    const frame = await openedFrame();
+    frame.server.headError = new ApiError("forbidden", "forbidden", 403);
+    await share();
+    await waitFor(() => expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: "permission_revoked" }]));
+    await act(async () => { ws.emit("document.deleted", { document_id: "doc-1", workspace_id: "ws-1" }); });
+    expect(frame.events("doc.blocked").map((p) => (p as { reason: string }).reason)).toEqual(["permission_revoked", "document_deleted"]);
+    expect(frame.events("doc.remoteVersion")).toHaveLength(0);
+  });
+
+  it("a block heard before the frame (re)connects reaches it on the handshake", async () => {
+    const frame = await openedFrame();
+    await act(async () => { ws.emit("document.deleted", { document_id: "doc-1", workspace_id: "ws-1" }); });
+    act(() => { frame.hook.result.current.retry(); });
+    await frame.boot();
+    await waitFor(() => expect(frame.events("doc.blocked")).toHaveLength(2));
+    expect(frame.events("doc.blocked").at(-1)).toEqual({ document_id: "doc-1", reason: "document_deleted" });
   });
 });

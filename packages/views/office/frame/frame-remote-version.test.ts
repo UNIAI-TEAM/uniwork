@@ -1,15 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { DocsProtocolError, type SaveResult } from "@uniwork/core/office/docs-frame-protocol";
-import { createFrameRemoteVersion, remoteAwareSave, type FrameBlock } from "./frame-remote-version";
+import { blockOfHeadError, createFrameRemoteVersion, remoteAwareSave, type FrameBlock } from "./frame-remote-version";
 
 const file = (revision: string, versionId: string) => ({ fileId: "doc-1", name: "Plan.docx", etag: revision, versionId });
 const head = (revision: string, versionId: string | null) => ({ revision, versionId, savedAt: "2026-10-13T08:00:00Z" });
 
 function remote(enabled = true) {
   const notify = vi.fn();
+  const notifyBlocked = vi.fn();
   const state = { enabled };
-  const r = createFrameRemoteVersion({ documentId: "doc-1", enabled: () => state.enabled, notify });
-  return { r, notify, state };
+  const r = createFrameRemoteVersion({ documentId: "doc-1", enabled: () => state.enabled, notify, notifyBlocked });
+  return { r, notify, notifyBlocked, state };
 }
 
 describe("createFrameRemoteVersion", () => {
@@ -63,6 +64,50 @@ describe("createFrameRemoteVersion", () => {
     r.opened({ ...file("1", "c1"), fileId: "doc-2" });
     r.offer(head("2", "c2"));
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ document_id: "doc-2", revision: "2" }));
+  });
+});
+
+describe("doc.blocked bookkeeping", () => {
+  it("tells the frame once per reason, whatever the feed flag says; a revoke or a delete refuses Saves", () => {
+    const { r, notifyBlocked } = remote(false);
+    r.block("permission_revoked");
+    r.block("permission_revoked");
+    expect(notifyBlocked.mock.calls).toEqual([[{ document_id: "doc-1", reason: "permission_revoked" }]]);
+    expect(r.blocked).toBe("permission_revoked");
+    r.block("document_deleted");
+    expect(r.blocked).toBe("document_deleted");
+    r.block("permission_revoked");
+    expect(r.blocked).toBe("document_deleted");
+    expect(notifyBlocked.mock.calls.map(([p]) => p.reason)).toEqual(["permission_revoked", "document_deleted"]);
+  });
+
+  it("the reasons with their own wording reach the frame but refuse no Save here", () => {
+    const { r, notifyBlocked } = remote();
+    r.block("organization_suspended");
+    expect(notifyBlocked).toHaveBeenCalledWith({ document_id: "doc-1", reason: "organization_suspended" });
+    expect(r.blocked).toBeNull();
+  });
+
+  it("announceBlock repeats the last reason for a frame that connected after it; nothing before a block", () => {
+    const { r, notifyBlocked } = remote();
+    r.announceBlock();
+    expect(notifyBlocked).not.toHaveBeenCalled();
+    r.block("document_deleted");
+    r.announceBlock();
+    expect(notifyBlocked.mock.calls).toEqual([[{ document_id: "doc-1", reason: "document_deleted" }], [{ document_id: "doc-1", reason: "document_deleted" }]]);
+  });
+
+  it.each<[number, string, string | null]>([
+    [404, "not_found", "document_deleted"],
+    [410, "document_deleted", "document_deleted"],
+    [403, "forbidden", "permission_revoked"],
+    [403, "organization_suspended", "organization_suspended"],
+    [403, "member_deactivated", "member_deactivated"],
+    [403, "document_archived", "document_archived"],
+    [500, "internal", null],
+    [401, "unauthorized", null],
+  ])("a head read refused with %i %s reads as %s", (status, code, expected) => {
+    expect(blockOfHeadError(status, code)).toBe(expected);
   });
 });
 
