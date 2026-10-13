@@ -2,6 +2,9 @@ package service
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -391,5 +394,72 @@ func TestListInvoicesRequiresMember(t *testing.T) {
 	}
 	if len(rows) != 0 {
 		t.Fatalf("want empty, got %d", len(rows))
+	}
+}
+
+func TestHandleProviderWebhookZeroTxnNoFailsEachOrg(t *testing.T) {
+	f := newBillingFixture(t)
+	ownerB := registerVerified(t, f.q, f.auth, "cancel-b@example.com", "Owner B")
+	orgB, err := f.orgs.Create(f.ctx, ownerB.ID, "Org B", "org-b-cancel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := "secret"
+	prov := billing.FromConfig(config.Config{BillingProvider: "vnpay", VNPayTMNCode: "TMN", VNPayHashSecret: secret})
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, prov)
+	insert := func(id, orgID string) {
+		t.Helper()
+		if _, err := f.pool.Exec(f.ctx, `INSERT INTO billing_payment_intents (
+			id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
+			amount, currency, status, expires_at
+		) SELECT $1, s.organization_id, s.id, s.plan_id, 'vnpay', $1, 499000, 'VND', 'pending', now() + interval '15 minutes'
+		  FROM subscriptions s WHERE s.organization_id = $2 AND s.status <> 'canceled'`,
+			id, orgID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insert("01TESTVNAPYINTENT00011", f.orgID)
+	insert("01TESTVNAPYINTENT00012", orgB.ID)
+
+	cancel := func(txnRef string) (string, error) {
+		t.Helper()
+		params := map[string]string{
+			"vnp_Amount":        "49900000",
+			"vnp_ResponseCode":  "24",
+			"vnp_TmnCode":       "TMN",
+			"vnp_TransactionNo": "0",
+			"vnp_TxnRef":        txnRef,
+			"vnp_CurrCode":      "VND",
+		}
+		billing.SignIPNForTest(params, secret)
+		q := url.Values{}
+		for k, val := range params {
+			q.Set(k, val)
+		}
+		req := httptest.NewRequest(http.MethodGet, "/ipn?"+q.Encode(), nil)
+		ev, err := prov.ParseWebhook(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ev.ProviderEventID == "0" {
+			t.Fatalf("event id for %s is 0", txnRef)
+		}
+		payload, err := ProviderWebhookPayloadJSON(ev)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return f.billing.HandleProviderWebhook(f.ctx, ev, payload)
+	}
+	for _, id := range []string{"01TESTVNAPYINTENT00011", "01TESTVNAPYINTENT00012"} {
+		code, err := cancel(id)
+		if err != nil || code != "00" {
+			t.Fatalf("cancel %s: code=%s err=%v", id, code, err)
+		}
+	}
+	for _, id := range []string{"01TESTVNAPYINTENT00011", "01TESTVNAPYINTENT00012"} {
+		var status string
+		if err := f.pool.QueryRow(f.ctx, `SELECT status FROM billing_payment_intents WHERE id = $1`, id).Scan(&status); err != nil || status != "failed" {
+			t.Fatalf("intent %s status=%q err=%v, want failed", id, status, err)
+		}
 	}
 }

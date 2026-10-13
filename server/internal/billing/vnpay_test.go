@@ -89,7 +89,46 @@ func TestVNPayParseWebhookGET(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ev.Paid || ev.ProviderTxnRef != "01INTENT" || ev.Amount != 500000 {
+	if !ev.Paid || ev.ProviderTxnRef != "01INTENT" || ev.Amount != 500000 || ev.ProviderEventID != "14234567" {
 		t.Fatalf("event: %+v", ev)
+	}
+}
+
+func TestVNPayParseWebhookZeroTransactionNo(t *testing.T) {
+	t.Parallel()
+	secret := "testsecret"
+	v, err := NewVNPay(VNPayConfig{TMNCode: "TMN", HashSecret: secret})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parse := func(txnRef string) Event {
+		t.Helper()
+		params := map[string]string{
+			"vnp_Amount":        "49900000",
+			"vnp_ResponseCode":  "24",
+			"vnp_TmnCode":       "TMN",
+			"vnp_TransactionNo": "0",
+			"vnp_TxnRef":        txnRef,
+			"vnp_CurrCode":      "VND",
+		}
+		params["vnp_SecureHash"] = vnpSign(params, secret)
+		q := url.Values{}
+		for k, val := range params {
+			q.Set(k, val)
+		}
+		req := httptest.NewRequest(http.MethodGet, "/?"+q.Encode(), nil)
+		ev, err := v.ParseWebhook(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ev
+	}
+	a := parse("01INTENTA")
+	b := parse("01INTENTB")
+	if a.ProviderEventID == "0" || b.ProviderEventID == "0" || a.ProviderEventID == b.ProviderEventID {
+		t.Fatalf("cancel event ids = %q and %q", a.ProviderEventID, b.ProviderEventID)
+	}
+	if a.Paid || b.Paid {
+		t.Fatalf("cancel IPN marked paid: %+v %+v", a, b)
 	}
 }
