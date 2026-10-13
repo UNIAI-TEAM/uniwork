@@ -135,3 +135,21 @@ func TestCloseOrganization(t *testing.T) {
 		}
 	})
 }
+
+// A closed organization holds nobody (ADR 0032 D1), so its former owner may
+// erase the account: the owner row stays role=owner for a later restore, but
+// it is deactivated and the organization archived.
+func TestClosedOrganizationDoesNotBlockAccountDeletion(t *testing.T) {
+	f := newOrgMembersFixture(t)
+	o := f.soloOrganization(t)
+	if err := f.svc.Close(f.ctx, f.other.ID, o.ID, "mot-minh"); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if err := f.auth.DeleteAccount(f.ctx, f.other.ID, DeleteAccountInput{Password: "password123"}); err != nil {
+		t.Fatalf("delete the account of a closed organization's owner: %v", err)
+	}
+	// The owner of a live organization still has to hand it over first.
+	if err := f.auth.DeleteAccount(f.ctx, f.owner.ID, DeleteAccountInput{Password: "password123"}); !errors.Is(err, ErrOwnerMustTransfer) {
+		t.Fatalf("delete the account of an active owner: %v", err)
+	}
+}

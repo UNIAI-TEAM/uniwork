@@ -79,10 +79,15 @@ func (q *Queries) ConsumeUserRecoveryCode(ctx context.Context, arg ConsumeUserRe
 }
 
 const countOwnedOrganizationsForUser = `-- name: CountOwnedOrganizationsForUser :one
-SELECT count(*) FROM organization_members WHERE user_id = $1 AND role = 'owner'
+SELECT count(*) FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.user_id = $1 AND m.role = 'owner' AND m.deactivated_at IS NULL
+  AND o.status IN ('active', 'suspended')
 `
 
 // tenant: self
+// Only an organization the account still belongs to (ADR 0032 D1) holds the
+// deletion back: a closed one keeps its owner row, deactivated, for a restore.
 func (q *Queries) CountOwnedOrganizationsForUser(ctx context.Context, userID string) (int64, error) {
 	row := q.db.QueryRow(ctx, countOwnedOrganizationsForUser, userID)
 	var count int64
