@@ -48,8 +48,6 @@ func (f *fakeRunStore) AddCredits(_ context.Context, runID, conversationID strin
 	return f.creditErr
 }
 
-func (f *fakeRunStore) Sweep(context.Context, time.Time) (int64, error) { return 0, nil }
-
 // A run whose model-call cap is spent answers 409 run_limit_reached with
 // fields.limit naming the cap (A3, design §2.3): the store decides which cap
 // bound, the service hands the refusal to the wire unchanged — no rewrapping
@@ -355,8 +353,6 @@ func (s *scriptedRunStore) AddCredits(_ context.Context, runID, conversationID s
 	return nil
 }
 
-func (s *scriptedRunStore) Sweep(context.Context, time.Time) (int64, error) { return 0, nil }
-
 func (s *scriptedRunStore) takesFor(runID string) []ai.TakeRunTurn {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -490,11 +486,16 @@ func TestAIUniworkUsageRecordedWhenClientDisconnects(t *testing.T) {
 		}, nil
 	}
 
-	_, _ = w.svc.Chat(reqCtx, w.scope(), UniworkTurnInput{Body: w.body(t, "câu hỏi bị ngắt")})
+	// The turn may answer nothing to a client that is gone; what it must not
+	// do is stop before the vendor, so the error is kept for the failure
+	// message instead of the row count being the only clue (a refusal that
+	// precedes the Gateway — run_expired, a spent cap — read as "0 rows").
+	turn, err := w.svc.Chat(reqCtx, w.scope(), UniworkTurnInput{Body: w.body(t, "câu hỏi bị ngắt")})
 
 	rows := w.usageRows(t)
 	if len(rows) != 1 {
-		t.Fatalf("usage rows after the hang-up = %d %+v, want one settled row", len(rows), rows)
+		t.Fatalf("usage rows after the hang-up = %d %+v (turn %+v, err %v), want one settled row",
+			len(rows), rows, turn, err)
 	}
 	if rows[0].Status != "succeeded" || rows[0].InputTokens != 12 || rows[0].OutputTokens != 5 {
 		t.Fatalf("row after the hang-up = %+v, want succeeded with the vendor's tokens", rows[0])
