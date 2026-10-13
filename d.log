@@ -1,0 +1,55 @@
+$ git checkout 819d50f9 -- web/docs/protocol/types.ts web/docs/protocol/client.ts; (cd web/docs/protocol && npx vitest run test); P=$?; git checkout HEAD -- web; echo "RED_EXIT protocol=$P"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/protocol
+
+ ❯ test/modules.test.ts (18 tests | 2 failed) 32ms
+     × init.downloadMaxBytes is an optional positive safe integer (X-02 r2b) 6ms
+     × the frame session carries downloadMaxBytes from init 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/modules.test.ts > additive fields for the modules (GO-B4) > init.downloadMaxBytes is an optional positive safe integer (X-02 r2b)
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/modules.test.ts:248:61
+    246|     expect(isInitPayload({ ...init, downloadMaxBytes: Number.MAX_SAFE_…
+    247|     // present and not a positive safe integer: the whole init is malf…
+    248|     expect(isInitPayload({ ...init, downloadMaxBytes: 0 })).toBe(false)
+       |                                                             ^
+    249|     expect(isInitPayload({ ...init, downloadMaxBytes: -5 })).toBe(fals…
+    250|     expect(isInitPayload({ ...init, downloadMaxBytes: 1.5 })).toBe(fal…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/modules.test.ts > additive fields for the modules (GO-B4) > the frame session carries downloadMaxBytes from init
+AssertionError: expected undefined to be 1024 // Object.is equality
+
+- Expected:
+1024
+
++ Received:
+undefined
+
+ ❯ test/modules.test.ts:262:38
+    260|     const { client } = setup({ getInit }, {})
+    261|     const session = await client.whenInitialized()
+    262|     expect(session.downloadMaxBytes).toBe(1024)
+       |                                      ^
+    263|   })
+    264|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  2 failed | 123 passed (125)
+   Start at  03:32:07
+   Duration  353ms (transform 388ms, setup 0ms, import 454ms, tests 124ms, environment 0ms)
+
+RED_EXIT protocol=1

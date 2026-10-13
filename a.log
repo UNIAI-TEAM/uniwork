@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -5
+9adbb637ff640c8c64f5c477f9a45d46e00a3fc2
+819d50f975f9cb20da85eb188209d8b1de237b85
+9adbb637 fix(web): say the download is too large, not that the overwrite failed
+c986272b test(web): the disabled download choice gives a download-specific too-large reason
+b8cf0a7b feat(web): disable the download choice up front when my version is over the host's cap
+0cb842fa test(web): the conflict dialog disables the download choice when my version is over the host's cap
+e36cc7df feat(protocol): init.downloadMaxBytes, the largest file api.download accepts
