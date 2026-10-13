@@ -8254,6 +8254,7 @@
       "comment_edited_time": "Đã sửa · {{time}}",
       "comment_reply_count_one": "{{count}} trả lời",
       "comment_reply_count_other": "{{count}} trả lời",
+      "comment_deleted": "Nội dung đã bị xóa",
       "comment_resolved": "Đã xử lý",
       "comment_actions": "Thao tác bình luận",
       "comment_copy": "Sao chép nội dung",

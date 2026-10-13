@@ -21,21 +21,23 @@ func TestDocumentCommentThread(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// No kind on a root: discussion is the default since G8-03 (OQ-C2); the
+	// rows that existed before the change are discussions too (G8-D5).
 	if root.DocumentID != d.ID || root.OrganizationID != tn.orgID || root.WorkspaceID != tn.wsA ||
-		root.AuthorID != tn.member.ID || root.AuthorKind != "human" || root.CommentType != "comment" {
+		root.AuthorID != tn.member.ID || root.AuthorKind != "human" || root.CommentType != "discussion" {
 		t.Fatalf("root comment = %+v", root)
 	}
 	reply, err := f.svc.AddDocumentComment(f.ctx, acl, d.ID, AddCommentInput{Body: "sẽ xử", ParentID: &root.ID}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reply.ParentCommentID.String != root.ID {
-		t.Fatalf("reply parent = %v", reply.ParentCommentID)
+	if reply.ParentCommentID.String != root.ID || reply.CommentType != "discussion" {
+		t.Fatalf("reply = %+v", reply)
 	}
 
-	list, err := f.svc.DocumentComments(f.ctx, member, d.ID)
-	if err != nil || len(list) != 2 {
-		t.Fatalf("comments = %d %v", len(list), err)
+	list, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{})
+	if err != nil || len(list.Rows) != 2 || list.Token == "" {
+		t.Fatalf("comments = %d %v token=%q", len(list.Rows), err, list.Token)
 	}
 
 	// The same Idempotency-Key replays the stored response instead of
@@ -51,9 +53,9 @@ func TestDocumentCommentThread(t *testing.T) {
 	if again.ID != replay.ID {
 		t.Fatalf("idempotent replay wrote a second row: %s vs %s", again.ID, replay.ID)
 	}
-	list, err = f.svc.DocumentComments(f.ctx, member, d.ID)
-	if err != nil || len(list) != 3 {
-		t.Fatalf("comments after replay = %d %v", len(list), err)
+	list, err = f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{})
+	if err != nil || len(list.Rows) != 3 {
+		t.Fatalf("comments after replay = %d %v", len(list.Rows), err)
 	}
 }
 
@@ -98,7 +100,7 @@ func TestDocumentCommentLevels(t *testing.T) {
 	member, outsider, acl := Human(tn.member.ID), Human(tn.outsider.ID), Human(tn.aclOwner.ID)
 
 	// A workspace member of a restricted document: nothing, not even read.
-	if _, err := f.svc.DocumentComments(f.ctx, member, d.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("member on restricted doc: %v, want ErrNotFound", err)
 	}
 	if _, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "x"}, ""); !errors.Is(err, ErrNotFound) {
@@ -111,8 +113,8 @@ func TestDocumentCommentLevels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := f.svc.DocumentComments(f.ctx, outsider, d.ID); err != nil || len(got) != 1 {
-		t.Fatalf("viewer comments = %d %v", len(got), err)
+	if got, err := f.svc.DocumentComments(f.ctx, outsider, d.ID, DocumentCommentListInput{}); err != nil || len(got.Rows) != 1 {
+		t.Fatalf("viewer comments = %d %v", len(got.Rows), err)
 	}
 	if _, err := f.svc.AddDocumentComment(f.ctx, outsider, d.ID, AddCommentInput{Body: "viewer writes"}, ""); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("viewer write: %v, want ErrForbidden", err)
@@ -142,11 +144,11 @@ func TestDocumentCommentLevels(t *testing.T) {
 	if _, err := f.svc.UpdateDocumentComment(f.ctx, acl, mc.ID, UpdateCommentInput{Body: "manage sửa"}); err != nil {
 		t.Fatalf("manage edit: %v", err)
 	}
-	if err := f.svc.DeleteDocumentComment(f.ctx, member, c.ID); !errors.Is(err, ErrForbidden) {
+	if _, err := f.svc.DeleteDocumentComment(f.ctx, member, c.ID); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("editor deleting another's: %v, want ErrForbidden", err)
 	}
-	if err := f.svc.DeleteDocumentComment(f.ctx, acl, mc.ID); err != nil {
-		t.Fatalf("manage delete: %v", err)
+	if outcome, err := f.svc.DeleteDocumentComment(f.ctx, acl, mc.ID); err != nil || outcome != DocumentCommentOutcomeRemoved {
+		t.Fatalf("manage delete = %q %v", outcome, err)
 	}
 }
 
@@ -162,7 +164,7 @@ func TestDocumentCommentAnonymousAndAgent(t *testing.T) {
 	if _, err := f.svc.AddDocumentComment(f.ctx, Actor{}, d.ID, AddCommentInput{Body: "anon"}, ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("anonymous write: %v, want ErrNotFound", err)
 	}
-	if _, err := f.svc.DocumentComments(f.ctx, Actor{}, d.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := f.svc.DocumentComments(f.ctx, Actor{}, d.ID, DocumentCommentListInput{}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("anonymous read: %v, want ErrNotFound", err)
 	}
 	if _, err := f.svc.AddDocumentComment(f.ctx, agent, d.ID, AddCommentInput{Body: "agent"}, ""); !errors.Is(err, ErrForbidden) {
@@ -206,7 +208,7 @@ func TestDocumentCommentRevokeBetweenWrites(t *testing.T) {
 	if _, err := f.svc.AddDocumentComment(f.ctx, actor, d.ID, AddCommentInput{Body: "sau"}, ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("comment after revoke: %v, want ErrNotFound", err)
 	}
-	if _, err := f.svc.DocumentComments(f.ctx, actor, d.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := f.svc.DocumentComments(f.ctx, actor, d.ID, DocumentCommentListInput{}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("read after revoke: %v, want ErrNotFound", err)
 	}
 }

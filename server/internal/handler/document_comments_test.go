@@ -35,6 +35,7 @@ import (
 type documentCollabWorld struct {
 	srv      *httptest.Server
 	docs     *service.DocumentService
+	q        *db.Queries
 	orgID    string
 	wsID     string
 	token    string // owner
@@ -77,7 +78,7 @@ func newDocumentCollabWorld(t *testing.T) *documentCollabWorld {
 		testFlagOverrides.Invalidate()
 	}
 
-	w := &documentCollabWorld{srv: srv, docs: docs}
+	w := &documentCollabWorld{srv: srv, docs: docs, q: q}
 	w.token, w.userID = filesRegister(t, srv, "collab-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Collab Org", "slug": "collab-org"})
 	if res.StatusCode != 201 {
@@ -146,7 +147,7 @@ func (w *documentCollabWorld) createComment(t *testing.T, token, documentID, bod
 		payload[k] = v
 	}
 	res, out := doJSON(t, w.srv, "POST", w.commentsPath(documentID), token, payload)
-	if res.StatusCode != 200 {
+	if res.StatusCode != 201 {
 		t.Fatalf("create comment: %d %v", res.StatusCode, out)
 	}
 	return out["comment"].(map[string]any)["id"].(string)
@@ -173,10 +174,10 @@ func TestDocumentCommentHTTPLifecycle(t *testing.T) {
 	}
 
 	// Create under an Idempotency-Key: edit level, author is the caller, the
-	// type defaults to comment, and no parent is set.
+	// type defaults to discussion since G8-03 (OQ-C2), and no parent is set.
 	res, out := doJSONHeaders(t, w.srv, "POST", w.commentsPath(docID), w.member,
 		map[string]string{"Idempotency-Key": "comment-1"}, map[string]any{"body": "Chỗ này cần số liệu Q3."})
-	if res.StatusCode != 200 {
+	if res.StatusCode != 201 {
 		t.Fatalf("create: %d %v", res.StatusCode, out)
 	}
 	comment := out["comment"].(map[string]any)
@@ -184,8 +185,11 @@ func TestDocumentCommentHTTPLifecycle(t *testing.T) {
 	if comment["document_id"] != docID || comment["author_id"] != w.memberID || comment["author_kind"] != "human" {
 		t.Fatalf("comment identity: %v", comment)
 	}
-	if comment["type"] != "comment" || comment["revision"].(float64) != 1 {
+	if comment["type"] != "discussion" || comment["kind"] != "discussion" || comment["revision"].(float64) != 1 {
 		t.Fatalf("comment type/revision: %v", comment)
+	}
+	if anchor, ok := comment["anchor"]; !ok || anchor != nil {
+		t.Fatalf("unanchored comment must carry anchor: null: %v", comment)
 	}
 	if _, ok := comment["parent_id"]; ok {
 		t.Fatalf("root comment carries parent_id: %v", comment)
@@ -201,7 +205,7 @@ func TestDocumentCommentHTTPLifecycle(t *testing.T) {
 	// the same key is a conflict.
 	res, out = doJSONHeaders(t, w.srv, "POST", w.commentsPath(docID), w.member,
 		map[string]string{"Idempotency-Key": "comment-1"}, map[string]any{"body": "Chỗ này cần số liệu Q3."})
-	if res.StatusCode != 200 || out["comment"].(map[string]any)["id"] != commentID {
+	if res.StatusCode != 201 || out["comment"].(map[string]any)["id"] != commentID {
 		t.Fatalf("idempotent replay: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSONHeaders(t, w.srv, "POST", w.commentsPath(docID), w.member,
@@ -324,21 +328,37 @@ func TestDocumentCommentHTTPLifecycle(t *testing.T) {
 		t.Fatalf("second reopen: %d %v", res.StatusCode, out)
 	}
 
-	// Delete is author-or-manage; the row and its reactions go together.
+	// Delete is author-or-manage; the commented root has a surviving reply, so
+	// it keeps its frame (outcome tombstoned) while the reply stays readable.
 	res, out = doJSON(t, w.srv, "DELETE", w.commentsPath(docID)+"/"+commentID, w.rival, nil)
 	if code, class := errCodeClass(out); res.StatusCode != 403 || code != "forbidden" || class != "permission" {
 		t.Fatalf("rival delete: %d code=%q class=%q", res.StatusCode, code, class)
 	}
 	res, out = doJSON(t, w.srv, "DELETE", w.commentsPath(docID)+"/"+commentID, w.member, nil)
-	if res.StatusCode != 200 || out["status"] != "ok" {
+	if res.StatusCode != 200 || out["status"] != "ok" || out["outcome"] != "tombstoned" {
 		t.Fatalf("author delete: %d %v", res.StatusCode, out)
 	}
-	if rows = w.listComments(t, w.member, docID, 200); len(rows) != 1 {
-		t.Fatalf("thread after delete: %v", rows)
+	rows = w.listComments(t, w.member, docID, 200)
+	if len(rows) != 2 {
+		t.Fatalf("thread after tombstone: %v", rows)
 	}
+	frame := rows[0].(map[string]any)
+	if frame["id"] != commentID || frame["body"] != "" || frame["deleted_at"] == nil {
+		t.Fatalf("tombstone frame: %v", frame)
+	}
+	// Deleting the frame again is a no-op with the same outcome.
 	res, out = doJSON(t, w.srv, "DELETE", w.commentsPath(docID)+"/"+commentID, w.member, nil)
-	if code, class := errCodeClass(out); res.StatusCode != 404 || code != "not_found" || class != "missing" {
-		t.Fatalf("delete twice: %d code=%q class=%q", res.StatusCode, code, class)
+	if res.StatusCode != 200 || out["outcome"] != "tombstoned" {
+		t.Fatalf("delete twice: %d %v", res.StatusCode, out)
+	}
+	// The surviving reply has no child: deleting it is a hard removal, and the
+	// now-childless tombstone above it cascades in the same command (OQ-C4).
+	res, out = doJSON(t, w.srv, "DELETE", w.commentsPath(docID)+"/"+replyID, w.member, nil)
+	if res.StatusCode != 200 || out["outcome"] != "removed" {
+		t.Fatalf("reply delete: %d %v", res.StatusCode, out)
+	}
+	if rows = w.listComments(t, w.member, docID, 200); len(rows) != 0 {
+		t.Fatalf("thread after removed reply: %v", rows)
 	}
 }
 
@@ -499,6 +519,7 @@ func TestDocumentCommentHTTPPermissions(t *testing.T) {
 		{"DELETE", commentPath + "/" + ownerComment, nil},
 		{"POST", commentPath + "/" + ownerComment + "/resolve", nil},
 		{"DELETE", commentPath + "/" + ownerComment + "/resolve", nil},
+		{"GET", commentPath + "/" + ownerComment + "/revisions", nil},
 		{"POST", commentPath + "/" + ownerComment + "/reactions", map[string]any{"emoji": "👍"}},
 		{"DELETE", commentPath + "/" + ownerComment + "/reactions", map[string]any{"emoji": "👍"}},
 		{"POST", "/api/v1/documents/" + restricted + "/favorite", nil},
@@ -523,6 +544,7 @@ func TestDocumentCommentHTTPPermissions(t *testing.T) {
 		{"DELETE", commentPath + "/" + ownerComment, nil},
 		{"POST", commentPath + "/" + ownerComment + "/resolve", nil},
 		{"DELETE", commentPath + "/" + ownerComment + "/resolve", nil},
+		{"GET", commentPath + "/" + ownerComment + "/revisions", nil},
 		{"POST", commentPath + "/" + ownerComment + "/reactions", map[string]any{"emoji": "👍"}},
 		{"DELETE", commentPath + "/" + ownerComment + "/reactions", map[string]any{"emoji": "👍"}},
 		{"POST", "/api/v1/documents/" + restricted + "/favorite", nil},
@@ -587,6 +609,7 @@ func TestDocumentCommentsFlagOff404(t *testing.T) {
 		{"DELETE", commentPath + "/" + commentID, nil},
 		{"POST", commentPath + "/" + commentID + "/resolve", nil},
 		{"DELETE", commentPath + "/" + commentID + "/resolve", nil},
+		{"GET", commentPath + "/" + commentID + "/revisions", nil},
 		{"POST", commentPath + "/" + commentID + "/reactions", map[string]any{"emoji": "👍"}},
 		{"DELETE", commentPath + "/" + commentID + "/reactions", map[string]any{"emoji": "👍"}},
 		{"POST", "/api/v1/documents/" + docID + "/favorite", nil},
@@ -637,6 +660,7 @@ func TestDocumentCommentsNilService501(t *testing.T) {
 		{"DELETE", commentPath + "/" + commentID, nil},
 		{"POST", commentPath + "/" + commentID + "/resolve", nil},
 		{"DELETE", commentPath + "/" + commentID + "/resolve", nil},
+		{"GET", commentPath + "/" + commentID + "/revisions", nil},
 		{"POST", commentPath + "/" + commentID + "/reactions", map[string]any{"emoji": "👍"}},
 		{"DELETE", commentPath + "/" + commentID + "/reactions", map[string]any{"emoji": "👍"}},
 		{"POST", "/api/v1/documents/" + docID + "/favorite", nil},
@@ -688,6 +712,7 @@ func TestDocumentCommentsOpenAPICatalog(t *testing.T) {
 		{"delete", commentPath + "/{commentID}"},
 		{"post", commentPath + "/{commentID}/resolve"},
 		{"delete", commentPath + "/{commentID}/resolve"},
+		{"get", commentPath + "/{commentID}/revisions"},
 		{"post", commentPath + "/{commentID}/reactions"},
 		{"delete", commentPath + "/{commentID}/reactions"},
 		{"post", "/api/v1/documents/{documentID}/favorite"},

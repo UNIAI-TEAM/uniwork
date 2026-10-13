@@ -41,6 +41,60 @@ WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3;
 
+-- name: TombstoneDocumentComment :one
+-- A comment with surviving replies keeps its place in the thread: the body
+-- goes, the frame stays (G8-03, Q8). The deleted_at guard makes a repeat of a
+-- raced delete a no-op instead of an overwrite.
+UPDATE document_comments
+SET body = '',
+    deleted_at = now(),
+    deleted_by_id = $4,
+    deleted_by_kind = $5,
+    updated_at = now()
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+  AND deleted_at IS NULL
+RETURNING *;
+
+-- name: CountDocumentCommentReplies :one
+-- Any child row keeps the parent alive as a tombstone - a tombstoned reply
+-- counts too (the thread structure is what the frame preserves).
+SELECT count(*) AS replies
+FROM document_comments
+WHERE parent_comment_id = $1
+  AND organization_id = $2
+  AND workspace_id = $3;
+
+-- name: DeleteDocumentCommentRevisions :exec
+-- The edit history is deleted for real with its comment (Q8): tombstone and
+-- hard delete both drop these rows in their own transaction.
+DELETE FROM document_comment_revisions
+WHERE comment_id = $1
+  AND organization_id = $2
+  AND workspace_id = $3;
+
+-- name: InsertDocumentCommentRevision :one
+-- One row per edit holds the body being replaced and the revision number that
+-- body carried (OQ-C3); created_by is the actor of the edit.
+INSERT INTO document_comment_revisions (
+  id, organization_id, workspace_id, document_id, comment_id,
+  body, revision, created_by, created_by_kind
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, $9
+)
+RETURNING *;
+
+-- name: ListDocumentCommentRevisions :many
+-- Newest first; the service proves the comment hangs on the document first.
+SELECT *
+FROM document_comment_revisions
+WHERE comment_id = $1
+  AND document_id = $2
+  AND organization_id = $3
+  AND workspace_id = $4
+ORDER BY revision DESC;
+
 -- name: ResolveDocumentComment :one
 UPDATE document_comments
 SET resolved_at = now(),
@@ -68,9 +122,15 @@ WHERE id = $1
 RETURNING *;
 
 -- name: ListDocumentComments :many
+-- One statement is one snapshot: the list and its list_token come from the
+-- same rows, so the token can never run ahead of what the caller received
+-- (contract-collab section 6). Both thread kinds and tombstones ride along;
+-- the service filters kind in memory.
 SELECT c.id, c.document_id, c.author_id, c.author_kind, c.body, c.created_at,
        c.parent_comment_id, c.comment_type, c.revision, c.updated_at,
        c.resolved_at, c.resolved_by_type, c.resolved_by_id,
+       c.anchor, c.anchor_version_id, c.anchor_state,
+       c.deleted_at, c.deleted_by_id, c.deleted_by_kind,
        COALESCE(u.display_name, a.name, '')::text AS display_name,
        COALESCE(u.avatar_url, a.avatar_url) AS avatar_url,
        u.avatar_file_id

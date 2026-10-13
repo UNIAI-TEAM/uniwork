@@ -13,6 +13,7 @@ import {
   type AppOpenResult,
   type Capabilities,
   type FrameRequests,
+  type InitPayload,
   type OfficeModule,
   type ProtocolErrorShape,
   type SavedPayload,
@@ -21,7 +22,8 @@ import {
 } from "@uniwork/core/office/docs-frame-protocol";
 import { getOfficeDraftKey, officeDraftScope } from "@uniwork/core/office/draft-session-key";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
-import { deliverFrameDownload } from "./frame-download";
+import { OFFICE_FRAME_DOWNLOAD_MAX_BYTES, deliverFrameDownload } from "./frame-download";
+import type { FrameCommentsBinding } from "./use-frame-comments";
 
 /**
  * No handshake within this long = the bundle never loaded, and the page shows the load failure
@@ -134,6 +136,8 @@ export interface DocsFrameSessionOptions {
    * `desktopOpen` (to a user who may edit); absent = the frame shows its "use the app" message alone.
    */
   onAppOpen?: () => Promise<AppOpenResult["outcome"]>;
+  /** The editor's server comments (G8-08, `useFrameComments`): its four seams into this handshake. */
+  comments?: FrameCommentsBinding;
 }
 
 export interface DocsFrameSession {
@@ -388,15 +392,20 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         const recovery = officeModuleSpec(module).recovery === true && uid && !viewOnly
           ? { key: await getOfficeDraftKey(uid), scope: officeDraftScope(uid, doc) }
           : null;
-        return {
+        const capabilities = officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true);
+        const init: Omit<InitPayload, "protocolVersion"> = {
           ...frameToken,
           documentId: doc, workspaceId: current.wsId,
           apiBase: docsFrameApiBase(), apiMode: "host-proxy",
           locale: current.locale, theme: current.theme,
-          capabilities: officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true),
+          capabilities,
+          // The cap api.download enforces, told up front so the conflict dialog can disable its
+          // download choice before a 413; only with the capability (the frame ignores it otherwise).
+          ...(capabilities.download ? { downloadMaxBytes: OFFICE_FRAME_DOWNLOAD_MAX_BYTES } : {}),
           ...(name ? { user: { displayName: name } } : {}),
           ...(recovery ? { recovery } : {}),
         };
+        return current.comments ? current.comments.augmentInit(init, { canEdit: minted?.can_edit, readonly: viewOnly }) : init;
       },
       refreshToken: async () => {
         const { data } = await latest.current.refetch();
@@ -406,6 +415,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         return fresh;
       },
       api: {
+        ...latest.current.options.comments?.api,
         "api.open": proxy("api.open", false, (api) => api.open),
         "api.save": async (payload, context) => {
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
@@ -462,9 +472,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       },
       // A new frame instance after the first: the old document and anything it had open are gone
       // (unless its pagehide said so already).
-      onInitialized: () => {
+      onInitialized: (ack) => {
         if (booted && !frameDocGone) frameGone();
         booted = true;
+        latest.current.options.comments?.attach(endpoint, ack, () => latest.current.scopeId);
         bindFrameDocument();
         // A new document starts with no dialog open: it reports its own from here on.
         modalOpen.current = false;
@@ -559,6 +570,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       // Retired at once: a Save still open here is cancelled by the dispose below, and nothing of
       // this endpoint may arm a timer or write state after this line.
       life.state = "disposed";
+      latest.current.options.comments?.detach();
       const watch = hostSave.current;
       if (watch?.life === life && watch.timer !== null) { clearTimeout(watch.timer); watch.timer = null; }
       endpoint.dispose();

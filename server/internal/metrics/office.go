@@ -16,6 +16,12 @@ type Office struct {
 	Duration   *prometheus.HistogramVec
 	Ready      prometheus.Gauge
 	QueueDepth prometheus.Gauge
+	// The file commit intents of G5-07 (service.OfficeIntentMetrics): lookups
+	// by outcome, replays of a committed key and intents the retention sweep
+	// deleted. The 409 at commit is uniwork_document_conflicts_total.
+	IntentLookups     *prometheus.CounterVec
+	IdempotentReplays prometheus.Counter
+	IntentsSwept      prometheus.Counter
 }
 
 func NewOffice() *Office {
@@ -37,11 +43,38 @@ func NewOffice() *Office {
 			Name: "uniwork_office_engine_queue_depth",
 			Help: "Office engine queue depth at the last readiness probe.",
 		}),
+		IntentLookups: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_office_intent_lookups_total",
+			Help: "File commit intent lookups by outcome (committed, not_committed, in_flight, unknown).",
+		}, []string{"outcome"}),
+		IdempotentReplays: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "uniwork_office_idempotent_replays_total",
+			Help: "File commits answered from the stored result of the same Idempotency-Key.",
+		}),
+		IntentsSwept: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "uniwork_office_commit_intents_swept_total",
+			Help: "File commit intents deleted by the retention sweep after their resume window.",
+		}),
 	}
 }
 
 func (o *Office) Collectors() []prometheus.Collector {
-	return []prometheus.Collector{o.Jobs, o.Duration, o.Ready, o.QueueDepth}
+	return []prometheus.Collector{o.Jobs, o.Duration, o.Ready, o.QueueDepth, o.IntentLookups, o.IdempotentReplays, o.IntentsSwept}
+}
+
+// IncOfficeIntentLookup counts one intent lookup by its outcome.
+func (o *Office) IncOfficeIntentLookup(outcome string) {
+	o.IntentLookups.WithLabelValues(outcome).Inc()
+}
+
+// IncOfficeIdempotentReplay counts one commit answered from its stored result.
+func (o *Office) IncOfficeIdempotentReplay() { o.IdempotentReplays.Inc() }
+
+// AddOfficeCommitIntentsSwept counts intents one sweep pass deleted.
+func (o *Office) AddOfficeCommitIntentsSwept(n int) {
+	if n > 0 {
+		o.IntentsSwept.Add(float64(n))
+	}
 }
 
 // ObserveOfficeJob records one settled job.

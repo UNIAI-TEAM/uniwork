@@ -5,6 +5,7 @@ import {
   createDocumentComment,
   deleteDocumentComment,
   listDocumentComments,
+  listDocumentMentionCandidates,
   removeDocumentCommentReaction,
   reopenDocumentComment,
   resolveDocumentComment,
@@ -12,6 +13,7 @@ import {
   type CommentReactionBody,
   type CreateDocumentCommentBody,
 } from "../api/endpoints/document-comments";
+import { DocumentNotVerifiableError, type DocumentComment } from "../types/document";
 import { documentKeys } from "./keys";
 import { requireVerifiableComment, requireVerifiableReaction, requireVerifiableStatus } from "./verify";
 
@@ -30,9 +32,43 @@ export function useDocumentComments(
   documentId: string,
   opts?: { enabled?: boolean },
 ) {
+  const qc = useQueryClient();
   return useQuery({
     queryKey: documentKeys.comments(wsId, documentId),
-    queryFn: ({ signal }) => listDocumentComments(documentId, signal),
+    // The read answers a full list or "unchanged" (G8-03): an unchanged
+    // answer keeps the cached list - its empty `comments` is never written -
+    // and an unprovable answer throws, which leaves React Query's last
+    // successful data in place. The web query sends no sinceToken yet.
+    queryFn: async ({ signal }) => {
+      const page = await listDocumentComments(documentId, { signal });
+      if (!page) throw new DocumentNotVerifiableError("comment list not verifiable");
+      if (page.unchanged) {
+        return qc.getQueryData<DocumentComment[]>(documentKeys.comments(wsId, documentId)) ?? [];
+      }
+      return page.comments;
+    },
+    enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
+  });
+}
+
+/**
+ * The mention picker's people for one document (G8-06): whoever holds at
+ * least view on it today, searched by display name and email (accents
+ * folded). The caller's own access decides whether rows carry emails, so the
+ * list is never merged across queries of different terms; `enabled` lets a
+ * picker stay closed until the composer opens.
+ */
+export function useDocumentMentionCandidates(
+  wsId: string,
+  documentId: string,
+  query: string,
+  opts?: { enabled?: boolean; limit?: number },
+) {
+  const q = query.trim();
+  const limit = opts?.limit;
+  return useQuery({
+    queryKey: documentKeys.mentionCandidates(wsId, documentId, q, limit),
+    queryFn: ({ signal }) => listDocumentMentionCandidates(documentId, { q, limit }, signal),
     enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
   });
 }

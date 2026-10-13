@@ -323,17 +323,33 @@ func main() {
 	if reg != nil {
 		officeMetrics = reg.Office
 	}
-	// Office commands authorize through the document ACL (G1-02), so the
-	// office service holds the same DocumentService the document routes use.
-	documentSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
-	documentSvc.SetFiles(fileSvc)
-	documentSvc.SetEntitlements(service.NewEntitlementService(pool, q))
+	// One DocumentService for the process (BE-I4-1): the HTTP routes, the
+	// preview broker, the office change feed, the notification reads, office
+	// commands and launch, and the document workers all share the instance
+	// newDocumentService builds. Office commands authorize through the
+	// document ACL (G1-02), so they hold the same service as the routes; a
+	// second construction leaves the office_sync_write gate (G5-07), the
+	// commit-intent policy and the counters inert on whichever instance the
+	// routes got.
+	var documentMetrics service.DocumentMetrics
+	var officeIntentMetrics service.OfficeIntentMetrics
 	if reg != nil {
-		documentSvc.SetMetrics(reg.Documents)
+		documentMetrics, officeIntentMetrics = reg.Documents, reg.Office
 	}
+	documentSvc := newDocumentService(documentServiceOptions{
+		Pool: pool, Queries: q, Organizations: orgSvc, Workspaces: wsSvc, Files: fileSvc,
+		Flags: flags, Metrics: documentMetrics, IntentMetrics: officeIntentMetrics,
+		// File commit intents (G5-07): the claim TTL and resume window, and
+		// office_sync_write, read through the same evaluator as
+		// /api/v1/config. A zero field keeps the contract-p0 §7 default.
+		Policy: service.CommitIntentPolicy{
+			ClaimTTL: cfg.DocumentCommitIntentClaimTTL, Retention: cfg.DocumentCommitIntentRetention,
+		},
+	})
 	// The document maintenance worker (auto-version, purge, compaction -
-	// G1-04b) runs on the same service the routes use; it is awaited in the
-	// shutdown sequence below, so a sweep never outlives the process.
+	// G1-04b - and the commit intent sweep of G5-07) runs on the same service
+	// the routes use; it is awaited in the shutdown sequence below, so a sweep
+	// never outlives the process.
 	docWorkers := documentSvc.NewDocumentWorkers()
 	officeLaunchSvc := service.NewOfficeLaunchService(documentSvc, cfg)
 	docWorkers.SetOfficeLaunchService(officeLaunchSvc)
@@ -378,11 +394,8 @@ func main() {
 	// Document read permission is a DocumentService decision; the consumer
 	// gets the resolver injected so notification never imports the service
 	// package (G1-07).
-	docSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
-	docSvc.SetEntitlements(service.NewEntitlementService(pool, q))
-	docSvc.SetFiles(fileSvc)
 	previewSvc, previewErr := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
-		Documents: docSvc, Origin: cfg.PreviewOrigin, Secret: cfg.PreviewCapabilitySecret,
+		Documents: documentSvc, Origin: cfg.PreviewOrigin, Secret: cfg.PreviewCapabilitySecret,
 		TTL: cfg.PreviewAssetTTL, MaxBytes: cfg.PreviewAssetMaxBytes,
 	})
 	if previewErr != nil {
@@ -392,7 +405,7 @@ func main() {
 	// The Office change feed (G5-01a) reads through the same DocumentService
 	// the document routes use; its snapshot sweep is awaited in the shutdown
 	// sequence below.
-	docChanges := service.NewDocumentChangesService(docSvc, flags, cfg)
+	docChanges := service.NewDocumentChangesService(documentSvc, flags, cfg)
 	docChangesSweep := docChanges.NewSnapshotSweeper(log)
 	if reg != nil {
 		docChangesSweep.SetMetrics(reg.OfficeChanges)
@@ -401,13 +414,13 @@ func main() {
 	// ACL through the same DocumentService; the consumer rides the notify lane
 	// (a database fan-out over one person's or one document's leases, no third
 	// party), and the sweep is awaited in the shutdown sequence below.
-	officeLeases := service.NewOfficeLeaseService(docSvc, flags, cfg)
+	officeLeases := service.NewOfficeLeaseService(documentSvc, flags, cfg)
 	officeLeaseSweep := officeLeases.NewSweeper(log)
-	dispatcher.RegisterLane(outbox.LaneNotify, service.NewOfficeLeaseRevoker(docSvc))
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewOfficeLeaseRevoker(documentSvc))
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
 	}
-	notifConsumer.SetDocumentReaders(docSvc)
+	notifConsumer.SetDocumentReaders(documentSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
 	var pushSender notification.PushSender
 	if cfg.PushEnabled() {
@@ -472,8 +485,8 @@ func main() {
 	// in the shutdown sequence below, so a sweep never outlives the process.
 	fileGCDone := make(chan struct{})
 	go func() { fileGC.Run(runCtx); close(fileGCDone) }()
-	// The document worker (auto-version, purge, compaction) stops with
-	// runCancel and is awaited below like the file collector.
+	// The document worker (auto-version, purge, compaction, commit intent
+	// sweep) stops with runCancel and is awaited below like the file collector.
 	docWorkersDone := make(chan struct{})
 	go func() { docWorkers.Run(runCtx); close(docWorkersDone) }()
 	// The change-feed snapshot sweep (G5-01a) stops with runCancel and is
@@ -602,7 +615,7 @@ func main() {
 		Bus:                 bus,
 		Storage:             store,
 		FileAccess:          fileAccess,
-		Documents:           docSvc,
+		Documents:           documentSvc,
 		DocumentChanges:     docChanges,
 		OfficeLease:         officeLeases,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),

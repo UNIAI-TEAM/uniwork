@@ -646,6 +646,17 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		filename: strings.ToLower(m) + "-v2.md", contentType: "text/markdown", content: []byte("# " + m + " staged body\n"),
 	})
 	tn.ids["docUpload"] = isoString(t, out, "upload_id")
+	// A commit intent (G5-07) without moving the file document: a commit on
+	// a stale base claims the intent, is refused 409 and leaves it not
+	// committed, so the base_revision the commit route sends stays valid.
+	out = w.upload(t, "/api/v1/documents/"+tn.ids["fileDocument"]+"/uploads", tn.token, isoMultipart{
+		filename: strings.ToLower(m) + "-intent.md", contentType: "text/markdown", content: []byte("# " + m + " intent body\n"),
+	})
+	status, raw = w.do(t, http.MethodPost, "/api/v1/documents/"+tn.ids["fileDocument"]+"/versions/commit", tn.token, isoBody{
+		json:    map[string]any{"upload_id": isoString(t, out, "upload_id"), "base_revision": "999"},
+		headers: map[string]string{"Idempotency-Key": "iso-intent-" + tn.tag},
+	})
+	isoExpect(t, http.MethodPost, "stale commit intent", status, raw, http.StatusConflict)
 	// An open change-feed snapshot (G5-01a): one row per page, so the
 	// snapshot tables hold A's rows and the cursor is A's to replay.
 	out = w.call(t, "GET", "/api/v1/workspaces/"+tn.wsID+"/documents/changes?limit=1", tn.token, nil)
@@ -796,6 +807,23 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		t.Fatalf("notification: %v", err)
 	}
 	tn.ids["notification"] = n.ID
+
+	// The comment orbit G8-03 added (UNI-1398): one edit-history row and one
+	// mention row of the document comment. Revisions are written by the edit
+	// route and mentions by G8-05; the world seeds them so both tables hold a
+	// row of the tenant's and their read paths can be attacked.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_comment_revisions
+		(id, organization_id, workspace_id, document_id, comment_id, body, revision, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 1, $7, 'human')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["document"], tn.ids["docComment"], m+" doc comment (cũ)", tn.userID); err != nil {
+		t.Fatalf("document comment revision: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_comment_mentions
+		(id, organization_id, workspace_id, document_id, comment_id, user_id, state, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, 'human')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["document"], tn.ids["docComment"], tn.peerID, tn.userID); err != nil {
+		t.Fatalf("document comment mention: %v", err)
+	}
 
 	// A connected Google calendar.
 	tokenEnc, err := w.box.Seal([]byte("token"))

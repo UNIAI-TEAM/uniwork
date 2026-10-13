@@ -54,7 +54,7 @@ install can never overwrite the host `node_modules`) and calls the same `package
 not part of CI. The AppImage on Ubuntu 24.04 needs `libfuse2` to run: `sudo apt install libfuse2`.
 
 Extra `.deb` metadata is build-time configuration with accepted defaults:
-`OFFICE_DESKTOP_HOMEPAGE` (default `https://uniwork.unicomhub.com`) and
+`OFFICE_DESKTOP_HOMEPAGE` (default `https://uniworkos.com`) and
 `OFFICE_DESKTOP_MAINTAINER` (default `UniWork <contact@unicomhub.com>`).
 
 ## Ubuntu `.deb`

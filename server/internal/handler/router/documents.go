@@ -40,6 +40,7 @@ import (
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
 //	POST   /api/v1/documents/{documentID}/versions/commit
+//	GET    /api/v1/documents/{documentID}/versions/commit       (G5-07, Idempotency-Key header)
 //	GET    /api/v1/documents/{documentID}/versions
 //	POST   /api/v1/documents/{documentID}/versions
 //	GET    /api/v1/documents/{documentID}/versions/{versionNo}
@@ -53,8 +54,10 @@ import (
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}
 //	POST   /api/v1/documents/{documentID}/comments/{commentID}/resolve
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}/resolve
+//	GET    /api/v1/documents/{documentID}/comments/{commentID}/revisions   (G8-03)
 //	POST   /api/v1/documents/{documentID}/comments/{commentID}/reactions
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}/reactions
+//	GET    /api/v1/documents/{documentID}/mention-candidates     (G8-06)
 //	POST   /api/v1/documents/{documentID}/favorite
 //	DELETE /api/v1/documents/{documentID}/favorite
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
@@ -137,6 +140,14 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		tags: []string{"documents"},
 		sdi:  sdi.CommitDocumentVersionSDI{},
 		sdo:  sdo.DocumentVersionResultSDO{},
+		auth: true,
+	})
+	d.Get("/documents/{documentID}/versions/commit", h.LookupCommitIntent, apiOp{
+		summary: "Look up what became of a file version commit",
+		description: "Tra intent commit theo header Idempotency-Key (bắt buộc; không đặt key vào URL): {outcome: committed (kèm version, revision) | in_flight (attempt đang giữ claim) | not_committed (claim hết hạn, không attempt nào còn commit được — an toàn để cấp attempt/key mới)}. " +
+			"Key đã bị dọn sau cửa sổ resume, chưa từng tới server hoặc của người khác -> 410 commit_intent_unknown (không bao giờ giả not_committed). Cần quyền xem; vẫn trả lời khi office_sync_write tắt.",
+		tags: []string{"documents"},
+		sdo:  sdo.CommitIntentSDO{},
 		auth: true,
 	})
 	d.Get("/documents/{documentID}/versions", h.ListDocumentVersions, apiOp{
@@ -301,20 +312,23 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	// the caller's own bookmark), and comment edit/delete is author-or-manage
 	// in the service. G2-07a registers its office routes separately.
 	d.Get("/documents/{documentID}/comments", h.ListDocumentComments, apiOp{
-		summary:     "List document comments",
-		description: "Bình luận của tài liệu, cũ nhất trước, mỗi dòng kèm reactions. Cần quyền xem.",
-		tags:        []string{"documents"},
-		sdo:         sdo.DocumentCommentListSDO{},
-		auth:        true,
+		summary: "List document comments",
+		description: "Bình luận của tài liệu, cũ nhất trước, mỗi dòng kèm reactions; kind lọc comment hoặc discussion (bỏ trống = cả hai). " +
+			"Mọi câu trả lời mang list_token; since_token trùng token hiện tại trả unchanged=true kèm danh sách rỗng. Cần quyền xem.",
+		tags: []string{"documents"},
+		sdi:  sdi.ListDocumentCommentsSDI{},
+		sdo:  sdo.DocumentCommentListSDO{},
+		auth: true,
 	})
 	d.Post("/documents/{documentID}/comments", h.CreateDocumentComment, apiOp{
 		summary: "Add a document comment",
 		description: "Thêm bình luận (hoặc trả lời qua parent_id cùng tài liệu) - cần quyền sửa. type chỉ nhận comment: client công khai không tạo được bình luận hệ thống. " +
-			"Idempotency-Key ràng create với fingerprint payload: replay trả lại bình luận đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
-		tags: []string{"documents"},
-		sdi:  sdi.CreateDocumentCommentSDI{},
-		sdo:  sdo.DocumentCommentSDO{},
-		auth: true,
+			"Idempotency-Key ràng create với fingerprint payload: replay trả bình luận đó ở trạng thái hiện tại (đã bị xóa hẳn -> 404), payload khác cùng key -> 409 idempotency_payload_mismatch. Thành công trả 201.",
+		tags:   []string{"documents"},
+		sdi:    sdi.CreateDocumentCommentSDI{},
+		sdo:    sdo.DocumentCommentSDO{},
+		status: 201,
+		auth:   true,
 	})
 	d.Patch("/documents/{documentID}/comments/{commentID}", h.UpdateDocumentComment, apiOp{
 		summary:     "Update a document comment",
@@ -325,11 +339,12 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		auth:        true,
 	})
 	d.Delete("/documents/{documentID}/comments/{commentID}", h.DeleteDocumentComment, apiOp{
-		summary:     "Delete a document comment",
-		description: "Xóa bình luận kèm reactions của nó: tác giả hoặc người có quyền manage.",
-		tags:        []string{"documents"},
-		sdo:         sdo.StatusSDO{},
-		auth:        true,
+		summary: "Delete a document comment",
+		description: "Xóa bình luận: tác giả hoặc người có quyền manage. Còn phản hồi thì giữ khung \"Nội dung đã bị xóa\" (outcome=tombstoned), " +
+			"không còn phản hồi thì bỏ hẳn dòng (outcome=removed); reactions và lịch sử sửa của chính nó bị xóa thật trong cùng giao dịch.",
+		tags: []string{"documents"},
+		sdo:  sdo.DocumentCommentDeleteSDO{},
+		auth: true,
 	})
 	d.Post("/documents/{documentID}/comments/{commentID}/resolve", h.ResolveDocumentComment, apiOp{
 		summary:     "Resolve a document comment",
@@ -343,6 +358,13 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		description: "Bỏ đánh dấu giải quyết, mở lại bình luận (cần quyền sửa; idempotent).",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentCommentSDO{},
+		auth:        true,
+	})
+	d.Get("/documents/{documentID}/comments/{commentID}/revisions", h.ListDocumentCommentRevisions, apiOp{
+		summary:     "List a document comment's revisions",
+		description: "Lịch sử sửa của bình luận, mới nhất trước; mỗi dòng là nội dung trước một lần sửa. Cần quyền xem. Bình luận đã xóa trả 409 comment_deleted.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentCommentRevisionListSDO{},
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/comments/{commentID}/reactions", h.AddDocumentCommentReaction, apiOp{
@@ -360,6 +382,16 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		sdi:         sdi.ReactionSDI{},
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
+	})
+	d.Get("/documents/{documentID}/mention-candidates", h.ListDocumentMentionCandidates, apiOp{
+		summary: "List mention candidates for a document",
+		description: "Người có ít nhất quyền xem tài liệu hiện tại (thành viên workspace hiệu lực + người được chia sẻ), mới bị vô hiệu thì loại: " +
+			"người gọi cần quyền xem trên tài liệu; người ngoài tổ chức -> 404. Tìm theo tên hiển thị và email (gấp dấu uw_fold_search), " +
+			"mặc định 20 kết quả, tối đa 50 (ngoài khoảng bị kẹp). Email chỉ có khi người gọi xem được danh sách thành viên của workspace chứa tài liệu.",
+		tags: []string{"documents"},
+		sdi:  sdi.ListMentionCandidatesSDI{},
+		sdo:  sdo.MentionCandidateListSDO{},
+		auth: true,
 	})
 	d.Post("/documents/{documentID}/favorite", h.FavoriteDocument, apiOp{
 		summary:     "Favorite a document",

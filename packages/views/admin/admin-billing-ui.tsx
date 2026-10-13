@@ -2,11 +2,11 @@
 
 import type { ReactNode } from "react";
 import { Badge } from "@uniwork/ui/components/ui/badge";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { cn } from "@uniwork/ui/lib/utils";
 import { vnpayBankLabel } from "@uniwork/core/billing/vnpay-bank-label";
 import { paths } from "@uniwork/core/paths";
+import { DateField } from "../common/date-field";
 import { AppLink } from "../navigation";
 
 export function AdminBillingTableWrap({ children }: { children: ReactNode }) {
@@ -147,12 +147,10 @@ export function AdminBillingFiltersPanel({
             <Label htmlFor="admin-billing-from" className="text-caption text-muted-foreground">
               {fromLabel}
             </Label>
-            <Input
+            <DateField
               id="admin-billing-from"
-              type="date"
-              variant="subtle"
               value={dateFrom}
-              onChange={(e) => onDateFromChange(e.target.value)}
+              onChange={onDateFromChange}
               className="h-9 w-[10.5rem]"
             />
           </div>
@@ -160,12 +158,10 @@ export function AdminBillingFiltersPanel({
             <Label htmlFor="admin-billing-to" className="text-caption text-muted-foreground">
               {toLabel}
             </Label>
-            <Input
+            <DateField
               id="admin-billing-to"
-              type="date"
-              variant="subtle"
               value={dateTo}
-              onChange={(e) => onDateToChange(e.target.value)}
+              onChange={onDateToChange}
               className={cn("h-9 w-[10.5rem]", rangeInvalid && "border-destructive")}
             />
           </div>

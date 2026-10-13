@@ -59,7 +59,7 @@ export interface MarkdownProps {
    */
   renderMention?: (props: { type: string; id: string }) => React.ReactNode
   /**
-   * CDN hostname for file card detection (e.g. "cdn.uniwork.app").
+   * CDN hostname for file card detection (e.g. "cdn.uniworkos.com").
    * When provided, enables file card preprocessing and rendering.
    */
   cdnDomain?: string

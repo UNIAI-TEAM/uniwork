@@ -85,9 +85,15 @@ var errorClassByCode = map[string]string{
 //     so it must not read as permission (drop the copy) or gone.
 //   offline_lease_expired is an app-side reason only: the server never
 //     emits it (G5-D1 row 15), an online renewal re-checks live access.
-//
-// commit_intent_unknown (410, plan G5-07) is reserved in the docs only and
-// is not registered until G5-D2 fixes the intent retention.
+//   comment_deleted        (409) the target comment is a tombstone (G8-03).
+//     "conflict" would send the client down its reload-and-retry path; the
+//     composer shows "Bình luận này đã bị xóa." and keeps its draft instead.
+//   commit_intent_unknown  (410, fields.outcome="unknown", plan G5-07) the
+//     server holds no commit intent for the key any more (swept after the
+//     resume window) or never did. "gone" would teach the client to leave;
+//     it must keep reconciling and never read this as not_committed.
+//     Registered with the dev retention (G5-07); G5-D2 fixes the number,
+//     not the code.
 
 // ErrorClassFor returns the error_class a wire code carries, "" when the code
 // is unclassified - the field is then omitted from the envelope.

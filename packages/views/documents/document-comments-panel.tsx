@@ -220,49 +220,61 @@ function CommentsPane({
     [threads],
   );
 
-  const renderThread = (thread: CommentThread<DocumentComment>) => (
-    <CommentCard
-      key={thread.root.id}
-      comment={thread.root}
-      replies={thread.replies}
-      tPrefix="documents.comments"
-      testIdPrefix="document-comment"
-      canModerate={canModerate}
-      reactionsReadOnly={!canComment}
-      // A reaction by someone who is no longer a member must not leak a raw
-      // ULID into the UI; the translated stand-in names the situation.
-      getActorName={(_type, id) => actorNames.get(id) ?? t("documents.comments.former_member")}
-      replyComposer={
-        canComment ? (
-          <div data-testid={`document-reply-composer-${thread.root.id}`}>
-            <CommentReplyQuote
-              comment={thread.root}
-              tPrefix="documents.comments"
-              className="mb-2"
-            />
-            <CommentComposerBox
-              wsId={wsId}
-              doc={doc}
-              orgId={orgId}
-              parentId={thread.root.id}
-              mentionItems={mentionItems}
-              compact
-              refocusAfterSend
-              testId="document-comment-reply-composer"
-              onSubmit={(body) => submitComment(body, thread.root.id)}
-            />
-          </div>
-        ) : undefined
-      }
-      onToggleReaction={canComment ? onToggleReaction : undefined}
-      onEdit={canComment ? onEdit : undefined}
-      onResolveToggle={canComment ? onResolveToggle : undefined}
-      onDelete={canComment ? onDelete : undefined}
-    />
-  );
+  // A deleted root is a frame nothing can answer (contract-collab 2.4); the
+  // thread stays replyable through its newest surviving reply.
+  const replyTargetOf = (thread: CommentThread<DocumentComment>): DocumentComment | undefined =>
+    thread.root.deleted_at ? thread.replies.findLast((reply) => !reply.deleted_at) : thread.root;
+
+  const renderThread = (thread: CommentThread<DocumentComment>) => {
+    const target = replyTargetOf(thread);
+    return (
+      <CommentCard
+        key={thread.root.id}
+        comment={thread.root}
+        replies={thread.replies}
+        tPrefix="documents.comments"
+        testIdPrefix="document-comment"
+        canModerate={canModerate}
+        reactionsReadOnly={!canComment}
+        // A reaction by someone who is no longer a member must not leak a raw
+        // ULID into the UI; the translated stand-in names the situation.
+        getActorName={(_type, id) => actorNames.get(id) ?? t("documents.comments.former_member")}
+        replyComposer={
+          canComment && target ? (
+            <div data-testid={`document-reply-composer-${thread.root.id}`}>
+              <CommentReplyQuote
+                comment={target}
+                tPrefix="documents.comments"
+                className="mb-2"
+              />
+              <CommentComposerBox
+                wsId={wsId}
+                doc={doc}
+                orgId={orgId}
+                parentId={target.id}
+                mentionItems={mentionItems}
+                compact
+                refocusAfterSend
+                testId="document-comment-reply-composer"
+                onSubmit={(body) => submitComment(body, target.id)}
+              />
+            </div>
+          ) : undefined
+        }
+        onToggleReaction={canComment ? onToggleReaction : undefined}
+        onEdit={canComment ? onEdit : undefined}
+        onResolveToggle={canComment ? onResolveToggle : undefined}
+        onDelete={canComment ? onDelete : undefined}
+      />
+    );
+  };
 
   const errorClass = query.error ? classifyDocumentError(query.error).cls : "unknown";
   const revoked = query.isError && errorClass === "permission";
+  // A failed refetch keeps the last proven list and the composer (the hook
+  // throws instead of writing over the cache); only a first read with nothing
+  // to show, or a revoked read, replaces the list with the error card.
+  const showErrorCard = query.isError && (revoked || query.data === undefined);
 
   const body = (() => {
     if (query.isPending) {
@@ -273,7 +285,7 @@ function CommentsPane({
         </div>
       );
     }
-    if (query.isError) {
+    if (showErrorCard) {
       return (
         <div className="p-4" role="alert" data-testid="document-comments-error">
           <p className="text-body font-medium text-foreground">
@@ -303,6 +315,15 @@ function CommentsPane({
     }
     return (
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+        {query.isError ? (
+          <div role="alert" className="flex items-center gap-2 text-caption text-muted-foreground" data-testid="document-comments-stale">
+            <span className="min-w-0 flex-1">{t("documents.comments.error_title")}</span>
+            <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
+              <RefreshCw aria-hidden className="size-3.5" />
+              {t("documents.comments.retry")}
+            </Button>
+          </div>
+        ) : null}
         {comments.length === 0 ? (
           <p className="text-caption text-muted-foreground" data-testid="document-comments-empty">
             {t(documentCommentsCopy(doc).empty)}
@@ -352,7 +373,7 @@ function CommentsPane({
         </Button>
       </header>
       {body}
-      {canComment && !query.isError ? (
+      {canComment && !showErrorCard ? (
         <div className="border-t border-border p-3">
           <CommentComposerBox
             wsId={wsId}
