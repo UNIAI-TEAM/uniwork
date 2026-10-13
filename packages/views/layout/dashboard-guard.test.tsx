@@ -38,7 +38,11 @@ describe("DashboardGuard when the organization is suspended", () => {
       ),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent("Tổ chức đang tạm ngưng");
-    expect(screen.getByRole("link", { name: "Về danh sách workspace" })).toHaveAttribute("href", "/workspaces");
+    // One organization per account (ADR 0032): the way out is to create or join another.
+    expect(screen.getByRole("link", { name: "Tạo hoặc tham gia tổ chức khác" })).toHaveAttribute(
+      "href",
+      "/get-started",
+    );
     expect(screen.queryByText("workspace body")).not.toBeInTheDocument();
     expect(adapter.replace).not.toHaveBeenCalled();
   });
@@ -59,9 +63,12 @@ describe("DashboardGuard when the member has been deactivated", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này");
     expect(alert).not.toHaveTextContent("Tổ chức đang tạm ngưng");
-    // Their other organizations are untouched, so the way out is the picker —
-    // as a link, not a redirect that would bounce them straight back here.
-    expect(screen.getByRole("link", { name: "Xem tổ chức khác" })).toHaveAttribute("href", "/workspaces");
+    // A deactivated row no longer counts as belonging (ADR 0032 D1), so the
+    // way out is /get-started — as a link, not a redirect away from the notice.
+    expect(screen.getByRole("link", { name: "Tạo hoặc tham gia tổ chức khác" })).toHaveAttribute(
+      "href",
+      "/get-started",
+    );
     expect(screen.queryByText("workspace body")).not.toBeInTheDocument();
     expect(adapter.replace).not.toHaveBeenCalled();
   });

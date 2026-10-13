@@ -4366,7 +4366,7 @@
     "deactivated": {
       "title": "Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này",
       "description": "Quản trị tổ chức đã tạm dừng quyền truy cập của bạn. Dữ liệu bạn đã tạo vẫn còn. Liên hệ quản trị để được mở lại.",
-      "workspaces_link": "Xem tổ chức khác"
+      "get_started_link": "Tạo hoặc tham gia tổ chức khác"
     },
     "danger": {
       "title": "Vùng nguy hiểm",
@@ -4583,6 +4583,17 @@
       "save_failed": "Không lưu được câu trả lời",
       "skip_failed": "Không thể hoàn tất phần khởi đầu",
       "complete_failed": "Không thể hoàn tất. Vui lòng thử lại."
+    },
+    "noOrganization": {
+      "title": "Bạn chưa thuộc tổ chức nào",
+      "description": "Mỗi tài khoản thuộc một tổ chức. Tạo tổ chức của riêng bạn, hoặc tham gia tổ chức đã mời bạn.",
+      "create_title": "Tạo tổ chức",
+      "create_body": "Bắt đầu tổ chức và workspace đầu tiên. Bạn là chủ sở hữu.",
+      "create_action": "Tạo tổ chức",
+      "join_title": "Tham gia tổ chức",
+      "join_body": "Mở một lời mời để xem và tham gia.",
+      "join_empty": "Chưa có lời mời nào. Hãy nhờ quản trị viên mời email {{email}}.",
+      "load_error": "Không tải được danh sách lời mời."
     }
   },
   "ui": {
@@ -5088,7 +5099,7 @@
     "suspended": {
       "title": "Tổ chức đang tạm ngưng",
       "description": "Tổ chức này tạm thời không truy cập được. Liên hệ chủ sở hữu tổ chức để biết thêm.",
-      "workspaces_link": "Về danh sách workspace"
+      "get_started_link": "Tạo hoặc tham gia tổ chức khác"
     },
     "overview": {
       "title": "Tổng quan",

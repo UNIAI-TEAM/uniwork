@@ -4367,7 +4367,7 @@
     "deactivated": {
       "title": "Your account in this organization has been deactivated",
       "description": "An organization admin paused your access. Everything you created is still there. Ask an admin to restore it.",
-      "workspaces_link": "Go to your other organizations"
+      "get_started_link": "Create or join another organization"
     },
     "danger": {
       "title": "Danger zone",
@@ -4587,6 +4587,17 @@
       "save_failed": "Couldn't save your answer",
       "skip_failed": "Couldn't finish getting you started",
       "complete_failed": "Couldn't finish. Please try again."
+    },
+    "noOrganization": {
+      "title": "You're not in an organization yet",
+      "description": "Each account belongs to one organization. Create your own, or join one that invited you.",
+      "create_title": "Create an organization",
+      "create_body": "Start an organization and its first workspace. You will be its owner.",
+      "create_action": "Create organization",
+      "join_title": "Join an organization",
+      "join_body": "Open an invitation to review it and join.",
+      "join_empty": "No invitations yet. Ask an admin to invite {{email}}.",
+      "load_error": "Couldn't load your invitations."
     }
   },
   "ui": {
@@ -5092,7 +5103,7 @@
     "suspended": {
       "title": "Organization suspended",
       "description": "This organization is temporarily unavailable. Contact the organization owner for details.",
-      "workspaces_link": "Back to workspaces"
+      "get_started_link": "Create or join another organization"
     },
     "overview": {
       "title": "Overview",

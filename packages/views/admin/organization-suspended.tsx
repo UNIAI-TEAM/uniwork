@@ -11,7 +11,9 @@ import { AppLink } from "../navigation";
  * What a member sees when their organization is suspended: every org and
  * workspace route answers 403 organization_suspended, so the shell shows
  * this instead of the page. Reason-free by design — the reason is between
- * the platform and the owner, not on every member's screen.
+ * the platform and the owner, not on every member's screen. The way out is
+ * /get-started (ADR 0032): a member may leave a suspended organization and
+ * join another through an invitation.
  */
 export function OrganizationSuspendedPage() {
   const { t } = useTranslation(undefined, { keyPrefix: "admin.suspended" });
@@ -24,8 +26,8 @@ export function OrganizationSuspendedPage() {
         title={t("title")}
         description={t("description")}
         actions={
-          <AppLink href={paths.workspaces()} className={buttonVariants({ variant: "outline" })}>
-            {t("workspaces_link")}
+          <AppLink href={paths.getStarted()} className={buttonVariants({ variant: "outline" })}>
+            {t("get_started_link")}
           </AppLink>
         }
       />
