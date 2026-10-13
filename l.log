@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/views exec eslint --max-warnings 0 office/frame/use-frame-comments.ts office/frame/use-frame-comments.test.tsx; echo "ESLINT_VIEWS_EXIT=$?"
+ESLINT_VIEWS_EXIT=0

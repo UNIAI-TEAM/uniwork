@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -5
+42271ec8a7248cec7a7801023e320907778df3b2
+e1f88a7c78daf8d360852d9329b8baf3fa49fdd1
+42271ec8a test(office): pin retryable:false on the 405 anchors mapping (G8-04 r3f)
+f1c0e3604 test(server): anchor the REV test's comment so the PUT leg writes a row (G8-04 r3e)
+edb8f270a test(server): pin base_version_id in the anchored-create fingerprint (G8-04 r3e)
+1cec278c5 fix(server): refuse an empty anchors[].comment_id with a 400 (G8-04 r3e)
+3dd220573 fix(server): reject a malformed anchors value instead of a 200 empty update (G8-04 r3e)

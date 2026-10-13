@@ -1,0 +1,17 @@
+$ pnpm --filter @uniwork/views exec vitest run office/frame/use-frame-comments.test.tsx office/frame/frame-comments-events.test.ts; echo "VITEST_VIEWS_EXIT=$?"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+
+
+ Test Files  2 passed (2)
+      Tests  65 passed (65)
+   Start at  20:07:38
+   Duration  4.08s (transform 815ms, setup 675ms, import 776ms, tests 2.81s, environment 644ms)
+
+VITEST_VIEWS_EXIT=0
