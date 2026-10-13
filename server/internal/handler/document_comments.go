@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -298,6 +299,15 @@ func (h *handlers) putDocumentCommentAnchors(w http.ResponseWriter, r *http.Requ
 	} else {
 		respondError(w, http.StatusBadRequest, "invalid_request", "anchors là trường bắt buộc")
 		return
+	}
+	// R3-4: the SDI's minLength is documentation only, so an empty or blank
+	// comment_id reaches the service and is answered 200 in skipped; refuse
+	// it here while the raw pass is in hand.
+	for _, a := range in.Anchors {
+		if strings.TrimSpace(a.CommentID) == "" {
+			respondError(w, http.StatusBadRequest, "invalid_request", "comment_id là trường bắt buộc")
+			return
+		}
 	}
 	anchors := make([]service.DocumentCommentAnchorItem, 0, len(in.Anchors))
 	for _, a := range in.Anchors {

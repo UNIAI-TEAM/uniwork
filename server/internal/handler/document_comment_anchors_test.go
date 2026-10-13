@@ -251,6 +251,17 @@ func TestDocumentCommentAnchorsHTTPRequiredAndSchema(t *testing.T) {
 	if after := len(w.listComments(t, w.member, docID, 200)); after != rowsBefore {
 		t.Fatalf("malformed anchors wrote rows: %d -> %d", rowsBefore, after)
 	}
+
+	// R3-4: an empty or whitespace comment_id is a 400, not a silent 200 skip.
+	for name, id := range map[string]string{"empty": "", "blank": "   "} {
+		res, out = doJSON(t, w.srv, "PUT", w.commentsPath(docID)+"/anchors", w.member, map[string]any{
+			"version_id": versions[1],
+			"anchors":    []any{map[string]any{"comment_id": id, "anchor": anchorXLSXBody("B8"), "state": "exact"}},
+		})
+		if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+			t.Fatalf("%s comment_id: %d code=%q %v", name, res.StatusCode, code, out)
+		}
+	}
 }
 
 // TestDocumentCommentAnchorsHTTPPptxBlank pins R1-10 through the router: a
