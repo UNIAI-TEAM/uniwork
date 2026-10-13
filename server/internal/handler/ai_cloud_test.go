@@ -14,6 +14,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 )
 
 type aiCloudWorld struct {
@@ -21,6 +23,7 @@ type aiCloudWorld struct {
 	token    string
 	orgID    string
 	member   string
+	memberID string
 	outsider string
 }
 
@@ -45,9 +48,8 @@ func newAICloudWorld(t *testing.T, slug string) *aiCloudWorld {
 		t.Fatalf("create org: %d %v", res.StatusCode, out)
 	}
 	w.orgID = out["organization"].(map[string]any)["id"].(string)
-	var memberID string
-	w.member, memberID = filesRegister(t, srv, slug+"-member@example.com")
-	if _, err := testPool.Exec(context.Background(), `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`, w.orgID, memberID); err != nil {
+	w.member, w.memberID = filesRegister(t, srv, slug+"-member@example.com")
+	if _, err := testPool.Exec(context.Background(), `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`, w.orgID, w.memberID); err != nil {
 		t.Fatal(err)
 	}
 	w.outsider, _ = filesRegister(t, srv, slug+"-outsider@example.com")
@@ -246,5 +248,69 @@ func TestAICloudRejectsMalformedBodies(t *testing.T) {
 	}
 	if got := w.used(t); got != 0 {
 		t.Fatalf("refused calls charged %v", got)
+	}
+}
+
+// statusOf is the member's GET .../ai/cloud answer.
+func (w *aiCloudWorld) statusOf(t *testing.T, token string) map[string]any {
+	t.Helper()
+	res, out := doJSON(t, w.srv, "GET", w.path(""), token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("status: %d %v", res.StatusCode, out)
+	}
+	return out
+}
+
+func chatOf(out map[string]any) any { return out["tools"].(map[string]any)["chat"] }
+
+// G6-03c: tools.chat is on only for an entitled member while UniWork AI is
+// configured and office_ai_uniwork is on for the caller, with the override
+// order user > organization > global; spent credits show as reason
+// credits_exhausted with enabled kept and chat unchanged.
+func TestAICloudStatusChatFollowsEntitlementFlagsAndCredits(t *testing.T) {
+	setCloudEnv(t, "fake", "fake", "fake")
+	w := newAICloudWorld(t, "cloud-chat")
+	if got := chatOf(w.statusOf(t, w.member)); got != false {
+		t.Fatalf("flag off: chat=%v, want false", got)
+	}
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeGlobal, "", true)
+	if got := chatOf(w.statusOf(t, w.member)); got != true {
+		t.Fatalf("flag on globally: chat=%v, want true", got)
+	}
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeOrganization, w.orgID, false)
+	if got := chatOf(w.statusOf(t, w.member)); got != false {
+		t.Fatalf("flag off for the organization: chat=%v, want false", got)
+	}
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeUser, w.memberID, true)
+	if a, b := chatOf(w.statusOf(t, w.member)), chatOf(w.statusOf(t, w.token)); a != true || b != false {
+		t.Fatalf("flag on for the member only: member chat=%v owner chat=%v, want true false", a, b)
+	}
+
+	w.override(t, `{"ai.tokens": 0}`)
+	out := w.statusOf(t, w.member)
+	if out["enabled"] != true || out["reason"] != "credits_exhausted" || chatOf(out) != true || out["credits"].(map[string]any)["remaining"] != float64(0) {
+		t.Fatalf("credits spent: %v, want enabled, reason credits_exhausted, chat true, remaining 0", out)
+	}
+
+	w.override(t, `{"office.ai_cloud": false}`)
+	out = w.statusOf(t, w.member)
+	if out["enabled"] != false || out["reason"] != "entitlement_required" || chatOf(out) != false {
+		t.Fatalf("no office.ai_cloud: %v, want disabled, entitlement_required, chat false", out)
+	}
+}
+
+// With no AI provider the gateway is off: chat stays false with the flag on,
+// and the cloud tools that need no completion still answer.
+func TestAICloudStatusChatNeedsTheGateway(t *testing.T) {
+	setCloudEnv(t, "fake", "", "")
+	t.Setenv("AI_PROVIDER", "")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("OLLAMA_BASE_URL", "")
+	w := newAICloudWorld(t, "cloud-nochat")
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeGlobal, "", true)
+	out := w.statusOf(t, w.member)
+	if chatOf(out) != false || out["tools"].(map[string]any)["web_search"] != true || out["enabled"] != true {
+		t.Fatalf("gateway off: %v, want chat false with web_search on", out)
 	}
 }

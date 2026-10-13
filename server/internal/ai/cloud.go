@@ -102,6 +102,20 @@ func (g *Gateway) CloudAvailability() CloudAvailability {
 	}
 }
 
+// UniworkAIConfigured is the server half of "UniWork AI has a configuration"
+// (spec G5-G7 §8.1) that tools.chat and the frame grant uniwork_ai read: the
+// gateway has a provider and the office_uniwork_ai capability resolves a
+// model on it. A provider without a default for the capability (ollama) is
+// not configured. The fake provider qualifies so CI and e2e can run; rollout
+// keeps it off for real organizations.
+func (g *Gateway) UniworkAIConfigured() bool {
+	if !g.Enabled() {
+		return false
+	}
+	_, _, err := ResolveModel(CapOfficeUniworkAI, g.p.Name(), g.opts.Env, g.opts.ExtraAllow)
+	return err == nil
+}
+
 // CloudCall is who pays: the actor and the organization whose credits the
 // call spends. Cloud tools are organization-tier; there is no workspace.
 type CloudCall struct {

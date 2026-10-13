@@ -53,7 +53,7 @@ func (h *handlers) officeFrameAIGrant(ctx context.Context, claims service.Office
 	if h.AICloud == nil {
 		return out
 	}
-	st, err := h.AICloud.Status(ctx, claims.UserID, claims.OrganizationID)
+	st, err := h.AICloud.Status(ctx, claims.UserID, claims.OrganizationID, h.OfficeCapabilities)
 	if err != nil || !st.Enabled {
 		return out
 	}
