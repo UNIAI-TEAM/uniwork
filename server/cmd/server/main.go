@@ -546,7 +546,7 @@ func main() {
 	homeSvc := service.NewHomeService(q, wsSvc)
 	mcpAuth := service.NewMcpAuthService(pool, q, orgSvc, cfg)
 	mcpAuth.SetFlags(flags)
-	mcpAuth.SetFetcher(service.NewCIMDFetcher())
+	mcpAuth.SetFetcher(service.NewCIMDFetcher(cfg.FrontendOrigin))
 	if reg != nil {
 		mcpAuth.SetMetrics(reg.Mcp)
 	}

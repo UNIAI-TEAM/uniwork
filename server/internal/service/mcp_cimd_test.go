@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,7 +13,7 @@ import (
 func TestMcpCIMDFetcherRefusesLoopbackAndOtherPorts(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{}`)) }))
 	defer srv.Close()
-	f := NewCIMDFetcher()
+	f := NewCIMDFetcher("https://app.example.test")
 	if _, err := f.Fetch(context.Background(), srv.URL+"/meta.json"); !errors.Is(err, errCIMDNotAllowed) {
 		t.Fatalf("loopback on a random port: %v", err)
 	}
@@ -39,5 +40,59 @@ func TestMcpCIMDStatusClassification(t *testing.T) {
 	}
 	if err := cimdStatusError(404); strings.Contains(err.Error(), "http") || !strings.Contains(err.Error(), "404") {
 		t.Errorf("error text %q must name the status and no host or URL", err)
+	}
+}
+
+type cimdRoundTrip func(*http.Request) (*http.Response, error)
+
+func (f cimdRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// cimdFetcherAnswering is the production fetcher with its network replaced by
+// answer, so what it sends and how it reads a reply are tested without a dial.
+func cimdFetcherAnswering(t *testing.T, answer func(*http.Request) (*http.Response, error)) *cimdFetcher {
+	t.Helper()
+	f, ok := NewCIMDFetcher("https://app.example.test/").(*cimdFetcher)
+	if !ok {
+		t.Fatal("NewCIMDFetcher is not a *cimdFetcher")
+	}
+	f.client.Transport = cimdRoundTrip(answer)
+	return f
+}
+
+func cimdReply(body string) *http.Response {
+	return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}
+}
+
+// M10: the host of a metadata document sees who fetched it, and how to reach
+// the operator, never anything secret.
+func TestMcpCIMDFetcherNamesItself(t *testing.T) {
+	var ua, accept string
+	f := cimdFetcherAnswering(t, func(r *http.Request) (*http.Response, error) {
+		ua, accept = r.Header.Get("User-Agent"), r.Header.Get("Accept")
+		return cimdReply(`{}`), nil
+	})
+	if _, err := f.Fetch(context.Background(), "https://client.example/meta.json"); err != nil {
+		t.Fatal(err)
+	}
+	if ua != "UniWork-MCP-CIMD/1 (+https://app.example.test)" || accept != "application/json" {
+		t.Fatalf("User-Agent %q, Accept %q", ua, accept)
+	}
+}
+
+// A document over the limit is the host's definitive answer, not a transient
+// failure: a cached row must not keep the client alive behind it.
+func TestMcpCIMDDocumentTooLargeIsARejection(t *testing.T) {
+	f := cimdFetcherAnswering(t, func(*http.Request) (*http.Response, error) {
+		return cimdReply(strings.Repeat("x", cimdMaxBytes+1)), nil
+	})
+	_, err := f.Fetch(context.Background(), "https://client.example/meta.json")
+	if !errors.Is(err, errCIMDRejected) || strings.Contains(err.Error(), "client.example") {
+		t.Fatalf("too large: %v; want errCIMDRejected naming no host", err)
+	}
+	f = cimdFetcherAnswering(t, func(*http.Request) (*http.Response, error) {
+		return cimdReply(strings.Repeat("x", cimdMaxBytes)), nil
+	})
+	if body, err := f.Fetch(context.Background(), "https://client.example/meta.json"); err != nil || len(body) != cimdMaxBytes {
+		t.Fatalf("at the limit: %d bytes, %v", len(body), err)
 	}
 }
