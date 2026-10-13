@@ -60,6 +60,8 @@ export type EmailHubThreadsQueryOptions = {
   refetchOnWindowFocus?: boolean;
 };
 
+const EMAIL_HUB_THREAD_STALE_TIME_MS = 30_000;
+
 export function useEmailHubUnreadCount(wsId: string) {
   return useQuery({
     queryKey: emailHubKeys.unread(wsId),
@@ -105,8 +107,16 @@ export function useEmailHubThreads(
 ) {
   return useInfiniteQuery({
     queryKey: emailHubKeys.threads(wsId, accountId ?? "", folder, filters),
-    queryFn: ({ pageParam }) =>
-      api.listEmailHubThreads(wsId, accountId!, folder, filters, pageParam as string | undefined),
+    queryFn: ({ pageParam, signal }) =>
+      api.listEmailHubThreads(
+        wsId,
+        accountId!,
+        folder,
+        filters,
+        pageParam as string | undefined,
+        undefined,
+        signal,
+      ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: !!accountId && queryEnabled,
@@ -182,7 +192,7 @@ export function useEmailHubThread(
     enabled: !!accountId && !!threadId,
     // List rows carry snippet-only metadata; never hydrate the detail cache from them.
     placeholderData: (previous) => (previous?.id === threadId ? previous : undefined),
-    staleTime: 30_000,
+    staleTime: EMAIL_HUB_THREAD_STALE_TIME_MS,
     refetchOnMount: "always",
     retry: 2,
   });
@@ -219,7 +229,7 @@ export function prefetchEmailHubThread(
     queryKey: threadDetailKey(wsId, accountId, threadId),
     queryFn: ({ signal }) =>
       api.getEmailHubThread(wsId, accountId, threadId, fetchBody, false, signal),
-    staleTime: 0,
+    staleTime: EMAIL_HUB_THREAD_STALE_TIME_MS,
     retry: 1,
   });
 }
