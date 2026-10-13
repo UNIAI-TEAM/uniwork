@@ -320,7 +320,7 @@ tool-result tiếp nối nó. Run do **server** cấp và đếm; client chỉ c
 - **Không có lượt tool-result thiếu header run**: lượt đó là 400 `invalid_request` (nhận nó như run mới
   sẽ mở đường lách trần 8 vòng). Run id không thuộc — lạ, đã hết hạn, của hội thoại khác, của tổ chức
   khác — là 409 `run_expired`: client bỏ id và hỏi lại như run mới, hội thoại vẫn sống (khác
-  `conversation_expired`). Mã này **pending G6-D1** (contract-p0 §4 chưa có hàng).
+  `conversation_expired`). Mã này đã có hàng ở contract-p0 §4 (G6-D1 lô #2 đã ký 2026-10-13).
 - **Trần 8 vòng / 10 lượt** (attempt-based: chỉ lượt đã tới Gateway mới đếm; lượt bị limiter, trần đồng
   thời, 402 credits, 400/403/404/409 từ chối trước đó không đếm): vượt → **409 `run_limit_reached` +
   `fields.limit = "model_calls" | "tool_rounds"`** (không `Retry-After`). Trần áp trước lượt gọi model
