@@ -112,11 +112,14 @@ WHERE comment_id = $1
 ORDER BY revision DESC;
 
 -- name: ResolveDocumentComment :one
+-- The state change moves updated_at (so the list_token moves, contract 2.5)
+-- and never consumes a revision number: revision is the content-edit counter
+-- whose history rows are a contiguous sequence (REV, G8-04 r3c). Consuming
+-- one here made the next edit insert a body under a revision already taken.
 UPDATE document_comments
 SET resolved_at = now(),
     resolved_by_type = $4,
     resolved_by_id = $5,
-    revision = revision + 1,
     updated_at = now()
 WHERE id = $1
   AND organization_id = $2
@@ -129,7 +132,6 @@ UPDATE document_comments
 SET resolved_at = NULL,
     resolved_by_type = NULL,
     resolved_by_id = NULL,
-    revision = revision + 1,
     updated_at = now()
 WHERE id = $1
   AND organization_id = $2
