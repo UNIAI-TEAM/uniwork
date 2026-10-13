@@ -7,7 +7,7 @@ import { appHost } from "@uniwork/core/config";
 import { useCreateOrganization } from "@uniwork/core/organizations";
 import { alreadyInOrganization } from "@uniwork/core/organizations/errors";
 import { paths } from "@uniwork/core/paths";
-import type { Organization } from "@uniwork/core/types";
+import { holdsOrganization, type Organization } from "@uniwork/core/types";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
@@ -83,9 +83,9 @@ export function StepOrganization({
   const host = appHost();
   const form = useSlugForm();
   const create = useCreateOrganization();
-  // GET /orgs already leaves archived organizations out; the filter keeps a
-  // closed one from ever counting as "belongs" should it reappear.
-  const held = organizations.filter((o) => o.status !== "archived");
+  // GET /orgs leaves archived organizations out but keeps a switched-off
+  // membership, which no longer counts as belonging (ADR 0032 D1).
+  const held = organizations.filter(holdsOrganization);
   const resume = held.length > 0;
   // resume: null = chưa chọn gì → CTA disabled. Click lại card đang chọn = bỏ chọn.
   const [pickedId, setPickedId] = useState<string | null>(selected?.id ?? null);

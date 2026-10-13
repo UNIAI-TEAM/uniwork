@@ -64,6 +64,15 @@ describe("resolvePostAuthDestination", () => {
   it("a suspended organization still counts as belonging (ADR 0032 D1)", () => {
     expect(resolvePostAuthDestination([], onboarded, [org("o1", "suspended")])).toBe("/workspaces/new");
   });
+  it("a deactivated membership does not count as belonging (ADR 0032 D1)", () => {
+    const off = { ...org("closed"), deactivated: true };
+    expect(resolvePostAuthDestination([], onboarded, [off])).toBe("/get-started");
+    expect(resolvePostAuthDestination([ws("closed", "alpha")], onboarded, [off])).toBe("/get-started");
+    expect(resolvePostAuthDestination([ws("closed", "alpha"), ws("acme", "team")], onboarded, [off, org("acme")])).toBe(
+      "/acme/team/tasks",
+    );
+    expect(resolveHomeDestination([ws("closed", "alpha")], onboarded, null, [off])).toBe("/get-started");
+  });
   it("the gates still come first", () => {
     expect(resolvePostAuthDestination([], verified, [])).toBe("/onboarding");
   });

@@ -141,6 +141,12 @@ describe("StepOrganization", () => {
     expect(visibleHint()).toBe("Chọn tổ chức để tiếp tục.");
   });
 
+  it("offers the create form when the only membership was switched off (ADR 0032 D1)", () => {
+    renderStep({ organizations: [{ ...org, status: "active", deactivated: true }] });
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Tên tổ chức")).toBeInTheDocument();
+  });
+
   it("explains the one-organization rule when the server refuses, with a way to the organization's settings", async () => {
     signIn();
     requestMock.mockImplementation((path: string) => {

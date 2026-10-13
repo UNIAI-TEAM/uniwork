@@ -1,6 +1,6 @@
 "use client";
 import { useSession } from "../auth/hooks";
-import type { Organization, User, Workspace } from "../types";
+import { holdsOrganization, type Organization, type User, type Workspace } from "../types";
 import { paths } from "./paths";
 import { RESERVED_SLUGS } from "./reserved-slugs";
 
@@ -24,25 +24,29 @@ export function authStepPath(step: AuthStep): string {
   return step === "verify" ? paths.verify() : paths.onboarding();
 }
 
-/** What the entry gates read from GET /orgs, which already leaves archived organizations out. */
-type OrganizationGateRef = Pick<Organization, "id" | "status">;
+/**
+ * What the entry gates read from GET /orgs, which leaves archived
+ * organizations out but keeps switched-off memberships (F-03 §6.3).
+ */
+type OrganizationGateRef = Pick<Organization, "id" | "status" | "deactivated">;
 
 /**
  * The workspaces a person may land in. Without the organization list (not
  * loaded, or a caller that does not read it) every workspace counts; with it,
  * only those of an organization the person still belongs to — a closed one
  * keeps its workspace rows (ADR 0032 D4), so the workspace list alone cannot
- * tell. Suspended organizations still count (D1); their gate explains itself.
+ * tell. A switched-off membership does not count either; a suspended
+ * organization does (D1), and its gate explains itself.
  */
 function landable(workspaces: Workspace[], organizations: readonly OrganizationGateRef[] | undefined): Workspace[] {
   if (!organizations) return workspaces;
-  const belonging = new Set(organizations.filter((o) => o.status !== "archived").map((o) => o.id));
+  const belonging = new Set(organizations.filter(holdsOrganization).map((o) => o.id));
   return workspaces.filter((w) => belonging.has(w.organization_id));
 }
 
 /** No workspace to land in: create one in the organization, or start over without one (D12). */
 function emptyDestination(organizations: readonly OrganizationGateRef[] | undefined): string {
-  if (organizations && !organizations.some((o) => o.status !== "archived")) return paths.getStarted();
+  if (organizations && !organizations.some(holdsOrganization)) return paths.getStarted();
   return paths.newWorkspace();
 }
 
