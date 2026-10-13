@@ -345,6 +345,10 @@ func TestDocumentMentionCandidateLimits(t *testing.T) {
 // An owned document's level comes from its owning product, so the picker
 // answers the workspace's members the owner resolver actually grants: a
 // granted reader is listed, and a member the resolver never granted is not.
+// The q branch runs the same way - the name folds and the read gate still
+// filters the matches - and the email leg stays behind the member-list gate,
+// so a caller the resolver lets in without a workspace row cannot confirm an
+// address by typing it.
 func TestDocumentMentionCandidatesOwnedDocumentReaders(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "meno")
@@ -373,6 +377,68 @@ func TestDocumentMentionCandidatesOwnedDocumentReaders(t *testing.T) {
 	} {
 		if _, ok := got[id]; ok {
 			t.Errorf("%s cannot read the owned document yet is listed", name)
+		}
+	}
+
+	// The name leg of q folds on the owned path too, and a match the resolver
+	// never granted stays out: "nguyen" finds exactly the granted "Nguyễn Văn
+	// An", not the ungranted workspace member "Nguyễn Không Được".
+	an := registerVerified(t, f.q, f.as, "meno-an@example.com", "Nguyễn Văn An")
+	f.orgMember(t, tn.orgID, an.ID, OrgRoleMember)
+	f.wsMember(t, tn.wsA, an.ID, "member")
+	ungranted := registerVerified(t, f.q, f.as, "meno-ungranted@example.com", "Nguyễn Không Được")
+	f.orgMember(t, tn.orgID, ungranted.ID, OrgRoleMember)
+	f.wsMember(t, tn.wsA, ungranted.ID, "member")
+	f.svc.SetOwnerLevelResolver(mapOwnerResolver{
+		tn.member.ID: DocumentLevelView, tn.aclOwner.ID: DocumentLevelView, an.ID: DocumentLevelView,
+	})
+
+	byName := mentionCandidatesOf(t, f, Human(tn.member.ID), doc.ID, MentionCandidateQuery{Query: "nguyen"})
+	if _, ok := byName[an.ID]; !ok {
+		t.Error(`q="nguyen" does not match the owned document's granted "Nguyễn Văn An"`)
+	}
+	if _, ok := byName[ungranted.ID]; ok {
+		t.Error(`q="nguyen" listed a q match the resolver never granted`)
+	}
+	if len(byName) != 1 {
+		t.Errorf(`q="nguyen" returned %d rows, want exactly the granted folded name`, len(byName))
+	}
+
+	// The email leg is gated like the field itself: the outsider holds view
+	// through the resolver alone (no workspace row, seeMembers false), so
+	// neither a full address nor a local part of a reader's email is
+	// confirmed through q for them, while the workspace member matches both
+	// and gets the address back.
+	f.svc.SetOwnerLevelResolver(mapOwnerResolver{
+		tn.member.ID: DocumentLevelView, tn.aclOwner.ID: DocumentLevelView,
+		an.ID: DocumentLevelView, tn.outsider.ID: DocumentLevelView,
+	})
+	outsider := Human(tn.outsider.ID)
+	visible := mentionCandidatesOf(t, f, outsider, doc.ID, MentionCandidateQuery{})
+	if _, ok := visible[tn.member.ID]; !ok {
+		t.Fatal("the resolver-granted outsider cannot list the owned document's readers")
+	}
+	for _, c := range visible {
+		if c.Email != "" {
+			t.Errorf("the outsider sees %s's email", c.UserID)
+		}
+	}
+	for name, c := range map[string]struct {
+		q    string
+		want string
+	}{
+		"a full address":         {q: tn.member.Email, want: tn.member.ID},
+		"an address' local part": {q: strings.SplitN(tn.aclOwner.Email, "@", 2)[0], want: tn.aclOwner.ID},
+	} {
+		if leaked := mentionCandidatesOf(t, f, outsider, doc.ID, MentionCandidateQuery{Query: c.q}); len(leaked) != 0 {
+			t.Errorf("the outsider confirmed %s of a reader through q=%q: %v", name, c.q, leaked)
+		}
+		seen := mentionCandidatesOf(t, f, Human(tn.member.ID), doc.ID, MentionCandidateQuery{Query: c.q})
+		match, ok := seen[c.want]
+		if !ok {
+			t.Errorf("a workspace member no longer finds a reader by %s (q=%q)", name, c.q)
+		} else if match.Email == "" {
+			t.Errorf("a workspace member searched %s but got no address back", name)
 		}
 	}
 }
