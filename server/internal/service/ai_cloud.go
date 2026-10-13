@@ -6,12 +6,14 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/office"
 )
 
 // AICloudService is the organization-tier door to the UniWork cloud tools
@@ -450,4 +452,33 @@ func imageSize(size, aspect string) string {
 		return "1024x1536"
 	}
 	return "auto"
+}
+
+// UniworkAIFor is the frame grant uniwork_ai for a document opened in module
+// (G6-03c): chat is on for the caller and office_ai_uniwork_<format> is on for
+// the format that module opens. A module with no such format is off.
+func (st AICloudStatus) UniworkAIFor(module string) bool {
+	if !st.Chat {
+		return false
+	}
+	format, ok := uniworkAIFormatOfModule(module)
+	return ok && slices.Contains(st.UniworkAIFormats, format)
+}
+
+// uniworkAIFormatOfModule names the office_ai_uniwork_<format> token of the
+// format a web frame module opens, read from the frame's own module table so
+// the two never drift. Every format token is its office.Format but Markdown,
+// whose flag says markdown where the format says md.
+func uniworkAIFormatOfModule(module string) (string, bool) {
+	for _, m := range officeFrameModules {
+		if m.module != module {
+			continue
+		}
+		format := string(m.format)
+		if m.format == office.FormatMD {
+			format = "markdown"
+		}
+		return format, slices.Contains(officeAIUniworkFormats, format)
+	}
+	return "", false
 }

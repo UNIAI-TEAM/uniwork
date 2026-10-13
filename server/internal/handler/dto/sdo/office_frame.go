@@ -105,4 +105,7 @@ type OfficeFrameAIGrantSDO struct {
 	WebSearch       bool `json:"web_search" description:"Tìm web đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"true"`
 	ImageSearch     bool `json:"image_search" description:"Tìm ảnh đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"false"`
 	ImageGeneration bool `json:"image_generation" description:"Sinh ảnh và phân tích media đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"false"`
+	// UniworkAI is UniWork AI for this document (G6-03c); it does not need
+	// ai (BYOK).
+	UniworkAI bool `json:"uniwork_ai" description:"UniWork AI cho tài liệu này: thành viên, gói có office.ai_cloud, server đã cấu hình UniWork AI, office_ai_uniwork và office_ai_uniwork_<định dạng của tài liệu> bật; không cần office.ai_byok hay kho khóa" example:"true"`
 }
