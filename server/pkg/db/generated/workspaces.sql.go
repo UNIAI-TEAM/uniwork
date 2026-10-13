@@ -137,28 +137,59 @@ func (q *Queries) DeleteWorkspaceMember(ctx context.Context, arg DeleteWorkspace
 	return err
 }
 
-const getInvitationByToken = `-- name: GetInvitationByToken :one
-SELECT id, workspace_id, email, role, token, expires_at, accepted_at, created_at, organization_id, org_role, invited_by, revoked_at FROM invitations
-WHERE token = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+const getInvitationByTokenAnyState = `-- name: GetInvitationByTokenAnyState :one
+SELECT i.id, i.organization_id, i.workspace_id, i.email, i.role, i.org_role,
+       i.expires_at, i.accepted_at, i.revoked_at,
+       o.name AS organization_name, o.slug AS organization_slug,
+       w.name AS workspace_name, w.slug AS workspace_slug,
+       u.display_name AS invited_by_name
+FROM invitations i
+JOIN organizations o ON o.id = i.organization_id
+LEFT JOIN workspaces w ON w.id = i.workspace_id
+LEFT JOIN users u ON u.id = i.invited_by
+WHERE i.token = $1
 `
 
+type GetInvitationByTokenAnyStateRow struct {
+	ID               string             `json:"id"`
+	OrganizationID   string             `json:"organization_id"`
+	WorkspaceID      pgtype.Text        `json:"workspace_id"`
+	Email            string             `json:"email"`
+	Role             string             `json:"role"`
+	OrgRole          string             `json:"org_role"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	AcceptedAt       pgtype.Timestamptz `json:"accepted_at"`
+	RevokedAt        pgtype.Timestamptz `json:"revoked_at"`
+	OrganizationName string             `json:"organization_name"`
+	OrganizationSlug string             `json:"organization_slug"`
+	WorkspaceName    pgtype.Text        `json:"workspace_name"`
+	WorkspaceSlug    pgtype.Text        `json:"workspace_slug"`
+	InvitedByName    pgtype.Text        `json:"invited_by_name"`
+}
+
 // tenant: token
-func (q *Queries) GetInvitationByToken(ctx context.Context, token string) (Invitation, error) {
-	row := q.db.QueryRow(ctx, getInvitationByToken, token)
-	var i Invitation
+// The invitation page reads the invitation whatever its state, so it can say
+// why a link no longer works, with the names the invitee is shown: the
+// organization, the workspace when there is one, and who sent it. Unlocked:
+// accepting reads it again under LockInvitationByToken.
+func (q *Queries) GetInvitationByTokenAnyState(ctx context.Context, token string) (GetInvitationByTokenAnyStateRow, error) {
+	row := q.db.QueryRow(ctx, getInvitationByTokenAnyState, token)
+	var i GetInvitationByTokenAnyStateRow
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.WorkspaceID,
 		&i.Email,
 		&i.Role,
-		&i.Token,
+		&i.OrgRole,
 		&i.ExpiresAt,
 		&i.AcceptedAt,
-		&i.CreatedAt,
-		&i.OrganizationID,
-		&i.OrgRole,
-		&i.InvitedBy,
 		&i.RevokedAt,
+		&i.OrganizationName,
+		&i.OrganizationSlug,
+		&i.WorkspaceName,
+		&i.WorkspaceSlug,
+		&i.InvitedByName,
 	)
 	return i, err
 }

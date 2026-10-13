@@ -79,16 +79,28 @@ INSERT INTO invitations (id, organization_id, workspace_id, email, role, org_rol
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
--- name: GetInvitationByToken :one
--- tenant: token
-SELECT * FROM invitations
-WHERE token = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now();
-
 -- name: LockInvitationByToken :one
 -- tenant: token
 -- Accepting reads the invitation under a row lock, whatever its state, so a
 -- revoke or a second accept running at the same moment queues behind it.
 SELECT * FROM invitations WHERE token = $1 FOR UPDATE;
+
+-- name: GetInvitationByTokenAnyState :one
+-- tenant: token
+-- The invitation page reads the invitation whatever its state, so it can say
+-- why a link no longer works, with the names the invitee is shown: the
+-- organization, the workspace when there is one, and who sent it. Unlocked:
+-- accepting reads it again under LockInvitationByToken.
+SELECT i.id, i.organization_id, i.workspace_id, i.email, i.role, i.org_role,
+       i.expires_at, i.accepted_at, i.revoked_at,
+       o.name AS organization_name, o.slug AS organization_slug,
+       w.name AS workspace_name, w.slug AS workspace_slug,
+       u.display_name AS invited_by_name
+FROM invitations i
+JOIN organizations o ON o.id = i.organization_id
+LEFT JOIN workspaces w ON w.id = i.workspace_id
+LEFT JOIN users u ON u.id = i.invited_by
+WHERE i.token = $1;
 
 -- name: MarkInvitationAccepted :execrows
 -- tenant: by-id

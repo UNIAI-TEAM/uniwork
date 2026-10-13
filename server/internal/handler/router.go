@@ -299,6 +299,7 @@ func New(d Deps) http.Handler {
 		PatchMember:         h.patchMember,
 		DeleteMember:        h.deleteMember,
 		CreateInvitation:    h.createInvitation,
+		PreviewInvitation:   h.previewInvitation,
 		AcceptInvitation:    h.acceptInvitation,
 
 		SeedWelcomeTask: h.seedWelcomeTask,

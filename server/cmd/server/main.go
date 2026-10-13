@@ -531,8 +531,10 @@ func main() {
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
-	// Leave and account deletion revoke the Google grants of the mailboxes they disconnect.
+	// Leave, an invitation switch and account deletion revoke the Google
+	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)
+	wsSvc.SetEmailHub(emailHubSvc)
 	authSvc.SetEmailHub(emailHubSvc)
 	go emailHubSvc.RunWorkers(runCtx)
 	go emailHubSvc.RunHubWatchers(runCtx)

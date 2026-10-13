@@ -94,7 +94,7 @@ func TestOneActiveOrganizationPerAccount(t *testing.T) {
 			t.Fatal(err)
 		}
 		token := f.inviteToOrg(t, second.ID, f.other.ID, f.member.Email)
-		_, err = f.ws.AcceptInvite(f.ctx, f.member.ID, token)
+		_, err = f.ws.AcceptInvite(f.ctx, f.member.ID, token, nil)
 		fields := codedFields(t, err, "organization_switch_required")
 		conflicts, ok := fields["conflicts"].([]MembershipConflict)
 		if !ok || len(conflicts) != 1 {
@@ -108,14 +108,14 @@ func TestOneActiveOrganizationPerAccount(t *testing.T) {
 			t.Fatalf("the refused accept left a membership: %v", err)
 		}
 		// The invitation is still pending: refusing it must not spend it.
-		if _, err := f.q.GetInvitationByToken(f.ctx, token); err != nil {
+		if inv, err := f.q.GetInvitationByTokenAnyState(f.ctx, token); err != nil || inv.AcceptedAt.Valid {
 			t.Fatalf("refused invitation was consumed: %v", err)
 		}
 		// Once they have left, the same link works.
 		if err := f.svc.Leave(f.ctx, f.member.ID, f.org.ID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := f.ws.AcceptInvite(f.ctx, f.member.ID, token); err != nil {
+		if _, err := f.ws.AcceptInvite(f.ctx, f.member.ID, token, nil); err != nil {
 			t.Fatalf("accept after leaving: %v", err)
 		}
 	})
@@ -130,7 +130,7 @@ func TestOneActiveOrganizationPerAccount(t *testing.T) {
 		if err != nil || len(invs) != 1 {
 			t.Fatalf("invite: %v", err)
 		}
-		if _, err := f.ws.AcceptInvite(f.ctx, f.member.ID, invs[0].Token); err != nil {
+		if _, err := f.ws.AcceptInvite(f.ctx, f.member.ID, invs[0].Token, nil); err != nil {
 			t.Fatalf("joining a workspace of one's own organization: %v", err)
 		}
 	})
@@ -164,7 +164,7 @@ func TestOneActiveOrganizationPerAccount(t *testing.T) {
 		for _, c := range cases {
 			c.setup()
 			token := f.inviteToOrg(t, target.ID, f.other.ID, c.who.Email)
-			_, err := f.ws.AcceptInvite(f.ctx, c.who.ID, token)
+			_, err := f.ws.AcceptInvite(f.ctx, c.who.ID, token, nil)
 			fields := codedFields(t, err, "organization_switch_required")
 			got := fields["conflicts"].([]MembershipConflict)
 			if len(got) != 1 || got[0].RequiredAction != c.action || got[0].BlockedReason != c.reason || got[0].TransferCandidatesCount != c.remaining {
@@ -337,7 +337,7 @@ func TestTwoInvitationsAcceptedAtOnceJoinOne(t *testing.T) {
 		wg.Add(1)
 		go func(i int, token string) {
 			defer wg.Done()
-			_, errs[i] = f.ws.AcceptInvite(f.ctx, joiner.ID, token)
+			_, errs[i] = f.ws.AcceptInvite(f.ctx, joiner.ID, token, nil)
 		}(i, token)
 	}
 	wg.Wait()

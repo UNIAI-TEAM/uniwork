@@ -128,6 +128,7 @@ type Routes struct {
 	PatchMember         http.HandlerFunc
 	DeleteMember        http.HandlerFunc
 	CreateInvitation    http.HandlerFunc
+	PreviewInvitation   http.HandlerFunc
 	AcceptInvitation    http.HandlerFunc
 
 	SeedWelcomeTask http.HandlerFunc

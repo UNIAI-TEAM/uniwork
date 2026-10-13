@@ -26,7 +26,7 @@ func (s *OrganizationMemberService) Close(ctx context.Context, actorID, orgID, c
 	if err := lockMembership(ctx, q, actorID); err != nil {
 		return err
 	}
-	mailboxes, err := s.closeQ(ctx, q, actorID, orgID, confirmSlug)
+	mailboxes, err := s.closeQ(ctx, q, actorID, orgID, confirmSlug, nil)
 	if err != nil {
 		return err
 	}
@@ -42,8 +42,9 @@ func (s *OrganizationMemberService) Close(ctx context.Context, actorID, orgID, c
 // it). The decision is made under the owner's row lock, the same order Leave
 // takes, so a transfer racing the close either lands first and the caller is
 // no longer the owner, or waits and finds the organization archived. The
-// caller cleans up the returned mailboxes after commit.
-func (s *OrganizationMemberService) closeQ(ctx context.Context, q *db.Queries, actorID, orgID, confirmSlug string) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+// caller cleans up the returned mailboxes after commit. meta joins the
+// organization.closed audit metadata (the invitation a switch closed for).
+func (s *OrganizationMemberService) closeQ(ctx context.Context, q *db.Queries, actorID, orgID, confirmSlug string, meta map[string]any) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
 	m, err := q.LockOrganizationMemberForUpdate(ctx, db.LockOrganizationMemberForUpdateParams{
 		OrganizationID: orgID, UserID: actorID,
 	})
@@ -118,11 +119,21 @@ func (s *OrganizationMemberService) closeQ(ctx context.Context, q *db.Queries, a
 		Action:         audit.ActionOrganizationClosed,
 		ResourceType:   "organization", ResourceID: orgID,
 		Changes:  audit.Diff(map[string]any{"status": OrganizationActive}, map[string]any{"status": "archived"}),
-		Metadata: map[string]any{"invitations_revoked": revoked},
+		Metadata: withMetadata(meta, "invitations_revoked", revoked),
 	}, audit.Event{Topic: "organization.closed", Payload: map[string]string{
 		"organization_id": orgID,
 	}}); err != nil {
 		return nil, err
 	}
 	return mailboxes, nil
+}
+
+// withMetadata adds one key to a copy of meta, which may be nil.
+func withMetadata(meta map[string]any, key string, value any) map[string]any {
+	out := make(map[string]any, len(meta)+1)
+	for k, v := range meta {
+		out[k] = v
+	}
+	out[key] = value
+	return out
 }

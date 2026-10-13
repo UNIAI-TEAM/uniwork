@@ -195,7 +195,7 @@ func TestCloseWaitsForAnAcceptanceIntoTheSameOrganization(t *testing.T) {
 	}
 	accepted := make(chan error, 1)
 	go func() {
-		_, err := f.ws.AcceptInvite(f.ctx, joiner.ID, token)
+		_, err := f.ws.AcceptInvite(f.ctx, joiner.ID, token, nil)
 		accepted <- err
 	}()
 	f.waitForRowLockWaiters(t, 1)

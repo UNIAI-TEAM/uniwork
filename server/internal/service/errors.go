@@ -135,6 +135,33 @@ func errMemberInOtherOrganization() error {
 	}
 }
 
+// ErrInvitationGone: the invitation exists but no longer lets anybody in. The
+// three codes say why, so the invitation page can tell the person, and the
+// switch it was part of has rolled back entirely (spec §4.4, AC-10).
+var ErrInvitationGone = errors.New("invitation_gone")
+
+func errInvitationExpired() error {
+	return CodedError{Code: "invitation_expired", Status: http.StatusGone, Msg: "lời mời đã hết hạn", Err: ErrInvitationGone}
+}
+
+func errInvitationRevoked() error {
+	return CodedError{Code: "invitation_revoked", Status: http.StatusGone, Msg: "lời mời đã bị thu hồi", Err: ErrInvitationGone}
+}
+
+func errInvitationAccepted() error {
+	return CodedError{Code: "invitation_accepted", Status: http.StatusGone, Msg: "lời mời đã được dùng", Err: ErrInvitationGone}
+}
+
+// errMembershipBusy answers a switch that lost a lock race Postgres had to
+// break (a deadlock or a serialization failure). Nothing was changed, and the
+// same request sent again decides on what the other one committed.
+func errMembershipBusy() error {
+	return CodedError{
+		Code: "membership_busy", Status: http.StatusConflict,
+		Msg: "một thay đổi tổ chức khác đang diễn ra; hãy thử lại", Err: ErrConflict,
+	}
+}
+
 // Closing an organization (ADR 0032 D5) needs the owner to be its only active
 // member and the slug typed back as confirmation.
 var (

@@ -217,16 +217,8 @@ func (s *OrganizationMemberService) TransferOwnership(ctx context.Context, actor
 	if actorID == targetID {
 		return db.OrganizationMember{}, Invalid("bạn đã là chủ sở hữu")
 	}
-	me, err := s.q.GetUserByID(ctx, actorID)
-	if err != nil {
+	if err := checkOwnerPassword(ctx, s.q, actorID, password); err != nil {
 		return db.OrganizationMember{}, err
-	}
-	if !me.PasswordHash.Valid {
-		return db.OrganizationMember{}, coded(http.StatusForbidden, "password_required",
-			"tài khoản chưa có mật khẩu; đặt mật khẩu trước khi chuyển quyền chủ sở hữu")
-	}
-	if !auth.CheckPassword(me.PasswordHash.String, password) {
-		return db.OrganizationMember{}, ErrInvalidCredentials
 	}
 	target, err := s.member(ctx, orgID, targetID)
 	if err != nil {
@@ -250,6 +242,24 @@ func (s *OrganizationMemberService) TransferOwnership(ctx context.Context, actor
 		return db.OrganizationMember{}, err
 	}
 	return updated, nil
+}
+
+// checkOwnerPassword is the password an owner re-enters to hand the
+// organization over (OPEN_QUESTIONS P2): TransferOwnership and the invitation
+// switch both ask for it before their transaction.
+func checkOwnerPassword(ctx context.Context, q *db.Queries, userID, password string) error {
+	me, err := q.GetUserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !me.PasswordHash.Valid {
+		return coded(http.StatusForbidden, "password_required",
+			"tài khoản chưa có mật khẩu; đặt mật khẩu trước khi chuyển quyền chủ sở hữu")
+	}
+	if !auth.CheckPassword(me.PasswordHash.String, password) {
+		return ErrInvalidCredentials
+	}
+	return nil
 }
 
 // transferOwnershipQ is TransferOwnership's transaction body: the password and

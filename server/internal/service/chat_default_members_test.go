@@ -42,7 +42,7 @@ func TestWorkspaceMembershipChangesReachTheDefaultChannel(t *testing.T) {
 	if err != nil || len(invs) != 1 {
 		t.Fatalf("invite: %v %d", err, len(invs))
 	}
-	if _, err := s.ws.AcceptInvite(ctx, ub.ID, invs[0].Token); err != nil {
+	if _, err := s.ws.AcceptInvite(ctx, ub.ID, invs[0].Token, nil); err != nil {
 		t.Fatal(err)
 	}
 	if got := defaultChannelRole(t, q, room.RoomID, ub.ID); got != "member" {

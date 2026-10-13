@@ -377,7 +377,7 @@ func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID st
 	if err := lockMembership(ctx, q, actorID); err != nil {
 		return err
 	}
-	mailboxes, err := s.leaveQ(ctx, q, actorID, orgID)
+	mailboxes, err := s.leaveQ(ctx, q, actorID, orgID, nil)
 	if err != nil {
 		return err
 	}
@@ -396,8 +396,9 @@ func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID st
 //
 // It does not go through RequireMember: a member or admin of a suspended
 // organization, or of one waiting for deletion, may still leave it (ADR 0032
-// D9). A deactivated row is refused as everywhere else.
-func (s *OrganizationMemberService) leaveQ(ctx context.Context, q *db.Queries, actorID, orgID string) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+// D9). A deactivated row is refused as everywhere else. meta lands on the
+// member.left audit row (the invitation a switch left for, spec §5).
+func (s *OrganizationMemberService) leaveQ(ctx context.Context, q *db.Queries, actorID, orgID string, meta map[string]any) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
 	m, err := q.LockOrganizationMemberForUpdate(ctx, db.LockOrganizationMemberForUpdateParams{
 		OrganizationID: orgID, UserID: actorID,
 	})
@@ -454,7 +455,8 @@ func (s *OrganizationMemberService) leaveQ(ctx context.Context, q *db.Queries, a
 		Actor:          audit.User(actorID),
 		Action:         audit.ActionMemberLeft,
 		ResourceType:   "organization_member", ResourceID: actorID,
-		Changes: audit.Diff(map[string]any{"role": m.Role}, nil),
+		Changes:  audit.Diff(map[string]any{"role": m.Role}, nil),
+		Metadata: meta,
 	}, audit.Event{Topic: "member.left", Payload: map[string]string{
 		"organization_id": orgID, "user_id": actorID,
 	}}); err != nil {
