@@ -132,13 +132,14 @@ func (s *ConversationStorePG) Create(ctx context.Context, key ConversationKey) (
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.queries.WithTx(tx)
-	// A new conversation for the same (organization, user, document, module)
-	// replaces the old one in this transaction (A9): a client that lost its id,
-	// or one that starts over, never leaves a second live transcript for the
-	// key.
+	// A new conversation for the same key replaces the old one in this
+	// transaction (A9): a client that lost its id, or one that starts over,
+	// never leaves a second live transcript for the key. The key includes the
+	// device, so this deletes exactly what Resume would have found - a
+	// device-less request never takes a device-bound transcript.
 	ids, err := q.AiUniworkConversationIDsByKey(ctx, db.AiUniworkConversationIDsByKeyParams{
 		OrganizationID: key.OrganizationID, UserID: key.UserID, Module: key.Module,
-		DocumentID: nullableText(key.DocumentID),
+		DocumentID: nullableText(key.DocumentID), DeviceID: nullableText(key.DeviceID),
 	})
 	if err != nil {
 		return Conversation{}, err
@@ -274,6 +275,19 @@ func (s *ConversationStorePG) DeleteByUser(ctx context.Context, organizationID, 
 		return q.AiUniworkConversationIDsByUser(ctx, db.AiUniworkConversationIDsByUserParams{
 			OrganizationID: organizationID, UserID: userID,
 		})
+	})
+	return err
+}
+
+// DeleteByUserAllOrgs removes every conversation of one user in every
+// organization that holds one: a sign-out (session.revoked) names only the
+// user, and they may have held transcripts in more than one organization.
+func (s *ConversationStorePG) DeleteByUserAllOrgs(ctx context.Context, userID string) error {
+	if userID == "" {
+		return nil
+	}
+	_, err := s.deleteScoped(ctx, func(q *db.Queries) ([]string, error) {
+		return q.AiUniworkConversationIDsByUserAllOrgs(ctx, userID)
 	})
 	return err
 }
@@ -573,26 +587,39 @@ func (w *ConversationTTLWorker) SweepOnce(ctx context.Context) (ConversationSwee
 	return result, nil
 }
 
+// ConversationCleanupStore is what the outbox cleanup consumer drives: the
+// frozen ConversationStore plus the one delete that spans organizations,
+// because a session.revoked row names only the user (A9 sign-out) and their
+// transcripts can live in every organization they held one in.
+type ConversationCleanupStore interface {
+	ConversationStore
+	// DeleteByUserAllOrgs removes every conversation of one user in every
+	// organization that holds one.
+	DeleteByUserAllOrgs(ctx context.Context, userID string) error
+}
+
 // ConversationCleanupConsumer deletes transcripts when what they are bound to
-// goes away (A9): the document is deleted, or the person loses their
-// membership, leaves or signs out of the organization. It fans out across the
-// conversation and turn tables, so it runs on the slow lane.
+// goes away (A9): the document is deleted, the person loses their membership
+// or signs out, or their sessions are revoked. It fans out across the
+// conversation and turn tables and, for a sign-out, across organizations, so
+// it runs on the slow lane.
 type ConversationCleanupConsumer struct {
-	store ConversationStore
+	store ConversationCleanupStore
 }
 
 // NewConversationCleanupConsumer builds the consumer; the store must be the
 // deployment's one conversation store (main.go registers it).
-func NewConversationCleanupConsumer(store ConversationStore) *ConversationCleanupConsumer {
+func NewConversationCleanupConsumer(store ConversationCleanupStore) *ConversationCleanupConsumer {
 	return &ConversationCleanupConsumer{store: store}
 }
 
 func (*ConversationCleanupConsumer) Name() string { return "ai_uniwork_conversation_cleanup" }
 
-// Topics is A9's cleanup list: a deleted document, and the member events that
-// end a person's access to the organization they hold transcripts in.
+// Topics is A9's cleanup list: a deleted document, the member events that end
+// a person's access to the organization they hold transcripts in, and the
+// sign-out that ends their sessions.
 func (*ConversationCleanupConsumer) Topics() []string {
-	return []string{"document.deleted", "member.removed", "member.left", "member.deactivated"}
+	return []string{"document.deleted", "member.removed", "member.left", "member.deactivated", "session.revoked"}
 }
 
 // Handle is idempotent by row id: deleting an already deleted conversation is
@@ -602,6 +629,15 @@ func (c *ConversationCleanupConsumer) Handle(ctx context.Context, ev outbox.Row)
 	var payload map[string]string
 	if err := json.Unmarshal([]byte(ev.Payload), &payload); err != nil {
 		return fmt.Errorf("ai_uniwork_conversation_cleanup: payload of %s: %w", ev.ID, err)
+	}
+	userID := payload["user_id"]
+	if ev.Topic == "session.revoked" {
+		// A sign-out names only the user: the transcripts in every
+		// organization they held one in go with it.
+		if userID == "" {
+			return nil
+		}
+		return c.store.DeleteByUserAllOrgs(ctx, userID)
 	}
 	organizationID := payload["organization_id"]
 	if organizationID == "" {
@@ -619,7 +655,6 @@ func (c *ConversationCleanupConsumer) Handle(ctx context.Context, ev outbox.Row)
 		}
 		return c.store.DeleteByDocument(ctx, organizationID, documentID)
 	}
-	userID := payload["user_id"]
 	if userID == "" {
 		return nil
 	}

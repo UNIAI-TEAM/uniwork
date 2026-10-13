@@ -47,6 +47,7 @@ WHERE organization_id = $1
   AND user_id = $2
   AND module = $3
   AND document_id IS NOT DISTINCT FROM $4::text
+  AND device_id IS NOT DISTINCT FROM $5::text
 `
 
 type AiUniworkConversationIDsByKeyParams struct {
@@ -54,16 +55,20 @@ type AiUniworkConversationIDsByKeyParams struct {
 	UserID         string      `json:"user_id"`
 	Module         string      `json:"module"`
 	DocumentID     pgtype.Text `json:"document_id"`
+	DeviceID       pgtype.Text `json:"device_id"`
 }
 
 // Everything one key owns, live or not: Create deletes these before it
-// inserts, so a client that starts over never leaves a second transcript.
+// inserts, so a client that starts over never leaves a second transcript -
+// and it deletes exactly the rows Resume would find, device included, so a
+// device-less request never takes a device-bound transcript.
 func (q *Queries) AiUniworkConversationIDsByKey(ctx context.Context, arg AiUniworkConversationIDsByKeyParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, aiUniworkConversationIDsByKey,
 		arg.OrganizationID,
 		arg.UserID,
 		arg.Module,
 		arg.DocumentID,
+		arg.DeviceID,
 	)
 	if err != nil {
 		return nil, err
@@ -120,6 +125,34 @@ type AiUniworkConversationIDsByUserParams struct {
 
 func (q *Queries) AiUniworkConversationIDsByUser(ctx context.Context, arg AiUniworkConversationIDsByUserParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, aiUniworkConversationIDsByUser, arg.OrganizationID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const aiUniworkConversationIDsByUserAllOrgs = `-- name: AiUniworkConversationIDsByUserAllOrgs :many
+SELECT id FROM ai_uniwork_conversations WHERE user_id = $1
+`
+
+// tenant: system
+// Sign-out (session.revoked) names only the user, and their transcripts can
+// live in every organization they held one in; the cleanup consumer is a
+// maintenance job that spans tenants by design and answers no request.
+func (q *Queries) AiUniworkConversationIDsByUserAllOrgs(ctx context.Context, userID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, aiUniworkConversationIDsByUserAllOrgs, userID)
 	if err != nil {
 		return nil, err
 	}

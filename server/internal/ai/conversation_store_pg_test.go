@@ -112,15 +112,16 @@ func TestAIUniworkTurnSealRoundTrip(t *testing.T) {
 // fakeConversations records what the consumer and the TTL worker asked for; it
 // implements ConversationStore plus the worker's ConversationMaintenance.
 type fakeConversations struct {
-	sweptCount    int64
-	sweepErr      error
-	organizations []string
-	orgsErr       error
-	live          int64
-	deleted       []string
-	deletedDocs   [][2]string
-	deletedUsers  [][2]string
-	deletedOrgs   []string
+	sweptCount     int64
+	sweepErr       error
+	organizations  []string
+	orgsErr        error
+	live           int64
+	deleted        []string
+	deletedDocs    [][2]string
+	deletedUsers   [][2]string
+	deletedUsersIn []string
+	deletedOrgs    []string
 }
 
 func (*fakeConversations) Resume(context.Context, ConversationKey, string) (Conversation, error) {
@@ -146,6 +147,10 @@ func (f *fakeConversations) DeleteByUser(_ context.Context, organizationID, user
 	f.deletedUsers = append(f.deletedUsers, [2]string{organizationID, userID})
 	return nil
 }
+func (f *fakeConversations) DeleteByUserAllOrgs(_ context.Context, userID string) error {
+	f.deletedUsersIn = append(f.deletedUsersIn, userID)
+	return nil
+}
 func (f *fakeConversations) DeleteByOrganization(_ context.Context, organizationID string) error {
 	f.deletedOrgs = append(f.deletedOrgs, organizationID)
 	return nil
@@ -164,14 +169,16 @@ func (f *fakeConversations) DeleteOrganizationConversations(_ context.Context, o
 	return 1, nil
 }
 
-// The cleanup consumer wears the four topics of A9 and calls the store with the
-// ids the outbox row carries (document for document.deleted, user elsewhere).
+// The cleanup consumer wears the five topics of A9 and calls the store with
+// the ids the outbox row carries: the document for document.deleted, the
+// organization from the payload (or the row) for the member events, and every
+// organization holding one for the user a session.revoked ends.
 func TestAIUniworkConversationCleanupConsumer(t *testing.T) {
 	ctx := context.Background()
 	store := &fakeConversations{}
 	c := NewConversationCleanupConsumer(store)
-	if got := c.Topics(); len(got) != 4 {
-		t.Fatalf("topics = %v, want document.deleted, member.removed, member.left, member.deactivated", got)
+	if got := c.Topics(); len(got) != 5 {
+		t.Fatalf("topics = %v, want document.deleted, member.removed, member.left, member.deactivated, session.revoked", got)
 	}
 	rows := []outbox.Row{
 		{ID: "e1", Topic: "document.deleted", Payload: `{"document_id":"doc-1","workspace_id":"ws-1"}`,
@@ -179,6 +186,8 @@ func TestAIUniworkConversationCleanupConsumer(t *testing.T) {
 		{ID: "e2", Topic: "member.removed", Payload: `{"organization_id":"org-1","user_id":"u-2","workspace_id":"ws-1"}`},
 		{ID: "e3", Topic: "member.left", Payload: `{"organization_id":"org-1","user_id":"u-3"}`},
 		{ID: "e4", Topic: "member.deactivated", Payload: `{"organization_id":"org-1","user_id":"u-4"}`},
+		{ID: "e5", Topic: "session.revoked", Payload: `{"user_id":"u-5","session_id":"s-1"}`,
+			OrganizationID: pgtype.Text{String: "org-1", Valid: true}},
 	}
 	for _, row := range rows {
 		if err := c.Handle(ctx, row); err != nil {
@@ -197,19 +206,27 @@ func TestAIUniworkConversationCleanupConsumer(t *testing.T) {
 			t.Fatalf("user cleanup[%d] = %v, want %v", i, store.deletedUsers[i], want)
 		}
 	}
+	// A sign-out names only the user: the delete spans the organizations, not
+	// the row's organization_id.
+	if len(store.deletedUsersIn) != 1 || store.deletedUsersIn[0] != "u-5" {
+		t.Fatalf("sign-out cleanup = %v, want u-5 across every organization", store.deletedUsersIn)
+	}
 	// A row that carries no id is a no-op, not a failure: the TTL still ends it.
-	if err := c.Handle(ctx, outbox.Row{ID: "e5", Topic: "document.deleted", Payload: `{}`,
+	if err := c.Handle(ctx, outbox.Row{ID: "e6", Topic: "document.deleted", Payload: `{}`,
 		OrganizationID: pgtype.Text{String: "org-1", Valid: true}}); err != nil {
 		t.Fatalf("empty payload: %v", err)
 	}
-	if err := c.Handle(ctx, outbox.Row{ID: "e6", Topic: "member.left", Payload: `{"organization_id":"org-1"}`}); err != nil {
+	if err := c.Handle(ctx, outbox.Row{ID: "e7", Topic: "member.left", Payload: `{"organization_id":"org-1"}`}); err != nil {
 		t.Fatalf("member row without user: %v", err)
 	}
-	if len(store.deletedDocs) != 1 || len(store.deletedUsers) != len(wantUsers) {
+	if err := c.Handle(ctx, outbox.Row{ID: "e8", Topic: "session.revoked", Payload: `{}`}); err != nil {
+		t.Fatalf("sign-out row without user: %v", err)
+	}
+	if len(store.deletedDocs) != 1 || len(store.deletedUsers) != len(wantUsers) || len(store.deletedUsersIn) != 1 {
 		t.Fatal("a row without ids reached the store")
 	}
 	// A payload that does not parse is the row's own problem: keep it for retry.
-	if err := c.Handle(ctx, outbox.Row{ID: "e7", Topic: "member.left", Payload: `not json`}); err == nil {
+	if err := c.Handle(ctx, outbox.Row{ID: "e9", Topic: "member.left", Payload: `not json`}); err == nil {
 		t.Fatal("malformed payload accepted")
 	}
 }
@@ -394,6 +411,51 @@ func TestAIUniworkNewConversationReplacesOld(t *testing.T) {
 	}
 }
 
+// Create replaces exactly the rows Resume would find for the same key: the
+// device part of the binding is honored on both paths, so a device-less
+// request never takes a device-bound transcript.
+func TestAIUniworkCreateKeepsDeviceBoundConversation(t *testing.T) {
+	store, pool := conversationStoreFixture(t)
+	ctx := context.Background()
+	store.SetClock(func() time.Time { return time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC) })
+
+	boundKey := ConversationKey{OrganizationID: "org-a", UserID: "u-1", Module: "sheets", DeviceID: "dev-1"}
+	bound, err := store.Create(ctx, boundKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Append(ctx, bound.ID, []Turn{{Message: provider.Message{Role: "user", Content: "của thiết bị"}}}); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := store.Create(ctx, ConversationKey{OrganizationID: "org-a", UserID: "u-1", Module: "sheets"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.ID == bound.ID {
+		t.Fatal("the device-less create reused the device-bound conversation")
+	}
+	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations WHERE id = $1`, bound.ID); got != 1 {
+		t.Fatalf("the device-less create removed the device-bound row: %d left", got)
+	}
+	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_turns WHERE conversation_id = $1`, bound.ID); got != 1 {
+		t.Fatalf("the device-less create removed the device-bound turns: %d left", got)
+	}
+	got, err := store.Resume(ctx, boundKey, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != bound.ID {
+		t.Fatalf("the device-bound key resumed %s, want %s", got.ID, bound.ID)
+	}
+	other, err := store.Resume(ctx, ConversationKey{OrganizationID: "org-a", UserID: "u-1", Module: "sheets"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other.ID != fresh.ID {
+		t.Fatalf("the device-less key resumed %s, want %s", other.ID, fresh.ID)
+	}
+}
+
 // The cleanup triggers of A9: a deleted document takes its conversations and
 // turns (through the outbox consumer), and losing membership takes the
 // person's; other scopes are untouched.
@@ -449,6 +511,52 @@ func TestAIUniworkConversationSweptOnDocumentDelete(t *testing.T) {
 	}
 	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations WHERE id = $1`, other.ID); got != 1 {
 		t.Fatal("another member's conversation was deleted")
+	}
+}
+
+// A sign-out (session.revoked) names only the user, and their transcripts live
+// in every organization they held one in: the consumer removes all of them,
+// with their turns, and nobody else's.
+func TestAIUniworkConversationSweptOnSignOut(t *testing.T) {
+	store, pool := conversationStoreFixture(t)
+	ctx := context.Background()
+	store.SetClock(func() time.Time { return time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC) })
+
+	orgA, err := store.Create(ctx, ConversationKey{OrganizationID: "org-a", UserID: "u-1", Module: "sheets"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Append(ctx, orgA.ID, []Turn{{Message: provider.Message{Role: "user", Content: "đăng xuất ở org-a"}}}); err != nil {
+		t.Fatal(err)
+	}
+	orgB, err := store.Create(ctx, ConversationKey{OrganizationID: "org-b", UserID: "u-1", DocumentID: "doc-1", Module: "docs"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Append(ctx, orgB.ID, []Turn{{Message: provider.Message{Role: "user", Content: "đăng xuất ở org-b"}}}); err != nil {
+		t.Fatal(err)
+	}
+	other, err := store.Create(ctx, ConversationKey{OrganizationID: "org-a", UserID: "u-2", Module: "sheets"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c := NewConversationCleanupConsumer(store)
+	if err := c.Handle(ctx, outbox.Row{ID: "e1", Topic: "session.revoked",
+		Payload:        `{"user_id":"u-1","session_id":"s-1"}`,
+		OrganizationID: pgtype.Text{String: "org-a", Valid: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations WHERE user_id = 'u-1'`); got != 0 {
+		t.Fatalf("the signed-out user kept %d conversations across their organizations", got)
+	}
+	for name, id := range map[string]string{"org-a": orgA.ID, "org-b": orgB.ID} {
+		if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_turns WHERE conversation_id = $1`, id); got != 0 {
+			t.Fatalf("the %s conversation kept %d turns", name, got)
+		}
+	}
+	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations WHERE id = $1`, other.ID); got != 1 {
+		t.Fatal("another user's conversation was deleted by the sign-out")
 	}
 }
 

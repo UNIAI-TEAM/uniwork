@@ -31,12 +31,15 @@ LIMIT 1;
 
 -- name: AiUniworkConversationIDsByKey :many
 -- Everything one key owns, live or not: Create deletes these before it
--- inserts, so a client that starts over never leaves a second transcript.
+-- inserts, so a client that starts over never leaves a second transcript -
+-- and it deletes exactly the rows Resume would find, device included, so a
+-- device-less request never takes a device-bound transcript.
 SELECT id FROM ai_uniwork_conversations
 WHERE organization_id = sqlc.arg('organization_id')
   AND user_id = sqlc.arg('user_id')
   AND module = sqlc.arg('module')
-  AND document_id IS NOT DISTINCT FROM sqlc.narg('document_id')::text;
+  AND document_id IS NOT DISTINCT FROM sqlc.narg('document_id')::text
+  AND device_id IS NOT DISTINCT FROM sqlc.narg('device_id')::text;
 
 -- name: AiUniworkConversationIDsByDocument :many
 SELECT id FROM ai_uniwork_conversations
@@ -49,6 +52,13 @@ WHERE organization_id = $1 AND user_id = $2 AND document_id = $3;
 -- name: AiUniworkConversationIDsByUser :many
 SELECT id FROM ai_uniwork_conversations
 WHERE organization_id = $1 AND user_id = $2;
+
+-- name: AiUniworkConversationIDsByUserAllOrgs :many
+-- tenant: system
+-- Sign-out (session.revoked) names only the user, and their transcripts can
+-- live in every organization they held one in; the cleanup consumer is a
+-- maintenance job that spans tenants by design and answers no request.
+SELECT id FROM ai_uniwork_conversations WHERE user_id = $1;
 
 -- name: AiUniworkConversationIDsByOrganization :many
 SELECT id FROM ai_uniwork_conversations
