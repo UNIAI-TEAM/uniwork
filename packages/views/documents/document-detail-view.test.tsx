@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import {
@@ -354,5 +355,50 @@ describe("DocumentDetailView", () => {
     await waitFor(() => expect(screen.queryByTestId("document-comments-pane")).toBeNull());
     // No second way in either: the header trigger is gone with it.
     expect(screen.queryByRole("button", { name: t("documents.comments.title") })).toBeNull();
+  });
+
+  it("brings the page's comments trigger back once the frame that served them is gone", async () => {
+    window.innerWidth = 1400;
+    const file = pageDocument({
+      kind: "file",
+      title: "Báo cáo",
+      content: undefined,
+      file: { file_id: "f1", version_id: "v2", version: 2, filename: "bao-cao.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 1024, checksum_sha256: "a".repeat(64) },
+    });
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") return Promise.resolve({ document: file });
+      if (path.startsWith("/api/v1/config")) return Promise.resolve({ flags: { office_engine: true, office_docx: true } });
+      if (path.startsWith("/api/v1/documents/d1/comments")) return Promise.resolve({ comments: [], mentions: [], list_token: "lt1:a" });
+      return Promise.resolve({ versions: [], next_cursor: null, favorites: [] });
+    });
+    // Reports the way OfficeModuleFrame does: its claim on mount, taken back on unmount.
+    function Frame() {
+      const report = useReportFrameComments();
+      useEffect(() => {
+        report?.(true);
+        return () => report?.(false);
+      }, [report]);
+      return <p>frame</p>;
+    }
+    function FrameHost() {
+      const [shown, setShown] = useState(true);
+      return (
+        <>
+          {shown ? <Frame /> : null}
+          <button type="button" onClick={() => setShown(false)}>drop-frame</button>
+        </>
+      );
+    }
+    render(withFlag(
+      <DocumentDetailView wsId={WS} documentId="d1" libraryHref={LIBRARY} onBackToList={vi.fn()} officeEditorHost={FrameHost} />,
+      true,
+      fakeNav("/acme/doi/documents/d1"),
+    ));
+    await screen.findByText("frame");
+    await waitFor(() => expect(screen.queryByRole("button", { name: t("documents.comments.title") })).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "drop-frame" }));
+
+    expect(await screen.findByRole("button", { name: t("documents.comments.title") })).toBeInTheDocument();
   });
 });
