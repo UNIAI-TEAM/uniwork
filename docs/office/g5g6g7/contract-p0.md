@@ -338,7 +338,7 @@ light/dark vi/en cho task UI.
 | G7-A01 | G7-04 | harness G7-01 kịch bản full loop | `reports/g7-qa/…` + ghi hình |
 | G7-A02 | G7-03a, G7-04 | fault race G5×G6; harness | `reports/g7-qa/…` |
 | G7-A03 | G5-11, G7-05 (G5-04g) | F test logout/rollback; nâng/hạ bản cài N′ ↔ N+1 | `reports/g5-fork_main/…`, `reports/g7-qa/…`; phần ký số theo U-11 |
-| G7-A04 | G7-05, G7-06, G7-09 | ma trận platform (máy theo G7-D2); hồi quy upstream G7-06; checklist UX G7-09 | `reports/g7-qa/…`; hàng thiếu máy BLOCKED(G7-D2) |
+| G7-A04 | G7-05, G7-06, G7-09 | ma trận platform (máy theo G7-D2); hồi quy upstream G7-06: `node ~/cloud-runner/.cursor/cloud/cloud-runner.mjs test --spec reports/g7-qa/specs/cloud-g7-06-6.txt --lane g7-qa --out <report> --timeout 7200` (spec chạy unit test, sync bundle, harness `OFFICE_FORK_SHA=<pin> bash scripts/office/g5g6g7/harness/start.sh`, `capture.mjs --host desktop\|web`, rồi `evidence.mjs run --req G7-A04 … -- node scripts/office/g5g6g7/g7-06/job.mjs`; exit 0 PASS, 1 FAIL, 77 BLOCKED); checklist UX G7-09 | `reports/g7-qa/…`; hàng thiếu máy BLOCKED(G7-D2) |
 | G7-A05 | G7-07, G7-11 (G7-01, G6-14) | `node --test scripts/alerts-runbooks.test.mjs` · runtime manifest dựng lại | `reports/g7-qa/…`, tài liệu quyết định G7-11 |
 
 ## 11. Trạng thái gate
