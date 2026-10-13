@@ -363,6 +363,12 @@ func (s *DocumentChangesService) page(ctx context.Context, cs changeCursorScope,
 		out.ExpiresAt = snap.ExpiresAt.Time
 	} else {
 		claims.Phase, claims.HighWater = changeCursorPhaseFeed, snap.HighWater
+		// The snapshot id rides along as evidence availability for the two
+		// removal kinds whose pre-change state the change itself destroys
+		// (purge, becoming Work-Product-owned); BE-G1-1/BE-G1-2: it is not the
+		// permission decision, and a pre-fix cursor without it answers 410
+		// where that evidence would be needed.
+		claims.SnapshotID = snapshotID
 		out.ExpiresAt = now.Add(DocumentChangeFeedCursorTTL)
 		claims.ExpiresAt = out.ExpiresAt.Unix()
 	}

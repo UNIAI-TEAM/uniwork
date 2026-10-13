@@ -74,7 +74,6 @@ WHERE a.organization_id = $1
   AND a.resource_type = 'document'
   AND a.xact_id IS NOT NULL
   AND NOT pg_visible_in_snapshot(a.xact_id, $3::text::pg_snapshot)
-  AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
   AND (CASE WHEN $4::text = '' THEN TRUE
             ELSE (a.xact_id, a.id) > ($4::xid8, $5::text) END)
 `
@@ -92,11 +91,17 @@ type DocumentChangeFeedPendingRow struct {
 	LagSeconds float64 `json:"lag_seconds"`
 }
 
-// What the feed still owes after the position one page handed out: how many
-// changes are already committed and eligible (the same predicate as the page
-// read), and the age of the oldest of them. The count is has_more (a page that
-// stopped at the limit, or held a still-in-flight transaction back, keeps the
-// client paging); the age is the feed lag metric. No row answers (0, 0).
+// What the feed still owes after the position one page handed out: every
+// change after it the page read would eventually deliver, and the age of the
+// oldest of them. This count deliberately DROPS the page read's
+// in-flight-xid guard (BE-G1-3): a change held back because its transaction
+// was still open when the page read is still owed, so has_more stays true
+// and the client keeps paging instead of stopping one poll short. The guard
+// itself stays on the page read (ListDocumentChangeFeed) - it is what stops a
+// client from advancing past a transaction that may still roll back. The age
+// is the feed lag metric: a long-running transaction (the xmin horizon)
+// keeps this count and the age non-zero while no page delivers, which is the
+// stall the runbook names. No row answers (0, 0).
 func (q *Queries) DocumentChangeFeedPending(ctx context.Context, arg DocumentChangeFeedPendingParams) (DocumentChangeFeedPendingRow, error) {
 	row := q.db.QueryRow(ctx, documentChangeFeedPending,
 		arg.OrganizationID,
@@ -232,7 +237,7 @@ func (q *Queries) InsertDocumentChangeSnapshotItems(ctx context.Context, arg Ins
 }
 
 const listDocumentChangeFeed = `-- name: ListDocumentChangeFeed :many
-SELECT a.id, a.action, a.resource_id, a.xact_id::text AS xact_id, a.metadata
+SELECT a.id, a.action, a.resource_id, a.xact_id::text AS xact_id, a.metadata, a.changes
 FROM audit_events a
 WHERE a.organization_id = $1
   AND a.workspace_id = $2
@@ -263,6 +268,7 @@ type ListDocumentChangeFeedRow struct {
 	ResourceID string `json:"resource_id"`
 	XactID     string `json:"xact_id"`
 	Metadata   string `json:"metadata"`
+	Changes    string `json:"changes"`
 }
 
 // ---- Incremental feed (G5-01b, UNI-1346) -----------------------------------
@@ -302,6 +308,7 @@ func (q *Queries) ListDocumentChangeFeed(ctx context.Context, arg ListDocumentCh
 			&i.ResourceID,
 			&i.XactID,
 			&i.Metadata,
+			&i.Changes,
 		); err != nil {
 			return nil, err
 		}
@@ -375,9 +382,13 @@ func (q *Queries) ListDocumentChangeSnapshotItems(ctx context.Context, arg ListD
 }
 
 const listDocumentsForChangeFeed = `-- name: ListDocumentsForChangeFeed :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision FROM documents
-WHERE organization_id = $1
-  AND id = ANY($2::text[])
+SELECT
+  d.id, d.organization_id, d.workspace_id, d.kind, d.revision,
+  d.current_version, d.file_version_id, d.archived_at,
+  d.owner_id, d.visibility, d.acl_owner_id
+FROM documents d
+WHERE d.organization_id = $1
+  AND d.id = ANY($2::text[])
 `
 
 type ListDocumentsForChangeFeedParams struct {
@@ -385,60 +396,46 @@ type ListDocumentsForChangeFeedParams struct {
 	Ids            []string `json:"ids"`
 }
 
+type ListDocumentsForChangeFeedRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Kind           string             `json:"kind"`
+	Revision       int64              `json:"revision"`
+	CurrentVersion int32              `json:"current_version"`
+	FileVersionID  pgtype.Text        `json:"file_version_id"`
+	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+	OwnerID        pgtype.Text        `json:"owner_id"`
+	Visibility     string             `json:"visibility"`
+	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
+}
+
 // One page's documents, WITHOUT the workspace filter: a row whose document now
 // lives in another workspace of the same organization is a removal for this
 // workspace, and a row with no document is a hard delete. Cross-tenant ids
-// read nothing.
-func (q *Queries) ListDocumentsForChangeFeed(ctx context.Context, arg ListDocumentsForChangeFeedParams) ([]Document, error) {
+// read nothing. Exactly the columns the feed reads (BE-G1-6) - never SELECT *,
+// which would drag content, content_text and search_text through a hot read.
+func (q *Queries) ListDocumentsForChangeFeed(ctx context.Context, arg ListDocumentsForChangeFeedParams) ([]ListDocumentsForChangeFeedRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsForChangeFeed, arg.OrganizationID, arg.Ids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Document{}
+	items := []ListDocumentsForChangeFeedRow{}
 	for rows.Next() {
-		var i Document
+		var i ListDocumentsForChangeFeedRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
 			&i.WorkspaceID,
-			&i.ParentID,
 			&i.Kind,
-			&i.Title,
-			&i.Icon,
-			&i.Visibility,
-			&i.Content,
-			&i.ContentText,
-			&i.SearchText,
-			&i.ContentBytes,
+			&i.Revision,
 			&i.CurrentVersion,
 			&i.FileVersionID,
-			&i.Revision,
-			&i.Position,
-			&i.OwnerKind,
-			&i.OwnerID,
-			&i.AclOwnerID,
-			&i.SourceDocumentID,
-			&i.SourceVersionID,
-			&i.SourceRevision,
-			&i.SourceFormat,
-			&i.SourceEngine,
-			&i.TargetFormat,
-			&i.SourceChecksumSha256,
-			&i.ConversionReason,
-			&i.CreatedBy,
-			&i.CreatedByKind,
-			&i.UpdatedBy,
-			&i.UpdatedByKind,
-			&i.ContentSavedAt,
-			&i.LastVersionAt,
 			&i.ArchivedAt,
-			&i.ArchivedBy,
-			&i.PurgeAfter,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ArchiveBatchID,
-			&i.ContentRevision,
+			&i.OwnerID,
+			&i.Visibility,
+			&i.AclOwnerID,
 		); err != nil {
 			return nil, err
 		}
@@ -467,8 +464,15 @@ type ReadableAtSnapshotIDsParams struct {
 
 // The document ids the caller's snapshot held among these candidates: the
 // snapshot items were materialised at the snapshot's MVCC point, so they are
-// exactly what the caller could read then. The feed sends a removal only to a
-// caller in this set, so a stranger learns nothing about a document.
+// exactly what the caller could read then. Since the removal basis moved to a
+// reconstruction at removal time (BE-G1-1/BE-G1-2) this set is NOT the
+// permission decision: it is consulted only for the two kinds whose pre-change
+// state the removal itself destroys (a purge removes the row and its shares; a
+// document that becomes Work-Product-owned overwrites its permission row) - a
+// held id makes the removal due (owned) or its evidence unreconstructable
+// (purge, answered 410), an absent id with no granting action on the page
+// proves no removal is due. An empty set from a swept snapshot is never read
+// as "not held": the caller checks the snapshot row still exists first.
 func (q *Queries) ReadableAtSnapshotIDs(ctx context.Context, arg ReadableAtSnapshotIDsParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, readableAtSnapshotIDs,
 		arg.SnapshotID,

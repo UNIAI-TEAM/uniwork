@@ -103,7 +103,7 @@ WHERE snapshot_id = ANY(sqlc.arg(snapshot_ids)::text[]);
 -- in-flight one is held back for the next page and never skipped.
 --
 -- name: ListDocumentChangeFeed :many
-SELECT a.id, a.action, a.resource_id, a.xact_id::text AS xact_id, a.metadata
+SELECT a.id, a.action, a.resource_id, a.xact_id::text AS xact_id, a.metadata, a.changes
 FROM audit_events a
 WHERE a.organization_id = sqlc.arg(organization_id)
   AND a.workspace_id = sqlc.arg(workspace_id)
@@ -119,11 +119,17 @@ ORDER BY a.xact_id, a.id
 LIMIT sqlc.arg(page_limit);
 
 -- name: DocumentChangeFeedPending :one
--- What the feed still owes after the position one page handed out: how many
--- changes are already committed and eligible (the same predicate as the page
--- read), and the age of the oldest of them. The count is has_more (a page that
--- stopped at the limit, or held a still-in-flight transaction back, keeps the
--- client paging); the age is the feed lag metric. No row answers (0, 0).
+-- What the feed still owes after the position one page handed out: every
+-- change after it the page read would eventually deliver, and the age of the
+-- oldest of them. This count deliberately DROPS the page read's
+-- in-flight-xid guard (BE-G1-3): a change held back because its transaction
+-- was still open when the page read is still owed, so has_more stays true
+-- and the client keeps paging instead of stopping one poll short. The guard
+-- itself stays on the page read (ListDocumentChangeFeed) - it is what stops a
+-- client from advancing past a transaction that may still roll back. The age
+-- is the feed lag metric: a long-running transaction (the xmin horizon)
+-- keeps this count and the age non-zero while no page delivers, which is the
+-- stall the runbook names. No row answers (0, 0).
 SELECT count(*)::bigint AS pending,
        COALESCE(EXTRACT(EPOCH FROM (now() - min(a.occurred_at))), 0)::float8 AS lag_seconds
 FROM audit_events a
@@ -132,7 +138,6 @@ WHERE a.organization_id = sqlc.arg(organization_id)
   AND a.resource_type = 'document'
   AND a.xact_id IS NOT NULL
   AND NOT pg_visible_in_snapshot(a.xact_id, sqlc.arg(high_water)::text::pg_snapshot)
-  AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
   AND (CASE WHEN sqlc.arg(after_xact)::text = '' THEN TRUE
             ELSE (a.xact_id, a.id) > (sqlc.arg(after_xact)::xid8, sqlc.arg(after_id)::text) END);
 
@@ -154,16 +159,28 @@ SELECT COALESCE((
 -- One page's documents, WITHOUT the workspace filter: a row whose document now
 -- lives in another workspace of the same organization is a removal for this
 -- workspace, and a row with no document is a hard delete. Cross-tenant ids
--- read nothing.
-SELECT * FROM documents
-WHERE organization_id = sqlc.arg(organization_id)
-  AND id = ANY(sqlc.arg(ids)::text[]);
+-- read nothing. Exactly the columns the feed reads (BE-G1-6) - never SELECT *,
+-- which would drag content, content_text and search_text through a hot read.
+SELECT
+  d.id, d.organization_id, d.workspace_id, d.kind, d.revision,
+  d.current_version, d.file_version_id, d.archived_at,
+  d.owner_id, d.visibility, d.acl_owner_id
+FROM documents d
+WHERE d.organization_id = sqlc.arg(organization_id)
+  AND d.id = ANY(sqlc.arg(ids)::text[]);
 
 -- name: ReadableAtSnapshotIDs :many
 -- The document ids the caller's snapshot held among these candidates: the
 -- snapshot items were materialised at the snapshot's MVCC point, so they are
--- exactly what the caller could read then. The feed sends a removal only to a
--- caller in this set, so a stranger learns nothing about a document.
+-- exactly what the caller could read then. Since the removal basis moved to a
+-- reconstruction at removal time (BE-G1-1/BE-G1-2) this set is NOT the
+-- permission decision: it is consulted only for the two kinds whose pre-change
+-- state the removal itself destroys (a purge removes the row and its shares; a
+-- document that becomes Work-Product-owned overwrites its permission row) - a
+-- held id makes the removal due (owned) or its evidence unreconstructable
+-- (purge, answered 410), an absent id with no granting action on the page
+-- proves no removal is due. An empty set from a swept snapshot is never read
+-- as "not held": the caller checks the snapshot row still exists first.
 SELECT document_id FROM document_change_snapshot_items
 WHERE snapshot_id = sqlc.arg(snapshot_id)
   AND organization_id = sqlc.arg(organization_id)
