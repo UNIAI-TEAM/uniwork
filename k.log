@@ -1,0 +1,2 @@
+$ grep -rnE "userInfo\(|USERNAME|LOGNAME" apps/*/src --include=*.ts --include=*.tsx | grep -v -E "\.test\.|/tests/" ; echo "OS_NAME_GREP_MATCHES_ABOVE (expect none)"
+OS_NAME_GREP_MATCHES_ABOVE (expect none)

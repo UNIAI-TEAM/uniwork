@@ -1,0 +1,7 @@
+$ npm run check:brand; echo "BRAND_EXIT=$?"
+
+> genoffice@0.1.0 check:brand
+> node tools/rebrand/brand-scan.mjs
+
+brand-scan: 0 violation(s), 79 allowlisted hit(s) (51 known debt)
+BRAND_EXIT=0

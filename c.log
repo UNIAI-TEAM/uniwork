@@ -1,0 +1,7 @@
+$ FORMAT_BASE_REF=$(git merge-base HEAD origin/main); export FORMAT_BASE_REF; npm run check:theme-colors; echo "THEME_EXIT=$?"
+
+> genoffice@0.1.0 check:theme-colors
+> node tools/check-theme-colors.mjs
+
+No new raw colors in renderer CSS.
+THEME_EXIT=0
