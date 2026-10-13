@@ -52,7 +52,7 @@ func TestOfficeLeaseRecheckErrorRevokesTheCommittedLease(t *testing.T) {
 	w.requireRevoked(t, leaseID, OfficeLeaseRevokeMemberRemoved)
 	var note string
 	if err := w.f.pool.QueryRow(w.ctx,
-		`SELECT metadata->>'check_failed' FROM audit_events WHERE action = $1 AND resource_id = $2`,
+		`SELECT metadata::jsonb->>'check_failed' FROM audit_events WHERE action = $1 AND resource_id = $2`,
 		audit.ActionOfficeOfflineLeaseRevoked, leaseID).Scan(&note); err != nil {
 		t.Fatal(err)
 	}
