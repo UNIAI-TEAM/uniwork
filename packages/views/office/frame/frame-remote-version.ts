@@ -114,6 +114,8 @@ export function createFrameRemoteVersion(options: FrameRemoteVersionOptions): Fr
   let known = new Set<string>();
   let saving = 0;
   let deferred: RemoteHead | null = null;
+  /** The newest head read before the frame's first open answer: re-offered once it lands. */
+  let early: RemoteHead | null = null;
   let blocked: FrameBlock | null = null;
   /** The reason the frame was last told; a delete is final, a revoke after it changes nothing. */
   let told: DocBlockedReason | null = null;
@@ -142,8 +144,14 @@ export function createFrameRemoteVersion(options: FrameRemoteVersionOptions): Fr
       return false;
     }
     const revision = asBig(head.revision);
-    // No version (a page) or a frame that has not opened yet (it opens the head anyway).
-    if (revision === null || !head.versionId || openRevision === null) return false;
+    // No version (a page): nothing to announce.
+    if (revision === null || !head.versionId) return false;
+    // The frame's open is still in flight and may answer an older head than this one: keep the
+    // newest such head and decide once the answer lands (`opened`).
+    if (openRevision === null) {
+      if (!early || revision > (asBig(early.revision) ?? 0n)) early = head;
+      return false;
+    }
     if (own.has(head.versionId)) return false;
     if (revision <= openRevision) return false;
     if (announced !== null && revision <= announced) return false;
@@ -158,7 +166,15 @@ export function createFrameRemoteVersion(options: FrameRemoteVersionOptions): Fr
   };
 
   return {
-    opened: (file) => hold(file),
+    opened: (file) => {
+      hold(file);
+      if (!early || openRevision === null) return;
+      const head = early;
+      const doc = documentId;
+      early = null;
+      // After the open answer has reached the frame: a frame that has not opened drops the event.
+      setTimeout(() => { if (documentId === doc) offer(head); }, 0);
+    },
     committed: (file, versionId) => {
       const version = versionId ?? file.versionId;
       if (version) own.add(version);
@@ -181,7 +197,7 @@ export function createFrameRemoteVersion(options: FrameRemoteVersionOptions): Fr
       documentId = next;
       openRevision = null; openVersion = null; announced = null;
       own = new Set(); known = new Set();
-      deferred = null; blocked = null; told = null;
+      deferred = null; early = null; blocked = null; told = null;
     },
   };
 }

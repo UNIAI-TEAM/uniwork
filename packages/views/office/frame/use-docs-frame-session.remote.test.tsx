@@ -105,7 +105,7 @@ function setup() {
     return received.find((m) => m.kind === "response" && m.id === id)!;
   };
   return {
-    server, hook, open, save, iframe, events, request, answer,
+    server, hook, open, save, iframe, events, request, answer, received,
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     async boot() {
       await post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, module: "docs", instanceId: "i-1" }));
@@ -249,6 +249,24 @@ describe("useDocsFrameSession: doc.remoteVersion", () => {
     // A real new version after it is still announced.
     await frame.commitElsewhere("11", "v-other");
     await waitFor(() => expect(frame.events("doc.remoteVersion")).toHaveLength(1));
+  });
+
+  it("a head read while the first api.open is in flight reaches the frame after that open answer (R3-02)", async () => {
+    const frame = setup();
+    await frame.boot();
+    // The open read answered R9 on the server; R10 lands elsewhere before that answer reaches the host.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    frame.open.mockImplementationOnce(async () => { await gate; return { file: fileOf("9", "v1"), source: { kind: "bytes", data: new ArrayBuffer(4) } }; });
+    const id = frame.request("api.open", { fileId: "doc-1" });
+    await frame.commitElsewhere("10", "v2");
+    await flush();
+    expect(frame.events("doc.remoteVersion")).toHaveLength(0);
+    release();
+    await frame.answer(id);
+    await waitFor(() => expect(frame.events("doc.remoteVersion")).toEqual([{ document_id: "doc-1", revision: "10", version_id: "v2", saved_at: "2026-10-13T08:00:00Z" }]));
+    const at = (pick: (m: Envelope) => boolean) => frame.received.findIndex(pick);
+    expect(at((m) => m.kind === "response" && m.id === id)).toBeLessThan(at((m) => m.kind === "event" && m.type === "doc.remoteVersion"));
   });
 
   it("ignores frames of another document", async () => {

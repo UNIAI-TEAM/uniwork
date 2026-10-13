@@ -24,14 +24,48 @@ describe("createFrameRemoteVersion", () => {
     expect(notify).toHaveBeenCalledTimes(2);
   });
 
-  it("says nothing before the frame opened, for a page without a version, or with the flag off", () => {
+  it("says nothing for a page without a version, or with the flag off", () => {
     const { r, notify, state } = remote();
-    expect(r.offer(head("10", "v2"))).toBe(false);
     r.opened(file("9", "v1"));
     expect(r.offer(head("10", null))).toBe(false);
     state.enabled = false;
     expect(r.offer(head("11", "v3"))).toBe(false);
     expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("keeps the newest head read before the first open answer and offers it once that answer lands (R3-02)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { r, notify } = remote();
+      // The open read answered R5 while R6 (then an older R5b hint) was read elsewhere.
+      expect(r.offer(head("6", "v6"))).toBe(false);
+      expect(r.offer(head("5", "v5b"))).toBe(false);
+      r.opened(file("5", "v5"));
+      // Not before the open answer has gone out to the frame.
+      expect(notify).not.toHaveBeenCalled();
+      await vi.runAllTimersAsync();
+      expect(notify.mock.calls).toEqual([[{ document_id: "doc-1", revision: "6", version_id: "v6", saved_at: "2026-10-13T08:00:00Z" }]]);
+      // Offered once: a second open answer does not repeat it.
+      r.opened(file("6", "v6"));
+      await vi.runAllTimersAsync();
+      expect(notify).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("an early head the open answer already covers, or one of a document the frame left, stays silent", async () => {
+    vi.useFakeTimers();
+    try {
+      const { r, notify } = remote();
+      r.offer(head("6", "v6"));
+      r.opened(file("6", "v6"));
+      const other = remote();
+      other.r.offer(head("6", "v6"));
+      other.r.opened(file("5", "v5"));
+      other.r.rebind("doc-2");
+      await vi.runAllTimersAsync();
+      expect(notify).not.toHaveBeenCalled();
+      expect(other.notify).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
   });
 
   it("an older open answer landing late never moves the frame backwards", () => {
