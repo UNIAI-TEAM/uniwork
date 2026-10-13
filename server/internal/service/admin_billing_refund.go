@@ -44,6 +44,10 @@ func (s *AdminService) RefundInvoice(ctx context.Context, adminID, invoiceID, re
 	}
 	partial := amount < refundable
 	providerRef = strings.TrimSpace(providerRef)
+	if inv.Provider == "vnpay" && inv.AmountRefunded > 0 {
+		return db.Invoice{}, CodedError{Code: "invoice_not_refundable", Status: http.StatusConflict,
+			Msg: "hóa đơn VNPay đã hoàn một lần — phần còn lại hoàn thủ công"}
+	}
 
 	switch inv.Provider {
 	case "manual":
