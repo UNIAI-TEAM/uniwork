@@ -101,7 +101,10 @@ func (s *AICloudService) Status(ctx context.Context, userID, orgID string, caps 
 	} else {
 		out.Tools = s.gw.CloudAvailability()
 		if caps != nil && s.gw.UniworkAIConfigured() {
-			// A failed flag read leaves chat off, never the status.
+			// An error from caps.Get leaves chat off without failing the status.
+			// A flags-store refresh error does not reach here: the feature-flag
+			// provider keeps serving its last snapshot (featureflags/db_provider.go),
+			// for every flag, so a cached "on" stays on until the store answers again.
 			if c, err := caps.Get(ctx, userID, orgID); err == nil && c.AIUniwork {
 				out.Chat = true
 				out.UniworkAIFormats = c.AIUniworkFormats
