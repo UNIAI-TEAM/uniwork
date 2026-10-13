@@ -231,12 +231,12 @@ func TestDocumentCommentAnchorsCreate(t *testing.T) {
 
 	// An anchor belongs to a root kind=comment only, needs its base version,
 	// matches the document's format and must pass the closed schema.
-	rootNoAnchor, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "gốc", CommentType: "comment"}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	// OQ-C2: a root kind=comment now requires an anchor and a base version,
+	// so the parent the reply case answers is anchored (the anchorless root
+	// is a 400 pinned by TestDocumentCommentCollab).
+	root := f.anchoredCreate(t, member, d, versions[2].ID, string(anchorRaw("xlsx", nil)), "")
 	badBodies := []AddCommentInput{
-		{Body: "trả lời", CommentType: "comment", ParentID: &rootNoAnchor.ID, Anchor: anchorRaw("xlsx", nil), BaseVersionID: versions[2].ID},
+		{Body: "trả lời", CommentType: "comment", ParentID: &root.ID, Anchor: anchorRaw("xlsx", nil), BaseVersionID: versions[2].ID},
 		{Body: "thảo luận", CommentType: "discussion", Anchor: anchorRaw("xlsx", nil), BaseVersionID: versions[2].ID},
 		{Body: "mặc định", CommentType: "", Anchor: anchorRaw("xlsx", nil), BaseVersionID: versions[2].ID},
 		{Body: "thiếu version", CommentType: "comment", Anchor: anchorRaw("xlsx", nil)},
