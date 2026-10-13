@@ -1,0 +1,49 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18080 FRONTEND_ORIGIN=http://localhost:13000 API_PUBLIC_URL=http://localhost:18080 PREVIEW_ORIGIN=http://localhost:13001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18080 NEXT_PUBLIC_WS_URL=ws://localhost:18080 NEXT_PUBLIC_APP_URL=http://localhost:13000 E2E_BASE_URL=http://localhost:13000 E2E_API_URL=http://localhost:18080; pnpm --filter @uniwork/e2e exec playwright test documents-comments.spec.ts --reporter=line; rc=$?; echo "E2E_COMMENTS_EXIT=$rc"; exit $rc
+
+Running 1 test using 1 worker
+
+(node:17631) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:17631) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/1] documents-comments.spec.ts:90:1 › discussion panel posts, replies, edits, resolves, reopens and survives a reload
+  1) documents-comments.spec.ts:90:1 › discussion panel posts, replies, edits, resolves, reopens and survives a reload 
+
+    Error: locator.click: Error: strict mode violation: getByRole('menuitem', { name: 'Sửa' }) resolved to 2 elements:
+        1) <div tabindex="-1" role="menuitem" id="base-ui-_r_6h_" data-variant="default" data-slot="dropdown-menu-item" class="group/dropdown-menu-item relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-body outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destr…>…</div> aka getByRole('menuitem', { name: 'Sửa', exact: true })
+        2) <div tabindex="-1" role="menuitem" id="base-ui-_r_6k_" data-variant="default" data-slot="dropdown-menu-item" class="group/dropdown-menu-item relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-body outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destr…>…</div> aka getByRole('menuitem', { name: 'Xem lịch sử sửa' })
+
+    Call log:
+      - waiting for getByRole('menuitem', { name: 'Sửa' })
+
+
+      119 |   // Edit the post, then read its history.
+      120 |   await rail.getByRole("button", { name: /^Thao tác khác/ }).first().click();
+    > 121 |   await page.getByRole("menuitem", { name: "Sửa" }).click();
+          |                                                     ^
+      122 |   const editBox = rail.getByRole("textbox", { name: "Sửa" });
+      123 |   await editBox.fill("Bài thảo luận đã sửa");
+      124 |   await rail.getByRole("button", { name: "Lưu", exact: true }).click();
+        at /workspace/e2e/documents-comments.spec.ts:121:53
+
+    Error Context: test-results/documents-comments-discuss-0b2e9-opens-and-survives-a-reload/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-comments-discuss-0b2e9-opens-and-survives-a-reload/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-comments-discuss-0b2e9-opens-and-survives-a-reload/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+  1 failed
+    documents-comments.spec.ts:90:1 › discussion panel posts, replies, edits, resolves, reopens and survives a reload 
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-comments.spec.ts --reporter=line
+E2E_COMMENTS_EXIT=1
