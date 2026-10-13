@@ -105,6 +105,9 @@ type Deps struct {
 	// DocumentChanges is the Office change feed (G5-01a). When omitted, New
 	// derives it from Documents, FeatureFlags and the deployment config.
 	DocumentChanges *service.DocumentChangesService
+	// OfficeLease grants, renews and releases offline leases (G5-08s). When
+	// omitted, New derives it from Documents, FeatureFlags and JWT_SECRET.
+	OfficeLease *service.OfficeLeaseService
 
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
@@ -153,6 +156,9 @@ func New(d Deps) http.Handler {
 	}
 	if d.DocumentChanges == nil && d.Documents != nil {
 		d.DocumentChanges = service.NewDocumentChangesService(d.Documents, d.FeatureFlags, d.Cfg)
+	}
+	if d.OfficeLease == nil && d.Documents != nil {
+		d.OfficeLease = service.NewOfficeLeaseService(d.Documents, d.FeatureFlags, d.Cfg)
 	}
 	if d.OfficeLaunch == nil && d.Documents != nil {
 		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
@@ -706,25 +712,27 @@ func New(d Deps) http.Handler {
 		SaveAICredential:     aiMount.CredentialSave,
 		DeleteAICredential:   aiMount.CredentialDelete,
 
-		ListDocuments:          h.listDocuments,
-		ListRecentDocuments:    h.listRecentDocuments,
-		ListDocumentChanges:    h.listDocumentChanges,
-		ListSharedWithMe:       h.listSharedWithMe,
-		DocumentTree:           h.getDocumentTree,
-		MoveDocument:           h.moveDocument,
-		ArchiveDocument:        h.archiveDocument,
-		RestoreDocument:        h.restoreDocument,
-		ListDocumentShares:     h.listDocumentShares,
-		CreateDocumentShare:    h.createDocumentShare,
-		RevokeDocumentShare:    h.revokeDocumentShare,
-		CreateDocumentLink:     h.createDocumentLink,
-		RevokeDocumentLink:     h.revokeDocumentLink,
-		ListDocumentAccessLogs: h.listDocumentAccessLogs,
-		GetDocumentSettings:    h.getDocumentSettings,
-		SetDocumentSettings:    h.setDocumentSettings,
-		GetPublicDocument:      h.getPublicDocument,
-		DownloadPublicDocument: h.downloadPublicDocument,
-		GetPublicDocumentAsset: h.getPublicDocumentAsset,
+		ListDocuments:            h.listDocuments,
+		ListRecentDocuments:      h.listRecentDocuments,
+		ListDocumentChanges:      h.listDocumentChanges,
+		PutOfficeOfflineLease:    h.putOfficeOfflineLease,
+		DeleteOfficeOfflineLease: h.deleteOfficeOfflineLease,
+		ListSharedWithMe:         h.listSharedWithMe,
+		DocumentTree:             h.getDocumentTree,
+		MoveDocument:             h.moveDocument,
+		ArchiveDocument:          h.archiveDocument,
+		RestoreDocument:          h.restoreDocument,
+		ListDocumentShares:       h.listDocumentShares,
+		CreateDocumentShare:      h.createDocumentShare,
+		RevokeDocumentShare:      h.revokeDocumentShare,
+		CreateDocumentLink:       h.createDocumentLink,
+		RevokeDocumentLink:       h.revokeDocumentLink,
+		ListDocumentAccessLogs:   h.listDocumentAccessLogs,
+		GetDocumentSettings:      h.getDocumentSettings,
+		SetDocumentSettings:      h.setDocumentSettings,
+		GetPublicDocument:        h.getPublicDocument,
+		DownloadPublicDocument:   h.downloadPublicDocument,
+		GetPublicDocumentAsset:   h.getPublicDocumentAsset,
 	})
 }
 

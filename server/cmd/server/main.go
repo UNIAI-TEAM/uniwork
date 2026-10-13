@@ -410,6 +410,16 @@ func main() {
 	if reg != nil {
 		docChangesSweep.SetMetrics(reg.OfficeChanges)
 	}
+	// Offline leases (G5-08s): the routes and the revoke consumer read the
+	// ACL through the same DocumentService; the consumer rides the notify lane
+	// (a database fan-out over one person's or one document's leases, no third
+	// party), and the sweep is awaited in the shutdown sequence below.
+	officeLeases := service.NewOfficeLeaseService(documentSvc, flags, cfg)
+	officeLeaseSweep := officeLeases.NewSweeper(log)
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewOfficeLeaseRevoker(documentSvc))
+	if reg != nil {
+		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
+	}
 	notifConsumer.SetDocumentReaders(documentSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
 	var pushSender notification.PushSender
@@ -483,6 +493,10 @@ func main() {
 	// awaited below.
 	docChangesSweepDone := make(chan struct{})
 	go func() { docChangesSweep.Run(runCtx); close(docChangesSweepDone) }()
+	// The offline lease sweep (G5-08s) stops with runCancel and is awaited
+	// below.
+	officeLeaseSweepDone := make(chan struct{})
+	go func() { officeLeaseSweep.Run(runCtx); close(officeLeaseSweepDone) }()
 	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
 	// callbacks and the provider-event ledger past their windows. It stops with
 	// runCancel and is awaited below.
@@ -603,6 +617,7 @@ func main() {
 		FileAccess:          fileAccess,
 		Documents:           documentSvc,
 		DocumentChanges:     docChanges,
+		OfficeLease:         officeLeases,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),
 		AICredentials:       aiCredentialSvc,
 		AICloud:             service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway),
@@ -718,6 +733,11 @@ func main() {
 	case <-docChangesSweepDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("documents: change snapshot sweep did not stop in time")
+	}
+	select {
+	case <-officeLeaseSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("office: offline lease sweep did not stop in time")
 	}
 	select {
 	case <-retentionDone:

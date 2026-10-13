@@ -38,6 +38,10 @@ var errorClassByCode = map[string]string{
 	"ai_context_forbidden":       "permission",
 	"ai_tool_not_allowed":        "permission",
 	"platform_role_insufficient": "permission",
+	// The offline lease is revoked, from an older policy epoch, gone or its
+	// signature no longer verifies (G5-D1 row 15): the app drops its
+	// committed copy and keeps the locked drafts.
+	"offline_lease_revoked": "permission",
 
 	// missing: unknown, or not visible to this actor.
 	"not_found": "missing",
@@ -71,6 +75,16 @@ var errorClassByCode = map[string]string{
 //   office_capability_off  (403, fields.capability) a flag hides the
 //     capability; it is not a permission denial, so the client must not
 //     run its lost-access recovery path (CLAUDE.md > Platform Admin).
+//   offline_lease_device_required (403) an offline lease needs a desktop
+//     device session; a browser session asked. Not a lost permission: the
+//     same person reads the document online.
+//   offline_lease_limit_reached   (409, fields.limit) the device holds the
+//     most leases it may (G5-D1 row 11); the user unpins something.
+//   document_archived             (403) a renewal on a document in the
+//     trash (G5-D1 row 14): the app keeps its copy to the lease's expiry,
+//     so it must not read as permission (drop the copy) or gone.
+//   offline_lease_expired is an app-side reason only: the server never
+//     emits it (G5-D1 row 15), an online renewal re-checks live access.
 //   comment_deleted        (409) the target comment is a tombstone (G8-03).
 //     "conflict" would send the client down its reload-and-retry path; the
 //     composer shows "Bình luận này đã bị xóa." and keeps its draft instead.

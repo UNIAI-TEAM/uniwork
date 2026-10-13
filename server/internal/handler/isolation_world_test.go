@@ -88,6 +88,11 @@ type isoWorld struct {
 	// token -> {document id, its frame token}. do() prefers it on that
 	// document's own routes (resolve, linked), which a DOCX token cannot open.
 	frameMarkdown map[string][2]string
+	// deviceTokens maps a tenant owner's session token to an access token
+	// of their desktop device session (buildOffice). do() sends it in its
+	// place on the offline lease routes, which refuse a browser session, so
+	// every pass reaches the document check as the same caller.
+	deviceTokens map[string]string
 }
 
 // newIsolationServer wires every service the production binary wires
@@ -285,6 +290,9 @@ func (w *isoWorld) do(t *testing.T, method, path, token string, body isoBody) (i
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
+	if device, ok := w.deviceTokens[token]; ok && strings.Contains(path, "/office/offline-lease") {
+		token = device
+	}
 	if frame, ok := w.frameTokens[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/") {
 		if md, ok := w.frameMarkdown[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/documents/"+md[0]) {
 			frame = md[1]
@@ -467,6 +475,14 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	// The frame token stays; it is now sent in place of the new session.
 	w.frameTokens[tn.token] = tn.ids["frameToken"]
 	w.frameMarkdown[tn.token] = [2]string{tn.ids["frameMarkdown"], tn.ids["frameMarkdownToken"]}
+	device, err := long.MintSession(tn.userID, tn.ids["deviceSession"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.deviceTokens == nil {
+		w.deviceTokens = map[string]string{}
+	}
+	w.deviceTokens[tn.token] = device
 	return tn
 }
 

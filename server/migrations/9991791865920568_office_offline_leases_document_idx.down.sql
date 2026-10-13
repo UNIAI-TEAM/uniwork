@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_office_offline_leases_document_live;
