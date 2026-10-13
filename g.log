@@ -1,0 +1,52 @@
+$ pnpm lint; echo "LINT_EXIT=$?"
+
+> uniwork@ lint /workspace
+> bash scripts/lint-gate.sh
+
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/core, @uniwork/e2e, @uniwork/eslint-config, @uniwork/office-contracts, @uniwork/office-engine, @uniwork/office-engine-app, @uniwork/office-upstream, @uniwork/tsconfig, @uniwork/ui, @uniwork/views, @uniwork/web
+   • Running lint in 11 packages
+   • Remote caching disabled
+
+@uniwork/web:lint: cache miss, executing db329a8fa0f685e8
+@uniwork/office-engine-app:lint: cache miss, executing b233b5fc0a445afb
+@uniwork/office-engine:lint: cache miss, executing c956af1f7e265970
+@uniwork/core:lint: cache miss, executing 72dd4f90a2569eb8
+@uniwork/office-contracts:lint: cache miss, executing 4220ee77bb9e77d2
+@uniwork/views:lint: cache miss, executing 20581211aa85eb51
+@uniwork/ui:lint: cache miss, executing fda53da8b0295879
+@uniwork/web:lint: 
+@uniwork/web:lint: > @uniwork/web@0.0.0 lint /workspace/apps/web
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: 
+@uniwork/ui:lint: 
+@uniwork/ui:lint: > @uniwork/ui@0.0.0 lint /workspace/packages/ui
+@uniwork/ui:lint: > eslint . --max-warnings 0
+@uniwork/ui:lint: 
+@uniwork/core:lint: 
+@uniwork/core:lint: > @uniwork/core@0.0.0 lint /workspace/packages/core
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: 
+@uniwork/office-engine-app:lint: 
+@uniwork/office-engine-app:lint: > @uniwork/office-engine-app@0.0.0 lint /workspace/apps/office-engine
+@uniwork/office-engine-app:lint: > eslint . --max-warnings 0
+@uniwork/office-engine-app:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: > @uniwork/views@0.0.0 lint /workspace/packages/views
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: 
+@uniwork/office-contracts:lint: 
+@uniwork/office-contracts:lint: > @uniwork/office-contracts@0.0.0 lint /workspace/packages/office-contracts
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/office-contracts:lint: 
+@uniwork/office-engine:lint: 
+@uniwork/office-engine:lint: > @uniwork/office-engine@0.0.0 lint /workspace/packages/office-engine
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: 
+
+ Tasks:    7 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    1m0.491s 
+
+LINT_EXIT=0

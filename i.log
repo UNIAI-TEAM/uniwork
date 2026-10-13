@@ -1,0 +1,213 @@
+$ node --test scripts/office/*.test.mjs; echo "OFFICE_SCRIPTS_EXIT=$?"
+TAP version 13
+# Subtest: acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+ok 1 - acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+  ---
+  duration_ms: 3.790371
+  ...
+# Subtest: acceptance.md says the requirements are an interpretation, not the verbatim spec
+ok 2 - acceptance.md says the requirements are an interpretation, not the verbatim spec
+  ---
+  duration_ms: 0.146432
+  ...
+# Subtest: a PASS row that runs on several fixtures needs one PASS record per fixture
+ok 3 - a PASS row that runs on several fixtures needs one PASS record per fixture
+  ---
+  duration_ms: 18.649333
+  ...
+# Subtest: the summary numbers are checked against the candidate, not the committed matrix (N6)
+ok 4 - the summary numbers are checked against the candidate, not the committed matrix (N6)
+  ---
+  duration_ms: 19.16067
+  ...
+# Subtest: the ledger is read only when the caller names it, and only its own records
+ok 5 - the ledger is read only when the caller names it, and only its own records
+  ---
+  duration_ms: 2.003332
+  ...
+# Subtest: a ledger that is named and does not exist is an error, not a green gate (N5)
+ok 6 - a ledger that is named and does not exist is an error, not a green gate (N5)
+  ---
+  duration_ms: 1.59328
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 7 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 53.252305
+  ...
+# Subtest: acceptance matrix reconciles its inventory, rows, and markdown tables
+ok 8 - acceptance matrix reconciles its inventory, rows, and markdown tables
+  ---
+  duration_ms: 5.702223
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 9 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 28.823032
+  ...
+# Subtest: the recorded arch is the rustc host, whatever arch Node runs as
+ok 10 - the recorded arch is the rustc host, whatever arch Node runs as
+  ---
+  duration_ms: 1.029109
+  ...
+# Subtest: CARGO_BUILD_TARGET wins over the host for a cross build
+ok 11 - CARGO_BUILD_TARGET wins over the host for a cross build
+  ---
+  duration_ms: 0.19925
+  ...
+# Subtest: an unknown or unreadable triple records no arch instead of a guess
+ok 12 - an unknown or unreadable triple records no arch instead of a guess
+  ---
+  duration_ms: 0.129091
+  ...
+# Subtest: normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+ok 13 - normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+  ---
+  duration_ms: 0.623261
+  ...
+# Subtest: a CRLF copy of each vendored file normalises to the same hash as the LF file
+ok 14 - a CRLF copy of each vendored file normalises to the same hash as the LF file
+  ---
+  duration_ms: 2.801828
+  ...
+# Subtest: every frame pin records the same protocolSha256, equal to the vendored protocol
+ok 15 - every frame pin records the same protocolSha256, equal to the vendored protocol
+  ---
+  duration_ms: 7.024646
+  ...
+# Subtest: the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+ok 16 - the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+  ---
+  duration_ms: 0.551215
+  ...
+# Subtest: maps every package.mjs artifact to the platform key the server expects
+ok 17 - maps every package.mjs artifact to the platform key the server expects
+  ---
+  duration_ms: 1.288186
+  ...
+# Subtest: the platform key set equals the one the Go config declares
+ok 18 - the platform key set equals the one the Go config declares
+  ---
+  duration_ms: 0.262886
+  ...
+# Subtest: a beta build only picks beta files, a dev file never fills beta
+ok 19 - a beta build only picks beta files, a dev file never fills beta
+  ---
+  duration_ms: 0.48907
+  ...
+# Subtest: macOS keys are supported when a Mac-built asset exists
+ok 20 - macOS keys are supported when a Mac-built asset exists
+  ---
+  duration_ms: 0.134288
+  ...
+# Subtest: stable is refused: no signed release exists
+ok 21 - stable is refused: no signed release exists
+  ---
+  duration_ms: 0.127417
+  ...
+# Subtest: signed-looking or unsafe names are ignored
+ok 22 - signed-looking or unsafe names are ignored
+  ---
+  duration_ms: 0.083838
+  ...
+# Subtest: two installers for one platform is ambiguous
+ok 23 - two installers for one platform is ambiguous
+  ---
+  duration_ms: 0.12777
+  ...
+# Subtest: the base URL must be https without credentials, query or fragment
+ok 24 - the base URL must be https without credentials, query or fragment
+  ---
+  duration_ms: 0.254638
+  ...
+# Subtest: argument parsing rejects unknown and incomplete input
+ok 25 - argument parsing rejects unknown and incomplete input
+  ---
+  duration_ms: 0.467078
+  ...
+# Subtest: the CLI prints the compact JSON for a directory and exits non-zero on bad input
+ok 26 - the CLI prints the compact JSON for a directory and exits non-zero on bad input
+  ---
+  duration_ms: 49.022879
+  ...
+# Subtest: the mechanical table parses into the six pack modules with a plausible tool count
+ok 27 - the mechanical table parses into the six pack modules with a plausible tool count
+  ---
+  duration_ms: 2.811471
+  ...
+# Subtest: the mechanical table parses a CRLF copy of the doc
+ok 28 - the mechanical table parses a CRLF copy of the doc
+  ---
+  duration_ms: 2.125574
+  ...
+# Subtest: a wrapped row inside the mechanical block fails the parse loudly
+ok 29 - a wrapped row inside the mechanical block fails the parse loudly
+  ---
+  duration_ms: 0.747211
+  ...
+# Subtest: every tool name in a module section is in that module's column
+ok 30 - every tool name in a module section is in that module's column
+  ---
+  duration_ms: 0.91021
+  ...
+# Subtest: every tool name in the common section is in all six module columns
+ok 31 - every tool name in the common section is in all six module columns
+  ---
+  duration_ms: 0.735042
+  ...
+# Subtest: a section that names an unknown tool fails, naming token, section and file
+ok 32 - a section that names an unknown tool fails, naming token, section and file
+  ---
+  duration_ms: 0.4936
+  ...
+# Subtest: a section that names another module's tool fails
+ok 33 - a section that names another module's tool fails
+  ---
+  duration_ms: 0.787988
+  ...
+# Subtest: a common-section tool missing in one module fails
+ok 34 - a common-section tool missing in one module fails
+  ---
+  duration_ms: 0.547898
+  ...
+# Subtest: the Go and TypeScript contract identities are the same pin
+ok 35 - the Go and TypeScript contract identities are the same pin
+  ---
+  duration_ms: 0.713427
+  ...
+# Subtest: the evidence doc records the same pin it was produced against
+ok 36 - the evidence doc records the same pin it was produced against
+  ---
+  duration_ms: 0.193271
+  ...
+# Subtest: every in-scope format row names a fixture the manifest knows
+ok 37 - every in-scope format row names a fixture the manifest knows
+  ---
+  duration_ms: 4.914791
+  ...
+# Subtest: the upgrade-replay manifest replays every format on the pinned build
+ok 38 - the upgrade-replay manifest replays every format on the pinned build
+  ---
+  duration_ms: 0.343615
+  ...
+# Subtest: the evidence doc leaves no in-scope format claim without a test
+ok 39 - the evidence doc leaves no in-scope format claim without a test
+  ---
+  duration_ms: 0.235238
+  ...
+# Subtest: the real engine container advertises the pin and the honesty rule
+ok 40 - the real engine container advertises the pin and the honesty rule
+  ---
+  duration_ms: 0.29085
+  ...
+# not_run: OFFICE_ENGINE_TEST_URL is not set, the container rows were not exercised
+1..40
+# tests 40
+# suites 0
+# pass 40
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 198.923106
+OFFICE_SCRIPTS_EXIT=0

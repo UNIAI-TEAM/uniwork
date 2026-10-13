@@ -1,0 +1,105 @@
+$ pnpm --filter @uniwork/views --filter @uniwork/core test; echo "VIEWS_CORE_EXIT=$?"
+Scope: 2 of 12 workspace projects
+packages/core test$ vitest run --coverage
+packages/core test: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+packages/core test:   - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+packages/core test:   - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+packages/core test:   - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+packages/core test:   - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+packages/core test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+packages/core test:  RUN  v4.1.11 /workspace/packages/core
+packages/core test:       Coverage enabled with v8
+packages/core test:  Test Files  227 passed (227)
+packages/core test:       Tests  2105 passed (2105)
+packages/core test:    Start at  06:23:27
+packages/core test:    Duration  55.99s (transform 3.55s, setup 31.67s, import 18.31s, tests 17.62s, environment 62.10s)
+packages/core test:  % Coverage report from v8
+packages/core test: =============================== Coverage summary ===============================
+packages/core test: Statements   : 71.04% ( 8130/11443 )
+packages/core test: Branches     : 67.27% ( 4775/7098 )
+packages/core test: Functions    : 60.07% ( 2326/3872 )
+packages/core test: Lines        : 72.43% ( 7206/9948 )
+packages/core test: ================================================================================
+packages/core test: Done
+packages/views test$ vitest run --coverage
+packages/views test: (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+packages/views test:   - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+packages/views test:   - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+packages/views test:   - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+packages/views test:   - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+packages/views test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+packages/views test:  RUN  v4.1.11 /workspace/packages/views
+packages/views test:       Coverage enabled with v8
+packages/views test: Error: Not implemented: window.focus
+packages/views test:     at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+packages/views test:     at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+packages/views test:     at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:223:33)
+packages/views test:     at /workspace/packages/views/office/frame/office-module-frame.tsx:230:45
+packages/views test:     at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+packages/views test:     at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+packages/views test:     at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+packages/views test:     at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+packages/views test:     at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+packages/views test:     at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+packages/views test: Error: Not implemented: window.focus
+packages/views test:     at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+packages/views test:     at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+packages/views test:     at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:223:33)
+packages/views test:     at /workspace/packages/views/office/frame/office-module-frame.tsx:230:45
+packages/views test:     at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+packages/views test:     at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+packages/views test:     at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+packages/views test:     at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+packages/views test:     at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+packages/views test:     at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+packages/views test: Error: Not implemented: window.focus
+packages/views test:     at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+packages/views test:     at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+packages/views test:     at focusFrame (/workspace/packages/views/office/frame/office-module-frame.tsx:223:33)
+packages/views test:     at /workspace/packages/views/office/frame/office-module-frame.tsx:230:45
+packages/views test:     at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+packages/views test:     at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+packages/views test:     at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+packages/views test:     at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+packages/views test:     at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+packages/views test:     at recursivelyTraversePassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11) undefined
+packages/views test: Error: Not implemented: window.focus
+packages/views test:     at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+packages/views test:     at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+packages/views test:     at FakeNotification.notification.onclick (/workspace/packages/core/platform/system-notification.ts:118:14)
+packages/views test:     at /workspace/packages/views/layout/workspace-chat-attention.test.tsx:142:19
+packages/views test:     at file:///workspace/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 undefined
+packages/views test: Error: Not implemented: navigation (except hash changes)
+packages/views test:     at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+packages/views test:     at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+packages/views test:     at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+packages/views test:     at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+packages/views test:     at listOnTimeout (node:internal/timers:594:17)
+packages/views test:     at processTimers (node:internal/timers:529:7) undefined
+packages/views test: Error: Not implemented: navigation (except hash changes)
+packages/views test:     at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+packages/views test:     at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+packages/views test:     at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+packages/views test:     at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+packages/views test:     at listOnTimeout (node:internal/timers:594:17)
+packages/views test:     at processTimers (node:internal/timers:529:7) undefined
+packages/views test: Error: Not implemented: navigation (except hash changes)
+packages/views test:     at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+packages/views test:     at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+packages/views test:     at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+packages/views test:     at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+packages/views test:     at listOnTimeout (node:internal/timers:594:17)
+packages/views test:     at processTimers (node:internal/timers:529:7) undefined
+packages/views test:  Test Files  526 passed (526)
+packages/views test:       Tests  4063 passed (4063)
+packages/views test:    Start at  06:24:23
+packages/views test:    Duration  327.83s (transform 15.44s, setup 110.38s, import 208.39s, tests 404.73s, environment 139.28s)
+packages/views test:  % Coverage report from v8
+packages/views test: =============================== Coverage summary ===============================
+packages/views test: Statements   : 78.81% ( 25213/31991 )
+packages/views test: Branches     : 72.18% ( 20227/28021 )
+packages/views test: Functions    : 73.7% ( 6493/8810 )
+packages/views test: Lines        : 81.18% ( 22544/27768 )
+packages/views test: ================================================================================
+packages/views test: Done
+VIEWS_CORE_EXIT=0
