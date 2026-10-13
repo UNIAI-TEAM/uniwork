@@ -71,6 +71,19 @@
           "cfc9fab018432964c96177b0205d4d17b0a976ae9": "Tệp đính kèm dạng văn bản hoặc HTML không còn ghi đè nội dung chính của thư. Thư chỉ có nội dung trong tệp đính kèm vẫn đọc được.",
           "cbaebb1de6eb919b01291da742a8707bd9adc46a3": "Giao dịch VNPay bị hủy hoặc lỗi được ghi nhận riêng, tránh để lần thanh toán sau ở trạng thái chờ vì bị nhầm là trùng lặp."
         }
+      },
+      "v1_2_0": {
+        "title": "Kết nối trợ lý AI chỉ đọc và sửa lỗi thanh toán",
+        "summary": "Kết nối Claude, ChatGPT hoặc Gemini để đọc việc, cuộc họp và workspace trong UniWork, với trang đồng ý và phần quản lý kết nối trong Cài đặt; cùng hai bản sửa cho số hóa đơn và hoàn tiền.",
+        "note": "Kết nối trợ lý AI đang trong giai đoạn thử nghiệm: tổ chức phải được bật tính năng này và chủ sở hữu phải bật công tắc trong Cài đặt › Truy cập AI. Kết nối chỉ đọc dữ liệu, không tạo hay sửa dữ liệu trong UniWork. Thẻ Truy cập AI dành cho chủ sở hữu và quản trị viên.",
+        "features": {
+          "c2ed272790a5e7f71d9fd77926ad85854dc7df408": "Kết nối Claude, ChatGPT hoặc Gemini với UniWork để trợ lý AI đọc việc, cuộc họp và workspace của bạn ngay trong ứng dụng AI. Kết nối chỉ đọc, phải được bạn đồng ý trên trang xác nhận của UniWork, và trợ lý chỉ thấy đúng dữ liệu bạn được phép xem trong tổ chức đang chọn; danh sách việc kèm cuộc họp hôm nay và ngày mai.",
+          "ce480747bc1afa886cce9de6d91949902606cff8a": "Trong Cài đặt, thẻ Ứng dụng AI cho bạn xem và thu hồi từng kết nối trợ lý AI của mình; chủ sở hữu và quản trị viên có thêm thẻ Truy cập AI để bật hoặc tắt tính năng cho cả tổ chức và thu hồi mọi kết nối. Đặt lại mật khẩu, rời tổ chức hoặc xóa tài khoản đều thu hồi kết nối."
+        },
+        "fixes": {
+          "cbb792c946bfaa4df7d8d15502548baa760b1739e": "Hai giao dịch thanh toán hoàn tất trong cùng một giây không còn trùng số hóa đơn, nên lần thanh toán sau không bị kẹt ở trạng thái chờ. Năm trong số hóa đơn tính theo giờ Việt Nam.",
+          "c75c5ddc68ad9e7a61ff80b2a4c0fb4518e068a25": "Khi hai yêu cầu hoàn tiền được gửi cùng lúc cho một giao dịch, chỉ một yêu cầu được xử lý; yêu cầu còn lại báo xung đột thay vì gửi thêm một lệnh hoàn tiền."
+        }
       }
     }
   },

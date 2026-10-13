@@ -1,0 +1,854 @@
+{
+  "schemaVersion": 1,
+  "version": "1.2.0",
+  "date": "2026-10-13",
+  "ready": true,
+  "sourceRef": "8bce7b7dced3eff5481b33d4a4ba19a2e43dc77e",
+  "previousSourceRef": "4449109cd71c872845a082d5e449db65c8608428",
+  "title": {
+    "vi": "Kết nối trợ lý AI chỉ đọc và sửa lỗi thanh toán",
+    "en": "Read-only AI assistant connections and billing fixes"
+  },
+  "summary": {
+    "vi": "Kết nối Claude, ChatGPT hoặc Gemini để đọc việc, cuộc họp và workspace trong UniWork, với trang đồng ý và phần quản lý kết nối trong Cài đặt; cùng hai bản sửa cho số hóa đơn và hoàn tiền.",
+    "en": "Connect Claude, ChatGPT or Gemini to read your tasks, meetings and workspaces in UniWork, with a consent page and connection management in Settings, plus two billing fixes for invoice numbers and refunds."
+  },
+  "note": {
+    "vi": "Kết nối trợ lý AI đang trong giai đoạn thử nghiệm: tổ chức phải được bật tính năng này và chủ sở hữu phải bật công tắc trong Cài đặt › Truy cập AI. Kết nối chỉ đọc dữ liệu, không tạo hay sửa dữ liệu trong UniWork. Thẻ Truy cập AI dành cho chủ sở hữu và quản trị viên.",
+    "en": "AI assistant connections are in pilot: the organization must have the feature enabled and an owner must turn on the switch in Settings › AI access. Connections only read data; they never create or change anything in UniWork. The AI access tab is for owners and admins."
+  },
+  "changes": [
+    {
+      "commit": "4627a9415b4d76c45d0bd8a88bd3276d5ee7e0a3",
+      "subject": "docs: spec and roadmap row A-13 for a read-only MCP connector",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: connector spec and roadmap row A-13. No application change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "dd776edba87333a0a004a24e9df018d583c889da",
+      "subject": "docs: implementation plan for the MCP connector, spec aligned with the code",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: MCP connector implementation plan. No application change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "5314e515400ac06611e3a1e56fb4a7ad4f64c8e7",
+      "subject": "feat(mcp): tables, organization policy columns and queries for the MCP connector",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "f05a4ed4e2de3959eca8c2401bc1794424e63828",
+      "subject": "fix(mcp): text user-id params and expiry guard on attempt approval",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "a3e4078df9a57f78ec15da80d6a23a8c5dd21e5d",
+      "subject": "feat(mcp): client registration, metadata documents and client authentication",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "0e839547a348de8522dc0987f0c1e6c972b65c80",
+      "subject": "fix(mcp): no keep-alive for metadata fetches; only unknown clients are invalid_client",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "5ae5654826d94f5aa0c37d1a455c8d43dbaf9e33",
+      "subject": "fix(mcp): serve a stale client metadata document when a refetch fails",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "8483e9c9cd82c429df11ff51a80d5d2960143a0d",
+      "subject": "fix(mcp): serve a stale client metadata document only for transient fetch failures",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "29f8e6608a4ff6c582c98a6cac27bb925e64dbed",
+      "subject": "docs(mcp): the connector's ADR is 0031, not 0028",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: corrects the ADR number referenced by the connector docs.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "323e83c6aecda37f1fca336e41bd5d92682eed60",
+      "subject": "feat(mcp): authorization requests, consent and grants behind the mcp_connector flag",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "8b03df1dfe0abf075acc799d52ec0777bfaa5ff9",
+      "subject": "feat(mcp): code exchange, rotating refresh tokens and RFC 7009 revocation",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "a5780339db8adafafd52ec47d6075d0f95a42c4a",
+      "subject": "fix(mcp): serialize token minting and family revocation on the grant row",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "31ec77c4ec9aa8e9b02b2083ea9d04b6f07826ed",
+      "subject": "feat(mcp): request gate, grant management, organization switch and member lifecycle",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "a36fd878d89d8105ba5e546ebdaad464f3a6ad1c",
+      "subject": "fix(mcp): keep the first enabler on a repeated switch, order stranger revokes, spare expired tokens",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "86b63565e02f2c731ad4e0f225d786dc61ebb465",
+      "subject": "feat(mcp): five read tools scoped to the grant's organization",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "515f53c0407e20cdc73c58b8473027ce9d0066ef",
+      "subject": "fix(mcp): hide suspended and deactivated organizations, cap excerpts, order workspaces",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "25f8d93663b97b5c850fe11ab811916107229f52",
+      "subject": "feat(mcp): OAuth discovery, authorize, token, register and revoke endpoints",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "2ed272790a5e7f71d9fd77926ad85854dc7df408",
+      "subject": "feat(mcp): /mcp streamable HTTP endpoint with token gate, metrics and cleanup sweep",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Kết nối Claude, ChatGPT hoặc Gemini với UniWork để trợ lý AI đọc việc, cuộc họp và workspace của bạn ngay trong ứng dụng AI. Kết nối chỉ đọc, phải được bạn đồng ý trên trang xác nhận của UniWork, và trợ lý chỉ thấy đúng dữ liệu bạn được phép xem trong tổ chức đang chọn; danh sách việc kèm cuộc họp hôm nay và ngày mai.",
+        "en": "Connect Claude, ChatGPT or Gemini to UniWork so an AI assistant can read your tasks, meetings and workspaces from inside the AI app. The connection is read-only, requires your approval on a UniWork consent page, and the assistant sees only the data you are allowed to see in the selected organization; your work list covers today's and tomorrow's meetings."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "e3e22d460ec8403c0136e1bdfaafc0da9cdb4309",
+      "subject": "fix(mcp): refuse JSON-RPC batches, narrow protocol revisions, harden tool results",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "bec7e4692788c5a3159327d0d6eb743806397577",
+      "subject": "fix(mcp): per-address ceiling of 1200 a minute on /mcp",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "daddb02a75efb6e9fb4901a893fdadfda0b28225",
+      "subject": "fix(mcp): sweep leaves a client whose consent is under way",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "9a3ebd776b3c4501a52cd242249f24b543daeb17",
+      "subject": "fix(mcp): reserve the mcp and oauth slugs",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "e4667cc00b329a1e85255a348e6857b2b39ecf90",
+      "subject": "fix(mcp): serve only the five methods the connector needs, advertise no list-changed",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "56a03bd52d92a173fe46a7d05a2225f40da1f677",
+      "subject": "fix(mcp): a consent page whose client is gone answers 410 client_unavailable",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "d9eaa3590bbea2e5ba0c73970f95089fc18cda28",
+      "subject": "feat(mcp): consent, connected apps and organization switch over REST",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "1c18379bee869d2fc9001030b6bca47e837c098b",
+      "subject": "test(mcp): TestIsolationMCP holds tenant isolation through the connector",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only: tenant isolation coverage for the connector.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "3f003ccacd900a5783c3d92a77cef0c1b30f442c",
+      "subject": "test(mcp): the mcp-policy isolation row attacks with a switch-off",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only: adds a control row to the mcp-policy isolation test.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "5f091cc53a1376634d598b5272863e8660d3ecc8",
+      "subject": "feat(core): MCP connector endpoints, hooks and copy",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "5328a0a958859fe8e86bb74348ec22c89b44ecfe",
+      "subject": "fix(core): malformed PUT case for the MCP policy and next steps in connector copy",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "28c93017918c3a44deb8e64b66dcb151cb755d85",
+      "subject": "feat(web): consent page for external AI assistants",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "80fc69d95b95ed0ed435ab6e339cc10b84263cb5",
+      "subject": "fix(web): no retry on an expired connection request",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "e480747bc1afa886cce9de6d91949902606cff8a",
+      "subject": "feat(views): connected AI apps and organization AI access settings",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trong Cài đặt, thẻ Ứng dụng AI cho bạn xem và thu hồi từng kết nối trợ lý AI của mình; chủ sở hữu và quản trị viên có thêm thẻ Truy cập AI để bật hoặc tắt tính năng cho cả tổ chức và thu hồi mọi kết nối. Đặt lại mật khẩu, rời tổ chức hoặc xóa tài khoản đều thu hồi kết nối.",
+        "en": "In Settings, the AI apps tab lets you review and revoke each of your own AI assistant connections, while owners and admins also get an AI access tab to turn the feature on or off for the whole organization and revoke any connection. Resetting your password, leaving the organization or deleting your account revokes connections."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "bb792c946bfaa4df7d8d15502548baa760b1739e",
+      "subject": "fix(billing): keep invoice numbers unique and use the Vietnam year",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Hai giao dịch thanh toán hoàn tất trong cùng một giây không còn trùng số hóa đơn, nên lần thanh toán sau không bị kẹt ở trạng thái chờ. Năm trong số hóa đơn tính theo giờ Việt Nam.",
+        "en": "Two payments completing within the same second no longer share an invoice number, so the later payment is no longer left pending. The year in the invoice number follows Vietnam time."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/billing_provider_event.go",
+          "server/internal/service/billing_invoice_number_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "39c9ddee0bbc7f45cbe64d7ec09d5e2d7f6e0b3c",
+      "subject": "fix(views): connected-app rows survive an unreadable date",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "e34d2f602bff346a6c793127f423162c9636936e",
+      "subject": "fix(mcp): accept ChatGPT's metadata document and loopback callbacks on any port",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "ebc135ff6e349c5d3012683d5d8eac25514616bc",
+      "subject": "fix(mcp): sweep unused metadata-document clients",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "f70f3d17956ada4c3e7ad10aee0e45eb6408f1e2",
+      "subject": "fix(mcp): password reset revokes every MCP grant",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "90bf18de167584971a89d51628fc041a2c2f2894",
+      "subject": "fix(mcp): a scheduled organization deletion reads as not found to a tool",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "38771500a207edb5f0b9dad86f87c092710ce886",
+      "subject": "fix(mcp): the metadata-document fetch names itself and refuses an oversize document",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "b169756cf67ed99462111b8e063e0093da15355a",
+      "subject": "docs(mcp): the /mcp rate-limit comment matches how tokens live",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Comment only: aligns the /mcp rate-limit comment with the code.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "19442eb723287494ca354f6be08d91bd05f61ca6",
+      "subject": "test(mcp): TestIsolationMCP controls every tool and checks the refusal text",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only: extends tenant isolation coverage to every connector tool.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "25d9d5b0dd86680d2173b0d28413991975a2ce70",
+      "subject": "fix(web): only a plain error code reaches the consent page",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "e4ec801090b33e8cc6df190d96446ff54aa0ff35",
+      "subject": "fix(views): AI apps tab stays while a grant exists",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "247d8e17c7d42aac77d636c836d8520283672593",
+      "subject": "docs: state ADR 0031's rules where they belong and bring the MCP docs up to date",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: moves ADR 0031 rules into place and updates the MCP docs.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "f90760c5be5ebaac7f9f69b7022feb135215ead3",
+      "subject": "test(mcp): the loopback any-port rule also holds for a metadata-document client",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only: extends the loopback redirect rule coverage.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "c101e1b5e66df146f57e090cb9741d5e2894fc13",
+      "subject": "docs: MCP connector spec, plan and roadmap status after implementation",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: spec, plan and roadmap status after implementation.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "543239f31192d9274e216c48b6344415996b58f7",
+      "subject": "chore(server): raise the Go coverage floor to 73",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Build quality gate only: raises the Go coverage floor. No application change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "05c865a2c098320e7ea3f628a01b42ba7ea853d8",
+      "subject": "fix(mcp): accept every RFC 7636 code_verifier character",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the single MCP connector feature delivered by PR #262 in this same unreleased window (OAuth authorization server, /mcp endpoint, read tools, consent page and connection management); folded into the connector entry 2ed272790a and the AI settings entry e480747bc1 so the page lists the feature once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "e6eaf72d530ee4b03481797e874c48fa99c55145",
+      "subject": "change to new domain",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Deployment, CI build arguments and backend environment moved to the new production host; the only source change in the commit is a code comment. Infrastructure change with no application behaviour in this commit, so it is not a public note. Flagged for the reviewer: if the new public address should be announced to users, say so and it will be added as an improvement.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app/env/uniwork-be.env",
+          "ci/Jenkinsfile.production-app.groovy",
+          "packages/core/api/ws-client.ts"
+        ]
+      }
+    },
+    {
+      "commit": "bded8289b955bafd25db50f22882f2d62339630b",
+      "subject": "UNI-1417: Duyệt và công bố Changelog v1.1.0 — Việt/Anh (#257)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Publication of the already-released v1.1.0 Changelog content (manifest, preview, catalog and both locales). The Changelog page itself was announced in v1.1.0; republishing it is not a new user-visible change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/257"
+      }
+    },
+    {
+      "commit": "a1b42e892e5d418ba52514cc14fd7b576dfa997d",
+      "subject": "chore(brand): point the remaining uniwork.app examples at uniworkos.com (#261)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Code comments and one Swagger example string updated to the new domain; PR #261 states there is no behaviour change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/261"
+      }
+    },
+    {
+      "commit": "5eb58c377b57b8f4833886f2bf529cc7e09103d5",
+      "subject": "fix(deploy): route the MCP connector on the new production domain",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Deployment configuration only: points the connector's edge route at the new production host. Infrastructure, not an application change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "3026f88aef4f66dfbbd9e7ca90a42f6bed364798",
+      "subject": "test(governance): accept the unprefixed subject e6eaf72d5 left on develop",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only: governance test exception for a commit subject already on develop.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/262"
+      }
+    },
+    {
+      "commit": "75c5ddc68ad9e7a61ff80b2a4c0fb4518e068a25",
+      "subject": "fix(billing): a losing refund request no longer claims the winner",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Khi hai yêu cầu hoàn tiền được gửi cùng lúc cho một giao dịch, chỉ một yêu cầu được xử lý; yêu cầu còn lại báo xung đột thay vì gửi thêm một lệnh hoàn tiền.",
+        "en": "When two refund requests are sent at once for the same payment, only one is processed; the other reports a conflict instead of sending a second refund."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/263"
+      }
+    },
+    {
+      "commit": "326b88f31ccd35226475a6d8d602ceb467a3fc51",
+      "subject": "UNI-1420: Duyệt và công bố Changelog Việt/Anh bằng một PR (#259)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Internal Changelog review process: CI job, helper scripts, their tests and documentation. No user-visible application change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/259"
+      }
+    }
+  ]
+}
