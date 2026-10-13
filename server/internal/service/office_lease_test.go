@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -268,6 +269,61 @@ func TestOfficeLeaseExpiresWithinTTL(t *testing.T) {
 	}
 	if s := w.state(t, l2.LeaseID); !s.expiresAt.Equal(short) {
 		t.Fatalf("stored expiry %v, want %v", s.expiresAt, short)
+	}
+}
+
+// G508S-BE-3 (FIX-6): the lease binds the document head at grant and renewal
+// time (G5-D1 row 19). The app downloads V1, the head advances to V2 before
+// the renewal, and the answer binds V2 - the version_id/version/revision
+// mismatch the app detects to re-download (DOC-005 §6.2 as amended). No
+// other test moves the head between a grant and a renewal.
+func TestOfficeLeaseRenewRebindsTheAdvancedHead(t *testing.T) {
+	w := newLeaseWorld(t, "lease-head")
+	d := w.file(t, documentVisibilityWorkspace)
+	m := w.tn.member.ID
+	dev := w.device(t, m)
+	l := w.grant(t, m, dev, d.ID)
+	if l.VersionID != d.FileVersionID.String || l.Version != 1 {
+		t.Fatalf("the grant bound %q/%d, want the V1 head %q", l.VersionID, l.Version, d.FileVersionID.String)
+	}
+
+	// A new head: a V2 version row and the document moved to it.
+	v2 := util.NewID()
+	insertRow(t, w.ctx, w.f.pool, "document_versions", map[string]any{
+		"id": v2, "organization_id": d.OrganizationID, "workspace_id": d.WorkspaceID, "document_id": d.ID,
+		"version": 2, "kind": "file", "reason": "upload", "file_id": util.NewID(),
+		"created_by": m, "created_by_kind": "human",
+	})
+	if _, err := w.f.pool.Exec(w.ctx,
+		`UPDATE documents SET current_version = 2, file_version_id = $2, revision = revision + 1 WHERE id = $1`,
+		d.ID, v2); err != nil {
+		t.Fatal(err)
+	}
+	wantRevision := d.Revision + 1
+
+	r, err := w.put(w.leases, m, dev, d.ID, l.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.LeaseID != l.LeaseID || r.Generation != 2 {
+		t.Fatalf("renewal = id %s gen %d, want the same row at generation 2", r.LeaseID, r.Generation)
+	}
+	if r.VersionID != v2 || r.Version != 2 || r.Revision != wantRevision {
+		t.Fatalf("renewal bound %q/%d revision %d, want the V2 head %q/2 revision %d", r.VersionID, r.Version, r.Revision, v2, wantRevision)
+	}
+	claims, ok := w.leases.codec.verify(r.Token)
+	if !ok || claims.VersionID != v2 || claims.Version != 2 || claims.Revision != strconv.FormatInt(wantRevision, 10) {
+		t.Fatalf("claims = %+v ok=%v, want the V2 head", claims, ok)
+	}
+	var rowVersionID string
+	var rowVersion int32
+	var rowRevision int64
+	if err := w.f.pool.QueryRow(w.ctx,
+		`SELECT version_id, version, revision FROM office_offline_leases WHERE id = $1`, l.LeaseID).Scan(&rowVersionID, &rowVersion, &rowRevision); err != nil {
+		t.Fatal(err)
+	}
+	if rowVersionID != v2 || rowVersion != 2 || rowRevision != wantRevision {
+		t.Fatalf("stored row = %q/%d revision %d, want the V2 head", rowVersionID, rowVersion, rowRevision)
 	}
 }
 
