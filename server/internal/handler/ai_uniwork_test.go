@@ -23,9 +23,10 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 )
 
-// isoUniworkConversationKey is the test base64 32-byte AI_CONVERSATION_KEY:
-// the same shape production requires, never a real key.
-const isoUniworkConversationKey = "aXNvLXVuaXdvcmstYWktY29udmVyc2F0aW9uLWtleS0="
+// isoUniworkConversationKey is the test AI_CONVERSATION_KEY: a valid base64
+// 32-byte value (the shape production requires), deliberately repetitive so no
+// secret scanner reads the fixture as a real key.
+const isoUniworkConversationKey = "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE="
 
 // isoUniworkTurnBody is the matrix's turn: one question, no tools.
 var isoUniworkTurnBody = map[string]any{"messages": []any{map[string]any{"role": "user", "content": "iso"}}}
@@ -186,7 +187,7 @@ func TestAIUniworkTranscriptIsServerOwned(t *testing.T) {
 
 	status, again, out := uniworkTurn(t, w, path, tn.token, conv, uniworkQuestion("câu hỏi hai"))
 	if status != http.StatusOK || again != conv {
-		t.Fatalf("follow-up: status %d, conversation %q; want 200 on %q", status, again, conv)
+		t.Fatalf("follow-up: status %d, conversation %q, body %v; want 200 on %q", status, again, out, conv)
 	}
 	if saw := uniworkModelSaw(w); !strings.Contains(saw, "câu hỏi một") {
 		t.Fatalf("follow-up did not replay the transcript; the model saw:\n%s", saw)

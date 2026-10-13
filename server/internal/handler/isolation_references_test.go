@@ -308,6 +308,7 @@ var isoRefFieldExempt = map[string]string{
 	"SendChatMessageSDI.client_msg_id":      "the client's idempotency key, not a row",
 	"MintChatVoiceTokenSDI.call_id":         "a client-generated call id, not a row",
 	"VoiceSignalSDI.call_id":                "a client-generated call id, not a row",
+	"AiUniworkMessageSDI.tool_call_id":      "the model's tool call id, matched against the server's own transcript, not a row",
 	"MintChatVoiceTokenSDI.room_id":         "the route names no other row: the cross-tenant pass sends A's room in the body",
 	"ResolveInviteLinkSDI.link_id":          "public route: the link id comes with its secret, and holding both is the grant",
 	"SummarizeEmailHubThreadSDI.account_id": "the mixed pass sends B's workspace with A's thread and A's account in the body",
