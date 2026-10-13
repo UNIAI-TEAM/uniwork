@@ -791,6 +791,73 @@ describe("useRealtimeSync", () => {
       expect(keysCalled(invalidate)).toContain(docRoot);
     });
 
+    // Source files (chat, task attachment, recording, email) raise no
+    // document.* frame: their own frames mark the sources list stale, the
+    // chatty ones through a longer window. Keys only, no payload cached.
+    describe("sources", () => {
+      const sourcesRoot = JSON.stringify(["documents", "ws1", "sources"]);
+
+      it.each([
+        ["attachment.uploaded", { attachment_id: "a1", task_id: "t1", workspace_id: "ws1" }],
+        ["attachment.deleted", { attachment_id: "a1", task_id: "t1", workspace_id: "ws1" }],
+        ["recording.ready", { meeting_id: "m1" }],
+      ] as const)("invalidates the sources list on %s after the usual wave", (type, payload) => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        client.emit({ type, payload } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        expect(keysCalled(invalidate)).toContain(sourcesRoot);
+        vi.useRealTimers();
+      });
+
+      it.each([
+        ["chat.message.created", { room_id: "dm1", message_id: "m1", sender_id: "u2" }],
+        ["chat.message.deleted", { room_id: "dm1", message_id: "m1" }],
+        ["email_hub.new_mail", { account_id: "acc1", user_id: "u1", workspace_id: "ws1" }],
+      ] as const)("coalesces %s bursts into one slow refresh", (type, payload) => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        for (let i = 0; i < 5; i += 1) client.emit({ type, payload } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+        expect(keysCalled(invalidate)).not.toContain(sourcesRoot);
+        act(() => {
+          vi.advanceTimersByTime(4000);
+        });
+        expect(keysCalled(invalidate).filter((k) => k === sourcesRoot)).toHaveLength(1);
+        vi.useRealTimers();
+      });
+
+      it("ignores a task attachment frame stamped with another workspace", () => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        client.emit({
+          type: "attachment.uploaded",
+          payload: { attachment_id: "a1", task_id: "t1", workspace_id: "ws2" },
+        } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(6000);
+        });
+        expect(keysCalled(invalidate)).not.toContain(sourcesRoot);
+        vi.useRealTimers();
+      });
+
+      it("refreshes the sources list when the socket reconnects", () => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        client.reconnect();
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        // The reconnect refresh covers it through the documents root prefix.
+        expect(keysCalled(invalidate)).toContain(JSON.stringify(["documents", "ws1"]));
+        vi.useRealTimers();
+      });
+    });
+
     it("ignores a document frame stamped with another workspace", () => {
       vi.useFakeTimers();
       const { invalidate, client } = setup();

@@ -50,6 +50,11 @@ export function SiteFooter() {
                 {t("landing.workforce.badge")}
               </Link>
             </li>
+            <li>
+              <Link className={LINK} href={paths.office()}>
+                {t("landing.nav.office")}
+              </Link>
+            </li>
           </ul>
         </nav>
 
@@ -87,6 +92,11 @@ export function SiteFooter() {
             <li>
               <Link className={LINK} href={paths.whyUniwork()}>
                 {t("landing.footer.why")}
+              </Link>
+            </li>
+            <li>
+              <Link className={LINK} href={paths.changelog()}>
+                {t("changelog.title")}
               </Link>
             </li>
             <li>

@@ -1,0 +1,151 @@
+name: Changelog
+
+on:
+  push:
+    branches: [develop]
+    tags: ['v[0-9]*.[0-9]*.[0-9]*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Retry a stable application release tag (vMAJOR.MINOR.PATCH)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  draft:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: changelog-draft
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Aggregate changes since the last published version
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          node scripts/changelog-automation.mjs draft --to "$SOURCE_COMMIT" --output .changelog-ci
+          cat .changelog-ci/unreleased.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: changelog-unreleased
+          path: .changelog-ci/unreleased.*
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+      - name: Request UniAI content review for develop
+        env:
+          UNIAI_CHANGELOG_WEBHOOK_URL: ${{ secrets.UNIAI_CHANGELOG_WEBHOOK_URL }}
+        run: node scripts/changelog-review-notify.mjs
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: changelog-release
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      # Run trusted automation from develop; read approved notes from the immutable tag.
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate release and generate catalog / VI / EN
+        run: |
+          node --test scripts/changelog-draft.test.mjs scripts/changelog-automation.test.mjs scripts/changelog-review-notify.test.mjs
+          node scripts/changelog-automation.mjs prepare --tag "$RELEASE_TAG" --output .changelog-ci
+          cat .changelog-ci/release-notes.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: changelog-release-${{ github.run_id }}
+          path: .changelog-ci/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+      - name: Create publication PR and queue merge through repository checks
+        env:
+          # A dedicated token allows PR CI and the subsequent develop push to run.
+          # Never fall back to GITHUB_TOKEN: its generated events need approval or are suppressed.
+          GH_TOKEN: ${{ secrets.CHANGELOG_BOT_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Configure CHANGELOG_BOT_TOKEN (Contents/Pull requests read and write) for this repository. See docs/public-changelog.md."
+            exit 1
+          fi
+          if [ "$(gh api "repos/$GH_REPO/branches/develop" --jq '.protected')" != true ]; then
+            echo "::error::Protect develop with required CI checks before enabling automatic publication."
+            exit 1
+          fi
+          branch="codex/UNI-1310-release-$RELEASE_TAG"
+          catalog_paths=(packages/core/changelog/releases.json packages/core/i18n/locales/en.json packages/core/i18n/locales/vi.json)
+          if git diff --quiet origin/develop -- "${catalog_paths[@]}"; then
+            echo "Catalog already contains this immutable release."
+            exit 0
+          fi
+          pending="$(gh pr list --base develop --state open --json headRefName --jq '.[] | .headRefName | select(startswith("codex/UNI-1310-release-"))')"
+          other="$(printf '%s\n' "$pending" | grep -vx "$branch" || true)"
+          if [ -n "$other" ]; then
+            echo "::error::Another release PR is pending. Finish it, refresh the release baseline, then retry."
+            exit 1
+          fi
+          gh auth setup-git
+          if [ -n "$(git ls-remote --heads origin "$branch")" ]; then
+            git fetch origin "$branch"
+            git diff --name-only origin/develop...FETCH_HEAD -- | while IFS= read -r path; do
+              case "$path" in
+                packages/core/changelog/releases.json|packages/core/i18n/locales/en.json|packages/core/i18n/locales/vi.json) ;;
+                *) echo "::error::Existing publication branch contains unrelated changes: $path"; exit 1 ;;
+              esac
+            done
+            # Retry a push/PR-creation failure without rewriting someone else's branch.
+            git diff --exit-code FETCH_HEAD -- "${catalog_paths[@]}"
+            publication_head="$(git rev-parse FETCH_HEAD)"
+          else
+            git switch -c "$branch"
+            git add -- "${catalog_paths[@]}"
+            if ! git diff --cached --quiet; then
+              git -c user.name='UniWork release bot' -c user.email='release-bot@users.noreply.github.com' \
+                commit -m "docs(changelog): publish $RELEASE_TAG" -m "Refs: UNI-1310"
+              git push origin "HEAD:refs/heads/$branch"
+              publication_head="$(git rev-parse HEAD)"
+            fi
+          fi
+          pr="$(gh pr list --base develop --head "$branch" --state open --json url --jq '.[0].url // empty')"
+          if [ -z "$pr" ]; then
+            pr="$(gh pr create --base develop --head "$branch" --title "UNI-1310: publish $RELEASE_TAG changelog" --body-file .changelog-ci/pr-body.md)"
+          fi
+          # No --admin, force push or direct push to develop. Required checks/reviews remain binding.
+          gh pr merge "$pr" --auto --squash --match-head-commit "$publication_head"
+          printf 'Publication PR: %s\n' "$pr" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish approved GitHub release notes
+        env:
+          GH_TOKEN: ${{ secrets.CHANGELOG_BOT_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # A retry never rewrites an existing public release.
+          if gh release view "$RELEASE_TAG" --json tagName > /dev/null 2>&1; then
+            echo "GitHub release already exists."
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --title "UniWork $RELEASE_TAG" --notes-file .changelog-ci/release-notes.md
+          fi

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { ArchiveRestore, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import {
   useArchiveDocument,
@@ -25,12 +24,14 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { documentErrorMessage } from "./document-error-message";
 
 export interface DocumentArchiveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wsId: string;
-  doc: Document;
+  /** The document (a library row is enough: only its id and kind are read). */
+  doc: { id: string; kind: string };
   /** `archive` from a live document; `restore` from the trash. */
   mode: "archive" | "restore";
   /** Called after a verified archive, so the caller can leave the document. */
@@ -69,6 +70,8 @@ export function DocumentArchiveDialog({
   const archive = useArchiveDocument(wsId);
   const restore = useRestoreDocument(wsId);
   const isArchive = mode === "archive";
+  // Archiving a folder archives everything in it; the dialog says so.
+  const folder = doc.kind === "folder";
   const subtree = useDocumentTree(wsId, doc.id, { enabled: open && isArchive });
   const [error, setError] = useState<string | null>(null);
   const keyRef = useRef<string | null>(null);
@@ -117,10 +120,7 @@ export function DocumentArchiveDialog({
       if (isArchive && (cls.cls === "permission" || cls.cls === "missing")) {
         setError(t("documents.archive.archive_forbidden"));
       } else {
-        setError(
-          apiErrorMessage(err) ??
-            t(isArchive ? "documents.archive.archive_failed" : "documents.archive.restore_failed"),
-        );
+        setError(documentErrorMessage(err, t, isArchive ? "documents.archive.archive_failed" : "documents.archive.restore_failed"));
       }
     }
   };
@@ -172,10 +172,16 @@ export function DocumentArchiveDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {t(isArchive ? "documents.archive.archive_title" : "documents.archive.restore_title")}
+            {t(isArchive ? (folder ? "documents.archive.archive_folder_title" : "documents.archive.archive_title") : "documents.archive.restore_title")}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {t(isArchive ? "documents.archive.archive_description" : "documents.archive.restore_description")}
+            {t(
+              isArchive
+                ? folder
+                  ? "documents.archive.archive_folder_description"
+                  : "documents.archive.archive_description"
+                : "documents.archive.restore_description",
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {isArchive ? (
