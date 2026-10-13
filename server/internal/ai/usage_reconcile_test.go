@@ -43,9 +43,14 @@ func TestAIUniworkUsageUnknownReconcilesOnce(t *testing.T) {
 	g, q, _ := settleFixture(t, &noUsageProvider{Fake: &provider.Fake{}}, quota)
 	ctx := context.Background()
 
+	// Module is the office pack module (docx, xlsx, …), not the genoffice web
+	// module the frame names: the service passes allow.Module, which
+	// UniworkModuleAllowlist built through UniworkPackModule (openai_facade.go:775,
+	// service/ai_uniwork.go:329). The conversation key below keeps the genoffice
+	// name, which is what ConversationKey.Module carries.
 	resp, err := g.Complete(ctx, Request{
 		Actor: audit.User("u1"), OrganizationID: "org-1", Capability: CapOfficeUniworkAI,
-		PromptID: PromptOfficeUniworkAI, Module: "docs",
+		PromptID: PromptOfficeUniworkAI, Module: "docx",
 		History: []provider.Message{{Role: "user", Content: "Ô A1 bằng mấy?"}},
 	})
 	if err != nil {
