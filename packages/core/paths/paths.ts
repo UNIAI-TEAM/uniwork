@@ -40,6 +40,7 @@ export const paths = {
   features: () => "/features",
   feature: (slug: string) => `/features/${encodeURIComponent(slug)}`,
   learn: () => "/learn",
+  changelog: () => "/changelog",
   pricing: () => "/pricing",
   enterprise: () => "/enterprise",
   /** Public page of the UniWork Office desktop app (landing menu "Office"). */
@@ -119,6 +120,7 @@ export const GLOBAL_PREFIXES = [
   "/features",
   "/why-uniwork",
   "/learn",
+  "/changelog",
   "/pricing",
   "/enterprise",
   "/office",

@@ -102,8 +102,10 @@ func (v *VNPay) ParseWebhook(r *http.Request) (Event, error) {
 	if txnRef == "" {
 		return Event{}, errVNPayBadRequest
 	}
+	// VNPay sends vnp_TransactionNo=0 on cancel and error IPNs. "0" is not a
+	// transaction id; using it makes every failed checkout share one inbox row.
 	eventID := params["vnp_TransactionNo"]
-	if eventID == "" {
+	if eventID == "" || eventID == "0" {
 		eventID = txnRef + ":" + params["vnp_ResponseCode"]
 	}
 	amountMinor, _ := strconv.ParseInt(params["vnp_Amount"], 10, 64)
@@ -168,6 +170,11 @@ func vnpEncode(s string) string {
 
 func vnpSign(params map[string]string, secret string) string {
 	return vnpSignString(vnpHashData(params), secret)
+}
+
+// SignIPNForTest fills vnp_SecureHash the way VNPay signs an IPN. Tests only.
+func SignIPNForTest(params map[string]string, secret string) {
+	params["vnp_SecureHash"] = vnpSign(params, secret)
 }
 
 // vnpSignString is HMAC-SHA512 over a prebuilt checksum (querydr and refund use a pipe-joined string).

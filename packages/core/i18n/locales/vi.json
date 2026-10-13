@@ -1,4 +1,43 @@
 {
+  "changelog": {
+    "title": "Nhật ký cập nhật",
+    "description": "Những tính năng mới, cải tiến và sửa lỗi của UniWork.",
+    "allReleases": "Các phiên bản",
+    "latest": "Mới nhất",
+    "copyLink": "Sao chép liên kết phiên bản {{version}}",
+    "copied": "Đã sao chép liên kết",
+    "copyError": "Không sao chép được. Bạn có thể sao chép địa chỉ trang trên trình duyệt.",
+    "explore": "Khám phá các tính năng",
+    "sections": {
+      "features": "Tính năng mới",
+      "improvements": "Cải tiến",
+      "fixes": "Sửa lỗi"
+    },
+    "releases": {
+      "initial": {
+        "title": "Công việc, trao đổi và tài liệu trong cùng một nơi.",
+        "summary": "Phiên bản 1.0.0 tập hợp các công cụ làm việc của nhóm trong không gian của tổ chức, từ giao việc đến họp, trao đổi và soạn tài liệu.",
+        "features": {
+          "work": "Quản lý công việc và dự án với bảng trạng thái, người phụ trách, ngày đến hạn, bình luận và tệp đính kèm.",
+          "chat": "Trao đổi trong workspace với tin nhắn, trả lời và chia sẻ tệp, giữ cuộc trò chuyện gần với công việc.",
+          "meetings": "Lên lịch và tham gia cuộc họp trực tuyến; trao đổi, ghi chú và theo dõi người tham dự ngay trong phòng họp.",
+          "office": "Mở và làm việc với tài liệu Docs, Sheets, Slides, PDF, HTML và Markdown qua các trình soạn tích hợp của UniWork Office.",
+          "email": "Kết nối hộp thư với Email Hub để đọc, gửi email và theo dõi trạng thái kết nối của từng tài khoản.",
+          "ask": "Hỏi UNI để tìm thông tin và kiểm tra nguồn tham chiếu trong phạm vi quyền truy cập của mình."
+        },
+        "improvements": {
+          "senderImages": "Chọn người gửi đáng tin cậy để hiển thị ảnh trong email và quản lý danh sách người gửi đã cho phép.",
+          "connectionForms": "Form kết nối hộp thư nói rõ thông tin còn thiếu, trạng thái kết nối và các bước cần làm khi phải kết nối lại.",
+          "publicPages": "Các trang giới thiệu tính năng, giải pháp và hướng dẫn dùng chung bố cục, minh họa và cách điều hướng."
+        },
+        "fixes": {
+          "mailboxStatus": "Trạng thái tài khoản phản ánh khi một hộp thư bị mất kết nối; thông báo kết nối lại dùng đầy đủ chiều rộng của màn hình.",
+          "smallDialogs": "Các hộp thoại nhập liệu tránh mép màn hình nhỏ và sắp xếp lại phần tiêu đề để nội dung dễ thao tác hơn."
+        },
+        "note": "Kết nối email và các tính năng AI cần cấu hình tương ứng của tổ chức. Mỗi tính năng vẫn tuân theo quyền truy cập trong ứng dụng."
+      }
+    }
+  },
   "common": {
     "save": "Lưu",
     "cancel": "Hủy",
@@ -5312,6 +5351,10 @@
       }
     },
     "meta": {
+      "changelog": {
+        "title": "Nhật ký cập nhật",
+        "description": "Theo dõi tính năng mới, cải tiến và sửa lỗi của UniWork theo từng phiên bản."
+      },
       "home": {
         "title": "UniWork Business OS",
         "description": "Một nền tảng thống nhất để con người và nhân sự AI cùng trò chuyện, lập kế hoạch, thực thi và biến tri thức thành kết quả."
