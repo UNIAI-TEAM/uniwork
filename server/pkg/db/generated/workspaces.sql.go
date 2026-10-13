@@ -554,7 +554,7 @@ FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
 LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $1
 LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = $1
-WHERE m.user_id IS NOT NULL OR om.role IN ('owner','admin')
+WHERE (m.user_id IS NOT NULL OR om.role IN ('owner','admin')) AND o.status <> 'archived'
 ORDER BY w.created_at, w.id
 `
 
@@ -575,6 +575,8 @@ type ListWorkspacesForUserRow struct {
 
 // tenant: self
 // Workspace user là thành viên trực tiếp, HOẶC thuộc org mà user là owner/admin.
+// An archived organization (closed or deleted) keeps its workspace rows for a
+// restore (ADR 0032 D4), but nobody can open them, so they are not listed.
 func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]ListWorkspacesForUserRow, error) {
 	rows, err := q.db.Query(ctx, listWorkspacesForUser, userID)
 	if err != nil {

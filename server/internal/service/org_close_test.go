@@ -217,3 +217,25 @@ func TestCloseWaitsForAnAcceptanceIntoTheSameOrganization(t *testing.T) {
 		t.Fatalf("joiner after the race: %v %+v", err, m)
 	}
 }
+
+// The closed organization keeps its workspace rows (D4), but nobody can open
+// them, so the workspace list no longer offers them as a destination.
+func TestClosedOrganizationLeavesTheWorkspaceList(t *testing.T) {
+	f := newOrgMembersFixture(t)
+	o := f.soloOrganization(t)
+	if _, err := f.ws.CreateInOrg(f.ctx, f.other.ID, o.ID, "Nhóm", "nhom"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.Close(f.ctx, f.other.ID, o.ID, "mot-minh"); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	list, err := f.ws.ListForUser(f.ctx, f.other.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range list {
+		if w.Workspace.OrganizationID == o.ID {
+			t.Fatalf("the closed organization's workspace is still listed: %+v", w.Workspace)
+		}
+	}
+}
