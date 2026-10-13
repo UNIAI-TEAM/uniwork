@@ -127,6 +127,11 @@ func SignQueryDRResponseForTest(resp map[string]string, secret string) string {
 	return vnpQueryDRResponseSign(resp, secret)
 }
 
+// SignRefundResponseForTest builds vnp_SecureHash for refund mock responses (tests only).
+func SignRefundResponseForTest(resp map[string]string, secret string) string {
+	return vnpRefundResponseSign(resp, secret)
+}
+
 func QueryDRRefundSettled(params map[string]string) bool {
 	if params["vnp_ResponseCode"] != "00" {
 		return false

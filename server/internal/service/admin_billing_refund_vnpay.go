@@ -43,7 +43,13 @@ func (s *AdminService) refundInvoiceVnpay(
 	}
 	gatewayRef, pErr := s.billing.RefundInvoiceOnProvider(ctx, adminID, invNow, amount, reason, clientIP)
 	if pErr != nil {
-		_, _ = s.q.AdminRevertInvoiceRefundRequest(ctx, invoiceID)
+		var ce CodedError
+		if errors.As(pErr, &ce) && ce.Code == "vnpay_refund_unknown" {
+			return db.Invoice{}, pErr
+		}
+		if rerr := s.revertRejectedInvoiceRefund(ctx, adminID, invoiceID, reason, inv, partial); rerr != nil {
+			return db.Invoice{}, errors.Join(pErr, rerr)
+		}
 		return db.Invoice{}, pErr
 	}
 	ref := mergeRefundProviderRef(providerRef, gatewayRef)
@@ -114,4 +120,49 @@ func (s *AdminService) commitInvoiceRefundPending(
 		return db.Invoice{}, err
 	}
 	return after, nil
+}
+
+// revertRejectedInvoiceRefund puts a pending invoice back to paid when VNPay
+// refused the refund with a signed response. A cancelled request still reverts.
+func (s *AdminService) revertRejectedInvoiceRefund(
+	ctx context.Context,
+	adminID, invoiceID, reason string,
+	inv db.AdminGetInvoiceByIDRow,
+	partial bool,
+) error {
+	ctx = context.WithoutCancel(ctx)
+	ctx, traceID := ensureTrace(ctx)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	after, err := q.AdminRevertInvoiceRefundRequest(ctx, invoiceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	pendingStatus := "refund_pending"
+	if partial {
+		pendingStatus = "partial_refund_pending"
+	}
+	beforeMap := map[string]any{"status": pendingStatus, "number": inv.Number, "amount_paid": inv.AmountPaid}
+	afterMap := map[string]any{"status": after.Status, "number": after.Number, "amount_paid": after.AmountPaid}
+	if err := s.recordAdmin(ctx, q, traceID, adminID, audit.ActionBillingInvoiceRefunded, "invoice", invoiceID, beforeMap, afterMap, reason); err != nil {
+		return err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: inv.OrganizationID,
+		Actor:          audit.User(adminID),
+		Action:         audit.ActionBillingInvoiceRefunded,
+		ResourceType:   "invoice", ResourceID: invoiceID,
+		Changes:  audit.Diff(beforeMap, afterMap),
+		Metadata: map[string]any{"reason": reason, "platform_admin": true, "provider": inv.Provider, "refund_phase": "reverted"},
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
