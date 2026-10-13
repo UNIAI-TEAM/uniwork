@@ -155,7 +155,7 @@ test("protocol: pins that disagree on gitSha fail the default fork sha", () => {
 
 // ---- the real checkout's pins (contract 4, Amendment 1) ----------------------
 
-test("real repo: protocol PASSes at the current pin and FAILs on a planted pin edit", (t) => {
+test("live pin: real repo protocol PASSes at the current pin and FAILs on a planted pin edit", (t) => {
   const pins = readPins(DEFAULT_PIN_DIR);
   const docs = pins.find((pin) => pin.module === "docs");
   assert.ok(docs?.gitSha, "docs.pin.json carries no gitSha");
