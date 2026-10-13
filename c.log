@@ -1,0 +1,11 @@
+$ dbus-run-session -- bash scripts/office/g5g6g7/harness/keyring-session.sh; echo "KEYRING_SESSION_EXIT=$?"; true
+KEYRING_DAEMON secrets=yes unlocked=yes
+KEYRING_RT match=yes
+KEYRING_RT_EXIT=0
+{"label":"SAFESTORAGE","probe":"keyring","platform":"linux","backend":"gnome_libsecret","encryptionAvailable":true,"canStore":true,"roundTrip":"ok","status":"ready","errorCode":null,"sessionFileBytes":307,"plaintextInFile":false,"electron":"43.7.6","module":"apps/shell/src/main/uniwork-auth/credentials.ts","forkSha":"0d03b185","xdgCurrentDesktop":"GNOME","passwordStoreFlag":null,"dbusSessionBus":true,"expected":"ready","verdict":"PASS"}
+SAFESTORAGE_EXIT=0
+{"label":"SAFESTORAGE_NODESKTOP","probe":"keyring","platform":"linux","backend":"basic_text","encryptionAvailable":false,"canStore":false,"roundTrip":"fail","status":"keyring_unavailable","errorCode":"keyring_unavailable","sessionFileBytes":null,"plaintextInFile":null,"electron":"43.7.6","module":"apps/shell/src/main/uniwork-auth/credentials.ts","forkSha":"0d03b185","xdgCurrentDesktop":null,"passwordStoreFlag":null,"dbusSessionBus":true,"expected":null,"verdict":"PASS"}
+SAFESTORAGE_NODESKTOP_EXIT=0
+{"label":"SAFESTORAGE_FORCED","probe":"keyring","platform":"linux","backend":"gnome_libsecret","encryptionAvailable":true,"canStore":true,"roundTrip":"ok","status":"ready","errorCode":null,"sessionFileBytes":307,"plaintextInFile":false,"electron":"43.7.6","module":"apps/shell/src/main/uniwork-auth/credentials.ts","forkSha":"0d03b185","xdgCurrentDesktop":null,"passwordStoreFlag":"gnome-libsecret","dbusSessionBus":true,"expected":null,"verdict":"PASS"}
+SAFESTORAGE_FORCED_EXIT=0
+KEYRING_SESSION_EXIT=0
