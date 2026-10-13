@@ -1,0 +1,800 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -v ./internal/middleware/ ./internal/metrics/ ./internal/handler/dto/sdo/ ./internal/config/ ./migrations/ ./internal/; echo "PKG_EXIT=$?"
+=== RUN   TestRequireAuthWithDeviceRejectsARevokedDesktopSession
+=== RUN   TestRequireAuthWithDeviceRejectsARevokedDesktopSession/live_session_passes
+=== RUN   TestRequireAuthWithDeviceRejectsARevokedDesktopSession/revoked_device_is_refused_with_device_revoked
+=== RUN   TestRequireAuthWithDeviceRejectsARevokedDesktopSession/infrastructure_failure_is_503,_never_401
+--- PASS: TestRequireAuthWithDeviceRejectsARevokedDesktopSession (0.00s)
+    --- PASS: TestRequireAuthWithDeviceRejectsARevokedDesktopSession/live_session_passes (0.00s)
+    --- PASS: TestRequireAuthWithDeviceRejectsARevokedDesktopSession/revoked_device_is_refused_with_device_revoked (0.00s)
+    --- PASS: TestRequireAuthWithDeviceRejectsARevokedDesktopSession/infrastructure_failure_is_503,_never_401 (0.00s)
+=== RUN   TestRequireAuthWithDeviceSkipsTheLookupForWebSessions
+--- PASS: TestRequireAuthWithDeviceSkipsTheLookupForWebSessions (0.00s)
+=== RUN   TestClientMetadataExtractsHeaders
+--- PASS: TestClientMetadataExtractsHeaders (0.00s)
+=== RUN   TestClientMetadataMissingHeadersReturnEmpty
+--- PASS: TestClientMetadataMissingHeadersReturnEmpty (0.00s)
+=== RUN   TestSetClientMetadataAttachesValues
+--- PASS: TestSetClientMetadataAttachesValues (0.00s)
+=== RUN   TestCorrelationAcceptsAWellFormedClientID
+--- PASS: TestCorrelationAcceptsAWellFormedClientID (0.00s)
+=== RUN   TestCorrelationReplacesAnythingItCannotTrust
+--- PASS: TestCorrelationReplacesAnythingItCannotTrust (0.00s)
+=== RUN   TestCorrelationIgnoresForwardedForWithoutTrustedProxies
+--- PASS: TestCorrelationIgnoresForwardedForWithoutTrustedProxies (0.00s)
+=== RUN   TestCorrelationTruncatesAnOversizedUserAgent
+--- PASS: TestCorrelationTruncatesAnOversizedUserAgent (0.00s)
+=== RUN   TestContentSecurityPolicy
+--- PASS: TestContentSecurityPolicy (0.00s)
+=== RUN   TestContentSecurityPolicyAllowsSwaggerUI
+=== RUN   TestContentSecurityPolicyAllowsSwaggerUI//swagger
+=== RUN   TestContentSecurityPolicyAllowsSwaggerUI//swagger/index.html
+=== RUN   TestContentSecurityPolicyAllowsSwaggerUI//swagger/doc.json
+--- PASS: TestContentSecurityPolicyAllowsSwaggerUI (0.00s)
+    --- PASS: TestContentSecurityPolicyAllowsSwaggerUI//swagger (0.00s)
+    --- PASS: TestContentSecurityPolicyAllowsSwaggerUI//swagger/index.html (0.00s)
+    --- PASS: TestContentSecurityPolicyAllowsSwaggerUI//swagger/doc.json (0.00s)
+=== RUN   TestContentSecurityPolicyAllowsSameOriginAttachmentPreviews
+=== RUN   TestContentSecurityPolicyAllowsSameOriginAttachmentPreviews//api/v1/attachments/019f0dae-0315-79b7-b653-f55d6af90403/download
+=== RUN   TestContentSecurityPolicyAllowsSameOriginAttachmentPreviews//api/v1/attachments/019f0dae-0315-79b7-b653-f55d6af90403/content
+--- PASS: TestContentSecurityPolicyAllowsSameOriginAttachmentPreviews (0.00s)
+    --- PASS: TestContentSecurityPolicyAllowsSameOriginAttachmentPreviews//api/v1/attachments/019f0dae-0315-79b7-b653-f55d6af90403/download (0.00s)
+    --- PASS: TestContentSecurityPolicyAllowsSameOriginAttachmentPreviews//api/v1/attachments/019f0dae-0315-79b7-b653-f55d6af90403/content (0.00s)
+=== RUN   TestRequireAuthUnauthorizedCarriesSessionClass
+=== RUN   TestRequireAuthUnauthorizedCarriesSessionClass/missing_bearer
+=== RUN   TestRequireAuthUnauthorizedCarriesSessionClass/invalid_token
+--- PASS: TestRequireAuthUnauthorizedCarriesSessionClass (0.00s)
+    --- PASS: TestRequireAuthUnauthorizedCarriesSessionClass/missing_bearer (0.00s)
+    --- PASS: TestRequireAuthUnauthorizedCarriesSessionClass/invalid_token (0.00s)
+=== RUN   TestRequirePlatformRoleErrorClasses
+=== RUN   TestRequirePlatformRoleErrorClasses/support_on_admin_route_is_permission
+=== RUN   TestRequirePlatformRoleErrorClasses/mfa_gate_carries_no_class
+--- PASS: TestRequirePlatformRoleErrorClasses (0.00s)
+    --- PASS: TestRequirePlatformRoleErrorClasses/support_on_admin_route_is_permission (0.00s)
+    --- PASS: TestRequirePlatformRoleErrorClasses/mfa_gate_carries_no_class (0.00s)
+=== RUN   TestRequireFeatureFlagReturns404WhenDisabled
+--- PASS: TestRequireFeatureFlagReturns404WhenDisabled (0.00s)
+=== RUN   TestIdempotencyKeyFormat
+=== RUN   TestIdempotencyKeyFormat/absent
+=== RUN   TestIdempotencyKeyFormat/uuid
+=== RUN   TestIdempotencyKeyFormat/printable_ascii
+=== RUN   TestIdempotencyKeyFormat/non_ascii_utf-8
+=== RUN   TestIdempotencyKeyFormat/invalid_utf-8_bytes
+=== RUN   TestIdempotencyKeyFormat/control_byte
+=== RUN   TestIdempotencyKeyFormat/too_long
+=== RUN   TestIdempotencyKeyFormat/longest_accepted
+--- PASS: TestIdempotencyKeyFormat (0.00s)
+    --- PASS: TestIdempotencyKeyFormat/absent (0.00s)
+    --- PASS: TestIdempotencyKeyFormat/uuid (0.00s)
+    --- PASS: TestIdempotencyKeyFormat/printable_ascii (0.00s)
+    --- PASS: TestIdempotencyKeyFormat/non_ascii_utf-8 (0.00s)
+    --- PASS: TestIdempotencyKeyFormat/invalid_utf-8_bytes (0.00s)
+    --- PASS: TestIdempotencyKeyFormat/control_byte (0.00s)
+    --- PASS: TestIdempotencyKeyFormat/too_long (0.00s)
+    --- PASS: TestIdempotencyKeyFormat/longest_accepted (0.00s)
+=== RUN   TestLoadShedRefusesPastTheBound
+--- PASS: TestLoadShedRefusesPastTheBound (0.00s)
+=== RUN   TestLoadShedCutsOffAStalledBody
+--- PASS: TestLoadShedCutsOffAStalledBody (1.40s)
+=== RUN   TestRateLimit_HungRedisFailsOpenWithinTheDeadline
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.1
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.1
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.1
+--- PASS: TestRateLimit_HungRedisFailsOpenWithinTheDeadline (0.30s)
+=== RUN   TestRateLimit_UnreachableRedisFailsOpenFast
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.2
+--- PASS: TestRateLimit_UnreachableRedisFailsOpenFast (0.10s)
+=== RUN   TestRateLimit_HungRedisBoundsAbandonedCalls
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="ratelimit: too many redis calls in flight" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+2026/10/13 02:43:07 WARN ratelimit: redis error; allowing request error="context deadline exceeded" ip=10.0.5.3
+--- PASS: TestRateLimit_HungRedisBoundsAbandonedCalls (0.13s)
+=== RUN   TestRateLimitByIdentity_EachIdentityHasItsOwnBudget
+    ratelimit_degraded_test.go:131: REDIS_TEST_URL not set
+--- SKIP: TestRateLimitByIdentity_EachIdentityHasItsOwnBudget (0.00s)
+=== RUN   TestRateLimitKeyKeepsIdentitiesApartFromAddresses
+--- PASS: TestRateLimitKeyKeepsIdentitiesApartFromAddresses (0.00s)
+=== RUN   TestRateLimitByIdentityBucket_OneBudgetAcrossPaths
+    ratelimit_degraded_test.go:178: REDIS_TEST_URL not set
+--- SKIP: TestRateLimitByIdentityBucket_OneBudgetAcrossPaths (0.00s)
+=== RUN   TestExceptPathsSkipsOnlyTheExactPaths
+--- PASS: TestExceptPathsSkipsOnlyTheExactPaths (0.00s)
+=== RUN   TestRateLimit_NilRedis
+--- PASS: TestRateLimit_NilRedis (0.00s)
+=== RUN   TestRateLimit_AllowsUnderLimit
+    ratelimit_test.go:59: REDIS_TEST_URL not set
+--- SKIP: TestRateLimit_AllowsUnderLimit (0.00s)
+=== RUN   TestRateLimit_BlocksOverLimit
+    ratelimit_test.go:75: REDIS_TEST_URL not set
+--- SKIP: TestRateLimit_BlocksOverLimit (0.00s)
+=== RUN   TestRateLimit_SkipsPreflight
+    ratelimit_test.go:115: REDIS_TEST_URL not set
+--- SKIP: TestRateLimit_SkipsPreflight (0.00s)
+=== RUN   TestRateLimit_StackedLimitersCountSeparately
+    ratelimit_test.go:141: REDIS_TEST_URL not set
+--- SKIP: TestRateLimit_StackedLimitersCountSeparately (0.00s)
+=== RUN   TestRateLimit_RetryAfterHeader
+    ratelimit_test.go:165: REDIS_TEST_URL not set
+--- SKIP: TestRateLimit_RetryAfterHeader (0.00s)
+=== RUN   TestRateLimit_DifferentIPs
+    ratelimit_test.go:189: REDIS_TEST_URL not set
+--- SKIP: TestRateLimit_DifferentIPs (0.00s)
+=== RUN   TestExtractIP_NoTrustedProxies_IgnoresXFF
+--- PASS: TestExtractIP_NoTrustedProxies_IgnoresXFF (0.00s)
+=== RUN   TestExtractIP_TrustedProxy_HonorsXFF
+--- PASS: TestExtractIP_TrustedProxy_HonorsXFF (0.00s)
+=== RUN   TestExtractIP_UntrustedSource_IgnoresXFF
+--- PASS: TestExtractIP_UntrustedSource_IgnoresXFF (0.00s)
+=== RUN   TestExtractIP_IPv6Normalization
+--- PASS: TestExtractIP_IPv6Normalization (0.00s)
+=== RUN   TestRateLimit_LuaScript_SetsTTL
+    ratelimit_test.go:286: REDIS_TEST_URL not set
+--- SKIP: TestRateLimit_LuaScript_SetsTTL (0.00s)
+=== RUN   TestParseTrustedProxies_Empty
+--- PASS: TestParseTrustedProxies_Empty (0.00s)
+=== RUN   TestParseTrustedProxies_Valid
+--- PASS: TestParseTrustedProxies_Valid (0.00s)
+=== RUN   TestParseTrustedProxies_InvalidSkipped
+2026/10/13 02:43:07 WARN ratelimit: invalid trusted proxy CIDR, skipping cidr=not-a-cidr error="invalid CIDR address: not-a-cidr"
+--- PASS: TestParseTrustedProxies_InvalidSkipped (0.00s)
+=== RUN   TestRateLimitBucket_SharesOneBudgetAcrossPaths
+    ratelimit_test.go:334: REDIS_TEST_URL not set
+--- SKIP: TestRateLimitBucket_SharesOneBudgetAcrossPaths (0.00s)
+=== RUN   TestRateLimitPerRoute_SharesOneBudgetAcrossIDs
+    ratelimit_test.go:364: REDIS_TEST_URL not set
+--- SKIP: TestRateLimitPerRoute_SharesOneBudgetAcrossIDs (0.00s)
+=== RUN   TestRequestLogger_RuntimeNotFound404DowngradesToInfo
+--- PASS: TestRequestLogger_RuntimeNotFound404DowngradesToInfo (0.00s)
+=== RUN   TestRequestLogger_TaskNotFound404DowngradesToInfo
+--- PASS: TestRequestLogger_TaskNotFound404DowngradesToInfo (0.00s)
+=== RUN   TestRequestLogger_GenericNotFound404KeepsWarn
+--- PASS: TestRequestLogger_GenericNotFound404KeepsWarn (0.00s)
+=== RUN   TestRequestLogger_400StaysWarn
+--- PASS: TestRequestLogger_400StaysWarn (0.00s)
+=== RUN   TestRequestLogger_500StaysError
+--- PASS: TestRequestLogger_500StaysError (0.00s)
+=== RUN   TestRequestLogger_200StaysInfo
+--- PASS: TestRequestLogger_200StaysInfo (0.00s)
+=== RUN   TestRequestLogger_HealthEndpointIsSkipped
+--- PASS: TestRequestLogger_HealthEndpointIsSkipped (0.00s)
+=== RUN   TestRequestLogger_BodyStillReachesClient
+--- PASS: TestRequestLogger_BodyStillReachesClient (0.00s)
+=== RUN   TestRequestLogger_LargeBodyBeyondCaptureLimit
+--- PASS: TestRequestLogger_LargeBodyBeyondCaptureLimit (0.00s)
+=== RUN   TestRedactWebhookPath
+=== PAUSE TestRedactWebhookPath
+=== RUN   TestRequestLogger_RedactsWebhookTokenInPath
+--- PASS: TestRequestLogger_RedactsWebhookTokenInPath (0.00s)
+=== RUN   TestRequestLogger_IncludesWebhookTriggerIDFromContext
+--- PASS: TestRequestLogger_IncludesWebhookTriggerIDFromContext (0.00s)
+=== RUN   TestIsSoftNotFound
+=== PAUSE TestIsSoftNotFound
+=== CONT  TestRedactWebhookPath
+--- PASS: TestRedactWebhookPath (0.00s)
+=== CONT  TestIsSoftNotFound
+--- PASS: TestIsSoftNotFound (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	1.940s
+=== RUN   TestOutboxLagCollectorReadsUndeliveredAndDeadRows
+--- PASS: TestOutboxLagCollectorReadsUndeliveredAndDeadRows (1.61s)
+=== RUN   TestOutboxLagCollectorFailedReadIsAbsentNotZero
+--- PASS: TestOutboxLagCollectorFailedReadIsAbsentNotZero (0.00s)
+=== RUN   TestEventRetentionCountersAreRegistered
+--- PASS: TestEventRetentionCountersAreRegistered (0.00s)
+=== RUN   TestIsLoopbackAddr
+=== RUN   TestIsLoopbackAddr/127.0.0.1:9090
+=== RUN   TestIsLoopbackAddr/localhost:9090
+=== RUN   TestIsLoopbackAddr/[::1]:9090
+=== RUN   TestIsLoopbackAddr/:9090
+=== RUN   TestIsLoopbackAddr/0.0.0.0:9090
+=== RUN   TestIsLoopbackAddr/10.0.0.5:9090
+=== RUN   TestIsLoopbackAddr/metrics.example.com:9090
+=== RUN   TestIsLoopbackAddr/#00
+--- PASS: TestIsLoopbackAddr (0.00s)
+    --- PASS: TestIsLoopbackAddr/127.0.0.1:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/localhost:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/[::1]:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/0.0.0.0:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/10.0.0.5:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/metrics.example.com:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/#00 (0.00s)
+=== RUN   TestQueryName
+--- PASS: TestQueryName (0.00s)
+=== RUN   TestDBQueryTracerObservesAndForwards
+--- PASS: TestDBQueryTracerObservesAndForwards (0.00s)
+=== RUN   TestDBCollectorExposesPoolStats
+--- PASS: TestDBCollectorExposesPoolStats (0.00s)
+=== RUN   TestDocumentMetricsExposeSaveAndWorkerSignals
+--- PASS: TestDocumentMetricsExposeSaveAndWorkerSignals (0.00s)
+=== RUN   TestDocumentLagCollectorReadsWorkerQueues
+--- PASS: TestDocumentLagCollectorReadsWorkerQueues (0.69s)
+=== RUN   TestDocumentLagCollectorFailedReadIsAbsentNotZero
+--- PASS: TestDocumentLagCollectorFailedReadIsAbsentNotZero (0.00s)
+=== RUN   TestGraphMetricsAreExposed
+--- PASS: TestGraphMetricsAreExposed (0.00s)
+=== RUN   TestGraphDirtyCollectorReadsPendingAndOldest
+--- PASS: TestGraphDirtyCollectorReadsPendingAndOldest (0.49s)
+=== RUN   TestGraphDirtyCollectorFailedReadIsAbsentNotZero
+--- PASS: TestGraphDirtyCollectorFailedReadIsAbsentNotZero (0.00s)
+=== RUN   TestHTTPMiddlewareUsesRoutePatternLabels
+--- PASS: TestHTTPMiddlewareUsesRoutePatternLabels (0.00s)
+=== RUN   TestMetricsHandlerOnlyServesMetricsPath
+--- PASS: TestMetricsHandlerOnlyServesMetricsPath (0.00s)
+=== RUN   TestHTTPMiddlewareSkipsHealthProbePaths
+--- PASS: TestHTTPMiddlewareSkipsHealthProbePaths (0.00s)
+=== RUN   TestMeetingLagCollectorReadsOldestOpenRows
+--- PASS: TestMeetingLagCollectorReadsOldestOpenRows (0.62s)
+=== RUN   TestMeetingLagCollectorFailedReadIsAbsentNotZero
+--- PASS: TestMeetingLagCollectorFailedReadIsAbsentNotZero (0.00s)
+=== RUN   TestOfficeIntentMetricsAreExposed
+--- PASS: TestOfficeIntentMetricsAreExposed (0.00s)
+=== RUN   TestReadinessDependencyGaugeIsExposed
+--- PASS: TestReadinessDependencyGaugeIsExposed (0.00s)
+=== RUN   TestRealtimeCollectorExposesCounters
+--- PASS: TestRealtimeCollectorExposesCounters (0.00s)
+=== RUN   TestMetricsServerCanBindLoopback
+--- PASS: TestMetricsServerCanBindLoopback (0.00s)
+=== RUN   TestWebVitalsNormalizeRoute
+--- PASS: TestWebVitalsNormalizeRoute (0.00s)
+=== RUN   TestWebVitalsObserveDropsUnknownAndNegative
+--- PASS: TestWebVitalsObserveDropsUnknownAndNegative (0.00s)
+=== RUN   TestAIUsageCapsOrganizationLabel
+--- PASS: TestAIUsageCapsOrganizationLabel (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	3.444s
+=== RUN   TestErrorClassTable
+--- PASS: TestErrorClassTable (0.00s)
+=== RUN   TestNewErrorSDOErrorClassOnWire
+--- PASS: TestNewErrorSDOErrorClassOnWire (0.00s)
+=== RUN   TestDocumentsAPIContractVersion
+--- PASS: TestDocumentsAPIContractVersion (0.00s)
+=== RUN   TestDocumentsAPIEndpointSamples
+=== RUN   TestDocumentsAPIEndpointSamples/create_document
+=== RUN   TestDocumentsAPIEndpointSamples/get_document
+=== RUN   TestDocumentsAPIEndpointSamples/patch_document
+=== RUN   TestDocumentsAPIEndpointSamples/create_document_file
+=== RUN   TestDocumentsAPIEndpointSamples/download_document_meta
+=== RUN   TestDocumentsAPIEndpointSamples/download_document_bytes
+=== RUN   TestDocumentsAPIEndpointSamples/upload_document_file
+=== RUN   TestDocumentsAPIEndpointSamples/commit_document_version
+=== RUN   TestDocumentsAPIEndpointSamples/list_document_versions
+=== RUN   TestDocumentsAPIEndpointSamples/get_document_version
+=== RUN   TestDocumentsAPIEndpointSamples/create_document_version
+=== RUN   TestDocumentsAPIEndpointSamples/restore_document_version
+=== RUN   TestDocumentsAPIEndpointSamples/upload_document_asset
+=== RUN   TestDocumentsAPIEndpointSamples/get_document_asset
+--- PASS: TestDocumentsAPIEndpointSamples (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/create_document (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/get_document (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/patch_document (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/create_document_file (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/download_document_meta (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/download_document_bytes (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/upload_document_file (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/commit_document_version (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/list_document_versions (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/get_document_version (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/create_document_version (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/restore_document_version (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/upload_document_asset (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/get_document_asset (0.00s)
+=== RUN   TestDocumentsAPIErrorSamples
+=== RUN   TestDocumentsAPIErrorSamples/error_conflict
+=== RUN   TestDocumentsAPIErrorSamples/error_gone
+=== RUN   TestDocumentsAPIErrorSamples/error_quota
+=== RUN   TestDocumentsAPIErrorSamples/error_permission
+=== RUN   TestDocumentsAPIErrorSamples/error_missing
+=== RUN   TestDocumentsAPIErrorSamples/error_incompatible
+=== RUN   TestDocumentsAPIErrorSamples/error_session
+--- PASS: TestDocumentsAPIErrorSamples (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_conflict (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_gone (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_quota (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_permission (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_missing (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_incompatible (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_session (0.00s)
+=== RUN   TestDocumentsAPISamplesAreUTF8JSON
+--- PASS: TestDocumentsAPISamplesAreUTF8JSON (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.005s
+=== RUN   TestLoadDerivesSecureCookiesFromFrontendOrigin
+=== RUN   TestLoadDerivesSecureCookiesFromFrontendOrigin/http://localhost:3000
+=== RUN   TestLoadDerivesSecureCookiesFromFrontendOrigin/https://app.example.com
+=== RUN   TestLoadDerivesSecureCookiesFromFrontendOrigin/HTTPS://app.example.com
+--- PASS: TestLoadDerivesSecureCookiesFromFrontendOrigin (0.00s)
+    --- PASS: TestLoadDerivesSecureCookiesFromFrontendOrigin/http://localhost:3000 (0.00s)
+    --- PASS: TestLoadDerivesSecureCookiesFromFrontendOrigin/https://app.example.com (0.00s)
+    --- PASS: TestLoadDerivesSecureCookiesFromFrontendOrigin/HTTPS://app.example.com (0.00s)
+=== RUN   TestLoadRejectsRelativeFrontendOrigin
+--- PASS: TestLoadRejectsRelativeFrontendOrigin (0.00s)
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/missing_origin
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/same_origin
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/wrong_scheme
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/missing_secret
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/invalid_ttl
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/invalid_max_bytes
+--- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/missing_origin (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/same_origin (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/wrong_scheme (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/missing_secret (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/invalid_ttl (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/invalid_max_bytes (0.00s)
+=== RUN   TestLoadEnableSwaggerDefaultsOnForLocalhost
+--- PASS: TestLoadEnableSwaggerDefaultsOnForLocalhost (0.00s)
+=== RUN   TestLoadEnableSwaggerDefaultsOffInProduction
+--- PASS: TestLoadEnableSwaggerDefaultsOffInProduction (0.00s)
+=== RUN   TestLoadRealtimeRelayIsOnUnlessFalse
+--- PASS: TestLoadRealtimeRelayIsOnUnlessFalse (0.00s)
+=== RUN   TestLoadEnableSwaggerTruthy
+=== RUN   TestLoadEnableSwaggerTruthy/1
+=== RUN   TestLoadEnableSwaggerTruthy/true
+=== RUN   TestLoadEnableSwaggerTruthy/TRUE
+=== RUN   TestLoadEnableSwaggerTruthy/yes
+--- PASS: TestLoadEnableSwaggerTruthy (0.00s)
+    --- PASS: TestLoadEnableSwaggerTruthy/1 (0.00s)
+    --- PASS: TestLoadEnableSwaggerTruthy/true (0.00s)
+    --- PASS: TestLoadEnableSwaggerTruthy/TRUE (0.00s)
+    --- PASS: TestLoadEnableSwaggerTruthy/yes (0.00s)
+=== RUN   TestLoadRequiresDatabaseAndSecret
+--- PASS: TestLoadRequiresDatabaseAndSecret (0.00s)
+=== RUN   TestLoadRejectsRelativeAPIPublicURL
+--- PASS: TestLoadRejectsRelativeAPIPublicURL (0.00s)
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/development
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/unset_env
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/production
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/Production_case-insensitive
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/not_six_digits
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/letters
+--- PASS: TestDevVerificationCodeOnlyOutsideProduction (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/development (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/unset_env (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/production (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/Production_case-insensitive (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/not_six_digits (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/letters (0.00s)
+=== RUN   TestGoogleEnabledNeedsBothCredentials
+--- PASS: TestGoogleEnabledNeedsBothCredentials (0.00s)
+=== RUN   TestPushEnabledNeedsBothVAPIDKeys
+--- PASS: TestPushEnabledNeedsBothVAPIDKeys (0.00s)
+=== RUN   TestParseHelpersFallback
+--- PASS: TestParseHelpersFallback (0.00s)
+=== RUN   TestEmailHubRedirectURL
+=== PAUSE TestEmailHubRedirectURL
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/unset_keeps_the_dev_default
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/valid_duration
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/nonsense_text
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/missing_unit
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/zero
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/negative
+--- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/unset_keeps_the_dev_default (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/valid_duration (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/nonsense_text (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/missing_unit (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/zero (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/negative (0.00s)
+=== RUN   TestLoadEmailHubOAuthClients
+--- PASS: TestLoadEmailHubOAuthClients (0.00s)
+=== RUN   TestPoolConfigFillsDefaultsTheDSNLeavesOut
+--- PASS: TestPoolConfigFillsDefaultsTheDSNLeavesOut (0.00s)
+=== RUN   TestPoolConfigKeepsWhatTheDSNSets
+--- PASS: TestPoolConfigKeepsWhatTheDSNSets (0.00s)
+=== RUN   TestPoolConfigSetsIdleInTxTimeoutOnConnect
+--- PASS: TestPoolConfigSetsIdleInTxTimeoutOnConnect (0.00s)
+=== RUN   TestPoolConfigRejectsBadDSN
+--- PASS: TestPoolConfigRejectsBadDSN (0.00s)
+=== RUN   TestLoadDesktopAuthClientsListsEachClientWithItsRedirects
+--- PASS: TestLoadDesktopAuthClientsListsEachClientWithItsRedirects (0.00s)
+=== RUN   TestLoadDesktopAuthLegacySingleClientUnchanged
+--- PASS: TestLoadDesktopAuthLegacySingleClientUnchanged (0.00s)
+=== RUN   TestDesktopClientsFallsBackToTheLegacyFields
+--- PASS: TestDesktopClientsFallsBackToTheLegacyFields (0.00s)
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/duplicate_id
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/legacy_uris_too
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/empty_id
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/empty_redirect
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/relative_redirect
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/empty_entry
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/legacy_id_too
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/missing_equals
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/no_redirect
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/space_in_id
+--- PASS: TestLoadRejectsMalformedDesktopAuthClients (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/duplicate_id (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/legacy_uris_too (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/empty_id (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/empty_redirect (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/relative_redirect (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/empty_entry (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/legacy_id_too (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/missing_equals (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/no_redirect (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/space_in_id (0.00s)
+=== RUN   TestOfficeInstallersPlatformMaps
+--- PASS: TestOfficeInstallersPlatformMaps (0.00s)
+=== RUN   TestOfficeInstallersMetadataAndOverride
+--- PASS: TestOfficeInstallersMetadataAndOverride (0.00s)
+=== RUN   TestLoadOfficeInstallerURLMaps
+--- PASS: TestLoadOfficeInstallerURLMaps (0.00s)
+=== RUN   TestOfficeInstallersEncodedFilenames
+--- PASS: TestOfficeInstallersEncodedFilenames (0.00s)
+=== RUN   TestOfficeInstallerURLsFromCIJob
+--- PASS: TestOfficeInstallerURLsFromCIJob (0.00s)
+=== CONT  TestEmailHubRedirectURL
+--- PASS: TestEmailHubRedirectURL (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/config	0.012s
+=== RUN   TestEmailHubAttachmentsThreadIndexUsed
+--- PASS: TestEmailHubAttachmentsThreadIndexUsed (0.04s)
+=== RUN   TestEmailHubRefetchBodiesKeepsLocallySentBodies
+--- PASS: TestEmailHubRefetchBodiesKeepsLocallySentBodies (0.03s)
+=== RUN   TestEmailHubDedupeKeepsOldestActiveAddress
+--- PASS: TestEmailHubDedupeKeepsOldestActiveAddress (0.14s)
+=== RUN   TestEmailHubActiveAddressIsUnique
+--- PASS: TestEmailHubActiveAddressIsUnique (0.04s)
+=== RUN   TestFileServiceLocatorUniqueness
+--- PASS: TestFileServiceLocatorUniqueness (0.07s)
+=== RUN   TestFileServiceTenantIsolation
+--- PASS: TestFileServiceTenantIsolation (0.07s)
+=== RUN   TestFileServiceNullTenantAvatarBranch
+--- PASS: TestFileServiceNullTenantAvatarBranch (0.09s)
+=== RUN   TestFileServiceCheckConstraints
+--- PASS: TestFileServiceCheckConstraints (0.08s)
+=== RUN   TestFileServiceAttributionPair
+--- PASS: TestFileServiceAttributionPair (0.08s)
+=== RUN   TestFileServiceIdempotencyBinding
+--- PASS: TestFileServiceIdempotencyBinding (0.06s)
+=== RUN   TestFileServiceSessionClaimWindow
+--- PASS: TestFileServiceSessionClaimWindow (0.07s)
+=== RUN   TestFileServiceRollback
+--- PASS: TestFileServiceRollback (0.09s)
+=== RUN   TestFileServiceJobLeaseAndDedupe
+--- PASS: TestFileServiceJobLeaseAndDedupe (0.07s)
+=== RUN   TestFileServiceFailureCode
+--- PASS: TestFileServiceFailureCode (0.07s)
+=== RUN   TestMigrationFilesHaveMatchingDirections
+--- PASS: TestMigrationFilesHaveMatchingDirections (0.00s)
+=== RUN   TestMigrationNumericPrefixesAreUnique
+--- PASS: TestMigrationNumericPrefixesAreUnique (0.00s)
+=== RUN   TestNewMigrationsHaveNoForeignKeys
+--- PASS: TestNewMigrationsHaveNoForeignKeys (0.00s)
+=== RUN   TestNewMigrationsCreateIndexesConcurrently
+--- PASS: TestNewMigrationsCreateIndexesConcurrently (0.00s)
+=== RUN   TestTaskFoundationTablesAndColumnsExist
+--- PASS: TestTaskFoundationTablesAndColumnsExist (0.03s)
+=== RUN   TestMigrationPrefixesSortTheSameAsStringsAndNumbers
+--- PASS: TestMigrationPrefixesSortTheSameAsStringsAndNumbers (0.00s)
+=== RUN   TestNewTablesCarryOrganizationID
+--- PASS: TestNewTablesCarryOrganizationID (0.00s)
+=== RUN   TestNullTenantIsOnlyTheAvatarBranch
+--- PASS: TestNullTenantIsOnlyTheAvatarBranch (0.00s)
+=== RUN   TestEveryBusinessTableCarriesOrganizationID
+--- PASS: TestEveryBusinessTableCarriesOrganizationID (0.01s)
+=== RUN   TestActorKindOnEveryCreatedBy
+--- PASS: TestActorKindOnEveryCreatedBy (0.00s)
+=== RUN   TestReclaimTestSchemaSkipsNonTestDatabase
+--- PASS: TestReclaimTestSchemaSkipsNonTestDatabase (0.00s)
+=== RUN   TestReclaimTestSchemaNoOpWhenSlotsAreHealthy
+--- PASS: TestReclaimTestSchemaNoOpWhenSlotsAreHealthy (2.42s)
+=== RUN   TestReclaimTestSchemaWhenDroppedColumnSlotsAccumulate
+--- PASS: TestReclaimTestSchemaWhenDroppedColumnSlotsAccumulate (1.81s)
+=== RUN   TestUpIsIdempotent
+--- PASS: TestUpIsIdempotent (0.05s)
+=== RUN   TestOrganizationsGrandfather
+--- PASS: TestOrganizationsGrandfather (2.76s)
+=== RUN   TestRenamedChatMigrationVersions
+--- PASS: TestRenamedChatMigrationVersions (0.03s)
+=== RUN   TestRenamedEmailHubMigrationVersions
+--- PASS: TestRenamedEmailHubMigrationVersions (0.03s)
+=== RUN   TestRenamedChatMigrationVersionsDropsStaleOldRow
+--- PASS: TestRenamedChatMigrationVersionsDropsStaleOldRow (0.03s)
+=== RUN   TestTasksWorkManagementUpgradeFrom106
+--- PASS: TestTasksWorkManagementUpgradeFrom106 (1.53s)
+=== RUN   TestSingleOwnerBackfillDemotesLaterOwners
+--- PASS: TestSingleOwnerBackfillDemotesLaterOwners (1.41s)
+=== RUN   TestVersionsSortNumerically
+--- PASS: TestVersionsSortNumerically (0.00s)
+=== RUN   TestEmbeddedVersionsAreInNumericOrder
+--- PASS: TestEmbeddedVersionsAreInNumericOrder (0.00s)
+=== RUN   TestBehindComparesNumerically
+--- PASS: TestBehindComparesNumerically (0.00s)
+=== RUN   TestEveryQueryNamesItsTenant
+--- PASS: TestEveryQueryNamesItsTenant (0.05s)
+=== RUN   TestTenantReasonsSitOnTenantQueries
+--- PASS: TestTenantReasonsSitOnTenantQueries (0.03s)
+=== RUN   TestTenantColumnIsNotNull
+--- PASS: TestTenantColumnIsNotNull (0.05s)
+=== RUN   TestTenantBackfillCopiesTheParentOrganization
+--- PASS: TestTenantBackfillCopiesTheParentOrganization (0.78s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/migrations	12.041s
+=== RUN   TestLayering
+--- PASS: TestLayering (0.29s)
+=== RUN   TestMembershipDecidedInOnePlace
+--- PASS: TestMembershipDecidedInOnePlace (0.01s)
+=== RUN   TestMemberProfilesWrittenInOnePlace
+--- PASS: TestMemberProfilesWrittenInOnePlace (0.01s)
+=== RUN   TestActorConstructedOnlyInService
+--- PASS: TestActorConstructedOnlyInService (0.01s)
+=== RUN   TestAuditAndOutboxWritesGoThroughTheAuditPackage
+--- PASS: TestAuditAndOutboxWritesGoThroughTheAuditPackage (0.01s)
+=== RUN   TestBillingQueriesStayInBillingServices
+--- PASS: TestBillingQueriesStayInBillingServices (0.03s)
+=== RUN   TestNotificationPreferencesReadInOnePlace
+--- PASS: TestNotificationPreferencesReadInOnePlace (0.01s)
+=== RUN   TestProviderSDKOnlyInAIProvider
+--- PASS: TestProviderSDKOnlyInAIProvider (0.22s)
+=== RUN   TestAIPackageOnlyCallsAiQueries
+--- PASS: TestAIPackageOnlyCallsAiQueries (0.00s)
+=== RUN   TestAdminQueriesStayInAdminService
+--- PASS: TestAdminQueriesStayInAdminService (0.09s)
+=== RUN   TestTableQueryOnlyFromTaskTableService
+--- PASS: TestTableQueryOnlyFromTaskTableService (0.01s)
+=== RUN   TestTaskFoundationQueriesCarryTenantScope
+--- PASS: TestTaskFoundationQueriesCarryTenantScope (0.00s)
+=== RUN   TestFilesContractIsALeafCalledOnlyFromTheServiceTier
+--- PASS: TestFilesContractIsALeafCalledOnlyFromTheServiceTier (0.21s)
+=== RUN   TestGraphTablesWrittenOnlyByProjector
+--- PASS: TestGraphTablesWrittenOnlyByProjector (0.15s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal	1.068s
+PKG_EXIT=0

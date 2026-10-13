@@ -1,0 +1,192 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -timeout 40m -v ./internal/handler/ -run 'TestCommitIntent|TestDocumentChanges|TestIsolationMatrix|TestEveryBodyIDFieldHasAReferenceCase|TestIsolationRealtime|TestDocumentsFlagOff404|TestDocumentFileLifecycle|TestSwaggerSpecFollowsChiRoutesAndSDI|TestOfficeFrame|TestAppCapabilit'; echo "HANDLER_EXIT=$?"
+=== RUN   TestDocumentChangesHTTPErrorAnswers
+2026/10/13 02:38:31 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 02:38:31 INFO http request method=POST path=/api/v1/auth/register status=200 duration=8.256ms request_id=cursor/9gVPRIwJ1a-000001 correlation_id=01M4SJ0DK5FJSJHGVGR9G145X1
+2026/10/13 02:38:31 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.899ms request_id=cursor/9gVPRIwJ1a-000002 correlation_id=01M4SJ0DKDC6QBTG4V5SK55NGD
+2026/10/13 02:38:31 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.366ms request_id=cursor/9gVPRIwJ1a-000003 correlation_id=01M4SJ0DKHMPVRWCYSM0Y5HJAJ
+2026/10/13 02:38:31 INFO http request method=POST path=/api/v1/orgs/01M4SJ0DKHMPVRWCYSM27ZXYGF/workspaces status=201 duration=6.139ms request_id=cursor/9gVPRIwJ1a-000004 correlation_id=01M4SJ0DKN5GWSYVDN2B68NFD4
+2026/10/13 02:38:31 INFO http request method=GET path=/api/v1/workspaces/01M4SJ0DKPXR71B6J77X2TGWD4/documents/changes status=200 duration=4.555ms request_id=cursor/9gVPRIwJ1a-000005 correlation_id=01M4SJ0DKZH8GP04T45ZX71725
+2026/10/13 02:38:31 WARN http request method=GET path=/api/v1/workspaces/01M4SJ0DKPXR71B6J77X2TGWD4/documents/changes status=410 duration=1.015ms request_id=cursor/9gVPRIwJ1a-000006 correlation_id=01M4SJ0DM4X82H2AEBZQAY0QCS
+2026/10/13 02:38:31 WARN http request method=GET path=/api/v1/workspaces/01M4SJ0DKPXR71B6J77X2TGWD4/documents/changes status=400 duration=848µs request_id=cursor/9gVPRIwJ1a-000007 correlation_id=01M4SJ0DM5VWSZD70Y88H57062
+2026/10/13 02:38:31 WARN http request method=GET path=/api/v1/workspaces/01M4SJ0DKPXR71B6J77X2TGWD4/documents/changes status=403 duration=839µs request_id=cursor/9gVPRIwJ1a-000008 correlation_id=01M4SJ0DM80GPQZ4C49CVX70BT
+--- PASS: TestDocumentChangesHTTPErrorAnswers (0.48s)
+=== RUN   TestDocumentChangesHTTPLimitParsing
+2026/10/13 02:38:32 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 02:38:32 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.315ms request_id=cursor/9gVPRIwJ1a-000009 correlation_id=01M4SJ0E66X86GJ9AKWY20RB8V
+2026/10/13 02:38:32 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.284ms request_id=cursor/9gVPRIwJ1a-000010 correlation_id=01M4SJ0E6CW8NSTT16N3VS62KS
+2026/10/13 02:38:32 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.287ms request_id=cursor/9gVPRIwJ1a-000011 correlation_id=01M4SJ0E6E0DAK5N1F6AEWJYA5
+2026/10/13 02:38:32 INFO http request method=POST path=/api/v1/orgs/01M4SJ0E6E0DAK5N1F6AV9Y0GH/workspaces status=201 duration=4.99ms request_id=cursor/9gVPRIwJ1a-000012 correlation_id=01M4SJ0E6JD19XXK2MM2JSZEQC
+2026/10/13 02:38:32 WARN http request method=GET path=/api/v1/workspaces/01M4SJ0E6KNHMG9SXC45JE7EJK/documents/changes status=400 duration=479µs request_id=cursor/9gVPRIwJ1a-000013 correlation_id=01M4SJ0E6S96V1JBYT50Z6PARR
+2026/10/13 02:38:32 WARN http request method=GET path=/api/v1/workspaces/01M4SJ0E6KNHMG9SXC45JE7EJK/documents/changes status=400 duration=39µs request_id=cursor/9gVPRIwJ1a-000014 correlation_id=01M4SJ0E6TJ6GS59353EPQRGWT
+2026/10/13 02:38:32 WARN http request method=GET path=/api/v1/workspaces/01M4SJ0E6KNHMG9SXC45JE7EJK/documents/changes status=400 duration=18µs request_id=cursor/9gVPRIwJ1a-000015 correlation_id=01M4SJ0E6TJ6GS59353FS7CHHG
+=== RUN   TestDocumentChangesHTTPLimitParsing/zero_reads_as_unset
+2026/10/13 02:38:32 INFO http request method=GET path=/api/v1/workspaces/01M4SJ0E6KNHMG9SXC45JE7EJK/documents/changes status=200 duration=4.746ms request_id=cursor/9gVPRIwJ1a-000016 correlation_id=01M4SJ0E6TJ6GS59353G5C69CW
+=== RUN   TestDocumentChangesHTTPLimitParsing/explicit_bound_is_honoured
+2026/10/13 02:38:32 INFO http request method=GET path=/api/v1/workspaces/01M4SJ0E6KNHMG9SXC45JE7EJK/documents/changes status=200 duration=2.369ms request_id=cursor/9gVPRIwJ1a-000017 correlation_id=01M4SJ0E6ZDJPVKTVTZD2CX879
+2026/10/13 02:38:32 INFO http request method=GET path=/api/v1/workspaces/01M4SJ0E6KNHMG9SXC45JE7EJK/documents/changes status=200 duration=3.112ms request_id=cursor/9gVPRIwJ1a-000018 correlation_id=01M4SJ0E71SZAT2D5Z0N56MVNQ
+--- PASS: TestDocumentChangesHTTPLimitParsing (0.60s)
+    --- PASS: TestDocumentChangesHTTPLimitParsing/zero_reads_as_unset (0.00s)
+    --- PASS: TestDocumentChangesHTTPLimitParsing/explicit_bound_is_honoured (0.00s)
+=== RUN   TestDocumentChangesRevisionWireIsDecimalString
+2026/10/13 02:38:32 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 02:38:32 INFO http request method=POST path=/api/v1/auth/register status=200 duration=7.999ms request_id=cursor/9gVPRIwJ1a-000019 correlation_id=01M4SJ0ER532PYDYN30AVNKE9S
+2026/10/13 02:38:32 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.684ms request_id=cursor/9gVPRIwJ1a-000020 correlation_id=01M4SJ0ERD605WNW6MCE5VKE85
+2026/10/13 02:38:32 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.893ms request_id=cursor/9gVPRIwJ1a-000021 correlation_id=01M4SJ0ERGKBNZZSYGKF2A6XVJ
+2026/10/13 02:38:32 INFO http request method=POST path=/api/v1/orgs/01M4SJ0ERHY52Y9GQ7NGX40QWF/workspaces status=201 duration=5.23ms request_id=cursor/9gVPRIwJ1a-000022 correlation_id=01M4SJ0ERME1N6CCX58E01CDZF
+2026/10/13 02:38:32 INFO http request method=GET path=/api/v1/workspaces/01M4SJ0ERPYA6AXAR96WJ0AJ7W/documents/changes status=200 duration=4.61ms request_id=cursor/9gVPRIwJ1a-000023 correlation_id=01M4SJ0ERXY6H0V9BA7205BPC9
+--- PASS: TestDocumentChangesRevisionWireIsDecimalString (0.57s)
+=== RUN   TestDocumentChangesOpenAPI
+2026/10/13 02:38:33 INFO http request method=GET path=/swagger/doc.json status=200 duration=528µs request_id=cursor/9gVPRIwJ1a-000024 correlation_id=01M4SJ0F83BY02ME8JP4VY0NSN
+--- PASS: TestDocumentChangesOpenAPI (0.49s)
+=== RUN   TestCommitIntentLookupRoute
+2026/10/13 02:38:33 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.788ms request_id=cursor/9gVPRIwJ1a-000025 correlation_id=01M4SJ0FR7Q3SMS9PESNRKP7ZS
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.719ms request_id=cursor/9gVPRIwJ1a-000026 correlation_id=01M4SJ0FRC1H60G36XD10D16ZM
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.159ms request_id=cursor/9gVPRIwJ1a-000027 correlation_id=01M4SJ0FRE6RAGHA7KP3F4WG33
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/orgs/01M4SJ0FRFHWRT7DKV5XHW76G9/workspaces status=201 duration=4.752ms request_id=cursor/9gVPRIwJ1a-000028 correlation_id=01M4SJ0FRKF4N8ZG6AM6XR8KVC
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.546ms request_id=cursor/9gVPRIwJ1a-000029 correlation_id=01M4SJ0FRRZRYSP16VXMXGT2ZP
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.761ms request_id=cursor/9gVPRIwJ1a-000030 correlation_id=01M4SJ0FRT6F9ZK1R66D10DP0E
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/workspaces/01M4SJ0FRMVFZXCRVD3FH4BH3Q/documents/files status=201 duration=8.275ms request_id=cursor/9gVPRIwJ1a-000031 correlation_id=01M4SJ0FRWVA5YC97Z5CS9J3NT
+2026/10/13 02:38:33 WARN http request method=GET path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/versions/commit status=410 duration=1.146ms request_id=cursor/9gVPRIwJ1a-000032 correlation_id=01M4SJ0FS53Y94N0VMEH1YDPF9
+2026/10/13 02:38:33 WARN http request method=GET path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/versions/commit status=400 duration=45µs request_id=cursor/9gVPRIwJ1a-000033 correlation_id=01M4SJ0FS6470J432FK2Y7CKK4
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/uploads status=201 duration=428µs request_id=cursor/9gVPRIwJ1a-000034 correlation_id=01M4SJ0FS6470J432FK6T1PE37
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/versions/commit status=200 duration=5.527ms request_id=cursor/9gVPRIwJ1a-000035 correlation_id=01M4SJ0FS70WFQ83Z6Y1BCCZE8
+2026/10/13 02:38:33 INFO http request method=GET path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/versions/commit status=200 duration=1.054ms request_id=cursor/9gVPRIwJ1a-000036 correlation_id=01M4SJ0FSD0W83C40J1Y9VH1DE
+2026/10/13 02:38:33 WARN http request method=GET path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/versions/commit status=404 duration=351µs request_id=cursor/9gVPRIwJ1a-000037 correlation_id=01M4SJ0FSEWN6E9MTF0W50BYRK
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/uploads status=201 duration=731µs request_id=cursor/9gVPRIwJ1a-000038 correlation_id=01M4SJ0FSF87Z2CS55C3MQQ9NK
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/versions/commit status=200 duration=3.832ms request_id=cursor/9gVPRIwJ1a-000039 correlation_id=01M4SJ0FSG2CXQ7WXZBZC3XAEC
+2026/10/13 02:38:33 INFO http request method=POST path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/uploads status=201 duration=317µs request_id=cursor/9gVPRIwJ1a-000040 correlation_id=01M4SJ0FSM5WDNXPHDYKP24S5W
+2026/10/13 02:38:33 WARN http request method=POST path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/versions/commit status=403 duration=310µs request_id=cursor/9gVPRIwJ1a-000041 correlation_id=01M4SJ0FSM5WDNXPHDYQJP1QKQ
+2026/10/13 02:38:33 INFO http request method=GET path=/api/v1/documents/01M4SJ0FS1EJAMACHQ0H4YF2F9/versions/commit status=200 duration=899µs request_id=cursor/9gVPRIwJ1a-000042 correlation_id=01M4SJ0FSN018XRPEQFEV1N13W
+--- PASS: TestCommitIntentLookupRoute (0.56s)
+=== RUN   TestCommitIntentKeyNeverLeaks
+2026/10/13 02:38:34 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 02:38:34 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.386ms request_id=cursor/9gVPRIwJ1a-000043 correlation_id=01M4SJ0G9XDYFHZWGDSJJ5W5H6
+2026/10/13 02:38:34 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=4.439ms request_id=cursor/9gVPRIwJ1a-000044 correlation_id=01M4SJ0GA2HW2JY6G7GN8J7R69
+2026/10/13 02:38:34 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.408ms request_id=cursor/9gVPRIwJ1a-000045 correlation_id=01M4SJ0GA7Y5ZNBZYFMGQ49308
+2026/10/13 02:38:34 INFO http request method=POST path=/api/v1/orgs/01M4SJ0GA7Y5ZNBZYFMH97MGRK/workspaces status=201 duration=6.452ms request_id=cursor/9gVPRIwJ1a-000046 correlation_id=01M4SJ0GABA4NAHQWBHTNWXRJR
+2026/10/13 02:38:34 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.017ms request_id=cursor/9gVPRIwJ1a-000047 correlation_id=01M4SJ0GAJWXMED2BKPXCFWFM3
+2026/10/13 02:38:34 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.515ms request_id=cursor/9gVPRIwJ1a-000048 correlation_id=01M4SJ0GAN2P004A9141KGS69K
+2026/10/13 02:38:34 INFO http request method=POST path=/api/v1/workspaces/01M4SJ0GADQC4M8NXNTJB5JMGW/documents/files status=201 duration=6.056ms request_id=cursor/9gVPRIwJ1a-000049 correlation_id=01M4SJ0GAQAA6B7R1QEGAX00KF
+--- PASS: TestCommitIntentKeyNeverLeaks (0.55s)
+=== RUN   TestDocumentsFlagOff404
+--- PASS: TestDocumentsFlagOff404 (0.55s)
+=== RUN   TestDocumentFileLifecycle
+--- PASS: TestDocumentFileLifecycle (0.61s)
+=== RUN   TestIsolationMatrix
+=== RUN   TestIsolationMatrix/control
+=== RUN   TestIsolationMatrix/cross-tenant
+=== RUN   TestIsolationMatrix/anonymous
+=== RUN   TestIsolationMatrix/self
+=== RUN   TestIsolationMatrix/mixed
+=== RUN   TestIsolationMatrix/frame-linked
+=== RUN   TestIsolationMatrix/change-cursor
+=== RUN   TestIsolationMatrix/references
+=== RUN   TestIsolationMatrix/member-of-both
+=== RUN   TestIsolationMatrix/listing
+=== RUN   TestIsolationMatrix/uploads
+=== RUN   TestIsolationMatrix/untouched
+=== RUN   TestIsolationMatrix/write-control
+--- PASS: TestIsolationMatrix (247.06s)
+    --- PASS: TestIsolationMatrix/control (0.24s)
+    --- PASS: TestIsolationMatrix/cross-tenant (73.27s)
+    --- PASS: TestIsolationMatrix/anonymous (73.45s)
+    --- PASS: TestIsolationMatrix/self (0.41s)
+    --- PASS: TestIsolationMatrix/mixed (23.62s)
+    --- PASS: TestIsolationMatrix/frame-linked (0.00s)
+    --- PASS: TestIsolationMatrix/change-cursor (0.00s)
+    --- PASS: TestIsolationMatrix/references (19.91s)
+    --- PASS: TestIsolationMatrix/member-of-both (53.87s)
+    --- PASS: TestIsolationMatrix/listing (0.30s)
+    --- PASS: TestIsolationMatrix/uploads (0.00s)
+    --- PASS: TestIsolationMatrix/untouched (0.00s)
+    --- PASS: TestIsolationMatrix/write-control (0.73s)
+=== RUN   TestIsolationRealtime
+=== RUN   TestIsolationRealtime/workspace_channel
+=== RUN   TestIsolationRealtime/subscribe
+=== RUN   TestIsolationRealtime/meeting_lobby
+--- PASS: TestIsolationRealtime (1.46s)
+    --- PASS: TestIsolationRealtime/workspace_channel (0.00s)
+    --- PASS: TestIsolationRealtime/subscribe (0.30s)
+    --- PASS: TestIsolationRealtime/meeting_lobby (0.00s)
+=== RUN   TestEveryBodyIDFieldHasAReferenceCase
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.00s)
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWrite
+--- PASS: TestOfficeFrameViewOnlyTokenCannotWrite (0.80s)
+=== RUN   TestOfficeFrameTokenStopsWhenAccessIsRevoked
+--- PASS: TestOfficeFrameTokenStopsWhenAccessIsRevoked (0.58s)
+=== RUN   TestOfficeFrameCommitReplaysOnTheSameIdempotencyKey
+--- PASS: TestOfficeFrameCommitReplaysOnTheSameIdempotencyKey (0.75s)
+=== RUN   TestOfficeFrameRecentsJudgeTheFileNotTheTitle
+--- PASS: TestOfficeFrameRecentsJudgeTheFileNotTheTitle (0.70s)
+=== RUN   TestOfficeFrameAIHappyPath
+--- PASS: TestOfficeFrameAIHappyPath (0.68s)
+=== RUN   TestOfficeFrameAIRefusesEverythingButThisDocumentsToken
+--- PASS: TestOfficeFrameAIRefusesEverythingButThisDocumentsToken (0.74s)
+=== RUN   TestOfficeFrameAIRechecksViewAccessPerRequest
+--- PASS: TestOfficeFrameAIRechecksViewAccessPerRequest (0.60s)
+=== RUN   TestOfficeFrameAIEntitlementRequired
+--- PASS: TestOfficeFrameAIEntitlementRequired (0.68s)
+=== RUN   TestOfficeFrameAIFollowsTheModuleFlag
+--- PASS: TestOfficeFrameAIFollowsTheModuleFlag (0.61s)
+=== RUN   TestOfficeFrameTokenCarriesTheAIGrant
+--- PASS: TestOfficeFrameTokenCarriesTheAIGrant (0.55s)
+=== RUN   TestOfficeFrameOpenResolvesRelativeReferences
+--- PASS: TestOfficeFrameOpenResolvesRelativeReferences (0.65s)
+=== RUN   TestOfficeFrameOpenHasNoAssetsOutsideTextModules
+--- PASS: TestOfficeFrameOpenHasNoAssetsOutsideTextModules (0.56s)
+=== RUN   TestOfficeFrameSiblingNeedsItsOwnViewAccess
+--- PASS: TestOfficeFrameSiblingNeedsItsOwnViewAccess (0.60s)
+=== RUN   TestOfficeFrameExportPDFRoute
+--- PASS: TestOfficeFrameExportPDFRoute (0.59s)
+=== RUN   TestOfficeFrameExportWithoutExportEngine
+--- PASS: TestOfficeFrameExportWithoutExportEngine (0.57s)
+=== RUN   TestOfficeFrameModuleFlagsArePerModuleAndPerOrganization
+--- PASS: TestOfficeFrameModuleFlagsArePerModuleAndPerOrganization (0.71s)
+=== RUN   TestOfficeFrameSheetsMintRefusesAWorkbookOverTheCap
+--- PASS: TestOfficeFrameSheetsMintRefusesAWorkbookOverTheCap (0.70s)
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/docs
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/pdf
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/markdown
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/html
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/slides
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/sheets
+--- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule (0.71s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/docs (0.03s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/pdf (0.02s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/markdown (0.02s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/html (0.02s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/slides (0.02s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/sheets (0.02s)
+=== RUN   TestOfficeFrameSignedAssetKeepsTheModule
+--- PASS: TestOfficeFrameSignedAssetKeepsTheModule (0.56s)
+=== RUN   TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap
+--- PASS: TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap (0.64s)
+=== RUN   TestOfficeFrameLinkedTakesNoFrameToken
+--- PASS: TestOfficeFrameLinkedTakesNoFrameToken (0.63s)
+=== RUN   TestOfficeFrameResolveTypedPaths
+--- PASS: TestOfficeFrameResolveTypedPaths (0.65s)
+=== RUN   TestOfficeFrameResolveRefreshesURLsPastTheirLifetime
+--- PASS: TestOfficeFrameResolveRefreshesURLsPastTheirLifetime (0.54s)
+=== RUN   TestOfficeFrameSignedURLsFollowTheLiveACL
+--- PASS: TestOfficeFrameSignedURLsFollowTheLiveACL (0.57s)
+=== RUN   TestOfficeFrameWalkStopsAtATrashedAncestor
+--- PASS: TestOfficeFrameWalkStopsAtATrashedAncestor (0.57s)
+=== RUN   TestOfficeFrameOpenBoundsTheACLChecks
+--- PASS: TestOfficeFrameOpenBoundsTheACLChecks (1.07s)
+=== RUN   TestOfficeFrameTokenNeedsTheFlag
+--- PASS: TestOfficeFrameTokenNeedsTheFlag (0.58s)
+=== RUN   TestOfficeFrameOpenSaveConflictReopen
+--- PASS: TestOfficeFrameOpenSaveConflictReopen (0.49s)
+=== RUN   TestOfficeFrameTokenOpensOnlyItsDocument
+--- PASS: TestOfficeFrameTokenOpensOnlyItsDocument (0.49s)
+=== RUN   TestOfficeFrameImagesAreSignedPerAsset
+--- PASS: TestOfficeFrameImagesAreSignedPerAsset (0.45s)
+=== RUN   TestOfficeFrameFlagIsEvaluatedPerOrganization
+--- PASS: TestOfficeFrameFlagIsEvaluatedPerOrganization (0.65s)
+=== RUN   TestSwaggerSpecFollowsChiRoutesAndSDI
+--- PASS: TestSwaggerSpecFollowsChiRoutesAndSDI (0.53s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	273.168s
+HANDLER_EXIT=0

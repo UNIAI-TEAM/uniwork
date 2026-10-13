@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+665c6b51d6771ecf53db354f9c131c4c636f16d2
+e62da38772abe10c16664969635c0726695dc05e
+665c6b51d test(documents): pin that a raw office job retry with a pre-rename base replays
+b7057f769 chore(documents): merge root e62da3877 (G5-01a change feed, G5-09w, G7-06) into G5-07
+e62da3877 chore(office): raise the Go coverage floor to 73 and record the feed membership window
+ef01e5190 Merge G5-01a change feed snapshot into the G5-G7 root (UNI-1344)
+82715f861 docs(office): name the G7-06 cloud-runner job line in the G7-A04 row
+f8a3e67e1 Merge the G7-06 pin regression job into the G5-G7 root (UNI-1378)
+c85a45566 Merge G5-09w host side into the G5-G7 root (UNI-1348)
+f247ed19c fix(office): scrub the capture failure reasons like the diagnostics
+04bfe2351 fix(office): scrub URL userinfo from capture diagnostics
+3f599d000 test(office): pin the committed G7-06 goldens manifest to its PNG files
