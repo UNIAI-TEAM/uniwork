@@ -1,0 +1,114 @@
+$ DEBUG=pw:browser xvfb-run --auto-servernum -- npm run test:e2e -- --grep "format painter brushes the clicked word" --repeat-each 3 --reporter=list
+
+> genoffice@0.1.0 test:e2e
+> playwright test --config e2e/playwright.config.ts --grep format painter brushes the clicked word --repeat-each 3 --reporter=list
+
+
+Running 3 tests using 1 worker
+
+(node:8453) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  pw:browser <launching> /home/ubuntu/work/uniwork-office/node_modules/electron/dist/electron --inspect=0 --remote-debugging-port=0 --no-sandbox --disable-gpu /home/ubuntu/work/uniwork-office/apps/shell /tmp/genoffice-e2e-selbar-4qUahd/selbar.docx +0ms
+  pw:browser <launched> pid=8465 +3ms
+  pw:browser [pid=8465][err] [8465:1013/135508.915382:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused +67ms
+  pw:browser [pid=8465][err] Debugger listening on ws://127.0.0.1:41601/79724e24-8ea9-4b77-ada3-bd2ec911a95e +27ms
+  pw:browser [pid=8465][err] For help, see: https://nodejs.org/learn/getting-started/debugging +0ms
+  pw:browser <ws connecting> ws://127.0.0.1:41601/79724e24-8ea9-4b77-ada3-bd2ec911a95e +1ms
+  pw:browser <ws connected> ws://127.0.0.1:41601/79724e24-8ea9-4b77-ada3-bd2ec911a95e +6ms
+  pw:browser [pid=8465][err] Debugger attached. +0ms
+  pw:browser [pid=8465][err] (node:8465) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set. +428ms
+  pw:browser [pid=8465][err] (Use `electron --trace-warnings ...` to show where the warning was created) +0ms
+  pw:browser [pid=8465][err] [8465:1013/135509.449785:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +72ms
+  pw:browser [pid=8465][err] [8465:1013/135509.449849:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused +0ms
+  pw:browser [pid=8465][err] [8465:1013/135509.449860:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused +0ms
+  pw:browser [pid=8465][err]  +16ms
+  pw:browser [pid=8465][err] DevTools listening on ws://127.0.0.1:42827/devtools/browser/c5fc2fad-7d82-43a9-9ba0-c48e17fe6e21 +0ms
+  pw:browser <ws connecting> ws://127.0.0.1:42827/devtools/browser/c5fc2fad-7d82-43a9-9ba0-c48e17fe6e21 +0ms
+  pw:browser [pid=8465][err] [8465:1013/135509.503513:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +37ms
+  pw:browser [pid=8465][err] [8465:1013/135509.527776:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +25ms
+  pw:browser [pid=8465][err] [8465:1013/135509.550770:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type:  +22ms
+  pw:browser [pid=8465][err] [8465:1013/135509.551151:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +1ms
+  pw:browser <ws connected> ws://127.0.0.1:42827/devtools/browser/c5fc2fad-7d82-43a9-9ba0-c48e17fe6e21 +6ms
+  pw:browser [pid=8465][err] [8465:1013/135509.560599:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +3ms
+  pw:browser [pid=8465][err] [8465:1013/135509.562746:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type:  +2ms
+  pw:browser <ws disconnecting> ws://127.0.0.1:41601/79724e24-8ea9-4b77-ada3-bd2ec911a95e +2s
+  pw:browser [pid=8465][err] Debugger ending on ws://127.0.0.1:41601/79724e24-8ea9-4b77-ada3-bd2ec911a95e +1ms
+  pw:browser [pid=8465][err] For help, see: https://nodejs.org/learn/getting-started/debugging +0ms
+  pw:browser <ws disconnected> ws://127.0.0.1:41601/79724e24-8ea9-4b77-ada3-bd2ec911a95e code=1005 reason= +1ms
+  pw:browser [pid=8465][err] [8465:1013/135511.342426:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +1ms
+  pw:browser <ws disconnected> ws://127.0.0.1:42827/devtools/browser/c5fc2fad-7d82-43a9-9ba0-c48e17fe6e21 code=1006 reason= +59ms
+  pw:browser [pid=8465] <process did exit: exitCode=0, signal=null> +25ms
+  pw:browser [pid=8465] starting temporary directories cleanup +0ms
+  ✓  1 e2e/docs-selection-bar-painter.spec.ts:198:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (2.6s)
+  pw:browser [pid=8465] finished temporary directories cleanup +6ms
+(node:8547) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  pw:browser <launching> /home/ubuntu/work/uniwork-office/node_modules/electron/dist/electron --inspect=0 --remote-debugging-port=0 --no-sandbox --disable-gpu /home/ubuntu/work/uniwork-office/apps/shell /tmp/genoffice-e2e-selbar-neQH7G/selbar.docx +0ms
+  pw:browser <launched> pid=8559 +3ms
+  pw:browser [pid=8559][err] [8559:1013/135511.854183:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused +38ms
+  pw:browser [pid=8559][err] Debugger listening on ws://127.0.0.1:44401/d979097a-f421-4b3a-b433-cd76aaaf524c +9ms
+  pw:browser [pid=8559][err] For help, see: https://nodejs.org/learn/getting-started/debugging +0ms
+  pw:browser <ws connecting> ws://127.0.0.1:44401/d979097a-f421-4b3a-b433-cd76aaaf524c +1ms
+  pw:browser <ws connected> ws://127.0.0.1:44401/d979097a-f421-4b3a-b433-cd76aaaf524c +5ms
+  pw:browser [pid=8559][err] Debugger attached. +0ms
+  pw:browser [pid=8559][err] (node:8559) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set. +392ms
+  pw:browser [pid=8559][err] (Use `electron --trace-warnings ...` to show where the warning was created) +1ms
+  pw:browser [pid=8559][err] [8559:1013/135512.324948:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +63ms
+  pw:browser [pid=8559][err] [8559:1013/135512.325013:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused +0ms
+  pw:browser [pid=8559][err] [8559:1013/135512.325033:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused +0ms
+  pw:browser [pid=8559][err]  +5ms
+  pw:browser [pid=8559][err] DevTools listening on ws://127.0.0.1:35365/devtools/browser/7fe3d734-59af-4b07-b456-0e3ef7d3504f +0ms
+  pw:browser <ws connecting> ws://127.0.0.1:35365/devtools/browser/7fe3d734-59af-4b07-b456-0e3ef7d3504f +0ms
+  pw:browser [pid=8559][err] [8559:1013/135512.370438:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +40ms
+  pw:browser [pid=8559][err] [8559:1013/135512.390487:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +20ms
+  pw:browser [pid=8559][err] [8559:1013/135512.411068:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type:  +21ms
+  pw:browser [pid=8559][err] [8559:1013/135512.411691:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +0ms
+  pw:browser <ws connected> ws://127.0.0.1:35365/devtools/browser/7fe3d734-59af-4b07-b456-0e3ef7d3504f +3ms
+  pw:browser [pid=8559][err] [8559:1013/135512.415940:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +3ms
+  pw:browser [pid=8559][err] [8559:1013/135512.418490:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type:  +1ms
+  pw:browser <ws disconnecting> ws://127.0.0.1:44401/d979097a-f421-4b3a-b433-cd76aaaf524c +2s
+  pw:browser [pid=8559][err] Debugger ending on ws://127.0.0.1:44401/d979097a-f421-4b3a-b433-cd76aaaf524c +2ms
+  pw:browser [pid=8559][err] For help, see: https://nodejs.org/learn/getting-started/debugging +0ms
+  pw:browser <ws disconnected> ws://127.0.0.1:44401/d979097a-f421-4b3a-b433-cd76aaaf524c code=1005 reason= +0ms
+  pw:browser [pid=8559][err] [8559:1013/135514.140073:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +1ms
+  pw:browser <ws disconnected> ws://127.0.0.1:35365/devtools/browser/7fe3d734-59af-4b07-b456-0e3ef7d3504f code=1006 reason= +49ms
+  pw:browser [pid=8559] <process did exit: exitCode=0, signal=null> +17ms
+  pw:browser [pid=8559] starting temporary directories cleanup +0ms
+  ✓  2 e2e/docs-selection-bar-painter.spec.ts:198:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (2.4s)
+  pw:browser [pid=8559] finished temporary directories cleanup +5ms
+(node:8644) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  pw:browser <launching> /home/ubuntu/work/uniwork-office/node_modules/electron/dist/electron --inspect=0 --remote-debugging-port=0 --no-sandbox --disable-gpu /home/ubuntu/work/uniwork-office/apps/shell /tmp/genoffice-e2e-selbar-nCuO8N/selbar.docx +0ms
+  pw:browser <launched> pid=8656 +3ms
+  pw:browser [pid=8656][err] [8656:1013/135514.592368:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused +36ms
+  pw:browser [pid=8656][err] Debugger listening on ws://127.0.0.1:36559/0b506636-a6f0-4160-91d2-9fd3e91099f1 +10ms
+  pw:browser [pid=8656][err] For help, see: https://nodejs.org/learn/getting-started/debugging +0ms
+  pw:browser <ws connecting> ws://127.0.0.1:36559/0b506636-a6f0-4160-91d2-9fd3e91099f1 +0ms
+  pw:browser <ws connected> ws://127.0.0.1:36559/0b506636-a6f0-4160-91d2-9fd3e91099f1 +6ms
+  pw:browser [pid=8656][err] Debugger attached. +0ms
+  pw:browser [pid=8656][err] (node:8656) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set. +374ms
+  pw:browser [pid=8656][err] (Use `electron --trace-warnings ...` to show where the warning was created) +0ms
+  pw:browser [pid=8656][err] [8656:1013/135515.046852:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +65ms
+  pw:browser [pid=8656][err] [8656:1013/135515.046914:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused +0ms
+  pw:browser [pid=8656][err] [8656:1013/135515.046928:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused +0ms
+  pw:browser [pid=8656][err]  +12ms
+  pw:browser [pid=8656][err] DevTools listening on ws://127.0.0.1:46359/devtools/browser/87773cb8-32b5-4fe3-a928-8873d686399d +0ms
+  pw:browser <ws connecting> ws://127.0.0.1:46359/devtools/browser/87773cb8-32b5-4fe3-a928-8873d686399d +1ms
+  pw:browser [pid=8656][err] [8656:1013/135515.093775:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +34ms
+  pw:browser [pid=8656][err] [8656:1013/135515.115963:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +22ms
+  pw:browser [pid=8656][err] [8656:1013/135515.137686:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type:  +21ms
+  pw:browser [pid=8656][err] [8656:1013/135515.137982:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +1ms
+  pw:browser <ws connected> ws://127.0.0.1:46359/devtools/browser/87773cb8-32b5-4fe3-a928-8873d686399d +3ms
+  pw:browser [pid=8656][err] [8656:1013/135515.143397:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +2ms
+  pw:browser [pid=8656][err] [8656:1013/135515.146284:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type:  +3ms
+  pw:browser <ws disconnecting> ws://127.0.0.1:36559/0b506636-a6f0-4160-91d2-9fd3e91099f1 +2s
+  pw:browser [pid=8656][err] Debugger ending on ws://127.0.0.1:36559/0b506636-a6f0-4160-91d2-9fd3e91099f1 +1ms
+  pw:browser [pid=8656][err] For help, see: https://nodejs.org/learn/getting-started/debugging +0ms
+  pw:browser <ws disconnected> ws://127.0.0.1:36559/0b506636-a6f0-4160-91d2-9fd3e91099f1 code=1005 reason= +0ms
+  pw:browser [pid=8656][err] [8656:1013/135516.825840:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix") +1ms
+  pw:browser <ws disconnected> ws://127.0.0.1:46359/devtools/browser/87773cb8-32b5-4fe3-a928-8873d686399d code=1006 reason= +33ms
+  pw:browser [pid=8656] <process did exit: exitCode=0, signal=null> +19ms
+  pw:browser [pid=8656] starting temporary directories cleanup +0ms
+  ✓  3 e2e/docs-selection-bar-painter.spec.ts:198:7 › docs selection bar and format painter › format painter brushes the clicked word, locks on double-click, has copy/paste chords (2.3s)
+
+  3 passed (12.7s)
