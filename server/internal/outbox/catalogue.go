@@ -305,6 +305,8 @@ var catalogue = []EventDef{
 	// Audit itself
 	{Topic: "audit.export_requested", Version: 1, Payload: []string{"export_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "audit.exported", Version: 1, Payload: []string{"export_id", "organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "privacy.export_requested", Version: 1, Payload: []string{"request_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "privacy.deletion_requested", Version: 1, Payload: []string{"request_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Infrastructure. provider.* asks the conference provider to change a
 	// room; webhook.deliver is reserved so an outbound-webhook consumer can be

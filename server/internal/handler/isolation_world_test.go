@@ -143,6 +143,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.Chat.SetVoiceRecordingFiles(fs)
 	d.Meetings.SetFiles(fs)
 	d.Audit.SetFileService(fs)
+	d.Privacy.SetFileService(fs)
 	access, err := service.NewFileAccessService(service.FileAccessOptions{
 		Files: fs, Workspaces: d.Workspaces, Secret: []byte("isolation-matrix-secret-isolation"),
 	})
@@ -656,6 +657,13 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 		"format": "csv", "from": time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), "to": time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
 	}, http.StatusOK, http.StatusCreated, http.StatusAccepted)
 	tn.ids["auditExport"] = isoID(t, out, "export")
+	privacyID := util.NewID()
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO data_subject_requests (
+		id, organization_id, requested_by, requested_by_kind, kind, completed_at
+	) VALUES ($1, $2, $3, 'human', 'export', now())`, privacyID, tn.orgID, tn.userID); err != nil {
+		t.Fatal(err)
+	}
+	tn.ids["privacyExport"] = privacyID
 	out = w.call(t, "GET", "/api/v1/orgs/"+tn.orgID+"/audit", tn.token, nil)
 	if rows := isoList(t, out, "events"); len(rows) > 0 {
 		tn.ids["auditEvent"] = rows[0]["id"].(string)

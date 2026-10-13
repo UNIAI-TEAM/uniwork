@@ -1,0 +1,14 @@
+[
+  {
+    "id": "release-1-0-0",
+    "version": "1.0.0",
+    "date": "2026-10-12",
+    "sourceRef": "4b7bd3fc082e033c317b9794b4d9b6a949cb92f0",
+    "contentKey": "initial",
+    "sections": [
+      { "kind": "features", "items": ["work", "chat", "meetings", "office", "email", "ask"] },
+      { "kind": "improvements", "items": ["senderImages", "connectionForms", "publicPages"] },
+      { "kind": "fixes", "items": ["mailboxStatus", "smallDialogs"] }
+    ]
+  }
+]
