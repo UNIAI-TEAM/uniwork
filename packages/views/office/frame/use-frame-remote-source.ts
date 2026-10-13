@@ -110,20 +110,30 @@ function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }:
 
 /**
  * The session's side of the remote-version wiring: the current endpoint's bookkeeping (set by
- * the session effect), and the block, which outlives a retry of the same document.
+ * the session effect), and the block, which outlives a retry of the same document but never
+ * reaches another one (a save-as copy, a page that moved to another document).
  */
 export function useFrameRemote(wsId: string, documentId: string, syncFeed: boolean) {
   const remoteRef = useRef<FrameRemoteVersion | null>(null);
-  // Every reason heard, in order, so the endpoint of a retry is blocked the same way.
-  const blockRef = useRef<DocBlockedReason[]>([]);
-  const [blocked, setBlocked] = useState<FrameBlock | null>(null);
+  const current = useRef(documentId);
+  current.current = documentId;
+  // Every reason heard for this document, in order, so the endpoint of a retry is blocked the same way.
+  const heard = useRef<{ documentId: string; reasons: DocBlockedReason[] }>({ documentId, reasons: [] });
+  const [held, setHeld] = useState<{ documentId: string; block: FrameBlock } | null>(null);
   const applyBlock = useCallback((reason: DocBlockedReason) => {
-    if (!blockRef.current.includes(reason)) blockRef.current = [...blockRef.current, reason];
+    const id = current.current;
+    const reasons = heard.current.documentId === id ? heard.current.reasons : [];
+    if (!reasons.includes(reason)) heard.current = { documentId: id, reasons: [...reasons, reason] };
     remoteRef.current?.block(reason);
     // A delete is final; the reasons with their own wording refuse no Save here.
-    if (reason === "permission_revoked" || reason === "document_deleted") setBlocked((now) => (now === "document_deleted" ? now : reason));
+    if (reason === "permission_revoked" || reason === "document_deleted") {
+      setHeld((now) => (now?.documentId === id && now.block === "document_deleted" ? now : { documentId: id, block: reason }));
+    }
   }, []);
+  /** The reasons heard for the document the frame edits now. */
+  const heldReasons = useCallback(() => (heard.current.documentId === current.current ? heard.current.reasons : []), []);
   const onHead = useCallback((head: RemoteHead) => { remoteRef.current?.offer(head); }, []);
   useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked: applyBlock });
-  return { remoteRef, blockRef, blocked, applyBlock };
+  const blocked = held?.documentId === documentId ? held.block : null;
+  return { remoteRef, heldReasons, blocked, applyBlock };
 }

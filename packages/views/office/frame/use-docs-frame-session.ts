@@ -252,7 +252,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed });
   latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed };
   // New-version bookkeeping of the current endpoint (frame-remote-version.ts); a block outlives a retry.
-  const { remoteRef, blockRef, blocked, applyBlock } = useFrameRemote(wsId, scopeId, syncFeed);
+  const { remoteRef, heldReasons, blocked, applyBlock } = useFrameRemote(wsId, scopeId, syncFeed);
   const sentToken = useRef<string | null>(null);
   // The Save the page has in flight, and whether the frame shows a dialog right now.
   const hostSave = useRef<HostSaveWatch | null>(null);
@@ -522,7 +522,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     });
 
     // A block outlives a retry; the frame hears it on its handshake (`announceBlock`).
-    for (const reason of blockRef.current) remote.block(reason);
+    for (const reason of heldReasons()) remote.block(reason);
 
     endpoint.on("dirty", ({ dirty: next }) => {
       setDirty(next);
@@ -614,7 +614,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (remoteRef.current === remote) remoteRef.current = null;
       setHost(null);
     };
-  }, [applyBlock, attempt, blockRef, documentId, frameOrigin, iframeRef, module, queryClient, remoteRef, wsId]);
+  }, [applyBlock, attempt, documentId, frameOrigin, heldReasons, iframeRef, module, queryClient, remoteRef, wsId]);
 
   // Proactive rotation: a re-minted token reaches the frame before the old one expires.
   const tokenValue = token?.token;

@@ -63,6 +63,7 @@ function setup() {
   const server: Server = { head: { revision: "9", versionId: "v1" }, versions: ["v1"], feed: null };
   requestMock.mockImplementation((path: string) => {
     if (path === MINT_PATH) return Promise.resolve(minted);
+    if (path === MINT_PATH.replace("doc-1", "doc-2")) return Promise.resolve({ ...minted, token: "tok-2", document_id: "doc-2" });
     if (path === DOC_PATH) return server.headError ? Promise.reject(server.headError) : Promise.resolve(headDoc(server.head.revision, server.head.versionId));
     if (path.startsWith(VERSIONS_PATH)) return Promise.resolve({ versions: server.versions.map((id, i) => ({ id, document_id: "doc-1", version: i + 1 })) });
     if (path.startsWith(FEED_PATH)) return typeof server.feed === "function" ? Promise.resolve().then(() => (server.feed as (p: string) => unknown)(path)) : Promise.resolve(server.feed);
@@ -97,7 +98,7 @@ function setup() {
     readonly: false, locale: "vi", theme: "light", onError: vi.fn(),
     api: { open, save, recents: vi.fn() } as unknown as DocsFrameApi,
   };
-  const hook = renderHook(() => useDocsFrameSession(options), { wrapper });
+  const hook = renderHook((props: Partial<DocsFrameSessionOptions>) => useDocsFrameSession({ ...options, ...props }), { wrapper, initialProps: {} });
   const events = (type: string) => received.filter((m) => m.kind === "event" && m.type === type).map((m) => m.payload);
   const request = (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; };
   const answer = async (id: string) => {
@@ -562,6 +563,21 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     await waitFor(() => expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: "document_deleted" }]));
     expect(frame.hook.result.current.blocked).toBe("document_deleted");
     expect(requestMock.mock.calls.some(([path]) => String(path).startsWith(FEED_PATH))).toBe(false);
+  });
+
+  it("a block belongs to its document: the session moved to another one neither shows nor replays it (R3-04)", async () => {
+    const frame = await openedFrame();
+    await act(async () => { ws.emit("document.deleted", { document_id: "doc-1", workspace_id: "ws-1" }); });
+    expect(frame.hook.result.current.blocked).toBe("document_deleted");
+    frame.hook.rerender({ documentId: "doc-2" });
+    expect(frame.hook.result.current.blocked).toBeNull();
+    const before = frame.events("doc.blocked").length;
+    await frame.boot();
+    await flush();
+    expect(frame.events("doc.blocked")).toHaveLength(before);
+    const reply = await frame.answer(frame.request("api.save", { fileId: "doc-2", data: new ArrayBuffer(2), etag: "9" }));
+    expect(reply.error).toBeUndefined();
+    expect(frame.save).toHaveBeenCalledTimes(1);
   });
 
   it("a block heard before the frame (re)connects reaches it on the handshake", async () => {
