@@ -187,8 +187,8 @@ func TestDocumentCommentSystemTypeRefused(t *testing.T) {
 			t.Fatalf("comment_type %q accepted", ct)
 		}
 	}
-	if c, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "x", CommentType: "comment"}, ""); err != nil || c.CommentType != "comment" {
-		t.Fatalf("plain comment: %v %+v", err, c)
+	if c, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "x", CommentType: "discussion"}, ""); err != nil || c.CommentType != "discussion" {
+		t.Fatalf("plain discussion: %v %+v", err, c)
 	}
 }
 

@@ -49,59 +49,72 @@ func collabMention(t *testing.T, f *docPermFixture, tn docTenant, documentID, co
 
 // kind picks the thread flow (comment_type), an empty kind inherits a reply's
 // parent and starts a discussion for a root; the pre-G8 `type` field is
-// validated against its old allowlist and never decides the kind.
+// validated against its old allowlist and never decides the kind. OQ-C2: a
+// root `kind=comment` needs an anchor + base_version_id, so an anchorless
+// root is refused and only the anchored create mints a comment row.
 func TestDocumentCommentKind(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "kind")
-	d := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 	member, acl := Human(tn.member.ID), Human(tn.aclOwner.ID)
 
-	anchored, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "có neo", CommentType: "comment"}, "")
+	// OQ-C2: an anchorable xlsx file document supplies both the document the
+	// anchored root lives on and the version it binds to.
+	anchorDoc, versions := f.anchorDoc(t, tn, "xlsx", 1)
+	if _, err := f.svc.AddDocumentComment(f.ctx, member, anchorDoc.ID, AddCommentInput{Body: "không neo", CommentType: "comment"}, ""); err == nil {
+		t.Fatal("anchorless root kind=comment accepted")
+	}
+	anchored, err := f.svc.AddDocumentComment(f.ctx, member, anchorDoc.ID, AddCommentInput{
+		Body: "có neo", CommentType: "comment",
+		Anchor: anchorRaw("xlsx", nil), BaseVersionID: versions[0].ID,
+	}, "")
 	if err != nil || anchored.CommentType != "comment" {
 		t.Fatalf("kind=comment = %+v %v", anchored, err)
 	}
-	thread, err := f.svc.AddDocumentComment(f.ctx, acl, d.ID, AddCommentInput{Body: "thảo luận", CommentType: "discussion"}, "")
+	if anchored.AnchorVersionID.String != versions[0].ID || !anchored.AnchorVersionID.Valid {
+		t.Fatalf("anchored root version = %+v", anchored.AnchorVersionID)
+	}
+	thread, err := f.svc.AddDocumentComment(f.ctx, acl, anchorDoc.ID, AddCommentInput{Body: "thảo luận", CommentType: "discussion"}, "")
 	if err != nil || thread.CommentType != "discussion" {
 		t.Fatalf("kind=discussion = %+v %v", thread, err)
 	}
-	root, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "gốc không kind"}, "")
+	root, err := f.svc.AddDocumentComment(f.ctx, member, anchorDoc.ID, AddCommentInput{Body: "gốc không kind"}, "")
 	if err != nil || root.CommentType != "discussion" {
 		t.Fatalf("default root kind = %+v %v", root, err)
 	}
-	reply, err := f.svc.AddDocumentComment(f.ctx, acl, d.ID, AddCommentInput{Body: "trả lời", ParentID: &anchored.ID}, "")
+	reply, err := f.svc.AddDocumentComment(f.ctx, acl, anchorDoc.ID, AddCommentInput{Body: "trả lời", ParentID: &anchored.ID}, "")
 	if err != nil || reply.CommentType != "comment" {
 		t.Fatalf("reply kind = %+v %v", reply, err)
 	}
-	if _, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "đổi loại", ParentID: &anchored.ID, CommentType: "discussion"}, ""); err == nil {
+	if _, err := f.svc.AddDocumentComment(f.ctx, member, anchorDoc.ID, AddCommentInput{Body: "đổi loại", ParentID: &anchored.ID, CommentType: "discussion"}, ""); err == nil {
 		t.Fatal("a reply changed its thread's kind")
 	}
-	if _, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "lạ", CommentType: "system"}, ""); err == nil {
+	if _, err := f.svc.AddDocumentComment(f.ctx, member, anchorDoc.ID, AddCommentInput{Body: "lạ", CommentType: "system"}, ""); err == nil {
 		t.Fatal("system kind accepted")
 	}
-	if _, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "lạ", CommentType: "nonsense"}, ""); err == nil {
+	if _, err := f.svc.AddDocumentComment(f.ctx, member, anchorDoc.ID, AddCommentInput{Body: "lạ", CommentType: "nonsense"}, ""); err == nil {
 		t.Fatal("unknown kind accepted")
 	}
 
 	// The pre-G8 `type` field: "comment" (or empty) is accepted and ignored.
-	legacy, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "client cũ", LegacyType: "comment"}, "")
+	legacy, err := f.svc.AddDocumentComment(f.ctx, member, anchorDoc.ID, AddCommentInput{Body: "client cũ", LegacyType: "comment"}, "")
 	if err != nil || legacy.CommentType != "discussion" {
 		t.Fatalf("legacy type create = %+v %v", legacy, err)
 	}
-	if _, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "x", LegacyType: "status_change"}, ""); err == nil {
+	if _, err := f.svc.AddDocumentComment(f.ctx, member, anchorDoc.ID, AddCommentInput{Body: "x", LegacyType: "status_change"}, ""); err == nil {
 		t.Fatal("legacy type outside its old allowlist accepted")
 	}
 
 	// The list filters in memory on the same value; empty kind returns both,
 	// one token per document regardless of the filter.
-	all, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{})
+	all, err := f.svc.DocumentComments(f.ctx, member, anchorDoc.ID, DocumentCommentListInput{})
 	if err != nil || len(all.Rows) != 5 {
 		t.Fatalf("all rows = %d %v", len(all.Rows), err)
 	}
-	comments, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{Kind: "comment"})
+	comments, err := f.svc.DocumentComments(f.ctx, member, anchorDoc.ID, DocumentCommentListInput{Kind: "comment"})
 	if err != nil || len(comments.Rows) != 2 {
 		t.Fatalf("kind=comment rows = %d %v", len(comments.Rows), err)
 	}
-	discussions, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{Kind: "discussion"})
+	discussions, err := f.svc.DocumentComments(f.ctx, member, anchorDoc.ID, DocumentCommentListInput{Kind: "discussion"})
 	if err != nil || len(discussions.Rows) != 3 {
 		t.Fatalf("kind=discussion rows = %d %v", len(discussions.Rows), err)
 	}
@@ -113,7 +126,7 @@ func TestDocumentCommentKind(t *testing.T) {
 	if comments.Token != all.Token || discussions.Token != all.Token {
 		t.Fatal("the list_token moved with the kind filter")
 	}
-	if _, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{Kind: "bogus"}); err == nil {
+	if _, err := f.svc.DocumentComments(f.ctx, member, anchorDoc.ID, DocumentCommentListInput{Kind: "bogus"}); err == nil {
 		t.Fatal("unknown kind filter accepted")
 	}
 }

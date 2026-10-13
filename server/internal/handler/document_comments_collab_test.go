@@ -25,6 +25,9 @@ func (w *documentCollabWorld) createCommentRaw(t *testing.T, token, documentID s
 func TestDocumentCommentCollabKindsHTTP(t *testing.T) {
 	w := newDocumentCollabWorld(t)
 	docID := w.createDoc(t, w.token, "Collab kinds", "workspace")
+	// OQ-C2: a root kind=comment needs an anchor + base_version_id, so the
+	// comment half of this test runs on an anchorable xlsx file document.
+	anchorDoc, versions := w.anchorFileDoc(t, "Collab kinds anchor", anchorXLSXMime, 1)
 
 	// No kind on a root: discussion is the default (OQ-C2); `kind` and `type`
 	// both carry the stored comment_type.
@@ -33,9 +36,17 @@ func TestDocumentCommentCollabKindsHTTP(t *testing.T) {
 	if root["kind"] != "discussion" || root["type"] != "discussion" {
 		t.Fatalf("default root kind: %v", root)
 	}
-	anchored := w.createCommentRaw(t, w.member, docID, map[string]any{"body": "có neo", "kind": "comment"})
+	anchored := w.createCommentRaw(t, w.member, anchorDoc, map[string]any{
+		"body": "có neo", "kind": "comment",
+		"anchor": anchorXLSXBody("B7"), "base_version_id": versions[0],
+	})
 	if anchored["kind"] != "comment" || anchored["type"] != "comment" {
 		t.Fatalf("kind=comment: %v", anchored)
+	}
+	// The pinned OQ-C2 refusal: an anchorless root kind=comment is a 400.
+	res, out := doJSON(t, w.srv, "POST", w.commentsPath(docID), w.member, map[string]any{"body": "không neo", "kind": "comment"})
+	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+		t.Fatalf("anchorless root kind=comment: %d code=%q %v", res.StatusCode, code, out)
 	}
 	// The pre-G8 `type` field alone is still a discussion: it never picks the
 	// thread kind, and anything outside its old allowlist is refused.
@@ -43,7 +54,7 @@ func TestDocumentCommentCollabKindsHTTP(t *testing.T) {
 	if legacy["kind"] != "discussion" {
 		t.Fatalf("legacy type picked a kind: %v", legacy)
 	}
-	res, out := doJSON(t, w.srv, "POST", w.commentsPath(docID), w.member, map[string]any{"body": "lạ", "type": "system"})
+	res, out = doJSON(t, w.srv, "POST", w.commentsPath(docID), w.member, map[string]any{"body": "lạ", "type": "system"})
 	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
 		t.Fatalf("legacy type outside the allowlist: %d code=%q", res.StatusCode, code)
 	}
@@ -63,18 +74,22 @@ func TestDocumentCommentCollabKindsHTTP(t *testing.T) {
 	}
 
 	// An empty kind returns both; the filter narrows it.
-	res, out = doJSON(t, w.srv, "GET", w.commentsPath(docID), w.member, nil)
-	if res.StatusCode != 200 || len(out["comments"].([]any)) != 4 {
+	res, out = doJSON(t, w.srv, "GET", w.commentsPath(anchorDoc), w.member, nil)
+	if res.StatusCode != 200 || len(out["comments"].([]any)) != 1 {
 		t.Fatalf("unfiltered list: %d %v", res.StatusCode, out)
 	}
-	res, out = doJSON(t, w.srv, "GET", w.commentsPath(docID)+"?kind=comment", w.member, nil)
+	res, out = doJSON(t, w.srv, "GET", w.commentsPath(anchorDoc)+"?kind=comment", w.member, nil)
 	comments := out["comments"].([]any)
 	if res.StatusCode != 200 || len(comments) != 1 || comments[0].(map[string]any)["id"] != anchored["id"] {
 		t.Fatalf("kind=comment list: %v", out)
 	}
-	res, out = doJSON(t, w.srv, "GET", w.commentsPath(docID)+"?kind=discussion", w.member, nil)
-	if res.StatusCode != 200 || len(out["comments"].([]any)) != 3 {
+	res, out = doJSON(t, w.srv, "GET", w.commentsPath(anchorDoc)+"?kind=discussion", w.member, nil)
+	if res.StatusCode != 200 || len(out["comments"].([]any)) != 0 {
 		t.Fatalf("kind=discussion list: %v", out)
+	}
+	res, out = doJSON(t, w.srv, "GET", w.commentsPath(docID), w.member, nil)
+	if res.StatusCode != 200 || len(out["comments"].([]any)) != 3 {
+		t.Fatalf("page list: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, w.srv, "GET", w.commentsPath(docID)+"?kind=bogus", w.member, nil)
 	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {

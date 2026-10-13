@@ -240,19 +240,34 @@ func anchorCanonicalHash(canonical []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// prepareDocumentCommentAnchor validates a create's optional anchor against
-// the locked document: an anchor belongs to a root `kind=comment` only, needs
-// a base_version_id that resolves inside this tenant + document (rule 1 of
+// prepareDocumentCommentAnchor validates a create's anchor against the locked
+// document: an anchor belongs to a root `kind=comment` only, needs a
+// base_version_id that resolves inside this tenant + document (rule 1 of
 // contract section 4.3), and follows the document's own format. nil means the
 // create carries no anchor.
+//
+// OQ-C2 (signed): a root whose thread kind resolves to `comment` requires
+// both `anchor` and `base_version_id` - the pinned assertion of contract
+// section 2.2's error table. An empty kind resolves to `discussion` before
+// this runs, so an anchorless root stays a discussion and a reply never
+// carries an anchor.
 func prepareDocumentCommentAnchor(ctx context.Context, q *db.Queries, doc db.Document, in AddCommentInput) (*documentCommentAnchor, error) {
-	if len(in.Anchor) == 0 || string(bytes.TrimSpace(in.Anchor)) == "null" {
+	rawAnchor := len(in.Anchor) > 0 && string(bytes.TrimSpace(in.Anchor)) != "null"
+	root := in.ParentID == nil || strings.TrimSpace(*in.ParentID) == ""
+	resolvedKind := strings.TrimSpace(in.CommentType)
+	if resolvedKind == "" && root {
+		resolvedKind = "discussion"
+	}
+	if !rawAnchor {
+		if root && resolvedKind == "comment" {
+			return nil, Invalid("bình luận kind=comment phải có neo và base_version_id")
+		}
 		return nil, nil
 	}
-	if in.ParentID != nil && strings.TrimSpace(*in.ParentID) != "" {
+	if !root {
 		return nil, Invalid("neo chỉ có ở bình luận gốc")
 	}
-	if strings.TrimSpace(in.CommentType) != "comment" {
+	if resolvedKind != "comment" {
 		return nil, Invalid("neo chỉ có ở bình luận kind=comment")
 	}
 	baseVersionID := strings.TrimSpace(in.BaseVersionID)
