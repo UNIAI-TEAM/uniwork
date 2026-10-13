@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { buildSceneModel, type ScenePalette } from "./scene-models";
 
-export function createScene(host: HTMLElement, palette: ScenePalette, onSelect: (index: number) => void, onFailure: (failed: boolean) => void) {
+export function createScene(host: HTMLElement, palette: ScenePalette, onSelect: (index: number) => void, onFailure: (failed: boolean) => void, screenSources: readonly string[]) {
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
@@ -15,13 +15,18 @@ export function createScene(host: HTMLElement, palette: ScenePalette, onSelect: 
   const pmrem = new THREE.PMREMGenerator(renderer);
   const environmentTarget = pmrem.fromScene(environment, .04);
   scene.environment = environmentTarget.texture; scene.environmentIntensity = .95; environment.dispose(); pmrem.dispose();
-  scene.add(new THREE.HemisphereLight(palette.paper, palette.brand, .8));
+  scene.add(new THREE.HemisphereLight(palette.paper, palette.ink, .8));
   const key = new THREE.DirectionalLight(palette.paper, 2); key.position.set(-3, 5, 4); key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024); key.shadow.radius = 4; key.shadow.blurSamples = 8; key.shadow.camera.left = -4; key.shadow.camera.right = 4;
   key.shadow.camera.top = 4; key.shadow.camera.bottom = -4; key.shadow.normalBias = .025; scene.add(key);
-  const rim = new THREE.DirectionalLight(palette.cyan, 2.5); rim.position.set(-3, 1, -2); scene.add(rim);
-  const edge = new THREE.DirectionalLight(palette.pink, 3); edge.position.set(3, 2, 1); scene.add(edge);
-  const model = buildSceneModel(palette); scene.add(model.root);
+  const rim = new THREE.DirectionalLight(palette.paper, .65); rim.position.set(-3, 1, -2); scene.add(rim);
+  const edge = new THREE.DirectionalLight(palette.paper, .9); edge.position.set(3, 2, 1); scene.add(edge);
+  let loadedScreens = 0;
+  host.dataset.screensLoaded = "0";
+  const model = buildSceneModel(palette, screenSources, () => {
+    host.dataset.screensLoaded = String(++loadedScreens);
+    draw();
+  }); scene.add(model.root);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.ShadowMaterial({ opacity: .04 }));
   floor.rotation.x = -Math.PI / 2; floor.position.y = -1.92; floor.receiveShadow = true; scene.add(floor);
   const pointer = new THREE.Vector2(); const raycaster = new THREE.Raycaster();
@@ -93,6 +98,7 @@ export function createScene(host: HTMLElement, palette: ScenePalette, onSelect: 
       disposed = true; cancelAnimationFrame(frame); observer.disconnect(); visibility.disconnect(); document.removeEventListener("visibilitychange", sync);
       canvas.removeEventListener("pointerdown", down); canvas.removeEventListener("pointermove", move); canvas.removeEventListener("pointerup", up); canvas.removeEventListener("pointercancel", cancel);
       canvas.removeEventListener("webglcontextlost", contextLost); canvas.removeEventListener("webglcontextrestored", contextRestored);
+      model.disposeScreens();
       const materials = new Set<THREE.Material>();
       scene.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => materials.add(material)); } });
       materials.forEach(material => material.dispose()); environmentTarget.dispose(); renderer.forceContextLoss(); renderer.dispose(); canvas.remove();

@@ -5,8 +5,8 @@ metadata:
   namespace: reap-edge
 spec:
   hosts:
-    - uniwork.unicomhub.com
-    - preview.unicomhub.com
+    - uniworkos.com
+    - preview.uniworkos.com
   secret:
     name: uniwork-tls
     namespace: reap-edge

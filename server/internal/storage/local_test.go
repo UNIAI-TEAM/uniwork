@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -551,5 +553,230 @@ func TestServeFileRefusesFileServiceObjects(t *testing.T) {
 	store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/chat/files/legacy.pdf", nil), "chat/files/legacy.pdf")
 	if rec.Code != http.StatusOK {
 		t.Errorf("legacy object = %d, want 200", rec.Code)
+	}
+}
+
+// Email Hub body objects contain tenant mail content and share
+// LOCAL_UPLOAD_DIR with legacy public uploads. The unauthenticated
+// /uploads/* route must reject that exact namespace, including the configured
+// environment root and path spellings that resolve to it, without hiding a
+// public key whose segment merely contains "email-hub".
+func TestServeFileRefusesEmailHubBodyObjects(t *testing.T) {
+	dir := t.TempDir()
+	store := &LocalStorage{uploadDir: dir, keyRoot: "develop/"}
+	write := func(key string) {
+		t.Helper()
+		p := filepath.Join(dir, key)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("secret"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	privateKeys := []string{
+		"email-hub/accounts/a/threads/t/body.v1.json.gz",
+		"Email-Hub/accounts/a/threads/t/body.v1.json.gz",
+		"develop/email-hub/accounts/a/threads/t/body.v1.json.gz",
+		"DEVELOP/EMAIL-HUB/accounts/a/threads/t/body.v1.json.gz",
+		"./email-hub/accounts/a/threads/t/body.v1.json.gz",
+		"public/../email-hub/accounts/a/threads/t/body.v1.json.gz",
+	}
+	for _, key := range privateKeys {
+		write(key)
+		rec := httptest.NewRecorder()
+		store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/private-object", nil), key)
+		if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "secret") {
+			t.Errorf("ServeFile(%q) = %d %q, want 404", key, rec.Code, rec.Body.String())
+		}
+	}
+
+	for _, key := range []string{
+		"chat/files/public.pdf",
+		"email-hub-public/accounts/a/file.pdf",
+		"chat/email-hub/accounts/a/file.pdf",
+	} {
+		write(key)
+		rec := httptest.NewRecorder()
+		store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/public-object", nil), key)
+		if rec.Code != http.StatusOK || rec.Body.String() != "secret" {
+			t.Errorf("ServeFile(%q) = %d %q, want public object", key, rec.Code, rec.Body.String())
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/missing.pdf", nil), "missing.pdf")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("missing public object = %d, want 404", rec.Code)
+	}
+}
+
+func createLocalDirectoryAlias(t *testing.T, target, alias string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(alias), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, alias); err != nil {
+		if runtime.GOOS != "windows" {
+			t.Fatalf("create in-root symlink: %v", err)
+		}
+		if out, junctionErr := exec.Command("cmd", "/c", "mklink", "/J", alias, target).CombinedOutput(); junctionErr != nil {
+			t.Fatalf("create in-root symlink (%v) or junction (%v): %s", err, junctionErr, out)
+		}
+	}
+}
+
+func TestServeFileRefusesEmailHubBodyObjectsThroughFilesystemAlias(t *testing.T) {
+	dir := t.TempDir()
+	store := &LocalStorage{uploadDir: dir}
+	privateDir := filepath.Join(dir, "email-hub")
+	privateKey := filepath.Join("accounts", "a", "threads", "t", "body.v1.json.gz")
+	privatePath := filepath.Join(privateDir, privateKey)
+	if err := os.MkdirAll(filepath.Dir(privatePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(privatePath, []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	alias := filepath.Join(dir, "mail-private")
+	createLocalDirectoryAlias(t, privateDir, alias)
+
+	key := filepath.ToSlash(filepath.Join(filepath.Base(alias), privateKey))
+	rec := httptest.NewRecorder()
+	store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/"+key, nil), key)
+	if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "secret") {
+		t.Fatalf("ServeFile through private filesystem alias = %d %q, want 404", rec.Code, rec.Body.String())
+	}
+}
+
+func TestServeFileKeepsLexicalPrivatePolicyAcrossReverseAlias(t *testing.T) {
+	cases := []struct {
+		name      string
+		keyRoot   string
+		alias     string
+		targetDir string
+		tail      string
+	}{
+		{
+			name:      "email hub",
+			alias:     "email-hub",
+			targetDir: "mail-data",
+			tail:      "accounts/a/threads/t/body.v1.json.gz",
+		},
+		{
+			name:      "root-level FileService",
+			alias:     "v1",
+			targetDir: "file-data",
+			tail:      "orgs/o/workspaces/w/task-attachments/2026/10/f/original",
+		},
+		{
+			name:      "key-root FileService",
+			keyRoot:   "develop/",
+			alias:     "develop/v1",
+			targetDir: "rooted-file-data",
+			tail:      "orgs/o/workspaces/w/task-attachments/2026/10/f/original",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			store := &LocalStorage{uploadDir: dir, keyRoot: tc.keyRoot}
+			targetDir := filepath.Join(dir, tc.targetDir)
+			target := filepath.Join(targetDir, filepath.FromSlash(tc.tail))
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(target, []byte("secret"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			createLocalDirectoryAlias(t, targetDir, filepath.Join(dir, filepath.FromSlash(tc.alias)))
+
+			key := tc.alias + "/" + tc.tail
+			rec := httptest.NewRecorder()
+			store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/"+key, nil), key)
+			if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "secret") {
+				t.Fatalf("ServeFile(%q) through reverse alias = %d %q, want 404", key, rec.Code, rec.Body.String())
+			}
+
+			physicalKey := tc.targetDir + "/" + tc.tail
+			rec = httptest.NewRecorder()
+			store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/"+physicalKey, nil), physicalKey)
+			if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "secret") {
+				t.Fatalf("ServeFile(%q) through private namespace's physical target = %d %q, want 404", physicalKey, rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestServeFileAllowsPublicFilesystemAlias(t *testing.T) {
+	dir := t.TempDir()
+	store := &LocalStorage{uploadDir: dir}
+	targetDir := filepath.Join(dir, "public-data")
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(targetDir, "report.pdf"), []byte("public"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	createLocalDirectoryAlias(t, targetDir, filepath.Join(dir, "public-link"))
+
+	const key = "public-link/report.pdf"
+	rec := httptest.NewRecorder()
+	store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/"+key, nil), key)
+	if rec.Code != http.StatusOK || rec.Body.String() != "public" {
+		t.Fatalf("ServeFile through public alias = %d %q, want public object", rec.Code, rec.Body.String())
+	}
+}
+
+func TestServeFileRefusesFilesystemAliasOutsideUploadRoot(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.bin"), []byte("outside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	createLocalDirectoryAlias(t, outside, filepath.Join(dir, "outside-link"))
+
+	store := &LocalStorage{uploadDir: dir}
+	const key = "outside-link/secret.bin"
+	rec := httptest.NewRecorder()
+	store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/"+key, nil), key)
+	if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "outside") {
+		t.Fatalf("ServeFile through outside alias = %d %q, want 404", rec.Code, rec.Body.String())
+	}
+}
+
+func TestServeFileRefusesEmailHubBodyObjectsThroughWindowsShortName(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("8.3 short names are a Windows filesystem feature")
+	}
+	dir := t.TempDir()
+	store := &LocalStorage{uploadDir: dir}
+	privateDir := filepath.Join(dir, "email-hub")
+	privateKey := filepath.Join("accounts", "a", "threads", "t", "body.v1.json.gz")
+	privatePath := filepath.Join(privateDir, privateKey)
+	if err := os.MkdirAll(filepath.Dir(privatePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(privatePath, []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command("cmd", "/d", "/c", `for %I in ("`+privateDir+`") do @echo %~snxI`)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Skipf("cannot query an 8.3 alias: %v", err)
+	}
+	shortName := strings.TrimSpace(string(out))
+	if shortName == "" || strings.EqualFold(shortName, filepath.Base(privateDir)) || strings.ContainsAny(shortName, `/\`) {
+		t.Skip("the test volume does not expose an 8.3 alias for email-hub")
+	}
+
+	key := filepath.ToSlash(filepath.Join(shortName, privateKey))
+	rec := httptest.NewRecorder()
+	store.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/"+key, nil), key)
+	if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "secret") {
+		t.Fatalf("ServeFile through 8.3 alias %q = %d %q, want 404", shortName, rec.Code, rec.Body.String())
 	}
 }

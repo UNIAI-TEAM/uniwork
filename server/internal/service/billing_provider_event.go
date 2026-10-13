@@ -67,12 +67,13 @@ func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.E
 		}
 		return code, nil
 	}
-	// Duplicate IPN: inbox row already committed from an earlier apply.
+	// Duplicate IPN: the row was already committed, either applied or queued for the worker.
 	if n == 0 {
 		return vnpayIPNAlreadyDone, nil
 	}
 	if err := s.applyProviderEvent(ctx, q, ev); err != nil {
 		if errors.Is(err, errUnknownTxnRef) {
+			// Roll the inbox back so a retry stays 01. A stored row would look like a duplicate (02).
 			return vnpayIPNOrderNotFound, nil
 		}
 		if errors.Is(err, errIntentAlreadyCompleted) {
@@ -80,7 +81,17 @@ func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.E
 		}
 		var term intentTerminalErr
 		if !errors.As(err, &term) {
-			return vnpayIPNUnknown, err
+			// Keep the payload outside the rolled-back transaction so the worker
+			// can retry and dead-letter it. Unknown txn refs stay unstored above.
+			_ = tx.Rollback(ctx)
+			if _, qerr := s.q.InsertWebhookInbox(ctx, db.InsertWebhookInboxParams{
+				ID: inboxID, Provider: s.provider.Name(), ProviderEventID: ev.ProviderEventID,
+				EventType: ev.Type, Payload: string(payload),
+			}); qerr != nil {
+				return vnpayIPNUnknown, errors.Join(err, qerr)
+			}
+			s.billingLogWarn("billing webhook queued for retry", err, "provider_event_id", ev.ProviderEventID)
+			return vnpayIPNConfirmed, nil
 		}
 		// Amount or currency mismatch is 04. Quota and other terminal
 		// failures stay 00; UNI-1272 owns the quota reply.
@@ -149,7 +160,9 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		}
 		return errIntentAlreadyCompleted
 	}
-	if intent.Status != "pending" && intent.Status != "failed" {
+	// expired stays payable: the VNPay URL has no expiry, so a superseded
+	// checkout can still be paid. Amount and quota checks below still apply.
+	if intent.Status != "pending" && intent.Status != "failed" && intent.Status != "expired" {
 		return fmt.Errorf("billing: intent %q not payable (status=%s)", intent.ID, intent.Status)
 	}
 	if ev.Amount != intent.Amount {
@@ -239,8 +252,11 @@ func subscriptionPeriodEnd(start time.Time, billingPeriod string) pgtype.Timesta
 	return pgtype.Timestamptz{Time: end, Valid: true}
 }
 
+// The first eight Crockford characters of a ULID repeat for 256ms. A reconcile
+// batch that pays two intents then collides on idx_invoices_number, the second
+// insert rolls back, and that intent stays pending.
 func invoiceNumber(at time.Time) string {
-	return fmt.Sprintf("UW-%d-%s", at.Year(), util.NewID()[:8])
+	return fmt.Sprintf("UW-%d-%s", at.Year(), util.NewID())
 }
 
 // ProviderWebhookPayloadJSON serialises raw provider params for webhook_inbox.

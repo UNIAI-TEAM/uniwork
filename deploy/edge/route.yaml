@@ -11,7 +11,7 @@ spec:
     - name: uniwork-preview-assets
       priority: 250
       match:
-        hosts: [preview.unicomhub.com]
+        hosts: [preview.uniworkos.com]
         paths: [/api/v1/preview/assets/*]
       upstreams:
         - name: uniwork-be
@@ -19,7 +19,7 @@ spec:
       priority: 200
       websocket: true
       match:
-        hosts: [uniwork.unicomhub.com]
+        hosts: [uniworkos.com]
         paths: [/api, /api/*]
       upstreams:
         - name: uniwork-be
@@ -42,7 +42,7 @@ spec:
       priority: 100
       websocket: true
       match:
-        hosts: [uniwork.unicomhub.com]
+        hosts: [uniworkos.com]
         paths: [/, /*]
       upstreams:
         - name: uniwork-fe

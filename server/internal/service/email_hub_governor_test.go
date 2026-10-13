@@ -194,7 +194,8 @@ func TestEmailHubGovernorBodyPrefetch(t *testing.T) {
 		t.Fatal("expected concurrent prefetch blocked")
 	}
 	gov.endBodyPrefetch("acc-1", "INBOX")
-	gov.deferBodyPrefetch("thread-1", time.Millisecond)
+	// A millisecond can elapse before the next statement on a loaded runner.
+	gov.deferBodyPrefetch("thread-1", time.Minute)
 	if !gov.bodyPrefetchDeferred("thread-1") {
 		t.Fatal("expected deferred prefetch")
 	}

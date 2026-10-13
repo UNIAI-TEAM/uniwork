@@ -7,6 +7,13 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
+)
+
+const (
+	preferredHeaderLineLen = 78
+	subjectHeaderPrefixLen = len("Subject: ")
+	maxHeaderWordLen       = preferredHeaderLineLen - subjectHeaderPrefixLen
 )
 
 // Credentials for authenticated SMTP submission.
@@ -138,7 +145,7 @@ func buildRaw(
 	b.WriteString("MIME-Version: 1.0\r\n")
 	b.WriteString("Content-Type: " + contentType + "\r\n")
 	if !strings.HasPrefix(contentType, "multipart/") {
-		b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+		b.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 	}
 	b.WriteString("\r\n")
 	b.WriteString(body)
@@ -150,12 +157,134 @@ func buildRaw(
 
 func encodeHeader(s string) string {
 	if strings.ContainsAny(s, "\r\n") {
-		return strings.Map(func(r rune) rune {
+		s = strings.Map(func(r rune) rune {
 			if r == '\r' || r == '\n' {
 				return ' '
 			}
 			return r
 		}, s)
 	}
-	return s
+	if headerNeedsEncoding(s) {
+		s = encodeHeaderWords(s, maxHeaderWordLen)
+	}
+	return foldHeaderValue(s, subjectHeaderPrefixLen)
+}
+
+func headerNeedsEncoding(value string) bool {
+	runLen := 0
+	for i := 0; i < len(value); i++ {
+		if (value[i] < ' ' || value[i] > '~') && value[i] != '\t' {
+			return true
+		}
+		if value[i] == ' ' || value[i] == '\t' {
+			runLen = 0
+			continue
+		}
+		runLen++
+		if runLen > maxHeaderWordLen {
+			return true
+		}
+	}
+	return false
+}
+
+func encodeHeaderWords(value string, maxWordLen int) string {
+	if value == "" {
+		return ""
+	}
+	const (
+		wordPrefix = "=?UTF-8?q?"
+		wordSuffix = "?="
+	)
+	maxContentLen := maxWordLen - len(wordPrefix) - len(wordSuffix)
+	var words []string
+	for start := 0; start < len(value); {
+		end := start
+		contentLen := 0
+		for end < len(value) {
+			_, size := utf8.DecodeRuneInString(value[end:])
+			encodedLen := qEncodedLen(value[end : end+size])
+			candidateEnd := end + size
+			if end > start && contentLen+encodedLen > maxContentLen {
+				break
+			}
+			end = candidateEnd
+			contentLen += encodedLen
+		}
+		words = append(words, encodeQHeaderWord(value[start:end], wordPrefix, wordSuffix))
+		start = end
+	}
+	return strings.Join(words, " ")
+}
+
+func qEncodedLen(value string) int {
+	length := 0
+	for i := 0; i < len(value); i++ {
+		if value[i] == ' ' || (value[i] >= '!' && value[i] <= '~' && value[i] != '=' && value[i] != '?' && value[i] != '_') {
+			length++
+		} else {
+			length += 3
+		}
+	}
+	return length
+}
+
+func encodeQHeaderWord(value, prefix, suffix string) string {
+	const upperHex = "0123456789ABCDEF"
+	var encoded strings.Builder
+	encoded.Grow(len(prefix) + qEncodedLen(value) + len(suffix))
+	encoded.WriteString(prefix)
+	for i := 0; i < len(value); i++ {
+		b := value[i]
+		switch {
+		case b == ' ':
+			encoded.WriteByte('_')
+		case b >= '!' && b <= '~' && b != '=' && b != '?' && b != '_':
+			encoded.WriteByte(b)
+		default:
+			encoded.WriteByte('=')
+			encoded.WriteByte(upperHex[b>>4])
+			encoded.WriteByte(upperHex[b&0x0f])
+		}
+	}
+	encoded.WriteString(suffix)
+	return encoded.String()
+}
+
+func foldHeaderValue(value string, initialLineLen int) string {
+	var folded strings.Builder
+	remaining := value
+	lineLen := initialLineLen
+	for len(remaining) > 0 {
+		available := preferredHeaderLineLen - lineLen
+		if len(remaining) <= available {
+			folded.WriteString(remaining)
+			break
+		}
+
+		split := lastHeaderWhitespace(remaining, available)
+		if split < 0 {
+			// headerNeedsEncoding guarantees every indivisible word fits here.
+			folded.WriteString(remaining)
+			break
+		}
+		folded.WriteString(remaining[:split])
+		folded.WriteString("\r\n")
+		folded.WriteByte(remaining[split])
+		remaining = remaining[split+1:]
+		lineLen = 1
+	}
+	return folded.String()
+}
+
+func lastHeaderWhitespace(value string, limit int) int {
+	if limit >= len(value) {
+		limit = len(value) - 1
+	}
+	for i := limit; i >= 0; i-- {
+		if value[i] == ' ' || value[i] == '\t' {
+			return i
+		}
+	}
+	return -1
 }
