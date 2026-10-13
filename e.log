@@ -1,0 +1,418 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -v ./cmd/server/ ./internal/metrics/ ./internal/handler/dto/sdo/ ./internal/config/ ./migrations/ ./internal/ ./internal/audit/; echo "PKG_EXIT=$?"
+=== RUN   TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters
+--- PASS: TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters (0.00s)
+=== RUN   TestNewDocumentServiceRecordsRouteSaves
+--- PASS: TestNewDocumentServiceRecordsRouteSaves (0.00s)
+=== RUN   TestProcessBuildsOneDocumentService
+--- PASS: TestProcessBuildsOneDocumentService (0.00s)
+=== RUN   TestMainPassesTheFullDocumentServiceOptions
+--- PASS: TestMainPassesTheFullDocumentServiceOptions (0.00s)
+=== RUN   TestLoadEnvFileSkipsExisting
+--- PASS: TestLoadEnvFileSkipsExisting (0.00s)
+=== RUN   TestLoadEnvFileQuotedValuesAndComments
+--- PASS: TestLoadEnvFileQuotedValuesAndComments (0.00s)
+=== RUN   TestLoadEnvFileMissing
+--- PASS: TestLoadEnvFileMissing (0.00s)
+=== RUN   TestTryLoadDevEnvSkipsProduction
+--- PASS: TestTryLoadDevEnvSkipsProduction (0.00s)
+=== RUN   TestFileAccessSecretIsLongEnoughAndStable
+--- PASS: TestFileAccessSecretIsLongEnoughAndStable (0.00s)
+=== RUN   TestRecordingTargetFollowsTheFileServiceBucket
+--- PASS: TestRecordingTargetFollowsTheFileServiceBucket (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.020s
+=== RUN   TestOutboxLagCollectorReadsUndeliveredAndDeadRows
+--- PASS: TestOutboxLagCollectorReadsUndeliveredAndDeadRows (0.29s)
+=== RUN   TestOutboxLagCollectorFailedReadIsAbsentNotZero
+--- PASS: TestOutboxLagCollectorFailedReadIsAbsentNotZero (0.00s)
+=== RUN   TestEventRetentionCountersAreRegistered
+--- PASS: TestEventRetentionCountersAreRegistered (0.00s)
+=== RUN   TestIsLoopbackAddr
+=== RUN   TestIsLoopbackAddr/127.0.0.1:9090
+=== RUN   TestIsLoopbackAddr/localhost:9090
+=== RUN   TestIsLoopbackAddr/[::1]:9090
+=== RUN   TestIsLoopbackAddr/:9090
+=== RUN   TestIsLoopbackAddr/0.0.0.0:9090
+=== RUN   TestIsLoopbackAddr/10.0.0.5:9090
+=== RUN   TestIsLoopbackAddr/metrics.example.com:9090
+=== RUN   TestIsLoopbackAddr/#00
+--- PASS: TestIsLoopbackAddr (0.00s)
+    --- PASS: TestIsLoopbackAddr/127.0.0.1:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/localhost:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/[::1]:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/0.0.0.0:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/10.0.0.5:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/metrics.example.com:9090 (0.00s)
+    --- PASS: TestIsLoopbackAddr/#00 (0.00s)
+=== RUN   TestQueryName
+--- PASS: TestQueryName (0.00s)
+=== RUN   TestDBQueryTracerObservesAndForwards
+--- PASS: TestDBQueryTracerObservesAndForwards (0.00s)
+=== RUN   TestDBCollectorExposesPoolStats
+--- PASS: TestDBCollectorExposesPoolStats (0.00s)
+=== RUN   TestDocumentMetricsExposeSaveAndWorkerSignals
+--- PASS: TestDocumentMetricsExposeSaveAndWorkerSignals (0.00s)
+=== RUN   TestDocumentLagCollectorReadsWorkerQueues
+--- PASS: TestDocumentLagCollectorReadsWorkerQueues (0.22s)
+=== RUN   TestDocumentLagCollectorFailedReadIsAbsentNotZero
+--- PASS: TestDocumentLagCollectorFailedReadIsAbsentNotZero (0.00s)
+=== RUN   TestGraphMetricsAreExposed
+--- PASS: TestGraphMetricsAreExposed (0.00s)
+=== RUN   TestGraphDirtyCollectorReadsPendingAndOldest
+--- PASS: TestGraphDirtyCollectorReadsPendingAndOldest (0.18s)
+=== RUN   TestGraphDirtyCollectorFailedReadIsAbsentNotZero
+--- PASS: TestGraphDirtyCollectorFailedReadIsAbsentNotZero (0.00s)
+=== RUN   TestHTTPMiddlewareUsesRoutePatternLabels
+--- PASS: TestHTTPMiddlewareUsesRoutePatternLabels (0.00s)
+=== RUN   TestMetricsHandlerOnlyServesMetricsPath
+--- PASS: TestMetricsHandlerOnlyServesMetricsPath (0.00s)
+=== RUN   TestHTTPMiddlewareSkipsHealthProbePaths
+--- PASS: TestHTTPMiddlewareSkipsHealthProbePaths (0.00s)
+=== RUN   TestMeetingLagCollectorReadsOldestOpenRows
+--- PASS: TestMeetingLagCollectorReadsOldestOpenRows (0.25s)
+=== RUN   TestMeetingLagCollectorFailedReadIsAbsentNotZero
+--- PASS: TestMeetingLagCollectorFailedReadIsAbsentNotZero (0.00s)
+=== RUN   TestOfficeIntentMetricsAreExposed
+--- PASS: TestOfficeIntentMetricsAreExposed (0.00s)
+=== RUN   TestReadinessDependencyGaugeIsExposed
+--- PASS: TestReadinessDependencyGaugeIsExposed (0.00s)
+=== RUN   TestRealtimeCollectorExposesCounters
+--- PASS: TestRealtimeCollectorExposesCounters (0.00s)
+=== RUN   TestMetricsServerCanBindLoopback
+--- PASS: TestMetricsServerCanBindLoopback (0.00s)
+=== RUN   TestWebVitalsNormalizeRoute
+--- PASS: TestWebVitalsNormalizeRoute (0.00s)
+=== RUN   TestWebVitalsObserveDropsUnknownAndNegative
+--- PASS: TestWebVitalsObserveDropsUnknownAndNegative (0.00s)
+=== RUN   TestAIUsageCapsOrganizationLabel
+--- PASS: TestAIUsageCapsOrganizationLabel (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	0.974s
+=== RUN   TestErrorClassTable
+--- PASS: TestErrorClassTable (0.00s)
+=== RUN   TestNewErrorSDOErrorClassOnWire
+--- PASS: TestNewErrorSDOErrorClassOnWire (0.00s)
+=== RUN   TestDocumentsAPIContractVersion
+--- PASS: TestDocumentsAPIContractVersion (0.00s)
+=== RUN   TestDocumentsAPIEndpointSamples
+=== RUN   TestDocumentsAPIEndpointSamples/create_document
+=== RUN   TestDocumentsAPIEndpointSamples/get_document
+=== RUN   TestDocumentsAPIEndpointSamples/patch_document
+=== RUN   TestDocumentsAPIEndpointSamples/create_document_file
+=== RUN   TestDocumentsAPIEndpointSamples/download_document_meta
+=== RUN   TestDocumentsAPIEndpointSamples/download_document_bytes
+=== RUN   TestDocumentsAPIEndpointSamples/upload_document_file
+=== RUN   TestDocumentsAPIEndpointSamples/commit_document_version
+=== RUN   TestDocumentsAPIEndpointSamples/list_document_versions
+=== RUN   TestDocumentsAPIEndpointSamples/get_document_version
+=== RUN   TestDocumentsAPIEndpointSamples/create_document_version
+=== RUN   TestDocumentsAPIEndpointSamples/restore_document_version
+=== RUN   TestDocumentsAPIEndpointSamples/upload_document_asset
+=== RUN   TestDocumentsAPIEndpointSamples/get_document_asset
+--- PASS: TestDocumentsAPIEndpointSamples (0.02s)
+    --- PASS: TestDocumentsAPIEndpointSamples/create_document (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/get_document (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/patch_document (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/create_document_file (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/download_document_meta (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/download_document_bytes (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/upload_document_file (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/commit_document_version (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/list_document_versions (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/get_document_version (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/create_document_version (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/restore_document_version (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/upload_document_asset (0.00s)
+    --- PASS: TestDocumentsAPIEndpointSamples/get_document_asset (0.00s)
+=== RUN   TestDocumentsAPIErrorSamples
+=== RUN   TestDocumentsAPIErrorSamples/error_conflict
+=== RUN   TestDocumentsAPIErrorSamples/error_gone
+=== RUN   TestDocumentsAPIErrorSamples/error_quota
+=== RUN   TestDocumentsAPIErrorSamples/error_permission
+=== RUN   TestDocumentsAPIErrorSamples/error_missing
+=== RUN   TestDocumentsAPIErrorSamples/error_incompatible
+=== RUN   TestDocumentsAPIErrorSamples/error_session
+--- PASS: TestDocumentsAPIErrorSamples (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_conflict (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_gone (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_quota (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_permission (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_missing (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_incompatible (0.00s)
+    --- PASS: TestDocumentsAPIErrorSamples/error_session (0.00s)
+=== RUN   TestDocumentsAPISamplesAreUTF8JSON
+--- PASS: TestDocumentsAPISamplesAreUTF8JSON (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.025s
+=== RUN   TestLoadDerivesSecureCookiesFromFrontendOrigin
+=== RUN   TestLoadDerivesSecureCookiesFromFrontendOrigin/http://localhost:3000
+=== RUN   TestLoadDerivesSecureCookiesFromFrontendOrigin/https://app.example.com
+=== RUN   TestLoadDerivesSecureCookiesFromFrontendOrigin/HTTPS://app.example.com
+--- PASS: TestLoadDerivesSecureCookiesFromFrontendOrigin (0.00s)
+    --- PASS: TestLoadDerivesSecureCookiesFromFrontendOrigin/http://localhost:3000 (0.00s)
+    --- PASS: TestLoadDerivesSecureCookiesFromFrontendOrigin/https://app.example.com (0.00s)
+    --- PASS: TestLoadDerivesSecureCookiesFromFrontendOrigin/HTTPS://app.example.com (0.00s)
+=== RUN   TestLoadRejectsRelativeFrontendOrigin
+--- PASS: TestLoadRejectsRelativeFrontendOrigin (0.00s)
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/missing_origin
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/same_origin
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/wrong_scheme
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/missing_secret
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/invalid_ttl
+=== RUN   TestLoadRejectsMissingOrInvalidPreviewConfig/invalid_max_bytes
+--- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/missing_origin (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/same_origin (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/wrong_scheme (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/missing_secret (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/invalid_ttl (0.00s)
+    --- PASS: TestLoadRejectsMissingOrInvalidPreviewConfig/invalid_max_bytes (0.00s)
+=== RUN   TestLoadEnableSwaggerDefaultsOnForLocalhost
+--- PASS: TestLoadEnableSwaggerDefaultsOnForLocalhost (0.00s)
+=== RUN   TestLoadEnableSwaggerDefaultsOffInProduction
+--- PASS: TestLoadEnableSwaggerDefaultsOffInProduction (0.00s)
+=== RUN   TestLoadRealtimeRelayIsOnUnlessFalse
+--- PASS: TestLoadRealtimeRelayIsOnUnlessFalse (0.00s)
+=== RUN   TestLoadEnableSwaggerTruthy
+=== RUN   TestLoadEnableSwaggerTruthy/1
+=== RUN   TestLoadEnableSwaggerTruthy/true
+=== RUN   TestLoadEnableSwaggerTruthy/TRUE
+=== RUN   TestLoadEnableSwaggerTruthy/yes
+--- PASS: TestLoadEnableSwaggerTruthy (0.00s)
+    --- PASS: TestLoadEnableSwaggerTruthy/1 (0.00s)
+    --- PASS: TestLoadEnableSwaggerTruthy/true (0.00s)
+    --- PASS: TestLoadEnableSwaggerTruthy/TRUE (0.00s)
+    --- PASS: TestLoadEnableSwaggerTruthy/yes (0.00s)
+=== RUN   TestLoadRequiresDatabaseAndSecret
+--- PASS: TestLoadRequiresDatabaseAndSecret (0.00s)
+=== RUN   TestLoadRejectsRelativeAPIPublicURL
+--- PASS: TestLoadRejectsRelativeAPIPublicURL (0.00s)
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/development
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/unset_env
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/production
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/Production_case-insensitive
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/not_six_digits
+=== RUN   TestDevVerificationCodeOnlyOutsideProduction/letters
+--- PASS: TestDevVerificationCodeOnlyOutsideProduction (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/development (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/unset_env (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/production (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/Production_case-insensitive (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/not_six_digits (0.00s)
+    --- PASS: TestDevVerificationCodeOnlyOutsideProduction/letters (0.00s)
+=== RUN   TestGoogleEnabledNeedsBothCredentials
+--- PASS: TestGoogleEnabledNeedsBothCredentials (0.00s)
+=== RUN   TestPushEnabledNeedsBothVAPIDKeys
+--- PASS: TestPushEnabledNeedsBothVAPIDKeys (0.00s)
+=== RUN   TestParseHelpersFallback
+--- PASS: TestParseHelpersFallback (0.00s)
+=== RUN   TestEmailHubRedirectURL
+=== PAUSE TestEmailHubRedirectURL
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/unset_keeps_the_dev_default
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/valid_duration
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/nonsense_text
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/missing_unit
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/zero
+=== RUN   TestLoadRejectsMalformedOfficeChangeSnapshotTTL/negative
+--- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/unset_keeps_the_dev_default (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/valid_duration (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/nonsense_text (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/missing_unit (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/zero (0.00s)
+    --- PASS: TestLoadRejectsMalformedOfficeChangeSnapshotTTL/negative (0.00s)
+=== RUN   TestLoadEmailHubOAuthClients
+--- PASS: TestLoadEmailHubOAuthClients (0.00s)
+=== RUN   TestPoolConfigFillsDefaultsTheDSNLeavesOut
+--- PASS: TestPoolConfigFillsDefaultsTheDSNLeavesOut (0.00s)
+=== RUN   TestPoolConfigKeepsWhatTheDSNSets
+--- PASS: TestPoolConfigKeepsWhatTheDSNSets (0.00s)
+=== RUN   TestPoolConfigSetsIdleInTxTimeoutOnConnect
+--- PASS: TestPoolConfigSetsIdleInTxTimeoutOnConnect (0.01s)
+=== RUN   TestPoolConfigRejectsBadDSN
+--- PASS: TestPoolConfigRejectsBadDSN (0.00s)
+=== RUN   TestLoadDesktopAuthClientsListsEachClientWithItsRedirects
+--- PASS: TestLoadDesktopAuthClientsListsEachClientWithItsRedirects (0.00s)
+=== RUN   TestLoadDesktopAuthLegacySingleClientUnchanged
+--- PASS: TestLoadDesktopAuthLegacySingleClientUnchanged (0.00s)
+=== RUN   TestDesktopClientsFallsBackToTheLegacyFields
+--- PASS: TestDesktopClientsFallsBackToTheLegacyFields (0.00s)
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/empty_redirect
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/space_in_id
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/legacy_uris_too
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/empty_id
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/missing_equals
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/no_redirect
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/relative_redirect
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/duplicate_id
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/empty_entry
+=== RUN   TestLoadRejectsMalformedDesktopAuthClients/legacy_id_too
+--- PASS: TestLoadRejectsMalformedDesktopAuthClients (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/empty_redirect (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/space_in_id (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/legacy_uris_too (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/empty_id (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/missing_equals (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/no_redirect (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/relative_redirect (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/duplicate_id (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/empty_entry (0.00s)
+    --- PASS: TestLoadRejectsMalformedDesktopAuthClients/legacy_id_too (0.00s)
+=== RUN   TestOfficeInstallersPlatformMaps
+--- PASS: TestOfficeInstallersPlatformMaps (0.00s)
+=== RUN   TestOfficeInstallersMetadataAndOverride
+--- PASS: TestOfficeInstallersMetadataAndOverride (0.00s)
+=== RUN   TestLoadOfficeInstallerURLMaps
+--- PASS: TestLoadOfficeInstallerURLMaps (0.00s)
+=== RUN   TestOfficeInstallersEncodedFilenames
+--- PASS: TestOfficeInstallersEncodedFilenames (0.00s)
+=== RUN   TestOfficeInstallerURLsFromCIJob
+--- PASS: TestOfficeInstallerURLsFromCIJob (0.00s)
+=== CONT  TestEmailHubRedirectURL
+--- PASS: TestEmailHubRedirectURL (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/config	0.012s
+=== RUN   TestEmailHubAttachmentsThreadIndexUsed
+--- PASS: TestEmailHubAttachmentsThreadIndexUsed (0.99s)
+=== RUN   TestEmailHubRefetchBodiesKeepsLocallySentBodies
+--- PASS: TestEmailHubRefetchBodiesKeepsLocallySentBodies (0.04s)
+=== RUN   TestEmailHubDedupeKeepsOldestActiveAddress
+--- PASS: TestEmailHubDedupeKeepsOldestActiveAddress (0.05s)
+=== RUN   TestEmailHubActiveAddressIsUnique
+--- PASS: TestEmailHubActiveAddressIsUnique (0.04s)
+=== RUN   TestFileServiceLocatorUniqueness
+--- PASS: TestFileServiceLocatorUniqueness (0.05s)
+=== RUN   TestFileServiceTenantIsolation
+--- PASS: TestFileServiceTenantIsolation (0.05s)
+=== RUN   TestFileServiceNullTenantAvatarBranch
+--- PASS: TestFileServiceNullTenantAvatarBranch (0.05s)
+=== RUN   TestFileServiceCheckConstraints
+--- PASS: TestFileServiceCheckConstraints (0.05s)
+=== RUN   TestFileServiceAttributionPair
+--- PASS: TestFileServiceAttributionPair (0.04s)
+=== RUN   TestFileServiceIdempotencyBinding
+--- PASS: TestFileServiceIdempotencyBinding (0.04s)
+=== RUN   TestFileServiceSessionClaimWindow
+--- PASS: TestFileServiceSessionClaimWindow (0.05s)
+=== RUN   TestFileServiceRollback
+--- PASS: TestFileServiceRollback (0.05s)
+=== RUN   TestFileServiceJobLeaseAndDedupe
+--- PASS: TestFileServiceJobLeaseAndDedupe (0.05s)
+=== RUN   TestFileServiceFailureCode
+--- PASS: TestFileServiceFailureCode (0.05s)
+=== RUN   TestMigrationFilesHaveMatchingDirections
+--- PASS: TestMigrationFilesHaveMatchingDirections (0.00s)
+=== RUN   TestMigrationNumericPrefixesAreUnique
+--- PASS: TestMigrationNumericPrefixesAreUnique (0.00s)
+=== RUN   TestNewMigrationsHaveNoForeignKeys
+--- PASS: TestNewMigrationsHaveNoForeignKeys (0.01s)
+=== RUN   TestNewMigrationsCreateIndexesConcurrently
+--- PASS: TestNewMigrationsCreateIndexesConcurrently (0.00s)
+=== RUN   TestTaskFoundationTablesAndColumnsExist
+--- PASS: TestTaskFoundationTablesAndColumnsExist (0.03s)
+=== RUN   TestMigrationPrefixesSortTheSameAsStringsAndNumbers
+--- PASS: TestMigrationPrefixesSortTheSameAsStringsAndNumbers (0.00s)
+=== RUN   TestNewTablesCarryOrganizationID
+--- PASS: TestNewTablesCarryOrganizationID (0.00s)
+=== RUN   TestNullTenantIsOnlyTheAvatarBranch
+--- PASS: TestNullTenantIsOnlyTheAvatarBranch (0.00s)
+=== RUN   TestEveryBusinessTableCarriesOrganizationID
+--- PASS: TestEveryBusinessTableCarriesOrganizationID (0.01s)
+=== RUN   TestActorKindOnEveryCreatedBy
+--- PASS: TestActorKindOnEveryCreatedBy (0.01s)
+=== RUN   TestReclaimTestSchemaSkipsNonTestDatabase
+--- PASS: TestReclaimTestSchemaSkipsNonTestDatabase (0.01s)
+=== RUN   TestReclaimTestSchemaNoOpWhenSlotsAreHealthy
+--- PASS: TestReclaimTestSchemaNoOpWhenSlotsAreHealthy (1.29s)
+=== RUN   TestReclaimTestSchemaWhenDroppedColumnSlotsAccumulate
+--- PASS: TestReclaimTestSchemaWhenDroppedColumnSlotsAccumulate (0.65s)
+=== RUN   TestUpIsIdempotent
+--- PASS: TestUpIsIdempotent (0.05s)
+=== RUN   TestOrganizationsGrandfather
+--- PASS: TestOrganizationsGrandfather (0.97s)
+=== RUN   TestRenamedChatMigrationVersions
+--- PASS: TestRenamedChatMigrationVersions (0.02s)
+=== RUN   TestRenamedEmailHubMigrationVersions
+--- PASS: TestRenamedEmailHubMigrationVersions (0.02s)
+=== RUN   TestRenamedChatMigrationVersionsDropsStaleOldRow
+--- PASS: TestRenamedChatMigrationVersionsDropsStaleOldRow (0.02s)
+=== RUN   TestTasksWorkManagementUpgradeFrom106
+--- PASS: TestTasksWorkManagementUpgradeFrom106 (0.63s)
+=== RUN   TestSingleOwnerBackfillDemotesLaterOwners
+--- PASS: TestSingleOwnerBackfillDemotesLaterOwners (0.56s)
+=== RUN   TestVersionsSortNumerically
+--- PASS: TestVersionsSortNumerically (0.00s)
+=== RUN   TestEmbeddedVersionsAreInNumericOrder
+--- PASS: TestEmbeddedVersionsAreInNumericOrder (0.00s)
+=== RUN   TestBehindComparesNumerically
+--- PASS: TestBehindComparesNumerically (0.00s)
+=== RUN   TestEveryQueryNamesItsTenant
+--- PASS: TestEveryQueryNamesItsTenant (0.05s)
+=== RUN   TestTenantReasonsSitOnTenantQueries
+--- PASS: TestTenantReasonsSitOnTenantQueries (0.03s)
+=== RUN   TestTenantColumnIsNotNull
+--- PASS: TestTenantColumnIsNotNull (0.04s)
+=== RUN   TestTenantBackfillCopiesTheParentOrganization
+--- PASS: TestTenantBackfillCopiesTheParentOrganization (0.32s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/migrations	6.327s
+=== RUN   TestLayering
+--- PASS: TestLayering (0.29s)
+=== RUN   TestMembershipDecidedInOnePlace
+--- PASS: TestMembershipDecidedInOnePlace (0.01s)
+=== RUN   TestMemberProfilesWrittenInOnePlace
+--- PASS: TestMemberProfilesWrittenInOnePlace (0.01s)
+=== RUN   TestActorConstructedOnlyInService
+--- PASS: TestActorConstructedOnlyInService (0.01s)
+=== RUN   TestAuditAndOutboxWritesGoThroughTheAuditPackage
+--- PASS: TestAuditAndOutboxWritesGoThroughTheAuditPackage (0.01s)
+=== RUN   TestBillingQueriesStayInBillingServices
+--- PASS: TestBillingQueriesStayInBillingServices (0.04s)
+=== RUN   TestNotificationPreferencesReadInOnePlace
+--- PASS: TestNotificationPreferencesReadInOnePlace (0.01s)
+=== RUN   TestProviderSDKOnlyInAIProvider
+--- PASS: TestProviderSDKOnlyInAIProvider (0.22s)
+=== RUN   TestAIPackageOnlyCallsAiQueries
+--- PASS: TestAIPackageOnlyCallsAiQueries (0.00s)
+=== RUN   TestAdminQueriesStayInAdminService
+--- PASS: TestAdminQueriesStayInAdminService (0.10s)
+=== RUN   TestTableQueryOnlyFromTaskTableService
+--- PASS: TestTableQueryOnlyFromTaskTableService (0.01s)
+=== RUN   TestTaskFoundationQueriesCarryTenantScope
+--- PASS: TestTaskFoundationQueriesCarryTenantScope (0.00s)
+=== RUN   TestFilesContractIsALeafCalledOnlyFromTheServiceTier
+--- PASS: TestFilesContractIsALeafCalledOnlyFromTheServiceTier (0.23s)
+=== RUN   TestGraphTablesWrittenOnlyByProjector
+--- PASS: TestGraphTablesWrittenOnlyByProjector (0.15s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal	1.094s
+=== RUN   TestDiffKeepsOnlyChangedFields
+--- PASS: TestDiffKeepsOnlyChangedFields (0.00s)
+=== RUN   TestDiffTreatsMissingBeforeAsChanged
+--- PASS: TestDiffTreatsMissingBeforeAsChanged (0.00s)
+=== RUN   TestTextNormalizesNull
+--- PASS: TestTextNormalizesNull (0.00s)
+=== RUN   TestValidCorrelationID
+--- PASS: TestValidCorrelationID (0.00s)
+=== RUN   TestRecordRollsBackWithItsTransaction
+--- PASS: TestRecordRollsBackWithItsTransaction (1.79s)
+=== RUN   TestRecordCommitsAuditAndEventsTogether
+--- PASS: TestRecordCommitsAuditAndEventsTogether (0.19s)
+=== RUN   TestRecordGeneratesCorrelationWhenAbsent
+--- PASS: TestRecordGeneratesCorrelationWhenAbsent (0.20s)
+=== RUN   TestAuditEventsAreAppendOnly
+--- PASS: TestAuditEventsAreAppendOnly (0.18s)
+=== RUN   TestRecordRejectsIncompleteEntry
+--- PASS: TestRecordRejectsIncompleteEntry (0.16s)
+=== RUN   TestRecordStoresGuestActor
+--- PASS: TestRecordStoresGuestActor (0.17s)
+=== RUN   TestRecordManyWritesWhatRecordWould
+--- PASS: TestRecordManyWritesWhatRecordWould (0.19s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/audit	2.888s
+PKG_EXIT=0
