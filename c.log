@@ -1,0 +1,6 @@
+$ npm run licenses
+
+> genoffice@0.1.0 licenses
+> node tools/check-licenses.mjs
+
+All production npm dependency licenses are within the allowlist.
