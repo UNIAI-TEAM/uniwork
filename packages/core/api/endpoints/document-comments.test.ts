@@ -8,6 +8,7 @@ import {
   listDocumentCommentRevisions,
   listDocumentComments,
   listDocumentMentionCandidates,
+  putDocumentCommentAnchors,
   removeDocumentCommentReaction,
   reopenDocumentComment,
   resolveDocumentComment,
@@ -125,6 +126,34 @@ describe("document comment endpoints", () => {
     expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("key-1");
     expect(JSON.parse(String(init?.body))).toEqual({ body: "Đồng ý", parent_id: "c0" });
     expect(out?.parent_id).toBe("c0");
+  });
+
+  it("createDocumentComment carries kind, anchor and base_version_id (G8-04)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: commentBody({
+          anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+          anchor_version_id: "v1",
+          anchor_state: "stale",
+        }),
+      }),
+    );
+    const out = await createDocumentComment("d1", {
+      body: "Chỗ này",
+      kind: "comment",
+      anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+      base_version_id: "v1",
+    });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      body: "Chỗ này",
+      kind: "comment",
+      anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+      base_version_id: "v1",
+    });
+    expect(out?.anchor_state).toBe("stale");
+    expect(out?.anchor_version_id).toBe("v1");
+    expect(out?.anchor).toMatchObject({ range: "B7" });
   });
 
   it("updateDocumentComment PATCHes the comment route", async () => {
@@ -282,6 +311,57 @@ describe("document comment endpoints", () => {
     for (const body of malformedBodies) {
       vi.mocked(fetch).mockResolvedValueOnce(json(body));
       await expect(listDocumentCommentRevisions("d1", "c1")).resolves.toBeNull();
+    }
+  });
+
+  // ---- comment anchors (G8-04) ------------------------------------------
+
+  it("putDocumentCommentAnchors PUTs the version map and reads the answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        updated: ["c1"],
+        skipped: [{ comment_id: "c2", reason: "older_version" }],
+        list_token: "lt1:next",
+      }),
+    );
+    const out = await putDocumentCommentAnchors("d1", {
+      version_id: "v3",
+      anchors: [
+        { comment_id: "c1", anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" }, state: "exact" },
+      ],
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/comments/anchors");
+    expect(init?.method).toBe("PUT");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      version_id: "v3",
+      anchors: [
+        { comment_id: "c1", anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" }, state: "exact" },
+      ],
+    });
+    expect(out).toEqual({
+      updated: ["c1"],
+      skipped: [{ comment_id: "c2", reason: "older_version" }],
+      listToken: "lt1:next",
+    });
+  });
+
+  it("keeps the anchors answer lenient: a malformed skipped row costs the reason, not the write", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ updated: ["c1"], skipped: [{ nope: true }], list_token: "" }),
+    );
+    const out = await putDocumentCommentAnchors("d1", { version_id: "v3", anchors: [] });
+    expect(out?.updated).toEqual(["c1"]);
+    expect(out?.skipped).toEqual([{ comment_id: "", reason: "" }]);
+    expect(out?.listToken).toBe("");
+  });
+
+  it("a malformed anchors answer is null, never a silent success", async () => {
+    for (const body of [...malformedBodies, { nope: true }, { skipped: [] }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(
+        putDocumentCommentAnchors("d1", { version_id: "v3", anchors: [] }),
+      ).resolves.toBeNull();
     }
   });
 

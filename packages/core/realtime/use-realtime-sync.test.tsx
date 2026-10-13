@@ -881,6 +881,7 @@ describe("useRealtimeSync", () => {
       "document.comment_unresolved",
       "document.comment_reaction_added",
       "document.comment_reaction_removed",
+      "document.comment_anchors_updated",
     ] as const)("invalidates only the comment key on %s", (type) => {
       vi.useFakeTimers();
       const { invalidate, client } = setup();

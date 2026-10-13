@@ -33,6 +33,18 @@ export interface CreateDocumentCommentBody {
   /** ULID of the comment this one replies to; the parent must hang on the
    *  same document (the server answers 400 otherwise). */
   parent_id?: string;
+  /** Thread flow (G8-03): `comment` is the anchored kind, `discussion` the
+   *  document's shared thread. Empty lets the server inherit a reply's kind
+   *  and start a discussion for a root. */
+  kind?: DocumentCommentKind;
+  /** Anchor (G8-04): the JSON position, accepted on a root `kind=comment`
+   *  only, always with `base_version_id`. The server validates it against
+   *  the document's own format. */
+  anchor?: Record<string, unknown>;
+  /** ULID of the version the anchor was written against (G8-04); required
+   *  when `anchor` is present. An unresolvable version is the server's 400
+   *  anchor_version_invalid. */
+  base_version_id?: string;
 }
 
 export interface UpdateDocumentCommentBody {
@@ -230,6 +242,76 @@ export async function removeDocumentCommentReaction(
   return parseWithFallback<{ status: string }>(raw, StatusResponse, { status: "" }, {
     endpoint: "DELETE /api/v1/documents/{id}/comments/{commentId}/reactions",
   }).status === "ok";
+}
+
+// ---- Comment anchors (G8-04, UNI-1399) ------------------------------------
+// The editor's post-save anchor map: the version just committed plus one item
+// per comment. The server compares version ordinals (never ULIDs), answers
+// the changed ids, the skipped ones with a shared reason and the document's
+// listToken; repeating the same payload changes no row. A malformed answer
+// resolves null - a PUT that cannot prove its write must not read as saved.
+
+/** One skipped anchors item; `reason` is `older_version` or
+ *  `not_applicable` (the latter folds every hidden case, so the client
+ *  never learns why). */
+export const DocumentCommentAnchorSkipSchema = z.object({
+  comment_id: z.string().optional().default(""),
+  reason: z.string().optional().default(""),
+});
+export type DocumentCommentAnchorSkip = z.infer<typeof DocumentCommentAnchorSkipSchema>;
+
+const DocumentCommentAnchorsResponse = z.object({
+  updated: z.array(z.string()).catch([]).optional(),
+  skipped: z.array(DocumentCommentAnchorSkipSchema).catch([]).optional(),
+  list_token: z.string().optional(),
+});
+
+export interface PutDocumentCommentAnchorsBody {
+  /** ULID of the version just saved (the receipt's version). */
+  version_id: string;
+  anchors: {
+    comment_id: string;
+    anchor: Record<string, unknown>;
+    /** What the editor found: `exact` when it saw the position, `lost`
+     *  when it could not. The server demotes exact to stale when the
+     *  version is not the head. */
+    state: "exact" | "lost";
+  }[];
+}
+
+export interface DocumentCommentAnchorsResult {
+  updated: string[];
+  skipped: DocumentCommentAnchorSkip[];
+  listToken: string;
+}
+
+/** PUT /api/v1/documents/{documentID}/comments/anchors (G8-04) - apply the
+ *  editor's anchor map. Resolves null when the answer proves neither an
+ *  `updated` array nor a `list_token`, so a malformed answer never reads as
+ *  a saved remap. */
+export async function putDocumentCommentAnchors(
+  documentId: string,
+  body: PutDocumentCommentAnchorsBody,
+  opts?: { signal?: AbortSignal },
+): Promise<DocumentCommentAnchorsResult | null> {
+  const raw = await request(commentPath(documentId, undefined, "anchors"), {
+    method: "PUT",
+    body,
+    signal: opts?.signal,
+  });
+  const parsed = parseWithFallback<{
+    updated?: string[];
+    skipped?: DocumentCommentAnchorSkip[];
+    list_token?: string;
+  } | null>(raw, DocumentCommentAnchorsResponse, null, {
+    endpoint: "PUT /api/v1/documents/{id}/comments/anchors",
+  });
+  if (!parsed || (!Array.isArray(parsed.updated) && !parsed.list_token)) return null;
+  return {
+    updated: parsed.updated ?? [],
+    skipped: parsed.skipped ?? [],
+    listToken: parsed.list_token ?? "",
+  };
 }
 
 // ---- Mention candidates (G8-06, UNI-1401) --------------------------------

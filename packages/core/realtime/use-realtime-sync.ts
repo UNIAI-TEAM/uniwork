@@ -287,7 +287,8 @@ function keysFor(
     case "document.comment_resolved":
     case "document.comment_unresolved":
     case "document.comment_reaction_added":
-    case "document.comment_reaction_removed": {
+    case "document.comment_reaction_removed":
+    case "document.comment_anchors_updated": {
       // Comment frames are ids-only and change nothing but the thread (G1-07b
       // owns these keys): invalidate exactly the comment key of the document
       // the frame names, never the document itself - detail, versions and
