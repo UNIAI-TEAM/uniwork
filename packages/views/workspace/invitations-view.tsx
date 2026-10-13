@@ -32,7 +32,7 @@ export function InvitationsView({
   if (!invites?.length) return null;
 
   const join = (token: string) =>
-    accept.mutate(token, {
+    accept.mutate({ token }, {
       onSuccess: (result) => {
         joined.current = true;
         onJoined(result.workspace);
@@ -43,7 +43,7 @@ export function InvitationsView({
     let last: Workspace | null = null;
     for (const i of invites) {
       try {
-        last = (await accept.mutateAsync(i.token)).workspace ?? last;
+        last = (await accept.mutateAsync({ token: i.token })).workspace ?? last;
       } catch (err) {
         toastApiError(err, t("common.error"));
       }

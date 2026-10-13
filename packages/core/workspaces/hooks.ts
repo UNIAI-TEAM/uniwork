@@ -6,6 +6,7 @@ import { setSessionUser } from "../auth/hooks";
 import * as workspaces from "../api/endpoints/workspaces";
 import { useOrganizations } from "../organizations/hooks";
 import { resolveHomeDestination } from "../paths/resolve";
+import type { SwitchResolution } from "../types/workspace";
 import { workspaceKeys } from "./keys";
 import { readLastWorkspace } from "./last-workspace";
 
@@ -118,18 +119,37 @@ export function fetchMyInvitations() {
   return workspaces.myInvitations();
 }
 
+/**
+ * The invitation behind a link and what stands between the caller and it.
+ * Not retried: a 404 or a wrong-mailbox 403 is the answer, not a blip.
+ */
+export function useInvitationPreview(token: string, enabled = true) {
+  return useQuery({
+    queryKey: workspaceKeys.invitationPreview(token),
+    queryFn: () => workspaces.getInvitationPreview(token),
+    enabled: enabled && !!token,
+    retry: false,
+  });
+}
+
+/**
+ * Accepting may switch organization (ADR 0032): `resolve` says how to give up
+ * each one the caller belongs to. Every cached list may now name the wrong
+ * organization, so the cache is dropped, and the session user is read again —
+ * accepting also marks them onboarded, and the dashboard gate routes on that —
+ * before anything navigates (AC-15).
+ */
 export function useAcceptInvite() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (token: string) => workspaces.acceptInvite(token),
-    // Accepting marks the user onboarded on the server; the session copy
-    // must follow before anything routes on it, or the dashboard gate sends
-    // a brand-new member to /onboarding instead of the workspace they joined.
+    mutationFn: ({ token, resolve }: { token: string; resolve?: SwitchResolution[] }) =>
+      workspaces.acceptInvite(token, resolve),
     onSuccess: async () => {
-      const user = await auth.me();
+      qc.clear();
+      // The join already committed: a failed read of /me must not turn it
+      // into an error the page would show. The gate refetches it anyway.
+      const user = await auth.me().catch(() => null);
       if (user) setSessionUser(user);
-      void qc.invalidateQueries({ queryKey: workspaceKeys.list() });
-      void qc.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
     },
   });
 }

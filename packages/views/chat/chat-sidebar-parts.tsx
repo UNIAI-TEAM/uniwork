@@ -242,7 +242,7 @@ export function SidebarInvitations({ onJoined }: { onJoined?: (workspace: Worksp
 
   const join = (inv: PendingInvitation) => {
     setJoiningId(inv.id);
-    accept.mutate(inv.token, {
+    accept.mutate({ token: inv.token }, {
       onSuccess: (result) => onJoined?.(result?.workspace ?? null),
       onError: (err) => toastChatError(err, t, t("chat.invite_join_failed")),
       onSettled: () => setJoiningId(null),

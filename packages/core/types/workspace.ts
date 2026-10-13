@@ -50,3 +50,53 @@ export const PendingInvitationSchema = z.object({
   invited_by: z.object({ display_name: z.string() }),
 });
 export type PendingInvitation = z.infer<typeof PendingInvitationSchema>;
+
+const InvitationOrgRefSchema = z.object({ id: z.string(), slug: z.string(), name: z.string() });
+
+/**
+ * One organization the caller already belongs to that stands between them and
+ * an invitation (ADR 0032), with what it takes to give it up. The preview and
+ * the 409 organization_switch_required carry the same shape. Lenient like
+ * every response schema: an action this client does not know still parses,
+ * and every switch over it carries a default.
+ */
+export const MembershipConflictSchema = z.object({
+  organization: InvitationOrgRefSchema,
+  role: z.string(),
+  /** leave | transfer | close | blocked */
+  required_action: z.string(),
+  /** owner_of_suspended_organization, only with required_action blocked. */
+  blocked_reason: z.string().optional(),
+  transfer_candidates_count: z.number().default(0),
+});
+export type MembershipConflict = z.infer<typeof MembershipConflictSchema>;
+
+/**
+ * GET /api/v1/invitations/{token}: the invitation in any state, as its invitee
+ * sees it. `conflicts` is empty unless the invitation is pending.
+ */
+export const InvitationPreviewSchema = z.object({
+  invitation: z.object({
+    id: z.string(),
+    /** pending | expired | revoked | accepted */
+    status: z.string(),
+    expires_at: z.string(),
+    organization: InvitationOrgRefSchema,
+    /** Absent for an invitation to the organization itself. */
+    workspace: InvitationOrgRefSchema.optional(),
+    org_role: z.string().default("member"),
+    /** Omitted when the inviter has no display name. */
+    inviter_name: z.string().optional(),
+  }),
+  conflicts: z.array(MembershipConflictSchema).default([]),
+});
+export type InvitationPreview = z.infer<typeof InvitationPreviewSchema>;
+
+/** How the caller gives up one organization when accepting an invitation into another. */
+export type SwitchResolution = {
+  organization_id: string;
+  action: "leave" | "transfer" | "close";
+  transfer_to_user_id?: string;
+  password?: string;
+  confirm_slug?: string;
+};

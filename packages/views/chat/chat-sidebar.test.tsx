@@ -292,11 +292,11 @@ describe("ChatSidebar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Tham gia" }));
     expect(screen.getByRole("button", { name: "Đang tham gia…" })).toBeDisabled();
-    const [token, handlers] = invitesMock.mutate.mock.calls[0] as [
-      string,
+    const [vars, handlers] = invitesMock.mutate.mock.calls[0] as [
+      { token: string },
       { onSuccess: (r: unknown) => void; onError: (e: unknown) => void; onSettled: () => void },
     ];
-    expect(token).toBe("tok1");
+    expect(vars).toEqual({ token: "tok1" });
 
     act(() => {
       handlers.onError(new ApiError("server text", "gone", 410));

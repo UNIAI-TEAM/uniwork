@@ -69,7 +69,7 @@ export function AcceptInviteView({
     if (status === "anon") onAnon();
     if (status === "authed" && !fired.current) {
       fired.current = true;
-      accept.mutate(token, {
+      accept.mutate({ token }, {
         onSuccess: (result) => onAccepted(result.workspace),
       });
     }
