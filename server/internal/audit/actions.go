@@ -136,6 +136,9 @@ const (
 	ActionDocumentVersionCreated  = "document.version_created"
 	ActionDocumentVersionRestored = "document.version_restored"
 	ActionDocumentAssetUploaded   = "document.asset_uploaded"
+	// G5-07 (UNI-1345): a commit attempt took over a logical intent whose
+	// previous attempt's claim expired, fencing that attempt for good.
+	ActionDocumentCommitIntentRenewed = "document.commit_intent_renewed"
 
 	// Document access (UNI-676): shares and public links on one document,
 	// and the organization's public-link switch.

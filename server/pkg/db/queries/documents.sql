@@ -6,7 +6,7 @@
 INSERT INTO documents (
   id, organization_id, workspace_id, parent_id, kind, title, icon, visibility,
   content, content_text, search_text, content_bytes,
-  current_version, file_version_id, revision, position,
+  current_version, file_version_id, revision, content_revision, position,
   owner_kind, owner_id, acl_owner_id,
   source_document_id, source_version_id, source_revision,
   source_format, source_engine, target_format, source_checksum_sha256,
@@ -20,6 +20,7 @@ INSERT INTO documents (
   sqlc.arg(content), sqlc.arg(content_text), sqlc.arg(search_text),
   sqlc.arg(content_bytes),
   sqlc.arg(current_version), sqlc.arg(file_version_id), sqlc.arg(revision),
+  sqlc.arg(revision),
   sqlc.arg(position),
   sqlc.arg(owner_kind), sqlc.arg(owner_id), sqlc.arg(acl_owner_id),
   sqlc.arg(source_document_id), sqlc.arg(source_version_id),
@@ -73,6 +74,7 @@ SET content = sqlc.arg(content),
     search_text = sqlc.arg(search_text),
     content_bytes = sqlc.arg(content_bytes),
     revision = revision + 1,
+    content_revision = revision + 1,
     updated_by = sqlc.arg(updated_by),
     updated_by_kind = sqlc.arg(updated_by_kind),
     content_saved_at = now(),
@@ -90,7 +92,9 @@ RETURNING *;
 -- repeats the base check the service made under the row lock - zero rows is
 -- a revision_conflict. content_saved_at moves only when the content itself
 -- changed: it is the auto-version worker's input (§6.3), and a rename is
--- not an edit of the working copy.
+-- not an edit of the working copy. content_revision follows the same rule
+-- (OQ-P1): a rename, icon or visibility change leaves it, so a commit on
+-- the pre-rename base still lands.
 -- name: UpdateDocumentFields :one
 UPDATE documents
 SET title = sqlc.arg(title),
@@ -101,6 +105,7 @@ SET title = sqlc.arg(title),
     search_text = sqlc.arg(search_text),
     content_bytes = sqlc.arg(content_bytes),
     revision = revision + 1,
+    content_revision = CASE WHEN sqlc.arg(content_changed)::boolean THEN revision + 1 ELSE content_revision END,
     updated_by = sqlc.arg(updated_by),
     updated_by_kind = sqlc.arg(updated_by_kind),
     content_saved_at = CASE WHEN sqlc.arg(content_changed)::boolean THEN now() ELSE content_saved_at END,

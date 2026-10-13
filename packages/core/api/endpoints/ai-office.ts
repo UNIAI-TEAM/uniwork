@@ -31,7 +31,7 @@ const EMPTY_CREDENTIALS: AiCredentialList = { items: [], providers: [] };
 const DISABLED_CLOUD: AiCloudStatus = {
   enabled: false,
   reason: "",
-  tools: { web_search: false, image_search: false, image_generate: false, media_analyze: false, transcribe: false },
+  tools: { web_search: false, image_search: false, image_generate: false, media_analyze: false, transcribe: false, chat: false },
   credits: { unit: "ai.tokens", used: 0, limit: null, remaining: null, period_end: null },
 };
 const EMPTY_SEARCH: AiCloudSearchResponse = { results: [] };

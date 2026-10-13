@@ -154,6 +154,14 @@ func isoIdem(fields map[string]string, extra map[string]any) func(*isoWorld, *is
 	}
 }
 
+// isoIdemOnly sends no body, only the tenant's seeded intent key - the key
+// isolation_world_test.go commits (and leaves not_committed), so the owner's
+// control reads a real intent row and the other tenant is refused on the
+// document before any intent is read.
+func isoIdemOnly(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{headers: map[string]string{"Idempotency-Key": "iso-intent-" + tn.tag}}
+}
+
 func isoJSON(v any) func(*isoWorld, *isoTenant) isoBody {
 	return func(*isoWorld, *isoTenant) isoBody { return isoBody{json: v} }
 }
@@ -379,11 +387,15 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/shares":                                                           {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/uploads":                                                          {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
 	"POST /api/v1/documents/{documentID}/versions/commit":                                                  {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
-	"POST /api/v1/office-frame/documents/{documentID}/uploads":                                             {body: isoFile("frame.docx", isoDocxMime, isoFrameDocx, nil)},
-	"POST /api/v1/office-frame/documents/{documentID}/versions/commit":                                     {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
-	"POST /api/v1/office-frame/documents/{documentID}/assets":                                              {body: isoFile("dot.png", "image/png", docsPNG, nil)},
-	"POST /api/v1/office-frame/documents/{documentID}/assets/sign":                                         {body: isoFrameSign},
-	"POST /api/v1/office-frame/documents/{documentID}/assets/resolve":                                      {body: isoJSON(map[string]any{"paths": []string{"missing.png"}})},
+	// G5-07: the lookup sends the key isolation_world_test.go seeds and leaves not_committed, so the
+	// owner's control reads its own intent (200 not_committed) and the other tenant is refused on the
+	// document before any intent is read.
+	"GET /api/v1/documents/{documentID}/versions/commit":               {body: isoIdemOnly},
+	"POST /api/v1/office-frame/documents/{documentID}/uploads":         {body: isoFile("frame.docx", isoDocxMime, isoFrameDocx, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/versions/commit": {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
+	"POST /api/v1/office-frame/documents/{documentID}/assets":          {body: isoFile("dot.png", "image/png", docsPNG, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/assets/sign":     {body: isoFrameSign},
+	"POST /api/v1/office-frame/documents/{documentID}/assets/resolve":  {body: isoJSON(map[string]any{"paths": []string{"missing.png"}})},
 	// A sibling file opens through the signature alone (a frame token is refused 401, so is no
 	// signature): the control and the signed-URL cases are the frame-linked subtest.
 	"GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}":  {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},

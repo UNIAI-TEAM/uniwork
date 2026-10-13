@@ -38,6 +38,7 @@ import (
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
 //	POST   /api/v1/documents/{documentID}/versions/commit
+//	GET    /api/v1/documents/{documentID}/versions/commit       (G5-07, Idempotency-Key header)
 //	GET    /api/v1/documents/{documentID}/versions
 //	POST   /api/v1/documents/{documentID}/versions
 //	GET    /api/v1/documents/{documentID}/versions/{versionNo}
@@ -120,6 +121,14 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		tags: []string{"documents"},
 		sdi:  sdi.CommitDocumentVersionSDI{},
 		sdo:  sdo.DocumentVersionResultSDO{},
+		auth: true,
+	})
+	d.Get("/documents/{documentID}/versions/commit", h.LookupCommitIntent, apiOp{
+		summary: "Look up what became of a file version commit",
+		description: "Tra intent commit theo header Idempotency-Key (bắt buộc; không đặt key vào URL): {outcome: committed (kèm version, revision) | in_flight (attempt đang giữ claim) | not_committed (claim hết hạn, không attempt nào còn commit được — an toàn để cấp attempt/key mới)}. " +
+			"Key đã bị dọn sau cửa sổ resume, chưa từng tới server hoặc của người khác -> 410 commit_intent_unknown (không bao giờ giả not_committed). Cần quyền xem; vẫn trả lời khi office_sync_write tắt.",
+		tags: []string{"documents"},
+		sdo:  sdo.CommitIntentSDO{},
 		auth: true,
 	})
 	d.Get("/documents/{documentID}/versions", h.ListDocumentVersions, apiOp{

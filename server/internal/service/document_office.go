@@ -244,7 +244,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return db.OfficeJob{}, err
 	}
-	input, format, err := s.jobInput(ctx, in)
+	input, format, baseRevision, err := s.jobInput(ctx, in)
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
@@ -284,7 +284,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	row, err := s.q.InsertOfficeJob(ctx, db.InsertOfficeJobParams{
 		ID: jobID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, DocumentID: in.DocumentID,
 		Operation: string(in.Operation), Format: string(in.Format),
-		BaseRevision: in.BaseRevision, BaseVersionID: in.BaseVersionID,
+		BaseRevision: baseRevision, BaseVersionID: in.BaseVersionID,
 		IdempotencyKey: key, PayloadFingerprint: fp,
 		InputChecksum: input.checksum, InputLength: int64(len(input.bytes)),
 		GrantID:      s.newID(),
@@ -306,54 +306,61 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 }
 
 // loadBase checks the document and its base version, resolves the format the
-// engine must work in, and reads the base bytes.
-func (s *DocumentOfficeService) loadBase(ctx context.Context, in OfficeJobInput) (officeInput, office.Format, error) {
+// engine must work in, and reads the base bytes. It answers the revision of
+// the document row it accepted the base against: the caller records that
+// revision as office_jobs.base_revision, the way StartOfficeJobForDocument
+// does, so both submit paths write down the base they actually took.
+func (s *DocumentOfficeService) loadBase(ctx context.Context, in OfficeJobInput) (officeInput, office.Format, int64, error) {
 	doc, err := s.q.GetDocument(ctx, db.GetDocumentParams{ID: in.DocumentID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID})
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && doc.ArchivedAt.Valid) {
-		return officeInput{}, "", ErrNotFound
+		return officeInput{}, "", 0, ErrNotFound
 	}
 	if err != nil {
-		return officeInput{}, "", err
+		return officeInput{}, "", 0, err
 	}
-	if doc.Revision != in.BaseRevision {
-		return officeInput{}, "", officeErr("base_version_mismatch", "revision")
+	// OQ-P1 (a1) reaches the submit path too: a base behind a rename or move
+	// still describes the same content (content_revision <= base <= revision).
+	// A base behind a content change stays base_version_mismatch, and the
+	// file_version_id check below is the same-bytes guard.
+	if !contentBaseCurrent(doc, in.BaseRevision) {
+		return officeInput{}, "", 0, officeErr("base_version_mismatch", "revision")
 	}
 	ver, err := s.q.GetOfficeJobBaseVersion(ctx, db.GetOfficeJobBaseVersionParams{
 		ID: in.BaseVersionID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, DocumentID: in.DocumentID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return officeInput{}, "", officeErr("base_version_mismatch", "version")
+		return officeInput{}, "", 0, officeErr("base_version_mismatch", "version")
 	}
 	if err != nil {
-		return officeInput{}, "", err
+		return officeInput{}, "", 0, err
 	}
 	if doc.FileVersionID.String != ver.ID {
-		return officeInput{}, "", officeErr("base_version_mismatch", "not_current")
+		return officeInput{}, "", 0, officeErr("base_version_mismatch", "not_current")
 	}
 	if ver.Kind != "file" || !ver.FileID.Valid {
-		return officeInput{}, "", officeErr("unsupported_operation", "page_version")
+		return officeInput{}, "", 0, officeErr("unsupported_operation", "page_version")
 	}
 	if !office.CanReadEngineVersion(ver.EngineVersion.String) {
 		// Rollback rule (G2-07b): a version a newer engine build committed is
 		// never opened by this build; download and recovery do not go
 		// through here and stay available.
-		return officeInput{}, "", officeErr("engine_incompatible", "version_engine:"+ver.EngineVersion.String)
+		return officeInput{}, "", 0, officeErr("engine_incompatible", "version_engine:"+ver.EngineVersion.String)
 	}
 	format, err := s.formatForVersion(ctx, doc, &ver)
 	if err != nil {
-		return officeInput{}, "", err
+		return officeInput{}, "", 0, err
 	}
 	if format != in.Format {
 		// The job's format is the document's format: a mismatch is a caller
 		// error refused while nothing has been written.
-		return officeInput{}, "", officeErr("unsupported_operation", "format_mismatch")
+		return officeInput{}, "", 0, officeErr("unsupported_operation", "format_mismatch")
 	}
 	scope := files.Scope{OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID}
 	input, err := s.readBase(ctx, scope, files.FileID(ver.FileID.String), ver.ChecksumSha256)
 	if err != nil {
-		return officeInput{}, "", err
+		return officeInput{}, "", 0, err
 	}
-	return input, format, nil
+	return input, format, doc.Revision, nil
 }
 
 func (s *DocumentOfficeService) afterInsertConflict(ctx context.Context, actor Actor, in OfficeJobInput, input officeInput, key, fp string) (db.OfficeJob, error) {
@@ -398,7 +405,7 @@ func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.
 		return db.OfficeJob{}, officeErr("payload_fingerprint_mismatch", "input_changed")
 	}
 	if row.State == string(office.JobAccepted) && !row.DispatchedAt.Valid && s.now().Before(row.DeadlineAt.Time) {
-		input, _, err := s.jobInput(ctx, in)
+		input, _, _, err := s.jobInput(ctx, in)
 		if err != nil {
 			return row, err
 		}
@@ -424,13 +431,14 @@ type officeInput struct {
 }
 
 // jobInput checks the base like loadBase and answers the bytes the engine
-// works on: the base version's, or the supplied edit of that base.
-func (s *DocumentOfficeService) jobInput(ctx context.Context, in OfficeJobInput) (officeInput, office.Format, error) {
-	input, format, err := s.loadBase(ctx, in)
+// works on - the base version's, or the supplied edit of that base - beside
+// the revision loadBase accepted the base against.
+func (s *DocumentOfficeService) jobInput(ctx context.Context, in OfficeJobInput) (officeInput, office.Format, int64, error) {
+	input, format, baseRevision, err := s.loadBase(ctx, in)
 	if err != nil || in.input == nil {
-		return input, format, err
+		return input, format, baseRevision, err
 	}
-	return *in.input, format, nil
+	return *in.input, format, baseRevision, nil
 }
 
 func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope, id files.FileID, want pgtype.Text) (officeInput, error) {
@@ -709,8 +717,8 @@ func (s *DocumentOfficeService) OpenOfficeJobOutput(ctx context.Context, actor A
 // get the job row back. Exactly one commit wins; a cancelled, failed or
 // already committed job returns ErrOfficeJobNotCommittable and its output is
 // never attached. The caller, in the same transaction, must also:
-//   - CAS the document on the job's base (documents.revision = BaseRevision and
-//     file_version_id = BaseVersionID): two jobs may complete on one base
+//   - CAS the document on the job's base (content_revision <= BaseRevision <=
+//     revision, OQ-P1, and file_version_id = BaseVersionID): two jobs may complete on one base
 //     (different keys, or a retry after the first settled), and only the
 //     document CAS decides which one becomes the version;
 //   - ClaimInTx the job's OutputFileID with FileService, or the staged output

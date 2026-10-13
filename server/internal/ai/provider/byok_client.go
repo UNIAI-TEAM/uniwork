@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -394,10 +395,18 @@ type idleBody struct {
 	idle   time.Duration
 	cancel context.CancelFunc
 	once   sync.Once
+	// fired is set by the idle timer and never cleared: the cancel it triggers
+	// can reach Read as a clean io.EOF, which must not pass for a finished stream.
+	fired atomic.Bool
 }
 
 func newIdleBody(rc io.ReadCloser, idle time.Duration, cancel context.CancelFunc) *idleBody {
-	return &idleBody{rc: rc, timer: time.AfterFunc(idle, cancel), idle: idle, cancel: cancel}
+	b := &idleBody{rc: rc, idle: idle, cancel: cancel}
+	b.timer = time.AfterFunc(idle, func() {
+		b.fired.Store(true)
+		cancel()
+	})
+	return b
 }
 
 func (b *idleBody) Read(p []byte) (int, error) {
@@ -405,7 +414,11 @@ func (b *idleBody) Read(p []byte) (int, error) {
 	if n > 0 {
 		b.timer.Reset(b.idle)
 	}
-	if err != nil && err != io.EOF {
+	switch {
+	case err == nil:
+	case b.fired.Load():
+		err = fmt.Errorf("%w: idle timeout", ErrUnreachable)
+	case err != io.EOF:
 		err = fmt.Errorf("%w: %s", ErrUnreachable, transportReason(err))
 	}
 	return n, err
