@@ -1194,7 +1194,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := svc.DeleteDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+			if _, err := svc.DeleteDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
