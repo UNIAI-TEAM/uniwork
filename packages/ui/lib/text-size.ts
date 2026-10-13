@@ -40,9 +40,12 @@ export function readStoredTextSize(): TextSize {
  * Runs before first paint from a blocking inline <script>, like
  * `accentBootScript`: without it the page paints one frame at 14px and then
  * jumps. Only the non-default names are accepted, so a stale or hand-edited
- * value leaves the default in place.
+ * value leaves the default in place. It also stays on as the page's `storage`
+ * listener: only Settings mounts `useTextSize`, so this is what moves every
+ * other page when the size changes in another tab.
  */
 export function textSizeBootScript(): string {
   const levels = TEXT_SIZES.filter((size) => size !== DEFAULT_TEXT_SIZE);
-  return `(function(){try{var s=localStorage.getItem(${JSON.stringify(TEXT_SIZE_STORAGE_KEY)});if(${JSON.stringify(levels)}.indexOf(s)<0)return;document.documentElement.setAttribute("data-text-size",s);}catch(_){}})()`;
+  const key = JSON.stringify(TEXT_SIZE_STORAGE_KEY);
+  return `(function(){var e=document.documentElement;function a(){try{var s=localStorage.getItem(${key});if(${JSON.stringify(levels)}.indexOf(s)<0)e.removeAttribute("data-text-size");else e.setAttribute("data-text-size",s);}catch(_){}}a();window.addEventListener("storage",function(v){if(v.key===${key})a();});})()`;
 }

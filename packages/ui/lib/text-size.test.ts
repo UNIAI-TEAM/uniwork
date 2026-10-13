@@ -53,6 +53,18 @@ describe("text size", () => {
     expect(document.documentElement.getAttribute("data-text-size")).toBe("large");
   });
 
+  it("keeps a page with no picker in step with another tab", () => {
+    // Only Settings mounts the hook, so the boot script's own listener is
+    // what moves every other page when the size changes in another tab.
+    new Function(textSizeBootScript())();
+    window.localStorage.setItem(TEXT_SIZE_STORAGE_KEY, "xlarge");
+    window.dispatchEvent(new StorageEvent("storage", { key: TEXT_SIZE_STORAGE_KEY }));
+    expect(document.documentElement.getAttribute("data-text-size")).toBe("xlarge");
+    window.localStorage.setItem(TEXT_SIZE_STORAGE_KEY, "default");
+    window.dispatchEvent(new StorageEvent("storage", { key: TEXT_SIZE_STORAGE_KEY }));
+    expect(document.documentElement.hasAttribute("data-text-size")).toBe(false);
+  });
+
   it("boots nothing for the default, a stale value or blocked storage", () => {
     for (const stored of ["default", "xxl", ""]) {
       window.localStorage.setItem(TEXT_SIZE_STORAGE_KEY, stored);
