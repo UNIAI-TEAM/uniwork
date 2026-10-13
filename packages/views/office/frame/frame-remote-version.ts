@@ -5,6 +5,8 @@ import {
   toProtocolError,
   type ApiOpenPayload,
   type ApiOpenResult,
+  type DocBlockedPayload,
+  type DocBlockedReason,
   type FileMeta,
   type ProtocolErrorShape,
   type RemoteVersionPayload,
@@ -32,7 +34,9 @@ export interface RemoteHead {
 export type FrameBlock = "permission_revoked" | "document_deleted";
 
 /** 403 codes that are their own reasons, not a revoked share (EXPERIENCE.md › reconciling). */
-const OWN_REASON_403 = new Set(["organization_suspended", "member_deactivated", "document_archived"]);
+const OWN_REASON_403 = new Set<string>(["organization_suspended", "member_deactivated", "document_archived"] satisfies DocBlockedReason[]);
+
+const isFrameBlock = (reason: DocBlockedReason): reason is FrameBlock => reason === "permission_revoked" || reason === "document_deleted";
 
 /** The error a blocked Save answers: the frame maps 403/410 by code to its bar (B2). */
 export function frameBlockError(block: FrameBlock): DocsProtocolError {
@@ -56,13 +60,13 @@ function blockOfSaveError(error: ProtocolErrorShape): FrameBlock | null {
 
 /**
  * The verdict of a failed head read (`GET /documents/{id}`): 404/410 is a deleted document, a 403
- * is a lost share unless its code is one of the reasons with their own wording, which the server
- * keeps refusing by itself (the Save path reads them the same way). Anything else (offline, 5xx)
- * is no verdict.
+ * is a lost share unless its code is one of the reasons with their own wording. Those reach the
+ * frame (`doc.blocked`) but block no Save here: the server keeps refusing them by itself (the
+ * Save path reads them the same way). Anything else (offline, 5xx) is no verdict.
  */
-export function blockOfHeadError(status: number, code: string): FrameBlock | null {
+export function blockOfHeadError(status: number, code: string): DocBlockedReason | null {
   if (status === 404 || status === 410) return "document_deleted";
-  if (status === 403 && !OWN_REASON_403.has(code)) return "permission_revoked";
+  if (status === 403) return OWN_REASON_403.has(code) ? (code as DocBlockedReason) : "permission_revoked";
   return null;
 }
 
@@ -80,7 +84,13 @@ export interface FrameRemoteVersion {
   offer(head: RemoteHead): boolean;
   /** A version id this session has seen for the document (opened, committed or announced). */
   knows(versionId: string): boolean;
-  block(reason: FrameBlock): void;
+  /**
+   * The document is blocked for this viewer: the frame hears `doc.blocked` at once (once per
+   * reason change), and a revoke or a delete also refuses every Save here.
+   */
+  block(reason: DocBlockedReason): void;
+  /** The frame (re)connected: tell it the block it may have missed before the handshake. */
+  announceBlock(): void;
   readonly blocked: FrameBlock | null;
   /** The frame now edits another document (save-as): nothing of the old one applies. */
   rebind(documentId: string): void;
@@ -91,6 +101,8 @@ interface FrameRemoteVersionOptions {
   /** `office_sync_feed`, read at the moment of each offer: off = the frame hears nothing. */
   enabled: () => boolean;
   notify: (payload: RemoteVersionPayload) => void;
+  /** `doc.blocked` to the frame; whatever the feed flag says (a security block, not S6 news). */
+  notifyBlocked: (payload: DocBlockedPayload) => void;
 }
 
 export function createFrameRemoteVersion(options: FrameRemoteVersionOptions): FrameRemoteVersion {
@@ -103,6 +115,15 @@ export function createFrameRemoteVersion(options: FrameRemoteVersionOptions): Fr
   let saving = 0;
   let deferred: RemoteHead | null = null;
   let blocked: FrameBlock | null = null;
+  /** The reason the frame was last told; a delete is final, a revoke after it changes nothing. */
+  let told: DocBlockedReason | null = null;
+
+  const block = (reason: DocBlockedReason) => {
+    if (isFrameBlock(reason) && (blocked === null || reason === "document_deleted")) blocked = reason;
+    if (told === reason || told === "document_deleted") return;
+    told = reason;
+    options.notifyBlocked({ document_id: documentId, reason });
+  };
 
   const hold = (file: FileMeta, versionId?: string) => {
     const revision = asBig(file.revision ?? file.etag);
@@ -153,13 +174,14 @@ export function createFrameRemoteVersion(options: FrameRemoteVersionOptions): Fr
     },
     offer,
     knows: (versionId) => known.has(versionId),
-    block: (reason) => { blocked ??= reason; },
+    block,
+    announceBlock: () => { if (told) options.notifyBlocked({ document_id: documentId, reason: told }); },
     get blocked() { return blocked; },
     rebind: (next) => {
       documentId = next;
       openRevision = null; openVersion = null; announced = null;
       own = new Set(); known = new Set();
-      deferred = null; blocked = null;
+      deferred = null; blocked = null; told = null;
     },
   };
 }
@@ -171,7 +193,7 @@ export function createFrameRemoteVersion(options: FrameRemoteVersionOptions): Fr
 export function remoteAwareSave<P, C>(
   upload: (payload: P, context: C) => Promise<SaveResult>,
   remote: FrameRemoteVersion,
-  onBlock: (reason: FrameBlock) => void,
+  onBlock: (reason: DocBlockedReason) => void,
 ): (payload: P, context: C) => Promise<SaveResult> {
   return async (payload, context) => {
     if (remote.blocked) throw frameBlockError(remote.blocked);

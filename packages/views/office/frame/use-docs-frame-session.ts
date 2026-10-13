@@ -279,8 +279,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     const remote = createFrameRemoteVersion({
       documentId: latest.current.scopeId, enabled: () => latest.current.syncFeed,
       notify: (payload) => { if (life.state === "live") endpoint.notifyRemoteVersion(payload); },
+      notifyBlocked: (payload) => { if (life.state === "live") endpoint.notifyBlocked(payload); },
     });
-    if (blockRef.current) remote.block(blockRef.current);
     remoteRef.current = remote;
     const iframe = iframeRef.current;
     // The frame failed for good (fatal error, failed handshake, a bundle that never started): show
@@ -506,6 +506,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         booted = true;
         latest.current.options.comments?.attach(endpoint, ack, () => latest.current.scopeId);
         bindFrameDocument();
+        // A block heard before this handshake (or by the frame instance before) reaches this one.
+        remote.announceBlock();
         // A new document starts with no dialog open: it reports its own from here on.
         modalOpen.current = false;
         setModal(false);
@@ -518,6 +520,9 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         failSession(error.toShape());
       },
     });
+
+    // A block outlives a retry; the frame hears it on its handshake (`announceBlock`).
+    for (const reason of blockRef.current) remote.block(reason);
 
     endpoint.on("dirty", ({ dirty: next }) => {
       setDirty(next);

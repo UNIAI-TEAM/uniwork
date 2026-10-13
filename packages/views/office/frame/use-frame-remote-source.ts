@@ -5,6 +5,7 @@ import { ApiError } from "@uniwork/core/api/http";
 import { listDocumentChanges } from "@uniwork/core/api/endpoints/document-changes";
 import { getDocument } from "@uniwork/core/api/endpoints/documents";
 import { useOptionalWS } from "@uniwork/core/realtime";
+import type { DocBlockedReason } from "@uniwork/core/office/docs-frame-protocol";
 import type { WSEventType } from "@uniwork/core/types/events";
 import { blockOfHeadError, type FrameBlock, type FrameRemoteVersion, type RemoteHead } from "./frame-remote-version";
 
@@ -13,7 +14,8 @@ import { blockOfHeadError, type FrameBlock, type FrameRemoteVersion, type Remote
  * (ids only, UNI-679), and after a reconnect the change feed (G5-02) for whatever the socket
  * missed. Each hint is answered by one session read of the head, so revision, version and time
  * always come from the same answer. Deletion and a lost share block the frame whatever the
- * `office_sync_feed` flag says; only the new-version path follows the flag.
+ * `office_sync_feed` flag says (EXPERIENCE.md › sync_feed: the flag turns off S6 news, not the S11
+ * lock): the realtime frames always run, only the new-version path and the feed follow the flag.
  */
 
 /** Frames whose document may have a new head (a new version, or a metadata-only bump). */
@@ -28,7 +30,7 @@ interface FrameRemoteSourceOptions {
   /** `office_sync_feed`: off = no head reads for new versions and no feed. */
   syncFeed: boolean;
   onHead: (head: RemoteHead) => void;
-  onBlocked: (reason: FrameBlock) => void;
+  onBlocked: (reason: DocBlockedReason) => void;
 }
 
 const documentOf = (payload: unknown): string | null =>
@@ -67,7 +69,11 @@ function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }:
       let seen = false;
       for (let page = 0; page < FEED_PAGES && live(); page += 1) {
         let result: Awaited<ReturnType<typeof listDocumentChanges>>;
-        try { result = await listDocumentChanges(wsId, from ? { cursor: from } : undefined, abort.signal); } catch { return; }
+        try { result = await listDocumentChanges(wsId, from ? { cursor: from } : undefined, abort.signal); } catch (error) {
+          // The feed refusing this viewer (403/404) may mean the document went with it: the head read decides.
+          if (live() && error instanceof ApiError && (error.status === 403 || error.status === 404)) await readHead();
+          return;
+        }
         if (!live()) return;
         if (result.kind === "unavailable") return;
         if (result.kind === "resync") {
@@ -105,12 +111,14 @@ function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }:
  */
 export function useFrameRemote(wsId: string, documentId: string, syncFeed: boolean) {
   const remoteRef = useRef<FrameRemoteVersion | null>(null);
-  const blockRef = useRef<FrameBlock | null>(null);
+  // Every reason heard, in order, so the endpoint of a retry is blocked the same way.
+  const blockRef = useRef<DocBlockedReason[]>([]);
   const [blocked, setBlocked] = useState<FrameBlock | null>(null);
-  const applyBlock = useCallback((reason: FrameBlock) => {
-    blockRef.current ??= reason;
+  const applyBlock = useCallback((reason: DocBlockedReason) => {
+    if (!blockRef.current.includes(reason)) blockRef.current = [...blockRef.current, reason];
     remoteRef.current?.block(reason);
-    setBlocked(blockRef.current);
+    // A delete is final; the reasons with their own wording refuse no Save here.
+    if (reason === "permission_revoked" || reason === "document_deleted") setBlocked((now) => (now === "document_deleted" ? now : reason));
   }, []);
   const onHead = useCallback((head: RemoteHead) => { remoteRef.current?.offer(head); }, []);
   useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked: applyBlock });
