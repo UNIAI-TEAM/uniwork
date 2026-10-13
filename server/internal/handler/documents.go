@@ -308,12 +308,37 @@ func (h *handlers) commitDocumentVersion(w http.ResponseWriter, r *http.Request)
 		UploadID:       strings.TrimSpace(in.UploadID),
 		BaseRevision:   base,
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		// The desktop app's device session is the sync path office_sync_write
+		// gates; a browser session keeps saving while the flag is off (G5-07).
+		Sync: middleware.DeviceSession(r.Context()),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
 	respondJSON(w, http.StatusOK, documentVersionResultSDO(res.Document, res.Access, res.File, res.Version))
+}
+
+// lookupCommitIntent is GET /documents/{documentID}/versions/commit (G5-07):
+// the Idempotency-Key header names the caller's commit intent; the service
+// decides visibility and the outcome.
+func (h *handlers) lookupCommitIntent(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	res, err := h.Documents.LookupCommitIntent(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"),
+		r.Header.Get("Idempotency-Key"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.CommitIntentSDO{Outcome: res.Outcome}
+	if res.Outcome == service.CommitIntentCommitted {
+		v := res.Version
+		out.VersionID, out.Version, out.Revision = res.VersionID, &v, strconv.FormatInt(res.Revision, 10)
+	}
+	respondJSON(w, http.StatusOK, out)
 }
 
 // listDocumentVersions is GET /documents/{documentID}/versions?cursor&limit.

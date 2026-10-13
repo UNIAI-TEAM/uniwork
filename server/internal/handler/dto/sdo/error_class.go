@@ -71,9 +71,12 @@ var errorClassByCode = map[string]string{
 //   office_capability_off  (403, fields.capability) a flag hides the
 //     capability; it is not a permission denial, so the client must not
 //     run its lost-access recovery path (CLAUDE.md > Platform Admin).
-//
-// commit_intent_unknown (410, plan G5-07) is reserved in the docs only and
-// is not registered until G5-D2 fixes the intent retention.
+//   commit_intent_unknown  (410, fields.outcome="unknown", plan G5-07) the
+//     server holds no commit intent for the key any more (swept after the
+//     resume window) or never did. "gone" would teach the client to leave;
+//     it must keep reconciling and never read this as not_committed.
+//     Registered with the dev retention (G5-07); G5-D2 fixes the number,
+//     not the code.
 
 // ErrorClassFor returns the error_class a wire code carries, "" when the code
 // is unclassified - the field is then omitted from the envelope.

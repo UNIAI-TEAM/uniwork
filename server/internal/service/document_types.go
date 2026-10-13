@@ -126,6 +126,15 @@ type DocumentService struct {
 	// and auto-version workers never wait for real time.
 	clock func() time.Time
 
+	// intentPolicy, flags and intentMetrics belong to the logical commit
+	// intents of G5-07 (document_commit_intent.go): the claim TTL and resume
+	// window, the office_sync_write evaluator, and the lookup/replay/sweep
+	// counters. Zero values keep the defaults; nil flags read the registry
+	// default.
+	intentPolicy  CommitIntentPolicy
+	flags         DocumentFlags
+	intentMetrics OfficeIntentMetrics
+
 	// store is the G1-03 write side's own state (document_files.go):
 	// validation limits, spool directory, test seam.
 	store documentStore

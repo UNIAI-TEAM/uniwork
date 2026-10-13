@@ -16,7 +16,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// Document maintenance workers (C-01 §6.3, G1-04b, UNI-678). Three sweeps
+// Document maintenance workers (C-01 §6.3, G1-04b, UNI-678). Four sweeps
 // share one worker so cmd/server joins one channel in the shutdown
 // sequence:
 //
@@ -28,6 +28,8 @@ import (
 //   - purge: hourly, PurgeExpired - archived documents past 30 days and
 //     orphaned assets past 7.
 //   - compaction: daily, CompactVersions.
+//   - commit intents: every 10 minutes, SweepCommitIntents - intents past
+//     their resume window (G5-07), in batches.
 //
 // No bare goroutines: Run fans out to three loops and blocks until all
 // three return after ctx ends; every sweep's own per-row transaction bounds
@@ -50,16 +52,17 @@ type DocumentWorkers struct {
 	// enabled the desktop bridge. When wired, its retention sweep runs on the
 	// same hourly maintenance cadence as document purge.
 	officeLaunch *OfficeLaunchService
-	// AutoVersionTick, PurgeTick, CompactTick override the sweep cadences;
+	// AutoVersionTick, PurgeTick, CompactTick, IntentTick override the sweep cadences;
 	// zero keeps the defaults above.
 	AutoVersionTick time.Duration
 	PurgeTick       time.Duration
 	CompactTick     time.Duration
+	IntentTick      time.Duration
 
 	// after replaces the timer (tests); nil uses a real timer.
 	after func(time.Duration) <-chan time.Time
 	// swept observes every finished pass (tests): "auto_version" | "purge" |
-	// "compact" and its error.
+	// "compact" | "commit_intent" and its error.
 	swept func(kind string, err error)
 	// now is the sweep clock (tests); nil uses the service clock.
 	now func() time.Time
@@ -92,6 +95,10 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 	if compactTick <= 0 {
 		compactTick = documentCompactTick
 	}
+	intentTick := w.IntentTick
+	if intentTick <= 0 {
+		intentTick = commitIntentSweepTick
+	}
 	var wg sync.WaitGroup
 	for _, loop := range []struct {
 		tick time.Duration
@@ -122,6 +129,14 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 			w.svc.recordDocumentSweep("compact", rep.Failed, err, started)
 			if w.swept != nil {
 				w.swept("compact", err)
+			}
+		}},
+		{intentTick, func(ctx context.Context) {
+			started := time.Now()
+			_, err := w.svc.SweepCommitIntents(ctx)
+			w.svc.recordDocumentSweep("commit_intent", 0, err, started)
+			if w.swept != nil {
+				w.swept("commit_intent", err)
 			}
 		}},
 	} {
