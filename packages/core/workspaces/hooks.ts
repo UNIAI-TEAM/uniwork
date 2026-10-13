@@ -4,6 +4,7 @@ import { useAuthStore } from "../auth/store";
 import * as auth from "../api/endpoints/auth";
 import { setSessionUser } from "../auth/hooks";
 import * as workspaces from "../api/endpoints/workspaces";
+import { useOrganizations } from "../organizations/hooks";
 import { resolveHomeDestination } from "../paths/resolve";
 import { workspaceKeys } from "./keys";
 import { readLastWorkspace } from "./last-workspace";
@@ -32,12 +33,19 @@ export function useWorkspaces() {
   });
 }
 
-/** The "Home" link for a signed-in user; null until the session and the workspace list are known. */
+/**
+ * The "Home" link for a signed-in user; null until the session and both lists
+ * are known. The organization list decides between a workspace and
+ * /get-started (ADR 0032 D12), and filters out workspaces of an organization
+ * the user no longer belongs to.
+ */
 export function useHomeDestination(): string | null {
   const user = useAuthStore((s) => s.user);
+  const authed = useAuthStore((s) => s.status === "authed");
   const { data: list } = useWorkspaces();
-  if (!user || !list) return null;
-  return resolveHomeDestination(list, user, readLastWorkspace(user.id));
+  const { data: orgs } = useOrganizations(authed);
+  if (!user || !list || !orgs) return null;
+  return resolveHomeDestination(list, user, readLastWorkspace(user.id), orgs);
 }
 
 export function useWorkspace(orgSlug: string, wsSlug: string) {

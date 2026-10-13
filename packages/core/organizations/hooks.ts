@@ -4,18 +4,24 @@ import * as organizations from "../api/endpoints/organizations";
 import * as orgMembers from "../api/endpoints/organization-members";
 import { peopleKeys } from "../people/hooks";
 import type { Workspace } from "../types/workspace";
-import { workspaceKeys } from "../workspaces/hooks";
+import { workspaceKeys } from "../workspaces/keys";
 
 export const organizationKeys = {
   list: () => ["organizations"] as const,
   workspaces: (orgId: string) => ["org-workspaces", orgId] as const,
 };
 
-export function useOrganizations() {
+export function useOrganizations(enabled = true) {
   return useQuery({
     queryKey: organizationKeys.list(),
     queryFn: () => organizations.list(),
+    enabled,
   });
+}
+
+/** The organization list outside React, for the post-sign-in redirect. */
+export function fetchOrganizations() {
+  return organizations.list();
 }
 
 export function useCreateOrganization() {

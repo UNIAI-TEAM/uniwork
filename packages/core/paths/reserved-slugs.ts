@@ -12,6 +12,7 @@ export const RESERVED_SLUGS = [
   "favicon.ico",
   "features",
   "forgot-password",
+  "get-started",
   "healthz",
   "inbox",
   "invitations",

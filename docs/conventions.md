@@ -15,10 +15,11 @@ overrides this page. Every example below is taken from the repository as it is
   `/{noun}/{verb}`: `/login`, `/register`, `/onboarding`, `/invitations`,
   `/workspaces/new`, `/invite/{token}`. A hyphenated root (`/new-workspace`)
   is normally wrong: it collides with organization slugs and forces endless
-  reserved-slug audits. Reserving the noun protects the whole subtree. Three
+  reserved-slug audits. Reserving the noun protects the whole subtree. Four
   exceptions exist and every one of them is in `reserved_slugs.json`:
-  `/forgot-password`, `/reset-password` and `/why-uniwork` — a public page
-  whose URL is read by people, where the hyphenated phrase is the name.
+  `/forgot-password`, `/reset-password`, `/why-uniwork` — a public page
+  whose URL is read by people, where the hyphenated phrase is the name — and
+  `/get-started`, where a person with no organization lands (ADR 0032).
 - Workspace routes live under `/{orgSlug}/{workspaceSlug}/{section}`:
   `/acme/team/tasks`, `/acme/team/meetings/{id}/room`, `/acme/team/members`.
   Workspaces nest inside organizations; a workspace slug is unique only within
