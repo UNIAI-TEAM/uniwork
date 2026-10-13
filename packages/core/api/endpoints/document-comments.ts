@@ -5,6 +5,7 @@ import {
   DocumentCommentRevisionListEnvelopeSchema,
   type DocumentComment,
   type DocumentCommentKind,
+  type DocumentCommentListEnvelope,
   type DocumentCommentMention,
   type DocumentCommentRevision,
 } from "../../types/document";
@@ -92,7 +93,7 @@ export async function listDocumentComments(
   const raw = await request(query ? `${commentPath(documentId)}?${query}` : commentPath(documentId), {
     signal: opts?.signal,
   });
-  const page = parseWithFallback<z.infer<typeof CommentListResponse> | null>(
+  const page = parseWithFallback<DocumentCommentListEnvelope | null>(
     raw,
     CommentListResponse,
     null,
