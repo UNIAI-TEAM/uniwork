@@ -90,9 +90,6 @@ func (s *AdminService) commitInvoiceRefundPending(
 		})
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		after, err = s.adminInvoiceAfterPendingRace(ctx, q, invoiceID, partial)
-	}
-	if errors.Is(err, pgx.ErrNoRows) {
 		return db.Invoice{}, CodedError{Code: "invoice_not_refundable", Status: http.StatusConflict,
 			Msg: "trạng thái hóa đơn đã đổi — tải lại danh sách"}
 	}
