@@ -1,56 +1,25 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { appHost } from "@uniwork/core/config";
-import type { Workspace } from "@uniwork/core/types";
-import { useAcceptInvite, useMyInvitations } from "@uniwork/core/workspaces";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { toast } from "sonner";
-import { toastApiError } from "../toast-api-error";
+import { paths } from "@uniwork/core/paths";
+import { useMyInvitations } from "@uniwork/core/workspaces";
+import { buttonVariants } from "@uniwork/ui/components/ui/button";
+import { AppLink } from "../navigation";
 
-/** Danh sách lời mời đang chờ của user; chấp nhận từng cái hoặc tất cả. */
-export function InvitationsView({
-  onJoined,
-  onEmpty,
-}: {
-  /**
-   * `workspace` is null when the invitation was to the organization itself:
-   * the person is in the company but in no team yet (F-03).
-   */
-  onJoined: (workspace: Workspace | null) => void;
-  onEmpty: () => void;
-}) {
+/**
+ * Danh sách lời mời đang chờ của user. Mỗi dòng mở trang của chính lời mời đó:
+ * tham gia chỉ có một luồng, nơi người đang thuộc tổ chức khác được cho thấy
+ * việc chuyển tổ chức sẽ đổi gì (ADR 0032). Vì vậy không còn "Tham gia tất cả":
+ * một tài khoản chỉ thuộc một tổ chức.
+ */
+export function InvitationsView({ onEmpty }: { onEmpty: () => void }) {
   const { t } = useTranslation();
   const { data: invites, isFetched } = useMyInvitations();
-  const accept = useAcceptInvite();
-  // Once a join succeeded the list empties by design; onEmpty must not
-  // override the navigation onJoined already started.
-  const joined = useRef(false);
   useEffect(() => {
-    if (!joined.current && isFetched && invites && invites.length === 0) onEmpty();
+    if (isFetched && invites && invites.length === 0) onEmpty();
   }, [isFetched, invites, onEmpty]);
   if (!invites?.length) return null;
-
-  const join = (token: string) =>
-    accept.mutate({ token }, {
-      onSuccess: (result) => {
-        joined.current = true;
-        onJoined(result.workspace);
-      },
-      onError: (err) => toastApiError(err, t("common.error")),
-    });
-  const joinAll = async () => {
-    let last: Workspace | null = null;
-    for (const i of invites) {
-      try {
-        last = (await accept.mutateAsync({ token: i.token })).workspace ?? last;
-      } catch (err) {
-        toastApiError(err, t("common.error"));
-      }
-    }
-    joined.current = true;
-    onJoined(last);
-  };
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[28rem] flex-col justify-center gap-6 px-6 py-10">
@@ -72,17 +41,18 @@ export function InvitationsView({
                 {i.workspace && <>/{i.workspace.slug}</>} · {t("invitations.role", { role: i.role })}
               </div>
             </div>
-            <Button variant="outline" disabled={accept.isPending} onClick={() => join(i.token)}>
-              {t("invitations.join")}
-            </Button>
+            {/* A link dressed as a button: it navigates. The label names the
+                organization, so a list of "Xem" reads apart by ear. */}
+            <AppLink
+              href={paths.invite(i.token)}
+              aria-label={t("invitations.viewLabel", { name: i.organization.name })}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              {t("invitations.view")}
+            </AppLink>
           </li>
         ))}
       </ul>
-      {invites.length > 1 && (
-        <Button size="lg" className="w-full" disabled={accept.isPending} onClick={joinAll}>
-          {t("invitations.joinAll")}
-        </Button>
-      )}
     </div>
   );
 }

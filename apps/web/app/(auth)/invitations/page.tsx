@@ -28,12 +28,5 @@ export default function InvitationsPage() {
     [replace, workspaces, user, organizations],
   );
   if (status !== "authed" || step === "verify" || !orgsFetched) return null;
-  return (
-    <InvitationsView
-      onJoined={(ws) =>
-        replace(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.workspaces())
-      }
-      onEmpty={onEmpty}
-    />
-  );
+  return <InvitationsView onEmpty={onEmpty} />;
 }
