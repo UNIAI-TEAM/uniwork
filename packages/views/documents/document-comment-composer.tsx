@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -24,6 +24,10 @@ import { useMentionPicker, type PickerRow } from "./use-mention-picker";
 
 /** What a send ended with; the composer keeps the draft for every outcome but "sent". */
 export type SendOutcome = "sent" | "failed" | "target_deleted";
+
+/** The listbox's own height cap (px) and the gap kept to the viewport edge. */
+const LISTBOX_MAX = 256;
+const LISTBOX_GAP = 8;
 
 const isMac = () => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
@@ -111,6 +115,19 @@ export function DocumentCommentComposer({
   const problemId = useId();
   const sendingId = useId();
   const picker = useMentionPicker({ wsId, documentId, value, setValue, textarea: () => ref.current });
+  // The composer sits at the bottom of the panel, so the listbox opens upward when the viewport
+  // below the textarea cannot hold it, and is capped to the room it has either way.
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const [listbox, setListbox] = useState({ up: false, maxHeight: LISTBOX_MAX });
+  useLayoutEffect(() => {
+    if (!picker.open) return;
+    const rect = fieldRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const below = window.innerHeight - rect.bottom - LISTBOX_GAP;
+    const above = rect.top - LISTBOX_GAP;
+    const up = below < LISTBOX_MAX && above > below;
+    setListbox({ up, maxHeight: Math.max(96, Math.min(LISTBOX_MAX, up ? above : below)) });
+  }, [picker.open]);
 
   const blocked = !!blockedReasonId;
   const canSend = !sending && !blocked && value.trim() !== "";
@@ -157,7 +174,7 @@ export function DocumentCommentComposer({
 
   return (
     <div className="space-y-2" data-testid={testId}>
-      <div className="relative">
+      <div ref={fieldRef} className="relative">
         <textarea
           ref={ref}
           // Placeholder doubles as the accessible name (Accessibility Floor › Composer).
@@ -190,7 +207,12 @@ export function DocumentCommentComposer({
             id={picker.listboxId}
             role="listbox"
             aria-label={t(K.collabMentionLabel)}
-            className="absolute inset-x-0 top-full z-20 mt-1 max-h-64 space-y-0.5 overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+            data-placement={listbox.up ? "top" : "bottom"}
+            style={{ maxHeight: listbox.maxHeight }}
+            className={cn(
+              "absolute inset-x-0 z-20 space-y-0.5 overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md",
+              listbox.up ? "bottom-full mb-1" : "top-full mt-1",
+            )}
           >
             {picker.rows.map((row) => (
               <PickerOption key={row.id} row={row} active={row.id === picker.activeId} query={picker.query} onPick={picker.activate} />

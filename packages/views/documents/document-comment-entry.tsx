@@ -222,7 +222,7 @@ export function DocumentCommentEntry({
             type="button"
             aria-expanded={historyOpen}
             onClick={(event) => toggleHistory(event.currentTarget)}
-            className={cn("mt-1 rounded text-micro text-muted-foreground underline-offset-2 hover:underline")}
+            className={cn("mt-1 inline-flex min-h-6 items-center rounded text-micro text-muted-foreground underline-offset-2 hover:underline pointer-coarse:min-h-11")}
           >
             {t(K.collabEdited, { time: formatCollabTime(comment.updated_at, locale) })}
           </button>

@@ -133,6 +133,9 @@ export function useMentionPicker({ wsId, documentId, value, setValue, textarea }
       }
       return true;
     }
+    // Ctrl/⌘+Enter while the listbox shows must not send the half-typed `@query` as plain text:
+    // the picker keeps the key until the person picks someone or closes it (Escape).
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) return true;
     if ((event.key === "Enter" || event.key === "Tab") && !event.ctrlKey && !event.metaKey && activeRow) {
       activate(activeRow);
       return true;

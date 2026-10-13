@@ -32,6 +32,9 @@ import { useDocumentCommentsPanel, type PanelStatus } from "./use-document-comme
 /** Tailwind `xl` — the breakpoint where the detail row can afford a rail. */
 const DESKTOP_QUERY = "(min-width: 1280px)";
 
+/** How long a deep-linked thread stays tinted. */
+const HIGHLIGHT_MS = 8000;
+
 const STATUS_KEYS: Record<Exclude<PanelStatus, null>, string> = {
   offline: K.collabOffline,
   server: K.collabServerError,
@@ -50,6 +53,7 @@ function ThreadList({
   setResolvedOpen,
   focus,
   clearFocus,
+  highlightId,
 }: {
   kind: DocumentCommentKind;
   groups: { open: DocumentThread[]; resolved: DocumentThread[] };
@@ -58,6 +62,8 @@ function ThreadList({
   setResolvedOpen: (open: boolean) => void;
   focus: FocusRequest;
   clearFocus: () => void;
+  /** The thread a deep link named; the whole card is tinted, not just its heading. */
+  highlightId: string | null;
 }) {
   const { t } = useTranslation();
   const resolvedListId = useId();
@@ -66,6 +72,7 @@ function ThreadList({
       key={thread.root.id}
       thread={thread}
       ctx={ctx}
+      highlighted={highlightId === thread.root.id}
       focusRequest={focus?.rootId === thread.root.id ? focus.target : null}
       onFocusHandled={clearFocus}
     />
@@ -113,10 +120,12 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
   const format = anchorableFormat(doc);
   const tab: DocumentCommentsTab = format ? (chrome?.tab ?? "comment") : "discussion";
   const setTab = chrome?.setTab;
-  const titleKey = documentCommentsTitleKey(doc);
+  // The panel is named for what it shows: on a format with two tabs the title follows the tab.
+  const titleKey = format && tab === "discussion" ? K.collabDiscussion : documentCommentsTitleKey(doc);
   const statusId = useId();
   const [resolvedOpen, setResolvedOpen] = useState<Record<DocumentCommentKind, boolean>>({ comment: false, discussion: false });
   const [focus, setFocus] = useState<FocusRequest>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [revealMessage, setRevealMessage] = useState<DocumentCommentKind | null>(null);
   const revealRef = useRef<HTMLParagraphElement>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -156,7 +165,13 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
     if (target.resolved) setResolvedOpen((open) => ({ ...open, [target.kind]: true }));
     if (target.deleted) setRevealMessage(target.kind);
     setFocus({ rootId: target.rootId, target: "heading" });
+    setHighlightId(target.rootId);
   }, [comments, deepLinkId, format, query.isSuccess, setTab]);
+  useEffect(() => {
+    if (!highlightId) return undefined;
+    const timer = window.setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);
+    return () => window.clearTimeout(timer);
+  }, [highlightId]);
   useEffect(() => {
     if (revealMessage && !focus) revealRef.current?.focus();
   }, [revealMessage, focus]);
@@ -235,6 +250,7 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
           setResolvedOpen={(open) => setResolvedOpen((current) => ({ ...current, [tab]: open }))}
           focus={focus}
           clearFocus={clearFocus}
+          highlightId={highlightId}
         />
       </div>
     );
@@ -327,7 +343,13 @@ export function DocumentCommentsPanel() {
 
   return (
     <Sheet open onOpenChange={(next) => setOpen(next)}>
-      <SheetContent side="right" showCloseButton={false} className="w-full gap-0 p-0 sm:max-w-md">
+      {/* The primitive pins the right sheet to 3/4 width behind a data-attribute selector, which a bare
+          `w-full` loses to; the same specificity wins, so a phone gets the full width. */}
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md"
+      >
         <CommentsPane wsId={wsId} doc={doc} titleId={titleId} onClose={close} />
       </SheetContent>
     </Sheet>

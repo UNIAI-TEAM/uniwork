@@ -120,6 +120,55 @@ describe("S14 mention picker", () => {
     expect(await screen.findByRole("option", { name: /An/ })).toBeInTheDocument();
   });
 
+  it("does not send the half-typed @query on Ctrl/Cmd+Enter while the picker is open", async () => {
+    requestMock.mockResolvedValue({ candidates: [{ user_id: AN, display_name: "An" }] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>("sent"));
+    const box = renderComposer(onSend);
+    type(box, "Nhờ @A");
+    await screen.findByRole("option", { name: /An/ });
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    fireEvent.keyDown(box, { key: "Enter", metaKey: true });
+    expect(onSend).not.toHaveBeenCalled();
+    expect(box).toHaveValue("Nhờ @A");
+    // Closed, the same key sends as before.
+    fireEvent.keyDown(box, { key: "Escape" });
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith("Nhờ @A"));
+  });
+
+  it("opens the listbox upward when the viewport below the composer cannot hold it, and caps it to the room", async () => {
+    requestMock.mockResolvedValue({ candidates: [{ user_id: AN, display_name: "An" }] });
+    const field = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      top: window.innerHeight - 90, bottom: window.innerHeight - 20, left: 0, right: 300, width: 300, height: 70, x: 0, y: window.innerHeight - 90, toJSON: () => ({}),
+    });
+    try {
+      const box = renderComposer();
+      type(box, "@");
+      const listbox = await screen.findByRole("listbox", { name: t(K.collabMentionLabel) });
+      expect(listbox).toHaveAttribute("data-placement", "top");
+      expect(listbox.className).toContain("bottom-full");
+      expect(listbox.className).not.toContain("top-full");
+    } finally {
+      field.mockRestore();
+    }
+  });
+
+  it("keeps the listbox below the composer when there is room", async () => {
+    requestMock.mockResolvedValue({ candidates: [{ user_id: AN, display_name: "An" }] });
+    const field = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      top: 40, bottom: 110, left: 0, right: 300, width: 300, height: 70, x: 0, y: 40, toJSON: () => ({}),
+    });
+    try {
+      const box = renderComposer();
+      type(box, "@");
+      const listbox = await screen.findByRole("listbox", { name: t(K.collabMentionLabel) });
+      expect(listbox).toHaveAttribute("data-placement", "bottom");
+      expect(listbox.className).toContain("top-full");
+    } finally {
+      field.mockRestore();
+    }
+  });
+
   it("escapes brackets in the token label", () => {
     expect(mentionToken({ user_id: AN, display_name: "An [PM] (HN)" })).toBe(`[@An \\[PM\\] \\(HN\\)](mention://member/${AN})`);
   });
@@ -133,6 +182,23 @@ describe("composer rows", () => {
     fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
     await waitFor(() => expect(onSend).toHaveBeenCalledWith("Xin chào"));
     await waitFor(() => expect(box).toHaveValue(""));
+  });
+
+  it("says it is sending, names it for screen readers, and blocks a second send meanwhile", async () => {
+    let finish: (outcome: SendOutcome) => void = () => {};
+    const onSend = vi.fn(() => new Promise<SendOutcome>((resolve) => { finish = resolve; }));
+    const box = renderComposer(onSend);
+    type(box, "Đang gửi");
+    const send = screen.getByTestId("composer-send");
+    fireEvent.click(send);
+    await waitFor(() => expect(send).toHaveTextContent(t(K.collabSending)));
+    expect(send).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getAllByText(t(K.collabSending)).some((node) => box.getAttribute("aria-describedby")?.split(" ").includes(node.id))).toBe(true);
+    fireEvent.click(send);
+    expect(onSend).toHaveBeenCalledTimes(1);
+    finish("sent");
+    await waitFor(() => expect(box).toHaveValue(""));
+    expect(send).toHaveTextContent(t(K.collabSend));
   });
 
   it("keeps the text and says so when sending fails", async () => {
@@ -187,6 +253,31 @@ describe("body renderer (§4.2)", () => {
     expect(within(body).getByRole("link", { name: "nhãn" })).toHaveAttribute("href", "https://uniwork.vn");
     expect(body).toHaveTextContent("<b>html</b> # tiêu đề");
     expect(body.querySelector("b")).toBeNull();
+  });
+
+  it("folds a long body behind an expand toggle and unfolds it", () => {
+    render(<DocumentCommentBody names={mentionNames([])} body={`${"Rất dài ".repeat(120)}`} />);
+    const body = screen.getByTestId("document-comment-body");
+    const toggle = screen.getByRole("button", { name: t(K.commentExpand) });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", body.id);
+    expect(body.className).toContain("max-h-40");
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: t(K.commentCollapse) })).toHaveAttribute("aria-expanded", "true");
+    expect(body.className).not.toContain("max-h-40");
+  });
+
+  it("folds a body of many short lines, and leaves a short body unfolded", () => {
+    const { unmount } = render(<DocumentCommentBody names={mentionNames([])} body={Array.from({ length: 9 }, (_, i) => `dòng ${i}`).join("\n")} />);
+    expect(screen.getByRole("button", { name: t(K.commentExpand) })).toBeInTheDocument();
+    unmount();
+    render(<DocumentCommentBody names={mentionNames([])} body="Ngắn gọn" />);
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("says a comment without text has none", () => {
+    render(<DocumentCommentBody names={mentionNames([])} body={"  \n\n  "} />);
+    expect(screen.getByText(t(K.commentPreviewEmpty))).toBeInTheDocument();
   });
 
   it("keeps a mention-looking URL inside code as code, not a chip", () => {

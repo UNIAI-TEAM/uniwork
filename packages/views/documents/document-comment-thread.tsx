@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
 import type { DocumentComment } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { DocumentCommentComposer, type SendOutcome } from "./document-comment-composer";
 import { DocumentCommentEntry } from "./document-comment-entry";
 import type { MentionNames } from "./document-comment-body";
@@ -49,9 +50,12 @@ export function DocumentCommentThread({
   ctx,
   focusRequest,
   onFocusHandled,
+  highlighted = false,
 }: {
   thread: DocumentThread;
   ctx: ThreadContext;
+  /** A deep link named this thread: tint the whole card. */
+  highlighted?: boolean;
   /** "heading" for a deep link, "resolve" after Resolve/Reopen moved the thread between groups. */
   focusRequest?: "heading" | "resolve" | null;
   onFocusHandled: () => void;
@@ -153,7 +157,11 @@ export function DocumentCommentThread({
       aria-labelledby={labelledBy || undefined}
       data-testid={`document-thread-${root.id}`}
       data-thread-kind={root.kind}
-      className="overflow-clip rounded-lg border border-border/60 bg-card"
+      data-highlighted={highlighted || undefined}
+      className={cn(
+        "overflow-clip rounded-lg border bg-card transition-colors duration-700",
+        highlighted ? "border-primary/60 bg-primary/5" : "border-border/60",
+      )}
     >
       {deleted && meta ? <div className="px-3 pt-2">{meta}</div> : null}
       {entryFor(root, true)}
