@@ -184,6 +184,8 @@ var isoReferences = []isoReference{
 		"consent": "copy", "job_id": isoRef("officeJob")}, noControl: "a serialize job is not a convert job", covers: []string{"CopyDocumentSDI.job_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/files/blank", what: "parent page", idempotent: true, body: map[string]any{
 		"format": "md", "title": isoUnique("ref"), "parent_id": isoRef("document")}, noControl: "the office stub engine never finishes a blank document", covers: []string{"CreateBlankDocumentFileSDI.parent_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/save", what: "parent page", idempotent: true, body: map[string]any{
+		"title": isoUnique("ref"), "parent_id": isoRef("document")}, covers: []string{"SaveSourceFileSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/versions/commit", what: "uploaded file", idempotent: true, body: map[string]any{
 		"upload_id": isoRef("docUpload"), "base_revision": "1"}, covers: []string{"CommitDocumentVersionSDI.upload_id"}},
 	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/versions/commit", what: "staged frame upload", idempotent: true, body: map[string]any{

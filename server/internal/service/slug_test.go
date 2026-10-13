@@ -9,7 +9,7 @@ func TestValidateSlug(t *testing.T) {
 			t.Errorf("%q should be valid: %v", s, err)
 		}
 	}
-	bad := []string{"", "a", "-abc", "abc-", "Ab", "a--b", "a b", "login", "api", "onboarding",
+	bad := []string{"", "a", "-abc", "abc-", "Ab", "a--b", "a b", "login", "api", "onboarding", "changelog",
 		"thisslugiswaytoolongforthefortycharacterlimitxx"}
 	for _, s := range bad {
 		if err := ValidateSlug(s); err == nil {
