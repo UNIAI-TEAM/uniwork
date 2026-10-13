@@ -13,14 +13,18 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 // isoUniworkConversationKey is the test AI_CONVERSATION_KEY: a valid base64
@@ -405,5 +409,208 @@ func TestAIUniworkSessionConversationIsolated(t *testing.T) {
 	status, _, out = uniworkTurn(t, w, tn.uniworkOrgPath(), tn.thirdToken, conv, uniworkQuestion("kẻ khác"))
 	if status != http.StatusConflict || uniworkErrorCode(t, out) != "conversation_expired" {
 		t.Fatalf("another member reusing the session id: %d %v; want 409 conversation_expired", status, out)
+	}
+}
+
+// uniworkScriptedProvider is the UniWork AI provider a test drives itself:
+// script decides every call, so a test can hold one turn inside the model
+// call and let another finish in between. Its name is "fake" because the
+// Gateway's model policy knows that provider (ResolveModel).
+type uniworkScriptedProvider struct {
+	script func(context.Context, provider.CompletionRequest) (provider.CompletionResponse, error)
+}
+
+func (p *uniworkScriptedProvider) Name() string { return "fake" }
+
+func (p *uniworkScriptedProvider) Complete(ctx context.Context, req provider.CompletionRequest) (provider.CompletionResponse, error) {
+	return p.script(ctx, req)
+}
+
+func (p *uniworkScriptedProvider) Embed(context.Context, provider.EmbedRequest) (provider.EmbedResponse, error) {
+	return provider.EmbedResponse{}, provider.ErrUnsupported
+}
+
+// uniworkQuestionBody is uniworkQuestion as the raw body the service reads.
+func uniworkQuestionBody(t *testing.T, question string) json.RawMessage {
+	t.Helper()
+	raw, err := json.Marshal(uniworkQuestion(question))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+// A failed turn must not delete another attempt's transcript (BE3A-1): the
+// first call resumes the conversation and stays inside the model call while
+// the second call appends its turn, then the first fails. The failed attempt
+// appended nothing, so the second call's turns must survive.
+//
+// The two calls run through the service directly rather than the router so
+// the test controls the interleaving: its own provider blocks the first call
+// on a channel until the second has finished. That overlap is what a
+// Rollback on the failure path used to truncate.
+func TestAIUniworkFailedTurnKeepsConcurrentTurns(t *testing.T) {
+	w := newUniworkWorld(t)
+	tn := w.alpha
+	ctx := context.Background()
+
+	firstInProvider := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseFirst) }) }
+	// A failure before the first call is done must still let it out: the
+	// isolated server's cleanup waits for every request in flight.
+	defer release()
+	scripted := &uniworkScriptedProvider{script: func(_ context.Context, req provider.CompletionRequest) (provider.CompletionResponse, error) {
+		question := req.Messages[len(req.Messages)-1].Content
+		if strings.Contains(question, "câu hỏi A") {
+			close(firstInProvider)
+			<-releaseFirst
+			return provider.CompletionResponse{}, errors.New("scripted provider failure for the first call")
+		}
+		return provider.CompletionResponse{
+			Text: "trả lời: " + question, Model: req.Model, UsagePresent: true,
+			InputTokens: 12, OutputTokens: 4, StopReason: "end_turn",
+		}, nil
+	}}
+	svc := service.NewAIUniworkService(w.deps.Organizations, service.NewEntitlementService(w.pool, w.q),
+		w.deps.Documents, w.deps.FeatureFlags,
+		service.NewAIGateway(w.pool, w.q, scripted, ai.Options{}), w.uniworkStore, w.deps.Redis)
+
+	scope := service.UniworkScope{UserID: tn.userID, OrgID: tn.orgID, Module: "docs"}
+	seedBody := uniworkQuestionBody(t, "câu hỏi mở đầu")
+	firstBody := uniworkQuestionBody(t, "câu hỏi A (sẽ lỗi)")
+	secondBody := uniworkQuestionBody(t, "câu hỏi B (sống sót)")
+
+	seed, err := svc.Chat(ctx, scope, service.UniworkTurnInput{Body: seedBody})
+	if err != nil {
+		t.Fatalf("seed turn: %v", err)
+	}
+	conv := seed.ConversationID
+	if conv == "" {
+		t.Fatal("seed turn: no conversation id")
+	}
+
+	type chatResult struct {
+		turn service.UniworkTurn
+		err  error
+	}
+	firstDone := make(chan chatResult, 1)
+	go func() {
+		turn, err := svc.Chat(ctx, scope, service.UniworkTurnInput{ConversationID: conv, Body: firstBody})
+		firstDone <- chatResult{turn: turn, err: err}
+	}()
+	select {
+	case <-firstInProvider:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the first call never reached the provider")
+	}
+
+	// The second call runs while the first is still in its model call: its
+	// turns are appended after the first call resumed.
+	second, err := svc.Chat(ctx, scope, service.UniworkTurnInput{ConversationID: conv, Body: secondBody})
+	if err != nil {
+		t.Fatalf("the second call: %v", err)
+	}
+	if second.ConversationID != conv {
+		t.Fatalf("the second call answered conversation %q, want %q", second.ConversationID, conv)
+	}
+	release()
+	first := <-firstDone
+	if first.err == nil {
+		t.Fatalf("the first call = %+v, want the provider failure", first.turn)
+	}
+
+	resumed, err := w.uniworkStore.Resume(ctx, ai.ConversationKey{
+		OrganizationID: tn.orgID, UserID: tn.userID, Module: "docs",
+	}, conv)
+	if err != nil {
+		t.Fatalf("resume after the failed call: %v", err)
+	}
+	// The seed turn (user + assistant) and the second call's turn (user +
+	// assistant): the failed call appended nothing and must delete nothing.
+	if len(resumed.Turns) != 4 {
+		var contents []string
+		for _, turn := range resumed.Turns {
+			contents = append(contents, turn.Message.Content)
+		}
+		t.Fatalf("transcript after the failed call = %d turns %q, want the seed turn and the second call's turn", len(resumed.Turns), contents)
+	}
+	if got := resumed.Turns[2].Message.Content + " " + resumed.Turns[3].Message.Content; !strings.Contains(got, "câu hỏi B") {
+		t.Fatalf("the second call's turns are gone; the transcript now reads %q", got)
+	}
+}
+
+// A turn that asks for stream:true answers the one-chunk SSE contract (A14):
+// text/event-stream carrying one chat.completion.chunk and a data: [DONE]
+// terminator, never a JSON body.
+func TestAIUniworkStreamFlagAnswersSSE(t *testing.T) {
+	w := newUniworkWorld(t)
+	tn := w.alpha
+	payload, err := json.Marshal(map[string]any{
+		"stream":   true,
+		"messages": []any{map[string]any{"role": "user", "content": "hỏi theo dòng sự kiện"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodPost, w.srv.URL+tn.uniworkOrgPath(), strings.NewReader(string(payload)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tn.token)
+	res, err := w.srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(res.Body)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("stream:true turn = %d %s, want 200", res.StatusCode, raw)
+	}
+	if ct := res.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
+		t.Fatalf("Content-Type = %q, want text/event-stream", ct)
+	}
+	if conv := res.Header.Get(ai.UniworkConversationHeader); conv == "" {
+		t.Fatal("the stream answer carries no conversation header")
+	}
+	body := string(raw)
+	if !strings.Contains(body, `"object":"chat.completion.chunk"`) {
+		t.Fatalf("the stream body has no chat.completion.chunk:\n%s", body)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(body), "data: [DONE]") {
+		t.Fatalf("the stream has no data: [DONE] terminator:\n%s", body)
+	}
+}
+
+// The per-format half of the gate (Q1, §8.2): with the capability on but the
+// turn's format flag off, the turn is refused 403 office_capability_off with
+// fields.capability naming the format — before any model call — while another
+// format still runs.
+func TestAIUniworkPerFormatCapabilityRefusal(t *testing.T) {
+	w := newUniworkWorld(t)
+	tn := w.alpha
+	before := uniworkUsageCount(t, w, tn.orgID)
+	setFlagOverride(t, "office_ai_uniwork_xlsx", featureflags.ScopeOrganization, tn.orgID, false)
+
+	status, _, out := uniworkTurn(t, w, tn.uniworkOrgPath(), tn.token, "",
+		uniworkModuleQuestion("bảng tính này có gì", "sheets", "read_cells"))
+	if status != http.StatusForbidden || uniworkErrorCode(t, out) != "office_capability_off" {
+		t.Fatalf("turn on a format whose flag is off: %d %v; want 403 office_capability_off", status, out)
+	}
+	e, _ := out["error"].(map[string]any)
+	if fields, _ := e["fields"].(map[string]any); fields["capability"] != "ai_uniwork_xlsx" {
+		t.Fatalf("fields.capability = %v; want ai_uniwork_xlsx", e["fields"])
+	}
+	if after := uniworkUsageCount(t, w, tn.orgID); after != before {
+		t.Fatalf("usage rows = %d, want %d: a per-format refusal must not reach the model", after, before)
+	}
+
+	// The refusal is this format's, not the capability's: markdown still runs.
+	status, conv, out := uniworkTurn(t, w, tn.uniworkOrgPath(), tn.token, "",
+		uniworkModuleQuestion("văn bản này có gì", "markdown", "read_blocks"))
+	if status != http.StatusOK || conv == "" {
+		t.Fatalf("turn on another format = %d %v; want 200", status, out)
 	}
 }
