@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+4d2a31917fe708a1f6b39d6e12bf4e76a004a1f3
+76da95da837ade314cfd94811afc0664a6e06ec5
+4d2a31917 fix(ai): apply the G6-14 review round 1 wording to office_uniwork_ai@1
+8dc3c4c98 fix(scripts): tool table parses on CRLF and rejects wrapped rows (G6-14)
+942c4946d fix(ai): send the office pack's module text and History through the Gateway
+d93c938e6 test(ai): pin the office pack goldens, caps, version and usage row (G6-14)
+ae45868f4 feat(ai): register the office_uniwork_ai@1 instruction pack (G6-14)
+4112e4ce0 chore(scripts): run the instruction-pack contract test in check.sh
