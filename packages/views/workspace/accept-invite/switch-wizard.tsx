@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSession } from "@uniwork/core/auth";
 import type { InvitationPreview, MembershipConflict, SwitchResolution } from "@uniwork/core/types";
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -41,9 +42,16 @@ export function SwitchWizard({
   onSubmit: (resolve: SwitchResolution[], onPasswordRefused: (why: PasswordRefusal) => void) => void;
 }) {
   const { t } = useTranslation();
+  const { user } = useSession();
   const [step, setStep] = useState(startAt);
   const [drafts, setDrafts] = useState<Record<string, SwitchDraft>>({});
   const [passwordError, setPasswordError] = useState<string | undefined>();
+  // The server said this account has no password to confirm a transfer with.
+  const [refusedPasswordless, setRefusedPasswordless] = useState(false);
+  // An account that signs in only with Google has no password, and a transfer
+  // is confirmed with one (checkOwnerPassword): the wizard says so rather than
+  // asking for a password that does not exist.
+  const passwordless = refusedPasswordless || user?.has_password === false;
   const heading = useRef<HTMLHeadingElement>(null);
   // The step whose heading last had its chance at focus. 0 on a mount that
   // answers an action (a refreshed conflict list), so that heading takes it;
@@ -62,7 +70,9 @@ export function SwitchWizard({
     setDrafts((prev) => ({ ...prev, [orgId]: { ...(prev[orgId] ?? EMPTY_DRAFT), ...change } }));
   };
   const blocked = conflicts.some((c) => c.required_action === "blocked");
-  const ready = conflicts.every((c) => draftReady(c, draftOf(c)));
+  const stuck = passwordless && conflicts.some((c) => c.required_action === "transfer");
+  const ready = !stuck && conflicts.every((c) => draftReady(c, draftOf(c)));
+  const reason = blocked ? "invitations.switch.blocked_reason" : stuck ? "invitations.switch.no_password_reason" : "invitations.switch.incomplete";
   const to = invitation.organization.name;
 
   const submit = () => {
@@ -73,7 +83,10 @@ export function SwitchWizard({
       setDrafts((prev) =>
         Object.fromEntries(Object.entries(prev).map(([id, d]) => [id, { ...d, password: "" }])),
       );
-      setPasswordError(t(why === "invalid_credentials" ? "invitations.switch.wrong_password" : "invitations.switch.password_required"));
+      // password_required: the account has no password at all, so asking
+      // for it again would only send the same refusal back.
+      if (why === "password_required") setRefusedPasswordless(true);
+      else setPasswordError(t("invitations.switch.wrong_password"));
       setStep(2);
     });
   };
@@ -110,6 +123,7 @@ export function SwitchWizard({
                 draft={draftOf(c)}
                 onChange={(change) => patch(c.organization.id, change)}
                 passwordError={c.required_action === "transfer" ? passwordError : undefined}
+                passwordless={passwordless}
               />
             ))}
             <StepActions onBack={() => setStep(1)}>
@@ -129,7 +143,7 @@ export function SwitchWizard({
               </Button>
               {ready ? null : (
                 <p id="switch-resolve-reason" className="text-center text-caption text-muted-foreground">
-                  {t(blocked ? "invitations.switch.blocked_reason" : "invitations.switch.incomplete")}
+                  {t(reason)}
                 </p>
               )}
             </StepActions>

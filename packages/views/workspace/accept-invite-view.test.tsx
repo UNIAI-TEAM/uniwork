@@ -484,6 +484,41 @@ describe("AcceptInviteView", () => {
       expect(screen.queryByRole("button", { name: "Quay lại" })).not.toBeInTheDocument();
     });
 
+    /**
+     * An account that signs in only with Google has no password, and the
+     * transfer is confirmed with one: the wizard says so instead of asking
+     * for a password the account does not have.
+     */
+    it("tells an owner without a password that the transfer cannot be confirmed here", async () => {
+      setSessionUser({ ...me, has_password: false });
+      serve({ preview: { invitation: invitation(), conflicts: [conflict("transfer", { role: "owner", transfer_candidates_count: 1 })] } });
+      renderView();
+      expect(await screen.findByRole("heading", { name: "Chuyển sang Beta" })).toBeInTheDocument();
+      next();
+      expect(await screen.findByText(/tài khoản của bạn chưa có mật khẩu/)).toBeInTheDocument();
+      expect(screen.queryByLabelText("Mật khẩu hiện tại của bạn")).not.toBeInTheDocument();
+      await pickHeir();
+      const cont = screen.getByRole("button", { name: "Tiếp tục" });
+      expect(cont).toHaveAttribute("aria-disabled", "true");
+      expect(cont).toHaveAccessibleDescription("Chưa thể tiếp tục khi tài khoản chưa có mật khẩu.");
+    });
+
+    it("says the account has no password when the server refuses the transfer for that", async () => {
+      await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })], () =>
+        Promise.reject(new ApiError("x", "password_required", 403)),
+      );
+      next();
+      await pickHeir();
+      fireEvent.change(screen.getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "anything" } });
+      next();
+      await act(async () => {
+        fireEvent.click(await screen.findByRole("button", { name: "Chuyển sang Beta" }));
+      });
+      expect(await screen.findByText(/tài khoản của bạn chưa có mật khẩu/, {}, SLOW)).toBeInTheDocument();
+      expect(screen.queryByLabelText("Mật khẩu hiện tại của bạn")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Tiếp tục" })).toHaveAttribute("aria-disabled", "true");
+    });
+
     it("sends the owner back to the password when the server refuses it", async () => {
       await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })], () =>
         Promise.reject(new ApiError("x", "invalid_credentials", 401)),

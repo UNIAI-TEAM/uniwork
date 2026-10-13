@@ -17,6 +17,8 @@ type BlockProps = {
   onChange: (patch: Partial<SwitchDraft>) => void;
   /** The server refused the owner's password on the last attempt. */
   passwordError?: string;
+  /** The account has no password, so a transfer cannot be confirmed here. */
+  passwordless?: boolean;
 };
 
 /**
@@ -87,7 +89,7 @@ function LeaveBlock({ conflict, draft, onChange }: BlockProps) {
   );
 }
 
-function TransferBlock({ conflict, draft, onChange, passwordError }: BlockProps) {
+function TransferBlock({ conflict, draft, onChange, passwordError, passwordless = false }: BlockProps) {
   const { t } = useTranslation();
   const name = conflict.organization.name;
   const prefix = `switch-${conflict.organization.id}`;
@@ -110,12 +112,19 @@ function TransferBlock({ conflict, draft, onChange, passwordError }: BlockProps)
         onRetry={retry}
       />
       {none ? <p className="text-caption text-muted-foreground">{t("org.transfer.no_candidate")}</p> : null}
-      <TransferPasswordField
-        id={`${prefix}-password`}
-        value={draft.password}
-        onValueChange={(password) => onChange({ password })}
-        error={passwordError}
-      />
+      {passwordless ? (
+        <p className="flex items-start gap-2 text-body text-foreground">
+          <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
+          {t("invitations.switch.no_password", { name })}
+        </p>
+      ) : (
+        <TransferPasswordField
+          id={`${prefix}-password`}
+          value={draft.password}
+          onValueChange={(password) => onChange({ password })}
+          error={passwordError}
+        />
+      )}
     </>
   );
 }
