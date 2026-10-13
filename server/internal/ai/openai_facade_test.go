@@ -880,3 +880,57 @@ func TestAIUniworkGatewayFiltersCallsAndOffersTools(t *testing.T) {
 		t.Fatalf("usage row = %s %s, want succeeded with the denied call recorded", status, toolCalls)
 	}
 }
+
+// BE3A-2 / A5: a vendor 429 is a throttle, not an outage. The gateway answers
+// 429 ai_rate_limited carrying the wait the vendor asked for — 30 s when it
+// sent none, never over 300 s — in Fields["retry_after"], the same number the
+// handler turns into the Retry-After header; the row is settled failed with
+// the same code and the call is never retried.
+func TestAIUniworkUpstreamRateLimitedRetryAfter(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		vendor time.Duration
+		want   int
+	}{
+		{"vendor wait", 45 * time.Second, 45},
+		{"no wait given", 0, 30},
+		{"wait over the clamp", 600 * time.Second, 300},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fp := &provider.Fake{Err: &provider.StatusError{Status: http.StatusTooManyRequests, RetryAfter: tc.vendor}}
+			g, pool := facadeGatewayFixture(t, fp)
+			req := askReq()
+			req.Capability = CapOfficeUniworkAI
+			req.PromptID = PromptOfficeUniworkAI
+			req.Module = "xlsx"
+			req.Vars = nil
+			req.History = []provider.Message{{Role: "user", Content: "hỏi"}}
+
+			_, err := g.Complete(context.Background(), req)
+			var aiErr *Error
+			if !errors.As(err, &aiErr) {
+				t.Fatalf("err = %v, want an ai refusal", err)
+			}
+			if aiErr.Status != http.StatusTooManyRequests || aiErr.Code != "ai_rate_limited" {
+				t.Fatalf("refusal = %d %s, want 429 ai_rate_limited", aiErr.Status, aiErr.Code)
+			}
+			if errors.Is(err, ErrProviderError) {
+				t.Fatal("a vendor rate limit must not answer ai_provider_error")
+			}
+			if got, _ := aiErr.Fields["retry_after"].(int); got != tc.want {
+				t.Fatalf("retry_after = %v, want %d", aiErr.Fields["retry_after"], tc.want)
+			}
+			if fp.Calls != 1 {
+				t.Fatalf("the provider was called %d times; a rate limit never retries", fp.Calls)
+			}
+			var status, reason string
+			if err := pool.QueryRow(context.Background(),
+				`SELECT status, coalesce(reason_code, '') FROM ai_usage_events WHERE organization_id = $1`, "org1").Scan(&status, &reason); err != nil {
+				t.Fatal(err)
+			}
+			if status != "failed" || reason != ErrRateLimited.Code {
+				t.Fatalf("usage row = %s/%s, want failed/%s", status, reason, ErrRateLimited.Code)
+			}
+		})
+	}
+}

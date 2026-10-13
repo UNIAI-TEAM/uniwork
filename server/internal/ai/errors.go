@@ -1,6 +1,9 @@
 package ai
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // Error is a gateway refusal with the stable code the API returns (spec F-09
 // §5). The gateway fails closed: missing policy, quota, unknown tool, bad
@@ -10,6 +13,11 @@ type Error struct {
 	Status int
 	Msg    string
 	Err    error
+	// Fields is machine-readable detail the API carries beside the code,
+	// mirroring service.CodedError.Fields: the handler sets Retry-After from
+	// Fields["retry_after"] (G6-03a A5) and the error envelope shows them.
+	// Optional; nil on every refusal that carries none.
+	Fields map[string]any
 }
 
 func (e *Error) Error() string {
@@ -55,4 +63,27 @@ var (
 
 func errPolicy(msg string) error {
 	return fmt.Errorf("ai: policy: %s", msg)
+}
+
+// The wait a vendor 429 asks for is clamped before it reaches a client
+// (G6-D1 A5): a vendor that sent no Retry-After is read as 30 s, and a longer
+// one never exceeds 300 s.
+const (
+	rateLimitRetryDefault = 30 * time.Second
+	rateLimitRetryMax     = 300 * time.Second
+)
+
+// errRateLimited is a vendor 429 as the API answers it (design §3.4/§6.4):
+// the ai_rate_limited refusal carrying the wait in Fields["retry_after"], the
+// same field the handler sets Retry-After from, so a client can tell "slow
+// down" from an outage whatever layer produced the refusal.
+func errRateLimited(retry time.Duration) *Error {
+	switch {
+	case retry <= 0:
+		retry = rateLimitRetryDefault
+	case retry > rateLimitRetryMax:
+		retry = rateLimitRetryMax
+	}
+	return &Error{Code: ErrRateLimited.Code, Status: ErrRateLimited.Status, Msg: ErrRateLimited.Msg,
+		Fields: map[string]any{"retry_after": int(retry / time.Second)}}
 }

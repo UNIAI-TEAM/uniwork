@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -196,6 +197,19 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 			g.observe(req.Capability, "failed", latency)
 			g.log.Warn("ai: provider timeout", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
 			return Response{}, ErrProviderTimeout.wrap(perr)
+		}
+		// A vendor rate limit is a throttle, not an outage (design §6.4/§3.4):
+		// the caller is told to slow down and how long to wait — the vendor's
+		// Retry-After, clamped per A5 — carried in the refusal's fields so the
+		// handler sets Retry-After from it.
+		var statusErr *provider.StatusError
+		if errors.As(perr, &statusErr) && statusErr.Status == http.StatusTooManyRequests {
+			limited := errRateLimited(statusErr.RetryAfter)
+			_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", limited.Code, latency, nil)
+			g.observe(req.Capability, "failed", latency)
+			g.log.Warn("ai: provider rate limited", "usage_event_id", row.ID, "capability", req.Capability,
+				"retry_after_s", limited.Fields["retry_after"], "latency_ms", latency.Milliseconds())
+			return Response{}, limited
 		}
 		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderError.Code, latency, nil)
 		g.observe(req.Capability, "failed", latency)
