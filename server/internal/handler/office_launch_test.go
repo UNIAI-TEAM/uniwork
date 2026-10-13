@@ -102,3 +102,58 @@ func TestOfficeLaunchRevokeRouteHidesAnotherAccountsReceipt(t *testing.T) {
 		t.Fatalf("owner revoke = %d %v", res.StatusCode, body)
 	}
 }
+
+// G8-07 §3: the launch ticket carries an optional comment_id. Present, it is
+// validated against the document's own tenant pair, stored and echoed back;
+// absent, the behaviour is unchanged.
+func TestOfficeLaunchCreateRouteCarriesOptionalCommentID(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	documentID := w.createMarkdownFile(t, "# comment launch\n")
+
+	// A discussion comment on the document, through the API.
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/comments", w.token, map[string]any{"body": "mở ở đây"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, out)
+	}
+	commentID := out["comment"].(map[string]any)["id"].(string)
+
+	// Absent: unchanged behaviour, no comment_id in the answer.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("launch without comment: %d %v", res.StatusCode, out)
+	}
+	if _, ok := out["comment_id"]; ok {
+		t.Fatalf("absent comment_id echoed: %v", out)
+	}
+
+	// Present: stored on the row and echoed back.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": commentID,
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("launch with comment: %d %v", res.StatusCode, out)
+	}
+	if got, _ := out["comment_id"].(string); got != commentID {
+		t.Fatalf("comment_id echo = %q, want %q", got, commentID)
+	}
+	ticket, _ := out["launch_ticket"].(string)
+	sum := sha256.Sum256([]byte(ticket))
+	row, err := w.q.GetOfficeLaunchSessionByHash(context.Background(), base64.RawURLEncoding.EncodeToString(sum[:]))
+	if err != nil {
+		t.Fatalf("look up launch row: %v", err)
+	}
+	if !row.CommentID.Valid || row.CommentID.String != commentID {
+		t.Fatalf("stored comment_id = %v, want %q", row.CommentID, commentID)
+	}
+
+	// A comment id that names no comment of this document is refused and
+	// stores nothing (same 404 as a random id: no existence oracle).
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": "01J8X4NOTHINGATALL000000",
+	})
+	if res.StatusCode != 404 {
+		t.Fatalf("unknown comment id = %d %v", res.StatusCode, out)
+	}
+}

@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -20,7 +21,25 @@ type Service struct {
 	q      *db.Queries
 	push   PushConfig
 	maxIDs int
+	docs   DocumentPageChecker
 }
+
+// DocumentPageChecker resolves one recipient against the page's documents
+// (G8-07 section 4.6): the read-side mirror of the consumer's
+// DocumentReadChecker. DocumentService implements it and it is injected
+// through SetDocumentReaders, so Service.List marks resource_access_lost /
+// resource_deleted without this package re-implementing the document gate.
+// The state type is the service's own because DocumentService returns it and
+// notification/service.go already imports internal/service.
+type DocumentPageChecker interface {
+	FilterReadableDocuments(ctx context.Context, userID string, documentIDs []string) (map[string]service.DocumentReadState, error)
+}
+
+// SetDocumentReaders wires the page checker Service.List marks document rows
+// through. main.go calls it next to NewService. Unwired, a document row is
+// reported access_lost (fail closed) rather than showing a snippet the
+// recipient may no longer be allowed to read.
+func (s *Service) SetDocumentReaders(d DocumentPageChecker) { s.docs = d }
 
 // PushConfig is what GET /notifications/push/config returns.
 type PushConfig struct {
@@ -56,6 +75,52 @@ type Item struct {
 	db.Notification
 	ResourceDeleted  bool
 	ResourceParentID string
+	// ResourceAccessLost is true when the recipient can no longer read a
+	// document the notification names (G8-07 section 1). The link stays; the
+	// snippet keys are removed from Params.
+	ResourceAccessLost bool
+	// CommentDeleted is true when the document notification's comment no
+	// longer exists (hard-deleted or tombstoned). The document link still
+	// opens when the document is readable.
+	CommentDeleted bool
+}
+
+// snippetKeys are the params keys that carry content the recipient may not
+// see once access is lost: the comment body snippet and the document title
+// snapshot. Dropped together on access_lost; ids, kind and actor stay.
+var snippetKeys = []string{"snippet", "document"}
+
+// paramValue reads one string value out of a notification's params JSON;
+// "" when the params are malformed or the key is absent.
+func paramValue(raw, key string) string {
+	if raw == "" {
+		return ""
+	}
+	var m map[string]string
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return ""
+	}
+	return m[key]
+}
+
+// dropParamKeys removes the named keys from a params JSON object, keeping the
+// rest; a malformed value is returned unchanged so a bad row never blanks.
+func dropParamKeys(raw string, keys ...string) string {
+	if raw == "" {
+		return raw
+	}
+	var m map[string]string
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return raw
+	}
+	for _, k := range keys {
+		delete(m, k)
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return string(b)
 }
 
 // List returns the caller's inbox page, newest first, with resource_deleted
@@ -117,6 +182,39 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 			roomOf[m.ID] = m.RoomID
 		}
 	}
+	// Document rows (G8-07 section 4.6): the page's documents go through the
+	// batch gate in one call, and the page's comments through one existence
+	// read, so neither costs a query per row.
+	var docIDs, commentIDs []string
+	commentOf := make(map[string]string, len(rows))
+	for _, n := range rows {
+		if n.ResourceType != "document" {
+			continue
+		}
+		docIDs = append(docIDs, n.ResourceID)
+		if cid := paramValue(n.Params, "comment_id"); cid != "" {
+			commentIDs = append(commentIDs, cid)
+			commentOf[n.ID] = cid
+		}
+	}
+	docState := map[string]service.DocumentReadState{}
+	if len(docIDs) > 0 && s.docs != nil {
+		states, err := s.docs.FilterReadableDocuments(ctx, userID, docIDs)
+		if err != nil {
+			return nil, err
+		}
+		docState = states
+	}
+	liveComment := map[string]bool{}
+	if len(commentIDs) > 0 {
+		ids, err := s.q.ListExistingDocumentCommentIDs(ctx, commentIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range ids {
+			liveComment[id] = true
+		}
+	}
 	out := make([]Item, 0, len(rows))
 	for _, n := range rows {
 		tracked := n.ResourceType == "task" || n.ResourceType == "meeting" || n.ResourceType == "chat_message"
@@ -125,7 +223,26 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 		if n.ResourceType == "chat_message" {
 			parent = roomOf[n.ResourceID]
 		}
-		out = append(out, Item{Notification: n, ResourceDeleted: deleted, ResourceParentID: parent})
+		item := Item{Notification: n, ResourceDeleted: deleted, ResourceParentID: parent}
+		if n.ResourceType == "document" {
+			// Unwired or unknown state fails closed: the recipient might no
+			// longer read the document, so the snippet is hidden.
+			state := docState[n.ResourceID]
+			if state == "" {
+				state = service.DocumentAccessLost
+			}
+			switch state {
+			case service.DocumentGone:
+				item.ResourceDeleted = true
+			case service.DocumentAccessLost:
+				item.ResourceAccessLost = true
+				item.Params = dropParamKeys(n.Params, snippetKeys...)
+			}
+			if cid := commentOf[n.ID]; cid != "" && !liveComment[cid] {
+				item.CommentDeleted = true
+			}
+		}
+		out = append(out, item)
 	}
 	return out, nil
 }

@@ -467,6 +467,11 @@ func main() {
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
+	// The inbox list marks a document row's resource_access_lost /
+	// resource_deleted through the same DocumentService the routes use
+	// (G8-07 section 4.6); the page checker is the read-side mirror of the
+	// consumer's document readers wired just above.
+	notifSvc.SetDocumentReaders(documentSvc)
 	dispatcher.RegisterLane(outbox.LaneNotify, notifConsumer)
 	// Work Graph (C-11): the marker rides the realtime lane (one upsert per
 	// event); the worker projects dirty nodes. The graph flag is read per
