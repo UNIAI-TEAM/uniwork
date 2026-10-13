@@ -51,8 +51,12 @@ func mcpLimits(limits ...func(http.Handler) http.Handler) func(http.Handler) htt
 }
 
 // mcpBearer keys the /mcp budget by access token. The router reads no
-// database, and each grant holds one live access token at a time, so one token
-// is one connection of one person to one AI client. The global limiter keys by
+// database, so the token string is all it can key on, and the token is not
+// verified here. A grant can hold several live access tokens at once: a
+// refresh rotation does not revoke the access token it replaces (it lives out
+// its hour), and each re-authorization opens a new token family on the same
+// grant. So one person's connection may spread over a few per-token budgets;
+// the per-address ceiling (mcp-ip) bounds the total. The global limiter keys by
 // session JWT and leaves every other request on its client address, which
 // would put every team behind one vendor egress address on one budget; /mcp is
 // exempt from it for that reason. A request with no token that looks like ours
