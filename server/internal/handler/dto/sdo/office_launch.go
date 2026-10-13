@@ -10,6 +10,9 @@ type OfficeLaunchSessionSDO struct {
 	DocumentID   string `json:"document_id" description:"ULID tài liệu được chọn" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Operation    string `json:"operation" description:"Thao tác hiệu lực: view hoặc edit" example:"edit"`
 	Version      int32  `json:"version" description:"Version được chọn; 0 = hiện tại" example:"0"`
+	// CommentID echoes the optional comment the ticket carries (G8-07 §3);
+	// omitted when the ticket opened the document without a comment.
+	CommentID string `json:"comment_id,omitempty" description:"ULID bình luận cần mở; bỏ trống = mở tài liệu" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
 }
 
 // OfficeLaunchDocumentDTO is the metadata descriptor returned after a
@@ -30,7 +33,11 @@ type OfficeLaunchDocumentDTO struct {
 
 // OfficeLaunchExchangeSDO is POST /api/v1/office/sessions/exchange.
 type OfficeLaunchExchangeSDO struct {
-	ReceiptID  string                  `json:"receipt_id" description:"ULID biên nhận redeem; không phải credential" example:"01J8X4RECEIPT1P2Q3R4S5T6U7"`
-	Document   OfficeLaunchDocumentDTO `json:"document"`
-	RedeemedAt string                  `json:"redeemed_at" description:"Thời điểm redeem nguyên tử (RFC3339)" example:"2026-09-29T10:01:02Z"`
+	ReceiptID string                  `json:"receipt_id" description:"ULID biên nhận redeem; không phải credential" example:"01J8X4RECEIPT1P2Q3R4S5T6U7"`
+	Document  OfficeLaunchDocumentDTO `json:"document"`
+	// CommentID is the comment the launch ticket carries (G8-07 §3); the
+	// desktop shell sends comments.reveal for it once the editor is ready.
+	// Omitted when the ticket opened the document without a comment.
+	CommentID  string `json:"comment_id,omitempty" description:"ULID bình luận cần mở; bỏ trống = mở tài liệu" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+	RedeemedAt string `json:"redeemed_at" description:"Thời điểm redeem nguyên tử (RFC3339)" example:"2026-09-29T10:01:02Z"`
 }
