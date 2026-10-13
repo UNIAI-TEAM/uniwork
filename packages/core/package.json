@@ -119,6 +119,7 @@
     "./realtime": "./realtime/index.ts",
     "./paths": "./paths/index.ts",
     "./organizations": "./organizations/hooks.ts",
+    "./organizations/errors": "./organizations/errors.ts",
     "./people": "./people/hooks.ts",
     "./people/view-store": "./people/view-store.ts",
     "./projects/*": "./projects/*.ts",
