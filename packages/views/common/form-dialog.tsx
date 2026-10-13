@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import {
   DialogContent,
   DialogDescription,
@@ -38,6 +39,7 @@ export function FormDialogContent({
   children,
   initialFocus,
   finalFocus,
+  showCloseButton = true,
 }: {
   size?: keyof typeof WIDTH;
   className?: string;
@@ -46,6 +48,8 @@ export function FormDialogContent({
   initialFocus?: ComponentProps<typeof DialogContent>["initialFocus"];
   /** Where focus lands on close; the default is the opener. */
   finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
+  /** False while an action that must not be abandoned is in flight. */
+  showCloseButton?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -58,7 +62,7 @@ export function FormDialogContent({
       )}
       initialFocus={initialFocus}
       finalFocus={finalFocus}
-      showCloseButton
+      showCloseButton={showCloseButton}
       closeLabel={t("common.close")}
     >
       {children}
@@ -182,6 +186,9 @@ export function ConfirmDialog({
             aria-busy={pending || undefined}
             onClick={onConfirm}
           >
+            {/* Decorative: aria-busy carries the state; the spinner is what a
+                sighted reader sees change on an action they cannot take back. */}
+            {pending ? <Spinner data-icon="inline-start" /> : null}
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

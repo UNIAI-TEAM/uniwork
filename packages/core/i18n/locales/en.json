@@ -4328,7 +4328,7 @@
       "action": "Leave organization",
       "done": "You left the organization",
       "confirm_title": "Leave {{name}}?",
-      "confirm_body": "You will lose access to every workspace in {{name}}. To come back, an admin has to invite you again."
+      "confirm_body": "You lose access to every workspace in {{name}} right away. To come back, an admin has to invite you again."
     },
     "invitations": {
       "title": "Invite people to the organization",
@@ -4356,13 +4356,19 @@
       "action": "Transfer ownership",
       "new_owner": "New owner",
       "confirm_label": "Type the organization name to confirm",
-      "confirm_hint": "Type “{{name}}” exactly.",
       "password_label": "Your current password",
       "no_candidate": "No active member is available to receive ownership yet.",
       "done": "Ownership transferred",
-      "confirm_mismatch": "Doesn't match “{{name}}”.",
+      "confirm_mismatch": "Doesn't match \"{{name}}\".",
       "loading_candidates": "Loading members…",
-      "candidates_error": "Couldn't load the members to choose from."
+      "candidates_error": "Couldn't load the members to choose from.",
+      "confirm_title": "Transfer ownership of {{name}}?",
+      "confirm_prompt": "Type <v>{{name}}</v> below.",
+      "consequences": {
+        "new_owner": "The person you pick becomes the owner, with full control of the organization.",
+        "you_admin": "You become an admin.",
+        "no_undo": "You can't take ownership back on your own."
+      }
     },
     "deactivated": {
       "title": "Your account in this organization has been deactivated",
@@ -4371,7 +4377,8 @@
     },
     "danger": {
       "title": "Danger zone",
-      "description": "These change who holds the organization, or take you out of it."
+      "description": "These change who holds the organization, or take you out of it.",
+      "description_member": "Leaving takes you out of every workspace inside it."
     },
     "reasons": {
       "leave_last_owner": "You are the owner. Transfer ownership to someone else before leaving.",
@@ -4396,7 +4403,15 @@
       "confirm_label": "Type the organization URL to confirm",
       "confirm_hint": "Type \"{{slug}}\" exactly.",
       "confirm_mismatch": "Doesn't match \"{{slug}}\".",
-      "done": "Organization closed"
+      "done": "Organization closed",
+      "confirm_lede": "Nothing is deleted, but the organization stops working.",
+      "confirm_prompt": "Type <v>{{slug}}</v> below.",
+      "consequences": {
+        "archived": "{{name}} is archived: every workspace and all its data stay.",
+        "no_access": "Nobody can open it any more, you included.",
+        "restore": "Only support can restore it.",
+        "billing": "Pending invitations are revoked and the paid plan is cancelled."
+      }
     }
   },
   "invitations": {
@@ -4562,18 +4577,22 @@
       "cta_create_named": "Create {{name}}",
       "cta_creating": "Creating…",
       "cta_open": "Continue with {{name}}",
-      "slug_taken_error": "That organization slug is already taken.",
+      "slug_taken_error": "That URL is already taken.",
       "headline_resume_many": "Pick your organization.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
       "hint_slug_needed": "Add a URL for your organization to create it.",
-      "create_failed_toast": "Couldn't create the organization. Please try again.",
+      "create_failed_toast": "Couldn't create the organization. Try again.",
       "picker_label": "Choose an organization",
       "url_preview_label": "Organization URL",
       "url_preview_prefix": "Everything in this organization lives under ",
       "url_preview_suffix": ".",
-      "already_member": "You are already a member of {{name}}. Each account can belong to only one organization. Leave your current organization before creating a new one.",
-      "already_member_unnamed": "You are already a member of an organization. Each account can belong to only one organization. Leave your current organization before creating a new one.",
-      "manage_organization": "Manage organization"
+      "manage_organization": "Manage organization",
+      "lede_resume_one": "The new workspace goes inside {{name}}. Each account belongs to one organization.",
+      "resume_other_org": "Need a different organization? Leave or close {{name}} first.",
+      "already_member_title": "You already belong to {{name}}",
+      "already_member_title_unnamed": "You already belong to an organization",
+      "already_member_body": "Each account belongs to one organization. To create a new one, leave or close your current organization first.",
+      "already_member_hint": "Your organization already exists."
     },
     "step_workspace": {
       "headline_first": "Name your workspace.",

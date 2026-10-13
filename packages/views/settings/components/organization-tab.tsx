@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useLeaveOrganization } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
@@ -15,7 +15,7 @@ import { CloseOrganizationDialog } from "./close-organization-dialog";
 import { OrgInvitationsSection } from "./org-invitations-section";
 import { OrgMembersSection } from "./org-members-section";
 import { decisionReason } from "./permission-reason";
-import { SettingsDangerZone, SettingsRow, SettingsTab } from "./settings-layout";
+import { SettingsDangerZone, SettingsRow, SettingsRowReason, SettingsTab } from "./settings-layout";
 import { TransferOwnershipDialog, useTransferCandidates } from "./transfer-ownership-dialog";
 
 /**
@@ -57,7 +57,12 @@ export function OrganizationTab() {
 
       {canManageMembers.allowed ? <OrgInvitationsSection orgSlug={orgSlug} /> : null}
 
-      <SettingsDangerZone title={t("org.danger.title")} description={t("org.danger.description")}>
+      {/* A plain member has only the Leave row, so the owner's sentence about
+          handing the organization over would describe actions they lack. */}
+      <SettingsDangerZone
+        title={t("org.danger.title")}
+        description={canTransferOwnership.allowed ? t("org.danger.description") : t("org.danger.description_member")}
+      >
         {canTransferOwnership.allowed ? (
           <OwnerRows orgSlug={orgSlug} organizationName={organizationName} leaveRow={leaveRow} />
         ) : (
@@ -80,19 +85,23 @@ export function OrganizationTab() {
   );
 }
 
+/**
+ * Danger-row actions share one width so their edges line up down the right
+ * column, whatever the label length.
+ */
+const DANGER_ACTION = "sm:min-w-36";
+
 function LeaveRow({ reason, allowed, onOpen }: { reason: string | null; allowed: boolean; onOpen: () => void }) {
   const { t } = useTranslation();
+  const descId = useId();
   return (
     <SettingsRow
       label={t("org.leave.title")}
+      descriptionId={descId}
       description={
         <>
           {t("org.leave.description")}
-          {reason ? (
-            <span id="org-leave-reason" className="mt-1 block text-foreground">
-              {reason}
-            </span>
-          ) : null}
+          {reason ? <SettingsRowReason>{reason}</SettingsRowReason> : null}
         </>
       }
       size="none"
@@ -100,8 +109,10 @@ function LeaveRow({ reason, allowed, onOpen }: { reason: string | null; allowed:
       <Button
         type="button"
         variant="destructive"
+        className={DANGER_ACTION}
         aria-disabled={!allowed || undefined}
-        aria-describedby={reason ? "org-leave-reason" : undefined}
+        // The consequence and, when there is one, the reason it is refused.
+        aria-describedby={descId}
         onClick={onOpen}
       >
         {t("org.leave.action")}
@@ -127,6 +138,8 @@ function OwnerRows({
   leaveRow: (reason: string | null) => ReactNode;
 }) {
   const { t } = useTranslation();
+  const transferDescId = useId();
+  const closeDescId = useId();
   const [transferOpen, setTransferOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const { canLeave, decideClose } = usePeoplePermissions(orgSlug);
@@ -136,14 +149,11 @@ function OwnerRows({
     <>
       <SettingsRow
         label={t("org.transfer.title")}
+        descriptionId={transferDescId}
         description={
           <>
             {t("org.transfer.description")}
-            {none ? (
-              <span id="org-transfer-reason" className="mt-1 block text-foreground">
-                {t("org.transfer.no_candidate")}
-              </span>
-            ) : null}
+            {none ? <SettingsRowReason>{t("org.transfer.no_candidate")}</SettingsRowReason> : null}
           </>
         }
         size="none"
@@ -151,16 +161,31 @@ function OwnerRows({
         <Button
           type="button"
           variant="outline"
+          className={DANGER_ACTION}
           aria-disabled={none || undefined}
-          aria-describedby={none ? "org-transfer-reason" : undefined}
-          onClick={() => setTransferOpen(true)}
+          aria-describedby={transferDescId}
+          onClick={() => {
+            if (none) return;
+            setTransferOpen(true);
+          }}
         >
           {t("org.transfer.action")}
         </Button>
       </SettingsRow>
       {canClose.allowed ? (
-        <SettingsRow label={t("org.close.title")} description={t("org.close.description")} size="none">
-          <Button type="button" variant="destructive" onClick={() => setCloseOpen(true)}>
+        <SettingsRow
+          label={t("org.close.title")}
+          descriptionId={closeDescId}
+          description={t("org.close.description")}
+          size="none"
+        >
+          <Button
+            type="button"
+            variant="destructive"
+            className={DANGER_ACTION}
+            aria-describedby={closeDescId}
+            onClick={() => setCloseOpen(true)}
+          >
             {t("org.close.action")}
           </Button>
         </SettingsRow>
@@ -181,6 +206,12 @@ function OwnerRows({
         organizationName={organizationName}
         open={closeOpen}
         onOpenChange={setCloseOpen}
+        // Somebody joined meanwhile: re-read the members so the picker has
+        // them, and go straight to the transfer.
+        onTransferInstead={() => {
+          retry();
+          setTransferOpen(true);
+        }}
       />
     </>
   );

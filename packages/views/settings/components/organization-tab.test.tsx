@@ -125,7 +125,7 @@ describe("OrganizationTab", () => {
     const leave = await screen.findByRole("button", { name: "Rời tổ chức" });
     await waitFor(() => expect(leave).toHaveAttribute("aria-disabled", "true"));
     expect(
-      screen.getByText("Bạn là chủ sở hữu. Chuyển quyền chủ sở hữu cho người khác trước khi rời."),
+      screen.getByText("Bạn là chủ sở hữu. Chuyển quyền sở hữu cho người khác trước khi rời."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Transfer ownership before leaving/)).not.toBeInTheDocument();
     fireEvent.click(leave);
@@ -286,8 +286,9 @@ describe("OrganizationTab", () => {
     // Leave stays inert and says where the way out is.
     const leave = screen.getByRole("button", { name: "Rời tổ chức" });
     expect(leave).toHaveAttribute("aria-disabled", "true");
+    // The consequence, then why it is refused.
     expect(leave).toHaveAccessibleDescription(
-      "Bạn là chủ sở hữu và là thành viên duy nhất. Đóng tổ chức thay vì rời.",
+      "Bạn mất quyền vào mọi workspace trong tổ chức này ngay lập tức. Bạn là chủ sở hữu và là thành viên duy nhất. Đóng tổ chức thay vì rời.",
     );
   });
 
@@ -325,9 +326,13 @@ describe("OrganizationTab", () => {
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Đóng tổ chức" }));
     expect(
-      await within(dialog).findByText("Tổ chức vẫn còn thành viên khác. Chuyển quyền chủ sở hữu trước khi đóng."),
+      await within(dialog).findByText("Tổ chức vẫn còn thành viên khác. Chuyển quyền sở hữu trước khi đóng."),
     ).toBeInTheDocument();
     expect(screen.queryByText("còn thành viên")).not.toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
+    // Pressing again cannot help; the transfer is offered in place.
+    expect(within(dialog).getByRole("button", { name: "Đóng tổ chức" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển quyền" }));
+    expect(await screen.findByRole("dialog", { name: "Chuyển quyền sở hữu Acme?" })).toBeInTheDocument();
   });
 });

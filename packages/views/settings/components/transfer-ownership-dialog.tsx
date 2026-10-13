@@ -1,22 +1,18 @@
 "use client";
 
+import { TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { useOrgMembers, useTransferOwnership } from "@uniwork/core/organizations";
 import type { OrgMember } from "@uniwork/core/types/people";
+import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog, DialogClose, DialogFooter } from "@uniwork/ui/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { toast } from "sonner";
+import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../../common/form-dialog";
 import { toastApiError } from "../../toast-api-error";
 import { SettingsFieldError } from "./settings-layout";
 import { TransferCandidateField, TransferPasswordField } from "./transfer-owner-fields";
@@ -63,6 +59,13 @@ export function useTransferCandidates(orgSlug: string, fetchAll: boolean): Trans
 }
 
 const normalize = (text: string) => text.normalize("NFC").trim();
+
+/** What changes for whom, one line each: the owner is giving up control. */
+const CONSEQUENCES = [
+  "org.transfer.consequences.new_owner",
+  "org.transfer.consequences.you_admin",
+  "org.transfer.consequences.no_undo",
+] as const;
 
 /**
  * Handing the organization to somebody else. Two deliberate frictions, because
@@ -138,13 +141,22 @@ export function TransferOwnershipDialog({
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogContent showCloseButton={!transfer.isPending}>
+      <FormDialogContent showCloseButton={!transfer.isPending}>
         <form onSubmit={submit}>
-          <DialogHeader>
-            <DialogTitle>{t("org.transfer.title")}</DialogTitle>
-            <DialogDescription>{t("org.transfer.description")}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
+          <FormDialogHeader title={t("org.transfer.confirm_title", { name: organizationName })} />
+          <FormDialogBody>
+            {/* A warning, not an error: nothing is lost, but it cannot be
+                undone alone. `note` keeps it from interrupting on open. */}
+            <Alert variant="warning" role="note">
+              <TriangleAlert aria-hidden />
+              <AlertDescription>
+                <ul className="list-disc space-y-1 pl-4 text-pretty">
+                  {CONSEQUENCES.map((key) => (
+                    <li key={key}>{t(key)}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
             <TransferCandidateField
               id="transfer-target"
               candidates={candidates}
@@ -156,18 +168,24 @@ export function TransferOwnershipDialog({
             />
             <Field>
               <FieldLabel htmlFor="transfer-confirm">{t("org.transfer.confirm_label")}</FieldLabel>
+              <FieldDescription id="transfer-confirm-hint">
+                <Trans
+                  t={t}
+                  i18nKey="org.transfer.confirm_prompt"
+                  values={{ name: organizationName }}
+                  components={{ v: <span className="font-medium text-foreground" /> }}
+                />
+              </FieldDescription>
               <Input
                 id="transfer-confirm"
                 value={confirmName}
                 onChange={(e) => setConfirmName(e.target.value)}
                 onBlur={() => setConfirmTouched(true)}
                 autoComplete="off"
+                spellCheck={false}
                 aria-invalid={showNameError || undefined}
                 aria-describedby={showNameError ? "transfer-confirm-hint transfer-confirm-error" : "transfer-confirm-hint"}
               />
-              <FieldDescription id="transfer-confirm-hint">
-                {t("org.transfer.confirm_hint", { name: organizationName })}
-              </FieldDescription>
               {showNameError ? (
                 <SettingsFieldError id="transfer-confirm-error">
                   {t("org.transfer.confirm_mismatch", { name: organizationName })}
@@ -175,10 +193,10 @@ export function TransferOwnershipDialog({
               ) : null}
             </Field>
             <TransferPasswordField id="transfer-password" value={password} onValueChange={setPassword} />
-          </div>
-          <DialogFooter showCloseButton={false}>
+          </FormDialogBody>
+          <DialogFooter className="items-center px-5 py-3">
             <DialogClose
-              render={<Button type="button" variant="ghost" aria-disabled={transfer.isPending || undefined} />}
+              render={<Button type="button" variant="outline" aria-disabled={transfer.isPending || undefined} />}
             >
               {t("common.cancel")}
             </DialogClose>
@@ -188,11 +206,13 @@ export function TransferOwnershipDialog({
               aria-disabled={!ready || undefined}
               aria-busy={transfer.isPending || undefined}
             >
+              {/* Decorative: aria-busy carries the state for assistive tech. */}
+              {transfer.isPending ? <Spinner data-icon="inline-start" /> : null}
               {t("org.transfer.action")}
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

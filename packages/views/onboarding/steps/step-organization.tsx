@@ -6,17 +6,20 @@ import { errorCode } from "@uniwork/core/api";
 import { appHost } from "@uniwork/core/config";
 import { useCreateOrganization } from "@uniwork/core/organizations";
 import { alreadyInOrganization } from "@uniwork/core/organizations/errors";
-import { paths } from "@uniwork/core/paths";
 import { holdsOrganization, type Organization } from "@uniwork/core/types";
-import { useWorkspaces } from "@uniwork/core/workspaces";
-import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
-import { AppLink } from "../../navigation";
 import { isSlugConflict } from "../../workspace/slug";
 import { pickerCardClass } from "../../common/picker-card";
 import { RadioCardGroup, RadioMark } from "../components/option-card";
 import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
 import { SlugFields, useSlugForm } from "../slug-field";
+import {
+  AlreadyInOrganizationNotice,
+  ManageOrganizationAction,
+  OtherOrganizationLine,
+  type HeldOrganization,
+} from "./already-in-organization-notice";
 
 /**
  * How a failed create should be reported. Deliberately NOT the server's
@@ -92,7 +95,14 @@ export function StepOrganization({
   const picked = held.find((o) => o.id === pickedId) ?? null;
   // The server refused a create because the account already belongs to an
   // organization (created in another tab, or joined meanwhile).
-  const [alreadyIn, setAlreadyIn] = useState<AlreadyIn | null>(null);
+  const [alreadyIn, setAlreadyIn] = useState<{ organization: HeldOrganization } | null>(null);
+  // Refused for the one-organization rule and still nothing to pick: the
+  // create form could only be refused again, so the step turns into the
+  // notice and its footer into the way to that organization.
+  const refused = alreadyIn !== null && !resume;
+  // One organization held: the picker has a single card, and the step says why
+  // there is no second one and where to go for a different organization.
+  const only = resume && held.length === 1 ? held[0]! : null;
 
   const isCreating = create.isPending;
   useEffect(() => {
@@ -157,7 +167,12 @@ export function StepOrganization({
   let label: string;
   let disabled: boolean;
   let onContinue: () => void;
-  if (picked) {
+  if (refused) {
+    hint = t("onboarding.step_organization.already_member_hint");
+    label = t("onboarding.step_organization.manage_organization");
+    disabled = false;
+    onContinue = () => {};
+  } else if (picked) {
     hint = t("onboarding.step_organization.hint_opening", { name: picked.name });
     label = t("onboarding.step_organization.cta_open", { name: picked.name });
     // The picker and the create form no longer share the screen (ADR 0032),
@@ -237,75 +252,57 @@ export function StepOrganization({
                 : t("onboarding.step_organization.headline_resume_many")
               : t("onboarding.step_organization.headline_first")
           }
-          description={resume ? t("onboarding.step_organization.lede_resume") : t("onboarding.step_organization.lede_first")}
+          description={
+            only
+              ? t("onboarding.step_organization.lede_resume_one", { name: only.name })
+              : resume
+                ? t("onboarding.step_organization.lede_resume")
+                : t("onboarding.step_organization.lede_first")
+          }
         />
-        {alreadyIn ? <AlreadyInOrganizationNotice organization={alreadyIn.organization} /> : null}
         {resume ? (
-          <RadioCardGroup label={t("onboarding.step_organization.picker_label")} className="flex flex-col gap-3">
-            {held.map((o) => (
-              <PickerCard
-                key={o.id}
-                selected={pickedId === o.id}
-                onSelect={() => setPickedId((p) => (p === o.id ? null : o.id))}
-                title={o.name}
-                subtitle={`${host}/${o.slug}`}
-                avatar={avatarInitial(o.name)}
-              />
-            ))}
-          </RadioCardGroup>
+          <div className="flex flex-col gap-3">
+            <RadioCardGroup label={t("onboarding.step_organization.picker_label")} className="flex flex-col gap-3">
+              {held.map((o) => (
+                <PickerCard
+                  key={o.id}
+                  selected={pickedId === o.id}
+                  onSelect={() => setPickedId((p) => (p === o.id ? null : o.id))}
+                  title={o.name}
+                  subtitle={`${host}/${o.slug}`}
+                  avatar={avatarInitial(o.name)}
+                />
+              ))}
+            </RadioCardGroup>
+            {only ? <OtherOrganizationLine organization={only} /> : null}
+          </div>
+        ) : refused ? (
+          <AlreadyInOrganizationNotice organization={alreadyIn.organization} />
         ) : (
           fields
         )}
       </div>
       <StepFooter hint={hint}>
-        <Button
-          size="lg"
-          className="w-full"
-          aria-disabled={disabled || undefined}
-          aria-describedby={STEP_HINT_ID}
-          // `aria-disabled` keeps the button focusable on purpose, so blocking
-          // the action in JS is the other half of that contract.
-          onClick={() => {
-            if (disabled) return;
-            onContinue();
-          }}
-        >
-          {label}
-        </Button>
+        {refused ? (
+          <ManageOrganizationAction organization={alreadyIn.organization} label={label} />
+        ) : (
+          <Button
+            size="lg"
+            className="w-full"
+            aria-disabled={disabled || undefined}
+            aria-describedby={STEP_HINT_ID}
+            // `aria-disabled` keeps the button focusable on purpose, so blocking
+            // the action in JS is the other half of that contract.
+            onClick={() => {
+              if (disabled) return;
+              onContinue();
+            }}
+          >
+            {label}
+          </Button>
+        )}
       </StepFooter>
     </>
-  );
-}
-
-type AlreadyIn = { organization: ReturnType<typeof alreadyInOrganization> };
-
-/**
- * FR-02: the account already belongs to an organization, so creating another
- * is refused. "Manage organization" opens that organization's settings in its
- * first workspace the person can open; with none, the new-workspace flow,
- * which creates one inside it. Mounted only once the refusal came back, so
- * the workspace list is read only then.
- */
-function AlreadyInOrganizationNotice({ organization }: { organization: AlreadyIn["organization"] }) {
-  const { t } = useTranslation();
-  const { data: workspaces, isFetched, isError } = useWorkspaces();
-  const first = organization ? workspaces?.find((w) => w.organization_id === organization.id) : undefined;
-  const href = first
-    ? `${paths.workspace(first.organization_slug, first.slug).settings()}?tab=organization`
-    : paths.newWorkspace();
-  return (
-    <div role="alert" className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-5 py-4">
-      <p className="text-body text-foreground">
-        {organization
-          ? t("onboarding.step_organization.already_member", { name: organization.name })
-          : t("onboarding.step_organization.already_member_unnamed")}
-      </p>
-      {isFetched || isError ? (
-        <AppLink href={href} className={buttonVariants({ variant: "outline", className: "w-fit" })}>
-          {t("onboarding.step_organization.manage_organization")}
-        </AppLink>
-      ) : null}
-    </div>
   );
 }
 

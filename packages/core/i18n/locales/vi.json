@@ -4327,7 +4327,7 @@
       "action": "Rời tổ chức",
       "done": "Đã rời tổ chức",
       "confirm_title": "Rời {{name}}?",
-      "confirm_body": "Bạn sẽ mất quyền vào mọi workspace trong {{name}}. Muốn quay lại, bạn cần một quản trị mời lại."
+      "confirm_body": "Bạn mất quyền vào mọi workspace trong {{name}} ngay lập tức. Muốn quay lại, cần một quản trị mời lại."
     },
     "invitations": {
       "title": "Mời vào tổ chức",
@@ -4350,18 +4350,24 @@
       "load_error": "Không tải được danh sách lời mời."
     },
     "transfer": {
-      "title": "Chuyển quyền chủ sở hữu",
+      "title": "Chuyển quyền sở hữu",
       "description": "Chủ sở hữu mới toàn quyền với tổ chức. Bạn trở thành quản trị và không tự lấy lại được.",
       "action": "Chuyển quyền",
       "new_owner": "Chủ sở hữu mới",
       "confirm_label": "Gõ tên tổ chức để xác nhận",
-      "confirm_hint": "Gõ đúng “{{name}}”.",
       "password_label": "Mật khẩu hiện tại của bạn",
       "no_candidate": "Chưa có thành viên nào đang hoạt động để nhận quyền.",
-      "done": "Đã chuyển quyền chủ sở hữu",
-      "confirm_mismatch": "Chưa khớp với “{{name}}”.",
+      "done": "Đã chuyển quyền sở hữu",
+      "confirm_mismatch": "Chưa khớp với \"{{name}}\".",
       "loading_candidates": "Đang tải danh sách thành viên…",
-      "candidates_error": "Không tải được danh sách thành viên để chọn."
+      "candidates_error": "Không tải được danh sách thành viên để chọn.",
+      "confirm_title": "Chuyển quyền sở hữu {{name}}?",
+      "confirm_prompt": "Gõ <v>{{name}}</v> vào ô dưới.",
+      "consequences": {
+        "new_owner": "Người bạn chọn trở thành chủ sở hữu, toàn quyền với tổ chức.",
+        "you_admin": "Bạn trở thành quản trị.",
+        "no_undo": "Bạn không tự lấy lại quyền sở hữu được."
+      }
     },
     "deactivated": {
       "title": "Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này",
@@ -4370,10 +4376,11 @@
     },
     "danger": {
       "title": "Vùng nguy hiểm",
-      "description": "Những thao tác này đổi người nắm tổ chức hoặc đưa bạn ra khỏi tổ chức."
+      "description": "Những thao tác này đổi người nắm tổ chức hoặc đưa bạn ra khỏi tổ chức.",
+      "description_member": "Rời tổ chức sẽ đưa bạn ra khỏi mọi workspace trong đó."
     },
     "reasons": {
-      "leave_last_owner": "Bạn là chủ sở hữu. Chuyển quyền chủ sở hữu cho người khác trước khi rời.",
+      "leave_last_owner": "Bạn là chủ sở hữu. Chuyển quyền sở hữu cho người khác trước khi rời.",
       "last_owner": "Quyền của chủ sở hữu chỉ đổi bằng cách chuyển quyền.",
       "member_deactivated": "Tài khoản của bạn trong tổ chức này đang bị vô hiệu hóa.",
       "not_org_member": "Bạn không còn là thành viên của tổ chức này.",
@@ -4384,7 +4391,7 @@
       "not_resource_owner": "Bạn không thực hiện được thao tác này với chính mình.",
       "fallback": "Bạn chưa thực hiện được thao tác này.",
       "leave_sole_owner": "Bạn là chủ sở hữu và là thành viên duy nhất. Đóng tổ chức thay vì rời.",
-      "organization_has_members": "Tổ chức vẫn còn thành viên khác. Chuyển quyền chủ sở hữu trước khi đóng."
+      "organization_has_members": "Tổ chức vẫn còn thành viên khác. Chuyển quyền sở hữu trước khi đóng."
     },
     "close": {
       "title": "Đóng tổ chức",
@@ -4395,7 +4402,15 @@
       "confirm_label": "Gõ đường dẫn tổ chức để xác nhận",
       "confirm_hint": "Gõ đúng \"{{slug}}\".",
       "confirm_mismatch": "Chưa khớp với \"{{slug}}\".",
-      "done": "Đã đóng tổ chức"
+      "done": "Đã đóng tổ chức",
+      "confirm_lede": "Không có gì bị xóa, nhưng tổ chức ngừng hoạt động.",
+      "confirm_prompt": "Gõ <v>{{slug}}</v> vào ô dưới.",
+      "consequences": {
+        "archived": "{{name}} được lưu trữ: mọi workspace và dữ liệu còn nguyên.",
+        "no_access": "Không ai mở được nữa, kể cả bạn.",
+        "restore": "Chỉ bộ phận hỗ trợ khôi phục được.",
+        "billing": "Lời mời đang chờ bị thu hồi và gói trả phí bị hủy."
+      }
     }
   },
   "invitations": {
@@ -4561,18 +4576,22 @@
       "cta_create_named": "Tạo {{name}}",
       "cta_creating": "Đang tạo…",
       "cta_open": "Tiếp tục với {{name}}",
-      "slug_taken_error": "Định danh tổ chức này đã có người dùng.",
+      "slug_taken_error": "Đường dẫn này đã có người dùng.",
       "headline_resume_many": "Chọn tổ chức của bạn.",
-      "slug_invalid_error": "Định danh không hợp lệ: chữ thường, số và dấu gạch ngang, 2–40 ký tự.",
+      "slug_invalid_error": "Đường dẫn không hợp lệ: chữ thường, số và dấu gạch ngang, 2–40 ký tự.",
       "hint_slug_needed": "Đặt đường dẫn cho tổ chức để tạo.",
-      "create_failed_toast": "Không tạo được tổ chức. Vui lòng thử lại.",
+      "create_failed_toast": "Không tạo được tổ chức. Thử lại.",
       "picker_label": "Chọn tổ chức",
       "url_preview_label": "Đường dẫn tổ chức",
       "url_preview_prefix": "Mọi thứ của tổ chức này nằm dưới ",
       "url_preview_suffix": ".",
-      "already_member": "Bạn đang là thành viên của {{name}}. Mỗi tài khoản chỉ có thể tham gia một tổ chức. Vui lòng rời tổ chức hiện tại trước khi tạo tổ chức mới.",
-      "already_member_unnamed": "Bạn đang là thành viên của một tổ chức. Mỗi tài khoản chỉ có thể tham gia một tổ chức. Vui lòng rời tổ chức hiện tại trước khi tạo tổ chức mới.",
-      "manage_organization": "Quản lý tổ chức"
+      "manage_organization": "Quản lý tổ chức",
+      "lede_resume_one": "Workspace mới sẽ nằm trong {{name}}. Mỗi tài khoản thuộc một tổ chức.",
+      "resume_other_org": "Cần tổ chức khác? Rời hoặc đóng {{name}} trước.",
+      "already_member_title": "Bạn đã thuộc {{name}}",
+      "already_member_title_unnamed": "Bạn đã thuộc một tổ chức",
+      "already_member_body": "Mỗi tài khoản chỉ thuộc một tổ chức. Muốn tạo tổ chức mới, rời hoặc đóng tổ chức hiện tại trước.",
+      "already_member_hint": "Tổ chức của bạn đã có sẵn."
     },
     "step_workspace": {
       "headline_first": "Đặt tên workspace.",

@@ -81,7 +81,7 @@ describe("StepOrganization", () => {
     renderStep({ onSelected });
     submit("Unicom");
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Không tạo được tổ chức. Vui lòng thử lại."),
+      expect(toast.error).toHaveBeenCalledWith("Không tạo được tổ chức. Thử lại."),
     );
     expect(onSelected).not.toHaveBeenCalled();
     // The CTA is back to its idle label, which is exactly why the failure has
@@ -95,7 +95,7 @@ describe("StepOrganization", () => {
     renderStep();
     submit("Unicom");
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent("Định danh không hợp lệ"),
+      expect(screen.getByRole("alert")).toHaveTextContent("Đường dẫn không hợp lệ"),
     );
     expect(screen.queryByText(serverSentence)).not.toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
@@ -107,7 +107,7 @@ describe("StepOrganization", () => {
     renderStep();
     submit("Unicom");
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Không tạo được tổ chức. Vui lòng thử lại."),
+      expect(toast.error).toHaveBeenCalledWith("Không tạo được tổ chức. Thử lại."),
     );
     expect(toast.error).not.toHaveBeenCalledWith(serverSentence);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -181,8 +181,9 @@ describe("StepOrganization", () => {
     render(wrapWithNav(<StepOrganization organizations={[]} selected={null} onSelected={() => {}} />));
     submit("Acme");
     const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Bạn đã thuộc Unicom");
     expect(alert).toHaveTextContent(
-      "Bạn đang là thành viên của Unicom. Mỗi tài khoản chỉ có thể tham gia một tổ chức. Vui lòng rời tổ chức hiện tại trước khi tạo tổ chức mới.",
+      "Mỗi tài khoản chỉ thuộc một tổ chức. Muốn tạo tổ chức mới, rời hoặc đóng tổ chức hiện tại trước.",
     );
     expect(screen.queryByText("đã thuộc tổ chức")).not.toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
@@ -191,6 +192,54 @@ describe("StepOrganization", () => {
         "href",
         "/unicom/team/settings?tab=organization",
       ),
+    );
+  });
+
+  it("replaces the create form with the way to the organization once refused, so nothing invites a second refusal", async () => {
+    signIn();
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/workspaces"
+        ? Promise.resolve({ workspaces: [] })
+        : Promise.reject(
+            new ApiError("đã thuộc tổ chức", "already_in_organization", 409, undefined, {
+              organization: { id: "o1", name: "Unicom", slug: "unicom" },
+            }),
+          ),
+    );
+    render(wrapWithNav(<StepOrganization organizations={[]} selected={null} onSelected={() => {}} />));
+    submit("Acme");
+    await screen.findByRole("alert");
+    expect(screen.queryByLabelText("Tên tổ chức")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tạo Acme" })).not.toBeInTheDocument();
+    expect(visibleHint()).toBe("Tổ chức của bạn đã có sẵn.");
+    // The footer's primary control is the link, and there is exactly one.
+    await waitFor(() => expect(screen.getAllByRole("link", { name: "Quản lý tổ chức" })).toHaveLength(1));
+  });
+
+  it("explains a one-card picker and points at the organization's settings for a different one", async () => {
+    signIn();
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/workspaces"
+        ? Promise.resolve({
+            workspaces: [
+              {
+                id: "w1",
+                slug: "team",
+                name: "Team",
+                organization_id: "o1",
+                organization_slug: "unicom",
+                organization_name: "Unicom",
+              },
+            ],
+          })
+        : Promise.resolve({}),
+    );
+    render(wrapWithNav(<StepOrganization organizations={[org]} selected={null} onSelected={() => {}} />));
+    expect(screen.getByText("Workspace mới sẽ nằm trong Unicom. Mỗi tài khoản thuộc một tổ chức.")).toBeInTheDocument();
+    expect(await screen.findByText("Cần tổ chức khác? Rời hoặc đóng Unicom trước.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Quản lý tổ chức" })).toHaveAttribute(
+      "href",
+      "/unicom/team/settings?tab=organization",
     );
   });
 
