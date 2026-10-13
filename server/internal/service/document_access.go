@@ -326,3 +326,130 @@ func (s *DocumentService) FilterDocumentReadersQ(ctx context.Context, q *db.Quer
 	}
 	return out, nil
 }
+
+// DocumentReadState is what an inbox row's document still is for its
+// recipient (G8-07 §4.6). readable keeps the row and its snippet; access_lost
+// drops the snippet but keeps the link; gone hides the link too.
+type DocumentReadState string
+
+const (
+	DocumentReadable   DocumentReadState = "readable"
+	DocumentAccessLost DocumentReadState = "access_lost"
+	DocumentGone       DocumentReadState = "gone"
+)
+
+// maxFilterReadableDocuments bounds one batch: an inbox page holds at most
+// maxLimit (100) rows, so a caller never asks about more documents than that.
+const maxFilterReadableDocuments = 100
+
+// FilterReadableDocuments answers one person against many documents (G8-07
+// §4.6): the Inbox needs "this recipient on a page of documents", the mirror
+// of FilterDocumentReaders' "many people on one document". It dedupes the
+// ids, reads existence and trash for all of them in one ListExistingDocumentIDs
+// query, runs the organization gate once per distinct organization, and
+// resolves the level once per surviving document. Cost is therefore bounded
+// by the number of distinct documents on the page (roughly 100 × a few
+// queries), and only for rows whose resource_type is document.
+//
+// A document that is missing, archived or deleted is gone (mirrors
+// decideDocumentAccess hiding archived rows below manage); one the recipient
+// may no longer read is access_lost; anything else is readable. Ids past the
+// batch cap are refused rather than silently half-answered.
+func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID string, documentIDs []string) (map[string]DocumentReadState, error) {
+	out := make(map[string]DocumentReadState, len(documentIDs))
+	if userID == "" {
+		return out, nil
+	}
+	ids := make([]string, 0, len(documentIDs))
+	seen := make(map[string]bool, len(documentIDs))
+	for _, id := range documentIDs {
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	if len(ids) > maxFilterReadableDocuments {
+		return nil, Invalid("tối đa 100 tài liệu mỗi lần")
+	}
+	rows, err := s.q.ListExistingDocumentIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	live := make(map[string]db.ListExistingDocumentIDsRow, len(rows))
+	for _, r := range rows {
+		live[r.ID] = r
+	}
+	// The organization gate is the same for every document of one tenant, so
+	// a page that spans one organization pays for it once.
+	orgOK := make(map[string]bool, 2)
+	for _, id := range ids {
+		row, ok := live[id]
+		if !ok || row.ArchivedAt.Valid {
+			out[id] = DocumentGone
+			continue
+		}
+		ok, err := s.orgReadable(ctx, row.OrganizationID, userID, orgOK)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			out[id] = DocumentAccessLost
+			continue
+		}
+		level, err := s.documentReadLevel(ctx, userID, id)
+		if err != nil {
+			return nil, err
+		}
+		if level {
+			out[id] = DocumentReadable
+		} else {
+			out[id] = DocumentAccessLost
+		}
+	}
+	return out, nil
+}
+
+// orgReadable runs OrganizationService.RequireMember once per organization
+// and memoizes the answer; a closed tenant is "not readable", not an error,
+// because the inbox row still renders (with its snippet dropped).
+func (s *DocumentService) orgReadable(ctx context.Context, orgID, userID string, memo map[string]bool) (bool, error) {
+	if v, ok := memo[orgID]; ok {
+		return v, nil
+	}
+	_, err := s.orgs.RequireMember(ctx, orgID, userID)
+	switch {
+	case err == nil:
+		memo[orgID] = true
+		return true, nil
+	case isGateRefusal(err):
+		memo[orgID] = false
+		return false, nil
+	default:
+		return false, err
+	}
+}
+
+// documentReadLevel reads the document and resolves the recipient's level
+// through the same gate every document read uses; a document that vanished
+// between the existence read and here is gone, a refusal is not readable.
+func (s *DocumentService) documentReadLevel(ctx context.Context, userID, documentID string) (bool, error) {
+	doc, err := s.q.GetDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	access, err := s.resolveLevel(ctx, s.q, Human(userID), doc)
+	if err != nil {
+		if isGateRefusal(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return decideDocumentAccess(doc, access, DocumentLevelView) == nil, nil
+}

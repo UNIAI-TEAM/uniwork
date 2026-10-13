@@ -107,6 +107,21 @@ SELECT id FROM tasks WHERE id = ANY(sqlc.arg('ids')::text[]);
 -- tenant: by-id
 SELECT id FROM meetings WHERE id = ANY(sqlc.arg('ids')::text[]);
 
+-- name: ListExistingDocumentIDs :many
+-- tenant: by-id
+-- The document rows behind an inbox page (G8-07 section 4.6): one query
+-- answers existence and trash for up to a page of ids, so Service.List
+-- resolves resource_deleted / resource_access_lost without a query per row.
+-- organization_id rides along so the read gate runs once per organization.
+SELECT id, organization_id, archived_at FROM documents WHERE id = ANY(sqlc.arg('ids')::text[]);
+
+-- name: ListExistingDocumentCommentIDs :many
+-- tenant: by-id
+-- The live comments behind an inbox page (G8-07 section 1): a notification
+-- that names a comment which is gone (hard delete) or tombstoned (deleted_at
+-- set) gets comment_deleted=true. Only live rows come back.
+SELECT id FROM document_comments WHERE id = ANY(sqlc.arg('ids')::text[]) AND deleted_at IS NULL;
+
 -- name: ListNotificationPreferences :many
 SELECT * FROM notification_preferences WHERE user_id = $1;
 

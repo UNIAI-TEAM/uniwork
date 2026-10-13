@@ -6,7 +6,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -173,6 +178,151 @@ func TestDocumentAccessLog(t *testing.T) {
 		rows, err := f.svc.ListDocumentAccessLogs(f.ctx, Human(tn.outsider.ID), owned.ID, DocumentAccessLogQuery{})
 		if err != nil || len(rows) != 1 || rows[0].Via != "owner" {
 			t.Fatalf("owned log: %v %+v", err, rows)
+		}
+	})
+}
+
+// countingTracer counts every query the pool sends, so a test can prove
+// FilterReadableDocuments is bounded by the number of documents on the page
+// and never by the number of notifications that name them.
+type countingTracer struct{ n atomic.Int64 }
+
+func (c *countingTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryStartData) context.Context {
+	c.n.Add(1)
+	return ctx
+}
+func (c *countingTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+// tracedDocumentService builds a DocumentService whose pool counts queries;
+// the fixture pool keeps the migrations and the session advisory lock.
+func tracedDocumentService(t *testing.T, base *pgxpool.Pool) (*DocumentService, *countingTracer) {
+	t.Helper()
+	cfg := base.Config()
+	counter := &countingTracer{}
+	cfg.ConnConfig.Tracer = counter
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	q := db.New(pool)
+	orgs := NewOrganizationService(pool, q)
+	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	return NewDocumentService(pool, q, orgs, ws), counter
+}
+
+// G8-07 §4.6: one recipient against a page of documents. A page of 100
+// notifications over 100 documents is bounded by the document count (never a
+// query per notification), duplicates are deduped, and revoked / archived /
+// deleted answer access_lost / gone / gone.
+func TestFilterReadableDocuments(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "frd")
+	svc, counter := tracedDocumentService(t, f.pool)
+	// The plain member reads a workspace-visible document without a share.
+	doc := func() db.Document {
+		return f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+	}
+
+	t.Run("bounded by the document count, deduped across notifications", func(t *testing.T) {
+		const docs = 100
+		ids := make([]string, 0, docs)
+		for i := 0; i < docs; i++ {
+			ids = append(ids, doc().ID)
+		}
+		before := counter.n.Load()
+		states, err := svc.FilterReadableDocuments(f.ctx, tn.member.ID, ids)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(states) != docs {
+			t.Fatalf("states = %d, want %d", len(states), docs)
+		}
+		for _, s := range states {
+			if s != DocumentReadable {
+				t.Fatalf("state = %q, want readable", s)
+			}
+		}
+		spent := counter.n.Load() - before
+		// 1 existence read + 1 memoized org gate + a small per-document cost
+		// (row read + level resolve). Never more than a handful per document.
+		if spent < int64(docs) {
+			t.Fatalf("query count %d does not scale with the %d documents", spent, docs)
+		}
+		if spent > int64(docs)*5+4 {
+			t.Fatalf("query count %d exceeds the per-document bound for %d documents", spent, docs)
+		}
+
+		// The same documents named by many notifications (duplicates) cost
+		// the same: the ids are deduped before any query.
+		dup := make([]string, 0, docs)
+		for i := 0; i < docs; i++ {
+			dup = append(dup, ids[i%10])
+		}
+		before = counter.n.Load()
+		states, err = svc.FilterReadableDocuments(f.ctx, tn.member.ID, dup)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(states) != 10 {
+			t.Fatalf("deduped states = %d, want 10", len(states))
+		}
+		if spentDup := counter.n.Load() - before; spentDup > 5*10+4 {
+			t.Fatalf("duplicate ids cost %d queries; dedupe did not happen", spentDup)
+		}
+	})
+
+	t.Run("revoked share is access_lost", func(t *testing.T) {
+		restricted := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		share := f.share(t, restricted, DocumentPrincipalUser, tn.outsider.ID, DocumentLevelView, tn.aclOwner.ID)
+		states, err := svc.FilterReadableDocuments(f.ctx, tn.outsider.ID, []string{restricted.ID})
+		if err != nil || states[restricted.ID] != DocumentReadable {
+			t.Fatalf("shared read = %v, %v", states, err)
+		}
+		if err := f.q.RevokeDocumentShare(f.ctx, db.RevokeDocumentShareParams{
+			ID: share.ID, OrganizationID: tn.orgID, WorkspaceID: tn.wsA, DocumentID: restricted.ID,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		states, err = svc.FilterReadableDocuments(f.ctx, tn.outsider.ID, []string{restricted.ID})
+		if err != nil || states[restricted.ID] != DocumentAccessLost {
+			t.Fatalf("revoked read = %v, %v", states, err)
+		}
+	})
+
+	t.Run("archived and deleted are gone", func(t *testing.T) {
+		archived := doc()
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET archived_at = now() WHERE id = $1`, archived.ID); err != nil {
+			t.Fatal(err)
+		}
+		deleted := doc()
+		if _, err := f.pool.Exec(f.ctx, `DELETE FROM documents WHERE id = $1`, deleted.ID); err != nil {
+			t.Fatal(err)
+		}
+		unknown := util.NewID()
+		states, err := svc.FilterReadableDocuments(f.ctx, tn.member.ID, []string{archived.ID, deleted.ID, unknown})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{archived.ID, deleted.ID, unknown} {
+			if states[id] != DocumentGone {
+				t.Fatalf("state[%s] = %q, want gone", id, states[id])
+			}
+		}
+	})
+
+	t.Run("a non-member is access_lost", func(t *testing.T) {
+		d := doc()
+		states, err := svc.FilterReadableDocuments(f.ctx, tn.outsider.ID, []string{d.ID})
+		if err != nil || states[d.ID] != DocumentAccessLost {
+			t.Fatalf("outsider read = %v, %v", states, err)
+		}
+	})
+
+	t.Run("empty input is an empty answer", func(t *testing.T) {
+		states, err := svc.FilterReadableDocuments(f.ctx, tn.member.ID, nil)
+		if err != nil || len(states) != 0 {
+			t.Fatalf("empty = %v, %v", states, err)
 		}
 	})
 }
