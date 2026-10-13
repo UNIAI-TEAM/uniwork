@@ -146,3 +146,11 @@ test("the three vendored files name one fork commit in their header", () => {
   });
   assert.equal(new Set(shas).size, 1, `the vendored files come from different fork commits: ${shas.join(", ")}`);
 });
+
+test("the vendored protocol carries the OQ-C2 comments.create anchor rule", () => {
+  const source = normaliseVendored(readFileSync(join(OFFICE_DIR, VENDORED_FILES.protocol), "utf8"));
+  assert.match(source, /function isCommentCreateAnchorShape\(/, "the fork's anchor-shape helper is vendored");
+  const validator = source.slice(source.indexOf("'request:comments.create'"), source.indexOf("'request:comments.update'"));
+  assert.match(validator, /isCommentCreateAnchorShape\(x\)/, "request:comments.create validates the OQ-C2 shape (root comment anchored, reply and discussion not)");
+  assert.doesNotMatch(validator, /x\.anchor === undefined \|\| x\.base_version_id !== undefined/, "the older anchor-needs-base-only check is gone");
+});
