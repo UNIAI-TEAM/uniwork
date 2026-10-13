@@ -171,20 +171,21 @@ func officeEstimate(s string) int {
 // each module <= 1200, every assembled variant <= 2000 — with the draft's
 // estimator, pinned on purpose: the provider tokenizer of the target models
 // is not vendored in the repo, and the estimator over-counts English BPE
-// (chars/3.5 is ~15% above ~4 chars/token). The numbers must equal the draft
-// §3 table; wording changes move them and fail here too.
+// (chars/3.5 is ~15% above ~4 chars/token). The numbers are the draft §3 table
+// re-measured after the review round 1 wording (g14-w7-fix-report.md);
+// wording changes move them and fail here too.
 func TestOfficePackTokenCaps(t *testing.T) {
 	p := officePack(t)
 	wantEst := map[string]int{
-		"common": 721, "sheets": 977, "docs": 552, "slides": 236, "pdf": 252, "markdown": 214, "html": 164,
+		"common": 796, "sheets": 1054, "docs": 571, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
 	}
 	commonVariant := p.System + "\n" + UntrustedFooter
 	if got := officeEstimate(commonVariant); got != wantEst["common"] || got > 800 {
-		t.Errorf("common+footer estimate %d (draft %d), cap 800", got, wantEst["common"])
+		t.Errorf("common+footer estimate %d (pinned %d), cap 800", got, wantEst["common"])
 	}
 	for _, m := range officeModuleSections {
 		if got := officeEstimate(p.Sections[m.section]); got != wantEst[m.section] || got > 1200 {
-			t.Errorf("%s estimate %d (draft %d), cap 1200", m.section, got, wantEst[m.section])
+			t.Errorf("%s estimate %d (pinned %d), cap 1200", m.section, got, wantEst[m.section])
 		}
 	}
 	// The A2 cap is on the assembled turn: common + the largest module + the
@@ -202,8 +203,8 @@ func TestOfficePackTokenCaps(t *testing.T) {
 			worst = got
 		}
 	}
-	if worst != 1698 {
-		t.Errorf("worst assembled estimate %d, draft §3 says 1698", worst)
+	if worst != 1850 {
+		t.Errorf("worst assembled estimate %d, pinned 1850", worst)
 	}
 }
 
@@ -212,8 +213,13 @@ func TestOfficePackTokenCaps(t *testing.T) {
 // Regenerating the goldens does not re-pin a version — to change wording,
 // bump office_uniwork_ai to @2 and add its pin, so a usage row's prompt_id
 // keeps explaining the text that was actually sent.
+//
+// The @1 pin was updated in place once, with the G6-14 review round 1 wording
+// (UNI-1369): @1 had never left the lane branch (not merged, never served),
+// so no usage row could name the earlier text. That exception closes when @1
+// is merged.
 var officePackPins = map[string]string{
-	"office_uniwork_ai@1": "40aa47c1b45ce3776a780f40b46dbef94e9f362aa0b64066727395c2cd465187",
+	"office_uniwork_ai@1": "fe7dac535227fa477856dd754e14da1e79a644c4f1070b3f6b4579a5c2a16156",
 }
 
 // officePackDigest is sha256 over the released text of one pack version in
@@ -287,6 +293,9 @@ type officeProvisionalEntry struct {
 	Question string `json:"question"`
 	Section  string `json:"section"`
 	Text     string `json:"text"`
+	// Note says why a row is provisional when the question alone does not
+	// (a review finding, or a defect that lives outside the pack).
+	Note string `json:"note,omitempty"`
 }
 
 var officeQuestionRE = regexp.MustCompile(`^Q[1-9]$`)
