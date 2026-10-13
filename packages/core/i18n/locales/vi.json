@@ -4588,6 +4588,8 @@
     "noOrganization": {
       "title": "Bạn chưa thuộc tổ chức nào",
       "description": "Mỗi tài khoản thuộc một tổ chức. Tạo tổ chức của riêng bạn, hoặc tham gia tổ chức đã mời bạn.",
+      "held_title": "Bạn đang thuộc {{name}}",
+      "held_description": "Mỗi tài khoản thuộc một tổ chức, nên bạn chưa thể tạo tổ chức mới. Bạn vẫn có thể mở lời mời của tổ chức khác.",
       "create_title": "Tạo tổ chức",
       "create_body": "Bắt đầu tổ chức và workspace đầu tiên. Bạn là chủ sở hữu.",
       "create_action": "Tạo tổ chức",
@@ -5100,7 +5102,7 @@
     "suspended": {
       "title": "Tổ chức đang tạm ngưng",
       "description": "Tổ chức này tạm thời không truy cập được. Liên hệ chủ sở hữu tổ chức để biết thêm.",
-      "get_started_link": "Tạo hoặc tham gia tổ chức khác"
+      "get_started_link": "Tham gia tổ chức khác"
     },
     "overview": {
       "title": "Tổng quan",

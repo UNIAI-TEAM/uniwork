@@ -2,8 +2,9 @@
 import { ChevronRight, CircleAlert, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@uniwork/core/auth";
+import { useOrganizations } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
-import type { PendingInvitation } from "@uniwork/core/types";
+import { holdsOrganization, type PendingInvitation } from "@uniwork/core/types";
 import { useMyInvitations } from "@uniwork/core/workspaces";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -21,23 +22,34 @@ const CARD = "flex flex-col gap-4 rounded-lg border border-border bg-surface p-5
  * (the new-workspace flow, which starts with the organization step), or open
  * one of the invitations waiting for this address. Each invitation goes
  * through its own page, so joining has one flow wherever it starts.
+ *
+ * A suspended organization still holds its members (ADR 0032 D1), and its
+ * notice links here too: such a person is told so and is offered only the
+ * invitations, since founding another organization would be refused.
  */
 export function NoOrganizationView() {
   const { t } = useTranslation(undefined, { keyPrefix: "onboarding.noOrganization" });
+  const { data: organizations, isLoading } = useOrganizations();
+  const held = organizations?.find(holdsOrganization);
   return (
-    <AuthShell title={t("title")} description={t("description")}>
+    <AuthShell
+      title={held ? t("held_title", { name: held.name }) : t("title")}
+      description={held ? t("held_description") : t("description")}
+    >
       <div className="flex flex-col gap-4">
-        <section aria-labelledby="get-started-create" className={CARD}>
-          <div className="flex flex-col gap-1">
-            <h2 id="get-started-create" className="text-title-sm font-semibold text-foreground">
-              {t("create_title")}
-            </h2>
-            <p className="text-body text-muted-foreground">{t("create_body")}</p>
-          </div>
-          <AppLink href={paths.newWorkspace()} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
-            {t("create_action")}
-          </AppLink>
-        </section>
+        {held || isLoading ? null : (
+          <section aria-labelledby="get-started-create" className={CARD}>
+            <div className="flex flex-col gap-1">
+              <h2 id="get-started-create" className="text-title-sm font-semibold text-foreground">
+                {t("create_title")}
+              </h2>
+              <p className="text-body text-muted-foreground">{t("create_body")}</p>
+            </div>
+            <AppLink href={paths.newWorkspace()} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
+              {t("create_action")}
+            </AppLink>
+          </section>
+        )}
         <section aria-labelledby="get-started-join" className={CARD}>
           <div className="flex flex-col gap-1">
             <h2 id="get-started-join" className="text-title-sm font-semibold text-foreground">

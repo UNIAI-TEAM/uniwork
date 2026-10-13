@@ -54,8 +54,8 @@ describe("NoOrganizationView", () => {
   it("offers to create an organization through the new-workspace flow", async () => {
     requestMock.mockResolvedValue({ invitations: [] });
     renderView();
+    const create = await screen.findByRole("region", { name: "Tạo tổ chức" });
     expect(screen.getByRole("heading", { level: 1, name: "Bạn chưa thuộc tổ chức nào" })).toBeInTheDocument();
-    const create = screen.getByRole("region", { name: "Tạo tổ chức" });
     expect(within(create).getByRole("link", { name: "Tạo tổ chức" })).toHaveAttribute("href", "/workspaces/new");
     await screen.findByText(/Chưa có lời mời nào/);
   });
@@ -75,6 +75,30 @@ describe("NoOrganizationView", () => {
     expect(second).toHaveAttribute("href", "/invite/tok-org");
     expect(second).not.toHaveTextContent("›");
     expect(screen.queryByText(/Chưa có lời mời nào/)).not.toBeInTheDocument();
+  });
+
+  it("does not offer to create an organization to someone a suspended organization still holds (ADR 0032 D1)", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/orgs"
+        ? Promise.resolve({ organizations: [{ id: "o9", slug: "paused", name: "Paused", role: "member", status: "suspended" }] })
+        : Promise.resolve({ invitations: [orgInvite] }),
+    );
+    renderView();
+    expect(await screen.findByRole("heading", { level: 1, name: "Bạn đang thuộc Paused" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Tạo tổ chức" })).not.toBeInTheDocument();
+    const join = screen.getByRole("region", { name: "Tham gia tổ chức" });
+    expect(await within(join).findByRole("link", { name: /Beta/ })).toHaveAttribute("href", "/invite/tok-org");
+  });
+
+  it("offers to create one when the only membership was switched off", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/orgs"
+        ? Promise.resolve({ organizations: [{ id: "o9", slug: "old", name: "Old", status: "active", deactivated: true }] })
+        : Promise.resolve({ invitations: [] }),
+    );
+    renderView();
+    expect(await screen.findByRole("region", { name: "Tạo tổ chức" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Bạn chưa thuộc tổ chức nào" })).toBeInTheDocument();
   });
 
   it("without an invitation, says whom to ask and for which address", async () => {

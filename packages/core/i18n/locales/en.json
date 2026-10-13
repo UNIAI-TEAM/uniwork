@@ -4592,6 +4592,8 @@
     "noOrganization": {
       "title": "You're not in an organization yet",
       "description": "Each account belongs to one organization. Create your own, or join one that invited you.",
+      "held_title": "You belong to {{name}}",
+      "held_description": "Each account belongs to one organization, so you cannot create another for now. You can still open an invitation from another organization.",
       "create_title": "Create an organization",
       "create_body": "Start an organization and its first workspace. You will be its owner.",
       "create_action": "Create organization",
@@ -5104,7 +5106,7 @@
     "suspended": {
       "title": "Organization suspended",
       "description": "This organization is temporarily unavailable. Contact the organization owner for details.",
-      "get_started_link": "Create or join another organization"
+      "get_started_link": "Join another organization"
     },
     "overview": {
       "title": "Overview",

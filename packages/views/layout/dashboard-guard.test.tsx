@@ -38,8 +38,9 @@ describe("DashboardGuard when the organization is suspended", () => {
       ),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent("Tổ chức đang tạm ngưng");
-    // One organization per account (ADR 0032): the way out is to create or join another.
-    expect(screen.getByRole("link", { name: "Tạo hoặc tham gia tổ chức khác" })).toHaveAttribute(
+    // A suspended organization still holds its members (ADR 0032 D1), so the
+    // way out offers joining another, not founding one.
+    expect(screen.getByRole("link", { name: "Tham gia tổ chức khác" })).toHaveAttribute(
       "href",
       "/get-started",
     );

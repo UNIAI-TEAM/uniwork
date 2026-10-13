@@ -12,8 +12,9 @@ import { AppLink } from "../navigation";
  * workspace route answers 403 organization_suspended, so the shell shows
  * this instead of the page. Reason-free by design — the reason is between
  * the platform and the owner, not on every member's screen. The way out is
- * /get-started (ADR 0032): a member may leave a suspended organization and
- * join another through an invitation.
+ * /get-started (ADR 0032): a suspended organization still holds its members
+ * (D1), so that page offers only the invitations — a member may leave a
+ * suspended organization on the way into another, never found a second one.
  */
 export function OrganizationSuspendedPage() {
   const { t } = useTranslation(undefined, { keyPrefix: "admin.suspended" });
