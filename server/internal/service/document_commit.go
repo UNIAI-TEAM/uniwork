@@ -173,6 +173,9 @@ func (s *DocumentService) preflightDocument(ctx context.Context, actor Actor, do
 	if doc.ArchivedAt.Valid {
 		return db.Document{}, DocumentAccess{}, errDocumentDeleted()
 	}
+	if err := refuseFolder(doc); err != nil {
+		return db.Document{}, DocumentAccess{}, err
+	}
 	if doc.Kind != DocumentKindFile {
 		return db.Document{}, DocumentAccess{}, Invalid("chỉ tài liệu file nhận phiên bản tệp")
 	}

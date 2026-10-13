@@ -2,7 +2,9 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 )
 
 var (
@@ -52,6 +54,21 @@ var ErrMemberDeactivated = errors.New("member_deactivated")
 
 func errMemberDeactivated() error {
 	return CodedError{Code: "member_deactivated", Status: http.StatusForbidden, Msg: "tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này", Err: ErrMemberDeactivated}
+}
+
+// ErrOrganizationDeletionScheduled is what both membership gates answer for a
+// member of an organization whose deletion is waiting out its five days. The
+// owner still passes, so they can download files and cancel.
+var ErrOrganizationDeletionScheduled = errors.New("organization_deletion_scheduled")
+
+func errOrganizationDeletionScheduled(at time.Time) error {
+	when := at.In(time.FixedZone("ICT", 7*3600)).Format("02/01/2006")
+	return CodedError{
+		Code:   "organization_deletion_scheduled",
+		Status: http.StatusForbidden,
+		Msg:    fmt.Sprintf("tổ chức sẽ bị xóa vào %s. Chỉ chủ sở hữu còn vào được.", when),
+		Err:    ErrOrganizationDeletionScheduled,
+	}
 }
 
 // errInvitationForAnotherEmail refuses an invitation redeemed by an account

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { request, requestBlob } from "../http";
+import { request } from "../http";
 import { parseWithFallback } from "../schema";
 import { DESKTOP_INSTALLER_KINDS, DESKTOP_PLATFORMS, isDesktopPlatform, type DesktopPlatform, type OfficeInstallerOption } from "../../office/desktop-platform";
 import type { OfficeChannel } from "../../office/desktop-handoff";
@@ -83,8 +83,14 @@ export function officeInstallerOptions(raw: unknown, channel: OfficeChannel): Of
   return options;
 }
 
-export async function getOfficeDesktopDownload(organizationId: string, channel: OfficeChannel = "stable"): Promise<OfficeDesktopDownload | null> {
-  const raw = await request(`/api/v1/office/desktop/download?organization_id=${encodeURIComponent(organizationId)}&channel=${encodeURIComponent(channel)}`);
+/**
+ * The organization's installers for one channel. Naming a `platform` is the
+ * download click: the server audits it and answers only that installer, whose
+ * URL the browser then downloads straight from the release host.
+ */
+export async function getOfficeDesktopDownload(organizationId: string, channel: OfficeChannel = "stable", platform?: DesktopPlatform): Promise<OfficeDesktopDownload | null> {
+  const selected = platform ? `&platform=${encodeURIComponent(platform)}` : "";
+  const raw = await request(`/api/v1/office/desktop/download?organization_id=${encodeURIComponent(organizationId)}&channel=${encodeURIComponent(channel)}${selected}`);
   const profile = parseWithFallback<WireDownload | null>(raw, OfficeDesktopDownloadSchema, null, { endpoint: "GET /api/v1/office/desktop/download" });
   if (!profile || profile.channel !== channel) return null;
   const supported = profile.supported_platforms?.filter(isDesktopPlatform) ?? DESKTOP_PLATFORMS;
@@ -95,10 +101,4 @@ export async function getOfficeDesktopDownload(organizationId: string, channel: 
     if (row && supported.includes(platform)) installers.push({ ...row, platform, channel });
   }
   return { installers, supported_platforms: supported, server_origin: profile.server_origin, channel, client_id: profile.client_id, deployment_id: profile.deployment_id };
-}
-
-export async function downloadOfficeDesktopBundle(organizationId: string, channel: OfficeChannel, platform: DesktopPlatform): Promise<Blob> {
-  const blob = await requestBlob(`/api/v1/office/desktop/download?organization_id=${encodeURIComponent(organizationId)}&channel=${encodeURIComponent(channel)}&bundle=true&platform=${encodeURIComponent(platform)}`);
-  if (blob.type !== "application/zip") throw new Error("invalid desktop installer bundle response");
-  return blob;
 }
