@@ -52,7 +52,7 @@ export interface FrameCommentsBinding {
   detach(): void;
 }
 
-export interface UseFrameCommentsOptions {
+interface UseFrameCommentsOptions {
   wsId: string;
   /** The document's effective level for the user (`my_level`); absent = decided from the token. */
   myLevel?: string | null;
@@ -60,7 +60,7 @@ export interface UseFrameCommentsOptions {
   revealCommentId?: string | null;
 }
 
-export interface FrameComments {
+interface FrameComments {
   binding: FrameCommentsBinding;
   /**
    * The frame answered `init` with `comments`: its panel is the one comments panel of this

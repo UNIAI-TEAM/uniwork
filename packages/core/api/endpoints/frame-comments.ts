@@ -15,7 +15,7 @@ import { parseWithFallback } from "../schema";
 const enc = encodeURIComponent;
 
 /** A comment as the server wrote it. Only the identity is checked; the frame validates the rest. */
-export type FrameWireComment = { id: string; document_id: string } & Record<string, unknown>;
+type FrameWireComment = { id: string; document_id: string } & Record<string, unknown>;
 
 const WireComment = z.looseObject({ id: z.string(), document_id: z.string() });
 const CommentResponse = z.looseObject({ comment: WireComment });
@@ -37,16 +37,16 @@ const AnchorsResponse = z.looseObject({
 const CandidatesResponse = z.looseObject({ candidates: z.array(z.looseObject({})) });
 
 /** `unchanged` is its own shape: the frame keeps the list it holds, nothing here may replace it. */
-export type FrameCommentList =
+type FrameCommentList =
   | { unchanged: true; list_token: string }
   | { unchanged: false; comments: FrameWireComment[]; mentions: Record<string, unknown>[]; list_token: string };
 
-export interface FrameCommentListQuery {
+interface FrameCommentListQuery {
   kind?: string;
   since_token?: string;
 }
 
-export interface FrameCommentCreateBody {
+interface FrameCommentCreateBody {
   kind: string;
   body: string;
   parent_id?: string;
@@ -54,7 +54,7 @@ export interface FrameCommentCreateBody {
   base_version_id?: string;
 }
 
-export interface FrameCommentAnchorsBody {
+interface FrameCommentAnchorsBody {
   version_id: string;
   anchors: unknown[];
 }
