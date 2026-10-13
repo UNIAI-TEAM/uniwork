@@ -115,12 +115,6 @@ func (s *RunStorePG) AddCredits(ctx context.Context, runID, conversationID strin
 	})
 }
 
-// Sweep implements RunStore: both reasons, one count.
-func (s *RunStorePG) Sweep(ctx context.Context, now time.Time) (int64, error) {
-	expired, orphan, err := sweepUniworkRuns(ctx, s.queries, now)
-	return expired + orphan, err
-}
-
 // runTurnRefusal classifies a turn that reserved nothing (design §4.2): past
 // its window or gone is run_expired, a spent cap is run_limit_reached with the
 // cap in fields.limit. The final branch is the lost race - a sweep or the
@@ -151,7 +145,9 @@ func runFromRow(row db.AiUniworkRun) Run {
 
 // sweepUniworkRuns deletes the runs past their window and the runs whose
 // conversation is gone, in batches so one pass holds no long transaction and
-// reports how many of each this pass removed (design §3.4).
+// reports how many of each this pass removed (design §3.4). The TTL worker
+// reaches it through ConversationStorePG.SweepRuns, the entry that keeps the
+// reason split the runs_swept_total counter needs.
 func sweepUniworkRuns(ctx context.Context, q *db.Queries, now time.Time) (int64, int64, error) {
 	var expired, orphan int64
 	for i := 0; i < uniworkRunSweepMaxBatches; i++ {
