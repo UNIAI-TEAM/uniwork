@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "version": "0.1.0-7e082de",
-  "gitSha": "7e082de",
+  "version": "0.1.0-811107c",
+  "gitSha": "811107c",
   "entry": "index.html",
-  "manifestSha256": "ed08e4e95592c5cb1bdcd7fef1497272c429ba0cf38d291139e31d461ec1a292",
+  "manifestSha256": "1bdcf679954725198b876c4a16c4b483eb8f753d9446e81030fc99147d92c0ce",
   "headers": {
     "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
   },
   "protocolSha256": {
-    "protocol": "5fb4b35ab77cb8d2be555e0896bcb283db0a597b12f2b44bb85db9d77405000a",
+    "protocol": "0e82cf98e7b74c0a5c7e0bf6b23531054a53c272ce601ac3625ba214de748ab3",
     "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
-    "host": "6918f975c181f9d2425350a33326d7d0d61be6ca173b1924a838583ebfa97134"
+    "host": "990ab357e7e37e8453a54ca1b8dacecebec6fd3b41958a84f2afe590713bb8b0"
   }
 }
