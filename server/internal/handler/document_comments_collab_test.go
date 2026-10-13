@@ -154,8 +154,8 @@ func TestDocumentCommentCollabTombstoneHTTP(t *testing.T) {
 		t.Fatalf("the reply did not survive: %v", rows[1])
 	}
 
-	// A reply to the frame, an edit and a resolve are all 409 comment_deleted,
-	// deliberately without an error_class.
+	// A reply to the frame, an edit, a resolve and a reaction (add or remove)
+	// are all 409 comment_deleted, deliberately without an error_class.
 	for _, tc := range []struct {
 		name   string
 		method string
@@ -166,6 +166,8 @@ func TestDocumentCommentCollabTombstoneHTTP(t *testing.T) {
 		{"edit", "PATCH", commentPath, map[string]any{"body": "sửa khung"}},
 		{"resolve", "POST", commentPath + "/resolve", nil},
 		{"reopen", "DELETE", commentPath + "/resolve", nil},
+		{"react", "POST", commentPath + "/reactions", map[string]any{"emoji": "👍"}},
+		{"unreact", "DELETE", commentPath + "/reactions", map[string]any{"emoji": "👍"}},
 	} {
 		res, out := doJSON(t, w.srv, tc.method, tc.path, w.member, tc.body)
 		code, class := errCodeClass(out)

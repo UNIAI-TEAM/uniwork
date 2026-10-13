@@ -179,6 +179,21 @@ func loadInResource[C any](ctx context.Context, q *db.Queries, ad commentAdapter
 	return c, nil
 }
 
+// loadLiveInResource is loadInResource for a reaction: a tombstone is the
+// terminal state of a deleted comment (contract-collab section 2.4), so its
+// reactions, already dropped with the body, may not come back - add and
+// remove both answer comment_deleted.
+func loadLiveInResource[C any](ctx context.Context, q *db.Queries, ad commentAdapter[C], ref CommentRef, commentID string) error {
+	c, err := loadInResource(ctx, q, ad, ref, commentID)
+	if err != nil {
+		return err
+	}
+	if ad.identity(c).Deleted {
+		return errCommentDeleted()
+	}
+	return nil
+}
+
 // checkCommentParent validates an optional reply target: it must exist in
 // the tenant pair and hang on the same resource. A comment id from a
 // sibling task/document is refused - never silently adopted. The loaded
@@ -412,7 +427,7 @@ func dropCommentReaction(ctx context.Context, q *db.Queries, ref CommentRef, com
 // belong to ref's resource through the adapter before comment_reactions is
 // touched.
 func reactToCommentOn[C any](ctx context.Context, q *db.Queries, ad commentAdapter[C], ref CommentRef, actor Actor, commentID, emoji string) (db.CommentReaction, error) {
-	if _, err := loadInResource(ctx, q, ad, ref, commentID); err != nil {
+	if err := loadLiveInResource(ctx, q, ad, ref, commentID); err != nil {
 		return db.CommentReaction{}, err
 	}
 	emoji, err := validateReactionEmoji(emoji)
@@ -435,7 +450,7 @@ func reactToCommentOn[C any](ctx context.Context, q *db.Queries, ad commentAdapt
 
 // unreactToCommentOn is the shared reaction remove; a no-op audits nothing.
 func unreactToCommentOn[C any](ctx context.Context, q *db.Queries, ad commentAdapter[C], ref CommentRef, actor Actor, commentID, emoji string) error {
-	if _, err := loadInResource(ctx, q, ad, ref, commentID); err != nil {
+	if err := loadLiveInResource(ctx, q, ad, ref, commentID); err != nil {
 		return err
 	}
 	emoji, err := validateReactionEmoji(emoji)
