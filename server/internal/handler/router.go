@@ -102,6 +102,9 @@ type Deps struct {
 	// OfficeCapabilities answers the app capability route (X-03): which
 	// Office features are enabled for one organization. nil answers 503.
 	OfficeCapabilities *service.OfficeCapabilitiesService
+	// DocumentChanges is the Office change feed (G5-01a). When omitted, New
+	// derives it from Documents, FeatureFlags and the deployment config.
+	DocumentChanges *service.DocumentChangesService
 
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
@@ -147,6 +150,9 @@ func New(d Deps) http.Handler {
 	}
 	if d.OfficeCapabilities == nil && d.Organizations != nil {
 		d.OfficeCapabilities = service.NewOfficeCapabilitiesService(d.Organizations, d.FeatureFlags)
+	}
+	if d.DocumentChanges == nil && d.Documents != nil {
+		d.DocumentChanges = service.NewDocumentChangesService(d.Documents, d.FeatureFlags, d.Cfg)
 	}
 	if d.OfficeLaunch == nil && d.Documents != nil {
 		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
@@ -699,6 +705,7 @@ func New(d Deps) http.Handler {
 
 		ListDocuments:          h.listDocuments,
 		ListRecentDocuments:    h.listRecentDocuments,
+		ListDocumentChanges:    h.listDocumentChanges,
 		ListSharedWithMe:       h.listSharedWithMe,
 		DocumentTree:           h.getDocumentTree,
 		MoveDocument:           h.moveDocument,

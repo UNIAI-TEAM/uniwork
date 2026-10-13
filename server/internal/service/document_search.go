@@ -129,24 +129,42 @@ type documentListScope struct {
 // shared with them is theirs to read without joining the workspace
 // (resolveLevel does the same).
 func (s *DocumentService) documentListScope(ctx context.Context, actor Actor, workspaceID string) (documentListScope, error) {
+	return s.documentListScopeQ(ctx, s.q, actor, workspaceID)
+}
+
+// documentListScopeQ is documentListScope read through q, for a caller that
+// holds a transaction: the gate reads on that connection (and its snapshot)
+// instead of borrowing a second one from the pool. Same decision, same
+// errors (see WorkspaceService.RequireMemberQ).
+func (s *DocumentService) documentListScopeQ(ctx context.Context, q *db.Queries, actor Actor, workspaceID string) (documentListScope, error) {
 	if !validActor(actor) || workspaceID == "" {
 		return documentListScope{}, ErrNotFound
 	}
-	w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	w, err := q.GetWorkspaceByID(ctx, workspaceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return documentListScope{}, ErrNotFound
 	}
 	if err != nil {
 		return documentListScope{}, err
 	}
+	return s.documentListScopeForWorkspace(ctx, q, actor, workspaceID, w)
+}
+
+// documentListScopeForWorkspace is documentListScopeQ for a caller that
+// already read the workspace row through the same q (the change feed reads
+// it inside its snapshot transaction to learn the organization id).
+func (s *DocumentService) documentListScopeForWorkspace(ctx context.Context, q *db.Queries, actor Actor, workspaceID string, w db.Workspace) (documentListScope, error) {
+	if !validActor(actor) || workspaceID == "" {
+		return documentListScope{}, ErrNotFound
+	}
 	scope := documentListScope{organizationID: w.OrganizationID, actorID: actor.ID}
 	switch actor.Kind {
 	case audit.KindHuman:
-		if _, err := s.orgs.RequireMember(ctx, w.OrganizationID, actor.ID); err != nil {
+		if _, err := s.orgs.RequireMemberQ(ctx, q, w.OrganizationID, actor.ID); err != nil {
 			return documentListScope{}, err
 		}
 		scope.allowShares = true
-		m, err := s.ws.RequireMember(ctx, workspaceID, actor.ID)
+		m, err := s.ws.RequireMemberQ(ctx, q, workspaceID, actor.ID)
 		switch {
 		case err == nil:
 			if m.Role == "owner" || m.Role == "admin" {
@@ -160,7 +178,7 @@ func (s *DocumentService) documentListScope(ctx context.Context, actor Actor, wo
 		default:
 			return documentListScope{}, err
 		}
-		wss, err := s.ws.ListForUser(ctx, actor.ID)
+		wss, err := q.ListWorkspacesForUser(ctx, actor.ID)
 		if err != nil {
 			return documentListScope{}, err
 		}
@@ -173,7 +191,7 @@ func (s *DocumentService) documentListScope(ctx context.Context, actor Actor, wo
 		// Agents never pass a share leg and never see restricted documents;
 		// memberVisible keeps their predicate to the workspace-visible set
 		// while aclOwner and allowShares stay false.
-		if _, err := s.ws.RequireAgentMember(ctx, workspaceID, actor.ID); err != nil {
+		if _, err := s.ws.RequireAgentMemberQ(ctx, q, workspaceID, actor.ID); err != nil {
 			return documentListScope{}, err
 		}
 		scope.memberVisible = true

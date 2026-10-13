@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 )
@@ -18,14 +17,20 @@ import (
 // invariant, the provenance pair and the conversion-reason vocabulary all
 // hold at the database so service bugs cannot silently write bad shapes.
 
-func insertRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, table string, cols map[string]any) {
+func insertRow(t *testing.T, ctx context.Context, pool rowExecer, table string, cols map[string]any) {
 	t.Helper()
 	if err := insertRowE(ctx, pool, table, cols); err != nil {
 		t.Fatalf("insert %s: %v", table, err)
 	}
 }
 
-func insertRowE(ctx context.Context, pool *pgxpool.Pool, table string, cols map[string]any) error {
+// rowExecer is a pool or a transaction, so a test can insert a row inside a
+// transaction it commits later.
+type rowExecer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+func insertRowE(ctx context.Context, pool rowExecer, table string, cols map[string]any) error {
 	names, args := make([]string, 0, len(cols)), make([]any, 0, len(cols))
 	marks := make([]string, 0, len(cols))
 	for k, v := range cols {

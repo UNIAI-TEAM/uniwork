@@ -30,6 +30,7 @@ type Registry struct {
 	WebVitals     *WebVitals
 	Documents     *Documents
 	Office        *Office
+	OfficeChanges *OfficeChangeFeed
 	Billing       *Billing
 	Graph         *Graph
 	Readiness     *Readiness
@@ -89,6 +90,8 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	reg.MustRegister(documentMetrics.Collectors()...)
 	officeMetrics := NewOffice()
 	reg.MustRegister(officeMetrics.Collectors()...)
+	officeChangeMetrics := NewOfficeChangeFeed()
+	reg.MustRegister(officeChangeMetrics.Collectors()...)
 	billingMetrics := NewBilling()
 	reg.MustRegister(billingMetrics.Collectors()...)
 	graphMetrics := NewGraph()
@@ -107,6 +110,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		WebVitals:     webVitals,
 		Documents:     documentMetrics,
 		Office:        officeMetrics,
+		OfficeChanges: officeChangeMetrics,
 		Billing:       billingMetrics,
 		Graph:         graphMetrics,
 		Readiness:     readinessMetrics,
