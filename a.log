@@ -1,0 +1,15 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -12
+231a92f4ae3d55a643b6036d51868164df7293bb
+7e082de3b58755bfcc036baa61a60169624280c6
+231a92f4 merge: G8-20 keep a mention chip when @ is typed right before it (W20J)
+b4715aa4 fix(ui): anchor an ambiguous composer edit on the caret so a chip survives a typed @
+d66293ce test(ui): pin the chip kept when @ is typed right before a mention (red)
+18aa816a test(ui): expect Send usable after the reload that follows a failed send
+6aa19205 merge: G8-20 reset the reveal subscription on editor realm replacement (W20E, D2-2)
+588bc316 merge: G8-20 collab visual r1 fixes for the panel and thread (W20I)
+dd635ccc fix(ui): collab visual r1 fixes for the panel and thread
+344c0d1b test(ui): pin the collab visual r1 fixes for the panel and thread (red)
+bd26c3ce fix(uniwork): reset the reveal subscription when the editor realm is replaced (D2-2)
+60f7553c test(uniwork): pin the reveal hold across an editor realm reset (D2-2)
+ab9c20a3 merge: G8-20 visual r1 composer fixes (W20H)
+cd3a47d1 fix(ui): show a picked mention as @Name in the composer, one focus ring

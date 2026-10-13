@@ -1,0 +1,14 @@
+$ npm test -w @genoffice/ui
+
+> @genoffice/ui@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+
+ Test Files  36 passed (36)
+      Tests  721 passed (721)
+   Start at  13:38:47
+   Duration  6.23s (transform 1.80s, setup 0ms, import 3.81s, tests 3.46s, environment 7.94s)
+

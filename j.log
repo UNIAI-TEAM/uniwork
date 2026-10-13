@@ -1,0 +1,131 @@
+$ git checkout 88523056 -- apps/shell/src/main/uniwork-docs/comments-wiring.ts; (cd apps/shell && npx vitest run tests/uniwork-comments-reveal-reload.test.ts); B=$?; git checkout HEAD -- apps/shell; git status --short apps/shell; echo "RED_EXIT shell=$B"; test $B -ne 0 && echo RED_AS_EXPECTED_D22
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ❯ tests/uniwork-comments-reveal-reload.test.ts (6 tests | 5 failed) 9ms
+     × a deferred push across a reload stays held and the new realm pulls it once (probe) 5ms
+     × a reveal decided after the reload, before the new realm pulls, stays held 1ms
+     × a main-frame commit (did-navigate) resets too 1ms
+     × a crashed renderer drops the subscription, so the next pull gets the reveal 1ms
+     × a closed editor's subscription does not outlive it: the reopened editor pulls the hold 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > a deferred push across a reload stays held and the new realm pulls it once (probe)
+AssertionError: expected null to deeply equal { …(2) }
+
+- Expected:
+{
+  "commentId": "new-after-reload",
+  "path": "/home/u/UniWork/Plan.docx",
+}
+
++ Received:
+null
+
+ ❯ tests/uniwork-comments-reveal-reload.test.ts:150:32
+    148|     expect(editor.received).toEqual([]) // the push never reached a mo…
+    149|     editor.arm() // the new realm mounts its listener and pulls
+    150|     expect(await pull(editor)).toEqual({ path: PATH, commentId: 'new-a…
+       |                                ^
+    151|     expect(await pull(editor)).toBeNull() // delivered once
+    152|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > a reveal decided after the reload, before the new realm pulls, stays held
+AssertionError: expected null to deeply equal { …(2) }
+
+- Expected:
+{
+  "commentId": "01J8X4CMTN0000000000000001",
+  "path": "/home/u/UniWork/Plan.docx",
+}
+
++ Received:
+null
+
+ ❯ tests/uniwork-comments-reveal-reload.test.ts:168:32
+    166|     handle.reveal(PATH, CMT) // handed straight to a realm whose liste…
+    167|     expect(editor.received).toEqual([])
+    168|     expect(await pull(editor)).toEqual({ path: PATH, commentId: CMT })
+       |                                ^
+    169|     expect(await pull(editor)).toBeNull()
+    170|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > a main-frame commit (did-navigate) resets too
+AssertionError: expected null to deeply equal { …(2) }
+
+- Expected:
+{
+  "commentId": "01J8X4CMTN0000000000000001",
+  "path": "/home/u/UniWork/Plan.docx",
+}
+
++ Received:
+null
+
+ ❯ tests/uniwork-comments-reveal-reload.test.ts:179:32
+    177|     editor.commit()
+    178|     handle.reveal(PATH, CMT)
+    179|     expect(await pull(editor)).toEqual({ path: PATH, commentId: CMT })
+       |                                ^
+    180|     expect(await pull(editor)).toBeNull()
+    181|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > a crashed renderer drops the subscription, so the next pull gets the reveal
+AssertionError: expected null to deeply equal { …(2) }
+
+- Expected:
+{
+  "commentId": "01J8X4CMTN0000000000000001",
+  "path": "/home/u/UniWork/Plan.docx",
+}
+
++ Received:
+null
+
+ ❯ tests/uniwork-comments-reveal-reload.test.ts:190:32
+    188|     editor.crash() // the renderer process died; the realm is gone
+    189|     handle.reveal(PATH, CMT) // not loading: the push is sent into the…
+    190|     expect(await pull(editor)).toEqual({ path: PATH, commentId: CMT })
+       |                                ^
+    191|     expect(await pull(editor)).toBeNull()
+    192|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > a closed editor's subscription does not outlive it: the reopened editor pulls the hold
+AssertionError: expected null to deeply equal { …(2) }
+
+- Expected:
+{
+  "commentId": "01J8X4CMTN0000000000000001",
+  "path": "/home/u/UniWork/Plan.docx",
+}
+
++ Received:
+null
+
+ ❯ tests/uniwork-comments-reveal-reload.test.ts:207:34
+    205|     reopened.finishLoading()
+    206|     reopened.arm()
+    207|     expect(await pull(reopened)).toEqual({ path: PATH, commentId: CMT …
+       |                                  ^
+    208|     expect(await pull(reopened)).toBeNull()
+    209|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 1 passed (6)
+   Start at  13:39:22
+   Duration  235ms (transform 114ms, setup 0ms, import 135ms, tests 9ms, environment 0ms)
+
+RED_EXIT shell=1
+RED_AS_EXPECTED_D22

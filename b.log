@@ -1,0 +1,7 @@
+$ FORMAT_BASE_REF=7e082de3 npm run format:check
+
+> genoffice@0.1.0 format:check
+> node tools/format-changed.mjs --check
+
+Checking formatting...
+All matched files use Prettier code style!
