@@ -48,9 +48,11 @@ func TestDocumentContentRevision(t *testing.T) {
 		for _, dispatch := range []struct {
 			name string
 			sync bool
-		}{{"web", false}, {"desktop/dispatch", true}} {
+		}{{"web", false}, {"desktop", true}} {
 			t.Run("move then "+dispatch.name+" commit is committed", func(t *testing.T) {
-				created := env.createFile(t, member, "moved-"+dispatch.name+".pdf", pdfBody("moved-v1"))
+				// BE-G5-3: a marker and a slash-free filename per iteration, so
+				// the two routes never share upload bytes or a name.
+				created := env.createFile(t, member, "moved-"+dispatch.name+"-v1.pdf", pdfBody("moved-"+dispatch.name+"-v1"))
 				parent := env.page(t, member, json.RawMessage(`{"type":"doc","content":[]}`))
 				moved, err := env.svc.MoveDocument(ctx, member, created.Document.ID, MoveDocumentInput{
 					ParentID: parent.Document.ID, Revision: created.Document.Revision, IdempotencyKey: util.NewID(),
@@ -62,7 +64,7 @@ func TestDocumentContentRevision(t *testing.T) {
 				if moved.Document.ContentRevision != created.Document.ContentRevision {
 					t.Fatalf("move changed content_revision: %d -> %d", created.Document.ContentRevision, moved.Document.ContentRevision)
 				}
-				up := env.upload(t, member, created.Document.ID, "moved-v2.pdf", pdfBody("moved-v2"))
+				up := env.upload(t, member, created.Document.ID, "moved-"+dispatch.name+"-v2.pdf", pdfBody("moved-"+dispatch.name+"-v2"))
 				res, err := env.commitSync(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID(), dispatch.sync)
 				mustf(t, err, "commit on the pre-move base")
 				if res.Document.Revision != moved.Document.Revision+1 || res.Document.ContentRevision != res.Document.Revision {

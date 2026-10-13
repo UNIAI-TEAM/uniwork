@@ -83,11 +83,12 @@ var docWorkspaceWriteByParams = func() map[string]docWorkspaceWrite {
 }()
 
 // The SQL half of the write detector. A statement writes a document's
-// workspace_id when an UPDATE documents assigns it in its SET clause (an
-// INSERT ... ON CONFLICT is the upsert spelling of the same), or an INSERT INTO
-// documents names the column in its column list. Either is a hand-written or
-// newly added way to move a document between workspaces and must be registered
-// in docWorkspaceWrites.
+// workspace_id when an UPDATE documents assigns it in its SET clause, or an
+// INSERT INTO documents names workspace_id anywhere - its column list, an
+// INSERT ... SELECT that projects or filters the column, or an ON CONFLICT
+// ... DO UPDATE SET workspace_id (the upsert spelling of the same). Either is a
+// hand-written or newly added way to move a document between workspaces and
+// must be registered in docWorkspaceWrites.
 //
 // The match runs over a WHOLE statement, never a line (BE-G4-2): the repo lays
 // its queries out with UPDATE documents on one line and SET workspace_id = ...
@@ -104,9 +105,11 @@ var (
 	whereClause = regexp.MustCompile(`(?i)\bwhere\b`)
 	// workspaceAssignment is the write itself.
 	workspaceAssignment = regexp.MustCompile(`(?i)\bworkspace_id\s*=`)
-	// insertDocumentsColumns is an INSERT INTO documents whose column list names
-	// workspace_id.
-	insertDocumentsColumns = regexp.MustCompile(`(?i)\binsert\s+into\s+documents\s*\([^)]*\bworkspace_id\b`)
+	// insertDocuments finds an INSERT INTO documents statement (unanchored, as
+	// the r4 regex was, so a leading CTE does not hide it).
+	insertDocuments = regexp.MustCompile(`(?i)\binsert\s+into\s+documents\b`)
+	// workspaceColumn is the workspace_id column named anywhere in a statement.
+	workspaceColumn = regexp.MustCompile(`(?i)\bworkspace_id\b`)
 )
 
 // writesDocumentWorkspace answers whether one normalized SQL statement writes a
@@ -124,7 +127,14 @@ func writesDocumentWorkspace(stmt string) bool {
 			}
 		}
 	}
-	return insertDocumentsColumns.MatchString(stmt)
+	// The INSERT leg is deliberately fail-closed: any INSERT INTO documents
+	// that names workspace_id at all is treated as a write of it, whatever the
+	// spelling - the column list, an INSERT ... SELECT that projects or filters
+	// the column, or an ON CONFLICT ... DO UPDATE SET workspace_id (the upsert
+	// spelling). The r4 regex had this reach and the column-list-only match lost
+	// it (BE-G5-1): a false positive only asks the author to register the query
+	// in docWorkspaceWrites, while a miss lets a workspace write through.
+	return insertDocuments.MatchString(stmt) && workspaceColumn.MatchString(stmt)
 }
 
 // isWorkspaceName answers whether one identifier names a workspace, whatever
@@ -512,6 +522,13 @@ UPDATE documents SET workspace_id = sqlc.arg(workspace_id) WHERE id = sqlc.arg(i
 		{"INSERT copying into another workspace is flagged", `-- name: CopyDocument :one
 INSERT INTO documents (id, workspace_id, source_document_id)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(source_document_id))`, []string{"CopyDocument"}},
+		{"INSERT ... ON CONFLICT DO UPDATE SET workspace_id is flagged", `-- name: UpsertDocument :one
+INSERT INTO documents (id, title)
+VALUES (sqlc.arg(id), sqlc.arg(title))
+ON CONFLICT (id) DO UPDATE SET workspace_id = sqlc.arg(workspace_id)`, []string{"UpsertDocument"}},
+		{"INSERT ... SELECT naming workspace_id outside its column list is flagged", `-- name: CopyDocumentsInto :one
+INSERT INTO documents (id, title)
+SELECT id, title FROM documents WHERE workspace_id = sqlc.arg(workspace_id)`, []string{"CopyDocumentsInto"}},
 		{"an UPDATE that only filters on workspace_id is not flagged", `-- name: RenameDocument :one
 UPDATE documents
 SET title = sqlc.arg(title)
