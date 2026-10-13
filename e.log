@@ -1,0 +1,17 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && AI_PROVIDER=fake go test -race -count=1 -v ./internal/service/ -run 'AIUniwork|TestAuditCoverage'
+=== RUN   TestAIUniworkConcurrencyBound
+--- PASS: TestAIUniworkConcurrencyBound (0.00s)
+=== RUN   TestAIUniworkFormatTokens
+--- PASS: TestAIUniworkFormatTokens (0.00s)
+=== RUN   TestAIUniworkEveryFrameModuleReachesThePack
+--- PASS: TestAIUniworkEveryFrameModuleReachesThePack (0.00s)
+=== RUN   TestAIUniworkOrgBoundWithoutRedis
+--- PASS: TestAIUniworkOrgBoundWithoutRedis (0.00s)
+=== RUN   TestAIUniworkLeasesExpireIndependently
+    ai_uniwork_test.go:163: REDIS_TEST_URL not set
+--- SKIP: TestAIUniworkLeasesExpireIndependently (0.00s)
+=== RUN   TestAIUniworkRedisErrorFailsOpen
+--- PASS: TestAIUniworkRedisErrorFailsOpen (0.10s)
+PASS
+redis: 2026/10/13 08:16:58 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:39369: connect: connection refused
+ok  	github.com/unicomhub/uniwork/server/internal/service	1.209s
