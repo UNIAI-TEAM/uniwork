@@ -22,6 +22,8 @@ func TestTokenIDs(t *testing.T) {
 		{"bare url is not a token", "mention://member/" + idA, nil},
 		{"link without label is not a token", "(mention://member/" + idA + ")", nil},
 		{"token in inline code is not a mention", "`[@A](mention://member/" + idA + ")`", nil},
+		{"token inside a double-backtick span is not a mention", "``a ` [@A](mention://member/" + idA + ") b``", nil},
+		{"a mismatched run inside the span does not shift the pairing", "[@A](mention://member/" + idA + ") ``a ` b`` [@B](mention://member/" + idB + ")", sort(idA, idB)},
 		{"text after a code span is parsed again", "`code` [@A](mention://member/" + idA + ")", []string{idA}},
 		{"id must be a 26-char ULID", "[@A](mention://member/" + idA[:25] + ")", nil},
 		{"empty body", "", nil},

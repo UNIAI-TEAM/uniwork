@@ -54,12 +54,14 @@ func TokenIDs(body string) []string {
 	return out
 }
 
-// outsideInlineCode splits a body into the runs outside `code` spans: each
-// backtick run toggles in and out, so text between them is code and is never
-// parsed for tokens.
+// outsideInlineCode splits a body into the runs outside `code` spans,
+// following CommonMark: a run of N backticks opens a code span and only a run
+// of exactly N backticks closes it, so a shorter or longer run inside is
+// literal text. Pairing runs by any length instead would let a single
+// backtick inside a double-backtick span close it early and turn a token the
+// renderer shows verbatim into a durable mention.
 func outsideInlineCode(body string) []string {
 	var out []string
-	inCode := false
 	last, i := 0, 0
 	for i < len(body) {
 		if body[i] != '`' {
@@ -70,14 +72,32 @@ func outsideInlineCode(body string) []string {
 		for j < len(body) && body[j] == '`' {
 			j++
 		}
-		if !inCode {
-			out = append(out, body[last:i])
+		open := j - i
+		closed, k := -1, j
+		for k < len(body) {
+			if body[k] != '`' {
+				k++
+				continue
+			}
+			m := k
+			for m < len(body) && body[m] == '`' {
+				m++
+			}
+			if m-k == open {
+				closed = m
+				break
+			}
+			k = m
 		}
-		inCode = !inCode
-		last = j
-		i = j
+		if closed < 0 {
+			// No equal-length closer: the run is literal text, keep scanning.
+			i = j
+			continue
+		}
+		out = append(out, body[last:i])
+		last, i = closed, closed
 	}
-	if !inCode {
+	if last < len(body) {
 		out = append(out, body[last:])
 	}
 	return out
