@@ -205,6 +205,7 @@ type BillingPaymentIntent struct {
 	ProviderTransactionNo pgtype.Text        `json:"provider_transaction_no"`
 	ProviderOrderInfo     pgtype.Text        `json:"provider_order_info"`
 	ProviderPayDate       pgtype.Text        `json:"provider_pay_date"`
+	ReconcileAttemptedAt  pgtype.Timestamptz `json:"reconcile_attempted_at"`
 }
 
 type CalendarConnection struct {
