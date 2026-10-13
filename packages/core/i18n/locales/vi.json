@@ -35,6 +35,42 @@
           "smallDialogs": "Các hộp thoại nhập liệu tránh mép màn hình nhỏ và sắp xếp lại phần tiêu đề để nội dung dễ thao tác hơn."
         },
         "note": "Kết nối email và các tính năng AI cần cấu hình tương ứng của tổ chức. Mỗi tính năng vẫn tuân theo quyền truy cập trong ứng dụng."
+      },
+      "v1_1_0": {
+        "title": "Dữ liệu tổ chức, Office và cập nhật Email Hub",
+        "summary": "Xuất và đặt lịch xóa dữ liệu tổ chức, khám phá UniWork Office, theo dõi phiên bản ứng dụng và sử dụng Email Hub, thanh toán VNPay ổn định hơn.",
+        "note": "Xuất và xóa dữ liệu tổ chức dành cho chủ sở hữu tổ chức. Trang Tài liệu phụ thuộc vào việc tổ chức có bật tính năng này. Nút tải bộ cài chỉ hiện với bản đã phát hành. Kết nối email và các tính năng AI vẫn cần cấu hình tương ứng của tổ chức.",
+        "features": {
+          "ca1d8c53d5022a921403f4dc38949d308db212f2e": "Chủ sở hữu có thể xuất dữ liệu nghiệp vụ của tổ chức thành tệp ZIP, đặt lịch xóa sau 5 ngày và hủy trước khi tác vụ chạy. Trong thời gian chờ xóa, thành viên không truy cập được; nhật ký hoạt động và hóa đơn được giữ lại.",
+          "cadea71f7d7b076297076d43eddb74258e3fbc453": "Trang Nhật ký cập nhật công khai tại /changelog liệt kê các phiên bản theo tháng với tính năng mới, cải tiến và sửa lỗi, có liên kết trên menu chính và chân trang.",
+          "c568278d78fe988cb444665922b5d161f58f487eb": "Trang giới thiệu UniWork Office tại /office với sáu trình soạn, ảnh màn hình thật và nút tải bộ cài theo hệ điều hành; chỉ bản cài đã phát hành mới hiện. Trang Tài liệu mới — thư mục, tạo tệp docx, pptx, pdf trống và tệp từ chat, việc, cuộc họp, Email Hub — dùng được khi tổ chức bật tính năng Tài liệu."
+        },
+        "improvements": {
+          "c71ffdf93b83f81b3b7b7bb3f6530b58373687b6e": "Trang giới thiệu hiển thị ảnh chụp thật của màn hình việc, trò chuyện, cuộc họp và trình soạn tài liệu, theo ngôn ngữ đang dùng và khớp giao diện sáng hoặc tối.",
+          "cb79dc17d1dbcc8783e58379bbf1ff2edb430d04a": "Email Hub tái sử dụng nội dung thư vừa tải trước trong 30 giây, giảm lượt tải lặp khi bạn di chuột qua danh sách.",
+          "c0b6f78a7b876b8a4c19fcb6d28edaf3c752019d4": "Email Hub tránh tải lại hộp thư nhiều lần cho cùng một sự kiện; yêu cầu tải danh sách không còn cần thiết được hủy."
+        },
+        "fixes": {
+          "c768fddab7062f11312bfa9bfd8d50c7967dac816": "Thanh toán VNPay được phản hồi bằng đúng mã xác nhận, nên giao dịch đã trả không còn bị coi là chưa xác nhận và gọi lại nhiều lần.",
+          "ccb2733aec4322d35334e953e23ad6058a0149565": "Thanh toán VNPay đã hoàn tất vẫn được ghi nhận khi liên kết thanh toán đã hết hạn hoặc được thay thế, cập nhật gói và tạo hóa đơn tương ứng.",
+          "c5e727e48bbd9c29c40c04b707315db20e6c086f1": "Khi phản hồi thanh toán từ VNPay không về, một lượt đối soát tự động kiểm tra lại giao dịch và áp dụng khoản đã trả, hoặc đánh dấu thất bại nếu chưa trả.",
+          "cbea7437a334f574eb0916083fe1108575338371d": "Quyền truy cập nội dung thư trong Email Hub được áp dụng nhất quán.",
+          "cd8d9d6735f802da39818b11f34d4484f1768faf0": "Tiêu đề thư gửi đi có dấu tiếng Việt được mã hóa đúng chuẩn nên không còn hiện sai ký tự ở phía người nhận.",
+          "c8ca4dcdc17f4c9a17b264412f20895eeaf2e2f40": "Kết nối IMAP có thời hạn chờ khi mở kết nối và đăng nhập, nên máy chủ thư không phản hồi sẽ báo lỗi thay vì treo.",
+          "c70e7e68ffc6f459dec9a14f590f82c1146f5d7b3": "Trả lời một thư trong mục Đã gửi điền đúng người nhận ban đầu thay vì điền chính bạn.",
+          "c0109dcd7ecfa62901b357636b12b2171e13e903a": "Phân trang thư mục Tạm ẩn không còn bỏ sót hoặc lặp lại thư.",
+          "c4ac1f76ba20df9ffe1062b6ce768a2734c0043c2": "Thông báo thư mới dừng gửi cho người đã rời tổ chức, bị vô hiệu hóa hoặc thuộc tổ chức đang bị đình chỉ.",
+          "c56a8b72a1d4332176ae1361423a64694da765366": "Số thư chưa đọc cập nhật đúng sau khi đọc hoặc đánh dấu thư ở những trang danh sách đã tải.",
+          "c63db9e50bf5f1ab1273abb619174f7ca2ad5bbdd": "Tạo nhiều việc từ tóm tắt email chạy trọn gói: lỗi giữa chừng không để lại việc thừa và vẫn thử lại được.",
+          "cd7bf6a7bd4323ce0c5ace8d31f2ac35d75916f6d": "Thư gửi đi giữ đúng dấu tiếng Việt và cách xuống dòng, kể cả khi phần nội dung HTML rất dài.",
+          "c7edda0f13968681d35798817688ff6abc3312a61": "Đổi sang thư khác khi AI đang tóm tắt không còn làm bản tóm tắt và việc cần làm của thư cũ hiện trên thư mới.",
+          "c872812edb8f905bd6add41ed8330ced0b92a52d4": "Trạng thái đang đồng bộ của thư mục không còn kẹt khi đổi bộ lọc giữa chừng.",
+          "c39042c585c161e0307083cc2b6d959e4cc34b522": "Ngắt kết nối hộp thư đang mở sẽ chuyển sang hộp thư còn lại mới nhất thay vì chọn lại chính hộp thư vừa gỡ.",
+          "c4449109cd71c872845a082d5e449db65c8608428": "Tải bộ cài UniWork Office ngay trên trang hiện tại, không mở rồi đóng một tab GitHub.",
+          "cebd6f5acb86f81fe3d9bbb0b1a2716f57fec8e34": "Số thư ở sidebar Email Hub được cập nhật sau khi chuyển, tạm hoãn, đánh dấu đã đọc hoặc đồng bộ hộp thư.",
+          "cfc9fab018432964c96177b0205d4d17b0a976ae9": "Tệp đính kèm dạng văn bản hoặc HTML không còn ghi đè nội dung chính của thư. Thư chỉ có nội dung trong tệp đính kèm vẫn đọc được.",
+          "cbaebb1de6eb919b01291da742a8707bd9adc46a3": "Giao dịch VNPay bị hủy hoặc lỗi được ghi nhận riêng, tránh để lần thanh toán sau ở trạng thái chờ vì bị nhầm là trùng lặp."
+        }
       }
     }
   },
