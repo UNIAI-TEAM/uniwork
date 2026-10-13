@@ -743,9 +743,10 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 	}
 }
 
-// The grant is for A. The person is also in B, and B is suspended, or the
-// person is deactivated in B. The services under the tools answer those with
-// organization_suspended / member_deactivated, before they compare the
+// The grant is for A. The person is also in B, and B is suspended or scheduled
+// for deletion, or the person is deactivated in B. The services under the tools
+// answer those with organization_suspended / organization_deletion_scheduled /
+// member_deactivated, before they compare the
 // workspace of the row with the one asked for. A tool must answer B's ids under
 // A's workspace id exactly as it answers an id that exists nowhere, or the
 // difference tells a model which ids exist.
@@ -766,6 +767,17 @@ func TestMcpToolsDoNotRevealRowsOfASuspendedOrDeactivatedOrganization(t *testing
 				t.Fatal(err)
 			}
 		}, ErrMemberDeactivated},
+		// The owner still passes a scheduled deletion (to download files and
+		// cancel), so the person is an admin of B here.
+		"organization deletion scheduled": {func(t *testing.T, x *mcpToolWorld, orgID string) {
+			t.Helper()
+			if _, err := x.tools.ask.pool.Exec(context.Background(), `UPDATE organization_members SET role = 'admin' WHERE organization_id = $1 AND user_id = $2`, orgID, x.ua.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := x.tools.ask.pool.Exec(context.Background(), `UPDATE organizations SET deletion_scheduled_at = now() + interval '5 days' WHERE id = $1`, orgID); err != nil {
+				t.Fatal(err)
+			}
+		}, ErrOrganizationDeletionScheduled},
 	} {
 		t.Run(name, func(t *testing.T) {
 			x := newMcpToolWorld(t)

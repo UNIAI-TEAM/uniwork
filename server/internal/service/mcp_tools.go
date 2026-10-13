@@ -83,12 +83,13 @@ func (s *McpToolService) tc(p McpPrincipal, workspaceID string) ai.ToolContext {
 }
 
 // hidden turns the services' refusals into "there is nothing here". A screen
-// may say 403, "organization suspended" or "account deactivated"; a tool that
-// did would tell a model which ids exist, because the services check the row's
-// own organization before they compare its workspace with the one asked for
-// (spec §7.5 gives all of them one answer).
+// may say 403, "organization suspended", "organization scheduled for
+// deletion" or "account deactivated"; a tool that did would tell a model which
+// ids exist, because the services check the row's own organization before they
+// compare its workspace with the one asked for (spec §7.5 gives all of them
+// one answer).
 func hidden(err error) error {
-	if errors.Is(err, ErrForbidden) || errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated) {
+	if errors.Is(err, ErrForbidden) || errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrOrganizationDeletionScheduled) || errors.Is(err, ErrMemberDeactivated) {
 		return ErrNotFound
 	}
 	return err
