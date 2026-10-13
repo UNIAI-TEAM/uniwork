@@ -1,0 +1,21 @@
+$ D_ROOT=$(pwd); export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh" >/dev/null 2>&1; nvm use 22 >/dev/null 2>&1; node -v; ORIGIN=$(grep -m1 '^API_ORIGIN=' "$D_ROOT/.harness-run/ports.env" | cut -d= -f2-); cd /tmp/uw-g506-ac4 && UNIWORK_LIVE_ORIGIN="$ORIGIN" UNIWORK_LIVE_EXPECT_SYNC_WRITE_OFF=1 AI_PROVIDER=fake npx vitest run --root apps/shell tests/live/uniwork-save-queue-live.test.ts --reporter=verbose; rc=$?; echo "LIVE_OFF_EXIT=$rc"; [ $rc -eq 0 ]
+v22.14.0
+
+ RUN  v4.1.11 /tmp/uw-g506-ac4/apps/shell
+
+ ✓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 1. lookup of a never-received key: 410 commit_intent_unknown, never a false not_committed 6ms
+ ✓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 2. commit with a key: a receipt, and the lookup reports the same version and revision 15ms
+ ✓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 3. replay of the same key: the stored answer, no second version 9ms
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 4. a queued intent dispatched by the QueueDispatcher: exactly one version, a second pass does nothing 0ms [4: office_sync_write is off for this run (FF_OFFICE_SYNC_WRITE=false), so a queued intent parks paused_admin and no byte moves; run without the override to ground this step]
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 5. an intent left committing at rest resolves by lookup to committed, no second version 0ms [5: office_sync_write is off for this run (FF_OFFICE_SYNC_WRITE=false), so a queued intent parks paused_admin and no byte moves; run without the override to ground this step]
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 5b. an uploading record at rest for a never-received key re-sends the SAME key 0ms [5b: office_sync_write is off for this run (FF_OFFICE_SYNC_WRITE=false), so a queued intent parks paused_admin and no byte moves; run without the override to ground this step]
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 6. lookup in_flight: needs a way to hold a claim open 0ms [6: the server exposes no way to hold a commit-intent claim open for a lookup (the claim is live only inside a real in-flight commit POST, TTL DOCUMENT_COMMIT_INTENT_CLAIM_TTL, default 2m), so in_flight cannot be grounded from the harness; stated gap G5-D2]
+ ↓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 7. lookup unknown after the retention sweep: pending G5-D2 retention numbers 0ms [7: commit_intent_unknown for a SWEPT intent is only reachable after the server retention sweep (DOCUMENT_COMMIT_INTENT_RETENTION, default 7 days) and the sweep tick is fixed at 10 minutes with no harness/env override, so a short-retention run cannot ground it; the never-received key form of the same 410 is asserted in step 1. Pending G5-D2 retention numbers]
+ ✓ tests/live/uniwork-save-queue-live.test.ts > G5-06 AC-4 live: real D server against the fork durable save queue > 8. sync_write off: a queued intent parks paused_admin and no request reaches the server 10ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed | 5 skipped (9)
+   Start at  22:35:57
+   Duration  499ms (transform 181ms, setup 0ms, import 216ms, tests 201ms, environment 0ms)
+
+LIVE_OFF_EXIT=0
