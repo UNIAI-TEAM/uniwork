@@ -30,6 +30,10 @@ nhận; trao nó cho bên thứ ba là trao toàn quyền tài khoản.
 - Danh sách ngoại lệ của `TestSwaggerSpecFollowsChiRoutesAndSDI` dài thêm ba tiền tố.
 - Cái giá: thêm một bề mặt xác thực phải bảo trì (DCR, CIMD, xoay refresh). Bù lại token
   của client ngoài bị giới hạn ở một resource, một scope đọc, thu hồi được từng cái.
+- Thu hồi hàng loạt (rời tổ chức, xóa tài khoản, đặt lại mật khẩu) ghi sự kiện trên dòng
+  audit của chính lệnh đó (`member.left`, `user.deleted`, dòng `auth.session_revoked`
+  của lần đặt lại mật khẩu với `mcp_grants_revoked`), không ghi một dòng
+  `mcp_grant.revoked` cho từng grant.
 
 ## Test giữ luật
 

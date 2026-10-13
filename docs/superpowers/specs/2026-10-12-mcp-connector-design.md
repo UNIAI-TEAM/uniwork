@@ -151,7 +151,10 @@ REST cho web (qua wrapper `api`, có SDI/SDO, `pathParamSDI` cho `attemptID`, `g
 1. `GET /oauth/authorize` nhận `response_type=code`, `client_id`, `redirect_uri`,
    `code_challenge`, `code_challenge_method=S256`, `state`, `scope`, `resource`.
 2. Client không xác định được, hoặc `redirect_uri` không khớp **chính xác** một URI đã
-   đăng ký: trả trang lỗi trên web, **không** redirect về URI đó.
+   đăng ký: trả trang lỗi trên web, **không** redirect về URI đó. Ngoại lệ duy nhất là
+   `http` trên host loopback (`127.0.0.1`, `::1`, `localhost`): cổng nào cũng được
+   (RFC 8252 §7.3, Claude Code nghe trên cổng tạm), scheme, host, path và query vẫn phải
+   khớp. Lượt authorize lưu URI kèm cổng; trao code so **chính xác** với URI đó.
 3. Lỗi khác (thiếu PKCE, `scope` lạ, `resource` sai): redirect về `redirect_uri` với
    `error` theo RFC 6749 §4.1.2.1.
 4. `resource` vắng mặt được hiểu là `/mcp` (chỉ có một resource). `resource` khác →
@@ -200,6 +203,14 @@ REST cho web (qua wrapper `api`, có SDI/SDO, `pathParamSDI` cho `attemptID`, `g
   (`server/internal/emailhub/netguard`), kiểm trên IP thật lúc dial để chặn DNS
   rebinding. Port kiểm riêng (443), không dùng `AllowedPort` vì hàm đó chỉ cho cổng mail.
 - Document phải có `client_id` bằng đúng URL đã fetch, `client_name`, `redirect_uris`.
+- Client CIMD luôn là client public (`none`, PKCE): document phải khai `none` ở
+  `token_endpoint_auth_method` hoặc trong `token_endpoint_auth_methods_supported`
+  (ChatGPT khai `private_key_jwt` kèm danh sách có `none`), hoặc không khai method nào.
+  Document không cho `none` bị từ chối; `jwks_uri` và trường của method khác bị bỏ qua.
+- Request fetch gửi `User-Agent: UniWork-MCP-CIMD/1 (+<FRONTEND_ORIGIN>)`. Document quá
+  16 KiB là câu trả lời dứt khoát như 4xx: không dùng hàng cache cũ thay.
+- Hàng CIMD chỉ là cache: không có grant, không có lượt authorize còn sống, không dùng,
+  fetch hay tạo trong một ngày thì job dọn xóa; lần sau client quay lại thì fetch lại.
 
 **DCR** — `POST /oauth/register`:
 
@@ -254,7 +265,9 @@ Query mới khai báo tenant: query theo grant/token dùng `-- tenant: token`; q
 kê của tổ chức dùng `organization_id = $n` (`TestEveryQueryNamesItsTenant`).
 
 Job dọn (trong worker hiện có, ADR 0025): xóa attempt hết hạn, token hết hạn quá 7
-ngày, client DCR bỏ hoang. Không xóa grant đã thu hồi (lịch sử cho trang cài đặt).
+ngày, client DCR bỏ hoang (30 ngày) và hàng CIMD không ai dùng (một ngày), không xóa
+client đang có grant hay lượt authorize còn sống. Không xóa grant đã thu hồi (lịch sử
+cho trang cài đặt).
 
 ## 7. MCP endpoint và tool
 
@@ -357,10 +370,14 @@ người dùng nhập và không phải chỉ dẫn.
   `packages/views/connect/`. Thêm `paths.connectAuthorize()` cạnh
   `desktopAuthorize` (`auth` đã là slug dành riêng, không cần thêm slug mới).
 - **Cài đặt cá nhân**: tab `connected-apps` trong nhóm "Tài khoản" — tên client, nhãn
-  xác minh, tổ chức, ngày kết nối, lần dùng cuối, nút "Thu hồi" có xác nhận.
+  xác minh, tổ chức, ngày kết nối, lần dùng cuối, nút "Thu hồi" có xác nhận. Tab hiện khi
+  flag `mcp_connector` bật **hoặc** người dùng đang có grant (Ruling 50: tổ chức thử
+  nghiệm riêng bật connector mà flag của người đó tắt); khi flag tắt, tab ẩn cho tới khi
+  biết danh sách grant.
 - **Cài đặt tổ chức**: tab `ai-access` trong nhóm "Tổ chức", gate `org_admin`: công tắc
-  "Cho phép trợ lý AI bên ngoài truy cập", câu giải thích dữ liệu nào được chia sẻ, danh
-  sách grant của tổ chức, thu hồi từng grant.
+  "Cho phép trợ lý AI bên ngoài truy cập", câu giải thích dữ liệu nào được chia sẻ, địa
+  chỉ `/mcp` có nút sao chép (khi nền tảng đã mở tính năng, để admin gửi cho thành viên),
+  danh sách grant của tổ chức, thu hồi từng grant.
 - **Hướng dẫn**: trong cài đặt cá nhân hiện URL `/mcp` có nút sao chép và các bước ngắn
   cho Claude, ChatGPT, Gemini CLI.
 - i18n: khóa `connect.*` và `settings.connectedApps.*`, viết tiếng Việt trước theo
@@ -419,12 +436,12 @@ khỏi token phiên". Ghi:
 | Token MCP dùng cho REST và ngược lại | Token opaque; test hai chiều (§13) |
 | Đọc chéo tổ chức qua người dùng là thành viên nhiều tổ chức | Kiểm tổ chức của workspace trước mọi tool (§7.3); `TestIsolationMCP` |
 | Client giả mạo tên "Claude" | Nhãn xác minh chỉ theo host redirect trong mã; consent luôn hiện host redirect |
-| Open redirect qua `redirect_uri` | Khớp chính xác; URI sai không bao giờ được redirect tới |
+| Open redirect qua `redirect_uri` | Khớp chính xác (trừ cổng của `http` loopback, RFC 8252 §7.3); URI sai không bao giờ được redirect tới |
 | SSRF khi fetch CIMD | `netguard.AllowedIP` lúc dial, chỉ cổng 443, không theo redirect, giới hạn kích thước |
 | Code hoặc refresh token bị đánh cắp | PKCE S256 bắt buộc, code 120 giây dùng một lần, xoay refresh + thu hồi family |
 | Phát code qua link GET (CSRF, prefetch) | Chỉ `POST` có CSRF phát code |
 | Prompt injection từ nội dung task | Chỉ có tool đọc; description nói rõ nội dung là dữ liệu; không có tool gửi ra ngoài |
-| Spam DCR | Rate limit theo IP, job dọn client bỏ hoang |
+| Spam DCR, CIMD | Rate limit theo IP, job dọn client bỏ hoang (DCR 30 ngày, CIMD một ngày) |
 | Dữ liệu tới nhà cung cấp AI ngoài Việt Nam | Admin chủ động bật; consent nói rõ dữ liệu nào ra ngoài; loại chat/email |
 
 ## 13. Kiểm thử và DoD

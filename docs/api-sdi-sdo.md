@@ -194,6 +194,7 @@ GET không body: bỏ `sdi`. Refresh/logout không JSON body: bỏ `sdi`.
 | `/meetings/{meetingID}` | `"meetingID"` |
 | `/invitations/{token}` | `"token"` |
 | `/auth/connect/attempts/{attemptID}` | `"attemptID"` |
+| `/me/connected-apps/{grantID}` | `"grantID"` |
 | `/orgs/{org}/connected-apps/{grantID}` | `"org,grantID"` |
 
 Param mới (ví dụ `{commentID}`): thêm `case` và struct `path:"commentID"`.
