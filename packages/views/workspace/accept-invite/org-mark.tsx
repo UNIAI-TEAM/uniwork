@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { InvitationPreview, MembershipConflict } from "@uniwork/core/types";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { cn } from "@uniwork/ui/lib/utils";
-import { roleLabel } from "./switch-draft";
+import { roleLabel } from "../role-label";
 
 /**
  * An organization's initial on a tile, drawn like the workspace switcher's.

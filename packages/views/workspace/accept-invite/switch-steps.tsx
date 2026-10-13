@@ -16,7 +16,8 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MODULE_ICONS } from "../../layout/module-icons";
 import { MODULE_TONES } from "../../layout/module-tones";
 import { conflictNames, OrgRoute } from "./org-mark";
-import { EMPTY_DRAFT, roleLabel, type SwitchDraft } from "./switch-draft";
+import { roleLabel } from "../role-label";
+import { EMPTY_DRAFT, type SwitchDraft } from "./switch-draft";
 
 type Invitation = InvitationPreview["invitation"];
 

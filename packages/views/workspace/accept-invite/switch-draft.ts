@@ -1,7 +1,4 @@
-import type { useTranslation } from "react-i18next";
 import type { MembershipConflict, SwitchResolution } from "@uniwork/core/types";
-
-type TFunction = ReturnType<typeof useTranslation>["t"];
 
 /** What the person has filled in for one organization they are giving up. */
 export type SwitchDraft = {
@@ -45,17 +42,5 @@ export function toResolution(conflict: MembershipConflict, draft: SwitchDraft): 
       return { organization_id, action: "close", confirm_slug: draft.slug.trim() };
     default:
       return null;
-  }
-}
-
-/** The label for an organization role; an unknown role shows as it came. */
-export function roleLabel(t: TFunction, role: string): string {
-  switch (role) {
-    case "owner":
-    case "admin":
-    case "member":
-      return t(`people.role_${role}`);
-    default:
-      return role;
   }
 }
