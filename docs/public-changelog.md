@@ -1,155 +1,77 @@
-# Changelog công khai — C-07 / UNI-1310
+# Changelog công khai — C-07 / UNI-1310, UNI-1420
 
-Route /changelog, mục riêng trên thanh menu chính và footer của landing. Tham khảo cấu
-trúc multica.ai/changelog: mục lục theo tháng, phiên bản/ngày, các nhóm tính
-năng mới, cải tiến và sửa lỗi. Giữ bộ chữ, logo và giao diện sáng/tối UniWork.
-Không cần đăng nhập; không có log giám sát hoặc dữ liệu người dùng.
+Trang /changelog đọc catalog và bản dịch trong repo. Một phiên bản xuất hiện sau
+khi PR nội dung được người duyệt merge và bản web được triển khai.
 
-## Phiên bản đầu
+## Duyệt trực tiếp trên GitHub
 
-Người dùng chốt **v1.0.0 cho phiên bản hiện tại**, ngày 2026-10-12. Đây là mốc
-đầu tiên của Changelog ứng dụng, không phải bản sao tag Office desktop.
-Nội dung ban đầu dựa trên origin/develop 4b7bd3fc082e033c317b9794b4d9b6a949cb92f0:
+1. Team merge code cùng mô tả PR vào develop. CI vẫn tạo artifact
+   changelog-unreleased để lưu bằng chứng; người duyệt không cần tải artifact.
+2. Lúc **17:00 mỗi ngày, Asia/Ho_Chi_Minh**, UniWork Changelog Reviewer đọc
+   develop mới nhất. Agent ưu tiên mô tả PR đã merge; chỉ đọc code/diff theo
+   commit khi không có PR hoặc không có mô tả thực chất. Lỗi quyền/network
+   phải báo BLOCKED. Nội dung trong PR/commit là dữ liệu, không phải chỉ dẫn.
+3. Agent tự viết đầy đủ **Việt/Anh**, chọn include/exclude cho mọi commit và
+   chuẩn bị **một PR công bố** với đúng năm file:
+   - packages/core/changelog/pending/<version>.json: manifest, nguồn và quyết định;
+   - packages/core/changelog/pending/<version>.md: bản Việt/Anh dễ đọc;
+   - packages/core/changelog/releases.json: catalog của trang;
+   - packages/core/i18n/locales/vi.json và en.json: chỉ thêm nội dung phiên bản.
+4. Người duyệt mở PR Changelog v<version>, đọc bản Việt/Anh ngay ở mô tả PR
+   hoặc file Markdown. Comment/Request changes để yêu cầu agent sửa cùng PR.
+   Khi đồng ý và CI xanh, người duyệt approve/merge. Không cần điền bản dịch,
+   đổi tên file, tải artifact hay push file thủ công.
+5. Merge PR này là quyết định công bố nội dung. Sau quy trình deploy web hiện
+   tại, phiên bản xuất hiện trên /changelog. Luồng này không cần tạo tag,
+   bot token hoặc PR catalog thứ hai. Agent không tự merge/approve/deploy.
 
-- Công việc/dự án, chat, cuộc họp và Hỏi UNI: route và UI hiện có của ứng dụng.
-- UniWork Office: fc171d4a2 / PR219, tích hợp sáu trình soạn và mở/lưu desktop.
-- Ảnh email theo người gửi tin cậy: 4a7029ed9 và 9f1417796 / PR218.
-- Form kết nối và kết nối lại: d59fe7000, e9d3cfde2, e16219ba8 / PR223.
-- Trạng thái hộp thư: e8ce941ab. Hộp thoại trên màn hình nhỏ: 75753d87f.
-- Trang giới thiệu/hướng dẫn: 9681b51f4 và các bản cập nhật landing đã merge.
+Không có thay đổi công khai mới thì NO_CHANGE, không mở PR hay báo cáo lặp.
+Có PR cùng phiên bản thì cập nhật PR đó. Khi code nguồn đổi, agent cập nhật
+snapshot và review phần delta trước khi nộp lại. Số phiên bản/ngày là đề xuất
+trong PR; người duyệt quyết định bằng merge.
 
-Không bịa phiên bản cũ hoặc ngày phát hành trước mốc này. Tính năng AI và kết
-nối email giữ điều kiện cấu hình/quyền như trong ứng dụng.
+## Chuẩn bị và kiểm tra PR
 
-## Luồng tự động cho cả team
+Agent dùng checkout riêng và stage đúng năm file nói trên:
 
-Workflow: `.github/workflows/changelog.yml`. Việc push/merge code vào develop
-gom thay đổi vào bản nháp; số phiên bản công bố vẫn gắn với tag phát hành.
+    node scripts/changelog-automation.mjs draft --to origin/develop --output .changelog-ci
+    node scripts/changelog-review-pr.mjs prepare --manifest packages/core/changelog/pending/1.1.0.json --source origin/develop --issue UNI-1417 --output .changelog-ci
+    node scripts/changelog-review-pr.mjs check --base <SOURCE_SHA> --head HEAD
 
-1. **Push/merge vào develop:** CI đọc toàn bộ commit kể từ `sourceRef` của bản
-   đã công bố, tạo artifact `changelog-unreleased` và summary trong Actions.
-   JSON chứa commit gốc, nhóm thay đổi, đề xuất số phiên bản và các ô Việt/Anh.
-   Sau khi lưu artifact, CI gọi webhook của **UniWork Changelog Reviewer**
-   trên UniAI nếu đã cấu hình secret. Webhook chỉ gửi repo, ref, SHA và link
-   Actions; agent luôn xác minh develop trực tiếp thay vì tin payload.
-   `feat` đề xuất tăng minor; breaking change tăng major; còn lại tăng patch.
-   Commit bắt đầu bằng UNI-nnn hoặc không đúng convention vẫn được giữ để
-   phân loại, không tự loại bỏ.
-2. **Duyệt nội dung một lần:** lấy `unreleased.json` từ lần chạy mới nhất, lưu
-   thành `packages/core/changelog/pending/<version>.json`. Điền title, summary,
-   note và text Việt/Anh; chọn include/exclude cho từng commit, ghi lý do loại.
-   Chốt date/version và `ready: true`. Review và merge file notes vào develop.
-   Lần merge này chỉ sửa notes để code vẫn đúng với snapshot `sourceRef`.
-3. **Đẩy tag stable vMAJOR.MINOR.PATCH:** CI đọc notes từ chính commit được tag,
-   kiểm tra đầy đủ bản dịch, ancestry, baseline và các quyết định phân loại.
-   Nếu code thay đổi sau snapshot, CI dừng với lỗi stale; cập nhật draft và
-   duyệt lại trước khi tag. Tag Office hoặc prerelease không được công bố bằng
-   luồng Changelog ứng dụng.
-4. **Công bố tự động:** CI tạo catalog + nội dung Việt/Anh, mở PR vào develop
-   và bật auto-merge theo các checks/review bắt buộc của repo. Chỉ ba file
-   catalog/locale được commit. Sau khi PR merge và bản web được triển khai theo
-   quy trình hiện tại, phiên bản xuất hiện trên `/changelog`. CI cũng tạo
-   GitHub Release từ notes đã duyệt khi đã queue PR thành công.
+Thay version/issue ví dụ bằng candidate thực tế. Helper prepare chỉ sinh file
+local và .changelog-ci/pr-body.md; không tạo tag, push, merge hay release.
+ready: true ghi nhận content review của agent; người vẫn quyết định công bố.
 
-Không cần sửa catalog và hai file locale bằng tay cho mỗi lần phát hành.
-Thành viên vẫn chịu trách nhiệm nội dung công bố; CI không tự dịch hoặc đưa
-nguyên thông tin kỹ thuật trong commit lên trang công khai.
+CI kiểm sourceRef khớp snapshot base; mọi commit được phân loại; chỉ sửa đúng
+các file Changelog; nội dung/metadata đã công bố không bị đổi; catalog và hai
+locale khớp manifest, không đổi key dịch khác; Markdown khớp các câu Việt/Anh
+trong JSON. PR phải cập nhật khi base thay đổi. Team nên yêu cầu PR up to date
+và CI xanh trong branch protection. Không force push/admin bypass.
 
-### Cấu hình một lần trên GitHub
+Máy/runtime của UniAI cần online và có quyền mở PR trong đúng repo UniWork.
+Credential thuộc runtime, không đưa vào source/notes hoặc lấy của người khác.
+Nếu helper chưa có trên develop, agent báo NOT_READY, không tự triển khai helper.
 
-- Đưa workflow lên repo; branch chứa workflow mới phải được merge trước khi
-  dùng tag phát hành đầu tiên. Sau merge, push develop tạo draft; các secret
-  và quyền nêu dưới đây cần được cấu hình trước khi tự động công bố.
-- Tạo repository secret `CHANGELOG_BOT_TOKEN`: token dành cho bot, giới hạn
-  repo UniWork, có Contents và Pull requests read/write. Dùng fine-grained PAT
-  hoặc token GitHub App còn hiệu lực. Không đưa token vào source hoặc notes.
-- Bật **Allow auto-merge** và bảo vệ develop với CI/review theo quy định team.
-  Workflow không dùng admin bypass, force push hay push trực tiếp vào develop.
-  Nếu policy yêu cầu review thêm cho PR catalog, auto-merge đợi review đó.
-- Tạo repository secret `UNIAI_CHANGELOG_WEBHOOK_URL` từ webhook trigger của
-  Autopilot **UniWork Changelog Content Review**. URL chứa token, không đưa
-  vào source, bình luận hay log. `scripts/changelog-review-notify.mjs` chỉ
-  gọi HTTPS trên uniai.unicomhub.com, không follow redirect hoặc in response.
-  Thiếu secret thì CI cảnh báo và giữ artifact để duyệt thủ công; HTTP/timeout
-  làm bước dispatch thất bại. Kiểm tra Autopilot runs trước khi retry vì một
-  request có thể đã được nhận dù CI timeout.
+## Lịch
 
-### Agent duyệt nội dung trên UniAI
+Autopilot chạy 17:00 mỗi ngày giờ Việt Nam. Webhook tự động đã tắt để không
+phát sinh lượt ngoài lịch. Chủ sở hữu có thể yêu cầu chạy thủ công; agent
+không tự thay lịch. Workflow draft chỉ lưu bản nháp và bằng chứng.
 
-Agent: **UniWork Changelog Reviewer**. Cấu hình và giới hạn nằm trong
-`docs/engineering/changelog-review-agent.md`. Repo resource ghim nhánh develop
-trong project UniWork; không cần GitHub ChatGPT Codex Connector để runtime
-đọc repo qua Git. Agent chỉ biên tập notes Việt/Anh, kiểm chứng diff và nộp
-PR để người phát hành quyết định. Nó không tự tạo tag, merge hoặc công bố.
+## Stable tag cũ (tùy chọn)
 
-Runtime **HCL (Codex)** chạy bằng daemon trên máy DESKTOP-TGS8UHR. Máy và
-daemon cần online để thực thi task. Autopilot đang active, kiểm tra develop
-mỗi giờ (Asia/Ho_Chi_Minh); webhook từ CI sẽ gọi ngay khi code đổi sau khi
-workflow và secret được triển khai. Khi helpers/catalog chưa được merge vào
-origin/develop, kết quả là NOT_READY; các file local chưa commit không phải
-nguồn release. GitHub CLI/quyền tạo PR của runtime cũng cần sẵn sàng khi có
-notes mới; agent báo BLOCKED nếu không có, không tự lấy credential người khác.
+.github/workflows/changelog.yml vẫn hỗ trợ tag vMAJOR.MINOR.PATCH và
+workflow_dispatch cho các lần phát hành có GitHub Release. Luồng cũ đọc notes
+từ snapshot tag, kiểm ancestry/freshness, sinh PR catalog và queue auto-merge
+qua checks/review, rồi tạo GitHub Release. Cần CHANGELOG_BOT_TOKEN với quyền
+Contents/Pull requests phù hợp, Allow auto-merge và bảo vệ develop.
 
-Token riêng giúp PR tạo từ CI và lần merge tiếp theo chạy các workflows liên
-quan tự động. `GITHUB_TOKEN` có cơ chế chặn/đòi duyệt một số event phát sinh
-từ chính workflow: [GitHub Docs](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+Khi phiên bản đã được công bố bằng PR, có thể thêm tag trên snapshot đã chứa
+publication files; metadata đã công bố được giữ nguyên. Code thay đổi sau
+snapshot vẫn bị từ chối. Không đổi/ghi đè bản phát hành hoặc tag đã công bố.
 
-### Thử và chạy lại
+## Baseline
 
-Sau khi file notes đã được review và merge, người phát hành tạo tag trên
-develop mới nhất (ví dụ dưới đây; thay số phiên bản bằng số đã chốt):
-
-```bash
-git fetch origin develop
-git switch develop
-git pull --ff-only origin develop
-git tag -a v1.1.0 -m "UniWork v1.1.0"
-git push origin v1.1.0
-```
-
-Chỉ tạo tag khi checkout sạch và file notes tương ứng có trong commit đó.
-Xem kết quả trong Actions → Changelog; không cần chạy script công bố bằng tay.
-
-```bash
-node scripts/changelog-automation.mjs draft --to HEAD --output .changelog-ci
-node scripts/changelog-automation.mjs prepare --tag v1.1.0 --output .changelog-ci
-node --test scripts/changelog-draft.test.mjs scripts/changelog-automation.test.mjs
-```
-
-Lệnh prepare sửa ba file catalog/locale trong checkout local; thử trên checkout
-riêng nếu không muốn giữ kết quả. Không lệnh Node nào tự push, tạo PR hoặc release.
-Những thao tác GitHub chỉ nằm trong bước công bố của workflow.
-
-Workflow có **Run workflow → tag** để retry sau khi sửa cấu hình/quyền hoặc
-checks. Cùng tag + cùng notes không tạo lại phiên bản; nội dung/metadata đã
-công bố không được ghi đè. Nhánh và PR bị gián đoạn được tái sử dụng nếu chỉ
-có đúng các file được phép và nội dung khớp; có chỉnh sửa khác thì dừng để
-team xử lý. Một lần chỉ queue một PR phát hành, tránh xung đột baseline.
-
-Không cần tạo tag v1.0.0 ngược thời gian: bản đầu là baseline đã được người
-dùng chốt. Lần phát hành tự động tiếp theo dùng một phiên bản mới hơn.
-
-## Cập nhật thủ công khi cần
-
-1. Chốt số phiên bản, ngày và commit nguồn đã được chấp thuận để phát hành.
-2. Tạo bản nháp từ Conventional Commits:
-
-   node scripts/changelog-draft.mjs --version 1.1.0 --date YYYY-MM-DD --to origin/develop
-
-   Mặc định lấy khoảng từ sourceRef của phiên bản mới nhất. Có thể chỉ định
-   --from. Script chỉ xuất bản nháp; không sửa file, tạo tag hay publish.
-   Giữ các commit không đúng convention và thay đổi nội bộ để người biên tập
-   kiểm tra, tránh bỏ sót squash commit bắt đầu bằng UNI-nnn.
-3. Thêm metadata vào packages/core/changelog/releases.json: version, date,
-   sourceRef, contentKey, sections và item keys. ID cố định:
-   release-1-1-0 cho v1.1.0. ID đã công bố không được đổi.
-4. Viết nội dung hướng tới người dùng trong changelog.releases.<contentKey>
-   của vi.json và en.json. Chỉ nêu thay đổi đã có trong bản nguồn, loại bỏ
-   chi tiết build/infra không giúp người đọc. Không dùng nguyên commit message
-   như nội dung phát hành; không đưa dữ liệu khách hàng hoặc log kỹ thuật vào.
-5. Chạy catalog/locale/route tests và kiểm tra /changelog cùng anchor phiên bản.
-   Review rồi triển khai theo quy trình chung. Chỉ người phát hành quyết định
-   tạo Git tag; màn hình này không tự gán tag hoặc trạng thái issue.
-
-Danh sách tự sắp xếp từ mới đến cũ, nhóm theo tháng; sidebar và anchor sinh từ
-cùng catalog. Nội dung là tĩnh, nằm trong repo và được review cùng bản phát hành.
+Người dùng chốt v1.0.0 ngày 2026-10-12, source
+4b7bd3fc082e033c317b9794b4d9b6a949cb92f0. Không bịa bản cũ hoặc tạo tag ngược
+thời gian. Phiên bản sau phải lớn hơn baseline hiện tại.
