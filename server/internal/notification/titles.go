@@ -58,6 +58,29 @@ var titles = map[string]map[string]string{
 	},
 }
 
+// kindTitles are the short titles OQ-C8 splits out for the title line of a
+// push payload. The Inbox renders the same client keys (G8-07); this map is
+// the server's mirror for the channel that cannot run t(), and titles_test.go
+// fails when it drifts from notifications.kindTitle.*. Only kinds with a
+// short title are listed; PushTitle falls back to the content sentence for
+// every other kind.
+var kindTitles = map[string]map[string]string{
+	"vi": {
+		KindDocumentMentioned:           "Bạn được nhắc tên trong bình luận",
+		KindDocumentCommentReplied:      "Có phản hồi bình luận mới",
+		KindDocumentDiscussionMentioned: "Bạn được nhắc tên trong thảo luận",
+		KindDocumentDiscussionReplied:   "Có phản hồi thảo luận mới",
+		KindDocumentCommentResolved:     "Bình luận đã được giải quyết",
+	},
+	"en": {
+		KindDocumentMentioned:           "You were mentioned in a comment",
+		KindDocumentCommentReplied:      "New reply to your comment",
+		KindDocumentDiscussionMentioned: "You were mentioned in a discussion",
+		KindDocumentDiscussionReplied:   "New reply in a discussion",
+		KindDocumentCommentResolved:     "Comment resolved",
+	},
+}
+
 // Title renders the kind's title in locale with params, i18next-style
 // {{name}} substitution. Unknown locale falls back to en.
 func Title(locale, kind string, params map[string]string) string {
@@ -73,4 +96,22 @@ func Title(locale, kind string, params map[string]string) string {
 		s = strings.ReplaceAll(s, "{{"+k+"}}", v)
 	}
 	return s
+}
+
+// PushTitle renders the title a push payload shows: the short kindTitle for a
+// kind that has one (OQ-C8), the content sentence otherwise, so every other
+// push is unchanged. Params are substituted verbatim - a document name with
+// quotes or angle brackets reaches the payload as it is.
+func PushTitle(locale, kind string, params map[string]string) string {
+	loc := kindTitles[locale]
+	if loc == nil {
+		loc = kindTitles["en"]
+	}
+	if s := loc[kind]; s != "" {
+		for k, v := range params {
+			s = strings.ReplaceAll(s, "{{"+k+"}}", v)
+		}
+		return s
+	}
+	return Title(locale, kind, params)
 }

@@ -18,7 +18,8 @@ func TestTitlesMatchClientLocales(t *testing.T) {
 		}
 		var doc struct {
 			Notifications struct {
-				Kind map[string]string `json:"kind"`
+				Kind      map[string]string `json:"kind"`
+				KindTitle map[string]string `json:"kindTitle"`
 			} `json:"notifications"`
 		}
 		if err := json.Unmarshal(raw, &doc); err != nil {
@@ -27,6 +28,19 @@ func TestTitlesMatchClientLocales(t *testing.T) {
 		for _, kind := range Kinds {
 			if got, want := titles[locale][kind], doc.Notifications.Kind[kind]; got != want {
 				t.Errorf("%s %s: server %q, client %q", locale, kind, got, want)
+			}
+		}
+		// OQ-C8: every kind the client gives a short title must have the same
+		// one server-side, and the server must not hold a short title the
+		// client cannot render.
+		for kind, want := range doc.Notifications.KindTitle {
+			if got := kindTitles[locale][kind]; got != want {
+				t.Errorf("%s kindTitle %s: server %q, client %q", locale, kind, got, want)
+			}
+		}
+		for kind := range kindTitles[locale] {
+			if _, ok := doc.Notifications.KindTitle[kind]; !ok {
+				t.Errorf("%s kindTitle %s: server has a short title the client does not", locale, kind)
 			}
 		}
 	}
