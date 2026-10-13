@@ -171,3 +171,95 @@ func TestDocumentCommentAnchorsStaticRoute(t *testing.T) {
 		t.Fatalf("PUT /comments/anchors = %d code=%q %v, want the anchors handler's 400", res.StatusCode, code, out)
 	}
 }
+
+// TestDocumentCommentAnchorsHTTPRequiredAndSchema drives the R1-8 / R1-9 /
+// R1-10 refusals through the real router: the anchors field is required (an
+// absent key or a null is 400 while [] is a valid empty update), a JSON null
+// inside a required numeric array is 400, and a blank pptx slide_id is 400.
+func TestDocumentCommentAnchorsHTTPRequiredAndSchema(t *testing.T) {
+	w := newDocumentCollabWorld(t)
+	docID, versions := w.anchorFileDoc(t, "Anchor required", anchorXLSXMime, 2)
+
+	// Absent and null anchors: 400 before the service is reached.
+	for name, payload := range map[string]map[string]any{
+		"absent": {"version_id": versions[1]},
+		"null":   {"version_id": versions[1], "anchors": nil},
+	} {
+		res, out := doJSON(t, w.srv, "PUT", w.commentsPath(docID)+"/anchors", w.member, payload)
+		if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+			t.Fatalf("%s anchors: %d code=%q %v", name, res.StatusCode, code, out)
+		}
+	}
+	// [] is the valid empty update: 200 with nothing updated.
+	res, out := doJSON(t, w.srv, "PUT", w.commentsPath(docID)+"/anchors", w.member, map[string]any{
+		"version_id": versions[1], "anchors": []any{},
+	})
+	if res.StatusCode != 200 || len(out["updated"].([]any)) != 0 {
+		t.Fatalf("empty anchors: %d %v", res.StatusCode, out)
+	}
+
+	// One comment to aim the schema refusals at.
+	res, out = doJSON(t, w.srv, "POST", w.commentsPath(docID), w.member, map[string]any{
+		"body": "có neo", "kind": "comment", "anchor": anchorXLSXBody("B7"), "base_version_id": versions[0],
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("anchored create: %d %v", res.StatusCode, out)
+	}
+	commentID := out["comment"].(map[string]any)["id"].(string)
+
+	// A duplicate comment_id in one body is 400.
+	res, out = doJSON(t, w.srv, "PUT", w.commentsPath(docID)+"/anchors", w.member, map[string]any{
+		"version_id": versions[1],
+		"anchors": []any{
+			map[string]any{"comment_id": commentID, "anchor": anchorXLSXBody("B8"), "state": "exact"},
+			map[string]any{"comment_id": commentID, "anchor": anchorXLSXBody("B9"), "state": "exact"},
+		},
+	})
+	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+		t.Fatalf("duplicate comment_id: %d code=%q %v", res.StatusCode, code, out)
+	}
+
+	// A JSON null inside a required numeric array is 400, not a silent zero.
+	res, out = doJSON(t, w.srv, "PUT", w.commentsPath(docID)+"/anchors", w.member, map[string]any{
+		"version_id": versions[1],
+		"anchors": []any{map[string]any{
+			"comment_id": commentID,
+			"anchor":     map[string]any{"format": "xlsx", "v": 1, "sheet": "S1", "range": nil},
+			"state":      "exact",
+		}},
+	})
+	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+		t.Fatalf("null range: %d code=%q %v", res.StatusCode, code, out)
+	}
+}
+
+// TestDocumentCommentAnchorsHTTPPptxBlank pins R1-10 through the router: a
+// blank pptx slide_id and a present-but-blank object_id are both 400.
+func TestDocumentCommentAnchorsHTTPPptxBlank(t *testing.T) {
+	w := newDocumentCollabWorld(t)
+	const pptxMime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	docID, versions := w.anchorFileDoc(t, "Anchor pptx", pptxMime, 1)
+
+	res, out := doJSON(t, w.srv, "POST", w.commentsPath(docID), w.member, map[string]any{
+		"body": "có neo", "kind": "comment",
+		"anchor":          map[string]any{"format": "pptx", "v": 1, "slide_id": "257", "slide_index": 0},
+		"base_version_id": versions[0],
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("pptx anchored create: %d %v", res.StatusCode, out)
+	}
+	commentID := out["comment"].(map[string]any)["id"].(string)
+
+	for name, anchor := range map[string]map[string]any{
+		"blank slide_id":  map[string]any{"format": "pptx", "v": 1, "slide_id": "  ", "slide_index": 0},
+		"blank object_id": map[string]any{"format": "pptx", "v": 1, "slide_id": "257", "slide_index": 0, "object_id": " "},
+	} {
+		res, out = doJSON(t, w.srv, "PUT", w.commentsPath(docID)+"/anchors", w.member, map[string]any{
+			"version_id": versions[0],
+			"anchors":    []any{map[string]any{"comment_id": commentID, "anchor": anchor, "state": "exact"}},
+		})
+		if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+			t.Fatalf("%s: %d code=%q %v", name, res.StatusCode, code, out)
+		}
+	}
+}
