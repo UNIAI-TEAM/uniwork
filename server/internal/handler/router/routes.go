@@ -102,6 +102,7 @@ type Routes struct {
 	DeactivateOrgMember http.HandlerFunc
 	ReactivateOrgMember http.HandlerFunc
 	LeaveOrganization   http.HandlerFunc
+	CloseOrganization   http.HandlerFunc
 
 	InviteToOrganization http.HandlerFunc
 	ListOrgInvitations   http.HandlerFunc

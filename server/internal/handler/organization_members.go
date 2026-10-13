@@ -136,6 +136,27 @@ func (h *handlers) leaveOrganization(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
 }
 
+// closeOrganization resolves the slug the way leaveOrganization does, so the
+// owner of a suspended organization hears organization_suspended rather than
+// the generic gate's answer; an outsider still gets 404.
+func (h *handlers) closeOrganization(w http.ResponseWriter, r *http.Request) {
+	var in sdi.CloseOrganizationSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	actorID := middleware.UserID(r.Context())
+	o, _, err := h.OrgMembers.Membership(r.Context(), actorID, chi.URLParam(r, "org"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	if err := h.OrgMembers.Close(r.Context(), actorID, o.ID, in.ConfirmSlug); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
 // respondOrgMember returns the membership row with the identity columns filled
 // in, so the client can render the updated row without a second request.
 func (h *handlers) respondOrgMember(w http.ResponseWriter, r *http.Request, m db.OrganizationMember) {
