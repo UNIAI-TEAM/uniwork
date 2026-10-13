@@ -55,10 +55,13 @@ type Deps struct {
 	AIBYOK *service.AIBYOKService
 	// AICloud is the Office cloud tools service (GO-A7); nil answers 503
 	// cloud_unavailable on its routes.
-	AICloud  *service.AICloudService
-	Meetings *service.MeetingService
-	Chat     *service.ChatService
-	Hub      *realtime.Hub
+	AICloud *service.AICloudService
+	// AIUniwork is the UniWork AI façade (G6-03a): the org, document and
+	// frame routes. nil answers 503 ai_disabled on them.
+	AIUniwork *service.AIUniworkService
+	Meetings  *service.MeetingService
+	Chat      *service.ChatService
+	Hub       *realtime.Hub
 
 	// Graph is the Work Graph read service (C-11); nil answers 501 on the
 	// graph routes until the server wires it.
@@ -447,6 +450,10 @@ func New(d Deps) http.Handler {
 		AiCloudImages:         aiMount.CloudImages,
 		AiCloudAnalyzeMedia:   aiMount.CloudAnalyzeMedia,
 		AiCloudTranscribe:     aiMount.CloudTranscribe,
+
+		AiUniworkChatCompletions:            aiMount.UniworkChatCompletions,
+		AiUniworkDocumentChatCompletions:    h.uniworkDocumentChatCompletions,
+		OfficeFrameAiUniworkChatCompletions: frameAI.UniworkChatCompletions,
 
 		ListPlans:           h.listPlans,
 		GetSubscription:     h.getSubscription,

@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
@@ -100,6 +101,11 @@ func New(d Deps, h Routes) http.Handler {
 			mw.CorrelationHeader,
 			telemetry.DebugTraceHeader,
 			meetings.GuestSessionHeader,
+			// UniWork AI (G6-03a A12): the frame sends the conversation id back
+			// on every turn; without it in the preflight the fetch never leaves
+			// the page.
+			ai.UniworkConversationHeader,
+			ai.UniworkRunHeader,
 			// Vendor headers the BYOK proxy forwards (provider/byok_client.go); a
 			// browser caller needs them in the preflight or the fetch never leaves.
 			"Anthropic-Beta",
@@ -108,12 +114,28 @@ func New(d Deps, h Routes) http.Handler {
 			"Http-Referer",
 			"X-Title",
 		},
-		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader, "Retry-After"},
+		ExposedHeaders: []string{
+			mw.CorrelationHeader, telemetry.TraceHeader, "Retry-After",
+			// G6-05 reads both off the response: the conversation to continue
+			// and, from G6-03b on, the run id.
+			ai.UniworkConversationHeader, ai.UniworkRunHeader,
+		},
 		AllowCredentials: true,
 	}))
 	// Inside CORS, so a shed request still carries the headers the browser
 	// needs to read its 503 and Retry-After, and preflights never count.
-	r.Use(mw.LoadShed(d.Cfg.HTTPMaxInFlight, "/healthz", "/readyz"))
+	//
+	// The three UniWork AI routes are exempt by pattern (G6-03a §7.4): a turn
+	// waits up to 55 s on a model, so counting it against the in-flight bound
+	// would let a handful of AI turns shed every other request in the pod.
+	// Patterns, not prefixes, on purpose: a prefix under /api/v1/orgs/{orgID}/ai/
+	// would exempt the BYOK proxy and the cloud tools too. Exempt routes still
+	// get their body deadline.
+	r.Use(mw.LoadShed(d.Cfg.HTTPMaxInFlight, "/healthz", "/readyz",
+		"/api/v1/orgs/{orgID}/ai/uniwork/chat/completions",
+		"/api/v1/documents/{documentID}/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
+	))
 	cat := &apiCatalog{}
 	root := newAPI(r, cat)
 	registerMeta(root, r, d.Storage, h)
@@ -169,6 +191,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerAI(authed, h)
 			registerAIBYOK(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, bearerUser(d.Minter)))
 			registerAICloud(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, bearerUser(d.Minter)))
+			registerAIUniwork(authed, h)
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
 			registerTasksSuite(authed, h)

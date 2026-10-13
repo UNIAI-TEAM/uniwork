@@ -17,6 +17,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
@@ -88,6 +90,14 @@ type isoWorld struct {
 	// token -> {document id, its frame token}. do() prefers it on that
 	// document's own routes (resolve, linked), which a DOCX token cannot open.
 	frameMarkdown map[string][2]string
+	// uniworkProvider is the fake provider behind the UniWork AI gateway, kept
+	// so a test can read the messages the model was sent (the transcript rule:
+	// what reaches the vendor is what the server stored) and decide the
+	// answer; uniworkStore is the real conversation store over the test
+	// database, and uniworkBox seals its turns.
+	uniworkProvider *provider.Fake
+	uniworkStore    *ai.ConversationStorePG
+	uniworkBox      *secretbox.Box
 }
 
 // newIsolationServer wires every service the production binary wires
@@ -219,9 +229,30 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	// Voice-call tokens are signed locally; any key pair lets the route run.
 	d.Cfg.LiveKitURL, d.Cfg.LiveKitAPIKey, d.Cfg.LiveKitAPISecret = "ws://livekit.invalid", "isolation", "isolation-matrix-livekit-secret-0123456789"
 
+	// The UniWork AI façade (G6-03a): its own gateway over a fake provider this
+	// file keeps, so a test can read the messages the model was sent, and the
+	// real conversation store (A9) over the test database — the transcript
+	// lives on the server, and the isolation digest must see it there.
+	t.Setenv(ai.ConversationKeyEnv, isoUniworkConversationKey)
+	uniworkKey, err := secretbox.LoadKey(ai.ConversationKeyEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uniworkBox, err := secretbox.New(uniworkKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uniworkProvider := &provider.Fake{}
+	uniworkStore := ai.NewConversationStore(pool, q, uniworkBox)
+	d.AIUniwork = service.NewAIUniworkService(d.Organizations, service.NewEntitlementService(pool, q), docs,
+		d.FeatureFlags, service.NewAIGateway(pool, q, uniworkProvider, ai.Options{}), uniworkStore, d.Redis)
+
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
-	return &isoWorld{srv: srv, pool: pool, q: q, deps: d, files: fs, box: box}
+	return &isoWorld{
+		srv: srv, pool: pool, q: q, deps: d, files: fs, box: box,
+		uniworkProvider: uniworkProvider, uniworkStore: uniworkStore, uniworkBox: uniworkBox,
+	}
 }
 
 // isoBody is what a matrix request sends: JSON, a multipart file part, or

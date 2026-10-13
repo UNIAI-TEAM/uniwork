@@ -71,6 +71,15 @@ var errorClassByCode = map[string]string{
 //   office_capability_off  (403, fields.capability) a flag hides the
 //     capability; it is not a permission denial, so the client must not
 //     run its lost-access recovery path (CLAUDE.md > Platform Admin).
+//   conversation_expired   (409) the UniWork AI transcript is gone, expired
+//     or bound to another scope: the client starts a new conversation
+//     instead of retrying this one (G6-03a, contract-p0 section 4).
+//   ai_tool_result_too_large (413) one tool result passed the 64 KiB cap, or
+//     a request's tool results the 256 KiB one (G6-D1 A6).
+//   ai_uniwork_busy        (429, Retry-After: 5) the pod, organization or
+//     whole-deployment concurrency bound is full (G6-D1 A11).
+//   ai_provider_timeout    (504) the 55 s deadline passed before the
+//     upstream answered (G6-D1 A14).
 //
 // commit_intent_unknown (410, plan G5-07) is reserved in the docs only and
 // is not registered until G5-D2 fixes the intent retention.

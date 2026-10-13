@@ -12,7 +12,7 @@ type AiUniworkChatCompletionsSDI struct {
 	Messages []AiUniworkMessageSDI `json:"messages" minItems:"1" description:"Câu hỏi mới của người dùng (role user, đúng 1, message cuối) hoặc kết quả công cụ (role tool + tool_call_id) trả cho lượt assistant ngay trước của server. Lượt assistant do client gửi bị bỏ qua; role system/developer bị từ chối 400"`
 	Tools    []AiUniworkToolSDI    `json:"tools,omitempty" description:"Công cụ editor của module đang mở; server giao với bảng công cụ của module, tên ngoài bảng không bao giờ tới model"`
 	Stream   bool                  `json:"stream,omitempty" description:"true → SSE một chunk rồi [DONE] (G6-D1 A14); mọi lỗi trước byte đầu là HTTP status thật, không bao giờ 200 rỗng" example:"true"`
-	Module   string                `json:"module,omitempty" enum:"docs,sheets,slides,pdf,markdown,html" description:"Chỉ route phiên không có tài liệu (tệp cục bộ, S10): module genoffice để chọn instruction pack và kiểm cờ định dạng; route có tài liệu suy module từ tài liệu/token và bỏ qua trường này" example:"sheets"`
+	Module   string                `json:"module,omitempty" enum:"docs,sheets,slides,pdf,markdown,html" description:"Chỉ route phiên không có tài liệu (tệp cục bộ, S10): module genoffice để chọn instruction pack và kiểm cờ định dạng; route có tài liệu suy module từ tài liệu/token và bỏ qua trường này. Phải gửi lại ở MỌI lượt của cùng hội thoại — khóa hội thoại gồm module, thiếu nó ở lượt sau là 409 conversation_expired" example:"sheets"`
 
 	Temperature float64 `json:"temperature,omitempty" description:"Bỏ qua; policy của server quyết (Temperature 0)" example:"0.3"`
 	MaxTokens   int     `json:"max_tokens,omitempty" description:"Bỏ qua; policy của server quyết (MaxTokens 4096)" example:"4096"`

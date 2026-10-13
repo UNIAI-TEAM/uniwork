@@ -564,6 +564,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if under("/office-frame/") || under("/office/frame-token") {
 			return tn.get(t, "frameDocument")
 		}
+		// The UniWork AI document route serves an Office file, not a page:
+		// the module comes from the stored file (G6-03a design §2, D-3).
+		if under("/documents/{documentID}/ai/uniwork/") {
+			return tn.get(t, "fileDocument")
+		}
 		if under("/download") || under("/office/") || under("/uploads") || under("/versions/commit") || under("/copies") {
 			return tn.get(t, "fileDocument")
 		}

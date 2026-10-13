@@ -39,6 +39,7 @@ type officeFrameAILimits struct {
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/cloud/images
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/cloud/media/analyze
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/cloud/transcribe
+//	POST   /api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions
 func registerOfficeFrameAI(r api, h Routes, flags *featureflag.Service, frameAuth func(http.Handler) http.Handler, limits officeFrameAILimits) {
 	if frameAuth == nil {
 		frameAuth = frameAuthNotFound
@@ -115,6 +116,17 @@ func registerOfficeFrameAI(r api, h Routes, flags *featureflag.Service, frameAut
 		summary:     "Frame: Office cloud transcription",
 		description: frame + "Chuyển âm thanh (≤ 25 MiB) thành văn bản; 1000 token-equivalent mỗi phút bắt đầu." + cloudErrs,
 		tags:        []string{"ai"}, sdi: sdi.AiCloudTranscribeSDI{}, sdo: sdo.AiCloudTextSDO{}, auth: true,
+	})
+
+	// The UniWork AI turn (G6-03a, R2): the session handler mounted on the
+	// frame token, but the module is the token's, never the body's (rule 3/7,
+	// D-3). G6-03b adds the ai-uniwork rate-limit bucket this group has none of.
+	f.Post(base+"/uniwork/chat/completions", h.OfficeFrameAiUniworkChatCompletions, apiOp{
+		summary: "Frame: UniWork AI chat, one turn",
+		description: frame + "Như POST /orgs/{orgID}/ai/uniwork/chat/completions: một lượt, hội thoại do server giữ " +
+			"(header X-UniWork-AI-Conversation), stream=true trả SSE một chunk rồi [DONE]. Module lấy từ claim của token; " +
+			"trường module trong body bị bỏ qua." + uniworkChatErrs,
+		tags: []string{"ai"}, sdi: sdi.AiUniworkChatCompletionsSDI{}, sdo: sdo.AiUniworkChatCompletionsSDO{}, auth: true,
 	})
 }
 

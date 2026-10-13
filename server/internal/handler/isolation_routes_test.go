@@ -376,14 +376,21 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{orgID}/ai/cloud/media/analyze":                                                     {body: isoJSON(map[string]any{"requirements": "iso", "media": []any{map[string]any{"mime": "image/png", "data_base64": "aXNv"}}})},
 	"POST /api/v1/orgs/{orgID}/ai/cloud/transcribe":                                                        {body: isoJSON(map[string]any{"audio": map[string]any{"mime": "audio/mpeg", "data_base64": "aXNv"}})},
 	"POST /api/v1/orgs/{orgID}/signatures":                                                                 {body: isoSignaturePost},
-	"POST /api/v1/documents/{documentID}/shares":                                                           {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
-	"POST /api/v1/documents/{documentID}/uploads":                                                          {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
-	"POST /api/v1/documents/{documentID}/versions/commit":                                                  {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
-	"POST /api/v1/office-frame/documents/{documentID}/uploads":                                             {body: isoFile("frame.docx", isoDocxMime, isoFrameDocx, nil)},
-	"POST /api/v1/office-frame/documents/{documentID}/versions/commit":                                     {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
-	"POST /api/v1/office-frame/documents/{documentID}/assets":                                              {body: isoFile("dot.png", "image/png", docsPNG, nil)},
-	"POST /api/v1/office-frame/documents/{documentID}/assets/sign":                                         {body: isoFrameSign},
-	"POST /api/v1/office-frame/documents/{documentID}/assets/resolve":                                      {body: isoJSON(map[string]any{"paths": []string{"missing.png"}})},
+	// UniWork AI (G6-03a): one turn per call with the conversation held by the
+	// server, so the body is a single user question. The frame's row rides the
+	// tenant's DOCX frame token; the session document row rides its Markdown
+	// file, whose module the server derives from the document, never the body.
+	"POST /api/v1/orgs/{orgID}/ai/uniwork/chat/completions":                        {body: isoJSON(isoUniworkTurnBody)},
+	"POST /api/v1/documents/{documentID}/ai/uniwork/chat/completions":              {body: isoJSON(isoUniworkTurnBody)},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions": {body: isoJSON(isoUniworkTurnBody)},
+	"POST /api/v1/documents/{documentID}/shares":                                   {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
+	"POST /api/v1/documents/{documentID}/uploads":                                  {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
+	"POST /api/v1/documents/{documentID}/versions/commit":                          {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	"POST /api/v1/office-frame/documents/{documentID}/uploads":                     {body: isoFile("frame.docx", isoDocxMime, isoFrameDocx, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/versions/commit":             {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
+	"POST /api/v1/office-frame/documents/{documentID}/assets":                      {body: isoFile("dot.png", "image/png", docsPNG, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/assets/sign":                 {body: isoFrameSign},
+	"POST /api/v1/office-frame/documents/{documentID}/assets/resolve":              {body: isoJSON(map[string]any{"paths": []string{"missing.png"}})},
 	// A sibling file opens through the signature alone (a frame token is refused 401, so is no
 	// signature): the control and the signed-URL cases are the frame-linked subtest.
 	"GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}":  {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},

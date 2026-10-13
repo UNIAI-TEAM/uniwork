@@ -271,6 +271,11 @@ type Routes struct {
 	AiCloudImages         http.HandlerFunc
 	AiCloudAnalyzeMedia   http.HandlerFunc
 	AiCloudTranscribe     http.HandlerFunc
+	// UniWork AI (G6-03a): the org session route, the desktop document route
+	// and the web frame's mount of the same turn.
+	AiUniworkChatCompletions            http.HandlerFunc
+	AiUniworkDocumentChatCompletions    http.HandlerFunc
+	OfficeFrameAiUniworkChatCompletions http.HandlerFunc
 
 	ListPlans           http.HandlerFunc
 	GetSubscription     http.HandlerFunc
