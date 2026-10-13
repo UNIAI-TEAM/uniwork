@@ -1,14 +1,35 @@
 "use client";
-import { Link2Off } from "lucide-react";
+import {
+  CalendarClock,
+  CircleAlert,
+  CirclePause,
+  Hourglass,
+  Link2Off,
+  MailCheck,
+  RefreshCw,
+  UserRoundX,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api";
 import { useLogout } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
+import type { IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { AUTH_LINK } from "../../auth/login-view";
-import { AuthShell } from "../../auth/auth-shell";
 import { AppLink } from "../../navigation";
+import { InviteNotice } from "./invite-notices";
+import { SeeInvitationsLink } from "./invite-screens";
+
+export type InviteErrorReason =
+  | "gone"
+  | "deactivated"
+  | "wrongAccount"
+  | "unverified"
+  | "suspended"
+  | "deletionScheduled"
+  | "rateLimited"
+  | "failed";
 
 /**
  * Lời mời hỏng là chuyện thường: link đã dùng, đã bị thu hồi, hoặc gõ sai. Bản
@@ -17,9 +38,9 @@ import { AppLink } from "../../navigation";
  *
  * Mỗi mã lỗi server trả về được dịch sang một câu nói rõ chuyện gì và làm gì
  * tiếp; mã lạ (và một response hỏng, `null`) rơi về câu chung thay vì lộ chuỗi
- * tiếng Anh.
+ * tiếng Anh. The page's AuthShell shows the reason as its description.
  */
-function reasonKey(error: unknown): string {
+export function inviteErrorReason(error: unknown): InviteErrorReason {
   if (error instanceof ApiError) {
     if (error.code === "not_found" || error.status === 404) return "gone";
     if (error.code === "member_deactivated") return "deactivated";
@@ -39,53 +60,73 @@ function reasonKey(error: unknown): string {
   return "failed";
 }
 
-/** The line under the reason: what to do next, where it differs from the generic one. */
-const HINT_KEY: Record<string, string> = {
-  wrongAccount: "workspace.acceptInviteError.wrongAccountHint",
-  unverified: "workspace.acceptInviteError.unverifiedHint",
+/**
+ * Each reason's glyph, and the line under it that says what to do next. No
+ * hint where the description already says it (wait, ask an admin) or where
+ * the way forward is the retry button.
+ */
+const REASONS: Record<InviteErrorReason, { icon: LucideIcon; tone: IconTileTone; hintKey?: string }> = {
+  gone: { icon: Link2Off, tone: "muted", hintKey: "workspace.acceptInviteError.hint" },
+  wrongAccount: { icon: UserRoundX, tone: "warning", hintKey: "workspace.acceptInviteError.wrongAccountHint" },
+  unverified: { icon: MailCheck, tone: "info", hintKey: "workspace.acceptInviteError.unverifiedHint" },
+  suspended: { icon: CirclePause, tone: "warning", hintKey: "workspace.acceptInviteError.askInviterHint" },
+  deletionScheduled: { icon: CalendarClock, tone: "warning", hintKey: "workspace.acceptInviteError.askInviterHint" },
+  deactivated: { icon: UserRoundX, tone: "muted" },
+  rateLimited: { icon: Hourglass, tone: "muted" },
+  failed: { icon: CircleAlert, tone: "destructive" },
 };
 
-export function InviteErrorScreen({ error }: { error: unknown }) {
+/** Reasons a second try can fix: a rate limit that runs out, a failure that may not repeat. */
+const RETRYABLE: ReadonlySet<InviteErrorReason> = new Set(["rateLimited", "failed"]);
+
+/**
+ * The body of "Không dùng được lời mời này": why, and a way forward for
+ * every reason. The shell's heading takes focus when this replaces the
+ * loading or the preview, which is what announces it.
+ */
+export function InviteErrorBody({ reason, onRetry }: { reason: InviteErrorReason; onRetry: () => void }) {
   const { t } = useTranslation();
   const logout = useLogout();
-  const reason = reasonKey(error);
+  const { icon, tone, hintKey } = REASONS[reason];
+  const retry = RETRYABLE.has(reason);
+  // One filled action per screen: when a reason has its own, "my workspaces" steps down to outline.
+  const ownAction = retry || reason === "wrongAccount" || reason === "unverified";
   return (
-    <AuthShell title={t("workspace.acceptInviteError.title")} description={t(`workspace.acceptInviteError.${reason}`)}>
-      <div className="flex flex-col gap-6">
-        {/* role="alert": trạng thái đổi từ "đang tải" sang lỗi mà không có
-            điều hướng, nên trình đọc màn hình cần được báo. */}
-        <p className="flex items-start gap-3 text-body text-muted-foreground" role="alert">
-          <Link2Off aria-hidden className="mt-0.5 size-5 shrink-0" />
-          {t(HINT_KEY[reason] ?? "workspace.acceptInviteError.hint")}
-        </p>
-        <div className="flex flex-col gap-4">
-          {/* Signing out lands on login with this invite as `next` (onAnon),
-              so the invitee comes straight back after switching account. */}
-          {reason === "wrongAccount" ? (
-            <Button size="lg" className="w-full" onClick={() => logout.mutate()} aria-disabled={logout.isPending}>
-              {t("workspace.acceptInviteError.switchAccount")}
-            </Button>
-          ) : null}
-          {reason === "unverified" ? (
-            <AppLink href={paths.verify()} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
-              {t("workspace.acceptInviteError.verifyEmail")}
-            </AppLink>
-          ) : null}
-          {/* Link đội lốt nút chính: nó điều hướng, nên giữ là <a> cho trình
-              đọc màn hình thay vì Button bị đổi role. */}
-          <AppLink
-            href={paths.workspaces()}
-            className={cn(buttonVariants({ size: "lg", variant: reason in HINT_KEY ? "outline" : "default" }), "w-full")}
-          >
-            {t("workspace.acceptInviteError.goToWorkspaces")}
+    <div className="flex flex-col gap-6">
+      {hintKey ? (
+        <InviteNotice icon={icon} tone={tone}>
+          {t(hintKey)}
+        </InviteNotice>
+      ) : null}
+      <div className="flex flex-col gap-3">
+        {/* Signing out lands on login with this invite as `next` (onAnon),
+            so the invitee comes straight back after switching account. */}
+        {reason === "wrongAccount" ? (
+          <Button size="lg" className="w-full" onClick={() => logout.mutate()} aria-disabled={logout.isPending}>
+            {t("workspace.acceptInviteError.switchAccount")}
+          </Button>
+        ) : null}
+        {reason === "unverified" ? (
+          <AppLink href={paths.verify()} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
+            {t("workspace.acceptInviteError.verifyEmail")}
           </AppLink>
-          <p className="text-center text-body text-muted-foreground">
-            <AppLink href={paths.login()} className={AUTH_LINK}>
-              {t("auth.forgot.backToLogin")}
-            </AppLink>
-          </p>
-        </div>
+        ) : null}
+        {retry ? (
+          <Button type="button" size="lg" className="w-full" onClick={onRetry}>
+            <RefreshCw aria-hidden />
+            {t("common.retry")}
+          </Button>
+        ) : null}
+        {/* Link đội lốt nút chính: nó điều hướng, nên giữ là <a> cho trình
+            đọc màn hình thay vì Button bị đổi role. */}
+        <AppLink
+          href={paths.workspaces()}
+          className={cn(buttonVariants({ size: "lg", variant: ownAction ? "outline" : "default" }), "w-full")}
+        >
+          {t("workspace.acceptInviteError.goToWorkspaces")}
+        </AppLink>
+        <SeeInvitationsLink />
       </div>
-    </AuthShell>
+    </div>
   );
 }

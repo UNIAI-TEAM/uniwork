@@ -1,11 +1,13 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRightLeft, CircleAlert, Info } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@uniwork/core/auth";
 import type { InvitationPreview, MembershipConflict, SwitchResolution } from "@uniwork/core/types";
-import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { AuthShell } from "../../auth/auth-shell";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
+import { BusyNotice, ChangedNotice } from "./invite-notices";
 import { LaterLink } from "./invite-screens";
 import { ResolveBlock } from "./resolve-block";
 import { EMPTY_DRAFT, draftReady, toResolution, type SwitchDraft } from "./switch-draft";
@@ -19,7 +21,8 @@ export type PasswordRefusal = "invalid_credentials" | "password_required";
  * see the conflict, say how each current organization is given up, confirm,
  * and only then one POST carries the whole switch. Leaving at any step
  * changes nothing (AC-10). The page remounts this with `startAt` and
- * `notice` when the server says the situation changed under it.
+ * `notice` when the server says the situation changed under it. It renders
+ * inside the page's AuthShell, whose title names the destination.
  */
 export function SwitchWizard({
   invitation,
@@ -73,6 +76,9 @@ export function SwitchWizard({
   const stuck = passwordless && conflicts.some((c) => c.required_action === "transfer");
   const ready = !stuck && conflicts.every((c) => draftReady(c, draftOf(c)));
   const reason = blocked ? "invitations.switch.blocked_reason" : stuck ? "invitations.switch.no_password_reason" : "invitations.switch.incomplete";
+  // Red is kept for the one switch nobody can take back: closing an
+  // organization. Leaving one, or handing it over, is an ordinary move.
+  const closes = conflicts.some((c) => c.required_action === "close");
   const to = invitation.organization.name;
 
   const submit = () => {
@@ -92,17 +98,31 @@ export function SwitchWizard({
   };
 
   return (
-    <AuthShell title={t("invitations.switch.title", { name: to })} description={t("invitations.switch.description", { name: to })}>
-      <div className="flex flex-col gap-6">
-        <SwitchProgress step={step} />
-        {notice ? (
-          <Alert variant="warning">
-            <AlertDescription>{t("invitations.switch.changed")}</AlertDescription>
-          </Alert>
+    <div className="flex flex-col gap-6">
+      {/* Back sits with the progress it moves along, as on onboarding; it is
+          gone while the switch is being sent, which cannot be called off. */}
+      <div className="flex items-start gap-2">
+        {step > 1 && !pending ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("common.back")}
+            onClick={() => setStep(step - 1)}
+            className="-ml-2 -mt-0.5 shrink-0"
+          >
+            <ArrowLeft />
+          </Button>
         ) : null}
+        <SwitchProgress step={step} />
+      </div>
+      {notice ? <ChangedNotice /> : null}
 
+      {/* Keyed by step so each step fades in (opacity only: a transform on
+          this column would flicker the scrollbar, see base.css). */}
+      <section key={step} className="flex flex-col gap-4 motion-safe:animate-onboarding-enter">
         {step === 1 ? (
-          <section className="flex flex-col gap-4">
+          <>
             <StepHeading ref={heading}>{conflictHeading(t, conflicts)}</StepHeading>
             <ConflictStepBody invitation={invitation} conflicts={conflicts} />
             <StepActions>
@@ -110,11 +130,11 @@ export function SwitchWizard({
                 {t("common.continue")}
               </Button>
             </StepActions>
-          </section>
+          </>
         ) : null}
 
         {step === 2 ? (
-          <section className="flex flex-col gap-4">
+          <>
             <StepHeading ref={heading}>{t("invitations.switch.resolve_heading")}</StepHeading>
             {conflicts.map((c) => (
               <ResolveBlock
@@ -126,7 +146,7 @@ export function SwitchWizard({
                 passwordless={passwordless}
               />
             ))}
-            <StepActions onBack={() => setStep(1)}>
+            <StepActions>
               {/* aria-disabled, not disabled: the button stays in the tab
                   order and its description says what is missing. */}
               <Button
@@ -141,61 +161,70 @@ export function SwitchWizard({
               >
                 {t("common.continue")}
               </Button>
-              {ready ? null : (
-                <p id="switch-resolve-reason" className="text-center text-caption text-muted-foreground">
-                  {t(reason)}
-                </p>
-              )}
+              {ready ? null : <ResolveReason stopped={blocked || stuck}>{t(reason)}</ResolveReason>}
             </StepActions>
-          </section>
+          </>
         ) : null}
 
         {step === 3 ? (
-          <section className="flex flex-col gap-4">
+          <>
             <StepHeading ref={heading}>{t("invitations.switch.confirm_heading")}</StepHeading>
             <ConfirmStepBody invitation={invitation} conflicts={conflicts} drafts={drafts} />
-            {busy ? (
-              <Alert variant="destructive">
-                <AlertDescription>{t("invitations.switch.busy")}</AlertDescription>
-              </Alert>
-            ) : null}
-            <StepActions onBack={() => setStep(2)} sending={pending}>
+            {busy ? <BusyNotice /> : null}
+            <StepActions sending={pending}>
               <Button
                 type="button"
                 size="lg"
-                variant="destructive"
-                className="w-full"
+                variant={closes ? "destructiveSolid" : "default"}
+                className={cn("w-full", pending && "aria-disabled:cursor-progress aria-disabled:opacity-100")}
                 aria-disabled={pending || undefined}
                 aria-busy={pending || undefined}
                 onClick={submit}
               >
+                {/* Decorative: the name stays "Chuyển sang …" while it works. */}
+                {pending ? <Spinner /> : closes ? null : <ArrowRightLeft aria-hidden />}
                 {t("invitations.switch.action", { name: to })}
               </Button>
             </StepActions>
-          </section>
+          </>
         ) : null}
-      </div>
-    </AuthShell>
+      </section>
+    </div>
   );
 }
 
 /**
- * The primary action, then Back where there is one, then "Để sau" — the same
- * order on every step. While the switch is being sent neither is offered: it
- * can no longer be called off, and "Để sau" would only hide that it went through.
+ * Why Continue does not go on yet, tied to it by `aria-describedby`. When the
+ * person cannot finish the step at all here (a suspended organization, no
+ * password to confirm a transfer), it reads as the stop it is.
  */
-function StepActions({ children, onBack, sending = false }: { children: React.ReactNode; onBack?: () => void; sending?: boolean }) {
-  const { t } = useTranslation();
-  if (sending) return <div className="flex flex-col gap-3 pt-2">{children}</div>;
+function ResolveReason({ stopped, children }: { stopped: boolean; children: ReactNode }) {
+  const Icon = stopped ? CircleAlert : Info;
   return (
-    <div className="flex flex-col gap-3 pt-2">
+    <p
+      id="switch-resolve-reason"
+      className={cn(
+        "flex items-start justify-center gap-1.5 text-pretty text-center text-caption",
+        stopped ? "text-destructive" : "text-muted-foreground",
+      )}
+    >
+      <Icon aria-hidden className="mt-px size-3.5 shrink-0" />
       {children}
-      {onBack ? (
-        <Button type="button" size="lg" variant="outline" className="w-full" onClick={onBack}>
-          {t("common.back")}
-        </Button>
-      ) : null}
-      <LaterLink />
+    </p>
+  );
+}
+
+/**
+ * The primary action, then "Để sau" as a quiet text link — the same order on
+ * every step; Back lives beside the progress. While the switch is being sent
+ * "Để sau" is not offered: the switch can no longer be called off, and the
+ * link would only hide that it went through.
+ */
+function StepActions({ children, sending = false }: { children: ReactNode; sending?: boolean }) {
+  return (
+    <div className="flex flex-col gap-2 pt-2">
+      {children}
+      {sending ? null : <LaterLink />}
     </div>
   );
 }

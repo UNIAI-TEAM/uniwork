@@ -1,15 +1,19 @@
 "use client";
-import { CircleAlert, TriangleAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { MembershipConflict } from "@uniwork/core/types";
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { useTransferCandidates } from "../../settings/components/transfer-ownership-dialog";
 import { TransferCandidateField, TransferPasswordField } from "../../settings/components/transfer-owner-fields";
 import { SettingsFieldError } from "../../settings/components/settings-layout";
-import { roleLabel, type SwitchDraft } from "./switch-draft";
+import { cn } from "@uniwork/ui/lib/utils";
+import { RoleBadge } from "./org-mark";
+import type { SwitchDraft } from "./switch-draft";
 
 type BlockProps = {
   conflict: MembershipConflict;
@@ -32,16 +36,45 @@ export function ResolveBlock(props: BlockProps) {
   const { conflict } = props;
   const name = conflict.organization.name;
   const headingId = `switch-${conflict.organization.id}-heading`;
+  // Closing is the one choice that ends the organization for everyone, so it
+  // alone is set apart with the destructive edge; leaving and handing over
+  // sit on a quiet tinted plane inside the card.
+  const closes = conflict.required_action === "close";
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5">
-      <div className="flex flex-col gap-0.5">
-        <h3 id={headingId} className="text-title-sm font-semibold text-foreground">
+    <section
+      aria-labelledby={headingId}
+      className={cn(
+        "flex flex-col gap-4 rounded-xl p-4 sm:p-5",
+        closes ? "bg-surface ring-1 ring-destructive/30" : "bg-muted/50",
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h3 id={headingId} className="text-balance text-body-lg font-semibold text-foreground [overflow-wrap:anywhere]">
           {name}
         </h3>
-        <p className="text-caption text-muted-foreground">{t("invitations.switch.role_as", { role: roleLabel(t, conflict.role) })}</p>
+        <RoleBadge role={conflict.role} />
+        {closes ? <Badge variant="destructive">{t("invitations.switch.close_badge")}</Badge> : null}
       </div>
       <BlockBody {...props} />
     </section>
+  );
+}
+
+/**
+ * What cannot be undone, or cannot be done here: the destructive notice on its
+ * soft surface. A note, not an alert: it is part of the step, which the step
+ * heading already announces when it takes focus.
+ */
+function DestructiveNotice({ children }: { children: ReactNode }) {
+  return (
+    <Alert
+      variant="destructive"
+      role="note"
+      className="border-destructive/25 bg-destructive-soft *:data-[slot=alert-description]:text-destructive-soft-foreground"
+    >
+      <CircleAlert aria-hidden />
+      <AlertDescription className="text-pretty">{children}</AlertDescription>
+    </Alert>
   );
 }
 
@@ -56,12 +89,7 @@ function BlockBody(props: BlockProps) {
     case "close":
       return <CloseBlock {...props} />;
     case "blocked":
-      return (
-        <p className="flex items-start gap-2 text-body text-foreground">
-          <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
-          {t("invitations.switch.blocked", { name })}
-        </p>
-      );
+      return <DestructiveNotice>{t("invitations.switch.blocked", { name })}</DestructiveNotice>;
     default:
       return <p className="text-body text-foreground">{t("invitations.switch.unknown", { name })}</p>;
   }
@@ -73,7 +101,7 @@ function LeaveBlock({ conflict, draft, onChange }: BlockProps) {
   const id = `switch-${conflict.organization.id}-leave`;
   return (
     <>
-      <p className="text-body text-muted-foreground">{t("invitations.switch.leave_body", { name })}</p>
+      <p className="text-pretty text-body text-muted-foreground">{t("invitations.switch.leave_body", { name })}</p>
       {/* The whole row is the label, so the target is the row on a touch screen, not the 16px box. */}
       <Field orientation="horizontal" className="min-h-11">
         <Checkbox
@@ -101,7 +129,7 @@ function TransferBlock({ conflict, draft, onChange, passwordError, passwordless 
   };
   return (
     <>
-      <p className="text-body text-muted-foreground">{t("invitations.switch.transfer_body", { name })}</p>
+      <p className="text-pretty text-body text-muted-foreground">{t("invitations.switch.transfer_body", { name })}</p>
       <TransferCandidateField
         id={`${prefix}-target`}
         candidates={candidates}
@@ -110,13 +138,10 @@ function TransferBlock({ conflict, draft, onChange, passwordError, passwordless 
         loading={loading}
         isError={isError}
         onRetry={retry}
+        empty={none ? t("org.transfer.no_candidate") : undefined}
       />
-      {none ? <p className="text-caption text-muted-foreground">{t("org.transfer.no_candidate")}</p> : null}
       {passwordless ? (
-        <p className="flex items-start gap-2 text-body text-foreground">
-          <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
-          {t("invitations.switch.no_password", { name })}
-        </p>
+        <DestructiveNotice>{t("invitations.switch.no_password", { name })}</DestructiveNotice>
       ) : (
         <TransferPasswordField
           id={`${prefix}-password`}
@@ -137,11 +162,8 @@ function CloseBlock({ conflict, draft, onChange }: BlockProps) {
   const mismatch = typed !== "" && typed !== slug && !slug.startsWith(typed);
   return (
     <>
-      <p className="text-body text-muted-foreground">{t("invitations.switch.close_body", { name })}</p>
-      <Alert variant="warning">
-        <TriangleAlert aria-hidden />
-        <AlertDescription>{t("org.close.confirm_body", { name })}</AlertDescription>
-      </Alert>
+      <p className="text-pretty text-body text-muted-foreground">{t("invitations.switch.close_body", { name })}</p>
+      <DestructiveNotice>{t("org.close.confirm_body", { name })}</DestructiveNotice>
       <Field>
         <FieldLabel htmlFor={id}>{t("org.close.confirm_label")}</FieldLabel>
         <Input

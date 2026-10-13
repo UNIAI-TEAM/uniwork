@@ -1,13 +1,21 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { errorCode } from "@uniwork/core/api";
 import { useSession } from "@uniwork/core/auth";
 import { organizationSwitchConflicts } from "@uniwork/core/organizations/errors";
 import type { MembershipConflict, SwitchResolution, Workspace } from "@uniwork/core/types";
 import { useAcceptInvite, useInvitationPreview } from "@uniwork/core/workspaces";
-import { InviteErrorScreen } from "./accept-invite/invite-error";
-import { goneReason, InvitationGoneScreen, InviteLoadingScreen, type GoneReason } from "./accept-invite/invite-screens";
-import { JoinInvitationScreen } from "./accept-invite/invitation-card";
+import { AuthShell } from "../auth/auth-shell";
+import { InviteErrorBody, inviteErrorReason } from "./accept-invite/invite-error";
+import {
+  goneReason,
+  InvitationGoneBody,
+  InviteJoining,
+  InvitePreviewSkeleton,
+  type GoneReason,
+} from "./accept-invite/invite-screens";
+import { JoinInvitationBody } from "./accept-invite/invitation-card";
 import { SwitchWizard, type PasswordRefusal } from "./accept-invite/switch-wizard";
 
 /** What the page does after a refused accept, beyond showing it. */
@@ -30,6 +38,9 @@ function classify(err: unknown): Refusal {
   return { kind: "fatal", error: err };
 }
 
+/** One state of the page: what its shell says, and what it shows under that. */
+type Screen = { id: string; title: string; description: string; body: ReactNode };
+
 /**
  * /invite/{token} (spec 2026-10-13 §6.1). Opening the link reads the
  * invitation and joins nothing: the person sees what they are invited to and,
@@ -51,6 +62,7 @@ export function AcceptInviteView({
   onAccepted: (workspace: Workspace | null) => void;
   onAnon: () => void;
 }) {
+  const { t } = useTranslation();
   const { status } = useSession();
   const accept = useAcceptInvite();
   // Once joined the page only waits for the host to navigate; the preview
@@ -117,41 +129,110 @@ export function AcceptInviteView({
     }
   });
 
-  if (status !== "authed") return status === "anon" ? null : <InviteLoadingScreen />;
-  if (refusal?.kind === "fatal") return <InviteErrorScreen error={refusal.error} />;
-  if (refusal?.kind === "gone") return <InvitationGoneScreen reason={refusal.reason} />;
-  if (preview.error) return <InviteErrorScreen error={preview.error} />;
-  if (joined || invitationStatus === "accepted") return <InviteLoadingScreen joining />;
-  if (preview.isPending || (preview.isFetching && round > 0 && !fresh)) return <InviteLoadingScreen />;
-  if (!data) return <InviteErrorScreen error={null} />;
-  const gone = goneReason(invitationStatus);
-  if (gone) return <InvitationGoneScreen reason={gone} />;
-  if (invitationStatus !== "pending") return <InviteErrorScreen error={null} />;
+  const loading = (): Screen => ({
+    id: "loading",
+    title: t("invitations.title"),
+    description: t("invitations.loading_description"),
+    body: <InvitePreviewSkeleton />,
+  });
+  const failed = (error: unknown): Screen => {
+    const reason = inviteErrorReason(error);
+    return {
+      id: `error-${reason}`,
+      title: t("workspace.acceptInviteError.title"),
+      description: t(`workspace.acceptInviteError.${reason}`),
+      body: (
+        <InviteErrorBody
+          reason={reason}
+          onRetry={() => {
+            setRefusal(null);
+            void preview.refetch();
+          }}
+        />
+      ),
+    };
+  };
+  const gone = (reason: GoneReason): Screen => ({
+    id: `gone-${reason}`,
+    title: t("invitations.gone.title"),
+    description: t(`invitations.gone.${reason}`),
+    body: <InvitationGoneBody reason={reason} />,
+  });
 
-  const changed = round > 0;
-  const conflicts = fresh ?? data.conflicts;
-  const busy = refusal?.kind === "busy";
-  if (conflicts.length === 0) {
-    return (
-      <JoinInvitationScreen
-        invitation={data.invitation}
-        notice={changed}
-        pending={accept.isPending}
-        busy={busy}
-        onJoin={() => submit()}
-      />
-    );
-  }
+  const pick = (): Screen | null => {
+    if (status !== "authed") return status === "anon" ? null : loading();
+    if (refusal?.kind === "fatal") return failed(refusal.error);
+    if (refusal?.kind === "gone") return gone(refusal.reason);
+    if (preview.error) return failed(preview.error);
+    if (joined || invitationStatus === "accepted") {
+      return {
+        id: "joining",
+        title: t("workspace.acceptInviteJoining.title"),
+        description: t("workspace.acceptInviteJoining.body"),
+        body: <InviteJoining />,
+      };
+    }
+    if (preview.isPending || (preview.isFetching && round > 0 && !fresh)) return loading();
+    if (!data) return failed(null);
+    const spent = goneReason(invitationStatus);
+    if (spent) return gone(spent);
+    if (invitationStatus !== "pending") return failed(null);
+
+    const invitation = data.invitation;
+    const name = invitation.organization.name;
+    const changed = round > 0;
+    const conflicts = fresh ?? data.conflicts;
+    const busy = refusal?.kind === "busy";
+    if (conflicts.length === 0) {
+      const title = t("invitations.preview.title", { name });
+      return {
+        id: "join",
+        title,
+        description: invitation.inviter_name
+          ? t("invitations.preview.description_inviter", { inviter: invitation.inviter_name })
+          : t("invitations.preview.description"),
+        body: (
+          <JoinInvitationBody
+            invitation={invitation}
+            label={title}
+            notice={changed}
+            pending={accept.isPending}
+            busy={busy}
+            onJoin={() => submit()}
+          />
+        ),
+      };
+    }
+    return {
+      id: "switch",
+      title: t("invitations.switch.title", { name }),
+      description: t("invitations.switch.description", { name }),
+      body: (
+        <SwitchWizard
+          key={round}
+          invitation={invitation}
+          conflicts={conflicts}
+          startAt={startAt}
+          notice={changed}
+          pending={accept.isPending}
+          busy={busy}
+          onSubmit={submit}
+        />
+      ),
+    };
+  };
+
+  const screen = pick();
+  if (!screen) return null;
+  // One shell for every state: its entrance plays once, and a new title (the
+  // preview arriving, a refusal, the join under way) moves focus to its
+  // heading, which is how the change is announced. Inside, each state fades
+  // in by opacity alone.
   return (
-    <SwitchWizard
-      key={round}
-      invitation={data.invitation}
-      conflicts={conflicts}
-      startAt={startAt}
-      notice={changed}
-      pending={accept.isPending}
-      busy={busy}
-      onSubmit={submit}
-    />
+    <AuthShell title={screen.title} description={screen.description}>
+      <div key={screen.id} className="motion-safe:animate-onboarding-enter">
+        {screen.body}
+      </div>
+    </AuthShell>
   );
 }

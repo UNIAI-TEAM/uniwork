@@ -1,43 +1,84 @@
 "use client";
-import { CircleOff } from "lucide-react";
+import { CircleCheck, Hourglass, Link2Off, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useOrganizations } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
 import { holdsOrganization } from "@uniwork/core/types";
 import { useHomeDestination } from "@uniwork/core/workspaces";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { AuthShell } from "../../auth/auth-shell";
+import { AUTH_LINK } from "../../auth/login-view";
 import { AppLink } from "../../navigation";
+import { InviteNotice } from "./invite-notices";
 
 /**
  * "Để sau": leave the invitation where it is and go home. Nothing is sent;
- * the invitation keeps waiting in the list until it expires (spec D10).
+ * the invitation keeps waiting in the list until it expires (spec D10). A
+ * quiet text link under the primary action, so it reads as the way out it
+ * is rather than as a second choice of equal weight.
  */
-export function LaterLink({ className }: { className?: string }) {
+export function LaterLink() {
   const { t } = useTranslation();
   const home = useHomeDestination() ?? paths.workspaces();
   return (
-    <AppLink href={home} className={cn(buttonVariants({ size: "lg", variant: "ghost" }), "w-full", className)}>
+    <AppLink href={home} className={cn(AUTH_LINK, "justify-center self-center text-muted-foreground hover:text-foreground")}>
       {t("common.later")}
     </AppLink>
   );
 }
 
-/** Waiting on the session, the preview, or the accept itself. */
-export function InviteLoadingScreen({ joining = false }: { joining?: boolean }) {
+/** "Xem lời mời của tôi": the other invitations still waiting, for a screen whose own invitation is spent. */
+export function SeeInvitationsLink() {
   const { t } = useTranslation();
   return (
-    <AuthShell
-      title={t(joining ? "workspace.acceptInviteJoining.title" : "invitations.title")}
-      description={t("workspace.acceptInviteJoining.body")}
-    >
-      <p className="flex items-center gap-3 text-body text-muted-foreground" role="status" aria-live="polite">
-        <Spinner className="size-5 shrink-0" />
-        {t("common.loading")}
-      </p>
-    </AuthShell>
+    <AppLink href={paths.invitations()} className={cn(AUTH_LINK, "justify-center self-center")}>
+      {t("invitations.see_all")}
+    </AppLink>
+  );
+}
+
+/**
+ * Reading the session and the invitation: the preview card's own shape in
+ * skeleton, so the card fills in place instead of jumping from a spinner.
+ */
+export function InvitePreviewSkeleton() {
+  const { t } = useTranslation();
+  return (
+    <div role="status" aria-live="polite" className="flex flex-col gap-6">
+      <span className="sr-only">{t("common.loading")}</span>
+      <div aria-hidden className="flex items-center gap-3">
+        <Skeleton className="size-10 rounded-lg" />
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-3 w-28" />
+        </div>
+      </div>
+      <div aria-hidden className="flex flex-col gap-4 rounded-xl bg-muted/50 px-4 py-4">
+        {["w-32", "w-24", "w-28"].map((width) => (
+          <div key={width} className="flex items-center justify-between gap-4">
+            <Skeleton className="h-3 w-20 bg-background" />
+            <Skeleton className={cn("h-4 bg-background", width)} />
+          </div>
+        ))}
+      </div>
+      <div aria-hidden className="flex flex-col gap-3">
+        <Skeleton className="h-9 w-full rounded-control pointer-coarse:h-11" />
+        <Skeleton className="h-4 w-16 self-center" />
+      </div>
+    </div>
+  );
+}
+
+/** The accept itself is under way: an action in progress, so the spinner is honest here. */
+export function InviteJoining() {
+  const { t } = useTranslation();
+  return (
+    <p className="flex items-center gap-3 text-body text-muted-foreground" role="status" aria-live="polite">
+      <Spinner className="size-5 shrink-0" />
+      {t("common.loading")}
+    </p>
   );
 }
 
@@ -60,28 +101,39 @@ export function goneReason(codeOrStatus: string | undefined): GoneReason | null 
   }
 }
 
+const GONE_ICON: Record<GoneReason, LucideIcon> = {
+  expired: Hourglass,
+  revoked: Link2Off,
+  accepted: CircleCheck,
+};
+
 /**
  * The invitation admits nobody any more. Whatever the person had is
  * untouched — a switch that met this rolled back whole (AC-10, AC-11) — so the
- * page says where they still are.
+ * page says where they still are, in the success tone: that is the news.
  */
-export function InvitationGoneScreen({ reason }: { reason: GoneReason }) {
+export function InvitationGoneBody({ reason }: { reason: GoneReason }) {
   const { t } = useTranslation();
   const { data: organizations } = useOrganizations();
   const held = organizations?.find(holdsOrganization);
   return (
-    <AuthShell title={t("invitations.gone.title")} description={t(`invitations.gone.${reason}`)}>
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2" role="alert">
-          {held ? <p className="text-body font-medium text-foreground">{t("invitations.gone.still_in", { name: held.name })}</p> : null}
-          <p className="flex items-start gap-3 text-body text-muted-foreground">
-            <CircleOff aria-hidden className="mt-0.5 size-5 shrink-0" />
-            {t("workspace.acceptInviteError.hint")}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        {held ? (
+          <p className="flex items-start gap-3 rounded-xl bg-success-soft p-4 text-pretty text-body font-medium text-success-soft-foreground">
+            <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0" />
+            {t("invitations.gone.still_in", { name: held.name })}
           </p>
-        </div>
-        <HomeLink />
+        ) : null}
+        <InviteNotice icon={GONE_ICON[reason]} tone="muted">
+          {t("workspace.acceptInviteError.hint")}
+        </InviteNotice>
       </div>
-    </AuthShell>
+      <div className="flex flex-col gap-2">
+        <HomeLink />
+        <SeeInvitationsLink />
+      </div>
+    </div>
   );
 }
 

@@ -116,9 +116,10 @@ describe("AcceptInviteView", () => {
       signIn();
       serve({ preview: () => Promise.reject(new ApiError("not found", "not_found", 404)) });
       renderView();
-      expect(await screen.findByRole("heading", { name: "Không dùng được lời mời này" })).toBeInTheDocument();
+      const heading = await screen.findByRole("heading", { name: "Không dùng được lời mời này" });
       expect(screen.queryByText("not found")).not.toBeInTheDocument();
-      expect(screen.getByRole("alert")).toBeInTheDocument();
+      // The page keeps one shell, so the new title moves focus to it: that announces the refusal.
+      await waitFor(() => expect(heading).toHaveFocus());
       expect(screen.getByRole("link", { name: "Xem workspace của tôi" })).toHaveAttribute("href", "/workspaces");
     });
 
@@ -144,7 +145,7 @@ describe("AcceptInviteView", () => {
       serve({ preview: () => Promise.reject(new ApiError("x", "invitation_email_mismatch", 403)) });
       renderView();
       expect(await screen.findByText("Lời mời này gửi tới một email khác với tài khoản bạn đang đăng nhập.")).toBeInTheDocument();
-      expect(screen.getByRole("alert")).toHaveTextContent("Đăng nhập bằng email đã nhận lời mời rồi mở lại link.");
+      expect(screen.getByText("Đăng nhập bằng email đã nhận lời mời rồi mở lại link.")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Dùng tài khoản khác" })).toBeInTheDocument();
     });
 
@@ -153,6 +154,24 @@ describe("AcceptInviteView", () => {
       serve({ preview: () => Promise.reject(new ApiError("x", "organization_deletion_scheduled", 403)) });
       renderView();
       expect(await screen.findByText("Tổ chức này đang chờ xóa nên không nhận thêm thành viên.")).toBeInTheDocument();
+      expect(acceptCalls()).toHaveLength(0);
+    });
+
+    it("lets the person try again after too many attempts", async () => {
+      signIn();
+      let reads = 0;
+      serve({
+        preview: () => {
+          reads += 1;
+          return reads === 1
+            ? Promise.reject(new ApiError("slow down", "rate_limited", 429))
+            : Promise.resolve({ invitation: invitation(), conflicts: [] });
+        },
+      });
+      renderView();
+      expect(await screen.findByText("Bạn thử quá nhiều lần. Chờ một lát rồi mở lại link.")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+      expect(await screen.findByRole("heading", { name: "Tham gia Beta" })).toBeInTheDocument();
       expect(acceptCalls()).toHaveLength(0);
     });
 
@@ -176,6 +195,8 @@ describe("AcceptInviteView", () => {
       expect(await screen.findByRole("heading", { name: "Lời mời không còn hiệu lực" })).toBeInTheDocument();
       expect(screen.getByText(sentence)).toBeInTheDocument();
       expect(await screen.findByText("Bạn vẫn ở Acme, không có gì thay đổi.")).toBeInTheDocument();
+      // Other invitations may still be waiting.
+      expect(screen.getByRole("link", { name: "Xem lời mời của tôi" })).toHaveAttribute("href", "/invitations");
       expect(acceptCalls()).toHaveLength(0);
     });
 
@@ -207,8 +228,9 @@ describe("AcceptInviteView", () => {
       renderView();
       expect(await screen.findByRole("heading", { name: "Tham gia Beta" })).toBeInTheDocument();
       expect(screen.getByText("Lan mời bạn tham gia tổ chức này.")).toBeInTheDocument();
+      // The organization leads the card as its identity; the list holds the facts.
+      expect(screen.getByText("Beta")).toBeInTheDocument();
       const details = screen.getByRole("list", { name: "Tham gia Beta" });
-      expect(within(details).getByText("Beta")).toBeInTheDocument();
       expect(within(details).getByText("Ops")).toBeInTheDocument();
       expect(within(details).getByText("Thành viên")).toBeInTheDocument();
       expect(acceptCalls()).toHaveLength(0);
@@ -298,7 +320,8 @@ describe("AcceptInviteView", () => {
       });
       renderView();
       fireEvent.click(await screen.findByRole("button", { name: "Tham gia" }));
-      expect(await screen.findByRole("alert")).toHaveTextContent("Đang có một thay đổi khác với tài khoản của bạn.");
+      // Nothing failed: a status in the warning tone, beside the button that tries again.
+      expect(await screen.findByRole("status")).toHaveTextContent("Đang có một thay đổi khác với tài khoản của bạn.");
       expect(screen.getByRole("button", { name: "Tham gia" })).toBeInTheDocument();
     });
 
@@ -326,9 +349,14 @@ describe("AcceptInviteView", () => {
     it("opens on the conflict and says what the person loses", async () => {
       await openWizard([conflict("leave", { role: "admin" })]);
       expect(screen.getByRole("heading", { name: "Bạn đang thuộc Acme" })).toBeInTheDocument();
-      expect(screen.getByText("Để tham gia Beta, bạn cần rời Acme.")).toBeInTheDocument();
-      expect(screen.getByText(/không còn vào được workspace, công việc, cuộc họp và tài liệu của Acme/)).toBeInTheDocument();
-      expect(screen.getByText("Vai trò: Quản trị")).toBeInTheDocument();
+      // From Acme, as an admin, to Beta, as a member: one route, top to bottom.
+      const route = screen.getByRole("list", { name: "Chuyển từ Acme sang Beta" });
+      const [from, to] = within(route).getAllByRole("listitem");
+      expect(from).toHaveTextContent("Acme");
+      expect(within(from!).getByText("Vai trò: Quản trị")).toBeInTheDocument();
+      expect(to).toHaveTextContent("Beta");
+      expect(within(to!).getByText("Vai trò: Thành viên")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Bạn sẽ không còn vào được Acme" })).toBeInTheDocument();
       expect(screen.getByRole("group", { name: "Các bước chuyển tổ chức" })).toBeInTheDocument();
       expect(acceptCalls()).toHaveLength(0);
     });
@@ -472,7 +500,7 @@ describe("AcceptInviteView", () => {
         if (calls === 1) throw new ApiError("x", "membership_busy", 409);
         return { organization: beta, workspace: betaWorkspace };
       });
-      expect(await screen.findByRole("alert")).toHaveTextContent("Thử lại sau giây lát.");
+      expect(await screen.findByRole("status")).toHaveTextContent("Thử lại sau giây lát.");
       fireEvent.click(screen.getByRole("button", { name: "Chuyển sang Beta" }));
       await waitFor(() => expect(onAccepted).toHaveBeenCalled());
     });
@@ -511,8 +539,10 @@ describe("AcceptInviteView", () => {
       await pickHeir();
       fireEvent.change(screen.getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "anything" } });
       next();
+      // Found outside act: a find polled inside act waits on updates act holds back.
+      const action = await screen.findByRole("button", { name: "Chuyển sang Beta" }, SLOW);
       await act(async () => {
-        fireEvent.click(await screen.findByRole("button", { name: "Chuyển sang Beta" }));
+        fireEvent.click(action);
       });
       expect(await screen.findByText(/tài khoản của bạn chưa có mật khẩu/, {}, SLOW)).toBeInTheDocument();
       expect(screen.queryByLabelText("Mật khẩu hiện tại của bạn")).not.toBeInTheDocument();
@@ -527,8 +557,10 @@ describe("AcceptInviteView", () => {
       await pickHeir();
       fireEvent.change(screen.getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "wrong" } });
       next();
+      // Found outside act: a find polled inside act waits on updates act holds back.
+      const action = await screen.findByRole("button", { name: "Chuyển sang Beta" }, SLOW);
       await act(async () => {
-        fireEvent.click(await screen.findByRole("button", { name: "Chuyển sang Beta" }));
+        fireEvent.click(action);
       });
       const password = await screen.findByLabelText("Mật khẩu hiện tại của bạn", {}, SLOW);
       expect(password).toHaveValue("");
