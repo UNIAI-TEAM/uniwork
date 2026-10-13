@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+185b277fa709f0c4435d22ad5eab9898a7c18f93
+d81027efe5347dc6b69e0b2bcd52728cced0df2d
+185b277fa fix(office): classify the UniWork AI transcript tables in the export
+caa1e0156 test(ai): charge the sweep's assertions to its own conversations
+777cacc07 chore(ai): merge the Advisor's lane-branch commits into G6-03a
+2f58028b9 chore(ai): merge the G5-G7 root d81027efe into G6-03a
+7cb4959fb fix(ai): expiring UniWork AI leases and the no-Redis org bound
+a5e3e805c test(ai): pin the failed-turn, SSE and per-format contracts
+f0d0e0bc8 fix(ai): set Retry-After from the gateway refusal's fields
+32ddcd791 fix(ai): answer a vendor 429 as 429 ai_rate_limited with its wait
