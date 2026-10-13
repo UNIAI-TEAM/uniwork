@@ -5,8 +5,10 @@ import { renderHook, waitFor } from "@testing-library/react";
 import {
   getEmailHubProviders,
   getEmailHubThread,
+  listEmailHubThreads,
   startEmailHubOAuth,
 } from "../api/endpoints/email-hub";
+import type { EmailHubThread } from "../types/email-hub";
 import {
   emailHubHasReadableBody,
   emailHubKeys,
@@ -14,9 +16,11 @@ import {
   invalidateEmailHubReadingCachesForAccount,
   invalidateEmailHubThreadsForAccount,
   prefetchEmailHubThread,
+  patchEmailHubThreadInLists,
   setEmailHubListRefreshPaused,
   useEmailHubThread,
   useEmailHubProviders,
+  useEmailHubThreads,
   useStartEmailHubOAuth,
 } from "./hooks";
 import { threadDetailKey } from "./query-cache";
@@ -26,6 +30,9 @@ vi.mock("../api/endpoints/email-hub", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/endpoints/email-hub")>()),
   getEmailHubProviders: vi.fn(() => Promise.resolve({ google: true, microsoft: false })),
   getEmailHubThread: vi.fn(() => Promise.resolve(null)),
+  listEmailHubThreads: vi.fn(() =>
+    Promise.resolve({ threads: [], counts: { total: 0, unread: 0 }, next_cursor: "" }),
+  ),
   startEmailHubOAuth: vi.fn(() => Promise.resolve("https://accounts.google.com/o/oauth2/auth?state=s1")),
 }));
 
@@ -38,6 +45,43 @@ function wrapperFor(qc: QueryClient) {
 beforeEach(() => {
   vi.mocked(getEmailHubThread).mockClear();
 });
+
+function emailThread(id: string, isRead: boolean): EmailHubThread {
+  return {
+    id,
+    account_id: "acc1",
+    folder: "INBOX",
+    subject: `Subject ${id}`,
+    snippet: `Snippet ${id}`,
+    from_addr: "sender@example.com",
+    to_addrs: ["recipient@example.com"],
+    sent_at: "2026-10-12T00:00:00Z",
+    is_read: isRead,
+    is_starred: false,
+    has_attachments: false,
+    body_cached: false,
+    imap_labels: [],
+  };
+}
+
+function seedTwoPageThreadList(qc: QueryClient, secondPageThread: EmailHubThread) {
+  const key = emailHubKeys.threads("ws1", "acc1", "INBOX", {});
+  qc.setQueryData(key, {
+    pages: [
+      {
+        threads: [emailThread("thread-page-1", true)],
+        counts: { total: 120, unread: 30 },
+        next_cursor: "page-2",
+      },
+      {
+        threads: [secondPageThread],
+        counts: { total: 0, unread: 0 },
+      },
+    ],
+    pageParams: [undefined, "page-2"],
+  });
+  return key;
+}
 
 describe("emailHubHasReadableBody", () => {
   it("treats body_cached short sent mail as readable even when body_text equals snippet", () => {
@@ -96,6 +140,49 @@ describe("email hub list refresh defer", () => {
     setEmailHubListRefreshPaused("ws1", "acc1", false);
     flushEmailHubListRefresh(qc, "ws1", "acc1");
     expect(invalidateSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("patchEmailHubThreadInLists", () => {
+  it("decreases the first page unread count when a second page thread becomes read", () => {
+    const qc = new QueryClient();
+    const key = seedTwoPageThreadList(qc, emailThread("thread-page-2", false));
+
+    patchEmailHubThreadInLists(qc, "ws1", "acc1", "thread-page-2", { is_read: true });
+
+    const cached = qc.getQueryData<{
+      pages: Array<{ threads: EmailHubThread[]; counts: { total: number; unread: number } }>;
+    }>(key);
+    expect(cached?.pages[0]?.counts).toEqual({ total: 120, unread: 29 });
+    expect(cached?.pages[1]?.counts).toEqual({ total: 0, unread: 0 });
+    expect(cached?.pages[1]?.threads[0]?.is_read).toBe(true);
+  });
+
+  it("increases the first page unread count when a thread becomes unread", () => {
+    const qc = new QueryClient();
+    const key = seedTwoPageThreadList(qc, emailThread("thread-page-2", true));
+
+    patchEmailHubThreadInLists(qc, "ws1", "acc1", "thread-page-2", { is_read: false });
+
+    const cached = qc.getQueryData<{
+      pages: Array<{ threads: EmailHubThread[]; counts: { total: number; unread: number } }>;
+    }>(key);
+    expect(cached?.pages[0]?.counts).toEqual({ total: 120, unread: 31 });
+    expect(cached?.pages[1]?.counts).toEqual({ total: 0, unread: 0 });
+    expect(cached?.pages[1]?.threads[0]?.is_read).toBe(false);
+  });
+
+  it("changes the unread count only once when the same read patch is repeated", () => {
+    const qc = new QueryClient();
+    const key = seedTwoPageThreadList(qc, emailThread("thread-page-2", false));
+
+    patchEmailHubThreadInLists(qc, "ws1", "acc1", "thread-page-2", { is_read: true });
+    patchEmailHubThreadInLists(qc, "ws1", "acc1", "thread-page-2", { is_read: true });
+
+    const cached = qc.getQueryData<{
+      pages: Array<{ counts: { total: number; unread: number } }>;
+    }>(key);
+    expect(cached?.pages[0]?.counts).toEqual({ total: 120, unread: 29 });
   });
 });
 
@@ -159,5 +246,18 @@ describe("email hub thread detail cache", () => {
       true,
       expect.any(AbortSignal),
     );
+  });
+});
+
+describe("email hub thread hooks", () => {
+  it("passes React Query's abort signal to the thread-list endpoint", async () => {
+    const qc = new QueryClient();
+    const { result } = renderHook(() => useEmailHubThreads("ws1", "acc1"), {
+      wrapper: wrapperFor(qc),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const signal = vi.mocked(listEmailHubThreads).mock.calls[0]?.[6];
+    expect(signal).toBeInstanceOf(AbortSignal);
   });
 });

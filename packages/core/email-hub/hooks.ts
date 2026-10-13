@@ -105,8 +105,16 @@ export function useEmailHubThreads(
 ) {
   return useInfiniteQuery({
     queryKey: emailHubKeys.threads(wsId, accountId ?? "", folder, filters),
-    queryFn: ({ pageParam }) =>
-      api.listEmailHubThreads(wsId, accountId!, folder, filters, pageParam as string | undefined),
+    queryFn: ({ pageParam, signal }) =>
+      api.listEmailHubThreads(
+        wsId,
+        accountId!,
+        folder,
+        filters,
+        pageParam as string | undefined,
+        undefined,
+        signal,
+      ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: !!accountId && queryEnabled,
