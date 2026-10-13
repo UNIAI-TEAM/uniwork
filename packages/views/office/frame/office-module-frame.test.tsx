@@ -101,6 +101,15 @@ describe("OfficeModuleFrame", () => {
     expect(onFrameCommentsChange).toHaveBeenLastCalledWith(false);
   });
 
+  it("gives the claim back when the frame fails, so the page's own panel returns beside the error", async () => {
+    const onFrameCommentsChange = vi.fn();
+    const frame = mountFrame("pdf", { onFrameCommentsChange, ackComments: true });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(onFrameCommentsChange).toHaveBeenLastCalledWith(true));
+    await frame.event("error", { error: { code: "internal", message: "boom" }, fatal: true });
+    await waitFor(() => expect(onFrameCommentsChange).toHaveBeenLastCalledWith(false));
+  });
+
   it("names the signed-in user to the editor", async () => {
     setSessionUser({ id: "u-1", email: "an@example.test", display_name: "Nguyễn An" } as Parameters<typeof setSessionUser>[0]);
     const frame = mountFrame("markdown");

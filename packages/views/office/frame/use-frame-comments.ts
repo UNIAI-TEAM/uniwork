@@ -54,6 +54,8 @@ export interface FrameCommentsBinding {
 
 interface UseFrameCommentsOptions {
   wsId: string;
+  /** The document the page opened; a claim held across a detach is only good for this one. */
+  documentId: string;
   /** The document's effective level for the user (`my_level`); absent = decided from the token. */
   myLevel?: string | null;
   /** The comment a deep link names (`?comment=`); revealed once per open and per change of it. */
@@ -65,14 +67,23 @@ interface FrameComments {
   /**
    * The frame answered `init` with `comments`: its panel is the one comments panel of this
    * page. False until a handshake says so, and with a frame that predates comments, so the
-   * page keeps the UniWork panel.
+   * page keeps the UniWork panel. A re-key of the same document (retry, new revision) keeps
+   * the last answer until the next ack, so the page panel does not flash in between.
    */
   framePanel: boolean;
 }
 
 interface Attached {
+  /** The page's document when the frame shook hands. */
+  documentId: string;
   host: DocsFrameHost;
   scope: () => string;
+  enabled: boolean;
+}
+
+/** The last answer of a frame that detached, kept for its document until the next ack. */
+interface Held {
+  documentId: string;
   enabled: boolean;
 }
 
@@ -97,10 +108,11 @@ const malformed = (endpoint: string) =>
   new DocsProtocolError({ code: "internal", message: `${endpoint}: response did not match the contract`, retryable: true });
 
 export function useFrameComments(options: UseFrameCommentsOptions): FrameComments {
-  const { wsId, revealCommentId = null } = options;
+  const { wsId, documentId, revealCommentId = null } = options;
   const ws = useOptionalWS();
   const client = ws?.client ?? null;
   const [attached, setAttached] = useState<Attached | null>(null);
+  const [held, setHeld] = useState<Held | null>(null);
   const userId = useAuthStore((s) => s.user?.id ?? "");
   const latest = useRef({ options, attached, userId });
   latest.current = { options, attached, userId };
@@ -174,10 +186,15 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
       },
       api,
       attach(host, ack, scope) {
-        setAttached({ host, scope, enabled: ack.capabilities.comments === true });
+        setHeld(null);
+        setAttached({ documentId: latest.current.options.documentId, host, scope, enabled: ack.capabilities.comments === true });
       },
       detach() {
         pendingCreates.current.clear();
+        // Keep the answer for the document the frame shook hands for; the next ack replaces it,
+        // and a page that moved to another document (or an unmount) does not inherit it.
+        const gone = latest.current.attached;
+        setHeld(gone ? { documentId: gone.documentId, enabled: gone.enabled } : null);
         setAttached(null);
       },
     };
@@ -205,5 +222,6 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
     void attached.host.revealComment(revealCommentId).catch(() => undefined);
   }, [attached, revealCommentId]);
 
-  return { binding, framePanel: attached?.enabled === true };
+  const framePanel = attached ? attached.enabled : held?.documentId === documentId && held.enabled;
+  return { binding, framePanel };
 }

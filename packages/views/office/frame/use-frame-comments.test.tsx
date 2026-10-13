@@ -31,6 +31,7 @@ vi.mock("@uniwork/core/office/draft-session-key", () => ({
 }));
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
+const OTHER_MINT_PATH = "/api/v1/documents/doc-2/office/frame-token";
 const COMMENTS_PATH = "/api/v1/documents/doc-1/comments";
 const ME = "01J8X4USR0AAAAAAAAAAAAAAAA";
 const WIRE = { id: "c1", document_id: "doc-1", kind: "comment", body: "x", anchor: null, anchor_state: null, deleted_at: null };
@@ -47,12 +48,13 @@ const minted = (canEdit = true) => ({
   document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: canEdit, module: "docs",
 });
 
-interface Props { myLevel?: string | null; revealCommentId?: string | null }
+interface Props { myLevel?: string | null; revealCommentId?: string | null; documentId?: string }
 
 /** The editor frame on the other side of the wire: records what the host posts, answers `init`, posts requests. */
 function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, frameComments = true, ...initial }: Props & { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; frameComments?: boolean } = {}) {
   const api = vi.fn<(path: string, opts?: { method?: string; headers?: Record<string, string> }) => Promise<unknown>>((path, opts) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
+    if (path === OTHER_MINT_PATH) return Promise.resolve({ ...minted(canEdit), module, document_id: "doc-2" });
     return Promise.reject(new Error(`unexpected ${path} ${opts?.method ?? "GET"}`));
   });
   requestMock.mockImplementation(api);
@@ -78,10 +80,14 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   // One ref object for every render: the session restarts its endpoint when this identity changes.
   const iframeRef = { current: iframe };
+  // Every render's `framePanel`, so a test can prove it never dipped between a detach and the next ack.
+  const panels: boolean[] = [];
   const hook = renderHook((props: Props) => {
-    const comments = useFrameComments({ wsId: "ws-1", ...props });
+    const documentId = props.documentId ?? "doc-1";
+    const comments = useFrameComments({ wsId: "ws-1", ...props, documentId });
+    panels.push(comments.framePanel);
     const session = useDocsFrameSession({
-      iframeRef, frameOrigin: window.location.origin, module, wsId: "ws-1", documentId: "doc-1",
+      iframeRef, frameOrigin: window.location.origin, module, wsId: "ws-1", documentId,
       readonly, locale: "vi", theme: "light", onError, comments: comments.binding,
       api: { open: vi.fn(), save: vi.fn(), recents: vi.fn() } as unknown as DocsFrameApi,
     });
@@ -89,7 +95,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   }, { wrapper, initialProps: initial as Props });
   const sent = (type: string) => received.filter((m) => m.kind === "request" && m.type === type);
   const frame = {
-    hook, received, sent, onError, api,
+    hook, panels, received, sent, onError, api,
     rerender: (props: Props) => hook.rerender(props),
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     respond: (to: Envelope, payload: unknown) => post(envelope("response", to.type, payload, to.id)),
@@ -163,6 +169,34 @@ describe("useFrameComments: what init advertises (OQ-C12)", () => {
   it("a frame that predates comments (its ack has none): the page keeps its own panel", async () => {
     const frame = setup({ myLevel: "edit", frameComments: false });
     await frame.boot();
+    expect(frame.hook.result.current.comments.framePanel).toBe(false);
+  });
+});
+
+describe("useFrameComments: a re-key of the same document keeps the frame's claim", () => {
+  it("holds the page panel back from the detach to the next ack, never a render without the claim", async () => {
+    const frame = setup({ myLevel: "edit" });
+    await frame.boot("i-1");
+    expect(frame.hook.result.current.comments.framePanel).toBe(true);
+    const before = frame.panels.length;
+
+    // A retry re-keys the frame endpoint: detach now, the new instance's ack later.
+    await act(async () => { frame.hook.result.current.session.retry(); });
+    expect(frame.hook.result.current.comments.framePanel).toBe(true);
+    await frame.boot("i-2");
+
+    expect(frame.panels.length).toBeGreaterThan(before);
+    expect(frame.panels.slice(before)).not.toContain(false);
+    expect(frame.hook.result.current.comments.framePanel).toBe(true);
+  });
+
+  it("does not carry the claim to another document", async () => {
+    const frame = setup({ myLevel: "edit" });
+    await frame.boot("i-1");
+    expect(frame.hook.result.current.comments.framePanel).toBe(true);
+
+    await act(async () => { frame.rerender({ myLevel: "edit", documentId: "doc-2" }); });
+
     expect(frame.hook.result.current.comments.framePanel).toBe(false);
   });
 });
