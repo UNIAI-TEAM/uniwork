@@ -13,6 +13,7 @@ import {
   type AppOpenResult,
   type Capabilities,
   type FrameRequests,
+  type InitPayload,
   type OfficeModule,
   type ProtocolErrorShape,
   type SavedPayload,
@@ -392,7 +393,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           ? { key: await getOfficeDraftKey(uid), scope: officeDraftScope(uid, doc) }
           : null;
         const capabilities = officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true);
-        const init = {
+        const init: Omit<InitPayload, "protocolVersion"> = {
           ...frameToken,
           documentId: doc, workspaceId: current.wsId,
           apiBase: docsFrameApiBase(), apiMode: "host-proxy",

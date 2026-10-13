@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at 0e147507f290e69d2634d8b7b1ad4a2affd1b2d2
-// (fork lane feature/UNI-1403-g8-08-comments-protocol on X-02 r2b: the comments capability, commentsLevel, InitUser.id,
+// web/docs/protocol/types.ts at af989c83984fcf6f6f416f5bed9ad5ca224cfdb7
+// (fork lane feature/UNI-1403-g8-08-comments-protocol, fix r1, on X-02 r2b: the comments capability, commentsLevel, InitUser.id,
 // comments.* / mentions.search requests, comments.changed / comments.reveal, commentsErrorFromHttp, commentsAccess; G8-08).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
@@ -415,8 +415,9 @@ export interface InitPayload extends TokenPayload {
   /**
    * additive (G8-08, OQ-C12): the caller's effective document level (the server's `my_level`), a
    * display hint for the comment panel only; the server stays the only permission gate. Required
-   * whenever `capabilities.comments` is granted (`checkInitComments`); a frame that gets none
-   * applies the missing-field rules of `commentsAccess`.
+   * whenever `capabilities.comments` is granted (`checkInitComments`, host side). The frame never
+   * rejects an init over it: a missing, unknown (a future level) or null value is treated as
+   * missing and the missing-field rules of `commentsAccess` apply.
    */
   commentsLevel?: CommentsLevel
 }
@@ -440,7 +441,8 @@ export interface InitUser {
   displayName: string
   /**
    * additive (G8-08): the UniWork user id, only to recognise "my comments" (author_id). Never an
-   * identity the frame may authorise with.
+   * identity the frame may authorise with. The frame treats an empty or non-string value as absent
+   * and never rejects the init over it.
    */
   id?: string
 }
@@ -808,6 +810,12 @@ export const COMMENT_KINDS: readonly CommentKind[] = ['comment', 'discussion']
 
 export type CommentAnchorState = 'exact' | 'stale' | 'lost'
 
+/**
+ * A value read from the server that may be newer than this file: the known literals autocomplete,
+ * any other string is tolerated (the row is kept; the frame UI renders only the kinds it knows).
+ */
+export type OpenString<T extends string> = T | (string & Record<never, never>)
+
 /** `comments.anchors` accepts at most this many items (OQ-C5) */
 export const COMMENTS_MAX_ANCHORS = 500
 
@@ -838,20 +846,21 @@ export interface CommentAnchor {
 export interface DocumentComment {
   id: string
   document_id: string
-  author_id?: string
+  /** null: a system / AI author the server may emit without an id (never `mine`) */
+  author_id?: string | null
   author_kind?: string
   author?: unknown
   parent_id?: string | null
   /** '' for a tombstone */
   body: string
-  /** absent only from servers before G8 */
-  kind?: CommentKind
+  /** absent only from servers before G8; an unknown value is kept and not rendered by the frame */
+  kind?: OpenString<CommentKind>
   /** legacy field kept for old clients; read `kind` */
   type?: string
   revision?: number
   anchor?: CommentAnchor | null
   anchor_version_id?: string | null
-  anchor_state?: CommentAnchorState | null
+  anchor_state?: OpenString<CommentAnchorState> | null
   resolved_at?: string | null
   /** set = a tombstone ("the content was deleted") */
   deleted_at?: string | null
@@ -924,7 +933,8 @@ export interface CommentRevision {
   id: string
   revision: number
   body: string
-  created_by_id: string
+  /** null: a system / AI author without an id */
+  created_by_id: string | null
   created_by_kind: string
   created_at: string
 }
@@ -1017,7 +1027,9 @@ export function commentsErrorFromHttp(status: number, body?: unknown): DocsProto
       retryable: true,
     })
   }
-  const serverCode = errorBodyCode(body)
+  // §9 names `payload_too_large` for 413 (handler/json.go) even when the limiter answered without
+  // the JSON code; every other row is keyed on the server's own code, so none is invented there
+  const serverCode = errorBodyCode(body) ?? (status === 413 ? 'payload_too_large' : undefined)
   const withCode = (code: ProtocolErrorCode): DocsProtocolError =>
     new DocsProtocolError({
       code,
@@ -1045,18 +1057,27 @@ function errorBodyCode(body: unknown): string | undefined {
 }
 
 /**
- * Host-side check of its own `init`: a host that grants `comments` must send `commentsLevel`
- * (§10). Returns the `malformed` error describing the host bug, or null. The frame does not refuse
- * such an init; it applies the missing-field rules (`commentsAccess` with `level: null`).
+ * Host-side check of its own `init`: a host that grants `comments` must send a valid
+ * `commentsLevel` (§10). Returns the `malformed` error describing the host bug
+ * (`comments_level_missing` / `comments_level_invalid`), or null. The frame never refuses such an
+ * init; it treats the level as missing (`commentsAccess` with `level: null`).
  */
 export function checkInitComments(
   init: Pick<InitPayload, 'capabilities' | 'commentsLevel'>,
 ): DocsProtocolError | null {
-  if (init.capabilities.comments !== true || init.commentsLevel !== undefined) return null
+  if (init.capabilities.comments !== true) return null
+  if (init.commentsLevel === undefined) {
+    return new DocsProtocolError({
+      code: 'malformed',
+      message: 'init grants comments without commentsLevel',
+      details: { code: 'comments_level_missing' },
+    })
+  }
+  if (isCommentsLevel(init.commentsLevel)) return null
   return new DocsProtocolError({
     code: 'malformed',
-    message: 'init grants comments without commentsLevel',
-    details: { code: 'comments_level_missing' },
+    message: 'init grants comments with an invalid commentsLevel',
+    details: { code: 'comments_level_invalid' },
   })
 }
 
@@ -1370,16 +1391,16 @@ export function isOpenPayload(x: unknown): x is OpenPayload {
   return isObj(x) && isFileMeta(x.file) && isFileSource(x.source) && isOpt(x.assets, isAssetMap)
 }
 
+/** `id` is a hint: any value passes here, the frame drops an empty / non-string one (FE-W8P-1) */
 function isInitUser(x: unknown): x is InitUser {
-  return isObj(x) && isStr(x.displayName) && isOpt(x.id, isNonEmptyStr)
+  return isObj(x) && isStr(x.displayName)
 }
 
 function isOneOf<T extends string>(list: readonly T[]): (x: unknown) => x is T {
   return (x): x is T => typeof x === 'string' && (list as readonly string[]).includes(x)
 }
-const isCommentsLevel = isOneOf(COMMENTS_LEVELS)
+export const isCommentsLevel = isOneOf(COMMENTS_LEVELS)
 const isCommentKind = isOneOf(COMMENT_KINDS)
-const isAnchorState = isOneOf<CommentAnchorState>(['exact', 'stale', 'lost'])
 function isOptNullable<T>(x: unknown, guard: (y: unknown) => y is T): boolean {
   return x === undefined || x === null || guard(x)
 }
@@ -1397,13 +1418,13 @@ function isDocumentComment(x: unknown): x is DocumentComment {
     isNonEmptyStr(x.id) &&
     isNonEmptyStr(x.document_id) &&
     isStr(x.body) &&
-    isOpt(x.author_id, isStr) &&
+    isOptNullable(x.author_id, isStr) &&
     isOptNullable(x.parent_id, isStr) &&
-    isOpt(x.kind, isCommentKind) &&
+    isOpt(x.kind, isStr) &&
     isOpt(x.revision, isFiniteNum) &&
     isOptNullable(x.anchor, isCommentAnchor) &&
     isOptNullable(x.anchor_version_id, isStr) &&
-    isOptNullable(x.anchor_state, isAnchorState) &&
+    isOptNullable(x.anchor_state, isStr) &&
     isOptNullable(x.resolved_at, isStr) &&
     isOptNullable(x.deleted_at, isStr)
   )
@@ -1425,7 +1446,7 @@ function isCommentRevision(x: unknown): x is CommentRevision {
     isNonEmptyStr(x.id) &&
     isFiniteNum(x.revision) &&
     isStr(x.body) &&
-    isStr(x.created_by_id) &&
+    isOptNullable(x.created_by_id, isStr) &&
     isStr(x.created_by_kind) &&
     isStr(x.created_at)
   )
@@ -1489,8 +1510,8 @@ export function isInitPayload(x: unknown): x is InitPayload {
     isOpt(x.module, isOfficeModule) &&
     isOpt(x.user, isInitUser) &&
     isOpt(x.recovery, isInitRecovery) &&
-    isOpt(x.downloadMaxBytes, isPositiveSafeInt) &&
-    isOpt(x.commentsLevel, isCommentsLevel)
+    isOpt(x.downloadMaxBytes, isPositiveSafeInt)
+    // x.commentsLevel is a hint: any value passes, the frame drops an unknown one (FE-W8P-1)
   )
 }
 

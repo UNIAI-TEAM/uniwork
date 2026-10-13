@@ -2,11 +2,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@uniwork/core/api/http";
-import type { WSMessage } from "@uniwork/core/api/ws-types";
+import { ApiError, type WSMessage } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
-import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { PROTOCOL_NS, PROTOCOL_VERSION, checkInitComments, type Envelope, type InitPayload, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import type { User } from "@uniwork/core/types";
 import { requestMock } from "../../test/api-mock";
 import { useDocsFrameSession } from "./use-docs-frame-session";
@@ -40,7 +39,7 @@ interface Props { myLevel?: string | null; revealCommentId?: string | null }
 
 /** The editor frame on the other side of the wire: records what the host posts, answers `init`, posts requests. */
 function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, frameComments = true, ...initial }: Props & { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; frameComments?: boolean } = {}) {
-  const api = vi.fn((path: string, opts?: { method?: string; headers?: Record<string, string> }) => {
+  const api = vi.fn<(path: string, opts?: { method?: string; headers?: Record<string, string> }) => Promise<unknown>>((path, opts) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
     return Promise.reject(new Error(`unexpected ${path} ${opts?.method ?? "GET"}`));
   });
@@ -145,6 +144,8 @@ describe("useFrameComments: what init advertises (OQ-C12)", () => {
     await frame.boot();
     expect(initOf(frame).commentsLevel).toBe(level);
     expect(initOf(frame).capabilities.comments).toBe(true);
+    // The host-side rule of the protocol: a host that grants comments must send a valid level.
+    expect(checkInitComments(frame.sent("init")[0]!.payload as InitPayload)).toBeNull();
   });
 
   it("a frame that predates comments (its ack has none): the page keeps its own panel", async () => {

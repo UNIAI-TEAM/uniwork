@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at 0e147507f290e69d2634d8b7b1ad4a2affd1b2d2
-// (fork lane feature/UNI-1403-g8-08-comments-protocol on X-02 r2b: the comments capability, commentsLevel, InitUser.id,
+// web/docs/protocol/host.ts at af989c83984fcf6f6f416f5bed9ad5ca224cfdb7
+// (fork lane feature/UNI-1403-g8-08-comments-protocol, fix r1, on X-02 r2b: the comments capability, commentsLevel, InitUser.id,
 // comments.* / mentions.search requests, comments.changed / comments.reveal, commentsErrorFromHttp, commentsAccess; G8-08).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
@@ -128,7 +128,8 @@ export interface DocsFrameHost {
   /**
    * the comments of `documentId` changed (additive, G8-08: realtime `document.comment_*` /
    * `comment_anchors_updated`). Sent only to a frame whose InitAck has `comments`; also wakes a
-   * pending `revealComment` retry.
+   * pending `revealComment` retry. The wake ignores `documentId` and releases every pending retry
+   * (one host = one document, so there is nothing to tell apart).
    */
   notifyCommentsChanged(documentId: string): void
   /**

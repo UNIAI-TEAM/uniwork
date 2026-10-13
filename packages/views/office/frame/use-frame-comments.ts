@@ -146,7 +146,7 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
       "comments.revisions": ({ comment_id: id }, { signal }) =>
         call("comments.revisions", async (doc) => (await listFrameCommentRevisions(doc, id, signal)) as FrameRequests["comments.revisions"]["result"] | null),
       "comments.anchors": (payload, { signal }) =>
-        call("comments.anchors", (doc) => putFrameCommentAnchors(doc, payload, signal)),
+        call("comments.anchors", async (doc) => (await putFrameCommentAnchors(doc, payload, signal)) as FrameRequests["comments.anchors"]["result"] | null),
       "mentions.search": (payload, { signal }) =>
         call("mentions.search", async (doc) => (await searchFrameMentionCandidates(doc, payload, signal)) as FrameRequests["mentions.search"]["result"] | null),
     };
