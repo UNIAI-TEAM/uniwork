@@ -162,6 +162,10 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.archived` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
 | `document.restored` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
 | `document.deleted` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `office_lease.granted` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
+| `office_lease.renewed` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
+| `office_lease.released` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
+| `office_lease.revoked` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
 | `email_hub.inbox_changed` | 1 | `account_id`, `user_id` | — | user | outbox |
 | `email_hub.new_mail` | 1 | `account_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `people.exported` | 1 | `organization_id`, `user_id` | — | - | outbox |

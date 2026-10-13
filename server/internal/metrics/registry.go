@@ -32,6 +32,7 @@ type Registry struct {
 	Documents     *Documents
 	Office        *Office
 	OfficeChanges *OfficeChangeFeed
+	OfficeLeases  *OfficeLease
 	Billing       *Billing
 	Graph         *Graph
 	Readiness     *Readiness
@@ -96,6 +97,8 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	reg.MustRegister(officeMetrics.Collectors()...)
 	officeChangeMetrics := NewOfficeChangeFeed()
 	reg.MustRegister(officeChangeMetrics.Collectors()...)
+	officeLeaseMetrics := NewOfficeLease()
+	reg.MustRegister(officeLeaseMetrics.Collectors()...)
 	billingMetrics := NewBilling()
 	reg.MustRegister(billingMetrics.Collectors()...)
 	graphMetrics := NewGraph()
@@ -116,6 +119,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		Documents:     documentMetrics,
 		Office:        officeMetrics,
 		OfficeChanges: officeChangeMetrics,
+		OfficeLeases:  officeLeaseMetrics,
 		Billing:       billingMetrics,
 		Graph:         graphMetrics,
 		Readiness:     readinessMetrics,

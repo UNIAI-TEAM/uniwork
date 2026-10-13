@@ -10,7 +10,9 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
@@ -90,6 +92,20 @@ func (w *isoWorld) buildOffice(t *testing.T, tn *isoTenant) {
 
 	attempt, session := w.desktopSession(t, tn)
 	tn.ids["desktopAttempt"], tn.ids["deviceSession"] = attempt, session
+
+	// An offline lease of that device on the file document (G5-08s): the
+	// route takes the device's bearer, never a browser session.
+	device, err := auth.TokenMinter{Secret: []byte("test"), TTL: time.Hour}.MintSession(tn.userID, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out = w.call(t, "PUT", "/api/v1/documents/"+tn.ids["fileDocument"]+"/office/offline-lease", device, map[string]any{})
+	tn.ids["offlineLease"] = isoString(t, out, "lease")
+	// No route writes the policy row before a suspension or an operator
+	// revoke bumps it; epoch 0 is what a missing row reads as.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO office_offline_policy (organization_id, epoch) VALUES ($1, 0)`, tn.orgID); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // desktopSession walks the real PKCE flow for the tenant's owner: one finished

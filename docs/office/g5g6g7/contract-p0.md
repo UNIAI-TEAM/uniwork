@@ -1,6 +1,6 @@
 # UniWork Office G5/G6/G7 — Gói hợp đồng P0 (X-01)
 
-> **Trạng thái:** in-progress — người dùng đã ký lô #1 ngày 2026-10-12 (U-15, "duyệt theo gợi ý": mọi khuyến nghị ở đây có hiệu lực); lô #2 (G6-D1) đã ký ngày 2026-10-13 00:35 UTC+7 ("duyệt theo gợi ý": số A1–A16, Q1–Q6; A17 chuyển G6-D2); còn chờ điền N′ (bản dev đầu tiên có G5-04g) và lệnh harness (g7-qa)
+> **Trạng thái:** in-progress — người dùng đã ký lô #1 ngày 2026-10-12 (U-15, "duyệt theo gợi ý": mọi khuyến nghị ở đây có hiệu lực); lô #2 (G6-D1) đã ký ngày 2026-10-13 00:35 UTC+7 ("duyệt theo gợi ý": số A1–A16, Q1–Q6; A17 chuyển G6-D2); lô #2b (G5-D1: amendment DOC-005 + threat model lease offline) đã ký ngày 2026-10-13 ("duyệt theo gợi ý": 20 hàng + 17 hàng threat model); còn chờ điền N′ (bản dev đầu tiên có G5-04g) và lệnh harness (g7-qa)
 
 **Issue:** UNI-1338 (X-01), parent UNI-660 (`Refs: UNI-635, UNI-661`), tài liệu UNI-923.
 **Nguồn ràng buộc:** [spec v1.2](../../superpowers/specs/2026-10-02-office-g5-g6-g7-design.md) (duyệt U-13),
@@ -87,7 +87,7 @@ Phiên app desktop là bearer thường qua `RequireAuthWithDevice` (`router/rou
 | --- | --- | --- | --- |
 | Feed (G5-01a) | `GET /workspaces/{workspaceID}/documents/changes?cursor=&limit=` | Không trùng; anh em tĩnh `recent` (`router/documents.go:378`), `tree` (:394); `pathParamSDI` `workspaceID` đã có | SDI `ListDocumentChangesSDI`, SDO `DocumentChangeListSDO`; cursor chỉ trong query, opaque. Cửa sổ membership (G5-01a): quyền thành viên và quyền đọc của snapshot cold start tính tại điểm MVCC của snapshot (lệnh đầu của transaction REPEATABLE READ, cùng điểm với high-water mark); thu hồi commit sau điểm đó không hủy hay cắt snapshot đang dựng (snapshot chứa đúng tài liệu caller đọc được tại điểm đó), còn mọi request sau — cursor trang kế hay cold start mới — bị gate membership từ chối (403/404), không có dữ liệu |
 | Tra intent (G5-07) | `GET /documents/{documentID}/versions/commit` + header `Idempotency-Key` | Cùng path với `POST …/versions/commit` (`router/documents.go:114`), khác method; không tham số mới | Khóa idempotency không vào URL/access log; trả `{outcome: committed\|not_committed\|in_flight\|unknown, version?, revision?}`; đọc được cả khi `office_sync_write` tắt (plan G5-07). Phương án dự phòng: `POST …/versions/commit/lookup`. Số retention: G5-D2 |
-| Lease offline (G5-08s) | `PUT /documents/{documentID}/office/offline-lease` (cấp/gia hạn, idempotent theo thiết bị) · `DELETE` cùng path (trả) | Không trùng; nhóm `/documents/{documentID}/office/*` đã có `sessions`, `capabilities`, `jobs` (`router/documents.go:90,210,218`) | Thiết bị lấy từ phiên bearer, không từ body. **pending G5-D1** |
+| Lease offline (G5-08s) | `PUT /documents/{documentID}/office/offline-lease` (cấp/gia hạn, idempotent theo thiết bị) · `DELETE` cùng path (trả) | Không trùng; nhóm `/documents/{documentID}/office/*` đã có `sessions`, `capabilities`, `jobs` (`router/documents.go:90,210,218`) | Thiết bị lấy từ phiên bearer, không từ body; phiên web hoặc sid không có hàng `device_sessions` sống → 403 `offline_lease_device_required`. **Đã chốt: G5-D1 (lô #2b, ký 2026-10-13)**, chi tiết [DOC-005 §6.2](../g0/login-sync-contract.md) |
 | Capability app (X-03) | `GET /orgs/{orgID}/office/capabilities` | Path không trùng; nhưng đã có `GET /documents/{documentID}/office/capabilities` với nghĩa khác (định dạng/thao tác, `OfficeCapabilitySDO`, `dto/sdo/office.go:43`) | Giữ path theo plan, đặt SDO `OfficeAppCapabilitiesSDO` và summary "Office features enabled for this organization (app)" để không lẫn; `pathParamSDI` `orgID` đã có (`router/openapi.go:269`) |
 | UniWork AI (G6-03a, để tham chiếu) | `POST /orgs/{orgID}/ai/uniwork/chat/completions` · `POST /office-frame/documents/{documentID}/ai/uniwork/chat/completions` | Cùng họ `/orgs/{orgID}/ai/*` (`router/ai_byok.go:22`, `ai_cloud.go:23`) | Tên theo plan G6-03a; hình dạng wire: G6-D1 |
 | UniWork AI, route tài liệu (G6-03a; A10/OQ-P2 = G6-D1 hàng 10) | `POST /documents/{documentID}/ai/uniwork/chat/completions` | Cùng họ `/documents/{documentID}/ai/*` đã có; `pathParamSDI` `documentID` đã có | Phiên tài liệu của app desktop (bearer thiết bị qua `RequireAuthWithDevice`); tổ chức/workspace/module suy từ tài liệu, quyền đọc kiểm lại mỗi request. Không thêm số hay hành vi mới: mọi giá trị theo A10/OQ-P2 đã ký |
@@ -123,7 +123,11 @@ Lớp có sẵn: `conflict`, `gone` ("dừng thử lại và rời", `:24-25`), 
 | `run_limit_reached` | 409 | không lớp | Lô #2 (Q2): 429 khiến fork phân loại thành "AI bận"; dùng 409 như `conversation_expired`, client rẽ nhánh theo mã | X-03 |
 | `office_capability_off` | 403, `fields.capability` | không lớp | Flag ẩn capability, không là từ chối quyền (CLAUDE.md › Platform Admin); không nhập vào `permission` để client không chạy đường mất quyền | X-03 |
 | `commit_intent_unknown` | 410 | không lớp | Kết quả intent đã bị dọn: "không biết", không giả "chưa commit" (plan G5-07) | X-03 thêm khi G5-D2 chốt retention; tên chốt ngay |
-| `offline_lease_expired`, `offline_lease_revoked` | 403 | `permission` cho `revoked`; `expired` không lớp | Đề xuất | owner registry khi **G5-D1** đóng |
+| `offline_lease_revoked` | 403 | `permission` | Gia hạn hàng đã revoke, epoch cũ hoặc chữ ký hỏng (xoay `JWT_SECRET`); G5-D1 hàng 15 | G5-08s |
+| `offline_lease_device_required` | 403 | không lớp | Phiên web hoặc sid không có hàng `device_sessions` sống; không dùng `office_capability_off` vì flag vẫn bật; G5-D1 hàng 5 | G5-08s |
+| `offline_lease_limit_reached` | 409 | không lớp | Vượt 200 lease sống mỗi thiết bị; G5-D1 hàng 11 | G5-08s |
+| `document_archived` | 403 | không lớp | Gia hạn lease của tài liệu archived; chỉ trả cho người giữ hàng lease sống của chính tài liệu đó nên không lộ tồn tại; mã chưa có trong server; G5-D1 hàng 14 | G5-08s |
+| ~~`offline_lease_expired`~~ | — | — | **Server không phát** (G5-D1 hàng 15): gia hạn sau khi hết hạn được phép nếu quyền sống còn; `lease_expired` chỉ là lý do phía app (EXPERIENCE) | — |
 | `conversation_expired` | 409 | không lớp | Theo plan G6-03a | G6-D1 đã chốt (lô #2 ký 2026-10-13); G6-03a đăng ký |
 | `ai_tool_result_too_large` | 413 | không lớp | Tool result vượt trần 64 KiB/lần hoặc 256 KiB/request (A6; Q4) | G6-03a/G6-03b khi giao |
 | `ai_uniwork_busy` | 429 (`Retry-After: 5`) | không lớp | Vượt trần đồng thời 32/pod, 64 toàn cục, 8/org (A11; Q4) | G6-03a/G6-03b khi giao |
@@ -148,7 +152,7 @@ lệch thứ tự, đổi tên khi rebase để thứ tự chuỗi = thứ tự 
 | --- | --- | --- | --- |
 | 1 | G5-01a | `999<ms>_document_change_snapshots` (+ file index riêng) | nếu cần bảng snapshot |
 | 2 | G5-07 | `999<ms>_document_commit_intents`; nếu OQ-P1 chọn (a1): `999<ms>_documents_content_revision` | G5-D2 |
-| 3 | G5-08s | `999<ms>_office_offline_leases` | G5-D1 |
+| 3 | G5-08s | `999<ms>_office_offline_leases` (kèm bảng epoch `office_offline_policy`: `organization_id`, `epoch`, cùng migration; index `CONCURRENTLY` ở file riêng) | G5-D1 đã ký (2026-10-13) |
 | 4 | G6-03a | `999<ms>_ai_uniwork_conversations` | nếu G6-02 chọn Postgres |
 | 5 | G6-03b | `999<ms>_ai_uniwork_runs` | luôn áp dụng (lô #2, Q3) |
 | 6 | G6-03c | `999<ms>_<entitlement>` | chỉ khi G6-D1 chọn nhánh entitlement mới (U-13: dùng lại `office.ai_cloud`, nên mặc định không có) |
@@ -325,7 +329,7 @@ light/dark vi/en cho task UI.
 | G5-A04 | G5-05, G5-05u, G7-03b | F vitest engine offline; fault spec G7-03b | `reports/g5-fork_main/…`, `reports/g7-qa/…`; BLOCKED(G5-D1) tới khi đóng |
 | G5-A05 | G5-06, G5-06u, G5-10, G7-10, G7-03a | F vitest queue/crash-restart; harness G7-10; fault G7-03a | `reports/g5-fork_main/…`, `reports/g7-qa/…` |
 | G5-A06 | G5-06, G5-07, G7-03a | `go test ./internal/service -run 'CommitIntent\|Idempotency'` · F queue · fault G7-03a | `reports/<T2>/…`, `reports/g7-qa/…` |
-| G5-A07 | G5-04, G5-08s, G5-08c, G5-11, G7-03b (G5-04g) | F vitest guard/store; `go test ./internal/service -run OfficeLease`; fault G7-03b | `reports/g5-fork_main/…`, `reports/<T2>/…`; phần lease BLOCKED(G5-D1) |
+| G5-A07 | G5-04, G5-08s, G5-08c, G5-11, G7-03b (G5-04g) | F vitest guard/store; `go test ./internal/service -run OfficeLease`; fault G7-03b | `reports/g5-fork_main/…`, `reports/<T2>/…`; phần lease: G5-D1 đã ký 2026-10-13, G5-08s mở |
 | G5-A08 | G5-09w, G5-09, G5-10, G5-12, G7-03a | F vitest `frame-dialog.test.ts`, `webapi.test.ts`; D vitest `office-module-frame.test.tsx`; `go test -run DocumentCopy` | `reports/<T1>/…`, `reports/<T5>/…` + ảnh S5 |
 | G6-A01 | G6-08, G7-12 (G7-02, G6-12, G6-14) | dev set G6-08; holdout G7-12 qua runner G7-01 (≥3 lần) | `reports/g6-ai_server/…`, `reports/g7-qa/eval-*` |
 | G6-A02 | G6-08, G7-12 | như trên | như trên |
@@ -357,7 +361,7 @@ light/dark vi/en cho task UI.
 
 | Gate | Đã đóng bởi U-13 | Còn mở | Đóng bằng / ai ký |
 | --- | --- | --- | --- |
-| G5-D1 | Giá trị chính sách: lease ≤ 24 h, gia hạn khi online, revoke hiệu lực khi máy nhận revoke hoặc lease hết hạn, logout khóa ngay | Amendment DOC-005 + threat model | Lô ký #2; người dùng (vai Auth) |
+| G5-D1 | Giá trị chính sách: lease ≤ 24 h, gia hạn khi online, revoke hiệu lực khi máy nhận revoke hoặc lease hết hạn, logout khóa ngay | ~~Amendment DOC-005 + threat model~~ — đã viết trong DOC-005 §6.2 (G5-08s, commit đầu) | **Đã ký** lô #2b 2026-10-13 (20 hàng + threat model 17 hàng, "duyệt theo gợi ý"); người dùng (vai Auth) |
 | G5-D2 | — (giao đội chốt) | Retention feed/snapshot/idempotency, tra intent, fencing, claim refresh | Lô #2; người dùng (vai G1/FileService); dev dùng giá trị tạm của G5-01a/G5-07 |
 | G5-D3 | Một intent chưa giải quyết mỗi Document; số giới hạn queue/cache/nháp (OQ-UX2) | — | Đóng bởi U-01 apply (U-15, 2026-10-12): số đã ký ở `ux/EXPERIENCE.md` › Open questions |
 | G6-D1 | Entitlement dùng lại `office.ai_cloud`; façade route/wire/run id, streaming, vòng tool-result, `ModelPolicy`, trần pack/lượt/đồng thời, quota semantics (lô #2) | — | **Đã ký** lô #2 2026-10-13 (A1–A16, Q1–Q6); A17 → G6-D2 |

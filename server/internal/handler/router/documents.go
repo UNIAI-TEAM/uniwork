@@ -35,6 +35,8 @@ import (
 //	POST   /api/v1/documents/{documentID}/links                   (G1-05b)
 //	DELETE /api/v1/documents/{documentID}/links/{linkID}          (G1-05b)
 //	GET    /api/v1/documents/{documentID}/access-logs             (G1-05b)
+//	PUT    /api/v1/documents/{documentID}/office/offline-lease    (G5-08s)
+//	DELETE /api/v1/documents/{documentID}/office/offline-lease    (G5-08s)
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
 //	POST   /api/v1/documents/{documentID}/versions/commit
@@ -95,6 +97,22 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		summary:     "Create an Office launch ticket",
 		description: "Explicit Document action: checks the live ACL, binds account/deployment/client/version and returns one opaque 120-second deep-link ticket. Historical versions are read-only.",
 		tags:        []string{"documents"}, sdi: sdi.CreateOfficeLaunchSessionSDI{}, sdo: sdo.OfficeLaunchSessionSDO{}, status: http.StatusCreated, auth: true,
+	})
+	// Offline lease (G5-08s, decision G5-D1; DOC-005 §6.2). The device is the
+	// bearer's own session (a browser session has none), never a body field;
+	// the flag hides grant and renewal only, release always works.
+	d.Put("/documents/{documentID}/office/offline-lease", h.PutOfficeOfflineLease, apiOp{
+		summary: "Grant or renew an offline lease",
+		description: "Cấp hoặc gia hạn lease offline của thiết bị desktop đang gọi cho một tài liệu file (G5-08s). Thiết bị lấy từ phiên bearer: phiên trình duyệt -> 403 offline_lease_device_required; thiết bị bị thu hồi/hết hạn -> 401 device_revoked. " +
+			"Mỗi lần cấp/gia hạn chạy lại quyền sống (không đọc được -> 404, member_deactivated, organization_suspended), flag office_offline_library tắt -> 403 office_capability_off. " +
+			"Gia hạn gửi lease đang giữ: chữ ký hỏng, hàng đã thu hồi/không còn hoặc policy epoch cũ -> 403 offline_lease_revoked; tài liệu đã lưu trữ -> 403 document_archived. Cấp mới quá 200 lease sống/thiết bị -> 409 offline_lease_limit_reached. " +
+			"Hạn tối đa 24 giờ, không quá hạn phiên thiết bị; manage hạ xuống edit; lease phủ version head lúc cấp/gia hạn. Idempotent theo thiết bị: PUT không lease khi thiết bị đang giữ lease sống = gia hạn.",
+		tags: []string{"documents"}, sdi: sdi.PutOfficeOfflineLeaseSDI{}, sdo: sdo.OfficeOfflineLeaseSDO{}, auth: true,
+	})
+	d.Delete("/documents/{documentID}/office/offline-lease", h.DeleteOfficeOfflineLease, apiOp{
+		summary:     "Release an offline lease",
+		description: "Thiết bị đang gọi trả lease offline của nó trên tài liệu (bỏ ghim). Chạy cả khi flag office_offline_library tắt và khi đã mất quyền đọc; không có lease mà đọc được tài liệu -> 200 (idempotent), không đọc được -> 404.",
+		tags:        []string{"documents"}, sdo: sdo.StatusSDO{}, auth: true,
 	})
 	d.Patch("/documents/{documentID}", h.PatchDocument, apiOp{
 		summary: "Update a document",

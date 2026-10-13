@@ -6,7 +6,8 @@ import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
 import { OFFICE_FRAME_DOWNLOAD_MAX_BYTES } from "./frame-download";
-import { useDocsFrameSession, type DocsFrameSessionOptions } from "./use-docs-frame-session";
+import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
+import { useDocsFrameSession } from "./use-docs-frame-session";
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
 const FILE = { fileId: "doc-1", name: "Plan.docx" };

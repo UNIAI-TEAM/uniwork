@@ -118,12 +118,10 @@ export function OfficeModuleFrame({
   // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
-  const frameComments = useFrameComments({ wsId, myLevel, revealCommentId });
+  const frameComments = useFrameComments({ wsId, documentId, myLevel, revealCommentId });
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;
-  useEffect(() => { onFrameCommentsChangeRef.current?.(framePanel); }, [framePanel]);
-
   const session = useDocsFrameSession({
     iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
     comments: frameComments.binding,
@@ -152,6 +150,14 @@ export function OfficeModuleFrame({
     },
   });
   const { dirty, saveState, print } = session;
+  // The page's own panel is hidden only while a frame serves comments. A re-key keeps the claim
+  // (use-frame-comments holds it until the next ack); a failed frame no longer serves anything, and
+  // an unmount (module fallback, error view, another document) takes it back in the cleanup.
+  const claimsComments = framePanel && session.status !== "failed";
+  useEffect(() => {
+    onFrameCommentsChangeRef.current?.(claimsComments);
+    return () => onFrameCommentsChangeRef.current?.(false);
+  }, [claimsComments]);
   const saveSession = session.save;
   // Header Save and the desktop handoff only need to know whether the edits are now on the server
   // (a new version, or the newest one reloaded over them).

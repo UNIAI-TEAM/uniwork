@@ -1599,6 +1599,36 @@ type OfficeLaunchSession struct {
 	CreatedByKind   string             `json:"created_by_kind"`
 }
 
+type OfficeOfflineLease struct {
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	DocumentID      string             `json:"document_id"`
+	UserID          string             `json:"user_id"`
+	DeviceSessionID string             `json:"device_session_id"`
+	DeploymentID    string             `json:"deployment_id"`
+	VersionID       string             `json:"version_id"`
+	Version         int32              `json:"version"`
+	Revision        int64              `json:"revision"`
+	Level           string             `json:"level"`
+	PolicyEpoch     int64              `json:"policy_epoch"`
+	Generation      int32              `json:"generation"`
+	IssuedAt        pgtype.Timestamptz `json:"issued_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	RevokeReason    pgtype.Text        `json:"revoke_reason"`
+	CreatedBy       string             `json:"created_by"`
+	CreatedByKind   string             `json:"created_by_kind"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OfficeOfflinePolicy struct {
+	OrganizationID string             `json:"organization_id"`
+	Epoch          int64              `json:"epoch"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Organization struct {
 	ID                  string             `json:"id"`
 	Slug                string             `json:"slug"`

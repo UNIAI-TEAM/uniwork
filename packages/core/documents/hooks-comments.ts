@@ -4,6 +4,7 @@ import {
   addDocumentCommentReaction,
   createDocumentComment,
   deleteDocumentComment,
+  listDocumentCommentRevisions,
   listDocumentComments,
   listDocumentMentionCandidates,
   removeDocumentCommentReaction,
@@ -13,7 +14,11 @@ import {
   type CommentReactionBody,
   type CreateDocumentCommentBody,
 } from "../api/endpoints/document-comments";
-import { DocumentNotVerifiableError, type DocumentComment } from "../types/document";
+import {
+  DocumentNotVerifiableError,
+  type DocumentComment,
+  type DocumentCommentMention,
+} from "../types/document";
 import { documentKeys } from "./keys";
 import { requireVerifiableComment, requireVerifiableReaction, requireVerifiableStatus } from "./verify";
 
@@ -27,9 +32,18 @@ import { requireVerifiableComment, requireVerifiableReaction, requireVerifiableS
 // before invalidating, and the reaction add requires its row identity, so a
 // half-written answer never reads as saved.
 
-export function useDocumentComments(
+/** What the comments key caches: the rows and the mention-chip name table
+ *  that came with them (contract-collab 2.1). The two are written together,
+ *  so a chip never reads a name table from another list. */
+interface DocumentCommentThreadData {
+  comments: DocumentComment[];
+  mentions: DocumentCommentMention[];
+}
+
+function useDocumentCommentQuery<T>(
   wsId: string,
   documentId: string,
+  select: (data: DocumentCommentThreadData) => T,
   opts?: { enabled?: boolean },
 ) {
   const qc = useQueryClient();
@@ -39,15 +53,65 @@ export function useDocumentComments(
     // answer keeps the cached list - its empty `comments` is never written -
     // and an unprovable answer throws, which leaves React Query's last
     // successful data in place. The web query sends no sinceToken yet.
-    queryFn: async ({ signal }) => {
+    queryFn: async ({ signal }): Promise<DocumentCommentThreadData> => {
       const page = await listDocumentComments(documentId, { signal });
       if (!page) throw new DocumentNotVerifiableError("comment list not verifiable");
       if (page.unchanged) {
-        return qc.getQueryData<DocumentComment[]>(documentKeys.comments(wsId, documentId)) ?? [];
+        return (
+          qc.getQueryData<DocumentCommentThreadData>(documentKeys.comments(wsId, documentId)) ?? {
+            comments: [],
+            mentions: [],
+          }
+        );
       }
-      return page.comments;
+      return { comments: page.comments, mentions: page.mentions };
     },
+    select,
     enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
+  });
+}
+
+const selectComments = (data: DocumentCommentThreadData) => data.comments;
+const selectThread = (data: DocumentCommentThreadData) => data;
+
+/** The document's comment rows, oldest first (both kinds, tombstones included). */
+export function useDocumentComments(
+  wsId: string,
+  documentId: string,
+  opts?: { enabled?: boolean },
+) {
+  return useDocumentCommentQuery(wsId, documentId, selectComments, opts);
+}
+
+/** The rows plus the name table the mention chips read their current names from. */
+export function useDocumentCommentThread(
+  wsId: string,
+  documentId: string,
+  opts?: { enabled?: boolean },
+) {
+  return useDocumentCommentQuery(wsId, documentId, selectThread, opts);
+}
+
+/**
+ * One comment's edit history, newest first (contract-collab 2.7). The key
+ * hangs off the comments key, so every comment frame that refreshes the
+ * thread refreshes an open history too. A malformed answer throws: the
+ * history then reads as an error with Retry, never as "not edited".
+ */
+export function useDocumentCommentRevisions(
+  wsId: string,
+  documentId: string,
+  commentId: string,
+  opts?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: [...documentKeys.comments(wsId, documentId), "revisions", commentId] as const,
+    queryFn: async ({ signal }) => {
+      const revisions = await listDocumentCommentRevisions(documentId, commentId, { signal });
+      if (!revisions) throw new DocumentNotVerifiableError("comment revisions not verifiable");
+      return revisions;
+    },
+    enabled: (opts?.enabled ?? true) && !!wsId && !!documentId && !!commentId,
   });
 }
 
