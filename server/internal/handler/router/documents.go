@@ -295,7 +295,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/documents/{documentID}/comments", h.CreateDocumentComment, apiOp{
 		summary: "Add a document comment",
 		description: "Thêm bình luận (hoặc trả lời qua parent_id cùng tài liệu) - cần quyền sửa. type chỉ nhận comment: client công khai không tạo được bình luận hệ thống. " +
-			"Idempotency-Key ràng create với fingerprint payload: replay trả lại bình luận đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
+			"Idempotency-Key ràng create với fingerprint payload: replay trả bình luận đó ở trạng thái hiện tại (đã bị xóa hẳn -> 404), payload khác cùng key -> 409 idempotency_payload_mismatch. Thành công trả 201.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentCommentSDI{},
 		sdo:    sdo.DocumentCommentSDO{},
