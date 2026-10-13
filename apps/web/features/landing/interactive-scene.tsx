@@ -4,11 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Logo } from "@uniwork/ui/brand";
+import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import type { createScene } from "./animation/scene-renderer";
 
 export function InteractiveScene() {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.split("-")[0] === "vi" ? "vi" : "en";
+  const { resolvedTheme } = useTheme();
+  // Wait for stored/system preferences to resolve before loading any screenshots.
+  const scheme = resolvedTheme === "dark" ? "dark" : resolvedTheme === "light" ? "light" : null;
   const host = useRef<HTMLDivElement>(null);
   const renderer = useRef<ReturnType<typeof createScene> | null>(null);
   const [reduced, setReduced] = useState(true);
@@ -26,7 +30,7 @@ export function InteractiveScene() {
     state.current = { paused, selected, turn: 0 }; renderer.current?.setState(state.current);
   }, [paused, selected]);
   useEffect(() => {
-    const element = host.current; if (!element) return;
+    const element = host.current; if (!element || !scheme) return;
     let cancelled = false;
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry?.isIntersecting) return; observer.disconnect();
@@ -34,14 +38,14 @@ export function InteractiveScene() {
         if (cancelled) return;
         const style = getComputedStyle(element);
         const colour = (name: string) => toSrgb(style.getPropertyValue(name).trim());
-        const screens = ["tasks", "chat", "meetings", "docs"].map(name => "/landing/screens/" + name + "." + locale + ".webp");
+        const screens = ["tasks", "chat", "meetings", "docs"].map(name => "/landing/screens/" + name + "." + locale + (scheme === "dark" ? ".dark" : "") + ".webp");
         renderer.current = create(element, { brand: colour("--brand"), paper: colour("--landing-model-shell"), ink: colour("--landing-deep"), mint: colour("--landing-model-light"), cyan: colour("--landing-close-light"), violet: colour("--landing-close-end"), pink: colour("--brand-accent") }, setSelected, setFailed, screens);
         renderer.current.setState(state.current);
       }).catch(() => { if (!cancelled) setFailed(true); });
     }, { rootMargin: "200px" });
     observer.observe(element);
     return () => { cancelled = true; observer.disconnect(); renderer.current?.dispose(); renderer.current = null; };
-  }, [locale]);
+  }, [locale, scheme]);
   return <div className="interactive-scene scene-core" data-scene="core" data-motion={paused ? "paused" : "playing"} data-selection={selected}>
     <div className="hero-context hero-context-work"><Check aria-hidden /><strong>{t("landing.studio.tasksTab")}</strong></div>
     <div className="hero-context hero-context-chat"><MessageSquare aria-hidden /><strong>{t("landing.studio.chatTab")}</strong></div>
