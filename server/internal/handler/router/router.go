@@ -83,7 +83,7 @@ func New(d Deps, h Routes) http.Handler {
 		// LiveKit address, so a platform-wide join burst spent that address's
 		// budget and LiveKit dropped the refused events. The route checks the
 		// webhook signature and the network policy admits only LiveKit.
-		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, bearerUser(d.Minter))
+		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
 		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
@@ -178,6 +178,10 @@ func New(d Deps, h Routes) http.Handler {
 			credentials: mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, frameUser),
 			byok:        mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, frameUser),
 			cloud:       mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, frameUser),
+			// G6-03b: the UniWork AI turn draws on the ai-uniwork bucket, the
+			// same one the two session routes use, so a person's frame and
+			// host tab share the 60/min and the refusal carries its own code.
+			uniwork: mw.RateLimitByIdentityBucket(d.Redis, "ai-uniwork", 60, time.Minute, proxies, frameUser, "ai_rate_limited"),
 		})
 		v1.Group(func(authed api) {
 			if d.DeviceStatus != nil {
@@ -196,7 +200,11 @@ func New(d Deps, h Routes) http.Handler {
 			registerAI(authed, h)
 			registerAIBYOK(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, bearerUser(d.Minter)))
 			registerAICloud(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, bearerUser(d.Minter)))
-			registerAIUniwork(authed, h)
+			// UniWork AI (G6-03b): one 60/min budget per person across the
+			// three UniWork AI routes, keyed by the bucket so the ids in their
+			// paths mint no fresh budget (ADR 0029 D6), and refused with
+			// ai_rate_limited so the client tells it from every other bucket.
+			registerAIUniwork(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-uniwork", 60, time.Minute, proxies, bearerUser(d.Minter), "ai_rate_limited"))
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
 			registerTasksSuite(authed, h)
@@ -267,6 +275,25 @@ func bearerUser(m auth.TokenMinter) mw.IdentityFunc {
 			return ""
 		}
 		return "user:" + uid
+	}
+}
+
+// globalIdentity names the caller of the global limiter: the bearer token
+// first (a signed-in person), the Office frame token second. The frame half is
+// G6-03b §5.3: the limiter runs before routing, so a frame request used to
+// fall back to its address and one office NAT shared 300/min across every
+// frame behind it. A request neither half can name keeps its address's budget
+// — a token that does not verify must not mint one.
+func globalIdentity(m auth.TokenMinter, frame mw.IdentityFunc) mw.IdentityFunc {
+	bearer := bearerUser(m)
+	if frame == nil {
+		return bearer
+	}
+	return func(r *http.Request) string {
+		if id := bearer(r); id != "" {
+			return id
+		}
+		return frame(r)
 	}
 }
 

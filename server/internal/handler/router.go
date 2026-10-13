@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 
@@ -148,6 +149,29 @@ type handlers struct {
 	proxies []*net.IPNet
 }
 
+// frameIdentity names the person behind an Office frame token for the global
+// rate limiter (G6-03b §5.3). The limiter runs before routing, so it cannot
+// read the frame auth's context: it verifies the token itself, the same HMAC
+// and lifetime checks OfficeFrameService.Verify applies on the route, and
+// touches no database. The name is the person plus the document: one person's
+// documents do not pool into one wallet, and a stolen token cannot spend
+// another person's budget. A token that does not verify names nobody, so the
+// request keeps its address's budget instead of a forgeable one.
+func (h *handlers) frameIdentity(r *http.Request) string {
+	if h.OfficeFrame == nil {
+		return ""
+	}
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || token == "" {
+		return ""
+	}
+	claims, err := h.OfficeFrame.Verify(token)
+	if err != nil {
+		return ""
+	}
+	return "user:" + claims.UserID + ":doc:" + claims.DocumentID
+}
+
 // New builds the HTTP handler. Routes live in package router, split by
 // OpenAPI tag. This constructor only maps *handlers methods onto Routes.
 func New(d Deps) http.Handler {
@@ -192,6 +216,7 @@ func New(d Deps) http.Handler {
 			return d.DesktopAuth.CheckDeviceSession(ctx, userID, sessionID)
 		},
 		OfficeFrameAuth: h.officeFrameAuth,
+		FrameIdentity:   h.frameIdentity,
 	}, rt.Routes{
 		Health: h.health,
 		Ready:  h.ready,
