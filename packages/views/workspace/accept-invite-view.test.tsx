@@ -244,6 +244,15 @@ describe("AcceptInviteView", () => {
       expect(onAccepted).toHaveBeenCalledTimes(1);
     });
 
+    it("offers no way to put the join off once it is being sent", async () => {
+      signIn();
+      serve({ preview: { invitation: invitation(), conflicts: [] }, onAccept: () => new Promise(() => {}) });
+      renderView();
+      expect(await screen.findByRole("link", { name: "Để sau" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Tham gia" }));
+      await waitFor(() => expect(screen.queryByRole("link", { name: "Để sau" })).not.toBeInTheDocument());
+    });
+
     it("says an organization-level invitation lands in no workspace yet", async () => {
       signIn();
       const { workspace: _ws, inviter_name: _name, ...orgLevel } = invitation();
@@ -466,6 +475,13 @@ describe("AcceptInviteView", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent("Thử lại sau giây lát.");
       fireEvent.click(screen.getByRole("button", { name: "Chuyển sang Beta" }));
       await waitFor(() => expect(onAccepted).toHaveBeenCalled());
+    });
+
+    /** Once sent, the switch cannot be called off: "Để sau" would only hide that it went through. */
+    it("offers no way to put the switch off once it is being sent", async () => {
+      await reachConfirm([conflict("leave")], () => new Promise(() => {}));
+      await waitFor(() => expect(screen.queryByRole("link", { name: "Để sau" })).not.toBeInTheDocument());
+      expect(screen.queryByRole("button", { name: "Quay lại" })).not.toBeInTheDocument();
     });
 
     it("sends the owner back to the password when the server refuses it", async () => {

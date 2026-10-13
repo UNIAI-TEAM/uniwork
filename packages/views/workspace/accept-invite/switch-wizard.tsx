@@ -145,7 +145,7 @@ export function SwitchWizard({
                 <AlertDescription>{t("invitations.switch.busy")}</AlertDescription>
               </Alert>
             ) : null}
-            <StepActions onBack={pending ? undefined : () => setStep(2)}>
+            <StepActions onBack={() => setStep(2)} sending={pending}>
               <Button
                 type="button"
                 size="lg"
@@ -165,9 +165,14 @@ export function SwitchWizard({
   );
 }
 
-/** The primary action, then Back where there is one, then "Để sau" — the same order on every step. */
-function StepActions({ children, onBack }: { children: React.ReactNode; onBack?: () => void }) {
+/**
+ * The primary action, then Back where there is one, then "Để sau" — the same
+ * order on every step. While the switch is being sent neither is offered: it
+ * can no longer be called off, and "Để sau" would only hide that it went through.
+ */
+function StepActions({ children, onBack, sending = false }: { children: React.ReactNode; onBack?: () => void; sending?: boolean }) {
   const { t } = useTranslation();
+  if (sending) return <div className="flex flex-col gap-3 pt-2">{children}</div>;
   return (
     <div className="flex flex-col gap-3 pt-2">
       {children}

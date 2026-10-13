@@ -99,7 +99,8 @@ export function JoinInvitationScreen({
           >
             {t("invitations.preview.join")}
           </Button>
-          <LaterLink />
+          {/* Sent, the join cannot be called off; "Để sau" would hide that it went through. */}
+          {pending ? null : <LaterLink />}
         </div>
       </div>
     </AuthShell>
