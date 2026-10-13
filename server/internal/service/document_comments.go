@@ -424,6 +424,10 @@ func (s *DocumentService) AddDocumentComment(ctx context.Context, actor Actor, d
 		if err != nil {
 			return err
 		}
+		// The comment's durable mention rows commit with it (G8-05).
+		if err := s.syncDocumentCommentMentions(ctx, q, ref, actor, c.ID, c.Body); err != nil {
+			return err
+		}
 		body, err := json.Marshal(c)
 		if err != nil {
 			return err
@@ -447,7 +451,11 @@ func (s *DocumentService) UpdateDocumentComment(ctx context.Context, actor Actor
 	var out db.DocumentComment
 	err = s.withDocumentMutation(ctx, actor, before.DocumentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		out, err = updateCommentOn(ctx, q, documentCommentAdapter{svc: s, access: access}, docCommentRef(doc), actor, commentID, in)
-		return err
+		if err != nil {
+			return err
+		}
+		// The edit's mention rows follow the new body in the same tx (G8-05).
+		return s.syncDocumentCommentMentions(ctx, q, docCommentRef(doc), actor, out.ID, out.Body)
 	})
 	return out, err
 }

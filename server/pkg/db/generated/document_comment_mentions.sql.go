@@ -9,6 +9,30 @@ import (
 	"context"
 )
 
+const claimDocumentCommentMention = `-- name: ClaimDocumentCommentMention :execrows
+UPDATE document_comment_mentions
+SET notified_at = now(),
+    updated_at = now()
+WHERE id = $1
+  AND organization_id = $2
+  AND notified_at IS NULL
+`
+
+type ClaimDocumentCommentMentionParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// The claim (contract-collab section 8.2): one notification per mention row,
+// because only the transaction that set notified_at writes the row.
+func (q *Queries) ClaimDocumentCommentMention(ctx context.Context, arg ClaimDocumentCommentMentionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, claimDocumentCommentMention, arg.ID, arg.OrganizationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteDocumentCommentMentions = `-- name: DeleteDocumentCommentMentions :exec
 DELETE FROM document_comment_mentions
 WHERE comment_id = $1
@@ -34,6 +58,157 @@ func (q *Queries) DeleteDocumentCommentMentions(ctx context.Context, arg DeleteD
 		arg.WorkspaceID,
 	)
 	return err
+}
+
+const insertDocumentCommentMention = `-- name: InsertDocumentCommentMention :exec
+INSERT INTO document_comment_mentions (
+  id, organization_id, workspace_id, document_id, comment_id, user_id,
+  state, created_by, created_by_kind
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+`
+
+type InsertDocumentCommentMentionParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+	CommentID      string `json:"comment_id"`
+	UserID         string `json:"user_id"`
+	State          string `json:"state"`
+	CreatedBy      string `json:"created_by"`
+	CreatedByKind  string `json:"created_by_kind"`
+}
+
+// One new mention row: active for a person who may read the document now,
+// no_access for one who may not (G8-D3 provisional - no error, no delivery).
+func (q *Queries) InsertDocumentCommentMention(ctx context.Context, arg InsertDocumentCommentMentionParams) error {
+	_, err := q.db.Exec(ctx, insertDocumentCommentMention,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.CommentID,
+		arg.UserID,
+		arg.State,
+		arg.CreatedBy,
+		arg.CreatedByKind,
+	)
+	return err
+}
+
+const listClaimableDocumentCommentMentions = `-- name: ListClaimableDocumentCommentMentions :many
+SELECT id, organization_id, workspace_id, document_id, comment_id, user_id, state, notified_at, created_by, created_by_kind, created_at, updated_at FROM document_comment_mentions
+WHERE comment_id = $1
+  AND document_id = $2
+  AND organization_id = $3
+  AND workspace_id = $4
+  AND state = 'active'
+  AND notified_at IS NULL
+ORDER BY user_id
+`
+
+type ListClaimableDocumentCommentMentionsParams struct {
+	CommentID      string `json:"comment_id"`
+	DocumentID     string `json:"document_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// What the notification rules may draft for: live rows nobody claimed yet
+// (contract-collab section 8.2). The claim itself runs in the consumer's
+// notification transaction, so the rules stay read-only.
+func (q *Queries) ListClaimableDocumentCommentMentions(ctx context.Context, arg ListClaimableDocumentCommentMentionsParams) ([]DocumentCommentMention, error) {
+	rows, err := q.db.Query(ctx, listClaimableDocumentCommentMentions,
+		arg.CommentID,
+		arg.DocumentID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DocumentCommentMention{}
+	for rows.Next() {
+		var i DocumentCommentMention
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.CommentID,
+			&i.UserID,
+			&i.State,
+			&i.NotifiedAt,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentCommentMentions = `-- name: ListDocumentCommentMentions :many
+SELECT id, organization_id, workspace_id, document_id, comment_id, user_id, state, notified_at, created_by, created_by_kind, created_at, updated_at FROM document_comment_mentions
+WHERE comment_id = $1
+  AND document_id = $2
+  AND organization_id = $3
+  AND workspace_id = $4
+ORDER BY user_id
+`
+
+type ListDocumentCommentMentionsParams struct {
+	CommentID      string `json:"comment_id"`
+	DocumentID     string `json:"document_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// The comment's current rows, the "existing" side of the mention sync (G8-05,
+// contract-collab section 8.1); read inside the create/edit transaction.
+func (q *Queries) ListDocumentCommentMentions(ctx context.Context, arg ListDocumentCommentMentionsParams) ([]DocumentCommentMention, error) {
+	rows, err := q.db.Query(ctx, listDocumentCommentMentions,
+		arg.CommentID,
+		arg.DocumentID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DocumentCommentMention{}
+	for rows.Next() {
+		var i DocumentCommentMention
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.CommentID,
+			&i.UserID,
+			&i.State,
+			&i.NotifiedAt,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markDocumentCommentMentionsRemoved = `-- name: MarkDocumentCommentMentionsRemoved :exec
@@ -66,6 +241,71 @@ func (q *Queries) MarkDocumentCommentMentionsRemoved(ctx context.Context, arg Ma
 		arg.DocumentID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
+	)
+	return err
+}
+
+const reactivateDocumentCommentMention = `-- name: ReactivateDocumentCommentMention :exec
+UPDATE document_comment_mentions
+SET state = 'active',
+    updated_at = now()
+WHERE comment_id = $1
+  AND user_id = $2
+  AND document_id = $3
+  AND organization_id = $4
+  AND workspace_id = $5
+  AND state = 'removed'
+`
+
+type ReactivateDocumentCommentMentionParams struct {
+	CommentID      string `json:"comment_id"`
+	UserID         string `json:"user_id"`
+	DocumentID     string `json:"document_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// A dropped mention that returns in the body: active again, notified_at kept,
+// so the same row never notifies twice (contract-collab section 8.1).
+func (q *Queries) ReactivateDocumentCommentMention(ctx context.Context, arg ReactivateDocumentCommentMentionParams) error {
+	_, err := q.db.Exec(ctx, reactivateDocumentCommentMention,
+		arg.CommentID,
+		arg.UserID,
+		arg.DocumentID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	return err
+}
+
+const removeDocumentCommentMentions = `-- name: RemoveDocumentCommentMentions :exec
+UPDATE document_comment_mentions
+SET state = 'removed',
+    updated_at = now()
+WHERE comment_id = $1
+  AND document_id = $2
+  AND organization_id = $3
+  AND workspace_id = $4
+  AND user_id = ANY($5::text[])
+  AND state <> 'removed'
+`
+
+type RemoveDocumentCommentMentionsParams struct {
+	CommentID      string   `json:"comment_id"`
+	DocumentID     string   `json:"document_id"`
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	UserIds        []string `json:"user_ids"`
+}
+
+// Ids no longer in the body become removed; their old notifications stay.
+func (q *Queries) RemoveDocumentCommentMentions(ctx context.Context, arg RemoveDocumentCommentMentionsParams) error {
+	_, err := q.db.Exec(ctx, removeDocumentCommentMentions,
+		arg.CommentID,
+		arg.DocumentID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.UserIds,
 	)
 	return err
 }
