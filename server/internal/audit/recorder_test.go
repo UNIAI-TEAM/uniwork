@@ -205,3 +205,81 @@ func TestRecordStoresGuestActor(t *testing.T) {
 		t.Fatalf("outbox actor_kind = %q, want guest", outboxKind)
 	}
 }
+
+// RecordMany is only a faster Record: the same audit row and the same outbox
+// rows, field for field, for every element - the empty request fields stay
+// NULL and the metadata and payload keep their JSON.
+func TestRecordManyWritesWhatRecordWould(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	ctx := WithRequest(context.Background(), RequestInfo{
+		CorrelationID: "corr-many-1234", RequestID: "req-many", IP: "10.0.0.7", UserAgent: "ua-many",
+	})
+	e1, e2 := entry(), entry()
+	e1.ResourceID, e1.Metadata = "d1", map[string]any{"archive_batch_id": "b1"}
+	e2.ResourceID, e2.WorkspaceID = "d2", ""
+	ev := func(id string) Event {
+		return Event{Topic: "task.updated", Payload: map[string]string{"task_id": id}}
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := NewRecorder().RecordMany(ctx, q.WithTx(tx), []Recorded{
+		{Entry: e1, Events: []Event{ev("d1")}},
+		{Entry: e2, Events: []Event{ev("d2")}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	type row struct {
+		resource, action, kind, actor, changes, metadata, corr, req, ip, ua string
+		workspace                                                           *string
+	}
+	rows, err := pool.Query(ctx, `SELECT resource_id, action, actor_kind, actor_id, changes, metadata,
+		correlation_id, request_id, ip_address, user_agent, workspace_id FROM audit_events ORDER BY resource_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.resource, &r.action, &r.kind, &r.actor, &r.changes, &r.metadata, &r.corr, &r.req, &r.ip, &r.ua, &r.workspace); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, r)
+	}
+	if len(got) != 2 {
+		t.Fatalf("audit rows = %d, want 2", len(got))
+	}
+	if got[0].resource != "d1" || got[0].action != ActionTaskUpdated || got[0].kind != "human" || got[0].actor != "u1" ||
+		got[0].corr != "corr-many-1234" || got[0].req != "req-many" || got[0].ip != "10.0.0.7" || got[0].ua != "ua-many" ||
+		got[0].workspace == nil || *got[0].workspace != "ws1" ||
+		got[0].metadata != `{"archive_batch_id":"b1"}` || got[0].changes != `{"status":{"from":"todo","to":"done"}}` {
+		t.Fatalf("first audit row = %+v", got[0])
+	}
+	if got[1].resource != "d2" || got[1].workspace != nil {
+		t.Fatalf("second audit row = %+v, want an empty workspace stored as NULL", got[1])
+	}
+
+	var events int
+	var corr, payload string
+	if err := pool.QueryRow(ctx, `SELECT count(*), min(correlation_id), min(payload) FROM outbox_events
+		WHERE topic = 'task.updated' AND actor_id = 'u1' AND event_version = 1 AND status = 'PENDING'`).Scan(&events, &corr, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if events != 2 || corr != "corr-many-1234" {
+		t.Fatalf("outbox rows = %d (correlation %q), want 2 with the request's correlation id", events, corr)
+	}
+	if payload != `{"task_id":"d1"}` {
+		t.Fatalf("payload = %q", payload)
+	}
+	if err := NewRecorder().RecordMany(ctx, q, nil); err != nil {
+		t.Fatalf("an empty batch must be a no-op: %v", err)
+	}
+}

@@ -28,6 +28,12 @@ export const documentKeys = {
   // filter is part of the key so two filtered lists never share an entry.
   list: (wsId: string, filterKey: string = "") =>
     [...documentKeys.workspace(wsId), "list", filterKey] as const,
+  // Files from chat/task/meeting/email; under the workspace root so a
+  // `document.*` invalidation refreshes the section too.
+  sources: (wsId: string, filterKey: string = "") =>
+    [...documentKeys.sourcesRoot(wsId), filterKey] as const,
+  // Prefix of every filtered sources entry (realtime invalidates this one).
+  sourcesRoot: (wsId: string) => [...documentKeys.workspace(wsId), "sources"] as const,
   recent: (wsId: string) => [...documentKeys.workspace(wsId), "recent"] as const,
   sharedWithMe: (wsId: string) => [...documentKeys.workspace(wsId), "shared"] as const,
   tree: (wsId: string, root: string = "") =>

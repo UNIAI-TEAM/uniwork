@@ -1,10 +1,22 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { verifyEmail } from "./auth-nav";
 import type { WorkspaceSeed } from "./onboard";
 
 const DOCUMENT_URL = /\/documents\/[0-9A-HJKMNP-TV-Z]{26}$/;
+
+/**
+ * The name button of one library row. Its accessible name is the file-type
+ * mark's label plus the title ("Tài liệu Word Báo giá.docx"), so an exact or
+ * start-anchored match misses it; the row menu trigger ("Thao tác cho <title>")
+ * also contains the title, hence the lookahead. A string is matched as a
+ * literal substring, a RegExp as given.
+ */
+export function libraryRowButton(table: Locator, title: string | RegExp): Locator {
+  const source = typeof title === "string" ? title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : title.source;
+  return table.getByRole("button", { name: new RegExp(`^(?!Thao tác cho ).*${source}`) });
+}
 
 /** Screenshot helper bound to one evidence directory (created on first use). */
 export function shooter(dir: string) {
@@ -59,10 +71,15 @@ export async function signIn(page: Page, w: WorkspaceSeed) {
   await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 });
 }
 
+/** The "Page" create card of the Documents home (it keeps today's New page flow). */
+export function newPageCard(page: Page) {
+  return page.getByRole("list", { name: "Tạo mới" }).getByRole("button", { name: /^Trang/ });
+}
+
 /** New page from the library, `text` typed and confirmed saved; returns its URL. */
 export async function createPageWithText(page: Page, w: WorkspaceSeed, text: string): Promise<string> {
   await page.goto(`/${w.orgSlug}/${w.wsSlug}/documents`);
-  await page.getByRole("button", { name: "Trang mới" }).first().click();
+  await newPageCard(page).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
   const surface = page.getByRole("textbox", { name: "Nội dung tài liệu" });
   await expect(surface).toBeVisible({ timeout: 60_000 });

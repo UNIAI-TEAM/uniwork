@@ -15,7 +15,7 @@ type LandingDictionary = {
   };
 };
 
-type MarketingPageKey = "home" | "features" | "solutions" | "learn" | "pricing" | "enterprise"; // plan-literal-ok: page keys
+type MarketingPageKey = "home" | "features" | "solutions" | "learn" | "pricing" | "enterprise" | "office" | "changelog"; // plan-literal-ok: page keys
 
 /**
  * The public pages switch language with the visitor, so the tab title and

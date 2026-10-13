@@ -170,6 +170,11 @@ func vnpSign(params map[string]string, secret string) string {
 	return vnpSignString(vnpHashData(params), secret)
 }
 
+// SignIPNForTest fills vnp_SecureHash the way VNPay signs an IPN. Tests only.
+func SignIPNForTest(params map[string]string, secret string) {
+	params["vnp_SecureHash"] = vnpSign(params, secret)
+}
+
 // vnpSignString is HMAC-SHA512 over a prebuilt checksum (querydr and refund use a pipe-joined string).
 func vnpSignString(data, secret string) string {
 	mac := hmac.New(sha512.New, []byte(secret))

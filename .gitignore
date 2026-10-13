@@ -11,6 +11,7 @@ server/bin/
 coverage/
 .go-cache/
 .go-tmp/
+.changelog-ci/
 test-results/
 playwright-report/
 
@@ -49,6 +50,12 @@ server/internal/handler/data/
 .agents/
 .claude/
 .github/
+# Public release automation is source, while other local GitHub artifacts stay ignored.
+!.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/changelog.yml
 .codex/
 .pnpm-store/
 .uniwork-dev/

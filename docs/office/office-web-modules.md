@@ -378,7 +378,7 @@ hides every AI entry, as before. The capability keys are re-vendored from the
 fork (worker AI1, c044fa9) into `packages/core/office/docs-frame-protocol.ts`.
 
 The three vendored protocol files (`docs-frame-{protocol,endpoint,host}.ts`) are
-the fork lane head `fcfcd29` (branch `feature/UNI-1240-followups`), which holds
+the fork main head `0d03b185`, which holds
 DR1 draft recovery (`InitPayload.recovery`), the `modal` event, SP1, H2, the
 AI1 capability keys, the SH4 Sheets AI, the A7 `app.open` request and the A1b `api.assets.resolve` request in one lineage, so nothing is merged by hand any more. They
 are byte-identical to the fork's `web/docs/protocol/{types,endpoint,host}.ts`
@@ -386,7 +386,7 @@ except the relative import specifiers; the bodies did not change between the
 earlier `f1679cb` + AI1 `c044fa9` vendoring, `11a5eba` and `36e9e23`, only the headers.
 `36e9e23..9b5e409` changed `types.ts` in one comment (`InitRecovery.key` is persisted
 per user, C18a); `9b5e409..98e1d20` changed nothing under `web/docs/protocol/` (the `08fafd4..98e1d20`
-range only touched its README). `98e1d20..fcfcd29` (nothing changed after `0e384f8`; `d5553a0..fcfcd29` changed nothing under `web/docs/protocol/`) added `app.open` (capability `desktopOpen`) and
+range only touched its README). `98e1d20..0d03b185` (nothing changed after `0e384f8`; `fcfcd29..0d03b185` changed nothing under `web/docs/protocol/`) added `app.open` (capability `desktopOpen`) and
 `api.assets.resolve`, which the dev copy already carried as patches; the re-vendor to `0e384f8` only moved those
 blocks into the fork's order and replaced the headers. The
 bundles in "Pinned builds" are built from the same commit.
@@ -476,16 +476,16 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, the lane head `fcfcd29`
-(branch `feature/UNI-1240-followups`; `0.1.0-fcfcd29` = `98e1d20` + the UNI-1232 web polish of the six modules
-(round 2 minors and nits, `app.open`, `api.assets.resolve`) + the five fork CI fixes (FX) + the host-save conflict wording and the last web-module polish fixes (FX2, FX3, FX4, an MT test fix) + FX6 (PDF Insert text embeds real TTF fonts, dialog focus, the Docs comments pane starts closed on a narrow viewport) + the GO-A9 app acceptance merge (fork main `42e2c40`, view-only AI composer and the rest of the app acceptance fixes) + the Prettier fix `4c7c9f6`, FX7 (web view-only AI) and the AI setup notices with the muted dark disabled Send token (`d5553a0..8b2e84a`; all six bundles change) + the GO-C4 follow-ups of UNI-1240 (`8b2e84a..fcfcd29`: the AI chip takes its model from the server and saves it there, a viewer's Send stays off without a model, the Sheets size notice, one view-only AI note and the add-a-key link, an unopenable per-account store reported as a failed load; all six bundles change); `98e1d20` was `08fafd4` + the FDX Docs and FSH Sheets fixes, the shared frame
+All six modules are pinned to one fork commit, fork main `0d03b185`
+(`0.1.0-0d03b18` = `98e1d20` + the UNI-1232 web polish of the six modules
+(round 2 minors and nits, `app.open`, `api.assets.resolve`) + the five fork CI fixes (FX) + the host-save conflict wording and the last web-module polish fixes (FX2, FX3, FX4, an MT test fix) + FX6 (PDF Insert text embeds real TTF fonts, dialog focus, the Docs comments pane starts closed on a narrow viewport) + the GO-A9 app acceptance merge (fork main `42e2c40`, view-only AI composer and the rest of the app acceptance fixes) + the Prettier fix `4c7c9f6`, FX7 (web view-only AI) and the AI setup notices with the muted dark disabled Send token (`d5553a0..8b2e84a`; all six bundles change) + the GO-C4 follow-ups of UNI-1240 (`8b2e84a..fcfcd29`: the AI chip takes its model from the server and saves it there, a viewer's Send stays off without a model, the Sheets size notice, one view-only AI note and the add-a-key link, an unopenable per-account store reported as a failed load; all six bundles change) + the G open-link profile work and Q3 (Slides hide the AI image buttons while image generation is off) and the fork CI fixes (`fcfcd29..0d03b185`: web plugins loaded by file URL so the build runs on Windows, Prettier on the G files; the Docs, PDF, Markdown, HTML, Slides and Sheets bundles are rebuilt); `98e1d20` was `08fafd4` + the FDX Docs and FSH Sheets fixes, the shared frame
 dialog, the AI panel and failed-save wording fixes in PDF, Markdown and HTML
 (DP5 re-pin); `08fafd4` was `9b5e409` + the GO-A6 merge (UniWork documents), the
 `uniworkState` stub of every module's web API, the PDF close-save origin and the
 Sheets view-only lock kept off the frame; `9b5e409` itself was `36e9e23` + SH4
 Sheets AI, the FF1 hardening fixes and the per-platform wasm checksum; built clean:
 no `-dirty` suffix, `npm run build:web -- --all` in a detached worktree of
-`fcfcd29`, not the fork lane's own checkout). The pins'
+`0d03b185`, not the fork lane's own checkout). The pins'
 headers did not change from `36e9e23`, only version, SHA and manifest digest. Written by
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
@@ -536,7 +536,7 @@ together** (the wiring test fails when the URL does not name the pinned version)
 
 ```bash
 # in the fork checkout, at the commit the pins name
-npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (fcfcd29: 32.6 MiB as a tarball)
+npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (0d03b18: 32.6 MiB as a tarball)
 tar -C dist-web -czf dist-web.tar.gz .
 # publish dist-web.tar.gz as a release asset (web-0.1.0-<sha> of uniwork-office), then put its URL and
 # sha256sum in source.json with the new pins; the sync checks the sha256, then verifies every file against the pins
@@ -560,7 +560,7 @@ the **linux-arm64 build made on bro** (wasm sha256 `e56985bc...27cd`, arm64
 line of the fork file). A tarball built on an x64 machine holds a different Sheets
 wasm, so `office-frame-sync` refuses it against this pin: publish the release
 asset from the bro tarball
-(`dist-web-0.1.0-fcfcd29.tar.gz`, sha256 `747ca9d1...d9bb7`, next to it in the `.sha256` file; the wasm in it is the arm64
+(`dist-web-0.1.0-0d03b18.tar.gz`, sha256 `e2fbe689...fae6c6`, next to it in the `.sha256` file; the wasm in it is the arm64
 line `e56985bc...27cd`, unchanged since `98e1d20`), or re-pin from an x64 build and
 point `source.json` at that one; never mix the two. The fork CI does not publish a
 `dist-web` tarball: whoever re-pins builds it on bro and uploads the release asset.

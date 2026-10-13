@@ -45,9 +45,12 @@ cạnh `uniwork://` (vẫn dùng cho `uniwork://office/app` và `uniwork://agent
 ký scheme của kênh đang chạy; cả hai được khai báo trong `protocols` của electron-builder.
 Cả hai client phải có trong `DESKTOP_AUTH_CLIENTS` của server (xem trên). Callback đến qua argv khi khởi động, lần mở thứ hai trên Windows hoặc `open-url`
 trên macOS (kể cả trước khi app sẵn sàng) và được chuyển cho phần đăng nhập trước bộ định
-tuyến office. Địa chỉ server lấy từ `deployment-profile.json` (thư mục resources, rồi
-userData; bộ cài NSIS chép file này cạnh bộ cài vào resources), sau đó mới tới
-`UNIWORK_API_ORIGIN` / `uniworkApiOrigin`.
+tuyến office. Địa chỉ server lấy từ hồ sơ triển khai trong userData. Hồ sơ đến qua liên kết mở từ web
+(`<scheme>://open?ticket=…&deploymentId=…&apiOrigin=…&clientId=…&channel=…` cho tài liệu,
+`<scheme>://home?deploymentId=…` không có ticket cho màn hình chính; đủ bốn giá trị hoặc không có), qua mặc định đóng gói theo kênh lúc build, hoặc do người dùng nhập ở màn hình
+Kết nối UniWork / Cài đặt. Cùng `deploymentId` thì cập nhật địa chỉ không hỏi (phiên đăng nhập cũ bị bỏ, không mang sang địa chỉ mới); `deploymentId`
+mới hoặc chưa có hồ sơ thì hỏi xác nhận một lần; khác kênh thì từ chối. Không còn ZIP kèm
+`deployment-profile.json`.
 
 ## 2. Mở và lưu tài liệu UniWork (GO-A6, UNI-1007)
 
@@ -259,8 +262,8 @@ thay bằng kênh khác):
 | `OFFICE_INSTALLER_DEV_URLS`, `OFFICE_INSTALLER_BETA_URLS`, `OFFICE_INSTALLER_STABLE_URLS` | JSON `{platform: url}` theo kênh; chỉ nhận HTTPS (hoặc HTTP loopback khi dev) và đuôi file đúng nền tảng |
 
 Endpoint phục vụ: `GET /office/desktop/download` (`router/config.go`), yêu cầu thành
-viên tổ chức, trả `installers` và `supported_platforms` đúng kênh; `bundle=true&platform=<key>`
-trả ZIP của nền tảng đã chọn. CI của fork đăng bản lên các URL đó (GO-A8). Ký số
+viên tổ chức, trả `installers` và `supported_platforms` đúng kênh; `platform=<key>` (lượt bấm tải, có
+audit) chỉ trả bộ cài đó, rồi trình duyệt tự tải tệp từ máy chủ phát hành, không qua UniWork. CI của fork đăng bản lên các URL đó (GO-A8). Ký số
 nằm trong backlog chứng chỉ, không chặn.
 
 ## 5. Khung Docs trên web (GO-B2, GO-B3)

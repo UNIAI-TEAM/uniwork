@@ -31,7 +31,10 @@
 .header-mobile-menu .header-directory-footer > span { display: none; }
 .header-mobile-menu .mobile-route-link { min-height: 48px; padding: 10px 12px; }
 .header-mobile-menu .mobile-start { display: flex; justify-content: center; margin: 12px; }
-@media (max-width: 1199px) {
+@media (max-width: 1439px) {
+  .site-header .header-nav-link { padding-inline: 8px; }
+}
+@media (max-width: 1339px) {
   .site-header .header-navigation, .site-header .header-directory { display: none; }
   .site-header .header-mobile-toggle { display: inline-flex; }
 }

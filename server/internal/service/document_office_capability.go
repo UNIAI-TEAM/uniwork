@@ -121,13 +121,16 @@ func (s *DocumentOfficeService) Capability(ctx context.Context, actor Actor, doc
 	return out, nil
 }
 
-// blankSupported: source-text formats and XLSX (G2-07b: a minimal workbook
-// seed) have a blank the engine makes. A zero-byte PDF or OOXML package is not
-// a document, so the action is absent for DOCX, PPTX and PDF until a format
-// lane binds a blank generator.
+// blankSupported: source-text formats, XLSX (G2-07b: a minimal workbook seed)
+// and PDF (a one-page blank A4 seed) have a blank the engine serializes; DOCX
+// and PPTX have no bound serialize, so their blank is the embedded seed itself
+// (blankViaEngine). A zero-byte PDF or OOXML package is not a document, so
+// the action is absent for every other format.
 func blankSupported(format office.Format, res office.CapabilityResult) (bool, string) {
 	switch format {
-	case office.FormatMD, office.FormatHTML, office.FormatXLSX:
+	case office.FormatDOCX, office.FormatPPTX:
+		return true, "embedded blank " + string(format) + " package, the same starting file the editor makes"
+	case office.FormatMD, office.FormatHTML, office.FormatXLSX, office.FormatPDF:
 	default:
 		return false, "no blank generator is bound for " + string(format) +
 			"; an empty Office package is never created (docs/office/g1-g2-evidence.md)"
@@ -150,6 +153,9 @@ func blankEvidenceLevel(supported bool) office.EvidenceLevel {
 // a typed refusal, never a guess. ver may be nil: the current version is read
 // then.
 func (s *DocumentOfficeService) formatForVersion(ctx context.Context, doc db.Document, ver *db.DocumentVersion) (office.Format, error) {
+	if doc.Kind == DocumentKindFolder {
+		return "", officeErr("unsupported_operation", "folder_document")
+	}
 	if doc.Kind != DocumentKindFile {
 		return "", officeErr("unsupported_operation", "page_document")
 	}
@@ -282,17 +288,16 @@ type BlankFileInput struct {
 	IdempotencyKey string
 }
 
-// CreateBlankFile makes a new document whose first version holds bytes the
-// engine produced: Go submits a serialize job over a small server-chosen seed
+// CreateBlankFile makes a new document whose first version holds a blank
+// seed. For formats with a bound serialize (md, html, xlsx, pdf) the bytes are
+// the engine own output; DOCX and PPTX store their embedded seed as it is
+// (blankViaEngine). For the engine path, Go submits a serialize job over a small server-chosen seed
 // (an empty file is not a document - the file validator refuses zero bytes),
 // verifies the engine's output through FileService and creates the document
 // through the one create path, uploading the verified bytes. The intermediate
 // provider output is never claimed; FileService collects it after the claim
 // window, and a failure before the create leaves nothing but that staged file.
 func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor, workspaceID string, in BlankFileInput) (DocumentFileResult, error) {
-	if s.engine == nil {
-		return DocumentFileResult{}, office.ErrNotConfigured
-	}
 	if s.documents == nil {
 		return DocumentFileResult{}, fmt.Errorf("office: documents service not wired")
 	}
@@ -302,6 +307,9 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	format, ok := parseOfficeFormat(in.Format)
 	if !ok {
 		return DocumentFileResult{}, Invalid("format must be one of docx, xlsx, pptx, pdf, md, html")
+	}
+	if s.engine == nil && blankViaEngine(format) {
+		return DocumentFileResult{}, office.ErrNotConfigured
 	}
 	title := strings.TrimSpace(in.Title)
 	seed, filename, ok := blankSeedFor(format, title)
@@ -326,6 +334,13 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	// A retried key is answered before the engine runs again.
 	if res, ok, err := s.replayBlank(ctx, actor, orgID, ws.WorkspaceID, in, title, filename); ok || err != nil {
 		return res, err
+	}
+	if !blankViaEngine(format) {
+		return s.documents.CreateFileDocument(ctx, actor, ws.WorkspaceID, CreateFileDocumentInput{
+			ParentID: in.ParentID, Title: title, Filename: filename,
+			Body: bytes.NewReader(seed), IdempotencyKey: in.IdempotencyKey,
+			engine: officeEngineInfo(),
+		})
 	}
 	res, err := office.Negotiate(ctx, s.engine, format)
 	if err != nil {
@@ -517,9 +532,24 @@ func blankSeedFor(format office.Format, title string) ([]byte, string, bool) {
 		// The workbook carries no title: the document row holds it.
 		seed := blankXLSXSeed()
 		return seed, "untitled.xlsx", seed != nil
+	case office.FormatDOCX:
+		seed := blankDOCXSeed()
+		return seed, "untitled.docx", seed != nil
+	case office.FormatPPTX:
+		seed := blankPPTXSeed()
+		return seed, "untitled.pptx", seed != nil
+	case office.FormatPDF:
+		return blankPDFSeed(), "untitled.pdf", true
 	default:
 		return nil, "", false
 	}
+}
+
+// blankViaEngine reports whether the blank bytes go through an engine
+// serialize job before the first version exists. DOCX and PPTX bind no
+// serialize operation, so their seed is stored as it is.
+func blankViaEngine(format office.Format) bool {
+	return format != office.FormatDOCX && format != office.FormatPPTX
 }
 
 // OfficeJobRequest is the HTTP-facing start request: the server resolves the
@@ -558,6 +588,9 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	}
 	doc, _, err := s.documents.authorizeDocument(ctx, actor, documentID, officeJobRequiredLevel(office.Operation(strings.TrimSpace(req.Operation))))
 	if err != nil {
+		return db.OfficeJob{}, err
+	}
+	if err := refuseFolder(doc); err != nil {
 		return db.OfficeJob{}, err
 	}
 	operation, ok := parseOfficeOperation(req.Operation)

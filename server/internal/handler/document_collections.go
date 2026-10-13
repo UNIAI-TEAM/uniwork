@@ -155,7 +155,7 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(page.Items))}
 	for _, row := range page.Items {
 		access := row.Access
-		out.Documents = append(out.Documents, documentSummaryDTO(row.Document, "", &access))
+		out.Documents = append(out.Documents, documentSummaryDTO(row.Document, row.Facts, "", &access))
 	}
 	if page.NextID != "" {
 		cursor := encodeSharedWithMeCursor(page.NextCreatedAt, page.NextID)
@@ -251,7 +251,11 @@ func (h *handlers) documentLifecycleCommand(w http.ResponseWriter, r *http.Reque
 func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(page.Items))}
 	for _, item := range page.Items {
-		out.Documents = append(out.Documents, documentSummaryDTO(item.Document, item.Snippet, nil))
+		var access *service.DocumentAccess
+		if item.Access.Level != service.DocumentLevelNone {
+			access = &item.Access
+		}
+		out.Documents = append(out.Documents, documentSummaryDTO(item.Document, item.Facts, item.Snippet, access))
 	}
 	if page.NextCursor != "" {
 		out.NextCursor = &page.NextCursor
@@ -259,11 +263,13 @@ func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 	return out
 }
 
-// documentSummaryDTO renders one list row: document metadata, the search
+// documentSummaryDTO renders one list row: document metadata, its size and
+// origin, the search
 // snippet when the query matched, and the resolved access only where the
 // service computed it (shared-with-me).
-func documentSummaryDTO(doc db.Document, snippet string, access *service.DocumentAccess) sdo.DocumentSummaryDTO {
+func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippet string, access *service.DocumentAccess) sdo.DocumentSummaryDTO {
 	out := sdo.DocumentSummaryDTO{
+		SizeBytes: facts.SizeBytes, Origin: facts.Origin,
 		ID: doc.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 		Kind: doc.Kind, Title: doc.Title, Visibility: doc.Visibility,
 		Revision: strconv.FormatInt(doc.Revision, 10), CurrentVersion: doc.CurrentVersion,

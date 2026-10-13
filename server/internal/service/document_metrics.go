@@ -108,7 +108,7 @@ func documentSaveResult(err error) (outcome, conflictCode string) {
 	switch {
 	case errors.Is(err, ErrQuotaExceeded):
 		return documentOutcomeQuota, ""
-	case errors.Is(err, ErrMemberDeactivated), errors.Is(err, ErrOrganizationSuspended), errors.Is(err, ErrForbidden):
+	case errors.Is(err, ErrMemberDeactivated), errors.Is(err, ErrOrganizationSuspended), errors.Is(err, ErrOrganizationDeletionScheduled), errors.Is(err, ErrForbidden):
 		return documentOutcomeForbidden, ""
 	case errors.Is(err, ErrNotFound):
 		return documentOutcomeNotFound, ""
