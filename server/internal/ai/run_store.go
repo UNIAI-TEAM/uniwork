@@ -90,8 +90,14 @@ type TakeRunTurn struct {
 }
 
 // RunStore is W-A's seam. TakeTurn is the only path that moves the counters,
-// so the caps hold across pods (design §4.2); Sweep is the TTL worker's entry
-// and AddCredits records what an answered call cost.
+// so the caps hold across pods (design §4.2), and AddCredits records what an
+// answered call cost.
+//
+// The sweep is not here: the TTL worker reaches runs through its own
+// ConversationMaintenance.SweepRuns, because the runbook's counter needs the
+// reason split (uniwork_ai_uniwork_runs_swept_total{reason}) a one-count
+// method cannot carry. The scaffold's Sweep method had no caller and went with
+// BE3B-11; both paths still share sweepUniworkRuns.
 type RunStore interface {
 	// TakeTurn reserves one model call for the turn about to reach the
 	// Gateway — and one tool round when the turn answers the model's calls —
@@ -102,9 +108,6 @@ type RunStore interface {
 	// AddCredits records the tokens one answered model call cost, so the run
 	// carries what it spent (uniwork_ai_uniwork_run_credits, design §7).
 	AddCredits(ctx context.Context, runID, conversationID string, tokens int64) error
-	// Sweep deletes runs past their expiry and runs whose conversation is
-	// gone, and reports how many.
-	Sweep(ctx context.Context, now time.Time) (int64, error)
 }
 
 // RunSweepMetrics is the counter surface the sweep needs, declared where it is

@@ -115,12 +115,6 @@ func (s *RunStorePG) AddCredits(ctx context.Context, runID, conversationID strin
 	})
 }
 
-// Sweep implements RunStore: both reasons, one count.
-func (s *RunStorePG) Sweep(ctx context.Context, now time.Time) (int64, error) {
-	expired, orphan, err := sweepUniworkRuns(ctx, s.queries, now)
-	return expired + orphan, err
-}
-
 // runTurnRefusal classifies a turn that reserved nothing (design §4.2): past
 // its window or gone is run_expired, a spent cap is run_limit_reached with the
 // cap in fields.limit. The final branch is the lost race - a sweep or the
@@ -151,7 +145,9 @@ func runFromRow(row db.AiUniworkRun) Run {
 
 // sweepUniworkRuns deletes the runs past their window and the runs whose
 // conversation is gone, in batches so one pass holds no long transaction and
-// reports how many of each this pass removed (design §3.4).
+// reports how many of each this pass removed (design §3.4). The TTL worker
+// reaches it through ConversationStorePG.SweepRuns, the entry that keeps the
+// reason split the runs_swept_total counter needs.
 func sweepUniworkRuns(ctx context.Context, q *db.Queries, now time.Time) (int64, int64, error) {
 	var expired, orphan int64
 	for i := 0; i < uniworkRunSweepMaxBatches; i++ {
@@ -170,33 +166,41 @@ func sweepUniworkRuns(ctx context.Context, q *db.Queries, now time.Time) (int64,
 
 // sweepUniworkRunBatch removes one batch of each reason; full reports that a
 // batch came back full, so more may remain.
+//
+// The orphan batch runs first, so a run whose conversation is gone is counted
+// as an orphan even when its own window has passed too: the reason split is
+// the only operator signal that a conversation cleanup left runs behind
+// (docs/ops/RUNBOOK_AI.md, orphan within ≤ 1 minute of every cleanup), and a
+// run the expired batch deleted first would report as ordinary TTL. The
+// expired query then sees only runs whose conversation is still there, and no
+// row is deleted — or counted — twice (BE3B-9).
 func sweepUniworkRunBatch(ctx context.Context, q *db.Queries, now time.Time) (int64, int64, bool, error) {
 	var expired, orphan int64
 	var full bool
-	ids, err := q.AiUniworkExpiredRunIDs(ctx, db.AiUniworkExpiredRunIDsParams{
-		Now: timestamptz(now), Batch: uniworkRunSweepBatch,
-	})
-	if err != nil {
-		return 0, 0, false, err
-	}
-	if len(ids) > 0 {
-		deleted, err := q.AiUniworkDeleteRunsByIDs(ctx, ids)
-		if err != nil {
-			return 0, 0, false, err
-		}
-		expired, full = deleted, len(ids) == int(uniworkRunSweepBatch)
-	}
 	orphans, err := q.AiUniworkOrphanRunIDs(ctx, uniworkRunSweepBatch)
 	if err != nil {
-		return expired, 0, full, err
+		return 0, 0, false, err
 	}
 	if len(orphans) > 0 {
 		deleted, err := q.AiUniworkDeleteRunsByIDs(ctx, orphans)
 		if err != nil {
-			return expired, 0, full, err
+			return 0, 0, false, err
 		}
-		orphan = deleted
-		full = full || len(orphans) == int(uniworkRunSweepBatch)
+		orphan, full = deleted, len(orphans) == int(uniworkRunSweepBatch)
+	}
+	ids, err := q.AiUniworkExpiredRunIDs(ctx, db.AiUniworkExpiredRunIDsParams{
+		Now: timestamptz(now), Batch: uniworkRunSweepBatch,
+	})
+	if err != nil {
+		return 0, orphan, full, err
+	}
+	if len(ids) > 0 {
+		deleted, err := q.AiUniworkDeleteRunsByIDs(ctx, ids)
+		if err != nil {
+			return 0, orphan, full, err
+		}
+		expired = deleted
+		full = full || len(ids) == int(uniworkRunSweepBatch)
 	}
 	return expired, orphan, full, nil
 }

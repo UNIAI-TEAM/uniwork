@@ -362,8 +362,9 @@ func (s *ConversationStorePG) sweepBatch(ctx context.Context, now time.Time) (in
 
 // SweepRuns implements ConversationMaintenance: the runs of a conversation go
 // with it, and one pass must collect both. The work itself lives beside the
-// run store (run_store_pg.go), which answers the same question through
-// RunStore.Sweep.
+// run store (run_store_pg.go, sweepUniworkRuns), and this is its only entry:
+// the reason split belongs to the counter, so RunStore carries no sweep
+// (BE3B-11).
 func (s *ConversationStorePG) SweepRuns(ctx context.Context, now time.Time) (int64, int64, error) {
 	return sweepUniworkRuns(ctx, s.queries, now)
 }

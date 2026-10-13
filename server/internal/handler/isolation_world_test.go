@@ -251,6 +251,11 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	uniworkStore := ai.NewConversationStore(pool, q, uniworkBox)
 	d.AIUniwork = service.NewAIUniworkService(d.Organizations, service.NewEntitlementService(pool, q), docs,
 		d.FeatureFlags, service.NewAIGateway(pool, q, uniworkProvider, ai.Options{}), uniworkStore, d.Redis)
+	// The run counters behind the façade, wired exactly as main.go wires them
+	// (G6-03b, A3/A12): without it the world answers every turn with no run
+	// header, so the wire contract and the foreign-run refusal are never
+	// exercised over the real router (BE3B-5).
+	d.AIUniwork.SetRunStore(ai.NewRunStore(q))
 
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)

@@ -439,12 +439,20 @@ func TestRunStoreSweepExpiredAndOrphanRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expired, orphan, err := conversations.SweepRuns(ctx, now.Add(UniworkRunIdleTTL+time.Minute))
+	sweptAt := now.Add(UniworkRunIdleTTL + time.Minute)
+	expired, orphan, err := conversations.SweepRuns(ctx, sweptAt)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if expired != 1 || orphan != 1 {
-		t.Fatalf("sweep = %d expired / %d orphan, want 1 / 1", expired, orphan)
+		// The windows, not only the counts: a run counted under the wrong
+		// reason is a classification answer, and "2 expired / 0 orphan" hid
+		// that the orphan's window had passed too (BE3B-9).
+		t.Fatalf("sweep at %s = %d expired / %d orphan, want 1 / 1 (expired %s expires %s, orphan %s expires %s, live %s expires %s)",
+			sweptAt.Format(time.RFC3339Nano), expired, orphan,
+			runExpired.ID, runExpired.ExpiresAt.Format(time.RFC3339Nano),
+			runOrphan.ID, runOrphan.ExpiresAt.Format(time.RFC3339Nano),
+			runLive.ID, runLive.ExpiresAt.Format(time.RFC3339Nano))
 	}
 	var remaining []string
 	rows, err := pool.Query(ctx, `SELECT id FROM ai_uniwork_runs ORDER BY id`)

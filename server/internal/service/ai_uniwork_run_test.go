@@ -48,8 +48,6 @@ func (f *fakeRunStore) AddCredits(_ context.Context, runID, conversationID strin
 	return f.creditErr
 }
 
-func (f *fakeRunStore) Sweep(context.Context, time.Time) (int64, error) { return 0, nil }
-
 // A run whose model-call cap is spent answers 409 run_limit_reached with
 // fields.limit naming the cap (A3, design §2.3): the store decides which cap
 // bound, the service hands the refusal to the wire unchanged — no rewrapping
@@ -320,15 +318,20 @@ func newScriptedRunStore() *scriptedRunStore {
 func (s *scriptedRunStore) TakeTurn(_ context.Context, in ai.TakeRunTurn) (ai.Run, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.takes = append(s.takes, in)
+	// A turn with no run id opens one — the question turn of a run (design
+	// §2.2) — and the take is recorded under the run it resolved to, so both
+	// attempts of a retry are read back from the same run. The opened run is
+	// kept: a harness that opened it and then looked up the still-empty id
+	// answered run_expired to every first turn (BE3B-3).
 	if in.RunID == "" {
-		run := &ai.Run{
-			ID: util.NewID(), OrganizationID: in.OrganizationID, ConversationID: in.ConversationID,
+		in.RunID = util.NewID()
+		s.runs[in.RunID] = &ai.Run{
+			ID: in.RunID, OrganizationID: in.OrganizationID, ConversationID: in.ConversationID,
 			CreatedBy: in.CreatedBy, CreatedByKind: "human",
 			CreatedAt: in.Now, LastUsedAt: in.Now, ExpiresAt: in.Now.Add(ai.UniworkRunIdleTTL),
 		}
-		s.runs[run.ID] = run
 	}
+	s.takes = append(s.takes, in)
 	run, ok := s.runs[in.RunID]
 	if !ok {
 		return ai.Run{}, ai.ErrRunExpired
@@ -350,8 +353,6 @@ func (s *scriptedRunStore) AddCredits(_ context.Context, runID, conversationID s
 	return nil
 }
 
-func (s *scriptedRunStore) Sweep(context.Context, time.Time) (int64, error) { return 0, nil }
-
 func (s *scriptedRunStore) takesFor(runID string) []ai.TakeRunTurn {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -368,6 +369,37 @@ func (s *scriptedRunStore) run(id string) ai.Run {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return *s.runs[id]
+}
+
+// The harness opens a run for the question turn and counts later turns on it,
+// so a retry reads back from one run (BE3B-3); a foreign id is still the 409.
+// It needs no database: this is the seam the DB-backed card tests above stand
+// on, and the one a fix must not break silently.
+func TestScriptedRunStoreTakeTurnOpensAndContinues(t *testing.T) {
+	store := newScriptedRunStore()
+	ctx := context.Background()
+	now := time.Unix(1_700_000_000, 0).UTC()
+
+	opened, err := store.TakeTurn(ctx, ai.TakeRunTurn{
+		OrganizationID: "org-1", ConversationID: "conv-1", CreatedBy: "user-1", Now: now,
+	})
+	if err != nil || opened.ID == "" || opened.ModelCalls != 1 {
+		t.Fatalf("the opening take = %+v, %v; want a run at one model call", opened, err)
+	}
+	continued, err := store.TakeTurn(ctx, ai.TakeRunTurn{
+		RunID: opened.ID, OrganizationID: "org-1", ConversationID: "conv-1", CreatedBy: "user-1", Now: now,
+	})
+	if err != nil || continued.ID != opened.ID || continued.ModelCalls != 2 {
+		t.Fatalf("the continuation = %+v, %v; want %s at two model calls", continued, err, opened.ID)
+	}
+	if takes := store.takesFor(opened.ID); len(takes) != 2 {
+		t.Fatalf("recorded takes of %s = %d, want both attempts under the run", opened.ID, len(takes))
+	}
+	if _, err := store.TakeTurn(ctx, ai.TakeRunTurn{
+		RunID: "run-of-someone-else", OrganizationID: "org-1", ConversationID: "conv-1", Now: now,
+	}); !errors.Is(err, ai.ErrRunExpired) {
+		t.Fatalf("a foreign run id = %v, want ErrRunExpired", err)
+	}
 }
 
 // uniworkRunWorld is one organization on the default plan with the UniWork AI
@@ -485,11 +517,16 @@ func TestAIUniworkUsageRecordedWhenClientDisconnects(t *testing.T) {
 		}, nil
 	}
 
-	_, _ = w.svc.Chat(reqCtx, w.scope(), UniworkTurnInput{Body: w.body(t, "câu hỏi bị ngắt")})
+	// The turn may answer nothing to a client that is gone; what it must not
+	// do is stop before the vendor, so the error is kept for the failure
+	// message instead of the row count being the only clue (a refusal that
+	// precedes the Gateway — run_expired, a spent cap — read as "0 rows").
+	turn, err := w.svc.Chat(reqCtx, w.scope(), UniworkTurnInput{Body: w.body(t, "câu hỏi bị ngắt")})
 
 	rows := w.usageRows(t)
 	if len(rows) != 1 {
-		t.Fatalf("usage rows after the hang-up = %d %+v, want one settled row", len(rows), rows)
+		t.Fatalf("usage rows after the hang-up = %d %+v (turn %+v, err %v), want one settled row",
+			len(rows), rows, turn, err)
 	}
 	if rows[0].Status != "succeeded" || rows[0].InputTokens != 12 || rows[0].OutputTokens != 5 {
 		t.Fatalf("row after the hang-up = %+v, want succeeded with the vendor's tokens", rows[0])
