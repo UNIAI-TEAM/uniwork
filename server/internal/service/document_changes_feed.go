@@ -55,10 +55,9 @@ import (
 // serves nothing. No commit is skipped - the cursor keeps its place - and the
 // stall is observable: DocumentChangeFeedPending counts the held-back rows and
 // reports the age as the lag gauge, and a page that can advance nothing answers
-// has_more=false with its cursor position unchanged (BE-G2-2), so a client polls
-// again
-// later instead of spinning on a repeated cursor; the Office engine runbook
-// names it (BE-G1-5).
+// has_more=false with its cursor position unchanged (BE-G2-2), so a client
+// polls again later instead of spinning on a repeated cursor; the Office
+// engine runbook names it (BE-G1-5).
 //
 // # Kinds and visibility
 //

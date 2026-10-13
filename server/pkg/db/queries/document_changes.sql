@@ -128,7 +128,8 @@ LIMIT sqlc.arg(page_limit);
 -- from advancing past a transaction that may still roll back. This count does
 -- NOT decide has_more: the page's own keyset advance does, so a page whose
 -- every candidate is held back answers has_more=false with its cursor
--- unchanged (BE-G2-2) and this backlog simply drains on a later poll. The age
+-- position unchanged (keyset intact) (BE-G2-2) and this backlog simply drains
+-- on a later poll. The age
 -- is the feed lag metric: a long-running transaction (the xmin horizon) keeps
 -- this count and the age non-zero while no page delivers, which is the stall
 -- the runbook names. No row answers (0, 0).
