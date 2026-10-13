@@ -85,3 +85,54 @@ RETURNING id;
 -- tenant: system
 DELETE FROM document_change_snapshot_items
 WHERE snapshot_id = ANY(sqlc.arg(snapshot_ids)::text[]);
+
+-- ---- Incremental feed (G5-01b, UNI-1346) -----------------------------------
+-- The feed continues from a snapshot's high-water mark. Its position is the
+-- COMMITTED transaction id of the audit row every document command already
+-- writes (ADR 0009): audit_events rows are never UPDATEd (the append-only
+-- trigger), so xact_id is a stable commit-order keyset. ULIDs and created_at
+-- are not commit ordered and cannot play that role.
+--
+-- "After the snapshot" is NOT pg_visible_in_snapshot alone. A transaction that
+-- was in flight when the high-water mark was taken is invisible to it AND
+-- absent from the snapshot's items, so the feed must carry it - but a
+-- transaction that is STILL in flight when the feed reads must not be carried
+-- yet, or a client could advance its cursor past a change that later commits.
+-- The guard is xact_id < pg_snapshot_xmin(pg_current_snapshot()): only
+-- transactions that are already committed as of this read are eligible, so an
+-- in-flight one is held back for the next page and never skipped.
+--
+-- name: ListDocumentChangeFeed :many
+SELECT a.id, a.action, a.resource_id, a.xact_id::text AS xact_id, a.metadata
+FROM audit_events a
+WHERE a.organization_id = sqlc.arg(organization_id)
+  AND a.workspace_id = sqlc.arg(workspace_id)
+  AND a.resource_type = 'document'
+  AND a.xact_id IS NOT NULL
+  AND NOT pg_visible_in_snapshot(a.xact_id, sqlc.arg(high_water)::text::pg_snapshot)
+  AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
+  AND (sqlc.arg(after_xact)::text = ''
+       OR (a.xact_id, a.id) > (sqlc.arg(after_xact)::xid8, sqlc.arg(after_id)::text))
+ORDER BY a.xact_id, a.id
+LIMIT sqlc.arg(page_limit);
+
+-- name: GetDocumentChangeFeedRow :one
+-- One document's current row for a feed row, so the service can decide the
+-- change kind and whether the caller still reads it. A missing row is a hard
+-- delete (tombstone) or an unreadable one.
+SELECT * FROM documents
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id);
+
+-- name: CountDocumentChangeFeed :one
+-- The lag metric's read: how many document changes in one workspace are
+-- committed after the snapshot mark and already eligible (not in flight).
+SELECT count(*)::bigint AS pending
+FROM audit_events a
+WHERE a.organization_id = sqlc.arg(organization_id)
+  AND a.workspace_id = sqlc.arg(workspace_id)
+  AND a.resource_type = 'document'
+  AND a.xact_id IS NOT NULL
+  AND NOT pg_visible_in_snapshot(a.xact_id, sqlc.arg(high_water)::text::pg_snapshot)
+  AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot());

@@ -11,6 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countDocumentChangeFeed = `-- name: CountDocumentChangeFeed :one
+SELECT count(*)::bigint AS pending
+FROM audit_events a
+WHERE a.organization_id = $1
+  AND a.workspace_id = $2
+  AND a.resource_type = 'document'
+  AND a.xact_id IS NOT NULL
+  AND NOT pg_visible_in_snapshot(a.xact_id, $3::text::pg_snapshot)
+  AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
+`
+
+type CountDocumentChangeFeedParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+	HighWater      string      `json:"high_water"`
+}
+
+// The lag metric's read: how many document changes in one workspace are
+// committed after the snapshot mark and already eligible (not in flight).
+func (q *Queries) CountDocumentChangeFeed(ctx context.Context, arg CountDocumentChangeFeedParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDocumentChangeFeed, arg.OrganizationID, arg.WorkspaceID, arg.HighWater)
+	var pending int64
+	err := row.Scan(&pending)
+	return pending, err
+}
+
 const currentChangeHighWater = `-- name: CurrentChangeHighWater :one
 
 SELECT pg_current_snapshot()::text AS high_water
@@ -41,6 +67,70 @@ func (q *Queries) DeleteDocumentChangeSnapshotItems(ctx context.Context, snapsho
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getDocumentChangeFeedRow = `-- name: GetDocumentChangeFeedRow :one
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision FROM documents
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+`
+
+type GetDocumentChangeFeedRowParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// One document's current row for a feed row, so the service can decide the
+// change kind and whether the caller still reads it. A missing row is a hard
+// delete (tombstone) or an unreadable one.
+func (q *Queries) GetDocumentChangeFeedRow(ctx context.Context, arg GetDocumentChangeFeedRowParams) (Document, error) {
+	row := q.db.QueryRow(ctx, getDocumentChangeFeedRow, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArchiveBatchID,
+		&i.ContentRevision,
+	)
+	return i, err
 }
 
 const getDocumentChangeSnapshot = `-- name: GetDocumentChangeSnapshot :one
@@ -162,6 +252,86 @@ func (q *Queries) InsertDocumentChangeSnapshotItems(ctx context.Context, arg Ins
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const listDocumentChangeFeed = `-- name: ListDocumentChangeFeed :many
+SELECT a.id, a.action, a.resource_id, a.xact_id::text AS xact_id, a.metadata
+FROM audit_events a
+WHERE a.organization_id = $1
+  AND a.workspace_id = $2
+  AND a.resource_type = 'document'
+  AND a.xact_id IS NOT NULL
+  AND NOT pg_visible_in_snapshot(a.xact_id, $3::text::pg_snapshot)
+  AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
+  AND ($4::text = ''
+       OR (a.xact_id, a.id) > ($4::xid8, $5::text))
+ORDER BY a.xact_id, a.id
+LIMIT $6
+`
+
+type ListDocumentChangeFeedParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+	HighWater      string      `json:"high_water"`
+	AfterXact      string      `json:"after_xact"`
+	AfterID        string      `json:"after_id"`
+	PageLimit      int32       `json:"page_limit"`
+}
+
+type ListDocumentChangeFeedRow struct {
+	ID         string `json:"id"`
+	Action     string `json:"action"`
+	ResourceID string `json:"resource_id"`
+	XactID     string `json:"xact_id"`
+	Metadata   string `json:"metadata"`
+}
+
+// ---- Incremental feed (G5-01b, UNI-1346) -----------------------------------
+// The feed continues from a snapshot's high-water mark. Its position is the
+// COMMITTED transaction id of the audit row every document command already
+// writes (ADR 0009): audit_events rows are never UPDATEd (the append-only
+// trigger), so xact_id is a stable commit-order keyset. ULIDs and created_at
+// are not commit ordered and cannot play that role.
+//
+// "After the snapshot" is NOT pg_visible_in_snapshot alone. A transaction that
+// was in flight when the high-water mark was taken is invisible to it AND
+// absent from the snapshot's items, so the feed must carry it - but a
+// transaction that is STILL in flight when the feed reads must not be carried
+// yet, or a client could advance its cursor past a change that later commits.
+// The guard is xact_id < pg_snapshot_xmin(pg_current_snapshot()): only
+// transactions that are already committed as of this read are eligible, so an
+// in-flight one is held back for the next page and never skipped.
+func (q *Queries) ListDocumentChangeFeed(ctx context.Context, arg ListDocumentChangeFeedParams) ([]ListDocumentChangeFeedRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentChangeFeed,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.HighWater,
+		arg.AfterXact,
+		arg.AfterID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentChangeFeedRow{}
+	for rows.Next() {
+		var i ListDocumentChangeFeedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Action,
+			&i.ResourceID,
+			&i.XactID,
+			&i.Metadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDocumentChangeSnapshotItems = `-- name: ListDocumentChangeSnapshotItems :many

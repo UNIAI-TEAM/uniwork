@@ -156,6 +156,7 @@ type AuditEvent struct {
 	IpAddress      pgtype.Text        `json:"ip_address"`
 	UserAgent      pgtype.Text        `json:"user_agent"`
 	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
+	XactID         pgtype.Uint64      `json:"xact_id"`
 }
 
 type AuditExport struct {
