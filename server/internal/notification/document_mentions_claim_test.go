@@ -102,7 +102,10 @@ func TestDocumentMentionClaimRollsBackWithTheNotification(t *testing.T) {
 
 // Two consumers racing on the same mention row - one per event, create and
 // edit - commit exactly one notification: the UPDATE only matches while the
-// row is unclaimed.
+// row is unclaimed. The count assertion is the proof: the two events share a
+// group key, so a loser that still wrote would merge into the winner's open
+// row (count=2), not add a row; count=1 can only hold because the claim let
+// exactly one writer through.
 func TestDocumentMentionClaimOneOfTwoConsumers(t *testing.T) {
 	f := newDocumentFixture(t)
 	docID := f.document(t, "workspace", "Đua nhau")
@@ -129,8 +132,12 @@ func TestDocumentMentionClaimOneOfTwoConsumers(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if n := f.inbox(t, f.member.ID); len(n) != 1 {
+	n := f.inbox(t, f.member.ID)
+	if len(n) != 1 {
 		t.Fatalf("concurrent consumers wrote %d notifications, want exactly one", len(n))
+	}
+	if n[0].Count != 1 {
+		t.Fatalf("notification count = %d, want 1: a second writer merged into the open row", n[0].Count)
 	}
 	if _, notified := f.mentionState(t, created.ID, f.member.ID); !notified.Valid {
 		t.Fatal("the mention row was never claimed")
