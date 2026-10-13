@@ -1,0 +1,131 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -timeout 40m -v ./internal/handler/ -run 'TestDocumentChanges|TestIsolationMatrix|TestEveryBodyIDFieldHasAReferenceCase|TestIsolationRealtime|TestSwaggerSpecFollowsChiRoutesAndSDI|TestCommitIntent'; echo "HANDLER_EXIT=$?"
+=== RUN   TestDocumentChangesHTTPErrorAnswers
+2026/10/13 20:18:52 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 20:18:52 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.399ms request_id=cursor/5M9NsV56Zp-000001 correlation_id=01M4VENZQC3SZK9XQT8WH0NSDC
+2026/10/13 20:18:52 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.39ms request_id=cursor/5M9NsV56Zp-000002 correlation_id=01M4VENZQHGHZQACQX6V0VSZGV
+2026/10/13 20:18:52 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.563ms request_id=cursor/5M9NsV56Zp-000003 correlation_id=01M4VENZQKNR3Q1D10RYMAG994
+2026/10/13 20:18:52 INFO http request method=POST path=/api/v1/orgs/01M4VENZQKNR3Q1D10S2EGMJCV/workspaces status=201 duration=7.223ms request_id=cursor/5M9NsV56Zp-000004 correlation_id=01M4VENZQPEBE95D5YMG9JT0CG
+2026/10/13 20:18:52 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.203ms request_id=cursor/5M9NsV56Zp-000005 correlation_id=01M4VENZQY8WJAX3C9RR8JW8J9
+2026/10/13 20:18:52 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=912µs request_id=cursor/5M9NsV56Zp-000006 correlation_id=01M4VENZR0VBF4D7PJPSFKD2PE
+2026/10/13 20:18:52 INFO http request method=GET path=/api/v1/workspaces/01M4VENZQRA69DQ19NP8EC3B3Y/documents/changes status=200 duration=3.191ms request_id=cursor/5M9NsV56Zp-000007 correlation_id=01M4VENZR3RFVAQJVG7ZM8M0GV
+2026/10/13 20:18:52 WARN http request method=GET path=/api/v1/workspaces/01M4VENZQRA69DQ19NP8EC3B3Y/documents/changes status=410 duration=815µs request_id=cursor/5M9NsV56Zp-000008 correlation_id=01M4VENZR7698M9A9BZEN3KRP5
+2026/10/13 20:18:52 WARN http request method=GET path=/api/v1/workspaces/01M4VENZQRA69DQ19NP8EC3B3Y/documents/changes status=400 duration=663µs request_id=cursor/5M9NsV56Zp-000009 correlation_id=01M4VENZR8EWRPV691A1C07WD5
+2026/10/13 20:18:52 WARN http request method=GET path=/api/v1/workspaces/01M4VENZQRA69DQ19NP8EC3B3Y/documents/changes status=403 duration=836µs request_id=cursor/5M9NsV56Zp-000010 correlation_id=01M4VENZR9ZFEZSN64J3BFFA40
+--- PASS: TestDocumentChangesHTTPErrorAnswers (0.22s)
+=== RUN   TestDocumentChangesHTTPLimitParsing
+2026/10/13 20:18:52 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 20:18:52 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.43ms request_id=cursor/5M9NsV56Zp-000011 correlation_id=01M4VENZXV2NNPVXD9VN0GJMJ1
+2026/10/13 20:18:52 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.559ms request_id=cursor/5M9NsV56Zp-000012 correlation_id=01M4VENZY0EX37PGW1WEQFD05G
+2026/10/13 20:18:52 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.23ms request_id=cursor/5M9NsV56Zp-000013 correlation_id=01M4VENZY14FR4KKCTVN7QN6JY
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/orgs/01M4VENZY2962YSZQGVA7DP0E7/workspaces status=201 duration=4.006ms request_id=cursor/5M9NsV56Zp-000014 correlation_id=01M4VENZY5QSMFA1Q641ST7QVR
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.314ms request_id=cursor/5M9NsV56Zp-000015 correlation_id=01M4VENZY9H8SKG8F56R7BK8ZH
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=896µs request_id=cursor/5M9NsV56Zp-000016 correlation_id=01M4VENZYCRGR49BWZP3HTEZKF
+2026/10/13 20:18:53 WARN http request method=GET path=/api/v1/workspaces/01M4VENZY6JC8EHYF9NK0RB2G7/documents/changes status=400 duration=257µs request_id=cursor/5M9NsV56Zp-000017 correlation_id=01M4VENZYFA8ZQ315YQ4TVVXG0
+2026/10/13 20:18:53 WARN http request method=GET path=/api/v1/workspaces/01M4VENZY6JC8EHYF9NK0RB2G7/documents/changes status=400 duration=56µs request_id=cursor/5M9NsV56Zp-000018 correlation_id=01M4VENZYFA8ZQ315YQ6246PTJ
+2026/10/13 20:18:53 WARN http request method=GET path=/api/v1/workspaces/01M4VENZY6JC8EHYF9NK0RB2G7/documents/changes status=400 duration=46µs request_id=cursor/5M9NsV56Zp-000019 correlation_id=01M4VENZYFA8ZQ315YQ6SH50S0
+=== RUN   TestDocumentChangesHTTPLimitParsing/zero_reads_as_unset
+2026/10/13 20:18:53 INFO http request method=GET path=/api/v1/workspaces/01M4VENZY6JC8EHYF9NK0RB2G7/documents/changes status=200 duration=2.769ms request_id=cursor/5M9NsV56Zp-000020 correlation_id=01M4VENZYFA8ZQ315YQA6HVSWH
+=== RUN   TestDocumentChangesHTTPLimitParsing/explicit_bound_is_honoured
+2026/10/13 20:18:53 INFO http request method=GET path=/api/v1/workspaces/01M4VENZY6JC8EHYF9NK0RB2G7/documents/changes status=200 duration=2.029ms request_id=cursor/5M9NsV56Zp-000021 correlation_id=01M4VENZYJA0ATPKAHV1J7N6QK
+2026/10/13 20:18:53 INFO http request method=GET path=/api/v1/workspaces/01M4VENZY6JC8EHYF9NK0RB2G7/documents/changes status=200 duration=1.704ms request_id=cursor/5M9NsV56Zp-000022 correlation_id=01M4VENZYN0TK2NCS18S5K1WMS
+--- PASS: TestDocumentChangesHTTPLimitParsing (0.20s)
+    --- PASS: TestDocumentChangesHTTPLimitParsing/zero_reads_as_unset (0.00s)
+    --- PASS: TestDocumentChangesHTTPLimitParsing/explicit_bound_is_honoured (0.00s)
+=== RUN   TestDocumentChangesRevisionWireIsDecimalString
+2026/10/13 20:18:53 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.045ms request_id=cursor/5M9NsV56Zp-000023 correlation_id=01M4VEP04GZ7DNF6D2TGDKC1F8
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.301ms request_id=cursor/5M9NsV56Zp-000024 correlation_id=01M4VEP04M1HRK4ZMBHS6Y86V9
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.729ms request_id=cursor/5M9NsV56Zp-000025 correlation_id=01M4VEP04P1XEE92YRKEZ47SSD
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/orgs/01M4VEP04P1XEE92YRKJ9CGBYA/workspaces status=201 duration=4.494ms request_id=cursor/5M9NsV56Zp-000026 correlation_id=01M4VEP04T8JE1MGWMYHVFRZPH
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.188ms request_id=cursor/5M9NsV56Zp-000027 correlation_id=01M4VEP04YPDZM26QFAW10XC8D
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.312ms request_id=cursor/5M9NsV56Zp-000028 correlation_id=01M4VEP051Q8N0K2W05WDW1JHV
+2026/10/13 20:18:53 INFO http request method=GET path=/api/v1/workspaces/01M4VEP04V0JC06W4F6EQ96V1K/documents/changes status=200 duration=2.877ms request_id=cursor/5M9NsV56Zp-000029 correlation_id=01M4VEP054ARN5N86QX110M2P7
+--- PASS: TestDocumentChangesRevisionWireIsDecimalString (0.21s)
+=== RUN   TestDocumentChangesHTTPFeedRows
+2026/10/13 20:18:53 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.404ms request_id=cursor/5M9NsV56Zp-000030 correlation_id=01M4VEP0AP8QVEZPJP8CFW5Y7C
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.726ms request_id=cursor/5M9NsV56Zp-000031 correlation_id=01M4VEP0ASZBCMJA86C83P09AV
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.414ms request_id=cursor/5M9NsV56Zp-000032 correlation_id=01M4VEP0AVYKNGH4SNQEHKMPGP
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/orgs/01M4VEP0AVYKNGH4SNQGJKWKQK/workspaces status=201 duration=4.148ms request_id=cursor/5M9NsV56Zp-000033 correlation_id=01M4VEP0AZS9STSYDMXWAA0AEV
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.847ms request_id=cursor/5M9NsV56Zp-000034 correlation_id=01M4VEP0B3680XAKZ8P5M5KJPQ
+2026/10/13 20:18:53 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=481µs request_id=cursor/5M9NsV56Zp-000035 correlation_id=01M4VEP0B55RV82BYVMS3CC1NG
+2026/10/13 20:18:53 INFO http request method=GET path=/api/v1/workspaces/01M4VEP0B052XT451HHQVQHMQJ/documents/changes status=200 duration=3.146ms request_id=cursor/5M9NsV56Zp-000036 correlation_id=01M4VEP0B7QAWZ3AREKS0T15JX
+2026/10/13 20:18:53 INFO http request method=GET path=/api/v1/workspaces/01M4VEP0B052XT451HHQVQHMQJ/documents/changes status=200 duration=2.533ms request_id=cursor/5M9NsV56Zp-000037 correlation_id=01M4VEP0BB6BK6DZXFA6VCVJX8
+--- PASS: TestDocumentChangesHTTPFeedRows (0.20s)
+=== RUN   TestDocumentChangesOpenAPI
+2026/10/13 20:18:53 INFO http request method=GET path=/swagger/doc.json status=200 duration=122µs request_id=cursor/5M9NsV56Zp-000038 correlation_id=01M4VEP0T86PTRN9FD3BZZTFKY
+--- PASS: TestDocumentChangesOpenAPI (0.48s)
+=== RUN   TestCommitIntentLookupRoute
+2026/10/13 20:18:54 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.978ms request_id=cursor/5M9NsV56Zp-000039 correlation_id=01M4VEP10RB4G5X47QQJSF9X46
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=802µs request_id=cursor/5M9NsV56Zp-000040 correlation_id=01M4VEP10WKQRDXCTR57B4QSMH
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.802ms request_id=cursor/5M9NsV56Zp-000041 correlation_id=01M4VEP10X6Y73BVKDGGBWVY3G
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/orgs/01M4VEP10X6Y73BVKDGKDF88QH/workspaces status=201 duration=4.565ms request_id=cursor/5M9NsV56Zp-000042 correlation_id=01M4VEP1103MZZNHYYWC88ZSH3
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.629ms request_id=cursor/5M9NsV56Zp-000043 correlation_id=01M4VEP1152ZE64TF6J59QJPDR
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.278ms request_id=cursor/5M9NsV56Zp-000044 correlation_id=01M4VEP1180WWFFTVWXFVAA8A6
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/workspaces/01M4VEP112G15SMNXW1EGC30H1/documents/files status=201 duration=6.892ms request_id=cursor/5M9NsV56Zp-000045 correlation_id=01M4VEP119X9KVW6K16T74YS4T
+2026/10/13 20:18:54 WARN http request method=GET path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/versions/commit status=410 duration=983µs request_id=cursor/5M9NsV56Zp-000046 correlation_id=01M4VEP11G10M7EK42JMNFRZ5W
+2026/10/13 20:18:54 WARN http request method=GET path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/versions/commit status=400 duration=35µs request_id=cursor/5M9NsV56Zp-000047 correlation_id=01M4VEP11JRTGTTC6HBG2JR9HF
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/uploads status=201 duration=453µs request_id=cursor/5M9NsV56Zp-000048 correlation_id=01M4VEP11JRTGTTC6HBKG3WCGK
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/versions/commit status=200 duration=4.434ms request_id=cursor/5M9NsV56Zp-000049 correlation_id=01M4VEP11JRTGTTC6HBV1FAX87
+2026/10/13 20:18:54 INFO http request method=GET path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/versions/commit status=200 duration=568µs request_id=cursor/5M9NsV56Zp-000050 correlation_id=01M4VEP11Q0BBB2BZMTHGNENQ8
+2026/10/13 20:18:54 WARN http request method=GET path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/versions/commit status=404 duration=192µs request_id=cursor/5M9NsV56Zp-000051 correlation_id=01M4VEP11R9YB2FGHEVWNWYJXR
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/uploads status=201 duration=476µs request_id=cursor/5M9NsV56Zp-000052 correlation_id=01M4VEP11R9YB2FGHEVZ5KTRYC
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/versions/commit status=200 duration=3.719ms request_id=cursor/5M9NsV56Zp-000053 correlation_id=01M4VEP11S49ZTRW9EM5Q9RJNM
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/uploads status=201 duration=437µs request_id=cursor/5M9NsV56Zp-000054 correlation_id=01M4VEP11X9CMM9KRV980SXKCV
+2026/10/13 20:18:54 WARN http request method=POST path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/versions/commit status=403 duration=357µs request_id=cursor/5M9NsV56Zp-000055 correlation_id=01M4VEP11X9CMM9KRV9E54FACW
+2026/10/13 20:18:54 INFO http request method=GET path=/api/v1/documents/01M4VEP11DKK5YMY7M6MRXNR72/versions/commit status=200 duration=643µs request_id=cursor/5M9NsV56Zp-000056 correlation_id=01M4VEP11Y1PVQ44R95V0QEQYH
+--- PASS: TestCommitIntentLookupRoute (0.24s)
+=== RUN   TestCommitIntentKeyNeverLeaks
+2026/10/13 20:18:54 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.843ms request_id=cursor/5M9NsV56Zp-000057 correlation_id=01M4VEP17ZPW73WT7Z4MT2S8A4
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.469ms request_id=cursor/5M9NsV56Zp-000058 correlation_id=01M4VEP1838WMAQF6GY4G0CSCB
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.597ms request_id=cursor/5M9NsV56Zp-000059 correlation_id=01M4VEP184P45CZD1Q47GDW7TM
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/orgs/01M4VEP184P45CZD1Q491VHDHQ/workspaces status=201 duration=4.312ms request_id=cursor/5M9NsV56Zp-000060 correlation_id=01M4VEP188S6BAWD0Y6NYKM8H3
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.207ms request_id=cursor/5M9NsV56Zp-000061 correlation_id=01M4VEP18CV7VSD13AT5XRWA6K
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=817µs request_id=cursor/5M9NsV56Zp-000062 correlation_id=01M4VEP18FP6SDPPKTJGW4KW82
+2026/10/13 20:18:54 INFO http request method=POST path=/api/v1/workspaces/01M4VEP189VE8NG0WXG43Z6HW0/documents/files status=201 duration=5.394ms request_id=cursor/5M9NsV56Zp-000063 correlation_id=01M4VEP18GCNXCNYCKC7XJ2R3E
+--- PASS: TestCommitIntentKeyNeverLeaks (0.22s)
+=== RUN   TestIsolationMatrix
+=== RUN   TestIsolationMatrix/control
+=== RUN   TestIsolationMatrix/cross-tenant
+=== RUN   TestIsolationMatrix/anonymous
+=== RUN   TestIsolationMatrix/self
+=== RUN   TestIsolationMatrix/mixed
+=== RUN   TestIsolationMatrix/frame-linked
+=== RUN   TestIsolationMatrix/change-cursor
+=== RUN   TestIsolationMatrix/references
+=== RUN   TestIsolationMatrix/member-of-both
+=== RUN   TestIsolationMatrix/listing
+=== RUN   TestIsolationMatrix/uploads
+=== RUN   TestIsolationMatrix/untouched
+=== RUN   TestIsolationMatrix/write-control
+--- PASS: TestIsolationMatrix (248.85s)
+    --- PASS: TestIsolationMatrix/control (0.22s)
+    --- PASS: TestIsolationMatrix/cross-tenant (74.24s)
+    --- PASS: TestIsolationMatrix/anonymous (74.77s)
+    --- PASS: TestIsolationMatrix/self (0.33s)
+    --- PASS: TestIsolationMatrix/mixed (24.56s)
+    --- PASS: TestIsolationMatrix/frame-linked (0.00s)
+    --- PASS: TestIsolationMatrix/change-cursor (0.00s)
+    --- PASS: TestIsolationMatrix/references (20.15s)
+    --- PASS: TestIsolationMatrix/member-of-both (53.07s)
+    --- PASS: TestIsolationMatrix/listing (0.26s)
+    --- PASS: TestIsolationMatrix/uploads (0.00s)
+    --- PASS: TestIsolationMatrix/untouched (0.00s)
+    --- PASS: TestIsolationMatrix/write-control (0.48s)
+=== RUN   TestIsolationRealtime
+=== RUN   TestIsolationRealtime/workspace_channel
+=== RUN   TestIsolationRealtime/subscribe
+=== RUN   TestIsolationRealtime/meeting_lobby
+--- PASS: TestIsolationRealtime (0.94s)
+    --- PASS: TestIsolationRealtime/workspace_channel (0.00s)
+    --- PASS: TestIsolationRealtime/subscribe (0.30s)
+    --- PASS: TestIsolationRealtime/meeting_lobby (0.00s)
+=== RUN   TestEveryBodyIDFieldHasAReferenceCase
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.00s)
+=== RUN   TestSwaggerSpecFollowsChiRoutesAndSDI
+--- PASS: TestSwaggerSpecFollowsChiRoutesAndSDI (0.47s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	252.049s
+HANDLER_EXIT=0

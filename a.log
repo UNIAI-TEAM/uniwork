@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+b0ef07a4d6e2659b27605a38ef0d20c3125c102b
+ef66d871f8d1e14a2c628a1d945c1e9e7a777761
+b0ef07a4d test(office): pin the removal 410/removal branches and the cursor position
+5c3e518ec test(office): correlate a cross-workspace move with an actual workspace write
+5ef231f86 docs(office): describe pending as backlog and name the real demotion source
+2cecf8011 docs(office): read the xmin stall by the lag gauge, not has_more
+d1583de36 test(office): widen the cross-workspace move guard past the method name
+95bc98eb1 test(office): fix the three self-contradictory feed fixtures
+6d112e4e8 fix(office): key the demotion removal on the real visibility PATCH
+db3a9094e chore(office): merge root ef66d871f into G5-01b
+ef66d871f fix(office): keep the frame's comments claim across a re-key
+a4bbef3b0 test(office): re-bless the G7-06 goldens at frame pin 0.1.0-811107c
