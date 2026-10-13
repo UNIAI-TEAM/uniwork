@@ -134,7 +134,7 @@ describe("frame comment endpoints (contract-collab §2)", () => {
     };
     vi.mocked(fetch).mockResolvedValueOnce(json(list));
     const out = await listFrameComments("d1", {});
-    expect((out as { comments: Array<{ body: string }> }).comments[0]?.body).toBe(BODY_FIXTURE);
+    expect((out as unknown as { comments: Array<{ body: string }> }).comments[0]?.body).toBe(BODY_FIXTURE);
     expect(out).toEqual(list);
   });
 
