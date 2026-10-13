@@ -1,0 +1,253 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
+
+	"github.com/unicomhub/uniwork/server/internal/outbox"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+// OfficeLeaseRevoker is the outbox consumer that revokes offline leases when
+// access is taken away by something other than a session revoke (G5-D1 row
+// 8, threat model T3, T4, T5): a deactivation, a removal from a workspace or
+// the organization, a share revoke, a move, a delete and a suspension. Each
+// revoke writes its audit row and office_lease.revoked event in the same
+// transaction (recordOfficeLeaseRevokes).
+//
+// It runs on the notify lane (main.go): it reads and updates the database
+// only - no third party, nothing measured in seconds - but it fans out over
+// a person's or a document's leases and re-reads the ACL of each, which is
+// more than the realtime lane's one indexed read or keyed upsert allows.
+//
+// Targeted events re-check the live ACL of every candidate lease and revoke
+// only those that lost read access, so a person who still reads a document
+// through another path (a share, another workspace) keeps it. A deactivation
+// or a departure revokes the person's leases in that organization outright,
+// even when they still belong to another organization and their sessions
+// stay live (F9). Archive is not a revoke (G5-D1 row 14): an archived
+// document keeps its leases to expiry, the renewal answers document_archived.
+// Every path is idempotent: a re-delivered event finds the rows revoked.
+type OfficeLeaseRevoker struct {
+	docs *DocumentService
+}
+
+// NewOfficeLeaseRevoker reads the ACL through the same DocumentService the
+// document routes use.
+func NewOfficeLeaseRevoker(docs *DocumentService) *OfficeLeaseRevoker {
+	return &OfficeLeaseRevoker{docs: docs}
+}
+
+func (*OfficeLeaseRevoker) Name() string { return "office_lease_revoker" }
+
+func (*OfficeLeaseRevoker) Topics() []string {
+	return []string{
+		"member.deactivated", "member.left", "member.removed",
+		"document.share_revoked", "document.moved", "document.deleted",
+		"organization.suspended",
+	}
+}
+
+func (c *OfficeLeaseRevoker) Handle(ctx context.Context, ev outbox.Row) error {
+	payload := map[string]string{}
+	if ev.Payload != "" {
+		if err := json.Unmarshal([]byte(ev.Payload), &payload); err != nil {
+			return fmt.Errorf("office_lease_revoker: payload of %s: %w", ev.ID, err)
+		}
+	}
+	orgID := strings.TrimSpace(payload["organization_id"])
+	if orgID == "" {
+		orgID = ev.OrganizationID.String
+	}
+	if orgID == "" {
+		return nil
+	}
+	userID := strings.TrimSpace(payload["user_id"])
+	documentID := strings.TrimSpace(payload["document_id"])
+	switch ev.Topic {
+	case "member.deactivated":
+		return c.revokeUserInOrganization(ctx, orgID, userID, OfficeLeaseRevokeMemberDeactivated)
+	case "member.left":
+		return c.revokeUserInOrganization(ctx, orgID, userID, OfficeLeaseRevokeMemberRemoved)
+	case "member.removed":
+		workspaceID := strings.TrimSpace(payload["workspace_id"])
+		if workspaceID == "" {
+			return c.revokeUserInOrganization(ctx, orgID, userID, OfficeLeaseRevokeMemberRemoved)
+		}
+		return c.recheckUserInWorkspace(ctx, orgID, workspaceID, userID)
+	case "document.share_revoked":
+		return c.recheckDocument(ctx, orgID, documentID, OfficeLeaseRevokeShareRevoked)
+	case "document.moved":
+		return c.recheckDocument(ctx, orgID, documentID, OfficeLeaseRevokeDocumentMoved)
+	case "document.deleted":
+		return c.revokeDocument(ctx, orgID, documentID)
+	case "organization.suspended":
+		return c.revokeOrganization(ctx, orgID)
+	default:
+		return nil
+	}
+}
+
+func (c *OfficeLeaseRevoker) revokeUserInOrganization(ctx context.Context, orgID, userID, reason string) error {
+	if userID == "" {
+		return nil
+	}
+	return c.inTx(ctx, func(q *db.Queries) error {
+		rows, err := q.RevokeOfficeOfflineLeasesForUserInOrganization(ctx, db.RevokeOfficeOfflineLeasesForUserInOrganizationParams{
+			OrganizationID: orgID, UserID: userID, Reason: reason,
+		})
+		if err != nil {
+			return err
+		}
+		refs := make([]officeLeaseRef, len(rows))
+		for i, r := range rows {
+			refs[i] = officeLeaseRef(r)
+		}
+		return recordOfficeLeaseRevokes(ctx, q, officeLeaseRevokeActor, reason, refs)
+	})
+}
+
+// recheckUserInWorkspace re-reads the live ACL of each of the person's leases
+// granted in the workspace they left: a document they still read through a
+// share keeps its lease.
+func (c *OfficeLeaseRevoker) recheckUserInWorkspace(ctx context.Context, orgID, workspaceID, userID string) error {
+	if userID == "" {
+		return nil
+	}
+	return c.inTx(ctx, func(q *db.Queries) error {
+		rows, err := q.ListLiveOfficeOfflineLeasesForUserInWorkspace(ctx, db.ListLiveOfficeOfflineLeasesForUserInWorkspaceParams{
+			WorkspaceID: workspaceID, UserID: userID,
+		})
+		if err != nil {
+			return err
+		}
+		var lost []string
+		for _, r := range rows {
+			ok, err := c.stillReads(ctx, q, userID, r.DocumentID)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				lost = append(lost, r.ID)
+			}
+		}
+		return revokeOfficeLeaseIDs(ctx, q, orgID, lost, OfficeLeaseRevokeMemberRemoved)
+	})
+}
+
+// recheckDocument re-reads the live ACL of every holder of a lease on the
+// document and revokes the leases of those who no longer read it.
+func (c *OfficeLeaseRevoker) recheckDocument(ctx context.Context, orgID, documentID, reason string) error {
+	if documentID == "" {
+		return nil
+	}
+	return c.inTx(ctx, func(q *db.Queries) error {
+		rows, err := q.ListLiveOfficeOfflineLeasesForDocument(ctx, db.ListLiveOfficeOfflineLeasesForDocumentParams{
+			OrganizationID: orgID, DocumentID: documentID,
+		})
+		if err != nil {
+			return err
+		}
+		readers := map[string]bool{}
+		var lost []string
+		for _, r := range rows {
+			ok, seen := readers[r.UserID]
+			if !seen {
+				if ok, err = c.stillReads(ctx, q, r.UserID, documentID); err != nil {
+					return err
+				}
+				readers[r.UserID] = ok
+			}
+			if !ok {
+				lost = append(lost, r.ID)
+			}
+		}
+		return revokeOfficeLeaseIDs(ctx, q, orgID, lost, reason)
+	})
+}
+
+func (c *OfficeLeaseRevoker) revokeDocument(ctx context.Context, orgID, documentID string) error {
+	if documentID == "" {
+		return nil
+	}
+	return c.inTx(ctx, func(q *db.Queries) error {
+		rows, err := q.ListLiveOfficeOfflineLeasesForDocument(ctx, db.ListLiveOfficeOfflineLeasesForDocumentParams{
+			OrganizationID: orgID, DocumentID: documentID,
+		})
+		if err != nil {
+			return err
+		}
+		ids := make([]string, len(rows))
+		for i, r := range rows {
+			ids[i] = r.ID
+		}
+		return revokeOfficeLeaseIDs(ctx, q, orgID, ids, OfficeLeaseRevokeDocumentDeleted)
+	})
+}
+
+// revokeOrganization revokes the live leases of a suspended organization.
+// The suspension already bumped the policy epoch in its own transaction, so
+// none of them renews even before this runs; this makes the holders' online
+// devices lock now instead of at the next renewal.
+func (c *OfficeLeaseRevoker) revokeOrganization(ctx context.Context, orgID string) error {
+	return c.inTx(ctx, func(q *db.Queries) error {
+		_, err := revokeOfficeLeasesForOrganization(ctx, q, officeLeaseRevokeActor, orgID, OfficeLeaseRevokePolicyEpoch)
+		return err
+	})
+}
+
+// stillReads reports whether the person reads the document now. The archive
+// state is ignored (G5-D1 row 14); a gone document, a closed tenant gate or
+// level none is a no.
+func (c *OfficeLeaseRevoker) stillReads(ctx context.Context, q *db.Queries, userID, documentID string) (bool, error) {
+	doc, err := q.GetDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	access, err := c.docs.effectiveLevel(ctx, q, Human(userID), doc)
+	if err != nil {
+		if isGateRefusal(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return access.Level != DocumentLevelNone, nil
+}
+
+func (c *OfficeLeaseRevoker) inTx(ctx context.Context, fn func(q *db.Queries) error) error {
+	tx, err := c.docs.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(c.docs.q.WithTx(tx)); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// revokeOfficeLeaseIDs revokes the named live leases of one organization.
+func revokeOfficeLeaseIDs(ctx context.Context, q *db.Queries, orgID string, ids []string, reason string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := q.RevokeOfficeOfflineLeasesByIDs(ctx, db.RevokeOfficeOfflineLeasesByIDsParams{
+		OrganizationID: orgID, Ids: ids, Reason: reason,
+	})
+	if err != nil {
+		return err
+	}
+	refs := make([]officeLeaseRef, len(rows))
+	for i, r := range rows {
+		refs[i] = officeLeaseRef(r)
+	}
+	return recordOfficeLeaseRevokes(ctx, q, officeLeaseRevokeActor, reason, refs)
+}

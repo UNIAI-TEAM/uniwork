@@ -283,6 +283,15 @@ var catalogue = []EventDef{
 	{Topic: "document.favorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "document.unfavorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 
+	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
+	// holder's own connections. revoked makes an online device lock its copy
+	// now instead of at the next renewal; granted/renewed/released keep the
+	// holder's other devices' offline library in step.
+	{Topic: "office_lease.granted", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "office_lease.renewed", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "office_lease.released", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "office_lease.revoked", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+
 	// Billing (F-02). Both go to each owner/admin, one row per person, because
 	// the realtime consumer resolves user scope from payload.user_id.
 	{Topic: "subscription.changed", Version: 1, Payload: []string{"organization_id", "subscription_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
