@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+7e082de3b58755bfcc036baa61a60169624280c6
+7e082de3 test(uniwork): pin the body fixture round-trip over desktop IPC and the focus reload
+81e1c950 test(electron-utils): pin the OQ-C2 base-only create refusals in the comments IPC
+63063db2 test(uniwork): tighten the anchors 405 fake and pin parseCommentsAnchors
