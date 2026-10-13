@@ -145,7 +145,7 @@ func buildRaw(
 	b.WriteString("MIME-Version: 1.0\r\n")
 	b.WriteString("Content-Type: " + contentType + "\r\n")
 	if !strings.HasPrefix(contentType, "multipart/") {
-		b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+		b.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 	}
 	b.WriteString("\r\n")
 	b.WriteString(body)
