@@ -182,7 +182,7 @@ func TestIsolationMatrix(t *testing.T) {
 	t.Run("references", func(t *testing.T) {
 		w.referenceControls(t)
 		for _, c := range isoReferences {
-			path, ok := isoPath(t, c.pattern, w.bravo)
+			path, ok := c.refPath(t, w.bravo)
 			if !ok {
 				continue
 			}
@@ -224,7 +224,7 @@ func TestIsolationMatrix(t *testing.T) {
 			w.attackAs(t, both, "member-of-both mixed "+r.method+" "+r.pattern, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), refused)
 		}
 		for _, c := range isoReferences {
-			path, ok := isoPath(t, c.pattern, w.bravo)
+			path, ok := c.refPath(t, w.bravo)
 			if !ok {
 				continue
 			}

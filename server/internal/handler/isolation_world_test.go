@@ -662,26 +662,17 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	out = w.call(t, "POST", dp+"/versions", tn.token, map[string]any{"label": m + " version"})
 	tn.ids["version"] = fmt.Sprint(out["version"].(map[string]any)["version"])
 	tn.ids["versionID"] = isoID(t, out, "version")
-	// The world's main document doubles as the anchorable file the anchored
-	// create reference case (R1-6) runs against: one docx file version on top
-	// of the page checkpoint, made the head so `base_version_id` resolves to
-	// this document and format. Written directly - the version POST is
-	// page-only - and current_version/file_version_id are advanced with it.
-	docxVersionID := util.NewID()
-	if _, err := w.pool.Exec(context.Background(), `
-		INSERT INTO document_versions (
-			id, organization_id, workspace_id, document_id, version, kind, reason,
-			file_id, mime_type, created_by, created_by_kind
-		) VALUES ($1, $2, $3, $4, 2, 'file', 'upload', $5, $6, $7, 'human')`,
-		docxVersionID, tn.orgID, tn.wsID, tn.ids["document"],
-		"01J8X4FILEN1P2Q3R4S5T6U7V8", isoDocxMime, tn.userID); err != nil {
-		t.Fatalf("anchorable version: %v", err)
-	}
-	if _, err := w.pool.Exec(context.Background(),
-		"UPDATE documents SET kind = 'file', content = NULL, current_version = 2, file_version_id = $1 WHERE id = $2",
-		docxVersionID, tn.ids["document"]); err != nil {
-		t.Fatalf("anchorable document: %v", err)
-	}
+	// An anchorable file document for the anchored create reference case
+	// (R1-6). The main document above stays a page: every reference case
+	// parents a page or folder under it, so turning it into a file document
+	// would break those controls. One docx upload whose first version is the
+	// head; base_version_id binds to that version.
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": m + " Anchor"}, filename: strings.ToLower(m) + "-anchor.docx",
+		contentType: isoDocxMime, content: isoFrameDocx,
+	})
+	tn.ids["anchorDoc"] = isoID(t, out, "document")
+	tn.ids["anchorVersionID"] = isoString(t, out, "document", "file", "version_id")
 
 	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
 		fields: map[string]string{"title": m + " File"}, filename: strings.ToLower(m) + ".md", contentType: "text/markdown",

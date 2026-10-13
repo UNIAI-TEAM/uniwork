@@ -28,6 +28,9 @@ type isoReference struct {
 	// allow2xx marks a filter or a batch: answering is fine as long as it
 	// shows and changes nothing of A's.
 	allow2xx bool
+	// docKey names the fixture document the path's {documentID} should name
+	// instead of the default page (for an anchor case, a file document).
+	docKey string
 	// noControl says why the own-ids request is not sent (it is
 	// destructive, or there is no own counterpart).
 	noControl string
@@ -85,6 +88,18 @@ func (c isoReference) build(w *isoWorld, own, ref *isoTenant) isoBody {
 		b.headers = map[string]string{"Idempotency-Key": "iso-ref-" + ref.tag + "-" + isoHash(c.method+c.pattern+string(key))}
 	}
 	return b
+}
+
+// refPath fills c.pattern for tn. A case with docKey names that fixture
+// document in {documentID} instead of the default page - an anchor case needs
+// a file document, which a page is not.
+func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
+	t.Helper()
+	path, ok := isoPath(t, c.pattern, tn)
+	if !ok || c.docKey == "" {
+		return path, ok
+	}
+	return strings.Replace(path, tn.ids["document"], tn.get(t, c.docKey), 1), true
 }
 
 func isoHash(s string) string {
@@ -178,15 +193,15 @@ var isoReferences = []isoReference{
 		"principal_type": "organization", "principal_id": isoRef("org"), "level": "view"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "reply parent", body: map[string]any{
 		"body": "ref", "type": "comment", "parent_id": isoRef("docComment")}, covers: []string{"CreateDocumentCommentSDI.parent_id"}},
-	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "anchor base version", body: map[string]any{
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "anchor base version", docKey: "anchorDoc", body: map[string]any{
 		"body": "ref", "kind": "comment", "anchor": map[string]any{"format": "docx", "v": 1, "path": []any{3, 0}, "start": 12, "end": 40, "quote": "q", "prefix": "", "suffix": ""},
-		"base_version_id": isoRef("versionID")},
+		"base_version_id": isoRef("anchorVersionID")},
 		covers: []string{"CreateDocumentCommentSDI.base_version_id"}},
-	{method: "PUT", pattern: "/api/v1/documents/{documentID}/comments/anchors", what: "version of another document", body: map[string]any{
-		"version_id": isoRef("versionID"), "anchors": []any{}}, covers: []string{"PutDocumentCommentAnchorsSDI.version_id"}},
-	{method: "PUT", pattern: "/api/v1/documents/{documentID}/comments/anchors", what: "comment of another document", allow2xx: true, body: map[string]any{
-		"version_id": isoOwn("versionID"), "anchors": []any{map[string]any{
-			"comment_id": isoRef("docComment"), "anchor": map[string]any{"format": "xlsx", "v": 1, "sheet": "S1", "range": "B7"}, "state": "exact"}}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/comments/anchors", what: "version of another document", docKey: "anchorDoc", body: map[string]any{
+		"version_id": isoRef("anchorVersionID"), "anchors": []any{}}, covers: []string{"PutDocumentCommentAnchorsSDI.version_id"}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/comments/anchors", what: "comment of another document", docKey: "anchorDoc", allow2xx: true, body: map[string]any{
+		"version_id": isoOwn("anchorVersionID"), "anchors": []any{map[string]any{
+			"comment_id": isoRef("docComment"), "anchor": map[string]any{"format": "docx", "v": 1, "path": []any{3, 0}, "start": 12, "end": 40, "quote": "q", "prefix": "", "suffix": ""}, "state": "exact"}}},
 		covers: []string{"DocumentCommentAnchorItemSDI.comment_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "parent page", idempotent: true, body: map[string]any{
 		"consent": "copy", "parent_id": isoRef("document")}, covers: []string{"CopyDocumentSDI.parent_id"}},
@@ -302,7 +317,7 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 		if c.noControl != "" {
 			continue
 		}
-		path, ok := isoPath(t, c.pattern, w.bravo)
+		path, ok := c.refPath(t, w.bravo)
 		if !ok {
 			continue
 		}
