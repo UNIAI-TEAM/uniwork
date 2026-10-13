@@ -1,0 +1,10 @@
+$ . scripts/local-env.sh && cd server && go test ./migrations ./internal ./internal/outbox ./internal/metrics ./internal/handler/dto/sdo ./internal/handler/router -count=1; echo "G508S_PKGS_EXIT $?"; true
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/migrations	6.371s
+ok  	github.com/unicomhub/uniwork/server/internal	1.176s
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	7.668s
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	4.864s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.005s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	2.108s
+G508S_PKGS_EXIT 0
