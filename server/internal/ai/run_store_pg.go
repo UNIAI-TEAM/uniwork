@@ -170,33 +170,41 @@ func sweepUniworkRuns(ctx context.Context, q *db.Queries, now time.Time) (int64,
 
 // sweepUniworkRunBatch removes one batch of each reason; full reports that a
 // batch came back full, so more may remain.
+//
+// The orphan batch runs first, so a run whose conversation is gone is counted
+// as an orphan even when its own window has passed too: the reason split is
+// the only operator signal that a conversation cleanup left runs behind
+// (docs/ops/RUNBOOK_AI.md, orphan within ≤ 1 minute of every cleanup), and a
+// run the expired batch deleted first would report as ordinary TTL. The
+// expired query then sees only runs whose conversation is still there, and no
+// row is deleted — or counted — twice (BE3B-9).
 func sweepUniworkRunBatch(ctx context.Context, q *db.Queries, now time.Time) (int64, int64, bool, error) {
 	var expired, orphan int64
 	var full bool
-	ids, err := q.AiUniworkExpiredRunIDs(ctx, db.AiUniworkExpiredRunIDsParams{
-		Now: timestamptz(now), Batch: uniworkRunSweepBatch,
-	})
-	if err != nil {
-		return 0, 0, false, err
-	}
-	if len(ids) > 0 {
-		deleted, err := q.AiUniworkDeleteRunsByIDs(ctx, ids)
-		if err != nil {
-			return 0, 0, false, err
-		}
-		expired, full = deleted, len(ids) == int(uniworkRunSweepBatch)
-	}
 	orphans, err := q.AiUniworkOrphanRunIDs(ctx, uniworkRunSweepBatch)
 	if err != nil {
-		return expired, 0, full, err
+		return 0, 0, false, err
 	}
 	if len(orphans) > 0 {
 		deleted, err := q.AiUniworkDeleteRunsByIDs(ctx, orphans)
 		if err != nil {
-			return expired, 0, full, err
+			return 0, 0, false, err
 		}
-		orphan = deleted
-		full = full || len(orphans) == int(uniworkRunSweepBatch)
+		orphan, full = deleted, len(orphans) == int(uniworkRunSweepBatch)
+	}
+	ids, err := q.AiUniworkExpiredRunIDs(ctx, db.AiUniworkExpiredRunIDsParams{
+		Now: timestamptz(now), Batch: uniworkRunSweepBatch,
+	})
+	if err != nil {
+		return 0, orphan, full, err
+	}
+	if len(ids) > 0 {
+		deleted, err := q.AiUniworkDeleteRunsByIDs(ctx, ids)
+		if err != nil {
+			return 0, orphan, full, err
+		}
+		expired = deleted
+		full = full || len(ids) == int(uniworkRunSweepBatch)
 	}
 	return expired, orphan, full, nil
 }
