@@ -67,12 +67,13 @@ func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.E
 		}
 		return code, nil
 	}
-	// Duplicate IPN: inbox row already committed from an earlier apply.
+	// Duplicate IPN: the row was already committed, either applied or queued for the worker.
 	if n == 0 {
 		return vnpayIPNAlreadyDone, nil
 	}
 	if err := s.applyProviderEvent(ctx, q, ev); err != nil {
 		if errors.Is(err, errUnknownTxnRef) {
+			// Roll the inbox back so a retry stays 01. A stored row would look like a duplicate (02).
 			return vnpayIPNOrderNotFound, nil
 		}
 		if errors.Is(err, errIntentAlreadyCompleted) {
@@ -80,7 +81,17 @@ func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.E
 		}
 		var term intentTerminalErr
 		if !errors.As(err, &term) {
-			return vnpayIPNUnknown, err
+			// Keep the payload outside the rolled-back transaction so the worker
+			// can retry and dead-letter it. Unknown txn refs stay unstored above.
+			_ = tx.Rollback(ctx)
+			if _, qerr := s.q.InsertWebhookInbox(ctx, db.InsertWebhookInboxParams{
+				ID: inboxID, Provider: s.provider.Name(), ProviderEventID: ev.ProviderEventID,
+				EventType: ev.Type, Payload: string(payload),
+			}); qerr != nil {
+				return vnpayIPNUnknown, errors.Join(err, qerr)
+			}
+			s.billingLogWarn("billing webhook queued for retry", err, "provider_event_id", ev.ProviderEventID)
+			return vnpayIPNConfirmed, nil
 		}
 		// Amount or currency mismatch is 04. Quota and other terminal
 		// failures stay 00; UNI-1272 owns the quota reply.

@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/billing"
@@ -298,6 +299,83 @@ func TestHandleProviderWebhookExpiredIntentBadAmountStaysFailed(t *testing.T) {
 	}
 	if snap.Plan.Code == "paid_team" {
 		t.Fatal("subscription must not upgrade on a mismatched expired payment")
+	}
+}
+
+type countingBillingMetrics struct{ n int }
+
+func (m *countingBillingMetrics) IncWebhookDead() { m.n++ }
+
+func TestHandleProviderWebhookQueuesNonTerminalFailure(t *testing.T) {
+	f := newBillingFixture(t)
+	intentID := "01TESTVNAPYINTENT00010"
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO billing_payment_intents (
+		id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
+		amount, currency, status, expires_at
+	) SELECT $1, s.organization_id, s.id, '01MISSINGPLAN12490001', 'vnpay', $1, 500000, 'VND', 'expired', now() - interval '1 hour'
+	  FROM subscriptions s WHERE s.organization_id = $2`,
+		intentID, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	prov := billing.FromConfig(config.Config{BillingProvider: "vnpay", VNPayTMNCode: "TMN", VNPayHashSecret: "secret"})
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, prov)
+	metrics := &countingBillingMetrics{}
+	f.billing.SetBillingMetrics(metrics)
+	ev := billing.Event{
+		ProviderEventID: "missing-plan-ipn-1",
+		ProviderTxnRef:  intentID,
+		Type:            "invoice.paid",
+		Paid:            true,
+		Amount:          500000,
+		Currency:        "VND",
+		RawParams: map[string]string{
+			"vnp_TxnRef":       intentID,
+			"vnp_ResponseCode": "00",
+			"vnp_Amount":       "50000000",
+			"vnp_CurrCode":     "VND",
+		},
+	}
+	payload, err := ProviderWebhookPayloadJSON(ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := f.billing.HandleProviderWebhook(f.ctx, ev, payload)
+	if err != nil || code != "00" {
+		t.Fatalf("queued failure: code=%s err=%v", code, err)
+	}
+	var rows int
+	var status, stored string
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*), max(status), max(payload) FROM webhook_inbox WHERE provider = 'vnpay' AND provider_event_id = $1`, ev.ProviderEventID).Scan(&rows, &status, &stored); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 1 || status != "PENDING" || stored == "" || !strings.Contains(stored, intentID) {
+		t.Fatalf("inbox rows=%d status=%q payload=%q", rows, status, stored)
+	}
+	code, err = f.billing.HandleProviderWebhook(f.ctx, ev, payload)
+	if err != nil || code != "02" {
+		t.Fatalf("replay: code=%s err=%v", code, err)
+	}
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM webhook_inbox WHERE provider = 'vnpay' AND provider_event_id = $1`, ev.ProviderEventID).Scan(&rows); err != nil || rows != 1 {
+		t.Fatalf("inbox rows after replay = %d (%v), want 1", rows, err)
+	}
+	var intentStatus string
+	if err := f.pool.QueryRow(f.ctx, `SELECT status FROM billing_payment_intents WHERE id = $1`, intentID).Scan(&intentStatus); err != nil || intentStatus != "expired" {
+		t.Fatalf("intent status = %q err=%v", intentStatus, err)
+	}
+
+	for range webhookMaxAttempts {
+		if _, err := f.pool.Exec(f.ctx, `UPDATE webhook_inbox SET next_attempt_at = now() - interval '1 second' WHERE provider_event_id = $1 AND status = 'PENDING'`, ev.ProviderEventID); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.billing.ProcessBillingWebhookInbox(f.ctx, 10); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := f.pool.QueryRow(f.ctx, `SELECT status FROM webhook_inbox WHERE provider_event_id = $1`, ev.ProviderEventID).Scan(&status); err != nil || status != "DEAD_LETTER" {
+		t.Fatalf("inbox status = %q err=%v", status, err)
+	}
+	if metrics.n != 1 {
+		t.Fatalf("dead-letter counter = %d, want 1", metrics.n)
 	}
 }
 
