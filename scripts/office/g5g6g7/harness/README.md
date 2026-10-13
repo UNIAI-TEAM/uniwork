@@ -339,9 +339,9 @@ Things that decide whether the app (not only the probe) gets the keyring:
   passes. Whatever starts the app must run inside the same `dbus-run-session`
   (and, under `xvfb-run`, the session is inherited, not replaced).
 * `XDG_CURRENT_DESKTOP` is not in `APP_ENV_PASSTHROUGH`: without it the probe
-  falls to `basic_text` (`SAFESTORAGE_NODESKTOP`). Starting the harness app with
-  the keyring means exporting it (`GNOME`) to the app, or passing
-  `--password-store=gnome-libsecret` to Electron; `start.sh` does neither yet.
+  falls to `basic_text` (`SAFESTORAGE_NODESKTOP`). `start.sh` therefore passes
+  `--password-store=gnome-libsecret` to the app's Electron explicitly (not by
+  sniffing the desktop), and `appEnv` stays as it is.
 * A locked or absent daemon is `keyring_unavailable`, the same status the document
   step turns into BLOCKED.
 

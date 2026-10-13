@@ -444,7 +444,7 @@ function mkFakeStack({ lib, forkTree = "installed", npmExit = 0, network = true,
     'exec "$@"',
     "",
   ].join("\n"));
-  shim("fake-electron", `#!/usr/bin/env bash\nenv > ${JSON.stringify(join(root, "electron-env"))}\nsleep 600\n`);
+  shim("fake-electron", `#!/usr/bin/env bash\nenv > ${JSON.stringify(join(root, "electron-env"))}\nprintf '%s\\n' "$@" > ${JSON.stringify(join(root, "electron-argv"))}\nsleep 600\n`);
   // Records its argv (the install strategy is asserted from it) and answers with
   // npmExit, so a failing install is exercised without a real npm. `ci
   // --ignore-scripts` on a clean tree leaves the two things start.sh then probes
@@ -791,6 +791,32 @@ test("the app start.sh launches gets an allow-listed env, never the VM .env's se
   } finally {
     stopFakeStack(stack);
   }
+});
+
+test("start.sh launches the desktop app with the libsecret password store and leaves XDG_CURRENT_DESKTOP unset", async () => {
+  // Without a desktop name Electron picks basic_text even with a working
+  // gnome-keyring, and the fork's credential store reports keyring_unavailable.
+  // The flag is explicit; appEnv stays as it is.
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack, { XDG_CURRENT_DESKTOP: "GNOME" });
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const argvFile = join(stack.root, "electron-argv");
+    for (let i = 0; i < 40 && !existsSync(argvFile); i += 1) await new Promise((r) => setTimeout(r, 100));
+    const argv = readFileSync(argvFile, "utf8").split("\n").filter(Boolean);
+    assert.ok(argv.includes("--password-store=gnome-libsecret"), `argv: ${argv.join(" ")}`);
+    assert.ok(argv.indexOf("--password-store=gnome-libsecret") < argv.length - 1, "the flag comes before the app dir");
+    const env = readFileSync(join(stack.root, "electron-env"), "utf8");
+    assert.ok(!/^XDG_CURRENT_DESKTOP=/m.test(env), "the harness must not pass XDG_CURRENT_DESKTOP to the app");
+  } finally {
+    stopFakeStack(stack);
+  }
+});
+
+test("appEnv does not pass XDG_CURRENT_DESKTOP through", () => {
+  const env = appEnv({ source: { PATH: "/bin", HOME: "/h", XDG_CURRENT_DESKTOP: "GNOME" }, apiOrigin: "http://127.0.0.1:1", userDataDir: "/ud" });
+  assert.ok(!("XDG_CURRENT_DESKTOP" in env));
+  assert.ok(!APP_ENV_PASSTHROUGH.includes("XDG_CURRENT_DESKTOP"));
 });
 
 test("the second instance gets the run's DISPLAY and XAUTHORITY, not the caller's, and nothing else widens", () => {
