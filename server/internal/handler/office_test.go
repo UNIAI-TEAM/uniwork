@@ -355,12 +355,49 @@ func TestOfficeBlankAndCopyRoutes(t *testing.T) {
 	w := newOfficeWorld(t, true)
 
 	// A format with no blank generator never reaches storage.
-	res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files/blank", w.token,
-		map[string]string{"format": "pdf", "title": "Trong"})
-	if code, _ := errCodeClass(out); res.StatusCode != 501 || code != "unsupported_operation" {
-		t.Fatalf("pdf blank = %d %v", res.StatusCode, out)
+	blankPath := "/api/v1/workspaces/" + w.wsID + "/documents/files/blank"
+	rootDocs := func() int {
+		rows, err := w.q.ListDocumentsByParent(context.Background(), db.ListDocumentsByParentParams{OrganizationID: w.orgID, WorkspaceID: w.wsID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(rows)
 	}
-	res, out = doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files/blank", w.token,
+	before := rootDocs()
+	for _, format := range []string{"xls", "odt"} {
+		res, out := doJSON(t, w.srv, "POST", blankPath, w.token, map[string]string{"format": format, "title": "Trong"})
+		if code, _ := errCodeClass(out); res.StatusCode != 501 || code != "unsupported_operation" {
+			t.Fatalf("%s blank = %d %v", format, res.StatusCode, out)
+		}
+	}
+	after := rootDocs()
+	if after != before {
+		t.Fatalf("refused blanks stored %d documents", after-before)
+	}
+	// The Office packages are created from the server seed, with the mime type
+	// and extension of their format.
+	for _, row := range []struct{ format, ext, mime string }{
+		{"docx", ".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+		{"pptx", ".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+	} {
+		title := "Chưa đặt tên" + row.ext
+		key := util.NewID()
+		res, out := doJSONHeaders(t, w.srv, "POST", blankPath, w.token, map[string]string{"Idempotency-Key": key},
+			map[string]string{"format": row.format, "title": title})
+		doc, _ := out["document"].(map[string]any)
+		file, _ := doc["file"].(map[string]any)
+		if res.StatusCode != 201 || doc == nil || doc["title"] != title || doc["kind"] != "file" ||
+			file == nil || file["mime_type"] != row.mime || !strings.HasSuffix(file["filename"].(string), row.ext) {
+			t.Fatalf("%s blank = %d %v", row.format, res.StatusCode, out)
+		}
+		// The same key answers the same document.
+		res, again := doJSONHeaders(t, w.srv, "POST", blankPath, w.token, map[string]string{"Idempotency-Key": key},
+			map[string]string{"format": row.format, "title": title})
+		if again, _ := again["document"].(map[string]any); res.StatusCode != 201 || again["id"] != doc["id"] {
+			t.Fatalf("%s blank replay = %d %v", row.format, res.StatusCode, again)
+		}
+	}
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files/blank", w.token,
 		map[string]string{"format": "nope", "title": "Trong"})
 	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
 		t.Fatalf("bad format blank = %d %v", res.StatusCode, out)
