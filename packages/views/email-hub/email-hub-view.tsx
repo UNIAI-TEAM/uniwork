@@ -24,7 +24,7 @@ import {
   useSummarizeEmailHubThread,
   useSyncEmailHub,
 } from "@uniwork/core/email-hub/hooks";
-import type { EmailHubAccount, EmailHubThread, EmailHubThreadSummary } from "@uniwork/core/types/email-hub";
+import type { EmailHubThread, EmailHubThreadSummary } from "@uniwork/core/types/email-hub";
 import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { toastApiError } from "../toast-api-error";
 import { useWorkspace } from "../layout/workspace-context";
@@ -40,7 +40,7 @@ import { emailHubThreadCapabilities } from "./email-hub-thread-toolbar";
 import { EmailHubViewDetailPanel } from "./email-hub-view-detail-panel";
 import { EmailHubViewDialogs } from "./email-hub-view-dialogs";
 import { EmailHubViewListPanel } from "./email-hub-view-list-panel";
-import { useEmailHubAccountPanel } from "./use-email-hub-account-panel";
+import { useEmailHubAccountPanel, useEmailHubAvailableAccounts } from "./use-email-hub-account-panel";
 import { useEmailHubScheduledActions } from "./use-email-hub-scheduled-actions";
 import { useEmailHubShortcuts } from "./use-email-hub-shortcuts";
 import { useEmailHubShortcutsPref } from "./use-email-hub-shortcuts-pref";
@@ -126,16 +126,14 @@ export function EmailHubView() {
   );
   const sidebarCounts = useEmailHubSidebarCounts(wsId, accountId);
 
-  const accountList = useMemo(() => {
-    const byEmail = new Map<string, EmailHubAccount>();
-    for (const acc of accounts.data?.accounts ?? []) byEmail.set(acc.email_address, acc);
-    return [...byEmail.values()];
-  }, [accounts.data]);
+  const [accountList, rememberDisconnectedAccount] = useEmailHubAvailableAccounts(accounts.data?.accounts);
 
   useEffect(() => {
-    const latest = accountList.at(-1)?.id;
-    if (latest && !accountId) setAccountId(latest);
-  }, [accountList, accountId]);
+    if (accounts.isFetching) return;
+    if (accountId && accountList.some((account) => account.id === accountId)) return;
+    setAccountId(accountList.at(-1)?.id ?? null);
+    setSelectedId(null);
+  }, [accountList, accountId, accounts.isFetching]);
 
   useEffect(() => {
     const id = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
@@ -277,6 +275,7 @@ export function EmailHubView() {
     setConnectEmail,
     disconnect,
     useCallback((err: unknown) => toastApiError(err, t("email_hub.disconnect_error")), [t]),
+    rememberDisconnectedAccount,
   );
 
   const handleRefresh = useCallback(() => {

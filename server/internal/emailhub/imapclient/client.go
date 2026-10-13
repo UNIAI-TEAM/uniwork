@@ -430,9 +430,14 @@ func finishLogin(cl *client.Client, status *imap.StatusResp, err error) error {
 		return err
 	}
 	cl.SetState(imap.AuthenticatedState, nil)
-	// Capabilities change at login; refresh them as client.Login would.
-	_, err = cl.Capability()
-	return err
+	// The hand-written LOGIN keeps response codes for error classification but,
+	// unlike client.Login, cannot clear the private capability cache. Refresh it
+	// once so later Support calls reuse the authenticated session capabilities.
+	status, err = cl.Execute(new(commands.Capability), nil)
+	if err != nil {
+		return err
+	}
+	return status.Err()
 }
 
 // referencesSection fetches the References header, which the envelope lacks;
