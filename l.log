@@ -1,0 +1,64 @@
+$ node --test scripts/office/frame-protocol-vendor.test.mjs
+TAP version 13
+# Subtest: normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+ok 1 - normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+  ---
+  duration_ms: 0.645995
+  ...
+# Subtest: a CRLF copy of each vendored file normalises to the same hash as the LF file
+ok 2 - a CRLF copy of each vendored file normalises to the same hash as the LF file
+  ---
+  duration_ms: 2.313096
+  ...
+# Subtest: every frame pin records the same protocolSha256, equal to the vendored protocol
+not ok 3 - every frame pin records the same protocolSha256, equal to the vendored protocol
+  ---
+  duration_ms: 2.341495
+  location: '/workspace/scripts/office/frame-protocol-vendor.test.mjs:96:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    docs.pin.json was built against another frame protocol than packages/core/office vendors; re-vendor or re-pin
+    + actual - expected
+    
+      {
+        endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc',
+    +   host: '8e9ffa8411b89bd147e4aefcece8b0cd56d7da3da8456ca91eabaac194cabc3f',
+    +   protocol: '15e9387098ca7e9b8260851a857b8d48c6bec8a03c25daa35e715ab603182a68'
+    -   host: 'eab414a750adcd054de5be67e2d00aa276a81b742772eeca900678df0770aa26',
+    -   protocol: 'fbd825d35d20a9e5ce22900baa59e8115842d44700532e1d3044aa167d8883a4'
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    protocol: 'fbd825d35d20a9e5ce22900baa59e8115842d44700532e1d3044aa167d8883a4'
+    endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc'
+    host: 'eab414a750adcd054de5be67e2d00aa276a81b742772eeca900678df0770aa26'
+  actual:
+    protocol: '15e9387098ca7e9b8260851a857b8d48c6bec8a03c25daa35e715ab603182a68'
+    endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc'
+    host: '8e9ffa8411b89bd147e4aefcece8b0cd56d7da3da8456ca91eabaac194cabc3f'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:112:12)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+ok 4 - the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+  ---
+  duration_ms: 0.506629
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 47.909784

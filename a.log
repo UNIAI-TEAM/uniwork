@@ -1,0 +1,5 @@
+$ git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git log --oneline -3
+17e55efa9728721e6622c38f72ae705f08654a3a
+17e55efa9 test(office): cover the doc.blocked push from the host
+323290ad8 feat(office): push doc.blocked to the frame as soon as the host sees a revoke or delete
+cee460e63 feat(office): vendor the frame protocol with doc.blocked from the fork
