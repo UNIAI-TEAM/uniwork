@@ -285,8 +285,13 @@ func (h *handlers) putDocumentCommentAnchors(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	var in sdi.PutDocumentCommentAnchorsSDI
-	if buf, err := json.Marshal(raw); err == nil {
-		_ = json.Unmarshal(buf, &in)
+	buf, _ := json.Marshal(raw)
+	// R3-2: a present-but-malformed anchors value (e.g. [1], "x", {}) must
+	// not decode to a nil slice and read as an empty update; the typed-decode
+	// error is a 400, as updateChatChannel answers (contract 2.6).
+	if err := json.Unmarshal(buf, &in); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "JSON không hợp lệ")
+		return
 	}
 	if v, ok := raw["anchors"]; ok && string(v) != "null" {
 		in.AnchorsPresent = true

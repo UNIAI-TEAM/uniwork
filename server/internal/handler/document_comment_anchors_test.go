@@ -231,6 +231,26 @@ func TestDocumentCommentAnchorsHTTPRequiredAndSchema(t *testing.T) {
 	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
 		t.Fatalf("null range: %d code=%q %v", res.StatusCode, code, out)
 	}
+
+	// R3-2: a present-but-malformed anchors value is a 400, never a 200 empty
+	// update. Each is a top-level object that parses, so the presence probe
+	// sees the key; the typed decode must fail loudly.
+	rowsBefore := len(w.listComments(t, w.member, docID, 200))
+	for name, anchors := range map[string]any{
+		"array of numbers": []any{1, 2},
+		"string":           "oops",
+		"object":           map[string]any{"a": 1},
+	} {
+		res, out = doJSON(t, w.srv, "PUT", w.commentsPath(docID)+"/anchors", w.member, map[string]any{
+			"version_id": versions[1], "anchors": anchors,
+		})
+		if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+			t.Fatalf("%s anchors: %d code=%q %v", name, res.StatusCode, code, out)
+		}
+	}
+	if after := len(w.listComments(t, w.member, docID, 200)); after != rowsBefore {
+		t.Fatalf("malformed anchors wrote rows: %d -> %d", rowsBefore, after)
+	}
 }
 
 // TestDocumentCommentAnchorsHTTPPptxBlank pins R1-10 through the router: a
