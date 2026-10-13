@@ -191,6 +191,9 @@ func (s *DocumentService) OpenDocumentFile(ctx context.Context, actor Actor, doc
 		if err != nil {
 			return DocumentFile{}, err
 		}
+		if err := refuseFolder(doc); err != nil {
+			return DocumentFile{}, err
+		}
 		f, err = s.openCurrentFile(ctx, doc, rng)
 	} else {
 		var v db.DocumentVersion

@@ -591,6 +591,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "officeJob")
 	case "{exportID}":
 		return tn.get(t, "auditExport")
+	case "{privacyExportID}":
+		return tn.get(t, "privacyExport")
 	case "{eventID}":
 		return tn.get(t, "auditEvent")
 	case "{departmentId}":
@@ -609,6 +611,10 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "scheduledSend")
 	case "{fileID}":
 		return tn.get(t, "file")
+	case "{sourceFileID}":
+		// The documents home's other sources (UNI-1305): the task
+		// attachment is a file-backed source every tenant has.
+		return "task:" + tn.get(t, "attachment")
 	case "{provider}":
 		return "google"
 	case "{resourceType}":

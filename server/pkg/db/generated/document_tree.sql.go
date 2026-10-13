@@ -498,6 +498,154 @@ func (q *Queries) ListDocumentSubtree(ctx context.Context, arg ListDocumentSubtr
 	return items, nil
 }
 
+const listDocumentSubtreeNeedingAccessCheck = `-- name: ListDocumentSubtreeNeedingAccessCheck :many
+WITH RECURSIVE sub AS (
+  SELECT r.id, 1 AS lvl
+  FROM documents r
+  WHERE r.organization_id = $4
+    AND r.workspace_id = $5
+    AND r.id = $6
+  UNION ALL
+  SELECT d.id, sub.lvl + 1
+  FROM documents d
+  JOIN sub ON d.parent_id = sub.id
+  WHERE d.organization_id = $4
+    AND d.workspace_id = $5
+    AND sub.lvl < 10
+)
+SELECT d.id
+FROM sub
+JOIN documents d ON d.id = sub.id
+WHERE d.archived_at IS NULL
+  AND (
+    d.owner_kind IS NOT NULL
+    OR NOT (
+      $1::boolean
+      -- acl_owner_id is NULL for agent/system-created documents: without the
+      -- IS NOT NULL guard the comparison is NULL, NOT NULL stays NULL and the
+      -- row would drop out of the result as if it were manageable.
+      OR ($2::boolean AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3::text)
+      OR EXISTS (
+        SELECT 1
+        FROM document_shares s
+        WHERE s.organization_id = d.organization_id
+          AND s.workspace_id = d.workspace_id
+          AND s.document_id = d.id
+          AND s.revoked_at IS NULL
+          AND s.level = 'manage'
+          AND (
+            (s.principal_type = 'user' AND s.principal_id = $3::text)
+            OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
+          )
+      )
+    )
+  )
+ORDER BY d.id
+`
+
+type ListDocumentSubtreeNeedingAccessCheckParams struct {
+	IsWsAdmin      bool   `json:"is_ws_admin"`
+	IsWsMember     bool   `json:"is_ws_member"`
+	ActorID        string `json:"actor_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	RootID         string `json:"root_id"`
+}
+
+// The live nodes of a subtree the actor does not hold manage on through a path
+// plain SQL can read: a workspace owner/admin (is_ws_admin), the ACL owner
+// (a workspace member only, is_ws_member), or a live user/organization share at
+// manage. A node it returns is not refused - it still needs the full
+// effectiveLevel (workspace-principal shares, work-product owners); a node it
+// omits is manageable, so one query replaces a per-node access loop for the
+// common archive. Owned documents are always returned: the owner resolver
+// decides them, never these columns.
+func (q *Queries) ListDocumentSubtreeNeedingAccessCheck(ctx context.Context, arg ListDocumentSubtreeNeedingAccessCheckParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listDocumentSubtreeNeedingAccessCheck,
+		arg.IsWsAdmin,
+		arg.IsWsMember,
+		arg.ActorID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.RootID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLiveDocumentSubtreeIDs = `-- name: ListLiveDocumentSubtreeIDs :many
+WITH RECURSIVE sub AS (
+  SELECT r.id, 1 AS lvl
+  FROM documents r
+  WHERE r.organization_id = $2
+    AND r.workspace_id = $3
+    AND r.id = $4
+  UNION ALL
+  SELECT d.id, sub.lvl + 1
+  FROM documents d
+  JOIN sub ON d.parent_id = sub.id
+  WHERE d.organization_id = $2
+    AND d.workspace_id = $3
+    AND sub.lvl < 10
+)
+SELECT d.id
+FROM sub
+JOIN documents d ON d.id = sub.id
+WHERE d.archived_at IS NULL
+ORDER BY d.id
+LIMIT $1
+`
+
+type ListLiveDocumentSubtreeIDsParams struct {
+	MaxRows        int32  `json:"max_rows"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	RootID         string `json:"root_id"`
+}
+
+// The live (not archived) ids of a subtree, at most max_rows of them: the
+// archive command asks for one row past its bound to learn the subtree is too
+// big without walking all of it. The recursion walks through archived nodes
+// like ListDocumentSubtree and only the output is filtered.
+func (q *Queries) ListLiveDocumentSubtreeIDs(ctx context.Context, arg ListLiveDocumentSubtreeIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listLiveDocumentSubtreeIDs,
+		arg.MaxRows,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.RootID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockArchivedDocumentsByOwner = `-- name: LockArchivedDocumentsByOwner :many
 SELECT id, archive_batch_id
 FROM documents
