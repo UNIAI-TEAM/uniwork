@@ -12,6 +12,7 @@ import {
   type CommentReactionBody,
   type CreateDocumentCommentBody,
 } from "../api/endpoints/document-comments";
+import { DocumentNotVerifiableError, type DocumentComment } from "../types/document";
 import { documentKeys } from "./keys";
 import { requireVerifiableComment, requireVerifiableReaction, requireVerifiableStatus } from "./verify";
 
@@ -30,9 +31,21 @@ export function useDocumentComments(
   documentId: string,
   opts?: { enabled?: boolean },
 ) {
+  const qc = useQueryClient();
   return useQuery({
     queryKey: documentKeys.comments(wsId, documentId),
-    queryFn: ({ signal }) => listDocumentComments(documentId, signal),
+    // The read answers a full list or "unchanged" (G8-03): an unchanged
+    // answer keeps the cached list - its empty `comments` is never written -
+    // and an unprovable answer throws, which leaves React Query's last
+    // successful data in place. The web query sends no sinceToken yet.
+    queryFn: async ({ signal }) => {
+      const page = await listDocumentComments(documentId, { signal });
+      if (!page) throw new DocumentNotVerifiableError("comment list not verifiable");
+      if (page.unchanged) {
+        return qc.getQueryData<DocumentComment[]>(documentKeys.comments(wsId, documentId)) ?? [];
+      }
+      return page.comments;
+    },
     enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
   });
 }
