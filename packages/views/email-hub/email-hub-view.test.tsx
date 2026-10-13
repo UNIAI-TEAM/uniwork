@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -47,6 +47,66 @@ function renderView(needsReconnect: boolean) {
     return Promise.resolve({});
   });
   render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={user}><EmailHubView /></WorkspaceProvider>));
+}
+
+const accountsPath = "/api/v1/workspaces/ws1/email-hub/accounts";
+
+function accountIdFromPath(path: string) {
+  return new URL(path, "http://uniwork.test").searchParams.get("account_id");
+}
+
+function installDisconnectTransport(onlyAccountB: boolean, accountsRefetchFails = false) {
+  const accountA = { ...account(false), id: "acc-a", email_address: "a@unicomhub.com" };
+  const accountB = { ...account(false), id: "acc-b", email_address: "b@unicomhub.com" };
+  let currentAccounts = onlyAccountB ? [accountB] : [accountA, accountB];
+  const disconnectedIds = new Set<string>();
+  const staleRequests: string[] = [];
+  let finishAccountsRefetch: (() => void) | null = null;
+
+  requestMock.mockImplementation((path: string, init?: { method?: string }) => {
+    const method = init?.method ?? "GET";
+    if (path === accountsPath) {
+      if (disconnectedIds.size === 0) return Promise.resolve({ accounts: currentAccounts });
+      return new Promise((resolve, reject) => {
+        finishAccountsRefetch = () => {
+          if (accountsRefetchFails) reject(new Error("accounts refetch failed"));
+          else resolve({ accounts: currentAccounts });
+        };
+      });
+    }
+    if (path.startsWith(`${accountsPath}/`) && method === "DELETE") {
+      const id = path.slice(accountsPath.length + 1);
+      currentAccounts = currentAccounts.filter((item) => item.id !== id);
+      disconnectedIds.add(id);
+      return Promise.resolve({});
+    }
+    const isWatchCleanup = path.startsWith("/api/v1/workspaces/ws1/email-hub/inbox-watch?") && method === "DELETE";
+    const requestedAccountId = accountIdFromPath(path);
+    if (requestedAccountId && disconnectedIds.has(requestedAccountId) && !isWatchCleanup) {
+      staleRequests.push(`${method} ${path}`);
+    }
+    if (path.startsWith("/api/v1/workspaces/ws1/email-hub/threads?")) {
+      return Promise.resolve({ threads: [], counts: { total: 0, unread: 0 }, next_cursor: "" });
+    }
+    return Promise.resolve({});
+  });
+
+  render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={user}><EmailHubView /></WorkspaceProvider>));
+  return {
+    staleRequests,
+    finishAccountsRefetch: () => {
+      if (!finishAccountsRefetch) throw new Error("accounts refetch has not started");
+      finishAccountsRefetch();
+    },
+  };
+}
+
+async function disconnectActiveMailbox(email: string) {
+  const [trigger] = await screen.findAllByRole("button", { name: `Hộp thư: ${email}` });
+  fireEvent.click(trigger!);
+  fireEvent.click(await screen.findByRole("menuitem", { name: `Ngắt kết nối ${email}` }));
+  const dialog = await screen.findByRole("alertdialog");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Ngắt kết nối" }));
 }
 
 beforeEach(() => {
@@ -113,5 +173,76 @@ describe("EmailHubView reconnecting from the banner", () => {
     await waitFor(() => expect(screen.queryByText("Hộp thư cần kết nối lại")).toBeNull());
     await waitFor(() => expect(document.activeElement).toHaveAccessibleName(focusName));
     vi.restoreAllMocks();
+  });
+});
+
+describe("EmailHubView after disconnecting the active mailbox", () => {
+  it("selects the newest remaining mailbox and sends the next list request with its id", async () => {
+    const { finishAccountsRefetch, staleRequests } = installDisconnectTransport(false);
+
+    await screen.findAllByRole("button", { name: "Hộp thư: b@unicomhub.com" });
+    await waitFor(() =>
+      expect(
+        requestMock.mock.calls.some(
+          ([path]) => String(path).startsWith("/api/v1/workspaces/ws1/email-hub/threads?") && accountIdFromPath(String(path)) === "acc-b",
+        ),
+      ).toBe(true),
+    );
+    await disconnectActiveMailbox("b@unicomhub.com");
+    await waitFor(() => expect(requestMock.mock.calls.filter(isAccounts)).toHaveLength(2));
+    await act(async () => Promise.resolve());
+    finishAccountsRefetch();
+
+    await screen.findAllByRole("button", { name: "Hộp thư: a@unicomhub.com" });
+    await waitFor(() =>
+      expect(
+        requestMock.mock.calls.some(
+          ([path]) => String(path).startsWith("/api/v1/workspaces/ws1/email-hub/threads?") && accountIdFromPath(String(path)) === "acc-a",
+        ),
+      ).toBe(true),
+    );
+    expect(staleRequests).toEqual([]);
+  });
+
+  it("shows connect after disconnecting the only mailbox without reusing its id", async () => {
+    const { finishAccountsRefetch, staleRequests } = installDisconnectTransport(true);
+
+    await screen.findAllByRole("button", { name: "Hộp thư: b@unicomhub.com" });
+    await disconnectActiveMailbox("b@unicomhub.com");
+    await waitFor(() => expect(requestMock.mock.calls.filter(isAccounts)).toHaveLength(2));
+    await act(async () => Promise.resolve());
+    await act(async () => {
+      finishAccountsRefetch();
+      await Promise.resolve();
+    });
+
+    await screen.findByRole("heading", { name: "Kết nối hộp thư để bắt đầu" });
+    expect(staleRequests).toEqual([]);
+  });
+
+  it("keeps multiple disconnected mailboxes inactive when each accounts refetch fails", async () => {
+    const { finishAccountsRefetch, staleRequests } = installDisconnectTransport(false, true);
+
+    await screen.findAllByRole("button", { name: "Hộp thư: b@unicomhub.com" });
+    await disconnectActiveMailbox("b@unicomhub.com");
+    await waitFor(() => expect(requestMock.mock.calls.filter(isAccounts)).toHaveLength(2));
+    await act(async () => Promise.resolve());
+    await act(async () => {
+      finishAccountsRefetch();
+      await Promise.resolve();
+    });
+    await screen.findAllByRole("button", { name: "Hộp thư: a@unicomhub.com" });
+    expect(staleRequests).toEqual([]);
+
+    await disconnectActiveMailbox("a@unicomhub.com");
+    await waitFor(() => expect(requestMock.mock.calls.filter(isAccounts)).toHaveLength(3));
+    await act(async () => Promise.resolve());
+    await act(async () => {
+      finishAccountsRefetch();
+      await Promise.resolve();
+    });
+
+    await screen.findByRole("heading", { name: "Kết nối hộp thư để bắt đầu" });
+    expect(staleRequests).toEqual([]);
   });
 });

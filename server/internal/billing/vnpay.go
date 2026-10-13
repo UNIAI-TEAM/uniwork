@@ -102,8 +102,10 @@ func (v *VNPay) ParseWebhook(r *http.Request) (Event, error) {
 	if txnRef == "" {
 		return Event{}, errVNPayBadRequest
 	}
+	// VNPay sends vnp_TransactionNo=0 on cancel and error IPNs. "0" is not a
+	// transaction id; using it makes every failed checkout share one inbox row.
 	eventID := params["vnp_TransactionNo"]
-	if eventID == "" {
+	if eventID == "" || eventID == "0" {
 		eventID = txnRef + ":" + params["vnp_ResponseCode"]
 	}
 	amountMinor, _ := strconv.ParseInt(params["vnp_Amount"], 10, 64)
