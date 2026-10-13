@@ -1,0 +1,17 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -14
+7957fecf8127d340a89600511d80b5730b0c68cf
+7235eb43546fa2210cae3db29e0fbd1a4fa884d7
+7957fecf8 Merge W-C (limiter bucket, frame identity, run header, run_expired) into G6-03b
+0850f069b Merge branch 'feature/UNI-1370-g6-03b-wb' into feature/UNI-1370-g6-03b-runs
+eb17210cc test(ai): carry the run id in the tool-result handler test
+b907cfba8 docs(office): record G6-03b's W-C proof on the G6-A07/A08/A09 rows
+118dfc842 test(ai): seed a UniWork AI run in the isolation world
+441aad143 feat(ai): hold the UniWork AI run caps across pods and sweep runs with the TTL worker
+cdd11ef11 fix(ai): keep an unknown-usage row unclaimed when the rate lookup fails
+894284f71 docs(office): document the UniWork AI run and usage surface
+23ec05522 feat(ai): wire the UniWork AI run store and reconciliation into main
+786bc25bb feat(ai): name the run on every UniWork AI answer, register run_expired
+8d05f01cf test(ai): exercise the UniWork AI run and usage paths over the real gates
+5ded0603f feat(ai): add the UniWork AI run table, indexes and queries
+8cd3f875b test(ai): pin the two shared-bound unwinds of UniWork AI (BE3A-16)
+89cdb64da feat(ai): bucket the UniWork AI routes and key the frame token globally

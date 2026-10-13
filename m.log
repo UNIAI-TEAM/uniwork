@@ -1,0 +1,13 @@
+$ cd server && go test -count=1 -v ./internal -run 'TestProviderSDKOnlyInAIProvider|TestAIPackageOnlyCallsAiQueries|TestActorConstructedOnlyInService|TestArch|Membership'
+=== RUN   TestMembershipDecidedInOnePlace
+--- PASS: TestMembershipDecidedInOnePlace (0.01s)
+=== RUN   TestActorConstructedOnlyInService
+    arch_test.go:165: ../internal/ai/usage_reconcile.go constructs an actor kind directly; only internal/service decides who an actor is
+--- FAIL: TestActorConstructedOnlyInService (0.01s)
+=== RUN   TestProviderSDKOnlyInAIProvider
+--- PASS: TestProviderSDKOnlyInAIProvider (0.23s)
+=== RUN   TestAIPackageOnlyCallsAiQueries
+--- PASS: TestAIPackageOnlyCallsAiQueries (0.00s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal	0.263s
+FAIL

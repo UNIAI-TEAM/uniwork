@@ -1,0 +1,8 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && export REDIS_TEST_URL=redis://localhost:6379/1 && AI_PROVIDER=fake go test -count=1 -v ./internal/service -run 'AIUniwork.*Usage' 2>&1 | grep -E '^(--- (PASS|FAIL|SKIP)|PASS|FAIL|ok)'; echo "A09_EXIT=${PIPESTATUS[0]}"
+--- FAIL: TestAIUniworkUsageRecordedWhenClientDisconnects (0.26s)
+--- FAIL: TestAIUniworkRunRetryUsageChargedOnce (0.21s)
+--- FAIL: TestAIUniworkUsageUnknownRowAndMetric (0.30s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.789s
+FAIL
+A09_EXIT=1

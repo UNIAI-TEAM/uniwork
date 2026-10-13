@@ -1,0 +1,42 @@
+$ node --test scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs; echo "REPO_CONTRACT_EXIT=$?"
+TAP version 13
+# Subtest: every alert has a runbook_url whose file exists and is named after the alert
+ok 1 - every alert has a runbook_url whose file exists and is named after the alert
+  ---
+  duration_ms: 15.483889
+  ...
+# Subtest: every runbook has the four sections in order and a status line
+ok 2 - every runbook has the four sections in order and a status line
+  ---
+  duration_ms: 1.846001
+  ...
+# Subtest: every runbook is referenced by an alert
+ok 3 - every runbook is referenced by an alert
+  ---
+  duration_ms: 0.31565
+  ...
+# Subtest: runbook index lists every alert
+ok 4 - runbook index lists every alert
+  ---
+  duration_ms: 0.330825
+  ...
+# Subtest: every variable the server reads is documented in .env.example
+ok 5 - every variable the server reads is documented in .env.example
+  ---
+  duration_ms: 35.134638
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 6 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 52.114282
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 100.251234
+REPO_CONTRACT_EXIT=0

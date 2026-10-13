@@ -1,0 +1,151 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && export REDIS_TEST_URL=redis://localhost:6379/1 && AI_PROVIDER=fake go test -race -count=1 -v ./internal/ai/ -run 'AIUniwork|RunStore|AiUniwork|Usage|TestOfficePack|TestOfficeSystemPrompt|TestGatewayOfficeUniworkUsageRow|TestPromptSnapshots|TestSystemPromptsEndWithUntrustedFooter|TestRequestMessages|TestGatewayToolResultTurn'
+=== RUN   TestSystemPromptsEndWithUntrustedFooter
+--- PASS: TestSystemPromptsEndWithUntrustedFooter (0.00s)
+=== RUN   TestPromptSnapshots
+--- PASS: TestPromptSnapshots (0.00s)
+=== RUN   TestFakeReplyReportsUsage
+--- PASS: TestFakeReplyReportsUsage (0.00s)
+=== RUN   TestRequestMessages
+--- PASS: TestRequestMessages (0.00s)
+=== RUN   TestGatewayOfficeRefusedBeforeUsageRow
+--- PASS: TestGatewayOfficeRefusedBeforeUsageRow (0.00s)
+=== RUN   TestGatewayToolResultTurn
+2026/10/13 20:19:45 INFO ai: call usage_event_id=01M4VEQJX0AMV4DM2VX45R32ZF capability=office_uniwork_ai latency_ms=0
+2026/10/13 20:19:45 INFO ai: call usage_event_id=01M4VEQJX2TJVBH1R81GR1QE1C capability=office_uniwork_ai latency_ms=0
+--- PASS: TestGatewayToolResultTurn (0.79s)
+=== RUN   TestAIUniworkTurnSealRoundTrip
+--- PASS: TestAIUniworkTurnSealRoundTrip (0.00s)
+=== RUN   TestAIUniworkConversationCleanupConsumer
+--- PASS: TestAIUniworkConversationCleanupConsumer (0.00s)
+=== RUN   TestAIUniworkTTLWorkerSweep
+--- PASS: TestAIUniworkTTLWorkerSweep (0.00s)
+=== RUN   TestAIUniworkTTLWorkerRunStopsOnCancel
+--- PASS: TestAIUniworkTTLWorkerRunStopsOnCancel (0.03s)
+=== RUN   TestAIUniworkConversationSweepTTL
+--- PASS: TestAIUniworkConversationSweepTTL (0.22s)
+=== RUN   TestAIUniworkNewConversationReplacesOld
+--- PASS: TestAIUniworkNewConversationReplacesOld (0.26s)
+=== RUN   TestAIUniworkCreateKeepsDeviceBoundConversation
+--- PASS: TestAIUniworkCreateKeepsDeviceBoundConversation (0.18s)
+=== RUN   TestAIUniworkConversationSweptOnDocumentDelete
+--- PASS: TestAIUniworkConversationSweptOnDocumentDelete (0.19s)
+=== RUN   TestAIUniworkConversationSweptOnSignOut
+--- PASS: TestAIUniworkConversationSweptOnSignOut (0.22s)
+=== RUN   TestAIUniworkKillSwitchSweepsConversations
+--- PASS: TestAIUniworkKillSwitchSweepsConversations (0.20s)
+=== RUN   TestAIUniworkAppendKeepsTwentyUserTurns
+--- PASS: TestAIUniworkAppendKeepsTwentyUserTurns (0.19s)
+=== RUN   TestAIUniworkRollbackDropsFailedAttempt
+--- PASS: TestAIUniworkRollbackDropsFailedAttempt (0.20s)
+=== RUN   TestAIUniworkConversationBoundToScope
+--- PASS: TestAIUniworkConversationBoundToScope (0.20s)
+=== RUN   TestAIUniworkConversationDeletesAreScoped
+--- PASS: TestAIUniworkConversationDeletesAreScoped (0.20s)
+=== RUN   TestAIUniworkRefusesClientSystemRole
+--- PASS: TestAIUniworkRefusesClientSystemRole (0.00s)
+=== RUN   TestAIUniworkToolTurnShapeRefusals
+--- PASS: TestAIUniworkToolTurnShapeRefusals (0.00s)
+=== RUN   TestAIUniworkToolResultTooLarge
+--- PASS: TestAIUniworkToolResultTooLarge (0.02s)
+=== RUN   TestAIUniworkDroppedToolCallsInJSON
+--- PASS: TestAIUniworkDroppedToolCallsInJSON (0.00s)
+=== RUN   TestAIUniworkDroppedToolCallsInOneChunkSSE
+--- PASS: TestAIUniworkDroppedToolCallsInOneChunkSSE (0.00s)
+=== RUN   TestAIUniworkSSEContract
+--- PASS: TestAIUniworkSSEContract (0.00s)
+=== RUN   TestAIUniworkAssistantTurnsNeverReachTheModel
+--- PASS: TestAIUniworkAssistantTurnsNeverReachTheModel (0.00s)
+=== RUN   TestAIUniworkHistoryBudgetDropsOldestPairs
+--- PASS: TestAIUniworkHistoryBudgetDropsOldestPairs (0.01s)
+=== RUN   TestAIUniworkPackModuleMapping
+--- PASS: TestAIUniworkPackModuleMapping (0.00s)
+=== RUN   TestAIUniworkModuleToolTableGovernsTheAllowlist
+--- PASS: TestAIUniworkModuleToolTableGovernsTheAllowlist (0.00s)
+=== RUN   TestAIUniworkFakeDelayHonoursDeadline
+--- PASS: TestAIUniworkFakeDelayHonoursDeadline (0.02s)
+=== RUN   TestAIUniworkUpstreamTimeout
+2026/10/13 20:19:47 WARN ai: provider timeout usage_event_id=01M4VEQN5E49QDRPEWK8C6GKXW capability=office_uniwork_ai latency_ms=29
+--- PASS: TestAIUniworkUpstreamTimeout (0.21s)
+=== RUN   TestAIUniworkGatewayFiltersCallsAndOffersTools
+2026/10/13 20:19:47 INFO ai: call usage_event_id=01M4VEQNCYXY1J4ZNV9R0VZ5T7 capability=office_uniwork_ai latency_ms=0
+--- PASS: TestAIUniworkGatewayFiltersCallsAndOffersTools (0.21s)
+=== RUN   TestAIUniworkUpstreamRateLimitedRetryAfter
+=== RUN   TestAIUniworkUpstreamRateLimitedRetryAfter/vendor_wait
+2026/10/13 20:19:47 WARN ai: provider rate limited usage_event_id=01M4VEQNK7BDXPT7YAHX01H6BT capability=office_uniwork_ai retry_after_s=45 latency_ms=0
+=== RUN   TestAIUniworkUpstreamRateLimitedRetryAfter/no_wait_given
+2026/10/13 20:19:48 WARN ai: provider rate limited usage_event_id=01M4VEQNS0VM3T3XEX4AP4QYPV capability=office_uniwork_ai retry_after_s=30 latency_ms=0
+=== RUN   TestAIUniworkUpstreamRateLimitedRetryAfter/wait_over_the_clamp
+2026/10/13 20:19:48 WARN ai: provider rate limited usage_event_id=01M4VEQP043MJZ9FPSC39YAC3Y capability=office_uniwork_ai retry_after_s=300 latency_ms=0
+--- PASS: TestAIUniworkUpstreamRateLimitedRetryAfter (0.62s)
+    --- PASS: TestAIUniworkUpstreamRateLimitedRetryAfter/vendor_wait (0.20s)
+    --- PASS: TestAIUniworkUpstreamRateLimitedRetryAfter/no_wait_given (0.18s)
+    --- PASS: TestAIUniworkUpstreamRateLimitedRetryAfter/wait_over_the_clamp (0.23s)
+=== RUN   TestOfficePackGoldens
+=== RUN   TestOfficePackGoldens/common
+=== RUN   TestOfficePackGoldens/sheets
+=== RUN   TestOfficePackGoldens/docs
+=== RUN   TestOfficePackGoldens/slides
+=== RUN   TestOfficePackGoldens/pdf
+=== RUN   TestOfficePackGoldens/markdown
+=== RUN   TestOfficePackGoldens/html
+--- PASS: TestOfficePackGoldens (0.00s)
+    --- PASS: TestOfficePackGoldens/common (0.00s)
+    --- PASS: TestOfficePackGoldens/sheets (0.00s)
+    --- PASS: TestOfficePackGoldens/docs (0.00s)
+    --- PASS: TestOfficePackGoldens/slides (0.00s)
+    --- PASS: TestOfficePackGoldens/pdf (0.00s)
+    --- PASS: TestOfficePackGoldens/markdown (0.00s)
+    --- PASS: TestOfficePackGoldens/html (0.00s)
+=== RUN   TestOfficeSystemPromptUnknownModule
+--- PASS: TestOfficeSystemPromptUnknownModule (0.00s)
+=== RUN   TestOfficePackTokenCaps
+--- PASS: TestOfficePackTokenCaps (0.05s)
+=== RUN   TestOfficePackVersionPins
+--- PASS: TestOfficePackVersionPins (0.00s)
+=== RUN   TestOfficePackProvisionalMap
+--- PASS: TestOfficePackProvisionalMap (0.00s)
+=== RUN   TestGatewayOfficeUniworkUsageRow
+2026/10/13 20:19:48 INFO ai: call usage_event_id=01M4VEQP8Z69D9BT8Q0HF6YZ5H capability=office_uniwork_ai latency_ms=0
+2026/10/13 20:19:48 INFO ai: call usage_event_id=01M4VEQP91KRD9NQ4SRN49RFD6 capability=office_uniwork_ai latency_ms=0
+--- PASS: TestGatewayOfficeUniworkUsageRow (0.23s)
+=== RUN   TestUsageTapReadsEachProtocol
+=== RUN   TestUsageTapReadsEachProtocol/openai_json
+=== RUN   TestUsageTapReadsEachProtocol/openai_sse
+=== RUN   TestUsageTapReadsEachProtocol/anthropic_json
+=== RUN   TestUsageTapReadsEachProtocol/anthropic_sse
+=== RUN   TestUsageTapReadsEachProtocol/gemini_json
+=== RUN   TestUsageTapReadsEachProtocol/gemini_sse
+--- PASS: TestUsageTapReadsEachProtocol (0.00s)
+    --- PASS: TestUsageTapReadsEachProtocol/openai_json (0.00s)
+    --- PASS: TestUsageTapReadsEachProtocol/openai_sse (0.00s)
+    --- PASS: TestUsageTapReadsEachProtocol/anthropic_json (0.00s)
+    --- PASS: TestUsageTapReadsEachProtocol/anthropic_sse (0.00s)
+    --- PASS: TestUsageTapReadsEachProtocol/gemini_json (0.00s)
+    --- PASS: TestUsageTapReadsEachProtocol/gemini_sse (0.00s)
+=== RUN   TestRunStoreRefusalNamesTheSpentCap
+--- PASS: TestRunStoreRefusalNamesTheSpentCap (0.00s)
+=== RUN   TestAIUniworkTTLWorkerSweepsRunsAndReconciles
+=== RUN   TestAIUniworkTTLWorkerSweepsRunsAndReconciles/nil_metrics_and_reconciler_are_safe
+=== RUN   TestAIUniworkTTLWorkerSweepsRunsAndReconciles/a_reconciler_error_ends_the_pass
+--- PASS: TestAIUniworkTTLWorkerSweepsRunsAndReconciles (0.00s)
+    --- PASS: TestAIUniworkTTLWorkerSweepsRunsAndReconciles/nil_metrics_and_reconciler_are_safe (0.00s)
+    --- PASS: TestAIUniworkTTLWorkerSweepsRunsAndReconciles/a_reconciler_error_ends_the_pass (0.00s)
+=== RUN   TestRunStoreTakeTurnOpensAndContinues
+--- PASS: TestRunStoreTakeTurnOpensAndContinues (0.26s)
+=== RUN   TestRunStoreRunNeverOutlivesConversation
+--- PASS: TestRunStoreRunNeverOutlivesConversation (0.20s)
+=== RUN   TestRunStoreCapsRefuseAtModelCallsAndToolRounds
+--- PASS: TestRunStoreCapsRefuseAtModelCallsAndToolRounds (0.18s)
+=== RUN   TestRunStoreRejectsExpiredAndForeignRunID
+--- PASS: TestRunStoreRejectsExpiredAndForeignRunID (0.17s)
+=== RUN   TestRunStoreSweepExpiredAndOrphanRuns
+    run_store_pg_test.go:447: sweep = 2 expired / 0 orphan, want 1 / 1
+--- FAIL: TestRunStoreSweepExpiredAndOrphanRuns (0.18s)
+=== RUN   TestAIUniworkUsageUnknownReconcilesOnce
+    usage_reconcile_test.go:52: Complete with a no-usage vendor: ai: policy: unknown office module "docs"
+--- FAIL: TestAIUniworkUsageUnknownReconcilesOnce (0.22s)
+=== RUN   TestAIUniworkUsageEstimateFromTurns
+--- PASS: TestAIUniworkUsageEstimateFromTurns (0.00s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/ai	5.491s
+FAIL
