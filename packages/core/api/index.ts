@@ -25,6 +25,7 @@ export type { WSClientIdentity, WSConnectionState } from "./ws-client";
 export type { WSEventType as WSTransportEventType, WSMessage } from "./ws-types";
 
 export * as auth from "./endpoints/auth";
+export * as connect from "./endpoints/connect";
 export * as organizations from "./endpoints/organizations";
 export * as workspaces from "./endpoints/workspaces";
 export * as tasks from "./endpoints/tasks";
