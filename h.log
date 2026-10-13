@@ -1,0 +1,14 @@
+$ npm test -w @genoffice/electron-utils
+
+> @genoffice/electron-utils@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/electron-utils
+
+
+ Test Files  19 passed (19)
+      Tests  276 passed (276)
+   Start at  10:51:38
+   Duration  5.75s (transform 516ms, setup 0ms, import 1.05s, tests 7.13s, environment 1ms)
+

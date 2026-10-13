@@ -1,0 +1,6 @@
+$ npm run format:check
+
+> genoffice@0.1.0 format:check
+> node tools/format-changed.mjs --check
+
+No changed files to format.

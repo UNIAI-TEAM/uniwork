@@ -1,0 +1,254 @@
+$ git checkout 7e082de3 -- packages/ui; rm -rf packages/ui/src/collab packages/ui/src/strings-collab-panel.ts packages/ui/src/strings-collab-mention.ts; git checkout HEAD -- packages/ui/tests; (cd packages/ui && npx vitest run $(ls tests/collab-*.test.ts | tr '\n' ' ')); A=$?; git checkout HEAD -- packages/ui; git status --short packages/ui; echo "RED_EXIT ui=$A"; test $A -ne 0 && echo RED_AS_EXPECTED_G820
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+ ❯ tests/collab-thread.test.ts (0 test)
+ ❯ tests/collab-body.test.ts (0 test)
+ ❯ tests/collab-composer.test.ts (0 test)
+ ❯ tests/collab-panel.test.ts (0 test)
+ ❯ tests/collab-controller.test.ts (0 test)
+ ❯ tests/collab-composer-panel.test.ts (0 test)
+ ❯ tests/collab-strings.test.ts (0 test)
+ ❯ tests/collab-strings-glue.test.ts (0 test)
+ ❯ tests/collab-picker.test.ts (0 test)
+ ❯ tests/collab-anchor-label.test.ts (0 test)
+ ❯ tests/collab-mention-query.test.ts (0 test)
+ ❯ tests/collab-protocol-shape.test.ts (0 test)
+ ❯ tests/collab-draft-store.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 13 ⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/collab-anchor-label.test.ts [ tests/collab-anchor-label.test.ts ]
+Error: Failed to resolve import "../src/collab/anchor-label" from "tests/collab-anchor-label.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-anchor-label.test.ts:5:28
+  2  |  import { createRoot } from "react-dom/client";
+  3  |  import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+  4  |  import { anchorLabel } from "../src/collab/anchor-label";
+     |                               ^
+  5  |  import { AnchorLabel } from "../src/collab/AnchorLabel";
+  6  |  const STRINGS = {
+ ❯ TransformPluginContext._formatLog ../../node_modules/vite/dist/node/chunks/config.js:29079:43
+ ❯ TransformPluginContext.error ../../node_modules/vite/dist/node/chunks/config.js:29076:14
+ ❯ normalizeUrl ../../node_modules/vite/dist/node/chunks/config.js:27199:18
+ ❯ ../../node_modules/vite/dist/node/chunks/config.js:27257:32
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/config.js:27225:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/config.js:28877:14
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/config.js:22746:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/13]⎯
+
+ FAIL  tests/collab-body.test.ts [ tests/collab-body.test.ts ]
+Error: Failed to resolve import "../src/collab/body" from "tests/collab-body.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-body.test.ts:5:56
+  2  |  import { createRoot } from "react-dom/client";
+  3  |  import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+  4  |  import { buildMentionToken, parseBody, serialize } from "../src/collab/body";
+     |                                                           ^
+  5  |  import { CollabBody } from "../src/collab/CollabBody";
+  6  |  const BODY_FIXTURE = "Xem lại [@Nguyễn \\[An\\]](mention://member/01J8X4USR0AAAAAAAAAAAAAAAA) giúp nhé:\n**đậm**, *ng...
+ ❯ TransformPluginContext._formatLog ../../node_modules/vite/dist/node/chunks/config.js:29079:43
+ ❯ TransformPluginContext.error ../../node_modules/vite/dist/node/chunks/config.js:29076:14
+ ❯ normalizeUrl ../../node_modules/vite/dist/node/chunks/config.js:27199:18
+ ❯ ../../node_modules/vite/dist/node/chunks/config.js:27257:32
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/config.js:27225:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/config.js:28877:14
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/config.js:22746:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/13]⎯
+
+ FAIL  tests/collab-composer-panel.test.ts [ tests/collab-composer-panel.test.ts ]
+Error: Failed to resolve import "../src/collab/CollabComposer" from "tests/collab-composer-panel.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-composer-panel.test.ts:5:31
+  2  |  import { createRoot } from "react-dom/client";
+  3  |  import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+  4  |  import { CollabComposer } from "../src/collab/CollabComposer";
+     |                                  ^
+  5  |  import { CollabPanel } from "../src/collab/CollabPanel";
+  6  |  import { loadDraft } from "../src/collab/draft-store";
+ ❯ TransformPluginContext._formatLog ../../node_modules/vite/dist/node/chunks/config.js:29079:43
+ ❯ TransformPluginContext.error ../../node_modules/vite/dist/node/chunks/config.js:29076:14
+ ❯ normalizeUrl ../../node_modules/vite/dist/node/chunks/config.js:27199:18
+ ❯ ../../node_modules/vite/dist/node/chunks/config.js:27257:32
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/config.js:27225:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/config.js:28877:14
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/config.js:22746:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/13]⎯
+
+ FAIL  tests/collab-composer.test.ts [ tests/collab-composer.test.ts ]
+Error: Failed to resolve import "../src/collab/CollabComposer" from "tests/collab-composer.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-composer.test.ts:7:57
+  4  |  import { createRoot } from "react-dom/client";
+  5  |  import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+  6  |  import { CollabComposer } from "../src/collab/CollabComposer";
+     |                                  ^
+  7  |  import { draftStorageKey, loadDraft, saveDraft } from "../src/collab/draft-store";
+  8  |  import {
+ ❯ TransformPluginContext._formatLog ../../node_modules/vite/dist/node/chunks/config.js:29079:43
+ ❯ TransformPluginContext.error ../../node_modules/vite/dist/node/chunks/config.js:29076:14
+ ❯ normalizeUrl ../../node_modules/vite/dist/node/chunks/config.js:27199:18
+ ❯ ../../node_modules/vite/dist/node/chunks/config.js:27257:32
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/config.js:27225:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/config.js:28877:14
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/config.js:22746:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/13]⎯
+
+ FAIL  tests/collab-controller.test.ts [ tests/collab-controller.test.ts ]
+Error: Failed to resolve import "../src/collab/use-collab-threads" from "tests/collab-controller.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-controller.test.ts:12:7
+  7  |    collabPermissions,
+  8  |    useCollabThreads
+  9  |  } from "../src/collab/use-collab-threads";
+     |          ^
+  10 |  import { COLLAB_LIVE_REGION_ID, announcePolite } from "../src/collab/live-region";
+  11 |  import {
+ ❯ TransformPluginContext._formatLog ../../node_modules/vite/dist/node/chunks/config.js:29079:43
+ ❯ TransformPluginContext.error ../../node_modules/vite/dist/node/chunks/config.js:29076:14
+ ❯ normalizeUrl ../../node_modules/vite/dist/node/chunks/config.js:27199:18
+ ❯ ../../node_modules/vite/dist/node/chunks/config.js:27257:32
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/config.js:27225:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/config.js:28877:14
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/config.js:22746:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/13]⎯
+
+ FAIL  tests/collab-draft-store.test.ts [ tests/collab-draft-store.test.ts ]
+Error: Failed to resolve import "../src/collab/draft-store" from "tests/collab-draft-store.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-draft-store.test.ts:3:66
+  1  |  import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+  2  |  import { clearDraft, draftStorageKey, loadDraft, saveDraft } from "../src/collab/draft-store";
+     |                                                                     ^
+  3  |  const KEY = { documentId: "doc-1", threadKey: "reply:c1" };
+  4  |  beforeEach(() => sessionStorage.clear());
+ ❯ TransformPluginContext._formatLog ../../node_modules/vite/dist/node/chunks/config.js:29079:43
+ ❯ TransformPluginContext.error ../../node_modules/vite/dist/node/chunks/config.js:29076:14
+ ❯ normalizeUrl ../../node_modules/vite/dist/node/chunks/config.js:27199:18
+ ❯ ../../node_modules/vite/dist/node/chunks/config.js:27257:32
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/config.js:27225:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/config.js:28877:14
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/config.js:22746:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/13]⎯
+
+ FAIL  tests/collab-mention-query.test.ts [ tests/collab-mention-query.test.ts ]
+Error: Cannot find module '../src/collab/body' imported from /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-mention-query.test.ts
+ ❯ tests/collab-mention-query.test.ts:2:1
+      1| import { describe, expect, it } from 'vitest'
+      2| import { buildMentionToken } from '../src/collab/body'
+       | ^
+      3| import {
+      4|   MENTION_DEBOUNCE_MS,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/13]⎯
+
+ FAIL  tests/collab-panel.test.ts [ tests/collab-panel.test.ts ]
+Error: Failed to resolve import "../src/collab/CollabPanel" from "tests/collab-panel.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-panel.test.ts:5:51
+  2  |  import { createRoot } from "react-dom/client";
+  3  |  import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+  4  |  import { CollabPanel } from "../src/collab/CollabPanel";
+     |                               ^
+  5  |  import {
+  6  |    useCollabThreads
+ ❯ TransformPluginContext._formatLog ../../node_modules/vite/dist/node/chunks/config.js:29079:43
+ ❯ TransformPluginContext.error ../../node_modules/vite/dist/node/chunks/config.js:29076:14
+ ❯ normalizeUrl ../../node_modules/vite/dist/node/chunks/config.js:27199:18
+ ❯ ../../node_modules/vite/dist/node/chunks/config.js:27257:32
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/config.js:27225:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/config.js:28877:14
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/config.js:22746:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/13]⎯
+
+ FAIL  tests/collab-picker.test.ts [ tests/collab-picker.test.ts ]
+Error: Failed to resolve import "../src/collab/MentionPicker" from "tests/collab-picker.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-picker.test.ts:11:7
+  7  |    nextSelectableIndex,
+  8  |    useMentionSearch
+  9  |  } from "../src/collab/MentionPicker";
+     |          ^
+  10 |  import {
+  11 |    PICKER_STRINGS,
+ ❯ TransformPluginContext._formatLog ../../node_modules/vite/dist/node/chunks/config.js:29079:43
+ ❯ TransformPluginContext.error ../../node_modules/vite/dist/node/chunks/config.js:29076:14
+ ❯ normalizeUrl ../../node_modules/vite/dist/node/chunks/config.js:27199:18
+ ❯ ../../node_modules/vite/dist/node/chunks/config.js:27257:32
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/config.js:27225:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/config.js:28877:14
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/config.js:22746:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/13]⎯
+
+ FAIL  tests/collab-protocol-shape.test.ts [ tests/collab-protocol-shape.test.ts ]
+Error: Cannot find module '../src/collab/types' imported from /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-protocol-shape.test.ts
+ ❯ tests/collab-protocol-shape.test.ts:20:1
+     18|   type CommentsDeleteResult,
+     19| } from '../../../web/docs/protocol/types'
+     20| import {
+       | ^
+     21|   toCollabError,
+     22|   type CollabAnchor,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/13]⎯
+
+ FAIL  tests/collab-strings-glue.test.ts [ tests/collab-strings-glue.test.ts ]
+Error: Cannot find module '../src/collab' imported from /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-strings-glue.test.ts
+ ❯ tests/collab-strings-glue.test.ts:3:1
+      1| import { describe, expect, it } from 'vitest'
+      2| import { LANGS } from '@genoffice/i18n'
+      3| import {
+       | ^
+      4|   collabMentionStrings,
+      5|   collabMentionText,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/13]⎯
+
+ FAIL  tests/collab-strings.test.ts [ tests/collab-strings.test.ts ]
+Error: Cannot find module '../src/strings-collab-panel' imported from /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-strings.test.ts
+ ❯ tests/collab-strings.test.ts:3:1
+      1| import { describe, expect, it } from 'vitest'
+      2| import { LANGS } from '@genoffice/i18n'
+      3| import {
+       | ^
+      4|   collabPanelStrings,
+      5|   collabPanelText,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/13]⎯
+
+ FAIL  tests/collab-thread.test.ts [ tests/collab-thread.test.ts ]
+Error: Failed to resolve import "../src/collab/CollabPanel" from "tests/collab-thread.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/packages/ui/tests/collab-thread.test.ts:5:28
+  2  |  import { createRoot } from "react-dom/client";
+  3  |  import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+  4  |  import { CollabPanel } from "../src/collab/CollabPanel";
+     |                               ^
+  5  |  import { useCollabThreads } from "../src/collab/use-collab-threads";
+  6  |  import { COLLAB_LIVE_REGION_ID } from "../src/collab/live-region";
+ ❯ TransformPluginContext._formatLog ../../node_modules/vite/dist/node/chunks/config.js:29079:43
+ ❯ TransformPluginContext.error ../../node_modules/vite/dist/node/chunks/config.js:29076:14
+ ❯ normalizeUrl ../../node_modules/vite/dist/node/chunks/config.js:27199:18
+ ❯ ../../node_modules/vite/dist/node/chunks/config.js:27257:32
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/config.js:27225:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/config.js:28877:14
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/config.js:22746:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/13]⎯
+
+
+ Test Files  13 failed (13)
+      Tests  no tests
+   Start at  10:51:44
+   Duration  1.92s (transform 76ms, setup 0ms, import 0ms, tests 0ms, environment 3.20s)
+
+RED_EXIT ui=1
+RED_AS_EXPECTED_G820

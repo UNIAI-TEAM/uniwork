@@ -1,0 +1,15 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -12
+2ad3da1b49a84efe830674160f1bf75391062a04
+7e082de3b58755bfcc036baa61a60169624280c6
+2ad3da1b test(ui): add the collab visual harness
+4507ce1a feat(ui): add collabStrings and export the collab string aggregators
+f969211a test(ui): pin the collab strings glue (red)
+88523056 merge: G8-20 collab strings in 21 locales (W20D)
+f76ba1cf test(ui): feed the collab kit the real en panel strings
+e41abe98 feat(ui): export the collab composer and picker from the collab entry
+bd5ad5e0 merge: G8-20 composer + mention picker (W20C)
+388d0fac Merge branch 'feature/UNI-1415-g8-20-collab-ui' into feature/UNI-1415-g8-20-strings
+63550680 feat(ui): add the collab panel and mention strings in 21 locales
+6477ae1d feat(ui): add the collab composer, mention picker, query helpers and draft store
+83231c11 Merge branch 'feature/UNI-1415-g8-20-collab-ui' into feature/UNI-1415-g8-20-composer
+33a20f7c merge: G8-20 collab controller, panel, thread (W20A)
