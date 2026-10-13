@@ -539,7 +539,7 @@ func TestOwnersSwappingOrganizationsDoNotDeadlock(t *testing.T) {
 					go func() { defer wg.Done(); _, errs[0] = f.ws.AcceptInvite(f.ctx, x.ID, toB, resolve(a, f.admin.ID)) }()
 					go func() { defer wg.Done(); _, errs[1] = f.ws.AcceptInvite(f.ctx, y.ID, toA, resolve(b, heir.ID)) }()
 					go func() { wg.Wait(); close(done) }()
-					f.waitForRowLockWaiters(t, 2)
+					waitForLockWaiters(t, hold, 2)
 					if err := hold.Rollback(f.ctx); err != nil {
 						t.Fatal(err)
 					}

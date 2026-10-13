@@ -1,9 +1,12 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -158,18 +161,37 @@ func TestClosedOrganizationDoesNotBlockAccountDeletion(t *testing.T) {
 // waitForRowLockWaiters blocks until n backends of this database wait on a
 // row or transaction lock (advisory waits are the test lock of other
 // packages), so a race is staged in a known order instead of by sleeping.
-func (f *orgMembersFixture) waitForRowLockWaiters(t *testing.T, n int) {
+// It polls on the barrier's own connection: testutil.DB keeps one pooled
+// connection for its lock, and with the barrier and the racing transactions
+// a small pool (max(4, NumCPU) on a CI runner) has none left, so a pooled
+// poll would wait forever and the barrier would never be released. On
+// failure it releases the barrier first for the same reason.
+func waitForLockWaiters(t *testing.T, barrier pgx.Tx, n int) {
 	t.Helper()
+	ctx := context.Background()
+	fail := func(format string, args ...any) {
+		t.Helper()
+		_ = barrier.Rollback(ctx)
+		t.Fatalf(format, args...)
+	}
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		got := f.count(t, `SELECT count(*) FROM pg_stat_activity
-			WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event <> 'advisory'`)
+		// pg_stat_activity is snapshotted once per transaction; the barrier
+		// is one, so drop the snapshot before every look.
+		if _, err := barrier.Exec(ctx, `SELECT pg_stat_clear_snapshot()`); err != nil {
+			fail("clear stats snapshot: %v", err)
+		}
+		var got int
+		if err := barrier.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event <> 'advisory'`).Scan(&got); err != nil {
+			fail("count lock waiters: %v", err)
+		}
 		if got >= n {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatalf("fewer than %d transactions waiting on a lock", n)
+	fail("fewer than %d transactions waiting on a lock", n)
 }
 
 // Close decides "nobody else is here" (D5) while an acceptance into the same
@@ -198,10 +220,10 @@ func TestCloseWaitsForAnAcceptanceIntoTheSameOrganization(t *testing.T) {
 		_, err := f.ws.AcceptInvite(f.ctx, joiner.ID, token, nil)
 		accepted <- err
 	}()
-	f.waitForRowLockWaiters(t, 1)
+	waitForLockWaiters(t, hold, 1)
 	closed := make(chan error, 1)
 	go func() { closed <- f.svc.Close(f.ctx, f.other.ID, o.ID, "mot-minh") }()
-	f.waitForRowLockWaiters(t, 2)
+	waitForLockWaiters(t, hold, 2)
 	if err := hold.Rollback(f.ctx); err != nil {
 		t.Fatal(err)
 	}
