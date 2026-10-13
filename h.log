@@ -1,0 +1,6 @@
+$ pnpm knip; echo "G603C_KNIP_EXIT $?"
+
+> uniwork@ knip /workspace
+> knip
+
+G603C_KNIP_EXIT 0
