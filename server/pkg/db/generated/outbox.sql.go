@@ -177,19 +177,20 @@ const insertDomainOutboxEvent = `-- name: InsertDomainOutboxEvent :exec
 INSERT INTO outbox_events (
   id, workspace_id, organization_id, topic, payload, status,
   event_version, correlation_id, actor_kind, actor_id, available_at
-) VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, $8, $9, now())
+) VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, $8, $9, COALESCE($10::timestamptz, now()))
 `
 
 type InsertDomainOutboxEventParams struct {
-	ID             string      `json:"id"`
-	WorkspaceID    pgtype.Text `json:"workspace_id"`
-	OrganizationID pgtype.Text `json:"organization_id"`
-	Topic          string      `json:"topic"`
-	Payload        string      `json:"payload"`
-	EventVersion   int32       `json:"event_version"`
-	CorrelationID  pgtype.Text `json:"correlation_id"`
-	ActorKind      pgtype.Text `json:"actor_kind"`
-	ActorID        pgtype.Text `json:"actor_id"`
+	ID             string             `json:"id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	OrganizationID pgtype.Text        `json:"organization_id"`
+	Topic          string             `json:"topic"`
+	Payload        string             `json:"payload"`
+	EventVersion   int32              `json:"event_version"`
+	CorrelationID  pgtype.Text        `json:"correlation_id"`
+	ActorKind      pgtype.Text        `json:"actor_kind"`
+	ActorID        pgtype.Text        `json:"actor_id"`
+	AvailableAt    pgtype.Timestamptz `json:"available_at"`
 }
 
 // Chỉ package internal/audit được gọi câu này (arch_test.go giữ luật);
@@ -205,7 +206,31 @@ func (q *Queries) InsertDomainOutboxEvent(ctx context.Context, arg InsertDomainO
 		arg.CorrelationID,
 		arg.ActorKind,
 		arg.ActorID,
+		arg.AvailableAt,
 	)
+	return err
+}
+
+const insertDomainOutboxEventsBatch = `-- name: InsertDomainOutboxEventsBatch :exec
+INSERT INTO outbox_events (
+  id, workspace_id, organization_id, topic, payload, status,
+  event_version, correlation_id, actor_kind, actor_id, available_at
+)
+SELECT
+  t.id, NULLIF(t.workspace_id, ''), NULLIF(t.organization_id, ''), t.topic, t.payload, 'PENDING',
+  t.event_version, NULLIF(t.correlation_id, ''), NULLIF(t.actor_kind, ''), NULLIF(t.actor_id, ''), now()
+FROM jsonb_to_recordset($1::jsonb) AS t(
+  id text, workspace_id text, organization_id text, topic text, payload text,
+  event_version integer, correlation_id text, actor_kind text, actor_id text
+)
+`
+
+// tenant: system
+// Chỉ package internal/audit được gọi câu này (arch_test.go giữ luật): the
+// multi-row form of InsertDomainOutboxEvent. rows is a JSON array with one
+// object per outbox row; an empty workspace/organization/correlation/actor is NULL.
+func (q *Queries) InsertDomainOutboxEventsBatch(ctx context.Context, rows []byte) error {
+	_, err := q.db.Exec(ctx, insertDomainOutboxEventsBatch, rows)
 	return err
 }
 

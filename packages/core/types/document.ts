@@ -14,7 +14,7 @@ import { CommentReactionSchema } from "./task-collaboration";
 // type: a server that ships a new enum value degrades through a `default`
 // branch, never a failed parse.
 
-export const DOCUMENT_KINDS = ["page", "file"] as const;
+export const DOCUMENT_KINDS = ["page", "file", "folder"] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
 export const DOCUMENT_VISIBILITIES = ["workspace", "restricted"] as const;
@@ -240,8 +240,15 @@ export const DocumentSummarySchema = z.object({
   revision: z.string(),
   current_version: z.number().optional().default(0),
   position: z.number().optional().default(0),
+  // Size of the current file version (0 for pages and folders) and where the
+  // document came from. Newer fields: a drifted value reads as absent rather
+  // than failing the whole page.
+  size_bytes: z.number().nullable().optional().catch(undefined),
+  origin: z.string().nullable().optional().catch(undefined),
   snippet: z.string().nullable().optional(),
-  my_level: z.string().nullable().optional(),
+  // The viewer's level on this row (every list route carries it); a drifted
+  // value reads as absent, which the views treat as view-only.
+  my_level: z.string().nullable().optional().catch(undefined),
   via: z.string().nullable().optional(),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
@@ -253,11 +260,15 @@ export const DocumentSummarySchema = z.object({
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
 });
+/** Uploaded bytes, or something UniWork made (page, folder, blank file, converted copy). */
+export type DocumentOrigin = "upload" | "created";
+
 export type DocumentSummary = Omit<
   z.infer<typeof DocumentSummarySchema>,
-  "kind" | "visibility" | "my_level" | "via" | "owner_kind"
+  "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin"
 > & {
   kind: DocumentKind;
+  origin?: DocumentOrigin | null;
   visibility: DocumentVisibility;
   my_level?: DocumentAccessLevel | null;
   via?: DocumentAccessVia | null;
