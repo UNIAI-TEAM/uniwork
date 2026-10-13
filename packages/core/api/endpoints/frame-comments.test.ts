@@ -34,6 +34,14 @@ const wireComment = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+// The shared body fixture (contract-collab §3): a mention token + every Markdown-subset part. Copied
+// verbatim from the fork's BODY_FIXTURE (web/docs/protocol/test/comments.test.ts in uniwork-office) so
+// both sides of the relay pin the same bytes; keep the two in step.
+const BODY_FIXTURE =
+  "Xem lại [@Nguyễn \\[An\\]](mention://member/01J8X4USR0AAAAAAAAAAAAAAAA) giúp nhé:\n" +
+  "**đậm**, *nghiêng*, `code [@x](mention://member/01J8X4USR0BBBBBBBBBBBBBBBB)`,\n" +
+  "[liên kết](https://example.com/a?b=1&c=2)  \nxuống dòng — <b>không HTML</b> ✓";
+
 const lastCall = () => {
   const [url, init] = vi.mocked(fetch).mock.calls.at(-1) ?? [];
   return { url: String(url), init: (init ?? {}) as RequestInit };
@@ -106,6 +114,28 @@ describe("frame comment endpoints (contract-collab §2)", () => {
     expect(JSON.parse(String(init.body))).toEqual(payload);
     expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBe("k-1");
     expect(out).toEqual({ comment: wireComment() });
+  });
+
+  it("creates the shared fixture body byte-identical in the request JSON and reads it back unchanged", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ comment: wireComment({ body: BODY_FIXTURE, kind: "discussion" }) }, 201));
+    const out = await createFrameComment("d1", { kind: "discussion", body: BODY_FIXTURE });
+    const sent = String(lastCall().init.body);
+    expect((JSON.parse(sent) as { body: string }).body).toBe(BODY_FIXTURE);
+    expect(sent).toContain(JSON.stringify(BODY_FIXTURE));
+    expect(out?.comment.body).toBe(BODY_FIXTURE);
+  });
+
+  it("parses a list answer carrying the shared fixture body byte-identical", async () => {
+    const list = {
+      comments: [wireComment({ body: BODY_FIXTURE })],
+      mentions: [{ user_id: "01J8X4USR0AAAAAAAAAAAAAAAA", display_name: "Nguyễn An", state: "ok" }],
+      list_token: "lt1:aa",
+      unchanged: false,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json(list));
+    const out = await listFrameComments("d1", {});
+    expect((out as { comments: Array<{ body: string }> }).comments[0]?.body).toBe(BODY_FIXTURE);
+    expect(out).toEqual(list);
   });
 
   it("updates, resolves and reopens on the comment routes", async () => {

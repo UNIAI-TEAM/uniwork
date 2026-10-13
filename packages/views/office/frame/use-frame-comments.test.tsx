@@ -30,6 +30,14 @@ const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
 const COMMENTS_PATH = "/api/v1/documents/doc-1/comments";
 const ME = "01J8X4USR0AAAAAAAAAAAAAAAA";
 const WIRE = { id: "c1", document_id: "doc-1", kind: "comment", body: "x", anchor: null, anchor_state: null, deleted_at: null };
+// The shared body fixture (contract-collab §3): a mention token + every Markdown-subset part. Copied
+// verbatim from the fork's BODY_FIXTURE (web/docs/protocol/test/comments.test.ts in uniwork-office) so
+// both sides of the relay pin the same bytes; keep the two in step.
+const BODY_FIXTURE =
+  "Xem lại [@Nguyễn \\[An\\]](mention://member/01J8X4USR0AAAAAAAAAAAAAAAA) giúp nhé:\n" +
+  "**đậm**, *nghiêng*, `code [@x](mention://member/01J8X4USR0BBBBBBBBBBBBBBBB)`,\n" +
+  "[liên kết](https://example.com/a?b=1&c=2)  \nxuống dòng — <b>không HTML</b> ✓";
+
 const minted = (canEdit = true) => ({
   token: "tok-1", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
   document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: canEdit, module: "docs",
@@ -213,6 +221,20 @@ describe("useFrameComments: the frame's requests go to the D API with the user's
     frame.api.mockResolvedValue(list);
     const answer = await frame.answerOf(await frame.request("comments.list", {}));
     expect(answer.payload).toEqual(list);
+  });
+
+  it("relays the shared fixture body byte-identical on create and on the list answer (card T1)", async () => {
+    const frame = setup({ myLevel: "edit" });
+    await frame.boot();
+    frame.api.mockResolvedValue({ comment: { ...WIRE, kind: "discussion", body: BODY_FIXTURE } });
+    const created = await frame.answerOf(await frame.request("comments.create", { kind: "discussion", body: BODY_FIXTURE }));
+    const [, createOpts] = frame.api.mock.calls.at(-1)!;
+    expect((createOpts as { body: { body: string } }).body.body).toBe(BODY_FIXTURE);
+    expect((created.payload as { comment: { body: string } }).comment.body).toBe(BODY_FIXTURE);
+    const list = { comments: [{ ...WIRE, body: BODY_FIXTURE }], mentions: [], list_token: "lt1:cc", unchanged: false };
+    frame.api.mockResolvedValue(list);
+    const listed = await frame.answerOf(await frame.request("comments.list", {}));
+    expect((listed.payload as { comments: Array<{ body: string }> }).comments[0]!.body).toBe(BODY_FIXTURE);
   });
 
   it("creates with one Idempotency-Key kept across the retries of that Send, and a new one after it succeeded", async () => {
