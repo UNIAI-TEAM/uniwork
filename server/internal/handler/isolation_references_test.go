@@ -207,6 +207,10 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/auth/desktop/authorize", what: "pending attempt", body: map[string]any{
 		"attempt_id": isoRef("desktopAttempt"), "csrf_token": "ref", "decision": "approve"},
 		noControl: "approving B's own attempt would need the CSRF token only its consent page was shown", covers: []string{"DesktopConsentSDI.attempt_id"}},
+	// T6 of the offline lease threat model: A's signed lease replayed on B's
+	// own document from B's device names a row that is not B's.
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/office/offline-lease", what: "another tenant's lease", body: map[string]any{
+		"lease": isoRef("offlineLease")}},
 	{method: "POST", pattern: "/api/v1/office/sessions/exchange", what: "ticket and device", body: map[string]any{
 		"launch_ticket": isoRef("launchTicket"), "client_id": "uniwork-office", "deployment_id": "default", "device_session_id": isoRef("deviceSession")},
 		noControl: "a redeemed ticket is spent, and the matrix signs B in with a browser token, not a device bearer", covers: []string{"ExchangeOfficeLaunchSessionSDI.device_session_id"}},

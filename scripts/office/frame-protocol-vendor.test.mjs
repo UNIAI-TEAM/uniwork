@@ -116,3 +116,41 @@ test("every frame pin records the same protocolSha256, equal to the vendored pro
     );
   }
 });
+
+test("the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)", () => {
+  const source = normaliseVendored(readFileSync(join(OFFICE_DIR, VENDORED_FILES.protocol), "utf8"));
+  const init = source.slice(source.indexOf("export interface InitPayload"), source.indexOf("export interface InitRecovery"));
+  assert.match(init, /^ {2}downloadMaxBytes\?: number$/m, "InitPayload declares an optional downloadMaxBytes");
+  assert.match(source, /function isPositiveSafeInt\(x: unknown\): x is number \{\s*return typeof x === 'number' && Number\.isSafeInteger\(x\) && x > 0\s*\}/);
+  assert.match(source, /isOpt\(x\.downloadMaxBytes, isPositiveSafeInt\)/, "isInitPayload accepts the field only when absent or a positive safe integer");
+});
+
+test("the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping", () => {
+  const source = normaliseVendored(readFileSync(join(OFFICE_DIR, VENDORED_FILES.protocol), "utf8"));
+  const init = source.slice(source.indexOf("export interface InitPayload"), source.indexOf("export interface InitRecovery"));
+  assert.match(init, /^ {2}commentsLevel\?: CommentsLevel$/m, "InitPayload declares an optional commentsLevel");
+  assert.match(source, /export function commentsErrorFromHttp\(/, "the fork's one HTTP -> protocol error mapping is vendored for the host to use");
+  assert.match(source, /'comments\.list'/);
+  assert.match(source, /'comments\.reveal'/);
+  assert.match(source, /'comments\.changed'/);
+  assert.match(source, /'mentions\.search'/);
+  assert.match(source, /PROTOCOL_VERSION = 1\b/, "G8-08 adds options only, the protocol stays version 1");
+});
+
+test("the three vendored files name one fork commit in their header", () => {
+  const shas = Object.entries(VENDORED_FILES).map(([key, file]) => {
+    const header = readFileSync(join(OFFICE_DIR, file), "utf8").split(/\r?\n/).slice(0, 3).join("\n");
+    const match = header.match(new RegExp(`web/docs/protocol/${key === "protocol" ? "types" : key}\\.ts at ([0-9a-f]{40})`));
+    assert.ok(match, `${file}: no fork commit in its header`);
+    return match[1];
+  });
+  assert.equal(new Set(shas).size, 1, `the vendored files come from different fork commits: ${shas.join(", ")}`);
+});
+
+test("the vendored protocol carries the OQ-C2 comments.create anchor rule", () => {
+  const source = normaliseVendored(readFileSync(join(OFFICE_DIR, VENDORED_FILES.protocol), "utf8"));
+  assert.match(source, /function isCommentCreateAnchorShape\(/, "the fork's anchor-shape helper is vendored");
+  const validator = source.slice(source.indexOf("'request:comments.create'"), source.indexOf("'request:comments.update'"));
+  assert.match(validator, /isCommentCreateAnchorShape\(x\)/, "request:comments.create validates the OQ-C2 shape (root comment anchored, reply and discussion not)");
+  assert.doesNotMatch(validator, /x\.anchor === undefined \|\| x\.base_version_id !== undefined/, "the older anchor-needs-base-only check is gone");
+});

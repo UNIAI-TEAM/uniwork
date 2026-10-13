@@ -175,8 +175,8 @@ kubectl -n uniwork exec deploy/uniwork-be -- wget -qO- http://127.0.0.1:8080/rea
 Public edge (after Certificate + routes):
 
 ```bash
-curl -fsS https://uniwork.unicomhub.com/ | head
-curl -fsS https://uniwork.unicomhub.com/api/v1/config | head
+curl -fsS https://uniworkos.com/ | head
+curl -fsS https://uniworkos.com/api/v1/config | head
 ```
 
 Redis DB 15: from `redis-cache-master` in `reap-data`, `SELECT 15;` then `DBSIZE`—expect `> 0` after a successful login/session flow.

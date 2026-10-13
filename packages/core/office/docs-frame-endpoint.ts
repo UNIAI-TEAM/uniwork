@@ -1,9 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at ed580a5330fa3e50145d5f28ea12b3e5964910e6
-// (fork lane feature/UNI-1339-x02-frame-protocol, X-02 on main 0d03b185: doc.remoteVersion, FileMeta.revision, api.open
-// versionId/versionChanged (OQ-P3), api.download, aiRun, the download and uniworkAi capability keys). Byte-identical except the
-// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change
-// the fork, re-vendor, update this SHA.
+// web/docs/protocol/endpoint.ts at 6dce8341a5703902afde0886c29e416ecec55a41
+// (fork lane feature/UNI-1351-g5-03w-new-version-web rebased on fork main 7e082de3: the G8-08 comments protocol with the OQ-C2 anchor rules
+// on X-02 r2b, plus G5-03w doc.blocked).
+// Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
+// Do not edit here: change the fork, re-vendor, update this SHA.
 /**
  * Shared postMessage engine for host.ts and client.ts: origin/source checks,
  * request/response correlation with ids + timeouts + cancellation, error

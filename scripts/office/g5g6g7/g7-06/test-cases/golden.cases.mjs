@@ -329,11 +329,13 @@ test("the job's fixtures are the six the G7-A04 row names", () => {
 
 test("the committed goldens manifest matches its PNG files", () => {
   const manifest = readJson(join(JOB_DIR, "goldens", "manifest.json"));
-  const pin = readJson(join(DEFAULT_PIN_DIR, "docs.pin.json"));
   assert.equal(manifest.schema, 1);
   assert.deepEqual(manifest.viewport, { desktop: { w: 1440, h: 900 }, web: { w: 1720, h: 980 } });
-  assert.equal(manifest.pinVersion, pin.version);
-  assert.ok(sameRevision(manifest.forkSha, pin.gitSha), `${manifest.forkSha} vs ${pin.gitSha}`);
+  // Which build the goldens were blessed at is the live test below; here the
+  // manifest only has to name one, whatever the checkout pins today.
+  assert.match(manifest.pinVersion, /^\d+\.\d+\.\d+-[0-9a-f]{7,}$/);
+  assert.match(manifest.forkSha, /^[0-9a-f]{7,40}$/);
+  assert.ok(manifest.pinVersion.endsWith(`-${manifest.forkSha.slice(0, 7)}`), `${manifest.pinVersion} vs ${manifest.forkSha}`);
   assert.deepEqual(manifest.tolerance, { channel: 16, ratio: 0.001 });
   assert.deepEqual(manifest.maskLimits, { maxAreaSharePerMask: 0.05, maxAreaSharePerEntry: 0.1 });
   const expected = HOSTS.flatMap((host) => FIXTURES.map((fixture) => `${host}/${fixture}`));
@@ -351,6 +353,15 @@ test("the committed goldens manifest matches its PNG files", () => {
       assert.ok(`${host}/${name.slice(0, -4)}` in manifest.entries, `${host}/${name}: PNG without a manifest entry`);
     }
   }
+});
+
+test("live pin: the committed goldens were blessed at the pin apps/web ships (docs.pin.json)", () => {
+  // Compares two live sources with each other, no constant: after a re-pin this
+  // is red until the goldens are re-blessed (job.mjs --update-goldens).
+  const manifest = readJson(join(JOB_DIR, "goldens", "manifest.json"));
+  const pin = readJson(join(DEFAULT_PIN_DIR, "docs.pin.json"));
+  assert.equal(manifest.pinVersion, pin.version);
+  assert.ok(sameRevision(manifest.forkSha, pin.gitSha), `${manifest.forkSha} vs ${pin.gitSha}`);
 });
 
 test("golden: the old flat viewport shape in manifest.json is BLOCKED invalid_manifest, never read as one for both hosts", () => {

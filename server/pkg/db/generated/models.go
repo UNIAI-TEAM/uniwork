@@ -596,6 +596,40 @@ type DocumentComment struct {
 	ResolvedByID    pgtype.Text        `json:"resolved_by_id"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Anchor          []byte             `json:"anchor"`
+	AnchorVersionID pgtype.Text        `json:"anchor_version_id"`
+	AnchorState     pgtype.Text        `json:"anchor_state"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	DeletedByID     pgtype.Text        `json:"deleted_by_id"`
+	DeletedByKind   pgtype.Text        `json:"deleted_by_kind"`
+}
+
+type DocumentCommentMention struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	CommentID      string             `json:"comment_id"`
+	UserID         string             `json:"user_id"`
+	State          string             `json:"state"`
+	NotifiedAt     pgtype.Timestamptz `json:"notified_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DocumentCommentRevision struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	CommentID      string             `json:"comment_id"`
+	Body           string             `json:"body"`
+	Revision       int64              `json:"revision"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type DocumentCommitIntent struct {
@@ -1543,6 +1577,36 @@ type OfficeLaunchSession struct {
 	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
 	CreatedBy       string             `json:"created_by"`
 	CreatedByKind   string             `json:"created_by_kind"`
+}
+
+type OfficeOfflineLease struct {
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	DocumentID      string             `json:"document_id"`
+	UserID          string             `json:"user_id"`
+	DeviceSessionID string             `json:"device_session_id"`
+	DeploymentID    string             `json:"deployment_id"`
+	VersionID       string             `json:"version_id"`
+	Version         int32              `json:"version"`
+	Revision        int64              `json:"revision"`
+	Level           string             `json:"level"`
+	PolicyEpoch     int64              `json:"policy_epoch"`
+	Generation      int32              `json:"generation"`
+	IssuedAt        pgtype.Timestamptz `json:"issued_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	RevokeReason    pgtype.Text        `json:"revoke_reason"`
+	CreatedBy       string             `json:"created_by"`
+	CreatedByKind   string             `json:"created_by_kind"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OfficeOfflinePolicy struct {
+	OrganizationID string             `json:"organization_id"`
+	Epoch          int64              `json:"epoch"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Organization struct {

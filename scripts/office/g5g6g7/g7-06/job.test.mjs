@@ -26,6 +26,19 @@ import "./test-cases/brand.cases.mjs";
 
 // ---- the CLI: flags, env forms, exit codes and result.json ------------------
 
+/**
+ * The pin of the checked-in fake captures, read from the fixture itself: the
+ * CLI tests run against a fake pin dir that names this build, never against
+ * apps/web's live pin, so a re-pin cannot turn them red. Only the tests marked
+ * "live" below read the real pin.
+ */
+const FIXTURE_PIN = readJson(join(CAPTURES, "desktop", "meta.json"));
+
+/** A six-pin dir at the fixture's pin; `overrides` reaches fx.writePins (gitSha, protocolSha256, ...). */
+function fixturePinDir(overrides = {}) {
+  return fx.writePins(tmpDir("g7-06-pins-"), { gitSha: FIXTURE_PIN.forkSha, version: FIXTURE_PIN.pinVersion, ...overrides });
+}
+
 
 test("job-lib carries no dead exports: mergeStatus/STATUSES/STATUS_RANK are gone", async () => {
   const lib = await import("./job-lib.mjs");
@@ -37,20 +50,21 @@ test("job-lib carries no dead exports: mergeStatus/STATUSES/STATUS_RANK are gone
 
 test("the CLI runs the checked-in fake captures green through --checks brand", () => {
   const dir = outDir("cli-brand-ok");
-  const run = cli(["--checks", "brand", "--captures", CAPTURES, "--out", dir]);
+  const run = cli(["--checks", "brand", "--captures", CAPTURES, "--pin-dir", fixturePinDir(), "--out", dir]);
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
   assert.match(run.stdout, /brand {2,}PASS/);
   const result = readJson(join(dir, "result.json"));
   assert.deepEqual(Object.keys(result.checks), ["brand"]);
   assert.equal(result.checks.brand.status, "PASS");
-  assert.equal(result.pinVersion, readJson(join(DEFAULT_PIN_DIR, "docs.pin.json")).version);
+  assert.equal(result.pinVersion, FIXTURE_PIN.pinVersion);
+  assert.equal(result.forkSha, FIXTURE_PIN.forkSha);
 });
 
 test("the CLI exits 1 on a brand hit and writes it into result.json", () => {
   const captures = cx.mkCaptures(tmpDir("g7-06-captures-"));
   writeFileSync(join(captures, "desktop", `${ONE}.txt`), "GenOffice — báo cáo doanh thu quý một của khu vực.\n");
   const dir = outDir("cli-brand-red");
-  const run = cli(["--checks", "brand", "--captures", captures, "--out", dir]);
+  const run = cli(["--checks", "brand", "--captures", captures, "--pin-dir", fixturePinDir(), "--out", dir]);
   assert.equal(run.status, 1);
   assert.deepEqual(readJson(join(dir, "result.json")).checks.brand.reasons, [`brand_text:desktop/${ONE}/${ONE}.txt`]);
   assert.ok(run.stdout.includes(`brand_text:desktop/${ONE}/${ONE}.txt`), run.stdout);
@@ -60,7 +74,7 @@ test("a corrupt capture meta blocks the pairs and still writes result.json", () 
   const captures = cx.mkCaptures(tmpDir("g7-06-captures-"));
   writeFileSync(join(captures, "desktop", "meta.json"), "{ not json");
   const dir = outDir("cli-corrupt-meta");
-  const run = cli(["--checks", "brand", "--captures", captures, "--out", dir]);
+  const run = cli(["--checks", "brand", "--captures", captures, "--pin-dir", fixturePinDir(), "--out", dir]);
   assert.equal(run.status, 77, `${run.stdout}\n${run.stderr}`);
   const result = readJson(join(dir, "result.json"));
   assert.equal(result.checks.brand.status, "BLOCKED");
@@ -72,7 +86,7 @@ test("a check that throws is BLOCKED with its reason and result.json still exist
   rmSync(join(captures, "desktop", `${ONE}.txt`), { force: true });
   mkdirSync(join(captures, "desktop", `${ONE}.txt`));
   const dir = outDir("cli-check-crash");
-  const run = cli(["--checks", "brand", "--captures", captures, "--out", dir]);
+  const run = cli(["--checks", "brand", "--captures", captures, "--pin-dir", fixturePinDir(), "--out", dir]);
   assert.equal(run.status, 77, `${run.stdout}\n${run.stderr}`);
   const result = readJson(join(dir, "result.json"));
   assert.equal(result.checks.brand.status, "BLOCKED");
@@ -81,23 +95,45 @@ test("a check that throws is BLOCKED with its reason and result.json still exist
 
 test("the CLI exits 77 when protocol has no installed bundle", () => {
   const dir = outDir("cli-protocol-blocked");
-  const run = cli(["--checks", "protocol", "--out", dir]);
+  const run = cli(["--checks", "protocol", "--pin-dir", fixturePinDir(), "--out", dir]);
   assert.equal(run.status, 77);
   const result = readJson(join(dir, "result.json"));
   assert.equal(result.checks.protocol.status, "BLOCKED");
-  assert.match(result.forkSha, /^[0-9a-f]{7,}$/);
-  assert.ok(result.pinVersion);
+  assert.equal(result.forkSha, FIXTURE_PIN.forkSha);
+  assert.equal(result.pinVersion, FIXTURE_PIN.pinVersion);
 });
 
 test("the CLI exits 1 for a fork that is not the pinned one", () => {
-  const docs = readJson(join(DEFAULT_PIN_DIR, "docs.pin.json"));
   const fork = fx.mkFakeFork(tmpDir("g7-06-fork-"));
-  const installed = fx.writeInstalled(tmpDir("g7-06-installed-"), { version: docs.version, gitSha: fork.sha, protocolSha256: fork.digests });
+  // The pin records digests that are not this fork's: the fork is another build.
+  const otherBuild = Object.fromEntries(Object.keys(fork.digests).map((key) => [key, "0".repeat(64)]));
+  const pinDir = fixturePinDir({ protocolSha256: otherBuild });
+  const installed = fx.writeInstalled(tmpDir("g7-06-installed-"), { version: FIXTURE_PIN.pinVersion, gitSha: fork.sha, protocolSha256: fork.digests });
   const dir = outDir("cli-protocol-fail");
-  const run = cli(["--checks", "protocol", "--fork-dir", fork.dir, "--fork-sha", fork.sha, "--installed", installed, "--out", dir]);
+  const run = cli(["--checks", "protocol", "--fork-dir", fork.dir, "--fork-sha", fork.sha, "--installed", installed, "--pin-dir", pinDir, "--out", dir]);
   assert.equal(run.status, 1);
   const reasons = readJson(join(dir, "result.json")).checks.protocol.reasons;
   assert.ok(reasons.includes("pin_mismatch:docs:protocol"), JSON.stringify(reasons));
+});
+
+test("the CLI reads the pin from --pin-dir / G706_PIN_DIR, and the live pin only without them", () => {
+  const dir = outDir("cli-pin-dir");
+  const other = fixturePinDir({ gitSha: "feedfac", version: "0.1.0-feedfac" });
+  const viaFlag = cli(["--checks", "protocol", "--pin-dir", other, "--out", dir]);
+  assert.equal(readJson(join(dir, "result.json")).pinVersion, "0.1.0-feedfac", viaFlag.stderr);
+  const viaEnv = cli(["--checks", "protocol", "--out", dir], { G706_PIN_DIR: other });
+  assert.equal(readJson(join(dir, "result.json")).forkSha, "feedfac", viaEnv.stderr);
+  assert.equal(optionsFromEnv({}, {}).pinDir, DEFAULT_PIN_DIR);
+  assert.equal(optionsFromEnv({ pinDir: "/a" }, { G706_PIN_DIR: "/b" }).pinDir, "/a");
+});
+
+test("live pin: the CLI without --pin-dir reports the pin apps/web ships", () => {
+  const dir = outDir("cli-live-pin");
+  cli(["--checks", "protocol", "--out", dir]);
+  const live = readJson(join(DEFAULT_PIN_DIR, "docs.pin.json"));
+  const result = readJson(join(dir, "result.json"));
+  assert.equal(result.pinVersion, live.version);
+  assert.equal(result.forkSha, live.gitSha);
 });
 
 test("the CLI refuses an unknown check name with the usage line", () => {

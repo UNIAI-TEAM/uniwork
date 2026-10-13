@@ -51,6 +51,18 @@ export type CommentUploadWiring = {
   uploading?: boolean;
 };
 
+/** The frame a deleted comment leaves while its replies survive (G8-03,
+ *  contract-collab 2.4): no author, body or actions - nothing on it can be
+ *  edited, resolved, reacted to or answered; the replies below stay live. */
+function DeletedCommentFrame({ id, tPrefix, testIdPrefix }: { id: string; tPrefix: string; testIdPrefix: string }) {
+  const { t } = useTranslation();
+  return (
+    <div id={`comment-${id}`} data-testid={`${testIdPrefix}-${id}`} data-deleted="true" className="px-3 py-2.5">
+      <p className="text-caption italic text-muted-foreground">{t(`${tPrefix}.comment_deleted`)}</p>
+    </div>
+  );
+}
+
 function CommentEntry<T extends CommentLike>({
   comment,
   attachments,
@@ -101,6 +113,10 @@ function CommentEntry<T extends CommentLike>({
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  if (comment.deleted_at) {
+    return <DeletedCommentFrame id={comment.id} tPrefix={tPrefix} testIdPrefix={testIdPrefix} />;
+  }
 
   return (
     <div id={`comment-${comment.id}`} data-testid={`${testIdPrefix}-${comment.id}`} className={cn(

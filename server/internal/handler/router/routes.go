@@ -527,6 +527,9 @@ type Routes struct {
 	ReopenDocumentComment         http.HandlerFunc
 	AddDocumentCommentReaction    http.HandlerFunc
 	RemoveDocumentCommentReaction http.HandlerFunc
+	// ListDocumentCommentRevisions is the edit history (G8-03, UNI-1398).
+	ListDocumentCommentRevisions  http.HandlerFunc
+	ListDocumentMentionCandidates http.HandlerFunc
 	FavoriteDocument              http.HandlerFunc
 	UnfavoriteDocument            http.HandlerFunc
 	ListDocumentFavorites         http.HandlerFunc
@@ -543,23 +546,26 @@ type Routes struct {
 
 	// Documents collections, lifecycle, sharing and public reads (C-01 §5.1,
 	// §5.3, §5.4; UNI-679, G1-05b).
-	ListDocuments          http.HandlerFunc
-	ListRecentDocuments    http.HandlerFunc
-	ListDocumentChanges    http.HandlerFunc
-	ListSharedWithMe       http.HandlerFunc
-	DocumentTree           http.HandlerFunc
-	MoveDocument           http.HandlerFunc
-	ArchiveDocument        http.HandlerFunc
-	RestoreDocument        http.HandlerFunc
-	ListDocumentShares     http.HandlerFunc
-	CreateDocumentShare    http.HandlerFunc
-	RevokeDocumentShare    http.HandlerFunc
-	CreateDocumentLink     http.HandlerFunc
-	RevokeDocumentLink     http.HandlerFunc
-	ListDocumentAccessLogs http.HandlerFunc
-	GetDocumentSettings    http.HandlerFunc
-	SetDocumentSettings    http.HandlerFunc
-	GetPublicDocument      http.HandlerFunc
-	DownloadPublicDocument http.HandlerFunc
-	GetPublicDocumentAsset http.HandlerFunc
+	ListDocuments       http.HandlerFunc
+	ListRecentDocuments http.HandlerFunc
+	ListDocumentChanges http.HandlerFunc
+	// Offline lease of one desktop device on one document (G5-08s).
+	PutOfficeOfflineLease    http.HandlerFunc
+	DeleteOfficeOfflineLease http.HandlerFunc
+	ListSharedWithMe         http.HandlerFunc
+	DocumentTree             http.HandlerFunc
+	MoveDocument             http.HandlerFunc
+	ArchiveDocument          http.HandlerFunc
+	RestoreDocument          http.HandlerFunc
+	ListDocumentShares       http.HandlerFunc
+	CreateDocumentShare      http.HandlerFunc
+	RevokeDocumentShare      http.HandlerFunc
+	CreateDocumentLink       http.HandlerFunc
+	RevokeDocumentLink       http.HandlerFunc
+	ListDocumentAccessLogs   http.HandlerFunc
+	GetDocumentSettings      http.HandlerFunc
+	SetDocumentSettings      http.HandlerFunc
+	GetPublicDocument        http.HandlerFunc
+	DownloadPublicDocument   http.HandlerFunc
+	GetPublicDocumentAsset   http.HandlerFunc
 }

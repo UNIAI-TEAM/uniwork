@@ -82,6 +82,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 		document_access_logs, document_share_links, document_shares,
 		document_assets, document_versions, documents, office_jobs,
 		document_change_snapshots, document_change_snapshot_items,
+		office_offline_leases, office_offline_policy,
 		graph_dirty, graph_node_facts, graph_edges, graph_nodes,
 		saved_signatures CASCADE`)
 	if err != nil {

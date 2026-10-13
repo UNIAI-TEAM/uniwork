@@ -6,7 +6,8 @@ import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
 import { OFFICE_FRAME_DOWNLOAD_MAX_BYTES } from "./frame-download";
-import { useDocsFrameSession, type DocsFrameSessionOptions } from "./use-docs-frame-session";
+import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
+import { useDocsFrameSession } from "./use-docs-frame-session";
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
 const FILE = { fileId: "doc-1", name: "Plan.docx" };
@@ -414,6 +415,29 @@ describe("useDocsFrameSession: api.download", () => {
     const viewer = setup({ readonly: true });
     await viewer.boot();
     expect(viewer.sent("init")[0]?.payload).toMatchObject({ capabilities: { download: false } });
+  });
+
+  it("sends the download cap in init exactly when download is advertised, the same constant api.download enforces", async () => {
+    const editor = setup();
+    await editor.boot();
+    const editorInit = editor.sent("init")[0]?.payload as { capabilities: { download: boolean }; downloadMaxBytes?: number };
+    expect(editorInit.capabilities.download).toBe(true);
+    expect(editorInit.downloadMaxBytes).toBe(OFFICE_FRAME_DOWNLOAD_MAX_BYTES);
+    editor.hook.unmount();
+    document.body.innerHTML = "";
+    const viewer = setup({ readonly: true });
+    await viewer.boot();
+    const viewerInit = viewer.sent("init")[0]?.payload as { capabilities: { download: boolean } };
+    expect(viewerInit.capabilities.download).toBe(false);
+    expect(viewerInit).not.toHaveProperty("downloadMaxBytes");
+  });
+
+  it("sends no download cap when the page is editable but the minted token says can_edit: false", async () => {
+    const tokenViewer = setup({ canEdit: false });
+    await tokenViewer.boot();
+    const init = tokenViewer.sent("init")[0]?.payload as { capabilities: { download: boolean } };
+    expect(init.capabilities.download).toBe(false);
+    expect(init).not.toHaveProperty("downloadMaxBytes");
   });
 
   it.each([

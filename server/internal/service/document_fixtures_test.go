@@ -209,7 +209,7 @@ func TestDocumentMatrixScene(t *testing.T) {
 				if _, err := f.svc.ListDocumentVersions(f.ctx, c.actor, doc.ID, ListDocumentVersionsInput{}); !errors.Is(err, c.want) {
 					t.Fatalf("history: %v, want %v", err, c.want)
 				}
-				if _, err := f.svc.DocumentComments(f.ctx, c.actor, doc.ID); !errors.Is(err, c.want) {
+				if _, err := f.svc.DocumentComments(f.ctx, c.actor, doc.ID, DocumentCommentListInput{}); !errors.Is(err, c.want) {
 					t.Fatalf("comments: %v, want %v", err, c.want)
 				}
 				page, err := f.svc.ListDocuments(f.ctx, c.actor, m.aWS1, ListDocumentsInput{Query: "matrix"})

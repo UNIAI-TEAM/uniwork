@@ -88,6 +88,11 @@ type isoWorld struct {
 	// token -> {document id, its frame token}. do() prefers it on that
 	// document's own routes (resolve, linked), which a DOCX token cannot open.
 	frameMarkdown map[string][2]string
+	// deviceTokens maps a tenant owner's session token to an access token
+	// of their desktop device session (buildOffice). do() sends it in its
+	// place on the offline lease routes, which refuse a browser session, so
+	// every pass reaches the document check as the same caller.
+	deviceTokens map[string]string
 }
 
 // newIsolationServer wires every service the production binary wires
@@ -285,6 +290,9 @@ func (w *isoWorld) do(t *testing.T, method, path, token string, body isoBody) (i
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
+	if device, ok := w.deviceTokens[token]; ok && strings.Contains(path, "/office/offline-lease") {
+		token = device
+	}
 	if frame, ok := w.frameTokens[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/") {
 		if md, ok := w.frameMarkdown[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/documents/"+md[0]) {
 			frame = md[1]
@@ -467,6 +475,14 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	// The frame token stays; it is now sent in place of the new session.
 	w.frameTokens[tn.token] = tn.ids["frameToken"]
 	w.frameMarkdown[tn.token] = [2]string{tn.ids["frameMarkdown"], tn.ids["frameMarkdownToken"]}
+	device, err := long.MintSession(tn.userID, tn.ids["deviceSession"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.deviceTokens == nil {
+		w.deviceTokens = map[string]string{}
+	}
+	w.deviceTokens[tn.token] = device
 	return tn
 }
 
@@ -791,6 +807,23 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		t.Fatalf("notification: %v", err)
 	}
 	tn.ids["notification"] = n.ID
+
+	// The comment orbit G8-03 added (UNI-1398): one edit-history row and one
+	// mention row of the document comment. Revisions are written by the edit
+	// route and mentions by G8-05; the world seeds them so both tables hold a
+	// row of the tenant's and their read paths can be attacked.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_comment_revisions
+		(id, organization_id, workspace_id, document_id, comment_id, body, revision, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 1, $7, 'human')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["document"], tn.ids["docComment"], m+" doc comment (cũ)", tn.userID); err != nil {
+		t.Fatalf("document comment revision: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_comment_mentions
+		(id, organization_id, workspace_id, document_id, comment_id, user_id, state, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, 'human')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["document"], tn.ids["docComment"], tn.peerID, tn.userID); err != nil {
+		t.Fatalf("document comment mention: %v", err)
+	}
 
 	// A connected Google calendar.
 	tokenEnc, err := w.box.Seal([]byte("token"))

@@ -29,6 +29,7 @@ func TestErrorClassTable(t *testing.T) {
 		"ai_context_forbidden":         "permission",
 		"ai_tool_not_allowed":          "permission",
 		"platform_role_insufficient":   "permission",
+		"offline_lease_revoked":        "permission",
 		"not_found":                    "missing",
 		"engine_incompatible":          "incompatible",
 		"unauthorized":                 "session",
@@ -57,6 +58,10 @@ func TestErrorClassTable(t *testing.T) {
 		// G5-D2 fixes intent retention, so it is checked unclassified too.
 		"change_cursor_expired", "change_cursor_invalid", "run_limit_reached",
 		"office_capability_off", "commit_intent_unknown",
+		// The offline lease codes of G5-D1 row 15; offline_lease_expired is
+		// app-side only and stays unregistered.
+		"offline_lease_device_required", "offline_lease_limit_reached",
+		"document_archived", "offline_lease_expired",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {

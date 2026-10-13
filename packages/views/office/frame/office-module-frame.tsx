@@ -23,6 +23,7 @@ import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
 import { useDocsFrameSession } from "./use-docs-frame-session";
+import { useFrameComments } from "./use-frame-comments";
 
 export interface OfficeModuleFrameControls {
   save: () => Promise<boolean>;
@@ -56,6 +57,12 @@ export interface OfficeModuleFrameProps {
   desktopOpen?: FrameDesktopOpenProps;
   /** The workspace's document list: a reader who is refused the document is offered the way back there. */
   libraryHref?: string;
+  /** The user's effective level on the document (`my_level`); the editor's comments panel shows only what it allows. */
+  myLevel?: string | null;
+  /** The comment a deep link names (`?comment=`): the editor's panel scrolls to it when it has comments. */
+  revealCommentId?: string | null;
+  /** The editor says whether its own panel is the page's comments panel (a frame that predates comments says no). */
+  onFrameCommentsChange?: (framePanel: boolean) => void;
   className?: string;
 }
 
@@ -91,7 +98,7 @@ function useFrameTheme(): Theme {
  */
 export function OfficeModuleFrame({
   module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, className,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId, onFrameCommentsChange, className,
 }: OfficeModuleFrameProps) {
   const frameApi = api ?? defaultFrameApi(module);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
@@ -111,8 +118,13 @@ export function OfficeModuleFrame({
   // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
+  const frameComments = useFrameComments({ wsId, documentId, myLevel, revealCommentId });
+  const { framePanel } = frameComments;
+  const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
+  onFrameCommentsChangeRef.current = onFrameCommentsChange;
   const session = useDocsFrameSession({
     iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
+    comments: frameComments.binding,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
@@ -138,6 +150,14 @@ export function OfficeModuleFrame({
     },
   });
   const { dirty, saveState, print } = session;
+  // The page's own panel is hidden only while a frame serves comments. A re-key keeps the claim
+  // (use-frame-comments holds it until the next ack); a failed frame no longer serves anything, and
+  // an unmount (module fallback, error view, another document) takes it back in the cleanup.
+  const claimsComments = framePanel && session.status !== "failed";
+  useEffect(() => {
+    onFrameCommentsChangeRef.current?.(claimsComments);
+    return () => onFrameCommentsChangeRef.current?.(false);
+  }, [claimsComments]);
   const saveSession = session.save;
   // Header Save and the desktop handoff only need to know whether the edits are now on the server
   // (a new version, or the newest one reloaded over them).
