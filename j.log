@@ -1,0 +1,17 @@
+$ pnpm --filter @uniwork/core exec vitest run api/endpoints/document-comments.test.ts realtime documents types; echo "VITEST_CORE_EXIT=$?"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+
+
+ Test Files  37 passed (37)
+      Tests  657 passed (657)
+   Start at  09:00:26
+   Duration  10.04s (transform 2.06s, setup 4.04s, import 5.28s, tests 7.11s, environment 9.79s)
+
+VITEST_CORE_EXIT=0

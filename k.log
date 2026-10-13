@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/core exec eslint --max-warnings 0 api/endpoints/document-comments.ts api/endpoints/document-comments.test.ts realtime/use-realtime-sync.ts realtime/use-realtime-sync.test.tsx types/events.ts; echo "ESLINT_CORE_EXIT=$?"
+ESLINT_CORE_EXIT=0

@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -5
+634a8510d979891cb62ddc4c4110c2da0c9b012e
+d81027efe5347dc6b69e0b2bcd52728cced0df2d
+634a8510d feat(core): apply comment anchor updates on the client (G8-04)
+ed024b20e test(server): pin the anchor create and PUT rules (G8-04)
+6deec791c feat(server): anchor document comments to a version (G8-04)
+d81027efe Merge G8-06 mention candidates per document into the G5-G7 root (UNI-1401)
+63dcc4f40 chore: remove UniAI issue dumps committed by mistake
