@@ -76,10 +76,18 @@ interface Attached {
   enabled: boolean;
 }
 
-/** An HTTP failure (ApiError, with the server's code) or anything else thrown, as the protocol error the frame reads. */
+/**
+ * An HTTP failure (ApiError, with the server's code) or anything else thrown, as the protocol error the frame reads.
+ * A 405 is the one status the §9 table leaves out: the route exists for another method but not this one - today
+ * `PUT .../comments/anchors`, which G8-04 owns and is not merged - so the frame hears `unsupported` (this host does
+ * not serve the capability) rather than `internal` (a server fault worth retrying). The host never invents a route.
+ */
 function toFrameError(error: unknown): DocsProtocolError {
   if (error instanceof DocsProtocolError) return error;
   if (error instanceof ApiError) {
+    if (error.status === 405) {
+      return new DocsProtocolError({ code: "unsupported", message: "comments: HTTP 405 method not allowed", status: 405, retryable: false });
+    }
     return commentsErrorFromHttp(error.status, { error: { code: error.code, message: error.message } });
   }
   return toProtocolError(error);
