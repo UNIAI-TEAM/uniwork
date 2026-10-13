@@ -224,6 +224,12 @@ type CalendarConnection struct {
 	DisconnectedAt       pgtype.Timestamptz `json:"disconnected_at"`
 }
 
+type ChangeFeedEpoch struct {
+	ID        string             `json:"id"`
+	XactID    pgtype.Uint64      `json:"xact_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type ChatBlock struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
