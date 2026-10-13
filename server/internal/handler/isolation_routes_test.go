@@ -215,6 +215,11 @@ var isoRoutes = map[string]isoSpec{
 		refusedAlso: []int{http.StatusBadRequest}},
 	"GET /api/v1/me/connected-apps":              {class: isoSelf, reason: reasonSelf},
 	"DELETE /api/v1/me/connected-apps/{grantID}": {class: isoSelf, reason: reasonSelf},
+	"PUT /api/v1/orgs/{org}/mcp-policy": {
+		reason: "the attack on A sends enabled false, which would switch A's connector off, so A's tenant digest catches a breach; every other tenant's own call sends true, a repeated enable that answers 200 and leaves its switch on",
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"enabled": tn != w.alpha}}
+		}},
 
 	"GET /uploads/*": {class: isoPublic, reason: "legacy local-disk objects by unguessable key; FileService objects (v1/) are refused - TestServeFileRefusesFileServiceObjects and the uploads subtest"},
 
@@ -486,7 +491,6 @@ var isoRoutes = map[string]isoSpec{
 	"DELETE /api/v1/meetings/{meetingID}/attendance/{participantID}":                           {mixedFirst: "liveMeeting"},
 	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/open":                                {mixedFirst: "liveMeeting"},
 	"POST /api/v1/meetings/{meetingID}/participants/{participantID}/publish":                   {mixedFirst: "liveMeeting"},
-	"PUT /api/v1/orgs/{org}/mcp-policy":                                                        {body: isoJSON(map[string]any{"enabled": true}), reason: "enabled true: every tenant's switch is already on, so the owner's own call is a repeated enable that answers 200 and keeps the first enabler"},
 	"PATCH /api/v1/orgs/{org}/members/{userID}":                                                {body: isoJSON(map[string]any{"role": "admin"})},
 	"PATCH /api/v1/workspaces/{workspaceID}/members/{userID}":                                  {body: isoJSON(map[string]any{"role": "admin"})},
 	"DELETE /api/v1/workspaces/{workspaceID}/chat/users/{userID}/block":                        {mixedOK: "unblocking deletes the caller's own block row in their own organization; any id answers ok, known or not"},
