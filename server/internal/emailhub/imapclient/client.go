@@ -543,6 +543,7 @@ func collectBodyParts(r io.Reader) (ThreadBody, error) {
 		return ThreadBody{}, err
 	}
 	var out ThreadBody
+	var attachmentFallback ThreadBody
 	for {
 		p, err := entity.NextPart()
 		if err == io.EOF {
@@ -555,14 +556,21 @@ func collectBodyParts(r io.Reader) (ThreadBody, error) {
 		if err != nil {
 			return out, err
 		}
-		if part.HTML != "" && len(part.HTML) > len(out.HTML) {
-			out.HTML = part.HTML
+		target := &out
+		if _, ok := p.Header.(*mail.AttachmentHeader); ok {
+			target = &attachmentFallback
+		}
+		if part.HTML != "" && len(part.HTML) > len(target.HTML) {
+			target.HTML = part.HTML
 		}
 		if part.Text != "" && !looksLikeCSSOnly(part.Text) {
-			out.Text = part.Text
-		} else if out.Text == "" {
-			out.Text = part.Text
+			target.Text = part.Text
+		} else if target.Text == "" {
+			target.Text = part.Text
 		}
+	}
+	if !threadBodyHasContent(out) {
+		out = attachmentFallback
 	}
 	return out, nil
 }

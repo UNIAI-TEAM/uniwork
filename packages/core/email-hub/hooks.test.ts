@@ -1,8 +1,16 @@
 import { createElement, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
-import { getEmailHubProviders, startEmailHubOAuth } from "../api/endpoints/email-hub";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import {
+  getEmailHubProviders,
+  getEmailHubThread,
+  listEmailHubThreads,
+  moveEmailHubThread,
+  patchEmailHubThread,
+  startEmailHubOAuth,
+  syncEmailHub,
+} from "../api/endpoints/email-hub";
 import type { EmailHubThread } from "../types/email-hub";
 import {
   emailHubHasReadableBody,
@@ -10,17 +18,47 @@ import {
   flushEmailHubListRefresh,
   invalidateEmailHubReadingCachesForAccount,
   invalidateEmailHubThreadsForAccount,
+  prefetchEmailHubThread,
   patchEmailHubThreadInLists,
   setEmailHubListRefreshPaused,
+  useEmailHubThread,
   useEmailHubProviders,
+  useEmailHubThreads,
+  useMarkEmailHubRead,
+  useMoveEmailHubThread,
+  useSnoozeEmailHubThread,
   useStartEmailHubOAuth,
+  useSyncEmailHub,
 } from "./hooks";
+import { threadDetailKey } from "./query-cache";
 
-// Only the two OAuth calls are faked; the cache helpers the other cases use never reach the transport.
 vi.mock("../api/endpoints/email-hub", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/endpoints/email-hub")>()),
   getEmailHubProviders: vi.fn(() => Promise.resolve({ google: true, microsoft: false })),
+  getEmailHubThread: vi.fn(() => Promise.resolve(null)),
+  listEmailHubThreads: vi.fn(() =>
+    Promise.resolve({ threads: [], counts: { total: 0, unread: 0 }, next_cursor: "" }),
+  ),
+  moveEmailHubThread: vi.fn(() => Promise.resolve()),
+  patchEmailHubThread: vi.fn(() =>
+    Promise.resolve({
+      id: "th1",
+      account_id: "acc1",
+      folder: "INBOX",
+      subject: "Subject",
+      snippet: "Snippet",
+      from_addr: "sender@example.com",
+      to_addrs: ["reader@example.com"],
+      sent_at: "2026-10-12T00:00:00Z",
+      is_read: true,
+      is_starred: false,
+      has_attachments: false,
+      body_cached: false,
+      imap_labels: [],
+    }),
+  ),
   startEmailHubOAuth: vi.fn(() => Promise.resolve("https://accounts.google.com/o/oauth2/auth?state=s1")),
+  syncEmailHub: vi.fn(() => Promise.resolve({ synced: true })),
 }));
 
 function wrapperFor(qc: QueryClient) {
@@ -28,6 +66,15 @@ function wrapperFor(qc: QueryClient) {
     return createElement(QueryClientProvider, { client: qc }, children);
   };
 }
+
+function expectCountInvalidations(invalidateSpy: ReturnType<typeof vi.spyOn>) {
+  expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: emailHubKeys.unread("ws1") });
+  expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: emailHubKeys.sidebarCounts("ws1", "acc1") });
+}
+
+beforeEach(() => {
+  vi.mocked(getEmailHubThread).mockClear();
+});
 
 function emailThread(id: string, isRead: boolean): EmailHubThread {
   return {
@@ -126,6 +173,78 @@ describe("email hub list refresh defer", () => {
   });
 });
 
+describe("email hub mutation count invalidation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("uses one canonical sidebar counts key", () => {
+    const key = emailHubKeys.sidebarCounts("ws1", "acc1");
+    expect(key).toHaveLength(4);
+    expect(key[0]).toBe("email-hub");
+    expect(key[1]).toBe("ws1");
+    expect(key[2]).toBe("sidebar-counts");
+    expect(key[3]).toBe("acc1");
+  });
+
+  it("invalidates unread and sidebar counts after moving a thread", async () => {
+    const qc = new QueryClient();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useMoveEmailHubThread("ws1"), { wrapper: wrapperFor(qc) });
+
+    await act(() => result.current.mutateAsync({ accountId: "acc1", threadId: "th1", moveTo: "ARCHIVE" }));
+
+    expect(moveEmailHubThread).toHaveBeenCalledWith("ws1", "th1", "acc1", "ARCHIVE");
+    expectCountInvalidations(invalidateSpy);
+  });
+
+  it("invalidates unread and sidebar counts after snoozing a thread", async () => {
+    const qc = new QueryClient();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useSnoozeEmailHubThread("ws1"), { wrapper: wrapperFor(qc) });
+
+    await act(() =>
+      result.current.mutateAsync({
+        accountId: "acc1",
+        threadId: "th1",
+        snoozeUntil: "2026-10-13T00:00:00Z",
+      }),
+    );
+
+    expect(patchEmailHubThread).toHaveBeenCalledWith("ws1", "th1", {
+      accountId: "acc1",
+      snoozeUntil: "2026-10-13T00:00:00Z",
+      clearSnooze: undefined,
+    });
+    expectCountInvalidations(invalidateSpy);
+  });
+
+  it("invalidates unread and sidebar counts after marking a thread read", async () => {
+    const qc = new QueryClient();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useMarkEmailHubRead("ws1"), { wrapper: wrapperFor(qc) });
+
+    await act(() => result.current.mutateAsync({ accountId: "acc1", threadId: "th1", isRead: true }));
+
+    expect(patchEmailHubThread).toHaveBeenCalledWith("ws1", "th1", {
+      accountId: "acc1",
+      isRead: true,
+    });
+    expectCountInvalidations(invalidateSpy);
+  });
+
+  it("invalidates unread and sidebar counts after a successful sync", async () => {
+    const qc = new QueryClient();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useSyncEmailHub("ws1"), { wrapper: wrapperFor(qc) });
+
+    await act(() => result.current.mutateAsync({ accountId: "acc1", folder: "INBOX" }));
+
+    expect(syncEmailHub).toHaveBeenCalledWith("ws1", "acc1", "INBOX", undefined, false, undefined);
+    expectCountInvalidations(invalidateSpy);
+  });
+});
+
 describe("patchEmailHubThreadInLists", () => {
   it("decreases the first page unread count when a second page thread becomes read", () => {
     const qc = new QueryClient();
@@ -186,5 +305,61 @@ describe("email hub OAuth hooks", () => {
       "https://accounts.google.com/o/oauth2/auth?state=s1",
     );
     expect(startEmailHubOAuth).toHaveBeenCalledWith("ws1", "google", "an@gmail.com");
+  });
+});
+
+describe("email hub thread detail cache", () => {
+  it("reuses a resolved prefetch for the same thread for 30 seconds", async () => {
+    const qc = new QueryClient();
+
+    prefetchEmailHubThread(qc, "ws1", "acc1", "th1");
+    await waitFor(() =>
+      expect(qc.getQueryState(threadDetailKey("ws1", "acc1", "th1"))?.status).toBe("success"),
+    );
+
+    prefetchEmailHubThread(qc, "ws1", "acc1", "th1");
+    await waitFor(() => expect(qc.isFetching()).toBe(0));
+
+    expect(getEmailHubThread).toHaveBeenCalledTimes(1);
+    expect(getEmailHubThread).toHaveBeenCalledWith(
+      "ws1",
+      "acc1",
+      "th1",
+      true,
+      false,
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("still marks the thread read when the detail hook is opened", async () => {
+    const qc = new QueryClient();
+
+    const { result } = renderHook(() => useEmailHubThread("ws1", "acc1", "th1"), {
+      wrapper: wrapperFor(qc),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(getEmailHubThread).toHaveBeenCalledTimes(1);
+    expect(getEmailHubThread).toHaveBeenCalledWith(
+      "ws1",
+      "acc1",
+      "th1",
+      true,
+      true,
+      expect.any(AbortSignal),
+    );
+  });
+});
+
+describe("email hub thread hooks", () => {
+  it("passes React Query's abort signal to the thread-list endpoint", async () => {
+    const qc = new QueryClient();
+    const { result } = renderHook(() => useEmailHubThreads("ws1", "acc1"), {
+      wrapper: wrapperFor(qc),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const signal = vi.mocked(listEmailHubThreads).mock.calls[0]?.[6];
+    expect(signal).toBeInstanceOf(AbortSignal);
   });
 });

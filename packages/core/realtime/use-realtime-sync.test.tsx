@@ -214,6 +214,45 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(emailHubKeys.accounts("ws1")));
   });
 
+  it.each(["email_hub.inbox_changed", "email_hub.new_mail"] as const)(
+    "%s invalidates unread and canonical sidebar counts",
+    (type) => {
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { account_id: "a1", user_id: "u1" } });
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([
+          JSON.stringify(emailHubKeys.unread("ws1")),
+          JSON.stringify(emailHubKeys.sidebarCounts("ws1", "a1")),
+        ]),
+      );
+    },
+  );
+
+  it("keeps Email Hub caches intact on new_mail and invalidates them on inbox_changed", () => {
+    vi.useFakeTimers();
+    const { qc, client } = setup();
+    const listKey = emailHubKeys.threads("ws1", "a1", "INBOX", {});
+    const conversationKey = emailHubKeys.conversation("ws1", "a1", "th1");
+    qc.setQueryData(listKey, { pages: [], pageParams: [] });
+    qc.setQueryData(conversationKey, { messages: [] });
+
+    client.emit({
+      type: "email_hub.new_mail",
+      payload: { account_id: "a1", user_id: "u1", workspace_id: "ws1" },
+    });
+
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(conversationKey)?.isInvalidated).toBe(false);
+
+    client.emit({
+      type: "email_hub.inbox_changed",
+      payload: { account_id: "a1", user_id: "u1", workspace_id: "ws1" },
+    });
+
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(conversationKey)?.isInvalidated).toBe(true);
+  });
+
   it("invalidates catalog statuses on task_status.created", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
