@@ -242,18 +242,45 @@ func (s *OrganizationMemberService) TransferOwnership(ctx context.Context, actor
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	updated, err := transferOwnershipQ(ctx, q, actorID, orgID, targetID)
+	if err != nil {
+		return db.OrganizationMember{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.OrganizationMember{}, err
+	}
+	return updated, nil
+}
+
+// transferOwnershipQ is TransferOwnership's transaction body: the password and
+// the first reads are the caller's job, and everything they decided is checked
+// again here under the row locks, because a Leave or another transfer may have
+// committed in between.
+func transferOwnershipQ(ctx context.Context, q *db.Queries, actorID, orgID, targetID string) (db.OrganizationMember, error) {
 	// Lock both rows in id order: two transfers running at once then queue
 	// behind each other instead of deadlocking.
 	first, second := actorID, targetID
 	if second < first {
 		first, second = second, first
 	}
+	locked := map[string]db.OrganizationMember{}
 	for _, id := range []string{first, second} {
-		if _, err := q.LockOrganizationMemberForUpdate(ctx, db.LockOrganizationMemberForUpdateParams{
+		m, err := q.LockOrganizationMemberForUpdate(ctx, db.LockOrganizationMemberForUpdateParams{
 			OrganizationID: orgID, UserID: id,
-		}); err != nil {
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.OrganizationMember{}, ErrNotFound
+		}
+		if err != nil {
 			return db.OrganizationMember{}, err
 		}
+		locked[id] = m
+	}
+	if actor := locked[actorID]; actor.Role != OrgRoleOwner || actor.DeactivatedAt.Valid {
+		return db.OrganizationMember{}, ErrForbidden
+	}
+	if locked[targetID].DeactivatedAt.Valid {
+		return db.OrganizationMember{}, errMemberDeactivated()
 	}
 	// The old owner steps down first: the single-owner unique index would
 	// refuse the promotion the other way round.
@@ -279,9 +306,6 @@ func (s *OrganizationMemberService) TransferOwnership(ctx context.Context, actor
 	}}, audit.Event{Topic: "organization.ownership_transferred", Payload: map[string]string{
 		"organization_id": orgID, "user_id": actorID,
 	}}); err != nil {
-		return db.OrganizationMember{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return db.OrganizationMember{}, err
 	}
 	return updated, nil

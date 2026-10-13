@@ -95,6 +95,46 @@ func errOwnerMustTransfer() error {
 	return CodedError{Code: "owner_must_transfer", Status: http.StatusConflict, Msg: "bạn đang là chủ sở hữu tổ chức; hãy chuyển quyền trước khi xóa tài khoản", Err: ErrOwnerMustTransfer}
 }
 
+// One account, one organization (ADR 0032). Each sentinel is wrapped in a
+// CodedError so the handler writes the code and its details; errors.Is
+// still matches the sentinel.
+var (
+	ErrAlreadyInOrganization      = errors.New("already_in_organization")
+	ErrOrganizationSwitchRequired = errors.New("organization_switch_required")
+	ErrMemberInOtherOrganization  = errors.New("member_in_other_organization")
+)
+
+// errAlreadyInOrganization names the caller's own organization, so the client
+// can point them at it; it is theirs, so nothing leaks.
+func errAlreadyInOrganization(current OrganizationRef) error {
+	return CodedError{
+		Code: "already_in_organization", Status: http.StatusConflict,
+		Msg:    "mỗi tài khoản chỉ thuộc một tổ chức; hãy rời tổ chức hiện tại trước",
+		Err:    ErrAlreadyInOrganization,
+		Fields: map[string]any{"organization": current},
+	}
+}
+
+// errOrganizationSwitchRequired carries the caller's organizations that stand
+// in the way and what each one needs before the invitation can be accepted.
+func errOrganizationSwitchRequired(conflicts []MembershipConflict) error {
+	return CodedError{
+		Code: "organization_switch_required", Status: http.StatusConflict,
+		Msg:    "bạn đang thuộc một tổ chức khác; cần rời tổ chức đó trước khi tham gia",
+		Err:    ErrOrganizationSwitchRequired,
+		Fields: map[string]any{"conflicts": conflicts},
+	}
+}
+
+// errMemberInOtherOrganization refuses a reactivation without naming the
+// organization the person moved to: that one is another tenant's business.
+func errMemberInOtherOrganization() error {
+	return CodedError{
+		Code: "member_in_other_organization", Status: http.StatusConflict,
+		Msg: "người này đã tham gia một tổ chức khác", Err: ErrMemberInOtherOrganization,
+	}
+}
+
 func errCannotDeactivateSelf() error {
 	return coded(http.StatusBadRequest, "cannot_deactivate_self", "không thể tự vô hiệu hóa tài khoản của mình")
 }

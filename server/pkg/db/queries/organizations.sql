@@ -18,11 +18,41 @@ SELECT id FROM organizations ORDER BY id;
 -- tenant: self
 -- Deactivated memberships stay in the switcher so the person can see which
 -- organization locked them out instead of watching it vanish (spec F-03 §6.3).
+-- An archived organization (closed or deleted) is gone for its members, so it
+-- leaves the list (ADR 0032).
 SELECT o.*, m.role, m.deactivated_at
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
-WHERE m.user_id = $1
+WHERE m.user_id = $1 AND o.status <> 'archived'
 ORDER BY o.created_at;
+
+-- name: ListOrganizationMembershipsForUser :many
+-- tenant: self
+-- Every membership row of one account, archived organizations included:
+-- account deletion records its erasure in each of them.
+SELECT organization_id, deactivated_at FROM organization_members
+WHERE user_id = $1
+ORDER BY organization_id;
+
+-- name: LockUserMembership :exec
+-- Serializes every membership change of one account (ADR 0032): Create,
+-- AcceptInvite, Reactivate, Leave and Close take it first, then check
+-- ListActiveOrganizationsForUser inside the same transaction.
+SELECT pg_advisory_xact_lock(hashtextextended('org-membership:' || sqlc.arg(user_id)::text, 0));
+
+-- name: ListActiveOrganizationsForUser :many
+-- tenant: self
+-- The organizations an account counts as belonging to (ADR 0032 D1): a
+-- membership not deactivated, in an organization that is active or
+-- suspended. other_active_members is how many people could take ownership.
+SELECT o.id, o.name, o.slug, o.status, m.role,
+       (SELECT count(*) FROM organization_members om
+        WHERE om.organization_id = o.id AND om.user_id <> m.user_id AND om.deactivated_at IS NULL
+       )::bigint AS other_active_members
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.user_id = $1 AND m.deactivated_at IS NULL AND o.status IN ('active', 'suspended')
+ORDER BY m.created_at, o.id;
 
 -- name: AddOrganizationMember :exec
 INSERT INTO organization_members (organization_id, user_id, role)
@@ -97,9 +127,12 @@ WHERE w.id = wm.workspace_id AND w.organization_id = $1 AND wm.user_id = $2;
 -- name: CountActiveOrganizationsForUser :one
 -- tenant: parent user_id
 -- Deactivating a member revokes their sessions only when this is the last
--- organization they can still enter.
-SELECT count(*) FROM organization_members
-WHERE user_id = $1 AND deactivated_at IS NULL AND organization_id <> $2;
+-- organization they can still enter; an archived one is not enterable
+-- (ADR 0032 D1).
+SELECT count(*) FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.user_id = $1 AND m.deactivated_at IS NULL AND m.organization_id <> $2
+  AND o.status IN ('active', 'suspended');
 
 -- name: LockOrganizationMemberForUpdate :one
 SELECT * FROM organization_members

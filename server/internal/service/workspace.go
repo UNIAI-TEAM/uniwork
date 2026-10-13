@@ -679,20 +679,43 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	if !sameMailbox(caller.Email, inv.Email) {
 		return AcceptResult{}, errInvitationForAnotherEmail()
 	}
-	org, err := s.q.GetOrganizationByID(ctx, inv.OrganizationID)
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return AcceptResult{}, err
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.q.WithTx(tx)
+	// The account's membership lock first, then the invitation row: a second
+	// accept, a revoke or an organization create running at the same moment
+	// queues here and decides on what this one committed (ADR 0032).
+	if err := lockMembership(ctx, qtx, userID); err != nil {
+		return AcceptResult{}, err
+	}
+	inv, err = qtx.LockInvitationByToken(ctx, token)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AcceptResult{}, ErrNotFound
+	}
+	if err != nil {
+		return AcceptResult{}, err
+	}
+	if inv.AcceptedAt.Valid || inv.RevokedAt.Valid || !inv.ExpiresAt.Time.After(time.Now()) {
+		return AcceptResult{}, ErrNotFound
+	}
+	org, err := qtx.GetOrganizationByID(ctx, inv.OrganizationID)
 	if err != nil {
 		return AcceptResult{}, err
 	}
 	var ws db.Workspace
 	if inv.WorkspaceID.Valid {
-		ws, err = s.q.GetWorkspaceByID(ctx, inv.WorkspaceID.String)
+		ws, err = qtx.GetWorkspaceByID(ctx, inv.WorkspaceID.String)
 		if err != nil {
 			return AcceptResult{}, err
 		}
 	}
 	// A membership that was switched off is not reopened by an invitation:
 	// only an owner or admin can let that person back in (spec F-03 §4.2).
-	existing, err := s.orgs.RequireMember(ctx, org.ID, userID)
+	_, err = s.orgs.RequireMemberQ(ctx, qtx, org.ID, userID)
 	isNewMember := errors.Is(err, ErrForbidden)
 	switch {
 	case errors.Is(err, ErrMemberDeactivated):
@@ -701,14 +724,17 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	case err != nil:
 		return AcceptResult{}, err
 	}
-	_ = existing
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return AcceptResult{}, err
+	// Somebody new to this organization must not belong to another one
+	// (ADR 0032). The conflicts say what each of their organizations needs.
+	if isNewMember {
+		conflicts, err := membershipConflicts(ctx, qtx, userID, org.ID)
+		if err != nil {
+			return AcceptResult{}, err
+		}
+		if len(conflicts) > 0 {
+			return AcceptResult{}, errOrganizationSwitchRequired(conflicts)
+		}
 	}
-	defer tx.Rollback(ctx)
-	qtx := s.q.WithTx(tx)
 	// members.max counts organization members, so only a person new to the
 	// organization consumes a seat; an existing member joining another
 	// workspace does not (spec F-02 §4.3).
@@ -737,8 +763,14 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 			return AcceptResult{}, err
 		}
 	}
-	if err := qtx.MarkInvitationAccepted(ctx, inv.ID); err != nil {
+	// The row is locked, so this only fails if the invitation stopped being
+	// pending between the check above and here; the whole join rolls back.
+	marked, err := qtx.MarkInvitationAccepted(ctx, inv.ID)
+	if err != nil {
 		return AcceptResult{}, err
+	}
+	if marked == 0 {
+		return AcceptResult{}, ErrNotFound
 	}
 	if _, err := qtx.MarkUserOnboarded(ctx, userID); err != nil {
 		return AcceptResult{}, err

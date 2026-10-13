@@ -82,9 +82,17 @@ RETURNING *;
 SELECT * FROM invitations
 WHERE token = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now();
 
--- name: MarkInvitationAccepted :exec
+-- name: LockInvitationByToken :one
+-- tenant: token
+-- Accepting reads the invitation under a row lock, whatever its state, so a
+-- revoke or a second accept running at the same moment queues behind it.
+SELECT * FROM invitations WHERE token = $1 FOR UPDATE;
+
+-- name: MarkInvitationAccepted :execrows
 -- tenant: by-id
-UPDATE invitations SET accepted_at = now() WHERE id = $1;
+-- Zero rows means the invitation stopped being pending; the accept rolls back.
+UPDATE invitations SET accepted_at = now()
+WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now();
 
 -- name: ListInvitationsForEmail :many
 -- tenant: self

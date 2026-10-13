@@ -608,14 +608,46 @@ func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]L
 	return items, nil
 }
 
-const markInvitationAccepted = `-- name: MarkInvitationAccepted :exec
-UPDATE invitations SET accepted_at = now() WHERE id = $1
+const lockInvitationByToken = `-- name: LockInvitationByToken :one
+SELECT id, workspace_id, email, role, token, expires_at, accepted_at, created_at, organization_id, org_role, invited_by, revoked_at FROM invitations WHERE token = $1 FOR UPDATE
+`
+
+// tenant: token
+// Accepting reads the invitation under a row lock, whatever its state, so a
+// revoke or a second accept running at the same moment queues behind it.
+func (q *Queries) LockInvitationByToken(ctx context.Context, token string) (Invitation, error) {
+	row := q.db.QueryRow(ctx, lockInvitationByToken, token)
+	var i Invitation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Email,
+		&i.Role,
+		&i.Token,
+		&i.ExpiresAt,
+		&i.AcceptedAt,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.OrgRole,
+		&i.InvitedBy,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const markInvitationAccepted = `-- name: MarkInvitationAccepted :execrows
+UPDATE invitations SET accepted_at = now()
+WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
 `
 
 // tenant: by-id
-func (q *Queries) MarkInvitationAccepted(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, markInvitationAccepted, id)
-	return err
+// Zero rows means the invitation stopped being pending; the accept rolls back.
+func (q *Queries) MarkInvitationAccepted(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, markInvitationAccepted, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const revokeInvitation = `-- name: RevokeInvitation :one
