@@ -1,0 +1,17 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -14
+4610db8d168e8daa9e73cd76dbda69ba93027469
+7235eb43546fa2210cae3db29e0fbd1a4fa884d7
+4610db8d1 Merge fix-usage + fix-gateway (BE3B-1/2/4/7/8/10, Q1/Q7) into G6-03b
+f6a8df14d test(ai): share one database fixture in the usage-reconcile test
+95d4e81a9 docs(office): note the usage_unknown branch is UniWork AI's alone
+49bf9f162 chore(server): wire the UniWork AI run/usage metrics
+a7135ef60 fix(service): make the run/seq meter key the charge's idempotency key
+4e00e3fa8 fix(ai): scope the usage_unknown branch to the UniWork AI capability
+ff788d349 Merge fix-run r14 (BE3B-3/5/9/11) into G6-03b
+f2d8e2fe4 test(ai): pin the run harness a first turn reads back from
+b409890e4 refactor(ai): drop the sweep RunStore never reached
+f036c6be6 test(ai): keep the refusal a failing run turn hid in its message
+692171fa9 test(handler): wire the run store into the isolation world
+1a90b7aaa fix(ai): count a swept orphan run as an orphan, never as expired
+6f420c144 test(ai): keep the run a first UniWork AI turn opened
+674bcfc2f docs(office): register the run_expired 409 row and fix the run_limit_reached status
