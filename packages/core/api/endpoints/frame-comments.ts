@@ -80,13 +80,14 @@ export async function listFrameComments(
   if (!parsed) return null;
   // An unchanged answer names the token only: its empty `comments` is never a list.
   if (parsed.unchanged === true) return parsed.list_token ? { unchanged: true, list_token: parsed.list_token } : null;
-  // No `unchanged` (a server before the token): a full list only when `comments` parsed.
-  if (!parsed.comments) return null;
+  // A full list is `comments` plus the token the frame sends back as `since_token`; either
+  // missing is malformed, so the frame never holds a list it cannot revalidate with "".
+  if (!parsed.comments || !parsed.list_token) return null;
   return {
     unchanged: false,
     comments: parsed.comments as FrameWireComment[],
     mentions: (parsed.mentions ?? []) as Record<string, unknown>[],
-    list_token: parsed.list_token ?? "",
+    list_token: parsed.list_token,
   };
 }
 

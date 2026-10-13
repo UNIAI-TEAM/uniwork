@@ -98,7 +98,8 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
   latest.current = { options, attached, userId };
   // One Idempotency-Key per Send, kept across the retries of that Send: the same payload that
   // has not succeeded yet reuses its key, so a create the server already stored is not stored twice.
-  const pendingCreate = useRef<{ fingerprint: string; key: string } | null>(null);
+  // Keyed by payload so two Sends in flight (two threads sent quickly) each keep their own.
+  const pendingCreates = useRef<Map<string, string>>(new Map());
 
   const binding = useMemo<FrameCommentsBinding>(() => {
     const scope = (): string => {
@@ -128,11 +129,11 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
       "comments.create": (payload, { signal }) =>
         call("comments.create", async (doc) => {
           const fingerprint = JSON.stringify(payload);
-          const same = pendingCreate.current?.fingerprint === fingerprint;
-          const key = same && pendingCreate.current ? pendingCreate.current.key : globalThis.crypto.randomUUID();
-          pendingCreate.current = { fingerprint, key };
+          const pending = pendingCreates.current;
+          const key = pending.get(fingerprint) ?? globalThis.crypto.randomUUID();
+          pending.set(fingerprint, key);
           const created = await createFrameComment(doc, payload, { idempotencyKey: key, signal });
-          if (created) pendingCreate.current = null;
+          if (created) pending.delete(fingerprint);
           return created as FrameRequests["comments.create"]["result"] | null;
         }),
       "comments.update": ({ comment_id: id, body }, { signal }) =>
@@ -168,7 +169,7 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
         setAttached({ host, scope, enabled: ack.capabilities.comments === true });
       },
       detach() {
-        pendingCreate.current = null;
+        pendingCreates.current.clear();
         setAttached(null);
       },
     };
