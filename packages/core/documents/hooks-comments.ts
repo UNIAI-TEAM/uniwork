@@ -35,7 +35,7 @@ import { requireVerifiableComment, requireVerifiableReaction, requireVerifiableS
 /** What the comments key caches: the rows and the mention-chip name table
  *  that came with them (contract-collab 2.1). The two are written together,
  *  so a chip never reads a name table from another list. */
-export interface DocumentCommentThreadData {
+interface DocumentCommentThreadData {
   comments: DocumentComment[];
   mentions: DocumentCommentMention[];
 }

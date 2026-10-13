@@ -7,8 +7,14 @@ import { useFlag } from "@uniwork/core/feature-flags";
 import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useHeaderActionsSlotFilled } from "../layout/header-actions-slot";
+import { useOptionalNavigation } from "../navigation";
 import { useOptionalWorkspace } from "../layout/workspace-context";
+import { K } from "./document-comments-keys";
+import { anchorableFormat } from "./document-comments-model";
 import { DocumentFavoriteToggle } from "./document-favorite-toggle";
+
+/** The panel's two regions (S12 Comments with anchors, S13 Discussion). */
+export type DocumentCommentsTab = "comment" | "discussion";
 
 /**
  * The open/closed state of the document comments panel, shared between the
@@ -25,19 +31,23 @@ interface DocumentCommentsChrome {
   setOpen: (open: boolean) => void;
   /** The header trigger; closing the panel hands focus back to it. */
   triggerRef: RefObject<HTMLButtonElement | null>;
+  tab: DocumentCommentsTab;
+  setTab: (tab: DocumentCommentsTab) => void;
+  /** The comment a `?comment=` link names, or "". */
+  deepLinkId: string;
 }
 
 /**
- * An office file opens in an editor with its own Comments pane (notes inside the document); this
- * drawer then holds the discussion about the file, and says so, so the two never both read "Comments".
+ * The panel's name: Comments for a format whose comments carry an anchor
+ * (that panel holds the Discussion as its second tab), Discussion for every
+ * other document (Foundation G8: no Comments tab without an editor anchor).
  */
-export function documentCommentsCopy(doc: Pick<Document, "kind">) {
-  return doc.kind === "file"
-    ? ({ open: "documents.comments.file_open", title: "documents.comments.file_title", close: "documents.comments.file_close", empty: "documents.comments.file_empty" } as const)
-    : ({ open: "documents.comments.open", title: "documents.comments.title", close: "documents.comments.close", empty: "documents.comments.empty" } as const);
+export function documentCommentsTitleKey(doc: Pick<Document, "kind" | "file">): string {
+  return anchorableFormat(doc) ? K.collabComments : K.collabDiscussion;
 }
 
 const DocumentCommentsChromeContext = createContext<DocumentCommentsChrome | null>(null);
+const FrameCommentsReportContext = createContext<((framePanel: boolean) => void) | undefined>(undefined);
 
 export function DocumentCommentsProvider({
   wsId,
@@ -48,7 +58,14 @@ export function DocumentCommentsProvider({
   doc: Document;
   children: ReactNode;
 }) {
-  const [open, setOpenState] = useState(false);
+  const nav = useOptionalNavigation();
+  const deepLinkId = nav?.searchParams.get("comment") ?? "";
+  // A deep link opens the panel on arrival; the panel then picks the tab that holds the thread.
+  const [open, setOpenState] = useState(() => deepLinkId !== "");
+  const [tab, setTab] = useState<DocumentCommentsTab>(() => (anchorableFormat(doc) ? "comment" : "discussion"));
+  // The editor frame answered `init` with `comments` (G8-08): its panel is this page's only
+  // comments panel (invariant 8), so neither the trigger nor DocumentCommentsPanel render.
+  const [framePanel, setFramePanel] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Closing from inside the panel must land focus back on the control that
   // opened it (the Sheet path restores it on its own; the inline rail does
@@ -58,19 +75,34 @@ export function DocumentCommentsProvider({
     if (!next) triggerRef.current?.focus();
   }, []);
   const value = useMemo(
-    () => ({ wsId, doc, open, setOpen, triggerRef }),
-    [wsId, doc, open, setOpen],
+    () => (framePanel ? null : { wsId, doc, open, setOpen, triggerRef, tab, setTab, deepLinkId }),
+    [framePanel, wsId, doc, open, setOpen, tab, deepLinkId],
   );
   return (
-    <DocumentCommentsChromeContext.Provider value={value}>
-      {children}
-    </DocumentCommentsChromeContext.Provider>
+    <FrameCommentsReportContext.Provider value={setFramePanel}>
+      <DocumentCommentsChromeContext.Provider value={value}>
+        {children}
+      </DocumentCommentsChromeContext.Provider>
+    </FrameCommentsReportContext.Provider>
   );
 }
 
-/** Null outside the detail view — the header trigger is simply not rendered then. */
+/**
+ * Null outside the detail view, and null while an editor frame owns the
+ * comments (invariant 8) — the trigger, the menu entry and the panel are then
+ * simply not rendered.
+ */
 export function useDocumentCommentsChrome(): DocumentCommentsChrome | null {
   return use(DocumentCommentsChromeContext);
+}
+
+/**
+ * For the page's Office host: pass the result as `OfficeModuleFrame`'s
+ * `onFrameCommentsChange`, so a frame that serves comments hides the page's
+ * own panel. Undefined outside a document detail view.
+ */
+export function useReportFrameComments(): ((framePanel: boolean) => void) | undefined {
+  return use(FrameCommentsReportContext);
 }
 
 /**
@@ -91,7 +123,7 @@ export function DocumentCommentsHeaderActions() {
   // The document payload carries the organization; the workspace context is
   // the fallback for a server that omitted it.
   const orgId = chrome.doc.organization_id || workspace?.workspace.organization_id || "";
-  const copy = documentCommentsCopy(chrome.doc);
+  const label = t(documentCommentsTitleKey(chrome.doc));
   return (
     <div className={folded ? "hidden shrink-0 items-center gap-1 sm:flex" : "contents"} data-document-comments-actions>
       <DocumentFavoriteToggle documentId={chrome.doc.id} orgId={orgId} />
@@ -100,13 +132,13 @@ export function DocumentCommentsHeaderActions() {
         type="button"
         variant="ghost"
         size="sm"
-        aria-label={t(copy.open)}
+        aria-label={label}
         aria-expanded={chrome.open}
         aria-controls="document-comments-panel"
         onClick={() => chrome.setOpen(!chrome.open)}
       >
         <MessageSquare aria-hidden className="size-4" />
-        <span className="hidden sm:inline">{t(copy.open)}</span>
+        <span className="hidden sm:inline">{label}</span>
       </Button>
     </div>
   );
