@@ -1,0 +1,53 @@
+$ unset OPENAI_API_KEY; AI_PROVIDER=fake bash scripts/test-go.sh; echo "TEST_GO_EXIT=$?"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/cmd/files-backfill	0.581s	coverage: 37.6% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/graph-rebuild	1.305s	coverage: 70.6% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.046s	coverage: 7.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal	2.411s	coverage: [no statements]
+ok  	github.com/unicomhub/uniwork/server/internal/ai	7.981s	coverage: 88.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	0.388s	coverage: 80.1% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/audit	2.398s	coverage: 74.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/auth	0.140s	coverage: 86.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/billing	0.006s	coverage: 76.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/config	0.012s	coverage: 96.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/document	0.044s	coverage: 93.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub	0.003s	coverage: 87.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/bodystore	0.002s	coverage: 51.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/imapclient	4.423s	coverage: 57.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/netguard	0.007s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/retention	0.002s	coverage: 84.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient	0.311s	coverage: 93.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/events	0.003s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/featureflags	0.003s	coverage: 88.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files	0.006s	coverage: 94.8% of statements
+	github.com/unicomhub/uniwork/server/internal/files/filescontract		coverage: 0.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files/filesfake	0.024s	coverage: 93.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph	3.816s	coverage: 96.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph/projector	14.196s	coverage: 81.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler	433.837s	coverage: 81.0% of statements
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.007s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	2.557s	coverage: 99.4% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/logger	0.006s	coverage: 93.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mail	16.385s	coverage: 79.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/meetings	0.818s	coverage: 76.0% of statements
+	github.com/unicomhub/uniwork/server/internal/mentions		coverage: 0.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	5.418s	coverage: 86.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	1.949s	coverage: 89.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/notification	25.597s	coverage: 76.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/office	0.033s	coverage: 80.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	3.811s	coverage: 87.1% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/realtime	44.930s	coverage: 90.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/service	623.194s	coverage: 71.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	18.267s	coverage: 79.0% of statements
+?   	github.com/unicomhub/uniwork/server/internal/service/templates	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/storage	0.547s	coverage: 77.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/telemetry	0.006s	coverage: 85.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util	0.004s	coverage: 67.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util/secretbox	0.002s	coverage: 88.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/workcapability	0.002s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/migrations	28.354s	coverage: 74.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/db/tablequery	0.005s	coverage: 82.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/featureflag	0.004s	coverage: 85.9% of statements
+TEST_GO_EXIT=0

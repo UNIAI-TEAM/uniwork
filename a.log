@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -6
+d81027efe5347dc6b69e0b2bcd52728cced0df2d
+d81027efe Merge G8-06 mention candidates per document into the G5-G7 root (UNI-1401)
+63dcc4f40 chore: remove UniAI issue dumps committed by mistake
+39064c47e chore(deploy): move the production domain to uniworkos.com
+b3f282800 test(server): cover the mention-candidate q gate on owned documents
+7321ea32e fix(documents): key the mention picker by page size and test its hook
+5b4bbbdf5 fix(documents): close the mention-candidate review gaps on the server
