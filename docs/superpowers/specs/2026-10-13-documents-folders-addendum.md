@@ -1,6 +1,6 @@
 # Documents — Phụ lục: Thư mục nhiều cấp (UNI-1425)
 
-> **Trạng thái:** in-progress — phụ lục v0.2, 2026-10-13. v0.1 soạn theo yêu cầu người dùng (~15:35 UTC+7: thêm spec + plan cho UNI-1425 theo cách đã làm với G8/UNI-1331); v0.2 xử lý review FE r1 + BE r1 (`reports/plan-folders/review-{fe,be}-1.md`, bản đối chiếu `reports/plan-folders/fix-r1.md` của Run). FD-D1 đã ký (gộp vào UNI-923 thành epic E6); FD-D2..FD-D10 còn chờ người dùng ký (decision packet `reports/plan-folders/decision-packet.md`). Giá trị ghi "khuyến nghị" ở §2 **chưa ký**; không triển khai thẻ có gate trước khi ký.
+> **Trạng thái:** in-progress — phụ lục v0.3, 2026-10-13 (v0.3: review delta r2 — trần hàng thật cho CTE lưu trữ, `RepeatableRead` cho `archive-impact`, gate G8-17, dòng S18 của spine G8). v0.1 soạn theo yêu cầu người dùng (~15:35 UTC+7: thêm spec + plan cho UNI-1425 theo cách đã làm với G8/UNI-1331); v0.2 xử lý review FE r1 + BE r1 (`reports/plan-folders/review-{fe,be}-1.md`, bản đối chiếu `reports/plan-folders/fix-r1.md` của Run). FD-D1 đã ký (gộp vào UNI-923 thành epic E6); FD-D2..FD-D10 còn chờ người dùng ký (decision packet `reports/plan-folders/decision-packet.md`). Giá trị ghi "khuyến nghị" ở §2 **chưa ký**; không triển khai thẻ có gate trước khi ký.
 
 **Issue:** UNI-1425 "Quản lý Folder trong Documents" (FR-01..FR-09, BR-01..BR-10, AC-01..AC-12), cha UNI-923 (FD-D1).
 **Quan hệ với thiết kế có sẵn:** Documents C-01 (cây trang, UNI-675) và thư mục `kind=folder` (migration
@@ -35,7 +35,7 @@ thì sửa phụ lục và các thẻ có ghi gate tương ứng. FD-01 ghi cộ
 | FD-D7 | Phạm vi tìm kiếm | Khuyến nghị: **workspace đang mở**, khớp **theo tên** trong ô tìm của Documents (bảng lệnh ⌘K giữ tìm cả nội dung); mọi tài liệu người dùng đọc được trong workspace đó. Thu hẹp FR-08 ("toàn bộ Document được phân quyền") là đổi phạm vi, chỉ đạt khi ký | FD-05, FD-10 |
 | FD-D8 | Desktop cùng phase? | Khuyến nghị: **hoãn** duyệt thư mục trong hộp thoại UniWork của app (FD-11 làm sau) | FD-11 |
 | FD-D9 | Trang Documents gốc (không `?folder`) | Khuyến nghị: **giữ thư viện hiện tại** (gần đây, nhóm theo thư mục); "nội dung trực tiếp" + thư mục trước + sắp xếp chỉ áp khi mở một thư mục; thư mục gốc thấy ở sidebar | FD-08 |
-| FD-D10 | Trùng tên **tài liệu** (trang/tệp) khi tạo, tải lên, đổi tên — gồm G8-17/S18 | Khuyến nghị: **cho phép trùng** (server không bao giờ trả `folder_name_taken` cho trang/tệp); G8-17/S18 bỏ ca "tên trùng → lỗi tại trường" cho tài liệu, giữ "rỗng/quá dài"; "(n)" chỉ khi di chuyển/khôi phục | FD-02, G8-17 |
+| FD-D10 | Trùng tên **tài liệu** (trang/tệp) khi tạo, tải lên, đổi tên — gồm G8-17/S18 | Khuyến nghị: **cho phép trùng** (server không bao giờ trả `folder_name_taken` cho trang/tệp); G8-17 bỏ ca "tên trùng → lỗi tại trường" cho tài liệu, giữ "rỗng/quá dài"; "(n)" chỉ khi di chuyển/khôi phục; cần G8-09 đổi một dòng S18 của EXPERIENCE-G8 (§3.8) | FD-02, G8-17 (+ spine S18 của G8-09) |
 
 ## 3. Thiết kế
 
@@ -61,7 +61,17 @@ thì sửa phụ lục và các thẻ có ghi gate tương ứng. FD-01 ghi cộ
   (`:202-222`, lưu trữ + số đếm) và `ListDocumentSubtreeNeedingAccessCheck` (`:232-250`, cổng `manage` của lưu trữ). Mọi caller
   (`document_tree.go`, `document_lifecycle.go:83-103,214-235`) truyền cùng một giá trị từ một hàm Go. Thiếu một trong ba thì cây
   11..20 cấp bị lưu trữ cụt (con sâu còn sống dưới cha đã lưu trữ) và cổng quyền bỏ sót nút sâu.
-- Mỗi CTE giữ chặn vòng (mức tối đa) như hiện nay; LIMIT `archiveBound()+1` của hai CTE lưu trữ giữ nguyên.
+- Mỗi CTE giữ chặn vòng (mức tối đa `max_level`) như hiện nay.
+- **Trần hàng thật cho hai CTE lưu trữ (r2).** Hôm nay `ListLiveDocumentSubtreeIDs` sinh **toàn bộ** cây con rồi mới `ORDER BY d.id
+  LIMIT max_rows` (`:217-222`), nên LIMIT không chặn chi phí; `lvl < 10` chỉ chặn chiều sâu. Đổi 10 → 40 làm chi phí tỉ lệ kích thước cây.
+  FD-03 viết lại câu này để bước đi cây **dừng sau `archiveBound()+1` hàng sống**: `UNION ALL`, lọc `archived_at IS NULL` ở câu
+  ngoài bằng join theo khóa chính, **không `ORDER BY` trước `LIMIT`** (Postgres chỉ tính các hàng của CTE đệ quy mà câu ngoài thật sự
+  lấy; `ORDER BY` buộc tính hết), id sắp lại ở Go khi cần thứ tự ổn định. `max_level` giữ làm trần chiều sâu và chặn vòng. Nút đã lưu
+  trữ trên đường đi vẫn được đi qua (để thấy con sống của nó) nhưng không tính vào trần; số đó bị chặn bởi worker xóa thật 30 ngày.
+  `ListDocumentSubtreeNeedingAccessCheck` không đi cây lần hai: nó nhận đúng tập id đã giới hạn (`id = ANY(sqlc.arg(ids))`), nên chỉ
+  chạy trên ≤ `archiveBound()` hàng. Nếu EXPLAIN của FD-03 không cho thấy dừng sớm (hàng đọc ~ `archiveBound()+1`, không ~ N), FD-03
+  dừng và hỏi Advisor, không lặng lẽ chấp nhận duyệt toàn cây. `ListDocumentSubtree` (di chuyển) giữ lớp chi phí như hôm nay: chặn
+  chiều sâu bằng `max_level`, không trần hàng (đổi luật di chuyển cây lớn là ngoài UNI-1425).
 - Client không lặp số: `TREE_MAX_LEVEL` đọc từ một hằng duy nhất ở `packages/core/documents/` (chép giá trị hợp đồng FD-01, có test
   so với hằng server qua contract), chuỗi `documents.tree.too_deep` nhận `{{max}}`.
 - API cây thêm `?folders_only=true` (sidebar chỉ cần thư mục; giảm payload khi sâu 20 cấp). Không đổi hình dạng node.
@@ -107,7 +117,8 @@ rồi mới vào `withDocumentMutation` và kiểm lại `kind`/revision; không
 `23505` chỉ còn là lưới an toàn.
 
 **Lưới an toàn `23505`.** Mỗi lần thử ghi tiêu đề có thể va index chạy trong một **SAVEPOINT** (pgx `tx.Begin` lồng); gặp `23505`
-của `idx_documents_folder_name_uidx` → `ROLLBACK TO SAVEPOINT`, tính lại n, thử lại, tối đa 3 lần; hết lần → cả lệnh rollback và
+của `idx_documents_folder_name_uidx` → `ROLLBACK TO SAVEPOINT`, tính lại n bằng cách **đọc lại** tập tên đang chiếm trong đích tại thời điểm thử lại (query mới, không dùng
+kết quả đã đọc trong transaction), thử lại, tối đa 3 lần; hết lần → cả lệnh rollback và
 trả 409 `folder_name_taken`, không audit, không outbox, câu trả lời idempotency không ghi. Không statement nào chạy tiếp sau lỗi
 mà không quay về savepoint (tránh `25P02`). Với tạo/đổi tên, `23505` → 409 ngay (không đổi tên hộ).
 
@@ -144,14 +155,16 @@ tổ hợp treo ở cuối).
   phục theo batch, worker xóa thật sau 30 ngày. Không thêm xóa cứng.
 - Route mới `GET /documents/{documentID}/archive-impact`, cùng thứ tự kiểm với lệnh lưu trữ để không đắt hơn và không lộ hơn lệnh
   đó: (1) quyền `manage` trên gốc qua `authorize()` (không đủ → cùng 403/404 của lệnh lưu trữ); (2) `ListLiveDocumentSubtreeIDs`
-  với `LIMIT archiveBound()+1` (§3.2) — quá trần → `{too_large: true, max_nodes: 1000}`, không đếm, không đi kiểm quyền từng nút
+  với trần hàng `archiveBound()+1` dừng sớm (§3.2) — quá trần → `{too_large: true, max_nodes: 1000}`, không đếm, không đi kiểm quyền từng nút
   (lệnh lưu trữ cũng từ chối quá trần trước kiểm quyền, nên không lộ thêm); (3) `requireManageOnSubtree` trên đúng tập id đó →
   thiếu một nút → cùng 403 (web: `documents.archive.archive_forbidden`), thân không có số; (4) đếm theo `kind` trên đúng tập id
-  đó trong cùng transaction chỉ đọc (một snapshot cho id, quyền và số).
+  đó. Cả (2)–(4) chạy trong **một** transaction `pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}` (như
+  `document_comments.go:306`), nên id, quyền và số đến từ một snapshot; dưới `Read Committed` mỗi câu có snapshot riêng và lời hứa này
+  không đúng.
 - Kết quả: `{folders, documents, total, max_nodes, too_large}`; `folders`/`documents` **không** gồm gốc (gồm trang con trong
   trang); `total` = số hàng lệnh lưu trữ sẽ ghi, **gồm** gốc; chính xác khi ≤ `max_nodes`. Không ghi audit (đọc). Route có
   `{documentID}` (đã có `pathParamSDI`) nên `TestIsolationMatrix` phủ ngay; kèm control (chủ tenant gọi được).
-- Chi phí: không bao giờ duyệt quá `archiveBound()+1` hàng — như lệnh lưu trữ. FD-04 đo EXPLAIN/latency trên cây rộng (1000 con trực
+- Chi phí: bước đi cây dừng sau `archiveBound()+1` hàng sống (§3.2, cùng câu với lệnh lưu trữ); kiểm quyền chạy trên tập id đó. FD-04 đo EXPLAIN/latency trên cây rộng (1000 con trực
   tiếp) và sâu (20 cấp).
 - UI: hộp thoại "Xóa thư mục" ghi "N thư mục con và M tài liệu sẽ chuyển vào thùng rác, khôi phục được trong 30 ngày"; xác nhận bị
   khóa tới khi số về; `too_large` → thông báo `folder_too_large` thay nút xác nhận.
@@ -237,8 +250,11 @@ Hoãn duyệt: hộp thoại UniWork của app vẫn chỉ tệp (`client.ts:230
 mục đang mở. Không đổi frame protocol.
 
 G8-17 (tạo/tải lên/đổi tên tài liệu từ app) **không** là người dùng `folder_name_taken`: G8-17 chỉ ghi trang/tệp, và theo FD-D10
-server cho trùng tên tài liệu. Hợp đồng chéo (plan G5-G7 thẻ G8-17): tên rỗng/quá 500 → lỗi tại trường; tên trùng tài liệu khác →
-được (nếu FD-D10 ký khác thì G8-17 theo mã lỗi FD-D10 chọn); tài liệu đang mở bị tự đổi tên do di chuyển ở web → tiêu đề desktop
+server cho trùng tên tài liệu. Hợp đồng chéo (plan G5-G7 thẻ G8-17, Gate: FD-D10 cho phần tên trùng): tên rỗng/quá 500 → lỗi tại trường;
+tên trùng tài liệu khác → theo FD-D10. **Spine:** EXPERIENCE-G8 S18 (dòng "Đổi tên") và mockup `account-library.html` (hai khung
+S18 "tên trùng") đang ghi tên trùng là lỗi tại trường `uwDocNameTaken`; spine do G8-09 (lane g5g8-web_ux) sở hữu, phụ lục này
+không sửa. FD-D10 = (a) cần G8-09 đổi một dòng S18 (bỏ ca trùng cho tài liệu, giữ rỗng/quá dài) và bỏ hai khung mockup; (b) giữ
+`uwDocNameTaken` nhưng thành cảnh báo không chặn; (c) giữ là lỗi tại trường với mã server mới; tài liệu đang mở bị tự đổi tên do di chuyển ở web → tiêu đề desktop
 đổi theo `document.moved` của feed G5 hoặc làm mới metadata khi focus, và Lưu sau đó không thành xung đột nội dung (§3.3, không tăng
 `content_revision`).
 
