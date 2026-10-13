@@ -336,6 +336,15 @@ func TestIsolationMatrix(t *testing.T) {
 			refusedToo := status == http.StatusForbidden || status == http.StatusNotFound || status == http.StatusUnauthorized
 			if refusedToo && !spec.controlOK(status, raw) {
 				t.Errorf("write control %s %s on C's own rows = %d, the refusal B got too: %s", r.method, r.pattern, status, isoClip(raw))
+				continue
+			}
+			// ISO hardening (G8-04): an owner 5xx is never a control. A
+			// refusal B got for the same reason could be a crash, so the
+			// route proves nothing about tenancy until its own people are
+			// served. A route that 5xx's its owner is exempted in isoRoutes
+			// with skipControl and the reason the hardening found it.
+			if status >= 500 {
+				t.Errorf("write control %s %s on C's own rows = %d (owner 5xx; fix the route or exempt it in isoRoutes with skipControl): %s", r.method, r.pattern, status, isoClip(raw))
 			}
 		}
 	})

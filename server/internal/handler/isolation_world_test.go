@@ -855,11 +855,20 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 	// mention row of the document comment. Revisions are written by the edit
 	// route and mentions by G8-05; the world seeds them so both tables hold a
 	// row of the tenant's and their read paths can be attacked.
+	//
+	// The seeded history row says revision 1's body was replaced, so the
+	// comment itself must sit at revision 2: the edit path inserts the body
+	// it replaces under the comment's CURRENT revision, and a comment left at
+	// 1 would collide with this row on the unique (comment_id, revision) the
+	// next PATCH takes (the REV 500 the write-control pass surfaces).
 	if _, err := w.pool.Exec(ctx, `INSERT INTO document_comment_revisions
 		(id, organization_id, workspace_id, document_id, comment_id, body, revision, created_by, created_by_kind)
 		VALUES ($1, $2, $3, $4, $5, $6, 1, $7, 'human')`,
 		util.NewID(), tn.orgID, tn.wsID, tn.ids["document"], tn.ids["docComment"], m+" doc comment (cũ)", tn.userID); err != nil {
 		t.Fatalf("document comment revision: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `UPDATE document_comments SET revision = 2 WHERE id = $1`, tn.ids["docComment"]); err != nil {
+		t.Fatalf("document comment revision sync: %v", err)
 	}
 	if _, err := w.pool.Exec(ctx, `INSERT INTO document_comment_mentions
 		(id, organization_id, workspace_id, document_id, comment_id, user_id, state, created_by, created_by_kind)

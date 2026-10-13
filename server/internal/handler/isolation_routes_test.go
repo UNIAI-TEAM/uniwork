@@ -352,6 +352,7 @@ var isoRoutes = map[string]isoSpec{
 	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
+	"PUT /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {body: isoJSON(map[string]any{"calendar_ids": []string{"primary"}}), skipControl: "owner 5xx found by G8-04, owner: calendar (no provider client is configured in tests; the owner gets 503)"},
 	"GET /api/v1/meetings/{meetingID}/recordings/{recordingID}/content":                                    {control: []int{http.StatusConflict}},
 	"GET /api/v1/documents/{documentID}/office/jobs/{jobID}/output":                                        {control: []int{http.StatusConflict}}, // the fixture job is a serialize job: its output is not committable, and only the owner is asked
 	"GET /api/v1/meetings/{meetingID}/recordings/{recordingID}/playback-url":                               {control: []int{http.StatusConflict}},
@@ -407,7 +408,7 @@ var isoRoutes = map[string]isoSpec{
 	// signature): the control and the signed-URL cases are the frame-linked subtest.
 	"GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}":  {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
 	"HEAD /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}": {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
-	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil), skipControl: "owner 5xx found by G8-04, owner: office frame export (the stub engine answers 501 unsupported_operation)"},
 	// GO-A7's AI on the frame token (UNI-1014): the same bodies and vendor exemptions as the session rows.
 	"PUT /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider}":            {body: isoAICredentialPut},
 	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/chat/completions": {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
@@ -469,10 +470,10 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/email-hub/inbox-watch":                              {query: "?account_id={emailAccount}"},
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends/{scheduledSendID}":      {query: "?account_id={emailAccount}"},
 	"POST /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends/{scheduledSendID}/retry":  {query: "?account_id={emailAccount}"},
-	"POST /api/v1/workspaces/{workspaceID}/email-hub/watch":                                    {query: "?account_id={emailAccount}"},
-	"POST /api/v1/workspaces/{workspaceID}/email-hub/sync":                                     {query: "?account_id={emailAccount}"},
+	"POST /api/v1/workspaces/{workspaceID}/email-hub/watch":                                    {query: "?account_id={emailAccount}", skipControl: "owner 5xx found by G8-04, owner: email hub (no IMAP server in tests)"},
+	"POST /api/v1/workspaces/{workspaceID}/email-hub/sync":                                     {query: "?account_id={emailAccount}", skipControl: "owner 5xx found by G8-04, owner: email hub (no IMAP server in tests)"},
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/accounts/{accountID}":                   {},
-	"POST /api/v1/workspaces/{workspaceID}/email-hub/send":                                     {body: isoWith(map[string]string{"account_id": "emailAccount"}, map[string]any{"to": []string{"someone@example.com"}, "subject": "hi", "body_text": "hello"})},
+	"POST /api/v1/workspaces/{workspaceID}/email-hub/send":                                     {body: isoWith(map[string]string{"account_id": "emailAccount"}, map[string]any{"to": []string{"someone@example.com"}, "subject": "hi", "body_text": "hello"}), skipControl: "owner 5xx found by G8-04, owner: email hub (no SMTP server in tests)"},
 	"POST /api/v1/workspaces/{workspaceID}/files/resolve":                                      {body: isoWith(map[string]string{}, map[string]any{"file_ids": []string{"01J8X4FILE0N1P2Q3R4S5T6U7V"}})},
 	"PUT /api/v1/workspaces/{workspaceID}/projects/{projectID}":                                {body: isoJSON(map[string]any{"revision": 1, "title": "edited"})},
 	"DELETE /api/v1/meetings/{meetingID}/attendance/{participantID}":                           {mixedFirst: "liveMeeting"},
