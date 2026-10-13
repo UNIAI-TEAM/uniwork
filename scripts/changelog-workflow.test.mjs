@@ -27,3 +27,16 @@ test("workflow uses stable release validation and scoped credentials without byp
   assert.match(commands, /prepare --tag "\$RELEASE_TAG"/);
   assert.equal(workflow.jobs.release.concurrency["cancel-in-progress"], false);
 });
+
+test("CI validates the full Changelog PR diff with immutable base and head inputs", () => {
+  const workflow = parse(readFileSync(resolve(import.meta.dirname, "../.github/workflows/ci.yml"), "utf8"));
+  const steps = workflow.jobs["frontend-build"].steps;
+  const checkout = steps.find(step => step.uses?.startsWith("actions/checkout@"));
+  assert.equal(checkout.with["fetch-depth"], 0);
+  const check = steps.find(step => step.name === "Validate reviewed Changelog publication");
+  assert.equal(check.if, "needs.changes.outputs.frontend == 'true' && github.event_name == 'pull_request' && github.base_ref == 'develop'");
+  assert.equal(check.env.REVIEW_BASE, "${{ github.event.pull_request.base.sha }}");
+  assert.equal(check.env.REVIEW_HEAD, "${{ github.event.pull_request.head.sha }}");
+  assert.equal(check.run, 'node scripts/changelog-review-pr.mjs check --base "$REVIEW_BASE" --head "$REVIEW_HEAD"');
+  assert.ok(steps.some(step => step.run?.includes("scripts/changelog-review-pr.test.mjs")));
+});
