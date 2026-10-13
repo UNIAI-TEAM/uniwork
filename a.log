@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+b3f282800b2fff1a03abfa7e97daa4c9e2741695
+0d1c89e1058e9db4ff6ee4ebe5e055c8ac198ffb
+b3f282800 test(server): cover the mention-candidate q gate on owned documents
+7321ea32e fix(documents): key the mention picker by page size and test its hook
+5b4bbbdf5 fix(documents): close the mention-candidate review gaps on the server
+6d062b54e feat(documents): mention-candidate endpoint and hook on the client
+0205d4b43 feat(documents): expose mention candidates over HTTP
+921b2e8be feat(documents): read the mention candidates of a document
