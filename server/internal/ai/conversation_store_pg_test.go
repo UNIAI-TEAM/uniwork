@@ -321,7 +321,7 @@ func TestAIUniworkConversationSweepTTL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE ai_uniwork_conversations
-		SET created_at = $2, last_used_at = $3, expires_at = $2 + interval '24 hours' WHERE id = $1`,
+		SET created_at = $2::timestamptz, last_used_at = $3, expires_at = $2::timestamptz + interval '24 hours' WHERE id = $1`,
 		old.ID, base.Add(-25*time.Hour), base.Add(-time.Minute)); err != nil {
 		t.Fatal(err)
 	}
@@ -619,16 +619,22 @@ func TestAIUniworkConversationBoundToScope(t *testing.T) {
 	}
 }
 
-// DeleteByUser and DeleteByOrganization remove the rows they name and nothing
-// else; the interface's Delete removes one conversation with its turns.
+// DeleteByUserDocument removes one user's transcripts for the document whose
+// access was lost - the production caller's shape, a real document id - and
+// nothing else: the same user's other documents, another user's and another
+// organization's rows stay. An empty document id names no document and so
+// removes nothing; the store's no-document transcripts are DeleteByUser's
+// (design §9.4). DeleteByUser and DeleteByOrganization remove the rows they
+// name, and the interface's Delete removes one conversation with its turns.
 func TestAIUniworkConversationDeletesAreScoped(t *testing.T) {
 	store, pool := conversationStoreFixture(t)
 	ctx := context.Background()
 	store.SetClock(func() time.Time { return time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC) })
 	keys := []ConversationKey{
-		{OrganizationID: "org-a", UserID: "u-1", Module: "sheets"},
-		{OrganizationID: "org-a", UserID: "u-2", Module: "sheets"},
-		{OrganizationID: "org-b", UserID: "u-1", Module: "sheets"},
+		{OrganizationID: "org-a", UserID: "u-1", DocumentID: "doc-1", Module: "sheets"},
+		{OrganizationID: "org-a", UserID: "u-2", DocumentID: "doc-1", Module: "sheets"},
+		{OrganizationID: "org-b", UserID: "u-1", DocumentID: "doc-1", Module: "sheets"},
+		{OrganizationID: "org-a", UserID: "u-2", DocumentID: "doc-2", Module: "sheets"},
 	}
 	ids := make([]string, len(keys))
 	for i, key := range keys {
@@ -641,19 +647,30 @@ func TestAIUniworkConversationDeletesAreScoped(t *testing.T) {
 		}
 		ids[i] = conv.ID
 	}
-	if err := store.DeleteByUserDocument(ctx, "org-a", "u-2", ""); err != nil {
+	if err := store.DeleteByUserDocument(ctx, "org-a", "u-2", "doc-1"); err != nil {
 		t.Fatal(err)
 	}
 	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations WHERE id = $1`, ids[1]); got != 0 {
 		t.Fatalf("DeleteByUserDocument kept %d rows", got)
 	}
+	for name, id := range map[string]string{"another user": ids[0], "another organization": ids[2], "another document": ids[3]} {
+		if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations WHERE id = $1`, id); got != 1 {
+			t.Fatalf("DeleteByUserDocument took %s's conversation", name)
+		}
+	}
 	if err := store.DeleteByUser(ctx, "org-a", "u-1"); err != nil {
 		t.Fatal(err)
 	}
-	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations`); got != 1 {
-		t.Fatalf("%d conversations left, want the other organization's", got)
+	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations`); got != 2 {
+		t.Fatalf("%d conversations left, want the other organization's and the other document's", got)
 	}
 	if err := store.Delete(ctx, ids[2]); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations`); got != 1 {
+		t.Fatalf("%d conversations left after Delete", got)
+	}
+	if err := store.Delete(ctx, ids[3]); err != nil {
 		t.Fatal(err)
 	}
 	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations`); got != 0 {
