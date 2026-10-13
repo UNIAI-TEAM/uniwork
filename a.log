@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3; nproc; uptime
+32dc0367005e28863cb6b76eec6637234a2fefc1
+32dc03670 fix(ai): resolve sheets letter/header precedence in office_uniwork_ai@1 (FE14-13, -14, -15)
+4d2a31917 fix(ai): apply the G6-14 review round 1 wording to office_uniwork_ai@1
+8dc3c4c98 fix(scripts): tool table parses on CRLF and rejects wrapped rows (G6-14)
+4
+ 02:49:57 up  1:22,  0 user,  load average: 0.13, 0.69, 0.74

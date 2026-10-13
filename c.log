@@ -1,0 +1,10 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && AI_PROVIDER=fake go test -race -count=3 -v ./internal/ai/provider -run 'TestBYOKClientIdleAndHeaderTimeouts'; echo "BYOK_RACE_RERUN_EXIT=$?"
+=== RUN   TestBYOKClientIdleAndHeaderTimeouts
+--- PASS: TestBYOKClientIdleAndHeaderTimeouts (0.31s)
+=== RUN   TestBYOKClientIdleAndHeaderTimeouts
+--- PASS: TestBYOKClientIdleAndHeaderTimeouts (0.31s)
+=== RUN   TestBYOKClientIdleAndHeaderTimeouts
+--- PASS: TestBYOKClientIdleAndHeaderTimeouts (0.31s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	1.942s
+BYOK_RACE_RERUN_EXIT=0
