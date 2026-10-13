@@ -203,6 +203,9 @@ func TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns(t
 	if err != nil {
 		t.Fatalf("feed while a transaction is in flight: %v", err)
 	}
+	if !page.HasMore {
+		t.Fatal("a change held back by the in-flight guard must keep has_more true (BE-G1-3)")
+	}
 	for _, r := range page.Feed {
 		if r.DocumentID == younger.ID {
 			t.Fatal("the feed delivered a commit whose xid sits above the read's xmin (an older transaction is still in flight); a client advancing past it would lose that older change")
@@ -227,12 +230,19 @@ func TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns(t
 }
 
 // TestDocumentChangesFeedTombstoneNeverReappears is the card's "a tombstone
-// never resurrects on later pages" test: a delete is a removal, and a stale
-// later audit row for the same id does not re-emit it as live.
+// never resurrects on later pages" test under the reconstruction rule
+// (BE-G1-1/BE-G1-2 and addendum A): document.deleted is the retention purge -
+// it destroys the row and its permission rows in one transaction - so for a
+// cursor whose snapshot may have seen the document the feed answers 410
+// change_cursor_expired (never a silent skip, never a removal to unproven
+// readers), and a stale later audit row never resurrects the document as live.
 func TestDocumentChangesFeedTombstoneNeverReappears(t *testing.T) {
 	w := newFeedWorld(t, "chgtombstone")
 	doc := w.createPage(t, "to be deleted")
-	feedCursor, _ := w.snapshotThenFeed(t, 200)
+	feedCursor, held := w.snapshotThenFeed(t, 200)
+	if !held[doc.ID] {
+		t.Fatal("the fixture is wrong: the member could not read the document")
+	}
 
 	// A hard delete of the document row, with the audit row a purge writes.
 	if _, err := w.f.pool.Exec(w.f.ctx, `DELETE FROM documents WHERE id = $1`, doc.ID); err != nil {
@@ -244,13 +254,11 @@ func TestDocumentChangesFeedTombstoneNeverReappears(t *testing.T) {
 		"resource_type": "document", "resource_id": doc.ID, "correlation_id": util.NewID(),
 	})
 
-	rows := w.drainFeed(t, feedCursor, 200)
-	got, ok := feedRowsByDoc(rows)[doc.ID]
-	if !ok {
-		t.Fatal("the delete did not reach the feed")
-	}
-	if got.ChangeKind != DocumentChangeKindRemoval || got.Removal != DocumentChangeRemovalDeleted {
-		t.Fatalf("tombstone = %+v, want removal document_deleted", got)
+	// The cursor may have seen the document and the purge destroyed the state
+	// the removal decision needs: 410, not a silent skip, not a removal to
+	// everyone.
+	if _, err := w.list(t, w.tn.member.ID, feedCursor, 200); !codedIs(err, "change_cursor_expired") {
+		t.Fatalf("a purge the cursor may have seen = %v, want 410 change_cursor_expired", err)
 	}
 
 	// A later stale audit row for the same (now deleted) id must not re-emit
@@ -261,34 +269,32 @@ func TestDocumentChangesFeedTombstoneNeverReappears(t *testing.T) {
 		"resource_type": "document", "resource_id": doc.ID, "correlation_id": util.NewID(),
 	})
 	// A fresh snapshot + feed must not resurrect it either: the document row
-	// is gone, so the stale audit row still resolves to nothing (the tombstone
-	// was delivered by the first feed, and a stranger never sees one).
-	fresh, held := w.snapshotThenFeed(t, 200)
-	if held[doc.ID] {
+	// is gone, so the stale audit row resolves to nothing, and a stranger
+	// never sees one.
+	fresh, heldFresh := w.snapshotThenFeed(t, 200)
+	if heldFresh[doc.ID] {
 		t.Fatal("the fresh snapshot holds a deleted document")
 	}
 	for _, r := range w.drainFeed(t, fresh, 200) {
 		if r.DocumentID == doc.ID {
-			t.Fatalf("a stale row resurrected a tombstoned document: %+v", r)
+			t.Fatalf("a stale row resurrected a purged document: %+v", r)
 		}
 	}
 }
 
 // TestDocumentChangesFeedRemovalIsIDsOnly proves the removal payload carries
-// no name, path or metadata: only the document id, revision and reason.
+// no name, path or metadata: only the document id, revision and reason. The
+// removal is driven by a real RevokeDocumentShare (a purge now answers 410,
+// see TestDocumentChangesFeedTombstoneNeverReappears).
 func TestDocumentChangesFeedRemovalIsIDsOnly(t *testing.T) {
 	w := newFeedWorld(t, "chgremovalids")
-	doc := w.createPage(t, "secret title that must not leak")
+	doc := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", createdBy: w.tn.owner.ID})
+	share := w.f.share(t, doc, DocumentPrincipalUser, w.tn.member.ID, DocumentLevelView, w.tn.owner.ID)
 	feedCursor, _ := w.snapshotThenFeed(t, 200)
 
-	if _, err := w.f.pool.Exec(w.f.ctx, `DELETE FROM documents WHERE id = $1`, doc.ID); err != nil {
-		t.Fatal(err)
+	if err := w.f.svc.RevokeDocumentShare(w.f.ctx, Human(w.tn.owner.ID), doc.ID, share.ID); err != nil {
+		t.Fatalf("revoke: %v", err)
 	}
-	insertRow(t, w.f.ctx, w.f.pool, "audit_events", map[string]any{
-		"id": util.NewID(), "organization_id": w.tn.orgID, "workspace_id": w.tn.wsA,
-		"actor_kind": "system", "actor_id": "documents.purge", "action": "document.deleted",
-		"resource_type": "document", "resource_id": doc.ID, "correlation_id": util.NewID(),
-	})
 
 	var removal DocumentChangeFeedRow
 	for _, r := range w.drainFeed(t, feedCursor, 200) {
@@ -303,12 +309,13 @@ func TestDocumentChangesFeedRemovalIsIDsOnly(t *testing.T) {
 		t.Fatalf("a removal carries document fields: %+v", removal)
 	}
 	// The row is a Go struct with fixed fields; prove the wire shape carries
-	// no free text by marshalling it and checking the keys.
+	// no free text by marshalling it and checking the keys and the title the
+	// document row itself holds.
 	body, err := json.Marshal(removal)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(body), "secret title") {
+	if strings.Contains(string(body), doc.Title) {
 		t.Fatalf("removal payload leaked the title: %s", body)
 	}
 	for _, banned := range []string{"title", "path", "metadata", "content", "icon"} {
@@ -738,4 +745,221 @@ func TestDocumentChangesFeedWorkProductRowsBlockedUntilC14(t *testing.T) {
 			t.Fatalf("the removal carries document fields: %+v", got)
 		}
 	})
+}
+
+// TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep proves the removal
+// basis outlives the snapshot items (BE-G1-2): the snapshot TTL is 15 minutes
+// and the sweeper deletes the rows, but the feed cursor lives 7 days and a
+// revoke still reaches the caller who could read the document. A purge that
+// reaches the same cursor afterwards answers 410 instead of a silent skip
+// (addendum A), because its evidence is gone.
+func TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep(t *testing.T) {
+	w := newFeedWorld(t, "chgsweep")
+	revoked := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", createdBy: w.tn.owner.ID})
+	share := w.f.share(t, revoked, DocumentPrincipalUser, w.tn.member.ID, DocumentLevelView, w.tn.owner.ID)
+	purged := w.createPage(t, "purged later")
+	feedCursor, held := w.snapshotThenFeed(t, 200)
+	if !held[revoked.ID] || !held[purged.ID] {
+		t.Fatal("the fixture is wrong: the member could not read the documents")
+	}
+
+	// The snapshot TTL (15 minutes) passes and the sweeper deletes the row and
+	// its items; the feed cursor outlives them.
+	sweeper := w.svc.NewSnapshotSweeper(nil)
+	sweeper.SetClock(func() time.Time { return w.now.Add(2 * time.Hour) })
+	if snapshots, _, err := sweeper.Sweep(w.f.ctx); err != nil || snapshots == 0 {
+		t.Fatalf("sweep = %d, %v; want the expired snapshot gone", snapshots, err)
+	}
+
+	if err := w.f.svc.RevokeDocumentShare(w.f.ctx, Human(w.tn.owner.ID), revoked.ID, share.ID); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	page, err := w.list(t, w.tn.member.ID, feedCursor, 200)
+	if err != nil {
+		t.Fatalf("feed after the sweep: %v", err)
+	}
+	got, ok := feedRowsByDoc(page.Feed)[revoked.ID]
+	if !ok || got.ChangeKind != DocumentChangeKindRemoval || got.Removal != DocumentChangeRemovalPermissionRevoked {
+		t.Fatalf("revoke after the sweep = %+v (found %v), want the ids-only removal", got, ok)
+	}
+
+	// A purge the cursor may have seen, with its snapshot evidence swept: 410,
+	// never a silent skip and never a removal to everyone.
+	if _, err := w.f.pool.Exec(w.f.ctx, `DELETE FROM documents WHERE id = $1`, purged.ID); err != nil {
+		t.Fatal(err)
+	}
+	insertRow(t, w.f.ctx, w.f.pool, "audit_events", map[string]any{
+		"id": util.NewID(), "organization_id": w.tn.orgID, "workspace_id": w.tn.wsA,
+		"actor_kind": "system", "actor_id": "documents.purge", "action": "document.deleted",
+		"resource_type": "document", "resource_id": purged.ID, "correlation_id": util.NewID(),
+	})
+	if _, err := w.list(t, w.tn.member.ID, page.NextCursor, 200); !codedIs(err, "change_cursor_expired") {
+		t.Fatalf("purge after the sweep = %v, want 410 change_cursor_expired", err)
+	}
+}
+
+// TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval is the
+// contract's grant-then-revoke case: the grant landed after the snapshot (the
+// snapshot never held the document), the caller could read right before the
+// revoke, so the removal reaches them.
+func TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval(t *testing.T) {
+	w := newFeedWorld(t, "chggrantrevoke")
+	doc := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", createdBy: w.tn.owner.ID})
+	feedCursor, held := w.snapshotThenFeed(t, 200)
+	if held[doc.ID] {
+		t.Fatal("the fixture is wrong: the member already read the restricted document")
+	}
+
+	share, err := w.f.svc.ShareDocument(w.f.ctx, Human(w.tn.owner.ID), doc.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: w.tn.member.ID, Level: DocumentLevelView,
+	})
+	if err != nil {
+		t.Fatalf("share: %v", err)
+	}
+	if err := w.f.svc.RevokeDocumentShare(w.f.ctx, Human(w.tn.owner.ID), doc.ID, share.ID); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	got, ok := feedRowsByDoc(w.drainFeed(t, feedCursor, 200))[doc.ID]
+	if !ok {
+		t.Fatal("a grant-then-revoke did not reach the caller who could read before the revoke")
+	}
+	if got.ChangeKind != DocumentChangeKindRemoval || got.Removal != DocumentChangeRemovalPermissionRevoked {
+		t.Fatalf("grant-then-revoke row = %+v, want removal permission_revoked", got)
+	}
+}
+
+// TestDocumentChangesFeedNeverReaderGetsNothing pins the "never to someone who
+// never had access" rule (BE-G1-2) for every removal kind: a caller who could
+// not read the document gets no row about it - not even an id.
+func TestDocumentChangesFeedNeverReaderGetsNothing(t *testing.T) {
+	w := newFeedWorld(t, "chgnever")
+	restricted := func() db.Document {
+		return w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", createdBy: w.tn.owner.ID})
+	}
+	toDelete, toRevoke, toDemote, toMove := restricted(), restricted(), restricted(), restricted()
+	otherShare := w.f.share(t, toRevoke, DocumentPrincipalUser, w.tn.wsAdmin.ID, DocumentLevelView, w.tn.owner.ID)
+	feedCursor, held := w.snapshotThenFeed(t, 200)
+	for _, d := range []db.Document{toDelete, toRevoke, toDemote, toMove} {
+		if held[d.ID] {
+			t.Fatal("the fixture is wrong: the member could read a restricted document")
+		}
+	}
+
+	// delete: a purge the member could never read.
+	if _, err := w.f.pool.Exec(w.f.ctx, `DELETE FROM documents WHERE id = $1`, toDelete.ID); err != nil {
+		t.Fatal(err)
+	}
+	w.auditChange(t, "document.deleted", toDelete.ID)
+	// revoke: someone else's share ends.
+	if err := w.f.svc.RevokeDocumentShare(w.f.ctx, Human(w.tn.owner.ID), toRevoke.ID, otherShare.ID); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	// demotion: the prior visibility was already restricted (the synthetic row
+	// shape a document-level settings command must write; no such command
+	// exists on this root yet).
+	insertRow(t, w.f.ctx, w.f.pool, "audit_events", map[string]any{
+		"id": util.NewID(), "organization_id": w.tn.orgID, "workspace_id": w.tn.wsA,
+		"actor_kind": "human", "actor_id": w.tn.owner.ID, "action": "document.settings_changed",
+		"resource_type": "document", "resource_id": toDemote.ID, "correlation_id": util.NewID(),
+		"metadata": `{"visibility":"restricted"}`,
+	})
+	// move-away: the document leaves the workspace.
+	if _, err := w.f.pool.Exec(w.f.ctx, `UPDATE documents SET workspace_id = $2 WHERE id = $1`, toMove.ID, w.tn.wsB); err != nil {
+		t.Fatal(err)
+	}
+	w.auditChange(t, "document.moved", toMove.ID)
+
+	for _, r := range w.drainFeed(t, feedCursor, 200) {
+		switch r.DocumentID {
+		case toDelete.ID, toRevoke.ID, toDemote.ID, toMove.ID:
+			t.Fatalf("a never-reader received a row about %s: %+v", r.DocumentID, r)
+		}
+	}
+}
+
+// TestDocumentChangesFeedStillReaderKeepsReadingOnOneShareRevoke: revoking one
+// of two shares must not take the document away from a caller who still reads
+// through the other path (BE-G1-2): no removal, the ordinary upsert.
+func TestDocumentChangesFeedStillReaderKeepsReadingOnOneShareRevoke(t *testing.T) {
+	w := newFeedWorld(t, "chgstill")
+	doc := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", createdBy: w.tn.owner.ID})
+	view := w.f.share(t, doc, DocumentPrincipalUser, w.tn.member.ID, DocumentLevelView, w.tn.owner.ID)
+	w.f.share(t, doc, DocumentPrincipalUser, w.tn.member.ID, DocumentLevelEdit, w.tn.owner.ID)
+	feedCursor, held := w.snapshotThenFeed(t, 200)
+	if !held[doc.ID] {
+		t.Fatal("the fixture is wrong: the member could not read the shared document")
+	}
+
+	if err := w.f.svc.RevokeDocumentShare(w.f.ctx, Human(w.tn.owner.ID), doc.ID, view.ID); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	got, ok := feedRowsByDoc(w.drainFeed(t, feedCursor, 200))[doc.ID]
+	if !ok {
+		t.Fatal("the revoke of one share did not reach the feed at all")
+	}
+	if got.ChangeKind != DocumentChangeKindUpsert || got.Removal != "" {
+		t.Fatalf("still-reader row = %+v, want an upsert (never a removal)", got)
+	}
+}
+
+// TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals is the
+// Advisor's fork-G5-04 case: a saved G5-01a end-of-snapshot cursor (minted by
+// the real snapshot path to its last page) is served incrementally with BOTH
+// an upsert and a removal.
+func TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals(t *testing.T) {
+	w := newFeedWorld(t, "chgsaved")
+	old := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", createdBy: w.tn.owner.ID})
+	oldShare := w.f.share(t, old, DocumentPrincipalUser, w.tn.member.ID, DocumentLevelView, w.tn.owner.ID)
+	feedCursor, held := w.snapshotThenFeed(t, 200)
+	if !held[old.ID] {
+		t.Fatal("the fixture is wrong: the member could not read the shared document")
+	}
+
+	// An upsert: a document granted after the snapshot.
+	fresh := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", createdBy: w.tn.owner.ID})
+	if _, err := w.f.svc.ShareDocument(w.f.ctx, Human(w.tn.owner.ID), fresh.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: w.tn.member.ID, Level: DocumentLevelView,
+	}); err != nil {
+		t.Fatalf("share: %v", err)
+	}
+	// A removal: the saved share on the older document ends.
+	if err := w.f.svc.RevokeDocumentShare(w.f.ctx, Human(w.tn.owner.ID), old.ID, oldShare.ID); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+
+	rows := feedRowsByDoc(w.drainFeed(t, feedCursor, 200))
+	if got, ok := rows[fresh.ID]; !ok || got.ChangeKind != DocumentChangeKindUpsert {
+		t.Fatalf("saved cursor upsert = %+v (found %v), want an upsert", got, ok)
+	}
+	if got, ok := rows[old.ID]; !ok || got.ChangeKind != DocumentChangeKindRemoval || got.Removal != DocumentChangeRemovalPermissionRevoked {
+		t.Fatalf("saved cursor removal = %+v (found %v), want the ids-only removal", got, ok)
+	}
+}
+
+// TestDocumentChangesFeedVisibilityDemotionIsRemoval: a workspace-visible
+// document demoted to restricted reaches the member who could read it through
+// the workspace leg. No document-level visibility command exists on this root
+// yet, so the row is the shape such a command must write (metadata.visibility
+// carries the prior visibility); the branch and its audit contract are pinned
+// here for the command that lands.
+func TestDocumentChangesFeedVisibilityDemotionIsRemoval(t *testing.T) {
+	w := newFeedWorld(t, "chgdemote")
+	doc := w.createPage(t, "demoted")
+	feedCursor, held := w.snapshotThenFeed(t, 200)
+	if !held[doc.ID] {
+		t.Fatal("the fixture is wrong: the member could not read the document")
+	}
+	if _, err := w.f.pool.Exec(w.f.ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, doc.ID); err != nil {
+		t.Fatal(err)
+	}
+	insertRow(t, w.f.ctx, w.f.pool, "audit_events", map[string]any{
+		"id": util.NewID(), "organization_id": w.tn.orgID, "workspace_id": w.tn.wsA,
+		"actor_kind": "human", "actor_id": w.tn.owner.ID, "action": "document.settings_changed",
+		"resource_type": "document", "resource_id": doc.ID, "correlation_id": util.NewID(),
+		"metadata": `{"visibility":"workspace"}`,
+	})
+	got, ok := feedRowsByDoc(w.drainFeed(t, feedCursor, 200))[doc.ID]
+	if !ok || got.ChangeKind != DocumentChangeKindRemoval || got.Removal != DocumentChangeRemovalPermissionRevoked {
+		t.Fatalf("demotion row = %+v (found %v), want removal permission_revoked", got, ok)
+	}
 }

@@ -105,6 +105,14 @@ with the variables above exported (Node 22).
   `uniwork_office_idempotent_replays_total`, `uniwork_office_commit_intents_swept_total`. The 409 at commit is the
   shared `uniwork_document_conflicts_total{kind="file",code="document_version_conflict"}` (reuse decision, G5-07),
   not a separate office counter.
+- Change feed (G5-01b): lag gauge `uniwork_office_change_feed_lag_seconds` (age of the oldest committed document
+  change a served page had not delivered). Two known quiet modes, no alert yet (G7-07 owns alerts). (1) **xmin
+  horizon**: one long-running transaction (a migration, a backup, a stuck reader) holds `pg_snapshot_xmin` back, so
+  every later commit is held and no page delivers while the lag and `has_more` stay non-zero; find the holder in
+  `pg_stat_activity` (`xact_start`) and let it end - no commit is lost, the cursor keeps its place. (2) **Retention**:
+  the trash purge retention (30 days, `documentRetentionDays`) must stay >= the feed cursor TTL (7 days,
+  `DocumentChangeFeedTTL`); if a purge ever outlives the permission evidence a still-valid cursor needs, the feed
+  answers 410 `change_cursor_expired` (one resync) instead of guessing a removal.
 - Today the real FileService keeps the `document_file` purpose disabled until G1-03 opens it, so a real deployment
   refuses office jobs at `RegisterProviderOutput` (`file_purpose_disabled`) until then.
 

@@ -57,17 +57,17 @@ func newChangeFeedWorld(t *testing.T) *changeFeedWorld {
 		t.Fatalf("create ws: %d %v", res.StatusCode, out)
 	}
 	w.wsID = out["workspace"].(map[string]any)["id"].(string)
-	w.seedDoc(t, util.NewID())
+	w.seedDoc(t, util.NewID(), "workspace")
 	return w
 }
 
 // seedDoc inserts one page document straight into the database: the HTTP
 // create route is behind the documents flag, which this suite does not need.
-func (w *changeFeedWorld) seedDoc(t *testing.T, id string) {
+func (w *changeFeedWorld) seedDoc(t *testing.T, id, visibility string) {
 	t.Helper()
 	row := map[string]any{
 		"id": id, "organization_id": w.orgID, "workspace_id": w.wsID,
-		"kind": "page", "title": "Tài liệu", "visibility": "workspace",
+		"kind": "page", "title": "Tài liệu", "visibility": visibility,
 		"created_by": w.userID, "created_by_kind": "human", "updated_by": w.userID, "updated_by_kind": "human",
 	}
 	names, args, marks := make([]string, 0, len(row)), make([]any, 0, len(row)), make([]string, 0, len(row))
@@ -108,7 +108,7 @@ func TestDocumentChangesHTTPErrorAnswers(t *testing.T) {
 	// Two documents and limit=1: the cold start hands out a mid-pagination
 	// SNAPSHOT cursor, the only kind that names the snapshot. A single-page
 	// snapshot hands out the feed cursor, which answers 501 until G5-01b.
-	w.seedDoc(t, util.NewID())
+	w.seedDoc(t, util.NewID(), "workspace")
 
 	status, out := w.feed(t, "limit=1")
 	if status != http.StatusOK {
@@ -171,8 +171,8 @@ func TestDocumentChangesHTTPErrorAnswers(t *testing.T) {
 // contract maximum rather than refused.
 func TestDocumentChangesHTTPLimitParsing(t *testing.T) {
 	w := newChangeFeedWorld(t)
-	w.seedDoc(t, util.NewID())
-	w.seedDoc(t, util.NewID())
+	w.seedDoc(t, util.NewID(), "workspace")
+	w.seedDoc(t, util.NewID(), "workspace")
 
 	for _, raw := range []string{"abc", "-1", "1.5"} {
 		status, out := w.feed(t, "limit="+raw)
@@ -246,13 +246,22 @@ func TestDocumentChangesRevisionWireIsDecimalString(t *testing.T) {
 // TestDocumentChangesHTTPFeedRows pins the incremental feed's wire row
 // (G5-01b): a feed page fills `feed` and leaves `changes` empty, and a removal
 // carries the document id, the change kind and its reason - no title, no path,
-// no metadata - on the raw body.
+// no metadata - on the raw body. The removal is a revoked share (a purge
+// answers 410 where the removing change destroyed its evidence, the
+// service-level rule of BE-G1-2).
 func TestDocumentChangesHTTPFeedRows(t *testing.T) {
 	w := newChangeFeedWorld(t)
 	docID := util.NewID()
-	w.seedDoc(t, docID)
+	w.seedDoc(t, docID, "restricted")
+	shareID := util.NewID()
+	if _, err := testPool.Exec(context.Background(),
+		`INSERT INTO document_shares (id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind)
+		 VALUES ($1, $2, $3, $4, 'user', $5, 'view', $5, 'human')`,
+		shareID, w.orgID, w.wsID, docID, w.userID); err != nil {
+		t.Fatal(err)
+	}
 
-	// The empty cold start over one document hands out the feed cursor.
+	// The cold start over the shared document hands out the feed cursor.
 	status, out := w.feed(t, "")
 	if status != http.StatusOK {
 		t.Fatalf("cold start = %d %v, want 200", status, out)
@@ -262,14 +271,16 @@ func TestDocumentChangesHTTPFeedRows(t *testing.T) {
 		t.Fatalf("cold start hands out no cursor: %v", out)
 	}
 
-	// The document is purged, with the audit row a purge writes.
-	if _, err := testPool.Exec(context.Background(), `DELETE FROM documents WHERE id = $1`, docID); err != nil {
+	// The share is revoked, with the audit row the command writes.
+	if _, err := testPool.Exec(context.Background(),
+		`UPDATE document_shares SET revoked_at = now() WHERE id = $1`, shareID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := testPool.Exec(context.Background(),
-		`INSERT INTO audit_events (id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, correlation_id)
-		 VALUES ($1, $2, $3, 'system', 'documents.purge', 'document.deleted', 'document', $4, $5)`,
-		util.NewID(), w.orgID, w.wsID, docID, util.NewID()); err != nil {
+		`INSERT INTO audit_events (id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, correlation_id, metadata)
+		 VALUES ($1, $2, $3, 'human', $4, 'document.share_revoked', 'document', $5, $6, $7)`,
+		util.NewID(), w.orgID, w.wsID, w.userID, docID, util.NewID(),
+		fmt.Sprintf(`{"principal_type":"user","principal_id":%q,"level":"view"}`, w.userID)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -288,8 +299,12 @@ func TestDocumentChangesHTTPFeedRows(t *testing.T) {
 		t.Fatalf("feed page = %v, want one row", out["feed"])
 	}
 	row, _ := feed[0].(map[string]any)
+	var revision int64
+	if err := testPool.QueryRow(context.Background(), `SELECT revision FROM documents WHERE id = $1`, docID).Scan(&revision); err != nil {
+		t.Fatal(err)
+	}
 	if row["document_id"] != docID || row["change_kind"] != "removal" ||
-		row["kind"] != "" || row["revision"] != "0" || row["removal"] != "document_deleted" {
+		row["kind"] != "" || row["revision"] != strconv.FormatInt(revision, 10) || row["removal"] != "permission_revoked" {
 		t.Fatalf("removal row = %v", row)
 	}
 	if _, ok := row["title"]; ok {
