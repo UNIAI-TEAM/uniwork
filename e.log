@@ -1,0 +1,124 @@
+$ git checkout 819d50f9 -- apps/markdown/tests/g6-12-clarify-receipts.test.ts apps/markdown/tests/uniwork-view-only-ai.test.ts apps/html/tests/g6-12-clarify-receipts.test.ts apps/html/tests/uniwork-view-only-ai.test.ts; (cd apps/markdown && npx vitest run tests/g6-12-clarify-receipts.test.ts tests/uniwork-view-only-ai.test.ts); M=$?; (cd apps/html && npx vitest run tests/g6-12-clarify-receipts.test.ts tests/uniwork-view-only-ai.test.ts); H=$?; git checkout HEAD -- apps; git status --short apps; echo "RED_EXIT md_mocks=$M html_mocks=$H"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ❯ tests/g6-12-clarify-receipts.test.ts (7 tests | 7 failed) 478ms
+     × shows the answered receipt under the user message 186ms
+     × leaves no receipt after a skip 49ms
+     × keeps the receipt while the document stays the same 52ms
+     × drops the receipt when another document opens 45ms
+     × keeps the receipt when an untitled document gets its first path (same document) 64ms
+     × late restored history never replaces the live turn or moves its receipt 40ms
+     × clears the receipt on New chat 39ms
+ ❯ tests/uniwork-view-only-ai.test.ts (14 tests | 2 failed) 459ms
+     × shows the notice and no edit queue 31ms
+     × shows no notice and keeps the edit queue on an editable copy 22ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-clarify-receipts.test.ts > answered clarify receipts (markdown) > shows the answered receipt under the user message
+ FAIL  tests/g6-12-clarify-receipts.test.ts > answered clarify receipts (markdown) > leaves no receipt after a skip
+ FAIL  tests/g6-12-clarify-receipts.test.ts > answered clarify receipts (markdown) > drops the receipt when another document opens
+ FAIL  tests/g6-12-clarify-receipts.test.ts > answered clarify receipts (markdown) > keeps the receipt when an untitled document gets its first path (same document)
+ FAIL  tests/g6-12-clarify-receipts.test.ts > answered clarify receipts (markdown) > clears the receipt on New chat
+ FAIL  tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows the notice and no edit queue
+ FAIL  tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows no notice and keeps the edit queue on an editable copy
+TypeError: Cannot read properties of undefined (reading 'credentialsUnavailable')
+ ❯ AiModelPicker ../../packages/ui/src/AiModelPicker.tsx:100:53
+     98|   const need = settings ? aiModelPickerNeed(settings) : null
+     99|   const needHint =
+    100|     settings !== null && !currentUsable && settings.credentialsUnavail…
+       |                                                     ^
+    101|       ? need === 'base-url'
+    102|         ? strings.needBaseUrl
+ ❯ Object.react_stack_bottom_frame ../../node_modules/react-dom/cjs/react-dom-client.development.js:25904:20
+ ❯ renderWithHooks ../../node_modules/react-dom/cjs/react-dom-client.development.js:7662:22
+ ❯ updateFunctionComponent ../../node_modules/react-dom/cjs/react-dom-client.development.js:10166:19
+ ❯ beginWork ../../node_modules/react-dom/cjs/react-dom-client.development.js:11778:18
+ ❯ runWithFiberInDEV ../../node_modules/react-dom/cjs/react-dom-client.development.js:874:13
+ ❯ performUnitOfWork ../../node_modules/react-dom/cjs/react-dom-client.development.js:17641:22
+ ❯ workLoopSync ../../node_modules/react-dom/cjs/react-dom-client.development.js:17469:41
+ ❯ renderRootSync ../../node_modules/react-dom/cjs/react-dom-client.development.js:17450:11
+ ❯ performWorkOnRoot ../../node_modules/react-dom/cjs/react-dom-client.development.js:16583:35
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  tests/g6-12-clarify-receipts.test.ts > answered clarify receipts (markdown) > keeps the receipt while the document stays the same
+AssertionError: the card is shown: expected null not to be null
+ ❯ reachCard tests/g6-12-clarify-receipts.test.ts:131:82
+    129|     await flush()
+    130|     await flush()
+    131|     expect(container!.querySelector('.ai-clarify-opt'), 'the card is s…
+       |                                                                                  ^
+    132|   }
+    133|   async function answerCard(): Promise<void> {
+ ❯ answerCard tests/g6-12-clarify-receipts.test.ts:134:5
+ ❯ tests/g6-12-clarify-receipts.test.ts:163:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  tests/g6-12-clarify-receipts.test.ts > answered clarify receipts (markdown) > late restored history never replaces the live turn or moves its receipt
+AssertionError: the card is shown: expected null not to be null
+ ❯ reachCard tests/g6-12-clarify-receipts.test.ts:131:82
+    129|     await flush()
+    130|     await flush()
+    131|     expect(container!.querySelector('.ai-clarify-opt'), 'the card is s…
+       |                                                                                  ^
+    132|   }
+    133|   async function answerCard(): Promise<void> {
+ ❯ answerCard tests/g6-12-clarify-receipts.test.ts:134:5
+ ❯ tests/g6-12-clarify-receipts.test.ts:189:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  9 failed | 12 passed (21)
+   Start at  02:53:11
+   Duration  2.40s (transform 1.78s, setup 0ms, import 2.56s, tests 937ms, environment 870ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+ ❯ tests/g6-12-clarify-receipts.test.ts (3 tests | 3 failed) 98ms
+     × keeps the receipt while the document stays the same 66ms
+     × drops the receipts when another document opens 16ms
+     × keeps the receipts when an untitled document gets its first path (same document) 15ms
+ ❯ tests/uniwork-view-only-ai.test.ts (14 tests | 2 failed) 152ms
+     × shows the notice and no edit queue 24ms
+     × shows no notice and keeps the edit queue on an editable copy 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/g6-12-clarify-receipts.test.ts > answered clarify receipts (html) > keeps the receipt while the document stays the same
+ FAIL  tests/g6-12-clarify-receipts.test.ts > answered clarify receipts (html) > drops the receipts when another document opens
+ FAIL  tests/g6-12-clarify-receipts.test.ts > answered clarify receipts (html) > keeps the receipts when an untitled document gets its first path (same document)
+ FAIL  tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows the notice and no edit queue
+ FAIL  tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows no notice and keeps the edit queue on an editable copy
+TypeError: Cannot read properties of undefined (reading 'credentialsUnavailable')
+ ❯ AiModelPicker ../../packages/ui/src/AiModelPicker.tsx:100:53
+     98|   const need = settings ? aiModelPickerNeed(settings) : null
+     99|   const needHint =
+    100|     settings !== null && !currentUsable && settings.credentialsUnavail…
+       |                                                     ^
+    101|       ? need === 'base-url'
+    102|         ? strings.needBaseUrl
+ ❯ Object.react_stack_bottom_frame ../../node_modules/react-dom/cjs/react-dom-client.development.js:25904:20
+ ❯ renderWithHooks ../../node_modules/react-dom/cjs/react-dom-client.development.js:7662:22
+ ❯ updateFunctionComponent ../../node_modules/react-dom/cjs/react-dom-client.development.js:10166:19
+ ❯ beginWork ../../node_modules/react-dom/cjs/react-dom-client.development.js:11778:18
+ ❯ runWithFiberInDEV ../../node_modules/react-dom/cjs/react-dom-client.development.js:874:13
+ ❯ performUnitOfWork ../../node_modules/react-dom/cjs/react-dom-client.development.js:17641:22
+ ❯ workLoopSync ../../node_modules/react-dom/cjs/react-dom-client.development.js:17469:41
+ ❯ renderRootSync ../../node_modules/react-dom/cjs/react-dom-client.development.js:17450:11
+ ❯ performWorkOnRoot ../../node_modules/react-dom/cjs/react-dom-client.development.js:16583:35
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  5 failed | 12 passed (17)
+   Start at  02:53:14
+   Duration  2.10s (transform 1.73s, setup 0ms, import 2.35s, tests 250ms, environment 855ms)
+
+RED_EXIT md_mocks=1 html_mocks=1

@@ -1,0 +1,1 @@
+$ npx eslint --max-warnings 0 apps/shell/src/renderer/src/Home.tsx apps/shell/src/renderer/src/folder-menu-anchor.ts apps/shell/tests/folder-menu-anchor.test.ts apps/markdown/tests/helpers/ai-settings.ts apps/html/tests/helpers/ai-settings.ts e2e/home-folders.spec.ts

@@ -1,0 +1,55 @@
+$ xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts e2e/home-folders.spec.ts --repeat-each=3; echo "E2E_HOME_FOLDERS_X3=$?"
+
+Running 12 tests using 1 worker
+
+(node:8798) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/home-folders.spec.ts:37:7 › home folders panel › shows the tree, opens a folder, then creates / moves / renames / deletes on disk (3.7s)
+  ✓   2 e2e/home-folders.spec.ts:127:7 › home folders panel › an added folder joins the tree in place and leaves the list without touching disk (1.7s)
+  ✓   3 e2e/home-folders.spec.ts:182:7 › home folders panel › a folder menu survives a scroll event that moved nothing and follows a row that did move (1.2s)
+  ✓   4 e2e/home-folders.spec.ts:218:7 › home folders panel › a file created from a folder view lands in that folder (1.3s)
+(node:9100) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   5 e2e/home-folders.spec.ts:37:7 › home folders panel › shows the tree, opens a folder, then creates / moves / renames / deletes on disk (3.3s)
+  ✓   6 e2e/home-folders.spec.ts:127:7 › home folders panel › an added folder joins the tree in place and leaves the list without touching disk (1.6s)
+  ✓   7 e2e/home-folders.spec.ts:182:7 › home folders panel › a folder menu survives a scroll event that moved nothing and follows a row that did move (1.2s)
+  ✓   8 e2e/home-folders.spec.ts:218:7 › home folders panel › a file created from a folder view lands in that folder (1.3s)
+(node:9403) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   9 e2e/home-folders.spec.ts:37:7 › home folders panel › shows the tree, opens a folder, then creates / moves / renames / deletes on disk (3.4s)
+  ✓  10 e2e/home-folders.spec.ts:127:7 › home folders panel › an added folder joins the tree in place and leaves the list without touching disk (1.7s)
+  ✘  11 e2e/home-folders.spec.ts:182:7 › home folders panel › a folder menu survives a scroll event that moved nothing and follows a row that did move (15.5s)
+(node:9623) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  12 e2e/home-folders.spec.ts:218:7 › home folders panel › a file created from a folder view lands in that folder (1.4s)
+
+
+  1) e2e/home-folders.spec.ts:182:7 › home folders panel › a folder menu survives a scroll event that moved nothing and follows a row that did move 
+
+    Error: expect(received).toBeCloseTo(expected, precision)
+
+    Expected: 350.3065490722656
+    Received: 352
+
+    Expected precision:    0
+    Expected difference: < 0.5
+    Received difference:   1.693450927734375
+
+    Call Log:
+    - Timeout 15000ms exceeded while waiting on the predicate
+
+      209 |       await expect
+      210 |         .poll(async () => (await menu.boundingBox())?.y)
+    > 211 |         .toBeCloseTo((before?.y ?? 0) + 16, 0)
+          |          ^
+      212 |       await expect(menu).toBeVisible()
+      213 |     } finally {
+      214 |       await closeAndSaveVideo(launched, 'home-folders-menu-scroll')
+        at /home/ubuntu/work/uniwork-office/e2e/home-folders.spec.ts:211:10
+
+    Error Context: e2e/test-results/home-folders-home-folders--68b40-follows-a-row-that-did-move-repeat2/error-context.md
+
+  1 failed
+    e2e/home-folders.spec.ts:182:7 › home folders panel › a folder menu survives a scroll event that moved nothing and follows a row that did move 
+  11 passed (39.2s)
+E2E_HOME_FOLDERS_X3=1
