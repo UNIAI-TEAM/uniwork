@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -44,6 +44,66 @@ describe("DashboardGuard when the organization is suspended", () => {
       "/get-started",
     );
     expect(screen.queryByText("workspace body")).not.toBeInTheDocument();
+    expect(adapter.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("DashboardGuard when the organization was closed", () => {
+  // A closed organization is archived (ADR 0032 D4): its routes answer like a
+  // suspended one, but GET /orgs no longer lists it, so the notice would be
+  // about an organization the person no longer belongs to.
+  it("sends a person whose organization is gone to /get-started instead of the suspended notice", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/orgs") return Promise.resolve({ organizations: [] });
+      if (path === "/api/v1/workspaces") {
+        return Promise.resolve({
+          workspaces: [
+            {
+              id: "w1",
+              slug: "team",
+              name: "Team",
+              organization_id: "o1",
+              organization_slug: "acme",
+              organization_name: "Acme",
+            },
+          ],
+        });
+      }
+      return Promise.reject(new ApiError("suspended", "organization_suspended", 403));
+    });
+    const adapter = nav();
+    render(
+      wrapWithNav(
+        <DashboardGuard orgSlug="acme" wsSlug="team">
+          {() => <p>workspace body</p>}
+        </DashboardGuard>,
+        adapter,
+      ),
+    );
+    await waitFor(() => expect(adapter.replace).toHaveBeenCalledWith("/get-started"));
+    expect(screen.queryByText("Tổ chức đang tạm ngưng")).not.toBeInTheDocument();
+    expect(screen.queryByText("workspace body")).not.toBeInTheDocument();
+  });
+
+  it("keeps the suspended notice while the organization is still listed", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/orgs") {
+        return Promise.resolve({ organizations: [{ id: "o1", slug: "acme", name: "Acme", status: "suspended" }] });
+      }
+      if (path === "/api/v1/workspaces") return Promise.resolve({ workspaces: [] });
+      return Promise.reject(new ApiError("suspended", "organization_suspended", 403));
+    });
+    const adapter = nav();
+    render(
+      wrapWithNav(
+        <DashboardGuard orgSlug="acme" wsSlug="team">
+          {() => <p>workspace body</p>}
+        </DashboardGuard>,
+        adapter,
+      ),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Tổ chức đang tạm ngưng");
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/orgs"));
     expect(adapter.replace).not.toHaveBeenCalled();
   });
 });
