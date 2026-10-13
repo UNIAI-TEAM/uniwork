@@ -35,6 +35,7 @@ const (
 	ChatCallRecording     UploadPurpose = "chat_call_recording"
 	MeetingRecording      UploadPurpose = "meeting_recording"
 	AuditExport           UploadPurpose = "audit_export"
+	TenantExport          UploadPurpose = "tenant_export"
 	DocumentFile          UploadPurpose = "document_file"
 	DocumentAsset         UploadPurpose = "document_asset"
 )
@@ -52,6 +53,7 @@ var purposes = []UploadPurpose{
 	ChatCallRecording,
 	MeetingRecording,
 	AuditExport,
+	TenantExport,
 	DocumentFile,
 	DocumentAsset,
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Archive,
   Bell,
   Building2,
   CreditCard,
@@ -50,6 +51,7 @@ import { SettingsTabSkeleton } from "./settings-layout";
 const SecurityTab = lazy(() => import("./security-tab").then((m) => ({ default: m.SecurityTab })));
 const AiTab = lazy(() => import("./ai-tab").then((m) => ({ default: m.AiTab })));
 const AuditTab = lazy(() => import("./audit-tab").then((m) => ({ default: m.AuditTab })));
+const PrivacyTab = lazy(() => import("./privacy-tab").then((m) => ({ default: m.PrivacyTab })));
 const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.BillingTab })));
 const InvoicesTab = lazy(() => import("./invoices-tab").then((m) => ({ default: m.InvoicesTab })));
 const DepartmentsTab = lazy(() => import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })));
@@ -62,7 +64,7 @@ const OrganizationTab = lazy(() => import("./organization-tab").then((m) => ({ d
 const PreferencesTab = lazy(() => import("./preferences-tab").then((m) => ({ default: m.PreferencesTab })));
 const WorkspaceTab = lazy(() => import("./workspace-tab").then((m) => ({ default: m.WorkspaceTab })));
 
-type Gate = "billing" | "audit" | "workspace_admin" | "org_admin";
+type Gate = "billing" | "audit" | "workspace_admin" | "org_admin" | "org_owner";
 
 interface TabDef {
   /** The `?tab=` value; links and e2e specs point at these, so they never change. */
@@ -104,6 +106,7 @@ const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
       { value: "invoices", label: "invoices", icon: Receipt, Panel: InvoicesTab, gate: "billing" },
       { value: "documents", label: "documents", icon: FileText, Panel: DocumentsTab, gate: "org_admin" },
       { value: "audit", label: "audit", icon: ScrollText, Panel: AuditTab, gate: "audit", wide: true },
+      { value: "privacy", label: "privacy", icon: Archive, Panel: PrivacyTab, gate: "org_owner" },
     ],
   },
   {
@@ -144,6 +147,7 @@ function useHiddenGates(): Set<Gate> {
   if (!audit.isLoading && !audit.canRead.allowed) hidden.add("audit");
   if (!me.isLoading && me.data && !ADMIN_ROLES.has(me.data.role)) hidden.add("workspace_admin");
   if (!org.isLoading && org.data && !ADMIN_ROLES.has(org.data.role)) hidden.add("org_admin");
+  if (!org.isLoading && org.data && org.data.role !== "owner") hidden.add("org_owner");
   return hidden;
 }
 

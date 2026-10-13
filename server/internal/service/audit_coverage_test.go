@@ -38,6 +38,11 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionAuditExportRequested:        "covered by the audit service's own tests",
 	audit.ActionAuditExported:               "covered by the audit export consumer's own tests",
 	audit.ActionAuditRetentionSet:           "covered by the audit service's own tests",
+	audit.ActionPrivacyExportRequested:      "covered by the privacy export service's own tests",
+	audit.ActionPrivacyExported:             "covered by the privacy export consumer's own tests",
+	audit.ActionPrivacyDeletionRequested:    "covered by the privacy deletion service's own tests",
+	audit.ActionPrivacyDeletionCancelled:    "covered by the privacy deletion service's own tests",
+	audit.ActionPrivacyOrganizationDeleted:  "covered by the privacy deletion consumer's own tests",
 	audit.ActionAuthDesktopStarted:          "covered by desktop_auth_test.go",
 	audit.ActionAuthDesktopConsentApproved:  "covered by desktop_auth_test.go",
 	audit.ActionAuthDesktopConsentCancelled: "covered by desktop_auth_test.go",
@@ -1422,6 +1427,11 @@ func auditActions() []string {
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
+		audit.ActionPrivacyExportRequested,
+		audit.ActionPrivacyExported,
+		audit.ActionPrivacyDeletionRequested,
+		audit.ActionPrivacyDeletionCancelled,
+		audit.ActionPrivacyOrganizationDeleted,
 		audit.ActionDesktopDeviceRevoked,
 		audit.ActionSubscriptionChanged,
 		audit.ActionBillingInvoiceRefunded,
@@ -1718,4 +1728,49 @@ func (f *auditFixture) fileDocument(t *testing.T) (*DocumentService, string) {
 		t.Fatalf("make audit document a file: %v", err)
 	}
 	return svc, id
+}
+
+// Two commands write document.created without owning the action: CreateFolder
+// (a folder is a document of kind folder) and SaveSourceFile (a file copied out
+// of chat, a task, a meeting or a mailbox). TestEveryAuditedCommandWritesItsRow
+// is keyed by action, so a dropped audit write on either would hide behind the
+// other document.created writers. These cases are keyed by command: each runs
+// it and demands an audit row and an outbox row for the document it created.
+func TestReusedAuditActionCommandsWriteTheirOwnRows(t *testing.T) {
+	cases := map[string]func(t *testing.T) (env *docStorageEnv, documentID string){
+		"CreateFolder": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			v, err := env.svc.CreatePage(context.Background(), human(env.tn.member), env.tn.wsA,
+				CreatePageInput{Kind: DocumentKindFolder, Title: "Audit folder"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return env, v.Document.ID
+		},
+		"SaveSourceFile": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
+			svc, store := sourceService(t, env)
+			taskID := s.task(env.tn, env.tn.wsA)
+			attID := s.attachment(env.tn, env.tn.wsA, taskID, "", "audit.pdf")
+			store.objects["workspaces/"+env.tn.wsA+"/attachments/"+attID+"/audit.pdf"] = pdfBody("audit-save")
+			res, err := svc.Save(context.Background(), human(env.tn.member), env.tn.wsA, "task:"+attID,
+				SaveSourceFileInput{IdempotencyKey: "audit-save"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return env, res.Document.ID
+		},
+	}
+	for command, run := range cases {
+		t.Run(command, func(t *testing.T) {
+			env, id := run(t)
+			if n := env.countAudit(t, audit.ActionDocumentCreated, id); n != 1 {
+				t.Fatalf("%s wrote %d document.created audit rows for %s, want 1", command, n, id)
+			}
+			if n := env.countOutbox(t, "document.created", id); n != 1 {
+				t.Fatalf("%s wrote %d document.created outbox rows for %s, want 1", command, n, id)
+			}
+		})
+	}
 }
