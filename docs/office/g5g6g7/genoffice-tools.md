@@ -853,6 +853,22 @@ WEBSERVICE/FILTERXML: không phải phát hiện (§5 sheets (a)).
 
 ### 9.1 Nghi vấn còn mở cho Product / owner F
 
+**Đã ký 2026-10-13 ~12:05 UTC+7** (người dùng, "duyệt theo gợi ý"; lô #3 + Q G6-14, run folder
+`decisions/batch-3-signed.md`). Đóng G6-D4. Kết quả từng mục dưới đây:
+
+- HTML desktop (#10): **thêm CSP cho preview desktop** để chặn mạng của script AI viết; làm sạch HTML để sau. Chủ: G6-09.
+- Markdown ảnh vào assets trước Lưu (#12): **chấp nhận ở v1** với điều kiện ảnh bị dọn khi người dùng hoàn tác hoặc không
+  Lưu; ghi ở §9.2. Chủ: G6-09.
+- DOCX "so sánh và giải thích" (#14): **so trong context là đủ ở v1**, không thêm công cụ so sánh.
+- Bảo vệ Word (#6): **chặn bằng instruction pack ở v1** (G6-14 Q8), ép trong công cụ sau.
+- URL ảnh do model chọn: **chỉ URL từ `image_search`/`generate_image` cùng lượt hoặc tệp đính kèm chat** (G6-14 Q5).
+- Hiển thị AI sheets: **(b) bắt buộc target range + số ô bị ghi đè**, chủ G6-09 (đã ký 00:55, lô #3 phần G6-12).
+- PDF `api.save` trên web: **(b) bỏ khỏi tài liệu gắn UniWork ở v1** (đã ký 00:55).
+- PDF thao tác cấp file (`extract_pages`, `split_pdf`, `split_pages`, `merge_pages`): **tắt với tài liệu UniWork ở v1**
+  (G6-14 Q7 (b)).
+
+Phần dưới giữ nguyên văn câu hỏi lúc mở để truy vết.
+
 Mọi mục dưới đây **chờ Product (đợt 3)**: code giữ nguyên tới khi người dùng ký; mỗi mục có phương án và khuyến nghị trong packet G6-12.
 
 Của phần docs/markdown/html:
