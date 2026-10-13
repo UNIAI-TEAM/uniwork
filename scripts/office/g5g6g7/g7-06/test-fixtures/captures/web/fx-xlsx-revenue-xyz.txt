@@ -1,0 +1,4 @@
+Báo cáo doanh thu — fx-xlsx-revenue-xyz (web)
+Bảng tổng hợp theo khu vực: Bắc, Trung, Nam.
+Số liệu tổng hợp từ sổ làm việc của kỳ này.
+Working notes for the teams reviewing the quarter.

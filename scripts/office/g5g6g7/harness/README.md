@@ -219,11 +219,15 @@ cannot keep a desktop session. G7-A01 is therefore run on a desktop whose app ca
 sign in — a graphical Linux session with an unlocked Secret Service (GNOME
 keyring / KWallet). The step then needs the **app's** sign-in to be the account
 that owns the document, so it either reuses your account or seeds one you sign in
-as.
+as. `UNIWORK_CHECKOUT` in the block below is the absolute path of the checkout
+you are running the round in; set it once and the block is a script, not a
+template (the block must stay valid bash — `bash -n`).
 
 ```sh
-# 1. from a terminal of the desktop session, in the checkout (the same SHA the round tests)
-cd <checkout>
+# 1. from a terminal of the desktop session, in the checkout (the same SHA the round tests):
+#    UNIWORK_CHECKOUT is the absolute path of that checkout
+export UNIWORK_CHECKOUT='/path/to/uniwork'
+cd "$UNIWORK_CHECKOUT"
 export OFFICE_FORK_SHA=0d03b18
 bash scripts/office/g5g6g7/harness/start.sh --desktop      # server + web + the app, on this DISPLAY
 
