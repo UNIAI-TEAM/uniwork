@@ -233,6 +233,23 @@ describe("useFrameComments: the frame's requests go to the D API with the user's
     expect(keys[2]).not.toBe(keys[1]); // the same text sent again after it went through is a new Send
   });
 
+  it("keeps one Idempotency-Key per pending payload: a second thread sent meanwhile does not take the first one's key", async () => {
+    const frame = setup({ myLevel: "edit" });
+    await frame.boot();
+    const first = { kind: "discussion", body: "một" };
+    const second = { kind: "discussion", body: "hai" };
+    const keys: Array<string | undefined> = [];
+    frame.api.mockImplementation((path: string, opts?: { headers?: Record<string, string> }) => {
+      keys.push(opts?.headers?.["Idempotency-Key"]);
+      return keys.length === 1 ? Promise.reject(new TypeError("Failed to fetch")) : Promise.resolve({ comment: WIRE });
+    });
+    await frame.answerOf(await frame.request("comments.create", first)); // fails, stays pending
+    await frame.answerOf(await frame.request("comments.create", second)); // goes through
+    await frame.answerOf(await frame.request("comments.create", first)); // the retry of the first Send
+    expect(keys[1]).not.toBe(keys[0]);
+    expect(keys[2]).toBe(keys[0]);
+  });
+
   it("maps comment_deleted to conflict + details.code with no retry, so the frame keeps its draft", async () => {
     const frame = setup({ myLevel: "edit" });
     await frame.boot();

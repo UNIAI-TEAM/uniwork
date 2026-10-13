@@ -81,10 +81,11 @@ describe("frame comment endpoints (contract-collab §2)", () => {
     expect(await listFrameComments("d1", { since_token: "lt1:abc" })).toEqual({ unchanged: true, list_token: "lt1:abc" });
   });
 
-  it("an answer without unchanged is a full list only when comments parse (an old server has no token)", async () => {
+  it("a full list without a string list_token is malformed (null), never an empty token the frame would send back", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ comments: [wireComment()] }));
-    const out = await listFrameComments("d1", {});
-    expect(out).toEqual({ unchanged: false, comments: [wireComment()], mentions: [], list_token: "" });
+    expect(await listFrameComments("d1", {})).toBeNull();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ comments: [wireComment()], list_token: 7, unchanged: false }));
+    expect(await listFrameComments("d1", {})).toBeNull();
   });
 
   it.each([{ nope: true }, { comments: "x" }, { comments: [{ no_id: 1 }] }, null, [], "str"])(
