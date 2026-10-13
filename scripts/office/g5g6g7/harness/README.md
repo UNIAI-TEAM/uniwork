@@ -286,3 +286,66 @@ seeding call failed. A FAIL says why on stdout and stderr (`FAILED: <check> —
 <reason> [request <METHOD> <path> -> <status>]`, never a token or ticket), in
 `failures` of `document-step.json`, and `evidence.mjs run` echoes the tail of a
 FAIL or BLOCKED command's output to stderr so it reaches the cloud round log.
+
+## Headless keyring (Linux)
+
+A signed-in desktop row needs the app to keep its session, and the fork's
+credential store (`apps/shell/src/main/uniwork-auth/credentials.ts`,
+`createCredentialStore`) refuses to write one without a real OS keyring: Electron's
+`safeStorage` on Linux must select `gnome_libsecret` (or KWallet), never
+`basic_text`. A cloud VM has no desktop session, so this spike proves a headless
+setup: a private D-Bus session, `gnome-keyring-daemon` unlocked with a throwaway
+password, and the app's own credential module run against it. Nothing here starts
+the D stack.
+
+Include it in a cloud round (the branch must be pushed: the VM runs the scripts
+from it). Standalone, or appended to a bigger spec:
+
+```sh
+node "$RUNNER/cloud-runner.mjs" test --spec scripts/office/g5g6g7/harness/keyring.spec.txt --lane "$LANE" --out "$REPORT"
+cat my-spec.txt scripts/office/g5g6g7/harness/keyring.spec.txt > spec.txt
+```
+
+| Piece | What it is |
+| --- | --- |
+| `keyring.spec.txt` | the spec fragment: four lines, one exit marker each, `; true` on all but the last |
+| `keyring-fork.sh` | clone the fork at `OFFICE_FORK_SHA` into `OFFICE_FORK_CACHE` (the same dir `start.sh` uses), `npm ci --ignore-scripts`, the Electron binary, esbuild, the Electron runtime libraries; no build |
+| `keyring-session.sh` | inside `dbus-run-session`: unlock the daemon, then `KEYRING_RT` and the `SAFESTORAGE*` probes; stops the daemon by PID, removes its scratch dir |
+| `keyring-probe.mjs` | bundles the fork's `credentials.ts` with the fork's esbuild, runs it in the fork's Electron (`keyring-probe-main.mjs`, logic in `keyring-probe-core.mjs`) and prints one JSON line |
+
+What each marker means (every probe line is JSON with `label`, `backend`,
+`encryptionAvailable`, `canStore`, `roundTrip`, `status`; only booleans, a coarse
+error code and a byte count, never a secret value):
+
+| Marker | Expected | It proves |
+| --- | --- | --- |
+| `KEYRING_APT_EXIT=0` | 0 | `gnome-keyring dbus-x11 xvfb libsecret-tools` installed (sudo when the user is not root); non-zero = packages missing, the next lines say BLOCKED |
+| `KEYRING_FORK_EXIT=0` + `KEYRING_FORK dir=… sha=…` | 0 | the fork checkout, Electron and esbuild are ready |
+| `KEYRING_DAEMON secrets=yes unlocked=yes` | yes / yes | the daemon owns `org.freedesktop.secrets` and its default collection is unlocked |
+| `KEYRING_RT match=yes` | yes | a random value stored with `secret-tool store` comes back from `secret-tool lookup` unchanged (the value is never printed) |
+| `SAFESTORAGE {…}` | `gnome_libsecret`, `roundTrip:"ok"`, `status:"ready"` | the app's own credential store saves and loads a credential through the real keyring; the file holds no plaintext token (`plaintextInFile:false`) |
+| `SAFESTORAGE_NODESKTOP {…}` | informational | the same probe with the harness app's environment as it is today: `appEnv` (`lib.mjs`) does not pass `XDG_CURRENT_DESKTOP`, and Chromium picks the keyring from it |
+| `SAFESTORAGE_FORCED {…}` | informational | the same without a desktop name but with `--password-store=gnome-libsecret`: the other way to get the keyring |
+| `NO_KEYRING {…}` | `status:"keyring_unavailable"` | negative control: `DBUS_SESSION_BUS_ADDRESS` points at a bus that does not exist (no daemon, nothing to activate) and the app refuses to store (no plaintext fallback); the backend may still read `gnome_libsecret`, the refusal is `encryptionAvailable:false` |
+| `*_EXIT=n` | 0 | the command's own exit code; `KEYRING_SESSION_EXIT=77` is BLOCKED (a tool missing), never a pass |
+
+Things that decide whether the app (not only the probe) gets the keyring:
+
+* The password lives in one shell variable and one pipe inside `keyring-session.sh`:
+  it is generated per run from `/dev/urandom`, never echoed, never in a spec line,
+  a file or a process argument. The keyring's storage and control socket are in a
+  scratch dir of the run, so a warm VM's older keyring is neither used nor touched.
+* The app reaches the keyring through `DBUS_SESSION_BUS_ADDRESS`, which `appEnv`
+  passes. Whatever starts the app must run inside the same `dbus-run-session`
+  (and, under `xvfb-run`, the session is inherited, not replaced).
+* `XDG_CURRENT_DESKTOP` is not in `APP_ENV_PASSTHROUGH`: without it the probe
+  falls to `basic_text` (`SAFESTORAGE_NODESKTOP`). Starting the harness app with
+  the keyring means exporting it (`GNOME`) to the app, or passing
+  `--password-store=gnome-libsecret` to Electron; `start.sh` does neither yet.
+* A locked or absent daemon is `keyring_unavailable`, the same status the document
+  step turns into BLOCKED.
+
+Local dry run (a host that already has the daemon, `xvfb-run` and a fork checkout):
+`OFFICE_FORK_DIR=<fork checkout> dbus-run-session -- bash scripts/office/g5g6g7/harness/keyring-session.sh`;
+`OFFICE_FORK_DIR=<fork checkout> node --test scripts/office/g5g6g7/harness/keyring-probe.test.mjs`
+also runs the fork's real credential module against a fake `safeStorage`.
