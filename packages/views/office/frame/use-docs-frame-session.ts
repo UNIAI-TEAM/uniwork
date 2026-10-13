@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { officeFrameKeys, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
 import type { OfficeFrameAIGrant, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
@@ -24,6 +25,8 @@ import { getOfficeDraftKey, officeDraftScope } from "@uniwork/core/office/draft-
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { OFFICE_FRAME_DOWNLOAD_MAX_BYTES, deliverFrameDownload } from "./frame-download";
 import type { FrameCommentsBinding } from "./use-frame-comments";
+import { createFrameRemoteVersion, frameBlockError, openWithRevision, remoteAwareSave, type FrameBlock } from "./frame-remote-version";
+import { useFrameRemote } from "./use-frame-remote-source";
 
 /**
  * No handshake within this long = the bundle never loaded, and the page shows the load failure
@@ -158,6 +161,13 @@ export interface DocsFrameSession {
   /** Content height the frame last reported, in CSS px. */
   height: number | null;
   /**
+   * An AI turn runs in the frame (its `aiRun` events). Held per frame: a frame that unloads or
+   * loses its endpoint mid-turn reads idle, since it can no longer say so itself.
+   */
+  aiRunning: boolean;
+  /** The document was deleted or this user lost access: every Save is refused (EXPERIENCE.md › S6). */
+  blocked: FrameBlock | null;
+  /**
    * Ask the frame to save (header Save, leave dialog). A conflict is the frame's to resolve in its
    * own dialog; the answer says how the user resolved it.
    */
@@ -235,10 +245,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [modal, setModal] = useState(false);
   const [height, setHeight] = useState<number | null>(null);
   const [host, setHost] = useState<DocsFrameHost | null>(null);
+  const [aiRunning, setAiRunning] = useState(false);
+  const syncFeed = useFlag("office_sync_feed", false);
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed };
+  // New-version bookkeeping of the current endpoint (frame-remote-version.ts); a block outlives a retry.
+  const { remoteRef, blockRef, blocked, applyBlock } = useFrameRemote(wsId, scopeId, syncFeed);
   const sentToken = useRef<string | null>(null);
   // The Save the page has in flight, and whether the frame shows a dialog right now.
   const hostSave = useRef<HostSaveWatch | null>(null);
@@ -255,11 +269,19 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     setDirty(false);
     setSaveState("ready");
     setModal(false);
+    setAiRunning(false);
     modalOpen.current = false;
     sentToken.current = null;
     savedOnce.current = false;
     const life: FrameLife = { state: "live" };
     frameLife.current = life;
+    // `endpoint` is assigned below, before any frame can open anything to announce.
+    const remote = createFrameRemoteVersion({
+      documentId: latest.current.scopeId, enabled: () => latest.current.syncFeed,
+      notify: (payload) => { if (life.state === "live") endpoint.notifyRemoteVersion(payload); },
+    });
+    if (blockRef.current) remote.block(blockRef.current);
+    remoteRef.current = remote;
     const iframe = iframeRef.current;
     // The frame failed for good (fatal error, failed handshake, a bundle that never started): show
     // the failure, and end a Save in flight with it, since nothing is left to answer it.
@@ -270,6 +292,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       life.state = "failed";
       modalOpen.current = false;
       setModal(false);
+      setAiRunning(false);
       const watch = hostSave.current;
       if (watch?.life === life && !watch.cause) { watch.cause = "fatal"; watch.abort.abort(); }
     };
@@ -308,7 +331,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       };
 
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
-    const save = proxy("api.save", true, (api) => api.save);
+    const open = proxy("api.open", false, (api) => api.open);
+    const save = remoteAwareSave(proxy("api.save", true, (api) => api.save), remote, applyBlock);
     // A save the frame starts (its button, Ctrl+S, the leave dialog) passes through here.
     // Once retry or unmount retired this endpoint, a late answer belongs to nobody: the session
     // that replaced it keeps its own state.
@@ -336,6 +360,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       modalOpen.current = false;
       setModal(false);
       setDirty(false);
+      // A turn of the gone document can no longer report its end.
+      setAiRunning(false);
       const watch = hostSave.current;
       if (watch?.life === life && !watch.cause) { watch.cause = "unload"; watch.abort.abort(); }
     };
@@ -416,7 +442,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       },
       api: {
         ...latest.current.options.comments?.api,
-        "api.open": proxy("api.open", false, (api) => api.open),
+        "api.open": (payload, context) => openWithRevision(() => open(payload, context), payload, remote, context.signal),
         "api.save": async (payload, context) => {
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
           const watch = hostSave.current?.life === life ? hostSave.current : null;
@@ -434,6 +460,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           }
         },
         "api.saveAs": async (payload, context) => {
+          if (remote.blocked) throw frameBlockError(remote.blocked);
           const name = latest.current.options.copyName?.(payload.name) ?? payload.name;
           const { save: saved, rebind } = (await tracked(() => saveAs({ ...payload, name }, context), () => "saved")) as unknown as DocsFrameSavedAs;
           savedOnce.current = true;
@@ -441,6 +468,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           const { options: current } = latest.current;
           queryClient.setQueryData(officeFrameKeys.token(current.wsId, rebind.documentId), rebind.token);
           latest.current.scopeId = rebind.documentId;
+          remote.rebind(rebind.documentId);
+          if (saved.ok) remote.committed(saved.file, saved.versionId);
           setSavedAs({ from: current.documentId, to: rebind.documentId });
           const frameToken = docsFrameToken(rebind.token);
           sentToken.current = frameToken.token;
@@ -480,6 +509,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         // A new document starts with no dialog open: it reports its own from here on.
         modalOpen.current = false;
         setModal(false);
+        setAiRunning(false);
         setSlow(false);
         setStatus((now) => (now === "failed" ? now : "ready"));
       },
@@ -506,6 +536,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       const watch = hostSave.current;
       if (watch) { watch.modal = open; armWatchdog(watch); }
     });
+    // Per frame: only the live document that shook hands speaks for its turns.
+    endpoint.on("aiRun", ({ state }) => { if (life.state === "live" && !frameDocGone) setAiRunning(state === "running"); });
     endpoint.on("title", ({ title }) => { latest.current.options.onTitle?.(title); });
     endpoint.on("resize", ({ height: next }) => { setHeight(next); });
     endpoint.on("saved", (saved) => {
@@ -574,9 +606,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       const watch = hostSave.current;
       if (watch?.life === life && watch.timer !== null) { clearTimeout(watch.timer); watch.timer = null; }
       endpoint.dispose();
+      if (remoteRef.current === remote) remoteRef.current = null;
       setHost(null);
     };
-  }, [attempt, documentId, frameOrigin, iframeRef, module, queryClient, wsId]);
+  }, [applyBlock, attempt, blockRef, documentId, frameOrigin, iframeRef, module, queryClient, remoteRef, wsId]);
 
   // Proactive rotation: a re-minted token reaches the frame before the old one expires.
   const tokenValue = token?.token;
@@ -662,5 +695,5 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
     saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
     modal: modal && status === "ready" && !failure,
-    height, save, print, attempt, retry };
+    height, aiRunning: aiRunning && status === "ready" && !failure, blocked, save, print, attempt, retry };
 }
