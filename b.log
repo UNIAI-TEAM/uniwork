@@ -1,0 +1,11 @@
+$ npm run fixtures -w @genoffice/sheets
+
+> @genoffice/sheets@0.1.0 fixtures
+> tsx scripts/generate-fixtures.ts
+
+Generated fixtures/generated/compatibility-basic.xlsx
+Generated fixtures/generated/compatibility-edit.xlsx
+Generated fixtures/generated/compatibility-structure.xlsx
+Generated fixtures/generated/compatibility-sheets.xlsx
+Generated fixtures/generated/compatibility-kitchen-sink.xlsx
+Generated fixtures/generated/compatibility-macro.xlsm
