@@ -22,7 +22,9 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -49,6 +51,13 @@ type frameAIWorld struct {
 }
 
 func newFrameAIWorld(t *testing.T) *frameAIWorld {
+	t.Helper()
+	return newFrameAIWorldWith(t, nil)
+}
+
+// newFrameAIWorldWith is newFrameAIWorld with extra run after the world's own
+// dependency tweak, to swap a service in before the server starts.
+func newFrameAIWorldWith(t *testing.T, extra func(*Deps, *pgxpool.Pool)) *frameAIWorld {
 	t.Helper()
 	setCloudEnv(t, "fake", "fake", "fake")
 	fw := &frameAIWorld{}
@@ -78,6 +87,9 @@ func newFrameAIWorld(t *testing.T) *frameAIWorld {
 			},
 		}))
 		d.AIBYOK = service.NewAIBYOKService(d.Organizations, service.NewEntitlementService(pool, q), d.AICredentials, gw)
+		if extra != nil {
+			extra(d, pool)
+		}
 	}
 	fw.officeWorld = newOfficeWorldTweaked(t, true, func(*filesfake.Fake) service.OfficeEngine { return newHandlerStubEngine(t) }, tweak)
 	enableOfficeDocsWeb(t, fw.q)
@@ -318,4 +330,167 @@ func TestOfficeFrameTokenCarriesTheAIGrant(t *testing.T) {
 	want("no office.ai_cloud", grant(), true, false)
 	w.override(t, `{"office.ai_byok": false}`)
 	want("no office.ai_byok", grant(), false, false)
+}
+
+// enableUniworkAI turns office_ai_uniwork and the given per-format flags on
+// globally (they default off).
+func enableUniworkAI(t *testing.T, formats ...string) {
+	t.Helper()
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeGlobal, "", true)
+	for _, f := range formats {
+		setFlagOverride(t, "office_ai_uniwork_"+f, featureflags.ScopeGlobal, "", true)
+	}
+}
+
+// G6-03c: uniwork_ai stands apart from BYOK. An organization without
+// office.ai_byok still gets it (ai stays off), it needs office.ai_cloud, and
+// spent credits do not take it away (the turn answers 402 instead).
+func TestOfficeFrameGrantsUniworkAIWithoutBYOK(t *testing.T) {
+	w := newFrameAIWorld(t)
+	grant := func() map[string]any {
+		t.Helper()
+		return w.mintFrameToken(t, w.docID)["ai"].(map[string]any)
+	}
+	if got := grant(); got["uniwork_ai"] != false {
+		t.Fatalf("flags off: grant %v, want uniwork_ai=false", got)
+	}
+	enableUniworkAI(t, "docx")
+	if got := grant(); got["uniwork_ai"] != true || got["ai"] != true {
+		t.Fatalf("full plan: grant %v, want ai and uniwork_ai", got)
+	}
+	w.override(t, `{"office.ai_byok": false}`)
+	if got := grant(); got["uniwork_ai"] != true || got["ai"] != false {
+		t.Fatalf("no office.ai_byok: grant %v, want uniwork_ai without ai", got)
+	}
+	w.override(t, `{"office.ai_byok": false, "ai.tokens": 0}`)
+	if got := grant(); got["uniwork_ai"] != true {
+		t.Fatalf("credits spent: grant %v, want uniwork_ai still true", got)
+	}
+	w.override(t, `{"office.ai_cloud": false}`)
+	if got := grant(); got["uniwork_ai"] != false || got["ai"] != true {
+		t.Fatalf("no office.ai_cloud: grant %v, want ai without uniwork_ai", got)
+	}
+}
+
+// The kill switch and the per-format flags hide uniwork_ai: a format switched
+// off closes only that format, and the override order is user > organization
+// > global.
+func TestOfficeFrameUniworkAIFollowsTheFormatFlags(t *testing.T) {
+	w := newFrameAIWorld(t)
+	pdf := w.createDocx(t, "scan.pdf", framePDF)
+	uniworkAI := func(doc string) any {
+		t.Helper()
+		return w.mintFrameToken(t, doc)["ai"].(map[string]any)["uniwork_ai"]
+	}
+	setFlagOverride(t, "office_ai_uniwork_docx", featureflags.ScopeGlobal, "", true)
+	setFlagOverride(t, "office_ai_uniwork_pdf", featureflags.ScopeGlobal, "", true)
+	if got := uniworkAI(w.docID); got != false {
+		t.Fatalf("format on, kill switch off: uniwork_ai=%v, want false", got)
+	}
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeGlobal, "", true)
+	if a, b := uniworkAI(w.docID), uniworkAI(pdf); a != true || b != true {
+		t.Fatalf("both formats on: docx=%v pdf=%v, want true true", a, b)
+	}
+	setFlagOverride(t, "office_ai_uniwork_docx", featureflags.ScopeOrganization, w.orgID, false)
+	if a, b := uniworkAI(w.docID), uniworkAI(pdf); a != false || b != true {
+		t.Fatalf("docx off for the organization: docx=%v pdf=%v, want false true", a, b)
+	}
+	setFlagOverride(t, "office_ai_uniwork_docx", featureflags.ScopeUser, w.userID, true)
+	if got := uniworkAI(w.docID); got != true {
+		t.Fatalf("docx on for the user over the organization: uniwork_ai=%v, want true", got)
+	}
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeOrganization, w.orgID, false)
+	if a, b := uniworkAI(w.docID), uniworkAI(pdf); a != false || b != false {
+		t.Fatalf("kill switch off for the organization: docx=%v pdf=%v, want false false", a, b)
+	}
+}
+
+// uniworkNamedProvider is the fake provider under another name, so UniWork AI
+// resolves (or fails to resolve) a model for that provider.
+type uniworkNamedProvider struct {
+	*provider.Fake
+	name string
+}
+
+func (p uniworkNamedProvider) Name() string { return p.name }
+
+// UniWork AI needs a configured gateway: with no provider, or a provider
+// without an office_uniwork_ai model (ollama), neither the frame grant nor the
+// cloud status turns it on, whatever the flags say.
+func TestOfficeFrameUniworkAINeedsAConfiguredGateway(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		p    provider.Provider
+	}{
+		{"no provider", nil},
+		{"provider without a model", uniworkNamedProvider{&provider.Fake{}, "ollama"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			w := newFrameAIWorldWith(t, func(d *Deps, pool *pgxpool.Pool) {
+				q := db.New(pool)
+				d.AICloud = service.NewAICloudService(d.Organizations, service.NewEntitlementService(pool, q),
+					ai.NewGateway(q, c.p, nil, nil, ai.Options{}))
+			})
+			enableUniworkAI(t, "docx")
+			if got := w.mintFrameToken(t, w.docID)["ai"].(map[string]any); got["uniwork_ai"] != false {
+				t.Fatalf("grant %v, want uniwork_ai=false", got)
+			}
+			code, body := rawCall(t, w.srv, "GET", w.path(w.docID, "/cloud"), w.token, "")
+			if code != http.StatusOK || !strings.Contains(body, `"chat":false`) {
+				t.Fatalf("cloud status = %d %s, want chat=false", code, body)
+			}
+		})
+	}
+}
+
+// Only a member who may view the document gets a grant: a person outside the
+// organization reads all off, and a member whose view access is gone gets no
+// token at all, so no grant.
+func TestOfficeFrameUniworkAIOnlyForMembersWithAccess(t *testing.T) {
+	var deps *Deps
+	w := newFrameAIWorldWith(t, func(d *Deps, _ *pgxpool.Pool) { deps = d })
+	enableUniworkAI(t, "docx")
+	_, strangerID := filesRegister(t, w.srv, "frame-ai-stranger@example.com")
+	h := &handlers{Deps: *deps}
+	h.OfficeCapabilities = service.NewOfficeCapabilitiesService(deps.Organizations, deps.FeatureFlags)
+	member := h.officeFrameAIGrant(context.Background(), service.OfficeFrameClaims{UserID: w.userID, OrganizationID: w.orgID})
+	if !member.UniworkAI {
+		t.Fatalf("member grant %+v, want uniwork_ai", member)
+	}
+	stranger := h.officeFrameAIGrant(context.Background(), service.OfficeFrameClaims{UserID: strangerID, OrganizationID: w.orgID})
+	if stranger != (sdo.OfficeFrameAIGrantSDO{}) {
+		t.Fatalf("non-member grant %+v, want all off", stranger)
+	}
+
+	// A workspace member with a view share on a restricted document gets the
+	// grant; once the share is revoked there is no token and no grant.
+	viewer, viewerID := w.officeJoinWorkspace(t, "frame-ai-viewer@example.com")
+	restricted := w.restrictedFileSharedWith(t, "secret.docx", frameDocx(t, "secret"), viewerID, "view")
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+restricted+"/office/frame-token", viewer, nil)
+	if res.StatusCode != http.StatusCreated || out["ai"].(map[string]any)["uniwork_ai"] != true {
+		t.Fatalf("shared viewer mint = %d %v, want 201 with uniwork_ai", res.StatusCode, out)
+	}
+	sharesPath := "/api/v1/documents/" + restricted + "/shares"
+	sharesRes, access := doJSON(t, w.srv, "GET", sharesPath, w.token0(), nil)
+	shares, ok := access["shares"].([]any)
+	if !ok {
+		t.Fatalf("list shares = %d %v, want a shares array", sharesRes.StatusCode, access)
+	}
+	revoked := false
+	for _, it := range shares {
+		share := it.(map[string]any)
+		if share["principal_id"] == viewerID {
+			if r, o := doJSON(t, w.srv, "DELETE", sharesPath+"/"+share["id"].(string), w.token0(), nil); r.StatusCode >= 300 {
+				t.Fatalf("revoke share: %d %v", r.StatusCode, o)
+			}
+			revoked = true
+		}
+	}
+	if !revoked {
+		t.Fatalf("no share of the viewer in %v", access)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+restricted+"/office/frame-token", viewer, nil)
+	if (res.StatusCode != http.StatusNotFound && res.StatusCode != http.StatusForbidden) || out["ai"] != nil {
+		t.Fatalf("revoked viewer mint = %d %v, want a refusal without a grant", res.StatusCode, out)
+	}
 }
