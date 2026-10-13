@@ -5,9 +5,13 @@ import { useTranslation } from "react-i18next";
 import { errorCode } from "@uniwork/core/api";
 import { appHost } from "@uniwork/core/config";
 import { useCreateOrganization } from "@uniwork/core/organizations";
+import { alreadyInOrganization } from "@uniwork/core/organizations/errors";
+import { paths } from "@uniwork/core/paths";
 import type { Organization } from "@uniwork/core/types";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { useWorkspaces } from "@uniwork/core/workspaces";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
+import { AppLink } from "../../navigation";
 import { isSlugConflict } from "../../workspace/slug";
 import { pickerCardClass } from "../../common/picker-card";
 import { RadioCardGroup, RadioMark } from "../components/option-card";
@@ -21,7 +25,7 @@ import { SlugFields, useSlugForm } from "../slug-field";
  * ngang (2-40 ký tự)" from `ValidateSlug`), so rendering it shows Vietnamese to
  * an English-locale user. `ApiError.code` is the stable, localizable handle.
  */
-export type CreateFailure = "slug_taken" | "slug_invalid" | "unknown";
+export type CreateFailure = "slug_taken" | "slug_invalid" | "already_in_organization" | "unknown";
 
 /**
  * `invalid_request` is what `handlers.mapServiceError` answers for every
@@ -33,6 +37,9 @@ export type CreateFailure = "slug_taken" | "slug_invalid" | "unknown";
  * translated toast rather than a misleading inline field error.
  */
 export function classifyCreateFailure(err: unknown): CreateFailure {
+  // One organization per account (ADR 0032): not a slug problem, and the
+  // field cannot fix it. Checked before the generic 409 slug conflict.
+  if (errorCode(err) === "already_in_organization") return "already_in_organization";
   if (isSlugConflict(err)) return "slug_taken";
   if (errorCode(err) === "invalid_request") return "slug_invalid";
   return "unknown";
@@ -58,8 +65,8 @@ export function avatarInitial(name: string): string {
 
 /**
  * Bước 2 — Tổ chức. Chưa thuộc org nào: form tên + slug. Đã thuộc org (resume
- * / new_workspace): card chọn org có sẵn + card "Tạo tổ chức mới" mở rộng.
- * Một CTA ở footer cho cả hai đường.
+ * / new_workspace): chỉ card chọn org có sẵn — mỗi tài khoản thuộc một tổ chức
+ * (ADR 0032), nên không có card "Tạo tổ chức mới". Một CTA ở footer.
  */
 export function StepOrganization({
   organizations,
@@ -76,10 +83,16 @@ export function StepOrganization({
   const host = appHost();
   const form = useSlugForm();
   const create = useCreateOrganization();
-  const resume = organizations.length > 0;
+  // GET /orgs already leaves archived organizations out; the filter keeps a
+  // closed one from ever counting as "belongs" should it reappear.
+  const held = organizations.filter((o) => o.status !== "archived");
+  const resume = held.length > 0;
   // resume: null = chưa chọn gì → CTA disabled. Click lại card đang chọn = bỏ chọn.
-  const [pickedId, setPickedId] = useState<string | "create" | null>(selected?.id ?? null);
-  const picked = organizations.find((o) => o.id === pickedId) ?? null;
+  const [pickedId, setPickedId] = useState<string | null>(selected?.id ?? null);
+  const picked = held.find((o) => o.id === pickedId) ?? null;
+  // The server refused a create because the account already belongs to an
+  // organization (created in another tab, or joined meanwhile).
+  const [alreadyIn, setAlreadyIn] = useState<AlreadyIn | null>(null);
 
   const isCreating = create.isPending;
   useEffect(() => {
@@ -113,6 +126,10 @@ export function StepOrganization({
         },
         onError: (err) => {
           const failure = classifyCreateFailure(err);
+          if (failure === "already_in_organization") {
+            setAlreadyIn({ organization: alreadyInOrganization(err) });
+            return;
+          }
           if (failure === "unknown") {
             // No field to attach it to, so the toast is the right surface here.
             toast.error(t("onboarding.step_organization.create_failed_toast"));
@@ -136,7 +153,6 @@ export function StepOrganization({
     );
   };
 
-  const creatingActive = !resume || pickedId === "create";
   let hint: string;
   let label: string;
   let disabled: boolean;
@@ -144,15 +160,11 @@ export function StepOrganization({
   if (picked) {
     hint = t("onboarding.step_organization.hint_opening", { name: picked.name });
     label = t("onboarding.step_organization.cta_open", { name: picked.name });
-    // Reachable, despite appearances: the picker cards stay clickable while a
-    // create is in flight, so picking an existing org mid-request lands here
-    // with `isCreating` true. The Button below refuses to run `onContinue`
-    // while `disabled`, which is what keeps this honest — `aria-disabled` on a
-    // button that still fires its handler is exactly what
-    // packages/views/test/inactive.ts forbids.
+    // The picker and the create form no longer share the screen (ADR 0032),
+    // so a create is never in flight here; the guard stays as cheap insurance.
     disabled = isCreating;
     onContinue = () => onSelected(picked);
-  } else if (creatingActive) {
+  } else if (!resume) {
     if (isCreating) {
       hint = t("onboarding.step_organization.hint_creating_pending", { name: form.name.trim() });
       label = t("onboarding.step_organization.cta_creating");
@@ -193,7 +205,7 @@ export function StepOrganization({
       urlLabel={t("onboarding.step_organization.url_label")}
       slugPlaceholder={t("onboarding.step_organization.slug_placeholder")}
       onEnter={handleCreate}
-      autoFocus={!resume || pickedId === "create"}
+      autoFocus
       // Same preview the workspace step carries. Without it this step was the
       // one place the resulting URL existed only inside a truncated pill.
       preview={{
@@ -220,16 +232,17 @@ export function StepOrganization({
             // equal cards that arbitrarily privileges the first, so it is used
             // only when there is in fact exactly one to name.
             resume
-              ? organizations.length === 1
-                ? t("onboarding.step_organization.headline_resume", { name: organizations[0]!.name })
+              ? held.length === 1
+                ? t("onboarding.step_organization.headline_resume", { name: held[0]!.name })
                 : t("onboarding.step_organization.headline_resume_many")
               : t("onboarding.step_organization.headline_first")
           }
           description={resume ? t("onboarding.step_organization.lede_resume") : t("onboarding.step_organization.lede_first")}
         />
+        {alreadyIn ? <AlreadyInOrganizationNotice organization={alreadyIn.organization} /> : null}
         {resume ? (
           <RadioCardGroup label={t("onboarding.step_organization.picker_label")} className="flex flex-col gap-3">
-            {organizations.map((o) => (
+            {held.map((o) => (
               <PickerCard
                 key={o.id}
                 selected={pickedId === o.id}
@@ -239,15 +252,6 @@ export function StepOrganization({
                 avatar={avatarInitial(o.name)}
               />
             ))}
-            <CollapsibleCreateCard
-              idPrefix="org"
-              selected={pickedId === "create"}
-              onSelect={() => setPickedId((p) => (p === "create" ? null : "create"))}
-              title={t("onboarding.step_organization.create_new_title")}
-              subtitle={t("onboarding.step_organization.create_new_subtitle")}
-            >
-              {fields}
-            </CollapsibleCreateCard>
           </RadioCardGroup>
         ) : (
           fields
@@ -270,6 +274,38 @@ export function StepOrganization({
         </Button>
       </StepFooter>
     </>
+  );
+}
+
+type AlreadyIn = { organization: ReturnType<typeof alreadyInOrganization> };
+
+/**
+ * FR-02: the account already belongs to an organization, so creating another
+ * is refused. "Manage organization" opens that organization's settings in its
+ * first workspace the person can open; with none, the new-workspace flow,
+ * which creates one inside it. Mounted only once the refusal came back, so
+ * the workspace list is read only then.
+ */
+function AlreadyInOrganizationNotice({ organization }: { organization: AlreadyIn["organization"] }) {
+  const { t } = useTranslation();
+  const { data: workspaces, isFetched, isError } = useWorkspaces();
+  const first = organization ? workspaces?.find((w) => w.organization_id === organization.id) : undefined;
+  const href = first
+    ? `${paths.workspace(first.organization_slug, first.slug).settings()}?tab=organization`
+    : paths.newWorkspace();
+  return (
+    <div role="alert" className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-5 py-4">
+      <p className="text-body text-foreground">
+        {organization
+          ? t("onboarding.step_organization.already_member", { name: organization.name })
+          : t("onboarding.step_organization.already_member_unnamed")}
+      </p>
+      {isFetched || isError ? (
+        <AppLink href={href} className={buttonVariants({ variant: "outline", className: "w-fit" })}>
+          {t("onboarding.step_organization.manage_organization")}
+        </AppLink>
+      ) : null}
+    </div>
   );
 }
 
