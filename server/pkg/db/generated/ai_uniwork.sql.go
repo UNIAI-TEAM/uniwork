@@ -31,6 +31,62 @@ func (q *Queries) AiUniworkAddRunCredits(ctx context.Context, arg AiUniworkAddRu
 	return err
 }
 
+const aiUniworkClaimUnknownUsage = `-- name: AiUniworkClaimUnknownUsage :one
+UPDATE ai_usage_events SET
+  reason_code = 'usage_unknown_reconciled', rate_id = $2, input_tokens = $3, output_tokens = $4,
+  cost_micros = $5, completed_at = now()
+WHERE id = $1 AND reason_code = 'usage_unknown'
+RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at
+`
+
+type AiUniworkClaimUnknownUsageParams struct {
+	ID           string      `json:"id"`
+	RateID       pgtype.Text `json:"rate_id"`
+	InputTokens  int32       `json:"input_tokens"`
+	OutputTokens int32       `json:"output_tokens"`
+	CostMicros   int64       `json:"cost_micros"`
+}
+
+// tenant: by-id
+// The claim of §6.3: one row flips usage_unknown -> usage_unknown_reconciled
+// with the estimate. No row means another pass or pod priced it first, so the
+// meter is never recorded twice.
+func (q *Queries) AiUniworkClaimUnknownUsage(ctx context.Context, arg AiUniworkClaimUnknownUsageParams) (AiUsageEvent, error) {
+	row := q.db.QueryRow(ctx, aiUniworkClaimUnknownUsage,
+		arg.ID,
+		arg.RateID,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.CostMicros,
+	)
+	var i AiUsageEvent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ActorID,
+		&i.ActorKind,
+		&i.Capability,
+		&i.PromptID,
+		&i.Provider,
+		&i.Model,
+		&i.RateID,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CostMicros,
+		&i.Status,
+		&i.ReasonCode,
+		&i.LatencyMs,
+		&i.ToolCalls,
+		&i.SourceCount,
+		&i.Truncated,
+		&i.CorrelationID,
+		&i.CreatedAt,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
 const aiUniworkConversationIDsByDocument = `-- name: AiUniworkConversationIDsByDocument :many
 SELECT id FROM ai_uniwork_conversations
 WHERE organization_id = $1 AND document_id = $2
@@ -920,4 +976,135 @@ func (q *Queries) AiUniworkTrimTurns(ctx context.Context, arg AiUniworkTrimTurns
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const aiUniworkTurnByUsageEvent = `-- name: AiUniworkTurnByUsageEvent :one
+SELECT id, organization_id, conversation_id, run_id, seq, role, ciphertext, usage_event_id, created_at FROM ai_uniwork_turns
+WHERE organization_id = $1 AND usage_event_id = $2
+`
+
+type AiUniworkTurnByUsageEventParams struct {
+	OrganizationID string      `json:"organization_id"`
+	UsageEventID   pgtype.Text `json:"usage_event_id"`
+}
+
+// The assistant turn a usage row belongs to: it names the conversation and
+// seq the estimate replays from. Scoped by the row's organization so a turn
+// of a foreign tenant can never answer (the usage row carries one).
+func (q *Queries) AiUniworkTurnByUsageEvent(ctx context.Context, arg AiUniworkTurnByUsageEventParams) (AiUniworkTurn, error) {
+	row := q.db.QueryRow(ctx, aiUniworkTurnByUsageEvent, arg.OrganizationID, arg.UsageEventID)
+	var i AiUniworkTurn
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.RunID,
+		&i.Seq,
+		&i.Role,
+		&i.Ciphertext,
+		&i.UsageEventID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const aiUniworkTurnsToUsageEvent = `-- name: AiUniworkTurnsToUsageEvent :many
+SELECT id, organization_id, conversation_id, run_id, seq, role, ciphertext, usage_event_id, created_at FROM ai_uniwork_turns WHERE conversation_id = $1 AND seq <= $2 ORDER BY seq
+`
+
+type AiUniworkTurnsToUsageEventParams struct {
+	ConversationID string `json:"conversation_id"`
+	Seq            int32  `json:"seq"`
+}
+
+// tenant: parent conversation_id
+// Every turn up to and including the assistant turn, oldest first: the
+// estimate reads what the model was sent plus what it answered.
+func (q *Queries) AiUniworkTurnsToUsageEvent(ctx context.Context, arg AiUniworkTurnsToUsageEventParams) ([]AiUniworkTurn, error) {
+	rows, err := q.db.Query(ctx, aiUniworkTurnsToUsageEvent, arg.ConversationID, arg.Seq)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AiUniworkTurn{}
+	for rows.Next() {
+		var i AiUniworkTurn
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.ConversationID,
+			&i.RunID,
+			&i.Seq,
+			&i.Role,
+			&i.Ciphertext,
+			&i.UsageEventID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const aiUniworkUnknownUsageEvents = `-- name: AiUniworkUnknownUsageEvents :many
+
+SELECT id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at FROM ai_usage_events
+WHERE capability = 'office_uniwork_ai' AND reason_code = 'usage_unknown'
+ORDER BY created_at, id
+LIMIT $1::int
+`
+
+// ---- Usage reconciliation (G6-03b, design §6.3) -----------------------------
+// The pass prices the rows whose vendor sent no usage block, from the
+// transcript stored for them. It is a maintenance job that answers no
+// request, like the TTL sweep above.
+// tenant: system
+// The reconciliation queue: UniWork AI calls whose vendor reported no usage
+// block, oldest first, so a row entered once is priced before the queue grows
+// behind it (design §6.3).
+func (q *Queries) AiUniworkUnknownUsageEvents(ctx context.Context, batch int32) ([]AiUsageEvent, error) {
+	rows, err := q.db.Query(ctx, aiUniworkUnknownUsageEvents, batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AiUsageEvent{}
+	for rows.Next() {
+		var i AiUsageEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.ActorID,
+			&i.ActorKind,
+			&i.Capability,
+			&i.PromptID,
+			&i.Provider,
+			&i.Model,
+			&i.RateID,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CostMicros,
+			&i.Status,
+			&i.ReasonCode,
+			&i.LatencyMs,
+			&i.ToolCalls,
+			&i.SourceCount,
+			&i.Truncated,
+			&i.CorrelationID,
+			&i.CreatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

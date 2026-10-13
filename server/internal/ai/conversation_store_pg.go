@@ -43,9 +43,6 @@ const (
 	uniworkConversationSweepPause      = 100 * time.Millisecond
 	// UniworkConversationSweepInterval is how often main.go's worker sweeps.
 	UniworkConversationSweepInterval = time.Minute
-	// UniworkUsageReconcileBatch is how many unknown-usage rows one sweep pass
-	// hands the reconciler (design §6.3).
-	UniworkUsageReconcileBatch = 100
 )
 
 // The reasons that land in uniwork_ai_uniwork_conversations_swept_total.

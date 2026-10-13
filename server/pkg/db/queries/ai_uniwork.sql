@@ -263,3 +263,42 @@ LIMIT sqlc.arg('batch')::int;
 -- pass; deleting an already-deleted id is a no-op, so two pods sweeping at
 -- once is harmless and each reports what its own delete removed.
 DELETE FROM ai_uniwork_runs WHERE id = ANY(sqlc.arg('ids')::text[]);
+
+-- ---- Usage reconciliation (G6-03b, design §6.3) -----------------------------
+-- The pass prices the rows whose vendor sent no usage block, from the
+-- transcript stored for them. It is a maintenance job that answers no
+-- request, like the TTL sweep above.
+
+-- name: AiUniworkUnknownUsageEvents :many
+-- tenant: system
+-- The reconciliation queue: UniWork AI calls whose vendor reported no usage
+-- block, oldest first, so a row entered once is priced before the queue grows
+-- behind it (design §6.3).
+SELECT * FROM ai_usage_events
+WHERE capability = 'office_uniwork_ai' AND reason_code = 'usage_unknown'
+ORDER BY created_at, id
+LIMIT sqlc.arg('batch')::int;
+
+-- name: AiUniworkTurnByUsageEvent :one
+-- The assistant turn a usage row belongs to: it names the conversation and
+-- seq the estimate replays from. Scoped by the row's organization so a turn
+-- of a foreign tenant can never answer (the usage row carries one).
+SELECT * FROM ai_uniwork_turns
+WHERE organization_id = $1 AND usage_event_id = $2;
+
+-- name: AiUniworkTurnsToUsageEvent :many
+-- tenant: parent conversation_id
+-- Every turn up to and including the assistant turn, oldest first: the
+-- estimate reads what the model was sent plus what it answered.
+SELECT * FROM ai_uniwork_turns WHERE conversation_id = $1 AND seq <= $2 ORDER BY seq;
+
+-- name: AiUniworkClaimUnknownUsage :one
+-- tenant: by-id
+-- The claim of §6.3: one row flips usage_unknown -> usage_unknown_reconciled
+-- with the estimate. No row means another pass or pod priced it first, so the
+-- meter is never recorded twice.
+UPDATE ai_usage_events SET
+  reason_code = 'usage_unknown_reconciled', rate_id = $2, input_tokens = $3, output_tokens = $4,
+  cost_micros = $5, completed_at = now()
+WHERE id = $1 AND reason_code = 'usage_unknown'
+RETURNING *;
