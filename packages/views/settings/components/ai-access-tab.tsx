@@ -12,6 +12,7 @@ import { Switch } from "@uniwork/ui/components/ui/switch";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { useWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
+import { CopyAddress } from "./copy-address";
 import {
   SettingsBadge,
   SettingsCard,
@@ -121,6 +122,16 @@ export function AiAccessTab() {
           </p>
         ) : null}
       </SettingsSection>
+
+      {state?.available && state.mcp_url ? (
+        // Under an organization-level pilot a member's own settings may not
+        // show the address yet (Ruling 50), so the admin can hand it over.
+        <SettingsSection title={i18n.t("settings.connectedApps.connectTitle")} description={t("addressBody")}>
+          <SettingsCard>
+            <CopyAddress value={state.mcp_url} />
+          </SettingsCard>
+        </SettingsSection>
+      ) : null}
 
       <SettingsSection title={t("grantsTitle")}>
         {grants.isPending ? (

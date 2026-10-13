@@ -10,8 +10,12 @@ export const connectKeys = {
   policy: (orgSlug: string) => [...connectKeys.all(), "policy", orgSlug] as const,
 };
 
-export function useMyConnectedApps() {
-  return useQuery<ConnectedAppList>({ queryKey: connectKeys.mine(), queryFn: connect.listMyConnectedApps });
+export function useMyConnectedApps(opts?: { enabled?: boolean }) {
+  return useQuery<ConnectedAppList>({
+    queryKey: connectKeys.mine(),
+    queryFn: connect.listMyConnectedApps,
+    enabled: opts?.enabled ?? true,
+  });
 }
 
 export function useRevokeMyConnectedApp() {

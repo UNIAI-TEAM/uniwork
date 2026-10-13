@@ -135,6 +135,23 @@ describe("AiAccessTab", () => {
     );
   });
 
+  // Ruling 50: under an organization-level pilot a member's own settings may
+  // not show the address yet, so the admin can hand it over.
+  it("shows the address members paste, with the copy control", async () => {
+    serve("admin", { ...POLICY, enabled: true });
+    renderTab();
+    expect(await screen.findByText(POLICY.mcp_url)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("settings.connectedApps.copy") })).toBeInTheDocument();
+    expect(screen.getByText(t("settings.aiAccess.addressBody"))).toBeInTheDocument();
+  });
+
+  it("shows no address while the platform has not opened the feature", async () => {
+    serve("owner", { ...POLICY, available: false });
+    renderTab();
+    expect(await screen.findByText(t("settings.aiAccess.unavailable"))).toBeInTheDocument();
+    expect(screen.queryByText(POLICY.mcp_url)).not.toBeInTheDocument();
+  });
+
   it("shows members the admin-only state without asking for the policy", async () => {
     serve("member", { ...POLICY, enabled: true });
     renderTab();

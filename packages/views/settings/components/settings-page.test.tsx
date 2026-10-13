@@ -37,9 +37,24 @@ function nav(search = ""): NavigationAdapter {
   };
 }
 
-function renderPage({ flag, role, search }: { flag: boolean; role: string; search?: string }) {
+const grant = {
+  id: "g1",
+  organization_id: "o1",
+  organization_name: "Acme",
+  user_id: "u1",
+  user_name: "An",
+  client_id: "c1",
+  client_name: "Claude",
+  verified: true,
+  scope: "read",
+  created_at: "2026-10-12T08:00:00Z",
+  last_used_at: null,
+};
+
+function renderPage({ flag, role, search, grants = [] }: { flag: boolean; role: string; search?: string; grants?: unknown[] }) {
   requestMock.mockImplementation((path: string) => {
     if (path === "/api/v1/orgs/acme/members/me") return Promise.resolve({ role });
+    if (path === "/api/v1/me/connected-apps") return Promise.resolve({ grants, mcp_url: "https://api.example.test/mcp" });
     return Promise.resolve({});
   });
   const service = new FeatureFlagService(new StaticProvider({ mcp_connector: { default: flag } }));
@@ -66,12 +81,26 @@ describe("SettingsPage AI tabs", () => {
     renderPage({ flag: true, role: "owner" });
     expect(await screen.findByRole("tab", { name: "Ứng dụng AI" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Truy cập AI" })).toBeInTheDocument();
+    // The flag already decides: the page does not ask for the person's grants.
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/me/connected-apps");
   });
 
-  it("hides the personal tab while the connector flag is off, and keeps the organization one", async () => {
+  it("hides the personal tab while the connector flag is off and the person has no grant, and keeps the organization one", async () => {
     renderPage({ flag: false, role: "owner" });
     expect(await screen.findByRole("tab", { name: "Truy cập AI" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Ứng dụng AI" })).not.toBeInTheDocument();
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/me/connected-apps"));
+    expect(screen.queryByRole("tab", { name: "Ứng dụng AI" })).not.toBeInTheDocument();
+  });
+
+  // Ruling 50: an organization-level pilot connects a member whose own flag is
+  // off. They must still find the app to see and revoke it.
+  it("lists the personal tab with the flag off while the person holds a grant", async () => {
+    const { unmount } = renderPage({ flag: false, role: "member", grants: [grant] });
+    expect(await screen.findByRole("tab", { name: "Ứng dụng AI" })).toBeInTheDocument();
+    unmount();
+    renderPage({ flag: false, role: "member", grants: [grant], search: "tab=connected-apps" });
+    expect(await screen.findByText("Claude")).toBeInTheDocument();
   });
 
   it("hides the organization tab from a member once the role is known", async () => {

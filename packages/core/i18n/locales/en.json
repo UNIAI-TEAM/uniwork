@@ -1264,6 +1264,7 @@
       "adminOnly": "Only organization owners and admins can see this.",
       "toggleLabel": "Allow external AI assistants",
       "toggleDescription": "Shared: tasks, comments, meetings and AI summaries. Never chat or email. Turning this off blocks every connected app at once.",
+      "addressBody": "Members paste this address where Claude, ChatGPT or Gemini CLI adds a connector. Send it to them if AI apps does not show in their settings yet.",
       "unavailable": "This feature is not yet available to your organization.",
       "saveFailed": "Could not save the change. Try again.",
       "grantsTitle": "Connected apps in this organization",

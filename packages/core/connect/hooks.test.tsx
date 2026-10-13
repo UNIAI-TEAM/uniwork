@@ -64,6 +64,14 @@ describe("connect hooks", () => {
     expect(result.current.data?.mcp_url).toBe(policy.mcp_url);
   });
 
+  it("my connected apps stay idle when switched off", async () => {
+    vi.mocked(endpoints.listMyConnectedApps).mockResolvedValue({ grants: [grant], mcp_url: policy.mcp_url });
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useMyConnectedApps({ enabled: false }), { wrapper });
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(endpoints.listMyConnectedApps).not.toHaveBeenCalled();
+  });
+
   it("revoking my own app refetches my list", async () => {
     vi.mocked(endpoints.revokeMyConnectedApp).mockResolvedValue(undefined);
     const { qc, wrapper } = setup();

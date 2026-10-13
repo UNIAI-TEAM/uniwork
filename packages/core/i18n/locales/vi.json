@@ -1263,6 +1263,7 @@
       "adminOnly": "Chỉ owner và admin tổ chức xem được mục này.",
       "toggleLabel": "Cho phép trợ lý AI bên ngoài truy cập",
       "toggleDescription": "Dữ liệu chia sẻ: công việc, bình luận, cuộc họp và tóm tắt AI. Không gồm chat và email. Tắt sẽ chặn ngay mọi ứng dụng đã kết nối.",
+      "addressBody": "Thành viên dán địa chỉ này vào phần thêm connector của Claude, ChatGPT hoặc Gemini CLI. Gửi cho họ nếu mục Ứng dụng AI chưa hiện trong cài đặt của họ.",
       "unavailable": "Tính năng chưa mở cho tổ chức của bạn.",
       "saveFailed": "Không lưu được thay đổi. Thử lại.",
       "grantsTitle": "Ứng dụng đã kết nối trong tổ chức",

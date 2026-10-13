@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Suspense, lazy, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
+import { useMyConnectedApps } from "@uniwork/core/connect";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { useAuditPermissions, useBillingPermissions } from "@uniwork/core/permissions";
 import { useOrgMembership } from "@uniwork/core/organizations";
@@ -141,6 +142,13 @@ const SETTINGS_TAB_TRIGGER_CLASS =
  * Which gated tabs to hide. A tab stays listed while its permission is still
  * loading, so the nav never loses an item the reader turns out to have; a tab
  * reached by URL still renders its own forbidden state.
+ *
+ * The personal AI apps tab is the exception: the `mcp_connector` flag lists
+ * it, and so does a grant the person already holds (an organization-level
+ * pilot connects people whose own flag is off; they must still find the app
+ * to revoke it, Ruling 50). The grants are asked for only when the flag is
+ * off, and the tab stays hidden until they are known: most readers have
+ * none, and listing it while loading would show it and take it away again.
  */
 function useHiddenGates(): Set<Gate> {
   const { workspace } = useWorkspace();
@@ -149,13 +157,14 @@ function useHiddenGates(): Set<Gate> {
   const me = useMyMembership(workspace.id);
   const org = useOrgMembership(workspace.organization_slug);
   const mcp = useFlag("mcp_connector", false);
+  const myApps = useMyConnectedApps({ enabled: !mcp });
   const hidden = new Set<Gate>();
   if (!billing.isLoading && !billing.canView.allowed) hidden.add("billing");
   if (!audit.isLoading && !audit.canRead.allowed) hidden.add("audit");
   if (!me.isLoading && me.data && !ADMIN_ROLES.has(me.data.role)) hidden.add("workspace_admin");
   if (!org.isLoading && org.data && !ADMIN_ROLES.has(org.data.role)) hidden.add("org_admin");
   if (!org.isLoading && org.data && org.data.role !== "owner") hidden.add("org_owner");
-  if (!mcp) hidden.add("mcp");
+  if (!mcp && !myApps.data?.grants.length) hidden.add("mcp");
   return hidden;
 }
 
