@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -269,6 +270,27 @@ func TestDocumentChangesRevisionWireIsDecimalString(t *testing.T) {
 	}
 }
 
+// feedRowKeys asserts the raw JSON row carries EXACTLY the keys of the feed SDO
+// (T-1): the removal and the upsert row both ship the same eight fields, so a
+// new field on the SDO - a name, a path, metadata - cannot be added without this
+// test noticing. Values are checked separately by the caller.
+func feedRowKeys(t *testing.T, label string, row map[string]any) {
+	t.Helper()
+	want := []string{
+		"document_id", "change_kind", "kind", "revision",
+		"current_version", "version_id", "archived", "removal",
+	}
+	got := make([]string, 0, len(row))
+	for k := range row {
+		got = append(got, k)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("%s row keys = %v, want exactly %v (the feed SDO wire keys)", label, got, want)
+	}
+}
+
 // TestDocumentChangesHTTPFeedRows pins the incremental feed's wire row
 // (G5-01b): a feed page fills `feed` and leaves `changes` empty, and a removal
 // carries the document id, the change kind and its reason - no title, no path,
@@ -333,11 +355,47 @@ func TestDocumentChangesHTTPFeedRows(t *testing.T) {
 	if err := testPool.QueryRow(context.Background(), `SELECT revision FROM documents WHERE id = $1`, docID).Scan(&revision); err != nil {
 		t.Fatal(err)
 	}
+	// T-1: the row carries EXACTLY the SDO's keys and the ids-only values - no
+	// title, no path, no metadata, nothing free-text.
+	feedRowKeys(t, "removal", row)
 	if row["document_id"] != docID || row["change_kind"] != "removal" ||
 		row["kind"] != "" || row["revision"] != strconv.FormatInt(revision, 10) || row["removal"] != "permission_revoked" {
 		t.Fatalf("removal row = %v", row)
 	}
-	if _, ok := row["title"]; ok {
-		t.Fatalf("removal row carries a title: %v", row)
+	if row["current_version"] != float64(0) || row["version_id"] != nil || row["archived"] != false {
+		t.Fatalf("removal row carries a document field: %v", row)
+	}
+
+	// An upsert row ships the SAME key set: a change to a document the member
+	// can read (here a document.updated audit row, the shape a metadata edit
+	// writes) reaches them as an upsert with its real values.
+	upsertID := util.NewID()
+	w.seedDoc(t, upsertID, "workspace")
+	if _, err := testPool.Exec(context.Background(),
+		`INSERT INTO audit_events (id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, correlation_id)
+		 VALUES ($1, $2, $3, 'human', $4, 'document.updated', 'document', $5, $6)`,
+		util.NewID(), w.orgID, w.wsID, w.userID, upsertID, util.NewID()); err != nil {
+		t.Fatal(err)
+	}
+	status, out = w.feedAs(t, w.memberToken, "cursor="+url.QueryEscape(out["next_cursor"].(string)))
+	if status != http.StatusOK {
+		t.Fatalf("upsert page = %d %v, want 200", status, out)
+	}
+	feed, _ = out["feed"].([]any)
+	if len(feed) != 1 {
+		t.Fatalf("upsert page = %v, want one row", out["feed"])
+	}
+	upsert, _ := feed[0].(map[string]any)
+	feedRowKeys(t, "upsert", upsert)
+	var upsertRevision int64
+	if err := testPool.QueryRow(context.Background(), `SELECT revision FROM documents WHERE id = $1`, upsertID).Scan(&upsertRevision); err != nil {
+		t.Fatal(err)
+	}
+	if upsert["document_id"] != upsertID || upsert["change_kind"] != "upsert" ||
+		upsert["kind"] != "page" || upsert["revision"] != strconv.FormatInt(upsertRevision, 10) {
+		t.Fatalf("upsert row = %v", upsert)
+	}
+	if upsert["removal"] != "" || upsert["version_id"] != nil || upsert["archived"] != false {
+		t.Fatalf("upsert row carries a removal field: %v", upsert)
 	}
 }

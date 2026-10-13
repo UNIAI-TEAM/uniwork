@@ -2,7 +2,6 @@ package service
 
 import (
 	"encoding/json"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -155,7 +154,13 @@ func (w *feedWorld) auditChange(t *testing.T, action, documentID string) {
 // TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage is the
 // card's "a commit between the snapshot and the first feed page appears
 // exactly once" test: the change is absent from the snapshot AND present in
-// the feed, never both, never neither.
+// the feed, never both, never neither, and never twice.
+//
+// T-2: the rows are COUNTED per document across one-row pages, not folded into
+// a map. A map would collapse a duplicate delivery (the same document delivered
+// on two pages, or once per audit row) into a single entry and pass; the count
+// does not. The mid-build race itself is proven by
+// TestDocumentChangesHighWaterHandoffCommitsMidBuild in document_changes_test.go.
 func TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage(t *testing.T) {
 	w := newFeedWorld(t, "chgfeedonce")
 	before := w.createPage(t, "before the snapshot")
@@ -165,20 +170,28 @@ func TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage(t *testing
 		t.Fatal("the pre-snapshot document is missing from the snapshot")
 	}
 
-	// A commit that lands after the snapshot's MVCC point, before the first
-	// feed page.
+	// Two changes that land after the snapshot's MVCC point, before the first
+	// feed page: a create and a metadata edit, so the window holds TWO audit
+	// rows for one document and a per-row emitter would show it twice.
 	after := w.createPage(t, "after the snapshot")
 	if held[after.ID] {
 		t.Fatal("a document created after the snapshot is in the snapshot")
 	}
+	after = w.updateTitle(t, after, "renamed after the snapshot")
 
-	rows := feedRowsByDoc(w.drainFeed(t, feedCursor, 200))
-	if _, ok := rows[before.ID]; ok {
-		t.Fatal("a document already in the snapshot was delivered again by the feed")
+	counts := map[string]int{}
+	var got DocumentChangeFeedRow
+	for _, r := range w.drainFeed(t, feedCursor, 1) {
+		counts[r.DocumentID]++
+		if r.DocumentID == after.ID {
+			got = r
+		}
 	}
-	got, ok := rows[after.ID]
-	if !ok {
-		t.Fatal("a commit between the snapshot and the first feed page was lost")
+	if counts[before.ID] != 0 {
+		t.Fatalf("a document already in the snapshot was delivered %d times by the feed, want 0", counts[before.ID])
+	}
+	if counts[after.ID] != 1 {
+		t.Fatalf("the commit between the snapshot and the first feed page appears %d times, want exactly 1", counts[after.ID])
 	}
 	if got.ChangeKind != DocumentChangeKindUpsert || got.Revision != after.Revision {
 		t.Fatalf("feed row = %+v, want upsert revision %d", got, after.Revision)
@@ -358,19 +371,32 @@ func TestDocumentChangesFeedRemovalIsIDsOnly(t *testing.T) {
 	if removal.Kind != "" || removal.CurrentVersion != 0 || removal.FileVersionID != "" {
 		t.Fatalf("a removal carries document fields: %+v", removal)
 	}
-	// The row is a Go struct with fixed fields; prove the wire shape carries
-	// no free text by marshalling it and checking the keys and the title the
-	// document row itself holds.
+	if removal.Archived || removal.Removal != DocumentChangeRemovalPermissionRevoked {
+		t.Fatalf("removal = %+v, want an unarchived permission_revoked removal", removal)
+	}
+	// The row struct itself is the payload the handler maps to the SDO: assert
+	// its every field, so a new field (a title, a path, metadata) fails here
+	// rather than passing a substring scan. The exact wire key set is pinned at
+	// the handler (TestDocumentChangesHTTPFeedRows, T-1).
 	body, err := json.Marshal(removal)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(body), doc.Title) {
-		t.Fatalf("removal payload leaked the title: %s", body)
+	var wire map[string]any
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatal(err)
 	}
-	for _, banned := range []string{"title", "path", "metadata", "content", "icon"} {
-		if strings.Contains(string(body), banned) {
-			t.Fatalf("removal payload carries %q: %s", banned, body)
+	want := map[string]any{
+		"DocumentID": doc.ID, "ChangeKind": DocumentChangeKindRemoval, "Kind": "",
+		"Revision": float64(removal.Revision), "CurrentVersion": float64(0),
+		"FileVersionID": "", "Archived": false, "Removal": DocumentChangeRemovalPermissionRevoked,
+	}
+	if len(wire) != len(want) {
+		t.Fatalf("the removal row carries %d fields, want %d: %s", len(wire), len(want), body)
+	}
+	for k, v := range want {
+		if wire[k] != v {
+			t.Fatalf("removal field %s = %v, want %v (%s)", k, wire[k], v, body)
 		}
 	}
 }
@@ -431,6 +457,18 @@ func TestDocumentChangesFeedFilteredPageCursorAdvances(t *testing.T) {
 	}
 	if !page.HasMore {
 		t.Fatal("a page that stopped at the limit with a change still pending reported no more")
+	}
+	// T-6: the cursor POSITION advanced past the hidden rows, not merely the
+	// token bytes (the server re-signs expiry each page, so a stuck keyset could
+	// still differ). Decode both claims and assert the keyset moved.
+	before := w.feedClaims(t, feedCursor)
+	after := w.feedClaims(t, page.NextCursor)
+	if after.AfterXact == "" && after.AfterID == "" {
+		t.Fatalf("the filtered page handed out an empty keyset: %+v", after)
+	}
+	if after.AfterXact == before.AfterXact && after.AfterID == before.AfterID {
+		t.Fatalf("the filtered page kept the keyset (%s,%s) instead of advancing past the hidden rows",
+			before.AfterXact, before.AfterID)
 	}
 	// The next page starts past the filtered rows, so the feed drains to empty
 	// instead of looping.
