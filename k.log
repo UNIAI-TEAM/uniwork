@@ -1,0 +1,74 @@
+$ git checkout 1787d687 -- web/docs/protocol/types.ts packages/electron-utils/src/comments-ipc.ts; (cd web/docs && npx vitest run protocol/test/comments.test.ts); A=$?; (cd packages/electron-utils && npx vitest run tests/comments-ipc.test.ts); B=$?; git checkout HEAD -- web packages; git status --short web packages; echo "RED_EXIT protocol=$A utils=$B"; test $A -ne 0 -a $B -ne 0 && echo RED_AS_EXPECTED_F4
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs
+
+ ❯ protocol/test/comments.test.ts (45 tests | 1 failed) 38ms
+     × frame -> host request payloads 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  protocol/test/comments.test.ts > G8-08 protocol shape > frame -> host request payloads
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ bad protocol/test/comments.test.ts:184:82
+    182|   it('frame -> host request payloads', () => {
+    183|     const ok = (type: string, p: unknown) => expect(env('request', typ…
+    184|     const bad = (type: string, p: unknown) => expect(env('request', ty…
+       |                                                                                  ^
+    185|
+    186|     ok('comments.list', {})
+ ❯ protocol/test/comments.test.ts:205:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 44 passed (45)
+   Start at  09:12:55
+   Duration  250ms (transform 102ms, setup 0ms, import 121ms, tests 38ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/electron-utils
+
+ ❯ tests/comments-ipc.test.ts (13 tests | 1 failed) 15ms
+     × comments.create: kind + non-empty body, optional parent/anchor/baseVersionId 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/comments-ipc.test.ts > the comments IPC channel contract > comments.create: kind + non-empty body, optional parent/anchor/baseVersionId
+AssertionError: expected { path: 'p', kind: 'comment', …(1) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "body": "hi",
+  "kind": "comment",
+  "path": "p",
+}
+
+ ❯ tests/comments-ipc.test.ts:69:82
+     67|       parseCommentsCreateInput({ path: 'p', kind: 'comment', parentId:…
+     68|     ).toEqual({ path: 'p', kind: 'comment', parentId: 'c1', body: 'hi'…
+     69|     expect(parseCommentsCreateInput({ path: 'p', kind: 'comment', body…
+       |                                                                                  ^
+     70|     expect(parseCommentsCreateInput({ path: 'p', kind: 'comment', body…
+     71|     expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 passed (13)
+   Start at  09:12:56
+   Duration  165ms (transform 47ms, setup 0ms, import 58ms, tests 15ms, environment 0ms)
+
+RED_EXIT protocol=1 utils=1
+RED_AS_EXPECTED_F4

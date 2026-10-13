@@ -1,0 +1,48 @@
+$ npm test -w @genoffice/shell
+
+> @genoffice/shell@0.11.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+(node:6889) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ tests/uniwork-docs-lock-wiring.test.ts (8 tests | 1 failed) 97ms
+     × an explicit Sign out locks and wipes the outgoing scope 15ms
+(node:7190) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:7786) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:7975) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8131) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-docs-lock-wiring.test.ts > the durable store at the account boundary (W3b) > an explicit Sign out locks and wipes the outgoing scope
+Error: ENOTEMPTY: directory not empty, rmdir '/tmp/uw-lock-wiring-VUEBfU'
+ ❯ tests/uniwork-docs-lock-wiring.test.ts:67:17
+     65|   safe.locked = false
+     66| })
+     67| afterEach(() => rmSync(dir, { recursive: true, force: true }))
+       |                 ^
+     68|
+     69| const docDir = () => join(dir, 'uniwork-documents', 'default', 'acc_1'…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 150 passed | 1 skipped (152)
+      Tests  1 failed | 2394 passed | 8 skipped (2403)
+   Start at  09:12:22
+   Duration  20.73s (transform 14.29s, setup 0ms, import 20.13s, tests 23.49s, environment 4.49s)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /home/ubuntu/work/uniwork-office/apps/shell
+npm error workspace @genoffice/shell@0.11.0
+npm error location /home/ubuntu/work/uniwork-office/apps/shell
+npm error command failed
+npm error command sh -c vitest run

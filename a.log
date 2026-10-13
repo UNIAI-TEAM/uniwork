@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8
+81e1c950bd37e75ec36aa2c488ad21360eeab63a
+63cd2771c5b7521a311ff92f40af1e4f5d7736bf
+81e1c950 test(electron-utils): pin the OQ-C2 base-only create refusals in the comments IPC
+63063db2 test(uniwork): tighten the anchors 405 fake and pin parseCommentsAnchors
+17d21132 fix(protocol): enforce the OQ-C2 anchor rules on comments.create client-side
+65f3ffbd test(protocol): pin the OQ-C2 anchor rules on comments.create
+1787d687 merge: G8-08 desktop real-route conformance into the protocol branch (UNI-1403)
+c1e64ae2 chore(uniwork): prettier the anchors-405 test
+0758b21d fix(uniwork): map a 405 on a comments route to unsupported, not internal
+0320019c test(uniwork): pin the anchors 405 on the merged root as unsupported
