@@ -1,0 +1,45 @@
+$ npm test -w @genoffice/ui
+
+> @genoffice/ui@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+ ❯ tests/collab-composer-panel.test.ts (2 tests | 1 failed) 96ms
+     × a failed send keeps the text and the draft and says so 33ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/collab-composer-panel.test.ts > CollabComposer as the panel composer slot (discussion) > a failed send keeps the text and the draft and says so
+AssertionError: expected null to be 'true' // Object.is equality
+
+- Expected:
+"true"
+
++ Received:
+null
+
+ ❯ tests/collab-composer-panel.test.ts:97:48
+     95|     // the panel status line (server error) now blocks Send with a poi…
+     96|     const send = [...el.querySelectorAll('button')].find((b) => b.text…
+     97|     expect(send.getAttribute('aria-disabled')).toBe('true')
+       |                                                ^
+     98|     expect(document.getElementById(send.getAttribute('aria-describedby…
+     99|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 35 passed (36)
+      Tests  1 failed | 716 passed (717)
+   Start at  11:26:24
+   Duration  6.11s (transform 1.79s, setup 0ms, import 3.81s, tests 3.38s, environment 7.86s)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /home/ubuntu/work/uniwork-office/packages/ui
+npm error workspace @genoffice/ui@0.1.0
+npm error location /home/ubuntu/work/uniwork-office/packages/ui
+npm error command failed
+npm error command sh -c vitest run

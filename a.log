@@ -1,0 +1,15 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -12
+6aa192050071a83540dcb78960479272bdb24ce4
+7e082de3b58755bfcc036baa61a60169624280c6
+6aa19205 merge: G8-20 reset the reveal subscription on editor realm replacement (W20E, D2-2)
+588bc316 merge: G8-20 collab visual r1 fixes for the panel and thread (W20I)
+dd635ccc fix(ui): collab visual r1 fixes for the panel and thread
+344c0d1b test(ui): pin the collab visual r1 fixes for the panel and thread (red)
+bd26c3ce fix(uniwork): reset the reveal subscription when the editor realm is replaced (D2-2)
+60f7553c test(uniwork): pin the reveal hold across an editor realm reset (D2-2)
+ab9c20a3 merge: G8-20 visual r1 composer fixes (W20H)
+cd3a47d1 fix(ui): show a picked mention as @Name in the composer, one focus ring
+daee611d test(ui): pin the composer mention chip and single focus ring (red)
+ea83bda7 merge: G8-20 FE review r1 fixes (W20G)
+b3c1d14f fix(ui): type the collab reload loop so it can compare its own promise
+414e06ad fix(ui): collab controller and panel review r1 fixes

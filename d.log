@@ -1,0 +1,2 @@
+$ node tools/check-theme-colors.mjs --base 7e082de3
+No new raw colors in renderer CSS.
