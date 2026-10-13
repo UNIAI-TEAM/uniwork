@@ -145,8 +145,10 @@ WHERE user_id = $1 AND deactivated_at IS NULL;
 
 -- name: ScrubMemberProfilesForUser :exec
 -- tenant: self
+-- phone, location and bio are NOT NULL with an empty default (migration 134);
+-- only employee_code is nullable, because its unique index skips NULLs.
 UPDATE organization_member_profiles SET
-  phone = NULL, phone_visible = false, location = NULL, bio = NULL, employee_code = NULL,
+  phone = '', phone_visible = false, location = '', bio = '', employee_code = NULL,
   search_text = '', updated_at = now()
 WHERE user_id = $1;
 

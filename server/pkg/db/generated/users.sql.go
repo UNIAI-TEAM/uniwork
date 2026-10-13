@@ -647,12 +647,14 @@ func (q *Queries) RevokeAllPushSubscriptionsForUser(ctx context.Context, userID 
 
 const scrubMemberProfilesForUser = `-- name: ScrubMemberProfilesForUser :exec
 UPDATE organization_member_profiles SET
-  phone = NULL, phone_visible = false, location = NULL, bio = NULL, employee_code = NULL,
+  phone = '', phone_visible = false, location = '', bio = '', employee_code = NULL,
   search_text = '', updated_at = now()
 WHERE user_id = $1
 `
 
 // tenant: self
+// phone, location and bio are NOT NULL with an empty default (migration 134);
+// only employee_code is nullable, because its unique index skips NULLs.
 func (q *Queries) ScrubMemberProfilesForUser(ctx context.Context, userID string) error {
 	_, err := q.db.Exec(ctx, scrubMemberProfilesForUser, userID)
 	return err
