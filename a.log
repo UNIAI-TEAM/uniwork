@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+2ee5b0f1ca75f7dfbac7ea9f07e55e72b8bed6d6
+061101c94d847721fd3a393f935d1c8261fd4e7e
+2ee5b0f1c feat(documents): mention-candidate endpoint and hook on the client
+7874db054 feat(documents): expose mention candidates over HTTP
+4ba601ff6 feat(documents): read the mention candidates of a document
+061101c94 Merge the G8-01 collaboration contract into the G5-G7 root (UNI-1396)
+e62da3877 chore(office): raise the Go coverage floor to 73 and record the feed membership window
+ef01e5190 Merge G5-01a change feed snapshot into the G5-G7 root (UNI-1344)

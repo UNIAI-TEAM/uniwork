@@ -1,0 +1,215 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=1 -v ./internal/service/ -run 'TestDocumentMentionCandidate|TestEveryAuditedCommandWritesItsRow'; echo "SERVICE_EXIT=$?"
+=== RUN   TestEveryAuditedCommandWritesItsRow
+=== RUN   TestEveryAuditedCommandWritesItsRow/organization.created
+=== RUN   TestEveryAuditedCommandWritesItsRow/member.invited
+=== RUN   TestEveryAuditedCommandWritesItsRow/member.joined
+=== RUN   TestEveryAuditedCommandWritesItsRow/member.role_changed
+=== RUN   TestEveryAuditedCommandWritesItsRow/member.deactivated
+=== RUN   TestEveryAuditedCommandWritesItsRow/member.reactivated
+=== RUN   TestEveryAuditedCommandWritesItsRow/member.left
+=== RUN   TestEveryAuditedCommandWritesItsRow/profile.updated
+=== RUN   TestEveryAuditedCommandWritesItsRow/department.created
+=== RUN   TestEveryAuditedCommandWritesItsRow/department.updated
+=== RUN   TestEveryAuditedCommandWritesItsRow/department.archived
+=== RUN   TestEveryAuditedCommandWritesItsRow/people.exported
+=== RUN   TestEveryAuditedCommandWritesItsRow/invitation.revoked
+=== RUN   TestEveryAuditedCommandWritesItsRow/organization.ownership_transferred
+=== RUN   TestEveryAuditedCommandWritesItsRow/workspace.created
+=== RUN   TestEveryAuditedCommandWritesItsRow/workspace.updated
+=== RUN   TestEveryAuditedCommandWritesItsRow/workspace_member.added
+=== RUN   TestEveryAuditedCommandWritesItsRow/workspace_member.role_changed
+=== RUN   TestEveryAuditedCommandWritesItsRow/workspace_member.removed
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.created
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.updated
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.deleted
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.comment_added
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.comment_updated
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.comment_deleted
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.comment_resolved
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.comment_unresolved
+=== RUN   TestEveryAuditedCommandWritesItsRow/comment.reaction_added
+=== RUN   TestEveryAuditedCommandWritesItsRow/comment.reaction_removed
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.reaction_added
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.reaction_removed
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.subscribed
+=== RUN   TestEveryAuditedCommandWritesItsRow/task.unsubscribed
+=== RUN   TestEveryAuditedCommandWritesItsRow/attachment.uploaded
+=== RUN   TestEveryAuditedCommandWritesItsRow/attachment.deleted
+=== RUN   TestEveryAuditedCommandWritesItsRow/auth.login_succeeded
+=== RUN   TestEveryAuditedCommandWritesItsRow/auth.login_failed
+=== RUN   TestEveryAuditedCommandWritesItsRow/auth.password_reset_requested
+=== RUN   TestEveryAuditedCommandWritesItsRow/auth.password_changed
+=== RUN   TestEveryAuditedCommandWritesItsRow/auth.session_revoked
+=== RUN   TestEveryAuditedCommandWritesItsRow/auth.mfa_enabled
+=== RUN   TestEveryAuditedCommandWritesItsRow/auth.mfa_disabled
+=== RUN   TestEveryAuditedCommandWritesItsRow/user.deleted
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.room.created
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.room.member_added
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.room.member_removed
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.channel.updated
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.channel.archived
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.message.linked
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.message.unlinked
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.thread.task_linked
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.thread.task_unlinked
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.follow_up.created
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.follow_up.updated
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.follow_up.completed
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.follow_up.deleted
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.message.deleted
+=== RUN   TestEveryAuditedCommandWritesItsRow/chat.room.member_updated
+=== RUN   TestEveryAuditedCommandWritesItsRow/desktop_device.revoked
+=== RUN   TestEveryAuditedCommandWritesItsRow/subscription.changed
+=== RUN   TestEveryAuditedCommandWritesItsRow/billing.invoice_refunded
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.created
+=== RUN   TestEveryAuditedCommandWritesItsRow/office.launch_session_created
+=== RUN   TestEveryAuditedCommandWritesItsRow/office.launch_session_redeemed
+=== RUN   TestEveryAuditedCommandWritesItsRow/office.launch_session_revoked
+=== RUN   TestEveryAuditedCommandWritesItsRow/office.desktop_downloaded
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.shared
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.share_revoked
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.link_created
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.link_revoked
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.settings_changed
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.updated
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.version_created
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.version_restored
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.asset_uploaded
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.comment_added
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.comment_updated
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.comment_deleted
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.comment_resolved
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.comment_unresolved
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.comment_reaction_added
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.comment_reaction_removed
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.favorited
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.unfavorited
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.moved
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.archived
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.restored
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.deleted
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.versions_compacted
+=== RUN   TestEveryAuditedCommandWritesItsRow/document.asset_purged
+=== RUN   TestEveryAuditedCommandWritesItsRow/signature.created
+=== RUN   TestEveryAuditedCommandWritesItsRow/signature.deleted
+=== RUN   TestEveryAuditedCommandWritesItsRow/ai.credential.saved
+=== RUN   TestEveryAuditedCommandWritesItsRow/ai.credential.deleted
+=== RUN   TestEveryAuditedCommandWritesItsRow/email_hub_account.connected
+=== RUN   TestEveryAuditedCommandWritesItsRow/email_hub_account.disconnected
+=== RUN   TestEveryAuditedCommandWritesItsRow/email_hub_account.auth_failed
+2026/10/13 03:22:05 WARN email hub account needs reconnect account_id=01M4SMG68600KZQ5389NWNG553 reason=imap_auth_failed
+--- PASS: TestEveryAuditedCommandWritesItsRow (26.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/organization.created (0.35s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/member.invited (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/member.joined (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/member.role_changed (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/member.deactivated (0.30s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/member.reactivated (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/member.left (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/profile.updated (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/department.created (0.28s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/department.updated (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/department.archived (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/people.exported (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/invitation.revoked (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/organization.ownership_transferred (0.28s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/workspace.created (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/workspace.updated (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/workspace_member.added (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/workspace_member.role_changed (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/workspace_member.removed (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.created (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.updated (0.33s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.deleted (0.30s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.comment_added (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.comment_updated (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.comment_deleted (0.31s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.comment_resolved (0.28s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.comment_unresolved (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/comment.reaction_added (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/comment.reaction_removed (0.29s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.reaction_added (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.reaction_removed (0.34s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.subscribed (0.29s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/task.unsubscribed (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/attachment.uploaded (0.28s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/attachment.deleted (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/auth.login_succeeded (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/auth.login_failed (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/auth.password_reset_requested (0.23s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/auth.password_changed (0.29s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/auth.session_revoked (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/auth.mfa_enabled (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/auth.mfa_disabled (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/user.deleted (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.room.created (0.23s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.room.member_added (0.23s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.room.member_removed (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.channel.updated (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.channel.archived (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.message.linked (0.28s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.message.unlinked (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.thread.task_linked (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.thread.task_unlinked (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.follow_up.created (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.follow_up.updated (0.29s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.follow_up.completed (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.follow_up.deleted (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.message.deleted (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/chat.room.member_updated (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/desktop_device.revoked (0.19s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/subscription.changed (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/billing.invoice_refunded (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.created (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/office.launch_session_created (0.34s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/office.launch_session_redeemed (0.28s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/office.launch_session_revoked (0.32s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/office.desktop_downloaded (0.28s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.shared (0.31s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.share_revoked (0.32s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.link_created (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.link_revoked (0.47s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.settings_changed (0.30s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.updated (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.version_created (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.version_restored (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.asset_uploaded (0.31s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.comment_added (0.31s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.comment_updated (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.comment_deleted (0.33s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.comment_resolved (0.35s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.comment_unresolved (0.35s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.comment_reaction_added (0.30s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.comment_reaction_removed (0.29s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.favorited (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.unfavorited (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.moved (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.archived (0.23s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.restored (0.23s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.deleted (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.versions_compacted (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/document.asset_purged (0.27s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/signature.created (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/signature.deleted (0.25s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/ai.credential.saved (0.23s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/ai.credential.deleted (0.24s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/email_hub_account.connected (0.26s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/email_hub_account.disconnected (0.28s)
+    --- PASS: TestEveryAuditedCommandWritesItsRow/email_hub_account.auth_failed (0.29s)
+=== RUN   TestDocumentMentionCandidatesReaders
+--- PASS: TestDocumentMentionCandidatesReaders (0.37s)
+=== RUN   TestDocumentMentionCandidatesRefuseOutsiders
+--- PASS: TestDocumentMentionCandidatesRefuseOutsiders (0.35s)
+=== RUN   TestDocumentMentionCandidatesSearch
+--- PASS: TestDocumentMentionCandidatesSearch (0.36s)
+=== RUN   TestDocumentMentionCandidatesShareReaderSeesNoEmail
+--- PASS: TestDocumentMentionCandidatesShareReaderSeesNoEmail (0.34s)
+=== RUN   TestDocumentMentionCandidatesRestrictedDocument
+--- PASS: TestDocumentMentionCandidatesRestrictedDocument (0.39s)
+=== RUN   TestDocumentMentionCandidateLimits
+--- PASS: TestDocumentMentionCandidateLimits (0.34s)
+=== RUN   TestDocumentMentionCandidatesOwnedDocumentIsEmpty
+--- PASS: TestDocumentMentionCandidatesOwnedDocumentIsEmpty (0.38s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	29.886s
+SERVICE_EXIT=0
