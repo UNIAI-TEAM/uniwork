@@ -28,6 +28,8 @@ var tenantExportExcluded = map[string]string{
 	"file_derivatives":               "Bản dẫn xuất kỹ thuật; byte tệp không nằm trong gói.",
 	"office_jobs":                    "Job kỹ thuật Office.",
 	"office_launch_sessions":         "Phiên mở ứng dụng desktop, có bí mật phiên.",
+	"office_offline_leases":          "Quyền đọc offline của thiết bị, có chữ ký phiên; cấp lại được, không phải nội dung.",
+	"office_offline_policy":          "Số epoch chính sách offline, sổ kỹ thuật.",
 	"document_change_snapshots":      "Snapshot đồng bộ tạm (TTL vài phút), chỉ id và revision.",
 	"document_change_snapshot_items": "Snapshot đồng bộ tạm (TTL vài phút), chỉ id và revision.",
 	"meeting_audit_logs":             "Nhật ký họp cũ, cùng lớp với audit.",
