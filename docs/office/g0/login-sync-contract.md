@@ -10,6 +10,8 @@
 > Đây là **model tham chiếu**, **KHÔNG** phải chứng minh bảo mật sản phẩm, không phải
 > E2E, và các con số ở đây là **kỳ vọng khi main chạy**, không phải kết quả đã chạy thay
 > cho main. Xem §8 để biết chính xác mức bằng chứng và các giới hạn.
+>
+> **Amendment G5-D1 (lô #2b, ký 2026-10-13):** §6.2 (offline lease + threat model), ngoại lệ ở §6 mục 5, §9 và §9.1 bước 7.
 
 Tài liệu này chốt hợp đồng login/sync/phiên bản/xung đột/nháp cho Documents và
 UniWork Office, kèm harness chạy được cho các ca lỗi bắt buộc. Nó **không** triển
@@ -345,6 +347,11 @@ Quy tắc chốt:
      nghĩa là khớp cả `baseRevision` và `baseVersion`**: revision khớp mà blob version
      đã đổi là mô tả một tài liệu khác, và áp nháp vào đó chính là kiểu "mất chữ" mà
      Q8 tồn tại để ngăn.
+   - **Ngoại lệ có chủ đích (amendment G5-D1, §6.2):** *đọc* bản committed đã ghim khi
+     máy offline dùng **lease offline do server ký**, không dùng quyền sống. Mục 5 giữ
+     nguyên cho mọi thao tác online và cho phục hồi nháp/ghi: lease **không** thay quyền
+     sống cho phục hồi nháp, không cho phép ghi, và không được dùng để mở lại nháp đã
+     `blocked`. Online thì gia hạn lease luôn chạy lại toàn bộ kiểm tra quyền sống.
 6. **Chỉ xóa nháp sau commit được xác nhận hoặc hành động bỏ rõ ràng.** Lỗi lưu/quota/
    mất mạng đều giữ nháp `dirty`. Byte chỉ rời store khi commit xác nhận tiêu đúng
    nháp đã sinh nó, hoặc khi người dùng **chủ động bỏ** (`discardDraft`). Không xoá sau
@@ -379,6 +386,86 @@ Quy tắc chốt:
 `packages/core/platform/workspace-storage.ts` cấp namespace theo workspace. DOC-005
 yêu cầu mở rộng cùng mẫu đó cho nháp Office: **namespace theo tài khoản** (không chỉ
 workspace), và thêm trạng thái `blocked`/`conflict` như trên.
+
+### 6.2 Offline lease (G5-D1)
+
+> **Nguồn:** G5-D1 (lô #2b, ký 2026-10-13) — người dùng (vai Auth) duyệt theo gợi ý toàn bộ 20 hàng và threat model 17 hàng
+> của `decisions/draft-batch-2b-G5-D1.md`; U-13 (spec G5/G6/G7 §"Offline", lease ≤ 24 h). Mục này là amendment của §6 mục 5.
+> Hợp đồng route/mã: [contract-p0](../g5g6g7/contract-p0.md) §3–§4. Server (G5-08s, UNI-1350) đi trước app (G5-08c); xem §9.1 bước 7.
+
+**Nguyên tắc.** Lease là ngoại lệ có chủ đích cho **đọc** bản committed của một tài liệu đã ghim khi máy offline. Nó không
+thay quyền sống ở bất kỳ thao tác online nào, không cấp quyền ghi offline cho server, và không được dùng để phục hồi nháp
+đã biết là `blocked` (§6 mục 5). Không có đăng nhập lạnh offline: không có phiên thì không có lease dùng được. Logout
+trên máy khóa lease **ngay**, không chờ server.
+
+#### 6.2.1 Giá trị đã ký
+
+| # | Chủ đề | Giá trị |
+| --- | --- | --- |
+| 1 | TTL | Tối đa 24 h và không vượt hạn phiên thiết bị: `expires_at = min(now + 24h, device_sessions.expires_at)` |
+| 2 | Gia hạn | App gia hạn khi còn < 50 % hạn (≤ 12 h), chỉ khi online (lúc khởi động và lúc kết nối lại). Gia hạn = `PUT` cùng path kèm `lease_id` cũ; server chạy lại **toàn bộ** kiểm tra của cấp mới (thiết bị sống, `RequireMember`, `authorizeDocument` ≥ view, policy epoch, flag). Hạn mới tính từ lúc gia hạn, không cộng dồn; hàng lease cập nhật tại chỗ (cùng `lease_id`, tăng `generation`). App hiện badge "Sắp hết quyền offline" khi còn < 4 h. Không có đường gia hạn offline |
+| 3 | Nội dung ký | Claim: `v`, `kid`, `lease_id`, `generation`, `user_id`, `device_session_id`, `deployment_id`, `organization_id`, `workspace_id`, `document_id`, `version_id` + `revision` đã tải, `level` (`view` hoặc `edit`; `manage` hạ xuống `edit`), `policy_epoch`, `iat`, `exp` (giờ server). Server **luôn** kiểm cả chữ ký **và** hàng DB, mọi trường lấy từ hàng chứ không từ token; SDO trả kèm bản rõ `expires_at`, `renew_after`, `level`, `version_id` để app hiển thị |
+| 4 | Khóa ký | HMAC-SHA256, khóa dẫn xuất từ `JWT_SECRET` theo nhãn `uniwork/office-offline-lease/v1` (cùng mẫu với cursor feed `uniwork/office-change-cursor/v1`); không thêm secret/env; không dùng chung khóa access token. `kid` = nhãn version (`v1`) để sau có thể chuyển Ed25519 mà không đổi wire. Xoay `JWT_SECRET` làm mọi lease cũ hỏng chữ ký: gia hạn trả `offline_lease_revoked`, app cấp lại (`PUT` không `lease_id`) khi online |
+| 5 | Gắn thiết bị | `device_session_id` lấy từ sid của bearer, không từ body. Route tra trực tiếp hàng `device_sessions` và yêu cầu `user_id` + `deployment_id` khớp, chưa revoked, chưa hết hạn; phiên web hoặc sid không có hàng sống → 403 `offline_lease_device_required`. Refresh không đổi thiết bị nên lease sống qua refresh. Khóa thiết bị proof-of-possession: backlog |
+| 6–7 | Thu hồi theo thiết bị/phiên | Mọi lease của thiết bị bị revoke **trong cùng transaction** với revoke device/family/all (helper `revokeOfficeLeasesForDevice` / `revokeOfficeLeasesForUser`, gọi trong `Logout` và `revokeAllUserSessions`), audit `office.offline_lease_revoked` với `reason=device_revoked`. Vì mọi đường revoke phiên (logout, revoke thiết bị, RevokeAll, reset mật khẩu, xóa tài khoản, vô hiệu hóa thành viên khi không còn tổ chức hoạt động nào khác) đi qua hai hàm đó, lease chết theo |
+| 8 | Policy epoch | Theo tổ chức (bảng `office_offline_policy`: `organization_id`, `epoch`, cùng migration `office_offline_leases`). Bump khi: tạm ngưng tổ chức; lệnh admin "thu hồi mọi quyền offline của tổ chức" (`uniwork-admin`, `reason` ≥ 10 ký tự). Thay đổi theo người/tài liệu — vô hiệu hóa thành viên, gỡ khỏi workspace, thu share, xóa, chuyển workspace — revoke hàng có mục tiêu qua consumer outbox (lane `notify`) của đúng user/tài liệu, **kể cả khi người đó còn tổ chức khác** (session không bị revoke trong ca đó). Tắt flag **không** bump epoch. Hàng có epoch cũ khi gia hạn → `offline_lease_revoked` |
+| 9 | Hạ quyền edit → view | Gia hạn cấp lease mới với `level=view`; app chuyển hàng sang "Sẵn sàng offline · chỉ xem", editor offline chỉ đọc, Lưu offline bị chặn. Intent đã xếp trước khi hạ quyền được giữ và bị server từ chối lúc dispatch |
+| 11 | Trần | 200 lease sống mỗi `device_session_id`; vượt → 409 `offline_lease_limit_reached`. Giới hạn 2 GiB là của app, server không biết dung lượng cache |
+| 12 | Flag `office_offline_library` tắt | Không cấp/gia hạn mới (403 `office_capability_off`, `fields.capability = offline_library`); lease đang có đọc được tới hạn; `DELETE`, revoke và worker dọn vẫn chạy; không bump epoch. Flag chỉ ẩn năng lực, không cấp/thu quyền |
+| 13 | Đồng hồ | Server dùng giờ server tuyệt đối và không bao giờ đọc giờ client. App lưu `server_time` lúc nhận + đồng hồ đơn điệu, hạn hiệu dụng = `exp` theo độ lệch đo được; đồng hồ máy lùi > 5 phút so với mốc lớn nhất đã thấy → khóa như hết hạn tới khi online |
+| 14 | Tài liệu archived | Gia hạn trả 403 `document_archived` (mã mới, không lớp, chỉ trả cho người giữ hàng lease sống của chính tài liệu đó nên không lộ tồn tại); app giữ bản đã tải tới hết lease rồi khóa |
+| 15 | Mã lỗi server phát | `offline_lease_revoked` 403 lớp `permission` (gia hạn hàng đã revoke, epoch cũ, chữ ký hỏng); `offline_lease_device_required` 403, `offline_lease_limit_reached` 409, `document_archived` 403 — ba mã này không lớp. Server **không** phát `offline_lease_expired`: gia hạn sau khi hết hạn được phép nếu quyền sống còn; `lease_expired` chỉ là lý do phía app |
+| 16 | Audit + outbox | Audit `office.offline_lease_granted`, `office.offline_lease_renewed`, `office.offline_lease_released`, `office.offline_lease_revoked` (metadata `reason` ∈ {`device_revoked`, `session_revoked`, `member_deactivated`, `member_removed`, `share_revoked`, `document_deleted`, `document_moved`, `policy_epoch`, `admin`}); outbox `office_lease.granted`, `office_lease.renewed`, `office_lease.released`, `office_lease.revoked`, Scope user, payload chỉ id (`user_id`, `document_id`, `lease_id`). Client chỉ cần `office_lease.revoked` (máy online khóa ngay, không đợi gia hạn) |
+| 17 | Metrics | `uniwork_office_offline_lease_grants_total{op=grant\|renew\|release}`, `uniwork_office_offline_lease_blocked_total{reason}` (tập đóng: `device`, `acl`, `epoch`, `revoked`, `flag_off`, `limit`, `archived`, `signature`), `uniwork_office_offline_leases_revoked_total{reason}`, `uniwork_office_offline_lease_sweep_deleted_total`; không nhãn org/user/doc |
+| 18 | Worker dọn | Mỗi 15 phút xóa hàng hết hạn hoặc revoked quá 7 ngày; đăng ký vào chuỗi shutdown `server/cmd/server/main.go`. Giữ 7 ngày để gia hạn sau đó trả đúng `offline_lease_revoked`; lịch sử nằm ở `audit_events` (append-only) |
+| 19 | Phạm vi một lease | Một tài liệu + đúng version đã tải + assets của snapshot đó. Tài liệu đổi head → gia hạn cập nhật `version_id`/`revision` sau khi app tải xong bản mới |
+
+#### 6.2.2 Revoke: tức thì khi online, có cửa sổ khi offline
+
+Revoke từ server **tức thì khi máy online** (máy nhận `office_lease.revoked` hoặc 401/403 phiên và khóa ngay). Khi máy offline,
+revoke chỉ có hiệu lực lúc máy nhận revoke (kết nối lại) **hoặc** lúc lease hết hạn, cái nào tới trước. Cửa sổ tối đa
+24 h (TTL, hàng 1) là rủi ro còn lại **được chấp nhận rõ ràng**; không hứa revoke tức thì với máy offline.
+
+#### 6.2.3 Hành vi theo tình huống
+
+| Tình huống | Hành vi |
+| --- | --- |
+| Lease hết hạn | Khóa payload, giữ ciphertext cache và nháp; mở lại khi gia hạn thành công. Không plaintext fallback |
+| Revoke / mất quyền / xóa | Xóa bản committed + assets, **giữ nháp** (khóa); tài liệu đang mở dirty → Lock-while-open (bộ đệm chỉ đọc, nháp N+1 ghi vào store mã hóa). Phù hợp §6 mục 5 "mất quyền thì `blocked`, giữ byte" |
+| Archived | Không gia hạn (`document_archived`), giữ bản đã tải tới hết lease rồi khóa |
+| Hạ quyền edit → view | Gia hạn cấp `level=view`; Lưu offline bị chặn (hàng 9) |
+| Flag tắt | Không cấp/gia hạn mới; lease cũ đọc được tới hạn; không bump epoch (hàng 12) |
+| Xoay `JWT_SECRET` | Mọi lease cũ hỏng chữ ký → `offline_lease_revoked` ở gia hạn; app cấp lại khi online (hàng 4) |
+
+#### 6.2.4 Threat model
+
+"Test" là tên test Go của G5-08s (`go test ./internal/service -run OfficeLease`), tên ca của G5-08c/G7-03b, hoặc negative case
+của G5-A07 (NC1 = đồng hồ/hết hạn, NC2 = logout A→B / đổi deployment, NC3 = keystore khóa).
+
+| # | Actor | Tài sản | Tấn công | Kiểm soát | Test |
+| --- | --- | --- | --- | --- | --- |
+| T1 | Kẻ nhặt/trộm máy (đang offline) | Bản cache đã ghim, nháp | Mở tài liệu sau khi chủ báo mất máy | Cache mã hóa, khóa trong kho khóa OS gắn tài khoản OS (G5-08c); lease ≤ 24 h rồi khóa; chủ revoke thiết bị ở web → hiệu lực khi máy kết nối lại (hàng 6). Rủi ro còn lại có chủ đích: ≤ 24 h đọc offline nếu kẻ trộm mở được phiên OS | `TestOfficeLeaseRevokedWithDeviceLogout`, `TestOfficeLeaseExpiresWithinTTL`; G7-03b "revoke khi offline"; G5-A07 NC1 |
+| T2 | Kẻ trộm máy, máy online lại | Cache + quyền gia hạn | Gia hạn lease sau khi thiết bị bị revoke | Gia hạn đòi `device_sessions` sống (hàng 5); revoke cùng transaction (hàng 6); máy nhận `office_lease.revoked`/401 → xóa cache | `TestOfficeLeaseRenewRefusedAfterDeviceRevoke`, `TestOfficeLeaseRevokedWithRevokeAll` |
+| T3 | Thành viên bị gỡ quyền / gỡ khỏi workspace | Tài liệu đã ghim | Tiếp tục đọc offline và gia hạn | Gia hạn chạy lại `authorizeDocument` sống; consumer `member.removed`/`document.share_revoked` revoke hàng; app xóa committed cache khi gia hạn thất bại vì mất quyền (hàng 10) | `TestOfficeLeaseRenewRechecksLiveACL`, `TestOfficeLeaseRevokedOnShareRevoked`, `TestOfficeLeaseRevokedOnMemberRemoved`; G5-05 "revoke → cache và assets bị xóa, nháp còn" |
+| T4 | Thành viên bị vô hiệu hóa (vẫn thuộc tổ chức khác) | Tài liệu tổ chức A | Session còn sống vì còn tổ chức khác nên lease A không tự chết theo session | Consumer `member.deactivated` revoke mọi lease của user trong tổ chức A; gia hạn bị `member_deactivated` | `TestOfficeLeaseRevokedOnMemberDeactivatedWithOtherOrg` |
+| T5 | Thành viên tổ chức bị tạm ngưng | Mọi tài liệu tổ chức | Đọc offline/gia hạn khi tổ chức đã bị khóa | Bump epoch tổ chức (hàng 8); gia hạn bị `organization_suspended`; hàng epoch cũ → `offline_lease_revoked` | `TestOfficeLeaseEpochBumpOnSuspendRefusesRenew` |
+| T6 | Người dùng tổ chức B (tenant khác) | Lease/tài liệu của A | Phát lại lease của A, hoặc gọi PUT/DELETE với `documentID` của A | Lease gắn `organization_id`/`workspace_id`/`user_id`/`device_session_id`; server kiểm hàng thuộc đúng bearer; route có `{documentID}` tự vào `TestIsolationMatrix`; trả 403/404 không lộ id/chữ | `TestIsolationMatrix` (route mới), `TestOfficeLeaseFromOtherAccountRefused` |
+| T7 | Kẻ tấn công có quyền ghi file cục bộ | Quyền offline | Sửa/giả lease (kéo dài `exp`, nâng `level`) | Server: HMAC + hàng DB, mọi trường lấy từ hàng chứ không từ token; app: lease nằm trong kho khóa OS, không đọc lease ngoài kho (G5-08c) | `TestOfficeLeaseForgedSignatureRefused`, `TestOfficeLeaseTamperedClaimsIgnored`; G5-A07 NC1 |
+| T8 | Người dùng đang offline | Hạn lease | Gia hạn bằng lease đã hết hạn sau khi mất quyền | Gia hạn luôn kiểm quyền sống; không có đường gia hạn offline | `TestOfficeLeaseRenewAfterExpiryRechecksACL` |
+| T9 | Người dùng/malware chỉnh đồng hồ | Hạn lease | Lùi đồng hồ để kéo dài quyền | Hạn tính theo giờ server + đồng hồ đơn điệu; lùi > 5 phút → khóa (hàng 13); server không đọc giờ client | G5-08c "lùi đồng hồ"; G7-03b "lùi đồng hồ"; G5-A07 NC1 |
+| T10 | Người có máy thứ hai | Lease của máy 1 | Chép lease sang máy/tài khoản OS khác | Lease gắn `device_session_id`; gia hạn từ sid khác → 403; offline: cache key ở kho khóa máy 1, lease một mình không giải mã được gì | `TestOfficeLeaseRenewFromOtherDeviceRefused`; G5-A07 NC2 |
+| T11 | Người đổi tài khoản A→B / đổi deployment trên cùng máy | Cache + nháp của A | B mở cache/nháp của A | Lease + store gắn `user_id` + `deployment_id`; logout A khóa ngay; B không có lease của A | G5-08c "logout A→B", "deployment switch"; G5-A07 NC2 |
+| T12 | Thành viên bị hạ quyền edit → view | Quyền sửa offline | Tiếp tục sửa + xếp Lưu offline | Gia hạn cấp `level=view` (hàng 9); Lưu offline bị chặn; intent cũ bị server từ chối lúc dispatch | `TestOfficeLeaseRenewDowngradesToView`; G5-08c "view-only lease chặn Lưu" |
+| T13 | Kẻ lấy được `JWT_SECRET` | Toàn hệ thống | Ký lease giả | Đã nghiêm trọng hơn (giả được access token); lease giả không có hàng DB nên server từ chối; xoay secret → mọi lease thành `offline_lease_revoked`, app cấp lại khi online (hàng 4); runbook keystore/lease | `TestOfficeLeaseRequiresStoredRow`, `TestOfficeLeaseSecretRotationRevokes` |
+| T14 | Malware đọc đĩa / sao lưu máy | Cache offline | Exfiltrate bản cache | Cache mã hóa, không plaintext fallback, keystore khóa → chặn đường lưu; log không chứa tên file | G5-05 "bộ kiểm tuân thủ store xanh"; G7-03b "keystore khóa"; G5-A07 NC3 |
+| T15 | Thiết bị bị chiếm, gọi API liên tục | Nhiều tài liệu | Lấy lease hàng loạt để tải cả tổ chức | Trần 200 lease/thiết bị (hàng 11); cấp vẫn đòi quyền đọc từng tài liệu; rate limit chung | `TestOfficeLeaseLimitPerDevice` |
+| T16 | Phiên trình duyệt (XSS/token web bị lộ) | Quyền offline | Xin lease từ phiên web | Route đòi hàng `device_sessions` (hàng 5), phiên `Web` bị từ chối | `TestOfficeLeaseRefusesWebSession` |
+| T17 | Admin tắt flag | Dữ liệu người dùng | Tắt flag xóa/thu quyền ngoài ý muốn | Flag chỉ ngăn cấp/gia hạn mới; lease cũ đọc được tới hạn (hàng 12) | `TestOfficeLeaseFlagOffRefusesGrantKeepsExisting` |
+
+Điểm còn mở được giao cho G5-08s (không chặn): lệnh `uniwork-admin` thu hồi quyền offline của cả tổ chức (hàng 8) chưa
+có — lane thêm subcommand hoặc bỏ trigger đó nếu người dùng muốn gọn hơn; lane `notify` đủ cho consumer revoke hay cần
+`slow` chưa đo; tải khi xoay `JWT_SECRET` (cấp lại hàng loạt) do G7-D1 chốt nếu cần. Backlog: khóa thiết bị
+proof-of-possession, Ed25519, ký số/chứng chỉ.
 
 ## 7. Chuyển đổi và tạo bản sao (5.4, Q7-B)
 
@@ -584,6 +671,8 @@ phẩm chưa viết. Các việc ở §9 vẫn thuộc G1/G2/G4/G5.
 | Namespace nháp theo tài khoản + trạng thái blocked/conflict | G4/G5 | §6, theo mẫu `drafts/cleanup-registry.ts` |
 | Change feed + cursor retention + tombstone ở service thật | G5 UNI-660 | §5 |
 | Mở rộng bảng ca sang engine open/serialize | DOC-004 | §1, cùng harness |
+| Lease offline phía server: `PUT`/`DELETE …/office/offline-lease`, migration `office_offline_leases` + `office_offline_policy`, revoke cùng transaction với revoke phiên, consumer outbox, worker dọn, metric | G5 UNI-1350 (G5-08s) | §6.2; G5-D1 (lô #2b, ký 2026-10-13) |
+| Lease trong kho khóa OS, phát hiện lùi đồng hồ, khóa payload khi hết hạn/keystore khóa, Lưu offline chặn khi `view` | G5-08c | §6.2; sau G5-08s |
 
 Các ca E2E phải chạy lại ở G1/G4/G5: conflict hai client thật, logout/restart trên
 binary desktop thật, thu quyền giữa upload/commit qua API thật, full resync sau
@@ -602,6 +691,8 @@ chỉ bật hành vi mới sau khi đọc được capability tương ứng từ
 | 4 | Change feed + cursor ký + retention + tombstone ở service thật (G5 UNI-660) | Client chuyển từ poll sang cursor, xử lý `change_cursor_expired` bằng full resync | E2E full resync sau disconnect dài |
 | 5 | `device_sessions` + endpoint desktop exchange (G4 UNI-636) | Desktop login PKCE qua trình duyệt hệ thống; token vào kho bảo mật host | Kiểm khi GenOffice cùng cài (callback không mở nhầm app) |
 | 6 | Namespace nháp theo tài khoản + trạng thái `blocked`/`conflict` (G4/G5) | Bật khôi phục nháp Q8 và bản sao Q7 | E2E logout/restart trên binary desktop thật |
+| 7 | Lease offline phía server (G5-08s, §6.2): migration `office_offline_leases` + `office_offline_policy`, route `PUT`/`DELETE …/office/offline-lease`, consumer outbox, worker dọn 15 phút; flag `office_offline_library` mặc định **tắt** | Lease trong kho khóa OS (G5-08c) chỉ bật ghim offline sau khi đọc capability `offline_library` từ server; client cũ không gọi route mới | `go test ./internal/service -run OfficeLease` xanh trên cloud runner; `TestIsolationMatrix` có route mới; bước 7 đứng **trước** app G5-08c |
 
 Rollback: bước 1-2 là additive (bỏ qua được); bước 3 tắt được bằng feature flag mà không
 mất dữ liệu; bước 4-6 giữ đường cũ song song cho tới khi E2E của bước đó xanh.
+Bước 7 tắt được bằng flag `office_offline_library` (không cấp/gia hạn mới, lease đang có đọc được tới hạn, không mất dữ liệu; §6.2 hàng 12).
