@@ -169,6 +169,27 @@ SELECT id FROM organizations ORDER BY id;
 -- name: GraphOrganizationExists :one
 SELECT EXISTS (SELECT 1 FROM organizations WHERE id = sqlc.arg(organization_id))::boolean;
 
+-- name: GraphForgetOrganizationNodes :exec
+UPDATE graph_nodes SET
+  title = '', status = '', reader_ids = ARRAY[]::text[],
+  deleted_at = COALESCE(deleted_at, now()), updated_at = now()
+WHERE organization_id = $1;
+
+-- name: GraphForgetOrganizationEdges :exec
+UPDATE graph_edges SET
+  attrs = '{}'::jsonb,
+  valid_to = COALESCE(valid_to, GREATEST(valid_from, now()))
+WHERE organization_id = $1;
+
+-- name: GraphForgetOrganizationFacts :exec
+UPDATE graph_node_facts SET
+  value = '', attrs = '{}'::jsonb,
+  valid_to = COALESCE(valid_to, GREATEST(valid_from, now()))
+WHERE organization_id = $1;
+
+-- name: GraphForgetOrganizationDirty :exec
+DELETE FROM graph_dirty WHERE organization_id = $1;
+
 -- name: GraphRebuildLiveSources :many
 SELECT source_id FROM graph_nodes
 WHERE organization_id = sqlc.arg(organization_id) AND node_type = sqlc.arg(node_type) AND deleted_at IS NULL

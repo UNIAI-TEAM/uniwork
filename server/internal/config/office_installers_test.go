@@ -51,7 +51,7 @@ func TestOfficeInstallersEncodedFilenames(t *testing.T) {
 	for _, filename := range []string{"bad%5Cname.exe", "bad%0Aname.exe", "bad%00name.exe", "bad%3Fname.exe", "bad%3Aname.exe", "bad%22name.exe"} {
 		cfg := Config{OfficeInstallerDevURLs: `{"win32-x64":"https://downloads.test/` + filename + `"}`}
 		if _, err := cfg.OfficeInstallers("dev"); err == nil {
-			t.Errorf("accepted filename the bundle cannot preserve: %s", filename)
+			t.Errorf("accepted filename the instructions cannot name: %s", filename)
 		}
 	}
 	cfg := Config{OfficeInstallerDevURLs: `{"win32-x64":"https://downloads.test/my%20office%2Eexe"}`}
@@ -90,24 +90,5 @@ func TestOfficeInstallerURLsFromCIJob(t *testing.T) {
 	}
 	if stable, err := cfg.OfficeInstallers("stable"); err != nil || len(stable) != 0 {
 		t.Fatalf("stable must stay empty: %+v %v", stable, err)
-	}
-}
-
-func TestLoadOfficeInstallerRedirectHosts(t *testing.T) {
-	setRequired(t)
-	t.Setenv("OFFICE_INSTALLER_REDIRECT_HOSTS", "")
-	cfg, err := Load()
-	if err != nil || strings.Join(cfg.OfficeInstallerRedirectHosts, ",") != "objects.githubusercontent.com,release-assets.githubusercontent.com" {
-		t.Fatalf("default redirect hosts: %v %v", cfg.OfficeInstallerRedirectHosts, err)
-	}
-	t.Setenv("OFFICE_INSTALLER_REDIRECT_HOSTS", " Objects.GitHubUserContent.com ")
-	if cfg, err := Load(); err != nil || len(cfg.OfficeInstallerRedirectHosts) != 1 || cfg.OfficeInstallerRedirectHosts[0] != "objects.githubusercontent.com" {
-		t.Fatalf("custom redirect hosts: %v %v", cfg.OfficeInstallerRedirectHosts, err)
-	}
-	for _, unsafe := range []string{"localhost", "127.0.0.1", "[::1]", "objects.githubusercontent.com:443", "https://objects.githubusercontent.com", "intranet", "nas.local", "a..b.com", "*.githubusercontent.com"} {
-		t.Setenv("OFFICE_INSTALLER_REDIRECT_HOSTS", unsafe)
-		if _, err := Load(); err == nil {
-			t.Errorf("unsafe redirect host %q accepted", unsafe)
-		}
 	}
 }

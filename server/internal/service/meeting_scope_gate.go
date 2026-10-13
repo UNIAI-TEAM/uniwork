@@ -28,5 +28,6 @@ func (s *MeetingService) AuthorizeMeetingScope(ctx context.Context, userID, work
 // the meeting is gone or hidden, or the membership gate said no.
 func refusesMeetingScope(err error) bool {
 	return errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) ||
-		errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationSuspended)
+		errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationSuspended) ||
+		errors.Is(err, ErrOrganizationDeletionScheduled)
 }

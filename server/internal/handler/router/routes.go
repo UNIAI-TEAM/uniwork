@@ -297,6 +297,13 @@ type Routes struct {
 	GetAuditExport      http.HandlerFunc
 	DownloadAuditExport http.HandlerFunc
 
+	ListPrivacyExports    http.HandlerFunc
+	CreatePrivacyExport   http.HandlerFunc
+	CreatePrivacyDeletion http.HandlerFunc
+	CancelPrivacyDeletion http.HandlerFunc
+	GetPrivacyExport      http.HandlerFunc
+	DownloadPrivacyExport http.HandlerFunc
+
 	GraphNeighbors http.HandlerFunc
 	GraphHistory   http.HandlerFunc
 
@@ -462,19 +469,23 @@ type Routes struct {
 	ExchangeOfficeLaunch    http.HandlerFunc
 	RevokeOfficeLaunch      http.HandlerFunc
 	CopyDocument            http.HandlerFunc
-	GetDocument             http.HandlerFunc
-	PatchDocument           http.HandlerFunc
-	UploadDocumentFile      http.HandlerFunc
-	CommitDocumentVersion   http.HandlerFunc
-	ListDocumentVersions    http.HandlerFunc
-	CreateDocumentVersion   http.HandlerFunc
-	GetDocumentVersion      http.HandlerFunc
-	RestoreDocumentVersion  http.HandlerFunc
-	UploadDocumentAsset     http.HandlerFunc
-	GetDocumentAsset        http.HandlerFunc
-	DownloadDocument        http.HandlerFunc
-	CreatePreviewScope      http.HandlerFunc
-	GetPreviewAsset         http.HandlerFunc
+	// Documents "other sources" (UNI-1305 item C).
+	ListDocumentSources    http.HandlerFunc
+	DownloadDocumentSource http.HandlerFunc
+	SaveDocumentSource     http.HandlerFunc
+	GetDocument            http.HandlerFunc
+	PatchDocument          http.HandlerFunc
+	UploadDocumentFile     http.HandlerFunc
+	CommitDocumentVersion  http.HandlerFunc
+	ListDocumentVersions   http.HandlerFunc
+	CreateDocumentVersion  http.HandlerFunc
+	GetDocumentVersion     http.HandlerFunc
+	RestoreDocumentVersion http.HandlerFunc
+	UploadDocumentAsset    http.HandlerFunc
+	GetDocumentAsset       http.HandlerFunc
+	DownloadDocument       http.HandlerFunc
+	CreatePreviewScope     http.HandlerFunc
+	GetPreviewAsset        http.HandlerFunc
 
 	// Office Docs web frame (UNI-1013): the session mint, and the frame-token
 	// routes Deps.OfficeFrameAuth guards.

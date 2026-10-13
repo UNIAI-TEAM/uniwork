@@ -21,14 +21,8 @@ import (
 )
 
 // fakeServerTLS / fakeRootCAs: one self-signed certificate for 127.0.0.1,
-// served by every fake and trusted by dial through tlsRootCAs.
+// served by every fake and trusted through the test credentials.
 var fakeServerTLS, fakeRootCAs = newFakeTLS()
-
-// Tests dial loopback, which netguard refuses; production keeps netguard.
-func init() {
-	dialTCP = (&net.Dialer{Timeout: 5 * time.Second}).DialContext
-	tlsRootCAs = fakeRootCAs
-}
 
 func newFakeTLS() (*tls.Config, *x509.CertPool) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -67,9 +61,10 @@ func newFakeTLS() (*tls.Config, *x509.CertPool) {
 // otherwise with a minimal default. By default it speaks implicit TLS;
 // with starttls it greets in plaintext, advertises STARTTLS and upgrades.
 type fakeIMAP struct {
-	caps     string
-	starttls bool
-	reply    func(w *bufio.Writer, tag, cmd string) bool
+	caps            string
+	starttls        bool
+	reply           func(w *bufio.Writer, tag, cmd string) bool
+	resetAfterReply func(cmd string) bool
 	// authNo is the tagged answer to an XOAUTH2 token other than "good";
 	// empty means Gmail's NO [AUTHENTICATIONFAILED].
 	authNo string
@@ -108,6 +103,7 @@ func (f *fakeIMAP) start(t *testing.T) Credentials {
 	return Credentials{
 		Host: "127.0.0.1", Port: ln.Addr().(*net.TCPAddr).Port,
 		Email: "user@example.com", Password: "secret", Security: security,
+		dialer: &net.Dialer{Timeout: 5 * time.Second}, rootCAs: fakeRootCAs,
 	}
 }
 
@@ -160,6 +156,10 @@ func (f *fakeIMAP) serve(conn net.Conn) {
 		}
 		if f.reply != nil && f.reply(w, tag, cmd) {
 			_ = w.Flush()
+			if f.resetAfterReply != nil && f.resetAfterReply(cmd) {
+				resetTCPConnection(conn)
+				return
+			}
 			continue
 		}
 		switch verb {
@@ -199,6 +199,16 @@ func (f *fakeIMAP) serve(conn net.Conn) {
 		}
 		_ = w.Flush()
 	}
+}
+
+func resetTCPConnection(conn net.Conn) {
+	if tlsConn, ok := conn.(*tls.Conn); ok {
+		conn = tlsConn.NetConn()
+	}
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.SetLinger(0)
+	}
+	_ = conn.Close()
 }
 
 // authenticate answers AUTHENTICATE XOAUTH2 like Gmail: the initial response
