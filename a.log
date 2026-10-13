@@ -1,0 +1,15 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -12
+95553cbc470a91595f004d6a075909114d8a7be6
+d81027efe5347dc6b69e0b2bcd52728cced0df2d
+95553cbc4 fix(office): map a 405 on a comments route to unsupported, not internal
+d1e8059e0 test(office): pin the anchors 405 as unsupported, never internal
+dd03edac9 fix(office): key each pending frame comment create on its own and reject a token-less full list
+62e8b958a test(office): pin a key per pending frame comment create and a token on every full list
+6e636e215 refactor(office): keep the frame comment helper types module-private
+ac1a99e88 chore(office): re-vendor the comments frame protocol at fix r1 (af989c83)
+66173c0ec feat(office): answer the editor's server comments from the frame host
+c7c845cd8 chore(office): vendor the G8-08 comments frame protocol from the fork
+c3e75234a feat(office): map comment realtime frames and the document level for the editor frame
+2c3cd4a25 test(office): pin the realtime-to-comments.changed mapping and the advertised comment level
+0112dfa06 feat(office): add the frame comment proxy endpoints for the editor frame
+e07422493 test(office): pin the frame comment proxy endpoints against contract-collab §2
