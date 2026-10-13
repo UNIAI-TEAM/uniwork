@@ -1,8 +1,18 @@
 import { paths } from "@uniwork/core/paths";
 import type { Notification, Workspace } from "@uniwork/core/types";
 
+/**
+ * The workspace a document notification opens in: the notification's own
+ * workspace when the recipient belongs to it, else the open one — a document
+ * shared directly opens from any workspace, as the "Shared with me" library
+ * does. The push link has no open workspace and falls back further on the server.
+ */
+function documentWorkspace(n: Notification, workspace: Workspace, workspaces: readonly Workspace[]): Workspace {
+  return workspaces.find((w) => w.id === n.workspace_id) ?? workspace;
+}
+
 /** Where a click goes, mirroring notification.ResourceURL on the server. */
-export function resourceHref(n: Notification, workspace: Workspace): string {
+export function resourceHref(n: Notification, workspace: Workspace, workspaces: readonly Workspace[]): string {
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   switch (n.resource_type) {
     case "task":
@@ -19,6 +29,14 @@ export function resourceHref(n: Notification, workspace: Workspace): string {
       if (!n.resource_parent_id) return ws.chat();
       const q = new URLSearchParams({ room: n.resource_parent_id, message: n.resource_id });
       return `${ws.chat()}?${q.toString()}`;
+    }
+    case "document": {
+      // The page reveals the comment (use-document-comment-deep-link); an
+      // unknown or deleted comment is ignored there, so the id always rides.
+      const target = documentWorkspace(n, workspace, workspaces);
+      const href = paths.workspace(target.organization_slug, target.slug).document(n.resource_id);
+      const commentId = n.params.comment_id;
+      return commentId ? `${href}?${new URLSearchParams({ comment: commentId }).toString()}` : href;
     }
     case "email_account":
       return ws.email();

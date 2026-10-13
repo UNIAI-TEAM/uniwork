@@ -7,6 +7,7 @@ import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences
 import { useNotifications } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
 import { getWebNotificationPermission, showWebNotification } from "@uniwork/core/platform";
+import { useWorkspaces } from "@uniwork/core/workspaces";
 import { resourceHref } from "../notifications/resource-href";
 import { useWorkspace } from "./workspace-context";
 
@@ -43,6 +44,7 @@ function useTitleCount(count: number) {
 export function WorkspaceChatAttention() {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
+  const workspaces = useWorkspaces().data;
   useTitleCount(useChatUnreadBadge(workspace.id));
 
   const push = usePush();
@@ -69,11 +71,11 @@ export function WorkspaceChatAttention() {
         slug: workspace.slug,
         itemId: n.id,
         issueKey: n.id,
-        href: resourceHref(n, workspace),
+        href: resourceHref(n, workspace, workspaces ?? []),
         title: t(n.title_key, n.params),
         body: "",
       });
     }
-  }, [recent.data, t, workspace]);
+  }, [recent.data, t, workspace, workspaces]);
   return null;
 }
