@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8
+8bada0b5820a377d845f8aafa0b7f75db3256e62
+4c0f1d82fa2032fa52ed281bb9ccf670da903358
+8bada0b5 merge: G8-08 desktop review fixes into the protocol branch (UNI-1403)
+c72e5344 fix(uniwork): map a body-read deadline abort to the §9 network shape (UNI-1403)
+952d16cf test(uniwork): pin the comments deadline abort during the body read (UNI-1403)
+a28faae3 fix(uniwork): remove the unread comments deadline flag and fake-server origin (UNI-1403)
+8f7c00fd fix(web): give the bridge mock handlers for the comments requests
+e3db443d test(web): the bridge mock answers the comments requests unsupported
+bc279887 fix(uniwork): renderer-realm comments unwrap and one-shot reveal delivery (UNI-1403)
+0e67456c test(uniwork): pin the contextBridge-safe comments envelope and the reveal races (UNI-1403)

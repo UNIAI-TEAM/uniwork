@@ -1,0 +1,55 @@
+$ for a in docs sheets slides pdf markdown html; do (cd apps/$a && npx vitest run tests/ai-run-preload.test.ts) || echo "PRELOAD_FAIL $a"; done
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  07:58:09
+   Duration  594ms (transform 161ms, setup 0ms, import 57ms, tests 141ms, environment 313ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  07:58:10
+   Duration  259ms (transform 149ms, setup 0ms, import 55ms, tests 122ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  07:58:11
+   Duration  524ms (transform 82ms, setup 0ms, import 56ms, tests 49ms, environment 325ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/pdf
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  07:58:12
+   Duration  558ms (transform 122ms, setup 101ms, import 23ms, tests 30ms, environment 315ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  07:58:13
+   Duration  508ms (transform 76ms, setup 0ms, import 59ms, tests 39ms, environment 324ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  07:58:14
+   Duration  488ms (transform 73ms, setup 0ms, import 57ms, tests 39ms, environment 311ms)
+
