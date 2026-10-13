@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@uniwork/core/api";
@@ -16,6 +17,7 @@ import { requestMock } from "../test/request-mock";
 import { DocumentCommentsHeaderActions, DocumentCommentsProvider } from "./document-comments-context";
 import { K } from "./document-comments-keys";
 import { DocumentCommentsPanel } from "./document-comments-panel";
+import { useDocumentCommentsPanel } from "./use-document-comments-panel";
 
 // The web panel (G8-10) against EXPERIENCE-G8 S12/S13: the transport is
 // mocked, the real schemas, hooks and i18n run. Each `describe` is one block
@@ -519,5 +521,285 @@ describe("live region and old rows", () => {
     renderPanel();
     await openPanel(discussionTitle());
     expect(within(await screen.findByTestId("document-thread-a")).getByText(t(K.collabFormerMember))).toBeInTheDocument();
+  });
+});
+
+describe("a failed write never locks Send (V5 F1)", () => {
+  async function failThenRecover(failure: () => Error) {
+    const state = { comments: [] as DocumentComment[] };
+    let failing = true;
+    installApi(state, (method, path) =>
+      failing && method === "POST" && path.endsWith("/comments") ? Promise.reject(failure()) : undefined,
+    );
+    renderPanel();
+    const pane = await openPanel(discussionTitle());
+    const box = await within(pane).findByRole("textbox", { name: t(K.collabComposerDiscussion) });
+    fireEvent.change(box, { target: { value: "Gửi lại được" } });
+    const send = within(pane).getByTestId("document-discussion-composer-send");
+    fireEvent.click(send);
+    return { pane, box, send, recover: () => { failing = false; } };
+  }
+
+  it("keeps Send live after a 5xx, says so, and the retry goes through once the server answers", async () => {
+    const { pane, box, send, recover } = await failThenRecover(() => new ApiError("boom", "internal", 503));
+    expect(await within(pane).findByTestId("document-comments-status")).toHaveTextContent(t(K.collabServerError));
+    expect(await within(pane).findByTestId("document-discussion-composer-problem")).toHaveTextContent(t(K.collabSendFailed));
+    expect(box).toHaveValue("Gửi lại được");
+    expect(send).not.toHaveAttribute("aria-disabled");
+    recover();
+    fireEvent.click(send);
+    expect(await within(pane).findByText("Gửi lại được", { selector: "p" })).toBeInTheDocument();
+    await waitFor(() => expect(within(pane).queryByTestId("document-comments-status")).toBeNull());
+    expect(box).toHaveValue("");
+  });
+
+  it("does the same after a network failure: offline sentence, Send stays live, Ctrl+Enter retries", async () => {
+    const { pane, box, send, recover } = await failThenRecover(() => new TypeError("Failed to fetch"));
+    expect(await within(pane).findByTestId("document-comments-status")).toHaveTextContent(t(K.collabOffline));
+    expect(send).not.toHaveAttribute("aria-disabled");
+    recover();
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    await waitFor(() => expect(within(pane).queryByTestId("document-comments-status")).toBeNull());
+    expect(await within(pane).findByText("Gửi lại được", { selector: "p" })).toBeInTheDocument();
+  });
+
+  it("clears the previous write's sentence when a new attempt starts", async () => {
+    const { pane, send, recover } = await failThenRecover(() => new ApiError("boom", "internal", 500));
+    await within(pane).findByTestId("document-comments-status");
+    recover();
+    fireEvent.click(send);
+    await waitFor(() => expect(within(pane).queryByTestId("document-comments-status")).toBeNull());
+  });
+});
+
+describe("a failed write ends with the next good read, and a refusal follows the level (R7-2)", () => {
+  it("drops the session-ended sentence once a list reload succeeds, and Send works again", async () => {
+    let failing = true;
+    installApi({ comments: [] }, (method, path) =>
+      failing && method === "POST" && path.endsWith("/comments") ? Promise.reject(new ApiError("gone", "unauthorized", 401)) : undefined,
+    );
+    const { client } = renderPanel();
+    const pane = await openPanel(discussionTitle());
+    const box = await within(pane).findByRole("textbox", { name: t(K.collabComposerDiscussion) });
+    fireEvent.change(box, { target: { value: "Sau khi đăng nhập lại" } });
+    const send = within(pane).getByTestId("document-discussion-composer-send");
+    fireEvent.click(send);
+    expect(await within(pane).findByTestId("document-comments-status")).toHaveTextContent(t(K.collabSignedOut));
+    expect(send).toHaveAttribute("aria-disabled", "true");
+    failing = false;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: documentKeys.comments(WS, DOC) });
+    });
+    await waitFor(() => expect(within(pane).queryByTestId("document-comments-status")).toBeNull());
+    expect(send).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("writes again when the document's level changes after a refusal, instead of staying read-only for good", async () => {
+    installApi({ comments: [] }, (method, path) =>
+      method === "POST" && path.endsWith("/comments") ? Promise.reject(new ApiError("no", "forbidden", 403)) : undefined,
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result, rerender } = renderHook(({ doc }) => useDocumentCommentsPanel(WS, doc), { wrapper, initialProps: { doc: makeDoc() } });
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    expect(result.current.canWrite).toBe(true);
+    await act(async () => {
+      await result.current.send("x");
+    });
+    expect(result.current.canWrite).toBe(false);
+    rerender({ doc: makeDoc({ my_level: "view" }) });
+    expect(result.current.canWrite).toBe(false);
+    rerender({ doc: makeDoc({ my_level: "edit" }) });
+    await waitFor(() => expect(result.current.canWrite).toBe(true));
+  });
+});
+
+describe("S12/S13 rows the first pass left unproven (T4 F-01)", () => {
+  it("says UniWork is having trouble when a reload answers 5xx after data, keeping the list and blocking Send", async () => {
+    let broken = false;
+    installApi({ comments: [row({ id: "a" })] }, (method, path) =>
+      broken && method === "GET" && path.endsWith("/comments") ? Promise.reject(new ApiError("boom", "internal", 502)) : undefined,
+    );
+    const { client } = renderPanel();
+    const pane = await openPanel(discussionTitle());
+    await screen.findByTestId("document-thread-a");
+    broken = true;
+    await act(async () => {
+      await client.refetchQueries({ queryKey: documentKeys.comments(WS, DOC) });
+    });
+    expect(await within(pane).findByTestId("document-comments-status")).toHaveTextContent(t(K.collabServerError));
+    expect(thread("a")).toBeInTheDocument();
+    const box = within(pane).getByRole("textbox", { name: t(K.collabComposerDiscussion) });
+    fireEvent.change(box, { target: { value: "chờ" } });
+    expect(within(pane).getByTestId("document-discussion-composer-send")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("shows the Sending state while the server has not answered yet, then clears the box", async () => {
+    let answer: () => void = () => {};
+    const state = { comments: [] as DocumentComment[] };
+    installApi(state, (method, path) =>
+      method === "POST" && path.endsWith("/comments")
+        ? new Promise((resolve) => {
+            answer = () => {
+              const created = row({ id: "n1", author_id: ME, display_name: "Minh", body: "Chờ máy chủ" });
+              state.comments = [created];
+              resolve({ comment: created });
+            };
+          })
+        : undefined,
+    );
+    renderPanel();
+    const pane = await openPanel(discussionTitle());
+    const box = await within(pane).findByRole("textbox", { name: t(K.collabComposerDiscussion) });
+    fireEvent.change(box, { target: { value: "Chờ máy chủ" } });
+    const send = within(pane).getByTestId("document-discussion-composer-send");
+    fireEvent.click(send);
+    await waitFor(() => expect(send).toHaveTextContent(t(K.collabSending)));
+    expect(send).toHaveAttribute("aria-disabled", "true");
+    // No optimistic row: the post appears only when the server has it.
+    expect(within(pane).queryByText("Chờ máy chủ", { selector: "p" })).toBeNull();
+    await act(async () => answer());
+    expect(await within(pane).findByText("Chờ máy chủ", { selector: "p" })).toBeInTheDocument();
+    expect(send).toHaveTextContent(t(K.collabSend));
+  });
+
+  it("says the action did not go through under the thread, and leaves the thread as it was", async () => {
+    installApi({ comments: [row({ id: "a" })] }, (method, path) =>
+      method === "POST" && path.endsWith("/resolve") ? Promise.reject(new ApiError("boom", "internal", 500)) : undefined,
+    );
+    renderPanel();
+    await openPanel(discussionTitle());
+    const item = await screen.findByTestId("document-thread-a");
+    fireEvent.click(within(item).getByRole("button", { name: t(K.collabResolve) }));
+    expect(await within(item).findByRole("alert")).toHaveTextContent(t(K.collabActionFailed));
+    expect(within(item).getByRole("button", { name: t(K.collabResolve) })).toBeInTheDocument();
+    expect(item).not.toHaveTextContent(t(K.collabResolved));
+  });
+
+  it("reloads and shows the deleted frame when a reply lands on a post that was just deleted", async () => {
+    const state = { comments: [row({ id: "a" })] };
+    let listReads = 0;
+    installApi(state, (method, path) => {
+      if (method === "GET" && path === `/api/v1/documents/${DOC}/comments`) listReads += 1;
+      if (method === "POST" && path.endsWith("/comments")) {
+        state.comments = [row({ id: "a", body: "", deleted_at: "2026-10-13T06:00:00Z" }), row({ id: "keep", parent_id: "a", body: "Đáp còn sống" })];
+        return Promise.reject(new ApiError("gone", "comment_deleted", 409));
+      }
+      return undefined;
+    });
+    renderPanel();
+    await openPanel(discussionTitle());
+    const item = await screen.findByTestId("document-thread-a");
+    fireEvent.click(within(item).getByRole("button", { name: t(K.collabReply) }));
+    const box = within(item).getByRole("textbox", { name: t(K.collabComposerReply) });
+    fireEvent.change(box, { target: { value: "Đáp muộn" } });
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    // The composer keeps the words and offers to copy them; the panel reloads the list.
+    expect(await within(item).findByTestId("document-reply-composer-a-problem")).toHaveTextContent(t(K.collabDiscussionDeleted));
+    await waitFor(() => expect(within(thread("a")).getByText(t(K.collabDeleted))).toBeInTheDocument());
+    expect(listReads).toBeGreaterThanOrEqual(2);
+    expect(within(thread("a")).getByText("Đáp còn sống")).toBeInTheDocument();
+    expect(within(thread("a")).queryByRole("button", { name: t(K.collabReply) })).toBeNull();
+  });
+
+  it("reloads and drops the history when it answers that the post was deleted", async () => {
+    const state = { comments: [row({ id: "a", author_id: ME, display_name: "Minh", revision: 2 }), row({ id: "r", parent_id: "a", body: "Đáp" })] };
+    let listReads = 0;
+    installApi(state, (method, path) => {
+      if (method === "GET" && path === `/api/v1/documents/${DOC}/comments`) listReads += 1;
+      if (method === "GET" && path.endsWith("/a/revisions")) {
+        state.comments = [row({ id: "a", body: "", deleted_at: "2026-10-13T06:00:00Z" }), state.comments[1]!];
+        return Promise.reject(new ApiError("gone", "comment_deleted", 409));
+      }
+      return undefined;
+    });
+    renderPanel();
+    await openPanel(discussionTitle());
+    const item = await screen.findByTestId("document-thread-a");
+    fireEvent.click(within(item).getByRole("button", { name: `${t(K.collabActions)} Minh` }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t(K.collabHistory) }));
+    await waitFor(() => expect(within(thread("a")).getByText(t(K.collabDeleted))).toBeInTheDocument());
+    expect(screen.queryByTestId("document-comment-history-a")).toBeNull();
+    expect(listReads).toBeGreaterThanOrEqual(2);
+  });
+
+  it("removes a thread with no replies outright when it is deleted", async () => {
+    installApi({ comments: [row({ id: "solo", author_id: ME, display_name: "Minh", body: "Một mình" }), row({ id: "other", body: "Còn lại" })] });
+    renderPanel();
+    await openPanel(discussionTitle());
+    const item = await screen.findByTestId("document-thread-solo");
+    fireEvent.click(within(item).getByRole("button", { name: `${t(K.collabActions)} Minh` }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t(K.collabDelete) }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: t(K.collabDeleteConfirm) }));
+    await waitFor(() => expect(screen.queryByTestId("document-thread-solo")).toBeNull());
+    expect(screen.getByTestId("document-thread-other")).toBeInTheDocument();
+    expect(screen.queryByText(t(K.collabDeleted))).toBeNull();
+  });
+
+  it("opens a deep link to a deleted frame with a reveal line and focuses the frame", async () => {
+    installApi({
+      comments: [row({ id: "root", body: "", deleted_at: "2026-10-13T06:00:00Z" }), row({ id: "r1", parent_id: "root", body: "Còn sống" })],
+    });
+    renderPanel({ search: "comment=root" });
+    const pane = await screen.findByTestId("document-comments-pane");
+    expect(await within(pane).findByTestId("document-comments-reveal")).toHaveTextContent(t(K.collabDiscussionDeleted));
+    await waitFor(() => expect(within(thread("root")).getByText(t(K.collabDeleted))).toHaveFocus());
+  });
+
+  it("sends a new Discussion root without a kind, so the server's default applies (OQ-C2)", async () => {
+    installApi({ comments: [] });
+    renderPanel();
+    const pane = await openPanel(discussionTitle());
+    const box = await within(pane).findByRole("textbox", { name: t(K.collabComposerDiscussion) });
+    fireEvent.change(box, { target: { value: "Gốc mới" } });
+    fireEvent.click(within(pane).getByTestId("document-discussion-composer-send"));
+    await within(pane).findByText("Gốc mới", { selector: "p" });
+    const post = requestMock.mock.calls.find(([, init]) => (init as Init | undefined)?.method === "POST");
+    const sent = (post?.[1] as Init).body as Record<string, unknown>;
+    expect(sent).toMatchObject({ body: "Gốc mới" });
+    expect(sent).not.toHaveProperty("kind");
+    expect(sent.parent_id).toBeUndefined();
+  });
+});
+
+describe("panel chrome (V5 F3, F4, F6)", () => {
+  it("is a full-width sheet on a phone: the right-side width override wins over the primitive's 3/4", async () => {
+    window.innerWidth = 390;
+    installApi({ comments: [] });
+    renderPanel();
+    const pane = await openPanel(discussionTitle());
+    const sheet = pane.closest('[data-slot="sheet-content"]');
+    expect(sheet).not.toBeNull();
+    expect(sheet!.className).toContain("data-[side=right]:w-full");
+    expect(sheet!.className).not.toMatch(/(?<![\w:\]-])w-3\/4/);
+  });
+
+  it("gives the Edited toggle a 24px target, 44px on touch", async () => {
+    installApi({ comments: [row({ id: "a", revision: 2, updated_at: "2026-10-13T04:00:00Z" })] });
+    renderPanel();
+    await openPanel(discussionTitle());
+    const item = await screen.findByTestId("document-thread-a");
+    const toggle = within(item).getByRole("button", { expanded: false, name: new RegExp(t(K.collabEdited, { time: "" }).trim().split(" ")[0]!) });
+    expect(toggle.className).toContain("min-h-6");
+    expect(toggle.className).toContain("pointer-coarse:min-h-11");
+  });
+
+  it("tints the whole deep-linked thread, and names the panel after the tab it shows", async () => {
+    installApi({
+      comments: [
+        row({ id: "c1", kind: "comment", type: "comment", anchor: { format: "docx", v: 1, path: [0], start: 0, end: 1, quote: "q", prefix: "", suffix: "" }, anchor_state: "exact" }),
+        row({ id: "d1x", body: "Bài thảo luận" }),
+        row({ id: "d2x", body: "Bài khác" }),
+      ],
+    });
+    renderPanel({ doc: docxDoc(), search: "comment=d1x" });
+    const pane = await screen.findByTestId("document-comments-pane");
+    await waitFor(() => expect(thread("d1x")).toHaveAttribute("data-highlighted", "true"));
+    expect(thread("d2x")).not.toHaveAttribute("data-highlighted");
+    expect(within(pane).getByRole("heading", { level: 2 })).toHaveTextContent(discussionTitle());
+    fireEvent.click(within(pane).getByRole("tab", { name: commentsTitle() }));
+    expect(within(pane).getByRole("heading", { level: 2 })).toHaveTextContent(commentsTitle());
+    expect(within(pane).getByRole("button", { name: t(K.collabClosePanel, { panel: commentsTitle() }) })).toBeInTheDocument();
   });
 });
