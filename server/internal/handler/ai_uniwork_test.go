@@ -614,3 +614,47 @@ func TestAIUniworkPerFormatCapabilityRefusal(t *testing.T) {
 		t.Fatalf("turn on another format = %d %v; want 200", status, out)
 	}
 }
+
+// A module the pack has no section for is a client-shape refusal (BE3A-15):
+// the org route that names one in its body answers 400 invalid_request before
+// the model is called, before any usage row and with no conversation left
+// behind — the Gateway never meets a module it cannot assemble (design §3.4,
+// D-3).
+func TestAIUniworkUnknownModuleRefusedBeforeGateway(t *testing.T) {
+	w := newUniworkWorld(t)
+	tn := w.alpha
+	usageBefore := uniworkUsageCount(t, w, tn.orgID)
+	callsBefore := w.uniworkProvider.Calls
+
+	status, conv, out := uniworkTurn(t, w, tn.uniworkOrgPath(), tn.token, "",
+		uniworkModuleQuestion("mô-đun này là gì", "bogus", "read_cells"))
+	if status != http.StatusBadRequest || uniworkErrorCode(t, out) != "invalid_request" {
+		t.Fatalf("unknown module: %d %v; want 400 invalid_request", status, out)
+	}
+	if conv != "" {
+		t.Fatalf("unknown module: conversation header %q, want none", conv)
+	}
+	if calls := w.uniworkProvider.Calls; calls != callsBefore {
+		t.Fatalf("provider calls = %d, want %d: an unknown module must not reach the model", calls, callsBefore)
+	}
+	if after := uniworkUsageCount(t, w, tn.orgID); after != usageBefore {
+		t.Fatalf("usage rows = %d, want %d: an unknown module must not be charged", after, usageBefore)
+	}
+	var rows int
+	if err := w.pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM ai_uniwork_conversations
+		 WHERE organization_id = $1 AND user_id = $2 AND document_id IS NULL`,
+		tn.orgID, tn.userID).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 0 {
+		t.Fatalf("conversation rows = %d, want 0: the refusal precedes the conversation", rows)
+	}
+
+	// The refusal is the name's, not the route's: a known module still runs.
+	status, conv, out = uniworkTurn(t, w, tn.uniworkOrgPath(), tn.token, "",
+		uniworkModuleQuestion("bảng tính này có gì", "sheets", "read_cells"))
+	if status != http.StatusOK || conv == "" {
+		t.Fatalf("known module after the refusal: %d %v; want 200", status, out)
+	}
+}

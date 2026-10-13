@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -138,16 +139,20 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 		return UniworkTurn{}, err
 	}
 	// The turn's module: R2's frame token and R3's document already answered
-	// it; R1 takes the body's when the client names one (a local file, S10).
-	// R1 without one keeps the module its scope carries — the frame resolver
-	// reads a token with no module claim as docs (OfficeFrameClaims.ModuleName)
-	// — because the G6-14 pack assembles its system text by module and refuses
-	// a turn without one, so a served turn must have a module. An unknown
-	// module is not a refusal here: the server cannot name the format, so only
-	// the kill switch applies (D-3), the model is offered no tool, and the
-	// Gateway refuses the turn as a policy error before the usage row.
+	// it; R1 takes the body's when the client names one (a local file, S10)
+	// and refuses a name the pack carries no section for — the client-shape
+	// 400 invalid_request, before any gate, conversation or usage row
+	// (BE3A-15, design §3.4): the Gateway assembles its system text by module
+	// and has nothing to fall back to, so letting the name through would
+	// answer a client fault with a 500. R1 without one keeps the module its
+	// scope carries — the frame resolver reads a token with no module claim
+	// as docs (OfficeFrameClaims.ModuleName) — because a served turn must
+	// have a module.
 	module := doc.module
 	if scope.DocumentID == "" && req.Module != "" {
+		if _, ok := ai.UniworkPackModule(req.Module); !ok {
+			return UniworkTurn{}, Invalid(fmt.Sprintf("module %q không được hỗ trợ", req.Module))
+		}
 		module = req.Module
 	}
 	if err := s.checkUniworkCapability(ctx, orgID, scope.UserID, module); err != nil {
