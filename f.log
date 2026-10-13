@@ -1,0 +1,22 @@
+$ npx eslint apps/shell
+
+/home/ubuntu/work/uniwork-office/apps/shell/src/renderer/src/AgentIntentBanner.tsx
+  35:6  warning  React Hook useEffect has a missing dependency: 'runApply'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/shell/src/renderer/src/NewChatPane.tsx
+   351:5  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+   352:5  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+  1637:6  warning  React Hook useEffect has a missing dependency: 'submit'. Either include it or remove the dependency array                                 react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/shell/src/renderer/src/PracticeHome.tsx
+  125:6  warning  React Hook useEffect has missing dependencies: 'practice.facets', 'practice.materialRoles', and 'practice.titleFacetId'. Either include them or remove the dependency array. If 'setAddRole' needs the current value of 'practice.materialRoles', you can also switch to useReducer instead of useState and read 'practice.materialRoles' in the reducer  react-hooks/exhaustive-deps
+  183:6  warning  React Hook useEffect has a missing dependency: 'label'. Either include it or remove the dependency array                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+  193:6  warning  React Hook useEffect has a missing dependency: 'label'. Either include it or remove the dependency array                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+  223:6  warning  React Hook useEffect has a missing dependency: 'meta'. Either include it or remove the dependency array                                                                                                                                                                                                                                                   react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/shell/src/renderer/src/TeacherHome.tsx
+  195:6  warning  React Hook useEffect has a missing dependency: 'label'. Either include it or remove the dependency array         react-hooks/exhaustive-deps
+  234:6  warning  React Hook useEffect has a missing dependency: 'selected.edu'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 10 problems (0 errors, 10 warnings)
+
