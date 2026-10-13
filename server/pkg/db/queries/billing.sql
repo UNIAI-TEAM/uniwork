@@ -180,6 +180,21 @@ UPDATE billing_payment_intents SET
   updated_at = now()
 WHERE id = $1 AND organization_id = $2 AND status = 'completed';
 
+-- name: ClaimStaleBillingPaymentIntentsForReconcile :many
+-- tenant: system
+UPDATE billing_payment_intents SET reconcile_attempted_at = now()
+WHERE id IN (
+  SELECT id FROM billing_payment_intents
+  WHERE provider = 'vnpay' AND status IN ('pending', 'expired')
+    AND created_at < now() - interval '15 minutes'
+    AND created_at > now() - interval '7 days'
+    AND (reconcile_attempted_at IS NULL OR reconcile_attempted_at < now() - interval '10 minutes')
+  ORDER BY created_at
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
 -- name: ListCompletedBillingIntentsMissingProviderMeta :many
 -- tenant: system
 SELECT id, organization_id, plan_id, provider_txn_ref, provider_order_info, provider_pay_date, created_at, completed_at

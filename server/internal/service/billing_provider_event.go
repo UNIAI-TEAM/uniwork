@@ -252,8 +252,11 @@ func subscriptionPeriodEnd(start time.Time, billingPeriod string) pgtype.Timesta
 	return pgtype.Timestamptz{Time: end, Valid: true}
 }
 
+// The first eight Crockford characters of a ULID repeat for 256ms. A reconcile
+// batch that pays two intents then collides on idx_invoices_number, the second
+// insert rolls back, and that intent stays pending.
 func invoiceNumber(at time.Time) string {
-	return fmt.Sprintf("UW-%d-%s", at.Year(), util.NewID()[:8])
+	return fmt.Sprintf("UW-%d-%s", at.Year(), util.NewID())
 }
 
 // ProviderWebhookPayloadJSON serialises raw provider params for webhook_inbox.
