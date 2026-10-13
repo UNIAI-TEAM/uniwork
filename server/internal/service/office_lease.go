@@ -133,8 +133,10 @@ var officeLeasePutHold func()
 var officeLeaseRecheckErr error
 
 // officeLeaseRecheckRevoke, when a test in this package sets it, runs in
-// place of the fail-closed revoke (FIX-7), so a test can fail or watch that
-// revoke without a database. Production never sets it.
+// place of the revoke a post-commit re-check decided on - the fail-closed
+// revoke after a re-check error (FIX-7) or the revoke after a refusal
+// (FIX-8) - so a test can fail or watch that revoke without a database.
+// Production never sets it.
 var officeLeaseRecheckRevoke func(ctx context.Context, orgID, leaseID, reason string, note map[string]any) error
 
 // officeLeaseMetrics is set once by main.go (SetOfficeLeaseMetrics): the
@@ -461,7 +463,7 @@ func (s *OfficeLeaseService) recheckMembershipAfterPut(ctx context.Context, acto
 		}
 		return nil
 	}
-	if err := s.revokeOfficeLease(ctx, current.OrganizationID, leaseID, reason, nil); err != nil {
+	if err := s.revokeAfterRecheck(ctx, current.OrganizationID, documentID, leaseID, reason, nil); err != nil {
 		return err
 	}
 	return officeLeaseBlocked(officeLeaseBlockedACL, refusal)
@@ -478,29 +480,42 @@ func (s *OfficeLeaseService) recheckMembershipAfterPut(ctx context.Context, acto
 // CHECK holds the signed set). The request still answers the original error
 // and hands out no lease, so the grant counter stays put.
 //
-// A revoke that fails too leaves a row the request cannot fix: it is logged
-// (ids only, no PII) and counted, and the removal event that may have raced
-// this grant still drives the consumer's enumeration, which closes the
-// committed row - the counter is what says that safety net was needed. The
-// re-check's own error is returned either way, so the client's answer never
-// changes with the revoke.
+// A revoke that does not land is logged (ids only, no PII) and counted by
+// revokeAfterRecheck; the re-check's own error is returned either way, so the
+// client's answer never changes with the revoke.
 func (s *OfficeLeaseService) failClosedAfterRecheckError(ctx context.Context, orgID, documentID, leaseID string, checkErr error) error {
-	note := map[string]any{"check_failed": true}
-	var revokeErr error
+	_ = s.revokeAfterRecheck(ctx, orgID, documentID, leaseID, OfficeLeaseRevokeMemberRemoved, map[string]any{"check_failed": true})
+	return checkErr
+}
+
+// revokeAfterRecheck runs the revoke a post-commit membership re-check decided
+// on - the gate refused, so the lease Put just committed is revoked with the
+// matching reason (FIX-1), or the re-check itself errored, so the row is
+// revoked fail-closed with member_removed and the check_failed note (FIX-7) -
+// in its own transaction, on the context recheckMembershipAfterPut already
+// detached from the request.
+//
+// A revoke that does not land leaves a row the request cannot fix: it is
+// logged (ids only, no PII) and counted, and the removal event that may have
+// raced this grant still drives the consumer's enumeration, which closes the
+// committed row - the counter is what says that safety net was needed
+// (advisor bridge-91). The revoke's own error is returned, so each caller
+// answers exactly as it would have without the revoke.
+func (s *OfficeLeaseService) revokeAfterRecheck(ctx context.Context, orgID, documentID, leaseID, reason string, note map[string]any) error {
+	revoke := s.revokeOfficeLease
 	if officeLeaseRecheckRevoke != nil {
-		revokeErr = officeLeaseRecheckRevoke(ctx, orgID, leaseID, OfficeLeaseRevokeMemberRemoved, note)
-	} else {
-		revokeErr = s.revokeOfficeLease(ctx, orgID, leaseID, OfficeLeaseRevokeMemberRemoved, note)
+		revoke = officeLeaseRecheckRevoke
 	}
-	if revokeErr == nil {
-		return checkErr
+	err := revoke(ctx, orgID, leaseID, reason, note)
+	if err == nil {
+		return nil
 	}
-	slog.Warn("office lease: the fail-closed revoke after a failed membership re-check did not land; the consumer must close it",
-		"lease", leaseID, "document", documentID, "err", revokeErr)
+	slog.Warn("office lease: the revoke after the post-commit membership re-check did not land; the consumer must close it",
+		"lease", leaseID, "document", documentID, "err", err)
 	if officeLeaseMetrics != nil {
 		officeLeaseMetrics.ObserveOfficeLeaseRevokeFailed()
 	}
-	return checkErr
+	return err
 }
 
 // liveDevice reads the bearer's device row under lock. No row (a browser

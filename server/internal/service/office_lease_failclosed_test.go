@@ -3,9 +3,16 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // FIX-7 (advisor bridge-91): the post-commit membership re-check
@@ -101,4 +108,84 @@ func TestOfficeLeaseRecheckErrorAndRevokeFailureCountsTheFailure(t *testing.T) {
 	if fake.revokeFailed != 1 {
 		t.Fatalf("fail-closed revoke failure counter = %d, want 1", fake.revokeFailed)
 	}
+}
+
+// (c) the re-check REFUSES (the gate no longer admits the caller) and the
+// revoke of the just-committed lease fails -> the failure counter moves once,
+// exactly as on the fail-closed branch, and the request answers as it did
+// before the change: the revoke's own error (G508S-BE-10, FIX-8). Pure test:
+// the seams below stand in for the gate's reads and for the revoke, so it
+// runs without a database.
+func TestOfficeLeaseRefusalAndRevokeFailureCountsTheFailure(t *testing.T) {
+	fake := &leaseCounterMetrics{}
+	SetOfficeLeaseMetrics(fake)
+	t.Cleanup(func() { SetOfficeLeaseMetrics(nil) })
+	revokeErr := errors.New("revoke down")
+	officeLeaseRecheckRevoke = func(_ context.Context, orgID, leaseID, reason string, note map[string]any) error {
+		if orgID != "org-1" || leaseID != "lease-1" || reason != OfficeLeaseRevokeMemberDeactivated || note != nil {
+			t.Errorf("refusal revoke = org %q lease %q reason %q note %v, want org-1, lease-1, %s and no note",
+				orgID, leaseID, reason, note, OfficeLeaseRevokeMemberDeactivated)
+		}
+		return revokeErr
+	}
+	t.Cleanup(func() { officeLeaseRecheckRevoke = nil })
+
+	svc := &OfficeLeaseService{docs: &DocumentService{
+		q:    db.New(leaseRefusalDBTX{}),
+		orgs: &OrganizationService{},
+		ws:   &WorkspaceService{},
+	}}
+	got := svc.recheckMembershipAfterPut(context.Background(), Human("user-1"), "org-1", "doc-1", "lease-1")
+	if !errors.Is(got, revokeErr) {
+		t.Fatalf("re-check = %v, want the revoke's own error as before the change", got)
+	}
+	if fake.revokeFailed != 1 {
+		t.Fatalf("refusal revoke failure counter = %d, want 1", fake.revokeFailed)
+	}
+}
+
+// leaseRefusalDBTX answers the re-check's two reads without a database: the
+// document row reads back, and its organization member is deactivated, so the
+// gate refuses. Every other statement is a test bug.
+type leaseRefusalDBTX struct{}
+
+func (leaseRefusalDBTX) Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, errors.New("lease refusal DBTX: unexpected exec")
+}
+
+func (leaseRefusalDBTX) Query(context.Context, string, ...interface{}) (pgx.Rows, error) {
+	return nil, errors.New("lease refusal DBTX: unexpected query")
+}
+
+func (leaseRefusalDBTX) QueryRow(_ context.Context, sql string, _ ...interface{}) pgx.Row {
+	switch {
+	case strings.Contains(sql, "GetDocumentByID"):
+		return leaseDocumentRow{}
+	case strings.Contains(sql, "GetOrganizationMember"):
+		return leaseDeactivatedMemberRow{}
+	default:
+		return leaseErrorRow{}
+	}
+}
+
+// leaseDocumentRow fills the document fields the re-check reads; the rest
+// stay zero, as they are never consulted on this path.
+type leaseDocumentRow struct{}
+
+func (leaseDocumentRow) Scan(dest ...any) error {
+	*dest[0].(*string) = "doc-1"
+	*dest[1].(*string) = "org-1"
+	*dest[2].(*string) = "ws-1"
+	return nil
+}
+
+// leaseDeactivatedMemberRow is an active-organization member whose
+// deactivated_at is set: RequireMemberQ's own refusal, no further reads.
+type leaseDeactivatedMemberRow struct{}
+
+func (leaseDeactivatedMemberRow) Scan(dest ...any) error {
+	*dest[2].(*string) = "member"
+	*dest[4].(*pgtype.Timestamptz) = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	*dest[8].(*string) = "active"
+	return nil
 }
