@@ -55,6 +55,7 @@ import (
 //	GET    /api/v1/documents/{documentID}/comments/{commentID}/revisions   (G8-03)
 //	POST   /api/v1/documents/{documentID}/comments/{commentID}/reactions
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}/reactions
+//	GET    /api/v1/documents/{documentID}/mention-candidates     (G8-06)
 //	POST   /api/v1/documents/{documentID}/favorite
 //	DELETE /api/v1/documents/{documentID}/favorite
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
@@ -363,6 +364,16 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		sdi:         sdi.ReactionSDI{},
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
+	})
+	d.Get("/documents/{documentID}/mention-candidates", h.ListDocumentMentionCandidates, apiOp{
+		summary: "List mention candidates for a document",
+		description: "Người có ít nhất quyền xem tài liệu hiện tại (thành viên workspace hiệu lực + người được chia sẻ), mới bị vô hiệu thì loại: " +
+			"người gọi cần quyền xem trên tài liệu; người ngoài tổ chức -> 404. Tìm theo tên hiển thị và email (gấp dấu uw_fold_search), " +
+			"mặc định 20 kết quả, tối đa 50 (ngoài khoảng bị kẹp). Email chỉ có khi người gọi xem được danh sách thành viên của workspace chứa tài liệu.",
+		tags: []string{"documents"},
+		sdi:  sdi.ListMentionCandidatesSDI{},
+		sdo:  sdo.MentionCandidateListSDO{},
+		auth: true,
 	})
 	d.Post("/documents/{documentID}/favorite", h.FavoriteDocument, apiOp{
 		summary:     "Favorite a document",

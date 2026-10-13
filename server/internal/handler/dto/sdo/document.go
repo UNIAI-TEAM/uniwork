@@ -450,3 +450,21 @@ type DocumentFavoriteSDO struct {
 type DocumentFavoriteListSDO struct {
 	Favorites []DocumentFavoriteDTO `json:"favorites"`
 }
+
+// MentionCandidateDTO is one person the mention picker may offer (G8-06):
+// someone who holds at least view on the document today. Email is present
+// only when the caller may list the document workspace's members; a reader
+// who reaches the document through a direct share of another workspace sees
+// no email.
+type MentionCandidateDTO struct {
+	UserID      string  `json:"user_id" description:"ULID người có thể được nhắc tên" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	DisplayName string  `json:"display_name" description:"Tên hiển thị hiện tại" example:"Nguyễn Văn An"`
+	AvatarURL   *string `json:"avatar_url,omitempty" description:"Ảnh đại diện; vắng mặt khi người này chưa có" example:"https://cdn.example.com/avatars/an.png"`
+	Email       *string `json:"email,omitempty" description:"Email; chỉ có khi người gọi xem được danh sách thành viên của workspace chứa tài liệu" example:"an.nguyen@example.com"`
+}
+
+// MentionCandidateListSDO is GET /api/v1/documents/{documentID}/mention-candidates:
+// the people the picker may show, ordered by display name.
+type MentionCandidateListSDO struct {
+	Candidates []MentionCandidateDTO `json:"candidates"`
+}
