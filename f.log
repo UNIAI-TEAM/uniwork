@@ -1,0 +1,262 @@
+$ for i in 1 2 3 4 5; do AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-docs-library.test.ts -t "403 from the members list" --reporter=verbose || echo "LIB403_FAIL_RUN_$i"; done; echo LIB403_LOOP_DONE
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > fills myRole from GET /workspaces/{id}/me, null when the role read fails
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > reads each workspace role in parallel and keeps the rows
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > with no selected org returns an empty list and calls nothing
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > aggregates across the org workspaces, newest first, with workspaceName
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > pages locally with an opaque cursor
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > an empty account gets an empty page, not an error
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member id to a name
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > an id that is not a member resolves to null (person left / non-human)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > versionByName stays null even when updated_by resolves to a member
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 5xx members answer is null names, never cached, and the next open retries
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a network error is null names, never cached, and the next open retries
+ × tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached 27ms
+   → expected 2 to be 1 // Object.is equality
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 404 from the members list is null names, never an error result, and IS cached
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > two concurrent panel opens share one members request
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > the members list is fetched once per org, not once per document
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member from page 2 of a >100-member org, still one logical read (RBE1-01)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a non-human creator/updater resolves to null with no lookup (RBE1-06)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > missing server fields become null, never an error
+ ↓ tests/uniwork-docs-library.test.ts > member-name cache and org switch (S16) > drops the cached names when the selected org changes
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached
+AssertionError: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ tests/uniwork-docs-library.test.ts:454:34
+    452|     // a 403 is a stable answer: cached as "names unavailable for this…
+    453|     await service.documentProperties('d2')
+    454|     expect(membersCalls(server)).toBe(1)
+       |                                  ^
+    455|   })
+    456|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  18:31:46
+   Duration  430ms (transform 247ms, setup 0ms, import 294ms, tests 29ms, environment 0ms)
+
+LIB403_FAIL_RUN_1
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > fills myRole from GET /workspaces/{id}/me, null when the role read fails
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > reads each workspace role in parallel and keeps the rows
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > with no selected org returns an empty list and calls nothing
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > aggregates across the org workspaces, newest first, with workspaceName
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > pages locally with an opaque cursor
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > an empty account gets an empty page, not an error
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member id to a name
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > an id that is not a member resolves to null (person left / non-human)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > versionByName stays null even when updated_by resolves to a member
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 5xx members answer is null names, never cached, and the next open retries
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a network error is null names, never cached, and the next open retries
+ × tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached 28ms
+   → expected 2 to be 1 // Object.is equality
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 404 from the members list is null names, never an error result, and IS cached
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > two concurrent panel opens share one members request
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > the members list is fetched once per org, not once per document
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member from page 2 of a >100-member org, still one logical read (RBE1-01)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a non-human creator/updater resolves to null with no lookup (RBE1-06)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > missing server fields become null, never an error
+ ↓ tests/uniwork-docs-library.test.ts > member-name cache and org switch (S16) > drops the cached names when the selected org changes
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached
+AssertionError: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ tests/uniwork-docs-library.test.ts:454:34
+    452|     // a 403 is a stable answer: cached as "names unavailable for this…
+    453|     await service.documentProperties('d2')
+    454|     expect(membersCalls(server)).toBe(1)
+       |                                  ^
+    455|   })
+    456|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  18:31:47
+   Duration  417ms (transform 241ms, setup 0ms, import 284ms, tests 29ms, environment 0ms)
+
+LIB403_FAIL_RUN_2
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > fills myRole from GET /workspaces/{id}/me, null when the role read fails
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > reads each workspace role in parallel and keeps the rows
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > with no selected org returns an empty list and calls nothing
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > aggregates across the org workspaces, newest first, with workspaceName
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > pages locally with an opaque cursor
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > an empty account gets an empty page, not an error
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member id to a name
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > an id that is not a member resolves to null (person left / non-human)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > versionByName stays null even when updated_by resolves to a member
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 5xx members answer is null names, never cached, and the next open retries
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a network error is null names, never cached, and the next open retries
+ × tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached 31ms
+   → expected 2 to be 1 // Object.is equality
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 404 from the members list is null names, never an error result, and IS cached
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > two concurrent panel opens share one members request
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > the members list is fetched once per org, not once per document
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member from page 2 of a >100-member org, still one logical read (RBE1-01)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a non-human creator/updater resolves to null with no lookup (RBE1-06)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > missing server fields become null, never an error
+ ↓ tests/uniwork-docs-library.test.ts > member-name cache and org switch (S16) > drops the cached names when the selected org changes
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached
+AssertionError: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ tests/uniwork-docs-library.test.ts:454:34
+    452|     // a 403 is a stable answer: cached as "names unavailable for this…
+    453|     await service.documentProperties('d2')
+    454|     expect(membersCalls(server)).toBe(1)
+       |                                  ^
+    455|   })
+    456|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  18:31:47
+   Duration  418ms (transform 238ms, setup 0ms, import 287ms, tests 33ms, environment 0ms)
+
+LIB403_FAIL_RUN_3
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > fills myRole from GET /workspaces/{id}/me, null when the role read fails
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > reads each workspace role in parallel and keeps the rows
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > with no selected org returns an empty list and calls nothing
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > aggregates across the org workspaces, newest first, with workspaceName
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > pages locally with an opaque cursor
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > an empty account gets an empty page, not an error
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member id to a name
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > an id that is not a member resolves to null (person left / non-human)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > versionByName stays null even when updated_by resolves to a member
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 5xx members answer is null names, never cached, and the next open retries
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a network error is null names, never cached, and the next open retries
+ × tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached 25ms
+   → expected 2 to be 1 // Object.is equality
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 404 from the members list is null names, never an error result, and IS cached
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > two concurrent panel opens share one members request
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > the members list is fetched once per org, not once per document
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member from page 2 of a >100-member org, still one logical read (RBE1-01)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a non-human creator/updater resolves to null with no lookup (RBE1-06)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > missing server fields become null, never an error
+ ↓ tests/uniwork-docs-library.test.ts > member-name cache and org switch (S16) > drops the cached names when the selected org changes
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached
+AssertionError: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ tests/uniwork-docs-library.test.ts:454:34
+    452|     // a 403 is a stable answer: cached as "names unavailable for this…
+    453|     await service.documentProperties('d2')
+    454|     expect(membersCalls(server)).toBe(1)
+       |                                  ^
+    455|   })
+    456|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  18:31:48
+   Duration  417ms (transform 240ms, setup 0ms, import 285ms, tests 26ms, environment 0ms)
+
+LIB403_FAIL_RUN_4
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > fills myRole from GET /workspaces/{id}/me, null when the role read fails
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > reads each workspace role in parallel and keeps the rows
+ ↓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > with no selected org returns an empty list and calls nothing
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > aggregates across the org workspaces, newest first, with workspaceName
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > pages locally with an opaque cursor
+ ↓ tests/uniwork-docs-library.test.ts > shared with me (S17) > an empty account gets an empty page, not an error
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member id to a name
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > an id that is not a member resolves to null (person left / non-human)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > versionByName stays null even when updated_by resolves to a member
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 5xx members answer is null names, never cached, and the next open retries
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a network error is null names, never cached, and the next open retries
+ × tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached 29ms
+   → expected 2 to be 1 // Object.is equality
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 404 from the members list is null names, never an error result, and IS cached
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > two concurrent panel opens share one members request
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > the members list is fetched once per org, not once per document
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member from page 2 of a >100-member org, still one logical read (RBE1-01)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > a non-human creator/updater resolves to null with no lookup (RBE1-06)
+ ↓ tests/uniwork-docs-library.test.ts > document properties (S17) > missing server fields become null, never an error
+ ↓ tests/uniwork-docs-library.test.ts > member-name cache and org switch (S16) > drops the cached names when the selected org changes
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached
+AssertionError: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ tests/uniwork-docs-library.test.ts:454:34
+    452|     // a 403 is a stable answer: cached as "names unavailable for this…
+    453|     await service.documentProperties('d2')
+    454|     expect(membersCalls(server)).toBe(1)
+       |                                  ^
+    455|   })
+    456|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  18:31:49
+   Duration  439ms (transform 258ms, setup 0ms, import 307ms, tests 31ms, environment 0ms)
+
+LIB403_FAIL_RUN_5
+LIB403_LOOP_DONE
