@@ -19,7 +19,8 @@ Mọi `§` trỏ vào [phụ lục G8](../../../superpowers/specs/2026-10-13-off
 [contract-collab.md](../contract-collab.md); mã task trỏ vào plan §5.7.
 Trạng thái `draft`: planner r2 (2026-10-13) viết Foundation G8, IA, Accessibility Floor G8 và đầy đủ S16–S18; G8-09
 (2026-10-13) hoàn tất S12–S15 (bảng trạng thái, chuỗi vi/en, định dạng khóa), sửa danh sách file fork theo cây fork
-`origin/main` `63cd2771`, chốt phím tắt và đóng mọi câu hỏi mở. Advisor duyệt thay người dùng theo ủy quyền (ghi trong packet).
+`origin/main` `63cd2771`, chốt phím tắt và đóng mọi câu hỏi mở; bản vá catalogue (2026-10-13) thêm các khóa mà mockup S16–S18
+phải tự đặt, ghi rõ khóa sẵn có được dùng lại và bên sở hữu, và ghi điều gì ràng buộc khi spine lệch bản G8-16 đã ship. Advisor duyệt thay người dùng theo ủy quyền (ghi trong packet).
 Chính tả: chữ UI mới viết "xóa" (`docs/conventions.md`, hợp đồng › Chính tả).
 
 ## Foundation G8
@@ -116,6 +117,12 @@ Frame mới gặp host cũ không có `comments` → ẩn chế độ server, kh
 5. Mục "Bình luận trong tệp" thu gọn (`collabLabelCount` với `{label}` = `collabInFileSection`), chỉ F, chỉ khi tệp có bình luận gốc.
 6. Composer gốc không nằm cố định trong panel: bình luận mới bắt đầu từ vùng chọn trong editor (lệnh "Bình luận" sẵn có của
    editor, Accessibility Floor G8 › Phím tắt), composer mở ở vị trí thread mới trong danh sách.
+
+**Hai chỗ không có khóa riêng (dùng lại, không thêm khóa):** nút mở panel Bình luận trên thanh tài liệu mang chữ và `aria-label`
+`collabComments` (trạng thái bật = `aria-expanded`), nút mở panel Discussion mang `collabDiscussion`: cùng nghĩa với tiêu đề
+panel nên cùng khóa. Hàng neo của thread mới đang soạn (chưa gửi) dùng đúng khóa nhãn neo của vùng chọn
+(`collabAnchorDocx` / `collabAnchorCell` / `collabAnchorSlide` / `collabAnchorPage`, bảng Nhãn neo bên dưới) và chưa có nhãn
+trạng thái; không có khóa "bình luận mới" riêng, ô soạn dùng `collabComposerComment`.
 
 **Một thread:** dòng đầu = tác giả + thời gian + nhãn neo (+ nhãn trạng thái neo) + huy hiệu `collabResolved` khi đã giải quyết;
 thân theo phụ lục §4.2; `collabEdited` khi `revision > 1`; trả lời thụt vào, cũ nhất trước; hàng nút: `collabReply`,
@@ -227,7 +234,7 @@ heading là câu thông điệp, nút `inboxBack` ngay sau; **panel** = tài li�
 | Tổ chức đã nhớ không còn (rời/bị xóa) | Hiện lại bước chọn với dòng `uwOrgPickRememberedGone` |
 | Hàng tổ chức bị tạm ngưng / tôi bị vô hiệu | Hàng hiện nhưng không chọn được (`aria-disabled` + lý do); chọn được hàng khác |
 | Mọi tổ chức đều khóa | Panel khóa: tiêu đề `uwLockOrgTitle` (sẵn có) + câu `uwOrgAllBlocked` + nút Đăng xuất |
-| Đổi tổ chức | Cài đặt › Tài khoản › "Tổ chức làm việc" (không có menu tài khoản, OQ-UX7); đổi xong thư viện tải lại; tab tài liệu của tổ chức cũ giữ nguyên tới khi đóng |
+| Đổi tổ chức | Cài đặt › Tài khoản › "Tổ chức làm việc" (nhãn `uwOrgSettingsLabel`; đường dẫn là hai khóa sẵn có `settings` + `setSecAccount` của shell, không thêm khóa; không có menu tài khoản, OQ-UX7); đổi xong thư viện tải lại; tab tài liệu của tổ chức cũ giữ nguyên tới khi đóng |
 | Lỗi tải danh sách | Câu `uwOrgPickError` + "Thử lại" |
 
 ### S17 — thư viện UniWork: "Được chia sẻ với tôi" và thuộc tính
@@ -236,17 +243,17 @@ heading là câu thông điệp, nút `inboxBack` ngay sau; **panel** = tài li�
 | --- | --- |
 | Mục "Được chia sẻ với tôi" | Mục mới cạnh danh sách workspace; liệt kê tài liệu được chia sẻ trực tiếp (route `shared-with-me` sẵn có); rỗng → `uwLibSharedEmpty` |
 | Danh sách workspace | Tên + vai trò của tôi (`uwLibWsRole`) |
-| Bảng thuộc tính | Mở bằng nút "Thông tin" của hàng hoặc tab đang mở; trường: chủ sở hữu, người tạo + thời gian, người cập nhật + thời gian, quyền của tôi (`my_level` → nhãn), phiên bản hiện tại + người cập nhật; trường thiếu từ server hiện "—" |
+| Bảng thuộc tính | Mở bằng nút "Thông tin" của hàng hoặc tab đang mở; trường: chủ sở hữu, người tạo + thời gian, người cập nhật + thời gian, quyền của tôi (`my_level` → nhãn), phiên bản hiện tại + người cập nhật; trường thiếu từ server hiện "—"; lỗi tải: câu của mã lỗi qua `UNIWORK_ERROR_KEYS[code]` (nhóm khóa `uwErr*` sẵn có; không đặt khóa lỗi riêng cho panel này) + nút `acctRetry` |
 | Mất quyền khi đang xem | Hàng biến mất ở lần tải sau; tab đang mở theo S11 (EXPERIENCE) |
 
 ### S18 — tạo, đổi tên, lưu trữ
 
 | Thao tác | Hành vi |
 | --- | --- |
-| Tài liệu mới | Hộp thoại: tên (bắt buộc), loại (DOCX/XLSX/PPTX), nơi lưu (workspace/thư mục); tạo xong mở tab theo id; không tạo bản sao cục bộ thứ hai |
-| Tải lên | Chọn tệp → nơi lưu; tiến trình theo pattern Progress của EXPERIENCE |
-| Đổi tên | Sửa tại chỗ trong hàng hoặc hộp thoại; Enter lưu, Esc hủy; tên rỗng/trùng → lỗi tại trường (`uwDocNameEmpty`, `uwDocNameTaken`) |
-| Lưu trữ / khôi phục | Menu "…"; lưu trữ có xác nhận một bước; không có "Xóa vĩnh viễn" trong app |
+| Tài liệu mới | Hộp thoại `uwDocNew`: tên `uwDocName` (bắt buộc), loại `uwDocType`, nơi lưu `uwDocLocation` (hai ô chọn: workspace `uwPickWorkspace` rồi thư mục, mục đầu `uwDocLocationTop`); loại là nhóm radio chỉ mang tên định dạng DOCX / XLSX / PPTX (tên định dạng, không dịch, không khóa); nút `uwDocCreate` / `cancel`; tạo xong mở tab theo id; không tạo bản sao cục bộ thứ hai |
+| Tải lên | `uwDocUpload`: nút `uwDocUploadPick` rồi tên tệp đã chọn → nơi lưu; tiến trình theo pattern Progress của EXPERIENCE, câu `uwDocUploading`; `cancel` |
+| Đổi tên | `uwDocRename`: sửa tại chỗ trong hàng (ô có nhãn ẩn thị giác = `uwDocName` · tên hiện tại) hoặc hộp thoại; Enter lưu, Esc hủy; tên rỗng/trùng → lỗi tại trường (`uwDocNameEmpty`, `uwDocNameTaken`) |
+| Lưu trữ / khôi phục | Menu "…" (nút `aria-label` = `uwDocActionsFor` với `{name}` = tên tài liệu); `uwDocArchive` có xác nhận một bước (`uwDocArchiveConfirm`) / `uwDocRestore`; hàng đã lưu trữ mang chữ `uwDocArchived`; không có "Xóa vĩnh viễn" trong app |
 | Quyền `view` | Mục thao tác không hiện (không phải `aria-disabled`: người xem không có hành động này) |
 | Đổi tên ở nơi khác | Tiêu đề tab đổi ở lần làm mới metadata (feed hoặc khi focus); câu polite `uwDocRenamedAnnounce` |
 | Lỗi server | Toast lỗi + thao tác không áp; tên trong hàng trở về tên cũ |
@@ -282,7 +289,9 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
   lý do; focus đầu vào hàng đầu tiên chọn được.
 - **S17:** bảng thuộc tính là `dl` trong dialog không modal hoặc panel bên, `aria-labelledby` = tên tài liệu.
 - **S18:** hộp thoại modal theo pattern dialog của fork (focus trap, Esc hủy, focus trả về nút mở); lỗi trường qua
-  `aria-invalid` + `aria-describedby`.
+  `aria-invalid` + `aria-describedby`. Nút "…" của hàng có `aria-label` = `uwDocActionsFor` (tên tài liệu nằm trong nhãn, không ghép
+  chuỗi); ô đổi tên tại chỗ có nhãn ẩn thị giác `uwDocName` · tên hiện tại (bản đã ship ghép hai đoạn bằng " · "); "Đã lưu trữ" (`uwDocArchived`) là chữ, không chỉ màu hay
+  làm mờ hàng; xong đổi tên thì câu polite `uwDocRenamedAnnounce` vào vùng live cố định.
 - **Vùng chạm:** nút trong panel, hàng thread, mục picker ≥ 24px, ≥ 44px khi `pointer: coarse`.
 
 ## String catalogue G8 (vi / en)
@@ -374,6 +383,11 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
 | `collabHistoryError` | Không tải được lịch sử sửa. | Couldn’t load the edit history. | F+D | — |
 | `collabActionFailed` | Thao tác bình luận chưa thành công | The comment action did not go through | F+D | `documents.comments.action_failed` |
 
+**`{time}` của `collabEdited`, `collabHistoryEntry`, `uwDocInfoByAt`** không phải chuỗi dịch: host truyền chuỗi đã định dạng bằng
+`Intl.DateTimeFormat` của locale giao diện, múi giờ cục bộ, không giây. Cùng ngày: chỉ giờ-phút; cùng năm: ngày-tháng + giờ-phút; khác
+năm: thêm năm. Ví dụ vi (`dd/MM`, 24 giờ) `12/10 15:30`; en `Oct 12, 3:30 PM`. Một khóa, một định dạng cho mọi bề mặt; không cặp khóa theo
+mốc thời gian.
+
 ### Composer (S12, S13)
 
 | Khóa | vi | en | Host | D sẵn có |
@@ -400,7 +414,9 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
 | `collabInFileSection` | Bình luận trong tệp | Comments in the file | F | — |
 | `collabInFileHint` | Lưu sẵn trong tệp và chỉ để xem: không sửa hay trả lời được ở đây. | Saved in the file and read-only: you can’t edit or reply here. | F | — |
 
-Tác giả của bình luận trong tệp dùng nhãn trung tính sẵn có của G8-02 (ví dụ `noteNeutralAuthor` của PDF), không thêm khóa.
+Tác giả của bình luận trong tệp dùng nhãn trung tính sẵn có của G8-02, không thêm khóa `collab*`; mỗi editor đọc khóa của chính nó
+(bảng "Khóa sẵn có được dùng lại" bên dưới: `editorNeutralCommentAuthor`, `appThreadNeutralAuthor`, `paneCommentsNeutralAuthor`,
+`noteNeutralAuthor`; cùng giá trị vi "Người dùng" / en "User").
 
 ### Picker mention (S14)
 
@@ -457,6 +473,15 @@ Shard `uniwork-documents` của shell, 19 locale còn lại dịch máy có revi
 | `uwDocNameTaken` | Đã có tài liệu cùng tên ở đây. | A document with this name already exists here. |
 | `uwDocRenamedAnnounce` | Tài liệu đã được đổi tên thành {name}. | The document was renamed to {name}. |
 | `uwDocActionFailed` | Không thực hiện được. Hãy thử lại. | That didn’t work. Try again. |
+| `uwDocActionsFor` | Thao tác khác cho “{name}” | More actions for “{name}” |
+| `uwDocCreate` | Tạo | Create |
+| `uwDocUploadPick` | Chọn tệp | Choose a file |
+| `uwDocUploading` | Đang tải lên “{name}”… | Uploading “{name}”… |
+| `uwDocLocationTop` | Cấp trên cùng | Top level |
+| `uwDocArchived` | Đã lưu trữ | Archived |
+
+Sáu khóa cuối bảng (`uwDocActionsFor` … `uwDocArchived`) do lane G8-17 đã ship (`d2cdfd78`, đủ 21 locale); spine lấy tên và chữ của bản ship, không đặt khóa song song.
+Nút Hủy dùng khóa sẵn có `cancel` của shell, nhãn loại tài liệu là tên định dạng, nhãn ô đổi tên ghép từ `uwDocName` — nên mockup không còn ba khóa tự đặt cho Hủy, loại tài liệu và nhãn ô đổi tên.
 
 Khóa do lane G8-16 thêm khi làm S16/S17 (nhánh `feature/UNI-1411-g8-16-post-login-links`, ghi nhận, không đổi hành vi):
 
@@ -466,6 +491,52 @@ Khóa do lane G8-16 thêm khi làm S16/S17 (nhánh `feature/UNI-1411-g8-16-post-
 | `uwDocInfoVersionBy` | {version} · {name} | {version} · {name} |
 | `uwAccessView` / `uwAccessEdit` / `uwAccessManage` | Xem / Chỉnh sửa / Quản lý | View / Edit / Manage |
 | `uwRoleOwner` / `uwRoleAdmin` / `uwRoleMember` | Chủ sở hữu / Quản trị viên / Thành viên | Owner / Admin / Member |
+
+### Khóa sẵn có được dùng lại (không thêm khóa)
+
+Mockup và hành vi S12–S18 dùng các khóa này nguyên trạng; cột cuối là bên sở hữu (sửa giá trị ở đó, không chép sang `collab*` / `uw*` mới).
+
+| Khóa | vi | en | Bên sở hữu |
+| --- | --- | --- | --- |
+| `uwErrServerError` | UniWork đang gặp sự cố. Hãy thử lại sau ít phút. | UniWork ran into a problem. Try again in a moment. | shard `uniwork-documents`; mọi mã lỗi đi qua `UNIWORK_ERROR_KEYS[code]` (nhóm `uwErr*`), mockup S17 vẽ mã `server_error` |
+| `acctRetry` | Thử lại | Retry | shard `account` của shell (nút Thử lại của panel thông tin S17) |
+| `cancel` | Hủy | Cancel | `apps/shell/src/renderer/src/strings.ts` (nút Hủy của hộp thoại S18, mọi nơi trong shell) |
+| `closeTab` | Đóng tab | Close tab | `apps/shell/src/renderer/src/strings.ts` (`aria-label` nút đóng tab) |
+| `settings` | Cài đặt | Settings | `apps/shell/src/renderer/src/strings.ts` (đoạn đầu đường dẫn Cài đặt › Tài khoản) |
+| `setSecAccount` | Tài khoản | Account | `apps/shell/src/renderer/src/strings.ts` (đoạn sau của đường dẫn) |
+| `uwPickWorkspace` | Không gian làm việc | Workspace | shard `uniwork-documents` (nhãn ô chọn workspace của hộp thoại S18 và thư viện) |
+| `uwLockOrgTitle` | Không mở được trong tổ chức này | Can’t open in this organization | EXPERIENCE.md, shard `sync` (tiêu đề panel khóa của S16) |
+| `nav.inbox` | Hộp việc | Inbox | web D `packages/core/i18n/locales` (tên Inbox ở S15; `inboxBack` ghép từ khóa này, không chép chữ) |
+| `auth.login` | Đăng nhập | Log in | web D `packages/core/i18n/locales` (nút của màn hình đăng nhập sẵn có, S15 hàng 5) |
+| `auth.email` | Email | Email | web D `packages/core/i18n/locales` (nhãn ô của màn hình đăng nhập sẵn có, S15 hàng 5) |
+| `editorNeutralCommentAuthor` | Người dùng | User | Docs `apps/docs/src/renderer/i18n/strings-editor.ts` (G8-02; tác giả bình luận trong tệp) |
+| `appThreadNeutralAuthor` | Người dùng | User | Sheets `apps/sheets/src/renderer/i18n/app/*` (G8-02) |
+| `paneCommentsNeutralAuthor` | Người dùng | User | Slides `apps/slides/src/renderer/i18n/panes/*` (G8-02) |
+| `noteNeutralAuthor` | Người dùng | User | PDF `apps/pdf/src/renderer/i18n/strings.ts` (G8-02) |
+
+Ngoài bảng: các khóa `uwPick*` (tiêu đề, tìm kiếm, "Gần đây", "Cập nhật {time}"), `acctPlan`, `acctSignOut` mà khung S16/S17 vẽ đã có trong
+shard của chúng và không đổi.
+
+### Ràng buộc khi spine lệch bản G8-16 đã ship
+
+Nhánh `feature/UNI-1411-g8-16-post-login-links` (e2c90202) đã ship S16/S17 và nhánh `zone17th/UNI-1412-g8-17-fe` (859261ad) đã ship S18; G8-16/G8-17 không đổi hành vi của nó theo spine. Các chỗ mockup
+vẽ khác (1–3: S16/S17 trên bản G8-16; 4–7: S18 trên bản G8-17 bên dưới), mỗi chỗ ghi bên nào ràng buộc:
+
+1. **Hàng tổ chức khóa trong hộp chọn đổi tổ chức (S16).** Bản đã ship ràng buộc: `Dropdown` của shell, tổ chức khóa là option `disabled`
+   với nhãn một dòng "tên · lý do", lý do tô màu danger, không biểu tượng; khung hai dòng + biểu tượng cảnh báo trong mockup chỉ là hình mục tiêu
+   nếu G8-17 chuyển sang listbox tùy biến, không là điều kiện của G8-16. Spine vẫn ràng buộc: lý do là chữ (không chỉ màu).
+2. **Nút "Thông tin" của hàng (S17).** Bản đã ship ràng buộc `tabindex` luân phiên (0 chỉ trên hàng đang chọn hoặc đang mở panel; hàng khác
+   -1) vì danh sách là listbox; mockup vẽ nút trên mọi hàng chỉ để xem bố cục. Spine ràng buộc kích thước (≥ 24px; ≥ 44px khi `pointer: coarse`):
+   bản ship 28px và 44px coarse, đạt sàn.
+3. **Lỗi tải panel thông tin (S17).** Bản đã ship ràng buộc: câu theo `UNIWORK_ERROR_KEYS[code]` + `acctRetry`; spine đã bỏ `uwDocInfoError` và
+   chấp nhận cách này.
+
+Bản S18 của lane G8-17 (`859261ad`, đọc trước khi chốt khóa) lệch spine/mockup ở các chỗ sau; hành vi đã ship giữ nguyên và **ràng buộc**:
+
+4. **Nơi lưu (S18).** Bản ship dùng hai ô chọn (workspace, thư mục với mục "Cấp trên cùng"), spine ghi một "nơi lưu" chung: giữ hai ô; khóa `uwDocLocationTop` thêm vào catalogue.
+5. **Loại tài liệu (S18).** Bản ship hiện radio mang nhãn thô DOCX / XLSX / PPTX (tên định dạng, không dịch); spine bỏ ba khóa loại tài liệu mà mockup tự đặt.
+6. **Nhãn ô đổi tên và nút "…" (S18).** Bản ship ghép `uwDocName` + " · " + tên hiện tại cho ô đổi tên và dùng `uwDocActionsFor` ("Thao tác khác cho") cho nút "…": ràng buộc, thay `uwDocRenameLabel` và `uwDocMore` của mockup. Phép ghép đoạn nằm ở `aria-label`, không là khóa mới.
+7. **Hủy và chọn tệp (S18).** Bản ship dùng `cancel` của shell và nút `uwDocUploadPick` (không có nhãn "Tệp"): ràng buộc, thay `uwDocCancel` và `uwDocFile`.
 
 ## Open questions
 
