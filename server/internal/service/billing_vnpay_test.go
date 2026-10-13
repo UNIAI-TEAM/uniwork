@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -50,8 +51,12 @@ func TestApplyProviderEventPaid(t *testing.T) {
 		t.Fatalf("row_version want %d got %d", v+1, snap.Subscription.RowVersion)
 	}
 	var invCount int
-	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM invoices WHERE organization_id = $1`, f.orgID).Scan(&invCount); err != nil || invCount != 1 {
+	var invNumber string
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*), coalesce(min(number), '') FROM invoices WHERE organization_id = $1`, f.orgID).Scan(&invCount, &invNumber); err != nil || invCount != 1 {
 		t.Fatalf("invoices: %d %v", invCount, err)
+	}
+	if ok, _ := regexp.MatchString(`^UW-[0-9]{4}-.{16}$`, invNumber); !ok {
+		t.Fatalf("invoice number %q", invNumber)
 	}
 	var bankCode, txnNo string
 	if err := f.pool.QueryRow(f.ctx,
