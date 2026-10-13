@@ -75,8 +75,8 @@ WHERE a.organization_id = $1
   AND a.xact_id IS NOT NULL
   AND NOT pg_visible_in_snapshot(a.xact_id, $3::text::pg_snapshot)
   AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
-  AND ($4::text = ''
-       OR (a.xact_id, a.id) > ($4::xid8, $5::text))
+  AND (CASE WHEN $4::text = '' THEN TRUE
+            ELSE (a.xact_id, a.id) > ($4::xid8, $5::text) END)
 `
 
 type DocumentChangeFeedPendingParams struct {
@@ -240,8 +240,10 @@ WHERE a.organization_id = $1
   AND a.xact_id IS NOT NULL
   AND NOT pg_visible_in_snapshot(a.xact_id, $3::text::pg_snapshot)
   AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
-  AND ($4::text = ''
-       OR (a.xact_id, a.id) > ($4::xid8, $5::text))
+  -- CASE, not OR: the empty first-page keyset must never reach the ::xid8
+  -- cast, and only CASE guarantees that the branch is not evaluated.
+  AND (CASE WHEN $4::text = '' THEN TRUE
+            ELSE (a.xact_id, a.id) > ($4::xid8, $5::text) END)
 ORDER BY a.xact_id, a.id
 LIMIT $6
 `

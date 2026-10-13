@@ -40,13 +40,21 @@ func feedRowsByDoc(rows []DocumentChangeFeedRow) map[string]DocumentChangeFeedRo
 	return out
 }
 
-// drainFeed pages the feed from a cursor until has_more is false, returning
-// every row. A bounded loop so a cursor that never advances fails loudly.
+// drainFeed pages the feed for the fixture's member until has_more is false,
+// returning every row. A bounded loop so a cursor that never advances fails
+// loudly.
 func (w *feedWorld) drainFeed(t *testing.T, cursor string, limit int) []DocumentChangeFeedRow {
+	t.Helper()
+	return w.drainFeedFor(t, w.tn.member.ID, cursor, limit)
+}
+
+// drainFeedFor is drainFeed for one user: a cursor is bound to the account it
+// was minted for, so each caller drains their own.
+func (w *feedWorld) drainFeedFor(t *testing.T, user, cursor string, limit int) []DocumentChangeFeedRow {
 	t.Helper()
 	var all []DocumentChangeFeedRow
 	for i := 0; ; i++ {
-		page, err := w.list(t, w.tn.member.ID, cursor, limit)
+		page, err := w.list(t, user, cursor, limit)
 		if err != nil {
 			t.Fatalf("feed page %d: %v", i, err)
 		}
@@ -688,13 +696,18 @@ func TestDocumentChangesFeedWorkProductRowsBlockedUntilC14(t *testing.T) {
 
 		// The member and the workspace admin both read the feed; neither may
 		// learn anything about an owned document, and no removal is due (the
-		// caller never had access).
+		// caller never had access). A cursor is bound to its account, so each
+		// caller continues their own cursor.
 		for _, user := range []string{w.tn.member.ID, w.tn.wsAdmin.ID} {
-			page, err := w.list(t, user, feedCursor, 200)
-			if err != nil {
-				t.Fatalf("feed for %s: %v", user, err)
+			cursor := feedCursor
+			if user != w.tn.member.ID {
+				page, err := w.list(t, user, "", 200)
+				if err != nil || page.HasMore {
+					t.Fatalf("cold start for %s = %+v, %v; want one page", user, page, err)
+				}
+				cursor = page.NextCursor
 			}
-			for _, r := range page.Feed {
+			for _, r := range w.drainFeedFor(t, user, cursor, 200) {
 				if r.DocumentID == owned.ID {
 					t.Fatalf("%s received a row about an owned Work Product document: %+v", user, r)
 				}

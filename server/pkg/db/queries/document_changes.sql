@@ -111,8 +111,10 @@ WHERE a.organization_id = sqlc.arg(organization_id)
   AND a.xact_id IS NOT NULL
   AND NOT pg_visible_in_snapshot(a.xact_id, sqlc.arg(high_water)::text::pg_snapshot)
   AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
-  AND (sqlc.arg(after_xact)::text = ''
-       OR (a.xact_id, a.id) > (sqlc.arg(after_xact)::xid8, sqlc.arg(after_id)::text))
+  -- CASE, not OR: the empty first-page keyset must never reach the ::xid8
+  -- cast, and only CASE guarantees that the branch is not evaluated.
+  AND (CASE WHEN sqlc.arg(after_xact)::text = '' THEN TRUE
+            ELSE (a.xact_id, a.id) > (sqlc.arg(after_xact)::xid8, sqlc.arg(after_id)::text) END)
 ORDER BY a.xact_id, a.id
 LIMIT sqlc.arg(page_limit);
 
@@ -131,8 +133,8 @@ WHERE a.organization_id = sqlc.arg(organization_id)
   AND a.xact_id IS NOT NULL
   AND NOT pg_visible_in_snapshot(a.xact_id, sqlc.arg(high_water)::text::pg_snapshot)
   AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
-  AND (sqlc.arg(after_xact)::text = ''
-       OR (a.xact_id, a.id) > (sqlc.arg(after_xact)::xid8, sqlc.arg(after_id)::text));
+  AND (CASE WHEN sqlc.arg(after_xact)::text = '' THEN TRUE
+            ELSE (a.xact_id, a.id) > (sqlc.arg(after_xact)::xid8, sqlc.arg(after_id)::text) END);
 
 -- name: ChangeFeedEpochSeen :one
 -- Does a high-water mark postdate the change-feed position column? The epoch
