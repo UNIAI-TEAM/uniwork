@@ -134,11 +134,14 @@ SELECT id, user_id FROM office_offline_leases
 WHERE organization_id = sqlc.arg(organization_id) AND document_id = sqlc.arg(document_id) AND revoked_at IS NULL
 ORDER BY id;
 
--- name: ListLiveOfficeOfflineLeasesForUserInWorkspace :many
--- A document may have moved out of the workspace since the grant, so the
--- caller re-checks the live document of every row, not the row's workspace.
+-- name: ListLiveOfficeOfflineLeasesForUserInOrganization :many
+-- member.removed re-checks the person's live leases across the whole
+-- organization, not the workspace they were removed from: a document of
+-- another workspace can read through a workspace-principal share naming the
+-- removed workspace (document_permissions.go shareAppliesTo), and its lease
+-- is stored under the document's workspace, not the share's.
 SELECT id, document_id FROM office_offline_leases
-WHERE workspace_id = sqlc.arg(workspace_id) AND user_id = sqlc.arg(user_id) AND revoked_at IS NULL
+WHERE organization_id = sqlc.arg(organization_id) AND user_id = sqlc.arg(user_id) AND revoked_at IS NULL
 ORDER BY id;
 
 -- name: SweepOfficeOfflineLeases :execrows

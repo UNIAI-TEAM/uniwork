@@ -58,6 +58,34 @@ func TestOfficeLeaseRevokedOnMemberRemoved(t *testing.T) {
 	w.requireLive(t, other.LeaseID)
 }
 
+// G508S-BE-2 (FIX-4): a document of workspace A shared to the workspace
+// principal B reads for a member of B only, and its lease is stored under the
+// document's workspace (A). A member.removed that enumerated only the removed
+// workspace (B) therefore missed it and wrote no revoke; the enumeration is
+// by organization now. A document the person still reads through their own
+// share keeps its lease (the same re-check the grant's ACL uses).
+func TestOfficeLeaseRevokedOnMemberRemovedAcrossWorkspaces(t *testing.T) {
+	w := newLeaseWorld(t, "lease-removed-cross")
+	b := w.tn.bMember.ID
+	d1, d2 := w.file(t, documentVisibilityRestricted), w.file(t, documentVisibilityRestricted)
+	w.f.share(t, d1, DocumentPrincipalWorkspace, w.tn.wsB, DocumentLevelView, w.tn.aclOwner.ID)
+	w.f.share(t, d2, DocumentPrincipalUser, b, DocumentLevelView, w.tn.aclOwner.ID)
+	dev := w.device(t, b)
+	l1, l2 := w.grant(t, b, dev, d1.ID), w.grant(t, b, dev, d2.ID)
+	if s := w.state(t, l1.LeaseID); !s.exists || s.revoked {
+		t.Fatalf("the cross-workspace lease did not grant: %+v", s)
+	}
+
+	// The person is removed from workspace B, the workspace the share names;
+	// the document lives in A.
+	if err := w.f.svc.ws.RemoveMember(w.ctx, w.tn.owner.ID, w.tn.wsB, b); err != nil {
+		t.Fatal(err)
+	}
+	w.deliver(t, "member.removed")
+	w.requireRevoked(t, l1.LeaseID, OfficeLeaseRevokeMemberRemoved)
+	w.requireLive(t, l2.LeaseID)
+}
+
 // T4: a person deactivated in one organization keeps their sessions while
 // they belong to another (F9), so the leases of the first die by the event,
 // not with the session; the other organization's leases stay.

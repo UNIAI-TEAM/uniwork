@@ -27,12 +27,17 @@ import (
 //
 // Targeted events re-check the live ACL of every candidate lease and revoke
 // only those that lost read access, so a person who still reads a document
-// through another path (a share, another workspace) keeps it. A deactivation
-// or a departure revokes the person's leases in that organization outright,
-// even when they still belong to another organization and their sessions
-// stay live (F9). Archive is not a revoke (G5-D1 row 14): an archived
-// document keeps its leases to expiry, the renewal answers document_archived.
-// Every path is idempotent: a re-delivered event finds the rows revoked.
+// through another path (a share, another workspace) keeps it. A removal
+// enumerates the person's leases by organization, not by the workspace they
+// were removed from: a document of another workspace reads through a
+// workspace-principal share whose workspace the person just left, and the
+// lease is stored under the document's workspace (G508S-BE-2). A
+// deactivation or a departure revokes the person's leases in that
+// organization outright, even when they still belong to another organization
+// and their sessions stay live (F9). Archive is not a revoke (G5-D1 row 14):
+// an archived document keeps its leases to expiry, the renewal answers
+// document_archived. Every path is idempotent: a re-delivered event finds the
+// rows revoked.
 type OfficeLeaseRevoker struct {
 	docs *DocumentService
 }
@@ -75,11 +80,9 @@ func (c *OfficeLeaseRevoker) Handle(ctx context.Context, ev outbox.Row) error {
 	case "member.left":
 		return c.revokeUserInOrganization(ctx, orgID, userID, OfficeLeaseRevokeMemberRemoved)
 	case "member.removed":
-		workspaceID := strings.TrimSpace(payload["workspace_id"])
-		if workspaceID == "" {
-			return c.revokeUserInOrganization(ctx, orgID, userID, OfficeLeaseRevokeMemberRemoved)
-		}
-		return c.recheckUserInWorkspace(ctx, orgID, workspaceID, userID)
+		// The workspace the person was removed from is deliberately not the
+		// enumeration: see recheckUserInOrganization.
+		return c.recheckUserInOrganization(ctx, orgID, userID)
 	case "document.share_revoked":
 		return c.recheckDocument(ctx, orgID, documentID, OfficeLeaseRevokeShareRevoked)
 	case "document.moved":
@@ -117,16 +120,23 @@ func (c *OfficeLeaseRevoker) revokeUserInOrganization(ctx context.Context, orgID
 	return nil
 }
 
-// recheckUserInWorkspace re-reads the live ACL of each of the person's leases
-// granted in the workspace they left: a document they still read through a
-// share keeps its lease.
-func (c *OfficeLeaseRevoker) recheckUserInWorkspace(ctx context.Context, orgID, workspaceID, userID string) error {
+// recheckUserInOrganization re-reads the live ACL of every lease the person
+// holds in the organization and revokes the ones they no longer read (reason
+// member_removed). The enumeration is by organization, not by the workspace
+// they were removed from (G508S-BE-2): a document of workspace A reads for a
+// member of workspace B through a workspace-principal share naming B
+// (shareAppliesTo re-checks B's membership at read time), while its lease is
+// stored under the document's workspace A - a workspace-scoped enumeration
+// missed it and wrote no revoke at all. stillReads is the grant's own path,
+// so a document kept readable through a user share or any other path keeps
+// its lease.
+func (c *OfficeLeaseRevoker) recheckUserInOrganization(ctx context.Context, orgID, userID string) error {
 	if userID == "" {
 		return nil
 	}
 	n, err := c.inTx(ctx, func(q *db.Queries) (int, error) {
-		rows, err := q.ListLiveOfficeOfflineLeasesForUserInWorkspace(ctx, db.ListLiveOfficeOfflineLeasesForUserInWorkspaceParams{
-			WorkspaceID: workspaceID, UserID: userID,
+		rows, err := q.ListLiveOfficeOfflineLeasesForUserInOrganization(ctx, db.ListLiveOfficeOfflineLeasesForUserInOrganizationParams{
+			OrganizationID: orgID, UserID: userID,
 		})
 		if err != nil {
 			return 0, err

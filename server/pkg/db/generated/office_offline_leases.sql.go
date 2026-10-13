@@ -340,33 +340,36 @@ func (q *Queries) ListLiveOfficeOfflineLeasesForDocument(ctx context.Context, ar
 	return items, nil
 }
 
-const listLiveOfficeOfflineLeasesForUserInWorkspace = `-- name: ListLiveOfficeOfflineLeasesForUserInWorkspace :many
+const listLiveOfficeOfflineLeasesForUserInOrganization = `-- name: ListLiveOfficeOfflineLeasesForUserInOrganization :many
 SELECT id, document_id FROM office_offline_leases
-WHERE workspace_id = $1 AND user_id = $2 AND revoked_at IS NULL
+WHERE organization_id = $1 AND user_id = $2 AND revoked_at IS NULL
 ORDER BY id
 `
 
-type ListLiveOfficeOfflineLeasesForUserInWorkspaceParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	UserID      string `json:"user_id"`
+type ListLiveOfficeOfflineLeasesForUserInOrganizationParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
 }
 
-type ListLiveOfficeOfflineLeasesForUserInWorkspaceRow struct {
+type ListLiveOfficeOfflineLeasesForUserInOrganizationRow struct {
 	ID         string `json:"id"`
 	DocumentID string `json:"document_id"`
 }
 
-// A document may have moved out of the workspace since the grant, so the
-// caller re-checks the live document of every row, not the row's workspace.
-func (q *Queries) ListLiveOfficeOfflineLeasesForUserInWorkspace(ctx context.Context, arg ListLiveOfficeOfflineLeasesForUserInWorkspaceParams) ([]ListLiveOfficeOfflineLeasesForUserInWorkspaceRow, error) {
-	rows, err := q.db.Query(ctx, listLiveOfficeOfflineLeasesForUserInWorkspace, arg.WorkspaceID, arg.UserID)
+// member.removed re-checks the person's live leases across the whole
+// organization, not the workspace they were removed from: a document of
+// another workspace can read through a workspace-principal share naming the
+// removed workspace (document_permissions.go shareAppliesTo), and its lease
+// is stored under the document's workspace, not the share's.
+func (q *Queries) ListLiveOfficeOfflineLeasesForUserInOrganization(ctx context.Context, arg ListLiveOfficeOfflineLeasesForUserInOrganizationParams) ([]ListLiveOfficeOfflineLeasesForUserInOrganizationRow, error) {
+	rows, err := q.db.Query(ctx, listLiveOfficeOfflineLeasesForUserInOrganization, arg.OrganizationID, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListLiveOfficeOfflineLeasesForUserInWorkspaceRow{}
+	items := []ListLiveOfficeOfflineLeasesForUserInOrganizationRow{}
 	for rows.Next() {
-		var i ListLiveOfficeOfflineLeasesForUserInWorkspaceRow
+		var i ListLiveOfficeOfflineLeasesForUserInOrganizationRow
 		if err := rows.Scan(&i.ID, &i.DocumentID); err != nil {
 			return nil, err
 		}
