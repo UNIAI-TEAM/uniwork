@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "date": "2026-10-13",
   "ready": true,
-  "sourceRef": "d100b3dd8d228fd61a1f1f5e49d25809b7c16b44",
+  "sourceRef": "f4e2bb9643a298fd11584f44f1cd6a61ba0efc2a",
   "previousSourceRef": "4449109cd71c872845a082d5e449db65c8608428",
   "title": {
     "vi": "Cỡ chữ trong Cài đặt, kết nối trợ lý AI chỉ đọc và sửa lỗi thanh toán",
@@ -1043,6 +1043,21 @@
       "evidence": {
         "kind": "pr",
         "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "f4e2bb9643a298fd11584f44f1cd6a61ba0efc2a",
+      "subject": "UNI-1437: Chuyển lịch duyệt Changelog sang 16h hằng ngày (#266)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: moves the Changelog review schedule to 16:00 Vietnam time in the two operations pages. Internal process, no user-visible application change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/266"
       }
     }
   ]
