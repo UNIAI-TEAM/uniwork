@@ -54,6 +54,11 @@ func errCommentDeleted() error {
 // such a write and prove the next poll still sees it. Never set in production.
 var documentCommentsAfterRead func()
 
+// documentCommentRevisionsAfterLoad is the same kind of seam for the edit
+// history: it runs between the comment load and the revisions read, where a
+// committed tombstone must not show through. Never set in production.
+var documentCommentRevisionsAfterLoad func()
+
 // documentCommentAdapter is the document_comments persistence adapter + the
 // resource authorizer. access is the fresh decision withDocumentMutation
 // computed under the document row lock - canModerate never re-reads state.
@@ -295,14 +300,26 @@ func (s *DocumentService) DocumentCommentRevisions(ctx context.Context, actor Ac
 	if err != nil {
 		return nil, err
 	}
-	c, err := loadInResource(ctx, s.q, documentCommentAdapter{}, docCommentRef(doc), commentID)
+	// One REPEATABLE READ snapshot holds the comment load and the history
+	// read: a tombstone committing in between deletes the history, and the
+	// answer must not pair the live comment with the emptied history.
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	c, err := loadInResource(ctx, q, documentCommentAdapter{}, docCommentRef(doc), commentID)
 	if err != nil {
 		return nil, err
 	}
 	if c.DeletedAt.Valid {
 		return nil, errCommentDeleted()
 	}
-	return s.q.ListDocumentCommentRevisions(ctx, db.ListDocumentCommentRevisionsParams{
+	if documentCommentRevisionsAfterLoad != nil {
+		documentCommentRevisionsAfterLoad()
+	}
+	return q.ListDocumentCommentRevisions(ctx, db.ListDocumentCommentRevisionsParams{
 		CommentID: c.ID, DocumentID: doc.ID,
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 	})
@@ -369,7 +386,20 @@ func (s *DocumentService) AddDocumentComment(ctx context.Context, actor Actor, d
 			return NormalizeIdempotencyError(err)
 		}
 		if replay != nil {
-			return json.Unmarshal(replay.Body, &out)
+			// The ledger keeps the create answer forever; the comment may
+			// have been edited, tombstoned or removed since. Answer the row as
+			// it is now (a removed one is the 404 of any missing id), so a
+			// replay never contradicts the next list read.
+			var stored db.DocumentComment
+			if err := json.Unmarshal(replay.Body, &stored); err != nil {
+				return err
+			}
+			cur, err := loadInResource(ctx, q, documentCommentAdapter{svc: s, access: access}, ref, stored.ID)
+			if err != nil {
+				return err
+			}
+			out = cur
+			return nil
 		}
 		c, err := addCommentOn(ctx, q, documentCommentAdapter{svc: s, access: access}, ref, actor, in)
 		if err != nil {
@@ -480,6 +510,10 @@ func deleteDocumentCommentOn(ctx context.Context, q *db.Queries, ad documentComm
 		return DocumentCommentOutcomeTombstoned, nil
 	}
 	cur := c
+	// Every row this command removes is named in its one audit row: the
+	// requested comment first, then each childless tombstone the cascade
+	// takes with it, bottom-up.
+	removed := []string{}
 	for {
 		if err := ad.beforeDelete(ctx, q, ref, cur); err != nil {
 			return "", err
@@ -498,6 +532,7 @@ func deleteDocumentCommentOn(ctx context.Context, q *db.Queries, ad documentComm
 		if err := ad.remove(ctx, q, ref, cur); err != nil {
 			return "", err
 		}
+		removed = append(removed, cur.ID)
 		// A tombstoned parent with no other child left has nothing to hold
 		// its frame open; it goes with the last child, and so on upward.
 		if !cur.ParentCommentID.Valid {
@@ -525,7 +560,7 @@ func deleteDocumentCommentOn(ctx context.Context, q *db.Queries, ad documentComm
 		}
 		cur = parent
 	}
-	if err := recordCommentAudit(ctx, q, actor, ref, v, v.deleted, commentID, nil); err != nil {
+	if err := recordCommentAudit(ctx, q, actor, ref, v, v.deleted, commentID, map[string]any{"removed_comment_ids": removed}); err != nil {
 		return "", err
 	}
 	return DocumentCommentOutcomeRemoved, nil
