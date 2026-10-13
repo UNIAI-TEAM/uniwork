@@ -124,14 +124,25 @@ func (h *handlers) uniworkError(w http.ResponseWriter, ctx context.Context, err 
 }
 
 // uniworkRetryAfter reads the seconds a refusal wants the client to wait out
-// of CodedError.Fields (A11's bound carries retry_after; so does any refusal
-// built from a vendor 429).
+// of the fields it carries (A11's bound carries retry_after on a CodedError;
+// a vendor 429 the Gateway translated carries it on an ai.Error — BE3A-2), so
+// the header and the code always agree.
 func uniworkRetryAfter(err error) (string, bool) {
 	var ce service.CodedError
-	if !errors.As(err, &ce) || ce.Fields == nil {
-		return "", false
+	if errors.As(err, &ce) {
+		return uniworkRetrySeconds(ce.Fields)
 	}
-	switch v := ce.Fields["retry_after"].(type) {
+	var aiErr *ai.Error
+	if errors.As(err, &aiErr) {
+		return uniworkRetrySeconds(aiErr.Fields)
+	}
+	return "", false
+}
+
+// uniworkRetrySeconds formats Fields["retry_after"] for the header; a nil or
+// field-less map has nothing to follow.
+func uniworkRetrySeconds(fields map[string]any) (string, bool) {
+	switch v := fields["retry_after"].(type) {
 	case int:
 		return strconv.Itoa(v), true
 	case int64:
