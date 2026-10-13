@@ -73,12 +73,13 @@
         }
       },
       "v1_2_0": {
-        "title": "Kết nối trợ lý AI chỉ đọc và sửa lỗi thanh toán",
-        "summary": "Kết nối Claude, ChatGPT hoặc Gemini để đọc việc, cuộc họp và workspace trong UniWork, với trang đồng ý và phần quản lý kết nối trong Cài đặt; cùng hai bản sửa cho số hóa đơn và hoàn tiền.",
-        "note": "Kết nối trợ lý AI đang trong giai đoạn thử nghiệm: tổ chức phải được bật tính năng này và chủ sở hữu phải bật công tắc trong Cài đặt › Truy cập AI. Kết nối chỉ đọc dữ liệu, không tạo hay sửa dữ liệu trong UniWork. Thẻ Truy cập AI dành cho chủ sở hữu và quản trị viên.",
+        "title": "Cỡ chữ trong Cài đặt, kết nối trợ lý AI chỉ đọc và sửa lỗi thanh toán",
+        "summary": "Chọn cỡ chữ trong Cài đặt để đọc dễ hơn; kết nối Claude, ChatGPT hoặc Gemini để đọc việc, cuộc họp và workspace trong UniWork, với trang đồng ý và phần quản lý kết nối; cùng hai bản sửa cho số hóa đơn và hoàn tiền.",
+        "note": "Cỡ chữ lưu theo từng thiết bị và chưa áp dụng cho nội dung mở trong trình soạn Office. Kết nối trợ lý AI đang trong giai đoạn thử nghiệm: tổ chức phải được bật tính năng này và chủ sở hữu phải bật công tắc trong Cài đặt › Truy cập AI. Kết nối chỉ đọc dữ liệu, không tạo hay sửa dữ liệu trong UniWork. Thẻ Truy cập AI dành cho chủ sở hữu và quản trị viên.",
         "features": {
           "c2ed272790a5e7f71d9fd77926ad85854dc7df408": "Kết nối Claude, ChatGPT hoặc Gemini với UniWork để trợ lý AI đọc việc, cuộc họp và workspace của bạn ngay trong ứng dụng AI. Kết nối chỉ đọc, phải được bạn đồng ý trên trang xác nhận của UniWork, và trợ lý chỉ thấy đúng dữ liệu bạn được phép xem trong tổ chức đang chọn; danh sách việc kèm cuộc họp hôm nay và ngày mai.",
-          "ce480747bc1afa886cce9de6d91949902606cff8a": "Trong Cài đặt, thẻ Ứng dụng AI cho bạn xem và thu hồi từng kết nối trợ lý AI của mình; chủ sở hữu và quản trị viên có thêm thẻ Truy cập AI để bật hoặc tắt tính năng cho cả tổ chức và thu hồi mọi kết nối. Đặt lại mật khẩu, rời tổ chức hoặc xóa tài khoản đều thu hồi kết nối."
+          "ce480747bc1afa886cce9de6d91949902606cff8a": "Trong Cài đặt, thẻ Ứng dụng AI cho bạn xem và thu hồi từng kết nối trợ lý AI của mình; chủ sở hữu và quản trị viên có thêm thẻ Truy cập AI để bật hoặc tắt tính năng cho cả tổ chức và thu hồi mọi kết nối. Đặt lại mật khẩu, rời tổ chức hoặc xóa tài khoản đều thu hồi kết nối.",
+          "cefde3523923a9318a79928fb309010f00fe608cf": "Cài đặt › Tùy chọn có thêm mục Cỡ chữ với ba mức Mặc định, Lớn và Rất lớn, giúp đọc dễ hơn trên màn hình nhỏ hoặc khi cần chữ to. Mức đã chọn áp dụng ngay khi trang mở, lưu riêng cho từng thiết bị và đổi theo ở mọi tab của cùng trình duyệt; bố cục, khoảng cách và biểu tượng giữ nguyên."
         },
         "fixes": {
           "cbb792c946bfaa4df7d8d15502548baa760b1739e": "Hai giao dịch thanh toán hoàn tất trong cùng một giây không còn trùng số hóa đơn, nên lần thanh toán sau không bị kẹt ở trạng thái chờ. Năm trong số hóa đơn tính theo giờ Việt Nam.",

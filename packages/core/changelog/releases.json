@@ -3,14 +3,15 @@
     "id": "release-1-2-0",
     "version": "1.2.0",
     "date": "2026-10-13",
-    "sourceRef": "8bce7b7dced3eff5481b33d4a4ba19a2e43dc77e",
+    "sourceRef": "d100b3dd8d228fd61a1f1f5e49d25809b7c16b44",
     "contentKey": "v1_2_0",
     "sections": [
       {
         "kind": "features",
         "items": [
           "c2ed272790a5e7f71d9fd77926ad85854dc7df408",
-          "ce480747bc1afa886cce9de6d91949902606cff8a"
+          "ce480747bc1afa886cce9de6d91949902606cff8a",
+          "cefde3523923a9318a79928fb309010f00fe608cf"
         ]
       },
       {

@@ -3,19 +3,19 @@
   "version": "1.2.0",
   "date": "2026-10-13",
   "ready": true,
-  "sourceRef": "8bce7b7dced3eff5481b33d4a4ba19a2e43dc77e",
+  "sourceRef": "d100b3dd8d228fd61a1f1f5e49d25809b7c16b44",
   "previousSourceRef": "4449109cd71c872845a082d5e449db65c8608428",
   "title": {
-    "vi": "Kết nối trợ lý AI chỉ đọc và sửa lỗi thanh toán",
-    "en": "Read-only AI assistant connections and billing fixes"
+    "vi": "Cỡ chữ trong Cài đặt, kết nối trợ lý AI chỉ đọc và sửa lỗi thanh toán",
+    "en": "Text size in Settings, read-only AI assistant connections and billing fixes"
   },
   "summary": {
-    "vi": "Kết nối Claude, ChatGPT hoặc Gemini để đọc việc, cuộc họp và workspace trong UniWork, với trang đồng ý và phần quản lý kết nối trong Cài đặt; cùng hai bản sửa cho số hóa đơn và hoàn tiền.",
-    "en": "Connect Claude, ChatGPT or Gemini to read your tasks, meetings and workspaces in UniWork, with a consent page and connection management in Settings, plus two billing fixes for invoice numbers and refunds."
+    "vi": "Chọn cỡ chữ trong Cài đặt để đọc dễ hơn; kết nối Claude, ChatGPT hoặc Gemini để đọc việc, cuộc họp và workspace trong UniWork, với trang đồng ý và phần quản lý kết nối; cùng hai bản sửa cho số hóa đơn và hoàn tiền.",
+    "en": "Pick a text size in Settings for easier reading; connect Claude, ChatGPT or Gemini to read your tasks, meetings and workspaces in UniWork, with a consent page and connection management; plus two billing fixes for invoice numbers and refunds."
   },
   "note": {
-    "vi": "Kết nối trợ lý AI đang trong giai đoạn thử nghiệm: tổ chức phải được bật tính năng này và chủ sở hữu phải bật công tắc trong Cài đặt › Truy cập AI. Kết nối chỉ đọc dữ liệu, không tạo hay sửa dữ liệu trong UniWork. Thẻ Truy cập AI dành cho chủ sở hữu và quản trị viên.",
-    "en": "AI assistant connections are in pilot: the organization must have the feature enabled and an owner must turn on the switch in Settings › AI access. Connections only read data; they never create or change anything in UniWork. The AI access tab is for owners and admins."
+    "vi": "Cỡ chữ lưu theo từng thiết bị và chưa áp dụng cho nội dung mở trong trình soạn Office. Kết nối trợ lý AI đang trong giai đoạn thử nghiệm: tổ chức phải được bật tính năng này và chủ sở hữu phải bật công tắc trong Cài đặt › Truy cập AI. Kết nối chỉ đọc dữ liệu, không tạo hay sửa dữ liệu trong UniWork. Thẻ Truy cập AI dành cho chủ sở hữu và quản trị viên.",
+    "en": "Text size is saved per device and does not yet apply to content opened in the Office editors. AI assistant connections are in pilot: the organization must have the feature enabled and an owner must turn on the switch in Settings › AI access. Connections only read data; they never create or change anything in UniWork. The AI access tab is for owners and admins."
   },
   "changes": [
     {
@@ -848,6 +848,201 @@
       "evidence": {
         "kind": "pr",
         "url": "https://github.com/UNIAI-TEAM/uniwork/pull/259"
+      }
+    },
+    {
+      "commit": "c18726e1432b3cfa390e421cbdcc481c499c0f7c",
+      "subject": "docs: add text size setting design spec",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: text size design spec.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "4307dce92c2a38b821cfb603b70e649f4489090b",
+      "subject": "docs: add text size implementation plan",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: text size implementation plan.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "cb9f519bccf2e59aacbcd085f11ab0754678e505",
+      "subject": "feat(ui): scale the type scale by --font-scale",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the same unreleased text size setting delivered by PR #264 (type scale variable, device storage and boot script, the hook, and the two pre-release corrections for cross-tab sync); folded into the text size entry efde352392 so the page lists the setting once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "3b69987ee990c9bca2b8ae73046b85dbd2423333",
+      "subject": "feat(ui): store the text size on the device and apply it before paint",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the same unreleased text size setting delivered by PR #264 (type scale variable, device storage and boot script, the hook, and the two pre-release corrections for cross-tab sync); folded into the text size entry efde352392 so the page lists the setting once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "cf546ed4ec9110f03004adf39553213959ac53b1",
+      "subject": "feat(ui): add useTextSize hook",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Part of the same unreleased text size setting delivered by PR #264 (type scale variable, device storage and boot script, the hook, and the two pre-release corrections for cross-tab sync); folded into the text size entry efde352392 so the page lists the setting once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "efde3523923a9318a79928fb309010f00fe608cf",
+      "subject": "feat(settings): add the text size picker to Preferences",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Cài đặt › Tùy chọn có thêm mục Cỡ chữ với ba mức Mặc định, Lớn và Rất lớn, giúp đọc dễ hơn trên màn hình nhỏ hoặc khi cần chữ to. Mức đã chọn áp dụng ngay khi trang mở, lưu riêng cho từng thiết bị và đổi theo ở mọi tab của cùng trình duyệt; bố cục, khoảng cách và biểu tượng giữ nguyên.",
+        "en": "Settings › Preferences now has a Text size option with three levels — Default, Large and Extra large — so text is easier to read on a small screen or when you need bigger type. The level you pick applies as soon as a page opens, is saved per device and follows along in every tab of the same browser; layout, spacing and icons stay unchanged."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "fd3dbe61d5640dcc21e0f920ba81aa35f6dbc908",
+      "subject": "test(e2e): cover the text size setting end to end",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only: end-to-end coverage for the text size setting.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "946e777176207cc7a5f05a40481ebd5c9f7b4069",
+      "subject": "docs: record text size verification results",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: records the verification results for the text size work.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "21563367f082caf4a1a9237ab7f57fb0e05f3b85",
+      "subject": "docs: state the pre-existing check failures in the plan status",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: notes pre-existing check failures in the plan status.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "ba3386de1d60ebe81961f9d198c91633361c59a7",
+      "subject": "fix(ui): sync the text size picker from <html>, not storage",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the same unreleased text size setting delivered by PR #264 (type scale variable, device storage and boot script, the hook, and the two pre-release corrections for cross-tab sync); folded into the text size entry efde352392 so the page lists the setting once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "a4c20506c371780c37f5807d0c9c3f3a40a4e98b",
+      "subject": "fix(ui): follow another tab's text size on every page",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Part of the same unreleased text size setting delivered by PR #264 (type scale variable, device storage and boot script, the hook, and the two pre-release corrections for cross-tab sync); folded into the text size entry efde352392 so the page lists the setting once.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "77f97bdae1602c4cc5aac6b383814fd226a94a49",
+      "subject": "docs: track text size as roadmap C-18 under UNI-1429",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documentation only: tracks the text size setting as roadmap row C-18.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
+      }
+    },
+    {
+      "commit": "bc0b5c3ea17f101aacaa14279e4dc35a3ee64fc2",
+      "subject": "test(views): drain query notifications before the next chat fetch",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only: stabilises a chat query test; no application change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/264"
       }
     }
   ]
