@@ -110,7 +110,10 @@ func (r *UsageReconciler) reconcileOne(ctx context.Context, row db.AiUsageEvent)
 		messages = append(messages, Turn{Seq: t.Seq, UsageEventID: t.UsageEventID.String, Message: message})
 	}
 	input, output := estimateUsageTokens(messages, row.ID)
-	rateID, cost := r.price(ctx, row, input, output)
+	rateID, cost, err := r.price(ctx, row, input, output)
+	if err != nil {
+		return false, err
+	}
 	claimed, err := r.q.AiUniworkClaimUnknownUsage(ctx, db.AiUniworkClaimUnknownUsageParams{
 		ID: row.ID, RateID: rateID, InputTokens: int32(input), OutputTokens: int32(output), CostMicros: cost,
 	})
@@ -140,19 +143,22 @@ func (r *UsageReconciler) reconcileOne(ctx context.Context, row db.AiUsageEvent)
 }
 
 // price is the estimate priced at the row's own provider and model, exactly
-// as the Gateway prices a reported call (AiLatestRate).
-func (r *UsageReconciler) price(ctx context.Context, row db.AiUsageEvent, input, output int) (pgtype.Text, int64) {
+// as the Gateway prices a reported call (AiLatestRate). A rate table with no
+// row for the model prices at zero, as the Gateway does; a lookup that fails
+// for any other reason stops the row: claiming it at zero would lose the
+// charge to a database that was merely slow.
+func (r *UsageReconciler) price(ctx context.Context, row db.AiUsageEvent, input, output int) (pgtype.Text, int64, error) {
 	rate, err := r.q.AiLatestRate(ctx, db.AiLatestRateParams{
 		Provider: row.Provider, Model: row.Model, EffectiveAt: pgtype.Timestamptz{Time: r.now(), Valid: true},
 	})
 	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			r.log.Warn("ai: usage reconcile: rate lookup", "usage_event_id", row.ID, "err", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.Text{}, 0, nil
 		}
-		return pgtype.Text{}, 0
+		return pgtype.Text{}, 0, err
 	}
 	cost := int64(input)*rate.InputMicrosPerMtok/1_000_000 + int64(output)*rate.OutputMicrosPerMtok/1_000_000
-	return pgtype.Text{String: rate.ID, Valid: true}, cost
+	return pgtype.Text{String: rate.ID, Valid: true}, cost, nil
 }
 
 // openTurn reads one sealed transcript turn. It is the reconciler's copy of
