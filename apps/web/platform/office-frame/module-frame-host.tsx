@@ -24,7 +24,7 @@ type ModuleHostProps = OfficeEditorHostProps & { module: OfficeModule };
 function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; desktopOpen: FrameDesktopOpenProps }) {
   const { module, document, wsId, readonly, className, frameVersion, desktopOpen } = props;
   const { workspace } = useWorkspace();
-  const { push } = useNavigation();
+  const { push, searchParams } = useNavigation();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   return (
     <OfficeModuleFrame
@@ -36,6 +36,9 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; deskto
       readonly={readonly}
       className={className}
       libraryHref={ws.documents()}
+      myLevel={document.my_level}
+      // A comment deep link (?comment=<id>): the editor's panel reveals it when it has comments.
+      revealCommentId={searchParams.get("comment")}
       desktopOpen={desktopOpen}
       // Save as made a new document and the frame already edits it; follow it so the URL names what is open.
       onSavedAs={(copyId) => push(ws.document(copyId))}
