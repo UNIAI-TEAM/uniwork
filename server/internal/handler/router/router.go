@@ -40,6 +40,11 @@ type Deps struct {
 	// OfficeFrameAuth checks the Office Docs frame token on
 	// /api/v1/office-frame/*; nil refuses every frame route with 404.
 	OfficeFrameAuth func(http.Handler) http.Handler
+	// FrameIdentity names the person behind a frame token for the global rate
+	// limiter (G6-03b, design §5.3): the limiter runs before routing, so it
+	// verifies the token itself. Nil keeps today's behaviour (a frame request
+	// keys by address).
+	FrameIdentity mw.IdentityFunc
 }
 
 // New wires middleware and registers routes by OpenAPI tag (auth.go, me.go, …).

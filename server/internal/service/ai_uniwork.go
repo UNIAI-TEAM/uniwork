@@ -49,6 +49,46 @@ type AIUniworkService struct {
 	limiter  *uniworkConcurrency
 	now      func() time.Time
 	deadline time.Duration
+	// runs is A3's run counter (G6-03b). Wired by SetRunStore; nil leaves the
+	// service without run accounting until W-B fills the seam (design §9).
+	runs ai.RunStore
+	// metrics is the run/usage surface of §7; nil reports nothing.
+	metrics UniworkRunMetrics
+}
+
+// UniworkRunMetrics is the UniWork AI run/usage surface the service reports to
+// (metrics.AIUniwork satisfies it; design §7).
+type UniworkRunMetrics interface {
+	ObserveUniworkRun(seconds float64, credits int64)
+	IncUniworkUsageUnknown(calls int64)
+	IncUniworkDroppedToolCalls(reason string, calls int64)
+}
+
+// errUniworkRunSeam marks the S0 seam: the run accounting bodies land with W-B
+// (design §11).
+var errUniworkRunSeam = errors.New("service: run store chưa nối (G6-03b S1)")
+
+// SetRunStore attaches A3's run counter (G6-03b).
+func (s *AIUniworkService) SetRunStore(store ai.RunStore) { s.runs = store }
+
+// SetUniworkMetrics attaches the run/usage metrics (G6-03b).
+func (s *AIUniworkService) SetUniworkMetrics(m UniworkRunMetrics) { s.metrics = m }
+
+// takeRun reserves the model call this turn is about to spend (A3).
+//
+// TODO(G6-03b W-B): call s.runs.TakeTurn with the resumed conversation, map
+// ErrRunLimitReached/ErrRunExpired to the wire (409) and keep the run id on
+// every answer; the ordering (limiter before the take) is design §5.5.
+func (s *AIUniworkService) takeRun(ctx context.Context, in ai.TakeRunTurn) (ai.Run, error) {
+	return ai.Run{}, errUniworkRunSeam
+}
+
+// addRunCredits records what an answered call cost the run.
+//
+// TODO(G6-03b W-B): call s.runs.AddCredits on a context detached from the
+// request, then observe run seconds/credits (design §6.2, §7).
+func (s *AIUniworkService) addRunCredits(ctx context.Context, runID, conversationID string, tokens int64) error {
+	return errUniworkRunSeam
 }
 
 // NewAIUniworkService wires the service. rdb may be nil: the organization
@@ -87,18 +127,22 @@ type UniworkScope struct {
 }
 
 // UniworkTurnInput is one client call: the raw openai-compatible body the
-// handler read (bounded by maxJSONBody) and the conversation it continues.
+// handler read (bounded by maxJSONBody), the conversation it continues and,
+// from G6-03b, the run it continues (A12; empty opens a new run).
 type UniworkTurnInput struct {
 	ConversationID string
+	RunID          string
 	Body           json.RawMessage
 	Stream         bool
 }
 
 // UniworkTurn is one answered turn: what the handler writes out plus the
-// conversation id it must echo as a header (A12).
+// conversation id it must echo as a header (A12) and, from G6-03b, the run id
+// every answer of the run carries and the step/limit of x_uniwork.
 type UniworkTurn struct {
 	Response       ai.Response
 	ConversationID string
+	RunID          string
 	Step           int
 	Limit          int
 	Dropped        []ai.UniworkDroppedToolCall

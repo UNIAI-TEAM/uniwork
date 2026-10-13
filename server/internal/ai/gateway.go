@@ -36,6 +36,11 @@ type UsageRecord struct {
 	Actor          audit.Actor
 	Tokens         int64
 	UsageEventID   string
+	// MeterKey overrides the idempotency key of this charge (G6-03b): a
+	// caller that can name the logical call (UniWork AI: "uniwork-ai:<run
+	// id>:<seq>") makes a replayed or reconciled charge a no-op. Empty keeps
+	// the per-event key the quota adapter builds from UsageEventID.
+	MeterKey string
 }
 
 // Metrics is satisfied by metrics.AI; nil is fine.
@@ -86,6 +91,9 @@ type Request struct {
 	// Attachments are media parts sent with the rendered prompt (media
 	// analysis); the vendor adapter refuses a type it cannot send.
 	Attachments []provider.Part
+	// MeterKey is the idempotency key of this call's charge when the caller
+	// can name it (G6-03b); empty uses the usage event's own id.
+	MeterKey string
 }
 
 type Response struct {
@@ -96,6 +104,10 @@ type Response struct {
 	Provider     string
 	InputTokens  int
 	OutputTokens int
+	// UsagePresent reports whether the vendor sent a usage block (G6-03b
+	// reads it): false means the usage row is the unknown/reconciliation
+	// branch, not a zero-token call (A16, design §6.3).
+	UsagePresent bool
 }
 
 type Gateway struct {
@@ -225,6 +237,10 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		g.observe(req.Capability, "failed", latency)
 		return Response{}, ErrToolNotAllowed.wrap(errors.New("tool " + denied))
 	}
+	// TODO(G6-03b W-B): a vendor that sent no usage block is the
+	// usage_unknown branch, not a zero-token call (A16, design §6.3): finish
+	// the row with reason_code "usage_unknown" and skip the quota record
+	// below; carry req.MeterKey into UsageRecord.MeterKey.
 	if err := g.finish(sctx, row.ID, row.OrganizationID, resp, "succeeded", "", latency, calls); err != nil {
 		return Response{}, err
 	}
@@ -232,6 +248,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		if err := g.quota.Record(sctx, UsageRecord{
 			OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID, Actor: req.Actor,
 			Tokens: int64(resp.InputTokens + resp.OutputTokens), UsageEventID: row.ID,
+			MeterKey: req.MeterKey,
 		}); err != nil {
 			g.log.Warn("ai: quota record", "usage_event_id", row.ID, "err", err)
 		}
@@ -248,6 +265,8 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	}
 	g.observe(req.Capability, "succeeded", latency)
 	g.log.Info("ai: call", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
+	// TODO(G6-03b W-B): carry resp.UsagePresent through, so the caller can
+	// tell a vendor that reported nothing from one that reported zeros.
 	return Response{
 		Text: resp.Text, ToolCalls: resp.ToolCalls, UsageEventID: row.ID, Model: resp.Model, Provider: g.p.Name(),
 		InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens,
