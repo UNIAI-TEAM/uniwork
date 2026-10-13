@@ -351,6 +351,47 @@ func TestOfficeLeaseRenewRechecksLiveACL(t *testing.T) {
 	}
 }
 
+// G508S-BE-7 (FIX-5): the revoked row alone refuses a renewal. The share
+// revoke's consumer ends the row while the ACL is gone, then a new share
+// restores the live ACL, the epoch stays put and the device stays live - so
+// the renewal's only reason to refuse is row.RevokedAt.Valid, the predicate
+// the pure twin (TestOfficeLeaseCheckRenewalRefusesARevokedRow) isolates.
+func TestOfficeLeaseRenewRefusesRevokedRowWithLiveAccess(t *testing.T) {
+	w := newLeaseWorld(t, "lease-revoked-row")
+	d := w.file(t, documentVisibilityRestricted)
+	m := w.tn.member.ID
+	sh := w.f.share(t, d, DocumentPrincipalUser, m, DocumentLevelView, w.tn.aclOwner.ID)
+	dev := w.device(t, m)
+	l := w.grant(t, m, dev, d.ID)
+
+	// The share goes; the event's consumer finds the lease and revokes it
+	// (the ACL is gone at that moment, so the row is what the renewal must
+	// catch).
+	if err := w.f.svc.RevokeDocumentShare(w.ctx, Human(w.tn.aclOwner.ID), d.ID, sh.ID); err != nil {
+		t.Fatal(err)
+	}
+	w.deliver(t, "document.share_revoked")
+	w.requireRevoked(t, l.LeaseID, OfficeLeaseRevokeShareRevoked)
+
+	// The document is readable again through a new share, same epoch, live
+	// device - the live ACL cannot be the reason.
+	w.f.share(t, d, DocumentPrincipalUser, m, DocumentLevelView, w.tn.aclOwner.ID)
+	_, err := w.put(w.leases, m, dev, d.ID, l.Token)
+	requireLeaseCode(t, err, "offline_lease_revoked")
+	if s := w.state(t, l.LeaseID); !s.revoked || s.generation != 1 {
+		t.Fatalf("the refused renewal touched the revoked row: %+v", s)
+	}
+	// A fresh grant under the restored ACL still works, so the refusal was
+	// the row and not the document.
+	fresh, err := w.put(w.leases, m, dev, d.ID, "")
+	if err != nil {
+		t.Fatalf("grant after the refused renewal: %v", err)
+	}
+	if fresh.LeaseID == l.LeaseID || fresh.Renewed {
+		t.Fatalf("the fresh grant reused the revoked row: %+v", fresh)
+	}
+}
+
 // T8: there is no offline renewal; an expired lease renews only through the
 // same live ACL check.
 func TestOfficeLeaseRenewAfterExpiryRechecksACL(t *testing.T) {
