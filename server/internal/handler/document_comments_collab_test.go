@@ -16,7 +16,7 @@ import (
 func (w *documentCollabWorld) createCommentRaw(t *testing.T, token, documentID string, payload map[string]any) map[string]any {
 	t.Helper()
 	res, out := doJSON(t, w.srv, "POST", w.commentsPath(documentID), token, payload)
-	if res.StatusCode != 200 {
+	if res.StatusCode != 201 {
 		t.Fatalf("create comment: %d %v", res.StatusCode, out)
 	}
 	return out["comment"].(map[string]any)

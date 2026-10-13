@@ -109,7 +109,7 @@ func commentReactionDTO(row db.CommentReaction) sdo.CommentReactionDTO {
 // reaction list stays empty on single-comment answers (create/patch/resolve)
 // exactly like the task comment API: the client refetches the thread for
 // reactions, and an answer that never carries them is honest about it.
-func (h *handlers) respondDocumentComment(w http.ResponseWriter, r *http.Request, c db.DocumentComment) {
+func (h *handlers) respondDocumentComment(w http.ResponseWriter, r *http.Request, status int, c db.DocumentComment) {
 	displayName, avatarURL := "", ""
 	ref := service.ActorRef{Kind: audit.Kind(c.AuthorKind), ID: c.AuthorID}
 	actors, err := h.Actors.Resolve(r.Context(), []service.ActorRef{ref})
@@ -120,7 +120,7 @@ func (h *handlers) respondDocumentComment(w http.ResponseWriter, r *http.Request
 	if a, ok := actors[ref]; ok {
 		displayName, avatarURL = a.DisplayName, a.AvatarURL
 	}
-	respondJSON(w, http.StatusOK, sdo.DocumentCommentSDO{Comment: documentCommentDTO(c, displayName, avatarURL, nil)})
+	respondJSON(w, status, sdo.DocumentCommentSDO{Comment: documentCommentDTO(c, displayName, avatarURL, nil)})
 }
 
 // requireDocumentComment binds the {commentID} in the URL to the {documentID}
@@ -208,7 +208,8 @@ func (h *handlers) createDocumentComment(w http.ResponseWriter, r *http.Request)
 		h.mapServiceError(w, err)
 		return
 	}
-	h.respondDocumentComment(w, r, c)
+	// 201 for a create and for its replay alike (contract-collab 2.2).
+	h.respondDocumentComment(w, r, http.StatusCreated, c)
 }
 
 // updateDocumentComment is PATCH /documents/{documentID}/comments/{commentID}:
@@ -231,7 +232,7 @@ func (h *handlers) updateDocumentComment(w http.ResponseWriter, r *http.Request)
 		h.mapServiceError(w, err)
 		return
 	}
-	h.respondDocumentComment(w, r, c)
+	h.respondDocumentComment(w, r, http.StatusOK, c)
 }
 
 // deleteDocumentComment is DELETE /documents/{documentID}/comments/{commentID}:
@@ -296,7 +297,7 @@ func (h *handlers) resolveDocumentComment(w http.ResponseWriter, r *http.Request
 		h.mapServiceError(w, err)
 		return
 	}
-	h.respondDocumentComment(w, r, c)
+	h.respondDocumentComment(w, r, http.StatusOK, c)
 }
 
 // reopenDocumentComment is DELETE /documents/{documentID}/comments/{commentID}/resolve:
@@ -314,7 +315,7 @@ func (h *handlers) reopenDocumentComment(w http.ResponseWriter, r *http.Request)
 		h.mapServiceError(w, err)
 		return
 	}
-	h.respondDocumentComment(w, r, c)
+	h.respondDocumentComment(w, r, http.StatusOK, c)
 }
 
 // addDocumentCommentReaction is POST /documents/{documentID}/comments/{commentID}/reactions

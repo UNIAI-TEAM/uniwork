@@ -146,7 +146,7 @@ func (w *documentCollabWorld) createComment(t *testing.T, token, documentID, bod
 		payload[k] = v
 	}
 	res, out := doJSON(t, w.srv, "POST", w.commentsPath(documentID), token, payload)
-	if res.StatusCode != 200 {
+	if res.StatusCode != 201 {
 		t.Fatalf("create comment: %d %v", res.StatusCode, out)
 	}
 	return out["comment"].(map[string]any)["id"].(string)
@@ -176,7 +176,7 @@ func TestDocumentCommentHTTPLifecycle(t *testing.T) {
 	// type defaults to discussion since G8-03 (OQ-C2), and no parent is set.
 	res, out := doJSONHeaders(t, w.srv, "POST", w.commentsPath(docID), w.member,
 		map[string]string{"Idempotency-Key": "comment-1"}, map[string]any{"body": "Chỗ này cần số liệu Q3."})
-	if res.StatusCode != 200 {
+	if res.StatusCode != 201 {
 		t.Fatalf("create: %d %v", res.StatusCode, out)
 	}
 	comment := out["comment"].(map[string]any)
@@ -204,7 +204,7 @@ func TestDocumentCommentHTTPLifecycle(t *testing.T) {
 	// the same key is a conflict.
 	res, out = doJSONHeaders(t, w.srv, "POST", w.commentsPath(docID), w.member,
 		map[string]string{"Idempotency-Key": "comment-1"}, map[string]any{"body": "Chỗ này cần số liệu Q3."})
-	if res.StatusCode != 200 || out["comment"].(map[string]any)["id"] != commentID {
+	if res.StatusCode != 201 || out["comment"].(map[string]any)["id"] != commentID {
 		t.Fatalf("idempotent replay: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSONHeaders(t, w.srv, "POST", w.commentsPath(docID), w.member,
