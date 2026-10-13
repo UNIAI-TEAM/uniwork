@@ -51,6 +51,23 @@ describe("notification endpoints", () => {
     await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
   });
 
+  it("listNotifications reads the document flags, false when an older server omits them, and degrades on a non-boolean", async () => {
+    const doc = {
+      ...row, kind: "document_commented", resource_type: "document", resource_id: "d1",
+      params: { actor: "An", document: "Plan", comment_id: "c1", kind: "comment" },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ notifications: [{ ...doc, resource_access_lost: true, comment_deleted: true }, doc] }),
+    );
+    const page = await listNotifications();
+    expect(page.notifications[0]).toMatchObject({ resource_access_lost: true, comment_deleted: true });
+    expect(page.notifications[1]).toMatchObject({ resource_access_lost: false, comment_deleted: false });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [{ ...doc, resource_access_lost: "yes" }] }));
+    await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [{ ...doc, comment_deleted: 1 }] }));
+    await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
+  });
+
   it("getUnreadCount returns totals and zeros when malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ total: 3, by_workspace: { ws1: 2 } }));
     expect(await getUnreadCount()).toEqual({ total: 3, by_workspace: { ws1: 2 } });
