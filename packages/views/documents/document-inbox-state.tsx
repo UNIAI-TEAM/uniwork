@@ -13,7 +13,7 @@ import { AppLink } from "../navigation";
 import { K } from "./document-comments-keys";
 
 /** Why a document opened from the Inbox cannot show (S15 rows 1-2, UNI-1389). */
-export type DocumentInboxStateReason = "gone" | "no_access";
+type DocumentInboxStateReason = "gone" | "no_access";
 
 /**
  * The page-level S15 message for a document link that came from the Inbox

@@ -23,7 +23,7 @@ export function plainSnippet(raw: string): string {
 }
 
 /** What a document row says under its sentence. */
-export type NotificationSnippet = { kind: "text"; text: string } | { kind: "deleted"; key: string } | null;
+type NotificationSnippet = { kind: "text"; text: string } | { kind: "deleted"; key: string } | null;
 
 /**
  * The second line of a document comment row (S15). A document the recipient
