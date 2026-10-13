@@ -165,11 +165,17 @@ const (
 // a caller's library holds. Content and metadata edits, version commits,
 // moves, archive/restore, the retention purge and the share commands (a grant
 // makes a document readable - an upsert for the new reader; a revoke takes it
-// away - a removal for the old one) all land here, plus a document-level
-// visibility change (document.settings_changed; the organization-level
-// public-links switch carries resource_type organization and never reaches
-// this query). A read (the access log) changes nothing, and comment, favorite
-// and link rows carry no library state this feed serves.
+// away - a removal for the old one) all land here.
+//
+// A visibility demotion is a document.updated row carrying a
+// changes.visibility diff: that is what the real PATCH through UpdateDocument
+// writes (document_pages.go, audit.Diff), and it is the feed's demotion
+// removal source (BE-G2-1). document.settings_changed is the arm a
+// document-level settings command would write; no such command exists on this
+// root, so it is retained for the future and kept harmless (the
+// organization-level public-links switch carries resource_type organization
+// and never reaches this query). A read (the access log) changes nothing, and
+// comment, favorite and link rows carry no library state this feed serves.
 var feedDocumentActions = map[string]bool{
 	"document.created":          true,
 	"document.updated":          true,
