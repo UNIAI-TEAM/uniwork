@@ -79,6 +79,12 @@ Ba guard đã có. Chỗ khác với kế hoạch ở trên được ghi rõ kè
   `write-control` trên tổ chức thứ ba) và không bị từ chối theo cùng cách, nên 403/404
   của B là do kiểm tra tenant chứ không do route hỏng. `TestIsolationRealtime` làm phần
   tương tự cho hai WebSocket, kể cả việc frame gửi vào scope của A không tới socket của B.
+- **Thành viên của cả hai (bổ sung 2026-10-13, ADR 0032).** Từ ADR 0032 một tài khoản
+  chỉ thuộc một tổ chức đang hoạt động, nên không API nào còn đưa được chủ B vào A. Ca
+  `member-of-both` chèn dòng `organization_members` và `workspace_members` bằng raw SQL
+  (`joinAsMember`), mô phỏng tài khoản đa tổ chức sót lại từ trước ADR 0032 (ví dụ do
+  migration `004` sinh). ADR 0032 giữ nguyên những tài khoản đó, nên ca này vẫn giữ: họ
+  vẫn gọi được route của cả hai tổ chức và cách ly phải đúng với họ.
 - **Migration.** Backfill gộp vào một file (`9991790915600001_tenant_backfill_organization_id`)
   chạy trong một transaction ngầm với `lock_timeout` 5 giây: hoặc cả 18 bảng có cột, hoặc
   không bảng nào, và lần deploy chờ khóa quá lâu thì dừng thay vì chặn ghi.
