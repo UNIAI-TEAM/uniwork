@@ -242,6 +242,35 @@ func main() {
 	if reg != nil {
 		gateway.SetMetrics(reg.AI)
 	}
+	// UniWork AI transcript store (G6-03a, G6-D1 A9): the Office assistant's
+	// conversations live on the server, each turn sealed with secretbox under
+	// AI_CONVERSATION_KEY. No key means no store, and UniWork AI reads as not
+	// configured (fail closed, never plaintext).
+	var uniworkConversationBox *secretbox.Box
+	if key, err := secretbox.LoadKey(ai.ConversationKeyEnv); err == nil {
+		uniworkConversationBox, err = secretbox.New(key)
+		if err != nil {
+			log.Warn("uniwork ai transcript store disabled", "err", err)
+		}
+	} else if os.Getenv(ai.ConversationKeyEnv) != "" {
+		log.Warn("uniwork ai transcript store disabled", "err", err)
+	}
+	uniworkConversations := ai.NewConversationStore(pool, q, uniworkConversationBox)
+	// The kill switch hides the capability for one organization; the
+	// transcripts it left behind follow one sweep later (design §9.4).
+	uniworkKillSwitchOff := func(ctx context.Context, organizationID string) (bool, error) {
+		def := false
+		if f, ok := featureflags.Lookup(uniworkAIKillSwitchFlag); ok {
+			def = f.Default
+		}
+		ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{OrganizationID: organizationID})
+		return !flags.IsEnabled(ctx, uniworkAIKillSwitchFlag, def), nil
+	}
+	uniworkConversationSweep := ai.NewConversationTTLWorker(
+		uniworkConversations, uniworkKillSwitchOff, ai.UniworkConversationSweepInterval, log)
+	if reg != nil {
+		uniworkConversationSweep.SetMetrics(reg.AIUniwork)
+	}
 	if reg != nil && reg.Meetings != nil {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
 	}
@@ -370,6 +399,10 @@ func main() {
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatVoiceSummaryConsumer(chatSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewFileThumbnailConsumer(fileSvc))
+	// The UniWork AI transcript follows what it is bound to: a deleted document
+	// or a membership that ended takes its conversations, and no request
+	// answers from a copy of content the person may no longer read (A9).
+	dispatcher.RegisterLane(outbox.LaneSlow, ai.NewConversationCleanupConsumer(uniworkConversations))
 	// Notifications are the first bounded context fed purely by the outbox:
 	// the consumer turns committed events into inbox rows, the push consumer
 	// delivers notification.push, and two jobs (digest, reminder) run beside
@@ -470,6 +503,11 @@ func main() {
 	// awaited below.
 	docChangesSweepDone := make(chan struct{})
 	go func() { docChangesSweep.Run(runCtx); close(docChangesSweepDone) }()
+	// The UniWork AI conversation sweep (G6-03a A9): expired transcripts and
+	// the organizations whose kill switch is off. It stops with runCancel and
+	// is awaited below.
+	uniworkSweepDone := make(chan struct{})
+	go func() { uniworkConversationSweep.Run(runCtx); close(uniworkSweepDone) }()
 	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
 	// callbacks and the provider-event ledger past their windows. It stops with
 	// runCancel and is awaited below.
@@ -707,6 +745,11 @@ func main() {
 		log.Warn("documents: change snapshot sweep did not stop in time")
 	}
 	select {
+	case <-uniworkSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("ai: uniwork conversation sweep did not stop in time")
+	}
+	select {
 	case <-retentionDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("outbox: event retention did not stop in time")
@@ -751,3 +794,8 @@ func webVitals(reg *metrics.Registry) *metrics.WebVitals {
 	}
 	return reg.WebVitals
 }
+
+// uniworkAIKillSwitchFlag is the registry key (internal/featureflags) whose
+// default decides whether an organization may use UniWork AI; the TTL worker
+// reads it through the same override chain the config route uses.
+const uniworkAIKillSwitchFlag = "office_ai_uniwork"

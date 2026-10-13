@@ -84,6 +84,43 @@ Dev local: cấu hình upstream dev, cách kiểm và cách quay về `fake` ở
 retention **chưa chọn** — chờ gate G6-D2; tới đó chỉ fixture tổng hợp chạy trên upstream dev. Không ghi base URL, host, IP
 hay khóa của upstream dev ở đâu ngoài secret store/cấu hình máy dev.
 
+## UniWork AI transcript (G6-03a, design §9)
+
+Trợ lý UniWork AI trong editor Office giữ hội thoại **trên server**: client chỉ gửi câu hỏi mới hoặc tool-result, không
+bao giờ gửi lịch sử (luật bảo mật 7). Hai bảng `ai_uniwork_conversations` / `ai_uniwork_turns`; mỗi lượt là JSON của
+`provider.Message` (nội dung + tool call + tool-result) được mã hóa `server/internal/util/secretbox` (AES-256-GCM)
+bằng khóa riêng `AI_CONVERSATION_KEY` — không dùng chung `AI_CREDENTIAL_KEY` để lộ một khóa không lộ cả hai.
+
+| Mục | Giá trị |
+| --- | --- |
+| TTL nhàn rỗi | 30 phút kể từ `last_used_at` |
+| Hạn tuyệt đối | 24 giờ kể từ `created_at` |
+| Lượt giữ | 20 lượt người dùng; lượt 21 bỏ khối cũ nhất nguyên khối (không để tool-result mồ côi) |
+| Hết hạn / đã dọn | 409 `conversation_expired`; client mở hội thoại mới |
+| Dọn | worker TTL trong tiến trình API (mỗi phút: hết hạn, rồi tổ chức đã tắt `office_ai_uniwork`) + consumer outbox `document.deleted`, `member.removed`, `member.left`, `member.deactivated` (lane slow); `Create` xóa hội thoại cũ cùng (organization, user, document, module) trong một transaction |
+| Mã hóa | `ciphertext` (BYTEA) là bản mã; server không có nhánh nào ghi plaintext |
+
+Số cần nhìn:
+
+| Metric | Ý nghĩa | Ngưỡng |
+| --- | --- | --- |
+| `uniwork_ai_uniwork_conversations_swept_total{reason="expired"}` | Hội thoại hết TTL đã xóa | tăng đều là bình thường (TTL nhàn rỗi 30 phút) |
+| `uniwork_ai_uniwork_conversations_swept_total{reason="kill_switch"}` | Hội thoại bị xóa vì `office_ai_uniwork` tắt cho tổ chức | phải xuất hiện ngay sau khi tắt cờ cho một tổ chức |
+| `uniwork_ai_uniwork_conversations_live` | Hội thoại còn sống | |
+
+Khi có sự cố:
+
+- **Mọi lượt trả `conversation_expired`**: quá TTL nhàn rỗi (kể cả giữa một run dài) hoặc hạn tuyệt đối, hoặc
+  `AI_CONVERSATION_KEY` vừa bị đổi — transcript cũ không giải mã được nên bị coi là hết hạn (không có xoay khóa ở v1;
+  TTL 30 phút giới hạn thiệt hại).
+- **Route UniWork AI trả 503 `ai_disabled` dù Gateway bật**: thiếu `AI_CONVERSATION_KEY` (hoặc chuỗi base64 không decode
+  ra 32 byte) → server chạy nhưng không có kho hội thoại (fail closed). Đặt khóa rồi restart `uniwork-be`; log
+  `uniwork ai transcript store disabled` nói lý do.
+- **Hội thoại không được dọn**: kiểm worker TTL còn chạy (log `uniwork ai conversation sweep`, mỗi phút) và consumer
+  `ai_uniwork_conversation_cleanup` có nhận `document.deleted` / `member.*` (lane slow; `RUNBOOK_OUTBOX.md`).
+- **Đọc thẳng trong `psql`**: chỉ thấy bản mã. Nghi plaintext trong `ai_uniwork_turns` = sự cố bảo mật: dừng deploy đó
+  và giữ nguyên hiện trường.
+
 ## Không bao giờ
 
 - Không log prompt, nguồn hay câu trả lời. `ai_messages` là dữ liệu người dùng,

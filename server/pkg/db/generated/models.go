@@ -90,6 +90,33 @@ type AiProviderCredential struct {
 	ModelUpdatedAt   pgtype.Timestamptz `json:"model_updated_at"`
 }
 
+type AiUniworkConversation struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	UserID         string             `json:"user_id"`
+	DocumentID     pgtype.Text        `json:"document_id"`
+	Module         string             `json:"module"`
+	DeviceID       pgtype.Text        `json:"device_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt     pgtype.Timestamptz `json:"last_used_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type AiUniworkTurn struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	ConversationID string             `json:"conversation_id"`
+	RunID          string             `json:"run_id"`
+	Seq            int32              `json:"seq"`
+	Role           string             `json:"role"`
+	Ciphertext     []byte             `json:"ciphertext"`
+	UsageEventID   pgtype.Text        `json:"usage_event_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type AiUsageEvent struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

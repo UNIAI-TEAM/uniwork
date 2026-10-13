@@ -794,6 +794,23 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 	}); err != nil {
 		t.Fatalf("calendar connection: %v", err)
 	}
+
+	// A UniWork AI transcript of the tenant (G6-03a, A9): one conversation and
+	// its first turn, written the way ConversationStore.Create/Append write
+	// them, so both new tables hold a row of the tenant's.
+	tn.ids["aiUniworkConversation"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ai_uniwork_conversations
+		(id, organization_id, user_id, document_id, module, created_by, created_by_kind, expires_at)
+		VALUES ($1, $2, $3, $4, 'sheets', $3, 'human', now() + interval '30 minutes')`,
+		tn.ids["aiUniworkConversation"], tn.orgID, tn.userID, tn.ids["document"]); err != nil {
+		t.Fatalf("uniwork ai conversation: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ai_uniwork_turns
+		(id, organization_id, conversation_id, run_id, seq, role, ciphertext)
+		VALUES ($1, $2, $3, 'iso-run', 1, 'user', $4)`,
+		util.NewID(), tn.orgID, tn.ids["aiUniworkConversation"], []byte("iso-sealed")); err != nil {
+		t.Fatalf("uniwork ai turn: %v", err)
+	}
 }
 
 // buildActivity leaves the traces people leave by using the product - a

@@ -27,6 +27,7 @@ type Registry struct {
 	Outbox        *Outbox
 	Notifications *Notifications
 	AI            *AI
+	AIUniwork     *AIUniwork
 	WebVitals     *WebVitals
 	Documents     *Documents
 	Office        *Office
@@ -83,6 +84,9 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	aiMetrics := NewAI()
 	reg.MustRegister(aiMetrics.Collectors()...)
 
+	aiUniworkMetrics := NewAIUniwork()
+	reg.MustRegister(aiUniworkMetrics.Collectors()...)
+
 	webVitals := NewWebVitals()
 	reg.MustRegister(webVitals.Collectors()...)
 
@@ -107,6 +111,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		Outbox:        outboxMetrics,
 		Notifications: notificationMetrics,
 		AI:            aiMetrics,
+		AIUniwork:     aiUniworkMetrics,
 		WebVitals:     webVitals,
 		Documents:     documentMetrics,
 		Office:        officeMetrics,
