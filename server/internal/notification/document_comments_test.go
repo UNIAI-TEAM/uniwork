@@ -845,3 +845,105 @@ func TestDocumentCommentNotificationsCarryCommentIDAndKind(t *testing.T) {
 		t.Fatal("no document notification rows to check")
 	}
 }
+
+// --- G8-07 §2: the push deep link for a document notification --------------
+
+// TestResourceURLDocumentVectors pins the push deep link for a document
+// notification with the three shared vectors the FE mirrors plus a discussion
+// thread. The workspace rule is ListWorkspacesForUser: the notification's own
+// workspace when the recipient is in it, otherwise the first of the same
+// organization, otherwise the workspace list. The comment id rides as
+// ?comment= and a discussion thread appends &kind=discussion.
+func TestResourceURLDocumentVectors(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "workspace", "Liên kết")
+	// A second workspace of the same organization, created after the
+	// fixture's own: for a recipient who is not a member of the document's
+	// workspace it is the first (and only) workspace of that organization in
+	// their ListWorkspacesForUser.
+	second, err := f.ws.CreateInOrg(f.ctx, f.owner.ID, f.orgID, "Second WS", "notif-ws-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsB := second.Workspace.ID
+
+	notif := func(t *testing.T, userID, wsID, params string) db.Notification {
+		t.Helper()
+		row, err := f.q.UpsertNotification(f.ctx, db.UpsertNotificationParams{
+			ID: util.NewID(), UserID: userID, OrganizationID: f.orgID,
+			WorkspaceID: pgtype.Text{String: wsID, Valid: wsID != ""},
+			Kind:        KindDocumentMentioned, GroupKey: "document:" + docID + ":mention:" + util.NewID(),
+			ResourceType: "document", ResourceID: docID,
+			ActorKind: "human", ActorID: f.owner.ID, TitleKey: TitleKey(KindDocumentMentioned), Params: params,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return row
+	}
+	const commentID = "01J8X4CMTN1P2Q3R4S5T6U7V"
+	commentParams := `{"comment_id":"` + commentID + `","kind":"comment"}`
+
+	t.Run("vector 1: recipient is a member of the notification's workspace", func(t *testing.T) {
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, f.member.ID, f.wsID, commentParams))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "https://app.test/notif-org/notif-ws/documents/" + docID + "?comment=" + commentID
+		if got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("vector 2: shared from another workspace, recipient reads it there", func(t *testing.T) {
+		outsider := f.user(t, "doc-outside@example.com", "Ngoài")
+		if err := f.q.AddOrganizationMember(f.ctx, db.AddOrganizationMemberParams{OrganizationID: f.orgID, UserID: outsider.ID, Role: "member"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.q.AddWorkspaceMember(f.ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsB, OrganizationID: f.orgID, UserID: outsider.ID, Role: "member"}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, outsider.ID, f.wsID, commentParams))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "https://app.test/notif-org/notif-ws-2/documents/" + docID + "?comment=" + commentID
+		if got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("vector 3: recipient has no workspace in the document's organization", func(t *testing.T) {
+		stranger := f.user(t, "doc-stranger@example.com", "Xa")
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, stranger.ID, f.wsID, commentParams))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "https://app.test/workspaces"; got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("a discussion thread appends kind=discussion", func(t *testing.T) {
+		params := `{"comment_id":"` + commentID + `","kind":"discussion"}`
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, f.member.ID, f.wsID, params))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "https://app.test/notif-org/notif-ws/documents/" + docID + "?comment=" + commentID + "&kind=discussion"
+		if got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("no comment id opens the bare document", func(t *testing.T) {
+		got, err := ResourceURL(f.ctx, f.q, "https://app.test", notif(t, f.member.ID, f.wsID, `{}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "https://app.test/notif-org/notif-ws/documents/" + docID
+		if got != want {
+			t.Fatalf("url = %q, want %q", got, want)
+		}
+	})
+}

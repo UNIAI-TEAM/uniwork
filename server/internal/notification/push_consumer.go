@@ -114,6 +114,9 @@ func (c *PushConsumer) message(ctx context.Context, locale string, n db.Notifica
 // packages/core/paths. A notification with no workspace lands on the
 // workspace list; one whose workspace is gone does the same.
 func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notification) (string, error) {
+	if n.ResourceType == "document" {
+		return documentResourceURL(ctx, q, origin, n)
+	}
 	if !n.WorkspaceID.Valid {
 		return origin + "/workspaces", nil
 	}
@@ -152,4 +155,55 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 	default:
 		return base + "/inbox", nil
 	}
+}
+
+// documentResourceURL is the deep link a document notification opens
+// (G8-07 section 2): the same path the web builds. The workspace is the
+// recipient's entry in ListWorkspacesForUser that matches the notification's
+// workspace; a recipient who reads the document through a share and is not a
+// member of its workspace gets the first workspace of the same organization
+// (the one they would have open); with none in that organization they land on
+// the workspace list. The comment id rides as ?comment=, and a discussion
+// thread adds &kind=discussion so the page opens the Discussion tab.
+func documentResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notification) (string, error) {
+	ws, ok, err := documentLinkWorkspace(ctx, q, n)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return origin + "/workspaces", nil
+	}
+	link := origin + "/" + ws.OrganizationSlug + "/" + ws.Slug + "/documents/" + n.ResourceID
+	var params map[string]string
+	_ = json.Unmarshal([]byte(n.Params), &params)
+	if cid := params["comment_id"]; cid != "" {
+		link += "?comment=" + url.QueryEscape(cid)
+		if params["kind"] == "discussion" {
+			link += "&kind=discussion"
+		}
+	}
+	return link, nil
+}
+
+// documentLinkWorkspace picks the workspace a document link is built from:
+// the notification's own workspace when the recipient is in it, otherwise the
+// first of their workspaces in the same organization.
+func documentLinkWorkspace(ctx context.Context, q *db.Queries, n db.Notification) (db.ListWorkspacesForUserRow, bool, error) {
+	workspaces, err := q.ListWorkspacesForUser(ctx, n.UserID)
+	if err != nil {
+		return db.ListWorkspacesForUserRow{}, false, err
+	}
+	if n.WorkspaceID.Valid {
+		for _, w := range workspaces {
+			if w.ID == n.WorkspaceID.String {
+				return w, true, nil
+			}
+		}
+	}
+	for _, w := range workspaces {
+		if w.OrganizationID == n.OrganizationID {
+			return w, true, nil
+		}
+	}
+	return db.ListWorkspacesForUserRow{}, false, nil
 }
