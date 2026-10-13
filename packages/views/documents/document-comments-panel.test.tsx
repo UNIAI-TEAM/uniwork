@@ -301,6 +301,28 @@ describe("S12 anchored comments", () => {
     await waitFor(() => expect(within(thread("d1x")).getByRole("heading")).toHaveFocus());
   });
 
+  // S15 (G8-07): a resolved comment opens readable and stays resolved; a lost anchor opens only
+  // its own thread. Opening never writes: the panel only lists.
+  it("opens a reply in a resolved, anchor-lost thread on its root, without reopening it or opening another", async () => {
+    const anchor = { format: "docx", v: 1, path: [0], start: 0, end: 1, quote: "q", prefix: "", suffix: "" };
+    installApi({
+      comments: [
+        row({ id: "c0", kind: "comment", type: "comment", anchor, anchor_state: "exact", body: "Còn mở" }),
+        row({ id: "c1", kind: "comment", type: "comment", anchor, anchor_state: "lost", body: "Đã chốt", resolved_at: "2026-10-13T04:00:00Z" }),
+        row({ id: "c1r", kind: "comment", type: "comment", parent_id: "c1", body: "Trả lời cũ" }),
+      ],
+    });
+    renderPanel({ doc: docxDoc(), search: "comment=c1r" });
+    await screen.findByTestId("document-comments-pane");
+    await waitFor(() => expect(within(thread("c1")).getByRole("heading")).toHaveFocus());
+    expect(thread("c1")).toHaveTextContent(t(K.collabAnchorLost));
+    expect(thread("c1")).toHaveTextContent("Trả lời cũ");
+    expect(within(thread("c1")).getByRole("button", { name: t(K.collabReopen) })).toBeInTheDocument();
+    expect(screen.queryByTestId("document-comments-reveal")).toBeNull();
+    const writes = requestMock.mock.calls.filter(([, init]) => ((init as Init | undefined)?.method ?? "GET") !== "GET");
+    expect(writes).toEqual([]);
+  });
+
   it("says a deep-linked comment is gone when the list no longer has it", async () => {
     installApi({ comments: [] });
     renderPanel({ doc: docxDoc(), search: "comment=gone" });
