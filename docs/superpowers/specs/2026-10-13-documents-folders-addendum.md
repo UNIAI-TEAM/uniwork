@@ -1,6 +1,6 @@
 # Documents — Phụ lục: Thư mục nhiều cấp (UNI-1425)
 
-> **Trạng thái:** in-progress — phụ lục v0.3, 2026-10-13 (v0.3: review delta r2 — trần hàng thật cho CTE lưu trữ, `RepeatableRead` cho `archive-impact`, gate G8-17, dòng S18 của spine G8). v0.1 soạn theo yêu cầu người dùng (~15:35 UTC+7: thêm spec + plan cho UNI-1425 theo cách đã làm với G8/UNI-1331); v0.2 xử lý review FE r1 + BE r1 (`reports/plan-folders/review-{fe,be}-1.md`, bản đối chiếu `reports/plan-folders/fix-r1.md` của Run). FD-D1 đã ký (gộp vào UNI-923 thành epic E6); FD-D2..FD-D10 còn chờ người dùng ký (decision packet `reports/plan-folders/decision-packet.md`). Giá trị ghi "khuyến nghị" ở §2 **chưa ký**; không triển khai thẻ có gate trước khi ký.
+> **Trạng thái:** in-progress — hợp đồng v1.0 (đóng băng), 2026-10-13 — FD-D1..FD-D10 đã ký (FD-D2..FD-D10 ký ~19:05 UTC+7 đúng các khuyến nghị của decision packet `reports/plan-folders/decision-packet.md`, trạng thái signed); §4 là hợp đồng, đổi §4 chỉ qua `decision_required` của Advisor. Lịch sử: v0.1 soạn theo yêu cầu người dùng (~15:35 UTC+7: thêm spec + plan cho UNI-1425 theo cách đã làm với G8/UNI-1331); v0.2 xử lý review FE r1 + BE r1 (`reports/plan-folders/review-{fe,be}-1.md`, bản đối chiếu `reports/plan-folders/fix-r1.md` của Run); v0.3 review delta r2 (trần hàng thật cho CTE lưu trữ, `RepeatableRead` cho `archive-impact`, gate G8-17, dòng S18 của spine G8); v1.0 FD-01 (UNI-1461): ký FD-D2..FD-D10, §4 đóng băng, bỏ nhánh (b)/(c) của FD-D10 ở §3.8, gate G8-17 đóng.
 
 **Issue:** UNI-1425 "Quản lý Folder trong Documents" (FR-01..FR-09, BR-01..BR-10, AC-01..AC-12), cha UNI-923 (FD-D1).
 **Quan hệ với thiết kế có sẵn:** Documents C-01 (cây trang, UNI-675) và thư mục `kind=folder` (migration
@@ -21,21 +21,21 @@ nguyên.
 
 ## 2. Quyết định
 
-Nguồn câu hỏi và lựa chọn: decision packet. Bảng này là giá trị phụ lục và plan dùng nếu người dùng ký đúng khuyến nghị; ký khác
-thì sửa phụ lục và các thẻ có ghi gate tương ứng. FD-01 ghi cột "đã ký".
+Nguồn câu hỏi và lựa chọn: decision packet. Bảng này là giá trị phụ lục và plan dùng; FD-D2..FD-D10 người dùng đã ký đúng các
+giá trị bên dưới (2026-10-13 ~19:05 UTC+7).
 
 | ID | Câu hỏi | Giá trị | Thẻ bị chặn |
 | --- | --- | --- | --- |
 | FD-D1 | Vào phase UNI-923 hay phase riêng? | **Đã ký 2026-10-13 (qua Advisor): gộp vào UNI-923 thành epic E6** (plan G5-G7 §5.8, mốc P2, wave W3..W7, lane L25..L28) | — |
-| FD-D2 | Trần độ sâu | Khuyến nghị: **20 cấp** (một hằng chung cho thư mục, trang, tệp; trần bảo vệ, không phải "vô hạn") | FD-03, FD-07 |
-| FD-D3 | Độ dài tên | Khuyến nghị: **255 ký tự cho thư mục** (tạo và đổi tên); tài liệu giữ 500; thư mục cũ dài hơn giữ nguyên tới lần đổi tên sau (tự đổi tên "(n)" cũng là một lần đổi tên, §3.3) | FD-02 |
-| FD-D4 | Trùng tên thư mục cùng cha | Khuyến nghị: **không phân biệt hoa thường, phân biệt dấu** ("Hợp đồng" = "HỢP ĐỒNG", ≠ "Hop dong"); khóa so là khóa chuẩn §3.3; chỉ thư mục chưa lưu trữ, cùng workspace, cùng cha (gốc là một cha); thư mục trùng có sẵn: migration đổi tên bản mới hơn thành "Tên (2)", "Tên (3)" | FD-02 |
-| FD-D5 | Trùng khi tạo/đổi tên vs khi di chuyển/khôi phục | Khuyến nghị: **thư mục — tạo/đổi tên: từ chối** 409 `folder_name_taken`, lỗi tại trường. **Di chuyển (thư mục và tài liệu) và khôi phục: tự đổi tên** "Tên (n)", n nhỏ nhất ≥ 2 còn trống, báo tên mới | FD-02, FD-08, FD-09 |
-| FD-D6 | Xóa | Khuyến nghị: **giữ lưu trữ** (thùng rác, khôi phục 30 ngày, worker xóa thật sau đó); chữ trên UI là "Xóa" / "Chuyển vào thùng rác"; cảnh báo ghi **riêng** số thư mục con và số tài liệu, đếm ở server | FD-04, FD-09 |
-| FD-D7 | Phạm vi tìm kiếm | Khuyến nghị: **workspace đang mở**, khớp **theo tên** trong ô tìm của Documents (bảng lệnh ⌘K giữ tìm cả nội dung); mọi tài liệu người dùng đọc được trong workspace đó. Thu hẹp FR-08 ("toàn bộ Document được phân quyền") là đổi phạm vi, chỉ đạt khi ký | FD-05, FD-10 |
-| FD-D8 | Desktop cùng phase? | Khuyến nghị: **hoãn** duyệt thư mục trong hộp thoại UniWork của app (FD-11 làm sau) | FD-11 |
-| FD-D9 | Trang Documents gốc (không `?folder`) | Khuyến nghị: **giữ thư viện hiện tại** (gần đây, nhóm theo thư mục); "nội dung trực tiếp" + thư mục trước + sắp xếp chỉ áp khi mở một thư mục; thư mục gốc thấy ở sidebar | FD-08 |
-| FD-D10 | Trùng tên **tài liệu** (trang/tệp) khi tạo, tải lên, đổi tên — gồm G8-17/S18 | Khuyến nghị: **cho phép trùng** (server không bao giờ trả `folder_name_taken` cho trang/tệp); G8-17 bỏ ca "tên trùng → lỗi tại trường" cho tài liệu, giữ "rỗng/quá dài"; "(n)" chỉ khi di chuyển/khôi phục; cần G8-09 đổi một dòng S18 của EXPERIENCE-G8 (§3.8) | FD-02, G8-17 (+ spine S18 của G8-09) |
+| FD-D2 | Trần độ sâu | Đã ký 2026-10-13 ~19:05: **20 cấp** (một hằng chung cho thư mục, trang, tệp; trần bảo vệ, không phải "vô hạn") | FD-03, FD-07 |
+| FD-D3 | Độ dài tên | Đã ký 2026-10-13 ~19:05: **255 ký tự cho thư mục** (tạo và đổi tên); tài liệu giữ 500; thư mục cũ dài hơn giữ nguyên tới lần đổi tên sau (tự đổi tên "(n)" cũng là một lần đổi tên, §3.3) | FD-02 |
+| FD-D4 | Trùng tên thư mục cùng cha | Đã ký 2026-10-13 ~19:05: **không phân biệt hoa thường, phân biệt dấu** ("Hợp đồng" = "HỢP ĐỒNG", ≠ "Hop dong"); khóa so là khóa chuẩn §3.3; chỉ thư mục chưa lưu trữ, cùng workspace, cùng cha (gốc là một cha); thư mục trùng có sẵn: migration đổi tên bản mới hơn thành "Tên (2)", "Tên (3)" | FD-02 |
+| FD-D5 | Trùng khi tạo/đổi tên vs khi di chuyển/khôi phục | Đã ký 2026-10-13 ~19:05: **thư mục — tạo/đổi tên: từ chối** 409 `folder_name_taken`, lỗi tại trường. **Di chuyển (thư mục và tài liệu) và khôi phục: tự đổi tên** "Tên (n)", n nhỏ nhất ≥ 2 còn trống, báo tên mới | FD-02, FD-08, FD-09 |
+| FD-D6 | Xóa | Đã ký 2026-10-13 ~19:05: **giữ lưu trữ** (thùng rác, khôi phục 30 ngày, worker xóa thật sau đó); chữ trên UI là "Xóa" / "Chuyển vào thùng rác"; cảnh báo ghi **riêng** số thư mục con và số tài liệu, đếm ở server | FD-04, FD-09 |
+| FD-D7 | Phạm vi tìm kiếm | Đã ký 2026-10-13 ~19:05: **workspace đang mở**, khớp **theo tên** trong ô tìm của Documents (bảng lệnh ⌘K giữ tìm cả nội dung); mọi tài liệu người dùng đọc được trong workspace đó. Thu hẹp FR-08 ("toàn bộ Document được phân quyền") là đổi phạm vi, chỉ đạt khi ký | FD-05, FD-10 |
+| FD-D8 | Desktop cùng phase? | Đã ký 2026-10-13 ~19:05: **hoãn** duyệt thư mục trong hộp thoại UniWork của app (FD-11 làm sau) | FD-11 |
+| FD-D9 | Trang Documents gốc (không `?folder`) | Đã ký 2026-10-13 ~19:05: **giữ thư viện hiện tại** (gần đây, nhóm theo thư mục); "nội dung trực tiếp" + thư mục trước + sắp xếp chỉ áp khi mở một thư mục; thư mục gốc thấy ở sidebar | FD-08 |
+| FD-D10 | Trùng tên **tài liệu** (trang/tệp) khi tạo, tải lên, đổi tên — gồm G8-17/S18 | Đã ký 2026-10-13 ~19:05: **cho phép trùng** (server không bao giờ trả `folder_name_taken` cho trang/tệp); G8-17 bỏ ca "tên trùng → lỗi tại trường" cho tài liệu, giữ "rỗng/quá dài"; "(n)" chỉ khi di chuyển/khôi phục; dòng S18 của EXPERIENCE-G8 và mockup đã sửa trong FD-01 (§3.8) | FD-02 (G8-17 hết gate) |
 
 ## 3. Thiết kế
 
@@ -53,7 +53,7 @@ thì sửa phụ lục và các thẻ có ghi gate tương ứng. FD-01 ghi cộ
 
 ### 3.2 Độ sâu (FD-D2)
 
-- Một hằng `maxDocumentDepth` (20 nếu ký khuyến nghị) ở `server/internal/service/document_pages.go`; mọi chỗ đang suy từ 5 đọc
+- Một hằng `maxDocumentDepth` (20, FD-D2 đã ký) ở `server/internal/service/document_pages.go`; mọi chỗ đang suy từ 5 đọc
   hằng này: kiểm khi tạo (`lockPageParent`), kiểm khi di chuyển (độ sâu đích + chiều cao cây con), vòng lặp tổ tiên
   (`2*maxDocumentDepth`), cắt cây ở API `tree`.
 - **Ba** CTE cây con trong `server/pkg/db/queries/document_tree.sql` đang cứng `sub.lvl < 10` và cùng đổi thành tham số
@@ -249,16 +249,14 @@ Hoãn duyệt: hộp thoại UniWork của app vẫn chỉ tệp (`client.ts:230
 `kind=file`, duyệt theo `parent_id` + breadcrumb, hiện đường dẫn trong kết quả tìm (trường `path` của §3.5), tạo tài liệu vào thư
 mục đang mở. Không đổi frame protocol.
 
-G8-17 (tạo/tải lên/đổi tên tài liệu từ app) **không** là người dùng `folder_name_taken`: G8-17 chỉ ghi trang/tệp, và theo FD-D10
-server cho trùng tên tài liệu. Hợp đồng chéo (plan G5-G7 thẻ G8-17, Gate: FD-D10 cho phần tên trùng): tên rỗng/quá 500 → lỗi tại trường;
-tên trùng tài liệu khác → theo FD-D10. **Spine:** EXPERIENCE-G8 S18 (dòng "Đổi tên") và mockup `account-library.html` (hai khung
-S18 "tên trùng") đang ghi tên trùng là lỗi tại trường `uwDocNameTaken`; spine do G8-09 (lane g5g8-web_ux) sở hữu, phụ lục này
-không sửa. FD-D10 = (a) cần G8-09 đổi một dòng S18 (bỏ ca trùng cho tài liệu, giữ rỗng/quá dài) và bỏ hai khung mockup; (b) giữ
-`uwDocNameTaken` nhưng thành cảnh báo không chặn; (c) giữ là lỗi tại trường với mã server mới; tài liệu đang mở bị tự đổi tên do di chuyển ở web → tiêu đề desktop
-đổi theo `document.moved` của feed G5 hoặc làm mới metadata khi focus, và Lưu sau đó không thành xung đột nội dung (§3.3, không tăng
-`content_revision`).
+G8-17 (tạo/tải lên/đổi tên tài liệu từ app) **không** là người dùng `folder_name_taken`: G8-17 chỉ ghi trang/tệp, và theo FD-D10 (a, đã ký)
+server cho trùng tên tài liệu. Hợp đồng chéo (plan G5-G7 thẻ G8-17, không còn gate): tên rỗng/quá 500 → lỗi tại trường; tên trùng tài
+liệu khác → được. **Spine:** EXPERIENCE-G8 S18 và mockup `account-library.html` đã sửa trong FD-01 (bỏ ca "tên trùng → lỗi tại
+trường" cho tài liệu, bỏ hai khung mockup S18 "tên trùng", khóa `uwDocNameTaken` ghi "không dùng cho tài liệu"). Tài liệu đang mở bị
+tự đổi tên do di chuyển ở web → tiêu đề desktop đổi theo `document.moved` của feed G5 hoặc làm mới metadata khi focus, và Lưu sau đó
+không thành xung đột nội dung (§3.3, không tăng `content_revision`).
 
-## 4. Hợp đồng (FD-01 chốt mục này thành v1.0 của phụ lục, không tạo file hợp đồng riêng)
+## 4. Hợp đồng v1.0 (đóng băng; không có file hợp đồng riêng)
 
 | Mục | Giá trị |
 | --- | --- |
