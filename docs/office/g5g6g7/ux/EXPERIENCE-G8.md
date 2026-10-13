@@ -71,7 +71,7 @@ S12–S15 (bảng chuỗi đầy đủ, mockup) và Advisor duyệt thay ngườ
 | Rỗng | Câu mời; composer hiện nếu được viết | `collabEmptyComments`, `collabEmptyDiscussion` |
 | Danh sách | Thread theo thứ tự neo (S12) hoặc thời gian (S13); thread đã resolve gom cuối, mở được | — |
 | Neo `stale` | Nhãn vị trí + chữ "Vị trí có thể đã thay đổi" (không chỉ màu) | `collabAnchorStale` |
-| Neo `lost` | Thread vẫn đọc được; nhãn "Nội dung đã bị xoá"; reveal chỉ mở thread | `collabAnchorLost` |
+| Neo `lost` | Thread vẫn đọc được; nhãn "Không còn tìm thấy vị trí được bình luận" / "The commented location can no longer be found" (OQ-C11, chữ tạm chờ UX xác nhận; khác khung tombstone); reveal chỉ mở thread | `collabAnchorLost` |
 | Comment/thread đã xóa có phản hồi | Khung "Nội dung đã bị xoá", không nút trả lời ở khung | `collabDeleted` |
 | Chỉ xem (`view`) | Đọc được; không composer; dòng phụ "Bạn chỉ có quyền xem" | `collabViewOnly` |
 | Server không khả dụng | Panel chỉ đọc với dữ liệu đã có; composer giữ nháp, nút Gửi `aria-disabled` + lý do | `collabOffline` |
