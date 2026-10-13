@@ -457,9 +457,12 @@
         },
         {
           "task": "G6-03b",
-          "report": "reports/g6-ai_server/g03b-wc-report.md",
+          "revision": "4610db8d168e8daa9e73cd76dbda69ba93027469",
+          "run": "run-8250d0a8-3314-4a0e-8a44-397f21961069",
+          "report": "reports/g6-ai_server/cloud-test-15.md (TEST_GO_EXIT=0, ISOLATION_EXIT=0)",
+          "review": "reports/g6-ai_server/review-be-g03b-2.md (verdict clear)",
           "tests": [
-            "TestAIUniworkRoutesUseOwnLimiterBucket (router; one 60/min ai-uniwork budget per person across the three routes, separate from ai-byok/ai-cloud — local run exit 0, cloud round re-runs on the lane revision)",
+            "TestAIUniworkRoutesUseOwnLimiterBucket (router; one 60/min ai-uniwork budget per person across the three routes, separate from ai-byok/ai-cloud)",
             "TestAIUniworkRunWithinCapNeverHitsLimiter (router; eleven turns of one run, none refused by the bucket)",
             "TestAIUniworkGlobalLimiterKeysFrameTokenByIdentity (router; the global limiter names the frame token's person and document, so one address no longer pools every frame)",
             "TestRateLimitBucketRefusalCode (middleware; the ai-uniwork bucket answers ai_rate_limited + Retry-After: 60, another bucket keeps rate_limited)"
@@ -509,9 +512,12 @@
         },
         {
           "task": "G6-03b",
-          "report": "reports/g6-ai_server/g03b-wc-report.md",
+          "revision": "4610db8d168e8daa9e73cd76dbda69ba93027469",
+          "run": "run-8250d0a8-3314-4a0e-8a44-397f21961069",
+          "report": "reports/g6-ai_server/cloud-test-15.md (TEST_GO_EXIT=0, A08_EXIT=0)",
+          "review": "reports/g6-ai_server/review-be-g03b-2.md (verdict clear)",
           "tests": [
-            "TestAIUniworkBusySetsRetryAfter (handler: the ai_uniwork_busy refusal carries Retry-After: 5 — the header BE3A-20 asks for, asserted at the layer that writes it)",
+            "TestAIUniworkBusySetsRetryAfter (handler: the ai_uniwork_busy refusal carries Retry-After: 5)",
             "TestAIUniworkRateLimitedHasRetryAfter (router: the ai-uniwork bucket answers 429 ai_rate_limited + Retry-After: 60)",
             "TestAIUniworkStepLimitInJSONAndSSE (handler: x_uniwork.step/limit on the wire at step 0)"
           ]
@@ -545,9 +551,15 @@
       "partialEvidence": [
         {
           "task": "G6-03b",
-          "report": "reports/g6-ai_server/g03b-wc-report.md",
+          "revision": "4610db8d168e8daa9e73cd76dbda69ba93027469",
+          "run": "run-8250d0a8-3314-4a0e-8a44-397f21961069",
+          "report": "reports/g6-ai_server/cloud-test-15.md (TEST_GO_EXIT=0, A09_EXIT=0, EVIDENCE_TESTS_EXIT=0; 21/21 required G6-03b tests PASS, 0 SKIP)",
+          "review": "reports/g6-ai_server/review-be-g03b-2.md (verdict clear)",
           "tests": [
-            "planned for the cloud round, status untouched: go test ./internal/service -run 'AIUniwork.*Usage' — TestAIUniworkUsageRecordedWhenClientDisconnects, TestAIUniworkUsageUnknownReconcilesOnce, TestAIUniworkUsageUnknownRowAndMetric, TestAIUniworkRunRetryUsageChargedOnce (W-B owns them; this row may only turn PASS once that run is green on the lane revision, exit 0 and 0 SKIP)"
+            "TestAIUniworkUsageRecordedWhenClientDisconnects",
+            "TestAIUniworkUsageUnknownReconcilesOnce",
+            "TestAIUniworkUsageUnknownRowAndMetric",
+            "TestAIUniworkRunRetryUsageChargedOnce"
           ]
         }
       ],
