@@ -1,0 +1,1492 @@
+$ git checkout d81027efe -- packages/core/office packages/views/office/frame/use-docs-frame-session.ts packages/views/office/frame/office-module-frame.tsx apps/web/platform/office-frame/module-frame-host.tsx; rm -f packages/core/api/endpoints/frame-comments.ts packages/views/office/frame/frame-comments-events.ts packages/views/office/frame/use-frame-comments.ts; (cd packages/core && pnpm vitest run api/endpoints/frame-comments.test.ts); A=$?; (cd packages/views && pnpm vitest run office/frame/frame-comments-events.test.ts office/frame/use-frame-comments.test.tsx); B=$?; (node --test scripts/office/frame-protocol-vendor.test.mjs); C=$?; git checkout HEAD -- packages apps; git status --short packages apps; echo "RED_EXIT endpoint=$A host=$B vendor=$C"; test $A -ne 0 -a $B -ne 0 -a $C -ne 0 && echo RED_AS_EXPECTED_D
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+
+ ❯ api/endpoints/frame-comments.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  api/endpoints/frame-comments.test.ts [ api/endpoints/frame-comments.test.ts ]
+Error: Failed to resolve import "./frame-comments" from "api/endpoints/frame-comments.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /workspace/packages/core/api/endpoints/frame-comments.test.ts:15:7
+  3  |  import { ApiError } from "../http";
+  4  |  import { setAccessToken } from "../session";
+  5  |  ...ates, updateFrameComment, listFrameCommentRevisions } from "./frame-comments";
+     |                                                                 ^
+  6  |  const json = (body, status = 200) => new Response(JSON.stringify(body), {
+  7  |  	status,
+ ❯ TransformPluginContext._formatLog ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31147:39
+ ❯ TransformPluginContext.error ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31144:14
+ ❯ normalizeUrl ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28083:18
+ ❯ ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28153:30
+ ❯ TransformPluginContext.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28119:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:30932:14
+ ❯ loadAndTransform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:20671:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  09:14:14
+   Duration  481ms (transform 17ms, setup 101ms, import 0ms, tests 0ms, environment 231ms)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+
+ ❯ office/frame/frame-comments-events.test.ts (0 test)
+ ❯ office/frame/use-frame-comments.test.tsx (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  office/frame/frame-comments-events.test.ts [ office/frame/frame-comments-events.test.ts ]
+Error: Failed to resolve import "./frame-comments-events" from "office/frame/frame-comments-events.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /workspace/packages/views/office/frame/frame-comments-events.test.ts:2:60
+  1  |  import { describe, expect, it } from "vitest";
+  2  |  import { commentsChangedDocument, frameCommentsLevel } from "./frame-comments-events";
+     |                                                               ^
+  3  |  const frame = (type, payload) => ({
+  4  |  	type,
+ ❯ TransformPluginContext._formatLog ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31147:39
+ ❯ TransformPluginContext.error ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31144:14
+ ❯ normalizeUrl ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28083:18
+ ❯ ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28153:30
+ ❯ TransformPluginContext.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28119:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:30932:14
+ ❯ loadAndTransform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:20671:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  office/frame/use-frame-comments.test.tsx [ office/frame/use-frame-comments.test.tsx ]
+Error: Failed to resolve import "./use-frame-comments" from "office/frame/use-frame-comments.test.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /workspace/packages/views/office/frame/use-frame-comments.test.tsx:12:0
+  11 |  const __vi_import_5__ = await import("../../test/api-mock");
+  12 |  const __vi_import_6__ = await import("./use-docs-frame-session");
+  13 |  const __vi_import_7__ = await import("./use-frame-comments");
+     |                                       ^
+  14 |  const __vi_import_8__ = await import("react/jsx-dev-runtime");
+  15 |  
+ ❯ TransformPluginContext._formatLog ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31147:39
+ ❯ TransformPluginContext.error ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31144:14
+ ❯ normalizeUrl ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28083:18
+ ❯ ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28153:30
+ ❯ TransformPluginContext.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28119:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:30932:14
+ ❯ loadAndTransform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:20671:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  no tests
+   Start at  09:14:14
+   Duration  738ms (transform 267ms, setup 563ms, import 0ms, tests 0ms, environment 478ms)
+
+TAP version 13
+# Subtest: normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+ok 1 - normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+  ---
+  duration_ms: 0.616763
+  ...
+# Subtest: a CRLF copy of each vendored file normalises to the same hash as the LF file
+ok 2 - a CRLF copy of each vendored file normalises to the same hash as the LF file
+  ---
+  duration_ms: 2.287377
+  ...
+# Subtest: every frame pin records the same protocolSha256, equal to the vendored protocol
+ok 3 - every frame pin records the same protocolSha256, equal to the vendored protocol
+  ---
+  duration_ms: 1.573503
+  ...
+# Subtest: the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+ok 4 - the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+  ---
+  duration_ms: 0.517392
+  ...
+# Subtest: the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+not ok 5 - the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+  ---
+  duration_ms: 0.738483
+  location: '/workspace/scripts/office/frame-protocol-vendor.test.mjs:128:1'
+  failureType: 'testCodeFailure'
+  error: 'InitPayload declares an optional commentsLevel'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    export interface InitPayload extends TokenPayload {
+      protocolVersion: number
+      documentId: string
+      workspaceId: string
+      /** absolute API origin + prefix, e.g. "https://app.uniwork.vn/api" */
+      apiBase: string
+      apiMode: ApiMode
+      /** BCP-47, e.g. "vi", "en" */
+      locale: string
+      theme: Theme
+      capabilities: Capabilities
+      /** optional: open this immediately (saves a round-trip vs. a later `open`) */
+      open?: OpenPayload
+      /**
+       * the document's module (additive, GO-B4/B5/B6); absent = 'docs'. A frame running another
+       * module refuses the `init` with `malformed`.
+       */
+      module?: OfficeModule
+      /**
+       * the signed-in user as editors show them (additive, GO-B4: PDF note author, comment author).
+       * Display data only, never an identity the frame may authorise with.
+       */
+      user?: InitUser
+      /**
+       * web draft recovery (additive, CONTRACT C18). Absent = recovery off (the frame shows nothing).
+       */
+      recovery?: InitRecovery
+      /**
+       * additive (X-02 r2b): the largest file, in bytes, the host's `api.download` accepts for this
+       * document. A positive safe integer; sent only together with the `download` capability. The
+       * frame disables its "download my version" choice up front when its version is larger (equal
+       * is allowed). Absent = the choice is disabled only after a `too_large` answer.
+       */
+      downloadMaxBytes?: number
+    }
+    
+    /**
+     * The host's draft-recovery grant: the frame encrypts its local IndexedDB draft copies
+     * ("uniwork-office-frame-drafts") with `key` and keys them by `scope`.
+     */
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:131:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: the three vendored files name one fork commit in their header
+not ok 6 - the three vendored files name one fork commit in their header
+  ---
+  duration_ms: 0.821226
+  location: '/workspace/scripts/office/frame-protocol-vendor.test.mjs:140:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the vendored files come from different fork commits: e36cc7dfc333243ecee1ae71aa659a72dc976468, ed580a5330fa3e50145d5f28ea12b3e5964910e6, ed580a5330fa3e50145d5f28ea12b3e5964910e6
+    
+    2 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:147:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: the vendored protocol carries the OQ-C2 comments.create anchor rule
+not ok 7 - the vendored protocol carries the OQ-C2 comments.create anchor rule
+  ---
+  duration_ms: 0.42774
+  location: '/workspace/scripts/office/frame-protocol-vendor.test.mjs:150:1'
+  failureType: 'testCodeFailure'
+  error: "the fork's anchor-shape helper is vendored"
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    /**
+     * UniWork <-> genoffice Docs frame protocol (UNI-1013, lane GO-B2+B3).
+     *
+     * DEPENDENCY-FREE ON PURPOSE: no imports. The UniWork host vendors this file
+     * verbatim (dev-uniwork packages/core/office/docs-frame-protocol.ts, with the
+     * fork SHA in a header comment). Keep it that way.
+     *
+     * Wire model: every message is one `Envelope`
+     *   { ns, v, id, kind: 'request' | 'response' | 'event', type, payload, error? }
+     * - `ns` tags our traffic so foreign postMessage noise (devtools, extensions)
+     *   is ignored instead of reported.
+     * - `v` is PROTOCOL_VERSION of the sender, on every message. A receiver with a
+     *   different version answers requests with a `version_mismatch` error and
+     *   drops responses/events.
+     * - `id` is unique per sender; a response echoes the request's `id` and `type`.
+     * - A response carries either `payload` (success) or `error` (failure).
+     *
+     * Direction is part of the contract: `HostRequests` / `HostEvents` are sent
+     * by the UniWork page to the frame, `FrameRequests` / `FrameEvents` by the
+     * frame to the page. See README.md for the message table and the auth/origin
+     * model. Changes after the contract commit must be additive or announced.
+     */
+    
+    export const PROTOCOL_NS = 'uniwork.office.docs' as const
+    /** Bump on any breaking change. Peers must match exactly. */
+    export const PROTOCOL_VERSION = 1 as const
+    
+    // ---------------------------------------------------------------- envelope
+    
+    export type MessageKind = 'request' | 'response' | 'event'
+    
+    export interface Envelope<T extends string = string, P = unknown> {
+      ns: typeof PROTOCOL_NS
+      v: number
+      id: string
+      kind: MessageKind
+      type: T
+      payload?: P
+      error?: ProtocolErrorShape
+    }
+    
+    export interface RequestEnvelope<T extends string = string, P = unknown> extends Envelope<T, P> {
+      kind: 'request'
+      payload: P
+    }
+    
+    export interface ResponseEnvelope<T extends string = string, R = unknown> extends Envelope<T, R> {
+      kind: 'response'
+    }
+    
+    export interface EventEnvelope<T extends string = string, P = unknown> extends Envelope<T, P> {
+      kind: 'event'
+      payload: P
+    }
+    
+    // ---------------------------------------------------------------- errors
+    
+    export type ProtocolErrorCode =
+      /** the request got no response within its timeout */
+      | 'timeout'
+      /** the caller aborted the request (AbortSignal) or the endpoint was disposed */
+      | 'cancelled'
+      /** peers speak different PROTOCOL_VERSIONs */
+      | 'version_mismatch'
+      /** structurally invalid message or payload */
+      | 'malformed'
+      /** no handler registered for this request type */
+      | 'unknown_type'
+      /** frame got an API request before `init` / host before `ready` */
+      | 'not_ready'
+      /** token missing/expired/rejected (HTTP 401) */
+      | 'unauthorized'
+      /** HTTP 403 */
+      | 'forbidden'
+      /** HTTP 404 */
+      | 'not_found'
+      /** the document changed on the server (HTTP 409 / 412 If-Match failed) */
+      | 'conflict'
+      /** HTTP 413 */
+      | 'too_large'
+      /** HTTP 429 */
+      | 'rate_limited'
+      /** fetch failed / offline */
+      | 'network'
+      /** capability not available in this deployment (e.g. AI on the web) */
+      | 'unsupported'
+      /** the same operation is already running (e.g. a second save while one is in flight); retry later */
+      | 'busy'
+      /** anything else (HTTP 5xx, thrown exceptions) */
+      | 'internal'
+    
+    export const PROTOCOL_ERROR_CODES: readonly ProtocolErrorCode[] = [
+      'timeout',
+      'cancelled',
+      'version_mismatch',
+      'malformed',
+      'unknown_type',
+      'not_ready',
+      'unauthorized',
+      'forbidden',
+      'not_found',
+      'conflict',
+      'too_large',
+      'rate_limited',
+      'network',
+      'unsupported',
+      'busy',
+      'internal',
+    ]
+    
+    /** The serialisable error carried in `Envelope.error` and the `error` event. */
+    export interface ProtocolErrorShape {
+      code: ProtocolErrorCode
+      /** developer-facing English text; UIs map `code` to i18n strings */
+      message: string
+      /** true when retrying the same request may succeed */
+      retryable?: boolean
+      /** originating HTTP status, when the error came from a UniWork API call */
+      status?: number
+      /** small, JSON-safe extra data (e.g. { remoteVersion: 2 }) */
+      details?: Record<string, unknown>
+    }
+    
+    /** Thrown/rejected by host.ts and client.ts. `instanceof`-checkable. */
+    export class DocsProtocolError extends Error implements ProtocolErrorShape {
+      readonly code: ProtocolErrorCode
+      readonly retryable?: boolean
+      readonly status?: number
+      readonly details?: Record<string, unknown>
+    
+      constructor(shape: ProtocolErrorShape) {
+        super(shape.message)
+        this.name = 'DocsProtocolError'
+        this.code = shape.code
+        if (shape.retryable !== undefined) this.retryable = shape.retryable
+        if (shape.status !== undefined) this.status = shape.status
+        if (shape.details !== undefined) this.details = shape.details
+      }
+    
+      toShape(): ProtocolErrorShape {
+        const out: ProtocolErrorShape = { code: this.code, message: this.message }
+        if (this.retryable !== undefined) out.retryable = this.retryable
+        if (this.status !== undefined) out.status = this.status
+        if (this.details !== undefined) out.details = this.details
+        return out
+      }
+    }
+    
+    /** Map an HTTP status from a UniWork API call to a protocol error. */
+    export function errorFromHttpStatus(status: number, message?: string): DocsProtocolError {
+      const code: ProtocolErrorCode =
+        status === 401
+          ? 'unauthorized'
+          : status === 403
+            ? 'forbidden'
+            : status === 404
+              ? 'not_found'
+              : status === 409 || status === 412
+                ? 'conflict'
+                : status === 413
+                  ? 'too_large'
+                  : status === 429
+                    ? 'rate_limited'
+                    : 'internal'
+      return new DocsProtocolError({
+        code,
+        message: message ?? `HTTP ${status}`,
+        status,
+        retryable: status === 429 || status >= 500,
+      })
+    }
+    
+    /** Normalise anything thrown by a handler into a protocol error. */
+    export function toProtocolError(err: unknown): DocsProtocolError {
+      if (err instanceof DocsProtocolError) return err
+      if (isProtocolErrorShape(err)) return new DocsProtocolError(err)
+      if (err instanceof Error) {
+        if (err.name === 'AbortError')
+          return new DocsProtocolError({ code: 'cancelled', message: err.message })
+        if (err.name === 'TypeError' && /fetch|network/i.test(err.message)) {
+          return new DocsProtocolError({ code: 'network', message: err.message, retryable: true })
+        }
+        return new DocsProtocolError({ code: 'internal', message: err.message })
+      }
+      return new DocsProtocolError({ code: 'internal', message: String(err) })
+    }
+    
+    // ---------------------------------------------------------------- shared payload types
+    
+    export type Theme = 'light' | 'dark'
+    
+    /**
+     * Which genoffice editor a frame bundle is (lane GO-B4/B5/B6, additive). One protocol serves every
+     * module; `ready.module` says what the frame is and `init.module` what the host opens in it. Absent
+     * on either side means 'docs' (frames and hosts from before the field existed).
+     */
+    export type OfficeModule = 'docs' | 'pdf' | 'markdown' | 'html' | 'slides' | 'sheets'
+    
+    export const OFFICE_MODULES: readonly OfficeModule[] = [
+      'docs',
+      'pdf',
+      'markdown',
+      'html',
+      'slides',
+      'sheets',
+    ]
+    
+    /** absent = 'docs' */
+    export const DEFAULT_OFFICE_MODULE: OfficeModule = 'docs'
+    
+    export function isOfficeModule(x: unknown): x is OfficeModule {
+      return typeof x === 'string' && (OFFICE_MODULES as readonly string[]).includes(x)
+    }
+    
+    /** the module a `ready` / `init` payload names (absent = 'docs') */
+    export function moduleOf(payload: { module?: OfficeModule } | null | undefined): OfficeModule {
+      return payload?.module ?? DEFAULT_OFFICE_MODULE
+    }
+    
+    /**
+     * Host-side check before `init`: does the frame that said `ready` run the editor for the
+     * document's module? Returns the `malformed` error to fail the handshake with, or null when they
+     * match. (A docs document never opens in the PDF frame, whatever URL the frame was loaded from.)
+     */
+    export function checkFrameModule(
+      ready: { module?: OfficeModule },
+      expected: OfficeModule,
+    ): DocsProtocolError | null {
+      const frame = moduleOf(ready)
+      if (frame === expected) return null
+      return new DocsProtocolError({
+        code: 'malformed',
+        message: `frame module "${frame}" cannot open a "${expected}" document`,
+        details: { frameModule: frame, expectedModule: expected },
+      })
+    }
+    
+    /** Feature switches the host grants the frame. Unknown keys must be ignored. */
+    export type Capability =
+      | 'save'
+      | 'saveAs'
+      | 'recents'
+      /** `file.pick` (File > Open / Ctrl+O): the host has a document picker */
+      | 'filePick'
+      | 'print'
+      | 'exportPdf'
+      | 'exportHtml'
+      | 'attachments'
+      | 'images'
+      /**
+       * AI panels (GO-A7 web AI contract, CONTRACT C16): the frame calls the frame-token AI routes
+       * itself (/office-frame/documents/{id}/ai/...). Grant it only when the org entitlement and those
+       * routes are live; without it every AI entry stays hidden.
+       */
+      | 'ai'
+      /** additive (C16): UniWork cloud web search for the AI tools; effective only together with `ai` */
+      | 'webSearch'
+      /** additive (C16): UniWork cloud image search for the AI tools; effective only together with `ai` */
+      | 'imageSearch'
+      /** additive (C16): UniWork cloud image generation (and media analysis); effective only with `ai` */
+      | 'imageGeneration'
+      /**
+       * additive (A7 contract): the host can run its own "Open in desktop app" flow for the frame's
+       * `app.open` request. Default false; granted only when the host's own action is available. Without
+       * it the frame shows the "use the app" message only.
+       */
+      | 'desktopOpen'
+      /**
+       * additive (X-02): the host installed `api.download` (it names, types, size-checks and delivers
+       * the frame's bytes itself). Advertise it in `init` only then; the frame offers a download only
+       * when the effective capabilities have it.
+       */
+      | 'download'
+      /**
+       * additive (X-02): UniWork AI (the cloud agent behind the org entitlement) in the frame's AI panel.
+       * The frame claims it once it has the adapter (G6-05); effective = host grant AND frame claim.
+       */
+      | 'uniworkAi'
+    
+    export type Capabilities = Partial<Record<Capability, boolean>>
+    
+    export const CAPABILITY_KEYS: readonly Capability[] = [
+      'save',
+      'saveAs',
+      'recents',
+      'filePick',
+      'print',
+      'exportPdf',
+      'exportHtml',
+      'attachments',
+      'images',
+      'ai',
+      'webSearch',
+      'imageSearch',
+      'imageGeneration',
+      'desktopOpen',
+      'download',
+      'uniworkAi',
+    ]
+    
+    /**
+     * How the frame reaches UniWork APIs.
+     * - 'host-proxy' (v1 default): the frame sends `api.*` requests over
+     *   postMessage; the host page performs the token-authorised fetches.
+     * - 'direct': the frame calls `apiBase` itself with
+     *   `Authorization: Bearer <token>` and `credentials: 'omit'` (for when the
+     *   frame moves to its own subdomain). Never cookies.
+     */
+    export type ApiMode = 'host-proxy' | 'direct'
+    
+    export interface TokenPayload {
+      /** short-lived, server-minted, scoped to one document + workspace */
+      token: string
+      /** absolute expiry, epoch milliseconds */
+      tokenExpiresAt: number
+    }
+    
+    export interface FileMeta {
+      /** UniWork file id (opaque) */
+      fileId: string
+      /** display name incl. extension, e.g. "Report.docx" */
+      name: string
+      sizeBytes?: number
+      mimeType?: string
+      /** server version id of the bytes being opened/saved */
+      versionId?: string
+      /** opaque concurrency token; sent back as If-Match on save */
+      etag?: string
+      /** last modification, epoch milliseconds */
+      modifiedAt?: number
+      /** false when the user may only view */
+      writable?: boolean
+      /**
+       * additive (X-02): the document revision of exactly these bytes, a decimal string (compare as
+       * BigInt, never as text). Absent from hosts before X-02: show no number then.
+       */
+      revision?: string
+    }
+    
+    /** Where the document bytes come from. */
+    export type FileSource =
+      /** signed, short-lived download URL; fetched with credentials: 'omit' */
+      | { kind: 'url'; url: string; headers?: Record<string, string> }
+      /** raw bytes (transferred, not copied, when possible) */
+      | { kind: 'bytes'; data: ArrayBuffer }
+    
+    // ---------------------------------------------------------------- handshake
+    
+    export interface ReadyPayload {
+      /** the frame's PROTOCOL_VERSION */
+      protocolVersion: number
+      /** build id of the frame bundle (W1 manifest version / SHA) */
+      frameVersion?: string
+      /** what the frame can do, before the host grants anything */
+      capabilities: Capabilities
+      /**
+       * random per frame-document id (additive). Every `ready` of one page load carries the
+       * same value; a different value while a handshake is in flight means the frame reloaded
+       * and the host restarts the handshake.
+       */
+      instanceId?: string
+      /** the editor this bundle runs (additive, GO-B4/B5/B6); absent = 'docs' */
+      module?: OfficeModule
+    }
+    
+    export interface InitPayload extends TokenPayload {
+      protocolVersion: number
+      documentId: string
+      workspaceId: string
+      /** absolute API origin + prefix, e.g. "https://app.uniwork.vn/api" */
+      apiBase: string
+      apiMode: ApiMode
+      /** BCP-47, e.g. "vi", "en" */
+      locale: string
+      theme: Theme
+      capabilities: Capabilities
+      /** optional: open this immediately (saves a round-trip vs. a later `open`) */
+      open?: OpenPayload
+      /**
+       * the document's module (additive, GO-B4/B5/B6); absent = 'docs'. A frame running another
+       * module refuses the `init` with `malformed`.
+       */
+      module?: OfficeModule
+      /**
+       * the signed-in user as editors show them (additive, GO-B4: PDF note author, comment author).
+       * Display data only, never an identity the frame may authorise with.
+       */
+      user?: InitUser
+      /**
+       * web draft recovery (additive, CONTRACT C18). Absent = recovery off (the frame shows nothing).
+       */
+      recovery?: InitRecovery
+      /**
+       * additive (X-02 r2b): the largest file, in bytes, the host's `api.download` accepts for this
+       * document. A positive safe integer; sent only together with the `download` capability. The
+       * frame disables its "download my version" choice up front when its version is larger (equal
+       * is allowed). Absent = the choice is disabled only after a `too_large` answer.
+       */
+      downloadMaxBytes?: number
+    }
+    
+    /**
+     * The host's draft-recovery grant: the frame encrypts its local IndexedDB draft copies
+     * ("uniwork-office-frame-drafts") with `key` and keys them by `scope`.
+     */
+    export interface InitRecovery {
+      /**
+       * AES-GCM 256, generated by the host with extractable=false and persisted per user in the
+       * frame-drafts IndexedDB ("keys" store, C18a), passed by structured clone (again in a later
+       * init after a reload)
+       */
+      key: CryptoKey
+      /** "<userId>:<documentId>", opaque to the frame */
+      scope: string
+    }
+    
+    export interface InitUser {
+      displayName: string
+    }
+    
+    export interface InitAck {
+      protocolVersion: number
+      frameVersion?: string
+      /** effective capabilities (frame ∩ host-granted) */
+      capabilities: Capabilities
+    }
+    
+    // ---------------------------------------------------------------- document payloads
+    
+    export interface OpenPayload {
+      file: FileMeta
+      source: FileSource
+      /**
+       * relative resource path (as written in the document, e.g. "assets/x.png") -> URL the frame may
+       * load it from (additive, GO-B4: Markdown/HTML documents with relative images). Same rules as
+       * `FileSource {kind:'url'}`: same-origin with the frame (CSP), fetched with credentials: 'omit'.
+       */
+      assets?: Record<string, string>
+    }
+    
+    export interface OpenResult {
+      /** the editor finished loading the document */
+      opened: true
+      /** document title as the editor shows it */
+      title?: string
+    }
+    
+    export interface SaveRequestPayload {
+      /** why the host asks: toolbar/shortcut, before navigating away, timer */
+      reason: 'user' | 'navigate' | 'autosave'
+    }
+    
+    export type SaveResult =
+      | {
+          ok: true
+          file: FileMeta
+          /** server version created by this save */
+          versionId?: string
+        }
+      | {
+          ok: false
+          /** nothing to save (not dirty) is ok:true with the current file instead */
+          error: ProtocolErrorShape
+        }
+    
+    export interface SaveAsRequestPayload {
+      /** suggested name; the host/user may change it */
+      name?: string
+    }
+    
+    export interface PrintPayload {
+      /** 'dialog' = window.print() inside the frame; 'pdf' = server export */
+      mode?: 'dialog' | 'pdf'
+    }
+    
+    // ---------------------------------------------------------------- API payloads (frame -> host, host-proxy mode)
+    
+    export interface ApiOpenPayload {
+      fileId: string
+      /**
+       * additive (X-02, OQ-P3): the version the frame wants (`doc.remoteVersion.version_id`). The host
+       * still answers with the head: when this version is no longer the head it sets
+       * `ApiOpenResult.versionChanged`; an unknown version or one of another document is refused with
+       * `not_found`. A host before X-02 ignores the key and answers the latest without `revision`.
+       */
+      versionId?: string
+    }
+    
+    /**
+     * The `api.open` answer: always the head, its bytes and its `file.revision` from one read (never
+     * an older version's bytes with the head revision).
+     */
+    export interface ApiOpenResult extends OpenPayload {
+      /** additive (X-02, OQ-P3): the asked `versionId` was no longer the head; requires `file.revision` */
+      versionChanged?: boolean
+    }
+    
+    /** a document revision on the wire: a non-negative decimal integer string */
+    export function isDecimalRevision(x: unknown): x is string {
+      return typeof x === 'string' && x.length <= 20 && /^(0|[1-9][0-9]*)$/.test(x)
+    }
+    
+    /**
+     * The revision the frame may show and save on after an `api.open`: the reply's own, never the one
+     * it asked for. null = a host before X-02 (no number: the "updated" bar without a revision).
+     */
+    export function openReplyRevision(reply: Pick<OpenPayload, 'file'>): string | null {
+      return isDecimalRevision(reply.file.revision) ? reply.file.revision : null
+    }
+    
+    export interface ApiSavePayload {
+      fileId: string
+      data: ArrayBuffer
+      /** last known etag; the host sends it as If-Match. Mismatch -> 'conflict' */
+      etag?: string
+      /** autosave/recovery write (no user-visible version bump if the server supports it) */
+      auto?: boolean
+    }
+    
+    export interface ApiSaveAsPayload {
+      name: string
+      data: ArrayBuffer
+      /** file this was derived from (folder/workspace defaulting) */
+      sourceFileId?: string
+      folderId?: string
+      /** true = first save of a new doc, server picks folder + unique name, no dialog */
+      silent?: boolean
+    }
+    
+    export interface ApiRecentsPayload {
+      limit?: number
+    }
+    
+    export interface ApiRecentsResult {
+      files: FileMeta[]
+    }
+    
+    export interface ApiExportPayload {
+      format: 'pdf' | 'html'
+      /** the stored file to export (its last saved version) ... */
+      fileId?: string
+      /**
+       * ... or the current in-editor docx bytes (transferred). The frame sends them
+       * when the document has unsaved edits (or was never saved). When present they
+       * take precedence over `fileId` (which then only identifies the document for
+       * naming / authorisation). Hosts without byte support ignore `data` and export
+       * `fileId`'s stored version.
+       */
+      data?: ArrayBuffer
+      html?: string
+      /** page geometry for server PDF rendering */
+      pageWidthTwips?: number
+      pageHeightTwips?: number
+      scale?: number
+      /** suggested download name */
+      name?: string
+    }
+    
+    export interface ApiExportResult {
+      data: ArrayBuffer
+      mimeType: string
+      name?: string
+    }
+    
+    /**
+     * additive (X-02): hand the open bytes to the host to download (send only with the `download`
+     * capability). Bytes only: the host picks the name, extension, MIME type and size limit, checks
+     * the permission and delivers them from its own origin. Refusals use existing codes
+     * (`malformed`, `too_large`, `forbidden`); a host before X-02 answers `unknown_type`.
+     */
+    export interface ApiDownloadPayload {
+      data: ArrayBuffer
+    }
+    
+    export interface ApiDownloadResult {
+      /** the host gave the file to the browser (not: the user saved it) */
+      delivered: true
+    }
+    
+    export interface UploadItem {
+      name: string
+      mimeType: string
+      data: ArrayBuffer
+    }
+    
+    export interface AttachmentMetaWeb {
+      attachmentId: string
+      name: string
+      /** lowercased extension without the dot */
+      ext: string
+      sizeBytes: number
+    }
+    
+    export interface ApiAttachmentsAddPayload {
+      files: UploadItem[]
+    }
+    
+    export interface ApiAttachmentsAddResult {
+      accepted: AttachmentMetaWeb[]
+      /** per-file rejection messages (too large / unsupported type) */
+      rejected: string[]
+    }
+    
+    export interface ApiImageUploadPayload extends UploadItem {
+      fileId?: string
+    }
+    
+    export interface ApiImageUploadResult {
+      imageId: string
+      /** URL usable in the editor (same-origin or signed) */
+      url: string
+    }
+    
+    // ---------------------------------------------------------------- event payloads
+    
+    export interface DirtyPayload {
+      dirty: boolean
+    }
+    
+    export interface TitlePayload {
+      title: string
+    }
+    
+    /**
+     * The frame opened / closed one of its own modal dialogs (save conflict, discard prompt, fatal
+     * notice). Its scrim only covers the iframe; a host may dim its own chrome around it while
+     * `open` is true. Advisory: hosts that ignore it lose nothing.
+     */
+    export interface ModalPayload {
+      open: boolean
+    }
+    
+    /**
+     * additive (X-02): a new version of a document was saved elsewhere. Field names are the server's.
+     * The frame ignores an event for another `document_id`; it reloads through `api.open` and takes
+     * the revision from that reply, never from this event.
+     */
+    export interface RemoteVersionPayload {
+      document_id: string
+      /** decimal string */
+      revision: string
+      version_id: string
+      /** ISO 8601 */
+      saved_at: string
+      /** only when the viewer may see members; absent = "a member" */
+      author_name?: string
+    }
+    
+    export type AiRunState = 'running' | 'idle'
+    
+    /**
+     * additive (X-02): an AI turn (UniWork AI, BYOK, CLI) started (`running`) or ended (`idle`, exactly
+     * once per turn). The emit rules and end paths live in EXPERIENCE.md › Foundation; a host treats the
+     * turn as idle when the frame unloads.
+     */
+    export interface AiRunPayload {
+      state: AiRunState
+      run_id?: string
+    }
+    
+    export interface ThemePayload {
+      theme: Theme
+    }
+    
+    export interface LanguagePayload {
+      locale: string
+    }
+    
+    export interface ResizePayload {
+      /** content height in CSS px (for hosts that size the iframe to content) */
+      height: number
+    }
+    
+    export interface SavedPayload {
+      file: FileMeta
+      versionId?: string
+      /** true when triggered by the frame (Ctrl+S / autosave), false for host `save` */
+      initiatedByFrame: boolean
+    }
+    
+    export interface ErrorEventPayload {
+      error: ProtocolErrorShape
+      /** the editor cannot continue; the host should show a fallback */
+      fatal: boolean
+    }
+    
+    export interface CancelPayload {
+      /** id of the request to cancel (sent by the requester) */
+      id: string
+    }
+    
+    // ---------------------------------------------------------------- additive (W3 needs, after b7c541f)
+    
+    export interface FilePickPayload {
+      /** what the picked file is for; the host may show a different picker per purpose */
+      purpose: 'open' | 'insert'
+      /** lowercased extensions without the dot, e.g. ["docx"] */
+      accept?: string[]
+    }
+    
+    export interface FilePickResult {
+      /** null when the user cancelled */
+      file: OpenPayload | null
+    }
+    
+    export interface ImageFetchPayload {
+      /** remote http(s) image URL; the host fetches it server-side (SSRF-guarded) */
+      url: string
+    }
+    
+    export interface ImageFetchResult {
+      /** null when the image could not be fetched */
+      image: { base64: string; mime: string } | null
+    }
+    
+    export interface AppOpenPayload {
+      /** short opaque tag (e.g. "pdf.ocr") for the host's own dev diagnostics; never shown, never sent to a server */
+      feature?: string
+    }
+    
+    /** launched = the browser tab hid after the deep link; installer = the install prompt opened; unavailable = no launch possible (the host shows its own alert) */
+    export type AppOpenOutcome = 'launched' | 'installer' | 'unavailable'
+    
+    export const APP_OPEN_OUTCOMES: readonly AppOpenOutcome[] = ['launched', 'installer', 'unavailable']
+    
+    export interface AppOpenResult {
+      outcome: AppOpenOutcome
+    }
+    
+    export interface ApiAssetsResolvePayload {
+      /** the open document (default: the document of the frame's token) */
+      fileId?: string
+      /** relative paths as written in the document ("assets/x.png", "./img/y.svg") (1..50) */
+      paths: string[]
+    }
+    
+    export interface ApiAssetsResolveResult {
+      /** path as sent -> URL, with the rules of `OpenPayload.assets`; a path that resolves to nothing is absent */
+      assets: Record<string, string>
+    }
+    
+    export interface ConvertAltChunkHtmlPayload {
+      html: string
+    }
+    
+    export interface ConvertAltChunkHtmlResult {
+      /** converted docx bytes, null when conversion is unavailable/failed */
+      data: ArrayBuffer | null
+    }
+    
+    export interface CloseCheckResult {
+      dirty: boolean
+      /** true when the frame will autosave by itself (no prompt needed) */
+      autoSave: boolean
+    }
+    
+    export interface FileRenamedPayload {
+      /** the document's new metadata (name changed elsewhere) */
+      file: FileMeta
+    }
+    
+    export interface TokenRefreshRequestPayload {
+      reason: 'expiring' | 'unauthorized'
+    }
+    
+    // ---------------------------------------------------------------- direction maps
+    
+    interface Rpc<P, R> {
+      payload: P
+      result: R
+    }
+    
+    /** Requests the host sends to the frame. */
+    export interface HostRequests {
+      init: Rpc<InitPayload, InitAck>
+      open: Rpc<OpenPayload, OpenResult>
+      save: Rpc<SaveRequestPayload, SaveResult>
+      saveAs: Rpc<SaveAsRequestPayload, SaveResult>
+      print: Rpc<PrintPayload, { printed: boolean }>
+      /** before closing/navigating: is there unsaved work? (then `save` with reason 'navigate') */
+      'doc.closeCheck': Rpc<Record<string, never>, CloseCheckResult>
+    }
+    
+    /** Events the host sends to the frame. */
+    export interface HostEvents {
+      /** proactive token rotation (host-initiated refresh) */
+      'token.update': TokenPayload
+      theme: ThemePayload
+      language: LanguagePayload
+      /** host aborts one of its own host->frame requests */
+      cancel: CancelPayload
+      /** the open document was renamed outside the editor */
+      'file.renamed': FileRenamedPayload
+      /** additive (X-02): a newer version was saved elsewhere; frames before X-02 have no listener */
+      'doc.remoteVersion': RemoteVersionPayload
+    }
+    
+    /** Requests the frame sends to the host. `api.*` are proxied to UniWork APIs. */
+    export interface FrameRequests {
+      'token.refresh': Rpc<TokenRefreshRequestPayload, TokenPayload>
+      'api.open': Rpc<ApiOpenPayload, ApiOpenResult>
+      'api.save': Rpc<ApiSavePayload, SaveResult>
+      'api.saveAs': Rpc<ApiSaveAsPayload, SaveResult>
+      'api.recents': Rpc<ApiRecentsPayload, ApiRecentsResult>
+      'api.export': Rpc<ApiExportPayload, ApiExportResult>
+      'api.attachments.add': Rpc<ApiAttachmentsAddPayload, ApiAttachmentsAddResult>
+      'api.images.upload': Rpc<ApiImageUploadPayload, ApiImageUploadResult>
+      /** UniWork file picker (desktop: native open dialog) */
+      'file.pick': Rpc<FilePickPayload, FilePickResult>
+      /** fetch a remote image for insertion (frame CSP blocks arbitrary origins) */
+      'image.fetch': Rpc<ImageFetchPayload, ImageFetchResult>
+      /** HTML altChunk -> docx bytes (desktop: main-process converter) */
+      'convert.altChunkHtml': Rpc<ConvertAltChunkHtmlPayload, ConvertAltChunkHtmlResult>
+      /** additive (A7): run the host's "Open in desktop app" flow; send only with the `desktopOpen` capability */
+      'app.open': Rpc<AppOpenPayload, AppOpenResult>
+      /**
+       * additive (A1b, Markdown/HTML frames): fresh URLs for relative paths as written in the document
+       * (typed after the open, or the open answer's URLs about to expire). An old host answers
+       * `unsupported`; the frame keeps the URLs it has.
+       */
+      'api.assets.resolve': Rpc<ApiAssetsResolvePayload, ApiAssetsResolveResult>
+      /** additive (X-02): download the open bytes; send only with the `download` capability */
+      'api.download': Rpc<ApiDownloadPayload, ApiDownloadResult>
+    }
+    
+    /** Events the frame sends to the host. */
+    export interface FrameEvents {
+      /** handshake: the frame booted and listens; the host answers with `init` */
+      ready: ReadyPayload
+      dirty: DirtyPayload
+      title: TitlePayload
+      /** additive (UNI-1013 F4): a frame modal is open / closed */
+      modal: ModalPayload
+      resize: ResizePayload
+      saved: SavedPayload
+      error: ErrorEventPayload
+      /** frame aborts a frame->host request */
+      cancel: CancelPayload
+      /** additive (X-02): an AI turn started / ended; hosts before X-02 have no listener */
+      aiRun: AiRunPayload
+    }
+    
+    export type HostRequestType = keyof HostRequests
+    export type HostEventType = keyof HostEvents
+    export type FrameRequestType = keyof FrameRequests
+    export type FrameEventType = keyof FrameEvents
+    
+    /** Every typed message the host may send. */
+    export type HostToFrameMessage =
+      | { [K in HostRequestType]: RequestEnvelope<K, HostRequests[K]['payload']> }[HostRequestType]
+      | { [K in FrameRequestType]: ResponseEnvelope<K, FrameRequests[K]['result']> }[FrameRequestType]
+      | { [K in HostEventType]: EventEnvelope<K, HostEvents[K]> }[HostEventType]
+    
+    /** Every typed message the frame may send. */
+    export type FrameToHostMessage =
+      | { [K in FrameRequestType]: RequestEnvelope<K, FrameRequests[K]['payload']> }[FrameRequestType]
+      | { [K in HostRequestType]: ResponseEnvelope<K, HostRequests[K]['result']> }[HostRequestType]
+      | { [K in FrameEventType]: EventEnvelope<K, FrameEvents[K]> }[FrameEventType]
+    
+    export type ProtocolMessage = HostToFrameMessage | FrameToHostMessage
+    
+    // Record<K, true> makes a missing/extra type a compile error; the arrays are derived.
+    const HOST_REQUESTS: Record<HostRequestType, true> = {
+      init: true,
+      open: true,
+      save: true,
+      saveAs: true,
+      print: true,
+      'doc.closeCheck': true,
+    }
+    const HOST_EVENTS: Record<HostEventType, true> = {
+      'token.update': true,
+      theme: true,
+      language: true,
+      cancel: true,
+      'file.renamed': true,
+      'doc.remoteVersion': true,
+    }
+    const FRAME_REQUESTS: Record<FrameRequestType, true> = {
+      'token.refresh': true,
+      'api.open': true,
+      'api.save': true,
+      'api.saveAs': true,
+      'api.recents': true,
+      'api.export': true,
+      'api.attachments.add': true,
+      'api.images.upload': true,
+      'file.pick': true,
+      'image.fetch': true,
+      'convert.altChunkHtml': true,
+      'app.open': true,
+      'api.assets.resolve': true,
+      'api.download': true,
+    }
+    const FRAME_EVENTS: Record<FrameEventType, true> = {
+      ready: true,
+      dirty: true,
+      title: true,
+      modal: true,
+      resize: true,
+      saved: true,
+      error: true,
+      cancel: true,
+      aiRun: true,
+    }
+    export const HOST_REQUEST_TYPES = Object.keys(HOST_REQUESTS) as readonly HostRequestType[]
+    export const HOST_EVENT_TYPES = Object.keys(HOST_EVENTS) as readonly HostEventType[]
+    export const FRAME_REQUEST_TYPES = Object.keys(FRAME_REQUESTS) as readonly FrameRequestType[]
+    export const FRAME_EVENT_TYPES = Object.keys(FRAME_EVENTS) as readonly FrameEventType[]
+    
+    // ---------------------------------------------------------------- runtime validation (hand-written, no deps)
+    
+    type Obj = Record<string, unknown>
+    
+    const MAX_ID_LENGTH = 128
+    const MAX_TYPE_LENGTH = 64
+    
+    function isObj(x: unknown): x is Obj {
+      return typeof x === 'object' && x !== null && !Array.isArray(x)
+    }
+    function isStr(x: unknown): x is string {
+      return typeof x === 'string'
+    }
+    function isNonEmptyStr(x: unknown): x is string {
+      return typeof x === 'string' && x.length > 0
+    }
+    function isFiniteNum(x: unknown): x is number {
+      return typeof x === 'number' && Number.isFinite(x)
+    }
+    function isPositiveSafeInt(x: unknown): x is number {
+      return typeof x === 'number' && Number.isSafeInteger(x) && x > 0
+    }
+    function isBool(x: unknown): x is boolean {
+      return typeof x === 'boolean'
+    }
+    function isOpt<T>(x: unknown, guard: (y: unknown) => y is T): boolean {
+      return x === undefined || guard(x)
+    }
+    function isBuffer(x: unknown): x is ArrayBuffer {
+      return x instanceof ArrayBuffer || Object.prototype.toString.call(x) === '[object ArrayBuffer]'
+    }
+    function isTheme(x: unknown): x is Theme {
+      return x === 'light' || x === 'dark'
+    }
+    
+    export function isProtocolErrorShape(x: unknown): x is ProtocolErrorShape {
+      return (
+        isObj(x) &&
+        isStr(x.code) &&
+        (PROTOCOL_ERROR_CODES as readonly string[]).includes(x.code) &&
+        isStr(x.message) &&
+        isOpt(x.retryable, isBool) &&
+        isOpt(x.status, isFiniteNum) &&
+        isOpt(x.details, isObj)
+      )
+    }
+    
+    export function isCapabilities(x: unknown): x is Capabilities {
+      // unknown keys are tolerated (additive evolution) but every value must be boolean
+      return isObj(x) && Object.values(x).every(isBool)
+    }
+    
+    export function isTokenPayload(x: unknown): x is TokenPayload {
+      return isObj(x) && isNonEmptyStr(x.token) && isFiniteNum(x.tokenExpiresAt)
+    }
+    
+    export function isFileMeta(x: unknown): x is FileMeta {
+      return (
+        isObj(x) &&
+        isNonEmptyStr(x.fileId) &&
+        isStr(x.name) &&
+        isOpt(x.sizeBytes, isFiniteNum) &&
+        isOpt(x.mimeType, isStr) &&
+        isOpt(x.versionId, isStr) &&
+        isOpt(x.etag, isStr) &&
+        isOpt(x.modifiedAt, isFiniteNum) &&
+        isOpt(x.writable, isBool) &&
+        isOpt(x.revision, isDecimalRevision)
+      )
+    }
+    
+    export function isFileSource(x: unknown): x is FileSource {
+      if (!isObj(x)) return false
+      if (x.kind === 'url') {
+        return (
+          isNonEmptyStr(x.url) &&
+          (x.headers === undefined || (isObj(x.headers) && Object.values(x.headers).every(isStr)))
+        )
+      }
+      return x.kind === 'bytes' && isBuffer(x.data)
+    }
+    
+    function isAssetMap(x: unknown): x is Record<string, string> {
+      return isObj(x) && Object.entries(x).every(([k, v]) => k.length > 0 && isNonEmptyStr(v))
+    }
+    
+    export function isOpenPayload(x: unknown): x is OpenPayload {
+      return isObj(x) && isFileMeta(x.file) && isFileSource(x.source) && isOpt(x.assets, isAssetMap)
+    }
+    
+    function isInitUser(x: unknown): x is InitUser {
+      return isObj(x) && isStr(x.displayName)
+    }
+    
+    export function isInitRecovery(x: unknown): x is InitRecovery {
+      return (
+        isObj(x) &&
+        typeof CryptoKey !== 'undefined' &&
+        x.key instanceof CryptoKey &&
+        isNonEmptyStr(x.scope)
+      )
+    }
+    
+    export function isReadyPayload(x: unknown): x is ReadyPayload {
+      return (
+        isObj(x) &&
+        isFiniteNum(x.protocolVersion) &&
+        isOpt(x.frameVersion, isStr) &&
+        isCapabilities(x.capabilities) &&
+        isOpt(x.instanceId, isStr) &&
+        isOpt(x.module, isOfficeModule)
+      )
+    }
+    
+    export function isInitPayload(x: unknown): x is InitPayload {
+      return (
+        isTokenPayload(x) &&
+        isObj(x) &&
+        isFiniteNum(x.protocolVersion) &&
+        isNonEmptyStr(x.documentId) &&
+        isNonEmptyStr(x.workspaceId) &&
+        isNonEmptyStr(x.apiBase) &&
+        (x.apiMode === 'host-proxy' || x.apiMode === 'direct') &&
+        isNonEmptyStr(x.locale) &&
+        isTheme(x.theme) &&
+        isCapabilities(x.capabilities) &&
+        isOpt(x.open, isOpenPayload) &&
+        isOpt(x.module, isOfficeModule) &&
+        isOpt(x.user, isInitUser) &&
+        isOpt(x.recovery, isInitRecovery) &&
+        isOpt(x.downloadMaxBytes, isPositiveSafeInt)
+      )
+    }
+    
+    export function isInitAck(x: unknown): x is InitAck {
+      return (
+        isObj(x) &&
+        isFiniteNum(x.protocolVersion) &&
+        isOpt(x.frameVersion, isStr) &&
+        isCapabilities(x.capabilities)
+      )
+    }
+    
+    export function isSaveResult(x: unknown): x is SaveResult {
+      if (!isObj(x)) return false
+      if (x.ok === true) return isFileMeta(x.file) && isOpt(x.versionId, isStr)
+      return x.ok === false && isProtocolErrorShape(x.error)
+    }
+    
+    function isUploadItem(x: unknown): x is UploadItem {
+      return isObj(x) && isStr(x.name) && isStr(x.mimeType) && isBuffer(x.data)
+    }
+    
+    const anyObj = (x: unknown): boolean => isObj(x)
+    
+    /**
+     * Payload validators keyed by `${kind}:${type}`. Request/event entries check
+     * `payload`; response entries check a successful response's `payload`.
+     * Types without an entry only need an object payload.
+     */
+    const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
+      // host -> frame requests
+      'request:init': isInitPayload,
+      'request:open': isOpenPayload,
+      'request:save': (x) =>
+        isObj(x) && (x.reason === 'user' || x.reason === 'navigate' || x.reason === 'autosave'),
+      'request:saveAs': (x) => isObj(x) && isOpt(x.name, isStr),
+      'request:print': (x) =>
+        isObj(x) && (x.mode === undefined || x.mode === 'dialog' || x.mode === 'pdf'),
+      'request:doc.closeCheck': (x) => isObj(x),
+      // host -> frame events
+      'event:file.renamed': (x) => isObj(x) && isFileMeta(x.file),
+      'event:token.update': isTokenPayload,
+      'event:theme': (x) => isObj(x) && isTheme(x.theme),
+      'event:language': (x) => isObj(x) && isNonEmptyStr(x.locale),
+      'event:cancel': (x) => isObj(x) && isNonEmptyStr(x.id),
+      'event:doc.remoteVersion': (x) =>
+        isObj(x) &&
+        isNonEmptyStr(x.document_id) &&
+        isDecimalRevision(x.revision) &&
+        isNonEmptyStr(x.version_id) &&
+        isNonEmptyStr(x.saved_at) &&
+        isOpt(x.author_name, isStr),
+      // frame -> host requests
+      'request:token.refresh': (x) =>
+        isObj(x) && (x.reason === 'expiring' || x.reason === 'unauthorized'),
+      'request:api.open': (x) =>
+        isObj(x) && isNonEmptyStr(x.fileId) && isOpt(x.versionId, isNonEmptyStr),
+      'request:api.save': (x) =>
+        isObj(x) &&
+        isNonEmptyStr(x.fileId) &&
+        isBuffer(x.data) &&
+        isOpt(x.etag, isStr) &&
+        isOpt(x.auto, isBool),
+      'request:api.saveAs': (x) =>
+        isObj(x) &&
+        isNonEmptyStr(x.name) &&
+        isBuffer(x.data) &&
+        isOpt(x.sourceFileId, isStr) &&
+        isOpt(x.folderId, isStr) &&
+        isOpt(x.silent, isBool),
+      'request:api.recents': (x) => isObj(x) && isOpt(x.limit, isFiniteNum),
+      'request:api.export': (x) =>
+        isObj(x) &&
+        (x.format === 'pdf' || x.format === 'html') &&
+        isOpt(x.fileId, isStr) &&
+        isOpt(x.data, isBuffer) &&
+        isOpt(x.html, isStr),
+      'request:api.attachments.add': (x) =>
+        isObj(x) && Array.isArray(x.files) && x.files.every(isUploadItem),
+      'request:api.images.upload': (x) => isObj(x) && isUploadItem(x) && isOpt(x.fileId, isStr),
+      'request:file.pick': (x) =>
+        isObj(x) &&
+        (x.purpose === 'open' || x.purpose === 'insert') &&
+        (x.accept === undefined || (Array.isArray(x.accept) && x.accept.every(isStr))),
+      'request:image.fetch': (x) => isObj(x) && isNonEmptyStr(x.url) && /^https?:\/\//i.test(x.url),
+      'request:convert.altChunkHtml': (x) => isObj(x) && isStr(x.html),
+      'request:app.open': (x) => isObj(x) && isOpt(x.feature, isStr),
+      'request:api.assets.resolve': (x) =>
+        isObj(x) &&
+        isOpt(x.fileId, isStr) &&
+        Array.isArray(x.paths) &&
+        x.paths.length >= 1 &&
+        x.paths.length <= 50 &&
+        x.paths.every(isNonEmptyStr),
+      'request:api.download': (x) => isObj(x) && isBuffer(x.data),
+      // frame -> host events
+      'event:ready': isReadyPayload,
+      'event:dirty': (x) => isObj(x) && isBool(x.dirty),
+      'event:title': (x) => isObj(x) && isStr(x.title),
+      'event:modal': (x) => isObj(x) && isBool(x.open),
+      'event:resize': (x) => isObj(x) && isFiniteNum(x.height) && x.height >= 0,
+      'event:saved': (x) =>
+        isObj(x) && isFileMeta(x.file) && isOpt(x.versionId, isStr) && isBool(x.initiatedByFrame),
+      'event:error': (x) => isObj(x) && isProtocolErrorShape(x.error) && isBool(x.fatal),
+      'event:aiRun': (x) =>
+        isObj(x) && (x.state === 'running' || x.state === 'idle') && isOpt(x.run_id, isNonEmptyStr),
+      // successful responses
+      'response:init': isInitAck,
+      'response:open': (x) => isObj(x) && x.opened === true && isOpt(x.title, isStr),
+      'response:save': isSaveResult,
+      'response:saveAs': isSaveResult,
+      'response:print': (x) => isObj(x) && isBool(x.printed),
+      'response:token.refresh': isTokenPayload,
+      'response:api.open': (x) =>
+        isObj(x) &&
+        isOpenPayload(x) &&
+        isOpt(x.versionChanged, isBool) &&
+        // a "the version changed" answer always says which revision it carries
+        (x.versionChanged !== true || x.file.revision !== undefined),
+      'response:api.save': isSaveResult,
+      'response:api.saveAs': isSaveResult,
+      'response:api.recents': (x) => isObj(x) && Array.isArray(x.files) && x.files.every(isFileMeta),
+      'response:api.export': (x) =>
+        isObj(x) && isBuffer(x.data) && isStr(x.mimeType) && isOpt(x.name, isStr),
+      'response:api.attachments.add': (x) =>
+        isObj(x) &&
+        Array.isArray(x.accepted) &&
+        x.accepted.every(anyObj) &&
+        Array.isArray(x.rejected) &&
+        x.rejected.every(isStr),
+      'response:api.images.upload': (x) => isObj(x) && isNonEmptyStr(x.imageId) && isNonEmptyStr(x.url),
+      'response:doc.closeCheck': (x) => isObj(x) && isBool(x.dirty) && isBool(x.autoSave),
+      'response:file.pick': (x) => isObj(x) && (x.file === null || isOpenPayload(x.file)),
+      'response:image.fetch': (x) =>
+        isObj(x) &&
+        (x.image === null || (isObj(x.image) && isStr(x.image.base64) && isStr(x.image.mime))),
+      'response:api.assets.resolve': (x) => isObj(x) && isAssetMap(x.assets),
+      'response:app.open': (x) =>
+        isObj(x) && isStr(x.outcome) && (APP_OPEN_OUTCOMES as readonly string[]).includes(x.outcome),
+      'response:convert.altChunkHtml': (x) => isObj(x) && (x.data === null || isBuffer(x.data)),
+      'response:api.download': (x) => isObj(x) && x.delivered === true,
+    }
+    
+    /** Outcome of `parseEnvelope`. */
+    export type ParseResult =
+      | { ok: true; message: Envelope }
+      /** not our traffic at all (no/other `ns`); drop silently */
+      | { ok: false; reason: 'foreign' }
+      /** ours but structurally invalid; `partial` carries id/kind/type when readable */
+      | { ok: false; reason: 'malformed'; detail: string; partial?: Partial<Envelope> }
+      /** well-formed envelope from a peer on another PROTOCOL_VERSION */
+      | { ok: false; reason: 'version_mismatch'; message: Envelope }
+    
+    /** True for anything carrying our namespace tag, valid or not. */
+    export function isOwnTraffic(data: unknown): boolean {
+      return isObj(data) && data.ns === PROTOCOL_NS
+    }
+    
+    /**
+     * Validate an incoming `MessageEvent.data`. Checks the envelope, the version,
+     * and (for known types) the payload shape. Unknown `type`s pass so the
+     * endpoint can answer them with `unknown_type`.
+     */
+    export function parseEnvelope(data: unknown): ParseResult {
+      if (!isOwnTraffic(data)) return { ok: false, reason: 'foreign' }
+      const d = data as Obj
+      const partial: Partial<Envelope> = {}
+      if (isNonEmptyStr(d.id) && d.id.length <= MAX_ID_LENGTH) partial.id = d.id
+      if (d.kind === 'request' || d.kind === 'response' || d.kind === 'event') partial.kind = d.kind
+      if (isNonEmptyStr(d.type) && d.type.length <= MAX_TYPE_LENGTH) partial.type = d.type
+      const bad = (detail: string): ParseResult => ({ ok: false, reason: 'malformed', detail, partial })
+    
+      if (!isFiniteNum(d.v) || !Number.isInteger(d.v) || d.v < 1) return bad('missing or invalid v')
+      if (partial.id === undefined) return bad('missing or invalid id')
+      if (partial.kind === undefined) return bad('missing or invalid kind')
+      if (partial.type === undefined) return bad('missing or invalid type')
+      if (d.error !== undefined && (partial.kind !== 'response' || !isProtocolErrorShape(d.error))) {
+        return bad('invalid error')
+      }
+    
+      const message: Envelope = {
+        ns: PROTOCOL_NS,
+        v: d.v,
+        id: partial.id,
+        kind: partial.kind,
+        type: partial.type,
+      }
+      if ('payload' in d) message.payload = d.payload
+      if (d.error !== undefined) message.error = d.error as ProtocolErrorShape
+    
+      if (d.v !== PROTOCOL_VERSION) return { ok: false, reason: 'version_mismatch', message }
+    
+      if (message.kind !== 'response' || message.error === undefined) {
+        const validate = PAYLOAD_VALIDATORS[`${message.kind}:${message.type}`]
+        if (validate ? !validate(message.payload) : !isObj(message.payload)) {
+          return bad(`invalid payload for ${message.kind} ${message.type}`)
+        }
+      }
+      return { ok: true, message }
+    }
+    
+    /** Type guards over a parsed envelope. */
+    export function isRequest(m: Envelope): m is RequestEnvelope {
+      return m.kind === 'request'
+    }
+    export function isResponse(m: Envelope): m is ResponseEnvelope {
+      return m.kind === 'response'
+    }
+    export function isEvent(m: Envelope): m is EventEnvelope {
+      return m.kind === 'event'
+    }
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:152:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 4
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 50.910387
+RED_EXIT endpoint=1 host=1 vendor=1
+RED_AS_EXPECTED_D
