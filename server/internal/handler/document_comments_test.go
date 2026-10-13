@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
@@ -34,6 +36,7 @@ import (
 // outsider who is in no organization at all.
 type documentCollabWorld struct {
 	srv      *httptest.Server
+	pool     *pgxpool.Pool
 	docs     *service.DocumentService
 	q        *db.Queries
 	orgID    string
@@ -78,7 +81,7 @@ func newDocumentCollabWorld(t *testing.T) *documentCollabWorld {
 		testFlagOverrides.Invalidate()
 	}
 
-	w := &documentCollabWorld{srv: srv, docs: docs, q: q}
+	w := &documentCollabWorld{srv: srv, docs: docs, q: q, pool: pool}
 	w.token, w.userID = filesRegister(t, srv, "collab-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Collab Org", "slug": "collab-org"})
 	if res.StatusCode != 201 {
