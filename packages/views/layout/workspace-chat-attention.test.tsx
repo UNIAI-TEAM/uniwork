@@ -182,6 +182,10 @@ describe("WorkspaceChatAttention", () => {
       releaseList({ workspaces: [workspace] });
       await listLoaded;
     });
+    // Let the effect take what loaded meanwhile as the backlog before the next row arrives.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
     notifications = [dm("newer", "2026-10-09T03:00:00Z"), ...notifications];
     await act(async () => {
       await client.invalidateQueries({ queryKey: ["notifications"] });
