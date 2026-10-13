@@ -1,0 +1,122 @@
+$ git checkout 8a1b39adf -- packages/views/office/frame/use-docs-frame-session.ts packages/core/office/docs-frame-protocol.ts; (cd packages/views && pnpm vitest run office/frame/use-docs-frame-session.test.tsx); A=$?; (node --test scripts/office/frame-protocol-vendor.test.mjs); B=$?; git checkout HEAD -- packages; git status --short packages; echo "RED_EXIT host=$A vendor=$B"; test $A -ne 0 && echo RED_AS_EXPECTED_HOST
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+
+ ❯ office/frame/use-docs-frame-session.test.tsx (33 tests | 1 failed) 1867ms
+     × sends the download cap in init exactly when download is advertised, the same constant api.download enforces 60ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  office/frame/use-docs-frame-session.test.tsx > useDocsFrameSession: api.download > sends the download cap in init exactly when download is advertised, the same constant api.download enforces
+AssertionError: expected undefined to be 52428800 // Object.is equality
+
+- Expected:
+52428800
+
++ Received:
+undefined
+
+ ❯ office/frame/use-docs-frame-session.test.tsx:424:41
+    422|     const editorInit = editor.sent("init")[0]?.payload as { capabiliti…
+    423|     expect(editorInit.capabilities.download).toBe(true);
+    424|     expect(editorInit.downloadMaxBytes).toBe(OFFICE_FRAME_DOWNLOAD_MAX…
+       |                                         ^
+    425|     editor.hook.unmount();
+    426|     document.body.innerHTML = "";
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 32 passed (33)
+   Start at  03:56:35
+   Duration  2.76s (transform 409ms, setup 308ms, import 254ms, tests 1.87s, environment 237ms)
+
+TAP version 13
+# Subtest: normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+ok 1 - normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+  ---
+  duration_ms: 0.607765
+  ...
+# Subtest: a CRLF copy of each vendored file normalises to the same hash as the LF file
+ok 2 - a CRLF copy of each vendored file normalises to the same hash as the LF file
+  ---
+  duration_ms: 2.19683
+  ...
+# Subtest: every frame pin records the same protocolSha256, equal to the vendored protocol
+ok 3 - every frame pin records the same protocolSha256, equal to the vendored protocol
+  ---
+  duration_ms: 1.657699
+  ...
+# Subtest: the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+not ok 4 - the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+  ---
+  duration_ms: 0.796043
+  location: '/workspace/scripts/office/frame-protocol-vendor.test.mjs:120:1'
+  failureType: 'testCodeFailure'
+  error: 'InitPayload declares an optional downloadMaxBytes'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    export interface InitPayload extends TokenPayload {
+      protocolVersion: number
+      documentId: string
+      workspaceId: string
+      /** absolute API origin + prefix, e.g. "https://app.uniwork.vn/api" */
+      apiBase: string
+      apiMode: ApiMode
+      /** BCP-47, e.g. "vi", "en" */
+      locale: string
+      theme: Theme
+      capabilities: Capabilities
+      /** optional: open this immediately (saves a round-trip vs. a later `open`) */
+      open?: OpenPayload
+      /**
+       * the document's module (additive, GO-B4/B5/B6); absent = 'docs'. A frame running another
+       * module refuses the `init` with `malformed`.
+       */
+      module?: OfficeModule
+      /**
+       * the signed-in user as editors show them (additive, GO-B4: PDF note author, comment author).
+       * Display data only, never an identity the frame may authorise with.
+       */
+      user?: InitUser
+      /**
+       * web draft recovery (additive, CONTRACT C18). Absent = recovery off (the frame shows nothing).
+       */
+      recovery?: InitRecovery
+    }
+    
+    /**
+     * The host's draft-recovery grant: the frame encrypts its local IndexedDB draft copies
+     * ("uniwork-office-frame-drafts") with `key` and keys them by `scope`.
+     */
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:123:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 47.783622
+RED_EXIT host=1 vendor=1
+RED_AS_EXPECTED_HOST

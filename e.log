@@ -1,0 +1,1 @@
+$ (cd packages/views && pnpm exec eslint --max-warnings 0 office/frame/use-docs-frame-session.ts office/frame/use-docs-frame-session.test.tsx); (cd packages/core && pnpm exec eslint --max-warnings 0 office/docs-frame-protocol.ts)

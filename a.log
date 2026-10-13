@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -4
+12e32de353c73abfa914fa5a27cc580cd78f1935
+8a1b39adf60ddb0206245a9b25b78afddfe5d9d4
+12e32de35 test(office): pin no download cap for a token without can_edit, drop the re-typed 50 MiB literal
+18f7c1add feat(office): send the download cap in init with the download capability
+c70460f28 test(office): pin downloadMaxBytes in the vendored frame protocol
+4b0a25a69 test(office): pin init.downloadMaxBytes on the frame host

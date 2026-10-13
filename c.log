@@ -1,0 +1,6 @@
+$ pnpm --filter @uniwork/views --filter @uniwork/core typecheck
+Scope: 2 of 12 workspace projects
+packages/core typecheck$ tsc --noEmit
+packages/core typecheck: Done
+packages/views typecheck$ tsc --noEmit
+packages/views typecheck: Done
