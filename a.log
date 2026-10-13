@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -6
+e5708e53c9cb3494ea355f34825cefdd9b835280
+e5708e53c chore(office): re-pin the six office frames to web-0.1.0-811107c
+8a3169a76 Merge G8-10 web Comments and Discussion panel into the G5-G7 root (UNI-1405)
+77d0f1876 Merge G5-03w new-version host and doc.blocked into the G5-G7 root (UNI-1351)
+277889c8f test(documents): pin the comments panel rows the first pass left unproven
+d86894dc3 test(e2e): match the Edit menu item exactly
+6fe106a13 fix(office): give the page its comments panel back when the editor frame unmounts
