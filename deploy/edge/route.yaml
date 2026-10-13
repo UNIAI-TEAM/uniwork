@@ -29,7 +29,7 @@ spec:
     - name: uniwork-mcp
       priority: 210
       match:
-        hosts: [uniwork.unicomhub.com]
+        hosts: [uniworkos.com]
         paths:
           - /mcp
           - /oauth/*
