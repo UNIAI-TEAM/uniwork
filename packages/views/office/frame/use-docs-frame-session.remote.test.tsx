@@ -6,7 +6,8 @@ import { ApiError } from "@uniwork/core/api/http";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
-import { useDocsFrameSession, type DocsFrameSessionOptions } from "./use-docs-frame-session";
+import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
+import { useDocsFrameSession } from "./use-docs-frame-session";
 
 // G5-03w, host side: doc.remoteVersion, the api.open revision (OQ-P3), aiRun per frame, and the
 // revoke/delete block. The realtime socket and the office_sync_feed flag are faked here; the
