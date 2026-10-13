@@ -1,0 +1,105 @@
+$ git checkout 4c0f1d82 -- apps/shell/src/main/uniwork-docs/launch.ts apps/shell/src/main/uniwork-docs/parse.ts apps/shell/src/main/uniwork-docs/service.ts apps/shell/src/main/uniwork-docs/wiring.ts packages/electron-utils/src/index.ts packages/electron-utils/package.json; rm -f apps/shell/src/main/uniwork-docs/comments.ts apps/shell/src/main/uniwork-docs/comments-wiring.ts packages/electron-utils/src/comments-ipc.ts packages/electron-utils/src/comments-bridge.ts packages/electron-utils/src/comments-poll.ts; (cd apps/shell && npx vitest run tests/uniwork-comments.test.ts tests/uniwork-comments-preload.test.ts tests/uniwork-docs-launch.test.ts); A=$?; (cd packages/electron-utils && npx vitest run tests/comments-ipc.test.ts); B=$?; git checkout HEAD -- apps packages; git status --short apps packages; echo "RED_EXIT shell=$A utils=$B"; test $A -ne 0 -a $B -ne 0 && echo RED_AS_EXPECTED_DESKTOP
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ❯ tests/uniwork-comments.test.ts (0 test)
+ ❯ tests/uniwork-comments-preload.test.ts (0 test)
+ ❯ tests/uniwork-docs-launch.test.ts (56 tests | 2 failed) 45ms
+     × keeps a valid comment_id from the ticket and ignores a malformed one 5ms
+     × a ticket naming a comment reveals it after the editor is ready 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-comments-preload.test.ts [ tests/uniwork-comments-preload.test.ts ]
+ FAIL  tests/uniwork-comments.test.ts [ tests/uniwork-comments.test.ts ]
+Error: Missing "./comments-ipc" specifier in "@genoffice/electron-utils" package
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/apps/shell/tests/uniwork-comments-preload.test.ts:12:0
+  25 |  }));
+  26 |  vi.mock("@genoffice/electron-utils/drop-open", () => ({ installDropOpenBridge: () => void 0 }));
+  27 |  const __vi_import_0__ = await import("@genoffice/electron-utils/comments-ipc");
+     |                                       ^
+  28 |  const __vi_import_1__ = await import("../src/main/uniwork-docs/comments-wiring");
+  29 |  const __vi_import_2__ = await import("./fixtures/comments-fake-server");
+ ❯ e ../../node_modules/vite/dist/node/chunks/config.js:6667:8
+ ❯ n ../../node_modules/vite/dist/node/chunks/config.js:6679:14
+ ❯ o ../../node_modules/vite/dist/node/chunks/config.js:6707:10
+ ❯ resolveExportsOrImports ../../node_modules/vite/dist/node/chunks/config.js:32907:45
+ ❯ resolveDeepImport ../../node_modules/vite/dist/node/chunks/config.js:32921:22
+ ❯ tryNodeResolve ../../node_modules/vite/dist/node/chunks/config.js:32796:70
+ ❯ ResolveIdContext.handler ../../node_modules/vite/dist/node/chunks/config.js:32635:16
+ ❯ EnvironmentPluginContainer.resolveId ../../node_modules/vite/dist/node/chunks/config.js:28797:56
+ ❯ TransformPluginContext.resolve ../../node_modules/vite/dist/node/chunks/config.js:29009:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-docs-launch.test.ts > exchange receipt > keeps a valid comment_id from the ticket and ignores a malformed one
+AssertionError: expected undefined to be '01J8X4CMTN0N1P2Q3R4S5T6U7' // Object.is equality
+
+- Expected:
+"01J8X4CMTN0N1P2Q3R4S5T6U7"
+
++ Received:
+undefined
+
+ ❯ tests/uniwork-docs-launch.test.ts:311:86
+    309|   it('keeps a valid comment_id from the ticket and ignores a malformed…
+    310|     const CMT = '01J8X4CMTN0N1P2Q3R4S5T6U7'
+    311|     expect(parseExchange({ ...EXCHANGE.valid_response, comment_id: CMT…
+       |                                                                                      ^
+    312|     // the server drops a bad comment silently; the client never inven…
+    313|     expect(parseExchange({ ...EXCHANGE.valid_response, comment_id: '' …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/uniwork-docs-launch.test.ts > launch controller > a ticket naming a comment reveals it after the editor is ready
+AssertionError: expected "vi.fn()" to be called with arguments: [ …(2) ]
+
+Number of calls: 0
+
+ ❯ tests/uniwork-docs-launch.test.ts:435:22
+    433|     void ctx
+    434|     await controller.handleUrl(link(TICKET))
+    435|     expect(revealed).toHaveBeenCalledWith(`/wc/${withComment.id}/Q4 pl…
+       |                      ^
+    436|   })
+    437|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  2 failed | 54 passed (56)
+   Start at  07:00:49
+   Duration  432ms (transform 262ms, setup 0ms, import 286ms, tests 45ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/electron-utils
+
+ ❯ tests/comments-ipc.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/comments-ipc.test.ts [ tests/comments-ipc.test.ts ]
+Error: Cannot find module '../src/comments-ipc' imported from /home/ubuntu/work/uniwork-office/packages/electron-utils/tests/comments-ipc.test.ts
+ ❯ tests/comments-ipc.test.ts:8:1
+      6|  */
+      7| import { describe, expect, it, vi } from 'vitest'
+      8| import {
+       | ^
+      9|   COMMENTS_BRIDGE_KEY,
+     10|   COMMENTS_CHANNELS,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  07:00:49
+   Duration  145ms (transform 37ms, setup 0ms, import 0ms, tests 0ms, environment 0ms)
+
+RED_EXIT shell=1 utils=1
+RED_AS_EXPECTED_DESKTOP

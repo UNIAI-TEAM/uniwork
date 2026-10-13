@@ -1,0 +1,6 @@
+$ npm run typecheck:web
+
+> genoffice@0.1.0 typecheck:web
+> tsc -p web/docs/protocol/tsconfig.json && tsc -p web/docs/bridge/tsconfig.json && tsc -p web/docs/build/tsconfig.json && tsc -p web/modules/tsconfig.json
+
+web/docs/bridge/testing/mock-port.ts(69,9): error TS2740: Type '{ 'token.refresh': () => { token: string; tokenExpiresAt: number; }; 'api.open': ({ fileId }: ApiOpenPayload) => { file: { fileId: string; name: string; sizeBytes?: number | undefined; mimeType?: string | undefined; ... 4 more ...; revision?: string | undefined; }; source: { ...; }; }; ... 11 more ...; 'api.download...' is missing the following properties from type '{ "comments.list": (p: CommentsListPayload) => CommentsListResult; "comments.create": (p: CommentsCreatePayload) => CommentResult; ... 20 more ...; "api.download": (p: ApiDownloadPayload) => ApiDownloadResult; }': "comments.list", "comments.create", "comments.update", "comments.delete", and 5 more.

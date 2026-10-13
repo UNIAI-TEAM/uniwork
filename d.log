@@ -1,0 +1,567 @@
+$ git checkout 4c0f1d82 -- web/docs/protocol/types.ts web/docs/protocol/client.ts web/docs/protocol/host.ts; (cd web/docs/protocol && npx vitest run test/comments.test.ts); P=$?; git checkout HEAD -- web; git status --short web; echo "RED_EXIT protocol=$P"; test $P -ne 0 && echo RED_AS_EXPECTED_PROTOCOL
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/protocol
+
+ ❯ test/comments.test.ts (45 tests | 43 failed) 39ms
+     × keeps PROTOCOL_VERSION 1 and adds the comments types and capability 7ms
+     × frame -> host request payloads 3ms
+     × responses 1ms
+     × host -> frame: comments.changed event (id only) and comments.reveal request 1ms
+     × 409 comment_deleted -> conflict + details.code, not retryable (no reload path) 0ms
+     × 409 idempotency_payload_mismatch -> conflict with details.code 0ms
+     × 400 anchor_version_invalid -> malformed with details.code 1ms
+     × 400 invalid_request -> malformed with details.code 0ms
+     × 413 payload_too_large -> too_large with details.code 0ms
+     × 401 -> unauthorized (retryable false), no details 0ms
+     × 403 -> forbidden (retryable false), no details 0ms
+     × 404 -> not_found (retryable false), no details 0ms
+     × 429 -> rate_limited (retryable true), no details 0ms
+     × 500 -> internal (retryable true), no details 0ms
+     × 503 -> internal (retryable true), no details 0ms
+     × no HTTP response (status 0: fetch failed / offline) -> network, retryable 0ms
+     × 413 without a body code still carries details.code payload_too_large (FE-W8P-3) 2ms
+     × reads a flat {code} body too, and tolerates garbage bodies 0ms
+     × round-trips through a frame request: details.code arrives first-class 5ms
+     × view: nothing that writes 0ms
+     × edit: compose, own edit/delete, resolve/reopen any 0ms
+     × manage: edit/delete of others too 0ms
+     × missing level (host error): composer + own actions, never on others 0ms
+     × a 403 from the server turns the panel read-only 0ms
+     × "mine" needs user.id; a tombstone takes no action; no capability = hidden 0ms
+     × init with comments and no commentsLevel is a host error 0ms
+     × the host-side check stays strict about the level value (FE-W8P-1) 0ms
+     × the frame still accepts such an init and applies the missing-field rules 1ms
+     × unknown / null commentsLevel and an empty user.id are treated as missing (FE-W8P-1) 1ms
+     × the session carries user.id and commentsLevel; a re-init replaces them 1ms
+     × every frame request reaches its host handler with the payload unchanged 1ms
+     × since_token equal to the current token -> unchanged (the frame keeps its list) 1ms
+     × comments.changed reaches the frame listener for this document only 0ms
+     × a host advertising comments without handlers answers unsupported 2ms
+     × after the first list succeeded: answered at once 1ms
+     × before the first list: held, then answered right after the list succeeds 1ms
+     × the first list fails while the reveal waits -> not_ready, retryable 2ms
+     × no list within the frame wait limit -> not_ready before the host times out 2ms
+     × the host reveal timeout is never below 15 s even when the host default is lower 1ms
+     × the host retries once on not_ready: after 2 s or on comments.changed, whichever first 0ms
+     × a second failure gives up (rejects; the caller shows nothing) 0ms
+     × no comments capability: server mode hidden, no request posted, no error event 1ms
+     × nothing changes: no reveal sent, comments.changed not sent, closeCheck works 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 43 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/comments.test.ts > G8-08 protocol shape > keeps PROTOCOL_VERSION 1 and adds the comments types and capability
+AssertionError: expected [ 'save', 'saveAs', 'recents', …(13) ] to include 'comments'
+ ❯ test/comments.test.ts:136:29
+    134|   it('keeps PROTOCOL_VERSION 1 and adds the comments types and capabil…
+    135|     expect(PROTOCOL_VERSION).toBe(1)
+    136|     expect(CAPABILITY_KEYS).toContain('comments')
+       |                             ^
+    137|     expect(FRAME_REQUEST_TYPES).toEqual(
+    138|       expect.arrayContaining([
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/43]⎯
+
+ FAIL  test/comments.test.ts > G8-08 protocol shape > frame -> host request payloads
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ bad test/comments.test.ts:184:82
+    182|   it('frame -> host request payloads', () => {
+    183|     const ok = (type: string, p: unknown) => expect(env('request', typ…
+    184|     const bad = (type: string, p: unknown) => expect(env('request', ty…
+       |                                                                                  ^
+    185|
+    186|     ok('comments.list', {})
+ ❯ test/comments.test.ts:188:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/43]⎯
+
+ FAIL  test/comments.test.ts > G8-08 protocol shape > responses
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ bad test/comments.test.ts:246:83
+    244|   it('responses', () => {
+    245|     const ok = (type: string, p: unknown) => expect(env('response', ty…
+    246|     const bad = (type: string, p: unknown) => expect(env('response', t…
+       |                                                                                   ^
+    247|
+    248|     ok('comments.list', LIST)
+ ❯ test/comments.test.ts:250:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/43]⎯
+
+ FAIL  test/comments.test.ts > G8-08 protocol shape > host -> frame: comments.changed event (id only) and comments.reveal request
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/comments.test.ts:347:53
+    345|   it('host -> frame: comments.changed event (id only) and comments.rev…
+    346|     expect(env('event', 'comments.changed', { document_id: 'doc-1' }).…
+    347|     expect(env('event', 'comments.changed', {}).ok).toBe(false)
+       |                                                     ^
+    348|     expect(env('request', 'comments.reveal', { comment_id: COMMENT.id …
+    349|     expect(env('request', 'comments.reveal', { comment_id: '' }).ok).t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/43]⎯
+
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 409 comment_deleted -> conflict + details.code, not retryable (no reload path)
+TypeError: commentsErrorFromHttp is not a function
+ ❯ test/comments.test.ts:359:15
+    357|
+    358|   it('409 comment_deleted -> conflict + details.code, not retryable (n…
+    359|     const e = commentsErrorFromHttp(409, body('comment_deleted'))
+       |               ^
+    360|     expect(e).toBeInstanceOf(DocsProtocolError)
+    361|     expect(e.toShape()).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/43]⎯
+
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 409 idempotency_payload_mismatch -> conflict with details.code
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 400 anchor_version_invalid -> malformed with details.code
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 400 invalid_request -> malformed with details.code
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 413 payload_too_large -> too_large with details.code
+TypeError: commentsErrorFromHttp is not a function
+ ❯ test/comments.test.ts:375:15
+    373|     [413, 'payload_too_large', 'too_large'],
+    374|   ] as const)('%i %s -> %s with details.code', (status, code, expected…
+    375|     const e = commentsErrorFromHttp(status, body(code))
+       |               ^
+    376|     expect(e.toShape()).toMatchObject({
+    377|       code: expected,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/43]⎯
+
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 401 -> unauthorized (retryable false), no details
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 403 -> forbidden (retryable false), no details
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 404 -> not_found (retryable false), no details
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 429 -> rate_limited (retryable true), no details
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 500 -> internal (retryable true), no details
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 503 -> internal (retryable true), no details
+TypeError: commentsErrorFromHttp is not a function
+ ❯ test/comments.test.ts:392:15
+    390|     [503, 'internal', true],
+    391|   ] as const)('%i -> %s (retryable %s), no details', (status, code, re…
+    392|     const e = commentsErrorFromHttp(status, body('whatever'))
+       |               ^
+    393|     expect(e.toShape()).toEqual({ code, status, retryable, message: ex…
+    394|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/43]⎯
+
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > no HTTP response (status 0: fetch failed / offline) -> network, retryable
+TypeError: commentsErrorFromHttp is not a function
+ ❯ test/comments.test.ts:397:12
+    395|
+    396|   it('no HTTP response (status 0: fetch failed / offline) -> network, …
+    397|     expect(commentsErrorFromHttp(0).toShape()).toEqual({
+       |            ^
+    398|       code: 'network',
+    399|       retryable: true,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/43]⎯
+
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > 413 without a body code still carries details.code payload_too_large (FE-W8P-3)
+TypeError: commentsErrorFromHttp is not a function
+ ❯ test/comments.test.ts:406:14
+    404|   it('413 without a body code still carries details.code payload_too_l…
+    405|     for (const b of [undefined, null, 'too big', {}, { error: {} }]) {
+    406|       expect(commentsErrorFromHttp(413, b).toShape()).toEqual({
+       |              ^
+    407|         code: 'too_large',
+    408|         status: 413,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/43]⎯
+
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > reads a flat {code} body too, and tolerates garbage bodies
+TypeError: commentsErrorFromHttp is not a function
+ ❯ test/comments.test.ts:424:12
+    422|
+    423|   it('reads a flat {code} body too, and tolerates garbage bodies', () …
+    424|     expect(commentsErrorFromHttp(409, { code: 'comment_deleted' }).det…
+       |            ^
+    425|       code: 'comment_deleted',
+    426|     })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/43]⎯
+
+ FAIL  test/comments.test.ts > commentsErrorFromHttp (contract §9, fixed table) > round-trips through a frame request: details.code arrives first-class
+AssertionError: expected DocsProtocolError: no handler for comment… { …(4) } to match object { code: 'conflict', …(2) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+- {
+-   "code": "conflict",
+-   "details": {
+-     "code": "comment_deleted",
+-   },
+-   "retryable": false,
++ DocsProtocolError {
++   "code": "unknown_type",
++   "details": undefined,
++   "retryable": undefined,
+  }
+
+ ❯ test/comments.test.ts:449:17
+    447|       .catch((e: unknown) => e)
+    448|     expect(err).toBeInstanceOf(DocsProtocolError)
+    449|     expect(err).toMatchObject({
+       |                 ^
+    450|       code: 'conflict',
+    451|       retryable: false,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > view: nothing that writes
+TypeError: commentsAccess is not a function
+ ❯ test/comments.test.ts:470:15
+    468|
+    469|   it('view: nothing that writes', () => {
+    470|     const a = commentsAccess(session({ commentsLevel: 'view' }))
+       |               ^
+    471|     expect(a).toMatchObject({ enabled: true, level: 'view', canCreate:…
+    472|     for (const action of ['edit', 'delete', 'resolve', 'reopen'] as co…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > edit: compose, own edit/delete, resolve/reopen any
+TypeError: commentsAccess is not a function
+ ❯ test/comments.test.ts:478:15
+    476|
+    477|   it('edit: compose, own edit/delete, resolve/reopen any', () => {
+    478|     const a = commentsAccess(session({ commentsLevel: 'edit' }))
+       |               ^
+    479|     expect(a).toMatchObject({ enabled: true, level: 'edit', canCreate:…
+    480|     expect(canActOnComment(a, mine, 'edit')).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > manage: edit/delete of others too
+TypeError: commentsAccess is not a function
+ ❯ test/comments.test.ts:489:15
+    487|
+    488|   it('manage: edit/delete of others too', () => {
+    489|     const a = commentsAccess(session({ commentsLevel: 'manage' }))
+       |               ^
+    490|     expect(canActOnComment(a, theirs, 'edit')).toBe(true)
+    491|     expect(canActOnComment(a, theirs, 'delete')).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > missing level (host error): composer + own actions, never on others
+TypeError: commentsAccess is not a function
+ ❯ test/comments.test.ts:495:15
+    493|
+    494|   it('missing level (host error): composer + own actions, never on oth…
+    495|     const a = commentsAccess(session())
+       |               ^
+    496|     expect(a).toMatchObject({ enabled: true, level: null, canCreate: t…
+    497|     expect(canActOnComment(a, mine, 'edit')).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > a 403 from the server turns the panel read-only
+TypeError: commentsAccess is not a function
+ ❯ test/comments.test.ts:505:15
+    503|
+    504|   it('a 403 from the server turns the panel read-only', () => {
+    505|     const a = commentsAccess(session({ commentsLevel: 'manage' }), { f…
+       |               ^
+    506|     expect(a).toMatchObject({ enabled: true, level: 'view', canCreate:…
+    507|     expect(canActOnComment(a, mine, 'edit')).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > "mine" needs user.id; a tombstone takes no action; no capability = hidden
+TypeError: commentsAccess is not a function
+ ❯ test/comments.test.ts:511:18
+    509|
+    510|   it('"mine" needs user.id; a tombstone takes no action; no capability…
+    511|     const noId = commentsAccess(session({ commentsLevel: 'edit', user:…
+       |                  ^
+    512|     expect(canActOnComment(noId, mine, 'edit')).toBe(false)
+    513|     const m = commentsAccess(session({ commentsLevel: 'manage' }))
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > init with comments and no commentsLevel is a host error
+TypeError: checkInitComments is not a function
+ ❯ test/comments.test.ts:522:12
+    520|   it('init with comments and no commentsLevel is a host error', () => {
+    521|     const withLevel = { ...baseInit(), protocolVersion: PROTOCOL_VERSI…
+    522|     expect(checkInitComments(withLevel)).toBeNull()
+       |            ^
+    523|     const { commentsLevel: _l, ...noLevel } = withLevel
+    524|     const e = checkInitComments(noLevel)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > the host-side check stays strict about the level value (FE-W8P-1)
+TypeError: checkInitComments is not a function
+ ❯ test/comments.test.ts:537:17
+    535|     const base = { ...baseInit(), protocolVersion: PROTOCOL_VERSION }
+    536|     for (const level of ['admin', null, '', 7]) {
+    537|       const e = checkInitComments({ ...base, commentsLevel: level } as…
+       |                 ^
+    538|       expect(e?.toShape()).toMatchObject({
+    539|         code: 'malformed',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > the frame still accepts such an init and applies the missing-field rules
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ test/comments.test.ts:555:37
+    553|     await host.whenReady()
+    554|     const s = await client.whenInitialized()
+    555|     expect(s.capabilities.comments).toBe(true)
+       |                                     ^
+    556|     expect(s.commentsLevel).toBeUndefined()
+    557|     expect(commentsAccess(s)).toMatchObject({ enabled: true, level: nu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > unknown / null commentsLevel and an empty user.id are treated as missing (FE-W8P-1)
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ test/comments.test.ts:573:39
+    571|       expect(s.commentsLevel).toBeUndefined()
+    572|       expect(s.user).toEqual({ displayName: 'An' })
+    573|       expect(s.capabilities.comments).toBe(true)
+       |                                       ^
+    574|       // the missing-field rules apply
+    575|       expect(commentsAccess(s)).toMatchObject({ enabled: true, level: …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/43]⎯
+
+ FAIL  test/comments.test.ts > commentsLevel and the frame affordances > the session carries user.id and commentsLevel; a re-init replaces them
+AssertionError: expected { displayName: 'An' } to deeply equal { displayName: 'An', …(1) }
+
+- Expected
++ Received
+
+  {
+    "displayName": "An",
+-   "id": "01J8X4USR0AAAAAAAAAAAAAAAA",
+  }
+
+ ❯ test/comments.test.ts:585:20
+    583|     await host.whenReady()
+    584|     const s = await client.whenInitialized()
+    585|     expect(s.user).toEqual({ displayName: 'An', id: '01J8X4USR0AAAAAAA…
+       |                    ^
+    586|     expect(s.commentsLevel).toBe('manage')
+    587|     // the host re-handshakes (new ready instance): fields absent the …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/43]⎯
+
+ FAIL  test/comments.test.ts > G8-08 new frame <-> new host > every frame request reaches its host handler with the payload unchanged
+ FAIL  test/comments.test.ts > G8-08 new frame <-> new host > since_token equal to the current token -> unchanged (the frame keeps its list)
+DocsProtocolError: no handler for comments.list
+ ❯ Endpoint.onResponse endpoint.ts:314:29
+    312|     }
+    313|     this.settle(msg.id)
+    314|     if (msg.error) p.reject(new DocsProtocolError(msg.error))
+       |                             ^
+    315|     else p.resolve(msg.payload)
+    316|   }
+ ❯ Endpoint.receive endpoint.ts:288:39
+ ❯ onMessage endpoint.ts:113:65
+ ❯ test/fake-windows.ts:36:44
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/43]⎯
+
+ FAIL  test/comments.test.ts > G8-08 new frame <-> new host > comments.changed reaches the frame listener for this document only
+TypeError: client.onCommentsChanged is not a function
+ ❯ test/comments.test.ts:687:12
+    685|     await client.whenInitialized()
+    686|     const heard: string[] = []
+    687|     client.onCommentsChanged((p) => heard.push(p.document_id))
+       |            ^
+    688|     host.notifyCommentsChanged('doc-2')
+    689|     host.notifyCommentsChanged('doc-1')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/43]⎯
+
+ FAIL  test/comments.test.ts > G8-08 new frame <-> new host > a host advertising comments without handlers answers unsupported
+AssertionError: expected DocsProtocolError: no handler for comment… { …(4) } to match object { code: 'unsupported' }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+- {
+-   "code": "unsupported",
++ DocsProtocolError {
++   "code": "unknown_type",
+  }
+
+ ❯ test/comments.test.ts:697:53
+    695|     const { host, client } = setup()
+    696|     await host.whenReady()
+    697|     await expect(client.request('comments.list', {})).rejects.toMatchO…
+       |                                                     ^
+    698|   })
+    699| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/43]⎯
+
+ FAIL  test/comments.test.ts > comments.reveal ordering and wait limit > after the first list succeeded: answered at once
+TypeError: p.client.handleCommentsReveal is not a function
+ ❯ revealSetup test/comments.test.ts:709:14
+    707|       revealed: comment_id === COMMENT.id,
+    708|     }))
+    709|     p.client.handleCommentsReveal(reveal)
+       |              ^
+    710|     return { ...p, reveal }
+    711|   }
+ ❯ test/comments.test.ts:714:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/43]⎯
+
+ FAIL  test/comments.test.ts > comments.reveal ordering and wait limit > before the first list: held, then answered right after the list succeeds
+TypeError: p.client.handleCommentsReveal is not a function
+ ❯ revealSetup test/comments.test.ts:709:14
+    707|       revealed: comment_id === COMMENT.id,
+    708|     }))
+    709|     p.client.handleCommentsReveal(reveal)
+       |              ^
+    710|     return { ...p, reveal }
+    711|   }
+ ❯ test/comments.test.ts:724:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/43]⎯
+
+ FAIL  test/comments.test.ts > comments.reveal ordering and wait limit > the first list fails while the reveal waits -> not_ready, retryable
+TypeError: p.client.handleCommentsReveal is not a function
+ ❯ revealSetup test/comments.test.ts:709:14
+    707|       revealed: comment_id === COMMENT.id,
+    708|     }))
+    709|     p.client.handleCommentsReveal(reveal)
+       |              ^
+    710|     return { ...p, reveal }
+    711|   }
+ ❯ test/comments.test.ts:740:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/43]⎯
+
+ FAIL  test/comments.test.ts > comments.reveal ordering and wait limit > no list within the frame wait limit -> not_ready before the host times out
+TypeError: p.client.handleCommentsReveal is not a function
+ ❯ revealSetup test/comments.test.ts:709:14
+    707|       revealed: comment_id === COMMENT.id,
+    708|     }))
+    709|     p.client.handleCommentsReveal(reveal)
+       |              ^
+    710|     return { ...p, reveal }
+    711|   }
+ ❯ test/comments.test.ts:763:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/43]⎯
+
+ FAIL  test/comments.test.ts > comments.reveal ordering and wait limit > the host reveal timeout is never below 15 s even when the host default is lower
+TypeError: p.client.handleCommentsReveal is not a function
+ ❯ revealSetup test/comments.test.ts:709:14
+    707|       revealed: comment_id === COMMENT.id,
+    708|     }))
+    709|     p.client.handleCommentsReveal(reveal)
+       |              ^
+    710|     return { ...p, reveal }
+    711|   }
+ ❯ test/comments.test.ts:782:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/43]⎯
+
+ FAIL  test/comments.test.ts > comments.reveal ordering and wait limit > the host retries once on not_ready: after 2 s or on comments.changed, whichever first
+TypeError: p.client.handleCommentsReveal is not a function
+ ❯ revealSetup test/comments.test.ts:709:14
+    707|       revealed: comment_id === COMMENT.id,
+    708|     }))
+    709|     p.client.handleCommentsReveal(reveal)
+       |              ^
+    710|     return { ...p, reveal }
+    711|   }
+ ❯ test/comments.test.ts:800:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/43]⎯
+
+ FAIL  test/comments.test.ts > comments.reveal ordering and wait limit > a second failure gives up (rejects; the caller shows nothing)
+TypeError: p.client.handleCommentsReveal is not a function
+ ❯ revealSetup test/comments.test.ts:709:14
+    707|       revealed: comment_id === COMMENT.id,
+    708|     }))
+    709|     p.client.handleCommentsReveal(reveal)
+       |              ^
+    710|     return { ...p, reveal }
+    711|   }
+ ❯ test/comments.test.ts:821:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/43]⎯
+
+ FAIL  test/comments.test.ts > G8-08 new frame -> old host > no comments capability: server mode hidden, no request posted, no error event
+AssertionError: expected undefined to be false // Object.is equality
+
+- Expected:
+false
+
++ Received:
+undefined
+
+ ❯ test/comments.test.ts:891:37
+    889|     live.push(client)
+    890|     const s = await client.whenInitialized()
+    891|     expect(s.capabilities.comments).toBe(false)
+       |                                     ^
+    892|     expect(commentsAccess(s)).toMatchObject({ enabled: false, canCreat…
+    893|     await flush() // the InitAck went out
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/43]⎯
+
+ FAIL  test/comments.test.ts > G8-08 old frame <- new host > nothing changes: no reveal sent, comments.changed not sent, closeCheck works
+TypeError: host.notifyCommentsChanged is not a function
+ ❯ test/comments.test.ts:920:10
+    918|     expect(ack.capabilities.comments).toBeUndefined()
+    919|     const before = hostWin.sent.length // what the host posts
+    920|     host.notifyCommentsChanged('doc-1')
+       |          ^
+    921|     await expect(host.revealComment(COMMENT.id)).rejects.toMatchObject…
+    922|     await flush()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/43]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  43 failed | 2 passed (45)
+   Start at  07:00:48
+   Duration  348ms (transform 112ms, setup 0ms, import 131ms, tests 39ms, environment 0ms)
+
+RED_EXIT protocol=1
+RED_AS_EXPECTED_PROTOCOL

@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -6
+40e8d3807f18086c263a82b1ac450c0b2ed79773
+4c0f1d82fa2032fa52ed281bb9ccf670da903358
+40e8d380 merge: fork main 4c0f1d82 (uniworkos.com domain move) into the G8-08 branch
+8e86d64a merge: the G8-08 desktop comments half into the protocol branch (UNI-1403)
+4c0f1d82 Merge the uniworkos.com domain move into fork main
+d0033a1f fix(ai-provider): still recognise the old pricing URL in credit notices
+de598b81 chore(brand): move the old UniWork domains to uniworkos.com
+f2c4f561 fix(uniwork): reply envelopes for the comments IPC and a held reveal (UNI-1403)
