@@ -137,7 +137,12 @@ type PutDocumentCommentAnchorsSDI struct {
 	VersionID string `json:"version_id" minLength:"1" description:"ULID phiên bản vừa Lưu (receipt)" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
 	// anchors is capped at 500 items (OQ-C5); the element type is named on
 	// purpose so the isolation gate sees DocumentCommentAnchorItemSDI.comment_id.
-	Anchors []DocumentCommentAnchorItemSDI `json:"anchors" description:"Neo mới cho từng bình luận, tối đa 500 phần tử" example:"[{\"comment_id\":\"01J8X4CMTN1P2Q3R4S5T6U7V\",\"anchor\":{\"format\":\"xlsx\",\"v\":1,\"sheet\":\"S1\",\"range\":\"B7\"},\"state\":\"exact\"}]"`
+	Anchors []DocumentCommentAnchorItemSDI `json:"anchors" description:"Neo mới cho từng bình luận, tối đa 500 phần tử; bắt buộc, [] = không cập nhật neo nào" example:"[{\"comment_id\":\"01J8X4CMTN1P2Q3R4S5T6U7V\",\"anchor\":{\"format\":\"xlsx\",\"v\":1,\"sheet\":\"S1\",\"range\":\"B7\"},\"state\":\"exact\"}]"`
+	// AnchorsPresent records whether the body carried the anchors key at all:
+	// the field is required, so an absent key or a null must be a 400 and only
+	// an explicit [] is the empty update (contract 2.6, R1-8). Set by the
+	// handler from the raw body before it decodes; never part of the schema.
+	AnchorsPresent bool `json:"-"`
 }
 
 // DocumentCommentAnchorItemSDI is one anchors[] entry of the PUT: the comment

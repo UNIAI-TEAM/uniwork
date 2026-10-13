@@ -276,8 +276,22 @@ func (h *handlers) putDocumentCommentAnchors(w http.ResponseWriter, r *http.Requ
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
+	// R1-8: anchors is a required field, so the body must carry the key and
+	// it may not be null. The raw body is decoded once into a presence map
+	// and the wire shape is rebuilt from it, the way updateChatChannel does;
+	// an absent key or a null answers 400 before the service is reached.
+	var raw map[string]json.RawMessage
+	if !decode(w, r, &raw, maxJSONBody) {
+		return
+	}
 	var in sdi.PutDocumentCommentAnchorsSDI
-	if !decode(w, r, &in, maxJSONBody) {
+	if buf, err := json.Marshal(raw); err == nil {
+		_ = json.Unmarshal(buf, &in)
+	}
+	if v, ok := raw["anchors"]; ok && string(v) != "null" {
+		in.AnchorsPresent = true
+	} else {
+		respondError(w, http.StatusBadRequest, "invalid_request", "anchors là trường bắt buộc")
 		return
 	}
 	anchors := make([]service.DocumentCommentAnchorItem, 0, len(in.Anchors))

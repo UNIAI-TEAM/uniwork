@@ -135,7 +135,7 @@ func validateAnchor(format string, raw json.RawMessage) ([]byte, error) {
 			Format string  `json:"format"`
 			V      *int    `json:"v"`
 			ParaID *string `json:"para_id"`
-			Path   *[]int  `json:"path"`
+			Path   *[]*int `json:"path"`
 			Start  *int    `json:"start"`
 			End    *int    `json:"end"`
 			Quote  *string `json:"quote"`
@@ -148,7 +148,16 @@ func validateAnchor(format string, raw json.RawMessage) ([]byte, error) {
 			!anchorTextOK(*a.Quote) || !anchorTextOK(*a.Prefix) || !anchorTextOK(*a.Suffix) {
 			return nil, invalid
 		}
-		obj := map[string]any{"format": "docx", "v": 1, "path": *a.Path, "start": *a.Start, "end": *a.End, "quote": *a.Quote, "prefix": *a.Prefix, "suffix": *a.Suffix}
+		// Elements are pointers so a JSON null inside path is a 400, never a
+		// silent zero (R1-9).
+		path := make([]int, len(*a.Path))
+		for i, elem := range *a.Path {
+			if elem == nil {
+				return nil, invalid
+			}
+			path[i] = *elem
+		}
+		obj := map[string]any{"format": "docx", "v": 1, "path": path, "start": *a.Start, "end": *a.End, "quote": *a.Quote, "prefix": *a.Prefix, "suffix": *a.Suffix}
 		if a.ParaID != nil {
 			obj["para_id"] = *a.ParaID
 		}
@@ -173,7 +182,11 @@ func validateAnchor(format string, raw json.RawMessage) ([]byte, error) {
 			SlideIndex *int    `json:"slide_index"`
 			ObjectID   *string `json:"object_id"`
 		}
-		if dec.Decode(&a) != nil || a.SlideID == nil || a.SlideIndex == nil || *a.SlideIndex < 0 {
+		// R1-10: a blank slide_id is as unusable as a missing one, and a
+		// present object_id may not be blank either.
+		if dec.Decode(&a) != nil || a.SlideID == nil || a.SlideIndex == nil || *a.SlideIndex < 0 ||
+			strings.TrimSpace(*a.SlideID) == "" ||
+			(a.ObjectID != nil && strings.TrimSpace(*a.ObjectID) == "") {
 			return nil, invalid
 		}
 		obj := map[string]any{"format": "pptx", "v": 1, "slide_id": *a.SlideID, "slide_index": *a.SlideIndex}
@@ -183,15 +196,23 @@ func validateAnchor(format string, raw json.RawMessage) ([]byte, error) {
 		canonical = marshalAnchor(obj)
 	case "pdf":
 		var a struct {
-			Format string     `json:"format"`
-			V      *int       `json:"v"`
-			Page   *int       `json:"page"`
-			Rect   *[]float64 `json:"rect"`
+			Format string      `json:"format"`
+			V      *int        `json:"v"`
+			Page   *int        `json:"page"`
+			Rect   *[]*float64 `json:"rect"`
 		}
 		if dec.Decode(&a) != nil || a.Page == nil || *a.Page < 1 || a.Rect == nil || len(*a.Rect) != 4 {
 			return nil, invalid
 		}
-		canonical = marshalAnchor(map[string]any{"format": "pdf", "v": 1, "page": *a.Page, "rect": *a.Rect})
+		// R1-9: a JSON null inside rect is a 400, never a silent 0.
+		rect := make([]float64, len(*a.Rect))
+		for i, elem := range *a.Rect {
+			if elem == nil {
+				return nil, invalid
+			}
+			rect[i] = *elem
+		}
+		canonical = marshalAnchor(map[string]any{"format": "pdf", "v": 1, "page": *a.Page, "rect": rect})
 	}
 	if len(canonical) == 0 || len(canonical) > maxDocumentCommentAnchorBytes {
 		return nil, invalid
@@ -279,6 +300,10 @@ type DocumentCommentAnchorItem struct {
 type DocumentCommentAnchorsInput struct {
 	VersionID string
 	Anchors   []DocumentCommentAnchorItem
+	// AnchorsPresent mirrors the wire presence of the anchors key: the field
+	// is required, so absent or null is a 400 while [] is the valid empty
+	// update (contract 2.6, R1-8). The handler sets it from the raw body.
+	AnchorsPresent bool
 }
 
 // DocumentCommentAnchorSkip is one comment the PUT left alone, with the one
@@ -306,6 +331,12 @@ type DocumentCommentAnchorResult struct {
 // emits no event (rule 4).
 func (s *DocumentService) PutDocumentCommentAnchors(ctx context.Context, actor Actor, documentID string, in DocumentCommentAnchorsInput) (DocumentCommentAnchorResult, error) {
 	var out DocumentCommentAnchorResult
+	// R1-8: anchors is required. An absent key or a null never reaches the
+	// document, so nothing is written and no list_token is minted for a
+	// request that named no anchors at all.
+	if !in.AnchorsPresent {
+		return out, Invalid("anchors là trường bắt buộc")
+	}
 	err := s.withDocumentMutation(ctx, actor, documentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		out = DocumentCommentAnchorResult{
 			Updated: []string{}, Skipped: []DocumentCommentAnchorSkip{},
@@ -330,12 +361,21 @@ func (s *DocumentService) PutDocumentCommentAnchors(ctx context.Context, actor A
 			return err
 		}
 		changed := false
+		seen := make(map[string]bool, len(in.Anchors))
 		for _, item := range in.Anchors {
 			state := strings.TrimSpace(item.State)
 			if state != DocumentCommentAnchorExact && state != DocumentCommentAnchorLost {
 				return Invalid("state của neo không hợp lệ")
 			}
 			commentID := strings.TrimSpace(item.CommentID)
+			// R1-1: the same comment twice in one body would write two
+			// different anchors onto one row, so every identical retry would
+			// look like a change and defeat the PUT's self-idempotency. A
+			// repeat is refused before anything is applied.
+			if seen[commentID] {
+				return Invalid("mỗi bình luận chỉ được xuất hiện một lần trong anchors")
+			}
+			seen[commentID] = true
 			c, err := loadInResource(ctx, q, documentCommentAdapter{}, ref, commentID)
 			if errors.Is(err, ErrNotFound) {
 				out.Skipped = append(out.Skipped, DocumentCommentAnchorSkip{CommentID: commentID, Reason: DocumentCommentAnchorSkipNotApplicable})
@@ -376,12 +416,19 @@ func (s *DocumentService) PutDocumentCommentAnchors(ctx context.Context, actor A
 			} else if v.Version == doc.CurrentVersion {
 				resolved = DocumentCommentAnchorExact
 			}
-			if !documentCommentAnchorChanged(c, canonical, v.ID, resolved) {
+			// R1-7: a lost report keeps the last known position - the stored
+			// anchor bytes and its version stay, only anchor_state moves. The
+			// version rule above still skips an older version first.
+			writeAnchor, writeVersionID := canonical, v.ID
+			if state == DocumentCommentAnchorLost && len(c.Anchor) > 0 && c.AnchorVersionID.Valid && c.AnchorVersionID.String != "" {
+				writeAnchor, writeVersionID = c.Anchor, c.AnchorVersionID.String
+			}
+			if !documentCommentAnchorChanged(c, writeAnchor, writeVersionID, resolved) {
 				continue
 			}
 			if _, err := q.UpdateDocumentCommentAnchor(ctx, db.UpdateDocumentCommentAnchorParams{
 				ID: c.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-				Anchor: canonical, AnchorVersionID: pgtype.Text{String: v.ID, Valid: true},
+				Anchor: writeAnchor, AnchorVersionID: pgtype.Text{String: writeVersionID, Valid: true},
 				AnchorState: pgtype.Text{String: resolved, Valid: true},
 			}); err != nil {
 				return err
