@@ -259,7 +259,8 @@ export function SidebarInvitations({ onJoined }: { onJoined?: (workspace: Worksp
             <li key={inv.id} className="flex flex-col gap-2 rounded-lg bg-brand-subtle px-3 py-2">
               <div className="min-w-0">
                 <p className="truncate text-body font-medium text-foreground">
-                  {inv.organization.name} › {inv.workspace.name}
+                  {inv.organization.name}
+                  {inv.workspace && <> › {inv.workspace.name}</>}
                 </p>
                 <p className="text-caption text-muted-foreground">
                   {t("invitations.invitedBy", { name: inv.invited_by.display_name })}

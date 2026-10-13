@@ -61,6 +61,44 @@ describe("workspaces endpoints", () => {
     await expect(myInvitations()).resolves.toEqual([]);
   });
 
+  it("myInvitations keeps an organization-level invitation beside a workspace one", async () => {
+    const base = {
+      role: "member",
+      expires_at: "2026-10-20T00:00:00Z",
+      organization: { id: "o1", slug: "acme", name: "Acme" },
+      invited_by: { display_name: "An" },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        invitations: [
+          // The server omits `workspace` for an invitation to the organization itself.
+          { ...base, id: "i1", token: "t1", org_role: "admin" },
+          { ...base, id: "i2", token: "t2", org_role: "member", workspace: { id: "w1", slug: "team", name: "Team" } },
+        ],
+      }),
+    );
+    const [orgLevel, wsLevel] = await myInvitations();
+    expect(orgLevel?.workspace).toBeUndefined();
+    expect(orgLevel?.org_role).toBe("admin");
+    expect(wsLevel?.workspace?.slug).toBe("team");
+  });
+
+  it("myInvitations reads a missing org_role as member", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        invitations: [
+          {
+            id: "i1", role: "member", token: "t1", expires_at: "",
+            organization: { id: "o1", slug: "acme", name: "Acme" },
+            invited_by: { display_name: "An" },
+          },
+        ],
+      }),
+    );
+    const [inv] = await myInvitations();
+    expect(inv?.org_role).toBe("member");
+  });
+
   it("acceptInvite reports the organization, and a null workspace for an org-level invitation", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ organization: { id: "o1", slug: "acme", name: "Acme" } }),

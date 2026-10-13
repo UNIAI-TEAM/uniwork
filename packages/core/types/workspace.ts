@@ -42,7 +42,10 @@ export const PendingInvitationSchema = z.object({
   role: z.string(),
   token: z.string(),
   expires_at: z.string(),
-  workspace: z.object({ id: z.string(), slug: z.string(), name: z.string() }),
+  /** The organization role accepting grants; absent from older servers, read as the least privileged. */
+  org_role: z.string().default("member"),
+  /** Absent for an invitation to the organization itself (F-03): the server omits the key. */
+  workspace: z.object({ id: z.string(), slug: z.string(), name: z.string() }).optional(),
   organization: z.object({ id: z.string(), slug: z.string(), name: z.string() }),
   invited_by: z.object({ display_name: z.string() }),
 });

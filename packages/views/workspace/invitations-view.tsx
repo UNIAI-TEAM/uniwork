@@ -64,10 +64,12 @@ export function InvitationsView({
             <div className="min-w-0 flex-1">
               <div className="text-caption text-muted-foreground">{t("invitations.invitedBy", { name: i.invited_by.display_name })}</div>
               <div className="truncate text-body font-medium text-foreground">
-                {i.organization.name} › {i.workspace.name}
+                {i.organization.name}
+                {i.workspace && <> › {i.workspace.name}</>}
               </div>
               <div className="truncate font-mono text-caption text-muted-foreground">
-                {appHost()}/{i.organization.slug}/{i.workspace.slug} · {t("invitations.role", { role: i.role })}
+                {appHost()}/{i.organization.slug}
+                {i.workspace && <>/{i.workspace.slug}</>} · {t("invitations.role", { role: i.role })}
               </div>
             </div>
             <Button variant="outline" disabled={accept.isPending} onClick={() => join(i.token)}>
