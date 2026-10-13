@@ -1,9 +1,10 @@
 import { createElement, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import {
   getEmailHubProviders,
+  getEmailHubThread,
   listEmailHubThreads,
   startEmailHubOAuth,
 } from "../api/endpoints/email-hub";
@@ -14,17 +15,21 @@ import {
   flushEmailHubListRefresh,
   invalidateEmailHubReadingCachesForAccount,
   invalidateEmailHubThreadsForAccount,
+  prefetchEmailHubThread,
   patchEmailHubThreadInLists,
   setEmailHubListRefreshPaused,
+  useEmailHubThread,
   useEmailHubProviders,
   useEmailHubThreads,
   useStartEmailHubOAuth,
 } from "./hooks";
+import { threadDetailKey } from "./query-cache";
 
-// Only the two OAuth calls are faked; the cache helpers the other cases use never reach the transport.
+// Only transport calls exercised by these hook tests are faked; cache-helper cases never reach transport.
 vi.mock("../api/endpoints/email-hub", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/endpoints/email-hub")>()),
   getEmailHubProviders: vi.fn(() => Promise.resolve({ google: true, microsoft: false })),
+  getEmailHubThread: vi.fn(() => Promise.resolve(null)),
   listEmailHubThreads: vi.fn(() =>
     Promise.resolve({ threads: [], counts: { total: 0, unread: 0 }, next_cursor: "" }),
   ),
@@ -36,6 +41,10 @@ function wrapperFor(qc: QueryClient) {
     return createElement(QueryClientProvider, { client: qc }, children);
   };
 }
+
+beforeEach(() => {
+  vi.mocked(getEmailHubThread).mockClear();
+});
 
 function emailThread(id: string, isRead: boolean): EmailHubThread {
   return {
@@ -194,6 +203,49 @@ describe("email hub OAuth hooks", () => {
       "https://accounts.google.com/o/oauth2/auth?state=s1",
     );
     expect(startEmailHubOAuth).toHaveBeenCalledWith("ws1", "google", "an@gmail.com");
+  });
+});
+
+describe("email hub thread detail cache", () => {
+  it("reuses a resolved prefetch for the same thread for 30 seconds", async () => {
+    const qc = new QueryClient();
+
+    prefetchEmailHubThread(qc, "ws1", "acc1", "th1");
+    await waitFor(() =>
+      expect(qc.getQueryState(threadDetailKey("ws1", "acc1", "th1"))?.status).toBe("success"),
+    );
+
+    prefetchEmailHubThread(qc, "ws1", "acc1", "th1");
+    await waitFor(() => expect(qc.isFetching()).toBe(0));
+
+    expect(getEmailHubThread).toHaveBeenCalledTimes(1);
+    expect(getEmailHubThread).toHaveBeenCalledWith(
+      "ws1",
+      "acc1",
+      "th1",
+      true,
+      false,
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("still marks the thread read when the detail hook is opened", async () => {
+    const qc = new QueryClient();
+
+    const { result } = renderHook(() => useEmailHubThread("ws1", "acc1", "th1"), {
+      wrapper: wrapperFor(qc),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(getEmailHubThread).toHaveBeenCalledTimes(1);
+    expect(getEmailHubThread).toHaveBeenCalledWith(
+      "ws1",
+      "acc1",
+      "th1",
+      true,
+      true,
+      expect.any(AbortSignal),
+    );
   });
 });
 
