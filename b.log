@@ -1,0 +1,14 @@
+$ cp .env /tmp/g504-ac5.env && sed -i '/^OFFICE_CHANGE_SNAPSHOT_TTL=/d' /tmp/g504-ac5.env && echo 'OFFICE_CHANGE_SNAPSHOT_TTL=2s' >> /tmp/g504-ac5.env && ENV_FILE=/tmp/g504-ac5.env HARNESS_SKIP_APP=1 bash scripts/office/g5g6g7/harness/start.sh; rc=$?; cat .harness-run/start-status.json; echo "START_EXIT=$rc"; [ $rc -eq 0 ]
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /workspace/.harness-run
+harness: D server  http://localhost:34453 (metrics 127.0.0.1:44685)
+harness: D web     http://localhost:34675
+harness: fork      0d03b18
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:34453 ...
+harness: HARNESS_SKIP_APP=1 — the fork is not cloned and the app is not started
+harness: up (server + web)
+{"state":"up","reason":""}
+START_EXIT=0

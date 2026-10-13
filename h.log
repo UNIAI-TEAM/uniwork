@@ -1,0 +1,23 @@
+$ D_ROOT=$(pwd); export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh" >/dev/null 2>&1; nvm use 22 >/dev/null 2>&1; node -v; ORIGIN=$(grep -m1 '^API_ORIGIN=' "$D_ROOT/.harness-run/ports.env" | cut -d= -f2-); cd /tmp/uw-g504-ac5 && UNIWORK_LIVE_ORIGIN="$ORIGIN" AI_PROVIDER=fake npx vitest run --root apps/shell tests/live --reporter=verbose; rc=$?; echo "LIVE_OFF_EXIT=$rc"; [ $rc -eq 0 ]
+v22.14.0
+
+ RUN  v4.1.11 /tmp/uw-g504-ac5/apps/shell
+
+stdout | tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 1. capability: every field parses and the fork cache reads the org once
+step 1: office_sync_feed is OFF for this run (FF_OFFICE_SYNC_FEED override): steps 2-6 skip, step 8 asserts the 403 path
+
+ ✓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 1. capability: every field parses and the fork cache reads the org once 5ms
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 2. snapshot: FeedConsumer applies every seeded id and moves the cursor after the commit 0ms [2: office_sync_feed is off for this run (FF_OFFICE_SYNC_FEED override), so the feed answers 403 office_capability_off; run without the override to ground this step]
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 3. paging: limit=1 chains every page by next_cursor and lists each id once 0ms [3: office_sync_feed is off for this run (FF_OFFICE_SYNC_FEED override), so the feed answers 403 office_capability_off; run without the override to ground this step]
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 4. replay: the saved feed cursor falls back to exactly one snapshot, deleting nothing 0ms [4: office_sync_feed is off for this run (FF_OFFICE_SYNC_FEED override), so the feed answers 403 office_capability_off; run without the override to ground this step]
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 5. tampered cursor: 400 change_cursor_invalid, one full resync, nothing deleted 0ms [5: office_sync_feed is off for this run (FF_OFFICE_SYNC_FEED override), so the feed answers 403 office_capability_off; run without the override to ground this step]
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 6. expired cursor: 410 change_cursor_expired clears into one full resync 0ms [6: office_sync_feed is off for this run (FF_OFFICE_SYNC_FEED override), so the feed answers 403 office_capability_off; run without the override to ground this step]
+ ✓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 7. capability and feed with a bad token: 401 maps to session_expired 3ms
+ ✓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 8. sync_feed off: 403 office_capability_off and no feed request at all 3ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed | 5 skipped (8)
+   Start at  07:53:37
+   Duration  358ms (transform 124ms, setup 0ms, import 149ms, tests 125ms, environment 0ms)
+
+LIVE_OFF_EXIT=0

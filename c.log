@@ -1,0 +1,2 @@
+$ cd /tmp && rm -rf uw-g504-ac5 && git clone -q https://github.com/UNIAI-TEAM/uniwork-office uw-g504-ac5 && cd uw-g504-ac5 && git checkout -q 63cd2771 && git rev-parse HEAD
+63cd2771c5b7521a311ff92f40af1e4f5d7736bf
