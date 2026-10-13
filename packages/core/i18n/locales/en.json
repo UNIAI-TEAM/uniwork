@@ -35,6 +35,42 @@
           "smallDialogs": "Form dialogs stay clear of small-screen edges and stack their leading content for easier interaction."
         },
         "note": "Email connections and AI features need the organization's corresponding configuration. Each feature follows the application's access permissions."
+      },
+      "v1_1_0": {
+        "title": "Organization data controls, Office and Email Hub updates",
+        "summary": "Export and schedule deletion of organization data, explore UniWork Office, follow application releases, and benefit from more reliable Email Hub and VNPay payments.",
+        "note": "Organization data export and deletion are for organization owners. The Documents home depends on the organization enabling that feature. Installer buttons appear only for published builds. Email connections and AI features still need the organization's corresponding configuration.",
+        "features": {
+          "ca1d8c53d5022a921403f4dc38949d308db212f2e": "Organization owners can export business data as a ZIP, schedule deletion after five days and cancel before it runs. Members cannot access the organization while deletion is pending; activity logs and invoices are retained.",
+          "cadea71f7d7b076297076d43eddb74258e3fbc453": "A public changelog at /changelog lists releases by month with new features, improvements and fixes, linked from the main menu and the footer.",
+          "c568278d78fe988cb444665922b5d161f58f487eb": "A public UniWork Office page at /office with the six editors, real screenshots and per-OS installer buttons; only published installers are shown. The new Documents home — folders, blank docx, pptx and pdf files, and files from chat, tasks, meetings and Email Hub — is available where the organization enables the Documents feature."
+        },
+        "improvements": {
+          "c71ffdf93b83f81b3b7b7bb3f6530b58373687b6e": "The landing page shows real captures of the tasks, chat, meetings and document editor screens, in the current language and matching the active light or dark theme.",
+          "cb79dc17d1dbcc8783e58379bbf1ff2edb430d04a": "Email Hub reuses thread details prefetched within the last 30 seconds, reducing repeated requests as you hover through the list.",
+          "c0b6f78a7b876b8a4c19fcb6d28edaf3c752019d4": "Email Hub avoids repeated mailbox refreshes for the same event and cancels list requests that are no longer needed."
+        },
+        "fixes": {
+          "c768fddab7062f11312bfa9bfd8d50c7967dac816": "VNPay payments are answered with the correct confirmation codes, so a completed payment is no longer treated as unconfirmed and retried.",
+          "ccb2733aec4322d35334e953e23ad6058a0149565": "Completed VNPay payments are still applied when the checkout link has expired or been replaced, updating the plan and creating the corresponding invoice.",
+          "c5e727e48bbd9c29c40c04b707315db20e6c086f1": "When VNPay's callback never arrives, an automatic reconciliation pass rechecks the transaction and applies a paid one, or marks it failed when unpaid.",
+          "cbea7437a334f574eb0916083fe1108575338371d": "Access to Email Hub message bodies consistently follows the user's permissions.",
+          "cd8d9d6735f802da39818b11f34d4484f1768faf0": "Outgoing email subjects with Vietnamese accents are encoded to the standard and no longer appear as broken characters for recipients.",
+          "c8ca4dcdc17f4c9a17b264412f20895eeaf2e2f40": "IMAP now has a time limit when opening the connection and signing in, so an unresponsive mail server reports an error instead of hanging.",
+          "c70e7e68ffc6f459dec9a14f590f82c1146f5d7b3": "Replying to a message in Sent addresses the original recipients instead of yourself.",
+          "c0109dcd7ecfa62901b357636b12b2171e13e903a": "Paging through the Snoozed folder no longer skips or repeats messages.",
+          "c4ac1f76ba20df9ffe1062b6ce768a2734c0043c2": "New-mail notifications stop for people who left the organization, were deactivated, or whose organization is suspended.",
+          "c56a8b72a1d4332176ae1361423a64694da765366": "The unread count stays correct after reading or marking messages on list pages that are already loaded.",
+          "c63db9e50bf5f1ab1273abb619174f7ca2ad5bbdd": "Creating several tasks from an email summary runs as one unit: a failure part-way leaves no stray tasks and the retry still works.",
+          "cd7bf6a7bd4323ce0c5ace8d31f2ac35d75916f6d": "Outgoing mail keeps its Vietnamese accents and line breaks, even when the HTML body is very long.",
+          "c7edda0f13968681d35798817688ff6abc3312a61": "Switching to another message while an AI summary is running no longer shows the previous message's summary and action items on the new one.",
+          "c872812edb8f905bd6add41ed8330ced0b92a52d4": "A folder's syncing state no longer stays stuck when the filter is changed part-way through.",
+          "c39042c585c161e0307083cc2b6d959e4cc34b522": "Disconnecting the open mailbox now moves to the most recent remaining mailbox instead of reselecting the one just removed.",
+          "c4449109cd71c872845a082d5e449db65c8608428": "Download the UniWork Office installer from the current page without opening and closing a GitHub tab.",
+          "cebd6f5acb86f81fe3d9bbb0b1a2716f57fec8e34": "Email Hub sidebar counts refresh after moving, snoozing, marking mail as read or syncing a mailbox.",
+          "cfc9fab018432964c96177b0205d4d17b0a976ae9": "Text or HTML attachments no longer replace the message body. Messages whose only content is an attachment remain readable.",
+          "cbaebb1de6eb919b01291da742a8707bd9adc46a3": "Cancelled or failed VNPay transactions are tracked separately, preventing later payments from remaining pending as mistaken duplicates."
+        }
       }
     }
   },
