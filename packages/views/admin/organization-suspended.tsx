@@ -2,10 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 import { CirclePause } from "lucide-react";
-import { paths } from "@uniwork/core/paths";
-import { buttonVariants } from "@uniwork/ui/components/ui/button";
-import { CollectionPageState } from "../layout/collection-page";
-import { AppLink } from "../navigation";
+import { AccessNoticePage } from "./access-notice-page";
 
 /**
  * What a member sees when their organization is suspended: every org and
@@ -19,19 +16,11 @@ import { AppLink } from "../navigation";
 export function OrganizationSuspendedPage() {
   const { t } = useTranslation(undefined, { keyPrefix: "admin.suspended" });
   return (
-    <div className="flex h-svh w-full items-center justify-center bg-background">
-      <CollectionPageState
-        icon={CirclePause}
-        tone="warning"
-        role="alert"
-        title={t("title")}
-        description={t("description")}
-        actions={
-          <AppLink href={paths.getStarted()} className={buttonVariants({ variant: "outline" })}>
-            {t("get_started_link")}
-          </AppLink>
-        }
-      />
-    </div>
+    <AccessNoticePage
+      icon={CirclePause}
+      title={t("title")}
+      description={t("description")}
+      linkLabel={t("get_started_link")}
+    />
   );
 }

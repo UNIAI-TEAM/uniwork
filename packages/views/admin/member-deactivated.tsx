@@ -2,10 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 import { UserX } from "lucide-react";
-import { paths } from "@uniwork/core/paths";
-import { buttonVariants } from "@uniwork/ui/components/ui/button";
-import { CollectionPageState } from "../layout/collection-page";
-import { AppLink } from "../navigation";
+import { AccessNoticePage } from "./access-notice-page";
 
 /**
  * What somebody sees once their membership of this organization has been
@@ -17,19 +14,11 @@ import { AppLink } from "../navigation";
 export function MemberDeactivatedPage() {
   const { t } = useTranslation(undefined, { keyPrefix: "org.deactivated" });
   return (
-    <div className="flex h-svh w-full items-center justify-center bg-background">
-      <CollectionPageState
-        icon={UserX}
-        tone="warning"
-        role="alert"
-        title={t("title")}
-        description={t("description")}
-        actions={
-          <AppLink href={paths.getStarted()} className={buttonVariants({ variant: "outline" })}>
-            {t("get_started_link")}
-          </AppLink>
-        }
-      />
-    </div>
+    <AccessNoticePage
+      icon={UserX}
+      title={t("title")}
+      description={t("description")}
+      linkLabel={t("get_started_link")}
+    />
   );
 }
