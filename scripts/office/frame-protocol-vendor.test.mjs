@@ -116,3 +116,11 @@ test("every frame pin records the same protocolSha256, equal to the vendored pro
     );
   }
 });
+
+test("the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)", () => {
+  const source = normaliseVendored(readFileSync(join(OFFICE_DIR, VENDORED_FILES.protocol), "utf8"));
+  const init = source.slice(source.indexOf("export interface InitPayload"), source.indexOf("export interface InitRecovery"));
+  assert.match(init, /^ {2}downloadMaxBytes\?: number$/m, "InitPayload declares an optional downloadMaxBytes");
+  assert.match(source, /function isPositiveSafeInt\(x: unknown\): x is number \{\s*return typeof x === 'number' && Number\.isSafeInteger\(x\) && x > 0\s*\}/);
+  assert.match(source, /isOpt\(x\.downloadMaxBytes, isPositiveSafeInt\)/, "isInitPayload accepts the field only when absent or a positive safe integer");
+});
