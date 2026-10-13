@@ -27,9 +27,14 @@ type changeFeedWorld struct {
 	srv    *httptest.Server
 	token  string
 	userID string
-	orgID  string
-	wsID   string
-	q      *db.Queries
+	// memberToken/memberID is a second registered user who is a plain
+	// workspace member: unlike the owner (seeAll -> manage) they can lose
+	// their read when the only share that admitted them is revoked.
+	memberToken string
+	memberID    string
+	orgID       string
+	wsID        string
+	q           *db.Queries
 }
 
 // newChangeFeedWorld builds the full handler stack with the real
@@ -57,6 +62,20 @@ func newChangeFeedWorld(t *testing.T) *changeFeedWorld {
 		t.Fatalf("create ws: %d %v", res.StatusCode, out)
 	}
 	w.wsID = out["workspace"].(map[string]any)["id"].(string)
+	// A second user: an organization and workspace member, never an admin, so
+	// a share revoke really takes their read away (the owner keeps manage and
+	// can never lose read through a share).
+	w.memberToken, w.memberID = filesRegister(t, srv, "change-feed-member@example.com")
+	if err := q.AddOrganizationMember(context.Background(), db.AddOrganizationMemberParams{
+		OrganizationID: w.orgID, UserID: w.memberID, Role: "member",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.AddWorkspaceMember(context.Background(), db.AddWorkspaceMemberParams{
+		WorkspaceID: w.wsID, OrganizationID: w.orgID, UserID: w.memberID, Role: "member",
+	}); err != nil {
+		t.Fatal(err)
+	}
 	w.seedDoc(t, util.NewID(), "workspace")
 	return w
 }
@@ -83,11 +102,18 @@ func (w *changeFeedWorld) seedDoc(t *testing.T, id, visibility string) {
 
 func (w *changeFeedWorld) feed(t *testing.T, query string) (int, map[string]any) {
 	t.Helper()
+	return w.feedAs(t, w.token, query)
+}
+
+// feedAs is feed with an explicit bearer token: a cursor is bound to the
+// account it was minted for, so each caller pages their own.
+func (w *changeFeedWorld) feedAs(t *testing.T, token, query string) (int, map[string]any) {
+	t.Helper()
 	path := "/api/v1/workspaces/" + w.wsID + "/documents/changes"
 	if query != "" {
 		path += "?" + query
 	}
-	res, out := doJSON(t, w.srv, "GET", path, w.token, nil)
+	res, out := doJSON(t, w.srv, "GET", path, token, nil)
 	return res.StatusCode, out
 }
 
@@ -248,7 +274,10 @@ func TestDocumentChangesRevisionWireIsDecimalString(t *testing.T) {
 // carries the document id, the change kind and its reason - no title, no path,
 // no metadata - on the raw body. The removal is a revoked share (a purge
 // answers 410 where the removing change destroyed its evidence, the
-// service-level rule of BE-G1-2).
+// service-level rule of BE-G1-2). The caller is the second registered user, the
+// share principal, so revoking that share really takes their read away - the
+// owner (the other account) keeps manage and can never lose read - and the
+// cold-start cursor is minted by that same account.
 func TestDocumentChangesHTTPFeedRows(t *testing.T) {
 	w := newChangeFeedWorld(t)
 	docID := util.NewID()
@@ -256,13 +285,14 @@ func TestDocumentChangesHTTPFeedRows(t *testing.T) {
 	shareID := util.NewID()
 	if _, err := testPool.Exec(context.Background(),
 		`INSERT INTO document_shares (id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind)
-		 VALUES ($1, $2, $3, $4, 'user', $5, 'view', $5, 'human')`,
-		shareID, w.orgID, w.wsID, docID, w.userID); err != nil {
+		 VALUES ($1, $2, $3, $4, 'user', $5, 'view', $6, 'human')`,
+		shareID, w.orgID, w.wsID, docID, w.memberID, w.userID); err != nil {
 		t.Fatal(err)
 	}
 
-	// The cold start over the shared document hands out the feed cursor.
-	status, out := w.feed(t, "")
+	// The cold start over the shared document hands out the feed cursor, for
+	// the share principal's own account.
+	status, out := w.feedAs(t, w.memberToken, "")
 	if status != http.StatusOK {
 		t.Fatalf("cold start = %d %v, want 200", status, out)
 	}
@@ -280,11 +310,11 @@ func TestDocumentChangesHTTPFeedRows(t *testing.T) {
 		`INSERT INTO audit_events (id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, correlation_id, metadata)
 		 VALUES ($1, $2, $3, 'human', $4, 'document.share_revoked', 'document', $5, $6, $7)`,
 		util.NewID(), w.orgID, w.wsID, w.userID, docID, util.NewID(),
-		fmt.Sprintf(`{"principal_type":"user","principal_id":%q,"level":"view"}`, w.userID)); err != nil {
+		fmt.Sprintf(`{"principal_type":"user","principal_id":%q,"level":"view"}`, w.memberID)); err != nil {
 		t.Fatal(err)
 	}
 
-	status, out = w.feed(t, "cursor="+url.QueryEscape(cursor))
+	status, out = w.feedAs(t, w.memberToken, "cursor="+url.QueryEscape(cursor))
 	if status != http.StatusOK {
 		t.Fatalf("feed page = %d %v, want 200", status, out)
 	}

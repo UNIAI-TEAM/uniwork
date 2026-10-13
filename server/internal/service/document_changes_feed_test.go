@@ -203,8 +203,14 @@ func TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns(t
 	if err != nil {
 		t.Fatalf("feed while a transaction is in flight: %v", err)
 	}
-	if !page.HasMore {
-		t.Fatal("a change held back by the in-flight guard must keep has_more true (BE-G1-3)")
+	// Every candidate is held back by the in-flight guard, so this page
+	// advanced nothing: has_more=false with the cursor unchanged (BE-G2-2).
+	// The client polls again later; the held row is delayed, never lost.
+	if page.HasMore {
+		t.Fatal("a page that advanced nothing must answer has_more=false (BE-G2-2)")
+	}
+	if page.NextCursor != feedCursor {
+		t.Fatalf("the held-back page moved its cursor: %q -> %q", feedCursor, page.NextCursor)
 	}
 	for _, r := range page.Feed {
 		if r.DocumentID == younger.ID {
@@ -879,18 +885,22 @@ func TestDocumentChangesFeedNeverReaderGetsNothing(t *testing.T) {
 
 // TestDocumentChangesFeedStillReaderKeepsReadingOnOneShareRevoke: revoking one
 // of two shares must not take the document away from a caller who still reads
-// through the other path (BE-G1-2): no removal, the ordinary upsert.
+// through the other path (BE-G1-2): no removal, the ordinary upsert. The two
+// paths are DIFFERENT principals - a user share to the member and a workspace
+// share to wsA (which the member is in) - so document_shares' live unique index
+// (document_id, principal_type, principal_id) is not violated.
 func TestDocumentChangesFeedStillReaderKeepsReadingOnOneShareRevoke(t *testing.T) {
 	w := newFeedWorld(t, "chgstill")
 	doc := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", createdBy: w.tn.owner.ID})
-	view := w.f.share(t, doc, DocumentPrincipalUser, w.tn.member.ID, DocumentLevelView, w.tn.owner.ID)
-	w.f.share(t, doc, DocumentPrincipalUser, w.tn.member.ID, DocumentLevelEdit, w.tn.owner.ID)
+	userShare := w.f.share(t, doc, DocumentPrincipalUser, w.tn.member.ID, DocumentLevelView, w.tn.owner.ID)
+	w.f.share(t, doc, DocumentPrincipalWorkspace, w.tn.wsA, DocumentLevelView, w.tn.owner.ID)
 	feedCursor, held := w.snapshotThenFeed(t, 200)
 	if !held[doc.ID] {
 		t.Fatal("the fixture is wrong: the member could not read the shared document")
 	}
 
-	if err := w.f.svc.RevokeDocumentShare(w.f.ctx, Human(w.tn.owner.ID), doc.ID, view.ID); err != nil {
+	// One of the two paths ends; the member still reads through the other.
+	if err := w.f.svc.RevokeDocumentShare(w.f.ctx, Human(w.tn.owner.ID), doc.ID, userShare.ID); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
 	got, ok := feedRowsByDoc(w.drainFeed(t, feedCursor, 200))[doc.ID]
@@ -938,28 +948,53 @@ func TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals(t *testi
 
 // TestDocumentChangesFeedVisibilityDemotionIsRemoval: a workspace-visible
 // document demoted to restricted reaches the member who could read it through
-// the workspace leg. No document-level visibility command exists on this root
-// yet, so the row is the shape such a command must write (metadata.visibility
-// carries the prior visibility); the branch and its audit contract are pinned
-// here for the command that lands.
+// the workspace leg. The demotion is driven by the REAL command: an
+// administrator who is NOT the feed caller PATCHes Visibility through
+// UpdateDocument (BE-G2-1), which writes document.updated with a
+// changes.visibility {from,to} diff. The member is not the ACL owner, so
+// losing the workspace leg really takes their read away.
 func TestDocumentChangesFeedVisibilityDemotionIsRemoval(t *testing.T) {
 	w := newFeedWorld(t, "chgdemote")
-	doc := w.createPage(t, "demoted")
+	doc := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "workspace", createdBy: w.tn.owner.ID, aclOwner: w.tn.owner.ID})
 	feedCursor, held := w.snapshotThenFeed(t, 200)
 	if !held[doc.ID] {
 		t.Fatal("the fixture is wrong: the member could not read the document")
 	}
-	if _, err := w.f.pool.Exec(w.f.ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, doc.ID); err != nil {
-		t.Fatal(err)
+
+	restricted := documentVisibilityRestricted
+	if _, err := w.f.svc.UpdateDocument(w.f.ctx, Human(w.tn.owner.ID), doc.ID, UpdateDocumentInput{
+		Revision: doc.Revision, Visibility: &restricted,
+	}); err != nil {
+		t.Fatalf("demote via UpdateDocument: %v", err)
 	}
-	insertRow(t, w.f.ctx, w.f.pool, "audit_events", map[string]any{
-		"id": util.NewID(), "organization_id": w.tn.orgID, "workspace_id": w.tn.wsA,
-		"actor_kind": "human", "actor_id": w.tn.owner.ID, "action": "document.settings_changed",
-		"resource_type": "document", "resource_id": doc.ID, "correlation_id": util.NewID(),
-		"metadata": `{"visibility":"workspace"}`,
-	})
 	got, ok := feedRowsByDoc(w.drainFeed(t, feedCursor, 200))[doc.ID]
 	if !ok || got.ChangeKind != DocumentChangeKindRemoval || got.Removal != DocumentChangeRemovalPermissionRevoked {
 		t.Fatalf("demotion row = %+v (found %v), want removal permission_revoked", got, ok)
+	}
+}
+
+// TestDocumentChangesFeedTitleEditOfUnreadableDocumentIsNotARemoval is the
+// negative half of BE-G2-1: a document.updated row WITHOUT a visibility diff
+// (a title edit) is not a removal basis. The member cannot read the document
+// and must get no row about it - and, above all, no 410: a plain edit of a
+// document they cannot read must never force a resync.
+func TestDocumentChangesFeedTitleEditOfUnreadableDocumentIsNotARemoval(t *testing.T) {
+	w := newFeedWorld(t, "chgtitleedit")
+	hidden := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", createdBy: w.tn.owner.ID, aclOwner: w.tn.owner.ID})
+	feedCursor, held := w.snapshotThenFeed(t, 200)
+	if held[hidden.ID] {
+		t.Fatal("the fixture is wrong: the member could read a restricted document")
+	}
+
+	title := "renamed by the owner"
+	if _, err := w.f.svc.UpdateDocument(w.f.ctx, Human(w.tn.owner.ID), hidden.ID, UpdateDocumentInput{
+		Revision: hidden.Revision, Title: &title,
+	}); err != nil {
+		t.Fatalf("title PATCH: %v", err)
+	}
+	for _, r := range w.drainFeed(t, feedCursor, 200) {
+		if r.DocumentID == hidden.ID {
+			t.Fatalf("a title-only edit produced a row about a document the member cannot read: %+v", r)
+		}
 	}
 }
