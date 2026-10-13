@@ -291,6 +291,18 @@ func TestMcpLoopbackRedirectMatchesAnyPort(t *testing.T) {
 			t.Errorf("%s accepted, want refused", uri)
 		}
 	}
+
+	// A metadata-document client (Claude Code) gets the same rule.
+	cimdID := "https://claude.example/oauth/claude-code-client-metadata"
+	doc, _ := json.Marshal(map[string]any{"client_id": cimdID, "client_name": "Claude Code", "redirect_uris": []string{"http://localhost/callback", "http://127.0.0.1/callback"}})
+	w.svc.SetFetcher(&fakeCIMD{body: doc})
+	cc, err := w.svc.ResolveClient(w.ctx, cimdID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cc.allowsRedirect("http://localhost:3118/callback") || !cc.allowsRedirect("http://127.0.0.1:3118/callback") || cc.allowsRedirect("http://localhost:3118/other") {
+		t.Errorf("metadata-document client: the loopback rule is not applied to %v", cc.RedirectURIs)
+	}
 }
 
 // The attempt records the redirect URI the client sent, port included, and the
