@@ -1,0 +1,8 @@
+$ . scripts/local-env.sh && cd server && go test ./internal -run 'TestAIPackageOnlyCallsAiQueries|TestProviderSDKOnlyInAIProvider' -count=1 -v 2>&1 | grep -E '^(--- |PASS|FAIL|ok|testing: warning)'; echo "G603C_ARCH_EXIT ${PIPESTATUS[0]}"; true
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestProviderSDKOnlyInAIProvider (0.26s)
+--- PASS: TestAIPackageOnlyCallsAiQueries (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal	0.269s
+G603C_ARCH_EXIT 0

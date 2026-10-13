@@ -1,0 +1,469 @@
+$ . scripts/local-env.sh && cd server && go test ./internal/handler -run 'TestAICloud|TestOfficeFrameAI|TestOfficeFrameToken|TestOfficeAppCapabilities|TestOfficeFrameModule|TestOfficeFrameUniworkAI|TestOfficeFrameGrants' -count=1; echo "G603C_NEIGHBOUR_EXIT $?"; true
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+2026/10/13 02:48:03 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:03 INFO http request method=POST path=/api/v1/auth/register status=200 duration=6.498ms request_id=cursor/Q9S2CGovML-000001 correlation_id=01M4SJHWBD0B2DSQY5D1WZ6EJB
+2026/10/13 02:48:03 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.513ms request_id=cursor/Q9S2CGovML-000002 correlation_id=01M4SJHWBMYZ7YEEMFBA8FCVYP
+2026/10/13 02:48:03 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.917ms request_id=cursor/Q9S2CGovML-000003 correlation_id=01M4SJHWBP77Q7TRXX41R94H58
+2026/10/13 02:48:03 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.11ms request_id=cursor/Q9S2CGovML-000004 correlation_id=01M4SJHWBTS5CAMD4S9HSTM21J
+2026/10/13 02:48:03 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=903µs request_id=cursor/Q9S2CGovML-000005 correlation_id=01M4SJHWBWJKA3BJ998D0DV2BC
+2026/10/13 02:48:03 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.964ms request_id=cursor/Q9S2CGovML-000006 correlation_id=01M4SJHWBYZHH4KXEW52CYM4DA
+2026/10/13 02:48:03 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=535µs request_id=cursor/Q9S2CGovML-000007 correlation_id=01M4SJHWC037AEHPN57SEX4SNG
+2026/10/13 02:48:04 INFO ai: cloud call usage_event_id=01M4SJHWRVX0JC09E7184WC2PP capability=cloud_image_generate latency_ms=0
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/orgs/01M4SJHWBP77Q7TRXX41SSP578/ai/cloud/images status=200 duration=226.474ms request_id=cursor/Q9S2CGovML-000008 correlation_id=01M4SJHWHVJZ2KH1SA808931FQ
+2026/10/13 02:48:04 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.48ms request_id=cursor/Q9S2CGovML-000009 correlation_id=01M4SJHWYR3PGSR1ZE7MHCPB0X
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.06ms request_id=cursor/Q9S2CGovML-000010 correlation_id=01M4SJHWYYG0D5B0785X95F0FT
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/orgs status=201 duration=5.519ms request_id=cursor/Q9S2CGovML-000011 correlation_id=01M4SJHWZ08YZ149XFPFJQVSJJ
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.122ms request_id=cursor/Q9S2CGovML-000012 correlation_id=01M4SJHWZ6Y1SBKY3H4K4XQM4M
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=712µs request_id=cursor/Q9S2CGovML-000013 correlation_id=01M4SJHWZ8V75G29CW1QH946JV
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.156ms request_id=cursor/Q9S2CGovML-000014 correlation_id=01M4SJHWZ9FF62GBRDSHY9D1PY
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=704µs request_id=cursor/Q9S2CGovML-000015 correlation_id=01M4SJHWZBDN6891TFG62TVA6V
+2026/10/13 02:48:04 INFO http request method=GET path=/api/v1/orgs/01M4SJHWZ08YZ149XFPGHSEP5P/ai/cloud status=200 duration=5.189ms request_id=cursor/Q9S2CGovML-000016 correlation_id=01M4SJHWZC7FR5E5DDNJ8EFG3Q
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHWZ08YZ149XFPGHSEP5P/ai/cloud/media/analyze status=422 duration=722µs request_id=cursor/Q9S2CGovML-000017 correlation_id=01M4SJHWZJ7YJZPZK1TDGKMTY0
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHWZ08YZ149XFPGHSEP5P/ai/cloud/media/analyze status=422 duration=545µs request_id=cursor/Q9S2CGovML-000018 correlation_id=01M4SJHWZKMPTXWXD4ZFNGZ19P
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHWZ08YZ149XFPGHSEP5P/ai/cloud/media/analyze status=422 duration=474µs request_id=cursor/Q9S2CGovML-000019 correlation_id=01M4SJHWZKMPTXWXD4ZFT1S9P8
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHWZ08YZ149XFPGHSEP5P/ai/cloud/media/analyze status=422 duration=383µs request_id=cursor/Q9S2CGovML-000020 correlation_id=01M4SJHWZM6H1CCA7BTGYG3WP4
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHWZ08YZ149XFPGHSEP5P/ai/cloud/media/analyze status=422 duration=284µs request_id=cursor/Q9S2CGovML-000021 correlation_id=01M4SJHWZNVNQZRPHYDWYJTF7K
+2026/10/13 02:48:04 INFO http request method=GET path=/api/v1/orgs/01M4SJHWZ08YZ149XFPGHSEP5P/ai/cloud status=200 duration=1.574ms request_id=cursor/Q9S2CGovML-000022 correlation_id=01M4SJHWZNVNQZRPHYDYXX2MCD
+2026/10/13 02:48:04 INFO ai: call usage_event_id=01M4SJHWZRRMNGR6VMP3WX0Y3A capability=media_analysis latency_ms=0
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/orgs/01M4SJHWZ08YZ149XFPGHSEP5P/ai/cloud/media/analyze status=200 duration=3.122ms request_id=cursor/Q9S2CGovML-000023 correlation_id=01M4SJHWZQJMFZT1HCMTY2E0Q5
+2026/10/13 02:48:04 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.76ms request_id=cursor/Q9S2CGovML-000024 correlation_id=01M4SJHX5MDBWHBM6EE9VH1JTF
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.327ms request_id=cursor/Q9S2CGovML-000025 correlation_id=01M4SJHX5S8ZFSZZC2R7GGV909
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.976ms request_id=cursor/Q9S2CGovML-000026 correlation_id=01M4SJHX5TVZY4D4JCMAPEENGD
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.524ms request_id=cursor/Q9S2CGovML-000027 correlation_id=01M4SJHX5ZT42CVWR0XRCXZYXQ
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.172ms request_id=cursor/Q9S2CGovML-000028 correlation_id=01M4SJHX62F1G2ZHG17GQ6J1ZF
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.792ms request_id=cursor/Q9S2CGovML-000029 correlation_id=01M4SJHX63J3ETW6WK7PX9KM1Z
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=556µs request_id=cursor/Q9S2CGovML-000030 correlation_id=01M4SJHX65XX8PC4WNK96VHPER
+2026/10/13 02:48:04 INFO http request method=GET path=/api/v1/orgs/01M4SJHX5TVZY4D4JCMDC65SH9/ai/cloud status=200 duration=4.336ms request_id=cursor/Q9S2CGovML-000031 correlation_id=01M4SJHX66ZWAJZRWSFMA81PNQ
+2026/10/13 02:48:04 INFO ai: cloud call usage_event_id=01M4SJHX6CE9RQ3C9K2VAKJV78 capability=cloud_search latency_ms=0
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/orgs/01M4SJHX5TVZY4D4JCMDC65SH9/ai/cloud/search status=200 duration=3.352ms request_id=cursor/Q9S2CGovML-000032 correlation_id=01M4SJHX6BR5HR1MJ45P1RQ0CY
+2026/10/13 02:48:04 INFO http request method=GET path=/api/v1/orgs/01M4SJHX5TVZY4D4JCMDC65SH9/ai/cloud status=200 duration=1.784ms request_id=cursor/Q9S2CGovML-000033 correlation_id=01M4SJHX6EQKJG3N51P7R41S1Q
+2026/10/13 02:48:04 INFO ai: cloud call usage_event_id=01M4SJHX6HKGA2Z9Z9Z7SW7D1Q capability=cloud_search latency_ms=0
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/orgs/01M4SJHX5TVZY4D4JCMDC65SH9/ai/cloud/search status=200 duration=1.54ms request_id=cursor/Q9S2CGovML-000034 correlation_id=01M4SJHX6GZ65T78P9NJFP7T0K
+2026/10/13 02:48:04 INFO ai: cloud call usage_event_id=01M4SJHX6K2S066EWSV0N20ZAC capability=cloud_image_generate latency_ms=0
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/orgs/01M4SJHX5TVZY4D4JCMDC65SH9/ai/cloud/images status=200 duration=1.306ms request_id=cursor/Q9S2CGovML-000035 correlation_id=01M4SJHX6JR6R4F70Z2MGNW8J5
+2026/10/13 02:48:04 INFO http request method=GET path=/api/v1/orgs/01M4SJHX5TVZY4D4JCMDC65SH9/ai/cloud status=200 duration=1.403ms request_id=cursor/Q9S2CGovML-000036 correlation_id=01M4SJHX6K2S066EWSV55VDNFR
+2026/10/13 02:48:04 INFO ai: call usage_event_id=01M4SJHX6N97VFDFAYRV6AGHSR capability=media_analysis latency_ms=0
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/orgs/01M4SJHX5TVZY4D4JCMDC65SH9/ai/cloud/media/analyze status=200 duration=1.577ms request_id=cursor/Q9S2CGovML-000037 correlation_id=01M4SJHX6N97VFDFAYRTME8X8Q
+2026/10/13 02:48:04 INFO http request method=GET path=/api/v1/orgs/01M4SJHX5TVZY4D4JCMDC65SH9/ai/cloud status=200 duration=1.226ms request_id=cursor/Q9S2CGovML-000038 correlation_id=01M4SJHX6Q9VDZ5ZNGTJNR0NK8
+2026/10/13 02:48:04 INFO ai: cloud call usage_event_id=01M4SJHX6SMXKRBAPHB5ETT9D6 capability=cloud_transcribe latency_ms=0
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/orgs/01M4SJHX5TVZY4D4JCMDC65SH9/ai/cloud/transcribe status=200 duration=1.412ms request_id=cursor/Q9S2CGovML-000039 correlation_id=01M4SJHX6RWHT1YYW8RVRN1NN9
+2026/10/13 02:48:04 INFO http request method=GET path=/api/v1/orgs/01M4SJHX5TVZY4D4JCMDC65SH9/ai/cloud status=200 duration=1.399ms request_id=cursor/Q9S2CGovML-000040 correlation_id=01M4SJHX6SMXKRBAPHBBD2X96K
+2026/10/13 02:48:04 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.046ms request_id=cursor/Q9S2CGovML-000041 correlation_id=01M4SJHXDHZCMX97A0MXQRRWW9
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.017ms request_id=cursor/Q9S2CGovML-000042 correlation_id=01M4SJHXDN4Z0W119FC933M01S
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.372ms request_id=cursor/Q9S2CGovML-000043 correlation_id=01M4SJHXDQG18ETYGB3QD55ECY
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.532ms request_id=cursor/Q9S2CGovML-000044 correlation_id=01M4SJHXDVB821WJTE7VCDKHZT
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.268ms request_id=cursor/Q9S2CGovML-000045 correlation_id=01M4SJHXDY61XMP154NKJ6S36R
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.162ms request_id=cursor/Q9S2CGovML-000046 correlation_id=01M4SJHXE0TFX00NM0F8Y8D87R
+2026/10/13 02:48:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=780µs request_id=cursor/Q9S2CGovML-000047 correlation_id=01M4SJHXE2E934HV6WZ7HVFXGY
+2026/10/13 02:48:04 INFO http request method=GET path=/api/v1/orgs/01M4SJHXDQG18ETYGB3R52BC26/ai/cloud status=200 duration=4.623ms request_id=cursor/Q9S2CGovML-000048 correlation_id=01M4SJHXE3JMP70JZ0P3RYYPDC
+2026/10/13 02:48:04 ERROR http request method=POST path=/api/v1/orgs/01M4SJHXDQG18ETYGB3R52BC26/ai/cloud/images status=503 duration=548µs request_id=cursor/Q9S2CGovML-000049 correlation_id=01M4SJHXE841QAR5NN7FJF7WSB
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHXDQG18ETYGB3R52BC26/ai/cloud/search status=402 duration=906µs request_id=cursor/Q9S2CGovML-000050 correlation_id=01M4SJHXE9MW0MRQYME4VTGQMF
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHXDQG18ETYGB3R52BC26/ai/cloud/transcribe status=402 duration=773µs request_id=cursor/Q9S2CGovML-000051 correlation_id=01M4SJHXEAY66N50XXQVMP71RK
+2026/10/13 02:48:04 INFO http request method=GET path=/api/v1/orgs/01M4SJHXDQG18ETYGB3R52BC26/ai/cloud status=200 duration=1.467ms request_id=cursor/Q9S2CGovML-000052 correlation_id=01M4SJHXEBKJZECRJKHZQ1QMD4
+2026/10/13 02:48:04 INFO http request method=GET path=/api/v1/orgs/01M4SJHXDQG18ETYGB3R52BC26/ai/cloud status=200 duration=1.33ms request_id=cursor/Q9S2CGovML-000053 correlation_id=01M4SJHXEDG3TBK7MGCB8E210P
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHXDQG18ETYGB3R52BC26/ai/cloud/search status=403 duration=351µs request_id=cursor/Q9S2CGovML-000054 correlation_id=01M4SJHXEFTT5ACXYWJDY5FD8B
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHXDQG18ETYGB3R52BC26/ai/cloud/images status=403 duration=268µs request_id=cursor/Q9S2CGovML-000055 correlation_id=01M4SJHXEFTT5ACXYWJGP6H0KE
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHXDQG18ETYGB3R52BC26/ai/cloud/media/analyze status=403 duration=226µs request_id=cursor/Q9S2CGovML-000056 correlation_id=01M4SJHXEFTT5ACXYWJH3PAZBZ
+2026/10/13 02:48:04 WARN http request method=POST path=/api/v1/orgs/01M4SJHXDQG18ETYGB3R52BC26/ai/cloud/transcribe status=403 duration=377µs request_id=cursor/Q9S2CGovML-000057 correlation_id=01M4SJHXEG1DX3GSXHAG39WTQE
+2026/10/13 02:48:05 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.865ms request_id=cursor/Q9S2CGovML-000058 correlation_id=01M4SJHXMGEQHRRDKCBMQ6QZQ5
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.394ms request_id=cursor/Q9S2CGovML-000059 correlation_id=01M4SJHXMNZA4YJ1BRTT97GB6E
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.571ms request_id=cursor/Q9S2CGovML-000060 correlation_id=01M4SJHXMQWSFJ8N988HDAZJAK
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.255ms request_id=cursor/Q9S2CGovML-000061 correlation_id=01M4SJHXMVZ334CYP2N4P7ZYNX
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.169ms request_id=cursor/Q9S2CGovML-000062 correlation_id=01M4SJHXMYVAMAAZMHKVEW47E7
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.562ms request_id=cursor/Q9S2CGovML-000063 correlation_id=01M4SJHXMZBWCNYVDH3AAG940F
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.665ms request_id=cursor/Q9S2CGovML-000064 correlation_id=01M4SJHXN2FFX7EVGG0CKMP1J5
+2026/10/13 02:48:05 WARN http request method=GET path=/api/v1/orgs/01M4SJHXMQWSFJ8N988KFKGXBF/ai/cloud status=403 duration=356µs request_id=cursor/Q9S2CGovML-000065 correlation_id=01M4SJHXN41CAK1YDWMF80SASW
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXMQWSFJ8N988KFKGXBF/ai/cloud/search status=403 duration=265µs request_id=cursor/Q9S2CGovML-000066 correlation_id=01M4SJHXN41CAK1YDWMJ96K4WS
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXMQWSFJ8N988KFKGXBF/ai/cloud/images status=403 duration=187µs request_id=cursor/Q9S2CGovML-000067 correlation_id=01M4SJHXN5ZB22ZPYXEDF6WCQA
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXMQWSFJ8N988KFKGXBF/ai/cloud/media/analyze status=403 duration=191µs request_id=cursor/Q9S2CGovML-000068 correlation_id=01M4SJHXN5ZB22ZPYXEG23BHRV
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXMQWSFJ8N988KFKGXBF/ai/cloud/transcribe status=403 duration=218µs request_id=cursor/Q9S2CGovML-000069 correlation_id=01M4SJHXN6DPV762FZCRBM6C5J
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXMQWSFJ8N988KFKGXBF/ai/cloud/search status=401 duration=18µs request_id=cursor/Q9S2CGovML-000070 correlation_id=01M4SJHXN6DPV762FZCRE2FQ4Z
+2026/10/13 02:48:05 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.968ms request_id=cursor/Q9S2CGovML-000071 correlation_id=01M4SJHXW0TNTQDGQ0GR2WHF9V
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.137ms request_id=cursor/Q9S2CGovML-000072 correlation_id=01M4SJHXW4VQ6J9G8E7S3G5C6K
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.639ms request_id=cursor/Q9S2CGovML-000073 correlation_id=01M4SJHXW5KHYXKNJ86NFQKZ4J
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.488ms request_id=cursor/Q9S2CGovML-000074 correlation_id=01M4SJHXW9YEVD9FJ60KVS8PBX
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=575µs request_id=cursor/Q9S2CGovML-000075 correlation_id=01M4SJHXWCPF4NWS6BCECKQJ5Q
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.212ms request_id=cursor/Q9S2CGovML-000076 correlation_id=01M4SJHXWD2MZNAZFMBA60KGZF
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=779µs request_id=cursor/Q9S2CGovML-000077 correlation_id=01M4SJHXWFA9PVNCXWDSDD5W2F
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/search status=400 duration=1.345ms request_id=cursor/Q9S2CGovML-000078 correlation_id=01M4SJHXWJE4XFQ3TS529H5QBJ
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/search status=400 duration=413µs request_id=cursor/Q9S2CGovML-000079 correlation_id=01M4SJHXWK2PJZYYCNTPG8AHSR
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/search status=400 duration=595µs request_id=cursor/Q9S2CGovML-000080 correlation_id=01M4SJHXWMMRC8AP3XVXGBX4W2
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/search status=400 duration=374µs request_id=cursor/Q9S2CGovML-000081 correlation_id=01M4SJHXWMMRC8AP3XVZZH9KRG
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/images status=400 duration=289µs request_id=cursor/Q9S2CGovML-000082 correlation_id=01M4SJHXWNX56N733QRNDZZD05
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/images status=400 duration=376µs request_id=cursor/Q9S2CGovML-000083 correlation_id=01M4SJHXWNX56N733QRP03T6CM
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/images status=400 duration=307µs request_id=cursor/Q9S2CGovML-000084 correlation_id=01M4SJHXWPAMZPTPXMYEQRR17W
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/images status=400 duration=29.383ms request_id=cursor/Q9S2CGovML-000085 correlation_id=01M4SJHXX4FMFVFB6VC9444PBP
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/media/analyze status=400 duration=359µs request_id=cursor/Q9S2CGovML-000086 correlation_id=01M4SJHXY2KF6Z63J4WCK417EZ
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/media/analyze status=400 duration=282µs request_id=cursor/Q9S2CGovML-000087 correlation_id=01M4SJHXY2KF6Z63J4WDG6WS6K
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/media/analyze status=400 duration=293µs request_id=cursor/Q9S2CGovML-000088 correlation_id=01M4SJHXY3SG7YSF90NDJNKX2V
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/transcribe status=400 duration=224µs request_id=cursor/Q9S2CGovML-000089 correlation_id=01M4SJHXY3SG7YSF90NGZZ23PK
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/transcribe status=400 duration=316µs request_id=cursor/Q9S2CGovML-000090 correlation_id=01M4SJHXY3SG7YSF90NMAVQPNQ
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/search status=400 duration=100µs request_id=cursor/Q9S2CGovML-000091 correlation_id=01M4SJHXY4CYYDSHH0SDZKJ1MJ
+2026/10/13 02:48:05 WARN http request method=POST path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud/search status=413 duration=1.266ms request_id=cursor/Q9S2CGovML-000092 correlation_id=01M4SJHXY5Z87XXTRNH1N8BFKP
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/orgs/01M4SJHXW5KHYXKNJ86RQNAYGK/ai/cloud status=200 duration=3.678ms request_id=cursor/Q9S2CGovML-000093 correlation_id=01M4SJHXY6JQ99PE8G9VTP5ZYQ
+2026/10/13 02:48:05 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.626ms request_id=cursor/Q9S2CGovML-000094 correlation_id=01M4SJHY3ZBGD1TPF0FFFRCEWK
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=817µs request_id=cursor/Q9S2CGovML-000095 correlation_id=01M4SJHY43K9XBDBEBTP4V1JQ4
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.479ms request_id=cursor/Q9S2CGovML-000096 correlation_id=01M4SJHY4480HZNTHTQ8G6JYFC
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.76ms request_id=cursor/Q9S2CGovML-000097 correlation_id=01M4SJHY4812V5MZF2492MG77X
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=634µs request_id=cursor/Q9S2CGovML-000098 correlation_id=01M4SJHY4AYGC5S8BHXSAXE9ZP
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.373ms request_id=cursor/Q9S2CGovML-000099 correlation_id=01M4SJHY4BYTZF4C0Q0VCVJQB2
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.407ms request_id=cursor/Q9S2CGovML-000100 correlation_id=01M4SJHY4DZ1A8DJPDSYP78YQ8
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/orgs/01M4SJHY4480HZNTHTQCB2H98Q/ai/cloud status=200 duration=4.105ms request_id=cursor/Q9S2CGovML-000101 correlation_id=01M4SJHY4FSSKN3VV7C2MR6H49
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/orgs/01M4SJHY4480HZNTHTQCB2H98Q/ai/cloud status=200 duration=1.493ms request_id=cursor/Q9S2CGovML-000102 correlation_id=01M4SJHY4MJQB3WWE0YCM3C0BG
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/orgs/01M4SJHY4480HZNTHTQCB2H98Q/ai/cloud status=200 duration=1.446ms request_id=cursor/Q9S2CGovML-000103 correlation_id=01M4SJHY4PAYWDJV1ZHNM7KTTS
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/orgs/01M4SJHY4480HZNTHTQCB2H98Q/ai/cloud status=200 duration=1.231ms request_id=cursor/Q9S2CGovML-000104 correlation_id=01M4SJHY4R0GEYEQPCQNEGW8JE
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/orgs/01M4SJHY4480HZNTHTQCB2H98Q/ai/cloud status=200 duration=1.081ms request_id=cursor/Q9S2CGovML-000105 correlation_id=01M4SJHY4SQ4VQJNZJCK6HBMYW
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/orgs/01M4SJHY4480HZNTHTQCB2H98Q/ai/cloud status=200 duration=1.326ms request_id=cursor/Q9S2CGovML-000106 correlation_id=01M4SJHY4VYJ36E9E6S5TKCC4N
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/orgs/01M4SJHY4480HZNTHTQCB2H98Q/ai/cloud status=200 duration=809µs request_id=cursor/Q9S2CGovML-000107 correlation_id=01M4SJHY4WEQHW7AC1EWZWE4G6
+2026/10/13 02:48:05 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.234ms request_id=cursor/Q9S2CGovML-000108 correlation_id=01M4SJHYBGBRZE7XAKSGJSF101
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.365ms request_id=cursor/Q9S2CGovML-000109 correlation_id=01M4SJHYBN9GSV04QGJB87QX4R
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.191ms request_id=cursor/Q9S2CGovML-000110 correlation_id=01M4SJHYBPKSC5KJP9B1R4Z7F3
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.58ms request_id=cursor/Q9S2CGovML-000111 correlation_id=01M4SJHYBVZ9XRZVV342EYHF2S
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.254ms request_id=cursor/Q9S2CGovML-000112 correlation_id=01M4SJHYBYJZZJKPWN6ZF8SNMR
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.613ms request_id=cursor/Q9S2CGovML-000113 correlation_id=01M4SJHYC03KV4Q6TAZEGBSGB4
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.177ms request_id=cursor/Q9S2CGovML-000114 correlation_id=01M4SJHYC2EP99BTYM9P5YYQZY
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/orgs/01M4SJHYBQZ1VZK0K27BYFYSSQ/ai/cloud status=200 duration=4.178ms request_id=cursor/Q9S2CGovML-000115 correlation_id=01M4SJHYC4540Z77C6GXSEZWSZ
+2026/10/13 02:48:05 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.642ms request_id=cursor/Q9S2CGovML-000116 correlation_id=01M4SJHYJFT78JYDD25RQSW3PE
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.028ms request_id=cursor/Q9S2CGovML-000117 correlation_id=01M4SJHYJM2AZPF484D8VM3SRD
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.455ms request_id=cursor/Q9S2CGovML-000118 correlation_id=01M4SJHYJN0ZFN4S8GBRTMJ7JQ
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=504µs request_id=cursor/Q9S2CGovML-000119 correlation_id=01M4SJHYJRN5Z5BMJS5267H5Y4
+2026/10/13 02:48:05 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.813ms request_id=cursor/Q9S2CGovML-000120 correlation_id=01M4SJHYJSAKRD3N5HNREP8XSS
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/orgs/01M4SJHYJSAKRD3N5HNRYK8EVG/office/capabilities status=200 duration=748µs request_id=cursor/Q9S2CGovML-000121 correlation_id=01M4SJHYJX4CJN8Y7SAK4CM275
+2026/10/13 02:48:05 INFO http request method=GET path=/api/v1/config status=200 duration=144µs request_id=cursor/Q9S2CGovML-000122 correlation_id=01M4SJHYJYSXP6V6N8M7RB2YWE
+2026/10/13 02:48:06 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.802ms request_id=cursor/Q9S2CGovML-000123 correlation_id=01M4SJHYRWP5F5HX7M4SDPFRSG
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=988µs request_id=cursor/Q9S2CGovML-000124 correlation_id=01M4SJHYS231W5X6Y3Y4RC0NKC
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.138ms request_id=cursor/Q9S2CGovML-000125 correlation_id=01M4SJHYS4GQT761YY7HAEBWWE
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.223ms request_id=cursor/Q9S2CGovML-000126 correlation_id=01M4SJHYS69JA6YPTSEEAPSKR9
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.032ms request_id=cursor/Q9S2CGovML-000127 correlation_id=01M4SJHYS8CXJX6PSE9NM4CASY
+2026/10/13 02:48:06 INFO http request method=GET path=/api/v1/orgs/01M4SJHYS8CXJX6PSE9SEFE715/office/capabilities status=200 duration=674µs request_id=cursor/Q9S2CGovML-000128 correlation_id=01M4SJHYSDV8P06847Q0BASP1T
+2026/10/13 02:48:06 INFO http request method=GET path=/api/v1/orgs/01M4SJHYS8CXJX6PSE9SEFE715/office/capabilities status=200 duration=324µs request_id=cursor/Q9S2CGovML-000129 correlation_id=01M4SJHYSE4XFX68SFXRSRZ3PK
+2026/10/13 02:48:06 INFO http request method=GET path=/api/v1/orgs/01M4SJHYS8CXJX6PSE9SEFE715/office/capabilities status=200 duration=202µs request_id=cursor/Q9S2CGovML-000130 correlation_id=01M4SJHYSFWFX373N9WJVY6J6D
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/orgs status=201 duration=1.687ms request_id=cursor/Q9S2CGovML-000131 correlation_id=01M4SJHYSFWFX373N9WKKGDGN8
+2026/10/13 02:48:06 INFO http request method=GET path=/api/v1/orgs/01M4SJHYSGP0RD8GZ7JZ8ZQQZ5/office/capabilities status=200 duration=362µs request_id=cursor/Q9S2CGovML-000132 correlation_id=01M4SJHYSH50NK6A7MFK0ZBN1H
+2026/10/13 02:48:06 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.869ms request_id=cursor/Q9S2CGovML-000133 correlation_id=01M4SJHYYX6CEPKKGSN36236ST
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.132ms request_id=cursor/Q9S2CGovML-000134 correlation_id=01M4SJHYZ2V6Y7JB69KZA0TMCN
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.783ms request_id=cursor/Q9S2CGovML-000135 correlation_id=01M4SJHYZ306JFKBGMB42ZZ52R
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=665µs request_id=cursor/Q9S2CGovML-000136 correlation_id=01M4SJHYZ55XEA38M3DCG2KE8Y
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.085ms request_id=cursor/Q9S2CGovML-000137 correlation_id=01M4SJHYZ6NM636S31EZFT3029
+2026/10/13 02:48:06 INFO http request method=GET path=/api/v1/orgs/01M4SJHYZ6NM636S31F1AGHC2C/office/capabilities status=200 duration=685µs request_id=cursor/Q9S2CGovML-000138 correlation_id=01M4SJHYZAPW55CVYYY5C5MRHY
+2026/10/13 02:48:06 INFO http request method=GET path=/api/v1/orgs/01M4SJHYZ6NM636S31F1AGHC2C/office/capabilities status=200 duration=219µs request_id=cursor/Q9S2CGovML-000139 correlation_id=01M4SJHYZCATHWPG95Q2BMAC50
+2026/10/13 02:48:06 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.467ms request_id=cursor/Q9S2CGovML-000140 correlation_id=01M4SJHZ4Z6ME8CZ0M7NCFB6VD
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.466ms request_id=cursor/Q9S2CGovML-000141 correlation_id=01M4SJHZ54NB3YV15TZ1MF3R9G
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.411ms request_id=cursor/Q9S2CGovML-000142 correlation_id=01M4SJHZ55V8RJHP9AQ5NZ2MCQ
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=581µs request_id=cursor/Q9S2CGovML-000143 correlation_id=01M4SJHZ580PPM1C7H3DS88JBK
+2026/10/13 02:48:06 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.859ms request_id=cursor/Q9S2CGovML-000144 correlation_id=01M4SJHZ594ZBYP3VEYQ25VNZB
+2026/10/13 02:48:06 WARN http request method=GET path=/api/v1/orgs/01M4SJHZ594ZBYP3VEYR2TGCGP/office/capabilities status=403 duration=496µs request_id=cursor/Q9S2CGovML-000145 correlation_id=01M4SJHZ5DMCN007B5NMPHA2HN
+2026/10/13 02:48:06 WARN http request method=GET path=/api/v1/orgs/01M4SJHZ594ZBYP3VEYR2TGCGP/office/capabilities status=401 duration=21µs request_id=cursor/Q9S2CGovML-000146 correlation_id=01M4SJHZ5DMCN007B5NN42WDPD
+2026/10/13 02:48:06 WARN http request method=GET path=/api/v1/orgs/01M4SJHZ594ZBYP3VEYR2TGCGP/office/capabilities status=403 duration=286µs request_id=cursor/Q9S2CGovML-000147 correlation_id=01M4SJHZ5EZH20BR2PSCW3G8D2
+2026/10/13 02:48:06 WARN http request method=GET path=/api/v1/orgs/01M4SJHZ594ZBYP3VEYR2TGCGP/office/capabilities status=403 duration=254µs request_id=cursor/Q9S2CGovML-000148 correlation_id=01M4SJHZ5FJGF64WP8KYNZ5G8E
+2026/10/13 02:48:07 INFO http request method=GET path=/swagger/doc.json status=200 duration=426µs request_id=cursor/Q9S2CGovML-000149 correlation_id=01M4SJHZR4106HPYM4RP4BBBMF
+2026/10/13 02:48:07 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.948ms request_id=cursor/Q9S2CGovML-000150 correlation_id=01M4SJHZYEDZ6F1G3AWTFNWMYS
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.403ms request_id=cursor/Q9S2CGovML-000151 correlation_id=01M4SJHZYJ91X3RT51D35WWXZJ
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.235ms request_id=cursor/Q9S2CGovML-000152 correlation_id=01M4SJHZYMZM5V9BQ710DAXA2G
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/orgs/01M4SJHZYMZM5V9BQ711369ZM2/workspaces status=201 duration=5.283ms request_id=cursor/Q9S2CGovML-000153 correlation_id=01M4SJHZYR1TYCTQK4WFSGPA8T
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.998ms request_id=cursor/Q9S2CGovML-000154 correlation_id=01M4SJHZYXYN82QT7FEB8GXA16
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=486µs request_id=cursor/Q9S2CGovML-000155 correlation_id=01M4SJHZZ0QV434SBXNCF1TV4Q
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.638ms request_id=cursor/Q9S2CGovML-000156 correlation_id=01M4SJHZZ1CXYQ1DAZT6GGH96X
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.048ms request_id=cursor/Q9S2CGovML-000157 correlation_id=01M4SJHZZ40V4S3G8V0BWY1TG1
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/workspaces/01M4SJHZYSG48KDYEPWED6Q5KC/invitations status=200 duration=2.159ms request_id=cursor/Q9S2CGovML-000158 correlation_id=01M4SJHZZ53BW245ZZGZWWFH50
+2026/10/13 02:48:07 INFO http request method=GET path=/api/v1/me/invitations status=200 duration=700µs request_id=cursor/Q9S2CGovML-000159 correlation_id=01M4SJHZZ7MC305DJ39TBMQ13Z
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/invitations/01M4SJHZZ6HP12E2PHS9TXD0Y201M4SJHZZ6HP12E2PHSDEK8X8F/accept status=200 duration=4.132ms request_id=cursor/Q9S2CGovML-000160 correlation_id=01M4SJHZZ8FG6BCKNF8EH793VA
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/workspaces/01M4SJHZYSG48KDYEPWED6Q5KC/documents/files status=201 duration=6.646ms request_id=cursor/Q9S2CGovML-000161 correlation_id=01M4SJHZZD5NMW3JGSNC0C7FFY
+2026/10/13 02:48:07 INFO http request method=GET path=/api/v1/documents/01M4SJHZZHSWH2NS28NST5Q0Q7 status=200 duration=738µs request_id=cursor/Q9S2CGovML-000162 correlation_id=01M4SJHZZM7B6NJFB5H8G82BYQ
+2026/10/13 02:48:07 INFO http request method=PATCH path=/api/v1/documents/01M4SJHZZHSWH2NS28NST5Q0Q7 status=200 duration=1.951ms request_id=cursor/Q9S2CGovML-000163 correlation_id=01M4SJHZZNYPWZ6ND3N3CNCQG0
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/documents/01M4SJHZZHSWH2NS28NST5Q0Q7/shares status=201 duration=1.242ms request_id=cursor/Q9S2CGovML-000164 correlation_id=01M4SJHZZQKV00PG2ZV6S13Z96
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/documents/01M4SJHZZHSWH2NS28NST5Q0Q7/office/frame-token status=201 duration=2.643ms request_id=cursor/Q9S2CGovML-000165 correlation_id=01M4SJHZZS912Q17F4D8P3MVER
+2026/10/13 02:48:07 INFO http request method=GET path=/api/v1/office-frame/documents/01M4SJHZZHSWH2NS28NST5Q0Q7 status=200 duration=1.268ms request_id=cursor/Q9S2CGovML-000166 correlation_id=01M4SJHZZW8E510AAQJFHY82XR
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/office-frame/documents/01M4SJHZZHSWH2NS28NST5Q0Q7/uploads status=201 duration=1.167ms request_id=cursor/Q9S2CGovML-000167 correlation_id=01M4SJHZZXAS09BPMHNMXXV7F8
+2026/10/13 02:48:07 INFO http request method=DELETE path=/api/v1/documents/01M4SJHZZHSWH2NS28NST5Q0Q7/shares/01M4SJHZZRWYGWP1HAXFZJFJJY status=200 duration=906µs request_id=cursor/Q9S2CGovML-000168 correlation_id=01M4SJHZZZ83B75Z8Q67G9HRH1
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJHZZHSWH2NS28NST5Q0Q7 status=404 duration=387µs request_id=cursor/Q9S2CGovML-000169 correlation_id=01M4SJJ000A1ECERG8M05BATN8
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJHZZHSWH2NS28NST5Q0Q7/content status=404 duration=476µs request_id=cursor/Q9S2CGovML-000170 correlation_id=01M4SJJ000A1ECERG8M2R24SMD
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJHZZHSWH2NS28NST5Q0Q7/recents status=404 duration=380µs request_id=cursor/Q9S2CGovML-000171 correlation_id=01M4SJJ001B57R8TQYDFYVAYYP
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJHZZHSWH2NS28NST5Q0Q7/versions/commit status=404 duration=404µs request_id=cursor/Q9S2CGovML-000172 correlation_id=01M4SJJ001B57R8TQYDGDVHQVA
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJHZZHSWH2NS28NST5Q0Q7/export/pdf status=404 duration=625µs request_id=cursor/Q9S2CGovML-000173 correlation_id=01M4SJJ002G5ZSXN2VNY2XVDJ1
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/documents/01M4SJHZZHSWH2NS28NST5Q0Q7/office/frame-token status=404 duration=305µs request_id=cursor/Q9S2CGovML-000174 correlation_id=01M4SJJ003VBX08CEVSTGHCT46
+2026/10/13 02:48:07 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.272ms request_id=cursor/Q9S2CGovML-000175 correlation_id=01M4SJJ05S1TYXBCKA09V5M6PG
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=858µs request_id=cursor/Q9S2CGovML-000176 correlation_id=01M4SJJ05XHY73ZBJKPHYEXYKH
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.4ms request_id=cursor/Q9S2CGovML-000177 correlation_id=01M4SJJ05YJNWR1FP25HQ0RHNY
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/orgs/01M4SJJ05ZBC42XYBPHD948R6J/workspaces status=201 duration=5.287ms request_id=cursor/Q9S2CGovML-000178 correlation_id=01M4SJJ063VHJZ0J0XM5RGAVGG
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.033ms request_id=cursor/Q9S2CGovML-000179 correlation_id=01M4SJJ068JD3DRF03JVH8YJNK
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=547µs request_id=cursor/Q9S2CGovML-000180 correlation_id=01M4SJJ06B7M50V93YW714SP5P
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ064A9438QZDPE84M2KG/documents/files status=201 duration=6.195ms request_id=cursor/Q9S2CGovML-000181 correlation_id=01M4SJJ06C72BQHCCMF0YGRNZP
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/documents/01M4SJJ06F2WBS1271HERH78JM/office/frame-token status=201 duration=2.982ms request_id=cursor/Q9S2CGovML-000182 correlation_id=01M4SJJ06JHD3QQ3AZ2SNP9VPD
+2026/10/13 02:48:07 INFO http request method=PUT path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/credentials/openai status=201 duration=1.756ms request_id=cursor/Q9S2CGovML-000183 correlation_id=01M4SJJ06NXNF6H4WYNRPNQJY7
+2026/10/13 02:48:07 INFO http request method=GET path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/credentials status=200 duration=743µs request_id=cursor/Q9S2CGovML-000184 correlation_id=01M4SJJ06QSAENCJ458FG1T2SP
+2026/10/13 02:48:07 INFO http request method=GET path=/api/v1/orgs/01M4SJJ05ZBC42XYBPHD948R6J/ai/credentials status=200 duration=167µs request_id=cursor/Q9S2CGovML-000185 correlation_id=01M4SJJ06RCJD9N6F86EJFG7B1
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/byok/openai/chat/completions status=200 duration=4.968ms request_id=cursor/Q9S2CGovML-000186 correlation_id=01M4SJJ06SYET07901499V1AHW
+2026/10/13 02:48:07 INFO http request method=GET path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/byok/openai/models status=200 duration=895µs request_id=cursor/Q9S2CGovML-000187 correlation_id=01M4SJJ06Y47AJVAN97RGSZ8TY
+2026/10/13 02:48:07 INFO http request method=GET path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/cloud status=200 duration=1.602ms request_id=cursor/Q9S2CGovML-000188 correlation_id=01M4SJJ06ZQNYKC3155AR6XGQJ
+2026/10/13 02:48:07 INFO ai: cloud call usage_event_id=01M4SJJ072JWZH1JYAH06MSDMJ capability=cloud_search latency_ms=0
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/cloud/search status=200 duration=2.061ms request_id=cursor/Q9S2CGovML-000189 correlation_id=01M4SJJ071GMAPZGAT9DK1A2J0
+2026/10/13 02:48:07 INFO ai: cloud call usage_event_id=01M4SJJ0748QKJ5R6052ZPEJB9 capability=cloud_image_generate latency_ms=0
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/cloud/images status=200 duration=1.849ms request_id=cursor/Q9S2CGovML-000190 correlation_id=01M4SJJ0732QV2JQX8BXZSKT1J
+2026/10/13 02:48:07 INFO ai: call usage_event_id=01M4SJJ075VZ2YS4J62CAZKCRE capability=media_analysis latency_ms=0
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/cloud/media/analyze status=200 duration=1.633ms request_id=cursor/Q9S2CGovML-000191 correlation_id=01M4SJJ075VZ2YS4J62B9VCKGW
+2026/10/13 02:48:07 INFO ai: cloud call usage_event_id=01M4SJJ077C9W9RZEXAR0EDN8Z capability=cloud_transcribe latency_ms=0
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/cloud/transcribe status=200 duration=1.43ms request_id=cursor/Q9S2CGovML-000192 correlation_id=01M4SJJ077C9W9RZEXAP5JZ7P4
+2026/10/13 02:48:07 INFO http request method=DELETE path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/credentials/openai status=204 duration=530µs request_id=cursor/Q9S2CGovML-000193 correlation_id=01M4SJJ0786V44Q133NPZ9034E
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ06F2WBS1271HERH78JM/ai/byok/openai/chat/completions status=404 duration=511µs request_id=cursor/Q9S2CGovML-000194 correlation_id=01M4SJJ079YE4JXKB7T78HT5WB
+2026/10/13 02:48:07 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.906ms request_id=cursor/Q9S2CGovML-000195 correlation_id=01M4SJJ0D3CE7NX7F9T3Q7XRY8
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.05ms request_id=cursor/Q9S2CGovML-000196 correlation_id=01M4SJJ0D8BW51VXW20EJ2BA9A
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.692ms request_id=cursor/Q9S2CGovML-000197 correlation_id=01M4SJJ0D9F9W66MATPS3TC8YT
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/orgs/01M4SJJ0D9F9W66MATPWT98K8D/workspaces status=201 duration=6.276ms request_id=cursor/Q9S2CGovML-000198 correlation_id=01M4SJJ0DEJQ495W19ZBTHSCJ4
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.057ms request_id=cursor/Q9S2CGovML-000199 correlation_id=01M4SJJ0DM4REE83RBFEP3QKVR
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=733µs request_id=cursor/Q9S2CGovML-000200 correlation_id=01M4SJJ0DPC05Y1DNAP1EDJGKV
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ0DFRENXXBY2BTPRH7G1/documents/files status=201 duration=6.895ms request_id=cursor/Q9S2CGovML-000201 correlation_id=01M4SJJ0DRXG5V06KYA97SW5SA
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/office/frame-token status=201 duration=3.41ms request_id=cursor/Q9S2CGovML-000202 correlation_id=01M4SJJ0DZB2K0GRGZT96PDQWX
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ0DFRENXXBY2BTPRH7G1/documents/files status=201 duration=3.022ms request_id=cursor/Q9S2CGovML-000203 correlation_id=01M4SJJ0E3SA1VYYK0ENC8JB34
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/documents/01M4SJJ0E47FDY39HGTKZ6TC7E/office/frame-token status=201 duration=1.993ms request_id=cursor/Q9S2CGovML-000204 correlation_id=01M4SJJ0E6BZVDK180QZ8YASGX
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/orgs status=201 duration=1.615ms request_id=cursor/Q9S2CGovML-000205 correlation_id=01M4SJJ0E8TSSMKC5G7N3ZAYFK
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/orgs/01M4SJJ0E8TSSMKC5G7R2D50GD/workspaces status=201 duration=2.487ms request_id=cursor/Q9S2CGovML-000206 correlation_id=01M4SJJ0EAVQS6P2YJ0N4AG340
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ0EAVQS6P2YJ0QAA8NR8/documents/files status=201 duration=2.586ms request_id=cursor/Q9S2CGovML-000207 correlation_id=01M4SJJ0ECHJ4SMFMK59WQQP91
+2026/10/13 02:48:07 INFO http request method=POST path=/api/v1/documents/01M4SJJ0EEPXP26H0BDRD5JTRF/office/frame-token status=201 duration=2.015ms request_id=cursor/Q9S2CGovML-000208 correlation_id=01M4SJJ0EFZ3K7KS5ZJYPBYYH7
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials status=401 duration=48µs request_id=cursor/Q9S2CGovML-000209 correlation_id=01M4SJJ0EJXMNMGQTFXK3FFX2P
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials status=401 duration=21µs request_id=cursor/Q9S2CGovML-000210 correlation_id=01M4SJJ0EJXMNMGQTFXNZ108Q4
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials status=404 duration=26µs request_id=cursor/Q9S2CGovML-000211 correlation_id=01M4SJJ0EJXMNMGQTFXQXY6NR7
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials status=404 duration=13µs request_id=cursor/Q9S2CGovML-000212 correlation_id=01M4SJJ0EJXMNMGQTFXSZTAPJT
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials status=401 duration=8µs request_id=cursor/Q9S2CGovML-000213 correlation_id=01M4SJJ0EJXMNMGQTFXXK4ZZFA
+2026/10/13 02:48:07 WARN http request method=PUT path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials/openai status=401 duration=15µs request_id=cursor/Q9S2CGovML-000214 correlation_id=01M4SJJ0EJXMNMGQTFXYEEX75G
+2026/10/13 02:48:07 WARN http request method=PUT path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials/openai status=401 duration=12µs request_id=cursor/Q9S2CGovML-000215 correlation_id=01M4SJJ0EJXMNMGQTFY1RK87YN
+2026/10/13 02:48:07 WARN http request method=PUT path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials/openai status=404 duration=21µs request_id=cursor/Q9S2CGovML-000216 correlation_id=01M4SJJ0EKDGF5DEDV2RZNRTT3
+2026/10/13 02:48:07 WARN http request method=PUT path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials/openai status=404 duration=18µs request_id=cursor/Q9S2CGovML-000217 correlation_id=01M4SJJ0EKDGF5DEDV2V6NW43Y
+2026/10/13 02:48:07 WARN http request method=PUT path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials/openai status=401 duration=10µs request_id=cursor/Q9S2CGovML-000218 correlation_id=01M4SJJ0EKDGF5DEDV2Y78WAG6
+2026/10/13 02:48:07 WARN http request method=DELETE path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials/openai status=401 duration=13µs request_id=cursor/Q9S2CGovML-000219 correlation_id=01M4SJJ0EKDGF5DEDV31E440DE
+2026/10/13 02:48:07 WARN http request method=DELETE path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials/openai status=401 duration=23µs request_id=cursor/Q9S2CGovML-000220 correlation_id=01M4SJJ0EKDGF5DEDV326ZEGSC
+2026/10/13 02:48:07 WARN http request method=DELETE path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials/openai status=404 duration=20µs request_id=cursor/Q9S2CGovML-000221 correlation_id=01M4SJJ0EKDGF5DEDV32SKTZR0
+2026/10/13 02:48:07 WARN http request method=DELETE path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials/openai status=404 duration=23µs request_id=cursor/Q9S2CGovML-000222 correlation_id=01M4SJJ0EKDGF5DEDV34ABRQG1
+2026/10/13 02:48:07 WARN http request method=DELETE path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/credentials/openai status=401 duration=8µs request_id=cursor/Q9S2CGovML-000223 correlation_id=01M4SJJ0EKDGF5DEDV34F4JMGM
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/openai/chat/completions status=401 duration=12µs request_id=cursor/Q9S2CGovML-000224 correlation_id=01M4SJJ0EMS3H39CV8BQK3EQBF
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/openai/chat/completions status=401 duration=8µs request_id=cursor/Q9S2CGovML-000225 correlation_id=01M4SJJ0EMS3H39CV8BS2V9YAC
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/openai/chat/completions status=404 duration=18µs request_id=cursor/Q9S2CGovML-000226 correlation_id=01M4SJJ0EMS3H39CV8BW02389M
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/openai/chat/completions status=404 duration=16µs request_id=cursor/Q9S2CGovML-000227 correlation_id=01M4SJJ0EMS3H39CV8BWR2ZVXD
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/openai/chat/completions status=401 duration=40µs request_id=cursor/Q9S2CGovML-000228 correlation_id=01M4SJJ0ENBYAC4N606CBD4XJZ
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/anthropic/messages status=401 duration=23µs request_id=cursor/Q9S2CGovML-000229 correlation_id=01M4SJJ0ENBYAC4N606CJD0A1R
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/anthropic/messages status=401 duration=12µs request_id=cursor/Q9S2CGovML-000230 correlation_id=01M4SJJ0ENBYAC4N606GCASBXD
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/anthropic/messages status=404 duration=33µs request_id=cursor/Q9S2CGovML-000231 correlation_id=01M4SJJ0ENBYAC4N606K3ZD0G9
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/anthropic/messages status=404 duration=31µs request_id=cursor/Q9S2CGovML-000232 correlation_id=01M4SJJ0EPN9CS8KYCQEW70MXG
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/anthropic/messages status=401 duration=9µs request_id=cursor/Q9S2CGovML-000233 correlation_id=01M4SJJ0EPN9CS8KYCQGC9HRPH
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/gemini/generate status=401 duration=7µs request_id=cursor/Q9S2CGovML-000234 correlation_id=01M4SJJ0EPN9CS8KYCQGP0FJE1
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/gemini/generate status=401 duration=12µs request_id=cursor/Q9S2CGovML-000235 correlation_id=01M4SJJ0EPN9CS8KYCQM6H0E1Q
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/gemini/generate status=404 duration=196µs request_id=cursor/Q9S2CGovML-000236 correlation_id=01M4SJJ0EPN9CS8KYCQNPBZQPG
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/gemini/generate status=404 duration=16µs request_id=cursor/Q9S2CGovML-000237 correlation_id=01M4SJJ0EPN9CS8KYCQS1DRDP2
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/gemini/generate status=401 duration=17µs request_id=cursor/Q9S2CGovML-000238 correlation_id=01M4SJJ0EQ6TTM12TNJ8KPV7V3
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/openai/models status=401 duration=8µs request_id=cursor/Q9S2CGovML-000239 correlation_id=01M4SJJ0EQ6TTM12TNJB25MVN9
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/openai/models status=401 duration=13µs request_id=cursor/Q9S2CGovML-000240 correlation_id=01M4SJJ0EQ6TTM12TNJCPWR05B
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/openai/models status=404 duration=31µs request_id=cursor/Q9S2CGovML-000241 correlation_id=01M4SJJ0EQ6TTM12TNJDR7PGVG
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/openai/models status=404 duration=38µs request_id=cursor/Q9S2CGovML-000242 correlation_id=01M4SJJ0EQ6TTM12TNJH0AJ2XF
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/byok/openai/models status=401 duration=11µs request_id=cursor/Q9S2CGovML-000243 correlation_id=01M4SJJ0EQ6TTM12TNJHJ1VJ92
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud status=401 duration=8µs request_id=cursor/Q9S2CGovML-000244 correlation_id=01M4SJJ0EQ6TTM12TNJKFXQK0K
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud status=401 duration=6µs request_id=cursor/Q9S2CGovML-000245 correlation_id=01M4SJJ0ER2HDGDH7TYGYKE4DR
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud status=404 duration=12µs request_id=cursor/Q9S2CGovML-000246 correlation_id=01M4SJJ0ER2HDGDH7TYKXP0Y04
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud status=404 duration=19µs request_id=cursor/Q9S2CGovML-000247 correlation_id=01M4SJJ0ER2HDGDH7TYNNWR6BA
+2026/10/13 02:48:07 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud status=401 duration=6µs request_id=cursor/Q9S2CGovML-000248 correlation_id=01M4SJJ0ER2HDGDH7TYP7DNNZW
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/search status=401 duration=13µs request_id=cursor/Q9S2CGovML-000249 correlation_id=01M4SJJ0ER2HDGDH7TYSKMR6HB
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/search status=401 duration=7µs request_id=cursor/Q9S2CGovML-000250 correlation_id=01M4SJJ0ER2HDGDH7TYSPFJPSR
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/search status=404 duration=20µs request_id=cursor/Q9S2CGovML-000251 correlation_id=01M4SJJ0ER2HDGDH7TYV8F6K7X
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/search status=404 duration=18µs request_id=cursor/Q9S2CGovML-000252 correlation_id=01M4SJJ0ER2HDGDH7TYX95J1T9
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/search status=401 duration=6µs request_id=cursor/Q9S2CGovML-000253 correlation_id=01M4SJJ0ER2HDGDH7TYXT5Y8ZF
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/images status=401 duration=7µs request_id=cursor/Q9S2CGovML-000254 correlation_id=01M4SJJ0ER2HDGDH7TYZTPNP2D
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/images status=401 duration=8µs request_id=cursor/Q9S2CGovML-000255 correlation_id=01M4SJJ0ER2HDGDH7TZ06GYW9C
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/images status=404 duration=11µs request_id=cursor/Q9S2CGovML-000256 correlation_id=01M4SJJ0ESWY4NCR2WK8CE63RH
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/images status=404 duration=14µs request_id=cursor/Q9S2CGovML-000257 correlation_id=01M4SJJ0ESWY4NCR2WK92A0X8Z
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/images status=401 duration=6µs request_id=cursor/Q9S2CGovML-000258 correlation_id=01M4SJJ0ESWY4NCR2WKCCS1GQ2
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/media/analyze status=401 duration=12µs request_id=cursor/Q9S2CGovML-000259 correlation_id=01M4SJJ0ESWY4NCR2WKE5RAKBM
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/media/analyze status=401 duration=6µs request_id=cursor/Q9S2CGovML-000260 correlation_id=01M4SJJ0ESWY4NCR2WKEGGWBMB
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/media/analyze status=404 duration=11µs request_id=cursor/Q9S2CGovML-000261 correlation_id=01M4SJJ0ESWY4NCR2WKG8FEFV3
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/media/analyze status=404 duration=10µs request_id=cursor/Q9S2CGovML-000262 correlation_id=01M4SJJ0ESWY4NCR2WKJ0RQ7RW
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/media/analyze status=401 duration=5µs request_id=cursor/Q9S2CGovML-000263 correlation_id=01M4SJJ0ESWY4NCR2WKN8R283F
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/transcribe status=401 duration=5µs request_id=cursor/Q9S2CGovML-000264 correlation_id=01M4SJJ0ESWY4NCR2WKREV8383
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/transcribe status=401 duration=7µs request_id=cursor/Q9S2CGovML-000265 correlation_id=01M4SJJ0ESWY4NCR2WKVKR7NNP
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/transcribe status=404 duration=10µs request_id=cursor/Q9S2CGovML-000266 correlation_id=01M4SJJ0ETRG37EY9XAQKZS1V8
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/transcribe status=404 duration=32µs request_id=cursor/Q9S2CGovML-000267 correlation_id=01M4SJJ0ETRG37EY9XAT86HBDY
+2026/10/13 02:48:07 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0DVXGFBB57D3MPRDX2Z/ai/cloud/transcribe status=401 duration=11µs request_id=cursor/Q9S2CGovML-000268 correlation_id=01M4SJJ0ETRG37EY9XAXR4J0PQ
+2026/10/13 02:48:08 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.224ms request_id=cursor/Q9S2CGovML-000269 correlation_id=01M4SJJ0P6XPCQXQ46YYDYZHKS
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.614ms request_id=cursor/Q9S2CGovML-000270 correlation_id=01M4SJJ0PC09GBRN0XTPRWMDB5
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.944ms request_id=cursor/Q9S2CGovML-000271 correlation_id=01M4SJJ0PERZD7M5AYHQWB3AXS
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/orgs/01M4SJJ0PERZD7M5AYHTN2EBDF/workspaces status=201 duration=6.464ms request_id=cursor/Q9S2CGovML-000272 correlation_id=01M4SJJ0PJTGFGY23NSRKHS77P
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.21ms request_id=cursor/Q9S2CGovML-000273 correlation_id=01M4SJJ0PRJXT30TJZZQ1DQ7K4
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=625µs request_id=cursor/Q9S2CGovML-000274 correlation_id=01M4SJJ0PVQW9ATQBVFS1YJV6D
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ0PKBEKJK0W17S1DCCN3/documents/files status=201 duration=7.863ms request_id=cursor/Q9S2CGovML-000275 correlation_id=01M4SJJ0PWVHMB47Q4QRQ2XZNP
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/office/frame-token status=201 duration=3.946ms request_id=cursor/Q9S2CGovML-000276 correlation_id=01M4SJJ0Q4AJ0XZXYNZ6XTB8YJ
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/office/frame-token status=201 duration=2.495ms request_id=cursor/Q9S2CGovML-000277 correlation_id=01M4SJJ0Q9EQGR02N8V0B85ZDW
+2026/10/13 02:48:08 INFO http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/cloud status=200 duration=2.516ms request_id=cursor/Q9S2CGovML-000278 correlation_id=01M4SJJ0QBXFQJRCDE58282TJK
+2026/10/13 02:48:08 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/credentials status=404 duration=464µs request_id=cursor/Q9S2CGovML-000279 correlation_id=01M4SJJ0QE40W0TFM3DX6H8XXT
+2026/10/13 02:48:08 WARN http request method=PUT path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/credentials/openai status=404 duration=419µs request_id=cursor/Q9S2CGovML-000280 correlation_id=01M4SJJ0QFCZMJ60F186X1A63D
+2026/10/13 02:48:08 WARN http request method=DELETE path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/credentials/openai status=404 duration=337µs request_id=cursor/Q9S2CGovML-000281 correlation_id=01M4SJJ0QGGJ2FK87W1WMQ64N1
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/byok/openai/chat/completions status=404 duration=494µs request_id=cursor/Q9S2CGovML-000282 correlation_id=01M4SJJ0QGGJ2FK87W1X15552T
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/byok/anthropic/messages status=404 duration=353µs request_id=cursor/Q9S2CGovML-000283 correlation_id=01M4SJJ0QHQ25C3ZE3269D34CJ
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/byok/gemini/generate status=404 duration=359µs request_id=cursor/Q9S2CGovML-000284 correlation_id=01M4SJJ0QHQ25C3ZE328S0X50S
+2026/10/13 02:48:08 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/byok/openai/models status=404 duration=288µs request_id=cursor/Q9S2CGovML-000285 correlation_id=01M4SJJ0QJJZC81H8QWPWTP3AJ
+2026/10/13 02:48:08 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/cloud status=404 duration=199µs request_id=cursor/Q9S2CGovML-000286 correlation_id=01M4SJJ0QJJZC81H8QWSHM74YT
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/cloud/search status=404 duration=363µs request_id=cursor/Q9S2CGovML-000287 correlation_id=01M4SJJ0QJJZC81H8QWVYJAFB6
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/cloud/images status=404 duration=222µs request_id=cursor/Q9S2CGovML-000288 correlation_id=01M4SJJ0QKRQPNGHNFF5DZE00M
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/cloud/media/analyze status=404 duration=249µs request_id=cursor/Q9S2CGovML-000289 correlation_id=01M4SJJ0QKRQPNGHNFF6HJ9WGF
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0Q0AHFJ6KNYRTXT7S4R/ai/cloud/transcribe status=404 duration=236µs request_id=cursor/Q9S2CGovML-000290 correlation_id=01M4SJJ0QM3353NMP3061QNA2P
+2026/10/13 02:48:08 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.844ms request_id=cursor/Q9S2CGovML-000291 correlation_id=01M4SJJ0Y12PMKW59KASDFEDKK
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=985µs request_id=cursor/Q9S2CGovML-000292 correlation_id=01M4SJJ0Y5WBM9CM412S8G3DZP
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.631ms request_id=cursor/Q9S2CGovML-000293 correlation_id=01M4SJJ0Y6M20AH0W8NH92G0G5
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/orgs/01M4SJJ0Y748MDRG3WE0F04JVN/workspaces status=201 duration=5.688ms request_id=cursor/Q9S2CGovML-000294 correlation_id=01M4SJJ0YAT71MBDRYB1Q7PZPM
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.944ms request_id=cursor/Q9S2CGovML-000295 correlation_id=01M4SJJ0YGKXQW0190RBAV4G9C
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=504µs request_id=cursor/Q9S2CGovML-000296 correlation_id=01M4SJJ0YJMZV858WYAV6JYVWM
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ0YC48930V4RZKJXDWCS/documents/files status=201 duration=7.335ms request_id=cursor/Q9S2CGovML-000297 correlation_id=01M4SJJ0YM3SQ578DDKB09WS5Z
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/office/frame-token status=201 duration=3.117ms request_id=cursor/Q9S2CGovML-000298 correlation_id=01M4SJJ0YV3MH14ZB898PJ77DS
+2026/10/13 02:48:08 INFO http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/credentials status=200 duration=870µs request_id=cursor/Q9S2CGovML-000299 correlation_id=01M4SJJ0YZ2P5J9ZFPDYM2W792
+2026/10/13 02:48:08 WARN http request method=PUT path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/credentials/openai status=403 duration=654µs request_id=cursor/Q9S2CGovML-000300 correlation_id=01M4SJJ0Z0GGVPT261PR59ZG5A
+2026/10/13 02:48:08 WARN http request method=DELETE path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/credentials/openai status=404 duration=534µs request_id=cursor/Q9S2CGovML-000301 correlation_id=01M4SJJ0Z1GBVCGZ7EM927WZDT
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/byok/openai/chat/completions status=403 duration=681µs request_id=cursor/Q9S2CGovML-000302 correlation_id=01M4SJJ0Z2V3HZJQVHJV9W5TG9
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/byok/anthropic/messages status=403 duration=1.031ms request_id=cursor/Q9S2CGovML-000303 correlation_id=01M4SJJ0Z2V3HZJQVHJY9F5JMK
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/byok/gemini/generate status=403 duration=616µs request_id=cursor/Q9S2CGovML-000304 correlation_id=01M4SJJ0Z4KTN2BGRQB071AJXJ
+2026/10/13 02:48:08 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/byok/openai/models status=403 duration=558µs request_id=cursor/Q9S2CGovML-000305 correlation_id=01M4SJJ0Z4KTN2BGRQB384FA2A
+2026/10/13 02:48:08 INFO http request method=GET path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/cloud status=200 duration=1.775ms request_id=cursor/Q9S2CGovML-000306 correlation_id=01M4SJJ0Z55QX111WG8K6SR71P
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/cloud/search status=403 duration=610µs request_id=cursor/Q9S2CGovML-000307 correlation_id=01M4SJJ0Z7JX5B2VFJW6VA1704
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/cloud/images status=403 duration=815µs request_id=cursor/Q9S2CGovML-000308 correlation_id=01M4SJJ0Z83S0F8S1C5G3CNBEA
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/cloud/media/analyze status=403 duration=513µs request_id=cursor/Q9S2CGovML-000309 correlation_id=01M4SJJ0Z9BCP0SJV41Q7VT3NJ
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ0YRSYPJAJKAZ4K8AY2D/ai/cloud/transcribe status=403 duration=621µs request_id=cursor/Q9S2CGovML-000310 correlation_id=01M4SJJ0Z9BCP0SJV41QW7NW8X
+2026/10/13 02:48:08 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.95ms request_id=cursor/Q9S2CGovML-000311 correlation_id=01M4SJJ14JHT59DZJ5Y2N2FE7V
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.233ms request_id=cursor/Q9S2CGovML-000312 correlation_id=01M4SJJ14QC71DEDHXGTRATNWH
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.098ms request_id=cursor/Q9S2CGovML-000313 correlation_id=01M4SJJ14R0D3CASJQNCXN7VHF
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/orgs/01M4SJJ14R0D3CASJQNEDG3P97/workspaces status=201 duration=5.346ms request_id=cursor/Q9S2CGovML-000314 correlation_id=01M4SJJ14WVHBKA5HTM9KP4F4V
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.155ms request_id=cursor/Q9S2CGovML-000315 correlation_id=01M4SJJ1525M537SSP9VY1E7MV
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.157ms request_id=cursor/Q9S2CGovML-000316 correlation_id=01M4SJJ154GC807SME6DXQZRWY
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ14Y1YZ9DTN7MTQERPXH/documents/files status=201 duration=6.53ms request_id=cursor/Q9S2CGovML-000317 correlation_id=01M4SJJ15629WJ3DK38BGWNH26
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/documents/01M4SJJ15APQ58HFW209V1MA6S/office/frame-token status=201 duration=3.284ms request_id=cursor/Q9S2CGovML-000318 correlation_id=01M4SJJ15DA9606Z9JVMYBE3P4
+2026/10/13 02:48:08 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/credentials status=404 duration=220µs request_id=cursor/Q9S2CGovML-000319 correlation_id=01M4SJJ15HHPM56WWPK2YY6J4P
+2026/10/13 02:48:08 WARN http request method=PUT path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/credentials/openai status=404 duration=45µs request_id=cursor/Q9S2CGovML-000320 correlation_id=01M4SJJ15HHPM56WWPK5J63BBN
+2026/10/13 02:48:08 WARN http request method=DELETE path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/credentials/openai status=404 duration=16µs request_id=cursor/Q9S2CGovML-000321 correlation_id=01M4SJJ15HHPM56WWPK70Z2EW3
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/byok/openai/chat/completions status=404 duration=28µs request_id=cursor/Q9S2CGovML-000322 correlation_id=01M4SJJ15HHPM56WWPK9042146
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/byok/anthropic/messages status=404 duration=26µs request_id=cursor/Q9S2CGovML-000323 correlation_id=01M4SJJ15J3C51B8C4TVNCTCDR
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/byok/gemini/generate status=404 duration=16µs request_id=cursor/Q9S2CGovML-000324 correlation_id=01M4SJJ15J3C51B8C4TZFYWDSY
+2026/10/13 02:48:08 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/byok/openai/models status=404 duration=39µs request_id=cursor/Q9S2CGovML-000325 correlation_id=01M4SJJ15J3C51B8C4V1H0GA4C
+2026/10/13 02:48:08 WARN http request method=GET path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/cloud status=404 duration=15µs request_id=cursor/Q9S2CGovML-000326 correlation_id=01M4SJJ15J3C51B8C4V3DSM0VF
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/cloud/search status=404 duration=17µs request_id=cursor/Q9S2CGovML-000327 correlation_id=01M4SJJ15J3C51B8C4V5AN1BD2
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/cloud/images status=404 duration=17µs request_id=cursor/Q9S2CGovML-000328 correlation_id=01M4SJJ15J3C51B8C4V7D9P4ZF
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/cloud/media/analyze status=404 duration=19µs request_id=cursor/Q9S2CGovML-000329 correlation_id=01M4SJJ15J3C51B8C4V8G01YVP
+2026/10/13 02:48:08 WARN http request method=POST path=/api/v1/office-frame/documents/01M4SJJ15APQ58HFW209V1MA6S/ai/cloud/transcribe status=404 duration=35µs request_id=cursor/Q9S2CGovML-000330 correlation_id=01M4SJJ15J3C51B8C4VBRJDWAJ
+2026/10/13 02:48:08 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.852ms request_id=cursor/Q9S2CGovML-000331 correlation_id=01M4SJJ1C1ZKK80VH36GHKDJR1
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.212ms request_id=cursor/Q9S2CGovML-000332 correlation_id=01M4SJJ1C5JFNPBGY9B1HDV365
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.743ms request_id=cursor/Q9S2CGovML-000333 correlation_id=01M4SJJ1C72853NRM7PJFPC1Q5
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/orgs/01M4SJJ1C72853NRM7PN8VVZPZ/workspaces status=201 duration=4.993ms request_id=cursor/Q9S2CGovML-000334 correlation_id=01M4SJJ1CB3BTAPC1KCK4C4RGH
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.538ms request_id=cursor/Q9S2CGovML-000335 correlation_id=01M4SJJ1CG9MTB6A0N5FRNG1KG
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=968µs request_id=cursor/Q9S2CGovML-000336 correlation_id=01M4SJJ1CK2TAKVZGCQAMCT2VA
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ1CCDFF7FAS85VJK9PPZ/documents/files status=201 duration=6.234ms request_id=cursor/Q9S2CGovML-000337 correlation_id=01M4SJJ1CMA6M2WBQYPWBVSW1J
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/documents/01M4SJJ1CRJ0BQK9QFT4KX5FGE/office/frame-token status=201 duration=4.04ms request_id=cursor/Q9S2CGovML-000338 correlation_id=01M4SJJ1CV2VY7CRY127BK6C68
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/documents/01M4SJJ1CRJ0BQK9QFT4KX5FGE/office/frame-token status=201 duration=4.653ms request_id=cursor/Q9S2CGovML-000339 correlation_id=01M4SJJ1CZSR8KAJRXM9SYH7HX
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/documents/01M4SJJ1CRJ0BQK9QFT4KX5FGE/office/frame-token status=201 duration=1.808ms request_id=cursor/Q9S2CGovML-000340 correlation_id=01M4SJJ1D4DC5K09EEZ1HW776Z
+2026/10/13 02:48:08 INFO http request method=POST path=/api/v1/documents/01M4SJJ1CRJ0BQK9QFT4KX5FGE/office/frame-token status=201 duration=1.586ms request_id=cursor/Q9S2CGovML-000341 correlation_id=01M4SJJ1D75ZPXV6XKQJHWBQ5S
+2026/10/13 02:48:09 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.417ms request_id=cursor/Q9S2CGovML-000342 correlation_id=01M4SJJ1JS5GT5HF05TBX08RN9
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.028ms request_id=cursor/Q9S2CGovML-000343 correlation_id=01M4SJJ1JXAJQNS2SG9MAVT4A8
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.661ms request_id=cursor/Q9S2CGovML-000344 correlation_id=01M4SJJ1JYNWRXBJT9BC7D1P90
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/orgs/01M4SJJ1JZTZRCRNXXXZ78EXQW/workspaces status=201 duration=5.13ms request_id=cursor/Q9S2CGovML-000345 correlation_id=01M4SJJ1K26D1PNM3WNXC9Q827
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.84ms request_id=cursor/Q9S2CGovML-000346 correlation_id=01M4SJJ1K8QMWMSCX8M530XKVT
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=488µs request_id=cursor/Q9S2CGovML-000347 correlation_id=01M4SJJ1KA6QRRBYJ8AJWBE5DA
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ1K4RYBFGGDRRCYXZP0K/documents/files status=201 duration=6.203ms request_id=cursor/Q9S2CGovML-000348 correlation_id=01M4SJJ1KBN31KB36JPQFR2K2Y
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1KE66GNVQ34NNKR9HFV/office/frame-token status=201 duration=2.999ms request_id=cursor/Q9S2CGovML-000349 correlation_id=01M4SJJ1KH8WX8D71WCKRJZ6HP
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1KE66GNVQ34NNKR9HFV/office/frame-token status=201 duration=2.324ms request_id=cursor/Q9S2CGovML-000350 correlation_id=01M4SJJ1KMX3T3ESGQVC3AS868
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1KE66GNVQ34NNKR9HFV/office/frame-token status=201 duration=1.677ms request_id=cursor/Q9S2CGovML-000351 correlation_id=01M4SJJ1KQ83JTS1YN7QZ5DMKT
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1KE66GNVQ34NNKR9HFV/office/frame-token status=201 duration=1.8ms request_id=cursor/Q9S2CGovML-000352 correlation_id=01M4SJJ1KTY9MVPHK5DMN419TB
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1KE66GNVQ34NNKR9HFV/office/frame-token status=201 duration=1.715ms request_id=cursor/Q9S2CGovML-000353 correlation_id=01M4SJJ1KW8JSCWY1QNQYJ0T78
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1KE66GNVQ34NNKR9HFV/office/frame-token status=201 duration=1.222ms request_id=cursor/Q9S2CGovML-000354 correlation_id=01M4SJJ1KYNK09ATJ1HA0APY4B
+2026/10/13 02:48:09 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.537ms request_id=cursor/Q9S2CGovML-000355 correlation_id=01M4SJJ1S5JFSCSWE4HG8VQGKB
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=915µs request_id=cursor/Q9S2CGovML-000356 correlation_id=01M4SJJ1S9BAD44ECZ00M8PRSF
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.423ms request_id=cursor/Q9S2CGovML-000357 correlation_id=01M4SJJ1SAAH1R9T2CMQX359P2
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/orgs/01M4SJJ1SAAH1R9T2CMRTRR0EW/workspaces status=201 duration=5.512ms request_id=cursor/Q9S2CGovML-000358 correlation_id=01M4SJJ1SD58QGHHXWJD8WT06R
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.819ms request_id=cursor/Q9S2CGovML-000359 correlation_id=01M4SJJ1SK5VYP73P5AHHPJF77
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=457µs request_id=cursor/Q9S2CGovML-000360 correlation_id=01M4SJJ1SNHQW3D6RW5SQAMA47
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ1SFW66BYS3350JXF8Z2/documents/files status=201 duration=6.07ms request_id=cursor/Q9S2CGovML-000361 correlation_id=01M4SJJ1SPD9206VK083WACX0P
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1SSBEPVETNNBR2CWM9S/office/frame-token status=201 duration=2.726ms request_id=cursor/Q9S2CGovML-000362 correlation_id=01M4SJJ1SWF34V1TMJ92BBTW2J
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ1SFW66BYS3350JXF8Z2/documents/files status=201 duration=2.579ms request_id=cursor/Q9S2CGovML-000363 correlation_id=01M4SJJ1SZAKTM3BP2AZZ5ASME
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1SSBEPVETNNBR2CWM9S/office/frame-token status=201 duration=1.683ms request_id=cursor/Q9S2CGovML-000364 correlation_id=01M4SJJ1T3M1YAWBJQTJM0CBFA
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1SSBEPVETNNBR2CWM9S/office/frame-token status=201 duration=1.845ms request_id=cursor/Q9S2CGovML-000365 correlation_id=01M4SJJ1T5G0B0RVB4RBN2WMEF
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1T14EY8N8GZTN1SSFEK/office/frame-token status=201 duration=1.743ms request_id=cursor/Q9S2CGovML-000366 correlation_id=01M4SJJ1T7NW6VYKNF8DX3201A
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1SSBEPVETNNBR2CWM9S/office/frame-token status=201 duration=1.519ms request_id=cursor/Q9S2CGovML-000367 correlation_id=01M4SJJ1T9J6V4NQEMQQFWX9AD
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1T14EY8N8GZTN1SSFEK/office/frame-token status=201 duration=2.415ms request_id=cursor/Q9S2CGovML-000368 correlation_id=01M4SJJ1TBY021KGKQ1BZ33PJF
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1SSBEPVETNNBR2CWM9S/office/frame-token status=201 duration=1.201ms request_id=cursor/Q9S2CGovML-000369 correlation_id=01M4SJJ1TD5QM3Y47Z6YQGDW26
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1SSBEPVETNNBR2CWM9S/office/frame-token status=201 duration=1.019ms request_id=cursor/Q9S2CGovML-000370 correlation_id=01M4SJJ1TF330CPAMBCVRX8DFF
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ1T14EY8N8GZTN1SSFEK/office/frame-token status=201 duration=985µs request_id=cursor/Q9S2CGovML-000371 correlation_id=01M4SJJ1TG9CCCDBQHZ9FDNPK0
+2026/10/13 02:48:09 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.508ms request_id=cursor/Q9S2CGovML-000372 correlation_id=01M4SJJ2088E4VMNFCZYP5QWSQ
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.116ms request_id=cursor/Q9S2CGovML-000373 correlation_id=01M4SJJ20CJ2HVY96G8QK3QKFF
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.285ms request_id=cursor/Q9S2CGovML-000374 correlation_id=01M4SJJ20DZPK2HEWB5HHQN9M3
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/orgs/01M4SJJ20DZPK2HEWB5JPFR7ZK/workspaces status=201 duration=4.611ms request_id=cursor/Q9S2CGovML-000375 correlation_id=01M4SJJ20GAKDAQ5HKBND5A4C1
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.913ms request_id=cursor/Q9S2CGovML-000376 correlation_id=01M4SJJ20NKZWZMMKYFYBBG6GG
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=644µs request_id=cursor/Q9S2CGovML-000377 correlation_id=01M4SJJ20QS3Y9T1MAEZ06W5AS
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ20H703QZWW5G5KEBPC0/documents/files status=201 duration=5.682ms request_id=cursor/Q9S2CGovML-000378 correlation_id=01M4SJJ20R13M0S9RE0D4JT1SP
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ20VMM01M5QVW8BZ7N9Q/office/frame-token status=201 duration=2.8ms request_id=cursor/Q9S2CGovML-000379 correlation_id=01M4SJJ20YPMXJGE8EQ10H3MYN
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ20VMM01M5QVW8BZ7N9Q/office/frame-token status=201 duration=1.864ms request_id=cursor/Q9S2CGovML-000380 correlation_id=01M4SJJ2113H5WVXSXVAYED8YF
+2026/10/13 02:48:09 INFO http request method=GET path=/api/v1/office-frame/documents/01M4SJJ20VMM01M5QVW8BZ7N9Q/ai/cloud status=200 duration=1.437ms request_id=cursor/Q9S2CGovML-000381 correlation_id=01M4SJJ214MP39BJQP9YXTDNZ8
+2026/10/13 02:48:09 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.548ms request_id=cursor/Q9S2CGovML-000382 correlation_id=01M4SJJ2725RKZBXX2F4YFC2BR
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=940µs request_id=cursor/Q9S2CGovML-000383 correlation_id=01M4SJJ27744N6YPM5K0KGC5HF
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.703ms request_id=cursor/Q9S2CGovML-000384 correlation_id=01M4SJJ278J9CK3VH5TZ8VN25Q
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/orgs/01M4SJJ278J9CK3VH5V0ABYM0F/workspaces status=201 duration=4.759ms request_id=cursor/Q9S2CGovML-000385 correlation_id=01M4SJJ27DG8KFYTD373CQRNJJ
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.442ms request_id=cursor/Q9S2CGovML-000386 correlation_id=01M4SJJ27HEVZD1ZNFV0HR6WTK
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.325ms request_id=cursor/Q9S2CGovML-000387 correlation_id=01M4SJJ27MCENQH7XCSFTTWQ6Y
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ27EYFX03TFJ1C573WPA/documents/files status=201 duration=6.319ms request_id=cursor/Q9S2CGovML-000388 correlation_id=01M4SJJ27PPADDSY1JDZ9D2DP8
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ27TP72F2Z1YC43P6ANS/office/frame-token status=201 duration=2.986ms request_id=cursor/Q9S2CGovML-000389 correlation_id=01M4SJJ27XQPHSWT6KDAZYYMWG
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ27TP72F2Z1YC43P6ANS/office/frame-token status=201 duration=2.301ms request_id=cursor/Q9S2CGovML-000390 correlation_id=01M4SJJ2815VNG5EQ2630ZT3X1
+2026/10/13 02:48:09 INFO http request method=GET path=/api/v1/office-frame/documents/01M4SJJ27TP72F2Z1YC43P6ANS/ai/cloud status=200 duration=1.467ms request_id=cursor/Q9S2CGovML-000391 correlation_id=01M4SJJ284HXNF3T415XF95NDK
+2026/10/13 02:48:09 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.651ms request_id=cursor/Q9S2CGovML-000392 correlation_id=01M4SJJ2E7J982SJSR8AJ4P3AV
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.132ms request_id=cursor/Q9S2CGovML-000393 correlation_id=01M4SJJ2EBTFX9YXSVZAYJM0RS
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.459ms request_id=cursor/Q9S2CGovML-000394 correlation_id=01M4SJJ2ECRWK354G802AKJ2AY
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/orgs/01M4SJJ2ECRWK354G804TVJ3D4/workspaces status=201 duration=4.723ms request_id=cursor/Q9S2CGovML-000395 correlation_id=01M4SJJ2EG4EHJZ3GANDED97EW
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.051ms request_id=cursor/Q9S2CGovML-000396 correlation_id=01M4SJJ2ENPF7WYR1ACGGFJ6VC
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=695µs request_id=cursor/Q9S2CGovML-000397 correlation_id=01M4SJJ2EQZC7PXBYV9HJAHHHA
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ2EHSB9EJT71F9010Z7T/documents/files status=201 duration=5.753ms request_id=cursor/Q9S2CGovML-000398 correlation_id=01M4SJJ2ERC10PC42MTZPYNG69
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ2EVY1YS73E6EXXW0433/office/frame-token status=201 duration=4.121ms request_id=cursor/Q9S2CGovML-000399 correlation_id=01M4SJJ2EYFYR8T04ZZQ3M3MN4
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.376ms request_id=cursor/Q9S2CGovML-000400 correlation_id=01M4SJJ2F4QRDBDKDH114CPWEW
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.041ms request_id=cursor/Q9S2CGovML-000401 correlation_id=01M4SJJ2F69CPPD754AZX10EQB
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.874ms request_id=cursor/Q9S2CGovML-000402 correlation_id=01M4SJJ2F9H9PNS4Q3QXWPN2DE
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.26ms request_id=cursor/Q9S2CGovML-000403 correlation_id=01M4SJJ2FBW0HC4DHYJGWEWGM0
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ2EHSB9EJT71F9010Z7T/invitations status=200 duration=1.384ms request_id=cursor/Q9S2CGovML-000404 correlation_id=01M4SJJ2FCVYJXJQ3V2PD0R7WA
+2026/10/13 02:48:09 INFO http request method=GET path=/api/v1/me/invitations status=200 duration=553µs request_id=cursor/Q9S2CGovML-000405 correlation_id=01M4SJJ2FEJQS8ASM312M5YVZE
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/invitations/01M4SJJ2FDNMH90RB7R9T9BY1701M4SJJ2FDNMH90RB7RCNZAVXN/accept status=200 duration=3.197ms request_id=cursor/Q9S2CGovML-000406 correlation_id=01M4SJJ2FF3JMRA2R8DH32W03W
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/workspaces/01M4SJJ2EHSB9EJT71F9010Z7T/documents/files status=201 duration=2.256ms request_id=cursor/Q9S2CGovML-000407 correlation_id=01M4SJJ2FJS24YV40V9EEGNEXP
+2026/10/13 02:48:09 INFO http request method=GET path=/api/v1/documents/01M4SJJ2FKC3SJ6N9MHGTD8WT0 status=200 duration=723µs request_id=cursor/Q9S2CGovML-000408 correlation_id=01M4SJJ2FN1B83AKX4DK6PR8TT
+2026/10/13 02:48:09 INFO http request method=PATCH path=/api/v1/documents/01M4SJJ2FKC3SJ6N9MHGTD8WT0 status=200 duration=1.325ms request_id=cursor/Q9S2CGovML-000409 correlation_id=01M4SJJ2FPBN1W4NM5VYXXGM00
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ2FKC3SJ6N9MHGTD8WT0/shares status=201 duration=1.142ms request_id=cursor/Q9S2CGovML-000410 correlation_id=01M4SJJ2FQATZNR1MV8GQ4J8DP
+2026/10/13 02:48:09 INFO http request method=POST path=/api/v1/documents/01M4SJJ2FKC3SJ6N9MHGTD8WT0/office/frame-token status=201 duration=2.04ms request_id=cursor/Q9S2CGovML-000411 correlation_id=01M4SJJ2FR44CKDJDZRD66GVD4
+2026/10/13 02:48:09 WARN http request method=GET path=/api/v1/documents/01M4SJJ2FKC3SJ6N9MHGTD8WT0/shares status=401 duration=25µs request_id=cursor/Q9S2CGovML-000412 correlation_id=01M4SJJ2FVGB0G1PJZKRYVG4CQ
+--- FAIL: TestOfficeFrameUniworkAIOnlyForMembersWithAccess (0.25s)
+panic: interface conversion: interface {} is nil, not []interface {} [recovered, repanicked]
+
+goroutine 784 [running]:
+testing.tRunner.func1.2({0x4fa3b00, 0x384c6f4f6180})
+	/usr/local/go/src/testing/testing.go:2123 +0x232
+testing.tRunner.func1()
+	/usr/local/go/src/testing/testing.go:2126 +0x329
+panic({0x4fa3b00?, 0x384c6f4f6180?})
+	/usr/local/go/src/runtime/panic.go:859 +0x125
+github.com/unicomhub/uniwork/server/internal/handler.TestOfficeFrameUniworkAIOnlyForMembersWithAccess(0x384c6b65e008)
+	/workspace/server/internal/handler/office_frame_ai_test.go:476 +0xb1d
+testing.tRunner(0x384c6b65e008, 0x573ef70)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	6.517s
+FAIL
+G603C_NEIGHBOUR_EXIT 1

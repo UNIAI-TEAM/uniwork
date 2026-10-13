@@ -1,0 +1,24 @@
+$ . scripts/local-env.sh && cd server && go test ./internal/handler -run 'TestAICloudStatusChatFollowsEntitlementFlagsAndCredits|TestAICloudStatusChatNeedsTheGateway|TestOfficeFrameGrantsUniworkAIWithoutBYOK|TestOfficeFrameUniworkAIFollowsTheFormatFlags|TestOfficeFrameUniworkAINeedsAConfiguredGateway|TestOfficeFrameUniworkAIOnlyForMembersWithAccess' -count=1 -v 2>&1 | grep -E '^(=== RUN|--- |    --- |PASS|FAIL|ok|panic)'; echo "G603C_NEW_EXIT ${PIPESTATUS[0]}"; true
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+=== RUN   TestAICloudStatusChatFollowsEntitlementFlagsAndCredits
+--- PASS: TestAICloudStatusChatFollowsEntitlementFlagsAndCredits (0.74s)
+=== RUN   TestAICloudStatusChatNeedsTheGateway
+--- PASS: TestAICloudStatusChatNeedsTheGateway (0.22s)
+=== RUN   TestOfficeFrameGrantsUniworkAIWithoutBYOK
+--- PASS: TestOfficeFrameGrantsUniworkAIWithoutBYOK (0.20s)
+=== RUN   TestOfficeFrameUniworkAIFollowsTheFormatFlags
+--- PASS: TestOfficeFrameUniworkAIFollowsTheFormatFlags (0.24s)
+=== RUN   TestOfficeFrameUniworkAINeedsAConfiguredGateway
+=== RUN   TestOfficeFrameUniworkAINeedsAConfiguredGateway/no_provider
+=== RUN   TestOfficeFrameUniworkAINeedsAConfiguredGateway/provider_without_a_model
+--- PASS: TestOfficeFrameUniworkAINeedsAConfiguredGateway (0.40s)
+    --- PASS: TestOfficeFrameUniworkAINeedsAConfiguredGateway/no_provider (0.20s)
+    --- PASS: TestOfficeFrameUniworkAINeedsAConfiguredGateway/provider_without_a_model (0.20s)
+=== RUN   TestOfficeFrameUniworkAIOnlyForMembersWithAccess
+--- FAIL: TestOfficeFrameUniworkAIOnlyForMembersWithAccess (0.26s)
+panic: interface conversion: interface {} is nil, not []interface {} [recovered, repanicked]
+panic({0x4fa3b00?, 0x6323c0f0990?})
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	2.103s
+FAIL
+G603C_NEW_EXIT 1
