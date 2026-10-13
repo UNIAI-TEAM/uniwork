@@ -66,8 +66,17 @@ type Request struct {
 	Sources   []Source
 	Truncated bool
 	// Tools the model may call this turn. A call to anything else fails the
-	// request with ErrToolNotAllowed.
+	// request with ErrToolNotAllowed, unless FilterToolCalls is set.
 	Tools Registry
+	// FilterToolCalls hands the model's calls back whole instead of failing
+	// the request: the caller owns the tool contract, filters the answer and
+	// reports the drops itself (x_uniwork, G6-03a). The usage row still
+	// records every call with allowed:false. Such a caller drives the model
+	// through tools, so the prompt's registry schema stays off the wire — a
+	// vendor takes tools and a pinned JSON schema as mutually exclusive — and
+	// a prompt that carries one only does so for the prompts contract. Every
+	// existing caller leaves this false and keeps today's behaviour.
+	FilterToolCalls bool
 	// Attachments are media parts sent with the rendered prompt (media
 	// analysis); the vendor adapter refuses a type it cannot send.
 	Attachments []provider.Part
@@ -147,15 +156,21 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	if err != nil {
 		return Response{}, err
 	}
+	schema := prompt.OutputSchema
+	if req.FilterToolCalls {
+		// The caller owns the tool contract (G6-03a): the answer is driven by
+		// tools and the prompt's registry schema must not fight them.
+		schema = nil
+	}
 	creq := provider.CompletionRequest{
 		Model: model, System: prompt.System, MaxTokens: policy.MaxTokens, Temperature: policy.Temperature,
-		JSONSchema: prompt.OutputSchema,
+		JSONSchema: schema,
 	}
 	creq.Messages = msgs
 	// Structured JSON output and tool-calling fight each other on OpenAI-compatible
 	// hosts (400 / empty content → 502 ai_provider_error). When the prompt pins a
 	// schema, context must already be in Vars — do not advertise tools.
-	if len(prompt.OutputSchema) == 0 {
+	if len(schema) == 0 {
 		for _, t := range req.Tools {
 			creq.Tools = append(creq.Tools, provider.ToolSpec{Name: t.Name, Description: t.Description, Schema: t.Schema})
 		}
@@ -170,6 +185,15 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	sctx, cancelSettle := settleContext(ctx)
 	defer cancelSettle()
 	if perr != nil {
+		// A call that ran out of time is a deadline, not an outage: the
+		// façade's 55 s deadline (A14) or the gateway's own timeout. The row
+		// is still settled, with the code the client will see.
+		if errors.Is(perr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderTimeout.Code, latency, nil)
+			g.observe(req.Capability, "failed", latency)
+			g.log.Warn("ai: provider timeout", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
+			return Response{}, ErrProviderTimeout.wrap(perr)
+		}
 		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderError.Code, latency, nil)
 		g.observe(req.Capability, "failed", latency)
 		g.log.Warn("ai: provider error", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds(), "err", perr)
@@ -179,7 +203,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		return Response{}, ErrProviderError.wrap(perr)
 	}
 	calls, denied := auditToolCalls(resp.ToolCalls, req.Tools)
-	if denied != "" {
+	if denied != "" && !req.FilterToolCalls {
 		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrToolNotAllowed.Code, latency, calls)
 		g.observe(req.Capability, "failed", latency)
 		return Response{}, ErrToolNotAllowed.wrap(errors.New("tool " + denied))

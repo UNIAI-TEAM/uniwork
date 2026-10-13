@@ -32,11 +32,14 @@ func (e *Error) wrap(err error) error {
 }
 
 var (
-	ErrDisabled         = &Error{Code: "ai_disabled", Status: 503, Msg: "AI chưa được cấu hình trên server"}
-	ErrQuotaExceeded    = &Error{Code: "ai_quota_exceeded", Status: 402, Msg: "tổ chức đã hết hạn mức token AI của tháng"}
-	ErrRateLimited      = &Error{Code: "ai_rate_limited", Status: 429, Msg: "bạn hỏi quá nhanh, thử lại sau một phút"}
-	ErrToolNotAllowed   = &Error{Code: "ai_tool_not_allowed", Status: 403, Msg: "mô hình gọi công cụ không được phép"}
-	ErrProviderError    = &Error{Code: "ai_provider_error", Status: 502, Msg: "nhà cung cấp AI không trả lời được"}
+	ErrDisabled       = &Error{Code: "ai_disabled", Status: 503, Msg: "AI chưa được cấu hình trên server"}
+	ErrQuotaExceeded  = &Error{Code: "ai_quota_exceeded", Status: 402, Msg: "tổ chức đã hết hạn mức token AI của tháng"}
+	ErrRateLimited    = &Error{Code: "ai_rate_limited", Status: 429, Msg: "bạn hỏi quá nhanh, thử lại sau một phút"}
+	ErrToolNotAllowed = &Error{Code: "ai_tool_not_allowed", Status: 403, Msg: "mô hình gọi công cụ không được phép"}
+	ErrProviderError  = &Error{Code: "ai_provider_error", Status: 502, Msg: "nhà cung cấp AI không trả lời được"}
+	// ErrProviderTimeout is a call that ran out of time rather than failing:
+	// the façade's 55 s deadline (G6-03a A14) or the gateway's own timeout.
+	ErrProviderTimeout  = &Error{Code: "ai_provider_timeout", Status: 504, Msg: "nhà cung cấp AI trả lời quá hạn chờ"}
 	ErrOutputInvalid    = &Error{Code: "ai_output_invalid", Status: 502, Msg: "câu trả lời của mô hình không đúng định dạng"}
 	ErrContextForbidden = &Error{Code: "ai_context_forbidden", Status: 403, Msg: "bạn không có quyền xem dữ liệu này"}
 

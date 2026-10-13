@@ -3,24 +3,38 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 // Fake is the Provider for tests and for AI_PROVIDER=fake in development and
 // E2E. Reply decides the answer from the request; nil Reply echoes the last
 // user message. Err is returned as is, so a test injects a vendor rate limit
-// with &StatusError{Status: 429, RetryAfter: …}. It never talks to the network.
+// with &StatusError{Status: 429, RetryAfter: …}. Delay makes Complete wait
+// before answering and hands back the context's error when the wait is cut
+// short, so a deadline is testable without a network. It never talks to the
+// network.
 type Fake struct {
 	Reply func(CompletionRequest) CompletionResponse
 	Err   error
+	Delay time.Duration
 	Calls int
 	Last  CompletionRequest
 }
 
 func (f *Fake) Name() string { return "fake" }
 
-func (f *Fake) Complete(_ context.Context, req CompletionRequest) (CompletionResponse, error) {
+func (f *Fake) Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error) {
 	f.Calls++
 	f.Last = req
+	if f.Delay > 0 {
+		timer := time.NewTimer(f.Delay)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			return CompletionResponse{}, ctx.Err()
+		}
+	}
 	if f.Err != nil {
 		return CompletionResponse{}, f.Err
 	}
