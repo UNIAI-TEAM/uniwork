@@ -160,6 +160,52 @@ func (q *Queries) GetOfficeOfflineLeaseForDeviceDocument(ctx context.Context, ar
 	return i, err
 }
 
+const getOfficeOfflineLeaseForRelease = `-- name: GetOfficeOfflineLeaseForRelease :one
+SELECT id, organization_id, workspace_id, document_id, user_id, device_session_id, deployment_id, version_id, version, revision, level, policy_epoch, generation, issued_at, expires_at, revoked_at, revoke_reason, created_by, created_by_kind, created_at, updated_at FROM office_offline_leases
+WHERE user_id = $1
+  AND device_session_id = $2
+  AND document_id = $3
+FOR UPDATE
+`
+
+type GetOfficeOfflineLeaseForReleaseParams struct {
+	UserID          string `json:"user_id"`
+	DeviceSessionID string `json:"device_session_id"`
+	DocumentID      string `json:"document_id"`
+}
+
+// tenant: self
+// Release works on the caller's own row even when the document is gone or
+// no longer readable, so the row is found by user, device and document.
+func (q *Queries) GetOfficeOfflineLeaseForRelease(ctx context.Context, arg GetOfficeOfflineLeaseForReleaseParams) (OfficeOfflineLease, error) {
+	row := q.db.QueryRow(ctx, getOfficeOfflineLeaseForRelease, arg.UserID, arg.DeviceSessionID, arg.DocumentID)
+	var i OfficeOfflineLease
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.UserID,
+		&i.DeviceSessionID,
+		&i.DeploymentID,
+		&i.VersionID,
+		&i.Version,
+		&i.Revision,
+		&i.Level,
+		&i.PolicyEpoch,
+		&i.Generation,
+		&i.IssuedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.RevokeReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getOfficeOfflinePolicyEpoch = `-- name: GetOfficeOfflinePolicyEpoch :one
 
 SELECT COALESCE((
@@ -332,6 +378,62 @@ func (q *Queries) ListLiveOfficeOfflineLeasesForUserInWorkspace(ctx context.Cont
 	return items, nil
 }
 
+const lockOfficeLeaseDocument = `-- name: LockOfficeLeaseDocument :one
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id FROM documents WHERE id = $1 FOR SHARE
+`
+
+// tenant: by-id
+// A grant reads the ACL under a share lock on the document row, so a
+// concurrent share revoke or move (withDocumentMutation, FOR UPDATE) is
+// either fully visible or waits for the grant to commit and its outbox
+// consumer then sees the new lease.
+func (q *Queries) LockOfficeLeaseDocument(ctx context.Context, id string) (Document, error) {
+	row := q.db.QueryRow(ctx, lockOfficeLeaseDocument, id)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArchiveBatchID,
+	)
+	return i, err
+}
+
 const renewOfficeOfflineLease = `-- name: RenewOfficeOfflineLease :one
 UPDATE office_offline_leases SET
   workspace_id = $1,
@@ -408,15 +510,15 @@ func (q *Queries) RenewOfficeOfflineLease(ctx context.Context, arg RenewOfficeOf
 
 const revokeOfficeOfflineLeasesByIDs = `-- name: RevokeOfficeOfflineLeasesByIDs :many
 UPDATE office_offline_leases
-SET revoked_at = now(), revoke_reason = $1, updated_at = now()
+SET revoked_at = now(), revoke_reason = $1::text, updated_at = now()
 WHERE organization_id = $2 AND id = ANY($3::text[]) AND revoked_at IS NULL
 RETURNING id, organization_id, workspace_id, document_id, user_id
 `
 
 type RevokeOfficeOfflineLeasesByIDsParams struct {
-	Reason         pgtype.Text `json:"reason"`
-	OrganizationID string      `json:"organization_id"`
-	Ids            []string    `json:"ids"`
+	Reason         string   `json:"reason"`
+	OrganizationID string   `json:"organization_id"`
+	Ids            []string `json:"ids"`
 }
 
 type RevokeOfficeOfflineLeasesByIDsRow struct {
@@ -455,15 +557,15 @@ func (q *Queries) RevokeOfficeOfflineLeasesByIDs(ctx context.Context, arg Revoke
 
 const revokeOfficeOfflineLeasesForDevice = `-- name: RevokeOfficeOfflineLeasesForDevice :many
 UPDATE office_offline_leases
-SET revoked_at = now(), revoke_reason = $1, updated_at = now()
+SET revoked_at = now(), revoke_reason = $1::text, updated_at = now()
 WHERE user_id = $2 AND device_session_id = $3 AND revoked_at IS NULL
 RETURNING id, organization_id, workspace_id, document_id, user_id
 `
 
 type RevokeOfficeOfflineLeasesForDeviceParams struct {
-	Reason          pgtype.Text `json:"reason"`
-	UserID          string      `json:"user_id"`
-	DeviceSessionID string      `json:"device_session_id"`
+	Reason          string `json:"reason"`
+	UserID          string `json:"user_id"`
+	DeviceSessionID string `json:"device_session_id"`
 }
 
 type RevokeOfficeOfflineLeasesForDeviceRow struct {
@@ -504,7 +606,7 @@ func (q *Queries) RevokeOfficeOfflineLeasesForDevice(ctx context.Context, arg Re
 
 const revokeOfficeOfflineLeasesForFamily = `-- name: RevokeOfficeOfflineLeasesForFamily :many
 UPDATE office_offline_leases l
-SET revoked_at = now(), revoke_reason = $1, updated_at = now()
+SET revoked_at = now(), revoke_reason = $1::text, updated_at = now()
 WHERE l.user_id = $2
   AND l.device_session_id IN (
     SELECT d.id FROM device_sessions d
@@ -515,9 +617,9 @@ RETURNING l.id, l.organization_id, l.workspace_id, l.document_id, l.user_id
 `
 
 type RevokeOfficeOfflineLeasesForFamilyParams struct {
-	Reason          pgtype.Text `json:"reason"`
-	UserID          string      `json:"user_id"`
-	SessionFamilyID string      `json:"session_family_id"`
+	Reason          string `json:"reason"`
+	UserID          string `json:"user_id"`
+	SessionFamilyID string `json:"session_family_id"`
 }
 
 type RevokeOfficeOfflineLeasesForFamilyRow struct {
@@ -558,7 +660,7 @@ func (q *Queries) RevokeOfficeOfflineLeasesForFamily(ctx context.Context, arg Re
 
 const revokeOfficeOfflineLeasesForOrganization = `-- name: RevokeOfficeOfflineLeasesForOrganization :many
 UPDATE office_offline_leases
-SET revoked_at = now(), revoke_reason = $1, updated_at = now()
+SET revoked_at = now(), revoke_reason = $1::text, updated_at = now()
 WHERE id IN (
   SELECT l.id FROM office_offline_leases l
   WHERE l.organization_id = $2 AND l.revoked_at IS NULL
@@ -569,9 +671,9 @@ RETURNING id, organization_id, workspace_id, document_id, user_id
 `
 
 type RevokeOfficeOfflineLeasesForOrganizationParams struct {
-	Reason         pgtype.Text `json:"reason"`
-	OrganizationID string      `json:"organization_id"`
-	BatchLimit     int32       `json:"batch_limit"`
+	Reason         string `json:"reason"`
+	OrganizationID string `json:"organization_id"`
+	BatchLimit     int32  `json:"batch_limit"`
 }
 
 type RevokeOfficeOfflineLeasesForOrganizationRow struct {
@@ -611,14 +713,14 @@ func (q *Queries) RevokeOfficeOfflineLeasesForOrganization(ctx context.Context, 
 
 const revokeOfficeOfflineLeasesForUser = `-- name: RevokeOfficeOfflineLeasesForUser :many
 UPDATE office_offline_leases
-SET revoked_at = now(), revoke_reason = $1, updated_at = now()
+SET revoked_at = now(), revoke_reason = $1::text, updated_at = now()
 WHERE user_id = $2 AND revoked_at IS NULL
 RETURNING id, organization_id, workspace_id, document_id, user_id
 `
 
 type RevokeOfficeOfflineLeasesForUserParams struct {
-	Reason pgtype.Text `json:"reason"`
-	UserID string      `json:"user_id"`
+	Reason string `json:"reason"`
+	UserID string `json:"user_id"`
 }
 
 type RevokeOfficeOfflineLeasesForUserRow struct {
@@ -659,15 +761,15 @@ func (q *Queries) RevokeOfficeOfflineLeasesForUser(ctx context.Context, arg Revo
 
 const revokeOfficeOfflineLeasesForUserInOrganization = `-- name: RevokeOfficeOfflineLeasesForUserInOrganization :many
 UPDATE office_offline_leases
-SET revoked_at = now(), revoke_reason = $1, updated_at = now()
+SET revoked_at = now(), revoke_reason = $1::text, updated_at = now()
 WHERE organization_id = $2 AND user_id = $3 AND revoked_at IS NULL
 RETURNING id, organization_id, workspace_id, document_id, user_id
 `
 
 type RevokeOfficeOfflineLeasesForUserInOrganizationParams struct {
-	Reason         pgtype.Text `json:"reason"`
-	OrganizationID string      `json:"organization_id"`
-	UserID         string      `json:"user_id"`
+	Reason         string `json:"reason"`
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
 }
 
 type RevokeOfficeOfflineLeasesForUserInOrganizationRow struct {

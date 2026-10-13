@@ -181,6 +181,16 @@ const (
 	ActionOfficeLaunchSessionRevoked  = "office.launch_session_revoked"
 	ActionOfficeDesktopDownloaded     = "office.desktop_downloaded"
 
+	// Office offline leases (G5-08s, decision G5-D1 row 16): grant, renew,
+	// release and revoke of one device's lease on one document, each with an
+	// office_lease.* outbox row; a revoke names its reason in metadata. The
+	// policy bump is the uniwork-admin org-wide revoke (admin_actions too).
+	ActionOfficeOfflineLeaseGranted  = "office.offline_lease_granted"
+	ActionOfficeOfflineLeaseRenewed  = "office.offline_lease_renewed"
+	ActionOfficeOfflineLeaseReleased = "office.offline_lease_released"
+	ActionOfficeOfflineLeaseRevoked  = "office.offline_lease_revoked"
+	ActionOfficeOfflinePolicyBumped  = "office.offline_policy_bumped"
+
 	// Saved signatures (UNI-925 B6): a person's reusable signature images,
 	// stored server-side. Rows are personal and only the owner's own editor
 	// consumes them, so they audit without an outbox event.

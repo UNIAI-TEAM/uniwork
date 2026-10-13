@@ -508,9 +508,9 @@ func (s *DesktopAuthService) refreshedSession(device db.DeviceSession, access, r
 }
 
 // revokeDesktopFamily closes every live device session of the family, then the
-// family's refresh tokens, as two statements in the caller's transaction. It
-// returns how many rows each statement changed, so a caller can tell a real
-// revoke from a repeat.
+// family's refresh tokens, then the family's offline leases (G5-D1 row 6), in
+// the caller's transaction. It returns how many device sessions and refresh
+// tokens it changed, so a caller can tell a real revoke from a repeat.
 func revokeDesktopFamily(ctx context.Context, q *db.Queries, userID, familyID string) (sessions, tokens int64, err error) {
 	sessions, err = q.RevokeDeviceSessionFamily(ctx, db.RevokeDeviceSessionFamilyParams{UserID: userID, SessionFamilyID: familyID})
 	if err != nil {
@@ -518,6 +518,9 @@ func revokeDesktopFamily(ctx context.Context, q *db.Queries, userID, familyID st
 	}
 	tokens, err = q.RevokeSessionForUser(ctx, db.RevokeSessionForUserParams{UserID: userID, SessionID: familyID})
 	if err != nil {
+		return 0, 0, err
+	}
+	if err := revokeOfficeLeasesForFamily(ctx, q, userID, familyID); err != nil {
 		return 0, 0, err
 	}
 	return sessions, tokens, nil
@@ -601,6 +604,11 @@ func (s *DesktopAuthService) Logout(ctx context.Context, userID, deviceID, deplo
 		if _, err := closeOrphanFamilyTokens(ctx, q, userID, device.SessionFamilyID); err != nil {
 			return err
 		}
+		// The device's offline leases die with it, in this transaction
+		// (G5-D1 row 6); the family path does the same in revokeDesktopFamily.
+		if err := revokeOfficeLeasesForDevice(ctx, q, userID, deviceID); err != nil {
+			return err
+		}
 	}
 	// A family logout ends sibling devices this call does not name.
 	revokedSession := deviceID
@@ -675,15 +683,19 @@ func (s *DesktopAuthService) CheckDeviceSession(ctx context.Context, userID, ses
 
 // revokeAllUserSessions closes every device session and refresh token of the
 // user in the caller's transaction: the device rows first (in id order), then
-// refresh_tokens. That is the order Logout, Refresh and the family revoke take
-// them in, so a user-wide revoke racing a logout cannot deadlock (40P01).
-// RevokeAll, account deletion, password reset and member deactivation all go
-// through here.
+// refresh_tokens, then the user's offline leases (G5-D1 rows 6-7). That is
+// the order Logout, Refresh and the family revoke take them in, and a lease
+// grant also locks its device row before the lease row, so a user-wide revoke
+// racing a logout or a grant cannot deadlock (40P01). RevokeAll, account
+// deletion, password reset and member deactivation all go through here.
 func revokeAllUserSessions(ctx context.Context, q *db.Queries, userID string) error {
 	if err := q.RevokeAllDeviceSessions(ctx, userID); err != nil {
 		return err
 	}
-	return q.RevokeAllRefreshTokensForUser(ctx, userID)
+	if err := q.RevokeAllRefreshTokensForUser(ctx, userID); err != nil {
+		return err
+	}
+	return revokeOfficeLeasesForUser(ctx, q, userID)
 }
 
 func (s *DesktopAuthService) RevokeAll(ctx context.Context, userID string) error {

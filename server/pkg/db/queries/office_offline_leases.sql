@@ -80,7 +80,7 @@ WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id);
 -- tenant: self
 -- Device logout / revoke (G5-D1 row 6), in the revoking transaction.
 UPDATE office_offline_leases
-SET revoked_at = now(), revoke_reason = sqlc.arg(reason), updated_at = now()
+SET revoked_at = now(), revoke_reason = sqlc.arg(reason)::text, updated_at = now()
 WHERE user_id = sqlc.arg(user_id) AND device_session_id = sqlc.arg(device_session_id) AND revoked_at IS NULL
 RETURNING id, organization_id, workspace_id, document_id, user_id;
 
@@ -88,7 +88,7 @@ RETURNING id, organization_id, workspace_id, document_id, user_id;
 -- tenant: self
 -- A family logout / admin device revoke ends every device of the family.
 UPDATE office_offline_leases l
-SET revoked_at = now(), revoke_reason = sqlc.arg(reason), updated_at = now()
+SET revoked_at = now(), revoke_reason = sqlc.arg(reason)::text, updated_at = now()
 WHERE l.user_id = sqlc.arg(user_id)
   AND l.device_session_id IN (
     SELECT d.id FROM device_sessions d
@@ -101,20 +101,20 @@ RETURNING l.id, l.organization_id, l.workspace_id, l.document_id, l.user_id;
 -- tenant: self
 -- Every lease of the user in every organization (revokeAllUserSessions).
 UPDATE office_offline_leases
-SET revoked_at = now(), revoke_reason = sqlc.arg(reason), updated_at = now()
+SET revoked_at = now(), revoke_reason = sqlc.arg(reason)::text, updated_at = now()
 WHERE user_id = sqlc.arg(user_id) AND revoked_at IS NULL
 RETURNING id, organization_id, workspace_id, document_id, user_id;
 
 -- name: RevokeOfficeOfflineLeasesForUserInOrganization :many
 UPDATE office_offline_leases
-SET revoked_at = now(), revoke_reason = sqlc.arg(reason), updated_at = now()
+SET revoked_at = now(), revoke_reason = sqlc.arg(reason)::text, updated_at = now()
 WHERE organization_id = sqlc.arg(organization_id) AND user_id = sqlc.arg(user_id) AND revoked_at IS NULL
 RETURNING id, organization_id, workspace_id, document_id, user_id;
 
 -- name: RevokeOfficeOfflineLeasesForOrganization :many
 -- One batch of an organization-wide revoke (suspension, uniwork-admin).
 UPDATE office_offline_leases
-SET revoked_at = now(), revoke_reason = sqlc.arg(reason), updated_at = now()
+SET revoked_at = now(), revoke_reason = sqlc.arg(reason)::text, updated_at = now()
 WHERE id IN (
   SELECT l.id FROM office_offline_leases l
   WHERE l.organization_id = sqlc.arg(organization_id) AND l.revoked_at IS NULL
@@ -125,7 +125,7 @@ RETURNING id, organization_id, workspace_id, document_id, user_id;
 
 -- name: RevokeOfficeOfflineLeasesByIDs :many
 UPDATE office_offline_leases
-SET revoked_at = now(), revoke_reason = sqlc.arg(reason), updated_at = now()
+SET revoked_at = now(), revoke_reason = sqlc.arg(reason)::text, updated_at = now()
 WHERE organization_id = sqlc.arg(organization_id) AND id = ANY(sqlc.arg(ids)::text[]) AND revoked_at IS NULL
 RETURNING id, organization_id, workspace_id, document_id, user_id;
 
@@ -150,3 +150,21 @@ WHERE id IN (
   WHERE l.expires_at < sqlc.arg(cutoff)::timestamptz OR l.revoked_at < sqlc.arg(cutoff)::timestamptz
   LIMIT sqlc.arg(batch_limit)
 );
+
+-- name: LockOfficeLeaseDocument :one
+-- tenant: by-id
+-- A grant reads the ACL under a share lock on the document row, so a
+-- concurrent share revoke or move (withDocumentMutation, FOR UPDATE) is
+-- either fully visible or waits for the grant to commit and its outbox
+-- consumer then sees the new lease.
+SELECT * FROM documents WHERE id = sqlc.arg(id) FOR SHARE;
+
+-- name: GetOfficeOfflineLeaseForRelease :one
+-- tenant: self
+-- Release works on the caller's own row even when the document is gone or
+-- no longer readable, so the row is found by user, device and document.
+SELECT * FROM office_offline_leases
+WHERE user_id = sqlc.arg(user_id)
+  AND device_session_id = sqlc.arg(device_session_id)
+  AND document_id = sqlc.arg(document_id)
+FOR UPDATE;
