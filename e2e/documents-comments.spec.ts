@@ -118,7 +118,7 @@ test("discussion panel posts, replies, edits, resolves, reopens and survives a r
 
   // Edit the post, then read its history.
   await rail.getByRole("button", { name: /^Thao tác khác/ }).first().click();
-  await page.getByRole("menuitem", { name: "Sửa" }).click();
+  await page.getByRole("menuitem", { name: "Sửa", exact: true }).click();
   const editBox = rail.getByRole("textbox", { name: "Sửa" });
   await editBox.fill("Bài thảo luận đã sửa");
   await rail.getByRole("button", { name: "Lưu", exact: true }).click();
