@@ -1,0 +1,7 @@
+$ if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then FORMAT_BASE_REF=$(git rev-parse HEAD^1); else FORMAT_BASE_REF=$(git merge-base HEAD origin/main); fi; export FORMAT_BASE_REF; npm run format:check
+
+> genoffice@0.1.0 format:check
+> node tools/format-changed.mjs --check
+
+Checking formatting...
+All matched files use Prettier code style!
