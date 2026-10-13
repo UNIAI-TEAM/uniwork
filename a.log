@@ -1,0 +1,15 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -12
+60e622bd47d38eb45446b520fa968b14193f249b
+4adb115bcf6fbf6f427954cc860468d4207deaf9
+60e622bd4 fix(office): key each pending frame comment create on its own and reject a token-less full list
+ec62eb1c2 test(office): pin a key per pending frame comment create and a token on every full list
+6ff47daac refactor(office): keep the frame comment helper types module-private
+a3ae3e846 chore(office): re-vendor the comments frame protocol at fix r1 (af989c83)
+14823e868 feat(office): answer the editor's server comments from the frame host
+edb1f7553 chore(office): vendor the G8-08 comments frame protocol from the fork
+eca97e76d feat(office): map comment realtime frames and the document level for the editor frame
+43ad885c6 test(office): pin the realtime-to-comments.changed mapping and the advertised comment level
+eacbe6a29 feat(office): add the frame comment proxy endpoints for the editor frame
+7769ea6ce test(office): pin the frame comment proxy endpoints against contract-collab §2
+56a212c01 test(office): pin no download cap for a token without can_edit, drop the re-typed 50 MiB literal
+5587a4d84 feat(office): send the download cap in init with the download capability

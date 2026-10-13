@@ -1,0 +1,250 @@
+$ git checkout 56a212c01 -- packages/core/office packages/views/office/frame/use-docs-frame-session.ts packages/views/office/frame/office-module-frame.tsx apps/web/platform/office-frame/module-frame-host.tsx; rm -f packages/core/api/endpoints/frame-comments.ts packages/views/office/frame/frame-comments-events.ts packages/views/office/frame/use-frame-comments.ts; (cd packages/core && pnpm vitest run api/endpoints/frame-comments.test.ts); A=$?; (cd packages/views && pnpm vitest run office/frame/frame-comments-events.test.ts office/frame/use-frame-comments.test.tsx); B=$?; (node --test scripts/office/frame-protocol-vendor.test.mjs); C=$?; git checkout HEAD -- packages apps; git status --short packages apps; echo "RED_EXIT endpoint=$A host=$B vendor=$C"; test $A -ne 0 -a $B -ne 0 -a $C -ne 0 && echo RED_AS_EXPECTED_D
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+
+ ❯ api/endpoints/frame-comments.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  api/endpoints/frame-comments.test.ts [ api/endpoints/frame-comments.test.ts ]
+Error: Failed to resolve import "./frame-comments" from "api/endpoints/frame-comments.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /workspace/packages/core/api/endpoints/frame-comments.test.ts:15:7
+  3  |  import { ApiError } from "../http";
+  4  |  import { setAccessToken } from "../session";
+  5  |  ...ates, updateFrameComment, listFrameCommentRevisions } from "./frame-comments";
+     |                                                                 ^
+  6  |  const json = (body, status = 200) => new Response(JSON.stringify(body), {
+  7  |  	status,
+ ❯ TransformPluginContext._formatLog ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31147:39
+ ❯ TransformPluginContext.error ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31144:14
+ ❯ normalizeUrl ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28083:18
+ ❯ ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28153:30
+ ❯ TransformPluginContext.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28119:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:30932:14
+ ❯ loadAndTransform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:20671:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  05:24:20
+   Duration  492ms (transform 18ms, setup 105ms, import 0ms, tests 0ms, environment 237ms)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+
+ ❯ office/frame/frame-comments-events.test.ts (0 test)
+ ❯ office/frame/use-frame-comments.test.tsx (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  office/frame/frame-comments-events.test.ts [ office/frame/frame-comments-events.test.ts ]
+Error: Failed to resolve import "./frame-comments-events" from "office/frame/frame-comments-events.test.ts". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /workspace/packages/views/office/frame/frame-comments-events.test.ts:2:60
+  1  |  import { describe, expect, it } from "vitest";
+  2  |  import { commentsChangedDocument, frameCommentsLevel } from "./frame-comments-events";
+     |                                                               ^
+  3  |  const frame = (type, payload) => ({
+  4  |  	type,
+ ❯ TransformPluginContext._formatLog ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31147:39
+ ❯ TransformPluginContext.error ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31144:14
+ ❯ normalizeUrl ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28083:18
+ ❯ ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28153:30
+ ❯ TransformPluginContext.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28119:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:30932:14
+ ❯ loadAndTransform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:20671:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  office/frame/use-frame-comments.test.tsx [ office/frame/use-frame-comments.test.tsx ]
+Error: Failed to resolve import "./use-frame-comments" from "office/frame/use-frame-comments.test.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /workspace/packages/views/office/frame/use-frame-comments.test.tsx:12:0
+  11 |  const __vi_import_5__ = await import("../../test/api-mock");
+  12 |  const __vi_import_6__ = await import("./use-docs-frame-session");
+  13 |  const __vi_import_7__ = await import("./use-frame-comments");
+     |                                       ^
+  14 |  const __vi_import_8__ = await import("react/jsx-dev-runtime");
+  15 |  
+ ❯ TransformPluginContext._formatLog ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31147:39
+ ❯ TransformPluginContext.error ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:31144:14
+ ❯ normalizeUrl ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28083:18
+ ❯ ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28153:30
+ ❯ TransformPluginContext.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:28119:4
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:30932:14
+ ❯ loadAndTransform ../../node_modules/.pnpm/vite@8.2.2_@types+node@25.9.5_esbuild@0.28.2_jiti@2.7.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:20671:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  no tests
+   Start at  05:24:21
+   Duration  748ms (transform 287ms, setup 594ms, import 0ms, tests 0ms, environment 472ms)
+
+TAP version 13
+# Subtest: normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+ok 1 - normalisation strips the vendor header and pragmas and restores the fork's import specifiers
+  ---
+  duration_ms: 0.622492
+  ...
+# Subtest: a CRLF copy of each vendored file normalises to the same hash as the LF file
+ok 2 - a CRLF copy of each vendored file normalises to the same hash as the LF file
+  ---
+  duration_ms: 2.316341
+  ...
+# Subtest: every frame pin records the same protocolSha256, equal to the vendored protocol
+not ok 3 - every frame pin records the same protocolSha256, equal to the vendored protocol
+  ---
+  duration_ms: 2.231266
+  location: '/workspace/scripts/office/frame-protocol-vendor.test.mjs:96:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    docs.pin.json was built against another frame protocol than packages/core/office vendors; re-vendor or re-pin
+    + actual - expected
+    
+      {
+        endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc',
+        host: '8e9ffa8411b89bd147e4aefcece8b0cd56d7da3da8456ca91eabaac194cabc3f',
+    +   protocol: 'fc8f0a4b50895acaf2ee272440fa32054766f7d66751ec70f64c28f28ffd284a'
+    -   protocol: '15e9387098ca7e9b8260851a857b8d48c6bec8a03c25daa35e715ab603182a68'
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    protocol: '15e9387098ca7e9b8260851a857b8d48c6bec8a03c25daa35e715ab603182a68'
+    endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc'
+    host: '8e9ffa8411b89bd147e4aefcece8b0cd56d7da3da8456ca91eabaac194cabc3f'
+  actual:
+    protocol: 'fc8f0a4b50895acaf2ee272440fa32054766f7d66751ec70f64c28f28ffd284a'
+    endpoint: '30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc'
+    host: '8e9ffa8411b89bd147e4aefcece8b0cd56d7da3da8456ca91eabaac194cabc3f'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:112:12)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+ok 4 - the vendored protocol carries init.downloadMaxBytes and validates it as a positive safe integer (X-02 r2b)
+  ---
+  duration_ms: 0.506306
+  ...
+# Subtest: the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+not ok 5 - the vendored protocol carries the G8-08 comments part: capability, commentsLevel, user id, the shared HTTP mapping
+  ---
+  duration_ms: 0.448722
+  location: '/workspace/scripts/office/frame-protocol-vendor.test.mjs:128:1'
+  failureType: 'testCodeFailure'
+  error: 'InitPayload declares an optional commentsLevel'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    export interface InitPayload extends TokenPayload {
+      protocolVersion: number
+      documentId: string
+      workspaceId: string
+      /** absolute API origin + prefix, e.g. "https://app.uniwork.vn/api" */
+      apiBase: string
+      apiMode: ApiMode
+      /** BCP-47, e.g. "vi", "en" */
+      locale: string
+      theme: Theme
+      capabilities: Capabilities
+      /** optional: open this immediately (saves a round-trip vs. a later `open`) */
+      open?: OpenPayload
+      /**
+       * the document's module (additive, GO-B4/B5/B6); absent = 'docs'. A frame running another
+       * module refuses the `init` with `malformed`.
+       */
+      module?: OfficeModule
+      /**
+       * the signed-in user as editors show them (additive, GO-B4: PDF note author, comment author).
+       * Display data only, never an identity the frame may authorise with.
+       */
+      user?: InitUser
+      /**
+       * web draft recovery (additive, CONTRACT C18). Absent = recovery off (the frame shows nothing).
+       */
+      recovery?: InitRecovery
+      /**
+       * additive (X-02 r2b): the largest file, in bytes, the host's `api.download` accepts for this
+       * document. A positive safe integer; sent only together with the `download` capability. The
+       * frame disables its "download my version" choice up front when its version is larger (equal
+       * is allowed). Absent = the choice is disabled only after a `too_large` answer.
+       */
+      downloadMaxBytes?: number
+    }
+    
+    /**
+     * The host's draft-recovery grant: the frame encrypts its local IndexedDB draft copies
+     * ("uniwork-office-frame-drafts") with `key` and keys them by `scope`.
+     */
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:131:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: the three vendored files name one fork commit in their header
+not ok 6 - the three vendored files name one fork commit in their header
+  ---
+  duration_ms: 0.709354
+  location: '/workspace/scripts/office/frame-protocol-vendor.test.mjs:140:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the vendored files come from different fork commits: e36cc7dfc333243ecee1ae71aa659a72dc976468, ed580a5330fa3e50145d5f28ea12b3e5964910e6, ed580a5330fa3e50145d5f28ea12b3e5964910e6
+    
+    2 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office/frame-protocol-vendor.test.mjs:147:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 3
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 50.006853
+RED_EXIT endpoint=1 host=1 vendor=1
+RED_AS_EXPECTED_D
