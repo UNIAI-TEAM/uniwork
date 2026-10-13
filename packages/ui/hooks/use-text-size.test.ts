@@ -10,12 +10,30 @@ describe("useTextSize", () => {
     document.documentElement.removeAttribute("data-text-size");
   });
 
-  it("starts on the stored level without touching the DOM", () => {
-    window.localStorage.setItem(TEXT_SIZE_STORAGE_KEY, "large");
+  it("starts on the level the page already carries", () => {
+    // The boot script set the attribute before React ran; the hook reads it.
+    document.documentElement.setAttribute("data-text-size", "large");
     const { result } = renderHook(() => useTextSize());
     expect(result.current.textSize).toBe("large");
-    // Applying on load is the boot script's job; the hook only reads.
-    expect(document.documentElement.hasAttribute("data-text-size")).toBe(false);
+    expect(document.documentElement.getAttribute("data-text-size")).toBe("large");
+  });
+
+  it("matches the page, not storage, when storage is blocked", () => {
+    // A pick made with storage blocked lives only on <html>. Reading storage
+    // on remount would check Default while the page is Extra large, and a
+    // click on the already-checked Default would do nothing.
+    document.documentElement.setAttribute("data-text-size", "xlarge");
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+    const { result } = renderHook(() => useTextSize());
+    expect(result.current.textSize).toBe("xlarge");
+  });
+
+  it("starts on the default when the page carries an unknown level", () => {
+    document.documentElement.setAttribute("data-text-size", "huge");
+    const { result } = renderHook(() => useTextSize());
+    expect(result.current.textSize).toBe("default");
   });
 
   it("applies and stores the level picked", () => {

@@ -34,8 +34,10 @@ describe("TextSizePanel", () => {
     expect(window.localStorage.getItem(TEXT_SIZE_STORAGE_KEY)).toBe("default");
   });
 
-  it("checks the level already stored on this device", () => {
+  it("checks the level the page is already at", () => {
+    // What the boot script leaves behind for a stored "large".
     window.localStorage.setItem(TEXT_SIZE_STORAGE_KEY, "large");
+    document.documentElement.setAttribute("data-text-size", "large");
     render(<TextSizePanel />);
     expect(screen.getByRole("radio", { name: "Lớn" })).toBeChecked();
   });
