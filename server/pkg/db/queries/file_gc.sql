@@ -162,6 +162,13 @@ SELECT e.file_id, e.organization_id
 FROM audit_exports e
 WHERE e.file_id = ANY(sqlc.arg('file_ids')::text[]);
 
+-- name: FileGCDataSubjectRequestRefTenants :many
+-- tenant: system
+-- data_subject_requests.file_id: the row carries its tenant.
+SELECT r.file_id, r.organization_id
+FROM data_subject_requests r
+WHERE r.file_id = ANY(sqlc.arg('file_ids')::text[]);
+
 -- name: FileGCDocumentVersionRefTenants :many
 -- tenant: system
 -- document_versions.file_id: the row carries its tenant.

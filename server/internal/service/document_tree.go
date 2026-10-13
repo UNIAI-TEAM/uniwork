@@ -14,15 +14,16 @@ import (
 )
 
 // Document tree (C-01 §5.1, G1-04b, UNI-678): the parent_id move and the
-// workspace tree read. A folder is a page without content, so every tree
-// operation is a document operation; the whole subtree moves and archives
-// with its root. Every tree write follows the one order the code paths
+// workspace tree read. A folder (kind folder, UNI-1305) is a document
+// without content, so every tree operation is a document operation; the
+// whole subtree moves and archives with its root in one transaction. Every tree write follows the one order the code paths
 // share - the idempotency ledger claim, then the workspace tree lock, then
 // document row locks (N-01) - so two moves in one workspace serialize and
 // can never interleave into a cycle.
 //
 // Move checks permission on BOTH ends: edit on the document being moved and
-// edit on the destination page. Depth and cycle checks are computed on the
+// edit on the destination page or folder; childKindAllowed decides which
+// kinds may hold the moved one. Depth and cycle checks are computed on the
 // whole subtree, not the moved node alone.
 
 const (
@@ -190,15 +191,18 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 		if parent.OwnerKind.Valid || parent.ArchivedAt.Valid {
 			return DocumentView{}, ErrNotFound
 		}
-		if parent.Kind != DocumentKindPage {
-			return DocumentView{}, Invalid("chỉ trang mới chứa được trang con")
-		}
 		paccess, err := s.effectiveLevel(ctx, q, actor, parent)
 		if err != nil {
 			return DocumentView{}, err
 		}
 		if err := decideDocumentAccess(parent, paccess, DocumentLevelEdit); err != nil {
 			return DocumentView{}, err
+		}
+		// After the access gate, like lockPageParent: a parent the caller
+		// cannot read answers 404 whatever its kind, so the 422 never says
+		// whether a restricted document is a folder.
+		if !childKindAllowed(parent.Kind, doc.Kind) {
+			return DocumentView{}, errDocumentParentKind()
 		}
 		if inSubtree[parent.ID] {
 			return DocumentView{}, errDocumentCycle()
@@ -223,6 +227,9 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 			return DocumentView{}, err
 		}
 	}
+	// Visibility is deliberately untouched: it is inherited only when a document
+	// is created (CreatePage, CreateFileDocument), never on a move, so a
+	// restricted folder is not a boundary around what is moved into it.
 	updated, err := q.MoveDocument(ctx, db.MoveDocumentParams{
 		ParentID:         nullText(in.ParentID),
 		Position:         position,

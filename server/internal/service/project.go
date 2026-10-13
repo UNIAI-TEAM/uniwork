@@ -634,7 +634,7 @@ func (s *TaskService) requireProjectLead(ctx context.Context, workspaceID string
 	switch leadType.String {
 	case "member":
 		if _, err := s.ws.RequireMember(ctx, workspaceID, leadID.String); err != nil {
-			if errors.Is(err, ErrOrganizationSuspended) {
+			if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrOrganizationDeletionScheduled) {
 				return err
 			}
 			return coded(http.StatusUnprocessableEntity, "lead_not_member", "người phụ trách không phải thành viên workspace")

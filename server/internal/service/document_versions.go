@@ -61,6 +61,9 @@ func (s *DocumentService) CreateDocumentVersion(ctx context.Context, actor Actor
 		if doc.ArchivedAt.Valid {
 			return errDocumentDeleted()
 		}
+		if err := refuseFolder(doc); err != nil {
+			return err
+		}
 		if doc.Kind != DocumentKindPage {
 			return Invalid("phiên bản tệp đi qua versions/commit")
 		}
@@ -259,6 +262,9 @@ func (s *DocumentService) ListDocumentVersions(ctx context.Context, actor Actor,
 	if err != nil {
 		return DocumentVersionPage{}, err
 	}
+	if err := refuseFolder(doc); err != nil {
+		return DocumentVersionPage{}, err
+	}
 	rows, err := s.q.ListDocumentVersionsPage(ctx, db.ListDocumentVersionsPageParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 		BeforeVersion: before, MaxRows: int32(limit + 1),
@@ -335,6 +341,9 @@ func (s *DocumentService) RestoreDocumentVersion(ctx context.Context, actor Acto
 	err = s.withDocumentMutation(ctx, actor, documentID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, access DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
 			return errDocumentDeleted()
+		}
+		if err := refuseFolder(locked); err != nil {
+			return err
 		}
 		opts := IdempotencyOptions{
 			Fingerprint: IdempotencyFingerprint(idempotencyScopeDocumentVersionRestore, locked.ID,

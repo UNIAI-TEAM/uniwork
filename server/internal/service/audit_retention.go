@@ -47,6 +47,7 @@ func (s *AuditService) RunRetentionMarker(ctx context.Context, counter ExpiryCou
 
 func (s *AuditService) markExpired(ctx context.Context, counter ExpiryCounter) {
 	s.releaseExpiredExportFiles(ctx)
+	releaseExpiredPrivacyExports(ctx, s.pool, s.q, s.files)
 	orgs, err := s.q.ListAuditOrganizations(ctx)
 	if err != nil {
 		slog.Warn("audit retention: list organizations", "err", err)
