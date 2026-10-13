@@ -1,0 +1,4 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -2
+4ca5236f0238b252d0dfc71b41a15285a4f80e28
+4ca5236f fix(sheets): keep the fully loaded status after a late loadRange tail
+2fbfb919 test(sheets): pin that the fully loaded status survives a late loadRange tail
