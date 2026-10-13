@@ -5,6 +5,7 @@ import {
   createDocumentComment,
   deleteDocumentComment,
   listDocumentComments,
+  listDocumentMentionCandidates,
   removeDocumentCommentReaction,
   reopenDocumentComment,
   resolveDocumentComment,
@@ -46,6 +47,28 @@ export function useDocumentComments(
       }
       return page.comments;
     },
+    enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
+  });
+}
+
+/**
+ * The mention picker's people for one document (G8-06): whoever holds at
+ * least view on it today, searched by display name and email (accents
+ * folded). The caller's own access decides whether rows carry emails, so the
+ * list is never merged across queries of different terms; `enabled` lets a
+ * picker stay closed until the composer opens.
+ */
+export function useDocumentMentionCandidates(
+  wsId: string,
+  documentId: string,
+  query: string,
+  opts?: { enabled?: boolean; limit?: number },
+) {
+  const q = query.trim();
+  return useQuery({
+    queryKey: documentKeys.mentionCandidates(wsId, documentId, q),
+    queryFn: ({ signal }) =>
+      listDocumentMentionCandidates(documentId, { q, limit: opts?.limit }, signal),
     enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
   });
 }

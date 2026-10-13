@@ -58,6 +58,14 @@ export const documentKeys = {
   comments: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "comments"] as const,
   /**
+   * The mention picker's people for one document (G8-06). The search term is
+   * part of the key so two queries never share an entry; the key hangs off
+   * the detail root like `comments`, but a comment frame does not touch it -
+   * the candidate set changes with access, not with the thread.
+   */
+  mentionCandidates: (wsId: string, documentId: string, query: string = "") =>
+    [...documentKeys.detail(wsId, documentId), "mention-candidates", query] as const,
+  /**
    * The favorites prefix: every org-scoped list hangs off it, so one
    * invalidation after a favorite/unfavorite covers the caller's open lists
    * even though the frame cannot name the organization. It sits beside the
