@@ -1,8 +1,10 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useId, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import type { DocumentCommentMention } from "@uniwork/core/types/document";
 import { cn } from "@uniwork/ui/lib/utils";
+import { K } from "./document-comments-keys";
 
 // The comment body renderer of the G8 addendum §4.2 (contract-collab 3): a
 // small Markdown subset - paragraphs, line breaks, **bold**, *italic*, inline
@@ -11,6 +13,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 // HTML is ever interpreted (React escapes every text node). A chip shows the
 // person's CURRENT name from the list's name table; the label written in the
 // token is only the fallback for an account that is gone or not in the table.
+// A long body is folded behind an expand toggle, and a body with no text says so.
 
 const TOKEN = new RegExp(
   [
@@ -23,6 +26,10 @@ const TOKEN = new RegExp(
   ].join("|"),
   "g",
 );
+
+/** A body past either bound is folded (S12: the long-body collapse kept on D). */
+const COLLAPSE_CHARS = 600;
+const COLLAPSE_LINES = 8;
 
 /** `\[`, `\]`, `\(`, `\)` and `\\` in a token label are Markdown escapes. */
 const unescapeLabel = (label: string) => label.replace(/\\(.)/g, "$1");
@@ -99,19 +106,47 @@ export function DocumentCommentBody({
   names: Names;
   className?: string;
 }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const regionId = useId();
   const paragraphs = body.replace(/\r\n?/g, "\n").split(/\n{2,}/).filter((p) => p.trim() !== "");
+  if (paragraphs.length === 0) {
+    return (
+      <p className={cn("text-caption italic text-muted-foreground", className)} data-testid="document-comment-body">
+        {t(K.commentPreviewEmpty)}
+      </p>
+    );
+  }
+  const long = body.length > COLLAPSE_CHARS || body.split("\n").length > COLLAPSE_LINES;
   return (
-    <div className={cn("space-y-2 break-words text-body text-foreground", className)} data-testid="document-comment-body">
-      {paragraphs.map((paragraph, p) => (
-        <p key={p} className="whitespace-pre-wrap">
-          {paragraph.split("\n").map((line, l) => (
-            <Fragment key={l}>
-              {l > 0 ? <br /> : null}
-              {renderInline(line, names, `${p}-${l}`)}
-            </Fragment>
-          ))}
-        </p>
-      ))}
+    <div>
+      <div
+        id={regionId}
+        className={cn("space-y-2 break-words text-body text-foreground", long && !open && "max-h-40 overflow-hidden", className)}
+        data-testid="document-comment-body"
+      >
+        {paragraphs.map((paragraph, p) => (
+          <p key={p} className="whitespace-pre-wrap">
+            {paragraph.split("\n").map((line, l) => (
+              <Fragment key={l}>
+                {l > 0 ? <br /> : null}
+                {renderInline(line, names, `${p}-${l}`)}
+              </Fragment>
+            ))}
+          </p>
+        ))}
+      </div>
+      {long ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={regionId}
+          onClick={() => setOpen((current) => !current)}
+          className="mt-1 inline-flex min-h-6 items-center rounded text-micro font-medium text-primary underline-offset-2 hover:underline pointer-coarse:min-h-11"
+        >
+          {t(open ? K.commentCollapse : K.commentExpand)}
+        </button>
+      ) : null}
     </div>
   );
 }

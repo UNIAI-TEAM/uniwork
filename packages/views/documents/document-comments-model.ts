@@ -39,12 +39,30 @@ const str = (value: unknown): string => (typeof value === "string" ? value : "")
 const int = (value: unknown): number | null =>
   typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
 
+/** Excel's sheet-name limit; a longer string is an opaque id, not a name. */
+const SHEET_NAME_MAX = 31;
+
+/**
+ * The anchor's `sheet` is the workbook's stable id when it has one, else the
+ * name (contract-collab 4). A value that reads as an id (a ULID, a UUID, bare
+ * digits) or cannot be a sheet name is not shown; null then falls back to the
+ * range alone.
+ */
+function readableSheetName(value: unknown): string | null {
+  const name = str(value).trim();
+  if (!name || name.length > SHEET_NAME_MAX || /[[\]:*?/\\]/.test(name)) return null;
+  if (Array.from(name).some((ch) => ch.charCodeAt(0) < 32)) return null;
+  if (/^\d+$/.test(name) || /^[0-9A-Z]{26}$/.test(name) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(name)) return null;
+  return name;
+}
+
 /**
  * The location a comment points at, one key with a placeholder per format
  * (String catalogue › Neo). An anchor the client cannot read yields null: the
  * comment still renders, it just names no place. Numbers are formatted in the
  * reader's locale; the A1 range is Excel syntax and never translated. The web
- * has no open sheet to compare with, so the cell label is the range alone.
+ * has no open sheet to compare with, so the cell label always carries the sheet
+ * qualifier when the anchor holds a readable sheet name (ruling F-04).
  */
 export function anchorLabel(anchor: Record<string, unknown> | null, locale: string): AnchorLabel | null {
   if (!anchor) return null;
@@ -59,7 +77,9 @@ export function anchorLabel(anchor: Record<string, unknown> | null, locale: stri
     }
     case "xlsx": {
       const range = str(anchor.range);
-      return range ? { key: K.collabAnchorCell, values: { cell: range } } : null;
+      if (!range) return null;
+      const sheet = readableSheetName(anchor.sheet);
+      return { key: K.collabAnchorCell, values: { cell: sheet ? `'${sheet.replaceAll("'", "''")}'!${range}` : range } };
     }
     case "pptx": {
       const index = int(anchor.slide_index);

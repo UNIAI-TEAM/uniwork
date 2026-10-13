@@ -64,9 +64,22 @@ describe("anchorLabel (one key with a placeholder per format)", () => {
   });
 
   it("names the cell, the 1-based slide and the page in the reader's locale", () => {
-    expect(anchorLabel({ format: "xlsx", v: 1, sheet: "S1", range: "B7:D9" }, "en")).toEqual({ key: K.collabAnchorCell, values: { cell: "B7:D9" } });
+    expect(anchorLabel({ format: "xlsx", v: 1, sheet: "Doanh thu", range: "B7:D9" }, "en")).toEqual({ key: K.collabAnchorCell, values: { cell: "'Doanh thu'!B7:D9" } });
     expect(anchorLabel({ format: "pptx", v: 1, slide_id: "257", slide_index: 4 }, "en")).toEqual({ key: K.collabAnchorSlide, values: { slide: "5" } });
     expect(anchorLabel({ format: "pdf", v: 1, page: 1200, rect: [0, 0, 1, 1] }, "en")).toEqual({ key: K.collabAnchorPage, values: { page: "1,200" } });
+  });
+
+  it("qualifies an xlsx cell with a readable sheet name and falls back to the range alone otherwise", () => {
+    const cell = (sheet: unknown) => anchorLabel({ format: "xlsx", v: 1, sheet, range: "B7" }, "en")?.values.cell;
+    expect(cell("Sheet1")).toBe("'Sheet1'!B7");
+    expect(cell("Tom's sheet")).toBe("'Tom''s sheet'!B7");
+    // The sheet is the workbook's stable id when it has one: an id reads as no name.
+    expect(cell("01J8X4USR0000000000000000A")).toBe("B7");
+    expect(cell("0f8fad5b-d9cb-469f-a165-70867728950e")).toBe("B7");
+    expect(cell("1024")).toBe("B7");
+    expect(cell("")).toBe("B7");
+    expect(cell(undefined)).toBe("B7");
+    expect(cell("x".repeat(40))).toBe("B7");
   });
 
   it("reads an anchor it does not understand as no anchor", () => {
