@@ -1,6 +1,5 @@
 "use client";
 
-import { CircleAlert } from "lucide-react";
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { errorCode } from "@uniwork/core/api";
@@ -124,13 +123,14 @@ export function CloseOrganizationDialog({
           <FormDialogBody>
             {/* The same destructive notice the invitation switch shows for a
                 close; `note`, not `alert`, so opening the dialog does not
-                interrupt the reader with all four lines at once. */}
+                interrupt the reader with all four lines at once. The bullets
+                are its only markers: a leading icon beside the first one
+                read as two. */}
             <Alert
               variant="destructive"
               role="note"
               className="border-destructive/25 bg-destructive-soft *:data-[slot=alert-description]:text-destructive-soft-foreground"
             >
-              <CircleAlert aria-hidden />
               <AlertDescription>
                 <ul className="list-disc space-y-1 pl-4 text-pretty">
                   {CONSEQUENCES.map((key) => (

@@ -39,7 +39,7 @@ function classify(err: unknown): Refusal {
 }
 
 /** One state of the page: what its shell says, and what it shows under that. */
-type Screen = { id: string; title: string; description: string; body: ReactNode };
+type Screen = { id: string; title: string; description: string; body: ReactNode; nameInTitle?: boolean };
 
 /**
  * /invite/{token} (spec 2026-10-13 §6.1). Opening the link reads the
@@ -188,6 +188,7 @@ export function AcceptInviteView({
       return {
         id: "join",
         title,
+        nameInTitle: true,
         description: invitation.inviter_name
           ? t("invitations.preview.description_inviter", { inviter: invitation.inviter_name })
           : t("invitations.preview.description"),
@@ -206,6 +207,7 @@ export function AcceptInviteView({
     return {
       id: "switch",
       title: t("invitations.switch.title", { name }),
+      nameInTitle: true,
       description: t("invitations.switch.description", { name }),
       body: (
         <SwitchWizard
@@ -229,7 +231,7 @@ export function AcceptInviteView({
   // heading, which is how the change is announced. Inside, each state fades
   // in by opacity alone.
   return (
-    <AuthShell title={screen.title} description={screen.description}>
+    <AuthShell title={screen.title} description={screen.description} nameInTitle={screen.nameInTitle}>
       <div key={screen.id} className="motion-safe:animate-onboarding-enter">
         {screen.body}
       </div>
