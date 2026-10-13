@@ -1,0 +1,2 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; for p in 18080 13000; do pid=$(lsof -ti tcp:$p 2>/dev/null); [ -n "$pid" ] && kill $pid; done; true
+277889c8ff1e8631964d879c1468b8809494693b

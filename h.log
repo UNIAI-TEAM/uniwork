@@ -1,0 +1,29 @@
+$ tail -n 80 /tmp/g810-server.log /tmp/g810-web.log; for p in 18080 13000; do pid=$(lsof -ti tcp:$p 2>/dev/null); [ -n "$pid" ] && kill $pid; done; true
+==> /tmp/g810-server.log <==
+13:54:38.622 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+13:54:38.622 INF local storage adapter ready dir=/tmp/uniwork-uploads
+13:54:38.626 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/13 13:54:38 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+13:54:38.628 INF mail: log mode, messages are printed component=server
+13:54:38.628 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+13:54:39.125 INF mail: outbox worker started component=server tick=5s
+13:54:39.125 INF listening component=server port=18080 swagger=http://localhost:18080/swagger/index.html
+
+==> /tmp/g810-web.log <==
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::13000
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::13000)
+    at new Promise (<anonymous>) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 13000
+}
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 start: `next start`
+Exit status 1
