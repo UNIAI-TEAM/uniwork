@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m17; echo "MUT_m17_EXIT=$?"
+===== RUN m17 pkg=./internal/service -run='TestDocumentChangesFeedStaleHighWaterAnswersGone'
+=== RUN   TestDocumentChangesFeedStaleHighWaterAnswersGone
+    document_changes_feed_test.go:692: a high-water mark older than the position column = <nil>, want 410 change_cursor_expired
+--- FAIL: TestDocumentChangesFeedStaleHighWaterAnswersGone (0.23s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.250s
+FAIL
+===== FAIL/PASS m17
+--- FAIL: TestDocumentChangesFeedStaleHighWaterAnswersGone (0.23s)
+MUST_FAIL_OK=TestDocumentChangesFeedStaleHighWaterAnswersGone
+MUT_m17_CLEAN=1
+MUT_m17_RED=1
+REVERT_m17=ok
+MUT_m17_EXIT=0

@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m23; echo "MUT_m23_EXIT=$?"
+===== RUN m23 pkg=./internal/service -run='TestCommitIntentLookupInFlightAndExpiredClaim'
+=== RUN   TestCommitIntentLookupInFlightAndExpiredClaim
+    document_commit_intent_test.go:177: lookup = {Outcome:not_committed VersionID: Version:0 Revision:0}, want in_flight while the claim is live
+--- FAIL: TestCommitIntentLookupInFlightAndExpiredClaim (0.25s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.273s
+FAIL
+===== FAIL/PASS m23
+--- FAIL: TestCommitIntentLookupInFlightAndExpiredClaim (0.25s)
+MUST_FAIL_OK=TestCommitIntentLookupInFlightAndExpiredClaim
+MUT_m23_CLEAN=1
+MUT_m23_RED=1
+REVERT_m23=ok
+MUT_m23_EXIT=0

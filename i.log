@@ -1,0 +1,24 @@
+$ bash .mutations/run.sh m07; echo "MUT_m07_EXIT=$?"
+===== RUN m07 pkg=./internal/service -run='TestDocumentChangesFeedPermissionGrantIsUpsert|TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval|TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals'
+=== RUN   TestDocumentChangesFeedPermissionGrantIsUpsert
+    document_changes_feed_test.go:497: a grant did not reach the newly admitted reader
+--- FAIL: TestDocumentChangesFeedPermissionGrantIsUpsert (0.26s)
+=== RUN   TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval
+--- PASS: TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval (0.26s)
+=== RUN   TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals
+    document_changes_feed_test.go:1022: saved cursor upsert = {DocumentID: ChangeKind: Kind: Revision:0 CurrentVersion:0 FileVersionID: Archived:false Removal:} (found false), want an upsert
+--- FAIL: TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals (0.25s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.811s
+FAIL
+===== FAIL/PASS m07
+--- FAIL: TestDocumentChangesFeedPermissionGrantIsUpsert (0.26s)
+--- PASS: TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval (0.26s)
+--- FAIL: TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals (0.25s)
+MUST_FAIL_OK=TestDocumentChangesFeedPermissionGrantIsUpsert
+MUST_FAIL_MISSED=TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval
+MUST_FAIL_OK=TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals
+MUT_m07_CLEAN=1
+MUT_m07_RED=0
+REVERT_m07=ok
+MUT_m07_EXIT=1

@@ -1,0 +1,20 @@
+$ bash .mutations/run.sh m16; echo "MUT_m16_EXIT=$?"
+===== RUN m16 pkg=./internal/service -run='TestDocumentChangesFeedMoveWithinWorkspaceIsUpsert|TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval'
+=== RUN   TestDocumentChangesFeedMoveWithinWorkspaceIsUpsert
+    document_changes_feed_test.go:546: a same-workspace move did not reach the feed
+--- FAIL: TestDocumentChangesFeedMoveWithinWorkspaceIsUpsert (0.27s)
+=== RUN   TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval
+    document_changes_feed_test.go:574: a cross-workspace move did not reach the feed
+--- FAIL: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.25s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.561s
+FAIL
+===== FAIL/PASS m16
+--- FAIL: TestDocumentChangesFeedMoveWithinWorkspaceIsUpsert (0.27s)
+--- FAIL: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.25s)
+MUST_FAIL_OK=TestDocumentChangesFeedMoveWithinWorkspaceIsUpsert
+MUST_FAIL_OK=TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval
+MUT_m16_CLEAN=1
+MUT_m16_RED=1
+REVERT_m16=ok
+MUT_m16_EXIT=0

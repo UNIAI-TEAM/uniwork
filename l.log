@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m10; echo "MUT_m10_EXIT=$?"
+===== RUN m10 pkg=./internal/service -run='TestDocumentChangesFeedArchiveRestoreAreUpserts'
+=== RUN   TestDocumentChangesFeedArchiveRestoreAreUpserts
+    document_changes_feed_test.go:601: archive row = {DocumentID:01M4VP6GK8WSN08BSJYJKY1TN2 ChangeKind:upsert Kind:page Revision:1 CurrentVersion:0 FileVersionID: Archived:false Removal:}, want upsert archived=true
+--- FAIL: TestDocumentChangesFeedArchiveRestoreAreUpserts (0.25s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.264s
+FAIL
+===== FAIL/PASS m10
+--- FAIL: TestDocumentChangesFeedArchiveRestoreAreUpserts (0.25s)
+MUST_FAIL_OK=TestDocumentChangesFeedArchiveRestoreAreUpserts
+MUT_m10_CLEAN=1
+MUT_m10_RED=1
+REVERT_m10=ok
+MUT_m10_EXIT=0

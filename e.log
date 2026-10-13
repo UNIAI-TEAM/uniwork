@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m03; echo "MUT_m03_EXIT=$?"
+===== RUN m03 pkg=./internal/service -run='TestDocumentChangesFeedFilteredPageCursorAdvances'
+=== RUN   TestDocumentChangesFeedFilteredPageCursorAdvances
+    document_changes_feed_test.go:454: a page whose every row was filtered repeated the same cursor
+--- FAIL: TestDocumentChangesFeedFilteredPageCursorAdvances (0.27s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.288s
+FAIL
+===== FAIL/PASS m03
+--- FAIL: TestDocumentChangesFeedFilteredPageCursorAdvances (0.27s)
+MUST_FAIL_OK=TestDocumentChangesFeedFilteredPageCursorAdvances
+MUT_m03_CLEAN=1
+MUT_m03_RED=1
+REVERT_m03=ok
+MUT_m03_EXIT=0

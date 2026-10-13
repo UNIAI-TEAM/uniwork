@@ -1,0 +1,24 @@
+$ bash .mutations/run.sh m21; echo "MUT_m21_EXIT=$?"
+===== RUN m21 pkg=./internal/service -run='TestCommitIntentFenceRefusesLateCommit'
+=== RUN   TestCommitIntentFenceRefusesLateCommit
+=== RUN   TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed
+    document_commit_intent_test.go:212: want idempotency_in_flight, got <nil>
+=== RUN   TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed
+=== RUN   TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt
+--- FAIL: TestCommitIntentFenceRefusesLateCommit (0.82s)
+    --- FAIL: TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed (0.29s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed (0.25s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt (0.27s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.835s
+FAIL
+===== FAIL/PASS m21
+--- FAIL: TestCommitIntentFenceRefusesLateCommit (0.82s)
+    --- FAIL: TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed (0.29s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed (0.25s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt (0.27s)
+MUST_FAIL_OK=TestCommitIntentFenceRefusesLateCommit
+MUT_m21_CLEAN=1
+MUT_m21_RED=1
+REVERT_m21=ok
+MUT_m21_EXIT=0

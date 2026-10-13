@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m05; echo "MUT_m05_EXIT=$?"
+===== RUN m05 pkg=./internal/service -run='TestDocumentChangesFeedTombstoneNeverReappears'
+=== RUN   TestDocumentChangesFeedTombstoneNeverReappears
+    document_changes_feed_test.go:322: a purge the cursor may have seen = <nil>, want 410 change_cursor_expired
+--- FAIL: TestDocumentChangesFeedTombstoneNeverReappears (0.27s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.290s
+FAIL
+===== FAIL/PASS m05
+--- FAIL: TestDocumentChangesFeedTombstoneNeverReappears (0.27s)
+MUST_FAIL_OK=TestDocumentChangesFeedTombstoneNeverReappears
+MUT_m05_CLEAN=1
+MUT_m05_RED=1
+REVERT_m05=ok
+MUT_m05_EXIT=0

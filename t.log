@@ -1,0 +1,17 @@
+$ bash .mutations/run.sh m18; echo "MUT_m18_EXIT=$?"
+===== RUN m18 pkg=./cmd/server -run='TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters'
+=== RUN   TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters
+    documents_test.go:56: commit intent policy = {ClaimTTL:0s Retention:0s Await:0s}, want {ClaimTTL:13m0s Retention:72h0m0s Await:0s}; without it the route commits claim with the default TTL and resume window
+    documents_test.go:59: flag evaluator = <nil>, want the evaluator main.go passes in; without it office_sync_write never reaches the routes
+    documents_test.go:62: intent counters = <nil>, want the counters main.go passes in; without them route lookups and replays stay silent
+--- FAIL: TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters (0.00s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/cmd/server	0.016s
+FAIL
+===== FAIL/PASS m18
+--- FAIL: TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters (0.00s)
+MUST_FAIL_OK=TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters
+MUT_m18_CLEAN=1
+MUT_m18_RED=1
+REVERT_m18=ok
+MUT_m18_EXIT=0

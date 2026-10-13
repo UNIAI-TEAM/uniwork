@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m27; echo "MUT_m27_EXIT=$?"
+===== RUN m27 pkg=./internal/service -run='TestCommitIntentConflictReleasesClaim'
+=== RUN   TestCommitIntentConflictReleasesClaim
+    document_commit_intent_test.go:560: lookup = {Outcome:in_flight VersionID: Version:0 Revision:0}, want not_committed after the refusal
+--- FAIL: TestCommitIntentConflictReleasesClaim (0.25s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.270s
+FAIL
+===== FAIL/PASS m27
+--- FAIL: TestCommitIntentConflictReleasesClaim (0.25s)
+MUST_FAIL_OK=TestCommitIntentConflictReleasesClaim
+MUT_m27_CLEAN=1
+MUT_m27_RED=1
+REVERT_m27=ok
+MUT_m27_EXIT=0

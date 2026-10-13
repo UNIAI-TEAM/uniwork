@@ -1,0 +1,301 @@
+$ bash .mutations/run.sh baseline; echo "BASELINE_EXIT=$?"
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage'
+=== RUN   TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage
+--- PASS: TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage (0.71s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.723s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns'
+=== RUN   TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns
+--- PASS: TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns (0.27s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.284s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedFilteredPageCursorAdvances'
+=== RUN   TestDocumentChangesFeedFilteredPageCursorAdvances
+--- PASS: TestDocumentChangesFeedFilteredPageCursorAdvances (0.24s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.256s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedRemovalOnlyToSomeoneWhoHadAccess|TestDocumentChangesFeedNeverReaderGetsNothing|TestDocumentChangesFeedTombstoneNeverReappears'
+=== RUN   TestDocumentChangesFeedTombstoneNeverReappears
+--- PASS: TestDocumentChangesFeedTombstoneNeverReappears (0.24s)
+=== RUN   TestDocumentChangesFeedRemovalOnlyToSomeoneWhoHadAccess
+--- PASS: TestDocumentChangesFeedRemovalOnlyToSomeoneWhoHadAccess (0.24s)
+=== RUN   TestDocumentChangesFeedNeverReaderGetsNothing
+--- PASS: TestDocumentChangesFeedNeverReaderGetsNothing (0.26s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.780s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedTombstoneNeverReappears'
+=== RUN   TestDocumentChangesFeedTombstoneNeverReappears
+--- PASS: TestDocumentChangesFeedTombstoneNeverReappears (0.28s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.296s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedRemovalIsIDsOnly|TestDocumentChangesFeedPermissionRevokeIsRemoval|TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval|TestDocumentChangesFeedWorkProductRowsBlockedUntilC14'
+=== RUN   TestDocumentChangesFeedRemovalIsIDsOnly
+--- PASS: TestDocumentChangesFeedRemovalIsIDsOnly (0.26s)
+=== RUN   TestDocumentChangesFeedPermissionRevokeIsRemoval
+--- PASS: TestDocumentChangesFeedPermissionRevokeIsRemoval (0.24s)
+=== RUN   TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval
+--- PASS: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.20s)
+=== RUN   TestDocumentChangesFeedWorkProductRowsBlockedUntilC14
+=== RUN   TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/an_owned_document_reaches_nobody
+=== RUN   TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/a_document_that_becomes_owned_is_an_ids-only_removal_for_a_former_reader
+--- PASS: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14 (0.21s)
+    --- PASS: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/an_owned_document_reaches_nobody (0.01s)
+    --- PASS: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/a_document_that_becomes_owned_is_an_ids-only_removal_for_a_former_reader (0.01s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.954s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedPermissionGrantIsUpsert|TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval|TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals'
+=== RUN   TestDocumentChangesFeedPermissionGrantIsUpsert
+--- PASS: TestDocumentChangesFeedPermissionGrantIsUpsert (0.23s)
+=== RUN   TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval
+--- PASS: TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval (0.22s)
+=== RUN   TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals
+--- PASS: TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals (0.24s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.735s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedPermissionRevokeIsRemoval|TestDocumentChangesFeedRemovalIsIDsOnly|TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep|TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals|TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval'
+=== RUN   TestDocumentChangesFeedRemovalIsIDsOnly
+--- PASS: TestDocumentChangesFeedRemovalIsIDsOnly (0.26s)
+=== RUN   TestDocumentChangesFeedPermissionRevokeIsRemoval
+--- PASS: TestDocumentChangesFeedPermissionRevokeIsRemoval (0.23s)
+=== RUN   TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep
+--- PASS: TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep (0.23s)
+=== RUN   TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval
+--- PASS: TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval (0.26s)
+=== RUN   TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals
+--- PASS: TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals (0.23s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	1.259s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval'
+=== RUN   TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval
+--- PASS: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.23s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.246s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedArchiveRestoreAreUpserts'
+=== RUN   TestDocumentChangesFeedArchiveRestoreAreUpserts
+--- PASS: TestDocumentChangesFeedArchiveRestoreAreUpserts (0.27s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.289s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedLagMetricMovesUnderLag'
+=== RUN   TestDocumentChangesFeedLagMetricMovesUnderLag
+--- PASS: TestDocumentChangesFeedLagMetricMovesUnderLag (0.25s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.264s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410'
+=== RUN   TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410
+--- PASS: TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410 (0.25s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.263s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval|TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410'
+=== RUN   TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval
+--- PASS: TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval (0.27s)
+=== RUN   TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410
+--- PASS: TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410 (0.25s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.553s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedVisibilityDemotionIsRemoval'
+=== RUN   TestDocumentChangesFeedVisibilityDemotionIsRemoval
+--- PASS: TestDocumentChangesFeedVisibilityDemotionIsRemoval (0.28s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.301s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedMoveWithinWorkspaceIsUpsert|TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval'
+=== RUN   TestDocumentChangesFeedMoveWithinWorkspaceIsUpsert
+--- PASS: TestDocumentChangesFeedMoveWithinWorkspaceIsUpsert (0.22s)
+=== RUN   TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval
+--- PASS: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.24s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.490s
+===== RUN baseline pkg=./internal/service -run='TestDocumentChangesFeedStaleHighWaterAnswersGone'
+=== RUN   TestDocumentChangesFeedStaleHighWaterAnswersGone
+--- PASS: TestDocumentChangesFeedStaleHighWaterAnswersGone (0.25s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.269s
+===== RUN baseline pkg=./cmd/server -run='TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters'
+=== RUN   TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters
+--- PASS: TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.016s
+===== RUN baseline pkg=./cmd/server -run='TestNewDocumentServiceRecordsRouteSaves'
+=== RUN   TestNewDocumentServiceRecordsRouteSaves
+--- PASS: TestNewDocumentServiceRecordsRouteSaves (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.014s
+===== RUN baseline pkg=./cmd/server -run='TestMainPassesTheFullDocumentServiceOptions'
+=== RUN   TestMainPassesTheFullDocumentServiceOptions
+--- PASS: TestMainPassesTheFullDocumentServiceOptions (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.015s
+===== RUN baseline pkg=./internal/service -run='TestCommitIntentFenceRefusesLateCommit'
+=== RUN   TestCommitIntentFenceRefusesLateCommit
+=== RUN   TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed
+=== RUN   TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed
+=== RUN   TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt
+--- PASS: TestCommitIntentFenceRefusesLateCommit (0.81s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed (0.26s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed (0.26s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt (0.28s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.825s
+===== RUN baseline pkg=./internal/service -run='TestCommitIntentFenceRefusesLateCommit|TestCommitIntentFenceRacesARenewal'
+=== RUN   TestCommitIntentFenceRefusesLateCommit
+=== RUN   TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed
+=== RUN   TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed
+=== RUN   TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt
+--- PASS: TestCommitIntentFenceRefusesLateCommit (0.79s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed (0.26s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed (0.26s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt (0.27s)
+=== RUN   TestCommitIntentFenceRacesARenewal
+--- PASS: TestCommitIntentFenceRacesARenewal (0.27s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	1.093s
+===== RUN baseline pkg=./internal/service -run='TestCommitIntentLookupInFlightAndExpiredClaim'
+=== RUN   TestCommitIntentLookupInFlightAndExpiredClaim
+--- PASS: TestCommitIntentLookupInFlightAndExpiredClaim (0.38s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.396s
+===== RUN baseline pkg=./internal/service -run='TestCommitIntentRetryAfterRestartReplays|TestCommitIntentReplayCounterEveryPath|TestCommitIntentSyncWriteFlag'
+=== RUN   TestCommitIntentReplayCounterEveryPath
+--- PASS: TestCommitIntentReplayCounterEveryPath (0.31s)
+=== RUN   TestCommitIntentRetryAfterRestartReplays
+--- PASS: TestCommitIntentRetryAfterRestartReplays (0.29s)
+=== RUN   TestCommitIntentSyncWriteFlag
+--- PASS: TestCommitIntentSyncWriteFlag (0.28s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.915s
+===== RUN baseline pkg=./internal/service -run='TestCommitIntentSweptAnswersUnknown'
+=== RUN   TestCommitIntentSweptAnswersUnknown
+--- PASS: TestCommitIntentSweptAnswersUnknown (0.25s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.270s
+===== RUN baseline pkg=./internal/service -run='TestCommitIntentLookupIsTheCallersOwn'
+=== RUN   TestCommitIntentLookupIsTheCallersOwn
+--- PASS: TestCommitIntentLookupIsTheCallersOwn (0.28s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.296s
+===== RUN baseline pkg=./internal/service -run='TestCommitIntentConflictReleasesClaim'
+=== RUN   TestCommitIntentConflictReleasesClaim
+--- PASS: TestCommitIntentConflictReleasesClaim (0.20s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.220s
+===== RUN baseline pkg=./internal/service -run='TestCommitIntentSyncWriteFlag'
+=== RUN   TestCommitIntentSyncWriteFlag
+--- PASS: TestCommitIntentSyncWriteFlag (0.25s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.264s
+===== RUN baseline pkg=./internal/service -run='TestCommitIntentSweepKeepsLiveRows'
+=== RUN   TestCommitIntentSweepKeepsLiveRows
+--- PASS: TestCommitIntentSweepKeepsLiveRows (0.25s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.266s
+===== RUN baseline pkg=./internal/service -run='TestCommitIntentLookupRacesACommit'
+=== RUN   TestCommitIntentLookupRacesACommit
+--- PASS: TestCommitIntentLookupRacesACommit (0.28s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.298s
+===== RUN baseline pkg=./internal/handler -run='TestCommitIntentKeyNeverLeaks'
+=== RUN   TestCommitIntentKeyNeverLeaks
+2026/10/13 22:28:20 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 22:28:20 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.365ms request_id=cursor/4o6LPpfsHs-000001 correlation_id=01M4VP31G7QFMK71R6T4FFEPSJ
+2026/10/13 22:28:20 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=902µs request_id=cursor/4o6LPpfsHs-000002 correlation_id=01M4VP31GBAQ8KM1PCYY7XG7TR
+2026/10/13 22:28:20 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.247ms request_id=cursor/4o6LPpfsHs-000003 correlation_id=01M4VP31GC92A3K7JA53P61BWB
+2026/10/13 22:28:20 INFO http request method=POST path=/api/v1/orgs/01M4VP31GC92A3K7JA56MGKSY3/workspaces status=201 duration=4.214ms request_id=cursor/4o6LPpfsHs-000004 correlation_id=01M4VP31GG67D8C0M80SNRC3AE
+2026/10/13 22:28:20 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.87ms request_id=cursor/4o6LPpfsHs-000005 correlation_id=01M4VP31GMF5AXDQ3S9JKBBAA5
+2026/10/13 22:28:20 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=612µs request_id=cursor/4o6LPpfsHs-000006 correlation_id=01M4VP31GPDXEDAP1KTKBJEGGY
+2026/10/13 22:28:20 INFO http request method=POST path=/api/v1/workspaces/01M4VP31GHDR7YFSZKQYV3MQ49/documents/files status=201 duration=8.428ms request_id=cursor/4o6LPpfsHs-000007 correlation_id=01M4VP31GQ9PB5XRM556H9C64H
+--- PASS: TestCommitIntentKeyNeverLeaks (0.21s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	0.227s
+===== RUN baseline pkg=./internal/handler -run='TestCommitIntentLookupRoute|TestCommitIntentKeyNeverLeaks'
+=== RUN   TestCommitIntentLookupRoute
+2026/10/13 22:28:22 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.061ms request_id=cursor/XDekO0dUp9-000001 correlation_id=01M4VP33K305F9300EPSFMQXHB
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.364ms request_id=cursor/XDekO0dUp9-000002 correlation_id=01M4VP33K78KCQXKRF7J5A3PHF
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.794ms request_id=cursor/XDekO0dUp9-000003 correlation_id=01M4VP33K9FDZC203P3H3EJCFT
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/orgs/01M4VP33K9FDZC203P3JC1BJQQ/workspaces status=201 duration=4.758ms request_id=cursor/XDekO0dUp9-000004 correlation_id=01M4VP33KD54D8YSHEE1B0NP9S
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.561ms request_id=cursor/XDekO0dUp9-000005 correlation_id=01M4VP33KJD188M9RJCW89XM8P
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=885µs request_id=cursor/XDekO0dUp9-000006 correlation_id=01M4VP33KM015B82KNTF03S989
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/workspaces/01M4VP33KEHWR8DJ6WTS4MKE69/documents/files status=201 duration=7.059ms request_id=cursor/XDekO0dUp9-000007 correlation_id=01M4VP33KNF8YPJ62E2WJ48CSA
+2026/10/13 22:28:22 WARN http request method=GET path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/versions/commit status=410 duration=1.002ms request_id=cursor/XDekO0dUp9-000008 correlation_id=01M4VP33KWH8XX21AHY8Y9AMQY
+2026/10/13 22:28:22 WARN http request method=GET path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/versions/commit status=400 duration=23µs request_id=cursor/XDekO0dUp9-000009 correlation_id=01M4VP33KX186ATX9VQGATBV65
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/uploads status=201 duration=473µs request_id=cursor/XDekO0dUp9-000010 correlation_id=01M4VP33KX186ATX9VQHMJH3VE
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/versions/commit status=200 duration=4.289ms request_id=cursor/XDekO0dUp9-000011 correlation_id=01M4VP33KY4FS6Y6MBVT5PM4H4
+2026/10/13 22:28:22 INFO http request method=GET path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/versions/commit status=200 duration=445µs request_id=cursor/XDekO0dUp9-000012 correlation_id=01M4VP33M21C97WBA6NCZXM663
+2026/10/13 22:28:22 WARN http request method=GET path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/versions/commit status=404 duration=213µs request_id=cursor/XDekO0dUp9-000013 correlation_id=01M4VP33M38F517Q644TMDTMBH
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/uploads status=201 duration=384µs request_id=cursor/XDekO0dUp9-000014 correlation_id=01M4VP33M43Q6FA4NE69AVXD2X
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/versions/commit status=200 duration=2.728ms request_id=cursor/XDekO0dUp9-000015 correlation_id=01M4VP33M43Q6FA4NE6GF7DTPR
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/uploads status=201 duration=401µs request_id=cursor/XDekO0dUp9-000016 correlation_id=01M4VP33M7Y1PGJS0TNGC648A6
+2026/10/13 22:28:22 WARN http request method=POST path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/versions/commit status=403 duration=381µs request_id=cursor/XDekO0dUp9-000017 correlation_id=01M4VP33M8WYPZ7MR22XKSNWRP
+2026/10/13 22:28:22 INFO http request method=GET path=/api/v1/documents/01M4VP33KS7PNJ50DHFVW7XNS6/versions/commit status=200 duration=391µs request_id=cursor/XDekO0dUp9-000018 correlation_id=01M4VP33M8WYPZ7MR231CSSWZY
+--- PASS: TestCommitIntentLookupRoute (0.23s)
+=== RUN   TestCommitIntentKeyNeverLeaks
+2026/10/13 22:28:22 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.146ms request_id=cursor/XDekO0dUp9-000019 correlation_id=01M4VP33RN7KA48WJ8BQX7RG09
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.115ms request_id=cursor/XDekO0dUp9-000020 correlation_id=01M4VP33RS3N9Y6EKWNJ33HDVZ
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/orgs status=201 duration=2.888ms request_id=cursor/XDekO0dUp9-000021 correlation_id=01M4VP33RTGN63ZGZWFCDVQWWA
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/orgs/01M4VP33RTGN63ZGZWFDFMZ7WM/workspaces status=201 duration=4.39ms request_id=cursor/XDekO0dUp9-000022 correlation_id=01M4VP33RXBK9Z5GBBP5HQ3PRF
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.659ms request_id=cursor/XDekO0dUp9-000023 correlation_id=01M4VP33S2DE9QZ6RW5QGNYQSX
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=642µs request_id=cursor/XDekO0dUp9-000024 correlation_id=01M4VP33S39HGTR8A0PNV0DDKD
+2026/10/13 22:28:22 INFO http request method=POST path=/api/v1/workspaces/01M4VP33RYQADPJJ3WWM8521B6/documents/files status=201 duration=5.298ms request_id=cursor/XDekO0dUp9-000025 correlation_id=01M4VP33S462FJRVREYEAF00SE
+--- PASS: TestCommitIntentKeyNeverLeaks (0.16s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	0.413s
+===== FAIL/PASS baseline
+--- PASS: TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage (0.71s)
+--- PASS: TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns (0.27s)
+--- PASS: TestDocumentChangesFeedFilteredPageCursorAdvances (0.24s)
+--- PASS: TestDocumentChangesFeedTombstoneNeverReappears (0.24s)
+--- PASS: TestDocumentChangesFeedRemovalOnlyToSomeoneWhoHadAccess (0.24s)
+--- PASS: TestDocumentChangesFeedNeverReaderGetsNothing (0.26s)
+--- PASS: TestDocumentChangesFeedTombstoneNeverReappears (0.28s)
+--- PASS: TestDocumentChangesFeedRemovalIsIDsOnly (0.26s)
+--- PASS: TestDocumentChangesFeedPermissionRevokeIsRemoval (0.24s)
+--- PASS: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.20s)
+--- PASS: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14 (0.21s)
+    --- PASS: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/an_owned_document_reaches_nobody (0.01s)
+    --- PASS: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/a_document_that_becomes_owned_is_an_ids-only_removal_for_a_former_reader (0.01s)
+--- PASS: TestDocumentChangesFeedPermissionGrantIsUpsert (0.23s)
+--- PASS: TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval (0.22s)
+--- PASS: TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals (0.24s)
+--- PASS: TestDocumentChangesFeedRemovalIsIDsOnly (0.26s)
+--- PASS: TestDocumentChangesFeedPermissionRevokeIsRemoval (0.23s)
+--- PASS: TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep (0.23s)
+--- PASS: TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval (0.26s)
+--- PASS: TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals (0.23s)
+--- PASS: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.23s)
+--- PASS: TestDocumentChangesFeedArchiveRestoreAreUpserts (0.27s)
+--- PASS: TestDocumentChangesFeedLagMetricMovesUnderLag (0.25s)
+--- PASS: TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410 (0.25s)
+--- PASS: TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval (0.27s)
+--- PASS: TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410 (0.25s)
+--- PASS: TestDocumentChangesFeedVisibilityDemotionIsRemoval (0.28s)
+--- PASS: TestDocumentChangesFeedMoveWithinWorkspaceIsUpsert (0.22s)
+--- PASS: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.24s)
+--- PASS: TestDocumentChangesFeedStaleHighWaterAnswersGone (0.25s)
+--- PASS: TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters (0.00s)
+--- PASS: TestNewDocumentServiceRecordsRouteSaves (0.00s)
+--- PASS: TestMainPassesTheFullDocumentServiceOptions (0.00s)
+--- PASS: TestCommitIntentFenceRefusesLateCommit (0.81s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed (0.26s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed (0.26s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt (0.28s)
+--- PASS: TestCommitIntentFenceRefusesLateCommit (0.79s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed (0.26s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed (0.26s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt (0.27s)
+--- PASS: TestCommitIntentFenceRacesARenewal (0.27s)
+--- PASS: TestCommitIntentLookupInFlightAndExpiredClaim (0.38s)
+--- PASS: TestCommitIntentReplayCounterEveryPath (0.31s)
+--- PASS: TestCommitIntentRetryAfterRestartReplays (0.29s)
+--- PASS: TestCommitIntentSyncWriteFlag (0.28s)
+--- PASS: TestCommitIntentSweptAnswersUnknown (0.25s)
+--- PASS: TestCommitIntentLookupIsTheCallersOwn (0.28s)
+--- PASS: TestCommitIntentConflictReleasesClaim (0.20s)
+--- PASS: TestCommitIntentSyncWriteFlag (0.25s)
+--- PASS: TestCommitIntentSweepKeepsLiveRows (0.25s)
+--- PASS: TestCommitIntentLookupRacesACommit (0.28s)
+--- PASS: TestCommitIntentKeyNeverLeaks (0.21s)
+--- PASS: TestCommitIntentLookupRoute (0.23s)
+--- PASS: TestCommitIntentKeyNeverLeaks (0.16s)
+BASELINE_ALL_PASS=1
+MUT_baseline_RED=0
+BASELINE_EXIT=0

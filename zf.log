@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m30; echo "MUT_m30_EXIT=$?"
+===== RUN m30 pkg=./internal/service -run='TestCommitIntentLookupRacesACommit'
+=== RUN   TestCommitIntentLookupRacesACommit
+    document_commit_intent_test.go:375: no query reached document_commit_intents within the wait
+--- FAIL: TestCommitIntentLookupRacesACommit (10.25s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	10.265s
+FAIL
+===== FAIL/PASS m30
+--- FAIL: TestCommitIntentLookupRacesACommit (10.25s)
+MUST_FAIL_OK=TestCommitIntentLookupRacesACommit
+MUT_m30_CLEAN=1
+MUT_m30_RED=1
+REVERT_m30=ok
+MUT_m30_EXIT=0

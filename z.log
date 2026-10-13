@@ -1,0 +1,23 @@
+$ bash .mutations/run.sh m24; echo "MUT_m24_EXIT=$?"
+===== RUN m24 pkg=./internal/service -run='TestCommitIntentRetryAfterRestartReplays|TestCommitIntentReplayCounterEveryPath|TestCommitIntentSyncWriteFlag'
+=== RUN   TestCommitIntentReplayCounterEveryPath
+    document_commit_intent_metrics_test.go:35: claim a committed intent: yêu cầu trùng đang được xử lý; thử lại sau
+--- FAIL: TestCommitIntentReplayCounterEveryPath (0.28s)
+=== RUN   TestCommitIntentRetryAfterRestartReplays
+--- PASS: TestCommitIntentRetryAfterRestartReplays (0.23s)
+=== RUN   TestCommitIntentSyncWriteFlag
+--- PASS: TestCommitIntentSyncWriteFlag (0.23s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.779s
+FAIL
+===== FAIL/PASS m24
+--- FAIL: TestCommitIntentReplayCounterEveryPath (0.28s)
+--- PASS: TestCommitIntentRetryAfterRestartReplays (0.23s)
+--- PASS: TestCommitIntentSyncWriteFlag (0.23s)
+MUST_FAIL_MISSED=TestCommitIntentRetryAfterRestartReplays
+MUST_FAIL_OK=TestCommitIntentReplayCounterEveryPath
+MUST_FAIL_MISSED=TestCommitIntentSyncWriteFlag
+MUT_m24_CLEAN=1
+MUT_m24_RED=0
+REVERT_m24=ok
+MUT_m24_EXIT=1

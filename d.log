@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m02; echo "MUT_m02_EXIT=$?"
+===== RUN m02 pkg=./internal/service -run='TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns'
+=== RUN   TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns
+    document_changes_feed_test.go:246: the held-back page moved its cursor position: (,) -> (5950,01M4VP3Y09G438HS84YJDCAA0R)
+--- FAIL: TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns (0.30s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.323s
+FAIL
+===== FAIL/PASS m02
+--- FAIL: TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns (0.30s)
+MUST_FAIL_OK=TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns
+MUT_m02_CLEAN=1
+MUT_m02_RED=1
+REVERT_m02=ok
+MUT_m02_EXIT=0

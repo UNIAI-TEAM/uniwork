@@ -1,0 +1,16 @@
+$ bash .mutations/run.sh m20; echo "MUT_m20_EXIT=$?"
+===== RUN m20 pkg=./cmd/server -run='TestMainPassesTheFullDocumentServiceOptions'
+=== RUN   TestMainPassesTheFullDocumentServiceOptions
+    documents_test.go:176: main.go's documentServiceOptions literal does not set Policy; the one DocumentService would lose it and bring back BE-I4-1
+    documents_test.go:182: Policy in main.go's literal is not a service.CommitIntentPolicy{...} literal; ClaimTTL and Retention must come from cfg (BE-I4-1)
+--- FAIL: TestMainPassesTheFullDocumentServiceOptions (0.00s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/cmd/server	0.016s
+FAIL
+===== FAIL/PASS m20
+--- FAIL: TestMainPassesTheFullDocumentServiceOptions (0.00s)
+MUST_FAIL_OK=TestMainPassesTheFullDocumentServiceOptions
+MUT_m20_CLEAN=1
+MUT_m20_RED=1
+REVERT_m20=ok
+MUT_m20_EXIT=0

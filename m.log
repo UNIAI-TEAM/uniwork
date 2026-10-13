@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m11; echo "MUT_m11_EXIT=$?"
+===== RUN m11 pkg=./internal/service -run='TestDocumentChangesFeedLagMetricMovesUnderLag'
+=== RUN   TestDocumentChangesFeedLagMetricMovesUnderLag
+    document_changes_feed_test.go:755: lag observations = 0, want 1
+--- FAIL: TestDocumentChangesFeedLagMetricMovesUnderLag (0.21s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.227s
+FAIL
+===== FAIL/PASS m11
+--- FAIL: TestDocumentChangesFeedLagMetricMovesUnderLag (0.21s)
+MUST_FAIL_OK=TestDocumentChangesFeedLagMetricMovesUnderLag
+MUT_m11_CLEAN=1
+MUT_m11_RED=1
+REVERT_m11=ok
+MUT_m11_EXIT=0

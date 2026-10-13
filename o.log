@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m13; echo "MUT_m13_EXIT=$?"
+===== RUN m13 pkg=./internal/service -run='TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410'
+=== RUN   TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410
+    document_changes_feed_test.go:1125: a visibility diff with no prior = <nil>, want 410 change_cursor_expired (never a silent skip)
+--- FAIL: TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410 (0.26s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.278s
+FAIL
+===== FAIL/PASS m13
+--- FAIL: TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410 (0.26s)
+MUST_FAIL_OK=TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410
+MUT_m13_CLEAN=1
+MUT_m13_RED=1
+REVERT_m13=ok
+MUT_m13_EXIT=0

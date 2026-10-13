@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m29; echo "MUT_m29_EXIT=$?"
+===== RUN m29 pkg=./internal/service -run='TestCommitIntentSweepKeepsLiveRows'
+=== RUN   TestCommitIntentSweepKeepsLiveRows
+    document_commit_intent_test.go:483: the sweep deleted an intent whose claim is live
+--- FAIL: TestCommitIntentSweepKeepsLiveRows (0.26s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.277s
+FAIL
+===== FAIL/PASS m29
+--- FAIL: TestCommitIntentSweepKeepsLiveRows (0.26s)
+MUST_FAIL_OK=TestCommitIntentSweepKeepsLiveRows
+MUT_m29_CLEAN=1
+MUT_m29_RED=1
+REVERT_m29=ok
+MUT_m29_EXIT=0

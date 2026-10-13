@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m28; echo "MUT_m28_EXIT=$?"
+===== RUN m28 pkg=./internal/service -run='TestCommitIntentSyncWriteFlag'
+=== RUN   TestCommitIntentSyncWriteFlag
+    document_commit_intent_test.go:510: want office_capability_off, got <nil>
+--- FAIL: TestCommitIntentSyncWriteFlag (0.26s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.280s
+FAIL
+===== FAIL/PASS m28
+--- FAIL: TestCommitIntentSyncWriteFlag (0.26s)
+MUST_FAIL_OK=TestCommitIntentSyncWriteFlag
+MUT_m28_CLEAN=1
+MUT_m28_RED=1
+REVERT_m28=ok
+MUT_m28_EXIT=0

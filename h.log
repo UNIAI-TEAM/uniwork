@@ -1,0 +1,36 @@
+$ bash .mutations/run.sh m06; echo "MUT_m06_EXIT=$?"
+===== RUN m06 pkg=./internal/service -run='TestDocumentChangesFeedRemovalIsIDsOnly|TestDocumentChangesFeedPermissionRevokeIsRemoval|TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval|TestDocumentChangesFeedWorkProductRowsBlockedUntilC14'
+=== RUN   TestDocumentChangesFeedRemovalIsIDsOnly
+    document_changes_feed_test.go:370: a removal carries document fields: {DocumentID:01M4VP572GA5NRK5ZH2BF0H27Q ChangeKind:removal Kind:page Revision:1 CurrentVersion:0 FileVersionID: Archived:false Removal:permission_revoked}
+--- FAIL: TestDocumentChangesFeedRemovalIsIDsOnly (0.27s)
+=== RUN   TestDocumentChangesFeedPermissionRevokeIsRemoval
+    document_changes_feed_test.go:527: the removal carries document fields: {DocumentID:01M4VP579JWS6V82VJ4ZVR3PK3 ChangeKind:removal Kind:page Revision:1 CurrentVersion:0 FileVersionID: Archived:false Removal:permission_revoked}
+--- FAIL: TestDocumentChangesFeedPermissionRevokeIsRemoval (0.22s)
+=== RUN   TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval
+    document_changes_feed_test.go:580: the removal names a document field: {DocumentID:01M4VP57GYQJ6W94WPYA9T1FVP ChangeKind:removal Kind:page Revision:1 CurrentVersion:0 FileVersionID: Archived:false Removal:moved_workspace}
+--- FAIL: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.24s)
+=== RUN   TestDocumentChangesFeedWorkProductRowsBlockedUntilC14
+=== RUN   TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/an_owned_document_reaches_nobody
+=== RUN   TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/a_document_that_becomes_owned_is_an_ids-only_removal_for_a_former_reader
+    document_changes_feed_test.go:831: the removal carries document fields: {DocumentID:01M4VP57RFBNDNNHK0R8H1NZKV ChangeKind:removal Kind:page Revision:1 CurrentVersion:0 FileVersionID: Archived:false Removal:permission_revoked}
+--- FAIL: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14 (0.24s)
+    --- PASS: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/an_owned_document_reaches_nobody (0.01s)
+    --- FAIL: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/a_document_that_becomes_owned_is_an_ids-only_removal_for_a_former_reader (0.01s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	1.015s
+FAIL
+===== FAIL/PASS m06
+--- FAIL: TestDocumentChangesFeedRemovalIsIDsOnly (0.27s)
+--- FAIL: TestDocumentChangesFeedPermissionRevokeIsRemoval (0.22s)
+--- FAIL: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.24s)
+--- FAIL: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14 (0.24s)
+    --- PASS: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/an_owned_document_reaches_nobody (0.01s)
+    --- FAIL: TestDocumentChangesFeedWorkProductRowsBlockedUntilC14/a_document_that_becomes_owned_is_an_ids-only_removal_for_a_former_reader (0.01s)
+MUST_FAIL_OK=TestDocumentChangesFeedRemovalIsIDsOnly
+MUST_FAIL_OK=TestDocumentChangesFeedPermissionRevokeIsRemoval
+MUST_FAIL_OK=TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval
+MUST_FAIL_OK=TestDocumentChangesFeedWorkProductRowsBlockedUntilC14
+MUT_m06_CLEAN=1
+MUT_m06_RED=1
+REVERT_m06=ok
+MUT_m06_EXIT=0

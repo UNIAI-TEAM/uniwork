@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m19; echo "MUT_m19_EXIT=$?"
+===== RUN m19 pkg=./cmd/server -run='TestNewDocumentServiceRecordsRouteSaves'
+=== RUN   TestNewDocumentServiceRecordsRouteSaves
+    documents_test.go:78: recorded 0 save outcomes, want 1; SetMetrics did not reach the instance the routes receive
+--- FAIL: TestNewDocumentServiceRecordsRouteSaves (0.00s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/cmd/server	0.016s
+FAIL
+===== FAIL/PASS m19
+--- FAIL: TestNewDocumentServiceRecordsRouteSaves (0.00s)
+MUST_FAIL_OK=TestNewDocumentServiceRecordsRouteSaves
+MUT_m19_CLEAN=1
+MUT_m19_RED=1
+REVERT_m19=ok
+MUT_m19_EXIT=0

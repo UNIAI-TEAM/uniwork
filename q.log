@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m15; echo "MUT_m15_EXIT=$?"
+===== RUN m15 pkg=./internal/service -run='TestDocumentChangesFeedVisibilityDemotionIsRemoval'
+=== RUN   TestDocumentChangesFeedVisibilityDemotionIsRemoval
+    document_changes_feed_test.go:1052: demotion row = {DocumentID: ChangeKind: Kind: Revision:0 CurrentVersion:0 FileVersionID: Archived:false Removal:} (found false), want removal permission_revoked
+--- FAIL: TestDocumentChangesFeedVisibilityDemotionIsRemoval (0.25s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.274s
+FAIL
+===== FAIL/PASS m15
+--- FAIL: TestDocumentChangesFeedVisibilityDemotionIsRemoval (0.25s)
+MUST_FAIL_OK=TestDocumentChangesFeedVisibilityDemotionIsRemoval
+MUT_m15_CLEAN=1
+MUT_m15_RED=1
+REVERT_m15=ok
+MUT_m15_EXIT=0

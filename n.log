@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m12; echo "MUT_m12_EXIT=$?"
+===== RUN m12 pkg=./internal/service -run='TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns'
+=== RUN   TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns
+    document_changes_feed_test.go:238: a page that advanced nothing must answer has_more=false (BE-G2-2)
+--- FAIL: TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns (0.25s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.265s
+FAIL
+===== FAIL/PASS m12
+--- FAIL: TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns (0.25s)
+MUST_FAIL_OK=TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns
+MUT_m12_CLEAN=1
+MUT_m12_RED=1
+REVERT_m12=ok
+MUT_m12_EXIT=0

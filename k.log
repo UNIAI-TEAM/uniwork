@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m09; echo "MUT_m09_EXIT=$?"
+===== RUN m09 pkg=./internal/service -run='TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval'
+=== RUN   TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval
+    document_changes_feed_test.go:574: a cross-workspace move did not reach the feed
+--- FAIL: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.24s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.256s
+FAIL
+===== FAIL/PASS m09
+--- FAIL: TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval (0.24s)
+MUST_FAIL_OK=TestDocumentChangesFeedMoveAcrossWorkspaceIsRemoval
+MUT_m09_CLEAN=1
+MUT_m09_RED=1
+REVERT_m09=ok
+MUT_m09_EXIT=0

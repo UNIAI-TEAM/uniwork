@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m01; echo "MUT_m01_EXIT=$?"
+===== RUN m01 pkg=./internal/service -run='TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage'
+=== RUN   TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage
+    document_changes_feed_test.go:189: a document already in the snapshot was delivered 1 times by the feed, want 0
+--- FAIL: TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage (0.27s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.296s
+FAIL
+===== FAIL/PASS m01
+--- FAIL: TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage (0.27s)
+MUST_FAIL_OK=TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage
+MUT_m01_CLEAN=1
+MUT_m01_RED=1
+REVERT_m01=ok
+MUT_m01_EXIT=0

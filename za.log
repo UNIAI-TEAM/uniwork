@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m25; echo "MUT_m25_EXIT=$?"
+===== RUN m25 pkg=./internal/service -run='TestCommitIntentSweptAnswersUnknown'
+=== RUN   TestCommitIntentSweptAnswersUnknown
+    document_commit_intent_test.go:454: want commit_intent_unknown, got <nil>
+--- FAIL: TestCommitIntentSweptAnswersUnknown (0.23s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.247s
+FAIL
+===== FAIL/PASS m25
+--- FAIL: TestCommitIntentSweptAnswersUnknown (0.23s)
+MUST_FAIL_OK=TestCommitIntentSweptAnswersUnknown
+MUT_m25_CLEAN=1
+MUT_m25_RED=1
+REVERT_m25=ok
+MUT_m25_EXIT=0

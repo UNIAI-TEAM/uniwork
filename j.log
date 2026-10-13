@@ -1,0 +1,35 @@
+$ bash .mutations/run.sh m08; echo "MUT_m08_EXIT=$?"
+===== RUN m08 pkg=./internal/service -run='TestDocumentChangesFeedPermissionRevokeIsRemoval|TestDocumentChangesFeedRemovalIsIDsOnly|TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep|TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals|TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval'
+=== RUN   TestDocumentChangesFeedRemovalIsIDsOnly
+    document_changes_feed_test.go:367: removal = {DocumentID: ChangeKind: Kind: Revision:0 CurrentVersion:0 FileVersionID: Archived:false Removal:}, want a removal row
+--- FAIL: TestDocumentChangesFeedRemovalIsIDsOnly (0.27s)
+=== RUN   TestDocumentChangesFeedPermissionRevokeIsRemoval
+    document_changes_feed_test.go:521: a permission revoke did not reach the caller who had access
+--- FAIL: TestDocumentChangesFeedPermissionRevokeIsRemoval (0.26s)
+=== RUN   TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep
+    document_changes_feed_test.go:869: revoke after the sweep = {DocumentID: ChangeKind: Kind: Revision:0 CurrentVersion:0 FileVersionID: Archived:false Removal:} (found false), want the ids-only removal
+--- FAIL: TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep (0.24s)
+=== RUN   TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval
+    document_changes_feed_test.go:910: a grant-then-revoke did not reach the caller who could read before the revoke
+--- FAIL: TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval (0.24s)
+=== RUN   TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals
+    document_changes_feed_test.go:1025: saved cursor removal = {DocumentID: ChangeKind: Kind: Revision:0 CurrentVersion:0 FileVersionID: Archived:false Removal:} (found false), want the ids-only removal
+--- FAIL: TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals (0.27s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	1.331s
+FAIL
+===== FAIL/PASS m08
+--- FAIL: TestDocumentChangesFeedRemovalIsIDsOnly (0.27s)
+--- FAIL: TestDocumentChangesFeedPermissionRevokeIsRemoval (0.26s)
+--- FAIL: TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep (0.24s)
+--- FAIL: TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval (0.24s)
+--- FAIL: TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals (0.27s)
+MUST_FAIL_OK=TestDocumentChangesFeedPermissionRevokeIsRemoval
+MUST_FAIL_OK=TestDocumentChangesFeedRemovalIsIDsOnly
+MUST_FAIL_OK=TestDocumentChangesFeedRemovalSurvivesTheSnapshotSweep
+MUST_FAIL_OK=TestDocumentChangesFeedSavedSnapshotCursorServesUpsertsAndRemovals
+MUST_FAIL_OK=TestDocumentChangesFeedGrantAfterSnapshotThenRevokeIsRemoval
+MUT_m08_CLEAN=1
+MUT_m08_RED=1
+REVERT_m08=ok
+MUT_m08_EXIT=0

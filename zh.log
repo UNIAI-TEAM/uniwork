@@ -1,0 +1,37 @@
+$ bash .mutations/run.sh m32; echo "MUT_m32_EXIT=$?"
+===== RUN m32 pkg=./internal/handler -run='TestCommitIntentLookupRoute|TestCommitIntentKeyNeverLeaks'
+=== RUN   TestCommitIntentLookupRoute
+2026/10/13 22:33:44 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.907ms request_id=cursor/waZ5aBvw5I-000001 correlation_id=01M4VPCXV962PT0SWE8CDT2J7X
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.101ms request_id=cursor/waZ5aBvw5I-000002 correlation_id=01M4VPCXVDVEAPXQGCEAGD715V
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.619ms request_id=cursor/waZ5aBvw5I-000003 correlation_id=01M4VPCXVE7YJG22FZSEGVKMKC
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/orgs/01M4VPCXVE7YJG22FZSFC0D21W/workspaces status=201 duration=5.409ms request_id=cursor/waZ5aBvw5I-000004 correlation_id=01M4VPCXVJ9W74B7PD0YSJ9VNP
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.992ms request_id=cursor/waZ5aBvw5I-000005 correlation_id=01M4VPCXVQFR9HBKD5686FNRVW
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=848µs request_id=cursor/waZ5aBvw5I-000006 correlation_id=01M4VPCXVT7SX09A6CG81AE79Q
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/workspaces/01M4VPCXVKCGWH9SB7QD00932H/documents/files status=201 duration=7.741ms request_id=cursor/waZ5aBvw5I-000007 correlation_id=01M4VPCXVVPZTPTG8TTW40Z73W
+2026/10/13 22:33:44 WARN http request method=GET path=/api/v1/documents/01M4VPCXVZ0P08YZBQR997J8FV/versions/commit status=400 duration=109µs request_id=cursor/waZ5aBvw5I-000008 correlation_id=01M4VPCXW24H524Y0HWTD0FQR0
+    document_commit_intent_test.go:57: unknown key: 400 map[error:map[code:invalid_request message:Idempotency-Key bắt buộc]]
+--- FAIL: TestCommitIntentLookupRoute (0.21s)
+=== RUN   TestCommitIntentKeyNeverLeaks
+2026/10/13 22:33:44 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.079ms request_id=cursor/waZ5aBvw5I-000009 correlation_id=01M4VPCY1X01A1RGA58314PFC3
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.55ms request_id=cursor/waZ5aBvw5I-000010 correlation_id=01M4VPCY20QXMDHT3Z23ERF8BC
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/orgs status=201 duration=3.456ms request_id=cursor/waZ5aBvw5I-000011 correlation_id=01M4VPCY22PQ65JNZM3W7GEQK9
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/orgs/01M4VPCY23F87215EP2VGXTPCQ/workspaces status=201 duration=5.272ms request_id=cursor/waZ5aBvw5I-000012 correlation_id=01M4VPCY26BGTXFHYBA72ND07X
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.055ms request_id=cursor/waZ5aBvw5I-000013 correlation_id=01M4VPCY2B4628X3V95GFG96GK
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.077ms request_id=cursor/waZ5aBvw5I-000014 correlation_id=01M4VPCY2E99DVG1YXG2AED7XX
+2026/10/13 22:33:44 INFO http request method=POST path=/api/v1/workspaces/01M4VPCY27T23342H4NVXK5R7F/documents/files status=201 duration=5.697ms request_id=cursor/waZ5aBvw5I-000015 correlation_id=01M4VPCY2FYRWTFFGG6F09VJQ0
+    document_commit_intent_test.go:168: unknown key: 400 {"error":{"code":"invalid_request","message":"Idempotency-Key bắt buộc"}}
+--- FAIL: TestCommitIntentKeyNeverLeaks (0.21s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	0.438s
+FAIL
+===== FAIL/PASS m32
+--- FAIL: TestCommitIntentLookupRoute (0.21s)
+--- FAIL: TestCommitIntentKeyNeverLeaks (0.21s)
+MUST_FAIL_OK=TestCommitIntentLookupRoute
+MUST_FAIL_OK=TestCommitIntentKeyNeverLeaks
+MUT_m32_CLEAN=1
+MUT_m32_RED=1
+REVERT_m32=ok
+MUT_m32_EXIT=0

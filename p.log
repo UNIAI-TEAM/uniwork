@@ -1,0 +1,20 @@
+$ bash .mutations/run.sh m14; echo "MUT_m14_EXIT=$?"
+===== RUN m14 pkg=./internal/service -run='TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval|TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410'
+=== RUN   TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval
+    document_changes_feed_test.go:1149: a settings change whose prior visibility admitted the member produced no row
+--- FAIL: TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval (0.23s)
+=== RUN   TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410
+    document_changes_feed_test.go:1173: a settings change with no prior = <nil>, want 410 change_cursor_expired (never a silent skip)
+--- FAIL: TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410 (0.25s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.519s
+FAIL
+===== FAIL/PASS m14
+--- FAIL: TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval (0.23s)
+--- FAIL: TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410 (0.25s)
+MUST_FAIL_OK=TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval
+MUST_FAIL_OK=TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410
+MUT_m14_CLEAN=1
+MUT_m14_RED=1
+REVERT_m14=ok
+MUT_m14_EXIT=0

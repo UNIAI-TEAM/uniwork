@@ -1,0 +1,15 @@
+$ bash .mutations/run.sh m26; echo "MUT_m26_EXIT=$?"
+===== RUN m26 pkg=./internal/service -run='TestCommitIntentLookupIsTheCallersOwn'
+=== RUN   TestCommitIntentLookupIsTheCallersOwn
+    document_commit_intent_test.go:577: want commit_intent_unknown, got <nil>
+--- FAIL: TestCommitIntentLookupIsTheCallersOwn (0.27s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.285s
+FAIL
+===== FAIL/PASS m26
+--- FAIL: TestCommitIntentLookupIsTheCallersOwn (0.27s)
+MUST_FAIL_OK=TestCommitIntentLookupIsTheCallersOwn
+MUT_m26_CLEAN=1
+MUT_m26_RED=1
+REVERT_m26=ok
+MUT_m26_EXIT=0

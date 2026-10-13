@@ -1,0 +1,24 @@
+$ bash .mutations/run.sh m04; echo "MUT_m04_EXIT=$?"
+===== RUN m04 pkg=./internal/service -run='TestDocumentChangesFeedRemovalOnlyToSomeoneWhoHadAccess|TestDocumentChangesFeedNeverReaderGetsNothing|TestDocumentChangesFeedTombstoneNeverReappears'
+=== RUN   TestDocumentChangesFeedTombstoneNeverReappears
+--- PASS: TestDocumentChangesFeedTombstoneNeverReappears (0.29s)
+=== RUN   TestDocumentChangesFeedRemovalOnlyToSomeoneWhoHadAccess
+    document_changes_feed_test.go:425: a caller who never had access received a removal: {DocumentID:01M4VP4JE4ZYF08N48D5GZ3W75 ChangeKind:removal Kind: Revision:0 CurrentVersion:0 FileVersionID: Archived:false Removal:document_deleted}
+--- FAIL: TestDocumentChangesFeedRemovalOnlyToSomeoneWhoHadAccess (0.28s)
+=== RUN   TestDocumentChangesFeedNeverReaderGetsNothing
+    document_changes_feed_test.go:961: a never-reader received a row about 01M4VP4JPFB4QC6QXA3P7XAXXG: {DocumentID:01M4VP4JPFB4QC6QXA3P7XAXXG ChangeKind:removal Kind: Revision:0 CurrentVersion:0 FileVersionID: Archived:false Removal:document_deleted}
+--- FAIL: TestDocumentChangesFeedNeverReaderGetsNothing (0.27s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.886s
+FAIL
+===== FAIL/PASS m04
+--- PASS: TestDocumentChangesFeedTombstoneNeverReappears (0.29s)
+--- FAIL: TestDocumentChangesFeedRemovalOnlyToSomeoneWhoHadAccess (0.28s)
+--- FAIL: TestDocumentChangesFeedNeverReaderGetsNothing (0.27s)
+MUST_FAIL_OK=TestDocumentChangesFeedRemovalOnlyToSomeoneWhoHadAccess
+MUST_FAIL_OK=TestDocumentChangesFeedNeverReaderGetsNothing
+MUST_FAIL_MISSED=TestDocumentChangesFeedTombstoneNeverReappears
+MUT_m04_CLEAN=1
+MUT_m04_RED=0
+REVERT_m04=ok
+MUT_m04_EXIT=1
