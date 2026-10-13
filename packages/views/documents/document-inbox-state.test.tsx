@@ -50,6 +50,16 @@ describe("DocumentDetailView opened from the Inbox", () => {
     expect(screen.queryByRole("button", { name: t("documents.detail.back_to_library") })).toBeNull();
   });
 
+  // V7 F2: without cn() the base border-transparent beat the outline variant's border in light mode.
+  it("draws the way back as an outline button with a visible border", async () => {
+    requestMock.mockRejectedValue(new ApiError("forbidden", "forbidden", 403));
+    renderPage("comment=c1");
+    const link = await screen.findByRole("link", { name: "Về Hộp việc" });
+    const classes = link.className.split(/\s+/);
+    expect(classes).toContain("border-input");
+    expect(classes).not.toContain("border-transparent");
+  });
+
   it("keeps the library's own refusal for a link that names no comment", async () => {
     requestMock.mockRejectedValue(new ApiError("forbidden", "forbidden", 403));
     renderPage("");

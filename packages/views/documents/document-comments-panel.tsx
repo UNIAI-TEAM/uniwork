@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ChevronRight, RefreshCw, X } from "lucide-react";
+import { ChevronRight, Info, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
 import type { Document, DocumentCommentKind } from "@uniwork/core/types/document";
@@ -242,7 +242,14 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
         data-testid={`document-comments-region-${tab}`}
       >
         {revealMessage ? (
-          <p ref={revealRef} tabIndex={-1} role="status" className="text-caption text-muted-foreground" data-testid="document-comments-reveal">
+          <p
+            ref={revealRef}
+            tabIndex={-1}
+            role="status"
+            className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-caption text-foreground"
+            data-testid="document-comments-reveal"
+          >
+            <Info aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
             {t(revealMessage === "comment" ? K.collabCommentDeleted : K.collabDiscussionDeleted)}
           </p>
         ) : null}

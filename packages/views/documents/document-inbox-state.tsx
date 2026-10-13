@@ -31,13 +31,13 @@ export function DocumentInboxState({ reason, className }: { reason: DocumentInbo
     <Empty role="alert" className={cn("rounded-none border-0 px-6 py-16", className)} data-document-inbox-state={reason}>
       <EmptyHeader>
         <IconTile icon={reason === "gone" ? FolderX : CircleX} size="lg" tone={reason === "gone" ? "muted" : "destructive"} />
-        <EmptyTitle ref={headingRef} tabIndex={-1} className="text-title">
+        <EmptyTitle ref={headingRef} tabIndex={-1} className="rounded-md px-3 py-1.5 text-title">
           {t(reason === "gone" ? K.inboxDocGone : K.inboxDocNoAccess)}
         </EmptyTitle>
       </EmptyHeader>
       {inboxHref ? (
         <EmptyContent className="mt-1 flex-row justify-center">
-          <AppLink href={inboxHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
+          <AppLink href={inboxHref} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
             {t(K.inboxBack)}
           </AppLink>
         </EmptyContent>
