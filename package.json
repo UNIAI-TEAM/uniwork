@@ -88,6 +88,7 @@
     "esbuild": "catalog:",
     "knip": "^6.33.0",
     "turbo": "^2.5.0",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "yaml": "2.9.0"
   }
 }

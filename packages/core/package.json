@@ -9,6 +9,7 @@
     "lint": "eslint . --max-warnings 0"
   },
   "exports": {
+    "./changelog": "./changelog/releases.ts",
     ".": "./index.ts",
     "./types": "./types/index.ts",
     "./api": "./api/index.ts",
@@ -73,6 +74,8 @@
     "./documents/errors": "./documents/errors.ts",
     "./documents/hooks-comments": "./documents/hooks-comments.ts",
     "./documents/hooks-favorites": "./documents/hooks-favorites.ts",
+    "./documents/hooks-library": "./documents/hooks-library.ts",
+    "./documents/sources-schema": "./documents/sources-schema.ts",
     "./documents/comment-drafts": "./documents/comment-drafts.ts",
     "./graph": "./graph/hooks.ts",
     "./chat": "./chat/hooks.ts",

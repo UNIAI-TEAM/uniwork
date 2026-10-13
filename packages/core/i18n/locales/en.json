@@ -1,4 +1,43 @@
 {
+  "changelog": {
+    "title": "Changelog",
+    "description": "New features, improvements and fixes in UniWork.",
+    "allReleases": "All releases",
+    "latest": "Latest",
+    "copyLink": "Copy link to version {{version}}",
+    "copied": "Release link copied",
+    "copyError": "Could not copy the link. You can copy the page address from your browser.",
+    "explore": "Explore the features",
+    "sections": {
+      "features": "New features",
+      "improvements": "Improvements",
+      "fixes": "Bug fixes"
+    },
+    "releases": {
+      "initial": {
+        "title": "Work, conversations and documents, together.",
+        "summary": "Version 1.0.0 brings the team's everyday tools into its organization workspace, from assigning work to meetings, conversations and documents.",
+        "features": {
+          "work": "Manage tasks and projects with status boards, assignees, due dates, comments and attachments.",
+          "chat": "Talk in your workspace with messages, replies and shared files, keeping the conversation close to the work.",
+          "meetings": "Schedule and join online meetings, with chat, notes and participant tracking in the meeting room.",
+          "office": "Open and work with Docs, Sheets, Slides, PDF, HTML and Markdown through UniWork Office's integrated editors.",
+          "email": "Connect mailboxes to Email Hub to read and send email, and see each account's connection state.",
+          "ask": "Ask UNI to find information and inspect its sources within your access permissions."
+        },
+        "improvements": {
+          "senderImages": "Allow images from trusted email senders and manage the list of senders you have approved.",
+          "connectionForms": "Mailbox connection forms explain missing information, connection state and the steps to reconnect.",
+          "publicPages": "Feature, solution and getting-started pages share their layout, illustrations and navigation."
+        },
+        "fixes": {
+          "mailboxStatus": "Account status reflects a disconnected mailbox, and the reconnect notice uses the screen's full width.",
+          "smallDialogs": "Form dialogs stay clear of small-screen edges and stack their leading content for easier interaction."
+        },
+        "note": "Email connections and AI features need the organization's corresponding configuration. Each feature follows the application's access permissions."
+      }
+    }
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -5316,6 +5355,10 @@
       }
     },
     "meta": {
+      "changelog": {
+        "title": "Changelog",
+        "description": "Follow UniWork features, improvements and bug fixes, release by release."
+      },
       "home": {
         "title": "UniWork Business OS",
         "description": "One platform where people and AI agents talk, plan, execute and turn knowledge into results."
@@ -5339,6 +5382,10 @@
       "enterprise": {
         "title": "UniWork for enterprises",
         "description": "Explore organization structure, permissions and the activity log."
+      },
+      "office": {
+        "title": "UniWork Office — the AI office app",
+        "description": "Office apps for macOS, Windows and Linux: documents, spreadsheets, slides, PDF, HTML and Markdown with AI, sharing your UniWork account and workspace."
       }
     },
     "revision": {
@@ -6725,7 +6772,8 @@
       "browseFeatures": "Browse features",
       "closeMenu": "Close menu",
       "solutions": "Solutions",
-      "why": "Why UniWork"
+      "why": "Why UniWork",
+      "office": "Office"
     },
     "cta": {
       "start": "Get started",
@@ -7599,6 +7647,162 @@
           "Read the record details"
         ]
       }
+    },
+    "office": {
+      "hero": {
+        "kicker": "The UniWork office app",
+        "title": "UniWork Office",
+        "sub": "AI office apps for macOS, Windows and Linux. Sign in with your UniWork account, open files from your team's workspace and save them back as a new version.",
+        "downloadFor": "Download for {{os}}",
+        "variants": "{{os}} installers",
+        "downloadBoth": {
+          "mac_arm": "Download for Mac (Apple Silicon)",
+          "mac_intel": "Download for Mac (Intel)"
+        },
+        "macChipHelp": "Not sure which chip your Mac has? Open the Apple menu › About This Mac.",
+        "demo": "See the six editors",
+        "unavailable": "The installers are being prepared. Meanwhile you can still open and edit Office files on the web, in Documents.",
+        "trustAccount": "Uses your UniWork account",
+        "trustAi": "AI through your UniWork plan or your own key",
+        "trustOffline": "Edit files on your computer without a connection; cloud AI and UniWork documents need one"
+      },
+      "editors": {
+        "title": "Six editors. One workspace.",
+        "formats": "Works with DOCX, XLSX, PPTX, PDF, HTML and Markdown",
+        "tabs": "Editors",
+        "imageAlt": "UniWork Office: {{editor}} with the AI panel",
+        "docs": {
+          "name": "Docs",
+          "title": "Write documents with AI beside you",
+          "description": "Write, format and review DOCX files in the app. Ask AI to draft, rewrite a paragraph or summarise, then decide what to keep.",
+          "p1": "Open and save DOCX with its formatting intact",
+          "p2": "AI drafts, rewrites and summarises in one panel",
+          "p3": "Comments and version history stay with the file in UniWork"
+        },
+        "sheets": {
+          "name": "Sheets",
+          "title": "Spreadsheets that answer questions about your numbers",
+          "description": "Enter data, use formulas and charts on XLSX files. Ask AI to explain figures, find the right formula or build a summary table.",
+          "p1": "Formulas, formatting and multiple sheets in one file",
+          "p2": "AI explains figures and suggests formulas",
+          "p3": "Save back to the workspace as a new version"
+        },
+        "slides": {
+          "name": "Slides",
+          "title": "From an idea to a deck",
+          "description": "Build a PPTX from a topic or an outline. AI suggests the layout and content of each slide, and you adjust the rest directly on the slide.",
+          "p1": "Open and save PPTX files",
+          "p2": "AI builds an outline and content for each slide",
+          "p3": "Review and edit each slide right on the canvas"
+        },
+        "pdf": {
+          "name": "PDF",
+          "title": "Read and annotate PDFs",
+          "description": "Open a PDF, search it, highlight and add notes. AI summarises long documents and answers questions about what is in the file.",
+          "p1": "Highlight, annotate and draw on the page",
+          "p2": "AI summarises and answers from the file's content",
+          "p3": "Save the annotated copy as a new version"
+        },
+        "html": {
+          "name": "HTML",
+          "title": "Write a web page and see it at once",
+          "description": "Edit HTML and preview it side by side. AI helps with layout, fixes mistakes and adjusts the tone of the page.",
+          "p1": "Source and preview next to each other",
+          "p2": "AI builds the layout and fixes errors",
+          "p3": "Save the page to your team's workspace"
+        },
+        "markdown": {
+          "name": "Markdown",
+          "title": "Structured notes",
+          "description": "Write Markdown with a live preview. AI helps turn loose notes into a document with clear headings.",
+          "p1": "Write and preview in one window",
+          "p2": "AI organises notes into a document",
+          "p3": "Inserted images are saved with the file"
+        }
+      },
+      "tasks": {
+        "title": "From a task to a finished file",
+        "sub": "Six common jobs, each starting from one editor.",
+        "open": "Open {{editor}}",
+        "draft": {
+          "title": "Draft a document",
+          "description": "Tell AI the goal and the reader, get a draft, then adjust it to your team's voice."
+        },
+        "data": {
+          "title": "From data to answers",
+          "description": "Paste figures into a spreadsheet, ask what you want to know and get a formula or a summary table."
+        },
+        "slides": {
+          "title": "From a topic to a deck",
+          "description": "Give a topic or an outline and get a first set of slides to edit and present."
+        },
+        "pdf": {
+          "title": "A fresh start from a PDF",
+          "description": "Summarise a PDF report, pull out the key points and turn them into a new team document."
+        },
+        "html": {
+          "title": "From an idea to a web page",
+          "description": "Describe the page you need, see the build at once and edit the code when you want control."
+        },
+        "notes": {
+          "title": "From notes to a document",
+          "description": "Gather scattered meeting notes into a document with headings, action items and owners."
+        }
+      },
+      "ai": {
+        "title": "AI built in, your files stay in your team's workspace",
+        "sub": "UniWork Office shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
+        "account": {
+          "title": "AI through your UniWork account",
+          "description": "The cloud AI tools available today are web search, image search and transcription, and they run through UniWork under your organization's plan. If you use your own API key, the app calls the provider you choose directly, without going through UniWork servers."
+        },
+        "files": {
+          "title": "Team files are saved in the workspace",
+          "description": "Files you save to the workspace live in your team's UniWork workspace: open from Documents, save as a new version, share and comment. Files stored on your computer stay on your computer and can be edited without a connection; cloud AI and UniWork documents need one."
+        },
+        "link": "See how UniWork handles permissions"
+      },
+      "faq": {
+        "title": "Frequently asked questions",
+        "q1": "Does UniWork Office cost anything?",
+        "a1": "The app comes with your UniWork account. Cloud AI follows your organization's UniWork plan; see the Pricing page for the plans on offer.",
+        "q2": "Which formats can I open?",
+        "a2": "DOCX, XLSX, PPTX, PDF, HTML and Markdown. For older Office formats, open the file from Documents on the web and UniWork converts it.",
+        "q3": "Does it work offline?",
+        "a3": "You can edit files on your computer without a connection. Cloud AI and UniWork documents (opening from the workspace, saving a new version) need one.",
+        "q4": "How is my data handled?",
+        "a4": "Files you save to the workspace live in the UniWork workspace under your organization's permissions; files stored on your computer stay on your computer. When you use AI, the content to work on is sent to the model provider: through UniWork for tools that run under your organization's plan, or straight from your computer if you use your own API key.",
+        "q5": "Do I need a separate account for Office?",
+        "a5": "No. You sign in with your UniWork account, with the same permissions and workspaces as on the web.",
+        "q6": "How do I open a file from UniWork on the web?",
+        "a6": "In Documents, choose Open in app on the file you need, or press Open UniWork Office to just launch the app. If it isn't installed, UniWork walks you through the download."
+      },
+      "download": {
+        "title": "Download UniWork Office",
+        "version": "Version {{version}}",
+        "requirements": "Requires: {{value}}",
+        "unsigned": "This build is not code-signed, so your system may warn you the first time you open it.",
+        "unavailable": "No installer has been published yet."
+      },
+      "works": {
+        "title": "Works with UniWork",
+        "sub": "The app is not apart from the workspace: files go from UniWork to the app and back.",
+        "open": {
+          "title": "Open from Documents",
+          "description": "Choose Open in app on any file, or launch the app and sign in with your UniWork account."
+        },
+        "version": {
+          "title": "Save as a new version",
+          "description": "Every save adds a version; earlier ones stay so you can go back."
+        },
+        "share": {
+          "title": "Share and comment",
+          "description": "Your team still sees the file, its comments and its access in UniWork."
+        }
+      },
+      "installersError": "We couldn't load the list of installers. Check your connection and try again.",
+      "retry": "Try again",
+      "closing": "Bring the office apps home to your team's workspace."
     }
   },
   "documents": {
@@ -7609,47 +7813,26 @@
       "pdf": "PDF document",
       "md": "Markdown document",
       "html": "HTML document",
-      "file": "File"
+      "file": "File",
+      "page": "UniWork page",
+      "folder": "Folder"
     },
     "page": {
       "title": "Documents",
       "new_page": "New page",
-      "upload_file": "Upload file",
       "off_title": "Documents are off",
       "off_description": "Documents are not enabled for this workspace.",
       "checking_title": "Checking whether documents are available…",
       "unknown_title": "Could not check whether documents are available",
       "unknown_description": "The configuration did not load, so we don't know if documents are enabled for this workspace. Try again.",
       "unknown_retry": "Try again",
-      "create_failed": "Could not create the page",
       "upload_failed": "Could not upload the file",
       "tab_title": "{{title}} · UniWork",
       "office_tab_title": "{{title}} · UniWork Office"
     },
     "library": {
-      "count_label": "documents",
-      "tabs": {
-        "all": "All",
-        "recent": "Recent",
-        "shared": "Shared with me",
-        "archived": "Archive"
-      },
-      "filters": {
-        "kind_label": "Document type",
-        "kind_all": "Any type",
-        "kind_page": "Page",
-        "kind_file": "File",
-        "date_label": "Updated",
-        "date_all": "Any time",
-        "date_today": "Today",
-        "date_week": "Last 7 days",
-        "date_month": "Last 30 days"
-      },
       "loading": "Loading documents…",
-      "empty_title": "No documents yet",
-      "empty_description": "Create a page or upload a file to get started.",
       "no_matches_title": "No documents match the filters",
-      "no_matches_description": "Try removing the type or date filter.",
       "error_title": "Could not load the document list",
       "error_description": "Check your connection and try again.",
       "retry": "Try again",
@@ -7658,12 +7841,10 @@
       "load_more": "Load more",
       "loading_more": "Loading more…",
       "clear_filters": "Clear filters",
-      "row_meta": "Updated {{time}}",
       "archived_badge": "Archived"
     },
     "tree": {
       "aria_label": "Document tree",
-      "open_trigger": "Tree",
       "sheet_title": "Document tree",
       "sheet_description": "Expand branches and pick a document to open.",
       "loading": "Loading the document tree…",
@@ -8032,7 +8213,9 @@
       "restore_confirm": "Restore",
       "restore_submitting": "Restoring…",
       "restore_failed": "Could not restore. Nothing changed.",
-      "restore_not_archived": "This document is not in the trash."
+      "restore_not_archived": "This document is not in the trash.",
+      "archive_folder_title": "Archive folder",
+      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later."
     },
     "public": {
       "loading": "Loading the document…",
@@ -8094,6 +8277,243 @@
       "thread_resolved_other": "Resolved · {{count}} threads",
       "favorite_unavailable": "Favorite state is unavailable - try again",
       "former_member": "Former member"
+    },
+    "home": {
+      "create_failed": "Could not create the document. Try again.",
+      "create_unavailable": "This server can't create this file type yet.",
+      "editor_agent": "Agent",
+      "default_names": {
+        "docx": "Untitled document.docx",
+        "xlsx": "Untitled spreadsheet.xlsx",
+        "pptx": "Untitled presentation.pptx",
+        "md": "Untitled markdown.md",
+        "html": "Untitled HTML page.html",
+        "pdf": "Untitled PDF.pdf"
+      },
+      "folders": {
+        "default_name": "New folder",
+        "create_failed": "Could not create the folder. Try again.",
+        "new": "New folder",
+        "empty": "No folders yet.",
+        "rename": "Rename folder",
+        "rename_label": "Folder name",
+        "rename_failed": "Could not rename the folder. Try again."
+      },
+      "greeting": {
+        "morning": "Good morning. What would you like to create today?",
+        "morning_named": "Good morning, {{name}}. What would you like to create today?",
+        "afternoon": "Good afternoon. What would you like to create today?",
+        "afternoon_named": "Good afternoon, {{name}}. What would you like to create today?",
+        "evening": "Good evening. What would you like to create today?",
+        "evening_named": "Good evening, {{name}}. What would you like to create today?",
+        "hint_root": "New files go to the workspace root and open straight in the editor.",
+        "hint_folder": "New files go to the {{folder}} folder and open straight in the editor.",
+        "morning_read_only": "Good morning.",
+        "morning_read_only_named": "Good morning, {{name}}.",
+        "afternoon_read_only": "Good afternoon.",
+        "afternoon_read_only_named": "Good afternoon, {{name}}.",
+        "evening_read_only": "Good evening.",
+        "evening_read_only_named": "Good evening, {{name}}.",
+        "hint_read_only": "You can only view the {{folder}} folder: open files to read them, not to create or edit.",
+        "hint_read_only_plain": "You can only view this folder: open files to read them, not to create or edit."
+      },
+      "create": {
+        "label": "Create",
+        "menu": "New",
+        "ai_badge": "AI",
+        "unavailable_hint": "Not available on this server yet",
+        "page": {
+          "card": "Page",
+          "hint": "UniWork page with tasks and mentions",
+          "menu": "Page",
+          "ext": "UniWork"
+        },
+        "docx": {
+          "card": "AI Docs",
+          "hint": ".docx",
+          "menu": "Docs document",
+          "ext": ".docx"
+        },
+        "xlsx": {
+          "card": "AI Sheets",
+          "hint": ".xlsx",
+          "menu": "Sheets spreadsheet",
+          "ext": ".xlsx"
+        },
+        "pptx": {
+          "card": "AI Slides",
+          "hint": ".pptx",
+          "menu": "Slides presentation",
+          "ext": ".pptx"
+        },
+        "md": {
+          "card": "AI Markdown",
+          "hint": ".md",
+          "menu": "Markdown",
+          "ext": ".md"
+        },
+        "html": {
+          "card": "AI HTML",
+          "hint": ".html",
+          "menu": "HTML",
+          "ext": ".html"
+        },
+        "pdf": {
+          "card": "AI PDF",
+          "hint": ".pdf",
+          "menu": "PDF",
+          "ext": ".pdf"
+        },
+        "upload": {
+          "card": "Upload file",
+          "hint": "docx, xlsx, pptx, pdf, md, html, images"
+        }
+      },
+      "sidebar": {
+        "label": "Documents navigation",
+        "home": "Documents home",
+        "recent": "Recent",
+        "starred": "Starred",
+        "shared": "Shared with me",
+        "folders": "Folders",
+        "elsewhere": "From elsewhere",
+        "open": "Browse"
+      },
+      "origin": {
+        "documents": "Documents",
+        "upload": "Uploaded",
+        "created": "Created",
+        "chat": "Chat",
+        "task": "Tasks",
+        "meeting": "Meetings",
+        "email": "Email",
+        "other": "Other"
+      },
+      "views": {
+        "recent": "Recent",
+        "starred": "Starred",
+        "shared": "Shared with me",
+        "archived": "Archive",
+        "sources": "From elsewhere",
+        "chat": "Chat",
+        "task": "Tasks",
+        "meeting": "Meetings",
+        "email": "Email"
+      },
+      "scope_label": "Scope",
+      "scope": {
+        "home": "All",
+        "recent": "Recent",
+        "shared": "Shared",
+        "archived": "Archive"
+      },
+      "chips_label": "Filter by type",
+      "chips": {
+        "all": "All",
+        "page": "Pages",
+        "docx": "Docs",
+        "xlsx": "Sheets",
+        "pptx": "Slides",
+        "pdf": "PDF",
+        "md": "MD",
+        "html": "HTML"
+      },
+      "group_by": {
+        "label": "Group by",
+        "folder": "Folder",
+        "source": "Source",
+        "type": "File type",
+        "none": "No grouping"
+      },
+      "groups": {
+        "unfiled": "Not in a folder",
+        "type": {
+          "page": "Pages",
+          "folder": "Folders",
+          "docx": "Docs",
+          "xlsx": "Sheets",
+          "pptx": "Slides",
+          "pdf": "PDF",
+          "md": "Markdown",
+          "html": "HTML",
+          "other": "Other files"
+        }
+      },
+      "columns": {
+        "name": "Name",
+        "source": "Source",
+        "editor": "Edited by",
+        "updated": "Updated",
+        "size": "Size",
+        "actions": "Actions"
+      },
+      "row": {
+        "open_folder": "Open folder",
+        "open_web": "Open on the web",
+        "open_app": "Open in UniWork Office",
+        "star": "Star",
+        "unstar": "Remove star",
+        "go_to_source": "Go to the original",
+        "download": "Download",
+        "save_to_folder": "Save to folder",
+        "menu": "Actions for {{title}}",
+        "download_failed": "Could not download the file. Try again.",
+        "star_failed": "Could not update the star. Try again.",
+        "move": "Move",
+        "archive": "Archive",
+        "open_chat": "Open Chat",
+        "open_email": "Open Email"
+      },
+      "empty": {
+        "title": "No documents in this workspace yet",
+        "folder_title": "This folder is empty",
+        "description": "Pick a type in the Create row above, or drop files here to upload them.",
+        "view_only": "You can only view this folder.",
+        "recent_title": "Nothing recent yet",
+        "recent_description": "Documents you open or edit show up here.",
+        "starred_title": "No starred documents yet",
+        "starred_description": "Star a document from a row's ⋯ menu to find it again quickly.",
+        "shared_title": "Nothing has been shared with you yet",
+        "shared_description": "Documents others share with you show up here.",
+        "archived_title": "The archive is empty",
+        "archived_description": "Archived documents show up here and can be restored.",
+        "sources_title": "No files yet",
+        "sources_description": "Files from chat, tasks, meetings and email that you can read show up here."
+      },
+      "no_matches_description": "No files of this type. Create one above or clear the filter.",
+      "no_matches_plain_description": "No files of this type. Clear the filter to see everything.",
+      "no_matches_more_description": "No files of this type in what has loaded so far. Load more to keep looking, or clear the filter.",
+      "drop_hint": "Drop files on the list to upload them.",
+      "drop_active": "Drop to upload to the open folder",
+      "drop_failed": "Could not upload {{name}}.",
+      "drop_done_one": "Uploaded {{count}} file.",
+      "drop_done_other": "Uploaded {{count}} files.",
+      "breadcrumb_label": "Folder path",
+      "save_source": {
+        "title": "Save to folder",
+        "description": "Makes a copy of {{name}} in Documents. The original stays where it is.",
+        "picker_label": "Choose a folder",
+        "root": "Workspace root",
+        "submit": "Save",
+        "saved": "Saved a copy to Documents.",
+        "failed": "Could not save the file to the folder. Try again."
+      },
+      "move": {
+        "title": "Move",
+        "description": "Pick a new folder for {{name}}.",
+        "folder_description": "Pick a new folder for {{name}}. Everything inside it moves too.",
+        "submit": "Move",
+        "moved": "Moved."
+      },
+      "open_office": "Open UniWork Office"
+    },
+    "errors": {
+      "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; pages and files sit in a page or a folder.",
+      "document_cycle": "An item can't move into itself or into something inside it.",
+      "document_too_deep": "The document tree is at most 5 levels deep.",
+      "folder_not_supported": "A folder has no content to open or edit.",
+      "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
+      "source_not_saveable": "This file can't be copied into Documents."
     }
   },
   "squads": {
@@ -8329,7 +8749,7 @@
       "download": "Download UniWork Office",
       "install": {
         "download_failed": "Download failed. Please try again.",
-        "downloading": "Downloading…",
+        "downloading": "Preparing…",
         "title": "Get UniWork Office for desktop",
         "not_installed": "The desktop app didn't respond. Install the right version, then select Open again.",
         "expired": "That desktop handoff expired. Try opening it again.",
@@ -8347,7 +8767,6 @@
         "size": "Size: {{value}}",
         "size_mb": "{{value}} MB",
         "version_line": "Version {{version}} · {{channel}} channel",
-        "zip_note": "Downloads as a ZIP that contains the installer.",
         "version_unknown": "unknown",
         "unsigned": "unsigned",
         "mac_chip_help": "Not sure which chip? Check Apple menu → About This Mac.",
@@ -8356,7 +8775,7 @@
         "after_download": "After downloading",
         "not_in_channel": "No {{os}} build in this channel yet.",
         "unsupported": "UniWork Office doesn't support this device yet. You can still download it for another computer.",
-        "started": "Download started: <filename>{{file}}</filename>.",
+        "started": "Downloading in your browser: <filename>{{file}}</filename>. Follow the progress in the browser's downloads bar.",
         "description_unavailable": "This channel has no installer yet. Try again later.",
         "retry": "Try again",
         "copy_command": "Copy command",
@@ -8392,20 +8811,21 @@
           "linux": "Linux"
         },
         "steps": {
-          "extract": "Extract the ZIP you downloaded.",
           "win_exe_run": "Run {{file}}.",
           "win_exe_unsigned": "If Windows shows \"Windows protected your PC\", select More info → Run anyway (unsigned internal build).",
-          "win_zip_extract": "Extract {{file}} inside the downloaded folder.",
+          "win_zip_extract": "Extract {{file}} you downloaded.",
           "win_zip_run": "Run uniwork-office*.exe in the extracted folder.",
-          "mac_open": "Extract the ZIP, then open {{file}}.",
+          "mac_open": "Open {{file}} you downloaded.",
           "mac_drag": "Drag UniWork Office into Applications.",
           "mac_unsigned": "On first launch: right-click the app → Open → Open (unsigned internal build).",
           "deb_install": "Open {{file}} in App Center, or run the following command.",
           "deb_open": "Open UniWork Office from your applications. gnome-keyring (included with Ubuntu) is required to store your login.",
           "appimage_run": "Make {{file}} executable, then launch it with the following command.",
-          "appimage_fuse": "Ubuntu 22.04 / 24.04 requires libfuse2. If it is missing, run the following command."
+          "appimage_fuse": "Ubuntu 22.04 / 24.04 requires libfuse2. If it is missing, run the following command.",
+          "connect": "Once installed, come back to this page and choose Open in app. UniWork Office then connects to your UniWork."
         }
-      }
+      },
+      "row_action": "Open in app"
     },
     "save": {
       "status": {

@@ -1,4 +1,43 @@
 {
+  "changelog": {
+    "title": "Nhật ký cập nhật",
+    "description": "Những tính năng mới, cải tiến và sửa lỗi của UniWork.",
+    "allReleases": "Các phiên bản",
+    "latest": "Mới nhất",
+    "copyLink": "Sao chép liên kết phiên bản {{version}}",
+    "copied": "Đã sao chép liên kết",
+    "copyError": "Không sao chép được. Bạn có thể sao chép địa chỉ trang trên trình duyệt.",
+    "explore": "Khám phá các tính năng",
+    "sections": {
+      "features": "Tính năng mới",
+      "improvements": "Cải tiến",
+      "fixes": "Sửa lỗi"
+    },
+    "releases": {
+      "initial": {
+        "title": "Công việc, trao đổi và tài liệu trong cùng một nơi.",
+        "summary": "Phiên bản 1.0.0 tập hợp các công cụ làm việc của nhóm trong không gian của tổ chức, từ giao việc đến họp, trao đổi và soạn tài liệu.",
+        "features": {
+          "work": "Quản lý công việc và dự án với bảng trạng thái, người phụ trách, ngày đến hạn, bình luận và tệp đính kèm.",
+          "chat": "Trao đổi trong workspace với tin nhắn, trả lời và chia sẻ tệp, giữ cuộc trò chuyện gần với công việc.",
+          "meetings": "Lên lịch và tham gia cuộc họp trực tuyến; trao đổi, ghi chú và theo dõi người tham dự ngay trong phòng họp.",
+          "office": "Mở và làm việc với tài liệu Docs, Sheets, Slides, PDF, HTML và Markdown qua các trình soạn tích hợp của UniWork Office.",
+          "email": "Kết nối hộp thư với Email Hub để đọc, gửi email và theo dõi trạng thái kết nối của từng tài khoản.",
+          "ask": "Hỏi UNI để tìm thông tin và kiểm tra nguồn tham chiếu trong phạm vi quyền truy cập của mình."
+        },
+        "improvements": {
+          "senderImages": "Chọn người gửi đáng tin cậy để hiển thị ảnh trong email và quản lý danh sách người gửi đã cho phép.",
+          "connectionForms": "Form kết nối hộp thư nói rõ thông tin còn thiếu, trạng thái kết nối và các bước cần làm khi phải kết nối lại.",
+          "publicPages": "Các trang giới thiệu tính năng, giải pháp và hướng dẫn dùng chung bố cục, minh họa và cách điều hướng."
+        },
+        "fixes": {
+          "mailboxStatus": "Trạng thái tài khoản phản ánh khi một hộp thư bị mất kết nối; thông báo kết nối lại dùng đầy đủ chiều rộng của màn hình.",
+          "smallDialogs": "Các hộp thoại nhập liệu tránh mép màn hình nhỏ và sắp xếp lại phần tiêu đề để nội dung dễ thao tác hơn."
+        },
+        "note": "Kết nối email và các tính năng AI cần cấu hình tương ứng của tổ chức. Mỗi tính năng vẫn tuân theo quyền truy cập trong ứng dụng."
+      }
+    }
+  },
   "common": {
     "save": "Lưu",
     "cancel": "Hủy",
@@ -5312,6 +5351,10 @@
       }
     },
     "meta": {
+      "changelog": {
+        "title": "Nhật ký cập nhật",
+        "description": "Theo dõi tính năng mới, cải tiến và sửa lỗi của UniWork theo từng phiên bản."
+      },
       "home": {
         "title": "UniWork Business OS",
         "description": "Một nền tảng thống nhất để con người và nhân sự AI cùng trò chuyện, lập kế hoạch, thực thi và biến tri thức thành kết quả."
@@ -5335,6 +5378,10 @@
       "enterprise": {
         "title": "UniWork cho doanh nghiệp",
         "description": "Tìm hiểu cấu trúc tổ chức, phân quyền và nhật ký hoạt động."
+      },
+      "office": {
+        "title": "UniWork Office — ứng dụng văn phòng có AI",
+        "description": "Bộ ứng dụng văn phòng cho macOS, Windows và Linux: soạn văn bản, bảng tính, trình chiếu, PDF, HTML và Markdown với AI, dùng chung tài khoản và workspace UniWork."
       }
     },
     "revision": {
@@ -6720,7 +6767,8 @@
       "browseFeatures": "Khám phá tính năng",
       "closeMenu": "Đóng menu",
       "solutions": "Giải pháp",
-      "why": "Vì sao UniWork"
+      "why": "Vì sao UniWork",
+      "office": "Office"
     },
     "cta": {
       "start": "Bắt đầu ngay",
@@ -7594,6 +7642,162 @@
           "Đọc chi tiết bản ghi"
         ]
       }
+    },
+    "office": {
+      "hero": {
+        "kicker": "Ứng dụng văn phòng của UniWork",
+        "title": "UniWork Office",
+        "sub": "Bộ ứng dụng văn phòng có AI cho macOS, Windows và Linux. Đăng nhập bằng tài khoản UniWork, mở file từ workspace của nhóm và lưu lại thành phiên bản mới.",
+        "downloadFor": "Tải cho {{os}}",
+        "variants": "Bản cài cho {{os}}",
+        "downloadBoth": {
+          "mac_arm": "Tải cho Mac Apple Silicon",
+          "mac_intel": "Tải cho Mac Intel"
+        },
+        "macChipHelp": "Không rõ máy Mac dùng chip nào? Mở menu Apple › Giới thiệu về máy Mac.",
+        "demo": "Xem sáu trình soạn thảo",
+        "unavailable": "Bản cài đặt đang được chuẩn bị. Trong lúc chờ, bạn vẫn mở và sửa file Office ngay trên web, trong mục Tài liệu.",
+        "trustAccount": "Dùng chung tài khoản UniWork",
+        "trustAi": "AI theo gói UniWork hoặc khóa riêng",
+        "trustOffline": "Sửa file trên máy không cần kết nối; AI cloud và tài liệu UniWork cần kết nối"
+      },
+      "editors": {
+        "title": "Sáu trình soạn thảo. Một workspace.",
+        "formats": "Hỗ trợ DOCX, XLSX, PPTX, PDF, HTML và Markdown",
+        "tabs": "Trình soạn thảo",
+        "imageAlt": "UniWork Office: {{editor}} với bảng AI",
+        "docs": {
+          "name": "Văn bản",
+          "title": "Soạn văn bản với AI ngay bên cạnh",
+          "description": "Viết, định dạng và rà soát file DOCX trong ứng dụng. Nhờ AI nháp nội dung, viết lại một đoạn hoặc tóm tắt, rồi bạn quyết định giữ phần nào.",
+          "p1": "Mở và lưu file DOCX, giữ nguyên định dạng",
+          "p2": "AI nháp, viết lại và tóm tắt trong cùng một bảng",
+          "p3": "Bình luận và lịch sử phiên bản đi cùng file trong UniWork"
+        },
+        "sheets": {
+          "name": "Bảng tính",
+          "title": "Bảng tính trả lời được câu hỏi về số liệu",
+          "description": "Nhập dữ liệu, dùng công thức và biểu đồ trên file XLSX. Hỏi AI để hiểu số liệu, tìm công thức phù hợp hoặc dựng bảng tổng hợp.",
+          "p1": "Công thức, định dạng và nhiều sheet trong một file",
+          "p2": "AI giải thích số liệu và gợi ý công thức",
+          "p3": "Lưu về workspace thành phiên bản mới"
+        },
+        "slides": {
+          "name": "Trình chiếu",
+          "title": "Từ ý tưởng đến bài trình chiếu",
+          "description": "Dựng bài PPTX từ một chủ đề hoặc dàn ý. AI gợi ý bố cục và nội dung từng trang, phần còn lại bạn chỉnh trực tiếp trên trang.",
+          "p1": "Mở và lưu file PPTX",
+          "p2": "AI dựng dàn ý và nội dung cho từng trang",
+          "p3": "Xem lại và chỉnh từng trang ngay trên canvas"
+        },
+        "pdf": {
+          "name": "PDF",
+          "title": "Đọc và chú thích PDF",
+          "description": "Mở PDF, tìm chữ, đánh dấu và ghi chú. AI tóm tắt tài liệu dài và trả lời câu hỏi theo nội dung file.",
+          "p1": "Đánh dấu, ghi chú và vẽ lên trang",
+          "p2": "AI tóm tắt và trả lời theo nội dung file",
+          "p3": "Lưu bản chú thích thành phiên bản mới"
+        },
+        "html": {
+          "name": "HTML",
+          "title": "Viết trang web, xem kết quả ngay",
+          "description": "Sửa mã HTML và xem trước bên cạnh. AI giúp dựng bố cục, sửa lỗi và chỉnh giọng văn của trang.",
+          "p1": "Mã nguồn và bản xem trước cạnh nhau",
+          "p2": "AI dựng bố cục và sửa lỗi",
+          "p3": "Lưu trang về workspace của nhóm"
+        },
+        "markdown": {
+          "name": "Markdown",
+          "title": "Ghi chú có cấu trúc",
+          "description": "Viết Markdown với bản xem trước trực tiếp. AI giúp sắp xếp ghi chú rời thành tài liệu có đề mục rõ ràng.",
+          "p1": "Soạn và xem trước trong một cửa sổ",
+          "p2": "AI sắp xếp ghi chú thành tài liệu",
+          "p3": "Ảnh chèn vào được lưu cùng file"
+        }
+      },
+      "tasks": {
+        "title": "Từ việc cần làm đến file hoàn chỉnh",
+        "sub": "Sáu việc thường gặp, mỗi việc bắt đầu từ một trình soạn thảo.",
+        "open": "Mở {{editor}}",
+        "draft": {
+          "title": "Soạn một văn bản",
+          "description": "Nói với AI mục tiêu và người đọc, nhận bản nháp, rồi chỉnh theo giọng của nhóm."
+        },
+        "data": {
+          "title": "Từ số liệu đến câu trả lời",
+          "description": "Dán số liệu vào bảng tính, hỏi điều bạn muốn biết và nhận công thức hoặc bảng tổng hợp."
+        },
+        "slides": {
+          "title": "Từ chủ đề đến bài trình chiếu",
+          "description": "Đưa một chủ đề hoặc dàn ý, nhận bộ trang đầu tiên để bạn chỉnh và trình bày."
+        },
+        "pdf": {
+          "title": "Bắt đầu mới từ một file PDF",
+          "description": "Tóm tắt báo cáo PDF, rút ý chính rồi chuyển thành văn bản mới của nhóm."
+        },
+        "html": {
+          "title": "Từ ý tưởng đến trang web",
+          "description": "Mô tả trang bạn cần, xem bản dựng ngay và chỉnh mã khi muốn kiểm soát chi tiết."
+        },
+        "notes": {
+          "title": "Từ ghi chú đến tài liệu",
+          "description": "Gom ghi chú họp rời rạc thành tài liệu có đề mục, việc cần làm và người phụ trách."
+        }
+      },
+      "ai": {
+        "title": "AI có sẵn, file vẫn nằm trong workspace của nhóm",
+        "sub": "UniWork Office dùng chung tài khoản và phân quyền với UniWork, nên file của nhóm vẫn theo quyền truy cập của tổ chức.",
+        "account": {
+          "title": "AI qua tài khoản UniWork",
+          "description": "Công cụ AI trên cloud hiện có là tìm kiếm web, tìm kiếm ảnh và chuyển giọng nói thành văn bản, chạy qua UniWork theo gói của tổ chức. Nếu dùng khóa API của riêng bạn, ứng dụng gọi thẳng nhà cung cấp bạn chọn mà không qua máy chủ UniWork."
+        },
+        "files": {
+          "title": "File của nhóm lưu trong workspace",
+          "description": "File lưu vào workspace nằm trong workspace UniWork của nhóm: mở từ Tài liệu, lưu thành phiên bản mới, chia sẻ và bình luận. File lưu trên máy thì ở lại trên máy và sửa được khi không có kết nối; AI cloud và tài liệu UniWork cần kết nối."
+        },
+        "link": "Xem cách UniWork phân quyền"
+      },
+      "faq": {
+        "title": "Câu hỏi thường gặp",
+        "q1": "UniWork Office có tốn phí không?",
+        "a1": "Ứng dụng đi cùng tài khoản UniWork. AI trên cloud tính theo gói UniWork của tổ chức; xem trang Bảng giá để biết các gói hiện có.",
+        "q2": "Mở được những định dạng nào?",
+        "a2": "DOCX, XLSX, PPTX, PDF, HTML và Markdown. Với file Office định dạng cũ, hãy mở từ Tài liệu trên web để UniWork chuyển đổi.",
+        "q3": "Có dùng được khi không có mạng không?",
+        "a3": "Sửa file trên máy không cần kết nối. AI cloud và tài liệu UniWork (mở từ workspace, lưu thành phiên bản mới) cần kết nối.",
+        "q4": "Dữ liệu của tôi được xử lý thế nào?",
+        "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được gửi tới nhà cung cấp mô hình: qua UniWork với công cụ chạy theo gói của tổ chức, hoặc thẳng từ máy bạn nếu dùng khóa API riêng.",
+        "q5": "Tôi có cần tài khoản riêng cho Office không?",
+        "a5": "Không. Bạn đăng nhập bằng tài khoản UniWork, với cùng quyền và workspace như trên web.",
+        "q6": "Làm sao mở file từ UniWork trên web?",
+        "a6": "Trong Tài liệu, chọn Mở bằng app ở file bạn cần, hoặc bấm Mở UniWork Office để chỉ mở ứng dụng. Nếu chưa cài, UniWork sẽ hướng dẫn tải."
+      },
+      "download": {
+        "title": "Tải UniWork Office",
+        "version": "Phiên bản {{version}}",
+        "requirements": "Yêu cầu: {{value}}",
+        "unsigned": "Bản này chưa ký số nên hệ điều hành có thể cảnh báo khi mở lần đầu.",
+        "unavailable": "Chưa có bản cài đặt nào được phát hành."
+      },
+      "works": {
+        "title": "Làm việc cùng UniWork",
+        "sub": "Ứng dụng không tách khỏi workspace: file đi từ UniWork sang ứng dụng và quay về.",
+        "open": {
+          "title": "Mở từ Tài liệu",
+          "description": "Chọn Mở bằng app ở bất kỳ file nào, hoặc mở ứng dụng rồi đăng nhập bằng tài khoản UniWork."
+        },
+        "version": {
+          "title": "Lưu thành phiên bản mới",
+          "description": "Mỗi lần lưu thêm một phiên bản; các bản cũ vẫn còn để bạn quay lại."
+        },
+        "share": {
+          "title": "Chia sẻ và bình luận",
+          "description": "Cả nhóm vẫn thấy file, bình luận và quyền truy cập của file ngay trong UniWork."
+        }
+      },
+      "installersError": "Không tải được danh sách bản cài đặt. Kiểm tra kết nối rồi thử lại.",
+      "retry": "Thử lại",
+      "closing": "Đưa bộ ứng dụng văn phòng về cùng workspace của nhóm."
     }
   },
   "documents": {
@@ -7604,47 +7808,26 @@
       "pdf": "Tài liệu PDF",
       "md": "Tài liệu Markdown",
       "html": "Tài liệu HTML",
-      "file": "Tệp"
+      "file": "File",
+      "page": "Trang UniWork",
+      "folder": "Thư mục"
     },
     "page": {
       "title": "Tài liệu",
       "new_page": "Trang mới",
-      "upload_file": "Tải tệp",
       "off_title": "Tài liệu chưa bật",
       "off_description": "Tính năng tài liệu chưa được bật cho workspace này.",
       "checking_title": "Đang kiểm tra tính năng tài liệu…",
       "unknown_title": "Chưa kiểm tra được tính năng tài liệu",
       "unknown_description": "Chưa tải được cấu hình nên chưa biết tài liệu có được bật cho workspace này không. Thử lại.",
       "unknown_retry": "Thử lại",
-      "create_failed": "Không tạo được trang",
       "upload_failed": "Không tải được tệp lên",
       "tab_title": "{{title}} · UniWork",
       "office_tab_title": "{{title}} · UniWork Office"
     },
     "library": {
-      "count_label": "tài liệu",
-      "tabs": {
-        "all": "Tất cả",
-        "recent": "Gần đây",
-        "shared": "Được chia sẻ với tôi",
-        "archived": "Lưu trữ"
-      },
-      "filters": {
-        "kind_label": "Loại tài liệu",
-        "kind_all": "Mọi loại",
-        "kind_page": "Trang",
-        "kind_file": "Tệp",
-        "date_label": "Cập nhật",
-        "date_all": "Mọi lúc",
-        "date_today": "Hôm nay",
-        "date_week": "7 ngày qua",
-        "date_month": "30 ngày qua"
-      },
       "loading": "Đang tải danh sách tài liệu…",
-      "empty_title": "Chưa có tài liệu",
-      "empty_description": "Tạo trang mới hoặc tải một tệp lên để bắt đầu.",
       "no_matches_title": "Không có tài liệu khớp bộ lọc",
-      "no_matches_description": "Thử bỏ lọc loại hoặc mốc thời gian.",
       "error_title": "Không tải được danh sách tài liệu",
       "error_description": "Kiểm tra kết nối rồi thử lại.",
       "retry": "Thử lại",
@@ -7653,12 +7836,10 @@
       "load_more": "Tải thêm",
       "loading_more": "Đang tải thêm…",
       "clear_filters": "Bỏ bộ lọc",
-      "row_meta": "Cập nhật {{time}}",
       "archived_badge": "Đã lưu trữ"
     },
     "tree": {
       "aria_label": "Cây tài liệu",
-      "open_trigger": "Cây",
       "sheet_title": "Cây tài liệu",
       "sheet_description": "Mở nhánh và chọn tài liệu để xem.",
       "loading": "Đang tải cây tài liệu…",
@@ -8027,7 +8208,9 @@
       "restore_confirm": "Khôi phục",
       "restore_submitting": "Đang khôi phục…",
       "restore_failed": "Không khôi phục được. Chưa có gì thay đổi.",
-      "restore_not_archived": "Tài liệu này không nằm trong thùng rác."
+      "restore_not_archived": "Tài liệu này không nằm trong thùng rác.",
+      "archive_folder_title": "Lưu trữ thư mục",
+      "archive_folder_description": "Thư mục và mọi thứ bên trong (thư mục con, trang, file) cùng vào thùng rác. Có thể khôi phục lại sau."
     },
     "public": {
       "loading": "Đang tải tài liệu…",
@@ -8089,6 +8272,243 @@
       "thread_resolved_other": "Đã giải quyết · {{count}} luồng",
       "favorite_unavailable": "Chưa đọc được trạng thái yêu thích - thử lại",
       "former_member": "Cựu thành viên"
+    },
+    "home": {
+      "create_failed": "Không thể tạo tài liệu. Thử lại.",
+      "create_unavailable": "Máy chủ chưa tạo được loại file này.",
+      "editor_agent": "Agent",
+      "default_names": {
+        "docx": "Tài liệu chưa đặt tên.docx",
+        "xlsx": "Bảng tính chưa đặt tên.xlsx",
+        "pptx": "Bản trình chiếu chưa đặt tên.pptx",
+        "md": "Markdown chưa đặt tên.md",
+        "html": "Trang HTML chưa đặt tên.html",
+        "pdf": "PDF chưa đặt tên.pdf"
+      },
+      "folders": {
+        "default_name": "Thư mục mới",
+        "create_failed": "Không thể tạo thư mục. Thử lại.",
+        "new": "Tạo thư mục",
+        "empty": "Chưa có thư mục.",
+        "rename": "Đổi tên thư mục",
+        "rename_label": "Tên thư mục",
+        "rename_failed": "Không thể đổi tên thư mục. Thử lại."
+      },
+      "greeting": {
+        "morning": "Chào buổi sáng. Hôm nay bạn muốn tạo gì?",
+        "morning_named": "Chào buổi sáng, {{name}}. Hôm nay bạn muốn tạo gì?",
+        "afternoon": "Chào buổi chiều. Hôm nay bạn muốn tạo gì?",
+        "afternoon_named": "Chào buổi chiều, {{name}}. Hôm nay bạn muốn tạo gì?",
+        "evening": "Chào buổi tối. Hôm nay bạn muốn tạo gì?",
+        "evening_named": "Chào buổi tối, {{name}}. Hôm nay bạn muốn tạo gì?",
+        "hint_root": "File mới nằm ở thư mục gốc của workspace và mở ngay trong trình soạn thảo.",
+        "hint_folder": "File mới nằm trong thư mục {{folder}} và mở ngay trong trình soạn thảo.",
+        "morning_read_only": "Chào buổi sáng.",
+        "morning_read_only_named": "Chào buổi sáng, {{name}}.",
+        "afternoon_read_only": "Chào buổi chiều.",
+        "afternoon_read_only_named": "Chào buổi chiều, {{name}}.",
+        "evening_read_only": "Chào buổi tối.",
+        "evening_read_only_named": "Chào buổi tối, {{name}}.",
+        "hint_read_only": "Bạn chỉ có quyền xem thư mục {{folder}}: mở file để đọc, không tạo hay sửa được.",
+        "hint_read_only_plain": "Bạn chỉ có quyền xem ở đây: mở file để đọc, không tạo hay sửa được."
+      },
+      "create": {
+        "label": "Tạo mới",
+        "menu": "Tạo mới",
+        "ai_badge": "AI",
+        "unavailable_hint": "Chưa dùng được trên máy chủ này",
+        "page": {
+          "card": "Trang",
+          "hint": "Trang UniWork, gắn được công việc và nhắc tên",
+          "menu": "Trang",
+          "ext": "UniWork"
+        },
+        "docx": {
+          "card": "AI Docs",
+          "hint": ".docx",
+          "menu": "Tài liệu Docs",
+          "ext": ".docx"
+        },
+        "xlsx": {
+          "card": "AI Sheets",
+          "hint": ".xlsx",
+          "menu": "Bảng tính Sheets",
+          "ext": ".xlsx"
+        },
+        "pptx": {
+          "card": "AI Slides",
+          "hint": ".pptx",
+          "menu": "Trình chiếu Slides",
+          "ext": ".pptx"
+        },
+        "md": {
+          "card": "AI Markdown",
+          "hint": ".md",
+          "menu": "Markdown",
+          "ext": ".md"
+        },
+        "html": {
+          "card": "AI HTML",
+          "hint": ".html",
+          "menu": "HTML",
+          "ext": ".html"
+        },
+        "pdf": {
+          "card": "AI PDF",
+          "hint": ".pdf",
+          "menu": "PDF",
+          "ext": ".pdf"
+        },
+        "upload": {
+          "card": "Tải file lên",
+          "hint": "docx, xlsx, pptx, pdf, md, html, ảnh"
+        }
+      },
+      "sidebar": {
+        "label": "Điều hướng tài liệu",
+        "home": "Trang chủ Tài liệu",
+        "recent": "Gần đây",
+        "starred": "Gắn sao",
+        "shared": "Được chia sẻ với tôi",
+        "folders": "Thư mục",
+        "elsewhere": "Từ nơi khác",
+        "open": "Điều hướng"
+      },
+      "origin": {
+        "documents": "Tài liệu",
+        "upload": "Tải lên",
+        "created": "Tạo mới",
+        "chat": "Trò chuyện",
+        "task": "Công việc",
+        "meeting": "Cuộc họp",
+        "email": "Email",
+        "other": "Khác"
+      },
+      "views": {
+        "recent": "Gần đây",
+        "starred": "Gắn sao",
+        "shared": "Được chia sẻ với tôi",
+        "archived": "Lưu trữ",
+        "sources": "Từ nơi khác",
+        "chat": "Trò chuyện",
+        "task": "Công việc",
+        "meeting": "Cuộc họp",
+        "email": "Email"
+      },
+      "scope_label": "Phạm vi",
+      "scope": {
+        "home": "Tất cả",
+        "recent": "Gần đây",
+        "shared": "Được chia sẻ",
+        "archived": "Lưu trữ"
+      },
+      "chips_label": "Lọc theo loại",
+      "chips": {
+        "all": "Tất cả",
+        "page": "Trang",
+        "docx": "Docs",
+        "xlsx": "Sheets",
+        "pptx": "Slides",
+        "pdf": "PDF",
+        "md": "MD",
+        "html": "HTML"
+      },
+      "group_by": {
+        "label": "Nhóm theo",
+        "folder": "Thư mục",
+        "source": "Nguồn",
+        "type": "Loại file",
+        "none": "Không nhóm"
+      },
+      "groups": {
+        "unfiled": "Chưa xếp thư mục",
+        "type": {
+          "page": "Trang",
+          "folder": "Thư mục",
+          "docx": "Docs",
+          "xlsx": "Sheets",
+          "pptx": "Slides",
+          "pdf": "PDF",
+          "md": "Markdown",
+          "html": "HTML",
+          "other": "File khác"
+        }
+      },
+      "columns": {
+        "name": "Tên",
+        "source": "Nguồn",
+        "editor": "Người sửa",
+        "updated": "Cập nhật",
+        "size": "Dung lượng",
+        "actions": "Thao tác"
+      },
+      "row": {
+        "open_folder": "Mở thư mục",
+        "open_web": "Mở trên web",
+        "open_app": "Mở bằng UniWork Office",
+        "star": "Gắn sao",
+        "unstar": "Bỏ gắn sao",
+        "go_to_source": "Đi tới bản gốc",
+        "download": "Tải xuống",
+        "save_to_folder": "Lưu vào thư mục",
+        "menu": "Thao tác cho {{title}}",
+        "download_failed": "Không thể tải file xuống. Thử lại.",
+        "star_failed": "Không thể cập nhật gắn sao. Thử lại.",
+        "move": "Di chuyển",
+        "archive": "Lưu trữ",
+        "open_chat": "Mở Trò chuyện",
+        "open_email": "Mở Email"
+      },
+      "empty": {
+        "title": "Workspace chưa có tài liệu",
+        "folder_title": "Thư mục này chưa có gì",
+        "description": "Chọn một loại ở hàng Tạo mới phía trên, hoặc kéo thả file vào đây để tải lên.",
+        "view_only": "Bạn chỉ có quyền xem thư mục này.",
+        "recent_title": "Chưa có tài liệu nào gần đây",
+        "recent_description": "Tài liệu bạn mở hoặc sửa sẽ hiện ở đây.",
+        "starred_title": "Chưa gắn sao tài liệu nào",
+        "starred_description": "Gắn sao từ menu ⋯ của một dòng để tìm lại nhanh.",
+        "shared_title": "Chưa có tài liệu nào được chia sẻ với bạn",
+        "shared_description": "Tài liệu người khác chia sẻ với bạn sẽ hiện ở đây.",
+        "archived_title": "Lưu trữ đang trống",
+        "archived_description": "Tài liệu đã lưu trữ hiện ở đây và khôi phục được.",
+        "sources_title": "Chưa có file nào",
+        "sources_description": "File trong trò chuyện, công việc, cuộc họp và email mà bạn xem được sẽ hiện ở đây."
+      },
+      "no_matches_description": "Không có file loại này. Tạo mới ở hàng thẻ phía trên hoặc bỏ lọc.",
+      "no_matches_plain_description": "Không có file loại này. Bỏ lọc để xem tất cả.",
+      "no_matches_more_description": "Chưa thấy file loại này trong phần đã tải. Tải thêm để tìm tiếp hoặc bỏ lọc.",
+      "drop_hint": "Kéo thả file vào bảng để tải lên.",
+      "drop_active": "Thả để tải lên thư mục đang mở",
+      "drop_failed": "Không thể tải lên {{name}}.",
+      "drop_done_one": "Đã tải lên {{count}} file.",
+      "drop_done_other": "Đã tải lên {{count}} file.",
+      "breadcrumb_label": "Đường dẫn thư mục",
+      "save_source": {
+        "title": "Lưu vào thư mục",
+        "description": "Tạo bản sao của {{name}} trong Tài liệu. File gốc vẫn ở chỗ cũ.",
+        "picker_label": "Chọn thư mục",
+        "root": "Thư mục gốc của workspace",
+        "submit": "Lưu",
+        "saved": "Đã lưu bản sao vào Tài liệu.",
+        "failed": "Không thể lưu file vào thư mục. Thử lại."
+      },
+      "move": {
+        "title": "Di chuyển",
+        "description": "Chọn thư mục mới cho {{name}}.",
+        "folder_description": "Chọn thư mục mới cho {{name}}. Mọi thứ bên trong đi cùng.",
+        "submit": "Di chuyển",
+        "moved": "Đã di chuyển."
+      },
+      "open_office": "Mở UniWork Office"
+    },
+    "errors": {
+      "document_parent_kind": "Không đặt được ở đây: thư mục chỉ nằm ở gốc hoặc trong thư mục khác; trang và file nằm trong trang hoặc thư mục.",
+      "document_cycle": "Không thể chuyển một mục vào chính nó hoặc vào mục con của nó.",
+      "document_too_deep": "Cây tài liệu tối đa 5 cấp.",
+      "folder_not_supported": "Thư mục không có nội dung để mở hay chỉnh sửa.",
+      "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa lưu trữ được một lần. Hãy lưu trữ từng phần bên trong trước.",
+      "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu."
     }
   },
   "squads": {
@@ -8324,7 +8744,7 @@
       "download": "Tải UniWork Office",
       "install": {
         "download_failed": "Không thể tải bộ cài. Vui lòng thử lại.",
-        "downloading": "Đang tải…",
+        "downloading": "Đang chuẩn bị…",
         "title": "Tải UniWork Office cho máy tính",
         "not_installed": "Ứng dụng máy tính chưa phản hồi. Cài bản phù hợp rồi bấm Mở lại.",
         "expired": "Lượt mở trên máy tính đã hết hạn. Hãy thử mở lại.",
@@ -8342,7 +8762,6 @@
         "size": "Dung lượng: {{value}}",
         "size_mb": "{{value}} MB",
         "version_line": "Phiên bản {{version}} · kênh {{channel}}",
-        "zip_note": "Tải về dưới dạng tệp ZIP chứa bộ cài.",
         "version_unknown": "chưa rõ",
         "unsigned": "chưa ký",
         "mac_chip_help": "Không chắc loại chip? Xem tại menu Apple → Giới thiệu máy Mac này.",
@@ -8351,7 +8770,7 @@
         "after_download": "Sau khi tải",
         "not_in_channel": "Chưa có bản cho {{os}} ở kênh này.",
         "unsupported": "UniWork Office chưa hỗ trợ thiết bị này. Bạn vẫn có thể tải cho máy khác.",
-        "started": "Đã bắt đầu tải <filename>{{file}}</filename>.",
+        "started": "Đang tải xuống trong trình duyệt: <filename>{{file}}</filename>. Theo dõi tiến độ ở thanh tải xuống của trình duyệt.",
         "description_unavailable": "Kênh này chưa có bản cài đặt. Bạn có thể thử lại sau.",
         "retry": "Thử lại",
         "copy_command": "Sao chép lệnh",
@@ -8387,20 +8806,21 @@
           "linux": "Linux"
         },
         "steps": {
-          "extract": "Giải nén tệp ZIP vừa tải.",
           "win_exe_run": "Chạy tệp {{file}}.",
           "win_exe_unsigned": "Nếu Windows báo \"Windows protected your PC\", chọn More info → Run anyway (bản nội bộ chưa ký).",
-          "win_zip_extract": "Giải nén tiếp tệp {{file}} trong thư mục vừa tải.",
+          "win_zip_extract": "Giải nén tệp {{file}} vừa tải.",
           "win_zip_run": "Chạy uniwork-office*.exe trong thư mục vừa giải nén.",
-          "mac_open": "Giải nén tệp ZIP, rồi mở tệp {{file}}.",
+          "mac_open": "Mở tệp {{file}} vừa tải.",
           "mac_drag": "Kéo UniWork Office vào Applications.",
           "mac_unsigned": "Lần đầu mở: chuột phải vào app → Open → Open (bản nội bộ chưa ký).",
           "deb_install": "Mở tệp {{file}} bằng App Center, hoặc chạy lệnh sau.",
           "deb_open": "Mở UniWork Office từ danh sách ứng dụng. Cần gnome-keyring (mặc định trên Ubuntu) để lưu đăng nhập.",
           "appimage_run": "Cho phép chạy tệp {{file}}, rồi mở bằng lệnh sau.",
-          "appimage_fuse": "Ubuntu 22.04 / 24.04 cần libfuse2. Nếu chưa có, chạy lệnh sau."
+          "appimage_fuse": "Ubuntu 22.04 / 24.04 cần libfuse2. Nếu chưa có, chạy lệnh sau.",
+          "connect": "Cài xong, quay lại trang này và bấm Mở bằng app. UniWork Office sẽ tự kết nối với UniWork của bạn."
         }
-      }
+      },
+      "row_action": "Mở bằng app"
     },
     "save": {
       "status": {

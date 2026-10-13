@@ -39,6 +39,9 @@ func (s *BillingService) RunWorkers(ctx context.Context) {
 			if err := s.ProcessRefundPendingReconcile(ctx); err != nil {
 				s.billingLogWarn("billing refund reconcile tick", err)
 			}
+			if err := s.ProcessStalePaymentIntentReconcile(ctx); err != nil {
+				s.billingLogWarn("billing intent reconcile tick", err)
+			}
 			if err := s.ProcessIntentProviderMetaBackfill(ctx); err != nil {
 				s.billingLogWarn("billing intent meta backfill tick", err)
 			}

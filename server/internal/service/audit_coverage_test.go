@@ -1729,3 +1729,48 @@ func (f *auditFixture) fileDocument(t *testing.T) (*DocumentService, string) {
 	}
 	return svc, id
 }
+
+// Two commands write document.created without owning the action: CreateFolder
+// (a folder is a document of kind folder) and SaveSourceFile (a file copied out
+// of chat, a task, a meeting or a mailbox). TestEveryAuditedCommandWritesItsRow
+// is keyed by action, so a dropped audit write on either would hide behind the
+// other document.created writers. These cases are keyed by command: each runs
+// it and demands an audit row and an outbox row for the document it created.
+func TestReusedAuditActionCommandsWriteTheirOwnRows(t *testing.T) {
+	cases := map[string]func(t *testing.T) (env *docStorageEnv, documentID string){
+		"CreateFolder": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			v, err := env.svc.CreatePage(context.Background(), human(env.tn.member), env.tn.wsA,
+				CreatePageInput{Kind: DocumentKindFolder, Title: "Audit folder"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return env, v.Document.ID
+		},
+		"SaveSourceFile": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
+			svc, store := sourceService(t, env)
+			taskID := s.task(env.tn, env.tn.wsA)
+			attID := s.attachment(env.tn, env.tn.wsA, taskID, "", "audit.pdf")
+			store.objects["workspaces/"+env.tn.wsA+"/attachments/"+attID+"/audit.pdf"] = pdfBody("audit-save")
+			res, err := svc.Save(context.Background(), human(env.tn.member), env.tn.wsA, "task:"+attID,
+				SaveSourceFileInput{IdempotencyKey: "audit-save"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return env, res.Document.ID
+		},
+	}
+	for command, run := range cases {
+		t.Run(command, func(t *testing.T) {
+			env, id := run(t)
+			if n := env.countAudit(t, audit.ActionDocumentCreated, id); n != 1 {
+				t.Fatalf("%s wrote %d document.created audit rows for %s, want 1", command, n, id)
+			}
+			if n := env.countOutbox(t, "document.created", id); n != 1 {
+				t.Fatalf("%s wrote %d document.created outbox rows for %s, want 1", command, n, id)
+			}
+		})
+	}
+}
