@@ -454,6 +454,16 @@
             "TestAIUniworkConversationBoundToScope (another member of the same organization, and another document of the same tenant, both get 409 conversation_expired; no cross-workspace claim)",
             "TestAIUniworkWriteToolsDroppedWhenViewOnly"
           ]
+        },
+        {
+          "task": "G6-03b",
+          "report": "reports/g6-ai_server/g03b-wc-report.md",
+          "tests": [
+            "TestAIUniworkRoutesUseOwnLimiterBucket (router; one 60/min ai-uniwork budget per person across the three routes, separate from ai-byok/ai-cloud — local run exit 0, cloud round re-runs on the lane revision)",
+            "TestAIUniworkRunWithinCapNeverHitsLimiter (router; eleven turns of one run, none refused by the bucket)",
+            "TestAIUniworkGlobalLimiterKeysFrameTokenByIdentity (router; the global limiter names the frame token's person and document, so one address no longer pools every frame)",
+            "TestRateLimitBucketRefusalCode (middleware; the ai-uniwork bucket answers ai_rate_limited + Retry-After: 60, another bucket keeps rate_limited)"
+          ]
         }
       ],
       "status": "NOT_RUN",
@@ -492,9 +502,18 @@
             "TestAIUniworkUpstreamTimeout (504 ai_provider_timeout)",
             "TestAIUniworkUpstreamRateLimitedRetryAfter (429 ai_rate_limited, Retry-After)",
             "TestAIUniworkUpstreamRateLimitedHeader",
-            "TestAIUniworkConcurrencyBound (pod bound: 429 ai_uniwork_busy, retry_after 5 -> Retry-After)",
+            "TestAIUniworkConcurrencyBound (pod bound: 429 ai_uniwork_busy, retry_after 5 on the refusal)",
             "TestAIUniworkOrgBoundWithoutRedis (organization bound without Redis: 429 ai_uniwork_busy)",
             "TestAIUniworkLeasesExpireIndependently (lease lifetime/recovery only; asserts no status/code)"
+          ]
+        },
+        {
+          "task": "G6-03b",
+          "report": "reports/g6-ai_server/g03b-wc-report.md",
+          "tests": [
+            "TestAIUniworkBusySetsRetryAfter (handler: the ai_uniwork_busy refusal carries Retry-After: 5 — the header BE3A-20 asks for, asserted at the layer that writes it)",
+            "TestAIUniworkRateLimitedHasRetryAfter (router: the ai-uniwork bucket answers 429 ai_rate_limited + Retry-After: 60)",
+            "TestAIUniworkStepLimitInJSONAndSSE (handler: x_uniwork.step/limit on the wire at step 0)"
           ]
         }
       ],
@@ -523,6 +542,15 @@
       "gate": "G6-D1",
       "blocker": null,
       "evidence": [],
+      "partialEvidence": [
+        {
+          "task": "G6-03b",
+          "report": "reports/g6-ai_server/g03b-wc-report.md",
+          "tests": [
+            "planned for the cloud round, status untouched: go test ./internal/service -run 'AIUniwork.*Usage' — TestAIUniworkUsageRecordedWhenClientDisconnects, TestAIUniworkUsageUnknownReconcilesOnce, TestAIUniworkUsageUnknownRowAndMetric, TestAIUniworkRunRetryUsageChargedOnce (W-B owns them; this row may only turn PASS once that run is green on the lane revision, exit 0 and 0 SKIP)"
+          ]
+        }
+      ],
       "status": "NOT_RUN",
       "reviewer": "pending reviewer_be (UNI-1376)"
     },

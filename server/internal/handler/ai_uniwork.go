@@ -45,14 +45,13 @@ func (h *handlers) uniworkChat(w http.ResponseWriter, r *http.Request, scope ser
 	defer cancel()
 	turn, err := h.AIUniwork.Chat(ctx, scope, service.UniworkTurnInput{
 		ConversationID: r.Header.Get(ai.UniworkConversationHeader),
+		RunID:          r.Header.Get(ai.UniworkRunHeader),
 		Body:           raw,
 	})
-	// Every answer carries the conversation of the turn, a refusal included
-	// when the service could name one (A12): the client must be able to
-	// continue the conversation the refused turn belongs to.
-	if turn.ConversationID != "" {
-		w.Header().Set(ai.UniworkConversationHeader, turn.ConversationID)
-	}
+	// Every answer carries the ids of the turn, a refusal included when the
+	// service could name them (A12; G6-03b §2): the client continues the
+	// conversation and, from G6-03b, the run it was told about.
+	uniworkAnswerHeaders(w, turn)
 	if err != nil {
 		h.uniworkError(w, ctx, err)
 		return
@@ -104,6 +103,19 @@ func (a *aiHandlers) uniworkFrameChatCompletions(w http.ResponseWriter, r *http.
 	a.uniworkChat(w, r, service.UniworkScope{
 		UserID: userID, OrgID: orgID, DocumentID: chi.URLParam(r, "documentID"), Module: claims.ModuleName(),
 	})
+}
+
+// uniworkAnswerHeaders writes the ids an answer of a turn carries (A12, G6-03b
+// §2): the conversation and the run. An empty id is not written, so a refusal
+// that precedes the run names none and the client keeps the ids it already
+// holds (Q6).
+func uniworkAnswerHeaders(w http.ResponseWriter, turn service.UniworkTurn) {
+	if turn.ConversationID != "" {
+		w.Header().Set(ai.UniworkConversationHeader, turn.ConversationID)
+	}
+	if turn.RunID != "" {
+		w.Header().Set(ai.UniworkRunHeader, turn.RunID)
+	}
 }
 
 // uniworkError answers a failed turn. Two things happen before the shared

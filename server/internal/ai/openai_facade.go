@@ -184,11 +184,13 @@ type UniworkDroppedToolCall struct {
 	Reason string `json:"reason"`
 }
 
-// UniworkExtension is x_uniwork (A13).
+// UniworkExtension is x_uniwork (A13). Step and Limit have no omitempty
+// (G6-03b, BE3A-11): 0 is the first turn's real step and must be emitted;
+// dropped_tool_calls and terminal are absent when they mean nothing.
 type UniworkExtension struct {
 	DroppedToolCalls []UniworkDroppedToolCall `json:"dropped_tool_calls,omitempty"`
-	Step             int                      `json:"step,omitempty"`
-	Limit            int                      `json:"limit,omitempty"`
+	Step             int                      `json:"step"`
+	Limit            int                      `json:"limit"`
 	// Terminal is signed and reserved: the server never emits it in v1; it
 	// exists so G6-05 can already read it (A14).
 	Terminal *UniworkTerminal `json:"terminal,omitempty"`
