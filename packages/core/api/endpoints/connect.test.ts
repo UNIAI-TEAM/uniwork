@@ -70,4 +70,12 @@ describe("connect endpoints", () => {
     requestMock.mockResolvedValue({ enabled: "yes" });
     await expect(getMcpPolicy("acme")).resolves.toBeNull();
   });
+
+  it("returns null when the policy answer to a PUT is malformed", async () => {
+    requestMock.mockResolvedValue({ enabled: "yes" });
+    await expect(setMcpPolicy("acme", true)).resolves.toBeNull();
+    expect(requestMock).toHaveBeenLastCalledWith("/api/v1/orgs/acme/mcp-policy", { method: "PUT", body: { enabled: true } });
+    requestMock.mockResolvedValue(undefined);
+    await expect(setMcpPolicy("acme", true)).resolves.toBeNull();
+  });
 });

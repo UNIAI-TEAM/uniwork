@@ -163,7 +163,7 @@
       "noOrganization": "Chưa tổ chức nào của bạn bật kết nối trợ lý AI. Hãy nhờ quản trị viên bật trong Cài đặt › Truy cập AI.",
       "shares": "Ứng dụng sẽ đọc được",
       "shareTasks": "Công việc của bạn và công việc trong các workspace bạn tham gia, kèm bình luận",
-      "shareMeetings": "Cuộc họp và bản tóm tắt AI, không có bản ghi lời nói",
+      "shareMeetings": "Cuộc họp và bản tóm tắt AI, không có bản ghi lời thoại",
       "shareNot": "Không gồm tin nhắn chat và email",
       "approve": "Cho phép",
       "approving": "Đang cho phép…",
@@ -172,8 +172,8 @@
       "approved": "Đã cho phép. Đang quay lại ứng dụng…",
       "cancelled": "Đã hủy. Đang quay lại ứng dụng…",
       "expired": "Yêu cầu kết nối đã hết hạn. Hãy thêm lại UniWork từ ứng dụng AI.",
-      "error": "Không mở được yêu cầu kết nối.",
-      "errorCode": "Ứng dụng AI gửi một yêu cầu UniWork không chấp nhận ({{code}}).",
+      "error": "Không mở được yêu cầu kết nối. Thử lại, hoặc thêm lại UniWork từ ứng dụng AI.",
+      "errorCode": "Ứng dụng AI gửi một yêu cầu UniWork không chấp nhận ({{code}}). Hãy thêm lại UniWork từ ứng dụng AI.",
       "retry": "Thử lại"
     },
     "forgot": {
@@ -1245,8 +1245,8 @@
       "copy": "Sao chép địa chỉ",
       "copied": "Đã sao chép",
       "section": "Ứng dụng đã kết nối",
-      "empty": "Chưa có ứng dụng AI nào được kết nối.",
-      "error": "Không tải được danh sách ứng dụng.",
+      "empty": "Chưa có ứng dụng AI nào được kết nối. Sao chép địa chỉ ở trên rồi dán vào ứng dụng AI để kết nối.",
+      "error": "Không tải được danh sách ứng dụng. Thử lại.",
       "meta": "{{org}} · kết nối {{created}}",
       "lastUsed": "dùng lần cuối {{when}}",
       "verified": "Đã xác minh",
@@ -1255,7 +1255,7 @@
       "revokeTitle": "Thu hồi {{client}}?",
       "revokeBody": "Ứng dụng mất quyền đọc dữ liệu UniWork ngay. Muốn dùng lại, bạn phải kết nối lại từ ứng dụng.",
       "revoked": "Đã thu hồi {{client}}",
-      "revokeFailed": "Không thu hồi được"
+      "revokeFailed": "Không thu hồi được. Thử lại."
     },
     "aiAccess": {
       "title": "Truy cập của trợ lý AI",
@@ -1264,17 +1264,17 @@
       "toggleLabel": "Cho phép trợ lý AI bên ngoài truy cập",
       "toggleDescription": "Dữ liệu chia sẻ: công việc, bình luận, cuộc họp và tóm tắt AI. Không gồm chat và email. Tắt sẽ chặn ngay mọi ứng dụng đã kết nối.",
       "unavailable": "Tính năng chưa mở cho tổ chức của bạn.",
-      "saveFailed": "Không lưu được thay đổi.",
+      "saveFailed": "Không lưu được thay đổi. Thử lại.",
       "grantsTitle": "Ứng dụng đã kết nối trong tổ chức",
-      "empty": "Chưa ai kết nối ứng dụng AI.",
-      "error": "Không tải được danh sách.",
+      "empty": "Chưa ai kết nối ứng dụng AI. Mỗi thành viên tự kết nối trong Cài đặt › Ứng dụng AI của mình.",
+      "error": "Không tải được danh sách. Thử lại.",
       "meta": "{{user}} · kết nối {{created}}",
       "revoke": "Thu hồi",
       "revokeAria": "Thu hồi {{client}} của {{user}}",
       "revokeTitle": "Thu hồi {{client}}?",
       "revokeBody": "Ứng dụng của {{user}} mất quyền đọc dữ liệu tổ chức ngay.",
       "revoked": "Đã thu hồi {{client}}",
-      "revokeFailed": "Không thu hồi được"
+      "revokeFailed": "Không thu hồi được. Thử lại."
     },
     "state": {
       "load_error": "Không tải được phần này.",

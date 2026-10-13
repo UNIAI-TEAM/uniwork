@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as endpoints from "../api/endpoints/connect";
 import {
@@ -38,7 +39,7 @@ const policy: endpoints.McpPolicy = {
 
 function setup() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  function Wrapper({ children }: { children: React.ReactNode }) {
+  function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
   }
   return { qc, wrapper: Wrapper };
