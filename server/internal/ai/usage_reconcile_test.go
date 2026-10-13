@@ -40,12 +40,17 @@ func (m *reconcileMetrics) IncUniworkUsageReconciled(rows int64) { m.rows += row
 // pass (or a second pod) claims nothing and charges nothing.
 func TestAIUniworkUsageUnknownReconcilesOnce(t *testing.T) {
 	quota := &liveQuota{}
-	g, q, _ := settleFixture(t, &noUsageProvider{Fake: &provider.Fake{}}, quota)
+	g, q, pool := settleFixture(t, &noUsageProvider{Fake: &provider.Fake{}}, quota)
 	ctx := context.Background()
 
+	// Module is the office pack module (docx, xlsx, …), not the genoffice web
+	// module the frame names: the service passes allow.Module, which
+	// UniworkModuleAllowlist built through UniworkPackModule (openai_facade.go:775,
+	// service/ai_uniwork.go:329). The conversation key below keeps the genoffice
+	// name, which is what ConversationKey.Module carries.
 	resp, err := g.Complete(ctx, Request{
 		Actor: audit.User("u1"), OrganizationID: "org-1", Capability: CapOfficeUniworkAI,
-		PromptID: PromptOfficeUniworkAI, Module: "docs",
+		PromptID: PromptOfficeUniworkAI, Module: "docx",
 		History: []provider.Message{{Role: "user", Content: "Ô A1 bằng mấy?"}},
 	})
 	if err != nil {
@@ -77,7 +82,11 @@ func TestAIUniworkUsageUnknownReconcilesOnce(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("insert rate: %v", err)
 	}
-	store, _ := conversationStoreFixture(t)
+	// The transcript store shares the fixture's pool: testutil.DB serializes
+	// tests with a session advisory lock held for the test's lifetime, so a
+	// second call (conversationStoreFixture builds its own) would wait on this
+	// test's own lock forever.
+	store := NewConversationStore(pool, q, testConversationBox(t))
 	conv, err := store.Create(ctx, ConversationKey{OrganizationID: "org-1", UserID: "u1", Module: "docs"})
 	if err != nil {
 		t.Fatalf("create conversation: %v", err)

@@ -121,6 +121,7 @@ Lớp có sẵn: `conflict`, `gone` ("dừng thử lại và rời", `:24-25`), 
 | `change_cursor_expired` | 410 | không lớp | `gone` dạy client "rời đi", trái với full resync; parser feed riêng của G5-04 tự switch theo mã (plan G5-04) | X-03 |
 | `change_cursor_invalid` | 400 | không lớp | Cursor giả/sai scope; không lộ phạm vi | X-03 |
 | `run_limit_reached` | 409 | không lớp | Lô #2 (Q2): 429 khiến fork phân loại thành "AI bận"; dùng 409 như `conversation_expired`, client rẽ nhánh theo mã | X-03 |
+| `run_expired` | 409 | không lớp | Run id không thuộc — lạ, đã hết hạn, của hội thoại khác, của tổ chức khác — là 409 `run_expired`: client bỏ id và hỏi lại như run mới, hội thoại vẫn sống (khác `conversation_expired`) | G6-03b khi giao (Advisor 20:22Z, Q1) |
 | `office_capability_off` | 403, `fields.capability` | không lớp | Flag ẩn capability, không là từ chối quyền (CLAUDE.md › Platform Admin); không nhập vào `permission` để client không chạy đường mất quyền | X-03 |
 | `commit_intent_unknown` | 410 | không lớp | Kết quả intent đã bị dọn: "không biết", không giả "chưa commit" (plan G5-07) | X-03 thêm khi G5-D2 chốt retention; tên chốt ngay |
 | `offline_lease_revoked` | 403 | `permission` | Gia hạn hàng đã revoke, epoch cũ hoặc chữ ký hỏng (xoay `JWT_SECRET`); G5-D1 hàng 15 | G5-08s |

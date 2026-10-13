@@ -133,11 +133,14 @@ trong cùng hội thoại, transcript còn nguyên. Run hết hạn theo TTL c�
 lượt tool-result thiếu header run trả 400 `invalid_request`. Run/usage là hạ tầng AI: **không** có hàng audit mới.
 
 Hết credit `ai.tokens` trả 402 `credits_exhausted` (cùng hình dạng route cloud) **trước** Gateway: không dòng usage,
-không `model_calls`. Provider không trả `usage` → dòng `ai_usage_events` mang `reason_code = usage_unknown`, token/cost
-0, không cộng meter (cộng 0 là nói không ai đếm gì); lượt đối soát trong worker TTL **ước lượng token từ transcript đã
-lưu** (ký tự/4, gồm cả đối số tool call), claim dòng bằng một UPDATE có điều kiện (`usage_unknown_reconciled`, 0 hàng =
-pod khác đã làm) rồi cộng meter **một lần** (idempotent theo id dòng). Dòng usage chính là hàng đợi đối soát — không có
-bảng thứ hai.
+không `model_calls`. Provider không trả `usage` ở **capability `office_uniwork_ai`** → dòng `ai_usage_events` mang
+`reason_code = usage_unknown`, token/cost 0, không cộng meter (cộng 0 là nói không ai đếm gì); lượt đối soát trong worker
+TTL **ước lượng token từ transcript đã lưu** (ký tự/4, gồm cả đối số tool call), claim dòng bằng một UPDATE có điều kiện
+(`usage_unknown_reconciled`, 0 hàng = pod khác đã làm) rồi cộng meter **một lần** (idempotent theo id dòng). Dòng usage
+chính là hàng đợi đối soát — không có bảng thứ hai. Nhánh này chỉ thuộc UniWork AI: chỉ nó có lượt đối soát
+(`AiUniworkUnknownUsageEvents` lọc `capability = 'office_uniwork_ai'`). Capability khác giữ nguyên đường đã định giá
+trước 03b: provider không trả usage ⇒ dòng `succeeded` cost 0 và vẫn cộng meter, nên không có hàng nào nằm chờ vô chủ và
+`ObserveAIUsage` vẫn lấy mẫu cho chúng.
 
 Số cần nhìn:
 
@@ -145,7 +148,7 @@ Số cần nhìn:
 | --- | --- | --- |
 | `uniwork_ai_uniwork_runs_swept_total{reason="expired"}` | Run hết TTL đã xóa | Tăng đều là bình thường |
 | `uniwork_ai_uniwork_runs_swept_total{reason="orphan"}` | Run mồ côi (hội thoại đã bị dọn) | Phải theo sau mỗi lần hội thoại bị dọn trong ≤ 1 phút |
-| `uniwork_ai_uniwork_usage_unknown_total` | Lượt gọi mà provider không trả usage | Tăng = upstream đổi hành vi, **không** phải sự cố: đối soát định giá sau; đối chiếu `ai_usage_events` reason_code `usage_unknown` (hàng đợi) và `usage_unknown_reconciled` (đã định giá) |
+| `uniwork_ai_uniwork_usage_unknown_total` | Lượt gọi `office_uniwork_ai` mà provider không trả usage (capability khác không vào nhánh này) | Tăng = upstream đổi hành vi, **không** phải sự cố: đối soát định giá sau; đối chiếu `ai_usage_events` reason_code `usage_unknown` (hàng đợi) và `usage_unknown_reconciled` (đã định giá) |
 | `uniwork_ai_uniwork_usage_reconciled_total` | Dòng đối soát đã định giá | Theo sau `usage_unknown`; đứng ở 0 trong khi unknown tăng = lượt quét không chạy, hoặc transcript đã hết hạn trước khi kịp đối soát (log `ai: usage reconcile: transcript gone`) |
 | `uniwork_ai_uniwork_run_seconds` | Tuổi run tại mỗi lượt trả lời | Lượt cuối của run = độ dài run; gần 0 liên tục = client mở run mới mỗi lượt (trần không giữ được) |
 | `uniwork_ai_uniwork_run_credits` | Token run đã tiêu sau mỗi lượt | Lượt cuối = tổng của run; vọt bất thường = điều tra prompt/upstream |

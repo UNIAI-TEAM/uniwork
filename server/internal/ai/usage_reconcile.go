@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
-	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util/secretbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -124,12 +123,18 @@ func (r *UsageReconciler) reconcileOne(ctx context.Context, row db.AiUsageEvent)
 	if err != nil {
 		return false, err
 	}
-	// The meter is idempotent per usage event ("ai:<event id>"), so a claimed
-	// row records exactly once even if this branch is reached twice.
+	// The meter is idempotent per usage event ("ai:<event id>", the key the
+	// quota adapter builds from UsageEventID), so a claimed row records
+	// exactly once even if this branch is reached twice.
+	//
+	// The charge carries no actor: who an actor is is the service tier's
+	// decision (ADR 0007, TestActorConstructedOnlyInService), and this pass
+	// has nobody's authority anyway - it is a gateway job pricing a row a
+	// vendor already answered. The usage row keeps the pair it was written
+	// with (actor_id + actor_kind).
 	if r.quota != nil && input+output > 0 {
 		if err := r.quota.Record(ctx, UsageRecord{
 			OrganizationID: claimed.OrganizationID, WorkspaceID: claimed.WorkspaceID.String,
-			Actor:        audit.Actor{ID: claimed.ActorID, Kind: audit.Kind(claimed.ActorKind)},
 			Tokens:       int64(input + output),
 			UsageEventID: claimed.ID,
 		}); err != nil {
