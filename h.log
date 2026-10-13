@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/core exec tsc --noEmit; echo "TC_CORE_EXIT=$?"
+TC_CORE_EXIT=0

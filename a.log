@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+6b3d4599f6c7677312d40c8ae1e66caaecc98b2c
+6b3d4599f6c7677312d40c8ae1e66caaecc98b2c
+6b3d4599f chore(server): merge root 4adb115bc into G8-03 for the BYOK flake fix
+4adb115bc Merge G5-07 commit intent lookup into the G5-G7 root (UNI-1345)
+f8b6a7c7e chore(scripts): let knip skip electron for the keyring probe
+dbd1ed6e2 fix(views): navigate to the external checkout through the navigation adapter
+e302890d4 Merge the headless Linux keyring harness into the G5-G7 root (UNI-1376)
+85e69454a fix(views): clear the lint errors inherited from develop

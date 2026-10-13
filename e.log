@@ -1,0 +1,198 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -v ./migrations/ ./internal/ ./internal/handler/router/; echo "PKG_EXIT=$?"
+=== RUN   TestDocumentCommentsCollabMigrationConvertsLegacyRows
+--- PASS: TestDocumentCommentsCollabMigrationConvertsLegacyRows (0.00s)
+=== RUN   TestDocumentCommentsCollabMigrationRunsOnLegacyRows
+--- PASS: TestDocumentCommentsCollabMigrationRunsOnLegacyRows (0.09s)
+=== RUN   TestEmailHubAttachmentsThreadIndexUsed
+--- PASS: TestEmailHubAttachmentsThreadIndexUsed (0.04s)
+=== RUN   TestEmailHubRefetchBodiesKeepsLocallySentBodies
+--- PASS: TestEmailHubRefetchBodiesKeepsLocallySentBodies (0.04s)
+=== RUN   TestEmailHubDedupeKeepsOldestActiveAddress
+--- PASS: TestEmailHubDedupeKeepsOldestActiveAddress (0.04s)
+=== RUN   TestEmailHubActiveAddressIsUnique
+--- PASS: TestEmailHubActiveAddressIsUnique (0.04s)
+=== RUN   TestFileServiceLocatorUniqueness
+--- PASS: TestFileServiceLocatorUniqueness (0.05s)
+=== RUN   TestFileServiceTenantIsolation
+--- PASS: TestFileServiceTenantIsolation (0.04s)
+=== RUN   TestFileServiceNullTenantAvatarBranch
+--- PASS: TestFileServiceNullTenantAvatarBranch (0.05s)
+=== RUN   TestFileServiceCheckConstraints
+--- PASS: TestFileServiceCheckConstraints (0.05s)
+=== RUN   TestFileServiceAttributionPair
+--- PASS: TestFileServiceAttributionPair (0.04s)
+=== RUN   TestFileServiceIdempotencyBinding
+--- PASS: TestFileServiceIdempotencyBinding (0.05s)
+=== RUN   TestFileServiceSessionClaimWindow
+--- PASS: TestFileServiceSessionClaimWindow (0.06s)
+=== RUN   TestFileServiceRollback
+--- PASS: TestFileServiceRollback (0.05s)
+=== RUN   TestFileServiceJobLeaseAndDedupe
+--- PASS: TestFileServiceJobLeaseAndDedupe (0.05s)
+=== RUN   TestFileServiceFailureCode
+--- PASS: TestFileServiceFailureCode (0.06s)
+=== RUN   TestMigrationFilesHaveMatchingDirections
+--- PASS: TestMigrationFilesHaveMatchingDirections (0.00s)
+=== RUN   TestMigrationNumericPrefixesAreUnique
+--- PASS: TestMigrationNumericPrefixesAreUnique (0.00s)
+=== RUN   TestNewMigrationsHaveNoForeignKeys
+--- PASS: TestNewMigrationsHaveNoForeignKeys (0.01s)
+=== RUN   TestNewMigrationsCreateIndexesConcurrently
+--- PASS: TestNewMigrationsCreateIndexesConcurrently (0.00s)
+=== RUN   TestTaskFoundationTablesAndColumnsExist
+--- PASS: TestTaskFoundationTablesAndColumnsExist (0.04s)
+=== RUN   TestMigrationPrefixesSortTheSameAsStringsAndNumbers
+--- PASS: TestMigrationPrefixesSortTheSameAsStringsAndNumbers (0.00s)
+=== RUN   TestNewTablesCarryOrganizationID
+--- PASS: TestNewTablesCarryOrganizationID (0.00s)
+=== RUN   TestNullTenantIsOnlyTheAvatarBranch
+--- PASS: TestNullTenantIsOnlyTheAvatarBranch (0.00s)
+=== RUN   TestEveryBusinessTableCarriesOrganizationID
+--- PASS: TestEveryBusinessTableCarriesOrganizationID (0.01s)
+=== RUN   TestActorKindOnEveryCreatedBy
+--- PASS: TestActorKindOnEveryCreatedBy (0.01s)
+=== RUN   TestReclaimTestSchemaSkipsNonTestDatabase
+--- PASS: TestReclaimTestSchemaSkipsNonTestDatabase (0.01s)
+=== RUN   TestReclaimTestSchemaNoOpWhenSlotsAreHealthy
+--- PASS: TestReclaimTestSchemaNoOpWhenSlotsAreHealthy (0.04s)
+=== RUN   TestReclaimTestSchemaWhenDroppedColumnSlotsAccumulate
+--- PASS: TestReclaimTestSchemaWhenDroppedColumnSlotsAccumulate (0.92s)
+=== RUN   TestUpIsIdempotent
+--- PASS: TestUpIsIdempotent (0.05s)
+=== RUN   TestOrganizationsGrandfather
+--- PASS: TestOrganizationsGrandfather (1.20s)
+=== RUN   TestRenamedChatMigrationVersions
+--- PASS: TestRenamedChatMigrationVersions (0.02s)
+=== RUN   TestRenamedEmailHubMigrationVersions
+--- PASS: TestRenamedEmailHubMigrationVersions (0.02s)
+=== RUN   TestRenamedChatMigrationVersionsDropsStaleOldRow
+--- PASS: TestRenamedChatMigrationVersionsDropsStaleOldRow (0.02s)
+=== RUN   TestTasksWorkManagementUpgradeFrom106
+--- PASS: TestTasksWorkManagementUpgradeFrom106 (0.67s)
+=== RUN   TestSingleOwnerBackfillDemotesLaterOwners
+--- PASS: TestSingleOwnerBackfillDemotesLaterOwners (0.62s)
+=== RUN   TestVersionsSortNumerically
+--- PASS: TestVersionsSortNumerically (0.00s)
+=== RUN   TestEmbeddedVersionsAreInNumericOrder
+--- PASS: TestEmbeddedVersionsAreInNumericOrder (0.00s)
+=== RUN   TestBehindComparesNumerically
+--- PASS: TestBehindComparesNumerically (0.00s)
+=== RUN   TestEveryQueryNamesItsTenant
+--- PASS: TestEveryQueryNamesItsTenant (0.05s)
+=== RUN   TestTenantReasonsSitOnTenantQueries
+--- PASS: TestTenantReasonsSitOnTenantQueries (0.03s)
+=== RUN   TestTenantColumnIsNotNull
+--- PASS: TestTenantColumnIsNotNull (0.05s)
+=== RUN   TestTenantBackfillCopiesTheParentOrganization
+--- PASS: TestTenantBackfillCopiesTheParentOrganization (0.37s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/migrations	4.910s
+=== RUN   TestLayering
+--- PASS: TestLayering (0.29s)
+=== RUN   TestMembershipDecidedInOnePlace
+--- PASS: TestMembershipDecidedInOnePlace (0.01s)
+=== RUN   TestMemberProfilesWrittenInOnePlace
+--- PASS: TestMemberProfilesWrittenInOnePlace (0.02s)
+=== RUN   TestActorConstructedOnlyInService
+--- PASS: TestActorConstructedOnlyInService (0.01s)
+=== RUN   TestAuditAndOutboxWritesGoThroughTheAuditPackage
+--- PASS: TestAuditAndOutboxWritesGoThroughTheAuditPackage (0.01s)
+=== RUN   TestBillingQueriesStayInBillingServices
+--- PASS: TestBillingQueriesStayInBillingServices (0.04s)
+=== RUN   TestNotificationPreferencesReadInOnePlace
+--- PASS: TestNotificationPreferencesReadInOnePlace (0.01s)
+=== RUN   TestProviderSDKOnlyInAIProvider
+--- PASS: TestProviderSDKOnlyInAIProvider (0.25s)
+=== RUN   TestAIPackageOnlyCallsAiQueries
+--- PASS: TestAIPackageOnlyCallsAiQueries (0.00s)
+=== RUN   TestAdminQueriesStayInAdminService
+--- PASS: TestAdminQueriesStayInAdminService (0.09s)
+=== RUN   TestTableQueryOnlyFromTaskTableService
+--- PASS: TestTableQueryOnlyFromTaskTableService (0.01s)
+=== RUN   TestTaskFoundationQueriesCarryTenantScope
+--- PASS: TestTaskFoundationQueriesCarryTenantScope (0.00s)
+=== RUN   TestFilesContractIsALeafCalledOnlyFromTheServiceTier
+--- PASS: TestFilesContractIsALeafCalledOnlyFromTheServiceTier (0.27s)
+=== RUN   TestGraphTablesWrittenOnlyByProjector
+--- PASS: TestGraphTablesWrittenOnlyByProjector (0.20s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal	1.213s
+=== RUN   TestAIBYOKProxyBudgetsEachSignedInUserAcrossProviders
+    ai_byok_ratelimit_test.go:11: REDIS_TEST_URL not set
+--- SKIP: TestAIBYOKProxyBudgetsEachSignedInUserAcrossProviders (0.00s)
+=== RUN   TestAICloudToolsBudgetEachSignedInUser
+    ai_cloud_ratelimit_test.go:13: REDIS_TEST_URL not set
+--- SKIP: TestAICloudToolsBudgetEachSignedInUser (0.00s)
+=== RUN   TestAICredentialRoutesBudgetEachSignedInUser
+    ai_credentials_ratelimit_test.go:13: REDIS_TEST_URL not set
+--- SKIP: TestAICredentialRoutesBudgetEachSignedInUser (0.00s)
+=== RUN   TestAllCatalogueRoutesAreRegistered
+--- PASS: TestAllCatalogueRoutesAreRegistered (0.53s)
+=== RUN   TestSuiteCatalogueRoutesAreNotFeatureFlagGated
+--- PASS: TestSuiteCatalogueRoutesAreNotFeatureFlagGated (0.00s)
+=== RUN   TestTimelineRouteIsGone
+--- PASS: TestTimelineRouteIsGone (0.54s)
+=== RUN   TestChatPresenceAndTypingBudgetEachSignedInUser
+    chat_presence_ratelimit_test.go:12: REDIS_TEST_URL not set
+--- SKIP: TestChatPresenceAndTypingBudgetEachSignedInUser (0.00s)
+=== RUN   TestEmailHubConnectBudgetsEachSignedInUser
+    email_hub_ratelimit_test.go:12: REDIS_TEST_URL not set
+--- SKIP: TestEmailHubConnectBudgetsEachSignedInUser (0.00s)
+=== RUN   TestEmailHubOAuthStartBudgetsEachSignedInUser
+    email_hub_ratelimit_test.go:30: REDIS_TEST_URL not set
+--- SKIP: TestEmailHubOAuthStartBudgetsEachSignedInUser (0.00s)
+=== RUN   TestEmailHubOAuthCallbackIsOnTheCredentialBudget
+    email_hub_ratelimit_test.go:43: REDIS_TEST_URL not set
+--- SKIP: TestEmailHubOAuthCallbackIsOnTheCredentialBudget (0.00s)
+=== RUN   TestOfficeFrameAIRoutesBindTheirHandlers
+    office_frame_ai_test.go:47: REDIS_TEST_URL not set
+--- SKIP: TestOfficeFrameAIRoutesBindTheirHandlers (0.00s)
+=== RUN   TestOfficeFrameAIRoutesAreNotFoundWithoutFrameAuth
+2026/10/13 06:48:22 WARN http request method=GET path=/api/v1/office-frame/documents/doc-1/ai/credentials status=404 duration=12µs request_id=cursor/98gYtBRJeS-000001 correlation_id=01M4T09X01HFX78T8YS51ABVH1
+--- PASS: TestOfficeFrameAIRoutesAreNotFoundWithoutFrameAuth (0.00s)
+=== RUN   TestOfficeFrameAIBudgetsArePerPersonAndSharedWithTheSessionRoutes
+    office_frame_ai_test.go:101: REDIS_TEST_URL not set
+--- SKIP: TestOfficeFrameAIBudgetsArePerPersonAndSharedWithTheSessionRoutes (0.00s)
+=== RUN   TestOfficeFrameExportBudgetIsPerUserAcrossDocuments
+    office_frame_export_ratelimit_test.go:35: REDIS_TEST_URL not set
+--- SKIP: TestOfficeFrameExportBudgetIsPerUserAcrossDocuments (0.00s)
+=== RUN   TestLiveKitWebhookSkipsTheGlobalRateLimiter
+    ratelimit_test.go:116: REDIS_TEST_URL not set
+--- SKIP: TestLiveKitWebhookSkipsTheGlobalRateLimiter (0.00s)
+=== RUN   TestInRoomLimitersBudgetEachVerifiedCaller
+    ratelimit_test.go:128: REDIS_TEST_URL not set
+--- SKIP: TestInRoomLimitersBudgetEachVerifiedCaller (0.00s)
+=== RUN   TestJoinAndBallotBudgetEachVerifiedCaller
+    ratelimit_test.go:165: REDIS_TEST_URL not set
+--- SKIP: TestJoinAndBallotBudgetEachVerifiedCaller (0.00s)
+=== RUN   TestInRoomReadsAreOffTheCredentialBudget
+    ratelimit_test.go:180: REDIS_TEST_URL not set
+--- SKIP: TestInRoomReadsAreOffTheCredentialBudget (0.00s)
+=== RUN   TestGlobalLimiterBudgetsEachSignedInUser
+    ratelimit_test.go:197: REDIS_TEST_URL not set
+--- SKIP: TestGlobalLimiterBudgetsEachSignedInUser (0.00s)
+=== RUN   TestInRoomReadsSkipTheCredentialLimiter
+--- PASS: TestInRoomReadsSkipTheCredentialLimiter (0.00s)
+=== RUN   TestChatWritesBudgetEachUserPerRoute
+    ratelimit_test.go:247: REDIS_TEST_URL not set
+--- SKIP: TestChatWritesBudgetEachUserPerRoute (0.00s)
+=== RUN   TestEveryRouteFieldIsBound
+--- PASS: TestEveryRouteFieldIsBound (0.53s)
+=== RUN   TestAdminRoutesNeedPlatformRoleSource
+--- PASS: TestAdminRoutesNeedPlatformRoleSource (0.00s)
+=== RUN   TestRouterShedsLoadPastTheInFlightBound
+2026/10/13 06:48:22 ERROR http request method=GET path=/api/v1/config status=503 duration=32µs request_id=cursor/98gYtBRJeS-000003 correlation_id=01M4T09XGVECQBGPH197VB8WHT
+2026/10/13 06:48:22 INFO http request method=GET path=/api/v1/config status=0 duration=99µs request_id=cursor/98gYtBRJeS-000002 correlation_id=01M4T09XGVECQBGPH194GFJ972
+--- PASS: TestRouterShedsLoadPastTheInFlightBound (0.00s)
+=== RUN   TestMotionListIsNotOnTheCredentialBudget
+--- PASS: TestMotionListIsNotOnTheCredentialBudget (0.00s)
+=== RUN   TestCORSPreflightAllowsTheForwardedVendorHeaders
+2026/10/13 06:48:22 INFO http request method=OPTIONS path=/api/v1/orgs/o1/ai/byok/anthropic/messages status=200 duration=5µs request_id=cursor/98gYtBRJeS-000005 correlation_id=01M4T09XGW0F0YK1AKDSBSRZ9W
+2026/10/13 06:48:22 INFO http request method=OPTIONS path=/api/v1/orgs/o1/ai/byok/anthropic/messages status=200 duration=2µs request_id=cursor/98gYtBRJeS-000006 correlation_id=01M4T09XGW0F0YK1AKDTX0PWW9
+2026/10/13 06:48:22 INFO http request method=OPTIONS path=/api/v1/orgs/o1/ai/byok/anthropic/messages status=200 duration=2µs request_id=cursor/98gYtBRJeS-000007 correlation_id=01M4T09XGW0F0YK1AKDW8Z7K6G
+2026/10/13 06:48:22 INFO http request method=OPTIONS path=/api/v1/orgs/o1/ai/byok/anthropic/messages status=200 duration=2µs request_id=cursor/98gYtBRJeS-000008 correlation_id=01M4T09XGW0F0YK1AKDYE7PD9R
+2026/10/13 06:48:22 INFO http request method=OPTIONS path=/api/v1/orgs/o1/ai/byok/anthropic/messages status=200 duration=2µs request_id=cursor/98gYtBRJeS-000009 correlation_id=01M4T09XGW0F0YK1AKE0D236C9
+--- PASS: TestCORSPreflightAllowsTheForwardedVendorHeaders (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	1.626s
+PKG_EXIT=0
