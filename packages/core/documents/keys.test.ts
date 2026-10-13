@@ -38,6 +38,24 @@ describe("documentKeys", () => {
     expect(documentKeys.version("ws1", "d1", 7)).toEqual([...detail, "version", 7]);
     expect(documentKeys.shares("ws1", "d1")).toEqual([...detail, "shares"]);
     expect(documentKeys.comments("ws1", "d1")).toEqual([...detail, "comments"]);
+    expect(documentKeys.mentionCandidates("ws1", "d1")).toEqual([
+      ...detail,
+      "mention-candidates",
+      "",
+      null,
+    ]);
+  });
+
+  it("keeps the mention picker's term and page size apart in the key", () => {
+    expect(documentKeys.mentionCandidates("ws1", "d1", "an", 10)).not.toEqual(
+      documentKeys.mentionCandidates("ws1", "d1", "an"),
+    );
+    expect(documentKeys.mentionCandidates("ws1", "d1", "an", 10)).not.toEqual(
+      documentKeys.mentionCandidates("ws1", "d1", "an", 20),
+    );
+    expect(documentKeys.mentionCandidates("ws1", "d1", "an")).not.toEqual(
+      documentKeys.mentionCandidates("ws1", "d1", "hang"),
+    );
   });
 
   it("defaults the optional segments so a bare list or tree has a stable key", () => {

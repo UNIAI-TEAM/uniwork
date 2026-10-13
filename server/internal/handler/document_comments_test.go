@@ -35,6 +35,7 @@ import (
 type documentCollabWorld struct {
 	srv      *httptest.Server
 	docs     *service.DocumentService
+	q        *db.Queries
 	orgID    string
 	wsID     string
 	token    string // owner
@@ -77,7 +78,7 @@ func newDocumentCollabWorld(t *testing.T) *documentCollabWorld {
 		testFlagOverrides.Invalidate()
 	}
 
-	w := &documentCollabWorld{srv: srv, docs: docs}
+	w := &documentCollabWorld{srv: srv, docs: docs, q: q}
 	w.token, w.userID = filesRegister(t, srv, "collab-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Collab Org", "slug": "collab-org"})
 	if res.StatusCode != 201 {

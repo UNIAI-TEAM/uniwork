@@ -25,7 +25,7 @@ trong `values.yaml`. Jenkins luôn build image + pin digest — **không** còn 
 - [x] `DESKTOP_AUTH_*` đã có trong `uniwork-be.env` (xem mục 3.2).
 - [ ] Sau deploy chạy mục 4.
 
-**B. Origin xem trước: ĐÃ nối sẵn.** `deploy/edge/{route,certificate,apisix-tls}.yaml` có `preview.unicomhub.com`; `PREVIEW_ORIGIN` có trong `uniwork-be.env`; Secret `uniwork-preview` (khóa `PREVIEW_CAPABILITY_SECRET`) khai trong `values.yaml`. Chỉ cần tạo Secret thật.
+**B. Origin xem trước: ĐÃ nối sẵn.** `deploy/edge/{route,certificate,apisix-tls}.yaml` có `preview.uniworkos.com`; `PREVIEW_ORIGIN` có trong `uniwork-be.env`; Secret `uniwork-preview` (khóa `PREVIEW_CAPABILITY_SECRET`) khai trong `values.yaml`. Chỉ cần tạo Secret thật.
 
 **C. Bản cài desktop: có workflow build chưa ký, DevOps vẫn tải lên và điền link.**
 `.github/workflows/office-desktop-installers.yml` (chạy tay: Run workflow, chọn `channel` `dev`/`beta`; hoặc đẩy tag `office-desktop-v<version>-<dev|beta>.<số build>`) build Windows x64 (`-setup.exe`, `.zip`) và Linux x64 (`.deb`, `.AppImage`) **chưa ký**, ghi `SHA256SUMS-<nền tảng>.txt`, gắn vào release và in dòng `OFFICE_INSTALLER_<KÊNH>_URLS=…` ở job summary. `scripts/office/installer-urls.mjs` tạo cùng giá trị đó từ thư mục file (dùng khi copy file sang host khác). macOS `.dmg` **không** có trong workflow (cần máy Mac, chạy tay `package:macos`). Chi tiết: [desktop-packaging.md](desktop-packaging.md) mục "CI installers and `OFFICE_INSTALLER_*_URLS`".

@@ -133,9 +133,9 @@ pipeline {
                 docker build \\
                   --memory=${env.DOCKER_BUILD_MEMORY} \\
                   --memory-swap=${env.DOCKER_BUILD_MEMORY} \\
-                  --build-arg NEXT_PUBLIC_API_URL=https://uniwork.unicomhub.com \\
-                  --build-arg NEXT_PUBLIC_WS_URL=wss://uniwork.unicomhub.com \\
-                  --build-arg NEXT_PUBLIC_APP_URL=https://uniwork.unicomhub.com \\
+                  --build-arg NEXT_PUBLIC_API_URL=https://uniworkos.com \\
+                  --build-arg NEXT_PUBLIC_WS_URL=wss://uniworkos.com \\
+                  --build-arg NEXT_PUBLIC_APP_URL=https://uniworkos.com \\
                   -t ${imageName} \\
                   -f apps/web/Dockerfile .
               """

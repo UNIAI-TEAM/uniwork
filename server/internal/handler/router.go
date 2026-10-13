@@ -701,6 +701,7 @@ func New(d Deps) http.Handler {
 		AddDocumentCommentReaction:    h.addDocumentCommentReaction,
 		RemoveDocumentCommentReaction: h.removeDocumentCommentReaction,
 		ListDocumentCommentRevisions:  h.listDocumentCommentRevisions,
+		ListDocumentMentionCandidates: h.listDocumentMentionCandidates,
 		FavoriteDocument:              h.favoriteDocument,
 		UnfavoriteDocument:            h.unfavoriteDocument,
 		ListDocumentFavorites:         h.listDocumentFavorites,

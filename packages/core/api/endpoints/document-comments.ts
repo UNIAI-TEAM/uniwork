@@ -231,3 +231,55 @@ export async function removeDocumentCommentReaction(
     endpoint: "DELETE /api/v1/documents/{id}/comments/{commentId}/reactions",
   }).status === "ok";
 }
+
+// ---- Mention candidates (G8-06, UNI-1401) --------------------------------
+// One person the mention picker may offer: someone who holds at least view on
+// the document today. `email` is absent, not empty, when the caller may not
+// list the document workspace's members - a reader who reaches the document
+// through a direct share of another workspace sees no email - so the picker
+// reads absence as "not offered", never as "no address".
+
+export const MentionCandidateSchema = z.object({
+  user_id: z.string(),
+  display_name: z.string().optional().default(""),
+  avatar_url: z.string().optional(),
+  email: z.string().optional(),
+});
+export type MentionCandidate = z.infer<typeof MentionCandidateSchema>;
+
+const MentionCandidateListResponse = z.object({
+  candidates: z.array(MentionCandidateSchema),
+});
+
+export interface MentionCandidateQuery {
+  /** Search term over the display name and the email; the server folds
+   *  accents, so "nguyen" finds "Nguyễn". */
+  q?: string;
+  /** Page size; the server clamps to [1, 50] with a default of 20. */
+  limit?: number;
+}
+
+/** GET /api/v1/documents/{documentID}/mention-candidates - the picker's
+ *  people. A malformed answer degrades to an empty list, exactly like the
+ *  comment thread. */
+export async function listDocumentMentionCandidates(
+  documentId: string,
+  query?: MentionCandidateQuery,
+  signal?: AbortSignal,
+): Promise<MentionCandidate[]> {
+  const params = new URLSearchParams();
+  const q = query?.q?.trim();
+  if (q) params.set("q", q);
+  if (query?.limit !== undefined) params.set("limit", String(query.limit));
+  const search = params.toString();
+  const raw = await request(
+    `/api/v1/documents/${enc(documentId)}/mention-candidates${search ? `?${search}` : ""}`,
+    { signal },
+  );
+  return parseWithFallback<{ candidates: MentionCandidate[] }>(
+    raw,
+    MentionCandidateListResponse,
+    { candidates: [] },
+    { endpoint: "GET /api/v1/documents/{id}/mention-candidates" },
+  ).candidates;
+}
