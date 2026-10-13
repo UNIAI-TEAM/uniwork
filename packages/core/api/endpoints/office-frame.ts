@@ -23,6 +23,9 @@ const officeFrameAIGrantSchema = z.object({
   web_search: z.boolean().catch(false),
   image_search: z.boolean().catch(false),
   image_generation: z.boolean().catch(false),
+  // UniWork AI for this document (G6-03c), independent of `ai` (BYOK). Optional so a grant
+  // from an older server still parses; absent and drifted both read as off.
+  uniwork_ai: z.boolean().optional().catch(false),
 });
 
 export type OfficeFrameAIGrant = z.infer<typeof officeFrameAIGrantSchema>;
