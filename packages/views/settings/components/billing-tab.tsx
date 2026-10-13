@@ -199,7 +199,7 @@ export function BillingTab() {
         if (url) {
           saveCheckoutBaseline(orgId, sub);
           toast.message(t("checkout_redirecting"));
-          window.location.assign(url);
+          navigation.openExternal?.(url);
         }
         return;
       }
