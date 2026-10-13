@@ -1,0 +1,363 @@
+{
+  "schemaVersion": 1,
+  "version": "1.1.0",
+  "date": "2026-10-13",
+  "ready": true,
+  "sourceRef": "39042c585c161e0307083cc2b6d959e4cc34b522",
+  "previousSourceRef": "4b7bd3fc082e033c317b9794b4d9b6a949cb92f0",
+  "title": {
+    "vi": "Dữ liệu tổ chức, trang Office công khai và một loạt sửa lỗi Email Hub.",
+    "en": "Organization data controls, a public Office page, and a round of Email Hub fixes."
+  },
+  "summary": {
+    "vi": "Phiên bản 1.1.0 bổ sung xuất và xóa dữ liệu tổ chức cho chủ sở hữu, trang giới thiệu UniWork Office và trang Nhật ký cập nhật công khai, cùng nhiều sửa lỗi trong Email Hub và thanh toán VNPay.",
+    "en": "Version 1.1.0 adds organization data export and deletion for owners, a public UniWork Office page and this changelog, plus a range of Email Hub and VNPay payment fixes."
+  },
+  "note": {
+    "vi": "Xuất và xóa dữ liệu tổ chức dành cho chủ sở hữu tổ chức. Trang Tài liệu phụ thuộc vào việc tổ chức có bật tính năng này. Nút tải bộ cài chỉ hiện với bản đã phát hành. Kết nối email và các tính năng AI vẫn cần cấu hình tương ứng của tổ chức.",
+    "en": "Organization data export and deletion are for organization owners. The Documents home depends on the organization enabling that feature. Installer buttons appear only for published builds. Email connections and AI features still need the organization's corresponding configuration."
+  },
+  "changes": [
+    {
+      "commit": "a1d8c53d5022a921403f4dc38949d308db212f2e",
+      "subject": "feat(privacy): export organization data and erase it after five days",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Organization owners can export the organization's business data as a zip, or schedule deletion of its content after five days and cancel it before the deletion runs; members cannot sign in during those five days, while the activity log and invoices are kept.",
+        "vi": "Chủ sở hữu tổ chức xuất dữ liệu nghiệp vụ thành một tệp zip, hoặc hẹn xóa nội dung tổ chức sau 5 ngày và hủy lệnh trước khi xóa chạy; trong 5 ngày đó thành viên không truy cập được, còn nhật ký hoạt động và hóa đơn được giữ lại."
+      }
+    },
+    {
+      "commit": "a28ef9df5302caf8859fd0306d2f8a5752395aa2",
+      "subject": "chore(secrets): ignore the office pivot test vendor keys",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Repository hygiene: ignores test vendor keys. No application change.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "768dd470f837054d1b75f8415b6ec859ffc14bea",
+      "subject": "fix(privacy): inject the graph wipe so service does not import projector",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Pre-release correction to the organization data export/deletion feature introduced in this same unreleased window (a1d8c53d); internal wiring only, no behaviour visible to users beyond the feature entry.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "2fb17962d80cbebe79248cd7ae097cdb5383f76c",
+      "subject": "fix(privacy): drop the unused export link lifetime constant",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Removes an unused constant in the same unreleased export feature; the 24-hour download window is unchanged and already described by the feature entry.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "9481d30247b43548260eb8069975e0b705330d1b",
+      "subject": "fix(privacy): leave sealed AI provider keys out of the export",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Adjusts what the unreleased export contains (vendor AI provider keys stay out); shipped behaviour is covered by the export feature entry, and naming the key table publicly adds no user value.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "768fddab7062f11312bfa9bfd8d50c7967dac816",
+      "subject": "fix(billing): answer VNPay IPN with the merchant JSON codes",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "VNPay payments are answered with the correct confirmation codes, so a completed payment is no longer treated as unconfirmed and retried.",
+        "vi": "Thanh toán VNPay được phản hồi bằng đúng mã xác nhận, nên giao dịch đã trả không còn bị coi là chưa xác nhận và gọi lại nhiều lần."
+      }
+    },
+    {
+      "commit": "adea71f7d7b076297076d43eddb74258e3fbc453",
+      "subject": "feat(changelog): add public releases and UniAI content review",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "A public changelog at /changelog lists releases by month with new features, improvements and fixes, linked from the main menu and the footer.",
+        "vi": "Trang Nhật ký cập nhật công khai tại /changelog liệt kê các phiên bản theo tháng với tính năng mới, cải tiến và sửa lỗi, có liên kết trên menu chính và chân trang."
+      }
+    },
+    {
+      "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "subject": "UNI-1305: Documents home, Office page and plain installer download (#243)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "A public UniWork Office page at /office with the six editors, real screenshots and per-OS installer buttons; only published installers are shown. The new Documents home — folders, blank docx, pptx and pdf files, and files from chat, tasks, meetings and Email Hub — is available where the organization enables the Documents feature.",
+        "vi": "Trang giới thiệu UniWork Office tại /office với sáu trình soạn, ảnh màn hình thật và nút tải bộ cài theo hệ điều hành; chỉ bản cài đã phát hành mới hiện. Trang Tài liệu mới — thư mục, tạo tệp docx, pptx, pdf trống và tệp từ chat, việc, cuộc họp, Email Hub — dùng được khi tổ chức bật tính năng Tài liệu."
+      }
+    },
+    {
+      "commit": "765afb05838431b559dca639883b04e0abaa6f79",
+      "subject": "test(changelog): keep Office menu contract compatible with release navigation",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only change keeping the Office menu contract compatible with the release navigation.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "205309447d622bc37cd787b5c6b0707bf9306b64",
+      "subject": "ci: give the Go suite an hour under the race detector",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "CI configuration only: raises the Go suite timeout under the race detector.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "cb2733aec4322d35334e953e23ad6058a0149565",
+      "subject": "fix(billing): accept a paid VNPay IPN for an expired intent",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "A payment completed on an expired checkout link is still applied: the plan is upgraded and the invoice is created.",
+        "vi": "Thanh toán thành công trên một liên kết thanh toán đã hết hạn vẫn được ghi nhận: gói được nâng lên và hóa đơn được tạo."
+      }
+    },
+    {
+      "commit": "5e727e48bbd9c29c40c04b707315db20e6c086f1",
+      "subject": "fix(billing): reconcile VNPay checkouts whose IPN never applied",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "When VNPay's callback never arrives, an automatic reconciliation pass rechecks the transaction and applies a paid one, or marks it failed when unpaid.",
+        "vi": "Khi phản hồi thanh toán từ VNPay không về, một lượt đối soát tự động kiểm tra lại giao dịch và áp dụng khoản đã trả, hoặc đánh dấu thất bại nếu chưa trả."
+      }
+    },
+    {
+      "commit": "ec225b32055926015c6afb2eb36a1919642261a4",
+      "subject": "fix(billing): keep a failed VNPay IPN in the inbox for retry",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Keeps a failed payment callback queued for the retry worker and its dead-letter alert; operational reliability behind the VNPay reconciliation fix (5e727e48) already listed, no separate user-visible change.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "71ffdf93b83f81b3b7b7bb3f6530b58373687b6e",
+      "subject": "feat(landing): show real app screenshots in the hero core",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "The landing page shows real captures of the tasks, chat, meetings and document editor screens, in the current language and matching the active light or dark theme.",
+        "vi": "Trang giới thiệu hiển thị ảnh chụp thật của màn hình việc, trò chuyện, cuộc họp và trình soạn tài liệu, theo ngôn ngữ đang dùng và khớp giao diện sáng hoặc tối."
+      }
+    },
+    {
+      "commit": "19779a2b9fd76be467a884c5666dc14129f20c27",
+      "subject": "fix(billing): keep invoice numbers unique inside one reconcile batch",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Correction to the VNPay reconciliation pass (5e727e48) added in this same unreleased window; folded into that fix entry.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "9dc82503bd070e61e17dc4bd3eff51e8de1366cd",
+      "subject": "fix(landing): match hero screenshots to the active theme",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Completes the unreleased landing screenshot work (71ffdf93) with dark-theme captures and theme resolution; folded into that improvement entry.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "bea7437a334f574eb0916083fe1108575338371d",
+      "subject": "fix(storage): block private Email Hub bodies from uploads (#242)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Email Hub message bodies are served only to authorized users and can no longer be read through other file paths.",
+        "vi": "Nội dung thư trong Email Hub chỉ được trả về cho người có quyền, không còn đọc được qua các đường dẫn tệp khác."
+      }
+    },
+    {
+      "commit": "d8d9d6735f802da39818b11f34d4484f1768faf0",
+      "subject": "fix(email-hub): encode non-ASCII email subjects (#245)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Outgoing email subjects with Vietnamese accents are encoded to the standard and no longer appear as broken characters for recipients.",
+        "vi": "Tiêu đề thư gửi đi có dấu tiếng Việt được mã hóa đúng chuẩn nên không còn hiện sai ký tự ở phía người nhận."
+      }
+    },
+    {
+      "commit": "8ca4dcdc17f4c9a17b264412f20895eeaf2e2f40",
+      "subject": "fix(email-hub): bound IMAP dial and login time (#250)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "IMAP now has a time limit when opening the connection and signing in, so an unresponsive mail server reports an error instead of hanging.",
+        "vi": "Kết nối IMAP có thời hạn chờ khi mở kết nối và đăng nhập, nên máy chủ thư không phản hồi sẽ báo lỗi thay vì treo."
+      }
+    },
+    {
+      "commit": "70e7e68ffc6f459dec9a14f590f82c1146f5d7b3",
+      "subject": "fix(email-hub): reply to sent message recipients (#233)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Replying to a message in Sent addresses the original recipients instead of yourself.",
+        "vi": "Trả lời một thư trong mục Đã gửi điền đúng người nhận ban đầu thay vì điền chính bạn."
+      }
+    },
+    {
+      "commit": "3f80e9ff985023a8bc7040b5304a5bca0e92df4f",
+      "subject": "test(email-hub): protect scheduled sent-not-cached handling (#240)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only regression coverage for scheduled sent-not-cached handling.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "0109dcd7ecfa62901b357636b12b2171e13e903a",
+      "subject": "fix(email-hub): align snoozed pagination order (#232)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Paging through the Snoozed folder no longer skips or repeats messages.",
+        "vi": "Phân trang thư mục Tạm ẩn không còn bỏ sót hoặc lặp lại thư."
+      }
+    },
+    {
+      "commit": "13f52758b8fb65f7c7c56d625ad29821034cf795",
+      "subject": "fix(email-hub): reuse cached IMAP capabilities (#237)",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Removes one redundant IMAP CAPABILITY round trip per sync; internal optimization with no behaviour users can observe.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "4ac1f76ba20df9ffe1062b6ce768a2734c0043c2",
+      "subject": "fix(notification): gate email alerts by membership (#239)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "New-mail notifications stop for people who left the organization, were deactivated, or whose organization is suspended.",
+        "vi": "Thông báo thư mới dừng gửi cho người đã rời tổ chức, bị vô hiệu hóa hoặc thuộc tổ chức đang bị đình chỉ."
+      }
+    },
+    {
+      "commit": "56a8b72a1d4332176ae1361423a64694da765366",
+      "subject": "fix(email-hub): keep unread count in sync (#226)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "The unread count stays correct after reading or marking messages on list pages that are already loaded.",
+        "vi": "Số thư chưa đọc cập nhật đúng sau khi đọc hoặc đánh dấu thư ở những trang danh sách đã tải."
+      }
+    },
+    {
+      "commit": "63db9e50bf5f1ab1273abb619174f7ca2ad5bbdd",
+      "subject": "fix(email-hub): create summary tasks atomically (#241)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Creating several tasks from an email summary runs as one unit: a failure part-way leaves no stray tasks and the retry still works.",
+        "vi": "Tạo nhiều việc từ tóm tắt email chạy trọn gói: lỗi giữa chừng không để lại việc thừa và vẫn thử lại được."
+      }
+    },
+    {
+      "commit": "d7bf6a7bd4323ce0c5ace8d31f2ac35d75916f6d",
+      "subject": "fix(email-hub): encode outbound bodies as quoted-printable (#227)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Outgoing mail keeps its Vietnamese accents and line breaks, even when the HTML body is very long.",
+        "vi": "Thư gửi đi giữ đúng dấu tiếng Việt và cách xuống dòng, kể cả khi phần nội dung HTML rất dài."
+      }
+    },
+    {
+      "commit": "7edda0f13968681d35798817688ff6abc3312a61",
+      "subject": "fix(email-hub): isolate AI summaries by thread (#228)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Switching to another message while an AI summary is running no longer shows the previous message's summary and action items on the new one.",
+        "vi": "Đổi sang thư khác khi AI đang tóm tắt không còn làm bản tóm tắt và việc cần làm của thư cũ hiện trên thư mới."
+      }
+    },
+    {
+      "commit": "872812edb8f905bd6add41ed8330ced0b92a52d4",
+      "subject": "fix(email-hub): clear lazy sync state on cleanup (#230)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "A folder's syncing state no longer stays stuck when the filter is changed part-way through.",
+        "vi": "Trạng thái đang đồng bộ của thư mục không còn kẹt khi đổi bộ lọc giữa chừng."
+      }
+    },
+    {
+      "commit": "4fac8a1efe846462a1971035d1dafcc74fc491a6",
+      "subject": "docs(email-hub): document storage environment settings (#247)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documents Email Hub storage environment variables in .env.example and extends the env-example contract test; no application behaviour change.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "39042c585c161e0307083cc2b6d959e4cc34b522",
+      "subject": "fix(email-hub): reselect account after disconnect (#235)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Disconnecting the open mailbox now moves to the most recent remaining mailbox instead of reselecting the one just removed.",
+        "vi": "Ngắt kết nối hộp thư đang mở sẽ chuyển sang hộp thư còn lại mới nhất thay vì chọn lại chính hộp thư vừa gỡ."
+      }
+    }
+  ]
+}
