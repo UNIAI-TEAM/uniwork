@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -6
+bde2e7788a2206424b6fea80b50b32a4825e0ba8
+bde2e7788 chore(office): re-pin the six office frames to web-0.1.0-5083af7
+a223aa84b Merge the X-02 r2b frame host side into the G5-G7 root (UNI-1339)
+4adb115bc Merge G5-07 commit intent lookup into the G5-G7 root (UNI-1345)
+f8b6a7c7e chore(scripts): let knip skip electron for the keyring probe
+dbd1ed6e2 fix(views): navigate to the external checkout through the navigation adapter
+e302890d4 Merge the headless Linux keyring harness into the G5-G7 root (UNI-1376)
