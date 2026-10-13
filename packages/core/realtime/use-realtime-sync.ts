@@ -26,6 +26,7 @@ import { taskKeys } from "../tasks/hooks";
 import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
+import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
 import {
   createInvalidateScheduler,
   shouldInvalidateMeetingDetail,
@@ -344,6 +345,7 @@ function keysFor(
     case "member.invited":
     case "member.joined":
     case "member.removed":
+    case "organization.closed":
     case "organization.ownership_transferred": {
       // The directory and the membership list are keyed by organization SLUG,
       // because that is what the routes carry, while the event payload names
@@ -352,6 +354,7 @@ function keysFor(
       // showing a stale one.
       push(peopleRootKey);
       push(orgMemberRootKey);
+      if (changesOwnMembership(type, payload)) ownMembershipKeys.forEach(push);
       break;
     }
     case "recording.started":
@@ -525,6 +528,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       // Ahead of the chat and email early returns: those frames are the ones
       // that may carry a source file (documents home, "other modules").
       sources.onFrame(eventType, payload);
+      if (changesOwnMembership(eventType, payload)) void reloadSessionUser();
       if (handleChatRealtimeEvent(chatScheduler, eventType, payload)) {
         if (
           payload.room_id &&
