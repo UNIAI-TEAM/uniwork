@@ -464,7 +464,11 @@ func documentCommentMentionRule(ctx context.Context, e env, ev outbox.Row, p map
 	var out []Draft
 	touched := map[string]bool{}
 	for _, r := range rows {
-		if !readable[r.UserID] || isActorOfEvent(ev, r.UserID) {
+		// A row's creator is the author of its token: a self-mention never
+		// notifies the person who wrote it, whichever actor triggers this
+		// event - a later edit by another member that keeps the token must
+		// not resurrect it.
+		if !readable[r.UserID] || isActorOfEvent(ev, r.UserID) || r.CreatedBy == r.UserID {
 			continue
 		}
 		touched[r.UserID] = true

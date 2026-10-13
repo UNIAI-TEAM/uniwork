@@ -397,6 +397,31 @@ func TestDocumentCommentMentionSelfSkipped(t *testing.T) {
 	}
 }
 
+// A self-mention never notifies its own author, whichever actor triggers the
+// event (R1-7): another member's edit that keeps the token must not
+// resurrect it. The row stays stored and unclaimed.
+func TestDocumentCommentMentionSelfKeptOnAnothersEdit(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "workspace", "Tự nhắc giữ tên")
+
+	created := f.commentOf(t, f.member.ID, docID, mentionOf(f.member)+" ghi chú cho tôi", "comment")
+	f.handleComment(t)
+	if n := f.inbox(t, f.member.ID); len(n) != 0 {
+		t.Fatalf("self mention notified its author: %+v", n)
+	}
+
+	// The owner holds manage, so the edit is allowed; the event actor is no
+	// longer the self-mentioner.
+	f.edit(t, f.owner.ID, created.ID, mentionOf(f.member)+" sửa nhưng giữ tên")
+	f.handleAll(t, "document.comment_updated")
+	if n := f.inbox(t, f.member.ID); len(n) != 0 {
+		t.Fatalf("another member's edit resurrected the self-mention: %+v", n)
+	}
+	if state, notified := f.mentionState(t, created.ID, f.member.ID); state != "active" || notified.Valid {
+		t.Fatalf("self mention row = %s/%v, want stored active unclaimed", state, notified)
+	}
+}
+
 // A mention to a user who cannot read the document - org member, no share -
 // is stored no_access (G8-D3 provisional) and notifies nobody.
 func TestDocumentCommentMentionNeedsRead(t *testing.T) {
