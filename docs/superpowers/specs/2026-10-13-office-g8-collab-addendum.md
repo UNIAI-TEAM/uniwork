@@ -6,7 +6,7 @@
 (đăng nhập + liên kết dữ liệu; con UNI-1329, UNI-1330); phase UNI-923.
 **Quan hệ với spec chính:** [spec G5/G6/G7 v1.2](2026-10-02-office-g5-g6-g7-design.md) giữ nguyên; phụ lục này thêm luồng G8.
 Khi phụ lục và spec chính lệch, spec chính thắng (bất biến §3 áp nguyên cho G8). Plan: [plan v2.8 §5.7](../plans/2026-10-12-office-g5-g6-g7.md).
-Spine UX G8: [`docs/office/g5g6g7/ux/EXPERIENCE-G8.md`](../../office/g5g6g7/ux/EXPERIENCE-G8.md) (draft; G8-09 hoàn tất).
+Spine UX G8: [`docs/office/g5g6g7/ux/EXPERIENCE-G8.md`](../../office/g5g6g7/ux/EXPERIENCE-G8.md) (final; G8-09 đã ký 2026-10-13).
 **Bằng chứng hiện trạng:** bản phân tích khoảng trống của Run (`.uniwork-dev/office-g5g6g7/reports/plan-collab/gap-analysis.md`,
 mọi dữ kiện có `file:line`).
 

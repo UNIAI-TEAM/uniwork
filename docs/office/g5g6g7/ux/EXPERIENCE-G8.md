@@ -1,6 +1,6 @@
 ---
 name: UniWork Office — G8 collaboration and sign-in linking surfaces
-status: draft
+status: final
 updated: 2026-10-13
 sources:
   - ../../../superpowers/specs/2026-10-13-office-g8-collab-addendum.md
@@ -10,17 +10,18 @@ sources:
 design: DESIGN.md
 ---
 
-# UniWork Office G8 — Experience Spine (draft)
+# UniWork Office G8 — Experience Spine
 
 Spine này là hợp đồng hành vi cho bề mặt UI của G8 (UNI-1331 bình luận, Discussion, mention, Inbox; UNI-1328 liên kết sau
 đăng nhập). Nó **nối tiếp** [EXPERIENCE.md](EXPERIENCE.md) (G5/G6/G7, `final`): mọi luật chung ở đó (Foundation, Voice and
 Tone, Accessibility Floor › Chung + Vùng live, String catalogue › Số đếm, 21 locale) áp nguyên cho G8 và không chép lại.
 Mọi `§` trỏ vào [phụ lục G8](../../../superpowers/specs/2026-10-13-office-g8-collab-addendum.md); "hợp đồng mục n" trỏ vào
 [contract-collab.md](../contract-collab.md); mã task trỏ vào plan §5.7.
-Trạng thái `draft`: planner r2 (2026-10-13) viết Foundation G8, IA, Accessibility Floor G8 và đầy đủ S16–S18; G8-09
+Trạng thái `final`: người dùng ký G8-09 theo khuyến nghị (2026-10-13): không phím tắt panel ở v1, panel web D không tạo
+bình luận gốc, chữ S12/S13 trung tính, S15 phân biệt theo `params.kind`, các đổi chữ D giao G8-10. Lịch sử: planner r2 (2026-10-13) viết Foundation G8, IA, Accessibility Floor G8 và đầy đủ S16–S18; G8-09
 (2026-10-13) hoàn tất S12–S15 (bảng trạng thái, chuỗi vi/en, định dạng khóa), sửa danh sách file fork theo cây fork
 `origin/main` `63cd2771`, chốt phím tắt và đóng mọi câu hỏi mở; bản vá catalogue (2026-10-13) thêm các khóa mà mockup S16–S18
-phải tự đặt, ghi rõ khóa sẵn có được dùng lại và bên sở hữu, và ghi điều gì ràng buộc khi spine lệch bản G8-16 đã ship; bản vá review r1 (2026-10-13) đối chiếu danh sách file với đầu nhánh G8-08/G8-16/G8-17, đưa chữ dùng chung S12/S13 về trung tính, chốt tab Bình luận chỉ cho định dạng neo được và quyết định từng khóa `documents.comments.*`. Advisor duyệt thay người dùng theo ủy quyền (ghi trong packet).
+phải tự đặt, ghi rõ khóa sẵn có được dùng lại và bên sở hữu, và ghi điều gì ràng buộc khi spine lệch bản G8-16 đã ship; bản vá review r1 (2026-10-13) đối chiếu danh sách file với đầu nhánh G8-08/G8-16/G8-17, đưa chữ dùng chung S12/S13 về trung tính, chốt tab Bình luận chỉ cho định dạng neo được và quyết định từng khóa `documents.comments.*`. Người dùng đã ký (packet-G8-09, mục Decisions).
 Chính tả: chữ UI mới viết "xóa" (`docs/conventions.md`, hợp đồng › Chính tả).
 
 ## Foundation G8
