@@ -1,10 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { OrgMember } from "@uniwork/core/types/people";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Select } from "@uniwork/ui/components/ui/select";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { SettingsFieldError, SettingsLoadError } from "./settings-layout";
 
 /**
@@ -20,6 +22,7 @@ export function TransferCandidateField({
   loading = false,
   isError = false,
   onRetry,
+  empty,
 }: {
   id: string;
   candidates: OrgMember[];
@@ -29,6 +32,11 @@ export function TransferCandidateField({
   loading?: boolean;
   isError?: boolean;
   onRetry?: () => void;
+  /**
+   * Shown under the select once the members are read and nobody can receive
+   * the organization, so the empty list explains itself where it is.
+   */
+  empty?: ReactNode;
 }) {
   const { t } = useTranslation();
   return (
@@ -47,7 +55,12 @@ export function TransferCandidateField({
       {isError ? (
         <SettingsLoadError onRetry={onRetry}>{t("org.transfer.candidates_error")}</SettingsLoadError>
       ) : loading ? (
-        <FieldDescription role="status">{t("org.transfer.loading_candidates")}</FieldDescription>
+        <FieldDescription role="status" className="flex items-center gap-2">
+          <Spinner className="size-3.5 shrink-0" />
+          {t("org.transfer.loading_candidates")}
+        </FieldDescription>
+      ) : empty ? (
+        <FieldDescription role="status">{empty}</FieldDescription>
       ) : null}
     </Field>
   );
