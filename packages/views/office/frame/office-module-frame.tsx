@@ -23,6 +23,7 @@ import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
 import { useDocsFrameSession } from "./use-docs-frame-session";
+import { useFrameComments } from "./use-frame-comments";
 
 export interface OfficeModuleFrameControls {
   save: () => Promise<boolean>;
@@ -56,6 +57,12 @@ export interface OfficeModuleFrameProps {
   desktopOpen?: FrameDesktopOpenProps;
   /** The workspace's document list: a reader who is refused the document is offered the way back there. */
   libraryHref?: string;
+  /** The user's effective level on the document (`my_level`); the editor's comments panel shows only what it allows. */
+  myLevel?: string | null;
+  /** The comment a deep link names (`?comment=`): the editor's panel scrolls to it when it has comments. */
+  revealCommentId?: string | null;
+  /** The editor says whether its own panel is the page's comments panel (a frame that predates comments says no). */
+  onFrameCommentsChange?: (framePanel: boolean) => void;
   className?: string;
 }
 
@@ -91,7 +98,7 @@ function useFrameTheme(): Theme {
  */
 export function OfficeModuleFrame({
   module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, className,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId, onFrameCommentsChange, className,
 }: OfficeModuleFrameProps) {
   const frameApi = api ?? defaultFrameApi(module);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
@@ -111,8 +118,15 @@ export function OfficeModuleFrame({
   // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
+  const frameComments = useFrameComments({ wsId, myLevel, revealCommentId });
+  const { framePanel } = frameComments;
+  const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
+  onFrameCommentsChangeRef.current = onFrameCommentsChange;
+  useEffect(() => { onFrameCommentsChangeRef.current?.(framePanel); }, [framePanel]);
+
   const session = useDocsFrameSession({
     iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
+    comments: frameComments.binding,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
