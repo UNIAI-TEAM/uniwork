@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+0b273ed2ed51c7db504f4c0fae07e3c91c2fd41c
+061101c94d847721fd3a393f935d1c8261fd4e7e
+0b273ed2e feat(core): read the G8 comment list, mentions and history
+60b390012 test(server): cover the G8-03 comment kinds, tokens and delete policy
+b425d0b8c feat(server): add thread kinds, list token, tombstone delete and edit history
+740247169 feat(server): add document comment collab columns, revisions and mentions
+061101c94 Merge the G8-01 collaboration contract into the G5-G7 root (UNI-1396)
+e62da3877 chore(office): raise the Go coverage floor to 73 and record the feed membership window

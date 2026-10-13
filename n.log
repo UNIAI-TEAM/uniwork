@@ -1,0 +1,9 @@
+$ pnpm knip; echo "KNIP_EXIT=$?"
+
+> uniwork@ knip /workspace
+> knip
+
+Duplicate exports (1)
+DOCUMENT_COMMENT_KINDS|DOCUMENT_COMMENT_TYPES  packages/core/types/document.ts
+ ELIFECYCLE  Command failed with exit code 1.
+KNIP_EXIT=1
