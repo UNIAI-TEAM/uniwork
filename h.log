@@ -1,0 +1,6 @@
+$ npm run typecheck -w @genoffice/sheets; echo "TC_SHEETS_EXIT=$?"
+
+> @genoffice/sheets@0.1.0 typecheck
+> tsc --noEmit
+
+TC_SHEETS_EXIT=0

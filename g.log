@@ -1,0 +1,6 @@
+$ npm run typecheck -w @genoffice/pdf; echo "TC_PDF_EXIT=$?"
+
+> @genoffice/pdf@0.1.0 typecheck
+> tsc --noEmit
+
+TC_PDF_EXIT=0

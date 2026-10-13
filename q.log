@@ -1,0 +1,7 @@
+$ FORMAT_BASE_REF=$(git merge-base HEAD origin/main); export FORMAT_BASE_REF; npm run check:english-comments; echo "ENGLISH_COMMENTS_EXIT=$?"
+
+> genoffice@0.1.0 check:english-comments
+> node tools/check-english-comments.mjs
+
+check-english-comments: OK
+ENGLISH_COMMENTS_EXIT=0
