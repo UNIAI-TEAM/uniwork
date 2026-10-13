@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -389,24 +390,40 @@ func blockedAddr(ip netip.Addr) bool {
 // idleBody cancels the request when the vendor goes quiet for longer than
 // the idle budget between chunks, and releases the request on Close.
 type idleBody struct {
-	rc     io.ReadCloser
-	timer  *time.Timer
-	idle   time.Duration
-	cancel context.CancelFunc
-	once   sync.Once
+	rc       io.ReadCloser
+	timer    *time.Timer
+	idle     time.Duration
+	cancel   context.CancelFunc
+	once     sync.Once
+	timedOut atomic.Bool
 }
 
 func newIdleBody(rc io.ReadCloser, idle time.Duration, cancel context.CancelFunc) *idleBody {
-	return &idleBody{rc: rc, timer: time.AfterFunc(idle, cancel), idle: idle, cancel: cancel}
+	b := &idleBody{rc: rc, idle: idle, cancel: cancel}
+	b.timer = time.AfterFunc(idle, func() {
+		b.timedOut.Store(true)
+		cancel()
+	})
+	return b
 }
 
 func (b *idleBody) Read(p []byte) (int, error) {
 	n, err := b.rc.Read(p)
-	if n > 0 {
+	timedOut := b.timedOut.Load()
+	if n > 0 && !timedOut {
 		b.timer.Reset(b.idle)
 	}
-	if err != nil && err != io.EOF {
-		err = fmt.Errorf("%w: %s", ErrUnreachable, transportReason(err))
+	// A peer that sees the cancel and closes writes a normal EOF. ReadAll
+	// turns that into success, so the idle gap must stay an error.
+	if err == io.EOF && !timedOut {
+		return n, err
+	}
+	if err != nil {
+		reason := transportReason(err)
+		if timedOut {
+			reason = "timeout"
+		}
+		err = fmt.Errorf("%w: %s", ErrUnreachable, reason)
 	}
 	return n, err
 }

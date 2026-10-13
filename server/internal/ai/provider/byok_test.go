@@ -317,6 +317,23 @@ func TestBYOKClientIdleAndHeaderTimeouts(t *testing.T) {
 	}
 }
 
+// A peer that closes after the idle cancel looks like a normal EOF. The body
+// must still report the timeout, or ReadAll treats the stall as success.
+func TestIdleBodyReportsUnreachableWhenPeerClosesAfterGap(t *testing.T) {
+	pr, pw := io.Pipe()
+	ctx, cancel := context.WithCancel(context.Background())
+	body := newIdleBody(pr, 30*time.Millisecond, cancel)
+	go func() {
+		_, _ = pw.Write([]byte("data: {}\n\n"))
+		<-ctx.Done()
+		_ = pw.Close()
+	}()
+	_, err := io.ReadAll(body)
+	if !errors.Is(err, ErrUnreachable) {
+		t.Fatalf("idle timeout: %v", err)
+	}
+}
+
 // The client's headers reach the vendor only through the per-protocol
 // allowlist; credentials and cookies never do, and the stored key wins.
 func TestForwardedRequestHeaders(t *testing.T) {
