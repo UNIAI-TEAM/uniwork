@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+2cecf80116f93586d1b28e14a4de9f30ff11bd53
+ef66d871f8d1e14a2c628a1d945c1e9e7a777761
+2cecf8011 docs(office): read the xmin stall by the lag gauge, not has_more
+d1583de36 test(office): widen the cross-workspace move guard past the method name
+95bc98eb1 test(office): fix the three self-contradictory feed fixtures
+6d112e4e8 fix(office): key the demotion removal on the real visibility PATCH
+db3a9094e chore(office): merge root ef66d871f into G5-01b
+ef66d871f fix(office): keep the frame's comments claim across a re-key
+a4bbef3b0 test(office): re-bless the G7-06 goldens at frame pin 0.1.0-811107c
+e5708e53c chore(office): re-pin the six office frames to web-0.1.0-811107c
+8a3169a76 Merge G8-10 web Comments and Discussion panel into the G5-G7 root (UNI-1405)
+77d0f1876 Merge G5-03w new-version host and doc.blocked into the G5-G7 root (UNI-1351)
