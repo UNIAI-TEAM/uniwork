@@ -198,11 +198,21 @@ func (h *handlers) createDocumentComment(w http.ResponseWriter, r *http.Request)
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
+	var anchor json.RawMessage
+	if in.Anchor != nil {
+		anchor = *in.Anchor
+	}
+	baseVersionID := ""
+	if in.BaseVersionID != nil {
+		baseVersionID = *in.BaseVersionID
+	}
 	c, err := h.Documents.AddDocumentComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.AddCommentInput{
-		Body:        in.Body,
-		ParentID:    in.ParentID,
-		CommentType: in.Kind,
-		LegacyType:  in.Type,
+		Body:          in.Body,
+		ParentID:      in.ParentID,
+		CommentType:   in.Kind,
+		LegacyType:    in.Type,
+		Anchor:        anchor,
+		BaseVersionID: baseVersionID,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -253,6 +263,44 @@ func (h *handlers) deleteDocumentComment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	respondJSON(w, http.StatusOK, sdo.DocumentCommentDeleteSDO{Status: "ok", Outcome: outcome})
+}
+
+// putDocumentCommentAnchors is PUT /documents/{documentID}/comments/anchors
+// (G8-04, edit level): the editor's anchor map for the version it just saved.
+// The service resolves version_id inside this tenant + document (400
+// anchor_version_invalid otherwise), never moves an anchor back to an older
+// version, and answers the changed/skipped lists plus the document's
+// list_token. Repeating the same payload changes no row and emits no event.
+func (h *handlers) putDocumentCommentAnchors(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	var in sdi.PutDocumentCommentAnchorsSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	anchors := make([]service.DocumentCommentAnchorItem, 0, len(in.Anchors))
+	for _, a := range in.Anchors {
+		anchors = append(anchors, service.DocumentCommentAnchorItem{
+			CommentID: a.CommentID, Anchor: a.Anchor, State: a.State,
+		})
+	}
+	res, err := h.Documents.PutDocumentCommentAnchors(r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "documentID"), service.DocumentCommentAnchorsInput{VersionID: in.VersionID, Anchors: anchors})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.DocumentCommentAnchorsSDO{
+		Updated:   res.Updated,
+		Skipped:   make([]sdo.DocumentCommentAnchorSkipDTO, 0, len(res.Skipped)),
+		ListToken: res.ListToken,
+	}
+	for _, s := range res.Skipped {
+		out.Skipped = append(out.Skipped, sdo.DocumentCommentAnchorSkipDTO{CommentID: s.CommentID, Reason: s.Reason})
+	}
+	respondJSON(w, http.StatusOK, out)
 }
 
 // listDocumentCommentRevisions is GET

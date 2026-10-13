@@ -17,12 +17,28 @@ WHERE id = $1
   AND workspace_id = $3;
 
 -- name: CreateDocumentComment :one
+-- The anchor trio rides on the create (G8-04): NULL for a discussion, a
+-- reply or any comment with no anchor.
 INSERT INTO document_comments (
   id, organization_id, workspace_id, document_id, author_id, author_kind,
-  body, parent_comment_id, comment_type
+  body, parent_comment_id, comment_type, anchor, anchor_version_id, anchor_state
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 )
+RETURNING *;
+
+-- name: UpdateDocumentCommentAnchor :one
+-- One accepted PUT anchors item (G8-04). The caller proved the row live and
+-- the version never moves back before it reaches here; updated_at moves
+-- because the list_token hashes it.
+UPDATE document_comments
+SET anchor = $4,
+    anchor_version_id = $5,
+    anchor_state = $6,
+    updated_at = now()
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
 RETURNING *;
 
 -- name: UpdateDocumentCommentBody :one

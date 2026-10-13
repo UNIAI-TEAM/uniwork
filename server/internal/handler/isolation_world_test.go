@@ -661,6 +661,7 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	tn.ids["asset"] = isoID(t, out, "asset")
 	out = w.call(t, "POST", dp+"/versions", tn.token, map[string]any{"label": m + " version"})
 	tn.ids["version"] = fmt.Sprint(out["version"].(map[string]any)["version"])
+	tn.ids["versionID"] = isoID(t, out, "version")
 
 	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
 		fields: map[string]string{"title": m + " File"}, filename: strings.ToLower(m) + ".md", contentType: "text/markdown",

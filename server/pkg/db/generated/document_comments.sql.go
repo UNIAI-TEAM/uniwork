@@ -37,9 +37,9 @@ func (q *Queries) CountDocumentCommentReplies(ctx context.Context, arg CountDocu
 const createDocumentComment = `-- name: CreateDocumentComment :one
 INSERT INTO document_comments (
   id, organization_id, workspace_id, document_id, author_id, author_kind,
-  body, parent_comment_id, comment_type
+  body, parent_comment_id, comment_type, anchor, anchor_version_id, anchor_state
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 )
 RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at, anchor, anchor_version_id, anchor_state, deleted_at, deleted_by_id, deleted_by_kind
 `
@@ -54,8 +54,13 @@ type CreateDocumentCommentParams struct {
 	Body            string      `json:"body"`
 	ParentCommentID pgtype.Text `json:"parent_comment_id"`
 	CommentType     string      `json:"comment_type"`
+	Anchor          []byte      `json:"anchor"`
+	AnchorVersionID pgtype.Text `json:"anchor_version_id"`
+	AnchorState     pgtype.Text `json:"anchor_state"`
 }
 
+// The anchor trio rides on the create (G8-04): NULL for a discussion, a
+// reply or any comment with no anchor.
 func (q *Queries) CreateDocumentComment(ctx context.Context, arg CreateDocumentCommentParams) (DocumentComment, error) {
 	row := q.db.QueryRow(ctx, createDocumentComment,
 		arg.ID,
@@ -67,6 +72,9 @@ func (q *Queries) CreateDocumentComment(ctx context.Context, arg CreateDocumentC
 		arg.Body,
 		arg.ParentCommentID,
 		arg.CommentType,
+		arg.Anchor,
+		arg.AnchorVersionID,
+		arg.AnchorState,
 	)
 	var i DocumentComment
 	err := row.Scan(
@@ -625,6 +633,66 @@ type UnresolveDocumentCommentParams struct {
 
 func (q *Queries) UnresolveDocumentComment(ctx context.Context, arg UnresolveDocumentCommentParams) (DocumentComment, error) {
 	row := q.db.QueryRow(ctx, unresolveDocumentComment, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	var i DocumentComment
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.ParentCommentID,
+		&i.AuthorID,
+		&i.AuthorKind,
+		&i.Body,
+		&i.CommentType,
+		&i.Revision,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Anchor,
+		&i.AnchorVersionID,
+		&i.AnchorState,
+		&i.DeletedAt,
+		&i.DeletedByID,
+		&i.DeletedByKind,
+	)
+	return i, err
+}
+
+const updateDocumentCommentAnchor = `-- name: UpdateDocumentCommentAnchor :one
+UPDATE document_comments
+SET anchor = $4,
+    anchor_version_id = $5,
+    anchor_state = $6,
+    updated_at = now()
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+RETURNING id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at, anchor, anchor_version_id, anchor_state, deleted_at, deleted_by_id, deleted_by_kind
+`
+
+type UpdateDocumentCommentAnchorParams struct {
+	ID              string      `json:"id"`
+	OrganizationID  string      `json:"organization_id"`
+	WorkspaceID     string      `json:"workspace_id"`
+	Anchor          []byte      `json:"anchor"`
+	AnchorVersionID pgtype.Text `json:"anchor_version_id"`
+	AnchorState     pgtype.Text `json:"anchor_state"`
+}
+
+// One accepted PUT anchors item (G8-04). The caller proved the row live and
+// the version never moves back before it reaches here; updated_at moves
+// because the list_token hashes it.
+func (q *Queries) UpdateDocumentCommentAnchor(ctx context.Context, arg UpdateDocumentCommentAnchorParams) (DocumentComment, error) {
+	row := q.db.QueryRow(ctx, updateDocumentCommentAnchor,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Anchor,
+		arg.AnchorVersionID,
+		arg.AnchorState,
+	)
 	var i DocumentComment
 	err := row.Scan(
 		&i.ID,

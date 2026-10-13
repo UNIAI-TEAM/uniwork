@@ -97,6 +97,11 @@ var errorClassByCode = map[string]string{
 //   comment_deleted        (409) the target comment is a tombstone (G8-03).
 //     "conflict" would send the client down its reload-and-retry path; the
 //     composer shows "Bình luận này đã bị xóa." and keeps its draft instead.
+//   anchor_version_invalid (400) the anchor's version_id is not this
+//     document's (another document, purged or unknown) (G8-04). One body for
+//     every case, so the route never confirms a version exists elsewhere;
+//     the editor treats its anchor as stale and retries at the next save
+//     receipt.
 //   commit_intent_unknown  (410, fields.outcome="unknown", plan G5-07) the
 //     server holds no commit intent for the key any more (swept after the
 //     resume window) or never did. "gone" would teach the client to leave;

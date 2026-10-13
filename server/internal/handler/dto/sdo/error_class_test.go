@@ -62,6 +62,11 @@ func TestErrorClassTable(t *testing.T) {
 		// app-side only and stays unregistered.
 		"offline_lease_device_required", "offline_lease_limit_reached",
 		"document_archived", "offline_lease_expired",
+		// The comment codes with no class on purpose (contract-collab
+		// section 9): comment_deleted (409) must not send the composer down
+		// the reload path, and anchor_version_invalid (400) is a stale
+		// editor anchor, not a conflict to retry blindly.
+		"comment_deleted", "anchor_version_invalid",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {

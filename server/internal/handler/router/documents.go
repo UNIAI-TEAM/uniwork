@@ -55,6 +55,7 @@ import (
 //	POST   /api/v1/documents/{documentID}/comments/{commentID}/resolve
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}/resolve
 //	GET    /api/v1/documents/{documentID}/comments/{commentID}/revisions   (G8-03)
+//	PUT    /api/v1/documents/{documentID}/comments/anchors                 (G8-04)
 //	POST   /api/v1/documents/{documentID}/comments/{commentID}/reactions
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}/reactions
 //	GET    /api/v1/documents/{documentID}/mention-candidates     (G8-06)
@@ -329,6 +330,16 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		sdo:    sdo.DocumentCommentSDO{},
 		status: 201,
 		auth:   true,
+	})
+	d.Put("/documents/{documentID}/comments/anchors", h.PutDocumentCommentAnchors, apiOp{
+		summary: "Update document comment anchors",
+		description: "Bản đồ neo editor gửi sau receipt Lưu (cần quyền sửa). version_id phải thuộc đúng tài liệu và tenant, không thì 400 anchor_version_invalid và không ghi gì. " +
+			"So sánh bằng số version: neo không bao giờ lùi về phiên bản cũ hơn (bỏ qua trong skipped với older_version); exact chỉ khi version là head, còn lại tự hạ stale; editor báo lost thì giữ lost. " +
+			"Comment không thuộc tài liệu, là discussion, trả lời hoặc đã xóa bị bỏ qua im lặng (not_applicable). Lặp cùng payload không đổi dòng nào, không phát sự kiện; có đổi thì một event document.comment_anchors_updated trong cùng giao dịch.",
+		tags: []string{"documents"},
+		sdi:  sdi.PutDocumentCommentAnchorsSDI{},
+		sdo:  sdo.DocumentCommentAnchorsSDO{},
+		auth: true,
 	})
 	d.Patch("/documents/{documentID}/comments/{commentID}", h.UpdateDocumentComment, apiOp{
 		summary:     "Update a document comment",

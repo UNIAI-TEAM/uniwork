@@ -28,6 +28,17 @@ type AddCommentInput struct {
 	LegacyType    string
 	Origin        string  // e.g. "chat" when mirrored from a thread reply
 	ChatMessageID *string // set when the comment mirrors a chat message
+
+	// Anchor and BaseVersionID are the document anchored-create wire fields
+	// (G8-04): Anchor is the raw per-format JSON, BaseVersionID the version
+	// row the editor wrote it against. AddDocumentComment validates both and
+	// binds the canonical form below; tasks never set them.
+	Anchor        json.RawMessage
+	BaseVersionID string
+
+	// anchor is the validated binding AddDocumentComment resolved for this
+	// create; the document adapter stores it, every other adapter ignores it.
+	anchor *documentCommentAnchor
 }
 
 // UpdateCommentInput edits comment body (revision bump).

@@ -1300,6 +1300,28 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// G8-04: the comment row is anchored to an xlsx version first, so the
+		// PUT has a real binding to change.
+		audit.ActionDocumentCommentAnchorsUpdated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			versionID := seedAnchorVersion(t, f, docID, 1)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{
+				Body: "neo", CommentType: "comment",
+				Anchor:        json.RawMessage(`{"format":"xlsx","v":1,"sheet":"S1","range":"B7"}`),
+				BaseVersionID: versionID,
+			}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.PutDocumentCommentAnchors(f.ctx, Human(f.owner.ID), docID, DocumentCommentAnchorsInput{
+				VersionID: versionID,
+				Anchors: []DocumentCommentAnchorItem{{
+					CommentID: c.ID, Anchor: json.RawMessage(`{"format":"xlsx","v":1,"sheet":"S1","range":"B9"}`), State: "exact",
+				}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentFavorited: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
 			if _, err := svc.FavoriteDocument(f.ctx, Human(f.owner.ID), docID); err != nil {
@@ -1518,6 +1540,7 @@ func auditActions() []string {
 		audit.ActionDocumentCommentUnresolved,
 		audit.ActionDocumentCommentReactionAdded,
 		audit.ActionDocumentCommentReactionRemoved,
+		audit.ActionDocumentCommentAnchorsUpdated,
 		audit.ActionDocumentFavorited,
 		audit.ActionDocumentUnfavorited,
 		audit.ActionDocumentMoved,
@@ -1807,6 +1830,30 @@ func (f *auditFixture) offlineLease(t *testing.T) (*OfficeLeaseService, string, 
 		t.Fatal(err)
 	}
 	return leases, docID, deviceID, l
+}
+
+// seedAnchorVersion gives an audit file document an xlsx current version, so
+// an anchor binds to it (G8-04). The file_id is opaque to the anchor rule -
+// the format comes from the version's mime_type; the audit fixture needs no
+// real FileService row for it.
+func seedAnchorVersion(t *testing.T, f *auditFixture, documentID string, ordinal int) string {
+	t.Helper()
+	doc, err := f.q.GetDocumentByID(f.ctx, documentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	versionID := util.NewID()
+	insertRow(t, f.ctx, f.pool, "document_versions", map[string]any{
+		"id": versionID, "organization_id": doc.OrganizationID, "workspace_id": doc.WorkspaceID,
+		"document_id": doc.ID, "version": ordinal, "kind": "file", "reason": "upload",
+		"file_id":    "01J8X4FILEN1P2Q3R4S5T6U7V8",
+		"mime_type":  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"created_by": doc.CreatedBy, "created_by_kind": "human",
+	})
+	if _, err := f.pool.Exec(f.ctx, "UPDATE documents SET current_version = $1, file_version_id = $2 WHERE id = $3", ordinal, versionID, doc.ID); err != nil {
+		t.Fatalf("point the audit document at its version: %v", err)
+	}
+	return versionID
 }
 
 // Two commands write document.created without owning the action: CreateFolder

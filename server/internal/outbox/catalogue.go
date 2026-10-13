@@ -278,6 +278,7 @@ var catalogue = []EventDef{
 	{Topic: "document.comment_unresolved", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.comment_reaction_added", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.comment_reaction_removed", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_anchors_updated", Version: 1, Payload: []string{"document_id", "workspace_id", "version_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// Favorites are one user's own list; the event reaches that user's
 	// connections (payload.user_id resolves the user scope) and nobody else.
 	{Topic: "document.favorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},

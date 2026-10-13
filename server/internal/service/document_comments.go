@@ -84,12 +84,18 @@ func (documentCommentAdapter) identity(c db.DocumentComment) commentIdentity {
 	}
 }
 
-func (documentCommentAdapter) insert(ctx context.Context, q *db.Queries, ref CommentRef, _ AddCommentInput, p preparedComment) (db.DocumentComment, error) {
-	return q.CreateDocumentComment(ctx, db.CreateDocumentCommentParams{
+func (documentCommentAdapter) insert(ctx context.Context, q *db.Queries, ref CommentRef, in AddCommentInput, p preparedComment) (db.DocumentComment, error) {
+	params := db.CreateDocumentCommentParams{
 		ID: p.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
 		DocumentID: ref.ResourceID, AuthorID: p.AuthorID, AuthorKind: p.AuthorKind,
 		Body: p.Body, ParentCommentID: p.ParentID, CommentType: p.CommentType,
-	})
+	}
+	if in.anchor != nil {
+		params.Anchor = in.anchor.canonical
+		params.AnchorVersionID = pgtype.Text{String: in.anchor.versionID, Valid: true}
+		params.AnchorState = pgtype.Text{String: in.anchor.state, Valid: true}
+	}
+	return q.CreateDocumentComment(ctx, params)
 }
 
 // updateBody writes one edit: the revision row holding the body being
@@ -370,16 +376,29 @@ func (s *DocumentService) AddDocumentComment(ctx context.Context, actor Actor, d
 	var out db.DocumentComment
 	err := s.withDocumentMutation(ctx, actor, documentID, DocumentLevelEdit, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		ref := docCommentRef(doc)
+		// The anchor half of the create (G8-04): validate anchor + base
+		// version inside the document transaction before anything is claimed.
+		anchor, err := prepareDocumentCommentAnchor(ctx, q, doc, in)
+		if err != nil {
+			return err
+		}
+		in.anchor = anchor
 		// The fingerprint binds the document, so a key reused on another
 		// document answers idempotency_payload_mismatch instead of replaying
-		// the first document's comment.
+		// the first document's comment. An anchored create also binds the
+		// canonical anchor hash and its base version, so the same key with a
+		// different anchor is a mismatch, never a replay (contract 2.2).
 		parent := ""
 		if in.ParentID != nil {
 			parent = *in.ParentID
 		}
+		anchorHash, baseVersionID := "", ""
+		if anchor != nil {
+			anchorHash, baseVersionID = anchor.hash, strings.TrimSpace(in.BaseVersionID)
+		}
 		replay, commit, err := BeginIdempotent(ctx, q, ref.OrganizationID, ref.WorkspaceID,
 			idempotencyScopeDocumentCommentCreate, idempotencyKey, actor.ID, IdempotencyOptions{
-				Fingerprint:        IdempotencyFingerprint("document_comment_create", doc.ID, parent, in.CommentType, in.Body),
+				Fingerprint:        IdempotencyFingerprint("document_comment_create", doc.ID, parent, in.CommentType, in.Body, anchorHash, baseVersionID),
 				RequireFingerprint: true,
 			})
 		if err != nil {

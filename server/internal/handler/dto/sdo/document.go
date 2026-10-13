@@ -425,6 +425,27 @@ type DocumentCommentRevisionListSDO struct {
 	Revisions []DocumentCommentRevisionDTO `json:"revisions"`
 }
 
+// DocumentCommentAnchorSkipDTO is one comment the anchor PUT left alone:
+// older_version when the incoming version is behind the stored one,
+// not_applicable for every other skip - unknown comment, another document's
+// comment, a discussion, a reply or a tombstone - so the answer never says
+// which of those it was (contract-collab section 2.6).
+type DocumentCommentAnchorSkipDTO struct {
+	CommentID string `json:"comment_id" description:"ULID bình luận bị bỏ qua" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+	Reason    string `json:"reason" description:"older_version hoặc not_applicable" example:"not_applicable"`
+}
+
+// DocumentCommentAnchorsSDO answers PUT
+// /api/v1/documents/{documentID}/comments/anchors: the comments whose anchor
+// changed, the ones skipped with a reason, and the document's list_token
+// after the write. The caller does not feed this token back as since_token:
+// its list predates the changed rows (contract-collab section 2.6).
+type DocumentCommentAnchorsSDO struct {
+	Updated   []string                       `json:"updated" description:"ULID các bình luận đã đổi neo; rỗng khi không dòng nào đổi" example:"[\"01J8X4CMTN1P2Q3R4S5T6U7V\"]"`
+	Skipped   []DocumentCommentAnchorSkipDTO `json:"skipped" description:"Bình luận bị bỏ qua kèm lý do (older_version, not_applicable)" example:"[]"`
+	ListToken string                         `json:"list_token" description:"list_token của toàn tài liệu sau khi ghi" example:"lt1:9f2c1d3e4b5a"`
+}
+
 // DocumentFavoriteDTO is one favorited document in the caller's list. It
 // carries what a favorites panel needs to open the document without a second
 // read; the full document payload stays on GET /documents/{id}.

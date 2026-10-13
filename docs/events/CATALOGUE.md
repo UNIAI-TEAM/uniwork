@@ -155,6 +155,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.comment_unresolved` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
 | `document.comment_reaction_added` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
 | `document.comment_reaction_removed` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `document.comment_anchors_updated` | 1 | `document_id`, `workspace_id`, `version_id` | — | workspace | outbox |
 | `document.favorited` | 1 | `document_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `document.unfavorited` | 1 | `document_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `document.updated` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |

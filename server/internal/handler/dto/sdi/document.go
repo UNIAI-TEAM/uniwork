@@ -117,6 +117,35 @@ type CreateDocumentCommentSDI struct {
 	ParentID *string `json:"parent_id" description:"ULID bình luận cha cùng tài liệu khi trả lời" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
 	Type     string  `json:"type" description:"Trường cũ: chỉ nhận comment; không quyết định loại luồng" example:"comment"`
 	Kind     string  `json:"kind" description:"comment hoặc discussion; bỏ trống = theo cha, gốc là discussion" example:"discussion"`
+	// Anchor + BaseVersionID (G8-04): an anchored comment is a root
+	// kind=comment whose anchor is written against the version the editor
+	// held. The server validates the anchor against the document's format
+	// and the version against this tenant + document (400
+	// anchor_version_invalid when it does not resolve).
+	Anchor        *json.RawMessage `json:"anchor" description:"Neo theo định dạng tài liệu; chỉ gốc kind=comment" example:"{\"format\":\"xlsx\",\"v\":1,\"sheet\":\"S1\",\"range\":\"B7\"}"`
+	BaseVersionID *string          `json:"base_version_id" description:"ULID phiên bản editor đang mở hoặc vừa Lưu; bắt buộc khi có neo" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+}
+
+// PutDocumentCommentAnchorsSDI is PUT
+// /api/v1/documents/{documentID}/comments/anchors (G8-04): the anchor map
+// the editor sends after a save receipt. version_id names the version just
+// committed; each item carries the comment's new anchor and the state the
+// editor found (exact or lost; the server demotes exact to stale when the
+// version is not the head). The call is idempotent by itself - no
+// Idempotency-Key - and never moves an anchor back to an older version.
+type PutDocumentCommentAnchorsSDI struct {
+	VersionID string `json:"version_id" minLength:"1" description:"ULID phiên bản vừa Lưu (receipt)" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+	// anchors is capped at 500 items (OQ-C5); the element type is named on
+	// purpose so the isolation gate sees DocumentCommentAnchorItemSDI.comment_id.
+	Anchors []DocumentCommentAnchorItemSDI `json:"anchors" description:"Neo mới cho từng bình luận, tối đa 500 phần tử" example:"[{\"comment_id\":\"01J8X4CMTN1P2Q3R4S5T6U7V\",\"anchor\":{\"format\":\"xlsx\",\"v\":1,\"sheet\":\"S1\",\"range\":\"B7\"},\"state\":\"exact\"}]"`
+}
+
+// DocumentCommentAnchorItemSDI is one anchors[] entry of the PUT: the comment
+// to anchor, the new anchor JSON and the state the editor reported.
+type DocumentCommentAnchorItemSDI struct {
+	CommentID string          `json:"comment_id" minLength:"1" description:"ULID bình luận gốc kind=comment" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+	Anchor    json.RawMessage `json:"anchor" description:"Neo mới theo đúng định dạng tài liệu" example:"{\"format\":\"xlsx\",\"v\":1,\"sheet\":\"S1\",\"range\":\"B7\"}"`
+	State     string          `json:"state" minLength:"1" description:"exact khi editor tìm thấy vị trí, lost khi không" example:"exact"`
 }
 
 // ListDocumentCommentsSDI documents the query params of GET

@@ -158,6 +158,7 @@ const (
 	ActionDocumentCommentUnresolved      = "document.comment_unresolved"
 	ActionDocumentCommentReactionAdded   = "document.comment_reaction_added"
 	ActionDocumentCommentReactionRemoved = "document.comment_reaction_removed"
+	ActionDocumentCommentAnchorsUpdated  = "document.comment_anchors_updated"
 	ActionDocumentFavorited              = "document.favorited"
 	ActionDocumentUnfavorited            = "document.unfavorited"
 
