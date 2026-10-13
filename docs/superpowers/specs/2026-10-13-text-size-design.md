@@ -100,6 +100,9 @@ Key mới dưới `settings.preferences` trong cả `vi.json` và `en.json`:
 | `textSizeDefault` | Mặc định | Default |
 | `textSizeLarge` | Lớn | Large |
 | `textSizeXLarge` | Rất lớn | Extra large |
+| `textSizeSample` | Aa | Aa |
+
+`textSizeSample` là chữ mẫu trong ô xem trước. Nó đi qua `t()` vì `i18next/no-literal-string` cấm chuỗi trần trong JSX của `packages/views`.
 
 Thêm dòng `Text size | Cỡ chữ` vào bảng "Generic UI words" trong `docs/conventions.md`, vì bảng thuật ngữ chưa có mục này.
 
@@ -121,8 +124,8 @@ Viết test đỏ trước từng bước.
 `e2e/text-size.spec.ts` (mới):
 
 1. Vào Cài đặt → Tùy chọn, chọn "Rất lớn". Assert `getComputedStyle(document.body).fontSize === "18px"`.
-2. Mở một tài liệu và assert đoạn văn trong editor cũng là 18px. Ca này chứng minh đường `var(--text-*)` theo thang, không chỉ utility class.
-3. Tải lại trang. Assert `<html>` mang attribute ngay sau `domcontentloaded`, trước hydration (boot script đã chạy).
+2. Gắn một phần tử thử có `style="font-size: var(--text-body)"` vào trang và assert nó cũng là 18px. Ca này chứng minh đường `var(--text-*)` (editor đi đường này) theo thang, không chỉ utility class, mà không phụ thuộc dữ liệu tài liệu.
+3. Tải lại trang. Assert `<html>` mang attribute (hook không bao giờ áp lúc mount, nên chỉ boot script đặt được nó) và console không có lỗi hydration.
 4. Ở mức Rất lớn, mở Trang chủ, Công việc, Chat, Tài liệu, Cài đặt. Assert không có cuộn ngang: `document.documentElement.scrollWidth <= window.innerWidth`.
 
 Hồi quy: mức Mặc định giữ nguyên mọi giá trị px, nên các spec contrast và năm spec onboarding phải pass mà không sửa. `make check` chạy trước khi báo xong.
