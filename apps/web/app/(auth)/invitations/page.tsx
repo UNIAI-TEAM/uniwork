@@ -28,5 +28,7 @@ export default function InvitationsPage() {
     [replace, workspaces, user, organizations],
   );
   if (status !== "authed" || step === "verify" || !orgsFetched) return null;
-  return <InvitationsView onEmpty={onEmpty} />;
+  // "Để sau" goes where an empty list would: onboarding, a workspace, or
+  // /get-started.
+  return <InvitationsView onEmpty={onEmpty} onSkip={onEmpty} />;
 }

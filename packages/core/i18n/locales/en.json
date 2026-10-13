@@ -4401,14 +4401,17 @@
   },
   "invitations": {
     "title": "You have an invitation",
-    "subtitle": "Join to start working with your teammates.",
+    "list_title": "Invitations waiting for you",
+    "subtitle": "Open an invitation to see the organization and your role, then join.",
     "loading_description": "Opening your invitation.",
     "invitedBy": "{{name}} invited you to",
     "join": "Join",
     "empty": "No invitations",
-    "role": "as {{role}}",
     "view": "View",
     "viewLabel": "View the invitation to {{name}}",
+    "expires_on": "expires <time>{{date}}</time>",
+    "expires_soon": "Expires soon",
+    "load_error": "Couldn't load your invitations.",
     "see_all": "See my invitations",
     "preview": {
       "title": "Join {{name}}",
@@ -4661,8 +4664,8 @@
       "create_action": "Create organization",
       "join_title": "Join an organization",
       "join_body": "Open an invitation to review it and join.",
-      "join_empty": "No invitations yet. Ask an admin to invite {{email}}.",
-      "load_error": "Couldn't load your invitations."
+      "join_empty_title": "No invitations yet",
+      "join_empty_body": "Ask an admin of the organization to invite <email>{{email}}</email>."
     }
   },
   "ui": {

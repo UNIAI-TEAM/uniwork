@@ -1,58 +1,56 @@
 "use client";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { appHost } from "@uniwork/core/config";
-import { paths } from "@uniwork/core/paths";
 import { useMyInvitations } from "@uniwork/core/workspaces";
-import { buttonVariants } from "@uniwork/ui/components/ui/button";
-import { AppLink } from "../navigation";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { AuthShell } from "../auth/auth-shell";
+import { OnboardingLogoutButton } from "../onboarding/components/onboarding-logout-button";
+import { InvitationList, InvitationListError, InvitationListSkeleton } from "./invitation-list";
 
 /**
  * Danh sách lời mời đang chờ của user. Mỗi dòng mở trang của chính lời mời đó:
  * tham gia chỉ có một luồng, nơi người đang thuộc tổ chức khác được cho thấy
  * việc chuyển tổ chức sẽ đổi gì (ADR 0032). Vì vậy không còn "Tham gia tất cả":
  * một tài khoản chỉ thuộc một tổ chức.
+ *
+ * Cùng AuthShell với /get-started và /invite/{token}: đây là bước ngay sau
+ * đăng nhập, nên phải trông như cùng một mạch. Tiêu đề không đổi giữa lúc tải,
+ * lỗi và có dữ liệu, để AuthShell không kéo focus lên heading khi dữ liệu về.
+ * "Để sau" và "Đăng xuất" là lối ra cho người không muốn lời mời nào ở đây,
+ * hoặc đang đăng nhập nhầm tài khoản.
  */
-export function InvitationsView({ onEmpty }: { onEmpty: () => void }) {
+export function InvitationsView({ onEmpty, onSkip }: { onEmpty: () => void; onSkip: () => void }) {
   const { t } = useTranslation();
-  const { data: invites, isFetched } = useMyInvitations();
+  const { data: invites, isFetched, isError, refetch, isRefetching } = useMyInvitations();
   useEffect(() => {
     if (isFetched && invites && invites.length === 0) onEmpty();
   }, [isFetched, invites, onEmpty]);
-  if (!invites?.length) return null;
+
+  let body;
+  if (isError) {
+    body = <InvitationListError onRetry={() => void refetch()} busy={isRefetching} />;
+  } else if (invites?.length) {
+    body = <InvitationList invitations={invites} label={t("invitations.list_title")} />;
+  } else {
+    // Loading, and the moment between an empty answer and onEmpty's redirect:
+    // the list's shape, never a blank page.
+    body = <InvitationListSkeleton rows={2} />;
+  }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[28rem] flex-col justify-center gap-6 px-6 py-10">
-      <div className="flex flex-col gap-1.5">
-        <h1 className="text-title-lg font-semibold text-foreground">{t("invitations.title")}</h1>
-        <p className="text-body text-muted-foreground">{t("invitations.subtitle")}</p>
+    <AuthShell title={t("invitations.list_title")} description={t("invitations.subtitle")}>
+      <div className="flex flex-col gap-6">
+        {body}
+        {/* Both exits on one quiet row, each against its own edge: the
+            ghost buttons' -ml-2 / -mr-2 put their text on the column's
+            edges, where the list's frame is. */}
+        <div className="flex items-center justify-between gap-3">
+          <OnboardingLogoutButton />
+          <Button type="button" variant="ghost" size="sm" className="-mr-2" onClick={onSkip}>
+            {t("common.later")}
+          </Button>
+        </div>
       </div>
-      <ul className="flex flex-col gap-3">
-        {invites.map((i) => (
-          <li key={i.id} className="flex items-center gap-4 rounded-lg border border-border bg-surface px-5 py-4">
-            <div className="min-w-0 flex-1">
-              <div className="text-caption text-muted-foreground">{t("invitations.invitedBy", { name: i.invited_by.display_name })}</div>
-              <div className="truncate text-body font-medium text-foreground">
-                {i.organization.name}
-                {i.workspace && <> › {i.workspace.name}</>}
-              </div>
-              <div className="truncate font-mono text-caption text-muted-foreground">
-                {appHost()}/{i.organization.slug}
-                {i.workspace && <>/{i.workspace.slug}</>} · {t("invitations.role", { role: i.role })}
-              </div>
-            </div>
-            {/* A link dressed as a button: it navigates. The label names the
-                organization, so a list of "Xem" reads apart by ear. */}
-            <AppLink
-              href={paths.invite(i.token)}
-              aria-label={t("invitations.viewLabel", { name: i.organization.name })}
-              className={buttonVariants({ variant: "outline" })}
-            >
-              {t("invitations.view")}
-            </AppLink>
-          </li>
-        ))}
-      </ul>
-    </div>
+    </AuthShell>
   );
 }

@@ -70,10 +70,12 @@ describe("NoOrganizationView", () => {
     const join = screen.getByRole("region", { name: "Tham gia tổ chức" });
     const first = await within(join).findByRole("link", { name: /Acme › Team/ });
     expect(first).toHaveAttribute("href", "/invite/tok-ws");
-    expect(first).toHaveTextContent("Nguyễn Văn An mời bạn vào");
+    expect(first.closest("li")).toHaveTextContent("Nguyễn Văn An mời bạn vào");
     const second = within(join).getByRole("link", { name: /Beta/ });
     expect(second).toHaveAttribute("href", "/invite/tok-org");
-    expect(second).not.toHaveTextContent("›");
+    expect(second.closest("li")).not.toHaveTextContent("›");
+    // The row names the organization role the invite page will show, not the raw enum.
+    expect(second.closest("li")).toHaveTextContent("Quản trị");
     expect(screen.queryByText(/Chưa có lời mời nào/)).not.toBeInTheDocument();
   });
 
@@ -104,9 +106,30 @@ describe("NoOrganizationView", () => {
   it("without an invitation, says whom to ask and for which address", async () => {
     requestMock.mockResolvedValue({ invitations: [] });
     renderView();
-    expect(
-      await screen.findByText("Chưa có lời mời nào. Hãy nhờ quản trị viên mời email ha@acme.vn."),
-    ).toBeInTheDocument();
+    const title = await screen.findByText("Chưa có lời mời nào");
+    expect(title.closest("[role=status]")).toHaveTextContent("Nhờ quản trị viên của tổ chức mời địa chỉ ha@acme.vn.");
+  });
+
+  it("puts joining first, and creating second as an outline action, once an invitation is waiting", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/me/invitations" ? Promise.resolve({ invitations: [orgInvite] }) : Promise.resolve({}),
+    );
+    renderView();
+    const join = screen.getByRole("region", { name: "Tham gia tổ chức" });
+    await within(join).findByRole("link", { name: /Beta/ });
+    const create = await screen.findByRole("region", { name: "Tạo tổ chức" });
+    expect(join.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(create).getByRole("link", { name: "Tạo tổ chức" })).not.toHaveClass("bg-primary");
+  });
+
+  it("keeps creating first, as the primary action, when no invitation is waiting", async () => {
+    requestMock.mockResolvedValue({ invitations: [] });
+    renderView();
+    const create = await screen.findByRole("region", { name: "Tạo tổ chức" });
+    await screen.findByText("Chưa có lời mời nào");
+    const join = screen.getByRole("region", { name: "Tham gia tổ chức" });
+    expect(create.compareDocumentPosition(join) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(create).getByRole("link", { name: "Tạo tổ chức" })).toHaveClass("bg-primary");
   });
 
   it("says the invitations failed to load, with a retry, instead of claiming there are none", async () => {

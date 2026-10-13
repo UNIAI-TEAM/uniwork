@@ -4400,14 +4400,17 @@
   },
   "invitations": {
     "title": "Bạn có lời mời",
-    "subtitle": "Tham gia để bắt đầu làm việc cùng đồng nghiệp.",
+    "list_title": "Lời mời đang chờ bạn",
+    "subtitle": "Mở một lời mời để xem tổ chức, vai trò và tham gia.",
     "loading_description": "Đang mở lời mời của bạn.",
     "invitedBy": "{{name}} mời bạn vào",
     "join": "Tham gia",
     "empty": "Không có lời mời nào",
-    "role": "với vai trò {{role}}",
     "view": "Xem",
     "viewLabel": "Xem lời mời vào {{name}}",
+    "expires_on": "hết hạn <time>{{date}}</time>",
+    "expires_soon": "Sắp hết hạn",
+    "load_error": "Không tải được danh sách lời mời.",
     "see_all": "Xem lời mời của tôi",
     "preview": {
       "title": "Tham gia {{name}}",
@@ -4657,8 +4660,8 @@
       "create_action": "Tạo tổ chức",
       "join_title": "Tham gia tổ chức",
       "join_body": "Mở một lời mời để xem và tham gia.",
-      "join_empty": "Chưa có lời mời nào. Hãy nhờ quản trị viên mời email {{email}}.",
-      "load_error": "Không tải được danh sách lời mời."
+      "join_empty_title": "Chưa có lời mời nào",
+      "join_empty_body": "Nhờ quản trị viên của tổ chức mời địa chỉ <email>{{email}}</email>."
     }
   },
   "ui": {
