@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/core exec eslint --max-warnings 0 types/notification.ts; echo "ESLINT_CORE_EXIT=$?"
+ESLINT_CORE_EXIT=0

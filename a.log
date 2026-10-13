@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -5
+c7aedc296885a6b9ea9dd6f3ce52d4c025d8fada
+42271ec8a7248cec7a7801023e320907778df3b2
+c7aedc296 test(notification): anchor the G8-05 comment-kind roots so OQ-C2 accepts them
+e8facdb82 test(notification): table-drive document-name titles and the real push boundary
+acebdd913 test(notification): pin verbatim document names in titles
+523260d3a fix(notification): push the short kindTitle for document kinds
+6ac23c170 test(notification): cover the revoked-reader reply and resolve arms
