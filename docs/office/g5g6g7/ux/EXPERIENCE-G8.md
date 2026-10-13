@@ -21,7 +21,7 @@ Trạng thái `final`: người dùng ký G8-09 theo khuyến nghị (2026-10-13
 bình luận gốc, chữ S12/S13 trung tính, S15 phân biệt theo `params.kind`, các đổi chữ D giao G8-10. Lịch sử: planner r2 (2026-10-13) viết Foundation G8, IA, Accessibility Floor G8 và đầy đủ S16–S18; G8-09
 (2026-10-13) hoàn tất S12–S15 (bảng trạng thái, chuỗi vi/en, định dạng khóa), sửa danh sách file fork theo cây fork
 `origin/main` `63cd2771`, chốt phím tắt và đóng mọi câu hỏi mở; bản vá catalogue (2026-10-13) thêm các khóa mà mockup S16–S18
-phải tự đặt, ghi rõ khóa sẵn có được dùng lại và bên sở hữu, và ghi điều gì ràng buộc khi spine lệch bản G8-16 đã ship; bản vá review r1 (2026-10-13) đối chiếu danh sách file với đầu nhánh G8-08/G8-16/G8-17, đưa chữ dùng chung S12/S13 về trung tính, chốt tab Bình luận chỉ cho định dạng neo được và quyết định từng khóa `documents.comments.*`. Người dùng đã ký (packet-G8-09, mục Decisions).
+phải tự đặt, ghi rõ khóa sẵn có được dùng lại và bên sở hữu, và ghi điều gì ràng buộc khi spine lệch bản G8-16 đã ship; bản vá review r1 (2026-10-13) đối chiếu danh sách file với đầu nhánh G8-08/G8-16/G8-17, đưa chữ dùng chung S12/S13 về trung tính, chốt tab Bình luận chỉ cho định dạng neo được và quyết định từng khóa `documents.comments.*`. Người dùng đã ký (packet-G8-09, mục Decisions). Bản vá FD-01 (UNI-1461, 2026-10-13, sau khi người dùng ký FD-D10 = a của UNI-1425): S18 bỏ ca tên trùng cho tài liệu, `uwDocNameTaken` không còn dùng cho tài liệu, mockup `account-library.html` bỏ hai khung S18 "tên trùng"; lane G8-09 đã đóng nên FD-01 mang bản vá này.
 Chính tả: chữ UI mới viết "xóa" (`docs/conventions.md`, hợp đồng › Chính tả).
 
 ## Foundation G8
@@ -263,7 +263,7 @@ heading là câu thông điệp, nút `inboxBack` ngay sau; **panel** = tài li�
 | --- | --- |
 | Tài liệu mới | Hộp thoại `uwDocNew`: tên `uwDocName` (bắt buộc), loại `uwDocType`, nơi lưu `uwDocLocation` (hai ô chọn: workspace `uwPickWorkspace` rồi thư mục, mục đầu `uwDocLocationTop`); loại là nhóm radio chỉ mang tên định dạng DOCX / XLSX / PPTX (tên định dạng, không dịch, không khóa); nút `uwDocCreate` / `cancel`; tạo xong mở tab theo id; không tạo bản sao cục bộ thứ hai |
 | Tải lên | `uwDocUpload`: nút `uwDocUploadPick` (mở hộp chọn tệp của hệ điều hành: `uploadPickTitle`, bộ lọc `uploadPickDocuments` / `uploadPickAll`, chuỗi main process) rồi tên tệp đã chọn → nơi lưu; tiến trình theo pattern Progress của EXPERIENCE, câu `uwDocUploading`; `cancel` |
-| Đổi tên | `uwDocRename`: sửa tại chỗ trong hàng (ô có nhãn ẩn thị giác = `uwDocName` · tên hiện tại) hoặc hộp thoại; Enter lưu, Esc hủy; tên rỗng/trùng → lỗi tại trường (`uwDocNameEmpty`, `uwDocNameTaken`) |
+| Đổi tên | `uwDocRename`: sửa tại chỗ trong hàng (ô có nhãn ẩn thị giác = `uwDocName` · tên hiện tại) hoặc hộp thoại; Enter lưu, Esc hủy; tên rỗng → lỗi tại trường (`uwDocNameEmpty`); tên quá 500 ký tự bị server từ chối (400) → theo hàng "Lỗi server" bên dưới (không thêm khóa); tên trùng tài liệu khác **được phép** (FD-D10 a, UNI-1425: server không chặn trùng tài liệu, không có lỗi trùng cho tài liệu) |
 | Lưu trữ / khôi phục | Menu "…" (nút `aria-label` = `uwDocActionsFor` với `{name}` = tên tài liệu); `uwDocArchive` có xác nhận một bước (`uwDocArchiveConfirm`) / `uwDocRestore`; hàng đã lưu trữ mang chữ `uwDocArchived`; không có "Xóa vĩnh viễn" trong app |
 | Quyền `view` | Mục thao tác không hiện (không phải `aria-disabled`: người xem không có hành động này) |
 | Đổi tên ở nơi khác | Tiêu đề tab đổi ở lần làm mới metadata (feed hoặc khi focus); câu polite `uwDocRenamedAnnounce` |
@@ -499,7 +499,7 @@ Shard `uniwork-documents` của shell, 19 locale còn lại dịch máy có revi
 | `uwDocArchive` / `uwDocRestore` | Lưu trữ / Khôi phục | Archive / Restore |
 | `uwDocArchiveConfirm` | Lưu trữ “{name}”? Bạn có thể khôi phục sau. | Archive “{name}”? You can restore it later. |
 | `uwDocNameEmpty` | Hãy nhập tên tài liệu. | Enter a document name. |
-| `uwDocNameTaken` | Đã có tài liệu cùng tên ở đây. | A document with this name already exists here. |
+| `uwDocNameTaken` | Đã có tài liệu cùng tên ở đây. | A document with this name already exists here. — **không dùng cho tài liệu** từ FD-D10 a (2026-10-13); giữ dòng để G8-17 gỡ khóa khỏi shard khi bỏ nhánh lỗi trùng |
 | `uwDocRenamedAnnounce` | Tài liệu đã được đổi tên thành {name}. | The document was renamed to {name}. |
 | `uwDocActionFailed` | Không thực hiện được. Hãy thử lại. | That didn’t work. Try again. |
 | `uwDocActionsFor` | Thao tác khác cho “{name}” | More actions for “{name}” |

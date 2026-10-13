@@ -27,7 +27,7 @@
     "manifest"
   ],
   "rowRules": [
-    "One row per requirement id in spec Section 9.1: G5-A01..G5-A08, G6-A01..G6-A10, G7-A01..G7-A05, plus G8-A01..G8-A10 from the G8 addendum (plan Section 5.7 acceptance table, UNI-1331/UNI-1328).",
+    "One row per requirement id in spec Section 9.1: G5-A01..G5-A08, G6-A01..G6-A10, G7-A01..G7-A05, plus G8-A01..G8-A10 from the G8 addendum (plan Section 5.7 acceptance table, UNI-1331/UNI-1328), plus FD-A01..FD-A12 = AC-01..AC-12 of UNI-1425 (plan Section 5.8 acceptance table, epic E6).",
     "fixtures[] name a manifest id and repeat that manifest entry's sha256; the sibling test reads the hash from the manifest and never hardcodes it.",
     "A row is PASS only with an evidence record whose result is PASS, exit code 0, an artifact on disk and one record per fixture it names; a result other than PASS is never counted as PASS.",
     "Every row carries evidenceRequired: the artifacts and records that would prove it, so a row without an evidence plan fails even while it is NOT_RUN.",
@@ -41,7 +41,8 @@
     "G6": 10,
     "G7": 5,
     "G8": 10,
-    "total": 33
+    "total": 45,
+    "FD": 12
   },
   "reviewerGate": "pending reviewer_be (UNI-1376)",
   "evidence": [],
@@ -50,22 +51,36 @@
       "id": "G5-A01",
       "title": "Snapshot nhiều trang + concurrent writers + retention không mất thay đổi; cursor tiến qua sự kiện bị lọc",
       "owner": "Lead D + Lead F",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert the paged snapshot is consistent at its high-water mark, a commit that lands between the snapshot and the first feed page appears exactly once, retention never drops a change the client has not acknowledged, and a cursor advances past a page whose events are all filtered."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the change-feed receipts for the concurrent-writer and retention cases.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A commit that lands between the snapshot and the first feed page must not be lost or delivered twice.",
         "A page made only of filtered events must not leave the cursor stuck, and an expired cursor must answer change_cursor_expired instead of a partial page.",
         "Retention must never drop a change the client has not acknowledged."
       ],
-      "tasks": ["G5-01a", "G5-01b", "G5-02", "G5-04"],
+      "tasks": [
+        "G5-01a",
+        "G5-01b",
+        "G5-02",
+        "G5-04"
+      ],
       "gate": "G5-D2",
       "blocker": null,
       "evidence": [],
@@ -76,22 +91,33 @@
       "id": "G5-A02",
       "title": "Grant/revoke/tombstone/move/Work Product ACL không lộ metadata và không resurrect file",
       "owner": "Lead D",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert the incremental feed leaks no metadata of a document the caller lost access to, a revocation removal payload carries ids and revision only, and a tombstone never resurrects an archived or deleted document."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-md-notes-vi with result PASS, each with its artifact, plus the ACL removal payloads showing ids and revision only.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
-        { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        },
+        {
+          "id": "fx-md-notes-vi",
+          "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def"
+        }
       ],
       "negativeCases": [
         "A grant, revoke, move, archive or restore must not leak a title, name or metadata the caller may no longer read.",
         "A tombstone must not resurrect a deleted document on a later page.",
         "A Work Product ACL fan-out must not create a private ACL of its own while the C-14 owner resolver is absent."
       ],
-      "tasks": ["G5-01b"],
+      "tasks": [
+        "G5-01b"
+      ],
       "gate": null,
       "blocker": null,
       "evidence": [],
@@ -102,22 +128,36 @@
       "id": "G5-A03",
       "title": "Web lưu → desktop nhận và desktop lưu → web nhận, cùng version/checksum; dirty editor không bị thay",
       "owner": "Lead F + Lead D + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert both directions of a cross-host save land on the same version id and checksum, and a dirty editor is never replaced by the incoming version."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS from both hosts, each with its artifact, plus the version ids and checksums the two hosts report.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A web save must not reach the desktop app as a different version or checksum.",
         "An incoming version must not overwrite or silently discard a dirty editor buffer.",
         "A missed realtime event must be recovered from the change feed rather than left as a silent divergence."
       ],
-      "tasks": ["G5-03w", "G5-03a", "G7-10", "G7-04"],
+      "tasks": [
+        "G5-03w",
+        "G5-03a",
+        "G7-10",
+        "G7-04"
+      ],
       "gate": null,
       "blocker": null,
       "evidence": [],
@@ -128,22 +168,34 @@
       "id": "G5-A04",
       "title": "Offline pin đủ file/assets/checksum; interrupted download/disk full/corrupt cache không báo ready giả",
       "owner": "Lead F + QA",
-      "host": ["desktop"],
+      "host": [
+        "desktop"
+      ],
       "oracle": {
         "type": "object/part",
         "assertion": "Assert the offline pin holds every declared file, asset and checksum, and an interrupted download, a full disk or a corrupt cache never reports the library as ready."
       },
       "evidenceRequired": "A recorded run on fx-pdf-invoice-vi and one on fx-html-page-vi with result PASS, each with its artifact, plus the pin manifest of files, assets and checksums the app resolved.",
       "fixtures": [
-        { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" },
-        { "id": "fx-html-page-vi", "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884" }
+        {
+          "id": "fx-pdf-invoice-vi",
+          "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd"
+        },
+        {
+          "id": "fx-html-page-vi",
+          "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884"
+        }
       ],
       "negativeCases": [
         "An interrupted download, a disk-full write or a corrupt cache must not mark the pin ready.",
         "A missing asset or a checksum mismatch must fail the pin instead of being served from a partial cache.",
         "An offline capability that a gate has not approved must not be enabled by a passing local run."
       ],
-      "tasks": ["G5-05", "G5-05u", "G7-03b"],
+      "tasks": [
+        "G5-05",
+        "G5-05u",
+        "G7-03b"
+      ],
       "gate": "G5-D1",
       "blocker": {
         "gate": "G5-D1",
@@ -158,21 +210,32 @@
       "id": "G5-A05",
       "title": "Save offline → crash/restart → reconnect: một receipt/version; N+1 còn dirty, không tự lưu",
       "owner": "Lead F + QA",
-      "host": ["desktop"],
+      "host": [
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert one offline save that survives a crash and a restart produces exactly one receipt and one version after reconnect, and an edit made while the save runs stays dirty."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the receipt and version rows the reconnect produced after the crash.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A crash or restart between the local checkpoint and the commit must not create a second version or a duplicate receipt.",
         "An edit made while save N runs (N+1) must not be submitted with N's payload or auto-saved on reconnect.",
         "A queue limit that the G5-D3 spine decision has not fixed must not be treated as an approved limit."
       ],
-      "tasks": ["G5-06", "G5-06u", "G5-10", "G7-10", "G7-03a"],
+      "tasks": [
+        "G5-06",
+        "G5-06u",
+        "G5-10",
+        "G7-10",
+        "G7-03a"
+      ],
       "gate": "G5-D3",
       "blocker": null,
       "evidence": [],
@@ -183,21 +246,31 @@
       "id": "G5-A06",
       "title": "Expired upload/idempotency, timeout-after-commit, cancel race và late response không duplicate/overwrite",
       "owner": "G1/FileService + Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert an expired upload, a timeout after commit, a cancel race and a late response each reconcile to one version with no duplicate upload and no overwrite."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the version and upload rows each of the four race cases reconciled to.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        }
       ],
       "negativeCases": [
         "A timeout after commit must not produce a second version or a second upload of the same bytes.",
         "A cancel race or a late response must not overwrite a newer version or resurrect a fenced attempt.",
         "An intent lookup whose retention window has been purged must answer unknown with its own code, never a fabricated not-committed."
       ],
-      "tasks": ["G5-06", "G5-07", "G7-03a"],
+      "tasks": [
+        "G5-06",
+        "G5-07",
+        "G7-03a"
+      ],
       "gate": "G5-D2",
       "blocker": null,
       "evidence": [],
@@ -208,21 +281,32 @@
       "id": "G5-A07",
       "title": "Lease/expiry/clock rollback/revoke/logout A→B/deployment switch/keystore lock đúng policy được duyệt",
       "owner": "Auth + Lead F + QA",
-      "host": ["desktop"],
+      "host": [
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert an expired lease, a rolled-back clock, a revocation, a logout A to B, a deployment switch and a locked keystore each follow the approved policy with no plaintext left behind."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the lease decisions and the keystore state for each policy case.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A rolled-back clock or an expired lease must not extend offline rights beyond the approved policy.",
         "A logout A to B or a deployment switch must not leave account A's key, plaintext or ciphertext readable by B.",
         "A locked keystore must block the save path instead of degrading to an unprotected store."
       ],
-      "tasks": ["G5-04", "G5-08s", "G5-08c", "G5-11", "G7-03b"],
+      "tasks": [
+        "G5-04",
+        "G5-08s",
+        "G5-08c",
+        "G5-11",
+        "G7-03b"
+      ],
       "gate": "G5-D1",
       "blocker": {
         "gate": "G5-D1",
@@ -237,22 +321,37 @@
       "id": "G5-A08",
       "title": "Conflict giữ hai bản, copy giữ owner/ACL/provenance; queue cancel không mất nháp",
       "owner": "Lead F + Lead D + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert a conflict keeps both copies with the copy retaining owner, ACL and provenance, and cancelling a queued intent loses no draft."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-pptx-deck-vi with result PASS, each with its artifact, plus both conflicting copies with their owner, ACL and provenance.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-pptx-deck-vi",
+          "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20"
+        }
       ],
       "negativeCases": [
         "A conflict must not overwrite or delete either copy, and the losing side must not rebase a binary automatically.",
         "A downloaded or copied copy must not lose its owner, ACL or provenance.",
         "Cancelling a queued intent must not discard the draft or the local checkpoint."
       ],
-      "tasks": ["G5-09w", "G5-09", "G5-10", "G5-12", "G7-03a"],
+      "tasks": [
+        "G5-09w",
+        "G5-09",
+        "G5-10",
+        "G5-12",
+        "G7-03a"
+      ],
       "gate": "G5-D3",
       "blocker": null,
       "evidence": [],
@@ -263,21 +362,30 @@
       "id": "G6-A01",
       "title": "XLSX xác định đúng sheet/range/types/filters; phép tính toàn phạm vi đúng oracle, không dựa sample",
       "owner": "AI Platform + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "deterministic score",
         "assertion": "Assert the resolved sheet, range, cell types and filters match the workbook oracle, and a whole-range calculation matches the ground truth rather than a sampled subset."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the resolved sheet, range, cell types and filters the score compares with the oracle.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        }
       ],
       "negativeCases": [
         "A sampled or cached range must not be scored as a whole-range calculation.",
         "Z stored as the plain number 10 and as 10% (0.1) must both be read as a 10 percent discount, and a blank Z as no discount.",
         "Hidden rows and the two totals rows must be resolved per the oracle instead of being treated as absent."
       ],
-      "tasks": ["G6-08", "G7-12"],
+      "tasks": [
+        "G6-08",
+        "G7-12"
+      ],
       "gate": "G7-D1",
       "blocker": null,
       "evidence": [],
@@ -288,21 +396,30 @@
       "id": "G6-A02",
       "title": "Yêu cầu mơ hồ hỏi lại; unsupported formula, cache stale, blank/error/locale/rounding được xử lý rõ",
       "owner": "AI Platform + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "deterministic score",
         "assertion": "Assert an ambiguous request asks back, an unsupported formula is refused with its reason, a stale calculation cache is not used as the answer, and blank, error, locale and rounding cases resolve as the case declares."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the ask-back question and the refusal reasons the ambiguous and unsupported cases returned.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        }
       ],
       "negativeCases": [
         "An ambiguous request must not be answered with a guess instead of a clarification question.",
         "A stale cached formula value must not be reported as the computed answer.",
         "An error cell (#DIV/0!, #N/A, #REF!) must not be silently replaced by zero or by a fabricated value."
       ],
-      "tasks": ["G6-08", "G7-12"],
+      "tasks": [
+        "G6-08",
+        "G7-12"
+      ],
       "gate": "G7-D1",
       "blocker": null,
       "evidence": [],
@@ -313,22 +430,35 @@
       "id": "G6-A03",
       "title": "Một lượt AI (mọi nhà cung cấp) không tạo upload/version/save intent; chỉ thao tác Lưu của người dùng mới commit",
       "owner": "Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert the server version count is unchanged and no save intent is created after a full AI turn for every provider, and only an explicit user Save commits."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the version count and the save intents the server recorded after each AI turn.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "An AI turn must not upload bytes, create a version or create a save intent, on any provider.",
         "An AI turn must not call the commit route even when the tool wrote into the editor.",
         "A provider error or a stopped run must not be retried into an implicit save."
       ],
-      "tasks": ["G6-05", "G7-08", "G7-10"],
+      "tasks": [
+        "G6-05",
+        "G7-08",
+        "G7-10"
+      ],
       "gate": "G6-D1",
       "blocker": null,
       "evidence": [],
@@ -339,22 +469,35 @@
       "id": "G6-A04",
       "title": "Thay đổi do AI nhìn thấy được và hoàn tác được trước khi Lưu; Lưu sau AI đúng `base_revision`, 409 giữ bản cục bộ, double click/retry không nhân đôi version",
       "owner": "Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert an AI change is visible and undoable before Save, the Save after an AI turn uses the current base_revision, a 409 keeps the local copy, and a double click or a retry does not create a second version."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-xlsx-revenue-xyz with result PASS, each with its artifact, plus the base_revision of the Save and the 409 outcome.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        },
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        }
       ],
       "negativeCases": [
         "An AI change must not be committed without an explicit user Save.",
         "A Save after an AI turn must not send a stale base_revision or auto-rebase on a 409.",
         "A double click or a retry of the same Save must not create a second version."
       ],
-      "tasks": ["G6-09", "G7-03a", "G7-08"],
+      "tasks": [
+        "G6-09",
+        "G7-03a",
+        "G7-08"
+      ],
       "gate": "G6-D4",
       "blocker": null,
       "evidence": [],
@@ -365,21 +508,29 @@
       "id": "G6-A05",
       "title": "DOCX mở → AI sửa trong editor → người dùng xem và Lưu → version mới → tải và mở Word; version cũ checksum không đổi",
       "owner": "QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "object/part",
         "assertion": "Assert the AI edit round-trips through the DOCX validator, a new version appears only after the user Save, the file opens in Word, and the previous version's checksum is unchanged."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the validator output, the new version and the unchanged checksum of the previous one.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A missing OOXML part or a broken round trip must not be reported as accepted.",
         "The previous version's checksum must not change after the new commit.",
         "A Word open failure must be recorded as a blocker instead of being waived."
       ],
-      "tasks": ["G7-08"],
+      "tasks": [
+        "G7-08"
+      ],
       "gate": "G6-D4",
       "blocker": null,
       "evidence": [],
@@ -390,24 +541,42 @@
       "id": "G6-A06",
       "title": "Các format còn lại theo §6.5, có oracle structure/render và giới hạn capability đúng host (web frame / desktop)",
       "owner": "Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "object/part",
         "assertion": "Assert every remaining Section 6.5 format has a structure or render oracle per host, and a format without a capability is refused on that host rather than shown as disabled."
       },
       "evidenceRequired": "A recorded run on each of fx-pptx-deck-vi, fx-pdf-invoice-vi, fx-md-notes-vi and fx-html-page-vi with result PASS, each with its artifact, plus the structure or render oracle per host.",
       "fixtures": [
-        { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" },
-        { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" },
-        { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" },
-        { "id": "fx-html-page-vi", "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884" }
+        {
+          "id": "fx-pptx-deck-vi",
+          "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20"
+        },
+        {
+          "id": "fx-pdf-invoice-vi",
+          "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd"
+        },
+        {
+          "id": "fx-md-notes-vi",
+          "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def"
+        },
+        {
+          "id": "fx-html-page-vi",
+          "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884"
+        }
       ],
       "negativeCases": [
         "A missing format, slide, page or heading count must stay measured and blocked rather than called pass.",
         "A capability the host does not hold must be absent, not a disabled control that implies it exists.",
         "A client-only pass must not be cited to close a host whose capability is missing."
       ],
-      "tasks": ["G6-12", "G7-08"],
+      "tasks": [
+        "G6-12",
+        "G7-08"
+      ],
       "gate": "G6-D4",
       "blocker": null,
       "evidence": [],
@@ -418,15 +587,24 @@
       "id": "G6-A07",
       "title": "Entitlement/frame token/ACL mất quyền giữa chừng/cross-org/cross-workspace/prompt injection/history replay đều được chặn; UniWork AI ẩn khi không đủ điều kiện và hiện khi chỉ có `uniworkAi` (không BYOK); tool call ngoài allowlist bị từ chối; vượt trần lượt trả `run_limit_reached`; system prompt/instruction pack do server giữ, client không thay được",
       "owner": "AI Platform + Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "security probe",
         "assertion": "Assert each probe is refused: a revoked entitlement or ACL mid-run, a stale frame token, a cross-organization or cross-workspace run id, a client-supplied system or assistant turn, a prompt-injection payload, a replayed history, and a tool call outside the allowlist; the run limit answers run_limit_reached; and the panel is hidden while UniWork AI is not eligible and appears on uniworkAi alone with no BYOK."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-xlsx-revenue-xyz with result PASS, each with its artifact, plus the refusal code of every probe and the panel state with and without uniworkAi.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        },
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        }
       ],
       "negativeCases": [
         "A client-supplied system or assistant turn must never reach the model, and an inflated tool result must be ignored in favour of the server transcript.",
@@ -434,7 +612,14 @@
         "A tool call outside the allowlist must be dropped with its reason and never reach the client as a usable call.",
         "Text inside a document, a cell or a tool result that tells the model to ignore its instructions or call a tool must not change the run, and the server transcript must stay unchanged by it."
       ],
-      "tasks": ["G6-03a", "G6-03b", "G6-03c", "G6-05", "G6-05u", "G7-12"],
+      "tasks": [
+        "G6-03a",
+        "G6-03b",
+        "G6-03c",
+        "G6-05",
+        "G6-05u",
+        "G7-12"
+      ],
       "gate": "G6-D1",
       "blocker": null,
       "evidence": [],
@@ -445,21 +630,33 @@
       "id": "G6-A08",
       "title": "Upstream model timeouts/outage, `credits_exhausted`, rate limit, disconnect và cancel có bounded outcome; không phá editor, BYOK vẫn chạy",
       "owner": "AI Platform + Lead F",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert an upstream timeout or outage, credits_exhausted, a rate limit, a client disconnect and a cancel each end in a bounded structured outcome, the editor keeps its state, and a BYOK turn still completes while UniWork AI fails."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the bounded outcome of each failure case and the BYOK turn that still completed.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        }
       ],
       "negativeCases": [
         "An upstream timeout or outage must not retry unboundedly or leave the editor unusable.",
         "A 402 credits_exhausted or a 429 must not call the gateway or record usage, and a 429 must carry Retry-After.",
         "A UniWork AI failure must not disable a BYOK provider."
       ],
-      "tasks": ["G6-03a", "G6-03b", "G6-03c", "G6-05", "G6-05u"],
+      "tasks": [
+        "G6-03a",
+        "G6-03b",
+        "G6-03c",
+        "G6-05",
+        "G6-05u"
+      ],
       "gate": "G6-D1",
       "blocker": null,
       "evidence": [],
@@ -470,21 +667,29 @@
       "id": "G6-A09",
       "title": "Từng lượt gọi model có attribution/quota/usage; unknown usage được reconcile, không bỏ sót",
       "owner": "AI Platform",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert every model call in a run carries attribution, quota and usage; a disconnect mid-run still records usage; and a provider that returns no usage lands as unknown with a reconciliation row counted once."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the usage rows with attribution and quota, and the reconciliation row counted once.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        }
       ],
       "negativeCases": [
         "A client disconnect or a kill switch mid-run must still record the usage already spent.",
         "A retry under the same run id must not record usage twice.",
         "Missing upstream usage must be recorded as unknown and reconciled exactly once, never dropped or invented."
       ],
-      "tasks": ["G6-03b"],
+      "tasks": [
+        "G6-03b"
+      ],
       "gate": "G6-D1",
       "blocker": null,
       "evidence": [],
@@ -495,22 +700,34 @@
       "id": "G6-A10",
       "title": "Instruction pack có version: mỗi lượt truy được `prompt_id` + provider/model đã resolve; đổi version hoặc rollback không làm model gọi/nhắc công cụ ngoài allowlist hay bịa công cụ (U-12 thay nội dung corpus/retrieval cũ)",
       "owner": "AI Platform + Product + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "deterministic score",
         "assertion": "Assert a run's usage line carries prompt_id and the resolved provider and model, every tool name the pack mentions exists in the genoffice tool table, and a version change or rollback never makes the model name a tool outside the allowlist or invent one."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the prompt_id, provider and model of the usage line and the tool names against the genoffice table.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A run must not be scored when its usage line lacks prompt_id or the resolved provider and model.",
         "The pack must not name a tool that the genoffice tool table does not list.",
         "Changing the pack content without bumping its version must fail, and a rollback must not reintroduce a tool outside the allowlist."
       ],
-      "tasks": ["G6-14", "G7-12"],
+      "tasks": [
+        "G6-14",
+        "G7-12"
+      ],
       "gate": "G6-D1",
       "blocker": null,
       "evidence": [],
@@ -521,22 +738,33 @@
       "id": "G7-A01",
       "title": "Full loop: web edit-save → mở bằng app từ web → desktop offline edit-save → reconnect → web thấy version → AI sửa + Lưu → hai host thấy cùng kết quả",
       "owner": "QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert the loop closes through the harness on the real stack: a web edit-save, opening the app from web, a desktop offline edit-save, a reconnect that lets web see the version, and an AI turn plus Save all leave both hosts on the same result; the version count grows by exactly one per user Save and by zero per AI turn and the final checksum is identical on both hosts."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS through the harness on the real stack, each with its artifact, plus the version count per Save and the checksum both hosts report.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A step that cannot run must be recorded as BLOCKED, never folded into a PASS for the whole loop.",
         "A web-only or fake-provider run must not close this row.",
         "A checksum divergence between the two hosts must fail the row instead of being reported as a delay."
       ],
-      "tasks": ["G7-04"],
+      "tasks": [
+        "G7-04"
+      ],
       "gate": null,
       "blocker": null,
       "evidence": [],
@@ -547,22 +775,34 @@
       "id": "G7-A02",
       "title": "Lượt AI đang chạy gặp G5 remote update/conflict/revoke; kết quả không tự áp lên bản mới, revoke chặn lượt gọi tiếp",
       "owner": "QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert an AI result that arrives after a remote update, a conflict or a revocation is not applied to the newer base, and a revocation answers the next AI turn with 403 and no new version."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the base each late AI result was refused against and the 403 of the next turn after a revocation.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "An AI result must not be auto-applied over a newer remote version.",
         "A conflict during an AI turn must not silently overwrite either side.",
         "A revoked permission must block the next AI turn instead of letting it run and fail late."
       ],
-      "tasks": ["G7-03a", "G7-04"],
+      "tasks": [
+        "G7-03a",
+        "G7-04"
+      ],
       "gate": null,
       "blocker": null,
       "evidence": [],
@@ -573,21 +813,29 @@
       "id": "G7-A03",
       "title": "Upgrade/rollback bản dev, namespace/key/store migration; file cục bộ không gọi mạng khi chưa đăng nhập; signed update/tamper/wrong channel chỉ khi mở backlog chứng chỉ (U-11)",
       "owner": "Lead F + QA + OPS",
-      "host": ["desktop"],
+      "host": [
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert a dev build upgrades and rolls back across the store schema with no lost data and no new intent, opening a local file while signed out sends zero network requests, and the support matrix states the known unsigned-dev limit."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the store migration and rollback evidence and the zero-network capture of the signed-out local open.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A rollback to a build below the guard must not read or migrate a newer store, and must not create an intent or upload.",
         "Opening a local file while signed out must send zero network requests.",
         "A signed-update, tamper or wrong-channel case must not be claimed while the certificate backlog is closed."
       ],
-      "tasks": ["G5-11", "G7-05"],
+      "tasks": [
+        "G5-11",
+        "G7-05"
+      ],
       "gate": "G7-D2",
       "blocker": {
         "gate": "G7-D2",
@@ -602,26 +850,51 @@
       "id": "G7-A04",
       "title": "i18n vi/en, keyboard/screen reader, dark/light, responsive, performance và fidelity đủ bằng chứng",
       "owner": "QA + Lead F + UX + OPS",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "render diff",
         "assertion": "Assert the automated contrast, forced-colors, zoom, DOM-order, keyboard and focus checks pass in both themes and both locales, the layout stays responsive at the committed widths, the performance budget is measured, the screen reader walkthrough is recorded on the real machine, and the fidelity regression over the six fixtures keeps unchanged regions intact."
       },
       "evidenceRequired": "A recorded run on each of the six fixtures with result PASS, each with its artifact, plus the contrast, forced-colors, zoom, DOM-order, keyboard and focus results in both themes and both locales and the recorded screen-reader walkthrough.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
-        { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" },
-        { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" },
-        { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" },
-        { "id": "fx-html-page-vi", "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        },
+        {
+          "id": "fx-pptx-deck-vi",
+          "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20"
+        },
+        {
+          "id": "fx-pdf-invoice-vi",
+          "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd"
+        },
+        {
+          "id": "fx-md-notes-vi",
+          "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def"
+        },
+        {
+          "id": "fx-html-page-vi",
+          "sha256": "e50b42f33ca5c560263d64f8c50022325abc067da525f26c18742065a7ebc884"
+        }
       ],
       "negativeCases": [
         "An unstyled, placeholder or broken dark mode must block the row.",
         "A screen reader or macOS pass must not be inferred from a Chromium run or a simulated WebKit.",
         "A fidelity drift in a region the change did not touch must be reported as a finding, not waived by a screenshot."
       ],
-      "tasks": ["G7-05", "G7-06", "G7-09"],
+      "tasks": [
+        "G7-05",
+        "G7-06",
+        "G7-09"
+      ],
       "gate": "G7-D2",
       "blocker": {
         "gate": "G7-D2",
@@ -636,21 +909,30 @@
       "id": "G7-A05",
       "title": "Instruction pack (version) + cấu hình upstream không secret + bảng công cụ genoffice + runtime manifest (SHA fork, pin bundle) dựng lại được; runbook outage/recovery và support matrix khớp artifact",
       "owner": "OPS + Coordinator + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "manifest",
         "assertion": "Assert a clean-environment rebuild reproduces the same artifact hashes for the instruction pack version, the non-secret upstream configuration, the genoffice tool table and the runtime manifest (fork SHA, bundle pin), and the runbooks and support matrix match those artifacts."
       },
       "evidenceRequired": "A recorded run on fx-md-notes-vi with result PASS and its artifact, plus the artifact hashes of the instruction pack, the upstream configuration, the tool table and the runtime manifest.",
       "fixtures": [
-        { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" }
+        {
+          "id": "fx-md-notes-vi",
+          "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def"
+        }
       ],
       "negativeCases": [
         "A rebuild whose artifact hash differs from the recorded one must fail instead of being accepted as equivalent.",
         "A runtime manifest that names a fork SHA or bundle pin other than the deployed one must not be reported as matching.",
         "A secret value (host, port or key) must never appear in the manifest, the evidence or the report."
       ],
-      "tasks": ["G7-07", "G7-11"],
+      "tasks": [
+        "G7-07",
+        "G7-11"
+      ],
       "gate": "G7-D1",
       "blocker": null,
       "evidence": [],
@@ -661,24 +943,48 @@
       "id": "G8-A01",
       "title": "Bình luận có neo trên DOCX/XLSX/PPTX/PDF là một dòng server, tác giả là tài khoản UniWork; AI chỉ đề xuất",
       "owner": "Lead F + Lead D + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "object/part",
         "assertion": "Assert a comment with an anchor created in each of the DOCX, XLSX, PPTX and PDF editors by a UniWork account is exactly one server row authored by that user, the saved file and every payload carry no operating-system account name, and an AI-suggested comment becomes a record only when the user presses Send, with that user as the author."
       },
       "evidenceRequired": "A recorded run on each of the four editor fixtures with result PASS, each with its artifact, plus the single server row per comment, the re-read comment parts of the saved file (comments.xml, threadedComments and persons, commentAuthors.xml, the PDF /T entries) and the request log of the AI draft case.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
-        { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" },
-        { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        },
+        {
+          "id": "fx-pptx-deck-vi",
+          "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20"
+        },
+        {
+          "id": "fx-pdf-invoice-vi",
+          "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd"
+        }
       ],
       "negativeCases": [
         "A saved file or a payload must not carry the operating-system account name as a comment author, signed in or not.",
         "An AI comment tool must not call comments.create before the user presses Send, and no comment may be written with created_by_kind agent from an editor.",
         "A comment created in an editor must not be stored in the bytes of the file or duplicated as a second server row."
       ],
-      "tasks": ["G8-02", "G8-08", "G8-12", "G8-13", "G8-14", "G8-15", "G8-19", "G8-20"],
+      "tasks": [
+        "G8-02",
+        "G8-08",
+        "G8-12",
+        "G8-13",
+        "G8-14",
+        "G8-15",
+        "G8-19",
+        "G8-20"
+      ],
       "command": "F vitest tác giả G8-02 (grep-test `userInfo(`/`USERNAME`/`LOGNAME` + đọc lại phần bình luận tệp) · F vitest adapter G8-12..15 (AI tool không gọi `comments.create` trước Gửi) · harness G8-19 bốn fixture",
       "artifact": "`reports/g8-fork_host/cloud-test-*.md`, `reports/g8-fork_editors/cloud-test-*.md`, `reports/g7-qa/g8-a01/` (dòng server + phần tệp đọc lại + log request)",
       "gate": null,
@@ -691,24 +997,46 @@
       "id": "G8-A02",
       "title": "Neo sống qua Lưu theo số phiên bản, không lùi, version lạ bị từ chối; neo mất giữ trao đổi; reveal tới đúng vị trí",
       "owner": "Lead D + Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert an edit followed by a Save moves the anchor to the new version compared by the integer version number and never backwards, a version id of another document or one that no longer exists answers the same 400 anchor_version_invalid with nothing written, a deleted target becomes lost while the thread and its replies stay, and a reveal selects the exact paragraph, cell, slide or page without opening another comment."
       },
       "evidenceRequired": "A recorded run on each of the four editor fixtures with result PASS, each with its artifact, plus the anchor_state and anchor_version_id receipts after each Save and the identical 400 bodies for the foreign, purged and unknown version cases.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-pptx-deck-vi", "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20" },
-        { "id": "fx-pdf-invoice-vi", "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        },
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-pptx-deck-vi",
+          "sha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20"
+        },
+        {
+          "id": "fx-pdf-invoice-vi",
+          "sha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd"
+        }
       ],
       "negativeCases": [
         "A version id of another document, a purged version or an unknown one must answer the same 400 anchor_version_invalid and must never be stored as anchor_version_id.",
         "An anchor update from an older version must not move a newer stored anchor backwards.",
         "A lost or stale anchor must open its own thread only and must not open or reveal another comment."
       ],
-      "tasks": ["G8-04", "G8-12", "G8-13", "G8-14", "G8-15", "G8-19"],
+      "tasks": [
+        "G8-04",
+        "G8-12",
+        "G8-13",
+        "G8-14",
+        "G8-15",
+        "G8-19"
+      ],
       "command": "`go test ./internal/service ./internal/handler -run 'DocumentCommentAnchors|IsolationMatrix'` · F vitest neo G8-12..15 (Lưu → neo mới, xóa → `lost`, reveal) · harness G8-19",
       "artifact": "`reports/g8-server/cloud-test-*.md`, `reports/g8-fork_editors/cloud-test-*.md`, `reports/g7-qa/g8-a02/` (receipt neo + ba thân 400)",
       "gate": "G8-D2",
@@ -721,22 +1049,36 @@
       "id": "G8-A03",
       "title": "Một Discussion mỗi tài liệu, giữ qua đổi tên/di chuyển/version; xóa giữ cấu trúc; lịch sử sửa; purge dọn bốn bảng",
       "owner": "Lead D + Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert one Discussion per document survives a rename, a move and a new version while a copy does not inherit it, deleting a comment that has replies leaves a frame with an empty body, no revisions and no reactions, a reply to a deleted thread answers 409 comment_deleted, an edit leaves one revision row, and a purge leaves zero rows in document_comments, document_comment_revisions, document_comment_mentions and comment_reactions."
       },
       "evidenceRequired": "A recorded run on fx-md-notes-vi and one on fx-docx-report-vi with result PASS, each with its artifact, plus the row counts of the four tables before and after the delete and the purge.",
       "fixtures": [
-        { "id": "fx-md-notes-vi", "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def" },
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-md-notes-vi",
+          "sha256": "e09e98a5e41d78549054e53d29effc882547629076776f4c93a08f5331856def"
+        },
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A deleted comment with replies must not keep its body, its revisions or its reactions in the database.",
         "A reply to a deleted thread must not be stored and must answer 409 comment_deleted.",
         "A purged document must not leave a row in any of the four comment tables, and a copy must not carry the comments of its source."
       ],
-      "tasks": ["G8-03", "G8-10", "G8-11", "G8-20"],
+      "tasks": [
+        "G8-03",
+        "G8-10",
+        "G8-11",
+        "G8-20"
+      ],
       "command": "`go test ./internal/service ./internal/handler -run 'DocumentComment(Kind|Tombstone|Revision|Purge|Copy|ListToken)'` · `go test ./migrations` (lint migration, `TestNewTablesCarryOrganizationID`, `TestEveryQueryNamesItsTenant`, `TestActorKindOnEveryCreatedBy`) · `pnpm vitest run packages/views/documents packages/core/api/endpoints/document-comments.test.ts` (gồm ca `unchanged`, dòng `discussion` ở client cũ) · F vitest panel G8-11",
       "artifact": "`reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md` + ảnh S13 light/dark vi/en, `reports/g8-fork_editors/cloud-test-*.md`",
       "gate": "G8-D5",
@@ -749,22 +1091,38 @@
       "id": "G8-A04",
       "title": "Một bộ dữ liệu cho hai host: thay đổi ở host này thấy ở host kia, một panel mỗi host, server lỗi → chỉ đọc",
       "owner": "Lead D + Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert a create, edit, delete or resolve on one host is seen on the other (web through realtime, desktop on focus or within 30 seconds, including a hard delete through the changed list_token), each host draws exactly one comments panel, two simultaneous sends become two records, and an unavailable server leaves the panel read-only without losing the text being composed."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi and one on fx-xlsx-revenue-xyz with result PASS, each with its artifact, plus the list_token and since_token exchanges around a hard delete and the panel count per host.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" },
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        },
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        }
       ],
       "negativeCases": [
         "A hard delete of a thread without replies must not stay visible on the desktop after the next poll, and an unchanged list_token must not redraw the panel.",
         "A host with an editor that advertises comments must not draw a second comments panel for the same stream.",
         "An unavailable server or a reload must not discard the draft being composed, and a reply to a thread deleted meanwhile must keep the text with the message \"Bình luận này đã bị xóa.\""
       ],
-      "tasks": ["G8-08", "G8-10", "G8-11", "G8-19", "G8-04", "G8-20"],
+      "tasks": [
+        "G8-08",
+        "G8-10",
+        "G8-11",
+        "G8-19",
+        "G8-04",
+        "G8-20"
+      ],
       "command": "`pnpm vitest run packages/core/office packages/views/office/frame packages/core/realtime/use-realtime-sync.test.tsx` · `node --test scripts/office/frame-protocol-vendor.test.mjs` · F vitest protocol G8-08 (gồm `comment_deleted` không reload + giữ nháp, thứ tự + hạn chờ `comments.reveal`, `commentsLevel` view/edit/manage, init có `comments` thiếu `commentsLevel` = lỗi host) · harness G8-19 hai host",
       "artifact": "`reports/g8-fork_host/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md`, `reports/g7-qa/g8-a04/` (ghi hình web ↔ desktop)",
       "gate": "G8-D1",
@@ -777,21 +1135,32 @@
       "id": "G8-A05",
       "title": "Mention theo id, một định dạng body giữa hai host, một thông báo mỗi người, picker chỉ người đọc được",
       "owner": "Lead D + Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert a mention is stored by user id and renders with the current display name on both hosts, a duplicate mention yields one notification, an edit that adds B notifies only B, an edit that keeps A notifies nobody even when two edits land before the consumer runs, a self-mention and a deactivated member get nothing, and the picker lists only people who can read the document."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the document_comment_mentions rows (state and notified_at) and the notification rows after each edit step and after an outbox replay.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "An edit that keeps an existing mention, also when two edits land before the consumer runs or the outbox replays, must not notify that person again.",
         "A person who cannot read the document or is deactivated must not be offered by the picker and must not be notified.",
         "A mention in a body that is not a valid member token must not create a notification or grant access."
       ],
-      "tasks": ["G8-05", "G8-06", "G8-10", "G8-20"],
+      "tasks": [
+        "G8-05",
+        "G8-06",
+        "G8-10",
+        "G8-20"
+      ],
       "command": "`go test ./internal/notification ./internal/service ./internal/mentions -run 'DocumentMention|MentionCandidates|Claim|TokenIDs'` · `pnpm vitest run packages/core/api/endpoints/document-comments.test.ts packages/views/documents`",
       "artifact": "`reports/g8-server/cloud-test-*.md`, `reports/g8-web/cloud-test-*.md`",
       "gate": "G8-D4",
@@ -804,21 +1173,29 @@
       "id": "G8-A06",
       "title": "Inbox đúng bảng UNI-1337: tạo mới không thông báo, gộp mention > reply > resolve, không gửi chính mình, năm mẫu vi/en",
       "owner": "Lead D + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert each row of the UNI-1337 table produces its notification, creating a comment or thread with no mention notifies nobody, one person gets one notification per event with mention over reply over resolve, the actor never notifies themselves, push is on for a mention and off for a reply or resolve, the five title templates read correctly in vi and en, and read state is per person."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the notification rows per UNI-1337 table row and the vi and en rendered titles.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "Creating a comment or a thread with no mention must not notify anyone, and document_commented must no longer be emitted.",
         "A reply that also mentions the same person must not yield two notifications for that person and event.",
         "The actor of an event must not receive a notification of it."
       ],
-      "tasks": ["G8-05"],
+      "tasks": [
+        "G8-05"
+      ],
       "command": "`go test ./internal/notification -run 'DocumentComment|Titles|Kinds'` (gồm `TestDocumentCommentCommentedNotification` viết lại theo G8-D4) · `pnpm vitest run packages/core/types packages/views/notifications packages/core/i18n`",
       "artifact": "`reports/g8-server/cloud-test-*.md` (bảng người nhận UNI-1337 từng hàng)",
       "gate": "G8-D4",
@@ -831,22 +1208,35 @@
       "id": "G8-A07",
       "title": "Deep link mở đúng tài liệu + comment + vị trí trên web và desktop; quyền kiểm lúc mở; snippet ẩn khi mất quyền",
       "owner": "Lead D + Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert a notification opens the right document, comment or discussion and position on web (one panel, the right thread) and on desktop through the launch ticket (cell B7 of sheet 2 selected), the slug comes from the recipient workspace list with a fall-back to the open workspace for a direct share from another workspace, the five UNI-1389 exceptions show their states, access is checked when the link opens, and a revoked recipient keeps the notification and link but loses the snippet."
       },
       "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz and one on fx-docx-report-vi with result PASS, each with its artifact, plus the opened URL per case, the comments.reveal frames, the launch-ticket comment_id and the Service.List page before and after the revocation.",
       "fixtures": [
-        { "id": "fx-xlsx-revenue-xyz", "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446" },
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-xlsx-revenue-xyz",
+          "sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446"
+        },
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A deep link to a lost or stale anchor must open its own thread only and must not open another comment.",
         "A notification of a document the recipient can no longer read must not show the stored snippet and must not open the document.",
         "A push link and a web link for the same notification must agree, and a page of 100 document notifications must not issue an unbounded number of permission queries."
       ],
-      "tasks": ["G8-07", "G8-08", "G8-19"],
+      "tasks": [
+        "G8-07",
+        "G8-08",
+        "G8-19"
+      ],
       "command": "`go test ./internal/notification ./internal/service -run 'ResourceURL|FilterReadableDocuments|NotificationList|OfficeLaunch'` · `pnpm vitest run packages/views/notifications/resource-href.test.ts packages/views/documents packages/core/api/endpoints/notifications.test.ts` · harness G8-19 deep link web + desktop",
       "artifact": "`reports/g8-web/cloud-test-*.md`, `reports/g8-server/cloud-test-*.md`, `reports/g7-qa/g8-a07/` (ảnh S15 năm ngoại lệ)",
       "gate": null,
@@ -859,21 +1249,32 @@
       "id": "G8-A08",
       "title": "Route mới qua isolation matrix, audit + outbox cùng transaction, payload chỉ id, log không PII",
       "owner": "Lead D + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "security probe",
         "assertion": "Assert every new route is refused for another tenant including version_id and comment_id named in a body, every command writes its audit and outbox rows in the same transaction as the change, realtime payloads carry ids only, and log lines carry ids and never an email or a name."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the TestIsolationMatrix, audit-coverage, events-catalogue and no-PII-log results for the new routes and events.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A version_id or comment_id of another tenant named in a request body must be refused or skipped without revealing whether it exists.",
         "A new command must not commit its change without its audit and outbox rows, and a realtime payload must not carry content.",
         "A log line of a comment route must not contain an email address or a display name."
       ],
-      "tasks": ["G8-03", "G8-04", "G8-06", "G8-08"],
+      "tasks": [
+        "G8-03",
+        "G8-04",
+        "G8-06",
+        "G8-08"
+      ],
       "command": "`go test ./internal/handler -run 'IsolationMatrix|IsolationRealtime|EveryBodyIDFieldHasAReferenceCase'` · `go test ./internal/service -run AuditCoverage` · `node --test scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs`",
       "artifact": "`reports/g8-server/cloud-test-*.md`",
       "gate": null,
@@ -886,21 +1287,30 @@
       "id": "G8-A09",
       "title": "Sau đăng nhập: chọn tổ chức, workspace + vai trò, tài liệu được chia sẻ, thuộc tính; tạo/đổi tên/lưu trữ từ app",
       "owner": "Lead F + QA",
-      "host": ["desktop"],
+      "host": [
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert after sign-in an account with several organizations is asked to choose one and the choice is remembered, the library shows workspaces with the role, the shared-with-me section and the document properties with level and version, a create, rename or archive from the app acts on the one UniWork document with no local copy, and a deactivated member loses access with the locked state."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the organization-choice, library and properties captures and the create, rename and archive receipts reread from the server.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "An account with several organizations must not call any organization API before the choice and must not be asked again after signing in again.",
         "A create, rename or archive from the app must not produce a second local copy or a different document id.",
         "A deactivated member or a suspended organization must not read the library and must see the locked state with its explanation."
       ],
-      "tasks": ["G8-16", "G8-17", "G8-19"],
+      "tasks": [
+        "G8-16",
+        "G8-17",
+        "G8-19"
+      ],
       "command": "F vitest `uniwork-auth`/`uniwork-docs` G8-16/G8-17 · harness G8-19 đăng nhập nhiều tổ chức + tạo/đổi tên/lưu trữ",
       "artifact": "`reports/g8-fork_host/cloud-test-*.md`, `reports/g7-qa/g8-a09/` + ảnh S16–S18",
       "gate": null,
@@ -913,20 +1323,28 @@
       "id": "G8-A10",
       "title": "Mention người chưa có quyền: báo rõ, không tạo mention hợp lệ, không cấp quyền (pending UNI-1336)",
       "owner": "Lead D + Lead F + QA",
-      "host": ["web", "desktop"],
+      "host": [
+        "web",
+        "desktop"
+      ],
       "oracle": {
         "type": "receipt",
         "assertion": "Assert mentioning a person who cannot read the document tells the author clearly, creates no valid mention and sends no notification until the rule signed under G8-D3 is satisfied, and a mention never grants access by itself."
       },
       "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact, plus the composer message, the stored mention state and the share rows before and after, once G8-18 and the signed G8-D3 rule exist.",
       "fixtures": [
-        { "id": "fx-docx-report-vi", "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c" }
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
       ],
       "negativeCases": [
         "A mention of a person without access must not become an active mention or notify them while the rule is unsatisfied.",
         "A mention must never create a share or raise the level of the mentioned person."
       ],
-      "tasks": ["G8-18"],
+      "tasks": [
+        "G8-18"
+      ],
       "command": "BLOCKED(G8-D3): lệnh do G8-18 đặt khi luật ký; dự kiến `go test ./internal/service -run 'DocumentMention.*NoAccess'` + F vitest composer",
       "artifact": "`reports/g8-server/…`, `reports/g8-fork_editors/…` khi gỡ chặn",
       "gate": "G8-D3",
@@ -938,6 +1356,436 @@
       "evidence": [],
       "status": "BLOCKED",
       "reviewer": "pending reviewer_be (UNI-1331)"
+    },
+    {
+      "id": "FD-A01",
+      "title": "Tạo thư mục cấp gốc và nhiều cấp thư mục con (AC-01)",
+      "owner": "Lead D + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert a folder can be created at the root from the sidebar (+) and inside a folder from the row menu and from New > Folder, down to the signed depth of 20 levels, each create returning the new folder under the chosen parent with a success toast."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "A create at depth 21 must answer 422 document_too_deep and write nothing.",
+        "The sidebar (+) must create at the root even while a folder is open.",
+        "An empty name or a folder name over 255 characters must stay a field error and must not be sent."
+      ],
+      "tasks": [
+        "FD-03",
+        "FD-07",
+        "FD-08",
+        "FD-12"
+      ],
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentDepth|DocumentTree'` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12)",
+      "artifact": "`reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a01/`",
+      "gate": "FD-D2",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1425)"
+    },
+    {
+      "id": "FD-A02",
+      "title": "Mở/thu từng nhánh thư mục độc lập (AC-02)",
+      "owner": "Lead D (FE) + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert each branch of the FOLDERS tree expands and collapses on its own, opening a folder by its URL expands every ancestor once and scrolls the row into view, and a branch the user collapses stays collapsed across a refetch."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "Expanding one branch must not expand or collapse a sibling branch.",
+        "A refetch or a realtime invalidation must not re-expand an ancestor the user collapsed."
+      ],
+      "tasks": [
+        "FD-07",
+        "FD-12"
+      ],
+      "command": "`pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12)",
+      "artifact": "`reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a02/`",
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_fe (UNI-1425)"
+    },
+    {
+      "id": "FD-A03",
+      "title": "Chọn thư mục chỉ hiện nội dung trực tiếp (AC-03)",
+      "owner": "Lead D (FE) + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert opening a folder lists only its direct child folders and documents, folders first, sorted by name with the Vietnamese collator or by last update with the choice remembered per viewer, and the Documents home keeps the current library as signed in FD-D9."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "A grandchild folder or document must not appear in the content of its grandparent.",
+        "A child page inside a page must not be listed as direct content of the folder."
+      ],
+      "tasks": [
+        "FD-08",
+        "FD-12"
+      ],
+      "command": "`pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12)",
+      "artifact": "`reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a03/`",
+      "gate": "FD-D9",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_fe (UNI-1425)"
+    },
+    {
+      "id": "FD-A04",
+      "title": "Đổi tên thư mục không mất nội dung (AC-04)",
+      "owner": "Lead D + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert renaming a folder from the tree menu or the content row keeps its id, its children and their ids, updates the title and search text in the same transaction, and shows a success toast."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "A rename must not change the id or the parent of the folder or of any descendant.",
+        "A rename to the name of a live sibling folder must answer 409 folder_name_taken as a field error and must not change anything."
+      ],
+      "tasks": [
+        "FD-02",
+        "FD-07",
+        "FD-08",
+        "FD-12"
+      ],
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentRename|FolderName'` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12)",
+      "artifact": "`reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a04/`",
+      "gate": "FD-D3",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1425)"
+    },
+    {
+      "id": "FD-A05",
+      "title": "Di chuyển thư mục cùng toàn bộ nội dung sang nhánh khác (AC-05)",
+      "owner": "Lead D + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert moving a folder by drag and drop or Move to keeps every descendant under it with unchanged ids, accepts depth plus subtree height up to 20, renames to Name (n) when the target holds the same folder name and reports the new name, and a second session sees the move without reloading."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "A move whose depth plus subtree height exceeds 20 must answer 422 document_too_deep and write nothing.",
+        "A move into a target holding the same folder name must not create a duplicate live name under that parent.",
+        "Another member's open tree must not keep showing the folder at its old place after document.moved."
+      ],
+      "tasks": [
+        "FD-02",
+        "FD-03",
+        "FD-06",
+        "FD-09",
+        "FD-12"
+      ],
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentMove|FolderName|DocumentDepth'` · `pnpm vitest run packages/core/realtime/use-realtime-sync.test.tsx packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) (hai phiên)",
+      "artifact": "`reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a05/`",
+      "gate": "FD-D5",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1425)"
+    },
+    {
+      "id": "FD-A06",
+      "title": "Chặn di chuyển thư mục vào chính nó hoặc thư mục con (AC-06)",
+      "owner": "Lead D + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert moving a folder into itself or a descendant is refused with 422 document_cycle by the server, the drop is refused with a toast in the tree, and the Move to picker shows those targets disabled with a visible reason."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "A cycle move must not write any row, audit or outbox entry.",
+        "A disabled picker row must stay focusable with aria-disabled and must not be selectable."
+      ],
+      "tasks": [
+        "FD-07",
+        "FD-09",
+        "FD-12"
+      ],
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentMove.*Cycle'` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12)",
+      "artifact": "`reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a06/`",
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1425)"
+    },
+    {
+      "id": "FD-A07",
+      "title": "Di chuyển tài liệu giữa các thư mục không tạo bản sao (AC-07)",
+      "owner": "Lead D + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert moving a document between folders keeps its id, versions and comments with no second row, renames it Name (n) before the extension when the target holds the same name and kind, and reports the new name."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "A document move must not create a copy or change the document id.",
+        "The current location must not be offered as a selectable target."
+      ],
+      "tasks": [
+        "FD-02",
+        "FD-09",
+        "FD-12"
+      ],
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentMove|TitleSuffix'` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12)",
+      "artifact": "`reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a07/`",
+      "gate": "FD-D5",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1425)"
+    },
+    {
+      "id": "FD-A08",
+      "title": "Breadcrumb hiển thị đúng đường dẫn hiện tại (AC-08)",
+      "owner": "Lead D (FE) + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert the breadcrumb shows the path from Documents to the open folder from the ?folder= URL, every segment navigates and Back/Forward follow, more than four levels collapse the middle into a keyboard-reachable menu, and the path stops before an ancestor the viewer cannot read."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "A breadcrumb must not reveal the title of an ancestor the viewer cannot read.",
+        "An unknown, archived or forbidden ?folder= id must show the error state with a link to the root, not an empty list."
+      ],
+      "tasks": [
+        "FD-06",
+        "FD-07",
+        "FD-09",
+        "FD-12"
+      ],
+      "command": "`pnpm vitest run packages/core/paths packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12)",
+      "artifact": "`reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a08/`",
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_fe (UNI-1425)"
+    },
+    {
+      "id": "FD-A09",
+      "title": "Tìm kiếm trả thư mục/tài liệu kèm đường dẫn (AC-09)",
+      "owner": "Lead D + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert the Documents search box matches titles in the open workspace without accents (hop dong finds Hợp đồng), filters All, Folders or Documents, shows each result with its path, opens a folder by URL and a document on its page, and the command palette opens a folder by URL."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "A document that only contains the term in its content must not match the title search.",
+        "A path must not include an ancestor the viewer cannot read or a parent of another tenant.",
+        "A page of 50 results must not issue a number of queries that grows with the results."
+      ],
+      "tasks": [
+        "FD-05",
+        "FD-06",
+        "FD-10",
+        "FD-12"
+      ],
+      "command": "`go test ./internal/service ./internal/handler -run 'DocumentSearch|DocumentList|IsolationMatrix'` · `pnpm vitest run packages/core/api/endpoints/documents-collections.test.ts packages/views/documents packages/views/search` · `e2e/documents-folders.spec.ts` (FD-12)",
+      "artifact": "`reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a09/`",
+      "gate": "FD-D7",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1425)"
+    },
+    {
+      "id": "FD-A10",
+      "title": "Tài liệu giữ liên kết Task/Meeting/Chat/Email sau khi di chuyển thư mục (AC-10)",
+      "owner": "QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert after a document or its folder is moved the document keeps its id, versions, comments and every link to tasks, meetings, chat and email, and FROM ELSEWHERE still lists it."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "A move must not drop or duplicate a link to a task, meeting, chat message or email.",
+        "A move must not change the document id that the links point at."
+      ],
+      "tasks": [
+        "FD-12"
+      ],
+      "command": "`e2e/documents-folders.spec.ts` (FD-12) (hồi quy FROM ELSEWHERE + liên kết)",
+      "artifact": "`reports/fd-qa/fd-a10/`",
+      "gate": null,
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1425)"
+    },
+    {
+      "id": "FD-A11",
+      "title": "Không cho hai thư mục trùng tên trong cùng thư mục cha (AC-11)",
+      "owner": "Lead D + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "security probe",
+        "assertion": "Assert two live folders under one parent cannot share a name compared case-insensitively and accent-sensitively on the NFC title, a create or rename answers 409 folder_name_taken as a field error, two concurrent creates yield one 201 and one 409, and the unique index holds after the legacy dedupe migration."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "A 409 must not reveal the id or title of a folder the caller cannot read.",
+        "Hợp đồng and HỢP ĐỒNG under one parent must not both exist, while Ma and Mã may.",
+        "Documents (pages and files) with the same name must not be refused, per FD-D10."
+      ],
+      "tasks": [
+        "FD-02",
+        "FD-06",
+        "FD-08",
+        "FD-12"
+      ],
+      "command": "`go test ./internal/service ./internal/handler -run 'FolderName|DocumentCreate'` · `go test ./migrations` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12)",
+      "artifact": "`reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a11/`",
+      "gate": "FD-D4",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1425)"
+    },
+    {
+      "id": "FD-A12",
+      "title": "Xóa thư mục có dữ liệu: cảnh báo và xử lý toàn bộ nội dung (AC-12)",
+      "owner": "Lead D + QA",
+      "host": [
+        "web"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Assert deleting a folder shows the number of subfolders and documents counted by the server, moves the whole subtree to the trash restorable for 30 days, refuses a tree over 1000 nodes with folder_too_large instead of a confirm button, and a second session sees the folder disappear."
+      },
+      "evidenceRequired": "A recorded run on fx-docx-report-vi with result PASS and its artifact from the commands in the command cell, on the revision under review. The fixture is the DOCX document placed, moved and searched inside the folder tree; folders themselves have no file.",
+      "fixtures": [
+        {
+          "id": "fx-docx-report-vi",
+          "sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c"
+        }
+      ],
+      "negativeCases": [
+        "The impact counts must not be returned to a caller without manage on every node.",
+        "An archive must not leave a live descendant under an archived folder at any depth up to 20.",
+        "A restore must not create two live folders with the same name under one parent."
+      ],
+      "tasks": [
+        "FD-03",
+        "FD-04",
+        "FD-06",
+        "FD-09",
+        "FD-12"
+      ],
+      "command": "`go test ./internal/service ./internal/handler -run 'ArchiveImpact|DocumentArchive|DocumentRestore|IsolationMatrix'` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) (hai phiên)",
+      "artifact": "`reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a12/`",
+      "gate": "FD-D6",
+      "blocker": null,
+      "evidence": [],
+      "status": "NOT_RUN",
+      "reviewer": "pending reviewer_be (UNI-1425)"
     }
   ]
 }

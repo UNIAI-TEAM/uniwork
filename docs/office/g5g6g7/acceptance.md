@@ -7,8 +7,8 @@ mỗi dòng là `NOT_RUN` cho tới khi Tester ghi bằng chứng trên revision
 đang mở chặn thì là `BLOCKED` kèm owner và lý do. Nguồn máy đọc được là [acceptance-rows.json](./acceptance-rows.json);
 bảng dưới sinh từ chính file đó và test đi kèm `scripts/office/acceptance-matrix-g5g6g7.test.mjs` fail khi hai bên lệch.
 
-Bộ yêu cầu diễn giải từ spec §9.1 (33 dòng: G5-A01..A08, G6-A01..A10, G7-A01..A05, và G8-A01..A10 từ phụ lục G8 — bảng AC plan §5.7,
-UNI-1331/UNI-1328). Owner lấy từ plan §1 và các thẻ G8, task thực thi từ ma trận phủ AC plan §5.6 (G8: bảng AC §5.7), và gate từ cột "Chặn" của plan §3. Hôm nay không dòng nào là `PASS`: "chưa chạy", "skip"
+Bộ yêu cầu diễn giải từ spec §9.1 (45 dòng: G5-A01..A08, G6-A01..A10, G7-A01..A05, G8-A01..A10 từ phụ lục G8 — bảng AC plan §5.7,
+UNI-1331/UNI-1328 — và FD-A01..A12 = AC-01..AC-12 của UNI-1425, bảng AC plan §5.8, epic E6, đăng ký bởi FD-01/UNI-1461). Owner lấy từ plan §1 và các thẻ G8, task thực thi từ ma trận phủ AC plan §5.6 (G8: bảng AC §5.7), và gate từ cột "Chặn" của plan §3. Hôm nay không dòng nào là `PASS`: "chưa chạy", "skip"
 và "không có máy" đều là BLOCKED, không bao giờ là PASS.
 
 ## Số lượng
@@ -19,7 +19,8 @@ và "không có máy" đều là BLOCKED, không bao giờ là PASS.
 | G6 (G6-A01...G6-A10) | 10 | 10 NOT_RUN |
 | G7 (G7-A01...G7-A05) | 5 | 3 NOT_RUN, 2 BLOCKED |
 | G8 (G8-A01...G8-A10) | 10 | 9 NOT_RUN, 1 BLOCKED |
-| **Tổng** | **33** | **28 NOT_RUN, 5 BLOCKED, 0 PASS** |
+| FD (FD-A01...FD-A12) | 12 | 12 NOT_RUN |
+| **Tổng** | **45** | **40 NOT_RUN, 5 BLOCKED, 0 PASS** |
 
 Fixture lấy từ [manifest](./fixtures/manifest.json) do item A (G7-01) sinh; mỗi dòng ghi id và sha256 đọc từ manifest đó,
 không hardcode trong test. Bộ đánh giá AI độc lập (≥100 ca, spec §9.2) là G7-02, không nằm trong ma trận này.
@@ -45,7 +46,7 @@ Năm dòng bị chặn hôm nay, theo cột cuối plan §3:
 - **G8-A10 — BLOCKED(G8-D3)**: luật phân quyền của UNI-1336 (mention người chưa có quyền) chưa được ký, nên G8-18 chưa dựng và
   dòng chưa chạy được tới khi G8-18 xong. Owner: Product + Lead D + Lead F.
 
-Các gate còn lại (G5-D2, G5-D3, G6-D1, G6-D4, G7-D1, và G8-D1, G8-D2, G8-D4, G8-D5 đã ký 2026-10-13 nên chỉ ghi ở cột `gate`) ảnh hưởng tới dòng `NOT_RUN` nhưng chưa chặn việc chạy trên
+Các gate còn lại (G5-D2, G5-D3, G6-D1, G6-D4, G7-D1, và G8-D1, G8-D2, G8-D4, G8-D5 đã ký 2026-10-13, FD-D2..FD-D10 đã ký 2026-10-13 nên chỉ ghi ở cột `gate`) ảnh hưởng tới dòng `NOT_RUN` nhưng chưa chặn việc chạy trên
 fixture tổng hợp, nên dòng ghi gate ở cột `gate` chứ chưa phải `blocker`; kết luận của chúng ghi "chưa có ngưỡng",
 không PASS.
 
@@ -121,6 +122,43 @@ không PASS.
 | G8-A08 | `go test ./internal/handler -run 'IsolationMatrix\|IsolationRealtime\|EveryBodyIDFieldHasAReferenceCase'` · `go test ./internal/service -run AuditCoverage` · `node --test scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs` | `reports/g8-server/cloud-test-*.md` |
 | G8-A09 | F vitest `uniwork-auth`/`uniwork-docs` G8-16/G8-17 · harness G8-19 đăng nhập nhiều tổ chức + tạo/đổi tên/lưu trữ | `reports/g8-fork_host/cloud-test-*.md`, `reports/g7-qa/g8-a09/` + ảnh S16–S18 |
 | G8-A10 | BLOCKED(G8-D3): lệnh do G8-18 đặt khi luật ký; dự kiến `go test ./internal/service -run 'DocumentMention.*NoAccess'` + F vitest composer | `reports/g8-server/…`, `reports/g8-fork_editors/…` khi gỡ chặn |
+
+### Nghiệm thu FD (thư mục Documents, UNI-1425)
+
+| ID | Task / owner | Host | Oracle | Fixture id / sha256 | Required negative cases | Status | Reviewer |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| FD-A01 | Lead D + QA | web | receipt: Assert a folder can be created at the root from the sidebar (+) and inside a folder from the row menu and from New > Folder, down to the signed depth of 20 levels, each create returning the new folder under the chosen parent with a success toast. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | A create at depth 21 must answer 422 document_too_deep and write nothing.<br>The sidebar (+) must create at the root even while a folder is open.<br>An empty name or a folder name over 255 characters must stay a field error and must not be sent. | NOT_RUN | pending reviewer_be (UNI-1425) |
+| FD-A02 | Lead D (FE) + QA | web | receipt: Assert each branch of the FOLDERS tree expands and collapses on its own, opening a folder by its URL expands every ancestor once and scrolls the row into view, and a branch the user collapses stays collapsed across a refetch. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | Expanding one branch must not expand or collapse a sibling branch.<br>A refetch or a realtime invalidation must not re-expand an ancestor the user collapsed. | NOT_RUN | pending reviewer_fe (UNI-1425) |
+| FD-A03 | Lead D (FE) + QA | web | receipt: Assert opening a folder lists only its direct child folders and documents, folders first, sorted by name with the Vietnamese collator or by last update with the choice remembered per viewer, and the Documents home keeps the current library as signed in FD-D9. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | A grandchild folder or document must not appear in the content of its grandparent.<br>A child page inside a page must not be listed as direct content of the folder. | NOT_RUN | pending reviewer_fe (UNI-1425) |
+| FD-A04 | Lead D + QA | web | receipt: Assert renaming a folder from the tree menu or the content row keeps its id, its children and their ids, updates the title and search text in the same transaction, and shows a success toast. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | A rename must not change the id or the parent of the folder or of any descendant.<br>A rename to the name of a live sibling folder must answer 409 folder_name_taken as a field error and must not change anything. | NOT_RUN | pending reviewer_be (UNI-1425) |
+| FD-A05 | Lead D + QA | web | receipt: Assert moving a folder by drag and drop or Move to keeps every descendant under it with unchanged ids, accepts depth plus subtree height up to 20, renames to Name (n) when the target holds the same folder name and reports the new name, and a second session sees the move without reloading. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | A move whose depth plus subtree height exceeds 20 must answer 422 document_too_deep and write nothing.<br>A move into a target holding the same folder name must not create a duplicate live name under that parent.<br>Another member's open tree must not keep showing the folder at its old place after document.moved. | NOT_RUN | pending reviewer_be (UNI-1425) |
+| FD-A06 | Lead D + QA | web | receipt: Assert moving a folder into itself or a descendant is refused with 422 document_cycle by the server, the drop is refused with a toast in the tree, and the Move to picker shows those targets disabled with a visible reason. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | A cycle move must not write any row, audit or outbox entry.<br>A disabled picker row must stay focusable with aria-disabled and must not be selectable. | NOT_RUN | pending reviewer_be (UNI-1425) |
+| FD-A07 | Lead D + QA | web | receipt: Assert moving a document between folders keeps its id, versions and comments with no second row, renames it Name (n) before the extension when the target holds the same name and kind, and reports the new name. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | A document move must not create a copy or change the document id.<br>The current location must not be offered as a selectable target. | NOT_RUN | pending reviewer_be (UNI-1425) |
+| FD-A08 | Lead D (FE) + QA | web | receipt: Assert the breadcrumb shows the path from Documents to the open folder from the ?folder= URL, every segment navigates and Back/Forward follow, more than four levels collapse the middle into a keyboard-reachable menu, and the path stops before an ancestor the viewer cannot read. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | A breadcrumb must not reveal the title of an ancestor the viewer cannot read.<br>An unknown, archived or forbidden ?folder= id must show the error state with a link to the root, not an empty list. | NOT_RUN | pending reviewer_fe (UNI-1425) |
+| FD-A09 | Lead D + QA | web | receipt: Assert the Documents search box matches titles in the open workspace without accents (hop dong finds Hợp đồng), filters All, Folders or Documents, shows each result with its path, opens a folder by URL and a document on its page, and the command palette opens a folder by URL. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | A document that only contains the term in its content must not match the title search.<br>A path must not include an ancestor the viewer cannot read or a parent of another tenant.<br>A page of 50 results must not issue a number of queries that grows with the results. | NOT_RUN | pending reviewer_be (UNI-1425) |
+| FD-A10 | QA | web | receipt: Assert after a document or its folder is moved the document keeps its id, versions, comments and every link to tasks, meetings, chat and email, and FROM ELSEWHERE still lists it. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | A move must not drop or duplicate a link to a task, meeting, chat message or email.<br>A move must not change the document id that the links point at. | NOT_RUN | pending reviewer_be (UNI-1425) |
+| FD-A11 | Lead D + QA | web | security probe: Assert two live folders under one parent cannot share a name compared case-insensitively and accent-sensitively on the NFC title, a create or rename answers 409 folder_name_taken as a field error, two concurrent creates yield one 201 and one 409, and the unique index holds after the legacy dedupe migration. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | A 409 must not reveal the id or title of a folder the caller cannot read.<br>Hợp đồng and HỢP ĐỒNG under one parent must not both exist, while Ma and Mã may.<br>Documents (pages and files) with the same name must not be refused, per FD-D10. | NOT_RUN | pending reviewer_be (UNI-1425) |
+| FD-A12 | Lead D + QA | web | receipt: Assert deleting a folder shows the number of subfolders and documents counted by the server, moves the whole subtree to the trash restorable for 30 days, refuses a tree over 1000 nodes with folder_too_large instead of a confirm button, and a second session sees the folder disappear. | fx-docx-report-vi (5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c) | The impact counts must not be returned to a caller without manage on every node.<br>An archive must not leave a live descendant under an archived folder at any depth up to 20.<br>A restore must not create two live folders with the same name under one parent. | NOT_RUN | pending reviewer_be (UNI-1425) |
+
+#### Lệnh và artifact FD
+
+Ô `command` và `artifact` của mười hai hàng FD trong `acceptance-rows.json` (FD-01, UNI-1461; thẻ plan §5.8). Fixture
+`fx-docx-report-vi` là tài liệu được đặt, di chuyển và tìm trong cây thư mục; thư mục không có tệp. `go test` chạy trong `server/`.
+
+| Hàng | Lệnh | Artifact |
+| --- | --- | --- |
+| FD-A01 | `go test ./internal/service ./internal/handler -run 'DocumentDepth\|DocumentTree'` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) | `reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a01/` |
+| FD-A02 | `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) | `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a02/` |
+| FD-A03 | `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) | `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a03/` |
+| FD-A04 | `go test ./internal/service ./internal/handler -run 'DocumentRename\|FolderName'` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) | `reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a04/` |
+| FD-A05 | `go test ./internal/service ./internal/handler -run 'DocumentMove\|FolderName\|DocumentDepth'` · `pnpm vitest run packages/core/realtime/use-realtime-sync.test.tsx packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) (hai phiên) | `reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a05/` |
+| FD-A06 | `go test ./internal/service ./internal/handler -run 'DocumentMove.*Cycle'` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) | `reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a06/` |
+| FD-A07 | `go test ./internal/service ./internal/handler -run 'DocumentMove\|TitleSuffix'` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) | `reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a07/` |
+| FD-A08 | `pnpm vitest run packages/core/paths packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) | `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a08/` |
+| FD-A09 | `go test ./internal/service ./internal/handler -run 'DocumentSearch\|DocumentList\|IsolationMatrix'` · `pnpm vitest run packages/core/api/endpoints/documents-collections.test.ts packages/views/documents packages/views/search` · `e2e/documents-folders.spec.ts` (FD-12) | `reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a09/` |
+| FD-A10 | `e2e/documents-folders.spec.ts` (FD-12) (hồi quy FROM ELSEWHERE + liên kết) | `reports/fd-qa/fd-a10/` |
+| FD-A11 | `go test ./internal/service ./internal/handler -run 'FolderName\|DocumentCreate'` · `go test ./migrations` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) | `reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a11/` |
+| FD-A12 | `go test ./internal/service ./internal/handler -run 'ArchiveImpact\|DocumentArchive\|DocumentRestore\|IsolationMatrix'` · `pnpm vitest run packages/views/documents` · `e2e/documents-folders.spec.ts` (FD-12) (hai phiên) | `reports/fd-server/cloud-test-*.md`, `reports/fd-web/cloud-test-*.md`, `reports/fd-qa/fd-a12/` |
 
 ## Bàn giao bằng chứng
 

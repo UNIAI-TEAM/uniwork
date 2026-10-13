@@ -197,6 +197,13 @@ fails on drift. One flat namespace, keys nested by section:
 | originated from | **xuất phát từ** | Originated from | nguồn gốc của một việc (Work Graph) |
 | graph timeline | **dòng thời gian** | Timeline | khác "Hoạt động" (audit + bình luận) của trang việc |
 | Work Graph | **Work Graph** | Work Graph | tên hệ thống, không dịch |
+| folder (Documents) | **thư mục** | Folder | dùng lại khóa `"folder": "Thư mục"` có sẵn; UNI-1425 (phụ lục thư mục §3.6) |
+| subfolder | **thư mục con** | Subfolder | luôn đủ cụm, không "mục con" |
+| new folder | **thư mục mới** | New folder | nút và tiêu đề hộp thoại; ở gốc: "Thư mục mới ở Documents (gốc)" |
+| rename | **đổi tên** | Rename | |
+| move to | **di chuyển tới** | Move to | mục menu "Di chuyển tới…"; toast "Đã chuyển tới {{folder}}" |
+| trash (Documents, archive restorable 30 days) | **thùng rác** | Trash | hành động ghi "Xóa" / "Chuyển vào thùng rác"; khác "Đã xóa" của email |
+| path (breadcrumb / search result) | **đường dẫn** | Path | đường dẫn từ Documents tới cha trực tiếp |
 
 `workspace` stays English on purpose: the Vietnamese candidates ("không gian
 làm việc") are long, and the URL, the slug field and the product name all say
