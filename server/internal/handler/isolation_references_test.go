@@ -179,10 +179,9 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "reply parent", body: map[string]any{
 		"body": "ref", "type": "comment", "parent_id": isoRef("docComment")}, covers: []string{"CreateDocumentCommentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "anchor base version", body: map[string]any{
-		"body": "ref", "kind": "comment", "anchor": map[string]any{"format": "xlsx", "v": 1, "sheet": "S1", "range": "B7"},
+		"body": "ref", "kind": "comment", "anchor": map[string]any{"format": "docx", "v": 1, "path": []any{3, 0}, "start": 12, "end": 40, "quote": "q", "prefix": "", "suffix": ""},
 		"base_version_id": isoRef("versionID")},
-		noControl: "the fixture document is a page; an anchor needs a file document whose current version matches the format",
-		covers:    []string{"CreateDocumentCommentSDI.base_version_id"}},
+		covers: []string{"CreateDocumentCommentSDI.base_version_id"}},
 	{method: "PUT", pattern: "/api/v1/documents/{documentID}/comments/anchors", what: "version of another document", body: map[string]any{
 		"version_id": isoRef("versionID"), "anchors": []any{}}, covers: []string{"PutDocumentCommentAnchorsSDI.version_id"}},
 	{method: "PUT", pattern: "/api/v1/documents/{documentID}/comments/anchors", what: "comment of another document", allow2xx: true, body: map[string]any{
