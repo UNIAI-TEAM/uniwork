@@ -3568,8 +3568,6 @@
     "sidebar_filter_empty_channel_hint": "Tìm kênh để tham gia, hoặc tạo kênh mới.",
     "sidebar_result_count_one": "{{count}} cuộc trò chuyện",
     "sidebar_result_count_other": "{{count}} cuộc trò chuyện",
-    "invite_joining": "Đang tham gia…",
-    "invite_join_failed": "Không tham gia được workspace. Thử lại.",
     "no_conversation_hint_hidden": "Danh sách trò chuyện đang ẩn. Hiện lại để mở một cuộc trò chuyện.",
     "group_name_optional_label": "Tên nhóm (tùy chọn)",
     "errors": {

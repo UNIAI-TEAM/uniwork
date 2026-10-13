@@ -1,26 +1,20 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { toast } from "sonner";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import {
   resetChatRoomPreferencesForTests,
   useChatRoomPreferencesStore,
 } from "@uniwork/core/chat/room-preferences-store";
-import { wrap } from "../test/api-mock";
+import { wrapWithNav } from "../test/api-mock";
 import { ChatSidebar } from "./chat-sidebar";
 
 const invitesMock = vi.hoisted(() => ({
   invites: [] as unknown[],
-  mutate: vi.fn(),
 }));
 
 vi.mock("@uniwork/core/workspaces", () => ({
   useMyInvitations: () => ({ data: invitesMock.invites }),
-  useAcceptInvite: () => ({ mutate: invitesMock.mutate, isPending: false }),
 }));
-
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 vi.mock("./start-dm-dialog", () => ({
   StartDmDialog: () => null,
@@ -59,13 +53,11 @@ beforeAll(() => {
 beforeEach(() => {
   resetChatRoomPreferencesForTests();
   invitesMock.invites = [];
-  invitesMock.mutate.mockReset();
-  vi.mocked(toast.error).mockClear();
 });
 
 function renderSidebar(props: Partial<Parameters<typeof ChatSidebar>[0]> = {}) {
   return render(
-    wrap(
+    wrapWithNav(
       <ChatSidebar
         currentUserId="self"
         workspaceId="ws1"
@@ -86,7 +78,7 @@ describe("ChatSidebar", () => {
     const onCreateGroup = vi.fn();
 
     render(
-      wrap(
+      wrapWithNav(
         <ChatSidebar
           currentUserId="self"
           workspaceId="ws1"
@@ -112,7 +104,7 @@ describe("ChatSidebar", () => {
 
   it("shows a flat list with kind filters instead of section headers", () => {
     render(
-      wrap(
+      wrapWithNav(
         <ChatSidebar
           currentUserId="self"
           workspaceId="ws1"
@@ -134,7 +126,7 @@ describe("ChatSidebar", () => {
 
   it("kind filter hides other conversation types", () => {
     render(
-      wrap(
+      wrapWithNav(
         <ChatSidebar
           currentUserId="self"
           workspaceId="ws1"
@@ -155,7 +147,7 @@ describe("ChatSidebar", () => {
 
   it("shows contact nickname in conversation list", () => {
     render(
-      wrap(
+      wrapWithNav(
         <ChatSidebar
           currentUserId="self"
           workspaceId="ws1"
@@ -176,7 +168,7 @@ describe("ChatSidebar", () => {
     useChatRoomPreferencesStore.getState().toggleNotificationsMuted("dm1");
 
     render(
-      wrap(
+      wrapWithNav(
         <ChatSidebar
           currentUserId="self"
           workspaceId="ws1"
@@ -276,7 +268,12 @@ describe("ChatSidebar", () => {
     expect(screen.getByRole("button", { name: "Ẩn danh sách trò chuyện" })).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("joins an invited workspace, shows which invite is pending, and says why a join failed", () => {
+  /**
+   * GET /me/invitations lists invitations into any organization, and joining
+   * another one is a switch: every join goes through the invitation's own
+   * page (spec 2026-10-13 §6.2), so a row here only opens it.
+   */
+  it("opens each pending invitation on its own page instead of joining from the sidebar", () => {
     invitesMock.invites = [
       {
         id: "inv1",
@@ -287,26 +284,10 @@ describe("ChatSidebar", () => {
         invited_by: { display_name: "Lan" },
       },
     ];
-    const onJoinedWorkspace = vi.fn();
-    renderSidebar({ onJoinedWorkspace });
+    renderSidebar();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tham gia" }));
-    expect(screen.getByRole("button", { name: "Đang tham gia…" })).toBeDisabled();
-    const [vars, handlers] = invitesMock.mutate.mock.calls[0] as [
-      { token: string },
-      { onSuccess: (r: unknown) => void; onError: (e: unknown) => void; onSettled: () => void },
-    ];
-    expect(vars).toEqual({ token: "tok1" });
-
-    act(() => {
-      handlers.onError(new ApiError("server text", "gone", 410));
-      handlers.onSettled();
-    });
-    expect(toast.error).toHaveBeenCalledWith("Không tham gia được workspace. Thử lại.");
-    expect(screen.getByRole("button", { name: "Tham gia" })).not.toBeDisabled();
-
-    const workspace = { id: "ws2", slug: "ops", organization_slug: "acme" };
-    act(() => handlers.onSuccess({ workspace }));
-    expect(onJoinedWorkspace).toHaveBeenCalledWith(workspace);
+    const link = screen.getByRole("link", { name: "Xem lời mời vào Acme" });
+    expect(link).toHaveAttribute("href", "/invite/tok1");
+    expect(screen.queryByRole("button", { name: "Tham gia" })).not.toBeInTheDocument();
   });
 });

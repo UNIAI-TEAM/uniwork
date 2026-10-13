@@ -3569,8 +3569,6 @@
     "sidebar_filter_empty_channel_hint": "Browse channels to join, or create a new one.",
     "sidebar_result_count_one": "{{count}} conversation",
     "sidebar_result_count_other": "{{count}} conversations",
-    "invite_joining": "Joining…",
-    "invite_join_failed": "Couldn't join the workspace. Try again.",
     "no_conversation_hint_hidden": "The conversation list is hidden. Show it to open a conversation.",
     "group_name_optional_label": "Group name (optional)",
     "errors": {

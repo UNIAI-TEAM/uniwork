@@ -2,10 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { paths } from "@uniwork/core/paths";
-import type { Workspace } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
-import { useOptionalNavigation } from "../navigation";
 import { ChatRoomComposer, type ChatComposerHandle, type ComposerAttachAction } from "./chat-composer";
 import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
 import { ChatSidebar } from "./chat-sidebar";
@@ -152,14 +149,6 @@ export function ChatPageContent({
   const openFollowUpsRef = useRef(followUpUi.openList);
   openFollowUpsRef.current = followUpUi.openList;
   const openFollowUps = useCallback(() => openFollowUpsRef.current(), []);
-  const navigation = useOptionalNavigation();
-  const pushRoute = navigation?.push;
-  const handleJoinedWorkspace = useCallback(
-    (joined: Workspace | null) => {
-      pushRoute?.(joined ? paths.workspace(joined.organization_slug, joined.slug).chat() : paths.workspaces());
-    },
-    [pushRoute],
-  );
 
   // ⌘/Ctrl+F searches the room only while focus is inside the conversation;
   // anywhere else the browser keeps its own find.
@@ -311,7 +300,6 @@ export function ChatPageContent({
               groups={groups}
               channels={channels}
               onOpenFollowUps={openFollowUps}
-              onJoinedWorkspace={handleJoinedWorkspace}
               onCreateGroup={onCreateGroup}
               creatingGroup={creatingGroup}
               createGroupOpen={createGroupOpen}
