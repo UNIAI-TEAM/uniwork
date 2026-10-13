@@ -21,7 +21,7 @@ import {
 } from "@uniwork/core/office/docs-frame-protocol";
 import { getOfficeDraftKey, officeDraftScope } from "@uniwork/core/office/draft-session-key";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
-import { deliverFrameDownload } from "./frame-download";
+import { OFFICE_FRAME_DOWNLOAD_MAX_BYTES, deliverFrameDownload } from "./frame-download";
 
 /**
  * No handshake within this long = the bundle never loaded, and the page shows the load failure
@@ -388,12 +388,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         const recovery = officeModuleSpec(module).recovery === true && uid && !viewOnly
           ? { key: await getOfficeDraftKey(uid), scope: officeDraftScope(uid, doc) }
           : null;
+        const capabilities = officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true);
         return {
           ...frameToken,
           documentId: doc, workspaceId: current.wsId,
           apiBase: docsFrameApiBase(), apiMode: "host-proxy",
           locale: current.locale, theme: current.theme,
-          capabilities: officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen), minted?.can_edit === true),
+          capabilities,
+          // The cap api.download enforces, told up front so the conflict dialog can disable its
+          // download choice before a 413; only with the capability (the frame ignores it otherwise).
+          ...(capabilities.download ? { downloadMaxBytes: OFFICE_FRAME_DOWNLOAD_MAX_BYTES } : {}),
           ...(name ? { user: { displayName: name } } : {}),
           ...(recovery ? { recovery } : {}),
         };
