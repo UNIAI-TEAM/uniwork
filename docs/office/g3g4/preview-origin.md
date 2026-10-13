@@ -28,7 +28,7 @@ returns final bytes directly and never follows a caller-controlled URL.
 For the production Helm deployment, create the `uniwork-preview` Secret with
 the random `PREVIEW_CAPABILITY_SECRET` key and keep it out of the ConfigMap;
 the backend chart injects that key at boot. The edge `ApisixTls` object must
-bind both `uniwork.unicomhub.com` and `preview.unicomhub.com` to the certificate.
+bind both `uniworkos.com` and `preview.uniworkos.com` to the certificate.
 For `docker-compose.prod.yml`, set `PREVIEW_ORIGIN` and a 32-character-or-
 longer `PREVIEW_CAPABILITY_SECRET` in the private `.env` file before starting
 the server; startup fails closed if either value is missing or invalid.

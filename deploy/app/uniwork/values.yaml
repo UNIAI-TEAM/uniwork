@@ -14,7 +14,7 @@ env:
   officeEngineContent: ""
 
 public:
-  origin: https://uniwork.unicomhub.com
+  origin: https://uniworkos.com
   livekitUrl: wss://livekit.vn247.info:7880
 
 be:
