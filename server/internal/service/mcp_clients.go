@@ -150,16 +150,17 @@ func (s *McpAuthService) resolveCIMD(ctx context.Context, clientID string) (McpC
 		return McpClient{}, errMcpClientUnknown
 	}
 	var doc struct {
-		ClientID                string   `json:"client_id"`
-		ClientName              string   `json:"client_name"`
-		RedirectURIs            []string `json:"redirect_uris"`
-		LogoURI                 string   `json:"logo_uri"`
-		TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
+		ClientID                 string   `json:"client_id"`
+		ClientName               string   `json:"client_name"`
+		RedirectURIs             []string `json:"redirect_uris"`
+		LogoURI                  string   `json:"logo_uri"`
+		TokenEndpointAuthMethod  string   `json:"token_endpoint_auth_method"`
+		TokenEndpointAuthMethods []string `json:"token_endpoint_auth_methods_supported"`
 	}
 	if json.Unmarshal(body, &doc) != nil || doc.ClientID != clientID || strings.TrimSpace(doc.ClientName) == "" || len(doc.RedirectURIs) == 0 || len(doc.RedirectURIs) > 10 {
 		return McpClient{}, errMcpClientUnknown
 	}
-	if doc.TokenEndpointAuthMethod != "" && doc.TokenEndpointAuthMethod != "none" {
+	if !cimdOffersNone(doc.TokenEndpointAuthMethod, doc.TokenEndpointAuthMethods) {
 		return McpClient{}, errMcpClientUnknown // a public document cannot pre-share a secret
 	}
 	for _, u := range doc.RedirectURIs {
@@ -182,6 +183,17 @@ func (s *McpAuthService) resolveCIMD(ctx context.Context, clientID string) (McpC
 		return McpClient{}, err
 	}
 	return mcpClientFromRow(up), nil
+}
+
+// cimdOffersNone reports whether a metadata document lets its client
+// authenticate as a public one. A document may name one method or list several
+// (ChatGPT names private_key_jwt and lists none beside it, then picks none
+// from what we advertise); either way the client is stored as none and uses
+// PKCE, and fields for other methods (jwks_uri) are ignored. A document that
+// names neither defaults to none, as before; one whose methods leave none out
+// is refused.
+func cimdOffersNone(method string, methods []string) bool {
+	return method == "none" || slices.Contains(methods, "none") || (method == "" && len(methods) == 0)
 }
 
 // authenticateClient implements the token endpoint's client check: public
@@ -255,4 +267,38 @@ func verifiedRedirects(uris []string) bool {
 	return true
 }
 
-func (c McpClient) allowsRedirect(uri string) bool { return slices.Contains(c.RedirectURIs, uri) }
+// allowsRedirect matches uri against the registered redirect URIs exactly,
+// with one exception from RFC 8252 §7.3: a native client registers an http
+// loopback callback and listens on whatever port the system gives it, so for
+// http on a loopback host the port is ignored and scheme, host, path and query
+// must still match. The attempt keeps the URI as asked, port included, and the
+// token endpoint compares against that exactly.
+func (c McpClient) allowsRedirect(uri string) bool {
+	if slices.Contains(c.RedirectURIs, uri) {
+		return true
+	}
+	asked, ok := loopbackRedirect(uri)
+	if !ok {
+		return false
+	}
+	for _, raw := range c.RedirectURIs {
+		reg, ok := loopbackRedirect(raw)
+		if ok && reg.Hostname() == asked.Hostname() && reg.EscapedPath() == asked.EscapedPath() && reg.RawQuery == asked.RawQuery && reg.ForceQuery == asked.ForceQuery {
+			return true
+		}
+	}
+	return false
+}
+
+// loopbackRedirect parses an http redirect URI on a loopback host that is
+// otherwise acceptable as a redirect URI; ok is false for anything else.
+func loopbackRedirect(raw string) (*url.URL, bool) {
+	if !validMcpRedirectURI(raw) {
+		return nil, false
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "http" {
+		return nil, false
+	}
+	return u, true
+}

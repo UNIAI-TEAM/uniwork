@@ -203,3 +203,125 @@ func TestMcpResolveCIMDDefinitiveAnswersDropStaleRow(t *testing.T) {
 		}
 	}
 }
+
+// C1: ChatGPT publishes a metadata document whose singular method is
+// private_key_jwt but whose list also offers none; it picks none from the
+// intersection with what we advertise. Such a client is public and uses PKCE,
+// so it is stored as none and its other fields (jwks_uri) are ignored. A
+// document that offers no none at all still cannot be a public client.
+func TestMcpResolveCIMDAcceptsAPublicMethodInTheList(t *testing.T) {
+	w := newMcpWorld(t)
+	f := &fakeCIMD{}
+	w.svc.SetFetcher(f)
+	doc := func(id string, extra map[string]any) []byte {
+		m := map[string]any{"client_id": id, "client_name": "ChatGPT", "redirect_uris": []string{"https://chatgpt.com/connector_platform_oauth_redirect"}}
+		for k, v := range extra {
+			m[k] = v
+		}
+		b, _ := json.Marshal(m)
+		return b
+	}
+
+	chatgpt := "https://chatgpt.com/oauth/client.json"
+	f.body = doc(chatgpt, map[string]any{
+		"token_endpoint_auth_method":            "private_key_jwt",
+		"token_endpoint_auth_methods_supported": []string{"none", "private_key_jwt"},
+		"jwks_uri":                              "https://chatgpt.com/oauth/jwks.json",
+	})
+	c, err := w.svc.ResolveClient(w.ctx, chatgpt)
+	if err != nil || c.Kind != "cimd" || c.AuthMethod != "none" || !c.Verified {
+		t.Fatalf("ChatGPT-shaped document: %+v, %v; want a verified public cimd client", c, err)
+	}
+	if _, err := w.svc.authenticateClient(w.ctx, chatgpt, ""); err != nil {
+		t.Fatalf("a public client authenticates by PKCE alone: %v", err)
+	}
+
+	for name, extra := range map[string]map[string]any{
+		"singular only, no none": {"token_endpoint_auth_method": "private_key_jwt"},
+		"list without none":      {"token_endpoint_auth_method": "private_key_jwt", "token_endpoint_auth_methods_supported": []string{"private_key_jwt"}},
+		"empty singular, list without none": {
+			"token_endpoint_auth_methods_supported": []string{"private_key_jwt", "client_secret_basic"},
+		},
+	} {
+		id := "https://refused.example/" + strings.ReplaceAll(name, " ", "-") + ".json"
+		f.body = doc(id, extra)
+		if c, err := w.svc.ResolveClient(w.ctx, id); !errors.Is(err, errMcpClientUnknown) {
+			t.Errorf("%s: resolve = %+v, %v; want errMcpClientUnknown", name, c, err)
+		}
+	}
+}
+
+// C2, RFC 8252 §7.3: a native client registers a loopback callback without a
+// port and listens on whatever port the system gives it, so http on a loopback
+// host matches on scheme, host, path and query whatever the port. Everything
+// else is matched exactly.
+func TestMcpLoopbackRedirectMatchesAnyPort(t *testing.T) {
+	w := newMcpWorld(t)
+	reg, err := w.svc.Register(w.ctx, McpRegistration{ClientName: "Claude Code", TokenEndpointAuthMethod: "none", RedirectURIs: []string{
+		"http://localhost/callback", "http://127.0.0.1/callback", "http://[::1]:7777/cb?x=1", "https://app.example/cb",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := reg.Client
+	for _, uri := range []string{
+		"http://localhost/callback", "http://localhost:3118/callback", "http://127.0.0.1:51234/callback",
+		"http://[::1]:7777/cb?x=1", "http://[::1]/cb?x=1", "http://[::1]:9/cb?x=1", "https://app.example/cb",
+	} {
+		if !c.allowsRedirect(uri) {
+			t.Errorf("%s refused, want accepted", uri)
+		}
+	}
+	for _, uri := range []string{
+		"http://localhost:3118/other",        // another path
+		"http://localhost:3118/callback?x=1", // another query
+		"http://[::1]:9/cb",                  // the registered query is missing
+		"http://[::1]:9/cb?x=2",              // another query value
+		"http://127.0.0.1:3118/cb?x=1",       // the ::1 entry is ::1 only
+		"http://[::1]:9/callback",            // localhost and 127.0.0.1 entries are theirs only
+		"http://localhost:3118/callback#f",   // a fragment
+		"http://u@localhost:3118/callback",   // credentials
+		"https://localhost:3118/callback",    // the port rule is for http only
+		"https://app.example:8443/cb",        // https stays exact
+		"http://app.example/cb",              // a non-loopback http host
+		"http://localhost.evil.example:3118/callback",
+		"http://localhost:x/callback",
+	} {
+		if c.allowsRedirect(uri) {
+			t.Errorf("%s accepted, want refused", uri)
+		}
+	}
+}
+
+// The attempt records the redirect URI the client sent, port included, and the
+// token exchange compares against it exactly: a code issued for one port does
+// not redeem for another. A protocol error after the redirect check goes back
+// to the port the request named.
+func TestMcpLoopbackRedirectIsExactAtTheTokenEndpoint(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	c := w.publicClient(t, "http://localhost/callback")
+	const asked = "http://localhost:3118/callback"
+
+	_, err := w.svc.Start(w.ctx, McpAuthorizeInput{ResponseType: "token", ClientID: c.ClientID, RedirectURI: asked, CodeChallenge: mcpTestChallenge(), CodeChallengeMethod: "S256", State: "s"})
+	var ae *McpAuthorizeError
+	if !errors.As(err, &ae) || ae.Code != "unsupported_response_type" || ae.RedirectURI != asked {
+		t.Fatalf("protocol error: %#v; want it sent back to %s", err, asked)
+	}
+	_, err = w.svc.Start(w.ctx, McpAuthorizeInput{ResponseType: "code", ClientID: c.ClientID, RedirectURI: "http://localhost:3118/elsewhere", CodeChallenge: mcpTestChallenge(), CodeChallengeMethod: "S256"})
+	if !errors.As(err, &ae) || ae.Code != "invalid_request" || ae.RedirectURI != "" {
+		t.Fatalf("unregistered path: %#v; want no redirect", err)
+	}
+
+	code := w.approve(t, c, asked)
+	if code == "" {
+		t.Fatal("no code for the loopback callback")
+	}
+	var oe OAuthError
+	if _, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, Code: code, CodeVerifier: mcpTestVerifier, RedirectURI: "http://localhost:4000/callback"}); !errors.As(err, &oe) || oe.Code != "invalid_grant" {
+		t.Fatalf("exchange on another port: %v, want invalid_grant", err)
+	}
+	if _, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, Code: code, CodeVerifier: mcpTestVerifier, RedirectURI: asked}); err != nil {
+		t.Fatalf("exchange on the authorize port: %v", err)
+	}
+}
