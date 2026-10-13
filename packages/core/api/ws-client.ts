@@ -15,7 +15,7 @@ const UNPARSEABLE_LOG_MAX_CHARS = 200;
 // expose a visible disconnected state or manual retry action.
 const RECONNECT_BASE_DELAY_MS = 1_000;
 const RECONNECT_MAX_DELAY_MS = 30_000;
-// Edge/LB idle cuts (~50s observed on uniwork.unicomhub.com) drop quiet
+// Edge/LB idle cuts (~50s observed on uniworkos.com) drop quiet
 // sockets even when APISIX/read timeouts are long. Application ping keeps
 // data frames flowing; the server answers with {"type":"pong"}.
 const APP_PING_INTERVAL_MS = 25_000;
