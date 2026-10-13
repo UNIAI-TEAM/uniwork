@@ -226,6 +226,7 @@ workspace already. Do not translate it in one place and not another.
 | Board / List | Bảng / Danh sách |
 | Table / Cards | Bảng / Thẻ |
 | Filter / Display / View | Bộ lọc / Hiển thị / Chế độ xem |
+| Text size | Cỡ chữ |
 | Upcoming / Past | Sắp diễn ra / Đã diễn ra |
 | Loading… / Error / Empty | Đang tải… / Có lỗi xảy ra / Chưa có dữ liệu |
 
