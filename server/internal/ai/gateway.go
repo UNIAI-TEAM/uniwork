@@ -259,7 +259,16 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	// zero-token call (design §6.3): the row settles succeeded with
 	// reason_code usage_unknown — the reconciliation queue — and the meter is
 	// left alone, because recording zero would claim nobody counted anything.
-	if !resp.UsagePresent {
+	//
+	// The branch belongs to UniWork AI alone (design §6.3): it is the one
+	// capability whose rows a reconciler prices from the stored transcript
+	// (AiUniworkUnknownUsageEvents filters capability = 'office_uniwork_ai'),
+	// and its run meter already keeps a charge idempotent. Every other
+	// capability keeps the pre-03b priced path — a vendor that omitted the
+	// usage block settles succeeded at cost 0, as it did before this branch
+	// existed — so no capability accumulates rows nobody reconciles and
+	// ObserveAIUsage keeps being sampled for them.
+	if !resp.UsagePresent && req.Capability == CapOfficeUniworkAI {
 		if err := g.finish(sctx, row.ID, row.OrganizationID, resp, "succeeded", UsageUnknownReason, latency, calls); err != nil {
 			return Response{}, err
 		}
