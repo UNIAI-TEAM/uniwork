@@ -116,23 +116,54 @@ WHERE a.organization_id = sqlc.arg(organization_id)
 ORDER BY a.xact_id, a.id
 LIMIT sqlc.arg(page_limit);
 
--- name: GetDocumentChangeFeedRow :one
--- One document's current row for a feed row, so the service can decide the
--- change kind and whether the caller still reads it. A missing row is a hard
--- delete (tombstone) or an unreadable one.
-SELECT * FROM documents
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id)
-  AND workspace_id = sqlc.arg(workspace_id);
-
--- name: CountDocumentChangeFeed :one
--- The lag metric's read: how many document changes in one workspace are
--- committed after the snapshot mark and already eligible (not in flight).
-SELECT count(*)::bigint AS pending
+-- name: DocumentChangeFeedPending :one
+-- What the feed still owes after the position one page handed out: how many
+-- changes are already committed and eligible (the same predicate as the page
+-- read), and the age of the oldest of them. The count is has_more (a page that
+-- stopped at the limit, or held a still-in-flight transaction back, keeps the
+-- client paging); the age is the feed lag metric. No row answers (0, 0).
+SELECT count(*)::bigint AS pending,
+       COALESCE(EXTRACT(EPOCH FROM (now() - min(a.occurred_at))), 0)::float8 AS lag_seconds
 FROM audit_events a
 WHERE a.organization_id = sqlc.arg(organization_id)
   AND a.workspace_id = sqlc.arg(workspace_id)
   AND a.resource_type = 'document'
   AND a.xact_id IS NOT NULL
   AND NOT pg_visible_in_snapshot(a.xact_id, sqlc.arg(high_water)::text::pg_snapshot)
-  AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot());
+  AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
+  AND (sqlc.arg(after_xact)::text = ''
+       OR (a.xact_id, a.id) > (sqlc.arg(after_xact)::xid8, sqlc.arg(after_id)::text));
+
+-- name: ChangeFeedEpochSeen :one
+-- Does a high-water mark postdate the change-feed position column? The epoch
+-- row (migration 9991791830000302) carries the xid from which
+-- audit_events.xact_id is filled; a mark that cannot see it was taken before
+-- the column, so commits between the mark and the column have no position and
+-- the feed answers 410 instead of a page with a hole in it. A missing epoch
+-- row (the migration never ran) reads as not seen.
+SELECT COALESCE((
+  SELECT pg_visible_in_snapshot(e.xact_id, sqlc.arg(high_water)::text::pg_snapshot)
+  FROM change_feed_epoch e
+  ORDER BY e.xact_id DESC
+  LIMIT 1
+), false)::boolean AS seen;
+
+-- name: ListDocumentsForChangeFeed :many
+-- One page's documents, WITHOUT the workspace filter: a row whose document now
+-- lives in another workspace of the same organization is a removal for this
+-- workspace, and a row with no document is a hard delete. Cross-tenant ids
+-- read nothing.
+SELECT * FROM documents
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = ANY(sqlc.arg(ids)::text[]);
+
+-- name: ReadableAtSnapshotIDs :many
+-- The document ids the caller's snapshot held among these candidates: the
+-- snapshot items were materialised at the snapshot's MVCC point, so they are
+-- exactly what the caller could read then. The feed sends a removal only to a
+-- caller in this set, so a stranger learns nothing about a document.
+SELECT document_id FROM document_change_snapshot_items
+WHERE snapshot_id = sqlc.arg(snapshot_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = ANY(sqlc.arg(ids)::text[]);
