@@ -366,9 +366,24 @@ func (s *DocumentChangesService) feedRows(ctx context.Context, q *db.Queries, cs
 			OwnerID: d.OwnerID, Visibility: d.Visibility, AclOwnerID: d.AclOwnerID,
 		}
 	}
-	held, haveEvidence, err := s.snapshotEvidence(ctx, q, cs, snapshotID, order)
-	if err != nil {
-		return nil, err
+	// The snapshot evidence is consulted only for the two kinds whose removing
+	// change destroys the pre-change state (a purge, a document that became an
+	// owner's); every other kind reconstructs from the row and the audit row,
+	// so the snapshot sweep cannot affect it.
+	needsEvidence := false
+	for _, id := range order {
+		if doc, ok := byID[id]; !ok || doc.OwnerID.Valid {
+			needsEvidence = true
+			break
+		}
+	}
+	held := map[string]bool{}
+	haveEvidence := false
+	if needsEvidence {
+		held, haveEvidence, err = s.snapshotEvidence(ctx, q, cs, snapshotID, order)
+		if err != nil {
+			return nil, err
+		}
 	}
 	scope, err := s.feedScope(ctx, q, cs)
 	if err != nil {
