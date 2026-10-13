@@ -310,8 +310,8 @@ có phải thành viên không", nên **trước mọi tool nhận `workspace_id
 
 ### 7.4 Tool
 
-Mọi tool: annotation `readOnlyHint: true`, `destructiveHint: false`,
-`openWorldHint: false`; trả `structuredContent` kèm bản `text` cùng nội dung. URL là
+Mọi tool có `title` cho người đọc (ở trường của tool và trong annotation) và
+annotation `readOnlyHint: true`, `destructiveHint: false`, `openWorldHint: false`; trả `structuredContent` kèm bản `text` cùng nội dung. URL là
 tuyệt đối: `FRONTEND_ORIGIN` + `Href` của `ai.Source`.
 
 | Tool | Input | Nguồn | Output |
@@ -506,7 +506,7 @@ khỏi token phiên". Ghi:
 
 1. v1.1: tài liệu trong `search` và `get_document`.
 2. Tool ghi qua `action_proposals` (ADR 0010), scope `write`.
-3. Nộp Directory: cần privacy policy, trang hỗ trợ, tài khoản demo, annotation đầy đủ.
+3. Nộp Directory (UNI-1428): cần privacy policy, trang hỗ trợ, tài khoản demo; annotation đã đủ.
 4. MCP Apps / Apps SDK: thẻ task tương tác.
 
 ## 15. Bước tiếp theo
