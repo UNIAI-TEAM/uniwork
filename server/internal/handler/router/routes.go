@@ -527,9 +527,11 @@ type Routes struct {
 	ReopenDocumentComment         http.HandlerFunc
 	AddDocumentCommentReaction    http.HandlerFunc
 	RemoveDocumentCommentReaction http.HandlerFunc
-	FavoriteDocument              http.HandlerFunc
-	UnfavoriteDocument            http.HandlerFunc
-	ListDocumentFavorites         http.HandlerFunc
+	// ListDocumentCommentRevisions is the edit history (G8-03, UNI-1398).
+	ListDocumentCommentRevisions http.HandlerFunc
+	FavoriteDocument             http.HandlerFunc
+	UnfavoriteDocument           http.HandlerFunc
+	ListDocumentFavorites        http.HandlerFunc
 
 	// Saved signatures (UNI-925 B6): the caller's own signature images.
 	ListSavedSignatures  http.HandlerFunc

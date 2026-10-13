@@ -67,6 +67,8 @@ var tenantExportIncludedTables = []string{
 	"departments",
 	"document_access_logs",
 	"document_assets",
+	"document_comment_mentions",
+	"document_comment_revisions",
 	"document_comments",
 	"document_favorites",
 	"document_settings",

@@ -792,6 +792,23 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 	}
 	tn.ids["notification"] = n.ID
 
+	// The comment orbit G8-03 added (UNI-1398): one edit-history row and one
+	// mention row of the document comment. Revisions are written by the edit
+	// route and mentions by G8-05; the world seeds them so both tables hold a
+	// row of the tenant's and their read paths can be attacked.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_comment_revisions
+		(id, organization_id, workspace_id, document_id, comment_id, body, revision, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 1, $7, 'human')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["document"], tn.ids["docComment"], m+" doc comment (cũ)", tn.userID); err != nil {
+		t.Fatalf("document comment revision: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_comment_mentions
+		(id, organization_id, workspace_id, document_id, comment_id, user_id, state, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, 'human')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["document"], tn.ids["docComment"], tn.peerID, tn.userID); err != nil {
+		t.Fatalf("document comment mention: %v", err)
+	}
+
 	// A connected Google calendar.
 	tokenEnc, err := w.box.Seal([]byte("token"))
 	if err != nil {
