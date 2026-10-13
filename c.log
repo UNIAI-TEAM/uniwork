@@ -1,0 +1,17 @@
+$ pnpm --filter @uniwork/core exec vitest run api/endpoints/ai-office.test.ts api/endpoints/office-frame.test.ts ai/office-hooks.test.tsx; echo "G603C_CORE_TARGET_EXIT $?"; true
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+
+
+ Test Files  3 passed (3)
+      Tests  31 passed (31)
+   Start at  03:22:13
+   Duration  835ms (transform 309ms, setup 499ms, import 534ms, tests 144ms, environment 934ms)
+
+G603C_CORE_TARGET_EXIT 0

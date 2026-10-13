@@ -1,0 +1,14 @@
+$ pnpm --filter @uniwork/core typecheck && pnpm --filter @uniwork/views typecheck && pnpm --filter web typecheck; echo "G603C_TYPECHECK_EXIT $?"; true
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
+
+> @uniwork/views@0.0.0 typecheck /workspace/packages/views
+> tsc --noEmit
+
+
+> @uniwork/web@0.0.0 typecheck /workspace/apps/web
+> tsc --noEmit
+
+G603C_TYPECHECK_EXIT 0
