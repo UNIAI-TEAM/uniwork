@@ -338,13 +338,13 @@ describe("useFrameComments: the frame's requests go to the D API with the user's
     const frame = setup({ myLevel: "edit" });
     await frame.boot();
     // G8-04 merged PUT .../comments/anchors, so the §9 table's only route-less row is gone: a 405
-    // is now an anomaly and takes the table default `internal` (retryable, 5xx-class), never the
-    // `unsupported` the frame would read as "this host lacks the capability".
+    // is now an anomaly and takes the table default `internal`, never the `unsupported` the frame
+    // would read as "this host lacks the capability". 405 is below 500, so retryable stays false.
     frame.api.mockRejectedValue(new ApiError("Method Not Allowed", "internal", 405));
     const answer = await frame.answerOf(
       await frame.request("comments.anchors", { version_id: "v1", anchors: [{ comment_id: "c1", anchor: { format: "docx", v: 1 }, state: "exact" }] }),
     );
-    expect(errorOf(answer)).toMatchObject({ code: "internal", status: 405 });
+    expect(errorOf(answer)).toMatchObject({ code: "internal", status: 405, retryable: false });
   });
 
   it("a network failure is `network`, retryable", async () => {
