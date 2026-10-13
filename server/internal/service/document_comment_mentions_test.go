@@ -49,7 +49,7 @@ func mentionRowCount(t *testing.T, f *docPermFixture, commentID string) int {
 
 // A create writes one row per named id: active for a reader, no_access for
 // somebody who cannot read the document, self-mention stored like any other.
-func TestDocumentCommentMentionWriteOnCreate(t *testing.T) {
+func TestDocumentMentionWriteOnCreate(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "mwrite")
 	d := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
@@ -87,7 +87,7 @@ func TestDocumentCommentMentionWriteOnCreate(t *testing.T) {
 // An edit diffs the body: a kept id is untouched, a dropped id becomes
 // removed (its old notification stays), a new id lands active, and a removed
 // id that returns turns active with its notified_at kept.
-func TestDocumentCommentMentionWriteOnEdit(t *testing.T) {
+func TestDocumentMentionWriteOnEdit(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "medit")
 	d := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})

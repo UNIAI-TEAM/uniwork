@@ -108,6 +108,15 @@ func (c *Consumer) deliver(ctx context.Context, eventID, correlationID string, d
 	for _, d := range drafts {
 		prefs := matrices[d.UserID].For(d.Kind)
 		if !prefs.InApp {
+			// A mention row is still claimed when the channel is off: the
+			// claim-only transaction stops the row from notifying later,
+			// after the person re-enables InApp and edits keep the mention
+			// (contract-collab section 8.2).
+			if d.Claim != nil {
+				if err := c.claim(ctx, d); err != nil {
+					return err
+				}
+			}
 			continue
 		}
 		if err := c.write(ctx, eventID, correlationID, d, prefs); err != nil {
@@ -115,6 +124,27 @@ func (c *Consumer) deliver(ctx context.Context, eventID, correlationID string, d
 		}
 	}
 	return nil
+}
+
+// claim resolves a mention row without writing a notification: the same
+// UPDATE the write path uses, in its own transaction. 0 rows means somebody
+// else already claimed it, which is not an error for the silent path.
+func (c *Consumer) claim(ctx context.Context, d Draft) error {
+	tx, err := c.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	claimed, err := c.q.WithTx(tx).ClaimDocumentCommentMention(ctx, db.ClaimDocumentCommentMentionParams{
+		ID: d.Claim.MentionID, OrganizationID: d.OrganizationID,
+	})
+	if err != nil {
+		return err
+	}
+	if claimed == 0 {
+		return nil
+	}
+	return tx.Commit(ctx)
 }
 
 func (c *Consumer) write(ctx context.Context, eventID, correlationID string, d Draft, prefs Prefs) error {
@@ -131,6 +161,22 @@ func (c *Consumer) write(ctx context.Context, eventID, correlationID string, d D
 	}
 	if n == 0 {
 		return nil // already delivered to this user by an earlier attempt
+	}
+	// The mention claim shares this transaction with the notification row
+	// and its outbox rows (contract-collab section 8.2): the UPDATE only
+	// matches while nobody claimed the row, so concurrent consumers and
+	// outbox replays commit exactly one notification; 0 rows commits
+	// nothing - not even the delivery row - and drops the draft.
+	if d.Claim != nil {
+		claimed, err := q.ClaimDocumentCommentMention(ctx, db.ClaimDocumentCommentMentionParams{
+			ID: d.Claim.MentionID, OrganizationID: d.OrganizationID,
+		})
+		if err != nil {
+			return err
+		}
+		if claimed == 0 {
+			return nil
+		}
 	}
 	params, err := json.Marshal(d.Params)
 	if err != nil {
