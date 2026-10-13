@@ -50,8 +50,9 @@ type AIUniworkService struct {
 	deadline time.Duration
 }
 
-// NewAIUniworkService wires the service. rdb may be nil: the per-organization
-// and whole-deployment bounds then live in-process only (A11).
+// NewAIUniworkService wires the service. rdb may be nil: the organization
+// bound then lives in this process only — orgMax per pod, not shared — and
+// the whole-deployment bound is the one that is dropped (A11).
 func NewAIUniworkService(orgs *OrganizationService, ents *EntitlementService, docs *DocumentService,
 	flags *featureflag.Service, gw *ai.Gateway, store ai.ConversationStore, rdb *redis.Client) *AIUniworkService {
 	return &AIUniworkService{
@@ -190,9 +191,10 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 	}
 	resp, err := s.gw.Complete(ctx, request)
 	if err != nil {
-		// A failed run leaves no turns behind for the next one to replay
-		// (design §6.2, spike §4.9).
-		_ = s.store.Rollback(ctx, conv.ID, len(conv.Turns))
+		// Nothing of this attempt is in the transcript yet — Append runs only
+		// after Complete succeeds — so there is nothing to roll back. A
+		// Rollback here would delete by seq count alone and take a concurrent
+		// attempt's turns with it.
 		return UniworkTurn{ConversationID: conv.ID}, err
 	}
 	kept, dropped := ai.FilterUniworkToolCalls(resp.ToolCalls, allow)
