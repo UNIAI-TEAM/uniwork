@@ -27,7 +27,7 @@ type DocumentChangeFeedSDO struct {
 	CurrentVersion int32   `json:"current_version" description:"Số thứ tự phiên bản mới nhất khi upsert; 0 khi removal" example:"3"`
 	VersionID      *string `json:"version_id" description:"Id bản ghi phiên bản đang là head (file); null với page/folder và mọi removal" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
 	Archived       bool    `json:"archived" description:"true khi tài liệu đang được lưu trữ (upsert); archive/restore khác delete" example:"false"`
-	Removal        string  `json:"removal" description:"Lý do removal: document_deleted, permission_revoked hoặc moved_workspace; rỗng khi upsert" example:"document_deleted"`
+	Removal        string  `json:"removal" description:"Lý do removal: permission_revoked hoặc moved_workspace; rỗng khi upsert. document_deleted vẫn nằm trong enum cho tương lai nhưng feed hiện không gửi: một purge trả 410 change_cursor_expired (client resync)" example:"permission_revoked"`
 }
 
 // DocumentChangeListSDO is one page of GET
@@ -41,7 +41,7 @@ type DocumentChangeListSDO struct {
 	Phase      string                  `json:"phase" description:"Pha của trang: snapshot (cold start) hoặc feed (tăng dần)" example:"snapshot"`
 	Changes    []DocumentChangeSDO     `json:"changes" description:"Các dòng snapshot (phase snapshot); rỗng ở trang feed"`
 	Feed       []DocumentChangeFeedSDO `json:"feed" description:"Các dòng feed tăng dần (phase feed); rỗng ở trang snapshot"`
-	HasMore    bool                    `json:"has_more" description:"Còn trang sau; false ở trang cuối" example:"true"`
+	HasMore    bool                    `json:"has_more" description:"Còn trang sau; false ở trang cuối. Trang feed chỉ true khi nó đã tiến cursor (gửi hoặc bỏ qua ít nhất một dòng) VÀ còn dòng hợp lệ: một trang bị giữ lại toàn bộ bởi guard giao dịch đang chạy trả false với cursor không đổi (client hỏi lại sau)" example:"true"`
 	NextCursor string                  `json:"next_cursor" description:"Cursor kế tiếp, opaque; ở trang cuối snapshot là cursor feed mang high-water mark" example:"dcc1.eyJwIjoib2ZmaWNlLWNoYW5nZS1mZWVkLzEifQ.c2lnbmF0dXJl"`
 	ExpiresAt  string                  `json:"expires_at" description:"Hạn của next_cursor; quá hạn -> 410 change_cursor_expired" example:"2026-10-13T10:15:00Z"`
 }

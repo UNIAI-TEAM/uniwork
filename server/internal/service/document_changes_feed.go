@@ -53,9 +53,11 @@ import (
 // open transaction (a migration, a backup, a stuck reader), so for as long as
 // one old transaction stays open every later commit is ineligible and the feed
 // serves nothing. No commit is skipped - the cursor keeps its place - and the
-// stall is observable: DocumentChangeFeedPending counts the held-back rows
-// (has_more stays true, BE-G1-3) and reports the age as the lag gauge; the
-// Office engine runbook names it (BE-G1-5).
+// stall is observable: DocumentChangeFeedPending counts the held-back rows and
+// reports the age as the lag gauge, and a page that can advance nothing answers
+// has_more=false with its cursor unchanged (BE-G2-2), so a client polls again
+// later instead of spinning on a repeated cursor; the Office engine runbook
+// names it (BE-G1-5).
 //
 // # Kinds and visibility
 //
@@ -82,10 +84,17 @@ import (
 //     user, a workspace they are in, or their organization) and must not read
 //     through any other path now. A caller who still reads another way gets the
 //     upsert, never a removal.
-//   - visibility demotion (document.settings_changed): the prior visibility
-//     comes from the audit row (metadata.visibility, or changes.visibility.from
-//     when the command writes the diff). A member the prior visibility admitted
-//     and the current one refuses gets the removal.
+//   - visibility demotion: the REAL command is a PATCH through UpdateDocument
+//     with Visibility set, which writes document.updated with a
+//     changes.visibility {from,to} diff (document_pages.go, audit.Diff); a
+//     document.settings_changed row is the arm the document-level settings
+//     command would write and is kept harmlessly. The prior visibility comes
+//     from the audit row (metadata.visibility, or changes.visibility.from). A
+//     member the prior visibility admitted and the current one refuses gets the
+//     removal. A document.updated row WITHOUT a visibility diff (a title, icon
+//     or content edit) is NOT a removal basis and is ignored - never 410; a
+//     visibility diff whose prior value is missing answers 410 instead of
+//     guessing.
 //   - becoming Work-Product-owned: the owner resolver is NOT on this root
 //     (document_owner.go is only the default-deny seam), so the level is none
 //     for everyone (spec 11, BLOCKED; see feedRowLevel). The current row no
@@ -127,8 +136,12 @@ const DocumentChangeFeedTTL = DocumentChangeFeedCursorTTL
 
 // Removal reasons (the removal row's kind, spec 4.1).
 const (
-	// DocumentChangeRemovalDeleted is a hard delete or a purge: the document
-	// row is gone. The client stops replaying and does not resurrect it.
+	// DocumentChangeRemovalDeleted names a hard delete or a purge: the
+	// document row is gone. It stays on the wire for forward compatibility,
+	// but the current feed emits it from no path: document.deleted is the
+	// retention purge, whose evidence the change destroys, so the feed answers
+	// 410 change_cursor_expired instead (see purgeAnswer and the file header) -
+	// the client resyncs rather than receiving this reason.
 	DocumentChangeRemovalDeleted = "document_deleted"
 	// DocumentChangeRemovalPermissionRevoked is a lost read level (a revoked
 	// share, a visibility change, a demotion): the document exists but the
@@ -264,13 +277,9 @@ func (s *DocumentChangesService) pageFeed(ctx context.Context, cs changeCursorSc
 	}
 
 	// What the feed still owes after the position this page hands out. The
-	// count decides has_more exactly: it includes a change held back because
-	// its transaction was still in flight at read time (the query drops the
-	// page read's in-flight guard on purpose, BE-G1-3) and one beyond this
-	// page, so the client keeps paging instead of stopping one poll short. A
-	// page that read nothing can therefore still report has_more with an
-	// unchanged position - the held-back change is delivered once its
-	// transaction settles. The age is the lag metric.
+	// count includes a change held back because its transaction was still in
+	// flight at read time (the query drops the page read's in-flight guard on
+	// purpose, BE-G1-3) and one beyond this page. The age is the lag metric.
 	pending, err := q.DocumentChangeFeedPending(ctx, db.DocumentChangeFeedPendingParams{
 		OrganizationID: cs.organization, WorkspaceID: pgtype.Text{String: cs.workspace, Valid: true},
 		HighWater: claims.HighWater, AfterXact: lastXact, AfterID: lastID,
@@ -282,7 +291,15 @@ func (s *DocumentChangesService) pageFeed(ctx context.Context, cs changeCursorSc
 		s.feedLag.ObserveDocumentChangeFeedLag(pending.LagSeconds)
 	}
 
-	out := DocumentChangePage{Phase: changeCursorPhaseFeed, Feed: feed, HasMore: pending.Pending > 0}
+	// has_more is true only when THIS page advanced the cursor (it delivered or
+	// skipped at least one row) AND more eligible rows exist. A page whose only
+	// candidates are held back by the in-flight guard advances nothing, so it
+	// answers has_more=false with the cursor unchanged (BE-G2-2): the client
+	// polls again later and the held row is delayed, never lost. Reporting
+	// has_more with an unchanged cursor would make a client spin on a repeated
+	// cursor until the holding transaction ends.
+	advanced := lastXact != claims.AfterXact || lastID != claims.AfterID
+	out := DocumentChangePage{Phase: changeCursorPhaseFeed, Feed: feed, HasMore: advanced && pending.Pending > 0}
 	out.ExpiresAt = s.now().Add(DocumentChangeFeedTTL)
 	next := changeCursorClaims{
 		Protocol: DocumentChangeProtocol, Deployment: cs.deployment, UserID: cs.userID,
@@ -525,9 +542,9 @@ func feedCandidateHasGrant(c *feedCandidate) bool {
 // removalByAudit answers whether a row on the page itself proves the caller
 // lost a level they held: a share revoke of a principal that admitted them
 // (metadata principal_type/principal_id), or a visibility demotion whose prior
-// visibility did. undecided is true for a demotion row that does not name the
-// prior visibility: the removal may be due and cannot be proven either way, so
-// the caller answers 410 (never a silent skip).
+// visibility did. undecided is true for a visibility change that does not name
+// the prior visibility: the removal may be due and cannot be proven either way,
+// so the caller answers 410 (never a silent skip).
 func removalByAudit(c *feedCandidate, scope documentListScope, userID string) (removed, undecided bool) {
 	for i, action := range c.actions {
 		switch action {
@@ -536,8 +553,28 @@ func removalByAudit(c *feedCandidate, scope documentListScope, userID string) (r
 				return true, false
 			}
 		case "document.settings_changed":
+			// The document-level settings command (if one lands) writes this
+			// action; it is treated exactly like a visibility diff below.
 			prior, ok := feedPriorVisibility(c, i)
 			if !ok {
+				return false, true
+			}
+			if scope.memberVisible && prior != documentVisibilityRestricted {
+				return true, false
+			}
+		case "document.updated":
+			// The real visibility PATCH (UpdateDocument) writes
+			// document.updated with a changes.visibility {from,to} diff. Only a
+			// visibility diff is a removal basis: a title, icon or content edit
+			// is ignored entirely (never 410 for a plain edit of a document the
+			// caller cannot read).
+			if _, ok := c.changes[i]["visibility"]; !ok {
+				continue
+			}
+			prior, ok := feedPriorVisibility(c, i)
+			if !ok {
+				// A visibility change whose prior value is missing: the removal
+				// may be due and cannot be proven either way -> 410.
 				return false, true
 			}
 			if scope.memberVisible && prior != documentVisibilityRestricted {
@@ -548,10 +585,10 @@ func removalByAudit(c *feedCandidate, scope documentListScope, userID string) (r
 	return false, false
 }
 
-// feedPriorVisibility reads the visibility in force before a settings change:
-// metadata.visibility (what a document-level command should write), or the
-// audit diff's changes.visibility.from/before. Missing means the prior state
-// cannot be reconstructed.
+// feedPriorVisibility reads the visibility in force before a visibility change:
+// metadata.visibility (what a document-level settings command should write), or
+// the audit diff's changes.visibility.from/before (what the real UpdateDocument
+// PATCH writes). Missing means the prior state cannot be reconstructed.
 func feedPriorVisibility(c *feedCandidate, i int) (string, bool) {
 	if v := auditString(c.metadata[i], "visibility"); v != "" {
 		return v, true

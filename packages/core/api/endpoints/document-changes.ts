@@ -31,8 +31,11 @@ const documentChangeSchema = z.object({
 });
 
 // An incremental-feed row (G5-01b). `change_kind` is upsert or removal; on a
-// removal `kind` is empty and `removal` carries the reason (document_deleted,
-// permission_revoked, moved_workspace) - ids, revision and the reason only.
+// removal `kind` is empty and `removal` carries the reason (permission_revoked,
+// moved_workspace) - ids, revision and the reason only. `document_deleted`
+// stays in the enum for forward compatibility, but the current feed never
+// sends it: a purge answers 410 change_cursor_expired, so the caller resyncs
+// instead of receiving that reason.
 const documentChangeFeedSchema = z.object({
   document_id: z.string().min(1),
   change_kind: z.string(),
@@ -91,6 +94,13 @@ export interface DocumentChangePage {
   changes: DocumentChange[];
   /** Incremental-feed rows; empty on a snapshot page. */
   feed: DocumentChangeFeedRow[];
+  /**
+   * More rows to come. On a feed page it is true only when the page advanced
+   * the cursor (delivered or skipped at least one row) and more eligible rows
+   * exist: a page whose only candidates are held back by the server's
+   * in-flight guard answers false with `nextCursor` unchanged, so poll again
+   * later instead of looping on the same cursor.
+   */
   hasMore: boolean;
   /** Opaque; pass it back unchanged as `cursor` for the next page. */
   nextCursor: string;
