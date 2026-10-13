@@ -471,12 +471,16 @@ func TestOfficeFrameUniworkAIOnlyForMembersWithAccess(t *testing.T) {
 		t.Fatalf("shared viewer mint = %d %v, want 201 with uniwork_ai", res.StatusCode, out)
 	}
 	sharesPath := "/api/v1/documents/" + restricted + "/shares"
-	_, access := doJSON(t, w.srv, "GET", sharesPath, w.token, nil)
+	sharesRes, access := doJSON(t, w.srv, "GET", sharesPath, w.token0(), nil)
+	shares, ok := access["shares"].([]any)
+	if !ok {
+		t.Fatalf("list shares = %d %v, want a shares array", sharesRes.StatusCode, access)
+	}
 	revoked := false
-	for _, it := range access["shares"].([]any) {
+	for _, it := range shares {
 		share := it.(map[string]any)
 		if share["principal_id"] == viewerID {
-			if r, o := doJSON(t, w.srv, "DELETE", sharesPath+"/"+share["id"].(string), w.token, nil); r.StatusCode >= 300 {
+			if r, o := doJSON(t, w.srv, "DELETE", sharesPath+"/"+share["id"].(string), w.token0(), nil); r.StatusCode >= 300 {
 				t.Fatalf("revoke share: %d %v", r.StatusCode, o)
 			}
 			revoked = true
