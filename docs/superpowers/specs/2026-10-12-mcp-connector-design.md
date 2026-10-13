@@ -1,6 +1,6 @@
 # UniWork — Connector MCP cho Claude, ChatGPT, Gemini (v1 chỉ đọc)
 
-> **Trạng thái:** in-progress — spec đã duyệt (2026-10-12, bavinh2803); chưa có plan, chưa triển khai.
+> **Trạng thái:** in-progress — triển khai xong trên nhánh, chờ thử thật trên ba client và review PR (UNI-1308).
 
 **Ngày:** 2026-10-12
 **Issue:** UNI-1308 (parent UNI-417 · Giai đoạn A)

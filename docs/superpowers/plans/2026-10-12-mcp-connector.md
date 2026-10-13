@@ -1,6 +1,6 @@
 # Connector MCP (v1 chỉ đọc) Implementation Plan
 
-> **Trạng thái:** in-progress — plan chờ duyệt (2026-10-12); chưa triển khai.
+> **Trạng thái:** in-progress — Task 1–13 xong trên nhánh UNI-1308 (đã merge develop, review cuối toàn nhánh sạch sau một lượt sửa); Task 14 còn thử thật trên Claude/ChatGPT/Gemini CLI ở staging HTTPS và mở PR.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -91,12 +91,12 @@ Postgres không chạy thì test DB bị **skip**, không fail: luôn kiểm dò
 **Interfaces:**
 - Produces: bảng `mcp_clients`, `mcp_auth_attempts`, `mcp_grants`, `mcp_tokens`; cột `organizations.mcp_enabled_at`, `mcp_enabled_by`; các hàm sqlc liệt kê ở Step 6 (tên giữ nguyên ở mọi task sau).
 
-- [ ] **Step 1: Kiểm prefix migration**
+- [x] **Step 1: Kiểm prefix migration**
 
 Run: `ls server/migrations | sort | tail -3`
 Expected: prefix lớn nhất `< 9991791763200001`. Nếu lớn hơn, cộng thêm vào cả 9 prefix bên dưới (giữ thứ tự 001→009).
 
-- [ ] **Step 2: Viết migration bảng**
+- [x] **Step 2: Viết migration bảng**
 
 `server/migrations/9991791763200001_mcp_tables.up.sql`:
 
@@ -177,7 +177,7 @@ DROP TABLE IF EXISTS mcp_auth_attempts;
 DROP TABLE IF EXISTS mcp_clients;
 ```
 
-- [ ] **Step 3: Viết migration cột tổ chức**
+- [x] **Step 3: Viết migration cột tổ chức**
 
 `9991791763200002_organizations_mcp_policy.up.sql`:
 
@@ -197,7 +197,7 @@ ALTER TABLE organizations
   DROP COLUMN IF EXISTS mcp_enabled_at;
 ```
 
-- [ ] **Step 4: Viết 7 migration index**
+- [x] **Step 4: Viết 7 migration index**
 
 Mỗi dòng là một cặp file; `.down.sql` là `DROP INDEX CONCURRENTLY IF EXISTS <tên>;`.
 
@@ -211,7 +211,7 @@ Mỗi dòng là một cặp file; `.down.sql` là `DROP INDEX CONCURRENTLY IF EX
 | `…008` | `mcp_tokens_grant_idx` | `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_mcp_tokens_grant ON mcp_tokens (grant_id) WHERE revoked_at IS NULL;` |
 | `…009` | `mcp_tokens_family_idx` | `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_mcp_tokens_family ON mcp_tokens (family_id);` |
 
-- [ ] **Step 5: Khai báo hai bảng định danh**
+- [x] **Step 5: Khai báo hai bảng định danh**
 
 `server/migrations/lint_test.go`, trong `tenantExemptTables` (sau `device_sessions`):
 
@@ -229,7 +229,7 @@ Mỗi dòng là một cặp file; `.down.sql` là `DROP INDEX CONCURRENTLY IF EX
 	"mcp_tokens": "seeded by Task 9 of the MCP plan; until then only the OAuth flow writes it",
 ```
 
-- [ ] **Step 6: Viết `server/pkg/db/queries/mcp.sql`**
+- [x] **Step 6: Viết `server/pkg/db/queries/mcp.sql`**
 
 ```sql
 -- MCP connector queries (UNI-1308). mcp_clients, mcp_auth_attempts and
@@ -419,22 +419,22 @@ WHERE c.kind = 'dcr' AND COALESCE(c.last_used_at, c.created_at) < now() - interv
   AND NOT EXISTS (SELECT 1 FROM mcp_grants g WHERE g.client_id = c.client_id);
 ```
 
-- [ ] **Step 7: Sinh mã sqlc**
+- [x] **Step 7: Sinh mã sqlc**
 
 Run: `make sqlc`
 Expected: không lỗi; `server/pkg/db/generated/mcp.sql.go` có `CreateMcpClient`, `ClaimMcpAuthAttempt`, `ListMcpGrantsForUserRow`, … Tên trường sinh ra theo kiểu repo: `RedirectUri`, `RedirectUris`, `LogoUri`, `SecretDigest pgtype.Text`, `McpEnabledAt pgtype.Timestamptz`. Các task sau dùng đúng các tên này; nếu sqlc sinh khác, sửa chỗ dùng chứ không đổi tên query.
 
-- [ ] **Step 8: Chạy test migration và tenant**
+- [x] **Step 8: Chạy test migration và tenant**
 
 Run (từ `server/`): `TEST_DATABASE_URL=… go test -count=1 ./migrations/ -v 2>&1 | grep -E '^(--- |ok|FAIL)'`
 Expected: mọi test PASS, gồm `TestNewTablesCarryOrganizationID`, `TestEveryBusinessTableCarriesOrganizationID`, `TestActorKindOnEveryCreatedBy`, `TestNewMigrationsCreateIndexesConcurrently`, `TestEveryQueryNamesItsTenant`, `TestTenantReasonsSitOnTenantQueries`, `TestTenantColumnIsNotNull`, `TestMigrationFilesHaveMatchingDirections`, `TestOrganizationsGrandfather`, `TestUpIsIdempotent`.
 
-- [ ] **Step 9: Chạy matrix để chắc bảng mới không làm đỏ**
+- [x] **Step 9: Chạy matrix để chắc bảng mới không làm đỏ**
 
 Run: `TEST_DATABASE_URL=… REDIS_TEST_URL=… go test -count=1 ./internal/handler/ -run TestIsolationMatrix -v 2>&1 | tail -5`
 Expected: PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add server/migrations server/pkg/db server/internal/testutil/db.go server/internal/handler/isolation_matrix_test.go
@@ -467,7 +467,7 @@ git commit -m "feat(mcp): tables, organization policy columns and queries for th
   - `type ClientMetadataFetcher interface{ Fetch(ctx context.Context, url string) ([]byte, error) }`, `NewCIMDFetcher() ClientMetadataFetcher`, `errCIMDNotAllowed`
   - `mcpTime(t time.Time) pgtype.Timestamptz`
 
-- [ ] **Step 1: Viết helper test**
+- [x] **Step 1: Viết helper test**
 
 `server/internal/service/mcp_helpers_test.go`:
 
@@ -548,7 +548,7 @@ func (w *mcpWorld) publicClient(t *testing.T, redirect string) McpClient {
 }
 ```
 
-- [ ] **Step 2: Viết test client (đỏ)**
+- [x] **Step 2: Viết test client (đỏ)**
 
 `server/internal/service/mcp_clients_test.go`:
 
@@ -665,7 +665,7 @@ func TestMcpResolveCIMD(t *testing.T) {
 Run: `go test -count=1 ./internal/service/ -run 'TestMcp(Register|Confidential|Verified|ResolveCIMD)' -v`
 Expected: FAIL — `undefined: McpRegistration` (chưa có mã).
 
-- [ ] **Step 3: Viết `mcp_auth.go`**
+- [x] **Step 3: Viết `mcp_auth.go`**
 
 ```go
 package service
@@ -784,7 +784,7 @@ func errMcpConnectorDisabled() error {
 func mcpTime(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
 ```
 
-- [ ] **Step 4: Viết `mcp_cimd.go`**
+- [x] **Step 4: Viết `mcp_cimd.go`**
 
 ```go
 package service
@@ -903,7 +903,7 @@ func TestMcpCIMDFetcherRefusesLoopbackAndOtherPorts(t *testing.T) {
 }
 ```
 
-- [ ] **Step 5: Viết `mcp_clients.go`**
+- [x] **Step 5: Viết `mcp_clients.go`**
 
 ```go
 package service
@@ -1157,12 +1157,12 @@ func verifiedRedirects(uris []string) bool {
 func (c McpClient) allowsRedirect(uri string) bool { return slices.Contains(c.RedirectURIs, uri) }
 ```
 
-- [ ] **Step 6: Chạy test (xanh)**
+- [x] **Step 6: Chạy test (xanh)**
 
 Run: `go test -count=1 ./internal/service/ -run 'TestMcp(Register|Confidential|Verified|ResolveCIMD|CIMDFetcher)' -v`
 Expected: 6 test PASS. Rồi `gofmt -l internal/service` không in gì và `go vet ./internal/service/` sạch.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/internal/service/mcp_auth.go server/internal/service/mcp_clients.go server/internal/service/mcp_cimd.go server/internal/service/mcp_*_test.go
@@ -1197,7 +1197,7 @@ git commit -m "feat(mcp): client registration, metadata documents and client aut
   - `audit.ActionMcpGrantCreated = "mcp_grant.created"`, `ActionMcpGrantRevoked = "mcp_grant.revoked"`, `ActionMcpTokenFamilyRevoked = "mcp_token.family_revoked"`, `ActionOrganizationMcpPolicyChanged = "organization.mcp_policy_changed"`
   - Test helper `(*mcpWorld).enable(t)`, `(*mcpWorld).approve(t, client McpClient, redirect string) (code, verifier string)`
 
-- [ ] **Step 1: Khai báo flag và action**
+- [x] **Step 1: Khai báo flag và action**
 
 `server/internal/featureflags/keys.go`, cuối `catalogue`:
 
@@ -1225,7 +1225,7 @@ git commit -m "feat(mcp): client registration, metadata documents and client aut
 	audit.ActionOrganizationMcpPolicyChanged: "covered by mcp_grants_test.go",
 ```
 
-- [ ] **Step 2: Thêm helper và viết test (đỏ)**
+- [x] **Step 2: Thêm helper và viết test (đỏ)**
 
 Thêm vào `mcp_helpers_test.go`:
 
@@ -1422,7 +1422,7 @@ func TestMcpCancelRedirectsAccessDenied(t *testing.T) {
 Run: `go test -count=1 ./internal/service/ -run 'TestMcp(Start|Consent|Approve|Reconsent|Cancel)' -v`
 Expected: FAIL — `undefined: McpAuthorizeInput`.
 
-- [ ] **Step 3: Viết `mcp_authorize.go`**
+- [x] **Step 3: Viết `mcp_authorize.go`**
 
 ```go
 package service
@@ -1734,12 +1734,12 @@ func mcpRedirect(base string, add url.Values) (string, error) {
 
 `ListOrganizationsForUser` trả `o.*` cộng `role`, `deactivated_at`; nếu struct sinh ra đặt tên khác `ID/Slug/Name`, dùng `go doc ./pkg/db/generated ListOrganizationsForUserRow` để lấy đúng tên.
 
-- [ ] **Step 4: Chạy test (xanh)**
+- [x] **Step 4: Chạy test (xanh)**
 
 Run: `go test -count=1 ./internal/service/ -run 'TestMcp|TestEveryAuditedCommandWritesItsRow|TestFlagsAreReviewed' -v 2>&1 | grep -E '^(--- |ok|FAIL)'`
 Expected: mọi test PASS. (`TestFlagsAreReviewed` nằm ở `internal/featureflags`; chạy thêm `go test ./internal/featureflags/`.)
 
-- [ ] **Step 5: Viết ADR 0031**
+- [x] **Step 5: Viết ADR 0031**
 
 `docs/adr/0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md`:
 
@@ -1787,7 +1787,7 @@ nhận; trao nó cho bên thứ ba là trao toàn quyền tài khoản.
 Run (từ repo root): `node --test scripts/governance.test.mjs 2>&1 | grep -E '^ℹ (pass|fail)'`
 Expected: `fail 0`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/internal/service/mcp_authorize.go server/internal/service/mcp_authorize_test.go server/internal/service/mcp_helpers_test.go server/internal/featureflags/keys.go server/internal/audit/actions.go server/internal/service/audit_coverage_test.go docs/adr/0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md
@@ -1814,7 +1814,7 @@ git commit -m "feat(mcp): authorization requests, consent and grants behind the 
   - `(*McpAuthService).RevokeToken(ctx, clientID, clientSecret, token string) error`
   - Test helper `(*mcpWorld).issue(t) (McpClient, McpTokenPair)`
 
-- [ ] **Step 1: Thêm helper và viết test (đỏ)**
+- [x] **Step 1: Thêm helper và viết test (đỏ)**
 
 Thêm vào `mcp_helpers_test.go`:
 
@@ -1978,7 +1978,7 @@ func TestMcpRevokeTokenIsQuietAndScoped(t *testing.T) {
 Run: `go test -count=1 ./internal/service/ -run 'TestMcp(Exchange|CodeReplay|Refresh|RevokeToken)' -v`
 Expected: FAIL — `undefined: McpExchangeInput`.
 
-- [ ] **Step 2: Viết `mcp_tokens.go`**
+- [x] **Step 2: Viết `mcp_tokens.go`**
 
 ```go
 package service
@@ -2226,12 +2226,12 @@ func (s *McpAuthService) revokeFamily(ctx context.Context, grantID, familyID, re
 }
 ```
 
-- [ ] **Step 3: Chạy test (xanh)**
+- [x] **Step 3: Chạy test (xanh)**
 
 Run: `go test -count=1 ./internal/service/ -run 'TestMcp' -v 2>&1 | grep -E '^(--- |ok|FAIL)'`
 Expected: mọi `TestMcp*` PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add server/internal/service/mcp_tokens.go server/internal/service/mcp_tokens_test.go server/internal/service/mcp_helpers_test.go
@@ -2262,7 +2262,7 @@ git commit -m "feat(mcp): code exchange, rotating refresh tokens and RFC 7009 re
   - `Policy(ctx, actorID, orgID) (McpPolicy, error)`, `SetPolicy(ctx, actorID, orgID string, enabled bool) (McpPolicy, error)`
   - `revokeMcpGrantsForUserInOrg(ctx, q *db.Queries, orgID, userID string) error`, `revokeAllMcpGrantsForUser(ctx, q *db.Queries, userID string) error`
 
-- [ ] **Step 1: Đổi helper sang người dùng bất kỳ**
+- [x] **Step 1: Đổi helper sang người dùng bất kỳ**
 
 Trong `mcp_helpers_test.go`, thay thân `approve` bằng lời gọi `approveAs` và thêm:
 
@@ -2307,7 +2307,7 @@ func (w *mcpWorld) issueAs(t *testing.T, u db.User) (McpClient, McpTokenPair) {
 
 `issue` (Task 4) giữ nguyên.
 
-- [ ] **Step 2: Viết test gate (đỏ)**
+- [x] **Step 2: Viết test gate (đỏ)**
 
 `server/internal/service/mcp_principal_test.go`:
 
@@ -2390,7 +2390,7 @@ func TestMcpAuthenticateRefusesDeactivatedMember(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: Viết test grant và policy (đỏ)**
+- [x] **Step 3: Viết test grant và policy (đỏ)**
 
 `server/internal/service/mcp_grants_test.go`:
 
@@ -2514,7 +2514,7 @@ func TestMcpRevokeAllGrantsForUser(t *testing.T) {
 Run: `go test -count=1 ./internal/service/ -run 'TestMcp(Authenticate|MyGrants|OrgGrants|Policy|Leaving|RevokeAll)' -v`
 Expected: FAIL — `undefined: McpPrincipal`.
 
-- [ ] **Step 4: Viết `mcp_principal.go`**
+- [x] **Step 4: Viết `mcp_principal.go`**
 
 ```go
 package service
@@ -2575,7 +2575,7 @@ func (s *McpAuthService) Authenticate(ctx context.Context, raw string) (McpPrinc
 }
 ```
 
-- [ ] **Step 5: Viết `mcp_grants.go`**
+- [x] **Step 5: Viết `mcp_grants.go`**
 
 ```go
 package service
@@ -2788,7 +2788,7 @@ func verifiedRedirectJSON(raw string) bool {
 
 (thêm `"encoding/json"` vào import.)
 
-- [ ] **Step 6: Nối hook vòng đời**
+- [x] **Step 6: Nối hook vòng đời**
 
 `server/internal/service/organization_members.go`, trong `Leave`, ngay sau lời gọi `q.DeleteOrganizationMember(...)` và kiểm lỗi của nó:
 
@@ -2809,12 +2809,12 @@ func verifiedRedirectJSON(raw string) bool {
 
 (Tên biến transaction trong `Leave` là `q`, trong `DeleteAccount` là `qtx` — giữ đúng tên có sẵn ở chỗ chèn.)
 
-- [ ] **Step 7: Chạy test (xanh)**
+- [x] **Step 7: Chạy test (xanh)**
 
 Run: `go test -count=1 ./internal/service/ -run 'TestMcp|TestEveryAuditedCommandWritesItsRow|TestDeleteAccount|TestLeave' -v 2>&1 | grep -E '^(--- |ok|FAIL)'`
 Expected: tất cả PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add server/internal/service/mcp_principal.go server/internal/service/mcp_grants.go server/internal/service/mcp_principal_test.go server/internal/service/mcp_grants_test.go server/internal/service/mcp_helpers_test.go server/internal/service/organization_members.go server/internal/service/account_deletion.go
@@ -2842,7 +2842,7 @@ git commit -m "feat(mcp): request gate, grant management, organization switch an
   - Phương thức `ListWorkspaces`, `MyWork`, `Search`, `GetTask`, `GetMeeting` (chữ ký ở Step 3)
   - `McpTools(s *McpToolService) ai.Registry` — tên tool: `list_workspaces`, `my_work`, `search`, `get_task`, `get_meeting`
 
-- [ ] **Step 1: Viết test (đỏ)**
+- [x] **Step 1: Viết test (đỏ)**
 
 `server/internal/service/mcp_tools_test.go`:
 
@@ -2968,7 +2968,7 @@ func TestMcpToolsStayInGrantOrganization(t *testing.T) {
 Run: `go test -count=1 ./internal/service/ -run 'TestMCPTools|TestMcpTools' -v`
 Expected: FAIL — `undefined: McpTools`.
 
-- [ ] **Step 2: Tách phần task + cuộc họp trong `askuni_sources.go`**
+- [x] **Step 2: Tách phần task + cuộc họp trong `askuni_sources.go`**
 
 Đổi `searchWorkspace` thành hai hàm. Hàm mới chứa nguyên đoạn từ `base, err := s.base(...)` tới hết vòng lặp cuộc họp (dòng ~196–238 hiện tại) và trả `items`:
 
@@ -2998,7 +2998,7 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 
 Chỉ di chuyển mã, không đổi hành vi. Run: `go test -count=1 ./internal/service/ -run 'TestAsk' -v 2>&1 | grep -E '^(--- |ok|FAIL)'` — mọi test Ask UNI vẫn PASS.
 
-- [ ] **Step 3: Viết `mcp_tools.go`**
+- [x] **Step 3: Viết `mcp_tools.go`**
 
 ```go
 package service
@@ -3283,12 +3283,12 @@ func McpTools(s *McpToolService) ai.Registry {
 
 Nếu `GetWorkspaceWithOrg` không trả trường `OrganizationID`, kiểm bằng `go doc ./pkg/db/generated GetWorkspaceWithOrgRow`; bảng `workspaces` có cột đó nên `SELECT w.*` sẽ có. Nếu `meetingContext` không trả tóm tắt trong phần tử thứ hai, `Excerpt` vẫn đúng với phần tử đầu.
 
-- [ ] **Step 4: Chạy test (xanh)**
+- [x] **Step 4: Chạy test (xanh)**
 
 Run: `go test -count=1 ./internal/service/ -run 'TestMCPTools|TestMcpTools|TestAsk' -v 2>&1 | grep -E '^(--- |ok|FAIL)'`
 Expected: tất cả PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/internal/service/askuni_sources.go server/internal/service/mcp_tools.go server/internal/service/mcp_tools_test.go
@@ -3315,7 +3315,7 @@ git commit -m "feat(mcp): five read tools scoped to the grant's organization"
   - `router.registerMCP(r chi.Router, h Routes, credentialLimit, registerLimit func(http.Handler) http.Handler)`
   - Test helper `newMcpTestServer(t) (*httptest.Server, Deps)`, `noFollow(srv) *http.Client`, `mcpTestFlags`
 
-- [ ] **Step 1: Viết test (đỏ)**
+- [x] **Step 1: Viết test (đỏ)**
 
 `server/internal/handler/mcp_oauth_test.go`:
 
@@ -3475,7 +3475,7 @@ func TestMcpRegisterRejectsBadMetadata(t *testing.T) {
 Run: `go test -count=1 ./internal/handler/ -run 'TestMcp' -v`
 Expected: FAIL — `d.McpAuth undefined`.
 
-- [ ] **Step 2: Viết `mcp_oauth.go`**
+- [x] **Step 2: Viết `mcp_oauth.go`**
 
 ```go
 package handler
@@ -3714,7 +3714,7 @@ func writeOAuthError(w http.ResponseWriter, e service.OAuthError) {
 }
 ```
 
-- [ ] **Step 3: Nối route**
+- [x] **Step 3: Nối route**
 
 `server/internal/handler/router/mcp.go`:
 
@@ -3792,12 +3792,12 @@ Wiring cho world cách ly: trong `newIsolationServer` (`isolation_world_test.go`
 	d.McpAuth.SetFlags(mcpTestFlags(true))
 ```
 
-- [ ] **Step 4: Chạy test (xanh)**
+- [x] **Step 4: Chạy test (xanh)**
 
 Run: `go test -count=1 ./internal/handler/... -run 'TestMcp|TestEveryRouteFieldIsBound|TestSwaggerSpecFollowsChiRoutesAndSDI|TestIsolationMatrix' -v 2>&1 | grep -E '^(--- |ok|FAIL)'`
 Expected: tất cả PASS. Chạy thêm `go test ./internal/ -run TestLayering` (handler không import pgxpool hay queries).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/internal/handler/mcp_oauth.go server/internal/handler/mcp_oauth_test.go server/internal/handler/router/mcp.go server/internal/handler/router/routes.go server/internal/handler/router/router.go server/internal/handler/router.go server/internal/handler/swagger_test.go server/internal/handler/isolation_routes_test.go server/internal/handler/isolation_world_test.go
@@ -3831,13 +3831,13 @@ git commit -m "feat(mcp): OAuth discovery, authorize, token, register and revoke
   - `handler.Deps.McpTools *service.McpToolService`; `router.Routes.McpServe`
   - `registerMCP(r, h, credentialLimit, registerLimit, mcpLimit)` (thêm tham số thứ năm)
 
-- [ ] **Step 1: Thêm go-sdk và kiểm API**
+- [x] **Step 1: Thêm go-sdk và kiểm API**
 
 Run (từ `server/`): `go get github.com/modelcontextprotocol/go-sdk@latest && go mod tidy`
 Rồi: `go doc github.com/modelcontextprotocol/go-sdk/mcp Server.AddTool`, `go doc github.com/modelcontextprotocol/go-sdk/mcp StreamableHTTPOptions`, `go doc github.com/modelcontextprotocol/go-sdk/mcp ToolAnnotations`.
 Expected: `func (s *Server) AddTool(t *Tool, h ToolHandler)`; `StreamableHTTPOptions` có `Stateless`, `JSONResponse`, `DisableLocalhostProtection`, `MaxRequestBodyBytes`; `ToolAnnotations` có `ReadOnlyHint bool`, `DestructiveHint *bool`, `OpenWorldHint *bool`. Nếu phiên bản ghim khác, sửa Step 4 cho khớp `go doc` và ghi chênh lệch vào bình luận issue.
 
-- [ ] **Step 2: Viết test (đỏ)**
+- [x] **Step 2: Viết test (đỏ)**
 
 `server/internal/handler/mcp_transport_test.go`:
 
@@ -3995,7 +3995,7 @@ Nếu SDK trả lỗi "not initialized" cho `tools/list` ở chế độ statele
 Run: `go test -count=1 ./internal/handler/ -run 'TestMcpTokenRejectedByREST|TestSessionTokenRejectedByMCP|TestMcpToolsOverHTTP' -v`
 Expected: FAIL — `/mcp` chưa có route (404).
 
-- [ ] **Step 3: Thêm hàm phụ ở service và telemetry**
+- [x] **Step 3: Thêm hàm phụ ở service và telemetry**
 
 `mcp_principal.go`:
 
@@ -4034,7 +4034,7 @@ func SetMCP(ctx context.Context, clientID, grantID, tool string) {
 }
 ```
 
-- [ ] **Step 4: Viết `mcp_transport.go`**
+- [x] **Step 4: Viết `mcp_transport.go`**
 
 ```go
 package handler
@@ -4166,7 +4166,7 @@ func (h *handlers) mcpServe(w http.ResponseWriter, r *http.Request) {
 
 và `McpServe: h.mcpServe,` trong `rt.Routes{…}`.
 
-- [ ] **Step 5: Route `/mcp` và limiter**
+- [x] **Step 5: Route `/mcp` và limiter**
 
 `router/routes.go`: thêm `McpServe http.HandlerFunc` dưới nhóm MCP.
 
@@ -4217,7 +4217,7 @@ func mcpBearer(r *http.Request) string {
 
 (trong `newMcpTestServer` dùng `db.New(pool)` làm `q`, `cfg.FrontendOrigin` làm origin.)
 
-- [ ] **Step 6: Metric**
+- [x] **Step 6: Metric**
 
 `server/internal/metrics/mcp.go`:
 
@@ -4269,7 +4269,7 @@ func (m *Mcp) ObserveTool(tool, outcome string, d time.Duration) {
 
 `registry.go`: thêm trường `Mcp *Mcp` vào `Registry`; trong `NewRegistry`, theo mẫu `billingMetrics`: `mcpMetrics := NewMcp(); reg.MustRegister(mcpMetrics.Collectors()...)` và gán `Mcp: mcpMetrics`.
 
-- [ ] **Step 7: Job dọn**
+- [x] **Step 7: Job dọn**
 
 `server/internal/service/mcp_cleanup.go`:
 
@@ -4338,7 +4338,7 @@ func TestMcpSweepDeletesExpiredAttempts(t *testing.T) {
 }
 ```
 
-- [ ] **Step 8: Wiring `main.go`**
+- [x] **Step 8: Wiring `main.go`**
 
 Sau khi `askUNI` và `flags` đã có (cạnh `graphSvc.SetFlags(flags)`):
 
@@ -4372,12 +4372,12 @@ Shutdown, cạnh select của `retentionDone`:
 	}
 ```
 
-- [ ] **Step 9: Chạy test (xanh)**
+- [x] **Step 9: Chạy test (xanh)**
 
 Run: `go build ./... && go test -count=1 ./internal/handler/... ./internal/service/ ./internal/metrics/ ./internal/ -run 'TestMcp|TestMCP|TestSession|TestEveryRouteFieldIsBound|TestSwagger|TestIsolationMatrix|TestLayering|TestActorConstructedOnlyInService' -v 2>&1 | grep -E '^(--- |ok|FAIL)'`
 Expected: tất cả PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add server/go.mod server/go.sum server/internal/handler server/internal/service/mcp_principal.go server/internal/service/mcp_auth.go server/internal/service/mcp_cleanup.go server/internal/service/mcp_cleanup_test.go server/internal/telemetry/mcp.go server/internal/metrics server/cmd/server/main.go
@@ -4407,7 +4407,7 @@ git commit -m "feat(mcp): /mcp streamable HTTP endpoint with token gate, metrics
   - `GET /api/v1/orgs/{org}/connected-apps` → như trên; `DELETE /api/v1/orgs/{org}/connected-apps/{grantID}` → `{status:"ok"}`
   - `GET|PUT /api/v1/orgs/{org}/mcp-policy` (PUT body `{enabled}`) → `{enabled, available, enabled_at|null, enabled_by, mcp_url}`
 
-- [ ] **Step 1: Viết test luồng đầy đủ qua HTTP (đỏ)**
+- [x] **Step 1: Viết test luồng đầy đủ qua HTTP (đỏ)**
 
 `server/internal/handler/mcp_connect_test.go`:
 
@@ -4500,7 +4500,7 @@ func TestMcpPolicyNeedsOrgAdmin(t *testing.T) {
 Run: `go test -count=1 ./internal/handler/ -run 'TestMcpConnectFlowOverHTTP|TestMcpPolicyNeedsOrgAdmin' -v`
 Expected: FAIL — route 404.
 
-- [ ] **Step 2: SDI/SDO**
+- [x] **Step 2: SDI/SDO**
 
 `server/internal/handler/dto/sdi/mcp.go`:
 
@@ -4581,7 +4581,7 @@ type McpPolicySDO struct {
 }
 ```
 
-- [ ] **Step 3: Handler**
+- [x] **Step 3: Handler**
 
 `server/internal/handler/mcp_connect.go`:
 
@@ -4775,7 +4775,7 @@ func (h *handlers) setOrgMcpPolicy(w http.ResponseWriter, r *http.Request) {
 
 Nếu `sdo.StatusSDO` dùng tên trường khác `Status`, mở `dto/sdo` và dùng đúng tên đó.
 
-- [ ] **Step 4: Route, OpenAPI, ánh xạ**
+- [x] **Step 4: Route, OpenAPI, ánh xạ**
 
 `router/connect.go`:
 
@@ -4833,7 +4833,7 @@ func registerConnect(v1 api, h Routes) {
 		}{}
 ```
 
-- [ ] **Step 5: World cách ly**
+- [x] **Step 5: World cách ly**
 
 `isolation_routes_test.go`, `isoRoutes`:
 
@@ -4925,12 +4925,12 @@ func (w *isoWorld) buildMcp(t *testing.T, tn *isoTenant) {
 
 `isolation_world_test.go`, trong `buildTenant` ngay sau `w.buildOffice(t, tn)`: `w.buildMcp(t, tn)`.
 
-- [ ] **Step 6: Chạy test (xanh)**
+- [x] **Step 6: Chạy test (xanh)**
 
 Run: `go test -count=1 ./internal/handler/... -run 'TestMcp|TestIsolationMatrix|TestEveryBodyIDFieldHasAReferenceCase|TestSwagger|TestEveryRouteFieldIsBound' -v 2>&1 | grep -E '^(--- |ok|FAIL)'`
 Expected: tất cả PASS. Nếu matrix báo một route connect bị "control" từ chối (ví dụ DELETE grant của chính owner sau khi subtest trước đã thu hồi), thêm `refusedAlso: []int{http.StatusOK}` cho dòng đó theo mẫu `DELETE /api/v1/auth/desktop/devices/{deviceSessionID}` kèm lý do "revoke is idempotent".
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/internal/handler
@@ -4949,7 +4949,7 @@ git commit -m "feat(mcp): consent, connected apps and organization switch over R
 - Consumes: `newIsolationServer`, `buildTenant`, `joinAsMember(t, outsider, tenant)`, `(*isoTenant).leakIn(raw []byte, requested string) string`, `tn.get(t, "task")`, `tn.get(t, "meeting")`, `mcpRPC` (Task 8), `doJSON`.
 - Produces: `TestIsolationMCP` (tên được ADR 0031 và spec §12 nhắc tới).
 
-- [ ] **Step 1: Giữ access token khi seed**
+- [x] **Step 1: Giữ access token khi seed**
 
 Trong `buildMcp`, thay lời gọi `svc.Exchange(...)` bằng:
 
@@ -4961,7 +4961,7 @@ Trong `buildMcp`, thay lời gọi `svc.Exchange(...)` bằng:
 	tn.ids["mcpAccess"] = pair.AccessToken
 ```
 
-- [ ] **Step 2: Viết test**
+- [x] **Step 2: Viết test**
 
 `server/internal/handler/isolation_mcp_test.go`:
 
@@ -5061,12 +5061,12 @@ func TestIsolationMCP(t *testing.T) {
 Run: `go test -count=1 ./internal/handler/ -run TestIsolationMCP -v 2>&1 | grep -E '^(=== RUN|--- |ok|FAIL)'`
 Expected: `--- PASS: TestIsolationMCP` và 4 subtest PASS.
 
-- [ ] **Step 3: Kiểm test đỏ khi bỏ chặn**
+- [x] **Step 3: Kiểm test đỏ khi bỏ chặn**
 
 Tạm comment dòng `if err := s.inGrant(ctx, p, workspaceID); err != nil` trong `Search` (`mcp_tools.go`), chạy lại test.
 Expected: subtest `member of both` FAIL. Khôi phục dòng đó, chạy lại: PASS. (Bước này chứng minh test bắt đúng lỗi; không commit bản đã comment.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add server/internal/handler/isolation_mcp_seed_test.go server/internal/handler/isolation_mcp_test.go
@@ -5092,7 +5092,7 @@ git commit -m "test(mcp): TestIsolationMCP holds tenant isolation through the co
   - `connectKeys`, `useMyConnectedApps()`, `useRevokeMyConnectedApp()`, `useOrgConnectedApps(orgSlug, opts?)`, `useRevokeOrgConnectedApp(orgSlug)`, `useMcpPolicy(orgSlug, opts?)`, `useSetMcpPolicy(orgSlug)` từ `@uniwork/core/connect`
   - Khóa i18n liệt kê ở Step 5 (Task 12, 13 dùng đúng tên này)
 
-- [ ] **Step 1: Viết test endpoint (đỏ)**
+- [x] **Step 1: Viết test endpoint (đỏ)**
 
 `packages/core/api/endpoints/connect.test.ts`:
 
@@ -5175,7 +5175,7 @@ describe("connect endpoints", () => {
 Run: `pnpm --filter @uniwork/core exec vitest run api/endpoints/connect.test.ts`
 Expected: FAIL — không tìm thấy module `./connect`.
 
-- [ ] **Step 2: Viết `connect.ts`**
+- [x] **Step 2: Viết `connect.ts`**
 
 ```ts
 import { z } from "zod";
@@ -5292,7 +5292,7 @@ export async function setMcpPolicy(orgSlug: string, enabled: boolean): Promise<M
 Run: `pnpm --filter @uniwork/core exec vitest run api/endpoints/connect.test.ts`
 Expected: 7 test PASS.
 
-- [ ] **Step 3: Hook**
+- [x] **Step 3: Hook**
 
 `packages/core/connect/hooks.ts`:
 
@@ -5363,7 +5363,7 @@ export function useSetMcpPolicy(orgSlug: string) {
 
 `packages/core/package.json`, `exports`: `"./connect": "./connect/hooks.ts"`.
 
-- [ ] **Step 4: Thêm chuỗi tiếng Việt (`vi.json`)**
+- [x] **Step 4: Thêm chuỗi tiếng Việt (`vi.json`)**
 
 Trong khối `"auth"` (sau `"desktop"`):
 
@@ -5442,7 +5442,7 @@ Trong `"settings"`:
 }
 ```
 
-- [ ] **Step 5: Thêm bản tiếng Anh (`en.json`)**
+- [x] **Step 5: Thêm bản tiếng Anh (`en.json`)**
 
 Cùng vị trí, cùng khóa:
 
@@ -5522,7 +5522,7 @@ Cùng vị trí, cùng khóa:
 Run: `pnpm --filter @uniwork/core exec vitest run i18n/parity.test.ts api/endpoints/connect.test.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Typecheck và commit**
+- [x] **Step 6: Typecheck và commit**
 
 Run: `pnpm --filter @uniwork/core typecheck` (hoặc `pnpm typecheck`)
 Expected: không lỗi.
@@ -5545,7 +5545,7 @@ git commit -m "feat(core): MCP connector endpoints, hooks and copy"
 - Consumes: `ConnectConsent`, `api.connect.getConnectConsent`, `api.connect.decideConnectConsent` (Task 11); khóa `auth.connect.*`; `Bezel` (`packages/views/layout/brand-surface`); `RadioGroup`, `RadioGroupItem` (`@uniwork/ui/components/ui/radio-group`); `Badge`, `Button`; `useSession`, `ApiError`, `useNavigation`.
 - Produces: `ConnectConsentView`, `type ConnectConsentState` từ `@uniwork/views/auth/connect-consent`; `paths.connectAuthorize()`; trang `/auth/connect/authorize?attempt=…` (và `?error=<code>` cho lỗi không trả về được client).
 
-- [ ] **Step 1: Viết test view (đỏ)**
+- [x] **Step 1: Viết test view (đỏ)**
 
 `packages/views/auth/connect-consent.test.tsx`:
 
@@ -5631,7 +5631,7 @@ describe("ConnectConsentView", () => {
 Run: `pnpm --filter @uniwork/views exec vitest run auth/connect-consent.test.tsx`
 Expected: FAIL — không tìm thấy `./connect-consent`.
 
-- [ ] **Step 2: Viết view**
+- [x] **Step 2: Viết view**
 
 `packages/views/auth/connect-consent.tsx`:
 
@@ -5761,7 +5761,7 @@ Nếu `RadioGroup` của Base UI đặt tên prop khác (`onValueChange` nhận 
 Run: `pnpm --filter @uniwork/views exec vitest run auth/connect-consent.test.tsx`
 Expected: 5 test PASS.
 
-- [ ] **Step 3: Route web và `paths`**
+- [x] **Step 3: Route web và `paths`**
 
 `packages/core/paths/paths.ts`, ngay sau `desktopAuthorize`:
 
@@ -5887,12 +5887,12 @@ function isHttpUrl(value: string): boolean {
 }
 ```
 
-- [ ] **Step 4: Chạy test và typecheck**
+- [x] **Step 4: Chạy test và typecheck**
 
 Run: `pnpm --filter @uniwork/core exec vitest run paths/consistency.test.ts && pnpm --filter @uniwork/views exec vitest run auth/connect-consent.test.tsx && pnpm typecheck && pnpm lint`
 Expected: PASS; lint không cảnh báo (đọc output, ở `GATE_LEVEL=fast` lint không làm đỏ exit code).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/views/auth/connect-consent.tsx packages/views/auth/connect-consent.test.tsx "apps/web/app/(auth)/auth/connect/authorize/page.tsx" packages/core/paths/paths.ts packages/core/paths/consistency.test.ts
@@ -5912,7 +5912,7 @@ git commit -m "feat(web): consent page for external AI assistants"
 - Consumes: hook Task 11 (`useMyConnectedApps`, `useRevokeMyConnectedApp`, `useOrgConnectedApps`, `useRevokeOrgConnectedApp`, `useMcpPolicy`, `useSetMcpPolicy`), `useFlag(key, default)` (`@uniwork/core/feature-flags`), `useOrgMembership(orgSlug)` (`@uniwork/core/organizations`), `useWorkspace`, primitive `settings-layout` (`SettingsTab`, `SettingsSection`, `SettingsCard`, `SettingsRow`, `SettingsList`, `SettingsListItem`, `SettingsEmpty`, `SettingsLoadError`, `SettingsBadge`, `SettingsTabSkeleton`), `ConfirmDialog` (`../../common/form-dialog`), `Switch`, `Button`, `copyText` (`@uniwork/ui/lib/clipboard`), `toast`, `toastApiError`.
 - Produces: `ConnectedAppsTab`, `AiAccessTab`; tab `?tab=connected-apps` (nhóm Tài khoản, gate `mcp`) và `?tab=ai-access` (nhóm Tổ chức, gate `org_admin`).
 
-- [ ] **Step 1: Viết test (đỏ)**
+- [x] **Step 1: Viết test (đỏ)**
 
 `packages/views/settings/components/connected-apps-tab.test.tsx`:
 
@@ -6016,7 +6016,7 @@ it("shows members the admin-only state", async () => {
 Run: `pnpm --filter @uniwork/views exec vitest run settings/components/connected-apps-tab.test.tsx settings/components/ai-access-tab.test.tsx`
 Expected: FAIL — module chưa có.
 
-- [ ] **Step 2: Viết `connected-apps-tab.tsx`**
+- [x] **Step 2: Viết `connected-apps-tab.tsx`**
 
 ```tsx
 "use client";
@@ -6116,7 +6116,7 @@ function CopyAddress({ value, label, copiedLabel }: { value: string; label: stri
 }
 ```
 
-- [ ] **Step 3: Viết `ai-access-tab.tsx`**
+- [x] **Step 3: Viết `ai-access-tab.tsx`**
 
 ```tsx
 "use client";
@@ -6230,7 +6230,7 @@ export function AiAccessTab() {
 }
 ```
 
-- [ ] **Step 4: Đăng ký tab**
+- [x] **Step 4: Đăng ký tab**
 
 `settings-page.tsx`:
 
@@ -6260,12 +6260,12 @@ Trong `useHiddenGates`, trước `return hidden;` (gọi hook không điều ki�
 
 Import `Bot`, `Plug` từ `lucide-react` và `useFlag` từ `@uniwork/core/feature-flags`. Tab ẩn vẫn tự xử lý khi vào bằng URL: `ConnectedAppsTab` hiện danh sách rỗng, `AiAccessTab` hiện `unavailable`.
 
-- [ ] **Step 5: Chạy test, lint, knip**
+- [x] **Step 5: Chạy test, lint, knip**
 
 Run: `pnpm --filter @uniwork/views exec vitest run settings/components/connected-apps-tab.test.tsx settings/components/ai-access-tab.test.tsx settings/components/settings-page.test.tsx && pnpm lint && pnpm knip`
 Expected: PASS; knip không báo export thừa (mọi hook và endpoint Task 11 đã có nơi dùng). Nếu `settings-page.test.tsx` đếm số tab, cập nhật số đó.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/views/settings/components/connected-apps-tab.tsx packages/views/settings/components/connected-apps-tab.test.tsx packages/views/settings/components/ai-access-tab.tsx packages/views/settings/components/ai-access-tab.test.tsx packages/views/settings/components/settings-page.tsx
@@ -6285,16 +6285,16 @@ git commit -m "feat(views): connected AI apps and organization AI access setting
 - Consumes: mọi task trước.
 - Produces: PR `UNI-1308: …` vào `develop`, bằng chứng trong bình luận issue.
 
-- [ ] **Step 1: Biến môi trường**
+- [x] **Step 1: Biến môi trường**
 
 Connector không thêm biến nào (dùng `API_PUBLIC_URL`, `FRONTEND_ORIGIN` có sẵn). Run: `node --test scripts/env-example.test.mjs` — Expected: PASS. Nếu một task đã thêm biến, thêm nó vào `.env.example` trước khi tiếp.
 
-- [ ] **Step 2: Cổng đầy đủ**
+- [x] **Step 2: Cổng đầy đủ**
 
 Run: `make check-full`
 Expected: typecheck, lint, unit + contract test, Go test (`-race`, gofmt, vet, staticcheck, coverage floor), E2E đều PASS. Đọc output lint ngay cả khi exit 0. Không nâng hay hạ `server/coverage.floor`; nếu coverage Go tăng, nâng floor bằng tay trong commit này.
 
-- [ ] **Step 3: Kiểm host "Đã xác minh"**
+- [x] **Step 3: Kiểm host "Đã xác minh"**
 
 Mở tài liệu chính thức hiện hành của Anthropic (custom connector / remote MCP), OpenAI (ChatGPT connectors / Apps SDK) và ghi lại URL callback OAuth mà mỗi bên dùng. So với `verifiedRedirectHosts` (`server/internal/service/mcp_clients.go`). Khác thì sửa map, chạy lại `TestMcpVerifiedOnlyByRedirectHost`, ghi nguồn vào bình luận issue.
 
@@ -6316,7 +6316,7 @@ Mở tài liệu chính thức hiện hành của Anthropic (custom connector / 
 
 Chụp màn hình từng bước 1–5, đính vào bình luận issue.
 
-- [ ] **Step 5: Cập nhật trạng thái tài liệu**
+- [x] **Step 5: Cập nhật trạng thái tài liệu**
 
 - Spec: `> **Trạng thái:** in-progress — triển khai xong trên nhánh, chờ review PR (UNI-1308).`
 - Plan: `> **Trạng thái:** in-progress — mọi task xong, chờ review PR.` và tick hết checkbox.
