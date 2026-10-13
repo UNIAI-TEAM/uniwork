@@ -110,6 +110,14 @@ type Response struct {
 	UsagePresent bool
 }
 
+// The reason_code values of A16's unknown-usage branch (design §6.3): a row
+// whose vendor sent no usage block is the reconciliation queue, and the pass
+// marks it reconciled once it has priced the row from the transcript.
+const (
+	UsageUnknownReason    = "usage_unknown"
+	UsageReconciledReason = "usage_unknown_reconciled"
+)
+
 type Gateway struct {
 	q       *db.Queries
 	p       provider.Provider
@@ -237,10 +245,18 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		g.observe(req.Capability, "failed", latency)
 		return Response{}, ErrToolNotAllowed.wrap(errors.New("tool " + denied))
 	}
-	// TODO(G6-03b W-B): a vendor that sent no usage block is the
-	// usage_unknown branch, not a zero-token call (A16, design §6.3): finish
-	// the row with reason_code "usage_unknown" and skip the quota record
-	// below; carry req.MeterKey into UsageRecord.MeterKey.
+	// A vendor that sent no usage block is A16's unknown branch, not a
+	// zero-token call (design §6.3): the row settles succeeded with
+	// reason_code usage_unknown — the reconciliation queue — and the meter is
+	// left alone, because recording zero would claim nobody counted anything.
+	if !resp.UsagePresent {
+		if err := g.finish(sctx, row.ID, row.OrganizationID, resp, "succeeded", UsageUnknownReason, latency, calls); err != nil {
+			return Response{}, err
+		}
+		g.observe(req.Capability, "succeeded", latency)
+		g.log.Info("ai: call", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
+		return g.response(resp, row.ID), nil
+	}
 	if err := g.finish(sctx, row.ID, row.OrganizationID, resp, "succeeded", "", latency, calls); err != nil {
 		return Response{}, err
 	}
@@ -265,12 +281,16 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	}
 	g.observe(req.Capability, "succeeded", latency)
 	g.log.Info("ai: call", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
-	// TODO(G6-03b W-B): carry resp.UsagePresent through, so the caller can
-	// tell a vendor that reported nothing from one that reported zeros.
+	return g.response(resp, row.ID), nil
+}
+
+// response is the answered call as the caller reads it: the usage row id it
+// settled under and whether the vendor reported usage at all (A16).
+func (g *Gateway) response(resp provider.CompletionResponse, usageEventID string) Response {
 	return Response{
-		Text: resp.Text, ToolCalls: resp.ToolCalls, UsageEventID: row.ID, Model: resp.Model, Provider: g.p.Name(),
-		InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens,
-	}, nil
+		Text: resp.Text, ToolCalls: resp.ToolCalls, UsageEventID: usageEventID, Model: resp.Model, Provider: g.p.Name(),
+		InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens, UsagePresent: resp.UsagePresent,
+	}
 }
 
 // systemText is the system text the provider is sent: Prompt.System, or for a
@@ -397,7 +417,10 @@ func (g *Gateway) insertUsage(ctx context.Context, req Request, model, status, r
 func (g *Gateway) finish(ctx context.Context, id, orgID string, resp provider.CompletionResponse, status, reason string, latency time.Duration, calls []toolCallAudit) error {
 	var rateID pgtype.Text
 	var cost int64
-	if status == "succeeded" {
+	// A row the vendor sent no usage for is not priced and not observed as a
+	// priced call: the reconciliation pass owns those numbers (A16).
+	priced := status == "succeeded" && reason != UsageUnknownReason
+	if priced {
 		rate, err := g.q.AiLatestRate(ctx, db.AiLatestRateParams{
 			Provider: g.p.Name(), Model: resp.Model, EffectiveAt: pgtype.Timestamptz{Time: g.now(), Valid: true},
 		})
@@ -412,7 +435,7 @@ func (g *Gateway) finish(ctx context.Context, id, orgID string, resp provider.Co
 		calls = []toolCallAudit{}
 	}
 	callsJSON, _ := json.Marshal(calls)
-	if status == "succeeded" && g.metrics != nil {
+	if priced && g.metrics != nil {
 		g.metrics.ObserveAIUsage(g.p.Name(), resp.Model, orgID, resp.InputTokens, resp.OutputTokens, float64(cost)/1_000_000)
 	}
 	_, err := g.q.AiFinishUsageEvent(ctx, db.AiFinishUsageEventParams{
