@@ -205,6 +205,7 @@ type BillingPaymentIntent struct {
 	ProviderTransactionNo pgtype.Text        `json:"provider_transaction_no"`
 	ProviderOrderInfo     pgtype.Text        `json:"provider_order_info"`
 	ProviderPayDate       pgtype.Text        `json:"provider_pay_date"`
+	ReconcileAttemptedAt  pgtype.Timestamptz `json:"reconcile_attempted_at"`
 }
 
 type CalendarConnection struct {
@@ -401,6 +402,24 @@ type CommentReaction struct {
 	ActorID        string             `json:"actor_id"`
 	Emoji          string             `json:"emoji"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type DataSubjectRequest struct {
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	RequestedBy     string             `json:"requested_by"`
+	RequestedByKind string             `json:"requested_by_kind"`
+	Kind            string             `json:"kind"`
+	RowCount        int32              `json:"row_count"`
+	FileID          pgtype.Text        `json:"file_id"`
+	Error           pgtype.Text        `json:"error"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+	FailedAt        pgtype.Timestamptz `json:"failed_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	CancelledAt     pgtype.Timestamptz `json:"cancelled_at"`
+	EraseAt         pgtype.Timestamptz `json:"erase_at"`
 }
 
 type Department struct {
@@ -1476,15 +1495,16 @@ type OfficeLaunchSession struct {
 }
 
 type Organization struct {
-	ID              string             `json:"id"`
-	Slug            string             `json:"slug"`
-	Name            string             `json:"name"`
-	CreatedBy       string             `json:"created_by"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
-	Status          string             `json:"status"`
-	SuspendedAt     pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason pgtype.Text        `json:"suspended_reason"`
+	ID                  string             `json:"id"`
+	Slug                string             `json:"slug"`
+	Name                string             `json:"name"`
+	CreatedBy           string             `json:"created_by"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	Status              string             `json:"status"`
+	SuspendedAt         pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason     pgtype.Text        `json:"suspended_reason"`
+	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
 }
 
 type OrganizationMember struct {

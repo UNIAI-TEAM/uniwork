@@ -27,7 +27,8 @@ export interface OfficeInstallPromptProps {
   onOpenChange: (open: boolean) => void;
   onOpenAgain: () => void;
   reason?: "not-installed" | "expired" | "error" | "download";
-  onDownload: (platform: DesktopPlatform) => Promise<void>;
+  /** Hands the browser the installer URL; resolves with the file name once it has. */
+  onDownload: (platform: DesktopPlatform) => Promise<string>;
 }
 
 const radioStyle = "absolute inset-0 aspect-auto size-full rounded-xl border-input bg-background after:inset-0 hover:border-muted-foreground data-checked:border-primary data-checked:bg-primary/10 data-checked:text-foreground dark:bg-background dark:data-checked:bg-primary/10 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:ring-0 [&>[data-slot=radio-group-indicator]]:hidden";
@@ -92,8 +93,8 @@ function InstallerPicker({
     if (!selected || downloading) return;
     setDownloading(true); setFailed(false); setStarted(null);
     try {
-      await onDownload(selected.platform);
-      setStarted("UniWork-Office.zip"); setInstructionsOpen(true);
+      const file = await onDownload(selected.platform);
+      setStarted(file || installerFilename(selected)); setInstructionsOpen(true);
     } catch { setFailed(true); }
     finally { setDownloading(false); }
   };
@@ -109,7 +110,7 @@ function InstallerPicker({
       <Logo variant="mark" size={36} decorative className="size-9 shrink-0 rounded-[10px]" />
       <div className="min-w-0 space-y-1">
         <DialogTitle className="text-title leading-snug">{t("title")}</DialogTitle>
-        <DialogDescription id="office-install-description" className="text-body">{t(options.length === 0 && reason === "download" ? "description_unavailable" : reasonKey)}</DialogDescription>
+        <DialogDescription id="office-install-description" className="text-body">{t(options.length === 0 && (reason === "download" || reason === "not-installed") ? "description_unavailable" : reasonKey)}</DialogDescription>
       </div>
     </div>
     {options.length === 0 ? <p role="status" className="text-body text-muted-foreground">{t("unavailable")}</p> : <>
@@ -156,7 +157,6 @@ function InstallerPicker({
             <span className="font-medium text-foreground">{t("version_line", { version: selected.version ?? t("version_unknown"), channel })}</span>
             {selected.unsigned ? <Badge data-testid="installer-unsigned" className="bg-warning-soft text-warning-soft-foreground">{t("unsigned")}</Badge> : null}
           </div>
-          <p>{t("zip_note")}</p>
         </div>
         <InstallerInstructions key={selected.platform} installer={selected} file={filename} open={instructionsOpen} onOpenChange={setInstructionsOpen} />
       </> : null}

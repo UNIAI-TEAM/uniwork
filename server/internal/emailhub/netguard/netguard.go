@@ -51,10 +51,17 @@ var (
 	nat64LocalUse  = netip.MustParsePrefix("64:ff9b:1::/48")
 )
 
+// NewDialer returns a TCP dialer that enforces the email-server address
+// policy on every resolved IP. Callers choose the TCP connection timeout;
+// protocol clients remain responsible for their handshake deadlines.
+func NewDialer(timeout time.Duration) *net.Dialer {
+	return &net.Dialer{Timeout: timeout, Control: control}
+}
+
 // Dial opens a TCP connection like net.Dialer.DialContext, refusing any
 // resolved address or port the guard rejects.
 func Dial(ctx context.Context, network, addr string) (net.Conn, error) {
-	d := net.Dialer{Timeout: dialTimeout, Control: control}
+	d := NewDialer(dialTimeout)
 	conn, err := d.DialContext(ctx, network, addr)
 	if errors.Is(err, ErrHostNotAllowed) {
 		// The *net.OpError around it prints the address; drop the wrapper.

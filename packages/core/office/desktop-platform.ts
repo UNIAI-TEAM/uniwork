@@ -2,12 +2,12 @@ import type { OfficeChannel } from "./desktop-handoff";
 
 // Ordered artifact contract shared with the server and desktop packager.
 export const DESKTOP_INSTALLER_KINDS = {
-  "win32-x64": { os: "windows", kind: ".exe", format: "win_exe", requirement: "windows", steps: ["extract", "win_exe_run", "win_exe_unsigned"] },
-  "win32-x64-zip": { os: "windows", kind: ".zip", format: "win_zip", requirement: "windows", steps: ["extract", "win_zip_extract", "win_zip_run"] },
-  "darwin-arm64": { os: "macos", kind: ".dmg", format: "mac_arm", requirement: "macos", steps: ["mac_open", "mac_drag", "mac_unsigned"] },
-  "darwin-x64": { os: "macos", kind: ".dmg", format: "mac_intel", requirement: "macos", steps: ["mac_open", "mac_drag", "mac_unsigned"] },
-  "linux-x64-deb": { os: "linux", kind: ".deb", format: "deb", requirement: "deb", steps: ["extract", "deb_install", "deb_open"] },
-  "linux-x64-appimage": { os: "linux", kind: ".AppImage", format: "appimage", requirement: "appimage", steps: ["extract", "appimage_run", "appimage_fuse"] },
+  "win32-x64": { os: "windows", kind: ".exe", format: "win_exe", requirement: "windows", steps: ["win_exe_run", "win_exe_unsigned", "connect"] },
+  "win32-x64-zip": { os: "windows", kind: ".zip", format: "win_zip", requirement: "windows", steps: ["win_zip_extract", "win_zip_run", "connect"] },
+  "darwin-arm64": { os: "macos", kind: ".dmg", format: "mac_arm", requirement: "macos", steps: ["mac_open", "mac_drag", "mac_unsigned", "connect"] },
+  "darwin-x64": { os: "macos", kind: ".dmg", format: "mac_intel", requirement: "macos", steps: ["mac_open", "mac_drag", "mac_unsigned", "connect"] },
+  "linux-x64-deb": { os: "linux", kind: ".deb", format: "deb", requirement: "deb", steps: ["deb_install", "deb_open", "connect"] },
+  "linux-x64-appimage": { os: "linux", kind: ".AppImage", format: "appimage", requirement: "appimage", steps: ["appimage_run", "appimage_fuse", "connect"] },
 } as const;
 
 export const DESKTOP_INSTALLER_COMMANDS: Partial<Record<string, string>> = {
