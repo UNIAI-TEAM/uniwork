@@ -51,3 +51,20 @@ func TestTitlesMatchClientLocales(t *testing.T) {
 		t.Fatalf("unknown locale did not fall back to en: %q", got)
 	}
 }
+
+// FE-2 / contract section 8.4 escape: a document name carrying quotes, an
+// ampersand and angle brackets reaches the title verbatim - the server path
+// never HTML-escapes it. The short push title carries no document name, so
+// the push assertion uses a kind that falls back to the content sentence.
+func TestTitleDocumentNameVerbatim(t *testing.T) {
+	params := map[string]string{"actor": "An", "document": `A "b" & <c>`}
+	if got, want := Title("vi", KindDocumentMentioned, params), `An đã nhắc đến bạn trong bình luận tại tài liệu “A "b" & <c>”.`; got != want {
+		t.Fatalf("Title = %q, want %q", got, want)
+	}
+	if got, want := PushTitle("vi", KindDocumentCommented, params), `An đã bình luận trong “A "b" & <c>”`; got != want {
+		t.Fatalf("PushTitle fallback = %q, want %q", got, want)
+	}
+	if got, want := PushTitle("vi", KindDocumentMentioned, params), kindTitles["vi"][KindDocumentMentioned]; got != want {
+		t.Fatalf("PushTitle short = %q, want %q", got, want)
+	}
+}
