@@ -135,3 +135,78 @@ func TestProcessBuildsOneDocumentService(t *testing.T) {
 		t.Fatalf("newDocumentService is called %d times; the process must build its one DocumentService once", built)
 	}
 }
+
+// TestMainPassesTheFullDocumentServiceOptions pins the literal main.go hands
+// to newDocumentService. The one-instance test above only counts calls, so
+// dropping Flags, IntentMetrics, Policy or Files from the literal would leave
+// it green while silently bringing BE-I4-1 back (a service without the G5-07
+// gate, policy and counters).
+func TestMainPassesTheFullDocumentServiceOptions(t *testing.T) {
+	file, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse main.go: %v", err)
+	}
+	var literals []*ast.CompositeLit
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "newDocumentService" && len(call.Args) == 1 {
+			if lit, ok := call.Args[0].(*ast.CompositeLit); ok {
+				literals = append(literals, lit)
+			}
+		}
+		return true
+	})
+	if len(literals) != 1 {
+		t.Fatalf("main.go has %d newDocumentService(documentServiceOptions{...}) calls, want exactly 1", len(literals))
+	}
+
+	values := map[string]ast.Expr{}
+	for _, elt := range literals[0].Elts {
+		if kv, ok := elt.(*ast.KeyValueExpr); ok {
+			if key, ok := kv.Key.(*ast.Ident); ok {
+				values[key.Name] = kv.Value
+			}
+		}
+	}
+	for _, key := range []string{"Pool", "Queries", "Organizations", "Workspaces", "Files", "Flags", "Metrics", "IntentMetrics", "Policy"} {
+		if _, ok := values[key]; !ok {
+			t.Errorf("main.go's documentServiceOptions literal does not set %s; the one DocumentService would lose it and bring back BE-I4-1", key)
+		}
+	}
+
+	policy, ok := values["Policy"].(*ast.CompositeLit)
+	if !ok {
+		t.Fatal("Policy in main.go's literal is not a service.CommitIntentPolicy{...} literal; ClaimTTL and Retention must come from cfg (BE-I4-1)")
+	}
+	wantFromCfg := map[string]string{
+		"ClaimTTL":  "DocumentCommitIntentClaimTTL",
+		"Retention": "DocumentCommitIntentRetention",
+	}
+	for _, elt := range policy.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		key, _ := kv.Key.(*ast.Ident)
+		if key == nil {
+			continue
+		}
+		if field, want := wantFromCfg[key.Name]; want {
+			sel, ok := kv.Value.(*ast.SelectorExpr)
+			var recv *ast.Ident
+			if ok {
+				recv, _ = sel.X.(*ast.Ident)
+			}
+			if !ok || recv == nil || recv.Name != "cfg" || sel.Sel.Name != field {
+				t.Errorf("Policy.%s must be cfg.%s; any other value ignores the configured commit-intent window (BE-I4-1)", key.Name, field)
+			}
+			delete(wantFromCfg, key.Name)
+		}
+	}
+	for key := range wantFromCfg {
+		t.Errorf("Policy in main.go's literal does not set %s from cfg; the routes would fall back to the default window (BE-I4-1)", key)
+	}
+}
