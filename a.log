@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+ec223ace8b2a9836c9845b6e14f3d39b7b025ed8
+ec223ace8 test(office): cast the fixture list answer via unknown for tsc
+044a834b3 test(office): pin the shared comment body fixture through the host relay
+d82b00893 chore(office): re-vendor the frame protocol at fork 17d21132 (OQ-C2 anchor rules)

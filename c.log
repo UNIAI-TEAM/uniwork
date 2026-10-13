@@ -1,0 +1,5 @@
+$ pnpm --filter @uniwork/core typecheck
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
