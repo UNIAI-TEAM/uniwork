@@ -229,7 +229,13 @@ export function remoteAwareSave<P, C>(
   };
 }
 
-/** Versions of one document read while looking for an asked `versionId` (pages of the server's default size). */
+/**
+ * Versions of one document read while looking for an asked `versionId` (pages of the server's
+ * default size, 50): the newest 500. The API has no lookup by version id (`GET
+ * /documents/{id}/versions/{versionNo}` takes the number, which the frame never sends), so an
+ * older version this session has not seen is answered `not_found` although it exists; the frame
+ * then opens the head (nothing is lost, only the message differs). A by-id endpoint lifts the cap.
+ */
 const VERSION_PAGES = 10;
 
 /** Whether `versionId` is a version of `documentId`, read through the session. Unknown on any failure = false. */
