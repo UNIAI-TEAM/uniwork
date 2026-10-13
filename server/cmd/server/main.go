@@ -637,6 +637,12 @@ func main() {
 	aiUniworkSvc := service.NewAIUniworkService(orgSvc, service.NewEntitlementService(pool, q), documentSvc, flags,
 		gateway, uniworkConversations, rdb)
 	aiUniworkSvc.SetRunStore(uniworkRuns)
+	// The four run/usage counters of §7 the service advances (run seconds and
+	// credits, usage_unknown, dropped tool calls): registered by NewRegistry,
+	// they stayed at 0 in production until this wiring (BE3B-7).
+	if reg != nil {
+		aiUniworkSvc.SetUniworkMetrics(reg.AIUniwork)
+	}
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
