@@ -1,0 +1,6 @@
+$ npm run typecheck -w @genoffice/slides; echo "TC_SLIDES_EXIT=$?"
+
+> @genoffice/slides@0.1.0 typecheck
+> tsc --noEmit
+
+TC_SLIDES_EXIT=0

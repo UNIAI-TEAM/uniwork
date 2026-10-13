@@ -1,0 +1,6 @@
+$ npm run typecheck -w @genoffice/docs; echo "TC_DOCS_EXIT=$?"
+
+> @genoffice/docs@0.1.0 typecheck
+> tsc --noEmit
+
+TC_DOCS_EXIT=0

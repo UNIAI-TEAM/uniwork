@@ -1,0 +1,7 @@
+$ npm run typecheck:web; echo "TC_WEB_EXIT=$?"
+
+> genoffice@0.1.0 typecheck:web
+> tsc -p web/docs/protocol/tsconfig.json && tsc -p web/docs/bridge/tsconfig.json && tsc -p web/docs/build/tsconfig.json && tsc -p web/modules/tsconfig.json
+
+web/modules/pdf/webapi.ts(630,9): error TS2741: Property 'onCommentAuthorChanged' is missing in type '{ consumePending(): Promise<string | null>; readFile(path: string): Promise<ArrayBuffer>; onReloadRequest(handler: (path: string) => void): () => void; ... 61 more ...; fetchImage: (url: string) => Promise<...>; }' but required in type 'PdfWebApi'.
+TC_WEB_EXIT=2
