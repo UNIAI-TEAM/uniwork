@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -49,5 +50,18 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 		OfficeInstallerURLs:        sdo.OfficeInstallerURLsSDO{Dev: h.Cfg.OfficeInstallerDevURL, Beta: h.Cfg.OfficeInstallerBetaURL, Stable: h.Cfg.OfficeInstallerStableURL},
 		OfficeInstallers:           sdo.OfficeInstallerChannelsSDO{Dev: dev, Beta: beta, Stable: stable},
 		OfficeDeploymentID:         deploymentID,
+		OfficeAPIOrigin:            officeAPIOrigin(h.Cfg.APIPublicURL),
 	})
+}
+
+// officeAPIOrigin is the public deployment origin the web hands to the
+// desktop app on every open link, or "" when the configured URL is not a bare
+// http(s) origin. The app applies its own channel rule (HTTPS, or loopback
+// HTTP on dev) before it stores the address.
+func officeAPIOrigin(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
 }

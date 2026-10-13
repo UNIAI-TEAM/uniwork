@@ -41,8 +41,8 @@ The server reads `OFFICE_INSTALLER_<CHANNEL>_URLS` ([`desktop-packaging.md`](../
 
 | # | Item | Done |
 | --- | --- | --- |
-| 1 | Every URL is public HTTPS with no credentials, query or fragment, and the server can fetch it **without credentials**. A private repository's release assets are not fetchable: mirror them | [ ] |
-| 2 | The host answers **200 directly**. The `bundle=true` download refuses redirects, and a GitHub release asset URL (`github.com/<org>/<repo>/releases/download/...`) redirects (302) to its storage host, so it does not work for the bundle route even on a public repository. Mirror to a host that serves the file itself | [ ] |
+| 1 | Every URL is public HTTPS with no credentials, query or fragment, and a signed-out **browser** can download it: the browser fetches the installer itself, the server never does. A private repository's release assets are not downloadable: mirror them | [ ] |
+| 2 | The host serves the file to a browser (a redirect to its storage host, as release asset URLs do, is fine). Old download domains are usually shut down rather than redirected, so re-point the value when the host moves | [ ] |
 | 3 | Mirror and regenerate the value: `node scripts/office/installer-urls.mjs --channel <dev\|beta> --base-url https://downloads.example/office/<channel> --dir <folder with the installers>` | [ ] |
 | 4 | Set the value in the server's config and restart; check `GET /api/v1/config`: `office_installers.<channel>` lists the expected `platform`, `url`, `version`, `unsigned: true` | [ ] |
 | 5 | `OFFICE_INSTALLER_STABLE_URLS` stays empty (signing is parked) | [ ] |

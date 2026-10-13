@@ -71,6 +71,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 		chat_messages, chat_room_members, chat_blocks, chat_rooms,
 		emails, password_reset_tokens, email_verification_codes,
 		audit_events, audit_retention_policies, audit_exports,
+		data_subject_requests,
 		agents, workspace_agent_members,
 		notifications, notification_preferences, push_subscriptions, notification_deliveries,
 		subscriptions, usage_events, usage_counters, invoices, billing_payment_intents,

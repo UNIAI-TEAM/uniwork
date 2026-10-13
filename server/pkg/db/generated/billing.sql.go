@@ -188,6 +188,63 @@ func (q *Queries) ClaimPendingBillingWebhookInbox(ctx context.Context, arg Claim
 	return items, nil
 }
 
+const claimStaleBillingPaymentIntentsForReconcile = `-- name: ClaimStaleBillingPaymentIntentsForReconcile :many
+UPDATE billing_payment_intents SET reconcile_attempted_at = now()
+WHERE id IN (
+  SELECT id FROM billing_payment_intents
+  WHERE provider = 'vnpay' AND status IN ('pending', 'expired')
+    AND created_at < now() - interval '15 minutes'
+    AND created_at > now() - interval '7 days'
+    AND (reconcile_attempted_at IS NULL OR reconcile_attempted_at < now() - interval '10 minutes')
+  ORDER BY created_at
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at
+`
+
+// tenant: system
+func (q *Queries) ClaimStaleBillingPaymentIntentsForReconcile(ctx context.Context, limit int32) ([]BillingPaymentIntent, error) {
+	rows, err := q.db.Query(ctx, claimStaleBillingPaymentIntentsForReconcile, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BillingPaymentIntent{}
+	for rows.Next() {
+		var i BillingPaymentIntent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.SubscriptionID,
+			&i.PlanID,
+			&i.Provider,
+			&i.ProviderTxnRef,
+			&i.Amount,
+			&i.Currency,
+			&i.Status,
+			&i.ExpiresAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.ProviderBankCode,
+			&i.ProviderTransactionNo,
+			&i.ProviderOrderInfo,
+			&i.ProviderPayDate,
+			&i.ReconcileAttemptedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const confirmInvoiceRefundFromProvider = `-- name: ConfirmInvoiceRefundFromProvider :one
 UPDATE invoices SET
   amount_refunded = CASE
@@ -315,7 +372,7 @@ func (q *Queries) ExpirePendingBillingPaymentIntents(ctx context.Context, organi
 }
 
 const getBillingPaymentIntentByID = `-- name: GetBillingPaymentIntentByID :one
-SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date FROM billing_payment_intents WHERE id = $1 AND organization_id = $2
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents WHERE id = $1 AND organization_id = $2
 `
 
 type GetBillingPaymentIntentByIDParams struct {
@@ -346,12 +403,13 @@ func (q *Queries) GetBillingPaymentIntentByID(ctx context.Context, arg GetBillin
 		&i.ProviderTransactionNo,
 		&i.ProviderOrderInfo,
 		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
 	)
 	return i, err
 }
 
 const getBillingPaymentIntentByTxnRef = `-- name: GetBillingPaymentIntentByTxnRef :one
-SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date FROM billing_payment_intents WHERE provider_txn_ref = $1
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents WHERE provider_txn_ref = $1
 `
 
 // tenant: token
@@ -378,12 +436,13 @@ func (q *Queries) GetBillingPaymentIntentByTxnRef(ctx context.Context, providerT
 		&i.ProviderTransactionNo,
 		&i.ProviderOrderInfo,
 		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
 	)
 	return i, err
 }
 
 const getBillingPaymentIntentForInvoice = `-- name: GetBillingPaymentIntentForInvoice :one
-SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date FROM billing_payment_intents WHERE id = $1 AND organization_id = $2
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents WHERE id = $1 AND organization_id = $2
 `
 
 type GetBillingPaymentIntentForInvoiceParams struct {
@@ -414,12 +473,13 @@ func (q *Queries) GetBillingPaymentIntentForInvoice(ctx context.Context, arg Get
 		&i.ProviderTransactionNo,
 		&i.ProviderOrderInfo,
 		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
 	)
 	return i, err
 }
 
 const getCompletedPaymentIntentForInvoice = `-- name: GetCompletedPaymentIntentForInvoice :one
-SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date FROM billing_payment_intents
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents
 WHERE organization_id = $1 AND subscription_id = $2 AND provider = $3 AND amount = $4 AND status = 'completed'
 ORDER BY COALESCE(completed_at, created_at) DESC
 LIMIT 1
@@ -460,6 +520,7 @@ func (q *Queries) GetCompletedPaymentIntentForInvoice(ctx context.Context, arg G
 		&i.ProviderTransactionNo,
 		&i.ProviderOrderInfo,
 		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
 	)
 	return i, err
 }
@@ -540,7 +601,7 @@ func (q *Queries) GetLiveSubscription(ctx context.Context, organizationID string
 }
 
 const getPendingBillingPaymentIntentForPlan = `-- name: GetPendingBillingPaymentIntentForPlan :one
-SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date FROM billing_payment_intents
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents
 WHERE organization_id = $1 AND plan_id = $2 AND status = 'pending' AND expires_at > now()
 ORDER BY created_at DESC
 LIMIT 1
@@ -574,6 +635,7 @@ func (q *Queries) GetPendingBillingPaymentIntentForPlan(ctx context.Context, arg
 		&i.ProviderTransactionNo,
 		&i.ProviderOrderInfo,
 		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
 	)
 	return i, err
 }
@@ -631,7 +693,7 @@ INSERT INTO billing_payment_intents (
   id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
   amount, currency, status, expires_at, created_by, created_by_kind, provider_order_info
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, $10, $11, $12)
-RETURNING id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date
+RETURNING id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at
 `
 
 type InsertBillingPaymentIntentParams struct {
@@ -685,6 +747,7 @@ func (q *Queries) InsertBillingPaymentIntent(ctx context.Context, arg InsertBill
 		&i.ProviderTransactionNo,
 		&i.ProviderOrderInfo,
 		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
 	)
 	return i, err
 }
@@ -1397,8 +1460,8 @@ UPDATE billing_payment_intents SET
   provider_transaction_no = COALESCE($4, provider_transaction_no),
   provider_order_info = COALESCE($5, provider_order_info),
   provider_pay_date = COALESCE($6, provider_pay_date)
-WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed')
-RETURNING id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date
+WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed', 'expired')
+RETURNING id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at
 `
 
 type MarkBillingPaymentIntentCompletedParams struct {
@@ -1440,6 +1503,7 @@ func (q *Queries) MarkBillingPaymentIntentCompleted(ctx context.Context, arg Mar
 		&i.ProviderTransactionNo,
 		&i.ProviderOrderInfo,
 		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
 	)
 	return i, err
 }

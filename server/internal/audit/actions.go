@@ -219,6 +219,12 @@ const (
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"
+
+	ActionPrivacyExportRequested     = "privacy.export_requested"
+	ActionPrivacyExported            = "privacy.exported"
+	ActionPrivacyDeletionRequested   = "privacy.deletion_requested"
+	ActionPrivacyDeletionCancelled   = "privacy.deletion_cancelled"
+	ActionPrivacyOrganizationDeleted = "privacy.organization_deleted"
 )
 
 // Chat message create and update are deliberately not audited: the volume is

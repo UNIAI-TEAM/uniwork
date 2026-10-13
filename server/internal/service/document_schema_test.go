@@ -89,6 +89,16 @@ func TestDocumentConstraints(t *testing.T) {
 		expectCheckViolation(t, err, "documents_kind_check")
 	})
 
+	t.Run("a folder is a kind and never holds content", func(t *testing.T) {
+		if err := insertRowE(ctx, pool, "documents", baseDoc(map[string]any{
+			"id": "01DOKFOLDER01", "kind": "folder"})); err != nil {
+			t.Fatalf("folder insert: %v", err)
+		}
+		err := insertRowE(ctx, pool, "documents", baseDoc(map[string]any{
+			"id": "01DOKFOLDER02", "kind": "folder", "content": `{"type":"doc","content":[]}`}))
+		expectCheckViolation(t, err, "documents_content_kind_check")
+	})
+
 	t.Run("file payload check", func(t *testing.T) {
 		err := insertRowE(ctx, pool, "documents", baseDoc(map[string]any{
 			"id": "01DOK02", "kind": "file", "content": `{"type":"doc"}`}))
