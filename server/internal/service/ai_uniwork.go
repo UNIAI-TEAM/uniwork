@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -64,31 +65,106 @@ type UniworkRunMetrics interface {
 	IncUniworkDroppedToolCalls(reason string, calls int64)
 }
 
-// errUniworkRunSeam marks the S0 seam: the run accounting bodies land with W-B
-// (design §11).
-var errUniworkRunSeam = errors.New("service: run store chưa nối (G6-03b S1)")
-
 // SetRunStore attaches A3's run counter (G6-03b).
 func (s *AIUniworkService) SetRunStore(store ai.RunStore) { s.runs = store }
 
 // SetUniworkMetrics attaches the run/usage metrics (G6-03b).
 func (s *AIUniworkService) SetUniworkMetrics(m UniworkRunMetrics) { s.metrics = m }
 
-// takeRun reserves the model call this turn is about to spend (A3).
+// takeRun reserves the model call this turn is about to spend (A3). The store
+// holds the caps across pods with one conditional update (design §4.2), so
+// this is the only place a turn waits on the run counters; the limiter has
+// already been taken, so a turn refused here holds no concurrency slot. The
+// store answers ErrRunExpired for a run id unknown, expired or another
+// conversation's, and RunLimitReached when a cap is already spent — both are
+// *ai.Error and travel to the wire as they are (409, design §2.3).
 //
-// TODO(G6-03b W-B): call s.runs.TakeTurn with the resumed conversation, map
-// ErrRunLimitReached/ErrRunExpired to the wire (409) and keep the run id on
-// every answer; the ordering (limiter before the take) is design §5.5.
+// A deployment whose run store is not wired keeps 03a behaviour: no run
+// accounting, no run id on the answer (the scaffold seam of design §11).
 func (s *AIUniworkService) takeRun(ctx context.Context, in ai.TakeRunTurn) (ai.Run, error) {
-	return ai.Run{}, errUniworkRunSeam
+	if s.runs == nil {
+		return ai.Run{}, nil
+	}
+	return s.runs.TakeTurn(ctx, in)
 }
 
-// addRunCredits records what an answered call cost the run.
-//
-// TODO(G6-03b W-B): call s.runs.AddCredits on a context detached from the
-// request, then observe run seconds/credits (design §6.2, §7).
-func (s *AIUniworkService) addRunCredits(ctx context.Context, runID, conversationID string, tokens int64) error {
-	return errUniworkRunSeam
+// addRunCredits records what an answered call cost the run and reports the
+// two run histograms of §7. Both the store write and the observations run on
+// a context detached from the request (§6.2): a client that hung up after the
+// vendor answered still leaves the run's credits and the metrics behind. A
+// credits failure is logged, never turned into a refused answer — the answer
+// and the transcript matter more than a counter.
+func (s *AIUniworkService) addRunCredits(ctx context.Context, run ai.Run, tokens int64) {
+	if run.ID == "" {
+		return
+	}
+	sctx, cancel := uniworkSettleContext(ctx)
+	defer cancel()
+	if tokens > 0 {
+		if err := s.runs.AddCredits(sctx, run.ID, run.ConversationID, tokens); err != nil {
+			slog.Default().Warn("uniwork ai: run credits", "run_id", run.ID, "err", err)
+		}
+	}
+	if s.metrics != nil {
+		// The run's credits after this turn: what the store held before it
+		// (zero for a run opened by this turn) plus what the vendor charged.
+		s.metrics.ObserveUniworkRun(s.now().Sub(run.CreatedAt).Seconds(), run.Credits+tokens)
+	}
+}
+
+// uniworkQuotaErr is §6.1: a spent ai.tokens meter answers 402
+// credits_exhausted — the same code and shape as the organization-tier cloud
+// route (errCreditsExhausted), so the client routes both to its credits
+// state. A plan without the capability or an inactive subscription keeps its
+// own code: those are refusals about the plan, not about credits.
+func uniworkQuotaErr(err error) error {
+	if errors.Is(err, ErrQuotaExceeded) {
+		return errCreditsExhausted
+	}
+	return err
+}
+
+// uniworkSettleTimeout bounds the detached settle of a turn's credits, the
+// same shape as the Gateway's own settleContext (ai/cloud.go).
+const uniworkSettleTimeout = 10 * time.Second
+
+// uniworkSettleContext is the context a turn's bookkeeping runs on: it keeps
+// the request's values (correlation id) but not its cancellation, so a client
+// hang-up cannot lose a run's credits.
+func uniworkSettleContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), uniworkSettleTimeout)
+}
+
+// uniworkMeterKey is the idempotency key of one model call: (run id, seq),
+// where seq is the model call this turn just reserved (design §6.4). Empty
+// when there is no run, which keeps the Gateway's per-event key.
+func uniworkMeterKey(run ai.Run) string {
+	if run.ID == "" {
+		return ""
+	}
+	return fmt.Sprintf("uniwork-ai:%s:%d", run.ID, run.ModelCalls)
+}
+
+// observeTurnMetrics records the §7 surface of one answered turn: the tool
+// calls the allowlist dropped, by reason, and a vendor that sent no usage
+// block.
+func (s *AIUniworkService) observeTurnMetrics(resp ai.Response, dropped []ai.UniworkDroppedToolCall) {
+	if s.metrics == nil {
+		return
+	}
+	if !resp.UsagePresent {
+		s.metrics.IncUniworkUsageUnknown(1)
+	}
+	if len(dropped) == 0 {
+		return
+	}
+	counts := make(map[string]int64, 2)
+	for _, d := range dropped {
+		counts[d.Reason]++
+	}
+	for reason, calls := range counts {
+		s.metrics.IncUniworkDroppedToolCalls(reason, calls)
+	}
 }
 
 // NewAIUniworkService wires the service. rdb may be nil: the organization
@@ -203,7 +279,7 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 		return UniworkTurn{}, err
 	}
 	if err := s.ents.CheckQuota(ctx, orgID, FeatureAITokens, 1); err != nil {
-		return UniworkTurn{}, err
+		return UniworkTurn{}, uniworkQuotaErr(err)
 	}
 	key := ai.ConversationKey{
 		OrganizationID: orgID, UserID: scope.UserID, DocumentID: scope.DocumentID,
@@ -220,6 +296,14 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 		// id back (A12) so the next turn can continue it.
 		return UniworkTurn{ConversationID: conv.ID}, err
 	}
+	// A tool-result turn must name the run it answers (D-2, design §2.2):
+	// without the header it would look like a question and open a new run,
+	// which is the 8-round cap's escape hatch (one new run per round). The
+	// rule holds while run accounting is wired; a deployment without the run
+	// store has no cap to protect and keeps 03a behaviour.
+	if s.runs != nil && turn.ToolResultTurn && in.RunID == "" {
+		return UniworkTurn{ConversationID: conv.ID}, Invalid("lượt tool-result phải nêu header " + ai.UniworkRunHeader)
+	}
 	// The concurrency slot is taken last of the gates and released as soon as
 	// the turn settles, so a run that fails early costs no slot and one that
 	// answers holds it for exactly one upstream call (A11, design §7.2).
@@ -228,6 +312,19 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 		return UniworkTurn{ConversationID: conv.ID}, err
 	}
 	defer release()
+	// The run counters are the last gate before the model (A3, design §5.5):
+	// the limiter already ran, so a turn refused here holds no slot, and the
+	// take is what makes the caps hold across pods. The refusal (limit
+	// reached, run id unknown/expired/foreign) carries no run id back — the
+	// client drops its header and asks again, which opens a new run in the
+	// same conversation (§4.3).
+	run, err := s.takeRun(ctx, ai.TakeRunTurn{
+		OrganizationID: orgID, ConversationID: conv.ID, RunID: in.RunID,
+		ToolRound: turn.ToolResultTurn, CreatedBy: scope.UserID, Now: s.now(),
+	})
+	if err != nil {
+		return UniworkTurn{ConversationID: conv.ID}, err
+	}
 
 	request := ai.Request{
 		Actor: Human(scope.UserID), OrganizationID: orgID, WorkspaceID: doc.workspaceID,
@@ -237,28 +334,37 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 		// back whole so they are reported through x_uniwork instead of failing
 		// the turn (design §6.4, A13).
 		FilterToolCalls: true,
+		// One charge per (run, model call), so a replay of the same attempt
+		// cannot be metered twice (design §6.4).
+		MeterKey: uniworkMeterKey(run),
 	}
 	resp, err := s.gw.Complete(ctx, request)
 	if err != nil {
 		// Nothing of this attempt is in the transcript yet — Append runs only
 		// after Complete succeeds — so there is nothing to roll back. A
 		// Rollback here would delete by seq count alone and take a concurrent
-		// attempt's turns with it.
-		return UniworkTurn{ConversationID: conv.ID}, err
+		// attempt's turns with it. The run id travels back with the refusal
+		// (429 upstream, 504, 502): the run is still live and the client
+		// retries the same id (design §5.5).
+		return UniworkTurn{ConversationID: conv.ID, RunID: run.ID}, err
 	}
 	kept, dropped := ai.FilterUniworkToolCalls(resp.ToolCalls, allow)
 	resp.ToolCalls = kept
+	// The run's credits and the §7 counters settle before the transcript
+	// write, on a context that outlives the request (§6.2).
+	s.addRunCredits(ctx, run, int64(resp.InputTokens+resp.OutputTokens))
+	s.observeTurnMetrics(resp, dropped)
 	// The transcript stores exactly what was sent plus the answer as the
 	// client receives it: the new question as the plan put it on the wire, and
 	// no dropped call — so the client's tool results answer every call the
 	// history replays (rule 7, A13, design §6.2).
 	appended := append(attemptMessages(turn), assistantMessage(resp))
 	if err := s.store.Append(ctx, conv.ID, appended); err != nil {
-		return UniworkTurn{ConversationID: conv.ID}, err
+		return UniworkTurn{ConversationID: conv.ID, RunID: run.ID}, err
 	}
 	return UniworkTurn{
-		Response: resp, ConversationID: conv.ID,
-		Step: 0, Limit: ai.UniworkToolStepLimit, Dropped: dropped, Stream: turn.Stream,
+		Response: resp, ConversationID: conv.ID, RunID: run.ID,
+		Step: run.ToolRounds, Limit: ai.UniworkToolStepLimit, Dropped: dropped, Stream: turn.Stream,
 	}, nil
 }
 
