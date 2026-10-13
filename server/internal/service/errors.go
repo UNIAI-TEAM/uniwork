@@ -135,6 +135,27 @@ func errMemberInOtherOrganization() error {
 	}
 }
 
+// Closing an organization (ADR 0032 D5) needs the owner to be its only active
+// member and the slug typed back as confirmation.
+var (
+	ErrOrganizationHasMembers = errors.New("organization_has_members")
+	ErrCloseConfirmMismatch   = errors.New("close_confirm_mismatch")
+)
+
+func errOrganizationHasMembers() error {
+	return CodedError{
+		Code: "organization_has_members", Status: http.StatusConflict,
+		Msg: "tổ chức vẫn còn thành viên khác; hãy chuyển quyền sở hữu thay vì đóng", Err: ErrOrganizationHasMembers,
+	}
+}
+
+func errCloseConfirmMismatch() error {
+	return CodedError{
+		Code: "close_confirm_mismatch", Status: http.StatusBadRequest,
+		Msg: "địa chỉ tổ chức nhập lại không khớp", Err: ErrCloseConfirmMismatch,
+	}
+}
+
 func errCannotDeactivateSelf() error {
 	return coded(http.StatusBadRequest, "cannot_deactivate_self", "không thể tự vô hiệu hóa tài khoản của mình")
 }

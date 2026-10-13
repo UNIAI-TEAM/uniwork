@@ -24,6 +24,9 @@ const (
 	ActionMemberReactivated            = "member.reactivated"
 	ActionMemberLeft                   = "member.left"
 	ActionOrganizationOwnershipChanged = "organization.ownership_transferred"
+	// The sole owner closes the organization (ADR 0032): it is archived, not
+	// erased, and the owner is free to join or found another.
+	ActionOrganizationClosed = "organization.closed"
 
 	// People and departments (F-03). profile.updated covers both the self-edit
 	// and the administrator's edit; the row records which company-owned facts

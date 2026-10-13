@@ -138,3 +138,20 @@ WHERE m.user_id = $1 AND m.deactivated_at IS NULL AND m.organization_id <> $2
 SELECT * FROM organization_members
 WHERE organization_id = $1 AND user_id = $2
 FOR UPDATE;
+
+-- name: CountActiveOtherMembers :one
+-- Close needs the owner to be the organization's only active member
+-- (ADR 0032 D5); deactivated rows hold no access and do not count.
+SELECT count(*) FROM organization_members
+WHERE organization_id = $1 AND user_id <> $2 AND deactivated_at IS NULL;
+
+-- name: CloseOrganization :execrows
+-- Closing archives rather than deletes (ADR 0032 D4): every gate that wants an
+-- active organization already refuses an archived one. 0 rows means the
+-- status moved under the caller.
+UPDATE organizations SET
+  status = 'archived',
+  suspended_at = now(),
+  suspended_reason = 'organization_closed',
+  updated_at = now()
+WHERE id = $1 AND status = 'active';

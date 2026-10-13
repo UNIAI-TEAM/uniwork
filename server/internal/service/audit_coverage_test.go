@@ -168,6 +168,12 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionOrganizationClosed: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if err := f.orgMem.Close(f.ctx, f.owner.ID, f.orgID, "audit-org"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionMemberInvited: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			if _, _, err := f.ws.InviteMany(f.ctx, f.owner.ID, w.ID, []string{"invitee@example.com"}, "member"); err != nil {
@@ -1379,6 +1385,7 @@ func auditActions() []string {
 		audit.ActionPeopleExported,
 		audit.ActionInvitationRevoked,
 		audit.ActionOrganizationOwnershipChanged,
+		audit.ActionOrganizationClosed,
 		audit.ActionWorkspaceCreated,
 		audit.ActionWorkspaceUpdated,
 		audit.ActionWorkspaceMemberAdded,

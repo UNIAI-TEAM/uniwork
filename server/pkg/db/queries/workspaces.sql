@@ -128,6 +128,12 @@ UPDATE invitations SET revoked_at = now()
 WHERE id = $1 AND organization_id = $2 AND accepted_at IS NULL AND revoked_at IS NULL
 RETURNING *;
 
+-- name: RevokePendingInvitationsForOrg :execrows
+-- A closed organization takes nobody in: its open invitations are revoked
+-- with it, and the rows stay for the trail.
+UPDATE invitations SET revoked_at = now()
+WHERE organization_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL;
+
 -- name: UpdateWorkspaceMemberRole :one
 UPDATE workspace_members
 SET role = $3

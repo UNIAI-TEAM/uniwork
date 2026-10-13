@@ -56,6 +56,26 @@ func (q *Queries) ClearOrganizationMemberDeactivated(ctx context.Context, arg Cl
 	return i, err
 }
 
+const closeOrganization = `-- name: CloseOrganization :execrows
+UPDATE organizations SET
+  status = 'archived',
+  suspended_at = now(),
+  suspended_reason = 'organization_closed',
+  updated_at = now()
+WHERE id = $1 AND status = 'active'
+`
+
+// Closing archives rather than deletes (ADR 0032 D4): every gate that wants an
+// active organization already refuses an archived one. 0 rows means the
+// status moved under the caller.
+func (q *Queries) CloseOrganization(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, closeOrganization, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countActiveOrganizationsForUser = `-- name: CountActiveOrganizationsForUser :one
 SELECT count(*) FROM organization_members m
 JOIN organizations o ON o.id = m.organization_id
@@ -74,6 +94,25 @@ type CountActiveOrganizationsForUserParams struct {
 // (ADR 0032 D1).
 func (q *Queries) CountActiveOrganizationsForUser(ctx context.Context, arg CountActiveOrganizationsForUserParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countActiveOrganizationsForUser, arg.UserID, arg.OrganizationID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countActiveOtherMembers = `-- name: CountActiveOtherMembers :one
+SELECT count(*) FROM organization_members
+WHERE organization_id = $1 AND user_id <> $2 AND deactivated_at IS NULL
+`
+
+type CountActiveOtherMembersParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+// Close needs the owner to be the organization's only active member
+// (ADR 0032 D5); deactivated rows hold no access and do not count.
+func (q *Queries) CountActiveOtherMembers(ctx context.Context, arg CountActiveOtherMembersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveOtherMembers, arg.OrganizationID, arg.UserID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err

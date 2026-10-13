@@ -681,6 +681,21 @@ func (q *Queries) RevokeInvitation(ctx context.Context, arg RevokeInvitationPara
 	return i, err
 }
 
+const revokePendingInvitationsForOrg = `-- name: RevokePendingInvitationsForOrg :execrows
+UPDATE invitations SET revoked_at = now()
+WHERE organization_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL
+`
+
+// A closed organization takes nobody in: its open invitations are revoked
+// with it, and the rows stay for the trail.
+func (q *Queries) RevokePendingInvitationsForOrg(ctx context.Context, organizationID string) (int64, error) {
+	result, err := q.db.Exec(ctx, revokePendingInvitationsForOrg, organizationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setWorkspaceMatrixRoomID = `-- name: SetWorkspaceMatrixRoomID :one
 UPDATE workspaces SET matrix_room_id = $2, updated_at = now()
 WHERE id = $1
