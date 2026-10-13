@@ -32,7 +32,9 @@ import (
 //
 //   - a WRITE is a params literal of a registered document-workspace writer
 //     (docWorkspaceWrites) whose destination field is set, or a raw SQL
-//     statement that updates documents.workspace_id;
+//     statement that updates documents.workspace_id (matched over the WHOLE
+//     statement, never a line, so the repo's own multi-line layout is seen -
+//     BE-G4-2);
 //   - a DESTINATION is caller input when the written value is a parameter of
 //     the method or a field of one (in.WorkspaceID, toWorkspace); a value read
 //     off a loaded row (locked.WorkspaceID, src.WorkspaceID) is the document's
@@ -80,11 +82,50 @@ var docWorkspaceWriteByParams = func() map[string]docWorkspaceWrite {
 	return out
 }()
 
-// documentWorkspaceWritesSQL matches a statement that writes a document's
-// workspace_id: an UPDATE (or upsert) that SETs it, or an INSERT INTO documents
-// that names the column. Either is a hand-written or newly added way to move a
-// document between workspaces and must be registered in docWorkspaceWrites.
-var documentWorkspaceWritesSQL = regexp.MustCompile(`(?is)(update\s+documents\b[^;]*\bset\b[^;]*\bworkspace_id\b|insert\s+into\s+documents\b[^;]*\bworkspace_id\b)`)
+// The SQL half of the write detector. A statement writes a document's
+// workspace_id when an UPDATE documents assigns it in its SET clause (an
+// INSERT ... ON CONFLICT is the upsert spelling of the same), or an INSERT INTO
+// documents names the column in its column list. Either is a hand-written or
+// newly added way to move a document between workspaces and must be registered
+// in docWorkspaceWrites.
+//
+// The match runs over a WHOLE statement, never a line (BE-G4-2): the repo lays
+// its queries out with UPDATE documents on one line and SET workspace_id = ...
+// on the next, so a line-at-a-time scan silently misses exactly the write this
+// guard exists to catch. Go's regexp is RE2 (no lookahead), so "the assignment
+// before WHERE" is decided by scanning, not by one pattern.
+var (
+	// updateDocuments finds the start of an UPDATE of the documents table.
+	updateDocuments = regexp.MustCompile(`(?i)\bupdate\s+documents\b`)
+	// setClause and whereClause bound the assignments: workspace_id must be
+	// assigned before WHERE (a WHERE workspace_id = ... is a tenant filter, not
+	// a write).
+	setClause   = regexp.MustCompile(`(?i)\bset\b`)
+	whereClause = regexp.MustCompile(`(?i)\bwhere\b`)
+	// workspaceAssignment is the write itself.
+	workspaceAssignment = regexp.MustCompile(`(?i)\bworkspace_id\s*=`)
+	// insertDocumentsColumns is an INSERT INTO documents whose column list names
+	// workspace_id.
+	insertDocumentsColumns = regexp.MustCompile(`(?i)\binsert\s+into\s+documents\s*\([^)]*\bworkspace_id\b`)
+)
+
+// writesDocumentWorkspace answers whether one normalized SQL statement writes a
+// document's workspace_id.
+func writesDocumentWorkspace(stmt string) bool {
+	if loc := updateDocuments.FindStringIndex(stmt); loc != nil {
+		rest := stmt[loc[1]:]
+		if set := setClause.FindStringIndex(rest); set != nil {
+			body := rest[set[1]:]
+			if w := whereClause.FindStringIndex(body); w != nil {
+				body = body[:w[0]]
+			}
+			if workspaceAssignment.MatchString(body) {
+				return true
+			}
+		}
+	}
+	return insertDocumentsColumns.MatchString(stmt)
+}
 
 // isWorkspaceName answers whether one identifier names a workspace, whatever
 // the spelling (workspaceID, toWorkspace, WorkspaceID, targetWorkspaceID,
@@ -169,7 +210,7 @@ func workspaceDestinations(fn *ast.FuncDecl) []ast.Expr {
 			if err != nil {
 				s = node.Value
 			}
-			if documentWorkspaceWritesSQL.MatchString(s) {
+			if writesDocumentWorkspace(s) {
 				out = append(out, node)
 			}
 		}
@@ -297,6 +338,11 @@ func packageFiles(t *testing.T) ([]*ast.File, []string) {
 // name of every query whose statement writes documents.workspace_id. Each must
 // be registered in docWorkspaceWrites, or the guard fails: a new way to write a
 // document's workspace_id cannot pass unnoticed.
+//
+// A query is matched STATEMENT by STATEMENT, never line by line (BE-G4-2): the
+// file is split on its `-- name:` blocks and each block's SQL is joined into one
+// whitespace-collapsed string, so a write the repo lays out with
+// `UPDATE documents` and `SET workspace_id = ...` on separate lines is seen.
 func sqlQueriesWritingDocumentWorkspace(t *testing.T) []string {
 	t.Helper()
 	dir := filepath.Join("..", "..", "pkg", "db", "queries")
@@ -313,20 +359,54 @@ func sqlQueriesWritingDocumentWorkspace(t *testing.T) []string {
 		if err != nil {
 			t.Fatalf("read %s: %v", entry.Name(), err)
 		}
-		name := ""
-		for _, line := range strings.Split(string(body), "\n") {
-			if strings.HasPrefix(line, "-- name: ") {
-				name = strings.TrimSpace(strings.TrimPrefix(line, "-- name: "))
-				if i := strings.Index(name, " "); i >= 0 {
-					name = name[:i]
-				}
-				continue
-			}
-			if name != "" && documentWorkspaceWritesSQL.MatchString(line) {
-				out = append(out, name)
+		for _, q := range sqlcQueries(string(body)) {
+			if writesDocumentWorkspace(q.statement) {
+				out = append(out, q.name)
 			}
 		}
 	}
+	return out
+}
+
+// sqlcQuery is one `-- name: X :one` block of a query file: its name and its
+// statement, with the block's lines joined and every run of whitespace
+// collapsed to one space so the write test reads the whole statement.
+type sqlcQuery struct {
+	name      string
+	statement string
+}
+
+// sqlcQueries splits one query file into its `-- name:` blocks. Comment lines
+// (a leading `--`) are dropped and the SQL lines are joined; a statement spread
+// over several lines therefore reads as one string. A file's leading comment
+// block, before the first `-- name:`, is skipped.
+func sqlcQueries(body string) []sqlcQuery {
+	var out []sqlcQuery
+	var name string
+	var lines []string
+	flush := func() {
+		if name == "" {
+			return
+		}
+		out = append(out, sqlcQuery{name: name, statement: strings.Join(strings.Fields(strings.Join(lines, " ")), " ")})
+	}
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "-- name: ") {
+			flush()
+			name = strings.TrimSpace(strings.TrimPrefix(trimmed, "-- name: "))
+			if i := strings.Index(name, " "); i >= 0 {
+				name = name[:i]
+			}
+			lines = nil
+			continue
+		}
+		if name == "" || strings.HasPrefix(trimmed, "--") {
+			continue
+		}
+		lines = append(lines, trimmed)
+	}
+	flush()
 	return out
 }
 
@@ -415,7 +495,42 @@ func (s *DocumentService) CopyWithinWorkspace(ctx context.Context, actor Actor, 
 		}
 	}
 
-	// The SQL half: a query that writes documents.workspace_id must be
+	// The SQL half's detector, self-checked on parsed statements (BE-G4-2): the
+	// multi-line layout the repo itself uses must be flagged, and a tenant-only
+	// filter must not be. This is what the line-at-a-time version missed.
+	for _, tc := range []struct {
+		name string
+		file string
+		want []string
+	}{
+		{"multi-line UPDATE ... SET workspace_id is flagged", `-- name: MoveDocumentToWorkspace :one
+UPDATE documents
+SET workspace_id = sqlc.arg(workspace_id)
+WHERE id = sqlc.arg(id)`, []string{"MoveDocumentToWorkspace"}},
+		{"single-line UPDATE ... SET workspace_id is flagged", `-- name: Relocate :one
+UPDATE documents SET workspace_id = sqlc.arg(workspace_id) WHERE id = sqlc.arg(id)`, []string{"Relocate"}},
+		{"INSERT copying into another workspace is flagged", `-- name: CopyDocument :one
+INSERT INTO documents (id, workspace_id, source_document_id)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(source_document_id))`, []string{"CopyDocument"}},
+		{"an UPDATE that only filters on workspace_id is not flagged", `-- name: RenameDocument :one
+UPDATE documents
+SET title = sqlc.arg(title)
+WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id)`, nil},
+		{"an INSERT that does not name workspace_id is not flagged", `-- name: Touch :one
+INSERT INTO documents (id, title) VALUES (sqlc.arg(id), sqlc.arg(title))`, nil},
+	} {
+		got := make([]string, 0, 1)
+		for _, q := range sqlcQueries(tc.file) {
+			if writesDocumentWorkspace(q.statement) {
+				got = append(got, q.name)
+			}
+		}
+		if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+			t.Fatalf("%s: detected %v, want %v", tc.name, got, tc.want)
+		}
+	}
+
+	// The real scan: a query that writes documents.workspace_id must be
 	// registered, so a new one cannot slip past the body scan.
 	for _, name := range sqlQueriesWritingDocumentWorkspace(t) {
 		if _, ok := docWorkspaceWrites[name]; !ok {
