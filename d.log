@@ -1,0 +1,90 @@
+$ node scripts/office/g5g6g7/g7-06/capture.mjs --host web --out .g7-06-captures; echo "web exit $?"; cat .g7-06-captures/web/meta.json; true
+web: fx-xlsx-revenue-xyz -> /o-g706-mv6ilstn/w-g706-mv6ilstn/documents/<id>
+web: fx-docx-report-vi -> /o-g706-mv6ilstn/w-g706-mv6ilstn/documents/<id>
+web: fx-pptx-deck-vi -> /o-g706-mv6ilstn/w-g706-mv6ilstn/documents/<id>
+web: fx-pdf-invoice-vi -> /o-g706-mv6ilstn/w-g706-mv6ilstn/documents/<id>
+web: fx-md-notes-vi -> /o-g706-mv6ilstn/w-g706-mv6ilstn/documents/<id>
+web: fx-html-page-vi -> /o-g706-mv6ilstn/w-g706-mv6ilstn/documents/<id>
+web: cleanup done: stays: 6 document(s) archived into the trash (the API has no purge; kept until the organization is erased); organization 01M4TBJ7WCJG6HEEVJFDDKKP7N (erasure queued, runs in 5 days; its workspace 01M4TBJ7XA578MBYWW0RKC7QHQ stays until then); owner account g7-06-capture-1791885909803@example.com (it cannot be deleted while it owns an organization)
+cleanup done: stays: 6 document(s) archived into the trash (the API has no purge; kept until the organization is erased); organization 01M4TBJ7WCJG6HEEVJFDDKKP7N (erasure queued, runs in 5 days; its workspace 01M4TBJ7XA578MBYWW0RKC7QHQ stays until then); owner account g7-06-capture-1791885909803@example.com (it cannot be deleted while it owns an organization)
+  ok      web/fx-xlsx-revenue-xyz
+  ok      web/fx-docx-report-vi
+  ok      web/fx-pptx-deck-vi
+  ok      web/fx-pdf-invoice-vi
+  ok      web/fx-md-notes-vi
+  ok      web/fx-html-page-vi
+capture web: ok (exit 0), meta at /workspace/.g7-06-captures/web/meta.json
+web exit 0
+{
+  "host": "web",
+  "forkSha": "7e082de",
+  "pinVersion": "0.1.0-7e082de",
+  "viewport": {
+    "w": 1720,
+    "h": 980
+  },
+  "deviceScaleFactor": 1,
+  "capturedAt": "2026-10-13T10:05:56.459Z",
+  "fixtures": {
+    "fx-xlsx-revenue-xyz": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": true
+    },
+    "fx-docx-report-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": false
+    },
+    "fx-pptx-deck-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": true
+    },
+    "fx-pdf-invoice-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": true
+    },
+    "fx-md-notes-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": false
+    },
+    "fx-html-page-vi": {
+      "status": "ok",
+      "reason": "",
+      "size": {
+        "w": 1456,
+        "h": 868
+      },
+      "canvasOnly": false
+    }
+  },
+  "settings": {
+    "locale": "vi-VN",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "colorScheme": "light",
+    "reducedMotion": "reduce"
+  }
+}
