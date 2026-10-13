@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+4ca5236f0238b252d0dfc71b41a15285a4f80e28
+819d50f975f9cb20da85eb188209d8b1de237b85
+4ca5236f fix(sheets): keep the fully loaded status after a late loadRange tail
+2fbfb919 test(sheets): pin that the fully loaded status survives a late loadRange tail
+819d50f9 Merge the G7-06 extractor hardening into fork main (UNI-1378)

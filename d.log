@@ -1,0 +1,50 @@
+$ git checkout 819d50f9 -- apps/sheets/src/renderer/univer-sync.ts; (cd apps/sheets && npx vitest run tests/streaming-status-after-preload.test.ts); A=$?; git checkout HEAD -- apps/sheets; git status --short apps/sheets; echo "RED_EXIT uni1416=$A"; test $A -ne 0 && echo RED_AS_EXPECTED
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+ ❯ tests/streaming-status-after-preload.test.ts (2 tests | 2 failed) 24ms
+     × path A: the 250 ms retry armed before the preload does not replace the fully loaded status 18ms
+     × path B: a viewport load after the preload with decorations pending keeps the fully loaded status 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/streaming-status-after-preload.test.ts > streaming status after the full preload > path A: the 250 ms retry armed before the preload does not replace the fully loaded status
+AssertionError: expected '正在流式加载 Small.xlsx：9 行可用。' to be '工作簿已完整加载——公式实时重算，行列可编辑。' // Object.is equality
+
+Expected: "工作簿已完整加载——公式实时重算，行列可编辑。"
+Received: "正在流式加载 Small.xlsx：9 行可用。"
+
+ ❯ tests/streaming-status-after-preload.test.ts:171:29
+    169|     await viewport
+    170|
+    171|     expect(messages.at(-1)).toBe(t('appFullyLoaded'))
+       |                             ^
+    172|   })
+    173|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/streaming-status-after-preload.test.ts > streaming status after the full preload > path B: a viewport load after the preload with decorations pending keeps the fully loaded status
+AssertionError: expected '正在流式加载 Small.xlsx：9 行可用。' to be '工作簿已完整加载——公式实时重算，行列可编辑。' // Object.is equality
+
+Expected: "工作簿已完整加载——公式实时重算，行列可编辑。"
+Received: "正在流式加载 Small.xlsx：9 行可用。"
+
+ ❯ tests/streaming-status-after-preload.test.ts:192:29
+    190|     await vi.advanceTimersByTimeAsync(300)
+    191|
+    192|     expect(messages.at(-1)).toBe(t('appFullyLoaded'))
+       |                             ^
+    193|   })
+    194| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  02:56:39
+   Duration  4.85s (transform 3.27s, setup 0ms, import 4.75s, tests 24ms, environment 0ms)
+
+RED_EXIT uni1416=1
+RED_AS_EXPECTED
