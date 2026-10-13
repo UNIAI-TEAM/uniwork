@@ -107,6 +107,29 @@ func revokeOfficeLeasesForUser(ctx context.Context, q *db.Queries, userID string
 // revoke; the caller loops until a batch comes back short.
 const officeLeaseOrgRevokeBatch = int32(500)
 
+// revokeOfficeLease revokes one lease in its own transaction: Put's
+// post-commit membership re-check (FIX-1) found the gate the grant used now
+// refuses, so the row it just wrote must not survive the request. Audit and
+// office_lease.revoked commit with the revoke (G5-D1 row 16) and the counter
+// moves only after the commit (G508S-BE-5). A row another revoke path already
+// ended is left to it: the update only matches live rows.
+func (s *OfficeLeaseService) revokeOfficeLease(ctx context.Context, orgID, leaseID, reason string) error {
+	tx, err := s.docs.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	n, err := revokeOfficeLeaseIDs(ctx, s.docs.q.WithTx(tx), orgID, []string{leaseID}, reason)
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	observeOfficeLeaseRevokes(reason, n)
+	return nil
+}
+
 // revokeOfficeLeasesForOrganization revokes every live lease of one
 // organization in batches inside the caller's transaction and returns how
 // many it recorded. The caller observes the counter after its commit.

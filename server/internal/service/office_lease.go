@@ -118,6 +118,11 @@ type OfficeLeaseMetrics interface {
 	ObserveOfficeLeaseSweep(n int64)
 }
 
+// officeLeasePutHold runs between Put's ACL read and its commit when a test
+// in this package sets it; production never does. It lets a test commit a
+// membership removal inside that window deterministically (FIX-1 race test).
+var officeLeasePutHold func()
+
 // officeLeaseMetrics is set once by main.go (SetOfficeLeaseMetrics): the
 // revoke paths run inside other services' transactions (logout, session
 // revoke, the outbox consumer), so the counter is package level like the
@@ -250,6 +255,9 @@ func (s *OfficeLeaseService) Put(ctx context.Context, actor Actor, in OfficeLeas
 	if err != nil {
 		return OfficeLease{}, err
 	}
+	if officeLeasePutHold != nil {
+		officeLeasePutHold()
+	}
 	if !s.enabled(ctx, actor.ID, doc.OrganizationID) {
 		return OfficeLease{}, officeLeaseBlocked(officeLeaseBlockedFlagOff, officeCapabilityOff("offline_library"))
 	}
@@ -349,10 +357,87 @@ func (s *OfficeLeaseService) Put(ctx context.Context, actor Actor, in OfficeLeas
 	if err := tx.Commit(ctx); err != nil {
 		return OfficeLease{}, err
 	}
+	if err := s.recheckMembershipAfterPut(ctx, actor, doc.ID, row.ID); err != nil {
+		return OfficeLease{}, err
+	}
 	if officeLeaseMetrics != nil {
 		officeLeaseMetrics.ObserveOfficeLease(op)
 	}
 	return out, nil
+}
+
+// recheckMembershipAfterPut closes the one ACL race the outbox consumer
+// cannot (G508S-BE-1, FIX-1; threat model T3/T4, G5-D1 rows 2 and 8): a
+// member.removed, a member.deactivated or a member.left that commits between
+// Put's ACL read and its commit. The consumer runs after the removal
+// committed but cannot see the lease row, which had not committed when it
+// enumerated, so without this the row would stay live to the next renewal
+// (up to the 24 h TTL) and an online device would never be told to lock.
+//
+// The re-check asks the same gate the grant asked - DocumentService's
+// effectiveLevel: the organization gate, the workspace gate and the live
+// shares (membership is decided only by RequireMember, arch test) - against
+// the committed state:
+//
+//   - the gate now refuses on losing the person (a deactivated member, or no
+//     level left through any path) - the lease just written is revoked in its
+//     own transaction (audit + office_lease.revoked, G5-D1 row 16) with the
+//     matching reason, and the request answers the refusal an up-front read
+//     would have given, with no lease;
+//   - the gate still passes - nothing happens. If the removal commits after
+//     this, it commits after the lease row, so the consumer's enumeration
+//     sees the row and revokes it.
+//
+// Both orderings therefore end with no live lease: the removal commits either
+// before this run (the gate reads it and refuses) or after the lease commit
+// (the consumer sees the row). A removal takes no document lock, which is
+// exactly why it is the access change that can land in the window: a share
+// revoke, a move and a delete take LockDocumentByID FOR UPDATE
+// (document_permissions.go, document_tree.go, document_lifecycle.go) and
+// wait for this transaction's FOR SHARE on the document row
+// (LockOfficeLeaseDocument), so their consumer always sees the lease.
+//
+// A document that is gone (a delete, serialized by that lock) or archived
+// (row 14: archive is not a revoke, leases live to expiry) is left alone, and
+// so is a refusal the epoch and the consumer own - a suspension, a scheduled
+// deletion - which answers exactly as an up-front read would.
+func (s *OfficeLeaseService) recheckMembershipAfterPut(ctx context.Context, actor Actor, documentID, leaseID string) error {
+	// The client may be gone by now; this closes a security window, so it
+	// must not ride on the request context (email_hub_oauth_revoke.go takes
+	// the same care for its post-commit revoke).
+	ctx = context.WithoutCancel(ctx)
+	current, err := s.docs.q.GetDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	access, gateErr := s.docs.effectiveLevel(ctx, s.docs.q, actor, current)
+	var reason string
+	var refusal error
+	switch {
+	case errors.Is(gateErr, ErrMemberDeactivated):
+		reason, refusal = OfficeLeaseRevokeMemberDeactivated, gateErr
+	case gateErr == nil && access.Level == DocumentLevelNone:
+		// A plain non-member, whether they left or were removed: the same
+		// answer an up-front read gives, and the consumer's reason for a
+		// member.removed or member.left that lost every path.
+		reason, refusal = OfficeLeaseRevokeMemberRemoved, ErrNotFound
+	default:
+		// Still readable, or a refusal the run of the request cannot undo
+		// (a suspension, a scheduled deletion): answer it, keep the lease and
+		// let the epoch and the consumer close it. An infra error is returned
+		// as itself; the lease is live and the next renewal re-checks anyway.
+		if isGateRefusal(gateErr) {
+			return officeLeaseBlocked(officeLeaseBlockedACL, gateErr)
+		}
+		return gateErr
+	}
+	if err := s.revokeOfficeLease(ctx, current.OrganizationID, leaseID, reason); err != nil {
+		return err
+	}
+	return officeLeaseBlocked(officeLeaseBlockedACL, refusal)
 }
 
 // liveDevice reads the bearer's device row under lock. No row (a browser
