@@ -33,15 +33,15 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false }: { inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only" } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, ackComments = false }: { onFrameCommentsChange?: (framePanel: boolean) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only" } = {}) {
   requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : Promise.reject(new Error(`unexpected ${path}`))));
   lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const bare = <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} />;
+  const bare = <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} onFrameCommentsChange={onFrameCommentsChange} />;
   const framed = fileActions
     ? <OfficeTooLargeProvider value={{ desktopAction: fileActions === "download_only" ? null : <button type="button">Mở trong UniWork Office</button>, onDownload: vi.fn() }}>{bare}</OfficeTooLargeProvider>
     : bare;
-  render(
+  const view = render(
     <QueryClientProvider client={client}>
       <ThemeProvider defaultTheme="light" enableSystem={false}>
         <DocsFrameRefusalContext.Provider value={refuse ?? null}>
@@ -63,11 +63,12 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
     const m = message as Envelope;
     received.push(m);
     if (m.kind === "request" && m.type === "init") {
-      queueMicrotask(() => { void post(envelope("response", "init", { protocolVersion: 1, capabilities: {} }, m.id)); });
+      queueMicrotask(() => { void post(envelope("response", "init", { protocolVersion: 1, capabilities: ackComments ? { comments: true } : {} }, m.id)); });
     }
   });
   return {
     iframe,
+    unmount: () => view.unmount(),
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     ready: (payload: Record<string, unknown>) => post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, ...payload })),
     inits: () => received.filter((m) => m.kind === "request" && m.type === "init"),
@@ -89,6 +90,15 @@ describe("OfficeModuleFrame", () => {
       module: "pdf", documentId: "doc-1", token: "tok-1",
       capabilities: { save: true, saveAs: true, recents: false, print: true, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false },
     });
+  });
+
+  it("takes back its comments claim when the frame unmounts, so the page's own panel returns", async () => {
+    const onFrameCommentsChange = vi.fn();
+    const frame = mountFrame("pdf", { onFrameCommentsChange, ackComments: true });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(onFrameCommentsChange).toHaveBeenLastCalledWith(true));
+    frame.unmount();
+    expect(onFrameCommentsChange).toHaveBeenLastCalledWith(false);
   });
 
   it("names the signed-in user to the editor", async () => {

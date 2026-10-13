@@ -9,7 +9,9 @@ import {
   useAddDocumentCommentReaction,
   useCreateDocumentComment,
   useDeleteDocumentComment,
+  useDocumentCommentRevisions,
   useDocumentComments,
+  useDocumentCommentThread,
   useDocumentMentionCandidates,
   useRemoveDocumentCommentReaction,
   useReopenDocumentComment,
@@ -64,7 +66,44 @@ describe("document comment hooks", () => {
     const thread = renderHook(() => useDocumentComments("w1", "d1"), { wrapper });
     await waitFor(() => expect(thread.result.current.isSuccess).toBe(true));
     expect(thread.result.current.data?.[0]?.id).toBe("c1");
-    expect(qc.getQueryData(documentKeys.comments("w1", "d1"))).toHaveLength(1);
+    expect(qc.getQueryData<{ comments: unknown[] }>(documentKeys.comments("w1", "d1"))?.comments).toHaveLength(1);
+  });
+
+  it("caches the mention name table with the rows it came with", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [commentBody()],
+        mentions: [{ user_id: "u9", display_name: "Bình", state: "ok" }],
+        list_token: "lt1:a",
+      }),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const thread = renderHook(() => useDocumentCommentThread("w1", "d1"), { wrapper: wrapperFor(qc) });
+    await waitFor(() => expect(thread.result.current.isSuccess).toBe(true));
+    expect(thread.result.current.data?.comments.map((c) => c.id)).toEqual(["c1"]);
+    expect(thread.result.current.data?.mentions).toEqual([
+      { user_id: "u9", display_name: "Bình", avatar_url: "", state: "ok" },
+    ]);
+  });
+
+  it("loads one comment's edit history under the comments key and fails loudly on a malformed answer", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ revisions: [{ id: "r1", revision: 1, body: "cũ", created_by_id: "u1", created_at: "2026-09-28T08:00:00Z" }] }))
+      .mockResolvedValueOnce(json({ nope: true }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = wrapperFor(qc);
+    const idle = renderHook(() => useDocumentCommentRevisions("w1", "d1", "c1", { enabled: false }), { wrapper });
+    expect(idle.result.current.fetchStatus).toBe("idle");
+
+    const history = renderHook(() => useDocumentCommentRevisions("w1", "d1", "c1"), { wrapper });
+    await waitFor(() => expect(history.result.current.isSuccess).toBe(true));
+    expect(history.result.current.data?.[0]?.body).toBe("cũ");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("/documents/d1/comments/c1/revisions");
+    expect(qc.getQueryData([...documentKeys.comments("w1", "d1"), "revisions", "c1"])).toHaveLength(1);
+
+    const broken = renderHook(() => useDocumentCommentRevisions("w1", "d1", "c2"), { wrapper });
+    await waitFor(() => expect(broken.result.current.isError).toBe(true));
+    expect(broken.result.current.error).toBeInstanceOf(DocumentNotVerifiableError);
   });
 
   it("every comment mutation invalidates the document's comment key", async () => {
@@ -203,8 +242,8 @@ describe("document comment list read (G8-03 two shapes)", () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
     // The cache, not result.current: the hook only re-renders for the
     // properties a test has read, and the point is what the query stored.
-    const cached = qc.getQueryData<{ id: string }[]>(documentKeys.comments("w1", "d1"));
-    expect(cached?.map((c) => c.id)).toEqual(["c1"]);
+    const cached = qc.getQueryData<{ comments: { id: string }[] }>(documentKeys.comments("w1", "d1"));
+    expect(cached?.comments.map((c) => c.id)).toEqual(["c1"]);
     expect(qc.getQueryState(documentKeys.comments("w1", "d1"))?.status).toBe("success");
   });
 
@@ -221,7 +260,7 @@ describe("document comment list read (G8-03 two shapes)", () => {
     });
     await waitFor(() => expect(thread.result.current.isError).toBe(true));
     expect(thread.result.current.error).toBeInstanceOf(DocumentNotVerifiableError);
-    const cached = qc.getQueryData<{ id: string }[]>(documentKeys.comments("w1", "d1"));
-    expect(cached?.map((c) => c.id)).toEqual(["c1"]);
+    const cached = qc.getQueryData<{ comments: { id: string }[] }>(documentKeys.comments("w1", "d1"));
+    expect(cached?.comments.map((c) => c.id)).toEqual(["c1"]);
   });
 });

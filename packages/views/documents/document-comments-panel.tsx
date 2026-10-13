@@ -1,364 +1,272 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import { MessageSquare, X, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ChevronRight, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@uniwork/core/auth";
-import { documentCommentDraftKey, useDocumentCommentDraftStore } from "@uniwork/core/documents/comment-drafts";
-import { classifyDocumentError } from "@uniwork/core/documents/errors";
-import {
-  useAddDocumentCommentReaction,
-  useCreateDocumentComment,
-  useDeleteDocumentComment,
-  useDocumentComments,
-  useRemoveDocumentCommentReaction,
-  useReopenDocumentComment,
-  useResolveDocumentComment,
-  useUpdateDocumentComment,
-} from "@uniwork/core/documents/hooks-comments";
 import { useFlag } from "@uniwork/core/feature-flags";
-import type { Document, DocumentComment } from "@uniwork/core/types/document";
-import { useMembers } from "@uniwork/core/workspaces";
+import type { Document, DocumentCommentKind } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Sheet, SheetContent } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
-import type { ContentEditorProps } from "../editor";
-import { CommentCard } from "../comments/comment-card";
-import { CommentComposer } from "../comments/comment-composer";
-import { CommentReplyQuote } from "../comments/comment-reply-quote";
-import { ResolvedThreadBar } from "../comments/resolved-thread-bar";
-import {
-  buildCommentThreads,
-  deriveThreadResolution,
-  type CommentThread,
-} from "../comments/comment-thread";
-import { toastApiError } from "../toast-api-error";
+import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
-import { documentCommentsCopy, useDocumentCommentsChrome } from "./document-comments-context";
+import { DocumentCommentComposer } from "./document-comment-composer";
+import { DocumentCommentThread, type ThreadContext } from "./document-comment-thread";
+import {
+  documentCommentsTitleKey,
+  useDocumentCommentsChrome,
+  type DocumentCommentsTab,
+} from "./document-comments-context";
+import { K } from "./document-comments-keys";
+import {
+  anchorableFormat,
+  findDeepLinkTarget,
+  listSignature,
+  threadsOf,
+  type DocumentThread,
+} from "./document-comments-model";
+import { useDocumentCommentsPanel, type PanelStatus } from "./use-document-comments-panel";
 
 /** Tailwind `xl` — the breakpoint where the detail row can afford a rail. */
 const DESKTOP_QUERY = "(min-width: 1280px)";
 
-/** One unguessable key per logical create; reused while the body is unchanged
- *  so a retry after a lost answer replays instead of double-posting. */
-function newIdempotencyKey(): string {
-  const random = globalThis.crypto?.randomUUID?.().replaceAll("-", "");
-  return random ?? `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
-}
+/** How long a deep-linked thread stays tinted. */
+const HIGHLIGHT_MS = 8000;
 
-function CommentComposerBox({
-  wsId,
-  doc,
-  orgId,
-  parentId,
-  mentionItems,
-  onSubmit,
-  compact = false,
-  refocusAfterSend = false,
-  testId = "document-comment-composer",
+const STATUS_KEYS: Record<Exclude<PanelStatus, null>, string> = {
+  offline: K.collabOffline,
+  server: K.collabServerError,
+  signedOut: K.collabSignedOut,
+  viewOnly: K.collabViewOnly,
+};
+
+type FocusRequest = { rootId: string; target: "heading" | "resolve" } | null;
+
+/** One tab's list: open threads, then the folded "Resolved" group (S12 items 3–4, S13 list row). */
+function ThreadList({
+  kind,
+  groups,
+  ctx,
+  resolvedOpen,
+  setResolvedOpen,
+  focus,
+  clearFocus,
+  highlightId,
 }: {
-  wsId: string;
-  doc: Document;
-  orgId: string;
-  parentId?: string;
-  mentionItems?: ContentEditorProps["mentionContextItems"];
-  onSubmit: (body: string) => Promise<boolean>;
-  compact?: boolean;
-  refocusAfterSend?: boolean;
-  testId?: string;
-}) {
-  const accountId = useAuthStore((s) => s.user?.id ?? "");
-  const key = documentCommentDraftKey({
-    accountId,
-    orgId,
-    wsId,
-    documentId: doc.id,
-    parentId,
-  });
-  const draft = useDocumentCommentDraftStore((s) => s.draftFor(key));
-  const setStoredDraft = useDocumentCommentDraftStore((s) => s.setDraft);
-  const clearStoredDraft = useDocumentCommentDraftStore((s) => s.clearDraft);
-  const setDraft = useCallback((body: string) => setStoredDraft(key, body), [key, setStoredDraft]);
-  const clearDraft = useCallback(() => clearStoredDraft(key), [key, clearStoredDraft]);
-
-  return (
-    <CommentComposer
-      tPrefix="documents.comments"
-      resetKey={key}
-      draft={draft}
-      setDraft={setDraft}
-      clearDraft={clearDraft}
-      onSubmit={onSubmit}
-      compact={compact}
-      refocusAfterSend={refocusAfterSend}
-      testId={testId}
-      shellTestId={`${testId}-shell`}
-      mentionMode="context"
-      mentionContextItems={mentionItems}
-    />
-  );
-}
-
-function CommentsPane({
-  wsId,
-  doc,
-  onClose,
-}: {
-  wsId: string;
-  doc: Document;
-  onClose: () => void;
+  kind: DocumentCommentKind;
+  groups: { open: DocumentThread[]; resolved: DocumentThread[] };
+  ctx: ThreadContext;
+  resolvedOpen: boolean;
+  setResolvedOpen: (open: boolean) => void;
+  focus: FocusRequest;
+  clearFocus: () => void;
+  /** The thread a deep link named; the whole card is tinted, not just its heading. */
+  highlightId: string | null;
 }) {
   const { t } = useTranslation();
+  const resolvedListId = useId();
+  const render = (thread: DocumentThread) => (
+    <DocumentCommentThread
+      key={thread.root.id}
+      thread={thread}
+      ctx={ctx}
+      highlighted={highlightId === thread.root.id}
+      focusRequest={focus?.rootId === thread.root.id ? focus.target : null}
+      onFocusHandled={clearFocus}
+    />
+  );
+  if (groups.open.length === 0 && groups.resolved.length === 0) {
+    return (
+      <p className="text-caption text-muted-foreground" data-testid="document-comments-empty">
+        {t(kind === "comment" ? K.collabEmptyCommentsNoEditor : K.collabEmptyDiscussion)}
+      </p>
+    );
+  }
+  return (
+    <>
+      <ul className="space-y-3" data-testid={`document-${kind}-threads`}>
+        {groups.open.map(render)}
+      </ul>
+      {groups.resolved.length > 0 ? (
+        <div>
+          <button
+            type="button"
+            aria-expanded={resolvedOpen}
+            aria-controls={resolvedListId}
+            onClick={() => setResolvedOpen(!resolvedOpen)}
+            className="flex min-h-6 w-full items-center gap-1.5 rounded px-1 py-1 text-left text-caption font-medium text-muted-foreground hover:bg-muted pointer-coarse:min-h-11"
+          >
+            <ChevronRight aria-hidden className={cn("size-3.5 transition-transform", resolvedOpen && "rotate-90")} />
+            {t(K.collabLabelCount, { label: t(K.collabResolved), count: groups.resolved.length })}
+          </button>
+          <ul id={resolvedListId} hidden={!resolvedOpen} className="mt-2 space-y-3">
+            {resolvedOpen ? groups.resolved.map(render) : null}
+          </ul>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Document; titleId: string; onClose: () => void }) {
+  const { t } = useTranslation();
+  const chrome = useDocumentCommentsChrome();
   const workspace = useOptionalWorkspace();
   const orgId = doc.organization_id || workspace?.workspace.organization_id || "";
-  const currentUserId = useAuthStore((s) => s.user?.id);
-  const query = useDocumentComments(wsId, doc.id);
-  // The mention picker reads server data only: this preloads the workspace
-  // member list the panel's context-mode picker shows (never an invented list).
-  const membersQuery = useMembers(wsId);
+  const panel = useDocumentCommentsPanel(wsId, doc);
+  const { query, comments } = panel;
+  const format = anchorableFormat(doc);
+  const tab: DocumentCommentsTab = format ? (chrome?.tab ?? "comment") : "discussion";
+  const setTab = chrome?.setTab;
+  // The panel is named for what it shows: on a format with two tabs the title follows the tab.
+  const titleKey = format && tab === "discussion" ? K.collabDiscussion : documentCommentsTitleKey(doc);
+  const statusId = useId();
+  const [resolvedOpen, setResolvedOpen] = useState<Record<DocumentCommentKind, boolean>>({ comment: false, discussion: false });
+  const [focus, setFocus] = useState<FocusRequest>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [revealMessage, setRevealMessage] = useState<DocumentCommentKind | null>(null);
+  const revealRef = useRef<HTMLParagraphElement>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const clearFocus = useCallback(() => setFocus(null), []);
 
-  const create = useCreateDocumentComment(wsId, doc.id);
-  const update = useUpdateDocumentComment(wsId, doc.id);
-  const remove = useDeleteDocumentComment(wsId, doc.id);
-  const resolve = useResolveDocumentComment(wsId, doc.id);
-  const reopen = useReopenDocumentComment(wsId, doc.id);
-  const addReaction = useAddDocumentCommentReaction(wsId, doc.id);
-  const removeReaction = useRemoveDocumentCommentReaction(wsId, doc.id);
+  const groups = useMemo(() => threadsOf(comments, tab), [comments, tab]);
 
-  const [resolvedOpen, setResolvedOpen] = useState(false);
-  const idempotencyRef = useRef<{ key: string; body: string; parentId: string } | null>(null);
+  // A reload that changed what the list shows is said once, politely; focus never moves for it.
+  const signature = query.isSuccess ? listSignature(comments) : null;
+  const lastSignature = useRef<string | null>(null);
+  useEffect(() => {
+    if (signature === null) return;
+    if (lastSignature.current !== null && lastSignature.current !== signature) {
+      setAnnouncement(t(K.collabUpdatedAnnounce));
+    }
+    lastSignature.current = signature;
+  }, [signature, t]);
+  useEffect(() => {
+    if (!announcement) return undefined;
+    const timer = window.setTimeout(() => setAnnouncement(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [announcement]);
 
-  const level = doc.my_level;
-  const canComment = level === "edit" || level === "manage";
-  const canModerate = level === "manage";
+  // `?comment=`: once the list is in, open the tab that holds the thread and focus it; a post
+  // that is gone says so at the top of the panel (S15 rows 3-4, panel level).
+  const deepLinkId = chrome?.deepLinkId ?? "";
+  const handledLink = useRef<string | null>(null);
+  useEffect(() => {
+    if (!deepLinkId || !query.isSuccess || handledLink.current === deepLinkId) return;
+    handledLink.current = deepLinkId;
+    const target = findDeepLinkTarget(comments, deepLinkId);
+    if (!target) {
+      setRevealMessage(format ? "comment" : "discussion");
+      return;
+    }
+    if (format) setTab?.(target.kind);
+    if (target.resolved) setResolvedOpen((open) => ({ ...open, [target.kind]: true }));
+    if (target.deleted) setRevealMessage(target.kind);
+    setFocus({ rootId: target.rootId, target: "heading" });
+    setHighlightId(target.rootId);
+  }, [comments, deepLinkId, format, query.isSuccess, setTab]);
+  useEffect(() => {
+    if (!highlightId) return undefined;
+    const timer = window.setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);
+    return () => window.clearTimeout(timer);
+  }, [highlightId]);
+  useEffect(() => {
+    if (revealMessage && !focus) revealRef.current?.focus();
+  }, [revealMessage, focus]);
 
-  const comments = useMemo(() => query.data ?? [], [query.data]);
-  const members = membersQuery.data;
-
-  const actorNames = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const m of members ?? []) map.set(m.user_id, m.display_name);
-    return map;
-  }, [members]);
-
-  const mentionItems = useMemo<ContentEditorProps["mentionContextItems"]>(
-    () => (members ?? []).map((m) => ({ id: m.user_id, label: m.display_name, type: "member" as const })),
-    [members],
-  );
-
-  const fail = useCallback(
-    (err: unknown) => {
-      toastApiError(err, t("documents.comments.action_failed"));
-      // A write refused for permissions means the read may be gone too: re-ask
-      // so the pane flips to the revoked state instead of showing stale rows.
-      if (classifyDocumentError(err).cls === "permission") void query.refetch();
+  const deletedKey = tab === "comment" ? K.collabCommentDeleted : K.collabDiscussionDeleted;
+  const ctx: ThreadContext = {
+    wsId,
+    documentId: doc.id,
+    orgId,
+    names: panel.names,
+    // An author the server no longer names is a former member (S12 "Tác giả không còn tên").
+    nameOf: (comment) => panel.authorName(comment) || t(K.collabFormerMember),
+    nameOfId: (userId) => panel.nameOfId(userId) || t(K.collabFormerMember),
+    currentUserId: panel.currentUserId,
+    canWrite: panel.canWrite,
+    canModerate: panel.canModerate,
+    blockedReasonId: panel.blocked ? statusId : undefined,
+    deletedKey,
+    actions: {
+      ...panel.actions,
+      // Resolve and Reopen move the thread between groups: focus follows it to its new place.
+      setResolved: async (commentId, resolved) => {
+        const ok = await panel.actions.setResolved(commentId, resolved);
+        if (ok) setFocus({ rootId: commentId, target: "resolve" });
+        return ok;
+      },
     },
-    [t, query],
-  );
-
-  const submitComment = async (body: string, parentId?: string): Promise<boolean> => {
-    try {
-      const parent = parentId ?? "";
-      const previous = idempotencyRef.current;
-      const key =
-        previous && previous.body === body && previous.parentId === parent
-          ? previous.key
-          : newIdempotencyKey();
-      idempotencyRef.current = { key, body, parentId: parent };
-      const created = await create.mutateAsync({
-        body,
-        parent_id: parentId,
-        idempotencyKey: key,
-      });
-      idempotencyRef.current = null;
-      return !!created;
-    } catch (err) {
-      fail(err);
-      return false;
-    }
   };
-
-  const onEdit = async (commentId: string, body: string): Promise<boolean> => {
-    try {
-      const updated = await update.mutateAsync({ commentId, body });
-      return !!updated;
-    } catch (err) {
-      fail(err);
-      return false;
-    }
-  };
-
-  const onToggleReaction = (commentId: string, emoji: string) => {
-    const target = comments.find((c) => c.id === commentId);
-    const reacted = target?.reactions?.some(
-      (reaction) =>
-        reaction.actor_type === "member" &&
-        reaction.actor_id === currentUserId &&
-        reaction.emoji === emoji,
-    );
-    const mutation = reacted ? removeReaction : addReaction;
-    mutation.mutate({ commentId, emoji }, { onError: fail });
-  };
-
-  const onResolveToggle = (commentId: string, resolved: boolean) => {
-    const mutation = resolved ? resolve : reopen;
-    mutation.mutate(commentId, { onError: fail });
-  };
-
-  const onDelete = (commentId: string) => {
-    remove.mutate(commentId, { onError: fail });
-  };
-
-  const threads = useMemo(() => buildCommentThreads(comments), [comments]);
-  const openThreads = useMemo(
-    () => threads.filter((thread) => deriveThreadResolution(thread.root, thread.replies).kind === "none"),
-    [threads],
-  );
-  const resolvedThreads = useMemo(
-    () => threads.filter((thread) => deriveThreadResolution(thread.root, thread.replies).kind !== "none"),
-    [threads],
-  );
-
-  // A deleted root is a frame nothing can answer (contract-collab 2.4); the
-  // thread stays replyable through its newest surviving reply.
-  const replyTargetOf = (thread: CommentThread<DocumentComment>): DocumentComment | undefined =>
-    thread.root.deleted_at ? thread.replies.findLast((reply) => !reply.deleted_at) : thread.root;
-
-  const renderThread = (thread: CommentThread<DocumentComment>) => {
-    const target = replyTargetOf(thread);
-    return (
-      <CommentCard
-        key={thread.root.id}
-        comment={thread.root}
-        replies={thread.replies}
-        tPrefix="documents.comments"
-        testIdPrefix="document-comment"
-        canModerate={canModerate}
-        reactionsReadOnly={!canComment}
-        // A reaction by someone who is no longer a member must not leak a raw
-        // ULID into the UI; the translated stand-in names the situation.
-        getActorName={(_type, id) => actorNames.get(id) ?? t("documents.comments.former_member")}
-        replyComposer={
-          canComment && target ? (
-            <div data-testid={`document-reply-composer-${thread.root.id}`}>
-              <CommentReplyQuote
-                comment={target}
-                tPrefix="documents.comments"
-                className="mb-2"
-              />
-              <CommentComposerBox
-                wsId={wsId}
-                doc={doc}
-                orgId={orgId}
-                parentId={target.id}
-                mentionItems={mentionItems}
-                compact
-                refocusAfterSend
-                testId="document-comment-reply-composer"
-                onSubmit={(body) => submitComment(body, target.id)}
-              />
-            </div>
-          ) : undefined
-        }
-        onToggleReaction={canComment ? onToggleReaction : undefined}
-        onEdit={canComment ? onEdit : undefined}
-        onResolveToggle={canComment ? onResolveToggle : undefined}
-        onDelete={canComment ? onDelete : undefined}
-      />
-    );
-  };
-
-  const errorClass = query.error ? classifyDocumentError(query.error).cls : "unknown";
-  const revoked = query.isError && errorClass === "permission";
-  // A failed refetch keeps the last proven list and the composer (the hook
-  // throws instead of writing over the cache); only a first read with nothing
-  // to show, or a revoked read, replaces the list with the error card.
-  const showErrorCard = query.isError && (revoked || query.data === undefined);
 
   const body = (() => {
     if (query.isPending) {
       return (
         <div className="space-y-3 p-3" aria-busy="true" data-testid="document-comments-loading">
+          <span className="sr-only">{t(K.collabLoading)}</span>
+          <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
         </div>
       );
     }
-    if (showErrorCard) {
+    if (panel.noAccess || panel.firstLoadFailed) {
       return (
         <div className="p-4" role="alert" data-testid="document-comments-error">
           <p className="text-body font-medium text-foreground">
-            {revoked
-              ? t("documents.comments.revoked_title")
-              : t("documents.comments.error_title")}
+            {t(panel.noAccess ? K.collabNoAccess : K.collabLoadError)}
           </p>
           <p className="mt-1 text-caption text-muted-foreground">
-            {revoked
-              ? t("documents.comments.revoked_description")
-              : t("documents.comments.error_description")}
+            {t(panel.noAccess ? K.collabNoAccessBody : K.collabLoadErrorBody)}
           </p>
-          {!revoked ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={() => void query.refetch()}
-            >
+          {!panel.noAccess ? (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void query.refetch()}>
               <RefreshCw aria-hidden className="size-3.5" />
-              {t("documents.comments.retry")}
+              {t(K.collabRetry)}
             </Button>
           ) : null}
         </div>
       );
     }
     return (
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-        {query.isError ? (
-          <div role="alert" className="flex items-center gap-2 text-caption text-muted-foreground" data-testid="document-comments-stale">
-            <span className="min-w-0 flex-1">{t("documents.comments.error_title")}</span>
-            <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
-              <RefreshCw aria-hidden className="size-3.5" />
-              {t("documents.comments.retry")}
-            </Button>
-          </div>
-        ) : null}
-        {comments.length === 0 ? (
-          <p className="text-caption text-muted-foreground" data-testid="document-comments-empty">
-            {t(documentCommentsCopy(doc).empty)}
+      <div
+        role={format ? "tabpanel" : undefined}
+        aria-labelledby={format ? `${titleId}-tab-${tab}` : undefined}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3"
+        data-testid={`document-comments-region-${tab}`}
+      >
+        {revealMessage ? (
+          <p ref={revealRef} tabIndex={-1} role="status" className="text-caption text-muted-foreground" data-testid="document-comments-reveal">
+            {t(revealMessage === "comment" ? K.collabCommentDeleted : K.collabDiscussionDeleted)}
           </p>
         ) : null}
-        {openThreads.map(renderThread)}
-        {resolvedThreads.length > 0 ? (
-          <>
-            <ResolvedThreadBar
-              replyCount={resolvedThreads.length}
-              expanded={resolvedOpen}
-              onToggle={() => setResolvedOpen((value) => !value)}
-              tPrefix="documents.comments"
-            />
-            {resolvedOpen ? resolvedThreads.map(renderThread) : null}
-          </>
-        ) : null}
+        <ThreadList
+          kind={tab}
+          groups={groups}
+          ctx={ctx}
+          resolvedOpen={resolvedOpen[tab]}
+          setResolvedOpen={(open) => setResolvedOpen((current) => ({ ...current, [tab]: open }))}
+          focus={focus}
+          clearFocus={clearFocus}
+          highlightId={highlightId}
+        />
       </div>
     );
   })();
 
+  const loaded = !query.isPending && !panel.noAccess && !panel.firstLoadFailed;
+
   return (
-    <div
-      id="document-comments-panel"
-      className="flex h-full min-h-0 flex-col bg-card"
-      data-testid="document-comments-pane"
-    >
+    <div id="document-comments-panel" className="flex h-full min-h-0 flex-col bg-card" data-testid="document-comments-pane">
       <header className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <MessageSquare aria-hidden className="size-4 text-muted-foreground" />
-        <h2 className="min-w-0 truncate text-body font-semibold text-foreground">
-          {t(documentCommentsCopy(doc).title)}
+        <h2 id={titleId} tabIndex={-1} className="min-w-0 truncate text-body font-semibold text-foreground">
+          {t(titleKey)}
         </h2>
-        {query.isSuccess ? (
-          <span className="shrink-0 text-caption text-muted-foreground">
-            {t("documents.comments.count", { count: comments.length })}
+        {!panel.canWrite ? (
+          <span className="shrink-0 rounded bg-muted px-1.5 text-micro font-medium text-muted-foreground" data-testid="document-comments-view-only">
+            {t(K.collabViewOnlyBadge)}
           </span>
         ) : null}
         <Button
@@ -366,21 +274,38 @@ function CommentsPane({
           variant="ghost"
           size="icon-sm"
           className="ml-auto shrink-0"
-          aria-label={t(documentCommentsCopy(doc).close)}
+          aria-label={t(K.collabClosePanel, { panel: t(titleKey) })}
           onClick={onClose}
         >
           <X aria-hidden />
         </Button>
       </header>
+      {format && loaded ? (
+        <Tabs value={tab} onValueChange={(next) => setTab?.(next as DocumentCommentsTab)} className="gap-0 border-b border-border px-3 py-2">
+          <TabsList>
+            <TabsTrigger id={`${titleId}-tab-comment`} value="comment">{t(K.collabComments)}</TabsTrigger>
+            <TabsTrigger id={`${titleId}-tab-discussion`} value="discussion">{t(K.collabDiscussion)}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      ) : null}
+      {panel.status && loaded ? (
+        <p id={statusId} className="border-b border-border bg-muted/40 px-4 py-2 text-caption text-muted-foreground" data-testid="document-comments-status">
+          {t(STATUS_KEYS[panel.status])}
+        </p>
+      ) : null}
+      <p className="sr-only" aria-live="polite" data-testid="document-comments-live">{announcement}</p>
       {body}
-      {canComment && !showErrorCard ? (
+      {tab === "discussion" && loaded && panel.canWrite ? (
         <div className="border-t border-border p-3">
-          <CommentComposerBox
+          <DocumentCommentComposer
             wsId={wsId}
-            doc={doc}
+            documentId={doc.id}
             orgId={orgId}
-            mentionItems={mentionItems}
-            onSubmit={(body) => submitComment(body)}
+            placeholderKey={K.collabComposerDiscussion}
+            deletedKey={K.collabDiscussionDeleted}
+            blockedReasonId={panel.blocked ? statusId : undefined}
+            onSend={(text) => panel.send(text)}
+            testId="document-discussion-composer"
           />
         </div>
       ) : null}
@@ -389,16 +314,20 @@ function CommentsPane({
 }
 
 /**
- * The document comments panel (G1-07c): a right-hand rail on `xl` and a sheet
- * below it, mounted from `DocumentDetailView` next to the workspace. Open
- * state lives in `DocumentCommentsProvider` (the header owns the trigger).
- * Renders nothing when the documents flag is off or when no provider exists.
+ * The page's comments panel (G8-10; EXPERIENCE-G8 S12/S13): a right-hand rail
+ * on `xl` and a sheet below it, mounted from `DocumentDetailView` next to the
+ * workspace. It exists only while no editor frame serves comments
+ * (invariant 8; the context answers null then). A document whose format takes
+ * anchored comments gets two tabs, Comments and Discussion; every other
+ * document gets the Discussion alone. The web never starts a comment thread:
+ * anchored comments come from the editor, here they are read, answered,
+ * resolved, reopened, edited and deleted.
  */
 export function DocumentCommentsPanel() {
   const chrome = useDocumentCommentsChrome();
   const enabled = useFlag("documents", false);
-  const { t } = useTranslation();
   const desktop = useMediaQuery(DESKTOP_QUERY);
+  const titleId = useId();
 
   if (!chrome || !enabled || !chrome.open) return null;
   const { wsId, doc, setOpen } = chrome;
@@ -406,23 +335,22 @@ export function DocumentCommentsPanel() {
 
   if (desktop) {
     return (
-      <aside
-        aria-label={t(documentCommentsCopy(doc).title)}
-        className="flex w-96 min-w-0 shrink-0 flex-col border-l border-border"
-      >
-        <CommentsPane wsId={wsId} doc={doc} onClose={close} />
+      <aside aria-labelledby={titleId} className="flex w-96 min-w-0 shrink-0 flex-col border-l border-border">
+        <CommentsPane wsId={wsId} doc={doc} titleId={titleId} onClose={close} />
       </aside>
     );
   }
 
   return (
     <Sheet open onOpenChange={(next) => setOpen(next)}>
+      {/* The primitive pins the right sheet to 3/4 width behind a data-attribute selector, which a bare
+          `w-full` loses to; the same specificity wins, so a phone gets the full width. */}
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="w-full gap-0 p-0 sm:max-w-md"
+        className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md"
       >
-        <CommentsPane wsId={wsId} doc={doc} onClose={close} />
+        <CommentsPane wsId={wsId} doc={doc} titleId={titleId} onClose={close} />
       </SheetContent>
     </Sheet>
   );

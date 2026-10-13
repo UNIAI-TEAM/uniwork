@@ -122,7 +122,12 @@ export function OfficeModuleFrame({
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;
-  useEffect(() => { onFrameCommentsChangeRef.current?.(framePanel); }, [framePanel]);
+  // Reports on every change and takes the claim back on unmount (module fallback, error view, re-key):
+  // a frame that is gone no longer serves comments, so the page's own panel must come back.
+  useEffect(() => {
+    onFrameCommentsChangeRef.current?.(framePanel);
+    return () => onFrameCommentsChangeRef.current?.(false);
+  }, [framePanel]);
 
   const session = useDocsFrameSession({
     iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
