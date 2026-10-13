@@ -16,10 +16,10 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { Select } from "@uniwork/ui/components/ui/select";
 import { toast } from "sonner";
 import { toastApiError } from "../../toast-api-error";
-import { SettingsFieldError, SettingsLoadError } from "./settings-layout";
+import { SettingsFieldError } from "./settings-layout";
+import { TransferCandidateField, TransferPasswordField } from "./transfer-owner-fields";
 
 type TransferCandidates = {
   candidates: OrgMember[];
@@ -145,24 +145,15 @@ export function TransferOwnershipDialog({
             <DialogDescription>{t("org.transfer.description")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Field>
-              <FieldLabel htmlFor="transfer-target">{t("org.transfer.new_owner")}</FieldLabel>
-              <Select
-                id="transfer-target"
-                aria-label={t("org.transfer.new_owner")}
-                value={toUserId}
-                onValueChange={(v) => setToUserId((v as string) ?? "")}
-                items={candidates.map((m) => ({
-                  value: m.user_id,
-                  label: m.display_name || m.email,
-                }))}
-              />
-              {candidatesError ? (
-                <SettingsLoadError onRetry={onRetryCandidates}>{t("org.transfer.candidates_error")}</SettingsLoadError>
-              ) : loadingCandidates ? (
-                <FieldDescription role="status">{t("org.transfer.loading_candidates")}</FieldDescription>
-              ) : null}
-            </Field>
+            <TransferCandidateField
+              id="transfer-target"
+              candidates={candidates}
+              value={toUserId}
+              onValueChange={setToUserId}
+              loading={loadingCandidates}
+              isError={candidatesError}
+              onRetry={onRetryCandidates}
+            />
             <Field>
               <FieldLabel htmlFor="transfer-confirm">{t("org.transfer.confirm_label")}</FieldLabel>
               <Input
@@ -183,16 +174,7 @@ export function TransferOwnershipDialog({
                 </SettingsFieldError>
               ) : null}
             </Field>
-            <Field>
-              <FieldLabel htmlFor="transfer-password">{t("org.transfer.password_label")}</FieldLabel>
-              <Input
-                id="transfer-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-            </Field>
+            <TransferPasswordField id="transfer-password" value={password} onValueChange={setPassword} />
           </div>
           <DialogFooter showCloseButton={false}>
             <DialogClose
