@@ -2,7 +2,7 @@
 
 > **Trạng thái:** in-progress
 
-**Issue:** chưa có. Cần một `UNI-nnn` trước khi mở PR (`uniai-link.yml` chặn PR không ghi issue).
+**Issue:** UNI-1429 (epic Giai đoạn C, UNI-416). **Roadmap:** C-18.
 
 ## Mục tiêu
 
