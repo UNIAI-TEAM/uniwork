@@ -138,17 +138,23 @@ type UniworkToolSpecFunction struct {
 // vendor (name, description, schema); WriteNames are the module's write
 // tools, which never reach the model while ViewOnly is set (rule 6), so a
 // call for one of them is reported as view_only rather than not_allowlisted.
+// Module is the turn's office pack module (the G6-14 names: xlsx, docx,
+// pptx, pdf, md, html), the one the Gateway assembles its system text by and
+// the A7 budget counts; empty when the turn's module is not one the pack
+// knows, which the Gateway refuses before the usage row.
 type UniworkAllowlist struct {
 	Tools      Registry
 	WriteNames []string
 	ViewOnly   bool
+	Module     string
 }
 
 // UniworkTurn is one validated incoming turn: either a question or the tool
 // results answering the server's last call.
 type UniworkTurn struct {
 	// Question is the user's new question text (UTF-8, bounded by
-	// UniworkQuestionMaxRunes).
+	// UniworkQuestionMaxRunes). The office pack renders nothing, so it is
+	// also the last message of History.
 	Question string
 	// ToolResults answer the last assistant turn, one message per call, in
 	// call order; ToolResultTurn is then true.
@@ -162,8 +168,11 @@ type UniworkTurn struct {
 	ToolResultTurn bool
 	// History is exactly what the Gateway must send (A7): the server
 	// transcript trimmed to the 48 000-token budget by whole blocks, then the
-	// new tool results on a tool-result turn. The caller stores back what was
-	// sent, so the transcript stays "what the model saw" (design §6.2).
+	// turn's own message — the new question, or the new tool results. The
+	// office pack renders nothing, so this History is the user side of the
+	// model call and ends with a user message on a question turn. The caller
+	// stores the turn's own message back, so the transcript stays "what the
+	// model saw" (design §6.2).
 	History []provider.Message
 }
 
@@ -278,7 +287,9 @@ func DecodeUniworkChatRequest(raw json.RawMessage) (UniworkChatRequest, error) {
 // PlanUniworkTurn validates one incoming request against the server's
 // transcript: exactly one user question, or the tool results of the last
 // assistant turn, with each tool_call_id issued by the server (rule 2); the
-// caps of A6 (413) and A7; the client's tools intersected with allow.
+// caps of A6 (413) and A7; the client's tools intersected with allow. The
+// turn's own message joins the History the Gateway sends: the office pack
+// (G6-14) renders nothing, so the question is the last user message there.
 func PlanUniworkTurn(transcript []provider.Message, raw json.RawMessage, allow UniworkAllowlist) (UniworkTurn, error) {
 	req, err := DecodeUniworkChatRequest(raw)
 	if err != nil {
@@ -294,7 +305,7 @@ func PlanUniworkTurn(transcript []provider.Message, raw json.RawMessage, allow U
 		}
 		turn.ToolResults = results
 		turn.ToolResultTurn = true
-		history, err := uniworkHistory(transcript, results, true)
+		history, err := uniworkHistory(transcript, results, true, allow.Module)
 		if err != nil {
 			return UniworkTurn{}, err
 		}
@@ -308,11 +319,11 @@ func PlanUniworkTurn(transcript []provider.Message, raw json.RawMessage, allow U
 		if err := uniworkValidateQuestion(newest.Content); err != nil {
 			return UniworkTurn{}, err
 		}
-		history, err := uniworkHistory(transcript, nil, false)
+		turn.Question = newest.Content
+		history, err := uniworkHistory(transcript, []provider.Message{{Role: "user", Content: newest.Content}}, false, allow.Module)
 		if err != nil {
 			return UniworkTurn{}, err
 		}
-		turn.Question = newest.Content
 		turn.History = history
 	default:
 		return UniworkTurn{}, ErrUniworkInvalidTurn.wrap(errors.New("lượt mới phải là câu hỏi hoặc kết quả công cụ"))
@@ -496,18 +507,20 @@ func uniworkToolResults(transcript []provider.Message, msgs []UniworkMessage) ([
 
 // ---- the A7 history budget --------------------------------------------------
 
-// uniworkHistory returns exactly what the Gateway must send for this turn.
-// On a question turn that is the server transcript trimmed to A7's budget; on
-// a tool-result turn the transcript trimmed the same way followed by the new
-// results. Trimming is silent and drops whole blocks, oldest first, so a tool
-// result never survives without the call it answers; only a tool-result turn
-// that cannot fit even after everything else was dropped is refused (413,
-// design §5 — never cut inside a tool result).
-func uniworkHistory(transcript, results []provider.Message, toolTurn bool) ([]provider.Message, error) {
-	system := uniworkSystemPrompt()
+// uniworkHistory returns exactly what the Gateway must send for this turn:
+// the server transcript trimmed to A7's budget, then next — the new question
+// or the new tool results, which are never dropped. The budget counts the
+// system text the Gateway will assemble for the turn's module (G6-14's pack)
+// and every message that reaches the model, next included. Trimming is silent
+// and drops whole blocks, oldest first, so a tool result never survives
+// without the call it answers; only a tool-result turn that cannot fit even
+// after everything else was dropped is refused (413, design §5 — never cut
+// inside a tool result, and a question turn is never refused).
+func uniworkHistory(transcript, next []provider.Message, toolTurn bool, module string) ([]provider.Message, error) {
+	system := uniworkSystemPrompt(module)
 	budget := UniworkHistoryMaxTokens
 	blocks := uniworkBlocks(transcript)
-	tokens := uniworkHistoryTokens(system, transcript) + uniworkHistoryTokens("", results)
+	tokens := uniworkHistoryTokens(system, transcript) + uniworkHistoryTokens("", next)
 	dropped := 0
 	for dropped < len(blocks) && tokens > budget {
 		if toolTurn && dropped == len(blocks)-1 {
@@ -518,17 +531,17 @@ func uniworkHistory(transcript, results []provider.Message, toolTurn bool) ([]pr
 		tokens -= uniworkHistoryTokens("", blocks[dropped])
 		dropped++
 	}
-	if tokens > budget && len(results) > 0 {
+	if toolTurn && tokens > budget {
 		return nil, ErrUniworkToolResultTooLarge
 	}
 	var kept []provider.Message
 	for _, b := range blocks[dropped:] {
 		kept = append(kept, b...)
 	}
-	if len(results) == 0 {
+	if len(next) == 0 {
 		return kept, nil
 	}
-	return append(kept, results...), nil
+	return append(kept, next...), nil
 }
 
 // uniworkBlocks splits a transcript into whole turn blocks: each starts at a
@@ -565,15 +578,17 @@ func uniworkHistoryTokens(system string, msgs []provider.Message) int {
 	return tokens
 }
 
-// uniworkSystemPrompt is the system text the budget must leave room for. The
-// interim prompt is the only one registered for UniWork AI until G6-14 merges
-// OfficeSystemPrompt(module); that merge points this helper at the new prompt.
-func uniworkSystemPrompt() string {
-	p, ok := LookupPrompt(PromptOfficeUniworkAIInterim)
-	if !ok {
+// uniworkSystemPrompt is the system text the Gateway assembles for this turn:
+// the office pack's variant for the turn's module (G6-14). The A7 budget must
+// leave room for it — it is the one part of the model call no client message
+// carries. A module the pack does not know answers "" here: the Gateway
+// refuses such a turn itself, before the usage row.
+func uniworkSystemPrompt(module string) string {
+	text, err := OfficeSystemPrompt(module)
+	if err != nil {
 		return ""
 	}
-	return p.System
+	return text
 }
 
 // ---- the outgoing answer ----------------------------------------------------
@@ -744,22 +759,44 @@ var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 	},
 }
 
+// uniworkPackModules maps a genoffice web module — the names this file's tool
+// table and the Office frame token's claims use — to the module the office
+// instruction pack (G6-14, prompts_office.go) assembles its System by: the
+// module column of docs/office/g5g6g7/genoffice-tools.md, which names formats
+// where the editors name editors (docs is docx, sheets is xlsx, slides is
+// pptx, markdown is md).
+var uniworkPackModules = map[string]string{
+	"docs": "docx", "sheets": "xlsx", "slides": "pptx",
+	"pdf": "pdf", "markdown": "md", "html": "html",
+}
+
+// UniworkPackModule names the office pack module of a genoffice web module;
+// false for a name the pack carries no section for, which the Gateway refuses
+// rather than defaulting to a section (G6-14 BE14-3).
+func UniworkPackModule(module string) (string, bool) {
+	pack, ok := uniworkPackModules[module]
+	return pack, ok
+}
+
 // UniworkModuleAllowlist builds one turn's allowlist from the interim module
 // table: the model may be offered a tool only when the client offered it AND
 // the module table knows the name. While viewOnly the module's write tools
 // are withheld (rule 6) but stay in WriteNames, so a call for one is reported
 // view_only; an empty intersection offers no tool and the model answers in
 // text. The registry entries carry the client's schema and description — the
-// editor owns the tool shapes, the server owns the names.
+// editor owns the tool shapes, the server owns the names. The allowlist also
+// carries the turn's pack module, which the Gateway assembles the system text
+// by and the A7 budget counts.
 func UniworkModuleAllowlist(module string, offered []UniworkToolSpec, viewOnly bool) UniworkAllowlist {
+	pack, _ := UniworkPackModule(module)
 	mod, ok := officeUniworkModulesV1[module]
 	if !ok {
-		return UniworkAllowlist{ViewOnly: viewOnly}
+		return UniworkAllowlist{ViewOnly: viewOnly, Module: pack}
 	}
 	read := uniworkNameSet(mod.Read)
 	writes := uniworkNameSet(mod.Write)
 	seen := make(map[string]bool, len(offered))
-	allow := UniworkAllowlist{WriteNames: mod.Write, ViewOnly: viewOnly}
+	allow := UniworkAllowlist{WriteNames: mod.Write, ViewOnly: viewOnly, Module: pack}
 	for _, spec := range offered {
 		name := spec.Function.Name
 		if name == "" || seen[name] {

@@ -79,11 +79,8 @@ type Request struct {
 	// FilterToolCalls hands the model's calls back whole instead of failing
 	// the request: the caller owns the tool contract, filters the answer and
 	// reports the drops itself (x_uniwork, G6-03a). The usage row still
-	// records every call with allowed:false. Such a caller drives the model
-	// through tools, so the prompt's registry schema stays off the wire — a
-	// vendor takes tools and a pinned JSON schema as mutually exclusive — and
-	// a prompt that carries one only does so for the prompts contract. Every
-	// existing caller leaves this false and keeps today's behaviour.
+	// records every call with allowed:false. Every existing caller leaves
+	// this false and keeps today's behaviour.
 	FilterToolCalls bool
 	// Attachments are media parts sent with the rendered prompt (media
 	// analysis); the vendor adapter refuses a type it cannot send.
@@ -168,21 +165,15 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	if err != nil {
 		return Response{}, err
 	}
-	schema := prompt.OutputSchema
-	if req.FilterToolCalls {
-		// The caller owns the tool contract (G6-03a): the answer is driven by
-		// tools and the prompt's registry schema must not fight them.
-		schema = nil
-	}
 	creq := provider.CompletionRequest{
 		Model: model, System: system, MaxTokens: policy.MaxTokens, Temperature: policy.Temperature,
-		JSONSchema: schema,
+		JSONSchema: prompt.OutputSchema,
 	}
 	creq.Messages = msgs
 	// Structured JSON output and tool-calling fight each other on OpenAI-compatible
 	// hosts (400 / empty content → 502 ai_provider_error). When the prompt pins a
 	// schema, context must already be in Vars — do not advertise tools.
-	if len(schema) == 0 {
+	if len(prompt.OutputSchema) == 0 {
 		for _, t := range req.Tools {
 			creq.Tools = append(creq.Tools, provider.ToolSpec{Name: t.Name, Description: t.Description, Schema: t.Schema})
 		}

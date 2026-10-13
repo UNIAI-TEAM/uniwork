@@ -137,11 +137,16 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 		return UniworkTurn{}, err
 	}
 	// The turn's module: R2's frame token and R3's document already answered
-	// it; R1 takes the body's (a local file, S10). An unknown module is not a
-	// refusal — the server cannot name the format, so only the kill switch
-	// applies (D-3) and the model is offered no tool.
+	// it; R1 takes the body's when the client names one (a local file, S10).
+	// R1 without one keeps the module its scope carries — the frame resolver
+	// reads a token with no module claim as docs (OfficeFrameClaims.ModuleName)
+	// — because the G6-14 pack assembles its system text by module and refuses
+	// a turn without one, so a served turn must have a module. An unknown
+	// module is not a refusal here: the server cannot name the format, so only
+	// the kill switch applies (D-3), the model is offered no tool, and the
+	// Gateway refuses the turn as a policy error before the usage row.
 	module := doc.module
-	if scope.DocumentID == "" {
+	if scope.DocumentID == "" && req.Module != "" {
 		module = req.Module
 	}
 	if err := s.checkUniworkCapability(ctx, orgID, scope.UserID, module); err != nil {
@@ -176,16 +181,12 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 
 	request := ai.Request{
 		Actor: Human(scope.UserID), OrganizationID: orgID, WorkspaceID: doc.workspaceID,
-		Capability: ai.CapOfficeUniworkAI, PromptID: ai.PromptOfficeUniworkAIInterim,
+		Capability: ai.CapOfficeUniworkAI, PromptID: ai.PromptOfficeUniworkAI, Module: allow.Module,
 		History: turn.History, ToolResultTurn: turn.ToolResultTurn, Tools: allow.Tools,
 		// The façade owns the tool contract: calls outside the allowlist come
 		// back whole so they are reported through x_uniwork instead of failing
 		// the turn (design §6.4, A13).
 		FilterToolCalls: true,
-	}
-	vars := map[string]any{"question": turn.Question}
-	if !turn.ToolResultTurn {
-		request.Vars = vars
 	}
 	resp, err := s.gw.Complete(ctx, request)
 	if err != nil {
@@ -197,10 +198,10 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 	kept, dropped := ai.FilterUniworkToolCalls(resp.ToolCalls, allow)
 	resp.ToolCalls = kept
 	// The transcript stores exactly what was sent plus the answer as the
-	// client receives it: the new question as the prompt rendered it, and no
-	// dropped call — so the client's tool results answer every call the
+	// client receives it: the new question as the plan put it on the wire, and
+	// no dropped call — so the client's tool results answer every call the
 	// history replays (rule 7, A13, design §6.2).
-	appended := append(attemptMessages(turn, vars), assistantMessage(resp))
+	appended := append(attemptMessages(turn), assistantMessage(resp))
 	if err := s.store.Append(ctx, conv.ID, appended); err != nil {
 		return UniworkTurn{ConversationID: conv.ID}, err
 	}
@@ -325,17 +326,13 @@ func transcriptMessages(conv ai.Conversation) []provider.Message {
 }
 
 // attemptMessages is what this attempt adds to the transcript: the new
-// question as the prompt rendered it — the Gateway renders the same text from
-// the same Vars, so the replay is exactly what the model saw (design §6.2) —
-// or the tool results answering the server's last call.
-func attemptMessages(turn ai.UniworkTurn, vars map[string]any) []ai.Turn {
+// question as the plan put it on the wire — the office pack renders nothing,
+// so the message the model saw is the question itself (design §6.2) — or the
+// tool results answering the server's last call.
+func attemptMessages(turn ai.UniworkTurn) []ai.Turn {
 	msgs := turn.ToolResults
 	if !turn.ToolResultTurn {
-		content := turn.Question
-		if prompt, ok := ai.LookupPrompt(ai.PromptOfficeUniworkAIInterim); ok {
-			content = prompt.Render(vars)
-		}
-		msgs = []provider.Message{{Role: "user", Content: content}}
+		msgs = []provider.Message{{Role: "user", Content: turn.Question}}
 	}
 	turns := make([]ai.Turn, 0, len(msgs))
 	for _, m := range msgs {

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/ai"
 )
 
 // The pod bound of A11 refuses the turn past its cap and gives the slot back
@@ -66,6 +68,24 @@ func TestAIUniworkFormatTokens(t *testing.T) {
 	for _, module := range []string{OfficeFrameModuleDocs, OfficeFrameModuleSheets} {
 		if uniworkFormatToken(module) == "" {
 			t.Errorf("module %q has no format token; a per-format flag would never be checked", module)
+		}
+	}
+}
+
+// The instruction pack (G6-14) assembles its system text by module and the
+// Gateway refuses a missing or unknown one before the usage row, so every
+// module the service can put on a turn — the frame modules a frame claim, a
+// document or the org route's body produce — must map to a pack module, and
+// the pack must accept it.
+func TestAIUniworkEveryFrameModuleReachesThePack(t *testing.T) {
+	for _, m := range officeFrameModules {
+		pack, ok := ai.UniworkPackModule(m.module)
+		if !ok {
+			t.Errorf("module %q maps to no pack module; the Gateway would refuse the turn", m.module)
+			continue
+		}
+		if _, err := ai.OfficeSystemPrompt(pack); err != nil {
+			t.Errorf("module %q maps to %q, which the pack refuses: %v", m.module, pack, err)
 		}
 	}
 }

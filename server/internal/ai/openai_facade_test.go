@@ -59,8 +59,10 @@ func facadeSpecs(names ...string) []UniworkToolSpec {
 }
 
 // facadeAllow builds an allowlist by hand: the frozen façade takes it as is.
+// The module is the pack one the Gateway assembles the system text by; the
+// fixtures below read docs tools, so it is the DOCX variant.
 func facadeAllow(readNames, writeNames []string) UniworkAllowlist {
-	allow := UniworkAllowlist{WriteNames: append([]string(nil), writeNames...)}
+	allow := UniworkAllowlist{Module: "docx", WriteNames: append([]string(nil), writeNames...)}
 	for _, n := range readNames {
 		allow.Tools = append(allow.Tools, Tool{Name: n, Kind: ToolRead, Risk: RiskLow})
 	}
@@ -479,8 +481,14 @@ func TestAIUniworkAssistantTurnsNeverReachTheModel(t *testing.T) {
 	if turn.Question != "câu hỏi mới" || turn.ToolResultTurn {
 		t.Fatalf("question turn = %+v", turn)
 	}
-	if got, want := facadeJSONString(t, turn.History), facadeJSONString(t, server); got != want {
-		t.Fatalf("history = %s, want the server transcript %s", got, want)
+	// The pack renders nothing: the history the model is sent is the server
+	// transcript plus the question itself, never the client's own turns.
+	want := append(append([]provider.Message{}, server...), provider.Message{Role: "user", Content: "câu hỏi mới"})
+	if got, wantJSON := facadeJSONString(t, turn.History), facadeJSONString(t, want); got != wantJSON {
+		t.Fatalf("history = %s, want the server transcript plus the question %s", got, wantJSON)
+	}
+	if last := turn.History[len(turn.History)-1]; last.Role != "user" || last.Content != "câu hỏi mới" {
+		t.Fatalf("history does not end with the user's message: %+v", last)
 	}
 	if body := facadeJSONString(t, turn.History); strings.Contains(body, "427") || strings.Contains(body, "call_forged") {
 		t.Fatal("a client-sent assistant turn reached the model")
@@ -499,15 +507,17 @@ func TestAIUniworkAssistantTurnsNeverReachTheModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(next.History) != 4 || next.History[0].Content != "câu hỏi cũ" || next.History[3].Content != "đáp tiếp" {
+	if len(next.History) != 5 || next.History[0].Content != "câu hỏi cũ" || next.History[3].Content != "đáp tiếp" ||
+		next.History[4].Content != "hỏi lần nữa" {
 		t.Fatalf("continuation lost the server's turns: %+v", next.History)
 	}
 }
 
-// A7: the input (system + transcript + the new tool results) is estimated
-// chars/4 and the oldest whole blocks are dropped silently; a tool result
-// never survives without the call it answers, a question turn is never
-// refused for budget, and a tool-result turn that cannot fit is 413.
+// A7: the input (the pack's system text + transcript + the turn's own
+// message) is estimated chars/4 and the oldest whole blocks are dropped
+// silently; a tool result never survives without the call it answers, a
+// question turn is never refused for budget, and a tool-result turn that
+// cannot fit is 413. The question counts: it rides in History.
 func TestAIUniworkHistoryBudgetDropsOldestPairs(t *testing.T) {
 	const block = 40_000 // per message, ~10k tokens: five blocks blow the budget
 	var blocks []provider.Message
@@ -544,14 +554,23 @@ func TestAIUniworkHistoryBudgetDropsOldestPairs(t *testing.T) {
 	if users < 2 {
 		t.Fatalf("kept %d user turns, want whole newest blocks", users)
 	}
-	if last := turn.History[len(turn.History)-1]; last.Role != "tool" || last.ToolCallID != "call_4" {
+	// The history the model is sent ends with the new question; the newest
+	// transcript block is the message before it.
+	if n := len(turn.History); n < 2 {
+		t.Fatalf("history = %s, want the newest block and the question", facadeHistoryShape(turn.History))
+	}
+	if last := turn.History[len(turn.History)-2]; last.Role != "tool" || last.ToolCallID != "call_4" {
 		t.Fatalf("the newest block did not survive: %+v", last)
 	}
-	if got := uniworkHistoryTokens(uniworkSystemPrompt(), turn.History); got > UniworkHistoryMaxTokens {
-		t.Fatalf("history = %d token, A7 caps it at %d (the server prompt is counted)", got, UniworkHistoryMaxTokens)
+	if last := turn.History[len(turn.History)-1]; last.Role != "user" || last.Content != "hỏi tiếp" {
+		t.Fatalf("the question is not the last message: %+v", last)
+	}
+	if got := uniworkHistoryTokens(uniworkSystemPrompt(allow.Module), turn.History); got > UniworkHistoryMaxTokens {
+		t.Fatalf("history = %d token, A7 caps it at %d (the pack's system text is counted)", got, UniworkHistoryMaxTokens)
 	}
 
-	// A question turn is never refused for budget: everything trimmable goes.
+	// A question turn is never refused for budget: everything trimmable goes
+	// and the question the turn carries stays.
 	huge := []provider.Message{
 		{Role: "user", Content: strings.Repeat("x", 300_000)},
 		{Role: "assistant", ToolCalls: []provider.ToolCall{{ID: "call_9", Name: "read_range", Input: json.RawMessage(`{}`)}}},
@@ -560,8 +579,36 @@ func TestAIUniworkHistoryBudgetDropsOldestPairs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a question turn must never be refused for the history budget: %v", err)
 	}
-	if len(turn.History) != 0 {
-		t.Fatalf("an oversized transcript was not dropped: %s", facadeHistoryShape(turn.History))
+	if len(turn.History) != 1 || turn.History[0].Role != "user" || turn.History[0].Content != "hỏi" {
+		t.Fatalf("an oversized transcript was not dropped to the question: %s", facadeHistoryShape(turn.History))
+	}
+
+	// BE3A-7: the estimate counts the question, not only the transcript. A
+	// transcript that fits at budget-minus-100 with the pack's system text,
+	// plus an 8000-rune question, is over A7 — the oldest block must go and
+	// the question must survive, or the turn the provider is sent is larger
+	// than the cap this layer promises.
+	system := uniworkSystemPrompt(allow.Module)
+	oldCall := provider.ToolCall{ID: "call_old", Name: "read_range", Input: json.RawMessage(`{}`)}
+	newest := provider.Message{Role: "user", Content: strings.Repeat("c", 2000)}
+	overhead := uniworkHistoryTokens(system, []provider.Message{
+		{}, {Role: "assistant", ToolCalls: []provider.ToolCall{oldCall}}, newest,
+	})
+	oldest := provider.Message{Role: "user", Content: strings.Repeat("o", (UniworkHistoryMaxTokens-100-overhead)*4)}
+	near := []provider.Message{oldest, {Role: "assistant", ToolCalls: []provider.ToolCall{oldCall}}, newest}
+	question := strings.Repeat("q", UniworkQuestionMaxRunes)
+	if before := uniworkHistoryTokens(system, near); before > UniworkHistoryMaxTokens {
+		t.Fatalf("fixture: the transcript alone is %d token, over the %d budget", before, UniworkHistoryMaxTokens)
+	}
+	if with := uniworkHistoryTokens(system, near) + uniworkHistoryTokens("", []provider.Message{{Role: "user", Content: question}}); with <= UniworkHistoryMaxTokens {
+		t.Fatalf("fixture: the question only reaches %d token, under the %d budget", with, UniworkHistoryMaxTokens)
+	}
+	turn, err = PlanUniworkTurn(near, facadeBody(t, map[string]any{"messages": []map[string]string{{"role": "user", "content": question}}}), allow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(turn.History) != 2 || turn.History[0].Content != newest.Content || turn.History[1].Content != question {
+		t.Fatalf("the question did not push the oldest block out: %s", facadeHistoryShape(turn.History))
 	}
 
 	// A tool-result turn must keep the block its results answer: when that
@@ -615,48 +662,40 @@ func facadeHistoryShape(msgs []provider.Message) string {
 	return b.String()
 }
 
-// §8.5 / A2: the interim prompt is registered under its versioned key, keeps
-// the clarification rule the "Cần làm rõ" chip reads and the five result
-// kinds, never copies a tool table, and stays inside the 2000-token cap.
-func TestAIUniworkInterimPrompt(t *testing.T) {
-	p, ok := LookupPrompt(PromptOfficeUniworkAIInterim)
-	if !ok || p.Key() != "office_uniwork_ai_interim@1" {
-		t.Fatalf("interim prompt = %+v, registered %v", p, ok)
+// The façade's module table and the office pack name modules differently
+// (web modules against the format column of genoffice-tools.md) and the map
+// is the only place they meet: every module the tool table carries must reach
+// a variant OfficeSystemPrompt assembles — the Gateway assembles the system
+// text by this name and refuses a missing or unknown one (G6-14) — and a name
+// the pack knows nothing about must map to nothing, never to a default
+// section.
+func TestAIUniworkPackModuleMapping(t *testing.T) {
+	if len(uniworkPackModules) != len(officeUniworkModulesV1) {
+		t.Fatalf("uniworkPackModules has %d rows, the tool table has %d modules", len(uniworkPackModules), len(officeUniworkModulesV1))
 	}
-	if PromptOfficeUniworkAIInterim != p.Key() {
-		t.Fatalf("exported key %q != registry key %q", PromptOfficeUniworkAIInterim, p.Key())
-	}
-	if !strings.HasSuffix(p.System, UntrustedFooter) || len(p.OutputSchema) == 0 {
-		t.Fatal("the prompt registry contract is not met")
-	}
-	for _, want := range []string{"ask_clarification", "Answer:", "Needs clarification:", "Edited in document:", "Not supported:", "Error:"} {
-		if !strings.Contains(p.System, want) {
-			t.Errorf("the interim pack misses %q", want)
+	for module := range officeUniworkModulesV1 {
+		pack, ok := UniworkPackModule(module)
+		if !ok {
+			t.Errorf("module %q maps to no pack module", module)
+			continue
+		}
+		if _, err := OfficeSystemPrompt(pack); err != nil {
+			t.Errorf("UniworkPackModule(%q) = %q, which the pack refuses: %v", module, pack, err)
+		}
+		if got := UniworkModuleAllowlist(module, nil, false).Module; got != pack {
+			t.Errorf("allowlist of %q carries module %q, want %q", module, got, pack)
 		}
 	}
-	for _, name := range []string{"propose_operations", "read_range", "write_document", "apply_ops", "read_blocks"} {
-		if strings.Contains(p.System, name) {
-			t.Errorf("the interim pack copies tool %q; the schemas travel in Request.Tools", name)
+	// The pack's own names are not web modules: a client that sends one has
+	// not named a turn this façade can serve, and mapping it would accept a
+	// module the tool table has no entry for.
+	for _, module := range []string{"", "docx", "xlsx", "md", "XLSX", "nope"} {
+		if pack, ok := UniworkPackModule(module); ok {
+			t.Errorf("UniworkPackModule(%q) = %q, want no mapping (the Gateway refuses such a turn)", module, pack)
 		}
 	}
-	if tokens := estimateTokens(p.System); tokens > 2000 {
-		t.Fatalf("the interim pack estimates %d token, A2 caps it at 2000", tokens)
-	}
-	rendered := p.Render(map[string]any{"question": "tổng A1:A9 là bao nhiêu?", "locale": "vi", "today": "2026-10-13"})
-	for _, want := range []string{
-		"Output language: Vietnamese",
-		"Today: 2026-10-13",
-		`<untrusted source="question">tổng A1:A9 là bao nhiêu?</untrusted>`,
-	} {
-		if !strings.Contains(rendered, want) {
-			t.Errorf("render misses %q in:\n%s", want, rendered)
-		}
-	}
-	// The question alone is a valid render, and it never names a wrong
-	// language for a team that sends none.
-	bare := p.Render(map[string]any{"question": "hi"})
-	if !strings.Contains(bare, "Output language: the language of the question below") || strings.Contains(bare, "Today:") {
-		t.Fatalf("render without locale/today = %q", bare)
+	if got := UniworkModuleAllowlist("nope", nil, false).Module; got != "" {
+		t.Fatalf("an unknown module's allowlist carries %q, want empty", got)
 	}
 }
 
@@ -759,8 +798,12 @@ func TestAIUniworkUpstreamTimeout(t *testing.T) {
 	defer cancel()
 	req := askReq()
 	req.Capability = CapOfficeUniworkAI
-	req.PromptID = PromptOfficeUniworkAIInterim
-	req.Vars = map[string]any{"question": "hỏi"}
+	req.PromptID = PromptOfficeUniworkAI
+	req.Module = "xlsx"
+	// The office pack renders nothing and takes no Vars: the turn is the
+	// History, ending with the user's message.
+	req.Vars = nil
+	req.History = []provider.Message{{Role: "user", Content: "hỏi"}}
 	started := time.Now()
 	_, err := g.Complete(ctx, req)
 	if !errors.Is(err, ErrProviderTimeout) {
@@ -787,9 +830,10 @@ func TestAIUniworkUpstreamTimeout(t *testing.T) {
 
 // §6.4 item 1 and A13: with FilterToolCalls the gateway hands every vendor
 // call back instead of failing the turn, the usage row still records the
-// denied call with allowed:false, and — because such a caller drives the
-// model through tools — the registry prompt's schema never reaches the vendor
-// alongside them. The façade then drops the call the client may not run.
+// denied call with allowed:false, and the tools the caller allows reach the
+// vendor with no JSON schema beside them (the office pack pins none, and the
+// vendor takes tools and a pinned schema as mutually exclusive). The façade
+// then drops the call the client may not run.
 func TestAIUniworkGatewayFiltersCallsAndOffersTools(t *testing.T) {
 	fp := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
 		return provider.CompletionResponse{Model: "fake", ToolCalls: []provider.ToolCall{
@@ -800,8 +844,10 @@ func TestAIUniworkGatewayFiltersCallsAndOffersTools(t *testing.T) {
 	g, pool := facadeGatewayFixture(t, fp)
 	req := askReq()
 	req.Capability = CapOfficeUniworkAI
-	req.PromptID = PromptOfficeUniworkAIInterim
-	req.Vars = map[string]any{"question": "hỏi"}
+	req.PromptID = PromptOfficeUniworkAI
+	req.Module = "docx"
+	req.Vars = nil
+	req.History = []provider.Message{{Role: "user", Content: "hỏi"}}
 	req.Tools = Registry{{Name: "read_blocks", Kind: ToolRead, Risk: RiskLow}}
 	req.FilterToolCalls = true
 
@@ -816,7 +862,10 @@ func TestAIUniworkGatewayFiltersCallsAndOffersTools(t *testing.T) {
 		t.Fatalf("tools were not offered to the vendor: %+v", fp.Last.Tools)
 	}
 	if len(fp.Last.JSONSchema) != 0 {
-		t.Fatalf("the prompt schema reached the vendor alongside tools: %s", fp.Last.JSONSchema)
+		t.Fatalf("a pinned schema reached the vendor alongside tools: %s", fp.Last.JSONSchema)
+	}
+	if !strings.Contains(fp.Last.System, "Word document (DOCX)") {
+		t.Fatalf("the module's pack section never reached the vendor:\n%s", fp.Last.System)
 	}
 	kept, dropped := FilterUniworkToolCalls(resp.ToolCalls, facadeAllow([]string{"read_blocks"}, nil))
 	if len(kept) != 1 || len(dropped) != 1 || dropped[0].Name != "run_shell" {
