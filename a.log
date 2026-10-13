@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -6
+f8b6a7c7e905cdd7ab5ebf7162e4c6cea41ce0b6
+f8b6a7c7e chore(scripts): let knip skip electron for the keyring probe
+dbd1ed6e2 fix(views): navigate to the external checkout through the navigation adapter
+e302890d4 Merge the headless Linux keyring harness into the G5-G7 root (UNI-1376)
+85e69454a fix(views): clear the lint errors inherited from develop
+e62ecf80a fix(office): launch the harness desktop app with the libsecret password store on Linux
+d6301cb84 docs(office): record the user's sign-off of G6-D4, G6-14 Q1-Q9 and G5-D1
