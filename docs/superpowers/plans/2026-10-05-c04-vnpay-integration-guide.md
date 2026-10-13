@@ -191,7 +191,7 @@ sequenceDiagram
 **Handler:**
 
 1. `billing.VNPay.ParseWebhook(r)` → `Event` + raw payload
-2. Nếu chữ ký sai → `401`
+2. Nếu chữ ký sai → HTTP 200, `RspCode` `97`
 3. Insert `webhook_inbox`:
    - `provider = vnpay`
    - `provider_event_id = vnp_TransactionNo` (hoặc composite ổn định nếu sandbox thiếu)
@@ -262,7 +262,20 @@ VNPay coi **00 = đã nhận xử lý xong**. Nếu trả 00 rồi worker fail v
 
 Implement mặc định **S1** trừ khi đo latency IPN vượt timeout VNPay.
 
-**Chữ ký IPN sai / thiếu tham số:** HTTP `401`, **không** ghi inbox, **không** 00.
+**Chữ ký IPN sai:** HTTP 200, body JSON `{"RspCode":"97","Message":"Invalid Checksum"}`. Không ghi inbox, không trả `00`.
+
+**Thiếu tham số hoặc payload hỏng:** HTTP 200, `RspCode` `99`.
+
+Mọi câu trả lời IPN là HTTP 200, `Content-Type: application/json`, body `{"RspCode","Message"}`.
+
+| `RspCode` | Khi nào |
+|-----------|---------|
+| `00` | Đã áp thanh toán xong, hoặc lỗi kết thúc mà không phải lệch tiền (ví dụ vượt hạn mức — ticket riêng) |
+| `01` | `vnp_TxnRef` không có trong hệ thống |
+| `02` | IPN trùng, hoặc intent đã `completed` |
+| `04` | Lệch số tiền hoặc tiền tệ |
+| `97` | Chữ ký sai |
+| `99` | Lỗi khác |
 
 **Method GET vs POST:** VNPay thường gửi **query GET** — handler đọc `r.URL.Query()`; nếu merchant cấu hình POST thì đọc cả body. Sai method → 404/405, IPN không vào → user stuck ở M (reconcile).
 

@@ -1,0 +1,187 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { ChevronRight, Pencil } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { Input } from "@uniwork/ui/components/ui/input";
+import { Label } from "@uniwork/ui/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@uniwork/ui/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
+import { cn } from "@uniwork/ui/lib/utils";
+import { GROUP_BY, TYPE_CHIPS, type GroupBy, type TypeChip } from "./library-rows";
+
+export const SCOPE_TABS = ["home", "recent", "shared", "archived"] as const;
+export type ScopeTab = (typeof SCOPE_TABS)[number];
+
+export interface LibraryToolbarProps {
+  /** The active scope; null while a view without a tab (starred, a source) is open. */
+  scope: ScopeTab | null;
+  count: { value: number; more: boolean } | null;
+  onScope: (scope: ScopeTab) => void;
+  chip: TypeChip;
+  onChip: (chip: TypeChip) => void;
+  groupBy: GroupBy;
+  onGroupBy: (groupBy: GroupBy) => void;
+}
+
+/** Scope tabs, the type chips and "Group by" above the table. */
+export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, onGroupBy }: LibraryToolbarProps) {
+  const { t } = useTranslation();
+  const groupItems = GROUP_BY.map((value) => ({ value, label: t(`documents.home.group_by.${value}`) }));
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Tabs value={scope ?? ""} onValueChange={(next) => onScope(next as ScopeTab)}>
+        <TabsList className="max-w-full overflow-x-auto" aria-label={t("documents.home.scope_label")}>
+          {SCOPE_TABS.map((tab) => (
+            <TabsTrigger key={tab} value={tab}>
+              {t(`documents.home.scope.${tab}`)}
+              {scope === tab && count && count.value > 0 ? (
+                <span className="font-mono text-caption tabular-nums text-muted-foreground">
+                  {count.value}
+                  {count.more ? "+" : ""}
+                </span>
+              ) : null}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+      <div role="group" aria-label={t("documents.home.chips_label")} className="-mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 py-0.5">
+        {TYPE_CHIPS.map((value) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={chip === value}
+            onClick={() => onChip(value)}
+            className={cn(
+              "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11",
+              chip === value
+                ? "border-foreground bg-foreground text-background"
+                : "border-border bg-background text-foreground hover:bg-accent",
+            )}
+          >
+            {t(`documents.home.chips.${value}`)}
+          </button>
+        ))}
+      </div>
+      <div className="ml-auto flex items-center gap-2">
+        <Label htmlFor="documents-group-by" className="text-caption text-muted-foreground">
+          {t("documents.home.group_by.label")}
+        </Label>
+        <Select value={groupBy} onValueChange={(next) => next && onGroupBy(next as GroupBy)} items={groupItems}>
+          <SelectTrigger id="documents-group-by" size="sm" variant="subtle" className="w-36">
+            <SelectValue>{groupItems.find((item) => item.value === groupBy)?.label}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {groupItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+export interface FolderBreadcrumbProps {
+  /** Ancestors then the open folder, outermost first. */
+  path: { id: string; title: string }[];
+  canRename: boolean;
+  renaming: boolean;
+  onRoot: () => void;
+  onFolder: (folderId: string) => void;
+  onRename: (title: string) => void;
+}
+
+/** Documents › folder › subfolder; the open folder renames in place. */
+export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, onRename }: FolderBreadcrumbProps) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  // One submit per edit: Enter removes the focused input, which fires blur, and
+  // Escape must not commit the draft through that blur.
+  const settled = useRef(false);
+  const leaf = path.at(-1);
+  if (!leaf) return null;
+  const submit = () => {
+    if (settled.current) return;
+    settled.current = true;
+    const title = draft.trim();
+    setEditing(false);
+    if (title && title !== leaf.title) onRename(title);
+  };
+  const crumb = "rounded px-1 text-body text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:min-h-11";
+  return (
+    <nav aria-label={t("documents.home.breadcrumb_label")} className="flex min-w-0 flex-wrap items-center gap-1">
+      <button type="button" className={crumb} onClick={onRoot}>
+        {t("documents.page.title")}
+      </button>
+      {path.slice(0, -1).map((node) => (
+        <span key={node.id} className="flex items-center gap-1">
+          <ChevronRight aria-hidden className="size-3.5 text-muted-foreground" />
+          <button type="button" className={crumb} onClick={() => onFolder(node.id)}>
+            {node.title}
+          </button>
+        </span>
+      ))}
+      <ChevronRight aria-hidden className="size-3.5 text-muted-foreground" />
+      {editing ? (
+        <form
+          className="flex items-center gap-1"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+        >
+          <Input
+            aria-label={t("documents.home.folders.rename_label")}
+            value={draft}
+            ref={(el) => el?.focus()}
+            maxLength={255}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={submit}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                settled.current = true;
+                setEditing(false);
+              }
+            }}
+            className="h-8 w-56"
+          />
+        </form>
+      ) : (
+        <span className="flex items-center gap-1">
+          <span aria-current="page" className="px-1 text-body font-medium text-foreground">
+            {leaf.title}
+          </span>
+          {canRename ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("documents.home.folders.rename")}
+              title={t("documents.home.folders.rename")}
+              aria-disabled={renaming || undefined}
+              onClick={() => {
+                if (renaming) return;
+                settled.current = false;
+                setDraft(leaf.title);
+                setEditing(true);
+              }}
+            >
+              <Pencil aria-hidden />
+            </Button>
+          ) : null}
+        </span>
+      )}
+    </nav>
+  );
+}

@@ -309,6 +309,12 @@ func DefaultSpecs() []PurposeSpec {
 			Policy:  Policy{MaxBytes: 100 << 20, MIMEAllowlist: exportMIMETypes, ReadMode: ReadProxy},
 		},
 		{
+			Purpose: TenantExport,
+			Prefix:  "privacy/exports",
+			Scope:   ScopeOrg,
+			Policy:  Policy{MaxBytes: 100 << 20, MIMEAllowlist: []string{"application/zip"}, ReadMode: ReadProxy},
+		},
+		{
 			Purpose: DocumentFile,
 			Prefix:  "documents/files",
 			Scope:   ScopeOrgWorkspace,

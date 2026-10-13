@@ -278,8 +278,8 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("blank: create_blank makes real engine bytes for md and html", func(t *testing.T) {
-		for _, format := range []office.Format{office.FormatMD, office.FormatHTML} {
+	t.Run("blank: create_blank makes real engine bytes for md, html and pdf, seed bytes for docx and pptx", func(t *testing.T) {
+		for _, format := range []office.Format{office.FormatMD, office.FormatHTML, office.FormatPDF, office.FormatDOCX, office.FormatPPTX} {
 			res, err := e.jobs.CreateBlankFile(ctx, member, e.tn.wsA, BlankFileInput{
 				Format: string(format), Title: "Blank " + string(format), IdempotencyKey: util.NewID(),
 			})

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,13 +11,43 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// Document kinds (C-01 §3.1; UNI-675): one table holds both shapes - a page
+// Document kinds (C-01 §3.1; UNI-675): one table holds every shape - a page
 // keeps its working copy in content, a file points at a document_versions
-// blob through file_version_id.
+// blob through file_version_id, and a folder (UNI-1305) only holds children: no
+// content, no versions, no bytes.
 const (
-	DocumentKindPage = "page"
-	DocumentKindFile = "file"
+	DocumentKindPage   = "page"
+	DocumentKindFile   = "file"
+	DocumentKindFolder = "folder"
 )
+
+// errFolderUnsupported answers a content, version, byte or Office route on a
+// folder: the folder exists and the caller may see it, it just has nothing
+// those routes act on.
+func errFolderUnsupported() error {
+	return coded(http.StatusUnprocessableEntity, "folder_not_supported", "thư mục không có nội dung, phiên bản hay tệp")
+}
+
+// refuseFolder is the guard those routes call once the caller is authorized.
+func refuseFolder(doc db.Document) error {
+	if doc.Kind == DocumentKindFolder {
+		return errFolderUnsupported()
+	}
+	return nil
+}
+
+// childKindAllowed is the containment rule: a folder sits at the root or in a
+// folder; a page or a file sits in a page or a folder.
+func childKindAllowed(parentKind, childKind string) bool {
+	if childKind == DocumentKindFolder {
+		return parentKind == DocumentKindFolder
+	}
+	return parentKind == DocumentKindPage || parentKind == DocumentKindFolder
+}
+
+func errDocumentParentKind() error {
+	return coded(http.StatusUnprocessableEntity, "document_parent_kind", "thư mục chỉ nằm ở gốc hoặc trong thư mục khác; trang và tệp nằm trong trang hoặc thư mục")
+}
 
 // DocumentLevel is the permission ladder on a document (C-01 §4). Order is
 // encoded by position: none < view < edit < manage.
@@ -86,6 +117,10 @@ type DocumentService struct {
 	ownerLevel    OwnerLevelResolver
 	ownerLevelSet bool
 	ownerPurger   DocumentOwnerPurger
+
+	// archiveMaxNodes overrides documentArchiveMaxNodes; tests set it so the
+	// bound needs a handful of rows, not a thousand. Zero means the default.
+	archiveMaxNodes int
 
 	// clock is the service's time source; tests inject it so the retention
 	// and auto-version workers never wait for real time.
