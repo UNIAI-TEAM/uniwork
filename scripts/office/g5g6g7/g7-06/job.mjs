@@ -35,6 +35,7 @@ const USAGE = `usage: node scripts/office/g5g6g7/g7-06/job.mjs [options]
   --installed <dir>   G706_INSTALLED   the installed frame bundle root (<root>/<pin.version>/manifest.json)
   --captures <dir>    G706_CAPTURES    the capture provider's output (contract section 3)
   --extractor <file>  G706_EXTRACTOR   extractor to run; default <fork-dir>/scripts/genoffice-tools-extract.mjs
+  --pin-dir <dir>     G706_PIN_DIR     the six *.pin.json to read (default: apps/web/platform/office-frame, the live pin)
   --out <dir>         G706_OUT         artifact dir (default ${DEFAULT_OUT}, gitignored)
   --checks a,b                         protocol,extractor,golden,brand (default all four)
   --update-goldens                     copy captures into the goldens dir and rewrite goldens/manifest.json (runs alone)
@@ -50,6 +51,7 @@ export function parseArgs(argv) {
     else if (flag === "--installed") args.installedRoot = argv[++i];
     else if (flag === "--captures") args.capturesDir = argv[++i];
     else if (flag === "--extractor") args.extractor = argv[++i];
+    else if (flag === "--pin-dir") args.pinDir = argv[++i];
     else if (flag === "--out") args.out = argv[++i];
     else if (flag === "--checks") {
       const names = String(argv[++i] ?? "").split(",").filter(Boolean);
@@ -151,6 +153,7 @@ export function optionsFromEnv(args, env = process.env) {
     installedRoot: args.installedRoot ?? env.G706_INSTALLED ?? null,
     capturesDir: args.capturesDir ?? env.G706_CAPTURES ?? null,
     extractor: args.extractor ?? env.G706_EXTRACTOR ?? null,
+    pinDir: resolveFromCwd(args.pinDir ?? env.G706_PIN_DIR ?? DEFAULT_PIN_DIR),
     outDir: out,
     checks: args.checks ?? CHECK_NAMES,
     updateGoldens: args.updateGoldens,
