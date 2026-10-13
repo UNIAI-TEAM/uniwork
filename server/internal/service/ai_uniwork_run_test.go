@@ -320,15 +320,20 @@ func newScriptedRunStore() *scriptedRunStore {
 func (s *scriptedRunStore) TakeTurn(_ context.Context, in ai.TakeRunTurn) (ai.Run, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.takes = append(s.takes, in)
+	// A turn with no run id opens one — the question turn of a run (design
+	// §2.2) — and the take is recorded under the run it resolved to, so both
+	// attempts of a retry are read back from the same run. The opened run is
+	// kept: a harness that opened it and then looked up the still-empty id
+	// answered run_expired to every first turn (BE3B-3).
 	if in.RunID == "" {
-		run := &ai.Run{
-			ID: util.NewID(), OrganizationID: in.OrganizationID, ConversationID: in.ConversationID,
+		in.RunID = util.NewID()
+		s.runs[in.RunID] = &ai.Run{
+			ID: in.RunID, OrganizationID: in.OrganizationID, ConversationID: in.ConversationID,
 			CreatedBy: in.CreatedBy, CreatedByKind: "human",
 			CreatedAt: in.Now, LastUsedAt: in.Now, ExpiresAt: in.Now.Add(ai.UniworkRunIdleTTL),
 		}
-		s.runs[run.ID] = run
 	}
+	s.takes = append(s.takes, in)
 	run, ok := s.runs[in.RunID]
 	if !ok {
 		return ai.Run{}, ai.ErrRunExpired
