@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/url"
@@ -291,7 +292,7 @@ func TestAuthorizeContentChecksEveryRequest(t *testing.T) {
 
 	refused := map[string]func() (string, string){
 		"ticket for another file": func() (string, string) { return string(other.File.ID), ticket },
-		"tampered ticket":         func() (string, string) { return string(up.File.ID), ticket[:len(ticket)-2] + "AA" },
+		"tampered ticket":         func() (string, string) { return string(up.File.ID), tamperedAccessTicket(t, ticket) },
 		"no ticket":               func() (string, string) { return string(up.File.ID), "" },
 		"garbage":                 func() (string, string) { return string(up.File.ID), "not.a.ticket" },
 	}
@@ -306,6 +307,48 @@ func TestAuthorizeContentChecksEveryRequest(t *testing.T) {
 	forged := otherKey.signTicket(accessTicket{UserID: f.a.ID, SessionID: f.sa, WorkspaceID: f.w.ID, FileID: string(up.File.ID), Disposition: files.DispositionInline, ExpiresAt: f.h.clock.Now().Add(time.Hour)})
 	if _, err := f.access.AuthorizeContent(ctx, string(up.File.ID), forged); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("forged ticket: %v", err)
+	}
+}
+
+func tamperedAccessTicket(t *testing.T, ticket string) string {
+	t.Helper()
+	claims, signature, ok := strings.Cut(ticket, ".")
+	if !ok {
+		t.Fatal("expected a signed access ticket")
+	}
+	mac, err := base64.RawURLEncoding.DecodeString(signature)
+	if err != nil || len(mac) == 0 {
+		t.Fatal("expected a non-empty ticket signature")
+	}
+	// Change signed bytes rather than replacing characters that may already
+	// match the signature or contain only unused base64 bits.
+	mac[0] ^= 1
+	return claims + "." + base64.RawURLEncoding.EncodeToString(mac)
+}
+
+func TestContentTicketTamperingChangesSignature(t *testing.T) {
+	s := &FileAccessService{key: accessSecret}
+	now := time.Unix(1790000000, 0).UTC()
+	claims := accessTicket{
+		UserID: "user", SessionID: "session", WorkspaceID: "workspace",
+		FileID: "signature-tail-1841", Disposition: files.DispositionInline,
+		ExpiresAt: now.Add(time.Minute),
+	}
+	ticket := s.signTicket(claims)
+	// This fixed fixture reproduces the valid signature ending in AA: the old
+	// mutation returned the original ticket instead of modifying its signature.
+	if !strings.HasSuffix(ticket, "AA") {
+		t.Fatal("fixture must reproduce the AA signature suffix")
+	}
+	if _, err := s.verifyTicket(ticket, claims.FileID, now); err != nil {
+		t.Fatalf("valid fixture: %v", err)
+	}
+	tampered := tamperedAccessTicket(t, ticket)
+	if tampered == ticket {
+		t.Fatal("tampering must change the signed ticket")
+	}
+	if _, err := s.verifyTicket(tampered, claims.FileID, now); !errors.Is(err, errFileTicketInvalid) {
+		t.Fatalf("tampered signature: %v, want invalid ticket", err)
 	}
 }
 
