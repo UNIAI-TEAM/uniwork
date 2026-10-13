@@ -6,9 +6,22 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/billing"
 )
+
+func TestInvoiceNumberStaysUniqueInsideOneMillisecond(t *testing.T) {
+	at := time.Now()
+	seen := map[string]struct{}{}
+	for i := 0; i < 32; i++ {
+		n := invoiceNumber(at)
+		if _, ok := seen[n]; ok {
+			t.Fatalf("duplicate invoice number %s", n)
+		}
+		seen[n] = struct{}{}
+	}
+}
 
 func TestProcessStalePaymentIntentReconcile(t *testing.T) {
 	secret := "testsecret"
