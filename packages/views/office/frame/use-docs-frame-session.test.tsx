@@ -416,6 +416,29 @@ describe("useDocsFrameSession: api.download", () => {
     expect(viewer.sent("init")[0]?.payload).toMatchObject({ capabilities: { download: false } });
   });
 
+  it("sends the download cap in init exactly when download is advertised, the same constant api.download enforces", async () => {
+    const editor = setup();
+    await editor.boot();
+    const editorInit = editor.sent("init")[0]?.payload as { capabilities: { download: boolean }; downloadMaxBytes?: number };
+    expect(editorInit.capabilities.download).toBe(true);
+    expect(editorInit.downloadMaxBytes).toBe(OFFICE_FRAME_DOWNLOAD_MAX_BYTES);
+    editor.hook.unmount();
+    document.body.innerHTML = "";
+    const viewer = setup({ readonly: true });
+    await viewer.boot();
+    const viewerInit = viewer.sent("init")[0]?.payload as { capabilities: { download: boolean } };
+    expect(viewerInit.capabilities.download).toBe(false);
+    expect(viewerInit).not.toHaveProperty("downloadMaxBytes");
+  });
+
+  it("sends no download cap when the page is editable but the minted token says can_edit: false", async () => {
+    const tokenViewer = setup({ canEdit: false });
+    await tokenViewer.boot();
+    const init = tokenViewer.sent("init")[0]?.payload as { capabilities: { download: boolean } };
+    expect(init.capabilities.download).toBe(false);
+    expect(init).not.toHaveProperty("downloadMaxBytes");
+  });
+
   it.each([
     ["docs", "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
     ["sheets", "xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],

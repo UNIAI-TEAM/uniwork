@@ -1,7 +1,7 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at ed580a5330fa3e50145d5f28ea12b3e5964910e6
-// (fork lane feature/UNI-1339-x02-frame-protocol, X-02 on main 0d03b185: doc.remoteVersion, FileMeta.revision, api.open
-// versionId/versionChanged (OQ-P3), api.download, aiRun, the download and uniworkAi capability keys). Byte-identical except the
+// web/docs/protocol/types.ts at e36cc7dfc333243ecee1ae71aa659a72dc976468
+// (fork lane feature/UNI-1339-x02-r2b-download-cap on X-02 main 819d50f9: doc.remoteVersion, FileMeta.revision, api.open
+// versionId/versionChanged (OQ-P3), api.download, aiRun, the download and uniworkAi capability keys, init.downloadMaxBytes). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change
 // the fork, re-vendor, update this SHA.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
@@ -397,6 +397,13 @@ export interface InitPayload extends TokenPayload {
    * web draft recovery (additive, CONTRACT C18). Absent = recovery off (the frame shows nothing).
    */
   recovery?: InitRecovery
+  /**
+   * additive (X-02 r2b): the largest file, in bytes, the host's `api.download` accepts for this
+   * document. A positive safe integer; sent only together with the `download` capability. The
+   * frame disables its "download my version" choice up front when its version is larger (equal
+   * is allowed). Absent = the choice is disabled only after a `too_large` answer.
+   */
+  downloadMaxBytes?: number
 }
 
 /**
@@ -927,6 +934,9 @@ function isNonEmptyStr(x: unknown): x is string {
 function isFiniteNum(x: unknown): x is number {
   return typeof x === 'number' && Number.isFinite(x)
 }
+function isPositiveSafeInt(x: unknown): x is number {
+  return typeof x === 'number' && Number.isSafeInteger(x) && x > 0
+}
 function isBool(x: unknown): x is boolean {
   return typeof x === 'boolean'
 }
@@ -1034,7 +1044,8 @@ export function isInitPayload(x: unknown): x is InitPayload {
     isOpt(x.open, isOpenPayload) &&
     isOpt(x.module, isOfficeModule) &&
     isOpt(x.user, isInitUser) &&
-    isOpt(x.recovery, isInitRecovery)
+    isOpt(x.recovery, isInitRecovery) &&
+    isOpt(x.downloadMaxBytes, isPositiveSafeInt)
   )
 }
 
