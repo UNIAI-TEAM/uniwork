@@ -30,6 +30,17 @@ export function titleParts(render: (params: Record<string, string>) => string, p
 }
 
 /**
+ * The locale key of the row's sentence. A document comment row whose title
+ * snapshot is gone (the server drops it once the reader lost access) uses the
+ * title-less variant of the sentence, so it never quotes an empty name or a
+ * bare `{{document}}`.
+ */
+export function notificationTitleKey(n: Notification): string {
+  const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_");
+  return untitled && !n.params.document?.trim() ? `${n.title_key}_untitled` : n.title_key;
+}
+
+/**
  * The row's sentence with the parts a scan looks for picked out: who did it
  * (and, for an agent, that it was one — ADR 0007: the label comes from the
  * actor's kind, never from the name), what it happened to, and the state it
@@ -39,7 +50,7 @@ export function titleParts(render: (params: Record<string, string>) => string, p
  */
 export function NotificationTitle({ notification: n, unread }: { notification: Notification; unread: boolean }) {
   const { t } = useTranslation();
-  const parts = titleParts((params) => t(n.title_key, { ...params, defaultValue: n.kind }), n.params);
+  const parts = titleParts((params) => t(notificationTitleKey(n), { ...params, defaultValue: n.kind }), n.params);
   const isAgent = n.actor_kind === "agent";
 
   const render = (param: string, value: string): ReactNode => {

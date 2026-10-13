@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -321,6 +321,27 @@ describe("InboxView", () => {
       // The page answers 403 and says so (S15 row 2); the row only stops quoting the comment.
       expect(link).toHaveAttribute("href", "/acme/team/documents/d-n1?comment=c-n1");
       expect(link.querySelector("[data-notification-snippet]")).toBeNull();
+    });
+
+    // V7 F1: the server drops the document title once the reader lost access.
+    it.each([
+      ["document_commented", "Bình đã bình luận trong một tài liệu"],
+      ["document_mentioned", "Bình đã nhắc đến bạn trong bình luận tại một tài liệu."],
+      ["document_comment_replied", "Bình đã phản hồi bình luận của bạn trong một tài liệu."],
+      ["document_discussion_mentioned", "Bình đã nhắc đến bạn trong thảo luận của một tài liệu."],
+      ["document_discussion_replied", "Bình đã phản hồi nội dung thảo luận của bạn trong một tài liệu."],
+      ["document_comment_resolved", "Bình đã đánh dấu bình luận của bạn trong một tài liệu là đã giải quyết."],
+    ])("says %s without a name when the title is not in the params", async (kind, sentenceText) => {
+      for (const document of [undefined, "", "  "]) {
+        requestMock.mockReset();
+        const params = { actor: "Bình", comment_id: "c-n1", kind: "comment", ...(document === undefined ? {} : { document }) };
+        mockApi([doc("n1", { kind, title_key: `notifications.kind.${kind}`, resource_access_lost: true, params })]);
+        renderInbox();
+        const link = await screen.findByRole("link", { name: /Bình/ });
+        expect(link).toHaveTextContent(sentenceText);
+        expect(link.textContent).not.toMatch(/\{\{|“\s*”/);
+        cleanup();
+      }
     });
 
     it("never quotes a snippet for a lost document even if one arrives", async () => {
