@@ -301,7 +301,7 @@ func (h *handlers) putDocumentCommentAnchors(w http.ResponseWriter, r *http.Requ
 		})
 	}
 	res, err := h.Documents.PutDocumentCommentAnchors(r.Context(), service.Human(middleware.UserID(r.Context())),
-		chi.URLParam(r, "documentID"), service.DocumentCommentAnchorsInput{VersionID: in.VersionID, Anchors: anchors})
+		chi.URLParam(r, "documentID"), service.DocumentCommentAnchorsInput{VersionID: in.VersionID, Anchors: anchors, AnchorsPresent: in.AnchorsPresent})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
