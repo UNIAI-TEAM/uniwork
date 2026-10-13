@@ -47,11 +47,14 @@ func (w *isoWorld) buildMcp(t *testing.T, tn *isoTenant) {
 		t.Fatal(err)
 	}
 	bu, _ := url.Parse(back)
-	if _, err := svc.Exchange(ctx, service.McpExchangeInput{
+	pair, err := svc.Exchange(ctx, service.McpExchangeInput{
 		ClientID: reg.Client.ClientID, Code: bu.Query().Get("code"), CodeVerifier: mcpTestVerifier, RedirectURI: mcpTestRedirect,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
+	// The grant's access token is what TestIsolationMCP presents to /mcp.
+	tn.ids["mcpAccess"] = pair.AccessToken
 	grants, err := svc.ListMyGrants(ctx, tn.userID)
 	if err != nil || len(grants) == 0 {
 		t.Fatalf("seed grant of %s: %v %v", tn.tag, grants, err)
@@ -59,12 +62,16 @@ func (w *isoWorld) buildMcp(t *testing.T, tn *isoTenant) {
 	tn.ids["mcpGrant"] = grants[0].ID
 
 	// Read once by the owner, so the attempt is claimed: another account
-	// reading or deciding it must be told nothing.
+	// reading or deciding it must be told nothing. The owner's live CSRF token
+	// is kept so the matrix can send it from the wrong account: the token is
+	// genuine, so the refusal has to come from the claim, not from a guess.
 	pending := start()
-	if _, err := svc.Consent(ctx, tn.userID, pending); err != nil {
+	claimed, err := svc.Consent(ctx, tn.userID, pending)
+	if err != nil {
 		t.Fatal(err)
 	}
 	tn.ids["mcpAttempt"] = pending
+	tn.ids["mcpCSRF"] = claimed.CSRFToken
 }
 
 // mcpAttemptDigest hashes the tenant's pending consent attempt row. The table

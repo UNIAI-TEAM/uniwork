@@ -207,9 +207,10 @@ var isoRoutes = map[string]isoSpec{
 	// path and need no row. TestIsolationMCP holds the /mcp side.
 	"GET /api/v1/auth/connect/attempts/{attemptID}": {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/auth/connect/attempts/{attemptID}": {class: isoSelf,
-		reason: "the caller's own attempt: B names its own enabled organization against A's claimed attempt and answers 400 csrf_invalid, as for an attempt that does not exist (no existence oracle); naming A's organization is 403 (TestMcpApproveRefusals); A's attempt stays undecided and unclaimed (untouched subtest)",
-		body: func(w *isoWorld, _ *isoTenant) isoBody {
-			return isoBody{json: map[string]any{"decision": "approve", "csrf_token": "iso-guessed-token", "organization_id": w.bravo.orgID}}
+		reason: "the caller's own attempt: B sends A's live CSRF token and B's own enabled organization against A's claimed attempt and answers 400 csrf_invalid, as for an attempt that does not exist (no existence oracle); naming an organization the caller is not in is 403 (TestIsolationMCP, TestMcpApproveRefusals); A's attempt stays undecided and unclaimed (untouched subtest)",
+		// The cross-tenant passes call body with A, so mcpCSRF is A's token.
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"decision": "approve", "csrf_token": tn.ids["mcpCSRF"], "organization_id": w.bravo.orgID}}
 		},
 		refusedAlso: []int{http.StatusBadRequest}},
 	"GET /api/v1/me/connected-apps":              {class: isoSelf, reason: reasonSelf},
@@ -485,6 +486,7 @@ var isoRoutes = map[string]isoSpec{
 	"DELETE /api/v1/meetings/{meetingID}/attendance/{participantID}":                           {mixedFirst: "liveMeeting"},
 	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/open":                                {mixedFirst: "liveMeeting"},
 	"POST /api/v1/meetings/{meetingID}/participants/{participantID}/publish":                   {mixedFirst: "liveMeeting"},
+	"PUT /api/v1/orgs/{org}/mcp-policy":                                                        {body: isoJSON(map[string]any{"enabled": true}), reason: "enabled true: every tenant's switch is already on, so the owner's own call is a repeated enable that answers 200 and keeps the first enabler"},
 	"PATCH /api/v1/orgs/{org}/members/{userID}":                                                {body: isoJSON(map[string]any{"role": "admin"})},
 	"PATCH /api/v1/workspaces/{workspaceID}/members/{userID}":                                  {body: isoJSON(map[string]any{"role": "admin"})},
 	"DELETE /api/v1/workspaces/{workspaceID}/chat/users/{userID}/block":                        {mixedOK: "unblocking deletes the caller's own block row in their own organization; any id answers ok, known or not"},
