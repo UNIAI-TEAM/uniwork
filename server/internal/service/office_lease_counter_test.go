@@ -22,9 +22,10 @@ import (
 
 // leaseCounterMetrics records what the lease counters were asked to count.
 type leaseCounterMetrics struct {
-	revoked map[string]int
-	grants  []string
-	blocked []string
+	revoked      map[string]int
+	grants       []string
+	blocked      []string
+	revokeFailed int
 }
 
 func (m *leaseCounterMetrics) ObserveOfficeLease(op string) { m.grants = append(m.grants, op) }
@@ -39,6 +40,8 @@ func (m *leaseCounterMetrics) ObserveOfficeLeasesRevoked(reason string, n int) {
 	}
 	m.revoked[reason] += n
 }
+
+func (m *leaseCounterMetrics) ObserveOfficeLeaseRevokeFailed() { m.revokeFailed++ }
 
 func (m *leaseCounterMetrics) ObserveOfficeLeaseSweep(int64) {}
 
@@ -74,7 +77,7 @@ func TestOfficeLeaseRevokeCounterMovesOnlyAfterCommit(t *testing.T) {
 		{ID: "lease-2", OrganizationID: "org-1", WorkspaceID: "ws-1", DocumentID: "doc-1", UserID: "user-1"},
 	}
 	written, err := recordOfficeLeaseRevokes(context.Background(), db.New(leaseBatchDBTX{}),
-		officeLeaseRevokeActor, OfficeLeaseRevokeMemberRemoved, refs)
+		officeLeaseRevokeActor, OfficeLeaseRevokeMemberRemoved, refs, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +99,7 @@ func TestOfficeLeaseRevokeCounterMovesOnlyAfterCommit(t *testing.T) {
 	failed := &leaseCounterMetrics{}
 	SetOfficeLeaseMetrics(failed)
 	if _, err := recordOfficeLeaseRevokes(context.Background(), db.New(leaseBatchDBTX{fail: errors.New("audit down")}),
-		officeLeaseRevokeActor, OfficeLeaseRevokeMemberRemoved, refs); err == nil {
+		officeLeaseRevokeActor, OfficeLeaseRevokeMemberRemoved, refs, nil); err == nil {
 		t.Fatal("a failed audit batch was treated as a written revoke")
 	}
 	if got := failed.revoked[OfficeLeaseRevokeMemberRemoved]; got != 0 {

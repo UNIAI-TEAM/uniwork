@@ -111,7 +111,7 @@ func (c *OfficeLeaseRevoker) revokeUserInOrganization(ctx context.Context, orgID
 		for i, r := range rows {
 			refs[i] = officeLeaseRef(r)
 		}
-		return recordOfficeLeaseRevokes(ctx, q, officeLeaseRevokeActor, reason, refs)
+		return recordOfficeLeaseRevokes(ctx, q, officeLeaseRevokeActor, reason, refs, nil)
 	})
 	if err != nil {
 		return err
@@ -151,7 +151,7 @@ func (c *OfficeLeaseRevoker) recheckUserInOrganization(ctx context.Context, orgI
 				lost = append(lost, r.ID)
 			}
 		}
-		return revokeOfficeLeaseIDs(ctx, q, orgID, lost, OfficeLeaseRevokeMemberRemoved)
+		return revokeOfficeLeaseIDs(ctx, q, orgID, lost, OfficeLeaseRevokeMemberRemoved, nil)
 	})
 	if err != nil {
 		return err
@@ -187,7 +187,7 @@ func (c *OfficeLeaseRevoker) recheckDocument(ctx context.Context, orgID, documen
 				lost = append(lost, r.ID)
 			}
 		}
-		return revokeOfficeLeaseIDs(ctx, q, orgID, lost, reason)
+		return revokeOfficeLeaseIDs(ctx, q, orgID, lost, reason, nil)
 	})
 	if err != nil {
 		return err
@@ -211,7 +211,7 @@ func (c *OfficeLeaseRevoker) revokeDocument(ctx context.Context, orgID, document
 		for i, r := range rows {
 			ids[i] = r.ID
 		}
-		return revokeOfficeLeaseIDs(ctx, q, orgID, ids, OfficeLeaseRevokeDocumentDeleted)
+		return revokeOfficeLeaseIDs(ctx, q, orgID, ids, OfficeLeaseRevokeDocumentDeleted, nil)
 	})
 	if err != nil {
 		return err
@@ -276,8 +276,10 @@ func (c *OfficeLeaseRevoker) inTx(ctx context.Context, fn func(q *db.Queries) (i
 }
 
 // revokeOfficeLeaseIDs revokes the named live leases of one organization and
-// returns how many it recorded in the caller's transaction.
-func revokeOfficeLeaseIDs(ctx context.Context, q *db.Queries, orgID string, ids []string, reason string) (int, error) {
+// returns how many it recorded in the caller's transaction. note is merged
+// into each audit row's metadata; the fail-closed re-check revoke (FIX-7)
+// carries check_failed, every caller here passes nil.
+func revokeOfficeLeaseIDs(ctx context.Context, q *db.Queries, orgID string, ids []string, reason string, note map[string]any) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -291,5 +293,5 @@ func revokeOfficeLeaseIDs(ctx context.Context, q *db.Queries, orgID string, ids 
 	for i, r := range rows {
 		refs[i] = officeLeaseRef(r)
 	}
-	return recordOfficeLeaseRevokes(ctx, q, officeLeaseRevokeActor, reason, refs)
+	return recordOfficeLeaseRevokes(ctx, q, officeLeaseRevokeActor, reason, refs, note)
 }

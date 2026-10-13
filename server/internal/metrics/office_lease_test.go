@@ -18,6 +18,7 @@ func TestOfficeLeaseMetricsAreRegistered(t *testing.T) {
 	l.ObserveOfficeLease("renew")
 	l.ObserveOfficeLeaseBlocked("epoch")
 	l.ObserveOfficeLeasesRevoked("share_revoked", 3)
+	l.ObserveOfficeLeaseRevokeFailed()
 	l.ObserveOfficeLeaseSweep(5)
 
 	rec := httptest.NewRecorder()
@@ -28,6 +29,7 @@ func TestOfficeLeaseMetricsAreRegistered(t *testing.T) {
 		`uniwork_office_offline_lease_grants_total{op="renew"} 1`,
 		`uniwork_office_offline_lease_blocked_total{reason="epoch"} 1`,
 		`uniwork_office_offline_leases_revoked_total{reason="share_revoked"} 3`,
+		"uniwork_office_offline_lease_revoke_failed_total 1",
 		"uniwork_office_offline_lease_sweep_deleted_total 5",
 	} {
 		if !strings.Contains(body, want) {

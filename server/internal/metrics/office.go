@@ -89,14 +89,15 @@ func (o *OfficeChangeFeed) ObserveChangeSnapshotSweep(snapshots, items int64) {
 	o.SnapshotRowsSwept.WithLabelValues("document_change_snapshot_items").Add(float64(items))
 }
 
-// OfficeLease counts the offline lease paths (G5-08s, decision G5-D1 row 17).
-// Every label is a closed set; no organization, user or document is ever a
-// label. It satisfies service.OfficeLeaseMetrics.
+// OfficeLease counts the offline lease paths (G5-08s, decision G5-D1 row 17;
+// RevokeFailed is FIX-7). Every label is a closed set; no organization, user
+// or document is ever a label. It satisfies service.OfficeLeaseMetrics.
 type OfficeLease struct {
-	Grants  *prometheus.CounterVec
-	Blocked *prometheus.CounterVec
-	Revoked *prometheus.CounterVec
-	Swept   prometheus.Counter
+	Grants       *prometheus.CounterVec
+	Blocked      *prometheus.CounterVec
+	Revoked      *prometheus.CounterVec
+	RevokeFailed prometheus.Counter
+	Swept        prometheus.Counter
 }
 
 func NewOfficeLease() *OfficeLease {
@@ -113,6 +114,10 @@ func NewOfficeLease() *OfficeLease {
 			Name: "uniwork_office_offline_leases_revoked_total",
 			Help: "Offline leases revoked, by reason (device_revoked, session_revoked, member_deactivated, member_removed, share_revoked, document_deleted, document_moved, policy_epoch, admin).",
 		}, []string{"reason"}),
+		RevokeFailed: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "uniwork_office_offline_lease_revoke_failed_total",
+			Help: "Fail-closed offline lease revokes that did not land (the post-commit membership re-check errored); the outbox consumer must close the row.",
+		}),
 		Swept: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "uniwork_office_offline_lease_sweep_deleted_total",
 			Help: "Dead offline lease rows (expired or revoked past retention) deleted by the sweep.",
@@ -121,7 +126,7 @@ func NewOfficeLease() *OfficeLease {
 }
 
 func (o *OfficeLease) Collectors() []prometheus.Collector {
-	return []prometheus.Collector{o.Grants, o.Blocked, o.Revoked, o.Swept}
+	return []prometheus.Collector{o.Grants, o.Blocked, o.Revoked, o.RevokeFailed, o.Swept}
 }
 
 // ObserveOfficeLease records one committed grant, renew or release.
@@ -136,6 +141,9 @@ func (o *OfficeLease) ObserveOfficeLeaseBlocked(reason string) {
 func (o *OfficeLease) ObserveOfficeLeasesRevoked(reason string, n int) {
 	o.Revoked.WithLabelValues(reason).Add(float64(n))
 }
+
+// ObserveOfficeLeaseRevokeFailed records one fail-closed revoke that failed.
+func (o *OfficeLease) ObserveOfficeLeaseRevokeFailed() { o.RevokeFailed.Inc() }
 
 // ObserveOfficeLeaseSweep records one sweep batch.
 func (o *OfficeLease) ObserveOfficeLeaseSweep(n int64) { o.Swept.Add(float64(n)) }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -115,6 +116,7 @@ type OfficeLeaseMetrics interface {
 	ObserveOfficeLease(op string)
 	ObserveOfficeLeaseBlocked(reason string)
 	ObserveOfficeLeasesRevoked(reason string, n int)
+	ObserveOfficeLeaseRevokeFailed()
 	ObserveOfficeLeaseSweep(n int64)
 }
 
@@ -122,6 +124,18 @@ type OfficeLeaseMetrics interface {
 // in this package sets it; production never does. It lets a test commit a
 // membership removal inside that window deterministically (FIX-1 race test).
 var officeLeasePutHold func()
+
+// officeLeaseRecheckErr, when a test in this package sets it, stands in for a
+// post-commit re-check that itself errors (FIX-7): recheckMembershipAfterPut
+// returns it instead of running the gate, so the fail-closed path is
+// reachable without the database error production sees. Production never
+// sets it.
+var officeLeaseRecheckErr error
+
+// officeLeaseRecheckRevoke, when a test in this package sets it, runs in
+// place of the fail-closed revoke (FIX-7), so a test can fail or watch that
+// revoke without a database. Production never sets it.
+var officeLeaseRecheckRevoke func(ctx context.Context, orgID, leaseID, reason string, note map[string]any) error
 
 // officeLeaseMetrics is set once by main.go (SetOfficeLeaseMetrics): the
 // revoke paths run inside other services' transactions (logout, session
@@ -357,7 +371,7 @@ func (s *OfficeLeaseService) Put(ctx context.Context, actor Actor, in OfficeLeas
 	if err := tx.Commit(ctx); err != nil {
 		return OfficeLease{}, err
 	}
-	if err := s.recheckMembershipAfterPut(ctx, actor, doc.ID, row.ID); err != nil {
+	if err := s.recheckMembershipAfterPut(ctx, actor, row.OrganizationID, doc.ID, row.ID); err != nil {
 		return OfficeLease{}, err
 	}
 	if officeLeaseMetrics != nil {
@@ -386,7 +400,12 @@ func (s *OfficeLeaseService) Put(ctx context.Context, actor Actor, in OfficeLeas
 //     would have given, with no lease;
 //   - the gate still passes - nothing happens. If the removal commits after
 //     this, it commits after the lease row, so the consumer's enumeration
-//     sees the row and revokes it.
+//     sees the row and revokes it;
+//   - the re-check itself errors - a lookup or gate error, not a refusal - it
+//     fails closed (FIX-7, advisor bridge-91): a re-check that never answered
+//     must not leave the lease it guards live, so the row is revoked
+//     best-effort (failClosedAfterRecheckError) and the request answers the
+//     original error, with no lease.
 //
 // Both orderings therefore end with no live lease: the removal commits either
 // before this run (the gate reads it and refuses) or after the lease commit
@@ -401,17 +420,22 @@ func (s *OfficeLeaseService) Put(ctx context.Context, actor Actor, in OfficeLeas
 // (row 14: archive is not a revoke, leases live to expiry) is left alone, and
 // so is a refusal the epoch and the consumer own - a suspension, a scheduled
 // deletion - which answers exactly as an up-front read would.
-func (s *OfficeLeaseService) recheckMembershipAfterPut(ctx context.Context, actor Actor, documentID, leaseID string) error {
+func (s *OfficeLeaseService) recheckMembershipAfterPut(ctx context.Context, actor Actor, orgID, documentID, leaseID string) error {
 	// The client may be gone by now; this closes a security window, so it
 	// must not ride on the request context (email_hub_oauth_revoke.go takes
 	// the same care for its post-commit revoke).
 	ctx = context.WithoutCancel(ctx)
+	// Tests inject the re-check's own failure here; production never does
+	// (officeLeaseRecheckErr).
+	if officeLeaseRecheckErr != nil {
+		return s.failClosedAfterRecheckError(ctx, orgID, documentID, leaseID, officeLeaseRecheckErr)
+	}
 	current, err := s.docs.q.GetDocumentByID(ctx, documentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
-		return err
+		return s.failClosedAfterRecheckError(ctx, orgID, documentID, leaseID, err)
 	}
 	access, gateErr := s.docs.effectiveLevel(ctx, s.docs.q, actor, current)
 	var reason string
@@ -424,20 +448,59 @@ func (s *OfficeLeaseService) recheckMembershipAfterPut(ctx context.Context, acto
 		// answer an up-front read gives, and the consumer's reason for a
 		// member.removed or member.left that lost every path.
 		reason, refusal = OfficeLeaseRevokeMemberRemoved, ErrNotFound
+	case gateErr != nil && !isGateRefusal(gateErr):
+		// The gate itself failed (its lookup, not a refusal): fail closed
+		// on the lease it was asked about (FIX-7).
+		return s.failClosedAfterRecheckError(ctx, orgID, documentID, leaseID, gateErr)
 	default:
 		// Still readable, or a refusal the run of the request cannot undo
 		// (a suspension, a scheduled deletion): answer it, keep the lease and
-		// let the epoch and the consumer close it. An infra error is returned
-		// as itself; the lease is live and the next renewal re-checks anyway.
-		if isGateRefusal(gateErr) {
+		// let the epoch and the consumer close it.
+		if gateErr != nil {
 			return officeLeaseBlocked(officeLeaseBlockedACL, gateErr)
 		}
-		return gateErr
+		return nil
 	}
-	if err := s.revokeOfficeLease(ctx, current.OrganizationID, leaseID, reason); err != nil {
+	if err := s.revokeOfficeLease(ctx, current.OrganizationID, leaseID, reason, nil); err != nil {
 		return err
 	}
 	return officeLeaseBlocked(officeLeaseBlockedACL, refusal)
+}
+
+// failClosedAfterRecheckError is what a re-check that itself errors runs
+// (FIX-7, advisor bridge-91). A lookup or gate error is not a refusal, but a
+// re-check that never answered must not leave the lease Put just committed
+// live - that would reopen the very window FIX-1 closes. The row is revoked
+// best-effort in its own transaction on the context recheckMembershipAfterPut
+// already detached from the request, with reason member_removed - the signed
+// reason for access that is gone - and the audit row notes check_failed, so
+// the history says the gate never decided (no new reason value; the table's
+// CHECK holds the signed set). The request still answers the original error
+// and hands out no lease, so the grant counter stays put.
+//
+// A revoke that fails too leaves a row the request cannot fix: it is logged
+// (ids only, no PII) and counted, and the removal event that may have raced
+// this grant still drives the consumer's enumeration, which closes the
+// committed row - the counter is what says that safety net was needed. The
+// re-check's own error is returned either way, so the client's answer never
+// changes with the revoke.
+func (s *OfficeLeaseService) failClosedAfterRecheckError(ctx context.Context, orgID, documentID, leaseID string, checkErr error) error {
+	note := map[string]any{"check_failed": true}
+	var revokeErr error
+	if officeLeaseRecheckRevoke != nil {
+		revokeErr = officeLeaseRecheckRevoke(ctx, orgID, leaseID, OfficeLeaseRevokeMemberRemoved, note)
+	} else {
+		revokeErr = s.revokeOfficeLease(ctx, orgID, leaseID, OfficeLeaseRevokeMemberRemoved, note)
+	}
+	if revokeErr == nil {
+		return checkErr
+	}
+	slog.Warn("office lease: the fail-closed revoke after a failed membership re-check did not land; the consumer must close it",
+		"lease", leaseID, "document", documentID, "err", revokeErr)
+	if officeLeaseMetrics != nil {
+		officeLeaseMetrics.ObserveOfficeLeaseRevokeFailed()
+	}
+	return checkErr
 }
 
 // liveDevice reads the bearer's device row under lock. No row (a browser
