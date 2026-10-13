@@ -4382,7 +4382,20 @@
       "not_admin_role": "Chỉ chủ sở hữu và quản trị thực hiện được thao tác này.",
       "not_owner_role": "Chỉ chủ sở hữu tổ chức thực hiện được thao tác này.",
       "not_resource_owner": "Bạn không thực hiện được thao tác này với chính mình.",
-      "fallback": "Bạn chưa thực hiện được thao tác này."
+      "fallback": "Bạn chưa thực hiện được thao tác này.",
+      "leave_sole_owner": "Bạn là chủ sở hữu và là thành viên duy nhất. Đóng tổ chức thay vì rời.",
+      "organization_has_members": "Tổ chức vẫn còn thành viên khác. Chuyển quyền chủ sở hữu trước khi đóng."
+    },
+    "close": {
+      "title": "Đóng tổ chức",
+      "description": "Lưu trữ tổ chức và rời khỏi đó. Workspace và dữ liệu được giữ nguyên, nhưng không ai vào được nữa.",
+      "action": "Đóng tổ chức",
+      "confirm_title": "Đóng {{name}}?",
+      "confirm_body": "{{name}} sẽ được lưu trữ: mọi workspace và dữ liệu còn nguyên nhưng không ai truy cập được, kể cả bạn. Chỉ bộ phận hỗ trợ khôi phục được. Lời mời đang chờ bị thu hồi và gói trả phí bị hủy.",
+      "confirm_label": "Gõ đường dẫn tổ chức để xác nhận",
+      "confirm_hint": "Gõ đúng \"{{slug}}\".",
+      "confirm_mismatch": "Chưa khớp với \"{{slug}}\".",
+      "done": "Đã đóng tổ chức"
     }
   },
   "invitations": {

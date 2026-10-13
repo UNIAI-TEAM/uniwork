@@ -27,4 +27,11 @@ describe("decisionReason", () => {
       "Tài khoản của bạn trong tổ chức này đang bị vô hiệu hóa.",
     );
   });
+
+  it("tells an owner with other active members to transfer before closing", () => {
+    // The decision usePeoplePermissions().decideClose(true) answers.
+    expect(decisionReason(t, { allowed: false, reason: "organization_has_members", message: "" })).toBe(
+      "Tổ chức vẫn còn thành viên khác. Chuyển quyền chủ sở hữu trước khi đóng.",
+    );
+  });
 });

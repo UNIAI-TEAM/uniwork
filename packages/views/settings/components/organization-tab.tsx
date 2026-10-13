@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useLeaveOrganization } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
@@ -11,6 +11,7 @@ import { ConfirmDialog } from "../../common/form-dialog";
 import { useWorkspace } from "../../layout/workspace-context";
 import { useOptionalNavigation } from "../../navigation";
 import { toastApiError } from "../../toast-api-error";
+import { CloseOrganizationDialog } from "./close-organization-dialog";
 import { OrgInvitationsSection } from "./org-invitations-section";
 import { OrgMembersSection } from "./org-members-section";
 import { decisionReason } from "./permission-reason";
@@ -20,7 +21,7 @@ import { TransferOwnershipDialog, useTransferCandidates } from "./transfer-owner
 /**
  * Organization membership, as opposed to workspace membership: who belongs to
  * the company, in what role, and whether they may still enter it. Handing the
- * organization over and leaving it close the tab, in the danger zone.
+ * organization over, closing it and leaving it end the tab, in the danger zone.
  */
 export function OrganizationTab() {
   const { t } = useTranslation();
@@ -31,7 +32,6 @@ export function OrganizationTab() {
   const { canLeave, canManageMembers, canTransferOwnership } = usePeoplePermissions(orgSlug);
   const leave = useLeaveOrganization(orgSlug);
   const [leaveOpen, setLeaveOpen] = useState(false);
-  const leaveReason = decisionReason(t, canLeave, "leave");
 
   const confirmLeave = () => {
     if (!canLeave.allowed || leave.isPending) return;
@@ -39,11 +39,17 @@ export function OrganizationTab() {
       onSuccess: () => {
         toast.success(t("org.leave.done"));
         setLeaveOpen(false);
-        navigation?.replace(paths.workspaces());
+        // One organization per account (ADR 0032): having left it, the person
+        // belongs to none, so the way on is to create or join one.
+        navigation?.replace(paths.getStarted());
       },
       onError: (err) => toastApiError(err, t("common.error")),
     });
   };
+
+  const leaveRow = (reason: string | null) => (
+    <LeaveRow reason={reason} allowed={canLeave.allowed} onOpen={() => setLeaveOpen(true)} />
+  );
 
   return (
     <SettingsTab title={t("settings.page.tabs.organization")} description={t("org.members.description")}>
@@ -53,32 +59,10 @@ export function OrganizationTab() {
 
       <SettingsDangerZone title={t("org.danger.title")} description={t("org.danger.description")}>
         {canTransferOwnership.allowed ? (
-          <TransferOwnershipRow orgSlug={orgSlug} organizationName={organizationName} />
-        ) : null}
-        <SettingsRow
-          label={t("org.leave.title")}
-          description={
-            <>
-              {t("org.leave.description")}
-              {leaveReason ? (
-                <span id="org-leave-reason" className="mt-1 block text-foreground">
-                  {leaveReason}
-                </span>
-              ) : null}
-            </>
-          }
-          size="none"
-        >
-          <Button
-            type="button"
-            variant="destructive"
-            aria-disabled={!canLeave.allowed || undefined}
-            aria-describedby={leaveReason ? "org-leave-reason" : undefined}
-            onClick={() => setLeaveOpen(true)}
-          >
-            {t("org.leave.action")}
-          </Button>
-        </SettingsRow>
+          <OwnerRows orgSlug={orgSlug} organizationName={organizationName} leaveRow={leaveRow} />
+        ) : (
+          leaveRow(decisionReason(t, canLeave, "leave"))
+        )}
       </SettingsDangerZone>
 
       <ConfirmDialog
@@ -96,14 +80,58 @@ export function OrganizationTab() {
   );
 }
 
+function LeaveRow({ reason, allowed, onOpen }: { reason: string | null; allowed: boolean; onOpen: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <SettingsRow
+      label={t("org.leave.title")}
+      description={
+        <>
+          {t("org.leave.description")}
+          {reason ? (
+            <span id="org-leave-reason" className="mt-1 block text-foreground">
+              {reason}
+            </span>
+          ) : null}
+        </>
+      }
+      size="none"
+    >
+      <Button
+        type="button"
+        variant="destructive"
+        aria-disabled={!allowed || undefined}
+        aria-describedby={reason ? "org-leave-reason" : undefined}
+        onClick={onOpen}
+      >
+        {t("org.leave.action")}
+      </Button>
+    </SettingsRow>
+  );
+}
+
 /**
  * Mounted only for the owner, so a plain member never reads the member pages
- * this needs. "No candidate" is said only once every page has been read.
+ * this needs. "No candidate" is said only once every page has been read, and
+ * only then is closing offered: an owner with other active members hands the
+ * organization over instead (ADR 0032 D5). Leave stays refused either way; the
+ * sentence beside it points at whichever way out applies.
  */
-function TransferOwnershipRow({ orgSlug, organizationName }: { orgSlug: string; organizationName: string }) {
+function OwnerRows({
+  orgSlug,
+  organizationName,
+  leaveRow,
+}: {
+  orgSlug: string;
+  organizationName: string;
+  leaveRow: (reason: string | null) => ReactNode;
+}) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const { candidates, none, loading, isError, retry } = useTransferCandidates(orgSlug, open);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
+  const { canLeave, decideClose } = usePeoplePermissions(orgSlug);
+  const { candidates, none, loading, isError, retry } = useTransferCandidates(orgSlug, transferOpen);
+  const canClose = decideClose(!none);
   return (
     <>
       <SettingsRow
@@ -125,11 +153,19 @@ function TransferOwnershipRow({ orgSlug, organizationName }: { orgSlug: string; 
           variant="outline"
           aria-disabled={none || undefined}
           aria-describedby={none ? "org-transfer-reason" : undefined}
-          onClick={() => setOpen(true)}
+          onClick={() => setTransferOpen(true)}
         >
           {t("org.transfer.action")}
         </Button>
       </SettingsRow>
+      {canClose.allowed ? (
+        <SettingsRow label={t("org.close.title")} description={t("org.close.description")} size="none">
+          <Button type="button" variant="destructive" onClick={() => setCloseOpen(true)}>
+            {t("org.close.action")}
+          </Button>
+        </SettingsRow>
+      ) : null}
+      {leaveRow(canClose.allowed ? t("org.reasons.leave_sole_owner") : decisionReason(t, canLeave, "leave"))}
       <TransferOwnershipDialog
         orgSlug={orgSlug}
         organizationName={organizationName}
@@ -137,8 +173,14 @@ function TransferOwnershipRow({ orgSlug, organizationName }: { orgSlug: string; 
         loadingCandidates={loading}
         candidatesError={isError}
         onRetryCandidates={retry}
-        open={open}
-        onOpenChange={setOpen}
+        open={transferOpen}
+        onOpenChange={setTransferOpen}
+      />
+      <CloseOrganizationDialog
+        orgSlug={orgSlug}
+        organizationName={organizationName}
+        open={closeOpen}
+        onOpenChange={setCloseOpen}
       />
     </>
   );

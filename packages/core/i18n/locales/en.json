@@ -4383,7 +4383,20 @@
       "not_admin_role": "Only owners and admins can do this.",
       "not_owner_role": "Only the organization owner can do this.",
       "not_resource_owner": "You cannot do this to yourself.",
-      "fallback": "You can't do this yet."
+      "fallback": "You can't do this yet.",
+      "leave_sole_owner": "You are the owner and the only member. Close the organization instead of leaving.",
+      "organization_has_members": "Other members are still active. Transfer ownership before closing."
+    },
+    "close": {
+      "title": "Close this organization",
+      "description": "Archive the organization and leave it. Workspaces and data are kept, but nobody can open them any more.",
+      "action": "Close organization",
+      "confirm_title": "Close {{name}}?",
+      "confirm_body": "{{name}} will be archived: every workspace and all its data stay, but nobody can open them, you included. Only support can restore it. Pending invitations are revoked and the paid plan is cancelled.",
+      "confirm_label": "Type the organization URL to confirm",
+      "confirm_hint": "Type \"{{slug}}\" exactly.",
+      "confirm_mismatch": "Doesn't match \"{{slug}}\".",
+      "done": "Organization closed"
     }
   },
   "invitations": {
