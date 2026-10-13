@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+7822ca7137cefdc642fb3749d0650b1f2d925d72
+d08f45a4c80f0099c727d0b33a9518d7c19e75a3
+7822ca713 chore(ai): merge the G5-G7 root d08f45a4c into G6-03a
+aa7a6842d fix(ai): refuse an unknown UniWork module before the Gateway
+d569dda28 docs(office): record G6-03a server-side partial evidence on G6-A07 and G6-A08
+d08f45a4c chore(office): re-pin the six office frames to web-0.1.0-7e082de
+e7563d9fc Merge G8-08 comments protocol host side into the G5-G7 root (UNI-1403)
+ec223ace8 test(office): cast the fixture list answer via unknown for tsc
+044a834b3 test(office): pin the shared comment body fixture through the host relay
+d82b00893 chore(office): re-vendor the frame protocol at fork 17d21132 (OQ-C2 anchor rules)

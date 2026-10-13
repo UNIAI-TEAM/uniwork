@@ -1,0 +1,6 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && export REDIS_TEST_URL=redis://localhost:6379/1 && AI_PROVIDER=fake go test -count=1 -timeout 40m ./internal/handler/ -run 'TestIsolationMatrix|TestIsolationRealtime' -v 2>&1 | grep -E '^(=== RUN|--- (PASS|FAIL|SKIP)|PASS|FAIL|ok|panic)' | grep -vE '^=== RUN' | tail -120; echo "ISOLATION_EXIT=${PIPESTATUS[0]}"
+--- PASS: TestIsolationMatrix (217.38s)
+--- PASS: TestIsolationRealtime (0.95s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	218.353s
+ISOLATION_EXIT=0
