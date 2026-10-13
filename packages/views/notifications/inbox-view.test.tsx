@@ -369,7 +369,7 @@ describe("InboxView", () => {
       const link = await screen.findByRole("link", { name: /Hợp đồng/ });
       expect(link.querySelector("[data-notification-snippet=deleted]")).toHaveTextContent(text);
       expect(link).not.toHaveTextContent("Xem giúp");
-      expect(link).toHaveAttribute("href", "/acme/team/documents/d-n1?comment=c-n1");
+      expect(link).toHaveAttribute("href", `/acme/team/documents/d-n1?comment=c-n1${kind === "discussion" ? "&kind=discussion" : ""}`);
     });
 
     it("opens a resolved comment's notification without resolving or reopening anything", async () => {

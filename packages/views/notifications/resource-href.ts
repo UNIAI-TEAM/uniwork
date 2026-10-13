@@ -33,10 +33,14 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
     case "document": {
       // The page reveals the comment (use-document-comment-deep-link); an
       // unknown or deleted comment is ignored there, so the id always rides.
+      // A discussion post adds its kind: the tab to open when it is gone.
       const target = documentWorkspace(n, workspace, workspaces);
       const href = paths.workspace(target.organization_slug, target.slug).document(n.resource_id);
       const commentId = n.params.comment_id;
-      return commentId ? `${href}?${new URLSearchParams({ comment: commentId }).toString()}` : href;
+      if (!commentId) return href;
+      const query = new URLSearchParams({ comment: commentId });
+      if (n.params.kind === "discussion") query.set("kind", "discussion");
+      return `${href}?${query.toString()}`;
     }
     case "email_account":
       return ws.email();

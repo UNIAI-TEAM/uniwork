@@ -152,13 +152,17 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
   // `?comment=`: once the list is in, open the tab that holds the thread and focus it; a post
   // that is gone says so at the top of the panel (S15 rows 3-4, panel level).
   const deepLinkId = chrome?.deepLinkId ?? "";
+  const deepLinkKind = chrome?.deepLinkKind ?? "comment";
   const handledLink = useRef<string | null>(null);
   useEffect(() => {
     if (!deepLinkId || !query.isSuccess || handledLink.current === deepLinkId) return;
     handledLink.current = deepLinkId;
     const target = findDeepLinkTarget(comments, deepLinkId);
     if (!target) {
-      setRevealMessage(format ? "comment" : "discussion");
+      // The link's kind says which tab the post lived in (a format with one tab only has the Discussion).
+      const kind = format ? deepLinkKind : "discussion";
+      if (format) setTab?.(kind);
+      setRevealMessage(kind);
       return;
     }
     if (format) setTab?.(target.kind);
@@ -166,7 +170,7 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
     if (target.deleted) setRevealMessage(target.kind);
     setFocus({ rootId: target.rootId, target: "heading" });
     setHighlightId(target.rootId);
-  }, [comments, deepLinkId, format, query.isSuccess, setTab]);
+  }, [comments, deepLinkId, deepLinkKind, format, query.isSuccess, setTab]);
   useEffect(() => {
     if (!highlightId) return undefined;
     const timer = window.setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);

@@ -330,6 +330,27 @@ describe("S12 anchored comments", () => {
     expect(message).toHaveTextContent(t(K.collabCommentDeleted));
     await waitFor(() => expect(message).toHaveFocus());
   });
+
+  // V7 F3 / ruling g5g8-web_ux:6: the link's kind names the tab a missing post lived in.
+  it("opens the Discussion tab with the discussion line when a kind=discussion post is not in the list", async () => {
+    installApi({ comments: [] });
+    renderPanel({ doc: docxDoc(), search: "comment=gone&kind=discussion" });
+    const message = await screen.findByTestId("document-comments-reveal");
+    expect(message).toHaveTextContent(t(K.collabDiscussionDeleted));
+    await waitFor(() => expect(screen.getByRole("tab", { name: discussionTitle() })).toHaveAttribute("aria-selected", "true"));
+    await waitFor(() => expect(message).toHaveFocus());
+  });
+
+  it("stays on the Comments tab with the comment line when the link names no kind or an unknown one", async () => {
+    for (const search of ["comment=gone", "comment=gone&kind=other"]) {
+      installApi({ comments: [] });
+      const { unmount } = renderPanel({ doc: docxDoc(), search });
+      const message = await screen.findByTestId("document-comments-reveal");
+      expect(message).toHaveTextContent(t(K.collabCommentDeleted));
+      expect(screen.getByRole("tab", { name: commentsTitle() })).toHaveAttribute("aria-selected", "true");
+      unmount();
+    }
+  });
 });
 
 describe("thread actions (S12/S13)", () => {

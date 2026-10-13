@@ -64,6 +64,16 @@ describe("resourceHref", () => {
       expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/documents/d1");
     });
 
+    // The kind rides only for a discussion post: the tab to open when the post is gone (V7 F3).
+    it("adds the kind to a discussion post's link and to nothing else", () => {
+      const post = { ...doc, params: { comment_id: "c1", kind: "discussion" } } as Notification;
+      expect(resourceHref(post, workspace, [workspace])).toBe("/acme/team/documents/d1?comment=c1&kind=discussion");
+      for (const params of [{ comment_id: "c1", kind: "comment" }, { comment_id: "c1" }, { comment_id: "c1", kind: "x" }]) {
+        const n = { ...doc, params } as Notification;
+        expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/documents/d1?comment=c1");
+      }
+    });
+
     it("escapes the comment id", () => {
       const n = { ...doc, params: { comment_id: "c 1&x" } } as Notification;
       expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/documents/d1?comment=c+1%26x");
