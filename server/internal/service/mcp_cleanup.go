@@ -12,9 +12,11 @@ type McpCleanupReport struct{ Attempts, Tokens, Clients int64 }
 const mcpSweepEvery = time.Hour
 
 // Sweep deletes authorization attempts expired for a day, tokens expired for a
-// week, and dynamically registered clients that never got a grant and sat
-// unused for 30 days (spec §6). Grants are never deleted: settings and audit
-// read them long after their tokens are gone.
+// week, dynamically registered clients that never got a grant and sat unused
+// for 30 days, and metadata-document clients with no grant that were neither
+// used nor fetched for a day (spec §6); none of them while a live attempt
+// needs the client. Grants are never deleted: settings and audit read them
+// long after their tokens are gone.
 func (s *McpAuthService) Sweep(ctx context.Context) (McpCleanupReport, error) {
 	var r McpCleanupReport
 	var err error

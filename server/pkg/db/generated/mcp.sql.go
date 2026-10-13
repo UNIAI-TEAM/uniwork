@@ -295,16 +295,21 @@ func (q *Queries) CreateMcpToken(ctx context.Context, arg CreateMcpTokenParams) 
 
 const deleteAbandonedMcpClients = `-- name: DeleteAbandonedMcpClients :execrows
 DELETE FROM mcp_clients c
-WHERE c.kind = 'dcr' AND COALESCE(c.last_used_at, c.created_at) < now() - interval '30 days'
+WHERE ((c.kind = 'dcr' AND COALESCE(c.last_used_at, c.created_at) < now() - interval '30 days')
+    OR (c.kind = 'cimd' AND GREATEST(c.created_at, c.metadata_fetched_at, c.last_used_at) < now() - interval '1 day'))
   AND NOT EXISTS (SELECT 1 FROM mcp_grants g WHERE g.client_id = c.client_id)
   AND NOT EXISTS (SELECT 1 FROM mcp_auth_attempts a WHERE a.client_id = c.client_id AND a.expires_at > now())
 `
 
 // tenant: system
-// A client with a live authorization attempt is in the middle of consent: Start
-// does not touch last_used_at, so without this a client registered long ago
-// could be deleted between Start and Approve, which would then write a grant
-// for a client that is gone.
+// A registered (dcr) client goes after 30 days unused. A metadata-document
+// (cimd) row is only a cache of a document fetched again on the next request,
+// and anyone can make the server store one by naming a URL, so it goes once it
+// has been neither used nor fetched for a day. Either kind stays while it has
+// a grant (the grant lists JOIN mcp_clients) or a live authorization attempt:
+// Start does not touch last_used_at, so without that a client could be deleted
+// between Start and Approve, which would then write a grant for a client that
+// is gone.
 func (q *Queries) DeleteAbandonedMcpClients(ctx context.Context) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteAbandonedMcpClients)
 	if err != nil {

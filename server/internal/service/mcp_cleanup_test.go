@@ -146,8 +146,8 @@ func TestMcpSweepDeletesOnlyAbandonedClients(t *testing.T) {
 	}
 	age(revokedGrant, "90 days", "90 days")
 
-	// A client that identifies itself by URL is fetched again whenever it
-	// returns; the sweep leaves it alone whatever its age.
+	// A client that identifies itself by URL and was fetched today stays,
+	// whatever its age (TestMcpSweepDeletesUnusedMetadataDocumentClients).
 	cimd, err := w.q.UpsertMcpCIMDClient(w.ctx, db.UpsertMcpCIMDClientParams{ID: util.NewID(), ClientID: "https://c.example/meta.json", ClientName: "CIMD", LogoUri: "", RedirectUris: `["https://x.test/cb"]`})
 	if err != nil {
 		t.Fatal(err)
@@ -278,5 +278,70 @@ func TestMcpSweepKeepsAClientWithALiveAuthorizationAttempt(t *testing.T) {
 	}
 	if _, err := w.svc.Consent(w.ctx, w.owner.ID, attemptID(t, consentURL)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// I4: anyone can make the server store a metadata-document client by naming a
+// URL at /oauth/authorize. Such a row is only a cache of a document the server
+// can fetch again, so once nothing holds it (no grant: the grant lists JOIN
+// mcp_clients; no live attempt: Approve needs the row) and it has been neither
+// used nor fetched for a day, the sweep deletes it.
+func TestMcpSweepDeletesUnusedMetadataDocumentClients(t *testing.T) {
+	w := newMcpWorld(t)
+	cimd := func(name string) string {
+		t.Helper()
+		id := "https://" + name + ".example/meta.json"
+		if _, err := w.q.UpsertMcpCIMDClient(w.ctx, db.UpsertMcpCIMDClientParams{ID: util.NewID(), ClientID: id, ClientName: name, RedirectUris: `["https://x.test/cb"]`}); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	age := func(clientID, created, fetched, used string) {
+		t.Helper()
+		sql := `UPDATE mcp_clients SET created_at = now() - $2::interval, metadata_fetched_at = now() - $3::interval,
+			last_used_at = CASE WHEN $4 = '' THEN NULL ELSE now() - $4::interval END WHERE client_id = $1`
+		if _, err := w.pool.Exec(w.ctx, sql, clientID, created, fetched, used); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	unused := cimd("unused")
+	age(unused, "3 days", "3 days", "")
+	usedLongAgo := cimd("used-long-ago")
+	age(usedLongAgo, "40 days", "2 days", "2 days")
+	granted := cimd("granted")
+	if _, err := w.q.CreateMcpGrant(w.ctx, db.CreateMcpGrantParams{ID: util.NewID(), OrganizationID: w.org.ID, UserID: w.owner.ID, ClientID: granted, Scope: "read", CreatedBy: w.owner.ID, CreatedByKind: "human"}); err != nil {
+		t.Fatal(err)
+	}
+	age(granted, "90 days", "90 days", "")
+	inFlight := cimd("in-flight")
+	w.attempt(t, inFlight, time.Now().Add(5*time.Minute))
+	age(inFlight, "3 days", "3 days", "")
+	fetchedRecently := cimd("fetched-recently")
+	age(fetchedRecently, "3 days", "1 hour", "")
+	usedRecently := cimd("used-recently")
+	age(usedRecently, "3 days", "3 days", "1 hour")
+	registeredToday := cimd("registered-today")
+
+	r, err := w.svc.Sweep(w.ctx)
+	if err != nil || r.Clients != 2 {
+		t.Fatalf("sweep = %+v, %v; want the two unused metadata-document clients", r, err)
+	}
+	has := func(clientID string) bool {
+		t.Helper()
+		return w.countRows(t, `SELECT count(*) FROM mcp_clients WHERE client_id = $1`, clientID) == 1
+	}
+	for name, id := range map[string]string{"unused for three days": unused, "used two days ago": usedLongAgo} {
+		if has(id) {
+			t.Errorf("client %s was kept", name)
+		}
+	}
+	for name, id := range map[string]string{
+		"with a grant": granted, "with a live attempt": inFlight, "fetched an hour ago": fetchedRecently,
+		"used an hour ago": usedRecently, "registered today": registeredToday,
+	} {
+		if !has(id) {
+			t.Errorf("client %s was deleted", name)
+		}
 	}
 }
