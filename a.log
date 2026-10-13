@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -6
+d08f45a4c80f0099c727d0b33a9518d7c19e75a3
+d08f45a4c chore(office): re-pin the six office frames to web-0.1.0-7e082de
+e7563d9fc Merge G8-08 comments protocol host side into the G5-G7 root (UNI-1403)
+ec223ace8 test(office): cast the fixture list answer via unknown for tsc
+044a834b3 test(office): pin the shared comment body fixture through the host relay
+d82b00893 chore(office): re-vendor the frame protocol at fork 17d21132 (OQ-C2 anchor rules)
+853430b4a test(office): pin the OQ-C2 anchor rule in the vendored comments.create validator
