@@ -72,5 +72,6 @@ func (s *AdminService) RevokeOrganizationOfflineLeases(ctx context.Context, acto
 	if err := tx.Commit(ctx); err != nil {
 		return RevokedOfficeLeases{}, err
 	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeAdmin, revoked)
 	return RevokedOfficeLeases{OrganizationID: orgID, Epoch: epoch, Revoked: revoked}, nil
 }

@@ -97,12 +97,12 @@ func (c *OfficeLeaseRevoker) revokeUserInOrganization(ctx context.Context, orgID
 	if userID == "" {
 		return nil
 	}
-	return c.inTx(ctx, func(q *db.Queries) error {
+	n, err := c.inTx(ctx, func(q *db.Queries) (int, error) {
 		rows, err := q.RevokeOfficeOfflineLeasesForUserInOrganization(ctx, db.RevokeOfficeOfflineLeasesForUserInOrganizationParams{
 			OrganizationID: orgID, UserID: userID, Reason: reason,
 		})
 		if err != nil {
-			return err
+			return 0, err
 		}
 		refs := make([]officeLeaseRef, len(rows))
 		for i, r := range rows {
@@ -110,6 +110,11 @@ func (c *OfficeLeaseRevoker) revokeUserInOrganization(ctx context.Context, orgID
 		}
 		return recordOfficeLeaseRevokes(ctx, q, officeLeaseRevokeActor, reason, refs)
 	})
+	if err != nil {
+		return err
+	}
+	observeOfficeLeaseRevokes(reason, n)
+	return nil
 }
 
 // recheckUserInWorkspace re-reads the live ACL of each of the person's leases
@@ -119,18 +124,18 @@ func (c *OfficeLeaseRevoker) recheckUserInWorkspace(ctx context.Context, orgID, 
 	if userID == "" {
 		return nil
 	}
-	return c.inTx(ctx, func(q *db.Queries) error {
+	n, err := c.inTx(ctx, func(q *db.Queries) (int, error) {
 		rows, err := q.ListLiveOfficeOfflineLeasesForUserInWorkspace(ctx, db.ListLiveOfficeOfflineLeasesForUserInWorkspaceParams{
 			WorkspaceID: workspaceID, UserID: userID,
 		})
 		if err != nil {
-			return err
+			return 0, err
 		}
 		var lost []string
 		for _, r := range rows {
 			ok, err := c.stillReads(ctx, q, userID, r.DocumentID)
 			if err != nil {
-				return err
+				return 0, err
 			}
 			if !ok {
 				lost = append(lost, r.ID)
@@ -138,6 +143,11 @@ func (c *OfficeLeaseRevoker) recheckUserInWorkspace(ctx context.Context, orgID, 
 		}
 		return revokeOfficeLeaseIDs(ctx, q, orgID, lost, OfficeLeaseRevokeMemberRemoved)
 	})
+	if err != nil {
+		return err
+	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeMemberRemoved, n)
+	return nil
 }
 
 // recheckDocument re-reads the live ACL of every holder of a lease on the
@@ -146,12 +156,12 @@ func (c *OfficeLeaseRevoker) recheckDocument(ctx context.Context, orgID, documen
 	if documentID == "" {
 		return nil
 	}
-	return c.inTx(ctx, func(q *db.Queries) error {
+	n, err := c.inTx(ctx, func(q *db.Queries) (int, error) {
 		rows, err := q.ListLiveOfficeOfflineLeasesForDocument(ctx, db.ListLiveOfficeOfflineLeasesForDocumentParams{
 			OrganizationID: orgID, DocumentID: documentID,
 		})
 		if err != nil {
-			return err
+			return 0, err
 		}
 		readers := map[string]bool{}
 		var lost []string
@@ -159,7 +169,7 @@ func (c *OfficeLeaseRevoker) recheckDocument(ctx context.Context, orgID, documen
 			ok, seen := readers[r.UserID]
 			if !seen {
 				if ok, err = c.stillReads(ctx, q, r.UserID, documentID); err != nil {
-					return err
+					return 0, err
 				}
 				readers[r.UserID] = ok
 			}
@@ -169,18 +179,23 @@ func (c *OfficeLeaseRevoker) recheckDocument(ctx context.Context, orgID, documen
 		}
 		return revokeOfficeLeaseIDs(ctx, q, orgID, lost, reason)
 	})
+	if err != nil {
+		return err
+	}
+	observeOfficeLeaseRevokes(reason, n)
+	return nil
 }
 
 func (c *OfficeLeaseRevoker) revokeDocument(ctx context.Context, orgID, documentID string) error {
 	if documentID == "" {
 		return nil
 	}
-	return c.inTx(ctx, func(q *db.Queries) error {
+	n, err := c.inTx(ctx, func(q *db.Queries) (int, error) {
 		rows, err := q.ListLiveOfficeOfflineLeasesForDocument(ctx, db.ListLiveOfficeOfflineLeasesForDocumentParams{
 			OrganizationID: orgID, DocumentID: documentID,
 		})
 		if err != nil {
-			return err
+			return 0, err
 		}
 		ids := make([]string, len(rows))
 		for i, r := range rows {
@@ -188,6 +203,11 @@ func (c *OfficeLeaseRevoker) revokeDocument(ctx context.Context, orgID, document
 		}
 		return revokeOfficeLeaseIDs(ctx, q, orgID, ids, OfficeLeaseRevokeDocumentDeleted)
 	})
+	if err != nil {
+		return err
+	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeDocumentDeleted, n)
+	return nil
 }
 
 // revokeOrganization revokes the live leases of a suspended organization.
@@ -195,10 +215,14 @@ func (c *OfficeLeaseRevoker) revokeDocument(ctx context.Context, orgID, document
 // none of them renews even before this runs; this makes the holders' online
 // devices lock now instead of at the next renewal.
 func (c *OfficeLeaseRevoker) revokeOrganization(ctx context.Context, orgID string) error {
-	return c.inTx(ctx, func(q *db.Queries) error {
-		_, err := revokeOfficeLeasesForOrganization(ctx, q, officeLeaseRevokeActor, orgID, OfficeLeaseRevokePolicyEpoch)
-		return err
+	n, err := c.inTx(ctx, func(q *db.Queries) (int, error) {
+		return revokeOfficeLeasesForOrganization(ctx, q, officeLeaseRevokeActor, orgID, OfficeLeaseRevokePolicyEpoch)
 	})
+	if err != nil {
+		return err
+	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokePolicyEpoch, n)
+	return nil
 }
 
 // stillReads reports whether the person reads the document now. The archive
@@ -222,28 +246,36 @@ func (c *OfficeLeaseRevoker) stillReads(ctx context.Context, q *db.Queries, user
 	return access.Level != DocumentLevelNone, nil
 }
 
-func (c *OfficeLeaseRevoker) inTx(ctx context.Context, fn func(q *db.Queries) error) error {
+// inTx runs one revoke in its own transaction and returns how many leases it
+// recorded; the caller observes the counter only after this returns without
+// error - that is, only once the transaction has committed (G508S-BE-5).
+func (c *OfficeLeaseRevoker) inTx(ctx context.Context, fn func(q *db.Queries) (int, error)) (int, error) {
 	tx, err := c.docs.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := fn(c.docs.q.WithTx(tx)); err != nil {
-		return err
+	n, err := fn(c.docs.q.WithTx(tx))
+	if err != nil {
+		return 0, err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
-// revokeOfficeLeaseIDs revokes the named live leases of one organization.
-func revokeOfficeLeaseIDs(ctx context.Context, q *db.Queries, orgID string, ids []string, reason string) error {
+// revokeOfficeLeaseIDs revokes the named live leases of one organization and
+// returns how many it recorded in the caller's transaction.
+func revokeOfficeLeaseIDs(ctx context.Context, q *db.Queries, orgID string, ids []string, reason string) (int, error) {
 	if len(ids) == 0 {
-		return nil
+		return 0, nil
 	}
 	rows, err := q.RevokeOfficeOfflineLeasesByIDs(ctx, db.RevokeOfficeOfflineLeasesByIDsParams{
 		OrganizationID: orgID, Ids: ids, Reason: reason,
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 	refs := make([]officeLeaseRef, len(rows))
 	for i, r := range rows {
