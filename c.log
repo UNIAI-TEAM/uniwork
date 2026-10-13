@@ -1,0 +1,5 @@
+$ . scripts/local-env.sh && cd server && go test ./internal/service -run 'TestEveryAuditedCommandWritesItsRow|TestReusedAuditActionCommandsWriteTheirOwnRows|TestDesktop|TestAdmin|TestSuspend|TestDeactivation|TestTenantExport|TestTenantDelet|TestUserWideRevoke' -count=1; echo "G508S_NEIGHBOUR_EXIT $?"; true
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/service	29.888s
+G508S_NEIGHBOUR_EXIT 0

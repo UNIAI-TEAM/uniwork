@@ -1,0 +1,12 @@
+$ . scripts/local-env.sh && cd server && go test ./internal/handler -run 'TestIsolationMatrix|TestIsolationOffice|TestIsolationRealtime|TestEveryBodyIDFieldHasAReferenceCase|TestOfficeLeaseOpenAPI|TestSwagger' -count=1 -v 2>&1 | grep -E '^(--- |PASS|FAIL|ok|panic)'; echo "G508S_ISOLATION_EXIT ${PIPESTATUS[0]}"; true
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestIsolationMatrix (265.52s)
+--- PASS: TestIsolationRealtime (0.98s)
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.00s)
+--- PASS: TestOfficeLeaseOpenAPI (0.49s)
+--- PASS: TestSwaggerRoutesOffByDefault (0.00s)
+--- PASS: TestSwaggerSpecFollowsChiRoutesAndSDI (0.49s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	267.509s
+G508S_ISOLATION_EXIT 0
