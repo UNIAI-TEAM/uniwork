@@ -109,8 +109,11 @@ export async function listDocumentChanges(
   } catch (err) {
     // Matched on the stable code, not the status alone: another 400/410 (a bad
     // limit, an unknown commit intent) is not a cursor problem.
-    const reason = err instanceof ApiError ? RESYNC_BY_CODE[err.code] : undefined;
-    if (reason) return { kind: "resync", reason };
+    // Own keys only: the code is server-supplied, and `constructor` or
+    // `__proto__` must not resolve through Object.prototype.
+    if (err instanceof ApiError && Object.hasOwn(RESYNC_BY_CODE, err.code)) {
+      return { kind: "resync", reason: RESYNC_BY_CODE[err.code]! };
+    }
     throw err;
   }
   const parsed = parseWithFallback<z.infer<typeof documentChangePageSchema> | null>(

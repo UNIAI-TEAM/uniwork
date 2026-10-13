@@ -98,6 +98,11 @@ describe("listDocumentChanges", () => {
     ["a missing next_cursor", pageBody({ next_cursor: undefined })],
     ["an empty next_cursor", pageBody({ next_cursor: "" })],
     ["a non-boolean has_more", pageBody({ has_more: "yes" })],
+    ["a row without current_version", pageBody({ changes: [rowBody({ current_version: undefined })] })],
+    ["a non-integer current_version", pageBody({ changes: [rowBody({ current_version: 1.5 })] })],
+    ["a numeric version_id", pageBody({ changes: [rowBody({ version_id: 7 })] })],
+    ["a missing phase", pageBody({ phase: undefined })],
+    ["a missing expires_at", pageBody({ expires_at: undefined })],
   ];
 
   it.each(malformed)("degrades to an unavailable result on %s, never a throw, never a short page", async (_name, body) => {
@@ -121,6 +126,19 @@ describe("listDocumentChanges", () => {
   it("does not turn a 400 invalid_request (bad limit) into a resync", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(errorBody("invalid_request", 400));
     await expect(listDocumentChanges("w1", { limit: -1 })).rejects.toMatchObject({ code: "invalid_request", status: 400 });
+  });
+
+  it.each([
+    ["constructor", 410],
+    ["constructor", 400],
+    ["toString", 400],
+    ["__proto__", 410],
+    ["__proto__", 400],
+  ])("does not read %s (%i) off Object.prototype as a resync", async (code, status) => {
+    vi.mocked(fetch).mockResolvedValueOnce(errorBody(code, status));
+    const err = await listDocumentChanges("w1", { cursor: "c" }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ code, status });
   });
 
   it("does not turn another 410 code into a resync", async () => {
