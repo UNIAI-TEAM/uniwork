@@ -17,7 +17,7 @@ export default defineConfig({
   }],
   test: {
     environment: "jsdom",
-    include: ["platform/**/*.test.{ts,tsx}"],
+    include: ["platform/**/*.test.{ts,tsx}", "features/**/*.test.{ts,tsx}"],
     setupFiles: ["./test/setup.ts"],
     ...vitestPoolOptions(),
     coverage: {

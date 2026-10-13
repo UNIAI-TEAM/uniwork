@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "./office-desktop";
+import { getOfficeDesktopDownload } from "./office-desktop";
 
 const request = vi.hoisted(() => vi.fn());
-const requestBlob = vi.hoisted(() => vi.fn());
-vi.mock("../http", () => ({ request, requestBlob }));
+vi.mock("../http", () => ({ request }));
 describe("office desktop download endpoint", () => {
   it("requests the organization-scoped channel profile", async () => {
     request.mockResolvedValue({ installer_url: "https://downloads.test/office.exe", server_origin: "https://api.test", channel: "beta", client_id: "uniwork-office", deployment_id: "default" });
@@ -22,7 +21,7 @@ describe("office desktop download endpoint", () => {
     request.mockResolvedValue({ installer_url: "https://downloads.test/office.dmg", server_origin: "https://api.test", channel: "stable", client_id: "uniwork-office", deployment_id: "default" });
     await expect(getOfficeDesktopDownload("org-1")).resolves.toBeNull();
   });
-  it.each(["bad%5Cname.exe", "bad%0Aname.exe", "bad%00name.exe", "bad%3Fname.exe", "bad%3Aname.exe", "bad%22name.exe"])("refuses a filename the bundle cannot preserve: %s", async (filename) => {
+  it.each(["bad%5Cname.exe", "bad%0Aname.exe", "bad%00name.exe", "bad%3Fname.exe", "bad%3Aname.exe", "bad%22name.exe"])("refuses a filename the install steps cannot name: %s", async (filename) => {
     request.mockResolvedValue({ server_origin: "https://api.test", channel: "stable", client_id: "uniwork-office", deployment_id: "default",
       installers: [{ platform: "win32-x64", url: `https://downloads.test/${filename}`, kind: ".exe" }] });
     await expect(getOfficeDesktopDownload("org-1")).resolves.toBeNull();
@@ -36,13 +35,11 @@ describe("office desktop download endpoint", () => {
     request.mockResolvedValue({ installer_url: "https://downloads.test/office.exe", server_origin: "https://api.test", channel: "stable", client_id: "uniwork-office", deployment_id: "default", [field]: "https://[broken" });
     await expect(getOfficeDesktopDownload("org-1")).resolves.toBeNull();
   });
-  it("downloads the authenticated ZIP and refuses JSON masquerading as a bundle", async () => {
-    const zip = new Blob(["fixture"], { type: "application/zip" });
-    requestBlob.mockResolvedValueOnce(zip);
-    await expect(downloadOfficeDesktopBundle("org/1", "beta", "darwin-arm64")).resolves.toBe(zip);
-    expect(requestBlob).toHaveBeenCalledWith("/api/v1/office/desktop/download?organization_id=org%2F1&channel=beta&bundle=true&platform=darwin-arm64");
-    requestBlob.mockResolvedValueOnce(new Blob(["{}"], { type: "application/json" }));
-    await expect(downloadOfficeDesktopBundle("org/1", "beta", "darwin-arm64")).rejects.toThrow("invalid desktop installer bundle");
+  it("names the clicked platform so the server audits it and answers that installer only", async () => {
+    request.mockResolvedValue({ server_origin: "https://api.test", channel: "beta", client_id: "uniwork-office", deployment_id: "default",
+      installers: [{ platform: "darwin-arm64", url: "https://downloads.test/office-arm64.dmg", kind: ".dmg" }] });
+    await expect(getOfficeDesktopDownload("org/1", "beta", "darwin-arm64")).resolves.toMatchObject({ installers: [{ platform: "darwin-arm64", url: "https://downloads.test/office-arm64.dmg" }] });
+    expect(request).toHaveBeenCalledWith("/api/v1/office/desktop/download?organization_id=org%2F1&channel=beta&platform=darwin-arm64");
   });
   it("orders configured choices, ignores unknown API keys and does not invent missing builds", async () => {
     request.mockResolvedValue({ server_origin: "https://api.test", channel: "beta", client_id: "uniwork-office", deployment_id: "default",

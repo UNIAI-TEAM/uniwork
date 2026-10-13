@@ -135,9 +135,9 @@ func (h *handlers) mapDocumentUploadError(w http.ResponseWriter, part *cappedDoc
 	h.mapServiceError(w, err)
 }
 
-// createDocument is POST /workspaces/{workspaceID}/documents: a page. The
-// body carries content under the 2 MiB+envelope cap; kind must be "page" (a
-// file document is created on the multipart route). Idempotency-Key binds
+// createDocument is POST /workspaces/{workspaceID}/documents: a page or a
+// folder. The body carries content under the 2 MiB+envelope cap; kind must be
+// "page" or "folder" (a file document is created on the multipart route). Idempotency-Key binds
 // the create to its payload fingerprint.
 func (h *handlers) createDocument(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
@@ -148,8 +148,8 @@ func (h *handlers) createDocument(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxDocumentJSONBody) {
 		return
 	}
-	if in.Kind != "" && in.Kind != service.DocumentKindPage {
-		respondError(w, http.StatusBadRequest, "invalid_request", "kind must be page; use the multipart route for file documents")
+	if in.Kind != "" && in.Kind != service.DocumentKindPage && in.Kind != service.DocumentKindFolder {
+		respondError(w, http.StatusBadRequest, "invalid_request", "kind must be page or folder; use the multipart route for file documents")
 		return
 	}
 	var content json.RawMessage
@@ -157,6 +157,7 @@ func (h *handlers) createDocument(w http.ResponseWriter, r *http.Request) {
 		content = *in.Content
 	}
 	view, err := h.Documents.CreatePage(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.CreatePageInput{
+		Kind:           in.Kind,
 		ParentID:       stringValue(in.ParentID),
 		Title:          in.Title,
 		Icon:           stringValue(in.Icon),

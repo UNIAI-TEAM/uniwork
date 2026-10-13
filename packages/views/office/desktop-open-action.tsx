@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { ChevronDown, Download, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, DESKTOP_INSTALLER_KINDS, DESKTOP_PLATFORMS, type DesktopPlatform, type DesktopPlatformGuess, type OfficeInstallerOption, type OfficeChannel, type OfficeLaunchOutcome, type OfficeState } from "@uniwork/core/office";
 import {
   createOfficeLaunchSession,
@@ -46,7 +47,7 @@ export interface OfficeSaveOutcome {
 
 export type OfficeLaunchSessionFactory = (
   documentId: string,
-  body: { operation: "edit"; version?: number; deployment_id: string; client_id: string; return_hint: "office" },
+  body: { operation: "edit" | "view"; version?: number; deployment_id: string; client_id: string; return_hint: "office" },
 ) => Promise<OfficeLaunchSessionResponse | null>;
 
 /** What "Open in desktop app" needs of the editor's save coordinator: save first when there are unsaved edits. */
@@ -68,6 +69,10 @@ export interface DesktopOpenActionProps {
   /** Undefined when the server config never advertised a deployment binding;
    * the action then fails closed instead of guessing one. */
   deploymentId: string | undefined;
+  /** The deployment's public API origin. With `deploymentId` it rides on the
+   * open link so the app connects to (or follows) this server; absent, the
+   * link carries no profile and the app keeps the server it has. */
+  apiOrigin?: string;
   /** The selected version must be a server version ordinal, never a file id. */
   savedVersion: number | null;
   dirty?: boolean;
@@ -84,13 +89,19 @@ export interface DesktopOpenActionProps {
   platformHint?: DesktopPlatformGuess;
   loadInstallers?: () => Promise<{ installers: OfficeInstallerOption[]; supportedPlatforms?: readonly DesktopPlatform[] }>;
   loadPlatformHint?: () => Promise<DesktopPlatformGuess>;
-  downloadInstaller?: (platform: DesktopPlatform) => Promise<void>;
+  /** Hands the browser the installer URL and resolves with its file name. */
+  downloadInstaller?: (platform: DesktopPlatform) => Promise<string>;
   className?: string;
   /** Filled with the same flow the button runs, for a caller that is not the button (a frame's `app.open`). */
   requestRef?: MutableRefObject<(() => Promise<DesktopOpenOutcome>) | null>;
   /** `header` (default) fills the page header slot and its compact menu;
-   * `inline` renders in place, always visible, with no header-slot behaviour. */
-  placement?: "header" | "inline";
+   * `inline` renders in place, always visible, with no header-slot behaviour;
+   * `row` is one compact button for a list row (no installer split menu — the
+   * install prompt still opens when the app does not answer). */
+  placement?: "header" | "inline" | "row";
+  /** `view` asks for a read-only session (a viewer, or a file the caller may
+   * not change); the server still decides and never upgrades it. */
+  operation?: "edit" | "view";
 }
 
 function isAccepted(outcome: unknown): outcome is OfficeSaveOutcome & { accepted: true } {
@@ -114,6 +125,7 @@ function stateDirty(state: ReturnType<OfficeSaveCoordinatorLike["getState"]> | n
 export function DesktopOpenAction({
   documentId,
   deploymentId,
+  apiOrigin,
   savedVersion,
   dirty = false,
   saveCoordinator,
@@ -131,12 +143,16 @@ export function DesktopOpenAction({
   className,
   requestRef,
   placement = "header",
+  operation = "edit",
 }: DesktopOpenActionProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.desktop" });
   const [coordinatorState, setCoordinatorState] = useState(() => saveCoordinator?.getState() ?? null);
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [working, setWorking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // An object, so each failed attempt is a new value and the row toast fires again for the same message.
+  const [failure, setFailure] = useState<{ message: string } | null>(null);
+  const setError = (message: string | null) => setFailure(message === null ? null : { message });
+  const error = failure?.message ?? null;
   const [installOpen, setInstallOpen] = useState(false);
   const [installReason, setInstallReason] = useState<"not-installed" | "expired" | "error" | "download">("not-installed");
   const [resolvedInstallers, setResolvedInstallers] = useState(installers);
@@ -152,7 +168,7 @@ export function DesktopOpenAction({
   };
   const launchedAt = useRef(0);
   const headerSlot = useHeaderActionsSlotAvailable();
-  const inline = placement === "inline";
+  const inline = placement !== "header";
   const inPageHeader = headerSlot && !inline;
   const currentlyDirty = dirty || stateDirty(coordinatorState);
   const canOpenSaved = savedVersion !== null && Number.isSafeInteger(savedVersion) && savedVersion > 0;
@@ -177,6 +193,9 @@ export function DesktopOpenAction({
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [installOpen, installReason]);
+  useEffect(() => {
+    if (placement === "row" && failure) toast.error(failure.message);
+  }, [placement, failure]);
   useEffect(() => setResolvedInstallers(installers), [installers]);
   useEffect(() => setResolvedPlatforms(supportedPlatforms), [supportedPlatforms]);
   useEffect(() => setResolvedHint(platformHint), [platformHint]);
@@ -201,16 +220,18 @@ export function DesktopOpenAction({
       // current one, so the body leaves it out. The check above only proves
       // the editor knows what it is handing off.
       const session = await createSession(documentId, {
-        operation: "edit", deployment_id: deploymentId, client_id: clientId, return_hint: "office",
+        operation, deployment_id: deploymentId, client_id: clientId, return_hint: "office",
       });
       if (!session) {
         setError(t("ticket_failed"));
         return "unavailable";
       }
       // Rebuild from the ticket even when the server included a URL. This
-      // keeps the scheme/channel binding and excludes title/path/token/bytes.
-      const url = safeOfficeDeepLink(session, channel);
-      if (!url || url !== buildOfficeDeepLink(session.launch_ticket, channel)) {
+      // keeps the scheme/channel binding and excludes title/path/token/bytes;
+      // only the public deployment profile is added.
+      const profile = apiOrigin ? { deploymentId, apiOrigin } : undefined;
+      const url = safeOfficeDeepLink(session, channel, profile);
+      if (!url || url !== buildOfficeDeepLink(session.launch_ticket, channel, profile)) {
         setError(t("ticket_failed"));
         return "unavailable";
       }
@@ -300,29 +321,48 @@ export function DesktopOpenAction({
   return (
     <>
       {compactMenuItems ? <HeaderActionsFill menuItems={compactMenuItems} /> : null}
-      <ButtonGroup className={cn(inPageHeader && "hidden sm:flex", className)} data-office-desktop-action>
-        <Button type="button" variant={inline ? "default" : "outline"} size="sm" onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
+      {placement === "row" ? (
+        // Icon-only, per the design: the Name column keeps the width, the text
+        // stays in the accessible name and the title is the tooltip. A failure goes to a toast (see the effect above), so
+        // nothing wide lands in the row cell.
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          className={className}
+          data-office-desktop-action
+          onClick={() => { if (!working) onAction(); }}
+          aria-disabled={working || undefined}
+          title={label}
+        >
           <MonitorUp aria-hidden />
-          <span className={inline ? undefined : "sr-only lg:not-sr-only"}>{working ? t("working") : label}</span>
+          <span className="sr-only">{working ? t("working") : t("row_action")}</span>
         </Button>
-        <DropdownMenu onOpenChange={requestHint}>
-          <DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon-sm" aria-label={t("menu")} title={t("menu")} />}>
-            <ChevronDown aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-56">
-            <DropdownMenuItem className="gap-2 px-2 py-2" onClick={onAction}>
-              <MonitorUp aria-hidden className="size-3.5" />
-              {label}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 px-2 py-2" onClick={openDownload}>
-              <Download aria-hidden className="size-3.5" />
-              {downloadLabel}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </ButtonGroup>
-      {error ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
+      ) : (
+        <ButtonGroup className={cn(inPageHeader && "hidden sm:flex", className)} data-office-desktop-action>
+          <Button type="button" variant={inline ? "default" : "outline"} size="sm" onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
+            <MonitorUp aria-hidden />
+            <span className={inline ? undefined : "sr-only lg:not-sr-only"}>{working ? t("working") : label}</span>
+          </Button>
+          <DropdownMenu onOpenChange={requestHint}>
+            <DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon-sm" aria-label={t("menu")} title={t("menu")} />}>
+              <ChevronDown aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+              <DropdownMenuItem className="gap-2 px-2 py-2" onClick={onAction}>
+                <MonitorUp aria-hidden className="size-3.5" />
+                {label}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2 px-2 py-2" onClick={openDownload}>
+                <Download aria-hidden className="size-3.5" />
+                {downloadLabel}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </ButtonGroup>
+      )}
+      {error && placement !== "row" ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
       <Dialog open={choiceOpen} onOpenChange={(open) => { if (working) return; setChoiceOpen(open); if (!open) settleRequest("unavailable"); }}>
         <DialogContent className="sm:max-w-md" aria-describedby="office-desktop-choice-description">
           <DialogHeader>

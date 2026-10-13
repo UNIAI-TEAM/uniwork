@@ -44,7 +44,7 @@ export const DOCUMENT_MENTION_KINDS = ["user", "task", "document", "meeting"] as
 export type DocumentNodeType = (typeof DOCUMENT_NODE_TYPES)[number];
 export type DocumentMarkType = (typeof DOCUMENT_MARK_TYPES)[number];
 export type DocumentMentionKind = (typeof DOCUMENT_MENTION_KINDS)[number];
-export type DocumentKind = "page" | "file";
+export type DocumentKind = "page" | "file" | "folder";
 export type DocumentLevel = "" | "view" | "edit" | "manage";
 
 export type DocumentErrorCode = "document_invalid" | "document_too_large";

@@ -312,6 +312,7 @@ func (s *DocumentService) personAccess(ctx context.Context, doc db.Document, use
 type SharedDocument struct {
 	Document db.Document
 	Access   DocumentAccess
+	Facts    DocumentListFacts
 }
 
 // SharedWithMeQuery is one page request of the recipient's shared list.
@@ -357,6 +358,21 @@ func EffectiveSharedWithMeLimit(limit int) int {
 // candidates and returns the keyset of the last row processed so the route
 // can hand out an opaque next cursor.
 func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organizationID string, in SharedWithMeQuery) (SharedWithMePage, error) {
+	page, err := s.listSharedWithMePage(ctx, userID, organizationID, in)
+	if err != nil {
+		return SharedWithMePage{}, err
+	}
+	facts, err := s.listFacts(ctx, organizationID, sharedDocuments(page.Items))
+	if err != nil {
+		return SharedWithMePage{}, err
+	}
+	for i := range page.Items {
+		page.Items[i].Facts = facts[i]
+	}
+	return page, nil
+}
+
+func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, organizationID string, in SharedWithMeQuery) (SharedWithMePage, error) {
 	if _, err := s.orgs.RequireMember(ctx, organizationID, userID); err != nil {
 		if errors.Is(err, ErrForbidden) {
 			return SharedWithMePage{}, ErrNotFound

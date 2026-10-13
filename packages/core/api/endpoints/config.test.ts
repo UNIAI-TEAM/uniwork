@@ -41,6 +41,15 @@ describe("config endpoints", () => {
     expect((await getPublicConfig()).office_deployment_id).toBe("default");
   });
 
+  it("getPublicConfig carries the desktop API origin and drops a drifted one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_api_origin: "https://api.test" }));
+    expect((await getPublicConfig()).office_api_origin).toBe("https://api.test");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: { a: true }, rum_sample_rate: 0, office_api_origin: 42 }));
+    const drifted = await getPublicConfig();
+    expect(drifted.office_api_origin).toBeUndefined();
+    expect(drifted.flags).toEqual({ a: true });
+  });
+
   it("getPublicConfig leaves the deployment id undefined when the server never advertises one (fail closed)", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0 }));
     expect((await getPublicConfig()).office_deployment_id).toBeUndefined();
