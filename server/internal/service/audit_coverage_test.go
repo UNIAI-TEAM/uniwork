@@ -991,6 +991,33 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionOfficeOfflineLeaseGranted: func(t *testing.T, f *auditFixture) {
+			f.offlineLease(t)
+		},
+		audit.ActionOfficeOfflineLeaseRenewed: func(t *testing.T, f *auditFixture) {
+			leases, docID, deviceID, l := f.offlineLease(t)
+			if _, err := leases.Put(f.ctx, Human(f.owner.ID), OfficeLeasePutInput{DocumentID: docID, DeviceSessionID: deviceID, Lease: l.Token}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeOfflineLeaseReleased: func(t *testing.T, f *auditFixture) {
+			leases, docID, deviceID, _ := f.offlineLease(t)
+			if err := leases.Release(f.ctx, Human(f.owner.ID), docID, deviceID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeOfflineLeaseRevoked: func(t *testing.T, f *auditFixture) {
+			f.offlineLease(t)
+			if _, err := f.admin.RevokeOrganizationOfflineLeases(f.ctx, CLIActor, f.orgID, "audit coverage offline revoke"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeOfflinePolicyBumped: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.admin.RevokeOrganizationOfflineLeases(f.ctx, CLIActor, f.orgID, "audit coverage offline revoke"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentShared: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
 			if _, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
@@ -1440,6 +1467,11 @@ func auditActions() []string {
 		audit.ActionOfficeLaunchSessionRedeemed,
 		audit.ActionOfficeLaunchSessionRevoked,
 		audit.ActionOfficeDesktopDownloaded,
+		audit.ActionOfficeOfflineLeaseGranted,
+		audit.ActionOfficeOfflineLeaseRenewed,
+		audit.ActionOfficeOfflineLeaseReleased,
+		audit.ActionOfficeOfflineLeaseRevoked,
+		audit.ActionOfficeOfflinePolicyBumped,
 		audit.ActionDocumentShared,
 		audit.ActionDocumentShareRevoked,
 		audit.ActionDocumentLinkCreated,
@@ -1728,6 +1760,23 @@ func (f *auditFixture) fileDocument(t *testing.T) (*DocumentService, string) {
 		t.Fatalf("make audit document a file: %v", err)
 	}
 	return svc, id
+}
+
+// offlineLease grants the owner an offline lease on a file document from a
+// desktop device of their own, with office_offline_library on.
+func (f *auditFixture) offlineLease(t *testing.T) (*OfficeLeaseService, string, string, OfficeLease) {
+	t.Helper()
+	svc, docID := f.fileDocument(t)
+	leases := NewOfficeLeaseService(svc, officeLeaseFlags(t, true), config.Config{JWTSecret: officeLeaseTestSecret})
+	deviceID := util.NewID()
+	if _, err := f.q.CreateDeviceSession(f.ctx, db.CreateDeviceSessionParams{ID: deviceID, UserID: f.owner.ID, SessionFamilyID: deviceID, ClientID: "uniwork-office", DeploymentID: "default", RefreshTokenDigest: "audit-lease-device", ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedByKind: "human"}); err != nil {
+		t.Fatal(err)
+	}
+	l, err := leases.Put(f.ctx, Human(f.owner.ID), OfficeLeasePutInput{DocumentID: docID, DeviceSessionID: deviceID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return leases, docID, deviceID, l
 }
 
 // Two commands write document.created without owning the action: CreateFolder
