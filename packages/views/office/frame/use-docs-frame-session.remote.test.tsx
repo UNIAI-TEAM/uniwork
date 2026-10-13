@@ -580,6 +580,27 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     expect(frame.save).toHaveBeenCalledTimes(1);
   });
 
+  it("an organization reason end to end: doc.blocked once, every Save still goes to the server, which keeps refusing it", async () => {
+    const frame = await openedFrame();
+    frame.server.headError = new ApiError("organization suspended", "organization_suspended", 403);
+    await share();
+    await waitFor(() => expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: "organization_suspended" }]));
+    const refused = () => new DocsProtocolError({ code: "forbidden", message: "organization_suspended (HTTP 403)", status: 403, details: { apiCode: "organization_suspended" } });
+    for (let i = 0; i < 2; i += 1) {
+      frame.save.mockRejectedValueOnce(refused());
+      const reply = await frame.answer(frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(2), etag: "9" }));
+      expect(reply.error).toMatchObject({ code: "forbidden", status: 403, details: { apiCode: "organization_suspended" } });
+    }
+    expect(frame.save).toHaveBeenCalledTimes(2);
+    expect(frame.hook.result.current.blocked).toBeNull();
+    // The reason is told once; a retry's handshake repeats it to the new frame instance.
+    expect(frame.events("doc.blocked")).toHaveLength(1);
+    act(() => { frame.hook.result.current.retry(); });
+    await frame.boot();
+    await waitFor(() => expect(frame.events("doc.blocked")).toHaveLength(2));
+    expect(frame.events("doc.blocked").at(-1)).toEqual({ document_id: "doc-1", reason: "organization_suspended" });
+  });
+
   it("a block heard before the frame (re)connects reaches it on the handshake", async () => {
     const frame = await openedFrame();
     await act(async () => { ws.emit("document.deleted", { document_id: "doc-1", workspace_id: "ws-1" }); });
