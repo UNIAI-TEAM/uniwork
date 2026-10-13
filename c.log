@@ -1,0 +1,6 @@
+$ pnpm --filter @uniwork/core typecheck; echo "G508S_TYPECHECK_EXIT $?"; true
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
+G508S_TYPECHECK_EXIT 0
