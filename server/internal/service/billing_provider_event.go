@@ -226,7 +226,7 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 	_, err = q.InsertInvoice(ctx, db.InsertInvoiceParams{
 		ID: invID, OrganizationID: intent.OrganizationID, SubscriptionID: sub.ID,
 		Provider: s.provider.Name(), ProviderInvoiceID: pgtype.Text{String: providerInvID, Valid: providerInvID != ""},
-		Number: invoiceNumber(start), AmountDue: intent.Amount, AmountPaid: intent.Amount, Currency: intent.Currency,
+		Number: invoiceNumber(start, invID), AmountDue: intent.Amount, AmountPaid: intent.Amount, Currency: intent.Currency,
 		PeriodStart: pgtype.Timestamptz{Time: start, Valid: true}, PeriodEnd: periodEnd,
 		InitiatedBy: initiatedBy, InitiatedByKind: initiatedKind,
 		PaymentIntentID: pgtype.Text{String: intent.ID, Valid: true},
@@ -252,11 +252,16 @@ func subscriptionPeriodEnd(start time.Time, billingPeriod string) pgtype.Timesta
 	return pgtype.Timestamptz{Time: end, Valid: true}
 }
 
-// The first eight Crockford characters of a ULID repeat for 256ms. A reconcile
-// batch that pays two intents then collides on idx_invoices_number, the second
-// insert rolls back, and that intent stays pending.
-func invoiceNumber(at time.Time) string {
-	return fmt.Sprintf("UW-%d-%s", at.Year(), util.NewID())
+// invoiceNumber keeps the invoice id's random suffix. A ULID's first ten
+// characters are only the time, so a short prefix repeats for about a second
+// and the later InsertInvoice hits idx_invoices_number. The year is Vietnam
+// time: UTC would label the first seven hours of 1 January with the previous year.
+func invoiceNumber(at time.Time, id string) string {
+	suffix := id
+	if len(id) > 10 {
+		suffix = id[10:]
+	}
+	return fmt.Sprintf("UW-%d-%s", at.In(vnpayICT).Year(), suffix)
 }
 
 // ProviderWebhookPayloadJSON serialises raw provider params for webhook_inbox.
