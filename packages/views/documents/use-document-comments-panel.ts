@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@uniwork/core/api/http";
 import { useAuthStore } from "@uniwork/core/auth";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
@@ -50,19 +50,34 @@ export function useDocumentCommentsPanel(wsId: string, doc: Document) {
   const resolve = useResolveDocumentComment(wsId, doc.id);
   const reopen = useReopenDocumentComment(wsId, doc.id);
   const idempotency = useRef<{ key: string; body: string; parent: string } | null>(null);
-  // A write refused with 403 means the level dropped under us: read-only from now on.
-  const [writeRefused, setWriteRefused] = useState(false);
+  // A write refused with 403 means the level dropped under us: read-only at that level. The refusal
+  // is remembered with the level it answered, so a level the server restores (a refetched document
+  // with another `my_level`) writes again; it is never a sticky flag.
+  const level = doc.my_level;
+  const [refusedAt, setRefusedAt] = useState<string | null>(null);
+  const writeRefused = refusedAt !== null && refusedAt === level;
+  useEffect(() => {
+    if (refusedAt !== null && refusedAt !== level) setRefusedAt(null);
+  }, [refusedAt, level]);
   const [writeProblem, setWriteProblem] = useState<Exclude<PanelStatus, "viewOnly" | null> | null>(null);
+  const problemAt = useRef(0);
+  const setProblem = useCallback((problem: Exclude<PanelStatus, "viewOnly" | null> | null) => {
+    problemAt.current = Date.now();
+    setWriteProblem(problem);
+  }, []);
 
   const comments = useMemo(() => query.data?.comments ?? [], [query.data]);
   const names = useMemo(() => mentionNames(query.data?.mentions ?? []), [query.data]);
-  const level = doc.my_level;
   const canWrite = !writeRefused && (level === "edit" || level === "manage");
   const canModerate = canWrite && level === "manage";
 
   const readError = query.error ? classifyDocumentError(query.error) : null;
   const noAccess = !!readError && (readError.cls === "permission" || readError.cls === "missing");
   const firstLoadFailed = query.isError && query.data === undefined && !noAccess;
+  // A list read that lands after a failed write says the server is back: the write sentence ends.
+  useEffect(() => {
+    if (writeProblem && query.dataUpdatedAt > problemAt.current) setWriteProblem(null);
+  }, [writeProblem, query.dataUpdatedAt]);
   const readProblem = query.isError && query.data !== undefined ? connectionStatus(query.error) : null;
 
   const status: PanelStatus = (() => {
@@ -71,7 +86,10 @@ export function useDocumentCommentsPanel(wsId: string, doc: Document) {
     if (!canWrite) return "viewOnly";
     return null;
   })();
-  const blocked = status === "offline" || status === "server" || status === "signedOut";
+  // A failed write only says so (the status sentence); it never locks Send, or a retry after the server
+  // recovers would be impossible. Only a failed read or an ended session blocks sending.
+  const readBlocked = readProblem !== null && readProblem !== "permission";
+  const blocked = readBlocked || writeProblem === "signedOut";
 
   const authorNames = useMemo(() => {
     const map = new Map<string, string>();
@@ -88,28 +106,29 @@ export function useDocumentCommentsPanel(wsId: string, doc: Document) {
     (err: unknown) => {
       const problem = connectionStatus(err);
       if (problem === "permission") {
-        setWriteRefused(true);
+        setRefusedAt(level ?? "");
         reload();
       } else if (problem) {
-        setWriteProblem(problem);
+        setProblem(problem);
       }
       if (classifyDocumentError(err).code === "comment_deleted") reload();
     },
-    [reload],
+    [reload, level, setProblem],
   );
 
   const run = useCallback(
     async (write: () => Promise<unknown>): Promise<boolean> => {
+      // A new attempt clears the last write's status line; a failure puts it back.
+      setProblem(null);
       try {
         await write();
-        setWriteProblem(null);
         return true;
       } catch (err) {
         noteFailure(err);
         return false;
       }
     },
-    [noteFailure],
+    [noteFailure, setProblem],
   );
 
   const send = useCallback(
@@ -118,19 +137,19 @@ export function useDocumentCommentsPanel(wsId: string, doc: Document) {
       const previous = idempotency.current;
       const key = previous && previous.body === body && previous.parent === parent ? previous.key : newIdempotencyKey();
       idempotency.current = { key, body, parent };
+      setProblem(null);
       try {
         // A new root from the web is always a Discussion post: a comment root needs an anchor
         // only the editor can give (signed decision, OQ-C2), so the server's default applies.
         await create.mutateAsync({ body, parent_id: parentId, idempotencyKey: key });
         idempotency.current = null;
-        setWriteProblem(null);
         return "sent";
       } catch (err) {
         noteFailure(err);
         return classifyDocumentError(err).code === "comment_deleted" ? "target_deleted" : "failed";
       }
     },
-    [create, noteFailure],
+    [create, noteFailure, setProblem],
   );
 
   const actions = useMemo<ThreadActions>(
