@@ -348,18 +348,24 @@ func TestAIUniworkConversationSweepTTL(t *testing.T) {
 		t.Fatalf("resume of an expired conversation = %v, want ErrConversationExpired", err)
 	}
 
-	n, err := store.Sweep(ctx, base)
-	if err != nil {
+	// The sweep is deployment-wide and this database is shared with the other
+	// packages' rows, so neither the count it reports nor a whole-table count
+	// is this test's to assert. The assertions are about this test's own rows:
+	// the two past-TTL conversations go with their turns and the live one
+	// stays, so they still fail if the sweep stops deleting expired rows.
+	if _, err := store.Sweep(ctx, base); err != nil {
 		t.Fatal(err)
 	}
-	if n != 2 {
-		t.Fatalf("swept %d conversations, want 2", n)
-	}
-	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations`); got != 1 {
-		t.Fatalf("%d conversations left, want the live one", got)
+	for name, id := range map[string]string{"idle": stale.ID, "absolute": old.ID} {
+		if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations WHERE id = $1`, id); got != 0 {
+			t.Fatalf("the %s-expired conversation survived the sweep: %d rows", name, got)
+		}
 	}
 	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_turns WHERE conversation_id = $1`, stale.ID); got != 0 {
 		t.Fatalf("the expired conversation kept %d turns", got)
+	}
+	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_conversations WHERE id = $1`, live.ID); got != 1 {
+		t.Fatalf("the live conversation was swept: %d rows", got)
 	}
 	if got := mustCount(t, pool, `SELECT count(*) FROM ai_uniwork_turns WHERE conversation_id = $1`, live.ID); got != 1 {
 		t.Fatalf("the live conversation lost turns: %d", got)
