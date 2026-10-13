@@ -163,6 +163,24 @@ func (s *DocumentService) intentCounters() OfficeIntentMetrics {
 	return s.intentMetrics
 }
 
+// DocumentIntentWiring is the G5-07 wiring a DocumentService carries: the
+// commit intent policy, the office_sync_write evaluator and the intent
+// counters.
+type DocumentIntentWiring struct {
+	Policy        CommitIntentPolicy
+	Flags         DocumentFlags
+	IntentMetrics OfficeIntentMetrics
+}
+
+// IntentWiringForTest reports the wiring this service received, so the
+// production-assembly test in cmd/server can pin the instance the routes get.
+// Tests only: no server code calls it and it changes no behaviour. A zero
+// Policy, a nil Flags or a nil IntentMetrics mean the corresponding setter
+// never ran - the shape BE-I4-1 left on the route instance.
+func (s *DocumentService) IntentWiringForTest() DocumentIntentWiring {
+	return DocumentIntentWiring{Policy: s.intentPolicy, Flags: s.flags, IntentMetrics: s.intentMetrics}
+}
+
 func errOfficeCapabilityOff(capability string) error {
 	return CodedError{Code: "office_capability_off", Status: http.StatusForbidden, Err: ErrForbidden,
 		Msg:    "tính năng này đang tắt cho tổ chức của bạn",
