@@ -1315,6 +1315,9 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 			if _, err := svc.PutDocumentCommentAnchors(f.ctx, Human(f.owner.ID), docID, DocumentCommentAnchorsInput{
 				VersionID: versionID,
+				// R1-8: the wire anchors key is required, so the command's
+				// presence flag must be set for the call to be accepted.
+				AnchorsPresent: true,
 				Anchors: []DocumentCommentAnchorItem{{
 					CommentID: c.ID, Anchor: json.RawMessage(`{"format":"xlsx","v":1,"sheet":"S1","range":"B9"}`), State: "exact",
 				}},
