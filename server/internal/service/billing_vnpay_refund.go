@@ -45,6 +45,10 @@ func (s *BillingService) RefundInvoiceOnProvider(ctx context.Context, adminID st
 			return "", CodedError{Code: "vnpay_refund_failed", Status: http.StatusConflict,
 				Msg: "giao dịch gốc chưa thành công trên VNPay — không thể hoàn tiền"}
 		}
+		if strings.TrimSpace(intent.ProviderTxnRef) == "" || refundAmount <= 0 {
+			return "", CodedError{Code: "vnpay_refund_failed", Status: http.StatusBadGateway,
+				Msg: "thiếu mã giao dịch hoặc số tiền hoàn"}
+		}
 		txnNo := qev.RawParams["vnp_TransactionNo"]
 		if txnNo == "" && inv.ProviderInvoiceID.Valid {
 			txnNo = strings.TrimSpace(inv.ProviderInvoiceID.String)
@@ -66,6 +70,11 @@ func (s *BillingService) RefundInvoiceOnProvider(ctx context.Context, adminID st
 			OrderInfo:       orderInfo, CreateBy: adminID, ClientIP: clientIP, TransactionNo: txnNo,
 		})
 		if err != nil {
+			// No signed answer: the request may have reached VNPay. Leave the invoice pending.
+			if res.ResponseCode == "" {
+				return "", CodedError{Code: "vnpay_refund_unknown", Status: http.StatusBadGateway,
+					Msg: "chưa rõ kết quả hoàn tiền trên VNPay — hóa đơn giữ trạng thái chờ hoàn, kiểm tra trên cổng VNPay"}
+			}
 			// VNPay accepted or is already processing the refund; UniWork should move the invoice to pending.
 			if vnpayRefundTreatAsPending(res.ResponseCode) {
 				ref := res.TransactionNo
