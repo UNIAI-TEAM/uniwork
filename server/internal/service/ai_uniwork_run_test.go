@@ -371,6 +371,37 @@ func (s *scriptedRunStore) run(id string) ai.Run {
 	return *s.runs[id]
 }
 
+// The harness opens a run for the question turn and counts later turns on it,
+// so a retry reads back from one run (BE3B-3); a foreign id is still the 409.
+// It needs no database: this is the seam the DB-backed card tests above stand
+// on, and the one a fix must not break silently.
+func TestScriptedRunStoreTakeTurnOpensAndContinues(t *testing.T) {
+	store := newScriptedRunStore()
+	ctx := context.Background()
+	now := time.Unix(1_700_000_000, 0).UTC()
+
+	opened, err := store.TakeTurn(ctx, ai.TakeRunTurn{
+		OrganizationID: "org-1", ConversationID: "conv-1", CreatedBy: "user-1", Now: now,
+	})
+	if err != nil || opened.ID == "" || opened.ModelCalls != 1 {
+		t.Fatalf("the opening take = %+v, %v; want a run at one model call", opened, err)
+	}
+	continued, err := store.TakeTurn(ctx, ai.TakeRunTurn{
+		RunID: opened.ID, OrganizationID: "org-1", ConversationID: "conv-1", CreatedBy: "user-1", Now: now,
+	})
+	if err != nil || continued.ID != opened.ID || continued.ModelCalls != 2 {
+		t.Fatalf("the continuation = %+v, %v; want %s at two model calls", continued, err, opened.ID)
+	}
+	if takes := store.takesFor(opened.ID); len(takes) != 2 {
+		t.Fatalf("recorded takes of %s = %d, want both attempts under the run", opened.ID, len(takes))
+	}
+	if _, err := store.TakeTurn(ctx, ai.TakeRunTurn{
+		RunID: "run-of-someone-else", OrganizationID: "org-1", ConversationID: "conv-1", Now: now,
+	}); !errors.Is(err, ai.ErrRunExpired) {
+		t.Fatalf("a foreign run id = %v, want ErrRunExpired", err)
+	}
+}
+
 // uniworkRunWorld is one organization on the default plan with the UniWork AI
 // flags on, a real transcript store and gateway, and the scripted run store.
 type uniworkRunWorld struct {
