@@ -21,3 +21,8 @@ fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/ai/provider/byok_test.g
 fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/ai/proxy_test.go:generic-api-key:24
 fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/handler/office_frame_ai_test.go:generic-api-key:30
 fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/service/ai_credentials_test.go:generic-api-key:29
+# UNI-1367 test fixtures in ai_uniwork_test.go: a fixed 32-byte conversation
+# codec seed, and a conversation id on the same line as the word token.
+# Neither is a credential. The introducing commit stays in history.
+249f15303fa7080a4fa3d0cc489d88baee2584e2:server/internal/handler/ai_uniwork_test.go:generic-api-key:28
+249f15303fa7080a4fa3d0cc489d88baee2584e2:server/internal/handler/ai_uniwork_test.go:generic-api-key:279
