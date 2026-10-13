@@ -28,6 +28,7 @@ var tenantExportExcluded = map[string]string{
 	"file_derivatives":         "Bản dẫn xuất kỹ thuật; byte tệp không nằm trong gói.",
 	"office_jobs":              "Job kỹ thuật Office.",
 	"office_launch_sessions":   "Phiên mở ứng dụng desktop, có bí mật phiên.",
+	"mcp_tokens":               "Token của ứng dụng AI đã kết nối, chỉ lưu digest; là bí mật phiên.",
 	"meeting_audit_logs":       "Nhật ký họp cũ, cùng lớp với audit.",
 }
 
@@ -79,6 +80,7 @@ var tenantExportIncludedTables = []string{
 	"files",
 	"home_preferences",
 	"invitations",
+	"mcp_grants",
 	"meeting_access_grants",
 	"meeting_attendance_marks",
 	"meeting_attendance_sessions",

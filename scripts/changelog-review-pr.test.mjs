@@ -115,6 +115,23 @@ test("ordinary PRs and the existing notes-only workflow remain supported", t => 
   assert.equal(checkPublication({ root: f.root, base: f.base, head }).kind, "notes-only");
 });
 
+test("an ordinary PR behind a published release is not mistaken for a catalog deletion", t => {
+  const f = fixture(t);
+  f.git("checkout", "-b", "ordinary-feature");
+  f.save("work.txt", "unrelated feature"); f.git("add", "work.txt"); f.git("commit", "-m", "fix: ordinary work");
+  const head = f.git("rev-parse", "HEAD");
+  f.git("checkout", "develop"); f.prepare(); const base = f.commit();
+  assert.equal(checkPublication({ root: f.root, base, head }).kind, "no-publication");
+});
+
+test("a stale publication still fails when its target branch has advanced", t => {
+  const f = fixture(t); f.prepare(); const head = f.commit();
+  f.git("checkout", "-b", "new-develop", f.base);
+  f.save("work.txt", "newer application change"); f.git("add", "work.txt"); f.git("commit", "-m", "fix: newer work");
+  const base = f.git("rev-parse", "HEAD");
+  assert.throws(() => checkPublication({ root: f.root, base, head }), /stale|refresh/i);
+});
+
 test("a tag may be added after a reviewed publication without rewriting the published metadata", t => {
   const f = fixture(t); f.prepare(); f.commit(); f.git("tag", "v1.1.0");
   const before = f.read("packages/core/changelog/releases.json");

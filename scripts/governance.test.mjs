@@ -142,10 +142,10 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   // A rule that would have rejected the commits already in the tree is not a
   // rule, it is a trap for the next person who writes a correct message.
   //
-  // e88a055 landed on develop via PR #62 and c416bc6 was pushed straight to
-  // develop, both without a conventional prefix. e6eaf72 was pushed directly
-  // on 2026-10-13. Shared history cannot be rewritten; pin both SHA and subject
-  // so a new commit cannot reuse an exempt subject to escape this check.
+  // e88a055 landed on develop via PR #62; c416bc6 and e6eaf72d5 were pushed
+  // straight to develop without a conventional prefix. Shared history cannot
+  // be rewritten; pin both SHA and subject so a new commit cannot reuse an
+  // exempt subject to escape this check.
   const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })
     .split("\n")
     .filter(Boolean)

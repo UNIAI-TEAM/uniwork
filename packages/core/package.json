@@ -17,6 +17,7 @@
     "./query-client": "./query-client.ts",
     "./i18n": "./i18n/index.ts",
     "./auth": "./auth/index.ts",
+    "./connect": "./connect/hooks.ts",
     "./workspaces": "./workspaces/hooks.ts",
     "./tasks": "./tasks/hooks.ts",
     "./tasks/batch": "./tasks/batch.ts",

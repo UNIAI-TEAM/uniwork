@@ -82,6 +82,7 @@ func TestIsolationMatrix(t *testing.T) {
 	}
 
 	before := w.tenantDigest(t, w.alpha)
+	attemptBefore := w.mcpAttemptDigest(t, w.alpha)
 
 	t.Run("cross-tenant", func(t *testing.T) {
 		for _, r := range routes {
@@ -282,6 +283,12 @@ func TestIsolationMatrix(t *testing.T) {
 		}
 		if decided {
 			t.Error("B's requests approved or cancelled A's desktop attempt")
+		}
+		// An MCP consent attempt names its reader, not an organization: A's
+		// row must be byte for byte what it was, so B neither claimed it,
+		// rotated its CSRF token nor decided it.
+		if got := w.mcpAttemptDigest(t, w.alpha); got != attemptBefore {
+			t.Error("B's requests changed A's MCP consent attempt")
 		}
 	})
 
@@ -581,6 +588,10 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "launchSession")
 	case "{deviceSessionID}":
 		return tn.get(t, "deviceSession")
+	case "{grantID}":
+		return tn.get(t, "mcpGrant")
+	case "{attemptID}":
+		return tn.get(t, "mcpAttempt")
 	case "{capability}":
 		return tn.get(t, "previewCapability")
 	case "{shareID}":

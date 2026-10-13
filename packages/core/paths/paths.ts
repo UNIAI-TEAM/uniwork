@@ -8,6 +8,8 @@ export const paths = {
   authCallback: () => "/auth/callback",
   /** Consent page the desktop app's system-browser sign-in lands on (G4-02b). */
   desktopAuthorize: () => "/auth/desktop/authorize",
+  /** Consent page an external AI client (MCP connector) sends the browser to (UNI-1308). */
+  connectAuthorize: () => "/auth/connect/authorize",
   forgotPassword: () => "/forgot-password",
   resetPassword: (token?: string) =>
     token ? `/reset-password?token=${encodeURIComponent(token)}` : "/reset-password",

@@ -169,6 +169,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
 	d.Documents = docs
 	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
+	d.McpAuth = service.NewMcpAuthService(pool, q, d.Organizations, d.Cfg)
+	d.McpAuth.SetFlags(mcpTestFlags(true))
+	d.McpTools = service.NewMcpToolService(q, d.AskUNI, d.Home, d.Workspaces, d.Cfg.FrontendOrigin)
 	preview, err := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
 		Documents: docs, Origin: isoPreviewOrigin, Secret: "isolation-matrix-preview-secret-0123456789",
 		TTL: 5 * time.Minute, MaxBytes: 1 << 20,
@@ -442,6 +445,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	w.buildDocuments(t, tn)
 	w.buildOrganization(t, tn)
 	w.buildOffice(t, tn)
+	w.buildMcp(t, tn)
 	w.buildOfficeFrame(t, tn)
 	w.buildSeeded(t, tn)
 	w.buildActivity(t, tn)
