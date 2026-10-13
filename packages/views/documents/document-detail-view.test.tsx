@@ -8,7 +8,8 @@ import {
 } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
-import { requestMock, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import { useReportFrameComments } from "./document-comments-context";
 import { DocumentDetailView } from "./document-detail-view";
 
 const { t } = initI18n();
@@ -16,9 +17,9 @@ const { t } = initI18n();
 const WS = "ws1";
 const LIBRARY = "/acme/doi/documents";
 
-function withFlag(ui: React.ReactElement, on = true) {
+function withFlag(ui: React.ReactElement, on = true, nav?: ReturnType<typeof fakeNav>) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: on } }));
-  return wrapWithNav(<FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>);
+  return wrapWithNav(<FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>, nav);
 }
 
 /** The wire schema parses server enums leniently; the exported type narrows them. */
@@ -302,7 +303,8 @@ describe("DocumentDetailView", () => {
     await screen.findByRole("textbox", { name: t("documents.page_ui.title_label") });
 
     // The header owns the trigger; the panel is closed until it is used.
-    const trigger = screen.getByRole("button", { name: t("documents.comments.open") });
+    // A page has no anchored comments: the panel is the Discussion alone (Foundation G8).
+    const trigger = screen.getByRole("button", { name: t("documents.collab.collabDiscussion") });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByTestId("document-comments-pane")).toBeNull();
 
@@ -314,5 +316,43 @@ describe("DocumentDetailView", () => {
     expect(
       await screen.findByRole("button", { name: t("documents.comments.favorite_add") }),
     ).toBeInTheDocument();
+  });
+
+  it("renders no DocumentCommentsPanel once the editor frame serves comments (invariant 8)", async () => {
+    window.innerWidth = 1400;
+    const file = pageDocument({
+      kind: "file",
+      title: "Báo cáo",
+      content: undefined,
+      file: { file_id: "f1", version_id: "v2", version: 2, filename: "bao-cao.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 1024, checksum_sha256: "a".repeat(64) },
+    });
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") return Promise.resolve({ document: file });
+      if (path.startsWith("/api/v1/config")) return Promise.resolve({ flags: { office_engine: true, office_docx: true } });
+      if (path.startsWith("/api/v1/documents/d1/comments")) return Promise.resolve({ comments: [], mentions: [], list_token: "lt1:a" });
+      return Promise.resolve({ versions: [], next_cursor: null, favorites: [] });
+    });
+    // The host stands in for OfficeModuleFrame: its handshake reports `comments` the way the
+    // web host wires onFrameCommentsChange to this hook.
+    function FrameHost() {
+      const report = useReportFrameComments();
+      return <button type="button" onClick={() => report?.(true)}>frame-acked</button>;
+    }
+    const nav = fakeNav("/acme/doi/documents/d1");
+    nav.searchParams = new URLSearchParams("comment=c1");
+    render(withFlag(
+      <DocumentDetailView wsId={WS} documentId="d1" libraryHref={LIBRARY} onBackToList={vi.fn()} officeEditorHost={FrameHost} />,
+      true,
+      nav,
+    ));
+    // Before the frame says anything, the deep link opens the page's own panel.
+    expect(await screen.findByTestId("document-comments-pane")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.comments.title") })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "frame-acked" }));
+
+    await waitFor(() => expect(screen.queryByTestId("document-comments-pane")).toBeNull());
+    // No second way in either: the header trigger is gone with it.
+    expect(screen.queryByRole("button", { name: t("documents.comments.title") })).toBeNull();
   });
 });
