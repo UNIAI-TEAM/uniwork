@@ -43,6 +43,9 @@ const (
 	uniworkConversationSweepPause      = 100 * time.Millisecond
 	// UniworkConversationSweepInterval is how often main.go's worker sweeps.
 	UniworkConversationSweepInterval = time.Minute
+	// UniworkUsageReconcileBatch is how many unknown-usage rows one sweep pass
+	// hands the reconciler (design §6.3).
+	UniworkUsageReconcileBatch = 100
 )
 
 // The reasons that land in uniwork_ai_uniwork_conversations_swept_total.
@@ -360,6 +363,14 @@ func (s *ConversationStorePG) sweepBatch(ctx context.Context, now time.Time) (in
 	return int64(len(ids)), nil
 }
 
+// SweepRuns implements ConversationMaintenance: the runs of a conversation go
+// with it, and one pass must collect both. The work itself lives beside the
+// run store (run_store_pg.go), which answers the same question through
+// RunStore.Sweep.
+func (s *ConversationStorePG) SweepRuns(ctx context.Context, now time.Time) (int64, int64, error) {
+	return sweepUniworkRuns(ctx, s.queries, now)
+}
+
 func (s *ConversationStorePG) disabled() error {
 	if s.box == nil {
 		return ErrConversationStoreDisabled
@@ -472,13 +483,22 @@ type ConversationMaintenance interface {
 	// DeleteOrganizationConversations deletes one organization's transcripts
 	// (the kill switch turned off) and reports how many.
 	DeleteOrganizationConversations(ctx context.Context, organizationID string) (int64, error)
+	// SweepRuns deletes the runs past their window and the runs whose
+	// conversation is gone, and reports how many of each (design §3.4). Runs
+	// are the run store's rows, but the one sweep pass owns both stores - an
+	// orphan is exactly what the conversation deletes just left behind.
+	SweepRuns(ctx context.Context, now time.Time) (expired, orphan int64, err error)
 }
 
 // ConversationSweepResult is one pass of the TTL worker.
 type ConversationSweepResult struct {
 	Expired  int64
 	Disabled int64
-	Live     int64
+	// RunsExpired and RunsOrphan are the runs this pass removed beside its
+	// conversations (design §3.4).
+	RunsExpired int64
+	RunsOrphan  int64
+	Live        int64
 }
 
 // ConversationSweepMetrics is the counter surface the sweep needs, so this
@@ -491,14 +511,19 @@ type ConversationSweepMetrics interface {
 // ConversationTTLWorker is A9's cleanup loop: expired conversations, then the
 // organizations whose office_ai_uniwork kill switch is off - a transcript that
 // survives a kill switch would be one the capability no longer promises to
-// keep. main.go starts it with runCtx and awaits it in the shutdown sequence.
+// keep. From G6-03b it also sweeps the runs that go with the conversations it
+// removed (expired and orphaned) and drives the usage reconciliation pass, so
+// the run table needed no worker of its own (design §3.4, §6.3). main.go
+// starts it with runCtx and awaits it in the shutdown sequence.
 type ConversationTTLWorker struct {
-	store   ConversationMaintenance
-	off     func(ctx context.Context, organizationID string) (bool, error)
-	log     *slog.Logger
-	every   time.Duration
-	now     func() time.Time
-	metrics ConversationSweepMetrics
+	store     ConversationMaintenance
+	off       func(ctx context.Context, organizationID string) (bool, error)
+	log       *slog.Logger
+	every     time.Duration
+	now       func() time.Time
+	metrics   ConversationSweepMetrics
+	runs      RunSweepMetrics
+	reconcile UniworkUsageReconciler
 }
 
 // NewConversationTTLWorker builds the worker. killSwitchOff may be nil (a
@@ -517,6 +542,14 @@ func NewConversationTTLWorker(store ConversationMaintenance, killSwitchOff func(
 // SetMetrics attaches the sweep counters.
 func (w *ConversationTTLWorker) SetMetrics(m ConversationSweepMetrics) { w.metrics = m }
 
+// SetRunMetrics attaches the runs-sweep counters
+// (uniwork_ai_uniwork_runs_swept_total by reason); nil skips them.
+func (w *ConversationTTLWorker) SetRunMetrics(m RunSweepMetrics) { w.runs = m }
+
+// SetUsageReconciler attaches the usage reconciliation pass this worker drives
+// after each sweep (design §6.3); nil skips it.
+func (w *ConversationTTLWorker) SetUsageReconciler(r UniworkUsageReconciler) { w.reconcile = r }
+
 // SetClock replaces the worker's clock (tests).
 func (w *ConversationTTLWorker) SetClock(now func() time.Time) { w.now = now }
 
@@ -530,9 +563,10 @@ func (w *ConversationTTLWorker) Run(ctx context.Context) {
 		switch {
 		case err != nil:
 			w.log.Warn("uniwork ai conversation sweep", "err", err)
-		case result.Expired > 0 || result.Disabled > 0:
+		case result.Expired > 0 || result.Disabled > 0 || result.RunsExpired > 0 || result.RunsOrphan > 0:
 			w.log.Info("uniwork ai conversation sweep",
-				"expired", result.Expired, "kill_switch", result.Disabled, "live", result.Live)
+				"expired", result.Expired, "kill_switch", result.Disabled,
+				"runs_expired", result.RunsExpired, "runs_orphan", result.RunsOrphan, "live", result.Live)
 		}
 		if !sleepCtx(ctx, w.every) {
 			return
@@ -568,6 +602,29 @@ func (w *ConversationTTLWorker) SweepOnce(ctx context.Context) (ConversationSwee
 			if err != nil {
 				return result, err
 			}
+		}
+	}
+	// Runs go with the conversations they answer in: the expired ones, and the
+	// orphans every cleanup path leaves behind - the sweep and the kill-switch
+	// deletes above included (design §3.4).
+	result.RunsExpired, result.RunsOrphan, err = w.store.SweepRuns(ctx, now)
+	if err != nil {
+		return result, err
+	}
+	if w.runs != nil {
+		if result.RunsExpired > 0 {
+			w.runs.IncUniworkRunsSwept(UniworkRunSweepExpired, result.RunsExpired)
+		}
+		if result.RunsOrphan > 0 {
+			w.runs.IncUniworkRunsSwept(UniworkRunSweepOrphan, result.RunsOrphan)
+		}
+	}
+	// The reconciliation pass prices the usage rows a vendor left unknown; it
+	// rides this pass's schedule because the worker already owns the clock
+	// (design §6.3). Its failure ends the pass; the next tick retries.
+	if w.reconcile != nil {
+		if _, err := w.reconcile.ReconcileUnknownUsage(ctx, UniworkUsageReconcileBatch); err != nil {
+			return result, err
 		}
 	}
 	live, err := w.store.LiveConversations(ctx, now)
