@@ -1,0 +1,5 @@
+$ pnpm --filter @uniwork/views typecheck
+
+> @uniwork/views@0.0.0 typecheck /workspace/packages/views
+> tsc --noEmit
+

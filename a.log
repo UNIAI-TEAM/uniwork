@@ -1,0 +1,5 @@
+$ git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git log --oneline -3
+7427098e0dff2ca507fb56ef46f504789da71d09
+7427098e0 refactor(office): move the docs frame session model out of its hook
+dedaab1c9 test(office): cover an organization reason end to end on the host
+08edec4df docs(office): state the version-lookup cap of api.open
