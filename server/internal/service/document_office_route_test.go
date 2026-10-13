@@ -213,4 +213,46 @@ func TestDocumentOfficeSubmitAcceptsAMetadataBase(t *testing.T) {
 			t.Fatalf("job base = %d, want the current revision %d", raw.BaseRevision, renamed.Document.Revision)
 		}
 	})
+
+	t.Run("a raw retry with the pre-rename base replays the same job", func(t *testing.T) {
+		f := newOfficeFixture(t, "retry base\n")
+		svc := f.service(newScriptedEngine())
+		title := "Tài liệu thử lại"
+		renamed, err := f.docs.UpdateDocument(ctx, f.actor, f.doc, UpdateDocumentInput{Revision: f.rev, Title: &title})
+		mustf(t, err, "rename")
+		if renamed.Document.Revision <= f.rev || renamed.Document.ContentRevision != f.rev {
+			t.Fatalf("rename: revision %d content_revision %d, want a metadata bump",
+				renamed.Document.Revision, renamed.Document.ContentRevision)
+		}
+
+		in := f.input("k-raw-retry")
+		in.BaseRevision = f.rev // the pre-rename base the client supplied
+		first, err := svc.StartOfficeJob(ctx, f.actor, in)
+		mustf(t, err, "the first raw submit")
+		if first.BaseRevision != renamed.Document.Revision {
+			t.Fatalf("job base = %d, want the current revision %d", first.BaseRevision, renamed.Document.Revision)
+		}
+		rows := f.officeJobCount(t, f.doc)
+
+		// The same key, input and supplied base: the stored base differs from
+		// it, yet the fingerprint binds the supplied one, so this replays.
+		again, err := svc.StartOfficeJob(ctx, f.actor, in)
+		mustf(t, err, "the retry with the same pre-rename base")
+		if again.ID != first.ID {
+			t.Fatalf("retry answered job %s, want %s", again.ID, first.ID)
+		}
+		if n := f.officeJobCount(t, f.doc); n != rows {
+			t.Fatalf("the retry wrote %d job rows", n-rows)
+		}
+
+		// The same key with another supplied base is a different payload.
+		other := in
+		other.BaseRevision = renamed.Document.Revision
+		if _, err := svc.StartOfficeJob(ctx, f.actor, other); office.ErrorCode(err) != "payload_fingerprint_mismatch" {
+			t.Fatalf("retry with a different base: %v, want payload_fingerprint_mismatch", err)
+		}
+		if n := f.officeJobCount(t, f.doc); n != rows {
+			t.Fatalf("the mismatched retry wrote %d job rows", n-rows)
+		}
+	})
 }
