@@ -126,7 +126,7 @@ export function InvitationGoneBody({ reason }: { reason: GoneReason }) {
           </p>
         ) : null}
         <InviteNotice icon={GONE_ICON[reason]} tone="muted">
-          {t("workspace.acceptInviteError.hint")}
+          {t(`invitations.gone.hint_${reason}`)}
         </InviteNotice>
       </div>
       <div className="flex flex-col gap-2">

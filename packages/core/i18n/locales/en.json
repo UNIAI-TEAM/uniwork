@@ -4355,6 +4355,7 @@
       "description": "The new owner has full control of the organization. You become an admin and cannot take it back on your own.",
       "action": "Transfer ownership",
       "new_owner": "New owner",
+      "pick_placeholder": "Choose a member",
       "confirm_label": "Type the organization name to confirm",
       "password_label": "Your current password",
       "no_candidate": "No active member is available to receive ownership yet.",
@@ -4447,7 +4448,10 @@
       "expired": "The invitation has expired.",
       "revoked": "The invitation was revoked.",
       "accepted": "The invitation has already been used.",
-      "still_in": "You're still in {{name}}; nothing changed."
+      "still_in": "You're still in {{name}}; nothing changed.",
+      "hint_expired": "Invitations work for a limited time. Ask whoever invited you to send a new link.",
+      "hint_revoked": "Whoever invited you withdrew this invitation. If you still need to join, ask them for a new one.",
+      "hint_accepted": "Each invitation works once. Ask whoever invited you for a new link if you need one."
     },
     "switch": {
       "title": "Switch to {{name}}",

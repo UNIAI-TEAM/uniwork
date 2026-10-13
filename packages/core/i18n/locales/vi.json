@@ -4354,6 +4354,7 @@
       "description": "Chủ sở hữu mới toàn quyền với tổ chức. Bạn trở thành quản trị và không tự lấy lại được.",
       "action": "Chuyển quyền",
       "new_owner": "Chủ sở hữu mới",
+      "pick_placeholder": "Chọn thành viên",
       "confirm_label": "Gõ tên tổ chức để xác nhận",
       "password_label": "Mật khẩu hiện tại của bạn",
       "no_candidate": "Chưa có thành viên nào đang hoạt động để nhận quyền.",
@@ -4446,7 +4447,10 @@
       "expired": "Lời mời đã hết hạn.",
       "revoked": "Lời mời đã bị thu hồi.",
       "accepted": "Lời mời đã được dùng.",
-      "still_in": "Bạn vẫn ở {{name}}, không có gì thay đổi."
+      "still_in": "Bạn vẫn ở {{name}}, không có gì thay đổi.",
+      "hint_expired": "Lời mời chỉ có hiệu lực trong một thời gian. Nhờ người mời gửi lại link mới.",
+      "hint_revoked": "Người mời đã thu hồi lời mời này. Nếu vẫn cần tham gia, nhờ họ gửi lời mời mới.",
+      "hint_accepted": "Mỗi lời mời chỉ dùng được một lần. Nhờ người mời gửi lại link mới nếu bạn cần."
     },
     "switch": {
       "title": "Chuyển sang {{name}}",

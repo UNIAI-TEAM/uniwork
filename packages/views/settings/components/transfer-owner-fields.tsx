@@ -46,6 +46,7 @@ export function TransferCandidateField({
         id={id}
         aria-label={t("org.transfer.new_owner")}
         value={value}
+        placeholder={t("org.transfer.pick_placeholder")}
         onValueChange={(v) => onValueChange((v as string) ?? "")}
         items={candidates.map((m) => ({
           value: m.user_id,
