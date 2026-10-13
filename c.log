@@ -1,0 +1,46 @@
+$ (cd apps/shell && for i in 1 2 3 4 5; do npx vitest run tests/uniwork-docs-lock-wiring.test.ts || echo "LOCKWIRING_FAIL $i"; done)
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  09:17:42
+   Duration  532ms (transform 314ms, setup 0ms, import 140ms, tests 273ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  09:17:43
+   Duration  529ms (transform 321ms, setup 0ms, import 133ms, tests 300ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  09:17:44
+   Duration  461ms (transform 283ms, setup 0ms, import 122ms, tests 248ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  09:17:45
+   Duration  492ms (transform 291ms, setup 0ms, import 128ms, tests 248ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  09:17:46
+   Duration  448ms (transform 273ms, setup 0ms, import 119ms, tests 240ms, environment 0ms)
+
