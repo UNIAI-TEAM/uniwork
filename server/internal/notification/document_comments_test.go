@@ -9,6 +9,7 @@ package notification
 // registered for rows written before this change).
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -42,16 +43,49 @@ func newDocumentFixture(t *testing.T) *documentFixture {
 	return &documentFixture{fixture: f, docs: docs, auth: auth}
 }
 
-// document inserts a minimal row: page kind, the fixture workspace, the
-// fixture owner as ACL owner.
+// anchorMime is the mime the fixture document's one version snapshots: an
+// xlsx file document. G8-04's OQ-C2 rule requires a root kind=comment to bind
+// an anchor and a base_version_id, and only an office file document carries
+// the format an anchor names, so the fixture document is anchorable and every
+// comment-kind root below binds this anchor.
+const anchorMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+// anchorBody is the canonical xlsx anchor the comment-kind roots bind to.
+const anchorBody = `{"format":"xlsx","v":1,"sheet":"S1","range":"B7"}`
+
+// document inserts a minimal anchorable row: an xlsx file document with one
+// version at head, the fixture workspace, the fixture owner as ACL owner. The
+// file format is what lets a root kind=comment satisfy OQ-C2; a discussion
+// never carries an anchor, so the same document hosts both thread kinds.
 func (f *documentFixture) document(t *testing.T, visibility, title string) string {
 	t.Helper()
 	id := util.NewID()
 	_, err := f.pool.Exec(f.ctx,
 		`INSERT INTO documents (id, organization_id, workspace_id, kind, title, visibility, acl_owner_id, created_by, created_by_kind, updated_by, updated_by_kind)
-		 VALUES ($1,$2,$3,'page',$4,$5,$6,$6,'human',$6,'human')`,
+		 VALUES ($1,$2,$3,'file',$4,$5,$6,$6,'human',$6,'human')`,
 		id, f.orgID, f.wsID, title, visibility, f.owner.ID)
 	if err != nil {
+		t.Fatal(err)
+	}
+	versionID := util.NewID()
+	if _, err := f.pool.Exec(f.ctx,
+		`INSERT INTO document_versions (id, organization_id, workspace_id, document_id, version, kind, reason, file_id, mime_type, created_by, created_by_kind)
+		 VALUES ($1,$2,$3,$4,1,'file','upload',$5,$6,$7,'human')`,
+		versionID, f.orgID, f.wsID, id, "01J8X4FILEN1P2Q3R4S5T6U7V8", anchorMime, f.owner.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx,
+		`UPDATE documents SET current_version = 1, file_version_id = $1 WHERE id = $2`, versionID, id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// anchorVersion is the head version an anchored create binds to.
+func (f *documentFixture) anchorVersion(t *testing.T, docID string) string {
+	t.Helper()
+	var id string
+	if err := f.pool.QueryRow(f.ctx, `SELECT file_version_id FROM documents WHERE id = $1`, docID).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -77,10 +111,17 @@ func (f *documentFixture) addMember(t *testing.T, email, name string) db.User {
 }
 
 // commentOf is a create with an explicit thread kind; an empty kind defaults
-// to a discussion like the API.
+// to a discussion like the API. A comment-kind root binds the fixture anchor
+// and its base version (OQ-C2): an anchorless root kind=comment is a 400, so
+// the comment arm stays a comment without silently becoming a discussion.
 func (f *documentFixture) commentOf(t *testing.T, actorID, docID, body, kind string) db.DocumentComment {
 	t.Helper()
-	c, err := f.docs.AddDocumentComment(f.ctx, service.Human(actorID), docID, service.AddCommentInput{Body: body, CommentType: kind}, "")
+	in := service.AddCommentInput{Body: body, CommentType: kind}
+	if kind == "comment" {
+		in.Anchor = json.RawMessage(anchorBody)
+		in.BaseVersionID = f.anchorVersion(t, docID)
+	}
+	c, err := f.docs.AddDocumentComment(f.ctx, service.Human(actorID), docID, in, "")
 	if err != nil {
 		t.Fatal(err)
 	}
