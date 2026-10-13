@@ -381,6 +381,10 @@
         "email_hub_new_mail": "New mail (Email Hub)",
         "document_commented": "Document comment",
         "document_mentioned": "Mentioned in a document",
+        "document_comment_replied": "Reply to your comment",
+        "document_discussion_mentioned": "Mentioned in a discussion",
+        "document_discussion_replied": "Reply in a discussion",
+        "document_comment_resolved": "Comment resolved",
         "chat_mentioned": "Mentioned in chat",
         "chat_dm": "Direct messages",
         "chat_thread_replied": "Replies in threads you follow"
@@ -4526,10 +4530,21 @@
       "chat_reminder": "Reminder: {{body}}",
       "email_hub_new_mail": "You have {{count}} unread message(s) · {{mailbox}}",
       "document_commented": "{{actor}} commented on “{{document}}”",
-      "document_mentioned": "{{actor}} mentioned you in “{{document}}”",
+      "document_mentioned": "{{actor}} mentioned you in a comment on “{{document}}”.",
+      "document_comment_replied": "{{actor}} replied to your comment in “{{document}}”.",
+      "document_discussion_mentioned": "{{actor}} mentioned you in a discussion on “{{document}}”.",
+      "document_discussion_replied": "{{actor}} replied to your discussion post in “{{document}}”.",
+      "document_comment_resolved": "{{actor}} marked your comment in “{{document}}” as resolved.",
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
       "chat_dm": "{{actor}} sent you a message",
       "chat_thread_replied": "{{actor}} replied to a thread in {{room}}"
+    },
+    "kindTitle": {
+      "document_mentioned": "You were mentioned in a comment",
+      "document_comment_replied": "New reply to your comment",
+      "document_discussion_mentioned": "You were mentioned in a discussion",
+      "document_discussion_replied": "New reply in a discussion",
+      "document_comment_resolved": "Comment resolved"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",

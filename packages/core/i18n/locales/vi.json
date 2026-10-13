@@ -380,6 +380,10 @@
         "email_hub_new_mail": "Thư mới (Email Hub)",
         "document_commented": "Bình luận trong tài liệu",
         "document_mentioned": "Được nhắc đến trong tài liệu",
+        "document_comment_replied": "Phản hồi bình luận",
+        "document_discussion_mentioned": "Được nhắc đến trong thảo luận",
+        "document_discussion_replied": "Phản hồi thảo luận",
+        "document_comment_resolved": "Bình luận đã giải quyết",
         "chat_mentioned": "Được nhắc đến trong chat",
         "chat_dm": "Tin nhắn riêng",
         "chat_thread_replied": "Trả lời trong thread bạn theo dõi"
@@ -4522,10 +4526,21 @@
       "chat_reminder": "Nhắc hẹn: {{body}}",
       "email_hub_new_mail": "Bạn có {{count}} thư chưa đọc · {{mailbox}}",
       "document_commented": "{{actor}} đã bình luận trong “{{document}}”",
-      "document_mentioned": "{{actor}} đã nhắc đến bạn trong “{{document}}”",
+      "document_mentioned": "{{actor}} đã nhắc đến bạn trong bình luận tại tài liệu “{{document}}”.",
+      "document_comment_replied": "{{actor}} đã phản hồi bình luận của bạn trong tài liệu “{{document}}”.",
+      "document_discussion_mentioned": "{{actor}} đã nhắc đến bạn trong thảo luận của tài liệu “{{document}}”.",
+      "document_discussion_replied": "{{actor}} đã phản hồi nội dung thảo luận của bạn trong tài liệu “{{document}}”.",
+      "document_comment_resolved": "{{actor}} đã đánh dấu bình luận của bạn trong tài liệu “{{document}}” là đã giải quyết.",
       "chat_mentioned": "{{actor}} đã nhắc đến bạn trong {{room}}",
       "chat_dm": "{{actor}} đã nhắn tin cho bạn",
       "chat_thread_replied": "{{actor}} đã trả lời thread trong {{room}}"
+    },
+    "kindTitle": {
+      "document_mentioned": "Bạn được nhắc tên trong bình luận",
+      "document_comment_replied": "Có phản hồi bình luận mới",
+      "document_discussion_mentioned": "Bạn được nhắc tên trong thảo luận",
+      "document_discussion_replied": "Có phản hồi thảo luận mới",
+      "document_comment_resolved": "Bình luận đã được giải quyết"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",
