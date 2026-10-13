@@ -20,7 +20,7 @@ Mọi `§` trỏ vào [phụ lục G8](../../../superpowers/specs/2026-10-13-off
 Trạng thái `draft`: planner r2 (2026-10-13) viết Foundation G8, IA, Accessibility Floor G8 và đầy đủ S16–S18; G8-09
 (2026-10-13) hoàn tất S12–S15 (bảng trạng thái, chuỗi vi/en, định dạng khóa), sửa danh sách file fork theo cây fork
 `origin/main` `63cd2771`, chốt phím tắt và đóng mọi câu hỏi mở; bản vá catalogue (2026-10-13) thêm các khóa mà mockup S16–S18
-phải tự đặt, ghi rõ khóa sẵn có được dùng lại và bên sở hữu, và ghi điều gì ràng buộc khi spine lệch bản G8-16 đã ship. Advisor duyệt thay người dùng theo ủy quyền (ghi trong packet).
+phải tự đặt, ghi rõ khóa sẵn có được dùng lại và bên sở hữu, và ghi điều gì ràng buộc khi spine lệch bản G8-16 đã ship; bản vá review r1 (2026-10-13) đối chiếu danh sách file với đầu nhánh G8-08/G8-16/G8-17, đưa chữ dùng chung S12/S13 về trung tính, chốt tab Bình luận chỉ cho định dạng neo được và quyết định từng khóa `documents.comments.*`. Advisor duyệt thay người dùng theo ủy quyền (ghi trong packet).
 Chính tả: chữ UI mới viết "xóa" (`docs/conventions.md`, hợp đồng › Chính tả).
 
 ## Foundation G8
@@ -30,11 +30,13 @@ Chính tả: chữ UI mới viết "xóa" (`docs/conventions.md`, hợp đồng 
   | Host | Tình huống | Panel bình luận (S12) | Panel Discussion (S13) | `?comment=` / mở từ Inbox |
   | --- | --- | --- | --- | --- |
   | Web | Frame editor đang mở và `init` có capability `comments` | Panel của frame (G8-12..15) | Panel của frame (G8-11) | Host gửi `comments.reveal {comment_id}`; host **không** vẽ `DocumentCommentsPanel` |
-  | Web | Trang tài liệu không có frame (chưa mở, định dạng không có module, frame cũ không khai `comments`) | Panel D (G8-10), tab Bình luận | Panel D, tab Thảo luận | Panel D mở đúng tab, cuộn + focus thread |
+  | Web | Trang tài liệu không có frame (chưa mở, định dạng không có module, frame cũ không khai `comments`) | Panel D (G8-10), tab Bình luận — **chỉ** với định dạng neo được (docx, xlsx, pptx, pdf); định dạng khác không có tab này | Panel D, tab Thảo luận | Panel D mở đúng tab, cuộn + focus thread |
   | Desktop | Tài liệu bind UniWork, đã đăng nhập | Panel của editor (S12) | Panel Discussion của shell (S13), một cho mọi app | Vé launch có `comment_id` → `comments.reveal` sau khi editor sẵn sàng |
   | Desktop | Tệp cục bộ / chưa đăng nhập | Panel bình luận gốc của fork (hành vi cũ, tác giả `"User"`) | Không có | — |
 
-  Không host nào vẽ hai composer cho cùng một luồng. Markdown/HTML: chỉ Discussion.
+  Không host nào vẽ hai composer cho cùng một luồng. **Tab Bình luận chỉ tồn tại cho định dạng neo được (docx, xlsx, pptx, pdf).** Mọi định dạng khác
+  (Markdown, HTML và định dạng không có module frame) chỉ có Discussion: panel D không tablist, một vùng duy nhất `collabDiscussion`. Lý do:
+  bình luận có neo cần editor; định dạng không có editor trên web thì tab Bình luận không bao giờ có nội dung và câu giải thích sẽ trỏ tới một trình soạn thảo không có.
 - **Thay đổi có tên trong fork cho G8 (danh sách duy nhất; nối tiếp danh sách của EXPERIENCE.md › Foundation).** Đối chiếu
   với cây fork `origin/main` `63cd2771` (2026-10-13); "(mới)" = file chưa có trên `main`, task ghi bên cạnh tạo nó. Reviewer fork
   từ chối file ngoài danh sách này trong PR G8 (test của chính các file được phép).
@@ -47,11 +49,15 @@ Chính tả: chữ UI mới viết "xóa" (`docs/conventions.md`, hợp đồng 
   | Slides | `apps/slides/src/renderer/components/CommentsPane.tsx` | G8-14 |
   | PDF | `apps/pdf/src/renderer/{NoteMargin.tsx,note-threads.ts,note-margin-layout.ts}` | G8-15 |
   | Nguồn tác giả (đã vào `main`) | `apps/slides/src/main/electron-host-io.ts`, `apps/pdf/src/main/pdf-main.ts`, `apps/sheets/src/main/{sheets-main.ts,comment-author.ts}`, `apps/{docs,sheets,slides,pdf}/src/renderer/comment-author.ts` | G8-02 |
-  | Cầu desktop | preload sáu app `apps/{docs,sheets,slides,pdf,markdown,html}/src/preload/index.ts`; `packages/electron-utils/src/{comments-bridge,comments-ipc,comments-poll,comments-reply}.ts` (mới) + `index.ts` + `package.json`; `apps/shell/src/main/uniwork-docs/{comments,comments-wiring}.ts` (mới), `{service,parse,wiring,launch}.ts`; `apps/shell/src/main/index.ts` | G8-08 |
-  | Liên kết sau đăng nhập | `apps/shell/src/main/uniwork-auth/{index,manager,transport,mapping,session-core}.ts`, `apps/shell/src/main/uniwork-docs/client.ts`, `apps/shell/src/preload/index.ts`, `apps/shell/src/shared/home-api.ts`; renderer `apps/shell/src/renderer/src/{AccountPane.tsx,AccountEntry.tsx,OrgChoiceStep.tsx,UniworkDocInfoPanel.tsx,UniworkOpenDialog.tsx,uniwork-docs-model.ts,uniwork-library-api.ts,home.css,settings.css}` | G8-16, G8-17 |
-  | Panel Discussion | `apps/shell/src/renderer/src/UniworkDiscussionPanel.tsx` (mới, cạnh `UniworkChrome.tsx`; `UniworkChrome.tsx` chỉ thêm nút mở); `web/modules/shared/collab/*` (mới, panel frame) + `web/modules/shared/capabilities.ts` | G8-11 |
-  | Protocol | `web/docs/protocol/{types,endpoint,host,client}.ts` + `web/docs/protocol/test/*` | G8-08 |
-  | Shard i18n (chỉ khóa G8 của chính lane) | `apps/{docs,sheets,slides,html}/src/renderer/i18n/app/*`; `apps/pdf/src/renderer/i18n/strings.ts`; `apps/shell/src/renderer/src/i18n/uniwork-documents/*`; `web/modules/shared/i18n/web/*` + `strings-web.ts` | G8-02, G8-11, G8-16, G8-17 |
+  | Cầu desktop | preload sáu app `apps/{docs,sheets,slides,pdf,markdown,html}/src/preload/index.ts`; `packages/electron-utils/src/{comments-bridge,comments-ipc,comments-poll,comments-reply}.ts` (mới) + `packages/electron-utils/src/index.ts` + `packages/electron-utils/package.json`; `apps/docs/vitest.config.ts` (alias ba mô-đun `comments-*` mới cho test); `apps/shell/src/main/uniwork-docs/{comments,comments-wiring}.ts` (mới), `{service,parse,wiring,launch}.ts`; `apps/shell/src/main/index.ts` | G8-08 |
+  | Liên kết sau đăng nhập | `apps/shell/src/main/uniwork-auth/{index,manager,transport,mapping,session-core}.ts`, `apps/shell/src/main/uniwork-docs/{client,service,parse,wiring}.ts` (`service`, `parse`, `wiring` cũng ở hàng Cầu desktop: G8-16/G8-17 thêm IPC thư viện vào đó), `apps/shell/src/preload/index.ts`, `apps/shell/src/shared/home-api.ts`; renderer `apps/shell/src/renderer/src/{AccountPane.tsx,AccountEntry.tsx,OrgChoiceStep.tsx,UniworkDocInfoPanel.tsx,UniworkOpenDialog.tsx,uniwork-docs-model.ts,uniwork-library-api.ts,home.css,settings.css}` (mới: `OrgChoiceStep.tsx`, `UniworkDocInfoPanel.tsx`, `uniwork-library-api.ts`); chỉ G8-17: `apps/shell/src/renderer/src/UniworkDocActions.tsx` (mới, hộp thoại và menu "…" của S18) + `apps/shell/src/renderer/src/UniworkChrome.tsx` (chỉ nối menu tài liệu tới các thao tác đó) | G8-16, G8-17 |
+  | Panel Discussion | `apps/shell/src/renderer/src/UniworkDiscussionPanel.tsx` (mới, cạnh `UniworkChrome.tsx`; `UniworkChrome.tsx` chỉ thêm nút mở — G8-17 cũng sửa file này, xem hàng Liên kết sau đăng nhập); `web/modules/shared/collab/*` (mới, panel frame) + `web/modules/shared/capabilities.ts` | G8-11 |
+  | Protocol | `web/docs/protocol/{types,endpoint,host,client}.ts` + `web/docs/protocol/README.md` + `web/docs/protocol/test/*`; `web/docs/bridge/testing/mock-port.ts` + `web/docs/bridge/tsconfig.json` (mock port và cấu hình kiểu của bridge chạm hợp đồng mới) | G8-08 |
+  | Shard i18n (chỉ khóa G8 của chính lane) | `apps/{docs,sheets,slides,html}/src/renderer/i18n/app/*`; `apps/slides/src/renderer/i18n/panes/*` (chuỗi bình luận của Slides nằm ở đây; G8-02 đã có `paneCommentsNeutralAuthor`, G8-14 chỉ thêm khóa vào đây); `apps/pdf/src/renderer/i18n/strings.ts`; `apps/shell/src/renderer/src/i18n/uniwork-documents/*`; `web/modules/shared/i18n/web/*` + `strings-web.ts` | G8-02, G8-11, G8-14, G8-16, G8-17 |
+
+  File test và fixture của chính lane (`**/tests/**`, `**/test/**`, `*.test.ts`, `web/docs/bridge/testing/*`) không phải liệt kê từng
+  file: reviewer cho qua khi chúng kiểm đúng file được phép. Cách đối chiếu trước khi mở PR: `git diff --name-only origin/main...<head>`,
+  mọi file không phải test phải nằm trong bảng (đã chạy cho đầu nhánh G8-08, G8-16, G8-17 khi sửa spine này).
 
   Tên đã sửa so với bản r2 (lý do một dòng):
   - `apps/docs/src/renderer/CommentsPanel.tsx` → `apps/docs/src/renderer/components/CommentsPanel.tsx`: file nằm trong `components/`.
@@ -124,6 +130,9 @@ panel nên cùng khóa. Hàng neo của thread mới đang soạn (chưa gửi) 
 (`collabAnchorDocx` / `collabAnchorCell` / `collabAnchorSlide` / `collabAnchorPage`, bảng Nhãn neo bên dưới) và chưa có nhãn
 trạng thái; không có khóa "bình luận mới" riêng, ô soạn dùng `collabComposerComment`.
 
+**Tác giả không còn tên:** khi người viết đã rời tổ chức hoặc bị gỡ (server không trả tên hiển thị), tên tác giả của thread/trả lời hiện `collabFormerMember`;
+mention chip của người không còn tồn tại hoặc không đọc được hiện nhãn trong token, không link (phụ lục §4.2), không khóa.
+
 **Một thread:** dòng đầu = tác giả + thời gian + nhãn neo (+ nhãn trạng thái neo) + huy hiệu `collabResolved` khi đã giải quyết;
 thân theo phụ lục §4.2; `collabEdited` khi `revision > 1`; trả lời thụt vào, cũ nhất trước; hàng nút: `collabReply`,
 `collabGoToAnchor`, menu `collabActions` (`collabEdit`, `collabDelete`, `collabCopyText`, `collabHistory`), `collabResolve` /
@@ -133,17 +142,17 @@ thân theo phụ lục §4.2; `collabEdited` khi `revision > 1`; trả lời th�
 | --- | --- | --- |
 | Đang tải lần đầu | Khung xương 3 thread; không composer; câu ẩn thị giác cho screen reader | `collabLoading` |
 | Rỗng (F) | Câu mời; không composer gốc (bình luận bắt đầu từ vùng chọn) | `collabEmptyComments` |
-| Rỗng (D) | Câu giải thích bình luận theo vị trí chỉ tạo được trong trình soạn thảo; D không tạo comment gốc (gốc `kind=comment` cần neo + `base_version_id`, hợp đồng OQ-C2), chỉ trả lời/sửa/giải quyết thread đã có | `collabEmptyCommentsNoEditor` |
+| Rỗng (D, chỉ định dạng neo được) | Câu giải thích bình luận theo vị trí chỉ tạo được trong trình soạn thảo; D không tạo comment gốc (gốc `kind=comment` cần neo + `base_version_id`, hợp đồng OQ-C2), chỉ trả lời/sửa/giải quyết thread đã có | `collabEmptyCommentsNoEditor` |
 | Lỗi tải lần đầu (`internal`/`network`, chưa có dữ liệu) | Thông điệp trong panel + nút Thử lại; không composer | `collabLoadError`, `collabLoadErrorBody`, `collabRetry` |
 | Danh sách | Như Cấu trúc panel ở trên | — |
 | Neo `exact` | Nhãn neo theo định dạng, không nhãn trạng thái | `collabAnchorDocx` / `collabAnchorCell` / `collabAnchorSlide` / `collabAnchorPage` |
 | Neo `stale` | Nhãn neo + chữ trạng thái (không chỉ màu). F: chỉ hiện khi editor không xác nhận được neo trong model đang mở (comment vừa tạo trên bản chưa Lưu vẫn tìm thấy neo nên không gắn nhãn); D: hiện đúng `anchor_state` của server | `collabAnchorStale` |
 | Neo `lost` | Thread vẫn đọc, trả lời, giải quyết được; nhãn neo cũ (nếu còn trích dẫn) + chữ `lost`; `collabGoToAnchor` ẩn; reveal chỉ mở thread, không định vị, không mở comment khác. Khác hẳn khung xóa | `collabAnchorLost` |
-| Comment/thread đã xóa có phản hồi (tombstone) | Khung `collabDeleted` thay thân và tác giả giữ chỗ; không nút trả lời, sửa, xóa, lịch sử ở khung; trả lời con vẫn hiện đủ | `collabDeleted` |
-| Xóa comment không phản hồi | Thread/trả lời biến mất ở lần tải sau (web: realtime; desktop: token đổi) | — |
+| Comment/thread đã xóa có trả lời (tombstone) | Khung `collabDeleted` thay thân và tác giả giữ chỗ; không nút trả lời, sửa, xóa, lịch sử ở khung; trả lời con vẫn hiện đủ | `collabDeleted` |
+| Xóa comment không có trả lời | Thread/trả lời biến mất ở lần tải sau (web: realtime; desktop: token đổi) | — |
 | Đã giải quyết | Thread vào nhóm "Đã giải quyết", huy hiệu chữ; vẫn mở, đọc, trả lời được; gốc có `collabReopen` | `collabResolved`, `collabReopen` |
 | Mở lại | Thread về danh sách đang mở đúng thứ tự neo; focus ở lại nút vừa bấm (đã đổi thành `collabResolve`) | `collabResolve` |
-| Sửa | Thân thành ô soạn có sẵn nội dung; `collabSave` / `collabCancel`; Esc hủy (có thay đổi → hỏi `collabDiscardTitle`) | `collabSave`, `collabCancel` |
+| Sửa | Thân thành ô soạn có sẵn nội dung (nhãn ẩn thị giác = `collabEdit`, không placeholder riêng); `collabSave` / `collabCancel`; Esc hủy (có thay đổi → hỏi `collabDiscardTitle`) | `collabSave`, `collabCancel` |
 | Lịch sử sửa | Mở từ `collabEdited` hoặc menu `collabHistory`: danh sách trong thread, mới nhất trước, dòng đầu `collabHistoryCurrent`, mỗi bản `collabHistoryEntry` + thân; chỉ đọc (cả người `view`) | `collabHistoryTitle`, `collabHistoryCurrent`, `collabHistoryEntry` |
 | Lịch sử rỗng / lỗi / comment đã xóa | Rỗng → câu; lỗi → câu + `collabRetry`; tombstone (409 `comment_deleted`) → không mở lịch sử, hiện khung `collabDeleted` | `collabHistoryEmpty`, `collabHistoryError` |
 | Xóa | Hỏi một bước (`collabDeleteTitle`, `collabDeleteBody`, nút danger `collabDeleteConfirm`, `collabCancel`); câu đúng cho cả hai kết quả (khung hoặc biến mất) | `collabDeleteTitle`, `collabDeleteBody`, `collabDeleteConfirm` |
@@ -180,12 +189,12 @@ Dùng chung component với S12 (G8-20), khác ở:
 
 | Trạng thái | Hành vi | Khóa |
 | --- | --- | --- |
-| Mở | Nút `collabDiscussion` ở thanh tài liệu (shell desktop; frame web; D: tab thứ hai của panel D, tablist APG `collabComments` / `collabDiscussion`, Markdown/HTML chỉ một tab nên không có tablist) | `collabDiscussion` |
-| Đang tải / lỗi tải / mất quyền | Như S12 | `collabLoading`, `collabLoadError`, `collabLoadErrorBody`, `collabRetry`, `collabNoAccess`, `collabNoAccessBody` |
+| Mở | Nút `collabDiscussion` ở thanh tài liệu (shell desktop; frame web; D: tab thứ hai của panel D, tablist APG `collabComments` / `collabDiscussion` khi định dạng neo được; mọi định dạng khác chỉ một vùng Discussion nên không có tablist) | `collabDiscussion` |
+| Đang tải / lỗi tải / mất quyền / chỉ xem / mất mạng / server lỗi / cập nhật | Như S12; chữ của các khóa này trung tính theo bề mặt (không nói "bình luận"), nên một khóa dùng chung cho S12 và S13 (bảng chuỗi bên dưới) | `collabLoading`, `collabLoadError`, `collabLoadErrorBody`, `collabRetry`, `collabNoAccess`, `collabNoAccessBody`, `collabViewOnly`, `collabOffline`, `collabServerError`, `collabUpdatedAnnounce` |
 | Rỗng | Câu mời + composer ở cuối (người có `edit`) | `collabEmptyDiscussion` |
 | Danh sách | Bài theo thời gian, cũ nhất trước; không nhãn neo, không `collabGoToAnchor`; trả lời thụt vào; bài đã giải quyết gom cuối như S12 | `collabLabelCount`, `collabResolved` |
 | Composer | Luôn ở cuối panel (không đi từ vùng chọn); placeholder `collabComposerDiscussion`; trả lời dùng `collabComposerReply` | `collabComposerDiscussion`, `collabComposerReply`, `collabSend` |
-| Tombstone, sửa, lịch sử, xóa, giải quyết, mở lại, chỉ xem, mất mạng, server lỗi, phiên hết, đang gửi, gửi lỗi, AI nháp, hủy nháp | Như S12 cùng khóa | như S12 |
+| Tombstone, sửa, lịch sử, xóa, giải quyết, mở lại, phiên hết, đang gửi, gửi lỗi, AI nháp, hủy nháp | Như S12 cùng khóa | như S12 |
 | Bài đích bị xóa khi đang soạn | Như S12, câu theo loại luồng | `collabDiscussionDeleted`, `collabCopyText` |
 | Tệp cục bộ / chưa đăng nhập (desktop) | Không có nút, không panel | — |
 
@@ -219,7 +228,7 @@ heading là câu thông điệp, nút `inboxBack` ngay sau; **panel** = tài li�
 | 1 | Tài liệu không còn | Hàng Inbox có `resource_deleted`, hoặc mở trang nhận 404/410 | trang (chỉ web; desktop không nhận được vé cho tài liệu đã xóa) | `inboxDocGone`, `inboxBack` |
 | 2 | Mất quyền | Hàng Inbox có `resource_access_lost` (snippet đã ẩn), hoặc mở trang nhận 403 | trang (chỉ web) | `inboxDocNoAccess`, `inboxBack` |
 | 3 | Bình luận đã xóa (`params.kind = comment`) | Comment đích là tombstone → mở thread, focus khung `collabDeleted`, dòng thông điệp; không còn trong danh sách → chỉ dòng thông điệp | panel, tab Bình luận | `collabCommentDeleted` |
-| 4 | Thảo luận đã xóa (`params.kind = discussion`) | Như hàng 3 với bài Discussion | panel, tab Thảo luận | `collabDiscussionDeleted` |
+| 4 | Bài thảo luận đã xóa (`params.kind = discussion`; bài gốc hoặc trả lời trong Discussion) | Như hàng 3 với bài Discussion; câu nói về **bài** đã xóa, không nói cả Discussion mất (Discussion là mọi bài `kind=discussion` của tài liệu, các bài khác vẫn còn) | panel, tab Thảo luận | `collabDiscussionDeleted` |
 | 5 | Phiên hết hạn | Web: chưa có phiên → màn hình đăng nhập sẵn có, câu thông điệp phía trên form, đăng nhập xong quay lại đúng link (giữ `?comment=`); desktop: luồng đăng nhập của shell, vé launch hết hạn dùng thông điệp sẵn có của shell | trang đăng nhập | `inboxSessionExpired` |
 | — | Neo không còn (`lost`) — không phải ngoại lệ | Mở thread, nhãn `collabAnchorLost`, không định vị, không mở comment khác | panel | `collabAnchorLost` |
 | — | Comment đã giải quyết | Mở nhóm "Đã giải quyết", mở thread, xem được lịch sử; không đổi trạng thái | panel | `collabResolved` |
@@ -281,7 +290,7 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
 - **Phím tắt (chốt G8-09):** **không** thêm phím tắt mở panel ở v1. Đề xuất Ctrl/⌘+Alt+M của r2 trùng phím mở hộp thoại Đoạn
   văn của Docs (`apps/docs/src/renderer/App.tsx`, `e.altKey && e.code === 'KeyM'`) và luật "phím tắt không ghi đè phím của editor".
   Bình luận mới dùng phím sẵn có của từng editor, ở chế độ server mở composer S12: Docs ⌥⌘A / Ctrl+Alt+A (`shortcuts.ts`, id
-  `comment`), Sheets Ctrl+Shift+F2 / ⇧⌘M (`global-shortcuts.ts`, `comment-new`); Slides và PDF chưa có phím → chỉ nút trên
+  `comment`), Sheets (`global-shortcuts.ts`, `comment-new`, hai phím cùng `{mod, shift}`) Ctrl+Shift+F2 hoặc Ctrl+Shift+M trên Windows/Linux, ⌘⇧F2 hoặc ⌘⇧M trên macOS; Slides và PDF chưa có phím → chỉ nút trên
   thanh công cụ. Nút mở panel bình luận và nút `collabDiscussion` nằm trong thứ tự Tab của thanh tài liệu.
 - **S15:** heading ngoại lệ (mức trang) nhận focus khi trang tải; nút `inboxBack` là điểm Tab đầu tiên sau heading. Mức panel:
   dòng thông điệp `tabindex=-1` nhận focus, câu ghi vào nút polite của cửa sổ.
@@ -309,8 +318,18 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
   (i18next). Chỉ khóa có cột Host chứa D.
 - **Khóa D sẵn có:** khi cột "D sẵn có" ghi một khóa `documents.comments.*`, web D dùng khóa đó (sửa giá trị theo spine nếu cột vi/en
   khác giá trị hiện tại) và **không** thêm `documents.collab.*` trùng nghĩa. Khóa `documents.comments.*` mà panel tab hóa thay thế
-  (`close`, `open`, `count_one/_other`, `file_title`, `file_open`, `file_close`, `file_empty`, `empty`, `comment_placeholder`, `comment_reply_count_one/_other`,
-  `comment_resolved_fold_*`, `thread_resolved_one/_other`) được G8-10 xóa khi không còn chỗ dùng, để không có hai khóa cùng nghĩa.
+  (`open`, `count_one/_other`, `file_title`, `file_open`, `file_close`, `file_empty`, `empty`, `comment_placeholder`, `comment_reply_count_one/_other`,
+  `comment_resolved_fold_*`, `thread_resolved_one/_other`) được G8-10 xóa khi không còn chỗ dùng, để không có hai khóa cùng nghĩa. Mọi khóa `documents.comments.*` còn lại đều được quyết định ở đây
+  (không có khóa nào bị bỏ sót):
+
+  | Khóa D | Quyết định |
+  | --- | --- |
+  | `title`, `error_title`, `error_description`, `retry`, `revoked_title`, `revoked_description`, `action_failed`, `comment_send`, `comment_edited_time`, `comment_deleted`, `comment_resolved`, `comment_resolve`, `comment_unresolve`, `comment_actions`, `comment_copy`, `comment_edit`, `comment_delete_title`, `comment_delete_description`, `comment_delete_confirm` | giữ làm khóa D của khóa `collab*` ở cột "D sẵn có" bên dưới (đổi giá trị khi cột vi/en khác) |
+  | `close` | giữ làm khóa D của `collabClosePanel` (chữ đổi thành `{{panel}}`) |
+  | `former_member` | giữ làm khóa D của `collabFormerMember` (giá trị không đổi) |
+  | `comment_edit_placeholder` | **bỏ**: ô sửa lấy nhãn ẩn từ `collabEdit` (S12 hàng Sửa) |
+  | `comment_collapse`, `comment_expand`, `comment_preview_empty` | **giữ nguyên**, chỉ D: thu gọn thân bình luận dài và dòng xem trước của bình luận không có chữ, spine không định nghĩa bề mặt thay thế |
+  | `favorite_add`, `favorite_remove`, `favorite_failed`, `favorite_unavailable` | **giữ nguyên**: yêu thích tài liệu, chỉ cùng không gian tên, ngoài phạm vi G8 |
 - **Số đếm:** đúng ba khóa có `{count}`, mỗi khóa một nghĩa, câu trung tính với số (EXPERIENCE › Số đếm; không cặp `_one/_other`
   mới ở D): `collabLabelCount`, `collabReplyCount`, `collabMentionCount`. Kiểm ở 1, 2, 5 cho vi, en, ru, pl (fork).
 - Không chuỗi nào chứa mã nội bộ, tên repo/GitHub hay tên nhà cung cấp; "UniWork" và "UniWork AI" giữ nguyên.
@@ -325,23 +344,23 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
 | --- | --- | --- | --- | --- |
 | `collabComments` | Bình luận | Comments | F+D | `documents.comments.title` |
 | `collabDiscussion` | Thảo luận | Discussion | F+D | — |
-| `collabClosePanel` | Đóng {panel} | Close {panel} | F+D | — |
+| `collabClosePanel` | Đóng {panel} | Close {panel} | F+D | `documents.comments.close` (thay: vi "Đóng bình luận") |
 | `collabLabelCount` | {label} · {count} | {label} · {count} | F+D | — |
-| `collabLoading` | Đang tải bình luận… | Loading comments… | F+D | — |
+| `collabLoading` | Đang tải… | Loading… | F+D | — |
 | `collabEmptyComments` | Chưa có bình luận. Chọn một chỗ trong tài liệu rồi chọn Bình luận. | No comments yet. Select something in the document, then choose Comment. | F | — |
 | `collabEmptyCommentsNoEditor` | Chưa có bình luận. Bình luận tại một vị trí được thêm khi mở tài liệu trong trình soạn thảo. | No comments yet. Comments on a specific place are added while the document is open in the editor. | D | — |
 | `collabEmptyDiscussion` | Chưa có thảo luận. Hãy viết điều bạn muốn trao đổi về tài liệu này. | No discussion yet. Write what you’d like to talk about in this document. | F+D | — |
-| `collabLoadError` | Không tải được bình luận | Could not load the comments | F+D | `documents.comments.error_title` |
+| `collabLoadError` | Không tải được nội dung này | Could not load this | F+D | `documents.comments.error_title` |
 | `collabLoadErrorBody` | Chưa mất gì cả. Thử lại sau giây lát. | Nothing was lost. Try again in a moment. | F+D | `documents.comments.error_description` |
 | `collabRetry` | Thử lại | Try again | F+D | `documents.comments.retry` |
-| `collabOffline` | Không kết nối được UniWork. Bạn vẫn đọc được bình luận đã tải nhưng chưa gửi được. | Can’t reach UniWork. You can still read the comments already loaded, but you can’t send yet. | F+D | — |
-| `collabServerError` | UniWork đang gặp sự cố. Bạn vẫn đọc được bình luận đã tải nhưng chưa gửi được. | UniWork is having trouble. You can still read the comments already loaded, but you can’t send yet. | F+D | — |
-| `collabSignedOut` | Phiên đăng nhập đã hết. Đăng nhập lại để gửi bình luận. | Your session has ended. Sign in again to send comments. | F+D | — |
-| `collabNoAccess` | Bạn không còn quyền xem bình luận | You no longer have access to these comments | F+D | `documents.comments.revoked_title` |
-| `collabNoAccessBody` | Bình luận bị ẩn theo quyền hiện tại của bạn trên tài liệu này. | Comments are hidden under your current access to this document. | F+D | `documents.comments.revoked_description` |
+| `collabOffline` | Không kết nối được UniWork. Bạn vẫn đọc được nội dung đã tải nhưng chưa gửi được. | Can’t reach UniWork. You can still read what’s already loaded, but you can’t send yet. | F+D | — |
+| `collabServerError` | UniWork đang gặp sự cố. Bạn vẫn đọc được nội dung đã tải nhưng chưa gửi được. | UniWork is having trouble. You can still read what’s already loaded, but you can’t send yet. | F+D | — |
+| `collabSignedOut` | Phiên đăng nhập đã hết. Đăng nhập lại để gửi bình luận. | Your session has ended. Log in again to send comments. | F+D | — |
+| `collabNoAccess` | Bạn không còn quyền xem nội dung này | You no longer have access to this | F+D | `documents.comments.revoked_title` |
+| `collabNoAccessBody` | Nội dung bị ẩn theo quyền hiện tại của bạn trên tài liệu này. | This is hidden under your current access to this document. | F+D | `documents.comments.revoked_description` |
 | `collabViewOnlyBadge` | Chỉ xem | View only | F+D | — |
-| `collabViewOnly` | Bạn chỉ có quyền xem: đọc được bình luận nhưng không viết được. | You have view access: you can read comments but not write them. | F+D | — |
-| `collabUpdatedAnnounce` | Bình luận vừa được cập nhật. | Comments were updated. | F+D | — |
+| `collabViewOnly` | Bạn chỉ có quyền xem: đọc được nhưng không viết được. | You have view access: you can read but not write. | F+D | — |
+| `collabUpdatedAnnounce` | Nội dung vừa được cập nhật. | The content was updated. | F+D | — |
 
 ### Neo (S12)
 
@@ -363,7 +382,7 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
 | `collabResolve` | Đánh dấu đã giải quyết | Resolve | F+D | `documents.comments.comment_resolve` (vi đổi "Đánh dấu đã xử lý") |
 | `collabReopen` | Mở lại | Reopen | F+D | `documents.comments.comment_unresolve` (en đổi "Unresolve") |
 | `collabReply` | Trả lời | Reply | F+D | — |
-| `collabReplyCount` | Phản hồi: {count} | Replies: {count} | F+D | — (thay `comment_reply_count_one/_other`) |
+| `collabReplyCount` | Trả lời: {count} | Replies: {count} | F+D | — (thay `comment_reply_count_one/_other`) |
 | `collabActions` | Thao tác bình luận | Comment actions | F+D | `documents.comments.comment_actions` |
 | `collabEdit` | Sửa | Edit | F+D | `documents.comments.comment_edit` |
 | `collabSave` | Lưu | Save | F+D | — |
@@ -371,10 +390,11 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
 | `collabDelete` | Xóa | Delete | F+D | — |
 | `collabCopyText` | Sao chép nội dung | Copy content | F+D | `documents.comments.comment_copy` |
 | `collabDeleteTitle` | Xóa bình luận? | Delete comment? | F+D | `documents.comments.comment_delete_title` |
-| `collabDeleteBody` | Nội dung và lịch sử sửa của bình luận sẽ bị xóa hẳn. Nếu đã có phản hồi, các phản hồi vẫn còn. | The comment’s text and edit history will be permanently deleted. Any replies stay. | F+D | `documents.comments.comment_delete_description` (giá trị đổi) |
+| `collabDeleteBody` | Nội dung và lịch sử sửa của bình luận sẽ bị xóa hẳn. Nếu đã có trả lời, các trả lời vẫn còn. | The comment’s text and edit history will be permanently deleted. Any replies stay. | F+D | `documents.comments.comment_delete_description` (giá trị đổi) |
 | `collabDeleteConfirm` | Xóa bình luận | Delete comment | F+D | `documents.comments.comment_delete_confirm` |
 | `collabDeleted` | Nội dung đã bị xóa | This content was deleted | F+D | `documents.comments.comment_deleted` |
 | `collabEdited` | Đã sửa · {time} | Edited · {time} | F+D | `documents.comments.comment_edited_time` |
+| `collabFormerMember` | Cựu thành viên | Former member | F+D | `documents.comments.former_member` (giữ giá trị) |
 | `collabHistory` | Xem lịch sử sửa | View edit history | F+D | — |
 | `collabHistoryTitle` | Lịch sử sửa | Edit history | F+D | — |
 | `collabHistoryCurrent` | Bản hiện tại | Current version | F+D | — |
@@ -382,6 +402,13 @@ Bổ sung Accessibility Floor của EXPERIENCE.md (luật chung, vùng live cố
 | `collabHistoryEmpty` | Bình luận này chưa được sửa. | This comment hasn’t been edited. | F+D | — |
 | `collabHistoryError` | Không tải được lịch sử sửa. | Couldn’t load the edit history. | F+D | — |
 | `collabActionFailed` | Thao tác bình luận chưa thành công | The comment action did not go through | F+D | `documents.comments.action_failed` |
+
+**`{panel}` của `collabClosePanel`** = đúng giá trị khóa tiêu đề của panel đang đóng (`collabComments` hoặc `collabDiscussion`), giữ nguyên hoa/thường như tiêu đề
+hiển thị: vi "Đóng Bình luận" / "Đóng Thảo luận", en "Close Comments" / "Close Discussion"; host truyền chuỗi đã dịch, khóa không tự tra.
+
+**Động từ đăng nhập (en)**: D dùng "Log in" (khớp `auth.login`, nút của màn hình đăng nhập sẵn có); fork (`strings-collab-panel.ts`) viết "Sign in" ở
+`collabSignedOut` để khớp shell ("Sign in again"). Catalogue ghi giá trị D; đây là khác biệt duy nhất theo host của một khóa, vì hai host có hai nút
+đăng nhập đã ship với hai động từ khác nhau.
 
 **`{time}` của `collabEdited`, `collabHistoryEntry`, `uwDocInfoByAt`** không phải chuỗi dịch: host truyền chuỗi đã định dạng bằng
 `Intl.DateTimeFormat` của locale giao diện, múi giờ cục bộ, không giây. Cùng ngày: chỉ giờ-phút; cùng năm: ngày-tháng + giờ-phút; khác
@@ -400,7 +427,7 @@ mốc thời gian.
 | `collabSending` | Đang gửi… | Sending… | F+D | — |
 | `collabSendFailed` | Chưa gửi được. Nội dung vẫn còn trong ô soạn. | Couldn’t send. Your text is still in the box. | F+D | — |
 | `collabCommentDeleted` | Bình luận này đã bị xóa. | This comment was deleted. | F+D | — |
-| `collabDiscussionDeleted` | Cuộc thảo luận này đã bị xóa. | This discussion was deleted. | F+D | — |
+| `collabDiscussionDeleted` | Bài thảo luận này đã bị xóa. | This discussion post was deleted. | F+D | — |
 | `collabDiscardTitle` | Bỏ bản nháp? | Discard the draft? | F+D | — |
 | `collabDiscardBody` | Nội dung bạn đang viết sẽ mất. | What you’ve written will be lost. | F+D | — |
 | `collabDiscard` | Bỏ nháp | Discard | F+D | — |
@@ -438,7 +465,7 @@ Câu vi/en của hàng 1, 2 là nguyên văn UNI-1389; hàng 3, 4 dùng `collabC
 | --- | --- | --- | --- | --- |
 | `inboxDocGone` | Tài liệu không còn tồn tại hoặc đã bị xóa. | This document no longer exists or was deleted. | D | — |
 | `inboxDocNoAccess` | Bạn không có quyền truy cập tài liệu này. | You don’t have access to this document. | D | — |
-| `inboxSessionExpired` | Phiên đăng nhập đã hết. Hãy đăng nhập lại để mở bình luận này. | Your session has ended. Sign in again to open this comment. | D | — |
+| `inboxSessionExpired` | Phiên đăng nhập đã hết. Hãy đăng nhập lại để mở bình luận này. | Your session has ended. Log in again to open this comment. | D | — |
 | `inboxBack` | Về Hộp việc | Back to Inbox | D | — |
 
 ### Shell (S16–S18)
@@ -506,7 +533,7 @@ Mockup và hành vi S12–S18 dùng các khóa này nguyên trạng; cột cuố
 | `setSecAccount` | Tài khoản | Account | `apps/shell/src/renderer/src/strings.ts` (đoạn sau của đường dẫn) |
 | `uwPickWorkspace` | Không gian làm việc | Workspace | shard `uniwork-documents` (nhãn ô chọn workspace của hộp thoại S18 và thư viện) |
 | `uwLockOrgTitle` | Không mở được trong tổ chức này | Can’t open in this organization | EXPERIENCE.md, shard `sync` (tiêu đề panel khóa của S16) |
-| `nav.inbox` | Hộp việc | Inbox | web D `packages/core/i18n/locales` (tên Inbox ở S15; `inboxBack` ghép từ khóa này, không chép chữ) |
+| `nav.inbox` | Hộp việc | Inbox | web D `packages/core/i18n/locales` (tên Inbox ở S15; trong D `inboxBack` là khóa i18next `"Về $t(nav.inbox)"`, giá trị hiển thị ở bảng dưới là kết quả sau khi nối, nên đổi tên Inbox sửa một chỗ) |
 | `auth.login` | Đăng nhập | Log in | web D `packages/core/i18n/locales` (nút của màn hình đăng nhập sẵn có, S15 hàng 5) |
 | `auth.email` | Email | Email | web D `packages/core/i18n/locales` (nhãn ô của màn hình đăng nhập sẵn có, S15 hàng 5) |
 | `editorNeutralCommentAuthor` | Người dùng | User | Docs `apps/docs/src/renderer/i18n/strings-editor.ts` (G8-02; tác giả bình luận trong tệp) |
@@ -519,12 +546,12 @@ shard của chúng và không đổi.
 
 ### Ràng buộc khi spine lệch bản G8-16 đã ship
 
-Nhánh `feature/UNI-1411-g8-16-post-login-links` (e2c90202) đã ship S16/S17 và nhánh `zone17th/UNI-1412-g8-17-fe` (859261ad) đã ship S18; G8-16/G8-17 không đổi hành vi của nó theo spine. Các chỗ mockup
+Nhánh `feature/UNI-1411-g8-16-post-login-links` (`04bc9a66`) đã ship S16/S17 và nhánh `zone17th/UNI-1412-g8-17-fe` (859261ad) đã ship S18; G8-16/G8-17 không đổi hành vi của nó theo spine. Các chỗ mockup
 vẽ khác (1–3: S16/S17 trên bản G8-16; 4–7: S18 trên bản G8-17 bên dưới), mỗi chỗ ghi bên nào ràng buộc:
 
-1. **Hàng tổ chức khóa trong hộp chọn đổi tổ chức (S16).** Bản đã ship ràng buộc: `Dropdown` của shell, tổ chức khóa là option `disabled`
-   với nhãn một dòng "tên · lý do", lý do tô màu danger, không biểu tượng; khung hai dòng + biểu tượng cảnh báo trong mockup chỉ là hình mục tiêu
-   nếu G8-17 chuyển sang listbox tùy biến, không là điều kiện của G8-16. Spine vẫn ràng buộc: lý do là chữ (không chỉ màu).
+1. **Hàng tổ chức khóa trong hộp chọn đổi tổ chức (S16).** Bản đã ship ràng buộc (đầu nhánh `04bc9a66`, `AccountPane.tsx` + `settings.css`): `Dropdown` của shell, tổ chức khóa là option `disabled`
+   vẽ **hai dòng** (`acct-org-opt-name` tên màu mờ, `acct-org-opt-reason` lý do màu danger, cỡ nhỏ hơn), không biểu tượng; tên truy cập của option vẫn là "tên · lý do".
+   Biểu tượng cảnh báo trong mockup chỉ là hình mục tiêu nếu G8-17 chuyển sang listbox tùy biến, không là điều kiện của G8-16. Spine vẫn ràng buộc: lý do là chữ (không chỉ màu).
 2. **Nút "Thông tin" của hàng (S17).** Bản đã ship ràng buộc `tabindex` luân phiên (0 chỉ trên hàng đang chọn hoặc đang mở panel; hàng khác
    -1) vì danh sách là listbox; mockup vẽ nút trên mọi hàng chỉ để xem bố cục. Spine ràng buộc kích thước (≥ 24px; ≥ 44px khi `pointer: coarse`):
    bản ship 28px và 44px coarse, đạt sàn.
@@ -547,6 +574,6 @@ Không còn câu nào mở. Các câu của bản r2 và của hợp đồng thu
 | Phím tắt mở panel (Ctrl/⌘+Alt+M) | Không thêm phím mở panel ở v1 (trùng hộp thoại Đoạn văn của Docs); bình luận mới dùng phím sẵn có của editor | Accessibility Floor G8 › Phím tắt |
 | Chữ nhãn neo `lost` (hợp đồng OQ-C11, phần UX) | Ký chữ riêng: "Không còn tìm thấy vị trí được bình luận" / "The commented location can no longer be found", khác khung `collabDeleted` | String catalogue G8 › Neo |
 | Tên chip sau khi đổi tên hiển thị (hợp đồng OQ-C10, phần UX) | Chấp nhận: chip làm mới ở mỗi lần list đầy đủ (web mỗi lần invalidate; desktop khi token đổi); không chuỗi nào | hợp đồng mục 2.1, mục 6 |
-| Bỏ cứng dây chuyền cha tombstone (hợp đồng OQ-C4, phần UX) | Chấp nhận: khung rỗng không còn con thì biến mất cùng lần tải; S12 hàng "Xóa comment không phản hồi" | S12 |
+| Bỏ cứng dây chuyền cha tombstone (hợp đồng OQ-C4, phần UX) | Chấp nhận: khung rỗng không còn con thì biến mất cùng lần tải; S12 hàng "Xóa comment không có trả lời" | S12 |
 | Thông điệp mention người chưa có quyền | **pending G8-18** (khi G8-D3 ký): chỉ phác ở S14, chưa có khóa; v1 không chữ nào | S14 |
 | "Người liên quan" khi giải quyết (hợp đồng OQ-C7) | Không thuộc UX (Product, UNI-1337); không đổi bề mặt S12–S15 | hợp đồng mục 13 |
