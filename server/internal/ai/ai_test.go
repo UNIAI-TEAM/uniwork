@@ -98,6 +98,25 @@ func TestFromEnv(t *testing.T) {
 func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)
+		if p.Sections != nil {
+			// The office pack (G6-14) is the exception: its System is the
+			// common section and the module section is appended per turn, so
+			// the assembled variants are what must close with the footer. It
+			// is free-text (no OutputSchema) and has no Render: the façade
+			// sends the conversation itself. prompts_office_test.go pins its
+			// goldens, caps and version pins.
+			// The registry checks every prompt gets still hold (BE14-6).
+			if p.Key() != k || strings.TrimSpace(p.System) == "" {
+				t.Errorf("%s: incomplete sectioned prompt (key %s, empty common System %v)", k, p.Key(), strings.TrimSpace(p.System) == "")
+			}
+			for _, m := range officeModuleSections {
+				got, err := officeAssemble(p, m.module)
+				if err != nil || !strings.HasSuffix(got, UntrustedFooter) {
+					t.Errorf("%s: %s variant does not end with the untrusted footer: %v", k, m.module, err)
+				}
+			}
+			continue
+		}
 		if !strings.HasSuffix(p.System, UntrustedFooter) {
 			t.Errorf("%s: system prompt does not end with the untrusted footer", k)
 		}
@@ -160,6 +179,13 @@ func TestPromptSnapshots(t *testing.T) {
 	}
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)
+		if p.Sections != nil {
+			// The office pack has one System per module and no Render: its
+			// goldens (testdata/office_uniwork_ai_v1_*.golden) and their test
+			// live in prompts_office_test.go, which keeps this snapshot's
+			// one-SYSTEM-one-USER shape for every other prompt.
+			continue
+		}
 		got := "SYSTEM:\n" + p.System + "\n\nUSER:\n" + p.Render(fixtures[k])
 		path := filepath.Join("testdata", strings.ReplaceAll(k, "@", "_v")+".golden")
 		if *update {
@@ -771,6 +797,86 @@ func TestRequestMessages(t *testing.T) {
 		if _, err := requestMessages(bad, p); err == nil {
 			t.Fatalf("%s: accepted", name)
 		}
+	}
+
+	// A prompt without Render (office_uniwork_ai, BE14-1) renders nothing:
+	// History goes as is and must end with the user's message; a tool-result
+	// turn takes the same path as for any prompt.
+	office := officePack(t)
+	conv := []provider.Message{{Role: "user", Content: "trước"}, {Role: "assistant", Content: "sau"}, {Role: "user", Content: "cột X?"}}
+	got, err = requestMessages(Request{History: conv}, office)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gj, wj := mustJSON(t, got), mustJSON(t, conv); gj != wj {
+		t.Fatalf("render-less turn must be History as is:\n%s\n%s", gj, wj)
+	}
+	if got, err = requestMessages(Request{ToolResultTurn: true, History: toolTurnHistory("call_1")}, office); err != nil || len(got) != 3 {
+		t.Fatalf("render-less tool turn: %v %d", err, len(got))
+	}
+	for name, bad := range map[string]Request{
+		"no history":       {},
+		"ends assistant":   {History: conv[:2]},
+		"attachments":      {History: conv, Attachments: []provider.Part{{MIME: "image/png"}}},
+		"tool turn broken": {ToolResultTurn: true, History: toolTurnHistory("call_1")[:2]},
+	} {
+		if _, err := requestMessages(bad, office); err == nil || !strings.HasPrefix(err.Error(), "ai: policy:") {
+			t.Fatalf("render-less %s: %v", name, err)
+		}
+	}
+}
+
+// TestSystemTextOfficeModule: the system text a Sections prompt sends is the
+// variant assembled for Request.Module; every other prompt sends its System
+// whatever Module says, and a missing or unknown module is a policy refusal.
+func TestSystemTextOfficeModule(t *testing.T) {
+	office := officePack(t)
+	for _, m := range officeModuleSections {
+		want, err := OfficeSystemPrompt(m.module)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := systemText(Request{Module: m.module}, office)
+		if err != nil || got != want {
+			t.Fatalf("%s: %v\n%s", m.module, err, firstDiff(want, got))
+		}
+		if !strings.Contains(got, office.Sections[m.section]) || !strings.HasPrefix(got, office.System) {
+			t.Fatalf("%s: not COMMON+MODULE", m.module)
+		}
+	}
+	for _, module := range []string{"", "sheets", "XLSX", "csv"} {
+		if _, err := systemText(Request{Module: module}, office); err == nil || !strings.HasPrefix(err.Error(), "ai: policy:") {
+			t.Fatalf("module %q: %v", module, err)
+		}
+	}
+	copilot, _ := LookupPrompt(PromptCopilotAnswer)
+	if got, err := systemText(Request{Module: "xlsx"}, copilot); err != nil || got != copilot.System {
+		t.Fatalf("single-System prompt changed: %v", err)
+	}
+	other := Prompt{ID: "other", Version: 1, System: "s", Sections: map[string]string{"sheets": "x"}}
+	if _, err := systemText(Request{Module: "xlsx"}, other); err == nil {
+		t.Fatal("a Sections prompt with no assembler accepted")
+	}
+}
+
+// TestGatewayOfficeRefusedBeforeUsageRow: an office turn without a known
+// module never reaches the usage row or the provider. The gateway has no
+// database here, so reaching insertUsage would panic.
+func TestGatewayOfficeRefusedBeforeUsageRow(t *testing.T) {
+	fp := &provider.Fake{}
+	g := NewGateway(nil, fp, nil, nil, Options{Timeout: time.Second})
+	for _, module := range []string{"", "unknown"} {
+		_, err := g.Complete(context.Background(), Request{
+			Actor: audit.User("u1"), OrganizationID: "org1", Capability: CapOfficeUniworkAI,
+			PromptID: PromptOfficeUniworkAI, Module: module,
+			History: []provider.Message{{Role: "user", Content: "cột X?"}},
+		})
+		if err == nil || !strings.HasPrefix(err.Error(), "ai: policy:") {
+			t.Fatalf("module %q: %v", module, err)
+		}
+	}
+	if fp.Calls != 0 {
+		t.Fatalf("provider called %d times", fp.Calls)
 	}
 }
 
