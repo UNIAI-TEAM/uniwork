@@ -11,6 +11,12 @@ import { Bezel } from "../layout/brand-surface";
 
 export type ConnectConsentState = "pending" | "approved" | "cancelled" | "error" | "expired";
 
+// The error code arrives in the page's query string, which anyone can write
+// into a link to this trusted origin. Only a plain OAuth-style code is named
+// on the page; anything else (text, markup, a phone number) reads as the
+// generic error.
+const PLAIN_ERROR_CODE = /^[a-z_]{1,64}$/;
+
 type ConnectConsentProps = {
   consent: ConnectConsent | null;
   state?: ConnectConsentState;
@@ -44,7 +50,7 @@ export function ConnectConsentView({ consent, state = "pending", errorCode, onDe
     state === "approved" ? t("auth.connect.approved")
     : state === "cancelled" ? t("auth.connect.cancelled")
     : state === "expired" ? t("auth.connect.expired")
-    : errorCode ? t("auth.connect.errorCode", { code: errorCode })
+    : errorCode && PLAIN_ERROR_CODE.test(errorCode) ? t("auth.connect.errorCode", { code: errorCode })
     : t("auth.connect.error");
 
   return (

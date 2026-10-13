@@ -74,6 +74,24 @@ describe("ConnectConsentView", () => {
     expect(screen.getByRole("status")).toHaveTextContent("(invalid_client)");
   });
 
+  it("names only a plain error code; anything else reads as the generic error", () => {
+    const generic = "Could not open this connection request. Try again, or add UniWork again from the AI app.";
+    for (const injected of [
+      "<b>call 0900 000 000 to unlock</b>",
+      "Your account is locked, visit evil.example",
+      "x".repeat(65),
+      "invalid_client)",
+      "INVALID_CLIENT",
+    ]) {
+      const { unmount } = render(wrap(<ConnectConsentView consent={null} state="error" errorCode={injected} onDecision={vi.fn(async () => {})} />));
+      expect(screen.getByRole("status")).toHaveTextContent(generic);
+      expect(document.body.textContent).not.toContain(injected);
+      unmount();
+    }
+    render(wrap(<ConnectConsentView consent={null} state="error" errorCode={"a".repeat(64)} onDecision={vi.fn(async () => {})} />));
+    expect(screen.getByRole("status")).toHaveTextContent(`(${"a".repeat(64)})`);
+  });
+
   it("offers Try again for an error but not for an expired request", () => {
     const onRetry = vi.fn();
     const { rerender } = render(wrap(<ConnectConsentView consent={null} state="error" onRetry={onRetry} onDecision={vi.fn(async () => {})} />));
