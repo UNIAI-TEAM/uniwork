@@ -2,11 +2,17 @@
 
 ## Luồng duyệt hiện tại — 2026-10-13
 
-Lịch 17:00 mỗi ngày (Asia/Ho_Chi_Minh); ưu tiên mô tả PR, chỉ đọc code khi
+Lịch 16:00 mỗi ngày (Asia/Ho_Chi_Minh); ưu tiên mô tả PR, chỉ đọc code khi
 thiếu mô tả. Agent tự viết Việt/Anh và chuẩn bị một PR chứa manifest, bản
 Markdown, catalog và locale. Người duyệt comment/approve/merge trên GitHub;
 sau deploy web phiên bản xuất hiện. Không yêu cầu tải hoặc push artifact.
 Model/runtime lấy theo cấu hình live trên UniAI; máy thực thi cần online.
+
+Lịch được đổi từ 17:00 sang 16:00 theo yêu cầu chủ sở hữu (UNI-1437).
+Trigger `bc20771f-e895-4849-9d2d-8a22b0c3fd8b` đã được kiểm tra trực tiếp:
+cron `0 16 * * *`, timezone `Asia/Ho_Chi_Minh`, enabled. Autopilot vẫn
+active/run_only; webhook vẫn tắt. Hướng dẫn agent và mô tả autopilot khớp
+lịch mới; model/runtime và quy tắc duyệt giữ nguyên.
 
 
 ## Bằng chứng thiết lập — 2026-10-12 (trước khi merge mã Changelog)
@@ -163,7 +169,7 @@ tắc repo. Không truy cập project hoặc repository khác.
 
 ## Giới hạn vận hành
 
-Lịch tự động: 17:00 mỗi ngày, timezone Asia/Ho_Chi_Minh (giờ Việt Nam).
+Lịch tự động: 16:00 mỗi ngày, timezone Asia/Ho_Chi_Minh (giờ Việt Nam).
 Không chạy mỗi giờ. Trigger webhook tự động đã tắt; không tự tạo trigger
 khác hoặc thay lịch. Chủ sở hữu vẫn có thể yêu cầu một lượt chạy thủ công.
 
