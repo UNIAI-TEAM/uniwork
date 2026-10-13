@@ -69,6 +69,9 @@ export function SwitchProgress({ step }: { step: number }) {
                 <StepperTitle
                   className={cn(
                     "text-pretty text-caption",
+                    // Keep a gutter before the next step's name, so on a phone
+                    // the names wrap instead of running into each other.
+                    number < SWITCH_STEPS.length && "pr-3",
                     current ? "font-semibold text-foreground" : done ? "font-medium text-foreground" : "font-medium text-muted-foreground",
                   )}
                 >

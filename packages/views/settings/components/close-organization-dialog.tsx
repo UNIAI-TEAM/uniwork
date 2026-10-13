@@ -185,7 +185,7 @@ export function CloseOrganizationDialog({
               </div>
             ) : null}
           </FormDialogBody>
-          <DialogFooter className="items-center px-5 py-3">
+          <DialogFooter className="px-5 py-3 sm:items-center">
             <DialogClose
               render={<Button type="button" variant="outline" aria-disabled={closeOrg.isPending || undefined} />}
             >

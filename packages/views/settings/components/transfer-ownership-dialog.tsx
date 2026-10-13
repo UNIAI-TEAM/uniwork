@@ -194,7 +194,7 @@ export function TransferOwnershipDialog({
             </Field>
             <TransferPasswordField id="transfer-password" value={password} onValueChange={setPassword} />
           </FormDialogBody>
-          <DialogFooter className="items-center px-5 py-3">
+          <DialogFooter className="px-5 py-3 sm:items-center">
             <DialogClose
               render={<Button type="button" variant="outline" aria-disabled={transfer.isPending || undefined} />}
             >

@@ -7,6 +7,7 @@ import { useWorkspaces } from "@uniwork/core/workspaces";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { STEP_HINT_ID } from "../components/step-shell";
 
@@ -95,7 +96,9 @@ export function OtherOrganizationLine({ organization }: { organization: { id: st
       </p>
       <AppLink
         href={settings.href}
-        className={buttonVariants({ variant: "link", size: "sm", className: "h-auto px-0" })}
+        // cn, not cva's className: only tailwind-merge lets px-0 beat the
+        // size's own padding, which otherwise indents the link off the text.
+        className={cn(buttonVariants({ variant: "link", size: "sm" }), "h-auto px-0")}
       >
         {t("onboarding.step_organization.manage_organization")}
       </AppLink>

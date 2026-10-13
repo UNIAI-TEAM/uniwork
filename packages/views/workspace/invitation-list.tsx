@@ -66,11 +66,15 @@ function InvitationRow({ invitation }: { invitation: PendingInvitation }) {
           </span>
           {expires?.soon ? <SettingsBadge tone="warning">{t("invitations.expires_soon")}</SettingsBadge> : null}
         </span>
+        {/* The separator rides on the role, and the date never breaks, so a
+            narrow row wraps between the two instead of opening a line on "·". */}
         <span className="flex flex-wrap gap-x-1 text-caption text-muted-foreground">
-          <span>{roleLabel(t, invitation.org_role)}</span>
+          <span>
+            {roleLabel(t, invitation.org_role)}
+            {expires ? <span aria-hidden> ·</span> : null}
+          </span>
           {expires ? (
-            <span>
-              <span aria-hidden>· </span>
+            <span className="whitespace-nowrap">
               <Trans
                 i18nKey="invitations.expires_on"
                 values={{ date: expires.date }}

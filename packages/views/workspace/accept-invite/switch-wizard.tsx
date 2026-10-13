@@ -176,14 +176,27 @@ export function SwitchWizard({
                 type="button"
                 size="lg"
                 variant={closes ? "destructiveSolid" : "default"}
-                className={cn("w-full", pending && "aria-disabled:cursor-progress aria-disabled:opacity-100")}
+                // The label carries the organization's name, which can be
+                // longer than a phone's button: it wraps instead of clipping.
+                className={cn(
+                  "h-auto min-h-9 w-full whitespace-normal py-2",
+                  pending && "aria-disabled:cursor-progress aria-disabled:opacity-100",
+                )}
                 aria-disabled={pending || undefined}
                 aria-busy={pending || undefined}
                 onClick={submit}
               >
-                {/* Decorative: the name stays "Chuyển sang …" while it works. */}
-                {pending ? <Spinner /> : closes ? null : <ArrowRightLeft aria-hidden />}
-                {t("invitations.switch.action", { name: to })}
+                {/* Decorative: the name stays "Chuyển sang …" while it works.
+                    Inline with the words, so a wrapped label keeps its glyph
+                    beside the first line instead of out at the button's edge. */}
+                <span className="min-w-0 text-balance text-center [overflow-wrap:anywhere]">
+                  {pending ? (
+                    <Spinner className="mr-1.5 inline-block align-[-0.125em]" />
+                  ) : closes ? null : (
+                    <ArrowRightLeft aria-hidden className="mr-1.5 inline-block align-[-0.125em]" />
+                  )}
+                  {t("invitations.switch.action", { name: to })}
+                </span>
               </Button>
             </StepActions>
           </>
