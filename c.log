@@ -1,0 +1,10 @@
+$ cd server && go vet ./internal/handler/dto/sdo/ && go test -count=1 -v ./internal/handler/dto/sdo/ 2>&1 | grep -E '^(--- (PASS|FAIL|SKIP)|PASS|FAIL|ok)'; echo "SDO_EXIT=${PIPESTATUS[0]}"
+--- PASS: TestErrorClassTable (0.00s)
+--- PASS: TestNewErrorSDOErrorClassOnWire (0.00s)
+--- PASS: TestDocumentsAPIContractVersion (0.00s)
+--- PASS: TestDocumentsAPIEndpointSamples (0.00s)
+--- PASS: TestDocumentsAPIErrorSamples (0.00s)
+--- PASS: TestDocumentsAPISamplesAreUTF8JSON (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.005s
+SDO_EXIT=0

@@ -1,0 +1,4 @@
+$ command -v gitleaks >/dev/null || go install github.com/zricethezav/gitleaks/v8@v8.21.2; GL=$(command -v gitleaks || echo "$(go env GOPATH)/bin/gitleaks"); "$GL" detect --no-banner --redact -v --log-opts="4610db8d168e8daa9e73cd76dbda69ba93027469..HEAD"
+[90m11:36PM[0m [32mINF[0m 2 commits scanned.
+[90m11:36PM[0m [32mINF[0m scan completed in 4.31ms
+[90m11:36PM[0m [32mINF[0m no leaks found

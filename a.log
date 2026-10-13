@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git log --oneline -4; git diff --stat 4610db8d168e8daa9e73cd76dbda69ba93027469..HEAD
+46c39fa891c22dccc3949ded136e413434c54711
+46c39fa89 docs(office): cite cloud round 15 on the G6-03b evidence of G6-A07/A08/A09
+15d6ae0ee test(api): pin run_expired as an unclassified error code
+4610db8d1 Merge fix-usage + fix-gateway (BE3B-1/2/4/7/8/10, Q1/Q7) into G6-03b
+f6a8df14d test(ai): share one database fixture in the usage-reconcile test
+ docs/office/g5g6g7/acceptance-rows.json            | 24 ++++++++++++++++------
+ .../internal/handler/dto/sdo/error_class_test.go   |  4 +++-
+ 2 files changed, 21 insertions(+), 7 deletions(-)
