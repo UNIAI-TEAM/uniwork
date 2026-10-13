@@ -534,6 +534,33 @@ test('verify fails a row that claims PASS without a PASS record, and a matrix BL
   );
 });
 
+test('verify accepts a NOT_RUN row carrying partialEvidence and still rejects a PASS row with no fixture record', () => {
+  const matrix = readMatrix(MATRIX_PATH);
+  const outDir = tempDir();
+  const matrixFile = path.join(tempDir(), 'matrix.json');
+
+  // The committed matrix records G6-03a's server-side proof on G6-A07 and G6-A08
+  // without moving them off NOT_RUN, and verify has nothing to say about it.
+  for (const id of ['G6-A07', 'G6-A08']) {
+    const row = matrix.rows.find((candidate) => candidate.id === id);
+    assert.equal(row.status, 'NOT_RUN', `${id} stays NOT_RUN on partial evidence`);
+    assert.deepEqual(row.evidence, [], `${id} names no evidence record`);
+    assert.equal(row.partialEvidence?.[0]?.task, 'G6-03a', `${id} carries G6-03a partial evidence`);
+  }
+  assert.equal(verify({ outDir }).ok, true, verify({ outDir }).problems.join('; '));
+
+  // The same rows claiming PASS on partial evidence alone have no record on any
+  // fixture, so verify refuses them.
+  const claimed = structuredClone(matrix);
+  for (const id of ['G6-A07', 'G6-A08']) claimed.rows.find((row) => row.id === id).status = 'PASS';
+  fs.writeFileSync(matrixFile, JSON.stringify(claimed, null, 2));
+  const result = verify({ outDir, matrixPath: matrixFile });
+  assert.equal(result.ok, false);
+  for (const id of ['G6-A07', 'G6-A08']) {
+    assert.ok(result.problems.includes(`row ${id} is PASS without a PASS evidence record`), `${id} cannot pass on partialEvidence`);
+  }
+});
+
 test('the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code', () => {
   const pass = run([...baseArgs(tempDir()), process.execPath, '-e', 'process.exit(0)']);
   assert.equal(pass.status, 0, pass.stderr);

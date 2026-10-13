@@ -31,6 +31,7 @@
     "fixtures[] name a manifest id and repeat that manifest entry's sha256; the sibling test reads the hash from the manifest and never hardcodes it.",
     "A row is PASS only with an evidence record whose result is PASS, exit code 0, an artifact on disk and one record per fixture it names; a result other than PASS is never counted as PASS.",
     "Every row carries evidenceRequired: the artifacts and records that would prove it, so a row without an evidence plan fails even while it is NOT_RUN.",
+    "partialEvidence is optional and additive: a list of {task, revision, run, report, review, tests} naming what one task already proved on a revision. It is not an evidence record and never moves a row off NOT_RUN; only a PASS record per fixture does.",
     "A BLOCKED row carries blocker.gate (plan Section 3), blocker.owner and blocker.reason.",
     "gate records the open decision gate that affects the row even when the row is NOT_RUN; null when no gate affects it.",
     "acceptance.md repeats these rows cell for cell; the sibling test fails on any drift between the two, and it recomputes the count table and the open-gate section from these rows.",
@@ -438,6 +439,23 @@
       "gate": "G6-D1",
       "blocker": null,
       "evidence": [],
+      "partialEvidence": [
+        {
+          "task": "G6-03a",
+          "revision": "185b277fa709f0c4435d22ad5eab9898a7c18f93",
+          "run": "run-90259169-84ed-43bc-91cf-6f0501a62efa",
+          "report": "reports/g6-ai_server/cloud-test-11.md (TEST_GO_EXIT=0)",
+          "review": "reports/g6-ai_server/review-be-g03a-2.md (verdict clear)",
+          "tests": [
+            "TestIsolationMatrix (ISOLATION_EXIT=0: cross-organization and cross-workspace refusal on the three UniWork AI routes)",
+            "TestIsolationRealtime",
+            "TestAIUniworkConversationSweptOnPermissionLoss",
+            "TestAIUniworkKillSwitchMidRunRecordsUsage",
+            "TestAIUniworkConversationBoundToScope",
+            "TestAIUniworkWriteToolsDroppedWhenViewOnly"
+          ]
+        }
+      ],
       "status": "NOT_RUN",
       "reviewer": "pending reviewer_be (UNI-1376)"
     },
@@ -463,6 +481,21 @@
       "gate": "G6-D1",
       "blocker": null,
       "evidence": [],
+      "partialEvidence": [
+        {
+          "task": "G6-03a",
+          "revision": "185b277fa709f0c4435d22ad5eab9898a7c18f93",
+          "run": "run-90259169-84ed-43bc-91cf-6f0501a62efa",
+          "report": "reports/g6-ai_server/cloud-test-11.md (TEST_GO_EXIT=0)",
+          "review": "reports/g6-ai_server/review-be-g03a-2.md (verdict clear)",
+          "tests": [
+            "TestAIUniworkUpstreamTimeout (504 ai_provider_timeout)",
+            "TestAIUniworkUpstreamRateLimitedRetryAfter (429 ai_rate_limited, Retry-After)",
+            "TestAIUniworkUpstreamRateLimitedHeader",
+            "TestAIUniworkLeasesExpireIndependently (concurrency 429 ai_uniwork_busy)"
+          ]
+        }
+      ],
       "status": "NOT_RUN",
       "reviewer": "pending reviewer_be (UNI-1376)"
     },
