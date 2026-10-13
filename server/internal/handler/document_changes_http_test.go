@@ -242,3 +242,57 @@ func TestDocumentChangesRevisionWireIsDecimalString(t *testing.T) {
 		t.Fatalf("revision = %q, want %q", revision, strconv.FormatInt(big, 10))
 	}
 }
+
+// TestDocumentChangesHTTPFeedRows pins the incremental feed's wire row
+// (G5-01b): a feed page fills `feed` and leaves `changes` empty, and a removal
+// carries the document id, the change kind and its reason - no title, no path,
+// no metadata - on the raw body.
+func TestDocumentChangesHTTPFeedRows(t *testing.T) {
+	w := newChangeFeedWorld(t)
+	docID := util.NewID()
+	w.seedDoc(t, docID)
+
+	// The empty cold start over one document hands out the feed cursor.
+	status, out := w.feed(t, "")
+	if status != http.StatusOK {
+		t.Fatalf("cold start = %d %v, want 200", status, out)
+	}
+	cursor, _ := out["next_cursor"].(string)
+	if cursor == "" {
+		t.Fatalf("cold start hands out no cursor: %v", out)
+	}
+
+	// The document is purged, with the audit row a purge writes.
+	if _, err := testPool.Exec(context.Background(), `DELETE FROM documents WHERE id = $1`, docID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testPool.Exec(context.Background(),
+		`INSERT INTO audit_events (id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, correlation_id)
+		 VALUES ($1, $2, $3, 'system', 'documents.purge', 'document.deleted', 'document', $4, $5)`,
+		util.NewID(), w.orgID, w.wsID, docID, util.NewID()); err != nil {
+		t.Fatal(err)
+	}
+
+	status, out = w.feed(t, "cursor="+url.QueryEscape(cursor))
+	if status != http.StatusOK {
+		t.Fatalf("feed page = %d %v, want 200", status, out)
+	}
+	if phase, _ := out["phase"].(string); phase != "feed" {
+		t.Fatalf("phase = %q, want feed", phase)
+	}
+	if changes, _ := out["changes"].([]any); len(changes) != 0 {
+		t.Fatalf("a feed page carries %d snapshot rows, want none", len(changes))
+	}
+	feed, _ := out["feed"].([]any)
+	if len(feed) != 1 {
+		t.Fatalf("feed page = %v, want one row", out["feed"])
+	}
+	row, _ := feed[0].(map[string]any)
+	if row["document_id"] != docID || row["change_kind"] != "removal" ||
+		row["kind"] != "" || row["revision"] != "0" || row["removal"] != "document_deleted" {
+		t.Fatalf("removal row = %v", row)
+	}
+	if _, ok := row["title"]; ok {
+		t.Fatalf("removal row carries a title: %v", row)
+	}
+}
