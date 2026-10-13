@@ -55,6 +55,7 @@ interface Server {
   head: { revision: string; versionId: string };
   headError?: ApiError;
   versions: string[];
+  /** A feed page, or a function of the request path (to answer each page, or reject). */
   feed: unknown;
 }
 
@@ -64,7 +65,7 @@ function setup() {
     if (path === MINT_PATH) return Promise.resolve(minted);
     if (path === DOC_PATH) return server.headError ? Promise.reject(server.headError) : Promise.resolve(headDoc(server.head.revision, server.head.versionId));
     if (path.startsWith(VERSIONS_PATH)) return Promise.resolve({ versions: server.versions.map((id, i) => ({ id, document_id: "doc-1", version: i + 1 })) });
-    if (path.startsWith(FEED_PATH)) return Promise.resolve(server.feed);
+    if (path.startsWith(FEED_PATH)) return typeof server.feed === "function" ? Promise.resolve().then(() => (server.feed as (p: string) => unknown)(path)) : Promise.resolve(server.feed);
     return Promise.reject(new Error(`unexpected ${path}`));
   });
   const iframe = document.createElement("iframe");
@@ -85,7 +86,7 @@ function setup() {
     }
   });
   const open = vi.fn(async () => ({ file: fileOf(server.head.revision, server.head.versionId), source: { kind: "bytes", data: new ArrayBuffer(4) } }));
-  const save = vi.fn(async () => {
+  const save = vi.fn(async (_payload?: { etag?: string }, _context?: unknown) => {
     server.head = { revision: String(BigInt(server.head.revision) + 1n), versionId: `own-${server.head.revision}` };
     return { ok: true, file: fileOf(server.head.revision, server.head.versionId), versionId: server.head.versionId };
   });
@@ -159,6 +160,28 @@ describe("useDocsFrameSession: api.open carries the real revision (X-02, OQ-P3)"
     expect(reply.payload).toMatchObject({ versionChanged: true, file: { revision: "11", versionId: "v3" } });
     // v2 was announced by this host: no version lookup was needed.
     expect(requestMock.mock.calls.some(([path]) => String(path).startsWith(VERSIONS_PATH))).toBe(false);
+  });
+
+  it("the Save after a head reload is based on the reply's revision; a stale base meets 409 (OQ-P3)", async () => {
+    const frame = await openedFrame();
+    // The server checks the Save base like the real one: the etag must be the head revision.
+    frame.save.mockImplementation(async (payload?: { etag?: string }) => {
+      if (payload?.etag !== frame.server.head.revision) {
+        throw new DocsProtocolError({ code: "conflict", message: "document_version_conflict (HTTP 409)", status: 409, details: { apiCode: "document_version_conflict" } });
+      }
+      frame.server.head = { revision: String(BigInt(frame.server.head.revision) + 1n), versionId: `own-${frame.server.head.revision}` };
+      return { ok: true, file: fileOf(frame.server.head.revision, frame.server.head.versionId), versionId: frame.server.head.versionId };
+    });
+    await frame.commitElsewhere("10", "v2");
+    await waitFor(() => expect(frame.events("doc.remoteVersion")).toHaveLength(1));
+    const reload = await frame.answer(frame.request("api.open", { fileId: "doc-1", versionId: "v2" }));
+    const base = (reload.payload as { file: { revision: string; etag: string } }).file;
+    expect(base).toMatchObject({ revision: "10", etag: "10" });
+    const stale = await frame.answer(frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(2), etag: "9" }));
+    expect(stale.error).toMatchObject({ code: "conflict", status: 409 });
+    const saved = await frame.answer(frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(2), etag: base.revision }));
+    expect(saved.error).toBeUndefined();
+    expect(frame.save).toHaveBeenLastCalledWith(expect.objectContaining({ etag: "10" }), expect.anything());
   });
 
   it("asking for the head itself answers without versionChanged", async () => {
@@ -368,5 +391,80 @@ describe("useDocsFrameSession: revoke and delete block the frame", () => {
     const reply = await frame.answer(frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(2), etag: "9" }));
     expect(reply.error?.status).toBe(410);
     expect(frame.hook.result.current.blocked).toBe("document_deleted");
+  });
+});
+
+describe("useDocsFrameSession: change feed catch-up after a reconnect (G5-02)", () => {
+  const page = (changes: Array<{ document_id: string; revision: string; version_id: string }>, cursor: string, hasMore = false) => ({
+    phase: "snapshot", has_more: hasMore, next_cursor: cursor, expires_at: "2026-10-14T00:00:00Z",
+    changes: changes.map((c) => ({ ...c, kind: "file", current_version: 1 })),
+  });
+  const feedCalls = () => requestMock.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(FEED_PATH));
+  const headReads = () => requestMock.mock.calls.filter(([path]) => path === DOC_PATH).length;
+  const reconnect = async () => { await act(async () => { ws.reconnect(); }); await flush(); };
+
+  it("a page without this document reads no head", async () => {
+    const frame = await openedFrame();
+    frame.server.feed = page([{ document_id: "doc-9", revision: "3", version_id: "z" }], "c-1");
+    await reconnect();
+    expect(feedCalls()).toHaveLength(1);
+    expect(headReads()).toBe(0);
+    expect(frame.events("doc.remoteVersion")).toHaveLength(0);
+  });
+
+  it("follows has_more with each next cursor, then reads the head once", async () => {
+    const frame = await openedFrame();
+    frame.server.head = { revision: "10", versionId: "v2" };
+    frame.server.feed = (path: string) => path.includes("cursor=c-1")
+      ? page([{ document_id: "doc-1", revision: "10", version_id: "v2" }], "c-2")
+      : page([{ document_id: "doc-9", revision: "3", version_id: "z" }], "c-1", true);
+    await reconnect();
+    expect(feedCalls()).toEqual([FEED_PATH, `${FEED_PATH}?cursor=c-1`]);
+    expect(headReads()).toBe(1);
+    expect(frame.events("doc.remoteVersion")).toEqual([expect.objectContaining({ revision: "10" })]);
+  });
+
+  it("the second reconnect continues from the cursor the first one ended on", async () => {
+    const frame = await openedFrame();
+    frame.server.feed = page([], "c-1");
+    await reconnect();
+    frame.server.feed = page([], "c-2");
+    await reconnect();
+    expect(feedCalls()).toEqual([FEED_PATH, `${FEED_PATH}?cursor=c-1`]);
+  });
+
+  it("a cursor the server refuses restarts once from a snapshot; a second refusal waits for the next reconnect", async () => {
+    const frame = await openedFrame();
+    frame.server.feed = page([], "c-1");
+    await reconnect();
+    requestMock.mockClear();
+    frame.server.feed = () => { throw new ApiError("change cursor expired", "change_cursor_expired", 410); };
+    await reconnect();
+    // the expired cursor, then one cold start that is refused again: stop
+    expect(feedCalls()).toEqual([`${FEED_PATH}?cursor=c-1`, FEED_PATH]);
+    expect(headReads()).toBe(0);
+    requestMock.mockClear();
+    frame.server.head = { revision: "10", versionId: "v2" };
+    let calls = 0;
+    frame.server.feed = () => {
+      calls += 1;
+      if (calls === 1) throw new ApiError("invalid change cursor", "change_cursor_invalid", 400);
+      return page([{ document_id: "doc-1", revision: "10", version_id: "v2" }], "c-9");
+    };
+    await reconnect();
+    // the snapshot left no cursor, so the next catch-up starts cold and finds the document
+    expect(feedCalls()).toEqual([FEED_PATH, FEED_PATH]);
+    expect(frame.events("doc.remoteVersion")).toEqual([expect.objectContaining({ revision: "10" })]);
+  });
+
+  it("a malformed page or a failed request stops the catch-up without a head read", async () => {
+    const frame = await openedFrame();
+    frame.server.feed = { changes: "not a page" };
+    await reconnect();
+    frame.server.feed = () => { throw new ApiError("not implemented", "unsupported_operation", 501); };
+    await reconnect();
+    expect(feedCalls()).toHaveLength(2);
+    expect(headReads()).toBe(0);
+    expect(frame.hook.result.current.blocked).toBeNull();
   });
 });
