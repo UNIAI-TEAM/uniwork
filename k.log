@@ -1,0 +1,5 @@
+$ pnpm --filter @uniwork/web lint
+
+> @uniwork/web@0.0.0 lint /workspace/apps/web
+> eslint . --max-warnings 0
+

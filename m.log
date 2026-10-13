@@ -1,0 +1,46 @@
+$ node --test scripts/i18n-duplicate-keys.test.mjs scripts/i18n-chat-key-parity.test.mjs scripts/office-modules.test.mjs
+TAP version 13
+# Subtest: chat.* i18n keys match between vi and en
+ok 1 - chat.* i18n keys match between vi and en
+  ---
+  duration_ms: 40.083649
+  ...
+# Subtest: packages/core/i18n/locales/vi.json has no duplicate keys
+ok 2 - packages/core/i18n/locales/vi.json has no duplicate keys
+  ---
+  duration_ms: 1486.204814
+  ...
+# Subtest: packages/core/i18n/locales/en.json has no duplicate keys
+ok 3 - packages/core/i18n/locales/en.json has no duplicate keys
+  ---
+  duration_ms: 1473.78446
+  ...
+# Subtest: the scanner reports real duplicates and only those
+ok 4 - the scanner reports real duplicates and only those
+  ---
+  duration_ms: 0.340529
+  ...
+# Subtest: the Go and TypeScript module tables name the same modules, formats, flags and caps
+ok 5 - the Go and TypeScript module tables name the same modules, formats, flags and caps
+  ---
+  duration_ms: 3.209701
+  ...
+# Subtest: every module flag is declared in the catalogue, and every office_*_web flag is a module
+ok 6 - every module flag is declared in the catalogue, and every office_*_web flag is a module
+  ---
+  duration_ms: 0.557851
+  ...
+# Subtest: a pinned module frame's CSP allows eval only where CONTRACT C11 says
+ok 7 - a pinned module frame's CSP allows eval only where CONTRACT C11 says
+  ---
+  duration_ms: 0.815957
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3010.562347

@@ -1,0 +1,5 @@
+$ pnpm --filter @uniwork/web typecheck
+
+> @uniwork/web@0.0.0 typecheck /workspace/apps/web
+> tsc --noEmit
+
