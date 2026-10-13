@@ -30,6 +30,22 @@ func newFeedWorld(t *testing.T, slug string) *feedWorld {
 	return &feedWorld{newChangeWorld(t, slug, nil)}
 }
 
+// feedClaims decodes a feed cursor's signed claims with the service codec, so
+// a test can assert on the keyset POSITION rather than the opaque token: the
+// server re-signs ExpiresAt from its clock on every page (BE-G3-4), so the
+// bytes may differ while the position stands still.
+func (w *feedWorld) feedClaims(t *testing.T, cursor string) changeCursorClaims {
+	t.Helper()
+	claims, err := w.svc.codec.verify(cursor, w.cursorScope(w.tn.orgID), w.now)
+	if err != nil {
+		t.Fatalf("decode feed cursor %q: %v", cursor, err)
+	}
+	if claims.Phase != changeCursorPhaseFeed {
+		t.Fatalf("cursor %q phase = %q, want feed", cursor, claims.Phase)
+	}
+	return claims
+}
+
 // feedRowsByDoc returns the feed rows keyed by document id (one row per
 // document per page).
 func feedRowsByDoc(rows []DocumentChangeFeedRow) map[string]DocumentChangeFeedRow {
@@ -204,18 +220,46 @@ func TestDocumentChangesFeedHoldsBackAYoungerCommitWhileAnOlderTransactionRuns(t
 		t.Fatalf("feed while a transaction is in flight: %v", err)
 	}
 	// Every candidate is held back by the in-flight guard, so this page
-	// advanced nothing: has_more=false with the cursor unchanged (BE-G2-2).
-	// The client polls again later; the held row is delayed, never lost.
+	// advanced nothing: has_more=false with the cursor POSITION unchanged
+	// (BE-G2-2/BE-G3-4). The client polls again later; the held row is
+	// delayed, never lost.
 	if page.HasMore {
 		t.Fatal("a page that advanced nothing must answer has_more=false (BE-G2-2)")
 	}
-	if page.NextCursor != feedCursor {
-		t.Fatalf("the held-back page moved its cursor: %q -> %q", feedCursor, page.NextCursor)
+	// The invariant is the POSITION, not the opaque bytes: the server re-signs
+	// ExpiresAt from its clock on every page (BE-G3-4), so the token may differ
+	// while the keyset stands still. Decode both and compare the keyset.
+	before := w.feedClaims(t, feedCursor)
+	after := w.feedClaims(t, page.NextCursor)
+	if after.AfterXact != before.AfterXact || after.AfterID != before.AfterID {
+		t.Fatalf("the held-back page moved its cursor position: (%s,%s) -> (%s,%s)",
+			before.AfterXact, before.AfterID, after.AfterXact, after.AfterID)
 	}
 	for _, r := range page.Feed {
 		if r.DocumentID == younger.ID {
 			t.Fatal("the feed delivered a commit whose xid sits above the read's xmin (an older transaction is still in flight); a client advancing past it would lose that older change")
 		}
+	}
+
+	// BE-G3-4: the position is kept even when the poll happens later and the
+	// server re-signs the expiry. Advance the injected clock past the minted
+	// cursor's expiry window and poll again: the keyset is unchanged and
+	// has_more stays false, while the new token's expiry may be refreshed.
+	w.now = w.now.Add(time.Minute)
+	later, err := w.list(t, w.tn.member.ID, page.NextCursor, 200)
+	if err != nil {
+		t.Fatalf("poll the held-back page after the clock advanced: %v", err)
+	}
+	if later.HasMore {
+		t.Fatal("a page that advanced nothing must answer has_more=false after the clock advanced (BE-G3-4)")
+	}
+	laterClaims := w.feedClaims(t, later.NextCursor)
+	if laterClaims.AfterXact != before.AfterXact || laterClaims.AfterID != before.AfterID {
+		t.Fatalf("the position moved when the clock advanced: (%s,%s) -> (%s,%s)",
+			before.AfterXact, before.AfterID, laterClaims.AfterXact, laterClaims.AfterID)
+	}
+	if laterClaims.ExpiresAt <= after.ExpiresAt {
+		t.Fatalf("a later poll must re-sign a later expiry: %d -> %d", after.ExpiresAt, laterClaims.ExpiresAt)
 	}
 
 	// After the older transaction commits, the same cursor still finds both.
@@ -996,5 +1040,100 @@ func TestDocumentChangesFeedTitleEditOfUnreadableDocumentIsNotARemoval(t *testin
 		if r.DocumentID == hidden.ID {
 			t.Fatalf("a title-only edit produced a row about a document the member cannot read: %+v", r)
 		}
+	}
+}
+
+// demoteForRemovalProbe builds the shared BE-G3-1 fixture: a workspace-visible
+// document whose ACL owner is the owner (NOT the feed caller), a snapshot the
+// member can read it in, and then a demotion of the live row to restricted.
+// The member is neither the ACL owner nor a share principal, so they cannot
+// read the document any more and resolveFeedRow reaches removalByAudit for the
+// synthetic audit row each case appends.
+func (w *feedWorld) demoteForRemovalProbe(t *testing.T) (db.Document, string) {
+	t.Helper()
+	doc := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "workspace", createdBy: w.tn.owner.ID, aclOwner: w.tn.owner.ID})
+	feedCursor, held := w.snapshotThenFeed(t, 200)
+	if !held[doc.ID] {
+		t.Fatal("the fixture is wrong: the member could not read the workspace-visible document")
+	}
+	// The demotion itself: the live row stops admitting the workspace leg. The
+	// audit row the case appends is the only evidence of what the prior
+	// visibility was, so the removal decision rests entirely on it.
+	if _, err := w.f.pool.Exec(w.f.ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, doc.ID); err != nil {
+		t.Fatal(err)
+	}
+	return doc, feedCursor
+}
+
+// TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410 is BE-G3-1(a): a
+// document.updated row carrying a changes.visibility diff whose prior value is
+// missing (no from/before) and with no metadata.visibility fallback cannot prove
+// whether the caller lost a level, so the feed answers 410
+// change_cursor_expired - never a silent skip. A silent skip here would drop
+// the demotion for a caller who could read the document before it.
+func TestDocumentChangesFeedVisibilityDiffWithoutAPriorIs410(t *testing.T) {
+	w := newFeedWorld(t, "chgvisnoprior")
+	doc, feedCursor := w.demoteForRemovalProbe(t)
+
+	// The real UpdateDocument PATCH writes document.updated with a
+	// changes.visibility {from,to} diff; this row carries only the target, the
+	// shape a partial writer would leave behind.
+	insertRow(t, w.f.ctx, w.f.pool, "audit_events", map[string]any{
+		"id": util.NewID(), "organization_id": w.tn.orgID, "workspace_id": w.tn.wsA,
+		"actor_kind": "human", "actor_id": w.tn.owner.ID, "action": "document.updated",
+		"resource_type": "document", "resource_id": doc.ID, "correlation_id": util.NewID(),
+		"changes": `{"visibility":{"to":"restricted"}}`,
+	})
+
+	if _, err := w.list(t, w.tn.member.ID, feedCursor, 200); !codedIs(err, "change_cursor_expired") {
+		t.Fatalf("a visibility diff with no prior = %v, want 410 change_cursor_expired (never a silent skip)", err)
+	}
+}
+
+// TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval is
+// BE-G3-1(b): the retained document.settings_changed arm with a prior
+// visibility of workspace admits the member, so the demotion is the ids-only
+// removal permission_revoked. Replacing this branch with a silent skip would
+// leave the caller holding a document they can no longer read.
+func TestDocumentChangesFeedSettingsChangedWithWorkspacePriorIsRemoval(t *testing.T) {
+	w := newFeedWorld(t, "chgsetsprior")
+	doc, feedCursor := w.demoteForRemovalProbe(t)
+
+	// The shape a document-level settings command writes: metadata.visibility
+	// carries the prior value.
+	insertRow(t, w.f.ctx, w.f.pool, "audit_events", map[string]any{
+		"id": util.NewID(), "organization_id": w.tn.orgID, "workspace_id": w.tn.wsA,
+		"actor_kind": "human", "actor_id": w.tn.owner.ID, "action": "document.settings_changed",
+		"resource_type": "document", "resource_id": doc.ID, "correlation_id": util.NewID(),
+		"metadata": `{"visibility":"workspace"}`,
+	})
+
+	got, ok := feedRowsByDoc(w.drainFeed(t, feedCursor, 200))[doc.ID]
+	if !ok {
+		t.Fatal("a settings change whose prior visibility admitted the member produced no row")
+	}
+	if got.ChangeKind != DocumentChangeKindRemoval || got.Removal != DocumentChangeRemovalPermissionRevoked {
+		t.Fatalf("settings removal row = %+v, want removal permission_revoked", got)
+	}
+}
+
+// TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410 is BE-G3-1(c): the
+// same retained arm with no reconstructable prior visibility answers 410
+// change_cursor_expired instead of guessing, exactly as the document.updated
+// diff does. A silent skip would lose a removal the caller may be owed.
+func TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410(t *testing.T) {
+	w := newFeedWorld(t, "chgsetsprior2")
+	doc, feedCursor := w.demoteForRemovalProbe(t)
+
+	// No metadata and no changes: the prior visibility cannot be
+	// reconstructed.
+	insertRow(t, w.f.ctx, w.f.pool, "audit_events", map[string]any{
+		"id": util.NewID(), "organization_id": w.tn.orgID, "workspace_id": w.tn.wsA,
+		"actor_kind": "human", "actor_id": w.tn.owner.ID, "action": "document.settings_changed",
+		"resource_type": "document", "resource_id": doc.ID, "correlation_id": util.NewID(),
+	})
+
+	if _, err := w.list(t, w.tn.member.ID, feedCursor, 200); !codedIs(err, "change_cursor_expired") {
+		t.Fatalf("a settings change with no prior = %v, want 410 change_cursor_expired (never a silent skip)", err)
 	}
 }

@@ -41,7 +41,7 @@ type DocumentChangeListSDO struct {
 	Phase      string                  `json:"phase" description:"Pha của trang: snapshot (cold start) hoặc feed (tăng dần)" example:"snapshot"`
 	Changes    []DocumentChangeSDO     `json:"changes" description:"Các dòng snapshot (phase snapshot); rỗng ở trang feed"`
 	Feed       []DocumentChangeFeedSDO `json:"feed" description:"Các dòng feed tăng dần (phase feed); rỗng ở trang snapshot"`
-	HasMore    bool                    `json:"has_more" description:"Còn trang sau; false ở trang cuối. Trang feed chỉ true khi nó đã tiến cursor (gửi hoặc bỏ qua ít nhất một dòng) VÀ còn dòng hợp lệ: một trang bị giữ lại toàn bộ bởi guard giao dịch đang chạy trả false với cursor không đổi (client hỏi lại sau)" example:"true"`
+	HasMore    bool                    `json:"has_more" description:"Còn trang sau; false ở trang cuối. Trang feed chỉ true khi nó đã tiến cursor (gửi hoặc bỏ qua ít nhất một dòng) VÀ còn dòng hợp lệ: một trang bị giữ lại toàn bộ bởi guard giao dịch đang chạy trả false với vị trí cursor không đổi - keyset (AfterXact/AfterID) giữ nguyên, token có thể được ký lại với hạn mới (client hỏi lại sau)" example:"true"`
 	NextCursor string                  `json:"next_cursor" description:"Cursor kế tiếp, opaque; ở trang cuối snapshot là cursor feed mang high-water mark" example:"dcc1.eyJwIjoib2ZmaWNlLWNoYW5nZS1mZWVkLzEifQ.c2lnbmF0dXJl"`
 	ExpiresAt  string                  `json:"expires_at" description:"Hạn của next_cursor; quá hạn -> 410 change_cursor_expired" example:"2026-10-13T10:15:00Z"`
 }

@@ -98,8 +98,10 @@ export interface DocumentChangePage {
    * More rows to come. On a feed page it is true only when the page advanced
    * the cursor (delivered or skipped at least one row) and more eligible rows
    * exist: a page whose only candidates are held back by the server's
-   * in-flight guard answers false with `nextCursor` unchanged, so poll again
-   * later instead of looping on the same cursor.
+   * in-flight guard answers false with the cursor POSITION unchanged - the
+   * keyset (AfterXact/AfterID) stands still while the opaque token may be
+   * re-signed with a fresh expiry - so poll again later instead of looping on
+   * the same cursor.
    */
   hasMore: boolean;
   /** Opaque; pass it back unchanged as `cursor` for the next page. */

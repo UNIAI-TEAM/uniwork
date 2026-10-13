@@ -55,7 +55,8 @@ import (
 // serves nothing. No commit is skipped - the cursor keeps its place - and the
 // stall is observable: DocumentChangeFeedPending counts the held-back rows and
 // reports the age as the lag gauge, and a page that can advance nothing answers
-// has_more=false with its cursor unchanged (BE-G2-2), so a client polls again
+// has_more=false with its cursor position unchanged (BE-G2-2), so a client polls
+// again
 // later instead of spinning on a repeated cursor; the Office engine runbook
 // names it (BE-G1-5).
 //
@@ -300,10 +301,12 @@ func (s *DocumentChangesService) pageFeed(ctx context.Context, cs changeCursorSc
 	// has_more is true only when THIS page advanced the cursor (it delivered or
 	// skipped at least one row) AND more eligible rows exist. A page whose only
 	// candidates are held back by the in-flight guard advances nothing, so it
-	// answers has_more=false with the cursor unchanged (BE-G2-2): the client
-	// polls again later and the held row is delayed, never lost. Reporting
-	// has_more with an unchanged cursor would make a client spin on a repeated
-	// cursor until the holding transaction ends.
+	// answers has_more=false with the cursor POSITION unchanged (BE-G2-2): the
+	// client polls again later and the held row is delayed, never lost. The
+	// invariant is the position, not the opaque bytes - the token is re-signed
+	// from this clock on every page, so only AfterXact/AfterID must stand still
+	// (BE-G3-4). Reporting has_more with an unchanged position would make a
+	// client spin on a repeated cursor until the holding transaction ends.
 	advanced := lastXact != claims.AfterXact || lastID != claims.AfterID
 	out := DocumentChangePage{Phase: changeCursorPhaseFeed, Feed: feed, HasMore: advanced && pending.Pending > 0}
 	out.ExpiresAt = s.now().Add(DocumentChangeFeedTTL)

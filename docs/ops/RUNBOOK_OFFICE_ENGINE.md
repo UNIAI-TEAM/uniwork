@@ -109,7 +109,7 @@ with the variables above exported (Node 22).
   change a served page had not delivered). Two known quiet modes, no alert yet (G7-07 owns alerts). (1) **xmin
   horizon**: one long-running transaction (a migration, a backup, a stuck reader) holds `pg_snapshot_xmin` back, so
   every later commit is held and no page delivers while the lag stays non-zero; the page that can advance nothing
-  answers `has_more=false` with its cursor unchanged (the client polls again later), so `has_more` is the wrong
+  answers `has_more=false` with its cursor position unchanged - keyset intact, token re-signed (the client polls again later), so `has_more` is the wrong
   signal for this stall - read the lag gauge. Find the holder in `pg_stat_activity` (`xact_start`) and let it end -
   no commit is lost, the cursor keeps its place. (2) **Retention**:
   the trash purge retention (30 days, `documentRetentionDays`) must stay >= the feed cursor TTL (7 days,
