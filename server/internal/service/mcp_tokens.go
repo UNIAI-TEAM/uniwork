@@ -47,7 +47,7 @@ func (s *McpAuthService) Exchange(ctx context.Context, in McpExchangeInput) (Mcp
 	if err := s.checkResource(in.Resource); err != nil {
 		return McpTokenPair{}, err
 	}
-	if in.Code == "" || !validVerifier(in.CodeVerifier) {
+	if in.Code == "" || !validPKCEVerifier(in.CodeVerifier) {
 		return McpTokenPair{}, errInvalidGrant
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -304,4 +304,21 @@ func (s *McpAuthService) revokeFamily(ctx context.Context, grantID, familyID, re
 	}
 	s.metrics.IncOAuth("family_revoked")
 	return nil
+}
+
+// validPKCEVerifier is RFC 7636 §4.1: 43 to 128 characters from the unreserved
+// set ALPHA / DIGIT / "-" / "." / "_" / "~". Clients such as Claude Code put "."
+// and "~" in their verifiers, so the desktop flow's base64url-only check
+// (validVerifier) would refuse most of their sign-ins with invalid_grant.
+func validPKCEVerifier(v string) bool {
+	if len(v) < 43 || len(v) > 128 {
+		return false
+	}
+	for i := 0; i < len(v); i++ {
+		c := v[i]
+		if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '.' || c == '_' || c == '~') {
+			return false
+		}
+	}
+	return true
 }

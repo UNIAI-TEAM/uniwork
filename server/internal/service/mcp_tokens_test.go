@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -86,6 +87,57 @@ func TestMcpExchangeRefusesWrongVerifierRedirectAndResource(t *testing.T) {
 	}
 	if n := w.familyRevokedRows(t); n != 0 {
 		t.Fatalf("refused attempts on an unused code wrote %d family_revoked rows", n)
+	}
+}
+
+// RFC 7636 §4.1 lets a code_verifier use every unreserved character, "." and
+// "~" included. Claude Code's verifiers do, so refusing them made most of its
+// sign-ins fail with invalid_grant after the person had already approved.
+func TestMcpExchangeAcceptsEveryRFC7636VerifierCharacter(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	c := w.publicClient(t, "https://x.test/cb")
+	verifier := "Ab0-._~Cd1-._~Ef2-._~Gh3-._~Ij4-._~Kl5-._~Mn6-._~"
+	consentURL, err := w.svc.Start(w.ctx, McpAuthorizeInput{ResponseType: "code", ClientID: c.ClientID, RedirectURI: "https://x.test/cb", CodeChallenge: pkceChallenge(verifier), CodeChallengeMethod: "S256", State: "st"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := attemptID(t, consentURL)
+	consent, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, _ := url.Parse(to)
+	if _, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, Code: parsed.Query().Get("code"), CodeVerifier: verifier, RedirectURI: "https://x.test/cb"}); err != nil {
+		t.Fatalf("an RFC 7636 verifier with '.' and '~' was refused: %v", err)
+	}
+}
+
+func TestMcpPKCEVerifierFollowsRFC7636(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		verifier string
+		ok       bool
+	}{
+		{"base64url", mcpTestVerifier, true},
+		{"dot and tilde", strings.Repeat("a.~", 15), true},
+		{"shortest", strings.Repeat("a", 43), true},
+		{"longest", strings.Repeat("a", 128), true},
+		{"too short", strings.Repeat("a", 42), false},
+		{"too long", strings.Repeat("a", 129), false},
+		{"plus", strings.Repeat("a", 42) + "+", false},
+		{"slash", strings.Repeat("a", 42) + "/", false},
+		{"space", strings.Repeat("a", 42) + " ", false},
+		{"percent", strings.Repeat("a", 42) + "%", false},
+		{"non-ascii", strings.Repeat("a", 42) + "é", false},
+	} {
+		if got := validPKCEVerifier(tc.verifier); got != tc.ok {
+			t.Errorf("%s: validPKCEVerifier = %v, want %v", tc.name, got, tc.ok)
+		}
 	}
 }
 
