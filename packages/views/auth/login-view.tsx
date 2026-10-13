@@ -22,7 +22,7 @@ export const AUTH_LINK =
 /** Errors the Google callback can carry back on the login URL. */
 export type GoogleLoginError = "google_denied" | "google_failed" | "google_unverified";
 
-export type LoginReason = "meeting_invite";
+export type LoginReason = "meeting_invite" | "session_expired";
 
 /**
  * Who a message belongs to decides which control is marked invalid and
@@ -71,11 +71,12 @@ export function LoginView({
   // takes the slot; the old message must not come back when that one clears.
   const [submitted, setSubmitted] = useState(false);
 
-  // A deep link to a comment that met no session says why the sign-in stands in its way (S15 row 5).
+  // A deep link to a comment whose session ended says why the sign-in stands in its way
+  // (S15 row 5); a visitor who never had a session gets the plain sign-in.
   const reasonMessage =
     reason === "meeting_invite"
       ? t("auth.meetingInviteReason")
-      : next && COMMENT_LINK.test(next)
+      : reason === "session_expired" && next && COMMENT_LINK.test(next)
         ? t("documents.collab.inboxSessionExpired")
         : null;
 
