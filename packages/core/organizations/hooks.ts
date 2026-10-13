@@ -130,6 +130,19 @@ export function useLeaveOrganization(orgSlug: string) {
   });
 }
 
+/**
+ * Closing archives the organization and deactivates the caller in it (ADR
+ * 0032), so like leaving it drops the whole cache. The variable is the slug
+ * the owner typed back to confirm.
+ */
+export function useCloseOrganization(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (confirmSlug: string) => orgMembers.closeOrganization(orgSlug, confirmSlug),
+    onSuccess: () => qc.clear(),
+  });
+}
+
 export function useOrgInvitations(orgSlug: string, enabled = true) {
   return useQuery({
     queryKey: [...orgMemberKeys.all(orgSlug), "invitations"] as const,
