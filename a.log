@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -5
+90a78ea38d37858091e29d1292fc5b936b2af430
+10e1fd9bde604ba5a92f32769d78960ef22d503d
+90a78ea3 test(e2e): measure the folder menu baseline after its fade-in settles
+4a7860e8 Merge the home-folders menu race fix into the fork-main-red branch
+ebf4ff5a fix(shell): keep the folder menu open when a scroll event moved nothing
+e0d09d7a test(shell): pin that a scroll event that moved nothing keeps the folder menu open
+671911ad test(markdown,html): give the panel tests' bridge valid AI settings so the model picker renders
