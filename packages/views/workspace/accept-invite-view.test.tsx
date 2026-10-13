@@ -223,6 +223,27 @@ describe("AcceptInviteView", () => {
       expect(acceptCalls()).toEqual([undefined]);
     });
 
+    /**
+     * The accept drops the cache and reads /me again before the page learns it
+     * succeeded; the preview read again in that window says "accepted", which
+     * must not send the accept a second time.
+     */
+    it("accepts once even when the preview reads the invitation as accepted afterwards", async () => {
+      signIn();
+      serve({
+        preview: async () => ({ invitation: invitation(acceptCalls().length > 0 ? "accepted" : "pending"), conflicts: [] }),
+      });
+      const onAccepted = renderView();
+      fireEvent.click(await screen.findByRole("button", { name: "Tham gia" }));
+      await waitFor(() => expect(onAccepted).toHaveBeenCalled());
+      // Let any refetch the accept set off settle before counting.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+      expect(acceptCalls()).toEqual([undefined]);
+      expect(onAccepted).toHaveBeenCalledTimes(1);
+    });
+
     it("says an organization-level invitation lands in no workspace yet", async () => {
       signIn();
       const { workspace: _ws, inviter_name: _name, ...orgLevel } = invitation();

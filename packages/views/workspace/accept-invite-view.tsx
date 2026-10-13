@@ -106,9 +106,12 @@ export function AcceptInviteView({
   const invitationStatus = data?.invitation.status;
 
   // An accepted invitation answers 200 again to the member it admitted, and
-  // 410 invitation_accepted to anybody else: asking joins nobody new.
+  // 410 invitation_accepted to anybody else: asking joins nobody new. Not
+  // while an accept of this page's is under way or has succeeded: its success
+  // drops the cache and reads /me before `joined` is set, and the preview read
+  // again in that window already says "accepted".
   useEffect(() => {
-    if (invitationStatus === "accepted" && !autoAccepted.current) {
+    if (invitationStatus === "accepted" && !joined && !accept.isPending && !accept.isSuccess && !autoAccepted.current) {
       autoAccepted.current = true;
       submit();
     }
