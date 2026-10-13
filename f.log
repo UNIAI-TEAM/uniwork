@@ -1,0 +1,88 @@
+$ AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-docs-library.test.ts tests/uniwork-docs-save-coordinator.test.ts tests/uniwork-docs-save-queue-wiring.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > fills myRole from GET /workspaces/{id}/me, null when the role read fails 19ms
+ ✓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > reads each workspace role in parallel and keeps the rows 2ms
+ ✓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > with no selected org returns an empty list and calls nothing 1ms
+ ✓ tests/uniwork-docs-library.test.ts > shared with me (S17) > aggregates across the org workspaces, newest first, with workspaceName 3ms
+ ✓ tests/uniwork-docs-library.test.ts > shared with me (S17) > pages locally with an opaque cursor 2ms
+ ✓ tests/uniwork-docs-library.test.ts > shared with me (S17) > an empty account gets an empty page, not an error 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member id to a name 2ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > an id that is not a member resolves to null (person left / non-human) 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > versionByName stays null even when updated_by resolves to a member 2ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 5xx members answer is null names, never cached, and the next open retries 2ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > a network error is null names, never cached, and the next open retries 2ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 404 from the members list is null names, never an error result, and IS cached 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > two concurrent panel opens share one members request 3ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > the members list is fetched once per org, not once per document 2ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member from page 2 of a >100-member org, still one logical read (RBE1-01) 2ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > a non-human creator/updater resolves to null with no lookup (RBE1-06) 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > missing server fields become null, never an error 1ms
+ ✓ tests/uniwork-docs-library.test.ts > member-name cache and org switch (S16) > drops the cached names when the selected org changes 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > crash at each step, timeout after commit, cancel race 46ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel race: uploading / committing refuse it, a won cancel stops the pass 27ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > one receipt/version: a replayed intent commits exactly one version 14ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a migrated intent replays exactly once, with its own key 5ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > the production wiring registers the 3 queue stores and dispatches on the poll 139ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > startup replays a stored intent exactly once and never lists the drafts folder 54ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > 409 -> conflict with the same intent id, durable across a restart 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > expired upload -> reconciling, exactly one lookup, no byte re-upload 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup unknown -> reconciling-stuck, no new attempt, "check again" only looks up 17ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup 401 / 403 by code / 410 -> the right reason 45ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > N+1 stays dirty behind the pending intent 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two windows on one Document -> the second is read-only 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a window without the lock never writes the record: it publishes other_window, the holder commits 23ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > mint ages the generation over a stored record; cleanup is compare-then-delete 28ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two consecutive inline saves age the generation; the first cleanup leaves the second 19ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > sign-out stops dispatch (no request after) and releases the lock 40ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > two windows of the same document -> the second is read-only through the service 47ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > in-flight records at rest: validating/uploading requeue and re-send, committing settles by lookup (AC-4) 54ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > G506-be-d1-1: an in-flight record at rest runs under the lock and canCommit (no write, no lookup) 10ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lock holder crash -> the other window acquires after goneMs 11ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > stalled holder resumes after hand-off -> read-only, no write 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > sync_write off / office_capability_off -> paused_admin, no new request, queue kept 15ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > flag off during uploading -> stop before commit, same intent paused_admin, no request after 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > canCommit false between upload and commit -> no commit, the record is not damaged 10ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a 429 with Retry-After schedules the retry at now + the 300 s clamp 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two orgs with different sync_write -> each intent follows its org 12ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > a user pause survives a service restart (durable per account) 111ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > cancel on a closed tab -> the snapshot becomes a kept draft 42ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > concurrency caps documents across ALL org lanes of one pass 25ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > offline 2 h (past capability TTL) -> Ctrl/Cmd+S -> paused_offline, not paused_admin 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > keystore_locked / store_full -> refused with a reason, no intent 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel when the document is closed -> the snapshot becomes a kept draft 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel or discard at 3 drafts or a full store -> refused, intent kept 29ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > user pause + offline -> online -> paused_user, no dispatch 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > the store locks while reconciling -> unlock -> still reconciling 11ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > "Luu lai" on failed -> the old intent is superseded before the new one 17ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a tombstone stops replay 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > queue/budget limit -> refused with a code 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > startup does not read the drafts folder 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > writes a record and reads it back without plaintext at rest 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a sign-out locks every handle and wipes the scope 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > an account switch locks only the switched-out scope 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record that requires a newer store level and keeps it 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > counts the budget in encrypted bytes and refuses past it 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 2ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > Overwrite supersedes the pending intent before the new one 50ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > reopen with edit again clears a permission_revoked copy 42ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > a connectivity change wakes a parked intent (setOnline) on the next poll 156ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > sync_write off -> paused_admin through the service 36ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-1: an inline 409 conflict leaves the record non-dispatchable (poll sends nothing) 45ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G5-06 fix-C item 4 / AC-4: committing at rest is settled by lookup, uploading at rest re-sends 63ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-4: teardownSaveQueue awaits the in-flight poll and nothing lands after it resolves 71ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-7: binding writes for one document serialize, so the later state wins 57ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-1: a poll during an in-flight inline save does not upload the same key twice 95ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-1: a settle left in flight is not sent after teardown resolves 72ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-2: a read-only window status does not rewrite the holder's binding.json 39ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-3: an inline Save during the poll's tick is excluded (one writer) 99ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-1: the account-boundary wipe awaits teardownSaveQueue before the wipe 27ms
+
+ Test Files  3 passed (3)
+      Tests  78 passed (78)
+   Start at  22:29:25
+   Duration  1.70s (transform 741ms, setup 0ms, import 926ms, tests 1.89s, environment 0ms)
+

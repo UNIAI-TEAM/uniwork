@@ -1,0 +1,65 @@
+$ for i in 1 2 3; do AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-docs-lock-retry.test.ts tests/uniwork-docs-lock-wiring.test.ts --reporter=verbose || echo "LOCKRETRY_FAIL_RUN_$i"; done; echo LOCKRETRY_LOOP_DONE
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+stderr | tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end 64ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > registers locks / dismissLock and answers an empty list 275ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a refusal pushes the lock on the lock channel and the list reports it 30ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > the service openPath never reaches the module router for a locked path 30ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a sign-in as another account forgets the previous account's locks (R1-be-6) 31ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a schema-1 working copy still opens through the router 29ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the durable store at the account boundary (W3b) > an explicit Sign out locks and wipes the outgoing scope 29ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > a cold locked restore at the wiring (R1-be-4) > the account keystore-locked state locks the saved account copy with no session 29ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the lock list push when a keystore lock clears (R1-fe-1 BE) > main pushes the cleared list after the store opens, so the S11 panel can go away 36ms
+
+ Test Files  2 passed (2)
+      Tests  9 passed (9)
+   Start at  22:29:28
+   Duration  728ms (transform 600ms, setup 0ms, import 516ms, tests 556ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+stderr | tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end 66ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > registers locks / dismissLock and answers an empty list 258ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a refusal pushes the lock on the lock channel and the list reports it 29ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > the service openPath never reaches the module router for a locked path 30ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a sign-in as another account forgets the previous account's locks (R1-be-6) 30ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a schema-1 working copy still opens through the router 28ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the durable store at the account boundary (W3b) > an explicit Sign out locks and wipes the outgoing scope 30ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > a cold locked restore at the wiring (R1-be-4) > the account keystore-locked state locks the saved account copy with no session 29ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the lock list push when a keystore lock clears (R1-fe-1 BE) > main pushes the cleared list after the store opens, so the S11 panel can go away 37ms
+
+ Test Files  2 passed (2)
+      Tests  9 passed (9)
+   Start at  22:29:29
+   Duration  716ms (transform 596ms, setup 0ms, import 506ms, tests 538ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+stderr | tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end 62ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > registers locks / dismissLock and answers an empty list 264ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a refusal pushes the lock on the lock channel and the list reports it 29ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > the service openPath never reaches the module router for a locked path 30ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a sign-in as another account forgets the previous account's locks (R1-be-6) 30ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a schema-1 working copy still opens through the router 28ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the durable store at the account boundary (W3b) > an explicit Sign out locks and wipes the outgoing scope 30ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > a cold locked restore at the wiring (R1-be-4) > the account keystore-locked state locks the saved account copy with no session 29ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the lock list push when a keystore lock clears (R1-fe-1 BE) > main pushes the cleared list after the store opens, so the S11 panel can go away 34ms
+
+ Test Files  2 passed (2)
+      Tests  9 passed (9)
+   Start at  22:29:30
+   Duration  714ms (transform 585ms, setup 0ms, import 512ms, tests 540ms, environment 0ms)
+
+LOCKRETRY_LOOP_DONE

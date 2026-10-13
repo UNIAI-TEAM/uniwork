@@ -1,0 +1,1175 @@
+$ AI_PROVIDER=fake npx vitest run --root apps/shell uniwork-sync- uniwork-auth- uniwork-docs- uniwork-comments --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/uniwork-docs-save.test.ts > open flow > downloads into the working copy with a binding and opens it through the module router 33ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > names the working copy and the tab after the Vietnamese title, byte for byte 18ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > a stored upload name with U+FFFD never reaches the tab: the title names the copy 7ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > a renamed document names the copy after its title, not the original upload name 9ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > a copy named from a corrupt upload name is renamed when it is downloaded again 10ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > view level opens read-only and a pending save reopens the local copy without downloading 22ms
+ ✓ tests/uniwork-docs-save.test.ts > open flow > recents hide copies of another account and enrich our own 5ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > opens with the descriptor's workspace and operation; a historical version is its own view-only copy 6ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > a version ticket naming the current version is read-only even for an editor 5ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > a current-version view ticket focuses the open tab of the document instead of a duplicate 17ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > a current-version view ticket opens a read-only copy when no tab shows the document 6ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > a ticket without version keeps the live access; operation view is read-only 4ms
+ ✓ tests/uniwork-docs-save.test.ts > launch descriptor > a current-version view ticket of a view-only document is read-only 8ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > uploads then commits with one key and moves the base only on a matching receipt 24ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > persists the intent in the store before the first network call 11ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > two rapid saves make one intent (no queue) 10ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > the production wiring registers the 3 queue stores and dispatches on the poll 149ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > startup replays a stored intent exactly once and never lists the drafts folder 64ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > a lost commit answer keeps the intent; the next save replays the SAME key and lands once 16ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > 409 conflict keeps the working copy and the base, then refuses every save without network 16ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > also treats 422 revision_conflict as a conflict 16ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > overwrite saves my version on the server revision; the other stays in history 33ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > open-latest replaces the working copy after confirmation and reloads the tab 18ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > sign-out stops dispatch (no request after) and releases the lock 49ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > two windows of the same document -> the second is read-only through the service 47ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > save-local-copy writes a plain copy and the document stays in conflict 13ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > a payload mismatch drops the intent; the next save mints a new key 27ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > idempotency_in_flight retries with a bounded backoff, then goes offline keeping the intent 17ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > 403 forbidden blocks the save, keeps the file and downgrades access 12ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > a reopen after a 403 follows the server: still view stays view, edit again unblocks 28ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > a view-only document never reaches the network 16ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > a user pause survives a service restart (durable per account) 120ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > bytes identical to the base save without any network 6ms
+ ✓ tests/uniwork-docs-save.test.ts > save pipeline > signed out: no network, state signed-out 9ms
+ ✓ tests/uniwork-docs-save.test.ts > secrets and egress > the token is only ever an Authorization header: never in files or pushed payloads 35ms
+ ✓ tests/uniwork-docs-save.test.ts > local saves never depend on a live session (review r1 BE-1) > signed out: the last account's copy stays editable, saves locally and lands in signed-out 27ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > cancel on a closed tab -> the snapshot becomes a kept draft 63ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > Overwrite supersedes the pending intent before the new one 63ms
+ ✓ tests/uniwork-docs-save.test.ts > local saves never depend on a live session (review r1 BE-1) > reopening a copy left in signed-out by an earlier session reads ready/dirty, not "Sign in again" 30ms
+ ✓ tests/uniwork-docs-save.test.ts > local saves never depend on a live session (review r1 BE-1) > a fresh start with no session yet (restoring) keeps the last account editable; another live account is read-only 7ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > a document blocked as deleted can be saved again after a successful reopen (BE-2) 23ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > an expired staged upload drops the intent, stays dirty, and the next save mints a new key on the same base (A1.2) 25ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > a 404 on commit is checked against the document: still there -> dirty, gone -> not_found (A1.2) 22ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > a replay whose upload is gone settles when an earlier attempt already committed the bytes 23ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > reopen with edit again clears a permission_revoked copy 50ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > an account switch during the upload never commits under the other account (BE-3) 15ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > a receipt without a checksum is confirmed against the document instead of failing forever (BE-4) 15ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > save-local-copy reports a copy that could not be written (BE-6) 12ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > a file changed while saving settles as dirty, not saved (BE-7) 18ms
+ ✓ tests/uniwork-docs-save.test.ts > review r1 save fixes > bytes written outside the save hook mark a clean copy dirty on status read and activation (A1.3) 23ms
+ ✓ tests/uniwork-docs-save.test.ts > closing a document with changes not in UniWork (A1.4) > no prompt for a saved/ready or view-only document 6ms
+ ✓ tests/uniwork-docs-save.test.ts > closing a document with changes not in UniWork (A1.4) > cancel keeps it open, close anyway closes and keeps the local copy 16ms
+ ✓ tests/uniwork-docs-save.test.ts > closing a document with changes not in UniWork (A1.4) > save to UniWork closes once saved, and keeps the tab open when the save fails 23ms
+ ✓ tests/uniwork-docs-save.test.ts > closing a document with changes not in UniWork (A1.4) > save to UniWork goes through the module Save when a tab shows the document 22ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-1: a clean copy does not need a close prompt; edited, unsent or saving ones do 23ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > a connectivity change wakes a parked intent (setOnline) on the next poll 162ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > sync_write off -> paused_admin through the service 36ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-3: a conflict prompt defaults to the conflict dialog; the close follows only a saved result 33ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-3: an overwrite that goes through the module Save closes once the hook has saved 45ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-3: deciding later keeps the prompt; Cancel or Close anyway then ends it 19ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-3: a blocked document has no Save: the prompt carries the reason and a stray save keeps it open 12ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-4: a module that reports "did not write" ends the close wait at once and shows the chip state 11ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-4: a module that never reaches the hook is waited for 30 s at most 11ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-1: an inline 409 conflict leaves the record non-dispatchable (poll sends nothing) 50ms
+ ✓ tests/uniwork-docs-save.test.ts > review r2 follow-ups > R2-5: the owner is recorded when the session identity changes, without any document call 4ms
+ ✓ tests/uniwork-docs-save.test.ts > Retry replays a pending intent, it does not rewrite the file (F8) > chip Retry with a pending intent replays it without a module Save and ends saved 26ms
+ ✓ tests/uniwork-docs-save.test.ts > Retry replays a pending intent, it does not rewrite the file (F8) > a Retry with a pending intent still reports dirty when the user really changed the file since 17ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G5-06 fix-C item 4 / AC-4: committing at rest is settled by lookup, uploading at rest re-sends 84ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-4: teardownSaveQueue awaits the in-flight poll and nothing lands after it resolves 77ms
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > keeps the plaintext, refuses every binding rewrite, then migrates once when the budget frees
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > keeps the plaintext, refuses every binding rewrite, then migrates once when the budget frees
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > keeps the plaintext, refuses every binding rewrite, then migrates once when the budget frees
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R2-be-5: a status or close check in the deferred window rewrites nothing (docStatus, refreshPath, confirmClose)
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R2-be-5: a status or close check in the deferred window rewrites nothing (docStatus, refreshPath, confirmClose)
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-save.test.ts > Retry replays a pending intent, it does not rewrite the file (F8) > a Retry without an intent still runs the module Save 58ms
+ ✓ tests/uniwork-docs-save.test.ts > Retry replays a pending intent, it does not rewrite the file (F8) > close prompt "Save to UniWork" with a pending intent replays it without a module Save 13ms
+ ✓ tests/uniwork-docs-save.test.ts > Retry replays a pending intent, it does not rewrite the file (F8) > close prompt "Save to UniWork" without an intent still goes through the module Save 15ms
+ ✓ tests/uniwork-docs-save.test.ts > the durable store guards the save (W3b) > a locked store refuses the save with keystore_locked: no intent, no module save, no request 15ms
+ ✓ tests/uniwork-docs-save.test.ts > the durable store guards the save (W3b) > a store at its budget refuses the save with store_full and leaves no intent 14ms
+ ✓ tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > keeps the plaintext, refuses every binding rewrite, then migrates once when the budget frees 36ms
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R3-be-1: the open of a held folder renames nothing and deletes nothing (fresh download)
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-7: binding writes for one document serialize, so the later state wins 57ms
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R3-be-1: the open of a held folder renames nothing and deletes nothing (fresh download)
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R3-be-1: the open of a held folder renames nothing and deletes nothing (fresh download)
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: a held folder with no copy to open reports the lock, not store_full
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: a held folder with no copy to open reports the lock, not store_full
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: the same corner with a budget deferral reports store_full
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+stderr | tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: the same corner with a budget deferral reports store_full
+uniwork sync: legacy save intent migration deferred for 1 working copy/copies
+
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-1: a poll during an in-flight inline save does not upload the same key twice 93ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-1: a settle left in flight is not sent after teardown resolves 73ms
+ ✓ tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R2-be-5: a status or close check in the deferred window rewrites nothing (docStatus, refreshPath, confirmClose) 28ms
+ ✓ tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R3-be-1: the open of a held folder renames nothing and deletes nothing (fresh download) 33ms
+ ✓ tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: a held folder with no copy to open reports the lock, not store_full 27ms
+ ✓ tests/uniwork-docs-save.test.ts > a deferred sweep never erases the pre-store intent (R1-be-5) > R4-be-1: the same corner with a budget deferral reports store_full 23ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > Open from UniWork card > is visible signed in and opens the picker 69ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > Open from UniWork card > signed out: the card is still there and a click starts the sign-in, not the picker 6ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > Open from UniWork card > session expired: asks to sign in again 4ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > Open from UniWork card > not configured: leads to account settings 3ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-2: a read-only window status does not rewrite the holder's binding.json 38ms
+ ✓ tests/uniwork-docs-save.test.ts > editor state on the chip (one state source) > an unsaved edit in the editor reads dirty; the explicit Save then shows saving and saved 57ms
+ ✓ tests/uniwork-docs-save.test.ts > editor state on the chip (one state source) > a poll answer from a pass that began before the Save does not flash dirty again 54ms
+ ✓ tests/uniwork-docs-save.test.ts > editor state on the chip (one state source) > reports only changes, and never hides a conflict, offline or signed-out state 15ms
+ ✓ tests/uniwork-docs-save.test.ts > editor state on the chip (one state source) > a view-only copy and a plain local file ignore editor reports 3ms
+ ✓ tests/uniwork-docs-save.test.ts > editor state on the chip (one state source) > offline Retry that lands is pushed as saved 12ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-3: an inline Save during the poll's tick is excluded (one writer) 101ms
+ ✓ tests/uniwork-docs-save-queue-wiring.test.ts > G5-06 W4b save queue wiring > G506-be-d1-1: the account-boundary wipe awaits teardownSaveQueue before the wipe 26ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > lists the workspace documents; unsupported ones are disabled with a reason 23ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > arrow keys move over openable rows and Enter opens the highlighted one, then closes 28ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > tells the rest of the renderer which document it opened, so recents can refresh 14ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > says nothing about an open that failed 15ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > clicking a disabled row opens nothing 17ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > Escape and the close button close it 21ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > a conflict on the non-focused xlsx names the xlsx and copies the xlsx 20ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > a docx dialog still open closes as "Decide later" before the xlsx dialog opens 15ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > shows progress while opening, and the failure inline with the dialog kept open 16ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > an expired session while opening offers Sign in 24ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > debounces the search, then lists with the query 18ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > says so when nothing matches, and when the workspace is empty 13ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > switching workspace lists that workspace 15ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > Load more fetches the next page with the cursor and appends 15ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > leaving the tab closes its chip dialog; the close prompt dialog stays 91ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > a second Resolve of the same document does not open a second dialog 32ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > a network failure reads "Can’t reach UniWork. Check your connection and try again." with Retry 7ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > a server_error failure reads "UniWork ran into a problem. Try again in a moment." with Retry 7ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > a session_expired failure reads "Your UniWork sign-in expired. Sign in again." with Sign in 6ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > a forbidden failure reads "You don’t have permission to do that." with null 10ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > Retry after a server error loads the list again 20ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > Retry after the workspace list failed loads the workspaces again 19ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > a rejected IPC call is shown as a network failure, not an unhandled error 5ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > points the search box at the list only while the list is on screen 6ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > points the search box at the list once it is there 9ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > picker dialog > has labelled controls 10ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > status chip > shows the label and runs Retry through uniworkSave for that path 3ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > status chip > conflict: Resolve… opens the native choice for that path 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > status chip > signed out: Sign in starts the account sign-in, not a save 2ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > a choice made after the document left conflict is not applied 68ms
+ ✓ tests/uniwork-docs-save.test.ts > the conflict dialog belongs to the document that hit the conflict (GOA9-r2-01/07) > the discard confirmation is closed with its conflict dialog 86ms
+ ✓ tests/uniwork-docs-save.test.ts > min_app_version is the core semver (R1-be-12) > a prerelease build stamps the core version into every new binding 5ms
+ ✓ tests/uniwork-docs-save.test.ts > min_app_version is the core semver (R1-be-12) > strips the prerelease and build metadata, and keeps anything else verbatim 0ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > crash at each step, timeout after commit, cancel race 29ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel race: uploading / committing refuse it, a won cancel stops the pass 38ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > one receipt/version: a replayed intent commits exactly one version 14ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a migrated intent replays exactly once, with its own key 9ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > status chip > signed out document with the account signed in again: Retry 3ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > status chip > View only and Saved have no button; Blocked names the reason 5ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > status chip > is a labelled group, so a screen reader knows what the status belongs to 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > status chip > announces its text as a status region 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: saved shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: ready shows its label, truncates it, and carries the full text as title 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: unsaved shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: saving shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: view only shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: offline shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: can't reach UniWork shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: sign in again shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: conflict shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: blocked shows its label, truncates it, and carries the full text as title 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > en: error shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: saved shows its label, truncates it, and carries the full text as title 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: ready shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: unsaved shows its label, truncates it, and carries the full text as title 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: saving shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: view only shows its label, truncates it, and carries the full text as title 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: offline shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: can't reach UniWork shows its label, truncates it, and carries the full text as title 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: sign in again shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: conflict shows its label, truncates it, and carries the full text as title 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: blocked shows its label, truncates it, and carries the full text as title 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > vi: error shows its label, truncates it, and carries the full text as title 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > launch notices carry their full message as title and truncate the label 6ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > the stylesheet lets only the label shrink, with an ellipsis, and pads the pill evenly 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > the chrome holder takes the width the pill needs before the tab strip gives any up 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > chip truncation and hover text > the chrome holder keeps a fixed gap before the divider that follows it 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > Home quick cards fit > lays the eight cards out as two rows of four, two columns below 1100px 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > Home quick cards fit > a card title wraps instead of being clipped 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > Home quick cards fit > a subtitle clamps to two lines and the card carries it in the tooltip 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > useUniworkStatuses > reads each tab path once; local files stay unbound 3ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > useUniworkStatuses > follows pushed changes, matching the path whatever the slash direction 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > useUniworkStatuses > a push that lands while a read is in flight wins over the older read 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > useUniworkStatuses > forgets a closed tab, so a reopened one is read fresh 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > useUniworkStatuses > reads the active tab again when the active tab changes 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > launch notice > shows nothing until main reports something 1ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > launch notice > shows progress, then clears when the document opened 2ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > launch notice > asks to sign in and starts the sign-in 3ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > launch notice > failures read as sentences, can be dismissed, and expire on their own 4ms
+ ✓ tests/uniwork-docs-ui-components.test.ts > launch notice > also shows failures the renderer reports itself (a UniWork recent that could not open) 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > 409 -> conflict with the same intent id, durable across a restart 11ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > expired upload -> reconciling, exactly one lookup, no byte re-upload 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup unknown -> reconciling-stuck, no new attempt, "check again" only looks up 16ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup 401 / 403 by code / 410 -> the right reason 38ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > N+1 stays dirty behind the pending intent 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two windows on one Document -> the second is read-only 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a window without the lock never writes the record: it publishes other_window, the holder commits 43ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > mint ages the generation over a stored record; cleanup is compare-then-delete 32ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two consecutive inline saves age the generation; the first cleanup leaves the second 19ms
+ ✓ tests/uniwork-docs-actions.test.ts > create a blank document > creates one document and opens it by id, with one local copy bound to that same file 27ms
+ ✓ tests/uniwork-docs-actions.test.ts > create a blank document > derives the created format from the file block, not an extensionless title 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > create a blank document > refuses an empty (trimmed) name before any request 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > create a blank document > sends a duplicate name: duplicates are allowed, no name error 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > create a blank document > refuses a name over 500 runes before any request, counting runes not UTF-16 units 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > create a blank document > maps D's 400 for a refused title to name_too_long 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > create a blank document > treats a server 409 on create as an ordinary failure, not a name error 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > upload a file > uploads the local bytes as one document, then opens it by id (no second copy) 7ms
+ ✓ tests/uniwork-docs-actions.test.ts > upload a file > refuses a pick past the server 50 MiB stage limit without reading it 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > upload a file > cancels a running upload through its uploadId 53ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > in-flight records at rest: validating/uploading requeue and re-send, committing settles by lookup (AC-4) 47ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > G506-be-d1-1: an in-flight record at rest runs under the lock and canCommit (no write, no lookup) 11ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lock holder crash -> the other window acquires after goneMs 24ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > stalled holder resumes after hand-off -> read-only, no write 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > sync_write off / office_capability_off -> paused_admin, no new request, queue kept 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > flag off during uploading -> stop before commit, same intent paused_admin, no request after 15ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > canCommit false between upload and commit -> no commit, the record is not damaged 10ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a 429 with Retry-After schedules the retry at now + the 300 s clamp 9ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > last owner follows the session identity (R2-5) > the account status callback records the signed-in account 168ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > the newer-store guard reaches the wiring (G5-04g) > the service openPath refuses a locked path before the module router is asked 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > upload a file > keeps the created document when the cancel lands after D answered 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > upload a file > cancels an upload whose Cancel lands during the stat, before any read or POST 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > upload a file > returns the created document when the Cancel lands after the 201 was accepted 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > folders > lists only the folder rows of the workspace 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > folders > follows the folder next_cursor across pages 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > folders > stops the folder walk at its page bound 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > rename, archive and restore > renames with the current revision and follows the working copy on disk 10ms
+ ✓ tests/uniwork-docs-actions.test.ts > rename, archive and restore > refuses an empty name before any request 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > rename, archive and restore > renames to a name another document already has: the PATCH goes out 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > rename, archive and restore > refuses a rename over 500 runes before any request 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > rename, archive and restore > maps D's 400 for a refused title on rename to name_too_long 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > rename, archive and restore > treats a server 409 on rename as an ordinary failure, not a name error 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > rename, archive and restore > answers a no-op rename with the flags of the detail it read 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > rename, archive and restore > archives and restores through the lifecycle routes, never a delete 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > rename, archive and restore > restores a manager own archived document, whose GET still answers 200 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > rename, archive and restore > refuses a restore when the archived document reads not_found for the caller 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > my_level gating > refuses every action on a view-only document without a write request 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > my_level gating > refuses a rename when the detail carries no my_level, before any PATCH 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > my_level gating > refuses a rename on an unknown my_level, before any PATCH 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > my_level gating > lets an edit-level row rename but not archive 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > my_level gating > derives a list row format from the file block, title extension only without one 2ms
+ ✓ tests/uniwork-docs-actions.test.ts > my_level gating > carries the row action flags on every list row 1ms
+ ✓ tests/uniwork-docs-actions.test.ts > renamed elsewhere > a feed change for a closed document follows the title, renames the file and announces it 54ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two orgs with different sync_write -> each intent follows its org 12ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > concurrency caps documents across ALL org lanes of one pass 23ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > offline 2 h (past capability TTL) -> Ctrl/Cmd+S -> paused_offline, not paused_admin 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > keystore_locked / store_full -> refused with a reason, no intent 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel when the document is closed -> the snapshot becomes a kept draft 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel or discard at 3 drafts or a full store -> refused, intent kept 20ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > user pause + offline -> online -> paused_user, no dispatch 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > the store locks while reconciling -> unlock -> still reconciling 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > "Luu lai" on failed -> the old intent is superseded before the new one 12ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a tombstone stops replay 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > queue/budget limit -> refused with a code 2ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > a sign-in as another account (GOA9-r3-04) > closes the previous account's open documents and deletes their AI history 54ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > G8-16 S16: the feed starts only for the chosen org (F-1) > a two-org account fetches nothing before the choice, then only the chosen org 73ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > startup does not read the drafts folder 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > writes a record and reads it back without plaintext at rest 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a sign-out locks every handle and wipes the scope 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > an account switch locks only the switched-out scope 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record that requires a newer store level and keeps it 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > counts the budget in encrypted bytes and refuses past it 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 4ms
+ ✓ tests/uniwork-docs-actions.test.ts > renamed elsewhere > a rename this service made itself is not re-announced when the feed echoes it 15ms
+ ✓ tests/uniwork-docs-actions.test.ts > renamed elsewhere > leaves a document with local work alone 6ms
+ ✓ tests/uniwork-docs-actions.test.ts > renamed elsewhere > a rename while the migration holds the folder keeps the file and the intent 6ms
+ ✓ tests/uniwork-docs-actions.test.ts > renamed elsewhere > a metadata response never overwrites a state written while it was pending 5ms
+ ✓ tests/uniwork-docs-actions.test.ts > renamed elsewhere > a genuine remote rename is followed even when no echo of our own arrived 57ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > G8-16 S16: the feed starts only for the chosen org (F-1) > an org change stops the old pass and starts the new org 103ms
+ ✓ tests/uniwork-docs-wiring-owner.test.ts > G8-16 S16: the feed starts only for the chosen org (F-1) > sign-out stops the feed 73ms
+ ✓ tests/uniwork-docs-actions.test.ts > renamed elsewhere > focus refresh picks up a title change without the feed (closed document) 57ms
+ ✓ tests/uniwork-docs-actions.test.ts > renamed elsewhere > a feed change re-titles an open tab without moving its file 56ms
+ ✓ tests/uniwork-docs-actions.test.ts > renamed elsewhere > focus refresh re-titles an open tab without the feed 56ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > registers locks / dismissLock and answers an empty list 76ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a refusal pushes the lock on the lock channel and the list reports it 29ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > the service openPath never reaches the module router for a locked path 31ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a sign-in as another account forgets the previous account's locks (R1-be-6) 28ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the newer-store lock IPC (G5-04g) > a schema-1 working copy still opens through the router 28ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the durable store at the account boundary (W3b) > an explicit Sign out locks and wipes the outgoing scope 29ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > a cold locked restore at the wiring (R1-be-4) > the account keystore-locked state locks the saved account copy with no session 28ms
+ ✓ tests/uniwork-docs-lock-wiring.test.ts > the lock list push when a keystore lock clears (R1-fe-1 BE) > main pushes the cleared list after the store opens, so the S11 panel can go away 34ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > pulls every (org, workspace) whose capability says sync_feed, and nothing else 37ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a crash mid-page keeps the cursor on the applied page; the replay is idempotent 19ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a full resync keeps drafts and evicts documents the snapshot no longer lists 27ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a torn page commit keeps the previous page whole: no orphan row (G504-be-2) 22ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a store_full page apply never moves the cursor, and the page is retried (G504-be-1) 22ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > another account or deployment never sees this stream 19ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a locked keychain or an off capability never asks the feed server 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a capability 401 is handed to the session 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > start polls on the injected schedule and stop cancels it 7ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > stop() ends the pass in flight and the next start runs at once (G504-be-7) 11ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the full resync keeps drafts through the real hasLocalDraft (wiring keepDraft) > keeps dirty, saving, intent-held and editor-dirty copies; evicts a clean unlisted one 27ms
+ ✓ tests/uniwork-comments-preload.test.ts > every editor preload exposes window.uniworkComments > the same ten-method surface per app 302ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the full resync keeps drafts through the real hasLocalDraft (wiring keepDraft) > keeps a copy whose editor turns dirty while the intent store is answering (R5-be-1) 13ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > writes a record and reads it back without plaintext at rest 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > a sign-out locks every handle and wipes the scope 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > an account switch locks only the switched-out scope 9ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > refuses a record that requires a newer store level and keeps it 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > counts the budget in encrypted bytes and refuses past it 16ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > writes a record and reads it back without plaintext at rest 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > a sign-out locks every handle and wipes the scope 6ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > an account switch locks only the switched-out scope 8ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > refuses a record that requires a newer store level and keeps it 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > refuses a record older than the store minimum 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > counts the budget in encrypted bytes and refuses past it 15ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 6ms
+ ✓ tests/uniwork-sync-runtime.test.ts > G506-be-3: only a failed feed round trip reports the queue offline > a pass with no org to feed (nothing attempted) reports no verdict 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > G506-be-3: only a failed feed round trip reports the queue offline > a failed feed round trip parks the queue offline 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces every document of a page the doc cache committed, exactly once 15ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces a document with two changes in one page exactly once 9ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces nothing when the cache refuses the page 3ms
+ ✓ tests/uniwork-comments-preload.test.ts > every editor preload exposes window.uniworkComments > forwards each call to its uniwork:comments:* channel 9ms
+ ✓ tests/uniwork-comments-preload.test.ts > every editor preload exposes window.uniworkComments > onReveal delivers a well-formed push and drops a malformed one 3ms
+ ✓ tests/uniwork-comments-preload.test.ts > the protocol error survives the contextBridge as an envelope (R1-1) > a create 409 comment_deleted reaches the renderer as data, and unwrap throws in its realm 26ms
+ ✓ tests/uniwork-comments-preload.test.ts > the protocol error survives the contextBridge as an envelope (R1-1) > a list 401 reaches the renderer as unauthorized (retryable false) 2ms
+ ✓ tests/uniwork-comments-preload.test.ts > the protocol error survives the contextBridge as an envelope (R1-1) > a list 404 reaches the renderer as not_found (retryable false) 3ms
+ ✓ tests/uniwork-comments-preload.test.ts > the protocol error survives the contextBridge as an envelope (R1-1) > a list 500 reaches the renderer as internal (retryable true) 3ms
+ ✓ tests/uniwork-comments-preload.test.ts > the protocol error survives the contextBridge as an envelope (R1-1) > a success resolves to { ok: true, value } through the bridge 3ms
+ ✓ tests/uniwork-comments-preload.test.ts > onReveal pulls a reveal held before the editor subscribed (R1-2) > delivers the held reveal once, then keeps listening for pushes 5ms
+ ✓ tests/uniwork-comments-preload.test.ts > onReveal pulls a reveal held before the editor subscribed (R1-2) > asks for the pending reveal on the pending channel and drops a malformed answer 2ms
+ ✓ tests/uniwork-comments-preload.test.ts > onReveal pulls a reveal held before the editor subscribed (R1-2) > a push that lands while the pull is in flight is not replayed twice 2ms
+ ✓ tests/uniwork-comments-preload.test.ts > the held reveal pull races with a push (D1-2/D1-3, VG-2) > a push that supersedes the pending pull drops its older answer (D1-2) 2ms
+ ✓ tests/uniwork-comments-preload.test.ts > the held reveal pull races with a push (D1-2/D1-3, VG-2) > a pull that resolves after the unsubscribe delivers nothing (D1-3) 2ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > writes a record into the scope namespace and reads it back encrypted 13ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > encrypts each record with its own random IV 8ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > replaces a record in place and leaves no temp file 14ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a missing record and deletes idempotently 8ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > opens as keystore_locked or keyring_unavailable when the keyring is not usable 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record that needs a newer store level and leaves it alone 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record older than the store minimum 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses a record with a newer schema 2ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > refuses writes from a store registered at a newer level 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a tampered record as corrupt and keeps the file 3ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > reports a record written under another key as corrupt 13ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > counts the budget per account in encrypted bytes and refuses past it 17ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a sign-out locks every handle and wipes the scope 13ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a write in flight at lockAndWipe resolves interrupted and leaves nothing readable 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > scrubs temp files a crash left behind at open 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > retries the publish when the filesystem refuses the replace 56ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > rejects unregistered stores, duplicate registrations and invalid registrations 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > rejects a malformed scope 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a wipe between the flush and the publish interrupts the write (G504-be-11) 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a wipe that removes the folder mid-write is an interruption, not a throw (G504-be-11) 1ms
+ ✓ tests/uniwork-sync-store.test.ts > uniwork sync store layer > a wipe while the read is suspended never yields the plaintext (G504-be-11) 2ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > keeps drafts per document with their exact snapshot bytes and metadata 22ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > caps a document at draftsPerDocument (3) → drafts_full 11ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > removes one draft and treats an unknown id as done 17ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > refuses a draft the account budget cannot hold → store_full 6ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > reports a locked/wiped scope as keystore_locked 7ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > uniwork-sync kept-draft store — store compliance > writes a record and reads it back without plaintext at rest 10ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > uniwork-sync kept-draft store — store compliance > a sign-out locks every handle and wipes the scope 5ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > uniwork-sync kept-draft store — store compliance > an account switch locks only the switched-out scope 8ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > uniwork-sync kept-draft store — store compliance > refuses a record that requires a newer store level and keeps it 3ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > uniwork-sync kept-draft store — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > uniwork-sync kept-draft store — store compliance > counts the budget in encrypted bytes and refuses past it 11ms
+ ✓ tests/uniwork-sync-queue-drafts.test.ts > uniwork sync kept-draft store > uniwork-sync kept-draft store — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 4ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > starts PKCE, opens the browser, exchanges the code and loads the account 8ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > a callback for another scheme is discarded and the attempt stays live 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > a forged or malformed callback never cancels the live sign-in 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > a callback for an expired attempt ends it with login_timeout 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > times out after 10 minutes 4ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > cancel returns to signed-out and ignores a late callback 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > exchange failure auth_code_invalid -> signed-out 3ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > exchange failure rate_limited -> signed-out 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > exchange failure network -> server-unreachable 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > exchange failure desktop_auth_unavailable -> server-unreachable 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > exchange failure wrong_deployment -> wrong-deployment 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > start failure maps to state and keeps no attempt 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > retry after a failed sign-in start signs in again 5ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > refuses to store when the keyring is unavailable 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > a no-keyring host still reports keyring-unavailable, not keystore-locked 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > keyring-unavailable: a fresh sign-in replaces the unreadable credential 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > keyring-unavailable: sign-in opens no browser while nothing could be stored 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > a secure-store failure during the account reload leaves no session to recover 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > sign-in > not-configured without a deployment profile 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > restore while the keystore is locked shows keystore-locked, not keyring-unavailable 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > keystore-locked preserves the saved credential (nothing cleared, no network session) 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > unlock then restore signs in 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > a sign-in while the keystore is locked never overwrites the stored credential 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > a sign-in while the keystore is locked opens no browser when nothing can be stored 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > retry from keystore-locked re-reads the store and signs in once unlocked 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > a keychain that locks between load and save is keystore_locked, never io (real store) 6ms
+ ✓ tests/uniwork-auth-manager.test.ts > keystore locked > a sign-in whose credential cannot be wrapped never overwrites the stored one (real store) 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > restores by refreshing; the rotated refresh token is persisted 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > a credential bound to another deployment is never used 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > an expired refresh token is session-expired without a network call 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure refresh_reused -> session-revoked 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure device_revoked -> session-revoked 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure unauthorized -> session-expired 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure auth_code_invalid -> session-expired 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure network -> server-unreachable 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure timeout -> server-unreachable 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure server_error -> server-unreachable 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure malformed_response -> server-unreachable 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refresh failure wrong_deployment -> wrong-deployment 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > server-unreachable with a credential recovers on its own with a bounded backoff 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > the recovery backoff is capped at five minutes 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > getAccessToken() recovers from server-unreachable instead of returning null 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > getAccessToken() while offline is refresh-only and does not wait for the account reload 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > getAccessToken() while offline does not refresh when the access token is still valid 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > getAccessToken() bursts while offline share one attempt and are throttled 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > startup restore waits for the gate (proxy install) before the first refresh 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > startup restore shows the stored account as refreshing while it waits for the gate 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > startup restore stands down when the user signed out while it waited 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > startup restore stops waiting for a gate that never settles 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > server-unreachable after a restart shows the cached organization and plan 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > restore stays refreshing until the account reload has finished 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > an access token lifetime past the timer range does not loop refresh 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > a bare 401 on refresh keeps the credential (server-unreachable) 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > a /me answer for another account ends the session 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > sign-in from server-unreachable recovers the live session instead of a new attempt 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > retry after server-unreachable recovers 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > runs a single refresh for concurrent callers 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > refreshes proactively at 80% of the access token lifetime 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > 401 -> refresh -> retry once 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > restore and refresh > a second 401 after refresh ends the session 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > organizations and entitlements > keeps the persisted org while still a member 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > organizations and entitlements > selectOrg persists the choice and reloads entitlements 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > organizations and entitlements > a billing failure after a restart shows the cached plan but never publishes it as live 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > organizations and entitlements > a billing failure leaves entitlements unknown but stays signed in 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a two-org account asks, and makes no org-scoped call before the choice 2ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a remembered organization is used with no question 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a single usable organization is picked automatically and remembered 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a remembered organization that is gone asks again with rememberedGone 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a suspended organization is not selectable and its row says so 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a deactivated membership is refused and the row is marked 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a re-login deactivated in the single org locks it (F-2) 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a re-login deactivated in the remembered org brings the picker back with the row locked (F-2) 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a remembered org of another account is ignored (F-3) 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a legacy bare-string remembered org is ignored (F-3) 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a failed org list keeps the session and reports orgsError (F-5) 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > a transient membership read inside selectOrg keeps the picker and the session (RBE1-02) 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > G8-16 organization choice (S16) > every organization blocked leaves no picker (the lock panel handles it) 4ms
+ ✓ tests/uniwork-auth-manager.test.ts > logout > revokes the device, then clears local credentials 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > logout > clears and reports signed-out before the server round trip 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > logout > still clears when the server is unreachable 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > logout > drops a refresh response that lands after logout 0ms
+stderr | tests/uniwork-docs-lock-guard.test.ts > a locked keychain holds a pre-store intent (W3b) > the sync funnel refuses the path while locked, then opens it once unlocked
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 2, min_app_version lower: lock pushed, nothing opened, folder untouched, no request 7ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 2, min_app_version higher: lock pushed, nothing opened, folder untouched, no request 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 2, no min_app_version: lock pushed, nothing opened, folder untouched, no request 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 2, malformed min_app_version: lock pushed, nothing opened, folder untouched, no request 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 2, min_store_level above this build: lock pushed, nothing opened, folder untouched, no request 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 3: lock pushed, nothing opened, folder untouched, no request 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > the funnel decision is the guard, exercised at runtime over a seeded store (R1-be-7) 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > the open route calls no module and pushes the lock again only on a new refusal 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > dismissLock forgets the lock (Close on the S11 panel); nothing else changes 3ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > keys a lock by pathKey: a drive-letter path spelled another way dismisses it (R1-be-2) 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a newer store is refused before anything opens (AC-1) > schema 1 stays a plain bound document, and garbage stays unbound (regression) 5ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a schema-2 store level inside the window opens (OQ-P4) > schema 2, min_store_level 2, min_app_version 0.11.0-beta.9: bound, editable, opens with no lock 28ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a schema-2 store level inside the window opens (OQ-P4) > schema 2, min_store_level 2, min_app_version 0.11.0-dev.3: bound, editable, opens with no lock 5ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a schema-2 store level inside the window opens (OQ-P4) > schema 2, min_store_level 1: bound, editable, opens with no lock 5ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > the module policy reads binding.json once per call (R1-be-5) > isBound / isReadOnly cost one binding read each, even for a newer store 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > the module policy reads binding.json once per call (R1-be-5) > a schema-1 copy is also classified in one read, and still bound and editable 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > the module policy reads binding.json once per call (R1-be-5) > a plain local file costs no binding read at all 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > save, the chip Retry and a user Save write nothing and send nothing 2ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > status, close, conflict and refresh answer without a dialog, a write or a request 3ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_app_version lower: openFromServer refuses before the first request and opens no module 3ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_app_version higher: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, no min_app_version: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, malformed min_app_version: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_store_level above this build: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 3: openFromServer refuses before the first request and opens no module 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_app_version lower: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_app_version higher: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, no min_app_version: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, malformed min_app_version: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 2, min_store_level above this build: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > no intent, no module save, no client call for a locked path (AC-2) > schema 3: a launch ticket also opens nothing and sends nothing 1ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a locked keychain holds a pre-store intent (W3b) > the open is refused with S11 keystore_locked and the plaintext stays untouched 5ms
+stderr | tests/uniwork-docs-lock-guard.test.ts > a locked keychain holds a pre-store intent (W3b) > a cold locked restore (no live session) still tells keystore_locked and locks the copy (R1-be-4)
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a locked keychain holds a pre-store intent (W3b) > the sync funnel refuses the path while locked, then opens it once unlocked 18ms
+ ✓ tests/uniwork-docs-lock-guard.test.ts > a locked keychain holds a pre-store intent (W3b) > a cold locked restore (no live session) still tells keystore_locked and locks the copy (R1-be-4) 9ms
+ ✓ tests/uniwork-auth-manager.test.ts > signing in again after the device was revoked > a callback delivered by a second instance (Windows argv) completes the new sign-in 54ms
+ ✓ tests/uniwork-auth-manager.test.ts > signing in again after the device was revoked > a second Sign in click keeps the attempt the open browser tab belongs to 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > signing in again after the device was revoked > a click after the attempt expired starts a fresh one 1ms
+ ✓ tests/uniwork-auth-manager.test.ts > adoptProfile (a web link or the typed address chose a server) > first run: from not-configured to signed-out on the chosen server 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > adoptProfile (a web link or the typed address chose a server) > the same deployment on a new origin follows the move but never carries the sign-in there 0ms
+ ✓ tests/uniwork-auth-manager.test.ts > adoptProfile (a web link or the typed address chose a server) > another deployment never reuses the old credential 0ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > the feed runtime capability cache across an account boundary (R1-be-8) > clears on a same-origin account switch instead of serving the old account’s flags 100ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > the feed runtime capability cache across an account boundary (R1-be-8) > keeps serving the cache inside the TTL for one account 7ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > a two-org picker fetches nothing until the org is chosen 7ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > a chosen org is the only one ever touched 6ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > a pending choice blocks the pass even with an org already set 4ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G8-16 S16: the feed makes no org-scoped call before the choice (F-1) > no org chosen (every org blocked) still fetches nothing 4ms
+ ✓ tests/uniwork-docs-sync-runtime.test.ts > G506-be-3: the queue online verdict is a real transport result, not a feed no-op > no chosen org + a queued intent -> the poll dispatches it 3ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > round-trips a v2 record and the exact payload bytes 16ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > serves a v1 record the G5-04 front wrote verbatim, and upgrades it on `read` with the facts 7ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > keeps writing a v1 put from a G5-04 caller, upgrading it on the queue read 5ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > keeps only the latest intent of a document 8ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > deletes an intent and treats a repeated delete as done 6ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > reads a corrupt record as no intent instead of throwing 15ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > reads a record needing a newer store level as no intent and keeps it 4ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > refuses an intent whose record shape is broken 3ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > reports keystore_locked when the keychain is locked 5ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > writes a record and reads it back without plaintext at rest 10ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > a sign-out locks every handle and wipes the scope 7ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > an account switch locks only the switched-out scope 11ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > refuses a record that requires a newer store level and keeps it 5ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > refuses a record older than the store minimum 4ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > counts the budget in encrypted bytes and refuses past it 14ms
+ ✓ tests/uniwork-sync-intent-store.test.ts > uniwork sync intent store > uniwork-sync intent store — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 3ms
+ ✓ tests/uniwork-docs-actions-wiring.test.ts > the S18 action IPC > registers every channel of the contract 79ms
+ ✓ tests/uniwork-docs-actions-wiring.test.ts > the S18 action IPC > answers the action-result shape, never throwing across IPC 2ms
+ ✓ tests/uniwork-docs-actions-wiring.test.ts > the S18 action IPC > the upload dialog seam answers null when cancelled 1ms
+ ✓ tests/uniwork-docs-actions-wiring.test.ts > the S18 action IPC > refuses every action while signed out, before any request 1ms
+ ✓ tests/uniwork-sync-migration.test.ts > migrateLegacyIntents > moves the intent into the store, rewrites the binding as schema 2 and deletes the plaintext 19ms
+ ✓ tests/uniwork-sync-migration.test.ts > migrateLegacyIntents > a crash between the store write and the plaintext delete is resumed with one intent 29ms
+ ✓ tests/uniwork-sync-migration.test.ts > migrateLegacyIntents > a payload that is not the intent’s bytes never becomes an intent 8ms
+ ✓ tests/uniwork-sync-migration.test.ts > migrateLegacyIntents > never touches another account’s copies, plain schema-1 copies or unreadable ones 7ms
+ ✓ tests/uniwork-sync-migration.test.ts > migrateLegacyIntents > leaves a newer or unclassifiable store and its payload byte-for-byte alone (R1-be-9) 4ms
+ ✓ tests/uniwork-sync-migration.test.ts > migrateLegacyIntents > a schema-2 copy with a stray payload (crash after the rewrite) loses only the payload 2ms
+ ✓ tests/uniwork-sync-migration.test.ts > migrateLegacyIntents > a store that refuses the write leaves the plaintext exactly as it is and reports the deferral 4ms
+ ✓ tests/uniwork-docs-preload-actions.test.ts > the S18 action result crossing the preload (R1-9) > answers malformed_response for a result of neither shape 285ms
+ ✓ tests/uniwork-docs-preload-actions.test.ts > the S18 action result crossing the preload (R1-9) > passes both well-formed branches through unchanged 23ms
+ ✓ tests/uniwork-docs-preload-actions.test.ts > the upload cancel and progress of the preload (FX10) > invokes the cancel channel with the id, never without one 4ms
+ ✓ tests/uniwork-docs-preload-actions.test.ts > the upload cancel and progress of the preload (FX10) > drops an upload-progress push without an uploadId 9ms
+stderr | tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end
+uniwork sync: moved 1 legacy save intent(s) into the store
+
+ ✓ tests/uniwork-docs-lock-retry.test.ts > unlock + Retry ends in a live session with one migration (l.480-481) > a locked restart migrates nothing; Retry migrates exactly once, end to end 63ms
+ ✓ tests/uniwork-comments.test.ts > the comments client routes every call to the contract §2 path > list carries kind and since_token; unchanged is returned as-is 17ms
+ ✓ tests/uniwork-comments.test.ts > the comments client routes every call to the contract §2 path > create sends one Idempotency-Key and the snake_case body 1ms
+ ✓ tests/uniwork-comments.test.ts > the comments client routes every call to the contract §2 path > update/remove/resolve/reopen/revisions/searchMentions hit their routes 2ms
+ ✓ tests/uniwork-comments.test.ts > the comments client routes every call to the contract §2 path > anchors on the route G8-04 has not merged (405) reads `unsupported`, never `internal` 1ms
+ ✓ tests/uniwork-comments.test.ts > the comments client routes every call to the contract §2 path > a hard-deleted thread disappears on the next full list 2ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > 401 -> unauthorized (retryable false) 1ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > 403 -> forbidden (retryable false) 0ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > 404 -> not_found (retryable false) 0ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > 500 -> internal (retryable true) 1ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > 503 -> internal (retryable true) 0ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > 409 comment_deleted -> conflict + details.code, not retryable (no reload) 0ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > 400 anchor_version_invalid -> malformed + details.code 0ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > an unreachable server reads network (never internal) 1ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > a deadline abort during the body read reads network, retryable (D2-4) 21ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > a bad JSON body stays malformed, not retryable 0ms
+ ✓ tests/uniwork-comments.test.ts > the §9 error table, through the fake server > a signed-out session reads unauthorized, no request made 0ms
+ ✓ tests/uniwork-comments.test.ts > the comments IPC wiring (unbound -> zero requests) > an unbound document makes no request and answers the not_found reply 1ms
+ ✓ tests/uniwork-comments.test.ts > the comments IPC wiring (unbound -> zero requests) > a bound document answers { ok: true, value } 1ms
+ ✓ tests/uniwork-comments.test.ts > the comments IPC wiring (unbound -> zero requests) > a malformed payload is refused before any request 0ms
+ ✓ tests/uniwork-comments.test.ts > the comments IPC wiring (unbound -> zero requests) > registers one handler per frame request kind plus the pending-reveal pull 0ms
+ ✓ tests/uniwork-comments.test.ts > the comments IPC wiring (unbound -> zero requests) > reveal pushes only for a bound path 0ms
+ ✓ tests/uniwork-comments.test.ts > the comments IPC wiring (unbound -> zero requests) > resolveCommentBinding returns null for an unbound path 0ms
+ ✓ tests/uniwork-comments.test.ts > protocol errors cross the IPC boundary as data (R1-1) > a create 409 comment_deleted survives structuredClone as conflict + details.code 1ms
+ ✓ tests/uniwork-comments.test.ts > protocol errors cross the IPC boundary as data (R1-1) > a list 401 survives structuredClone as unauthorized (retryable false) 0ms
+ ✓ tests/uniwork-comments.test.ts > protocol errors cross the IPC boundary as data (R1-1) > a list 404 survives structuredClone as not_found (retryable false) 0ms
+ ✓ tests/uniwork-comments.test.ts > protocol errors cross the IPC boundary as data (R1-1) > a list 500 survives structuredClone as internal (retryable true) 0ms
+ ✓ tests/uniwork-comments.test.ts > protocol errors cross the IPC boundary as data (R1-1) > a list 503 survives structuredClone as internal (retryable true) 0ms
+ ✓ tests/uniwork-comments.test.ts > protocol errors cross the IPC boundary as data (R1-1) > a successful reply travels as { ok: true, value } through structuredClone 0ms
+ ✓ tests/uniwork-comments.test.ts > the shared body fixture round-trips over the desktop IPC (card T1) > create then list returns the body byte-identical; an update stays byte-identical too 1ms
+ ✓ tests/uniwork-comments.test.ts > the launch reveal is held until the editor subscribes (R1-2) > a reveal decided before the editor subscribes is pulled once, then cleared 0ms
+ ✓ tests/uniwork-comments.test.ts > the launch reveal is held until the editor subscribes (R1-2) > a pull reaches only the sender’s own path 0ms
+ ✓ tests/uniwork-comments.test.ts > the launch reveal is held until the editor subscribes (R1-2) > a later reveal still pushes to the subscribed editor 0ms
+ ✓ tests/uniwork-comments.test.ts > a delivered reveal is not replayed on the next subscribe (D1-1) > a push handed to a subscribed editor ends the hold 0ms
+ ✓ tests/uniwork-comments.test.ts > a delivered reveal is not replayed on the next subscribe (D1-1) > a deferred push stays held until the editor pulls it 0ms
+ ✓ tests/uniwork-comments.test.ts > a delivered reveal is not replayed on the next subscribe (D1-1) > a deferred push handed to a subscribed editor still ends the hold 0ms
+ ✓ tests/uniwork-comments.test.ts > a pull that lands before the deferred push delivers once (D1-4) > the deferred copy is dropped once the pull delivered the reveal 0ms
+ ✓ tests/uniwork-comments.test.ts > the desktop DTO parsers match the frame types (R1-4) > a revision with created_by_id: null keeps null (a system author) 0ms
+ ✓ tests/uniwork-comments.test.ts > the desktop DTO parsers match the frame types (R1-4) > parseCommentsAnchors keeps updated, skipped (with reasons) and list_token 0ms
+ ✓ tests/uniwork-comments.test.ts > the desktop DTO parsers match the frame types (R1-4) > parseCommentsAnchors refuses an unknown skip reason and a missing list_token 1ms
+ ✓ tests/uniwork-comments.test.ts > reload while composing a reply to a deleted thread (§9 rule 2) > the draft is never touched, the list reloads and comment_deleted is surfaced 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > ready -> "Saved to UniWork" (ok, action undefined) 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > saved -> "Saved to UniWork" (ok, action undefined) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > dirty -> "Unsaved changes" (neutral, action undefined) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > saving -> "Saving…" (busy, action undefined) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > offline -> "Not saved: offline" (warn, action retry) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > signed-out -> "Sign in again to save" (warn, action sign-in) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > conflict -> "Version conflict" (warn, action resolve) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > error -> "Couldn’t save" (error, action retry) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > shows View only for a read-only document that is idle, never "Saved" 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > lets a failure state win over View only (a downgraded document that was refused) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with forbidden reads "Blocked: no permission" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with not_found reads "Blocked: document missing" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with deleted reads "Blocked: document deleted" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with quota_exceeded reads "Blocked: storage full" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with too_large reads "Blocked: file too large" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with server_error reads "Blocked: unavailable" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > says "offline" only when the network is the problem 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > a server_error while the network is fine reads as UniWork being unreachable, not offline 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > a timeout while the network is fine reads as UniWork being unreachable, not offline 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > a malformed_response while the network is fine reads as UniWork being unreachable, not offline 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > offers a browser sign-in while signed out, and Retry once the account is signed in again 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > leads the error tooltip with the sentence for the code 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > puts the last save time into the saved tooltip only when there is one 11ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > never shows an internal code or a bare state name 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > keystore_locked reason > maps to the keychain-locked reason, not the generic one 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > keystore_locked reason > keeps the existing reasons unchanged 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > store_full reason > maps to the store-full reason and the full-store sentence 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > store_full reason > has a sentence for keystore_locked and store_full in every shipped table 2ms
+ ✓ tests/uniwork-docs-ui.test.ts > store_full reason > shows the blocked chip with the keychain / full-store reason 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > queued -> uwChipQueued / uwTipQueued (neutral) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > paused_offline -> uwChipQueued / uwTipQueued (neutral) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > paused_user -> uwChipQueued / uwTipPausedUser (neutral) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > paused_admin -> uwChipPausedAdmin / uwTipPausedAdmin (neutral) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > reconciling -> uwChipReconciling / uwTipReconciling (warn) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > reconciling-stuck -> uwChipReconcileStuck / uwTipReconciling (warn) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > failed reads as the error chip with the reused quota / too-large / other fragment 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > queued with an unsent N+1 switches to the "queued newer" chip 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > fills the queued tooltip with the time of the waiting save 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > a queue state wins over View only (the intent was created before access dropped) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > never shows an internal code or a placeholder 5ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > capability_off -> sentence uwTipPausedAdmin, blocked reason uwReasonOther 2ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > intent_unknown -> sentence uwChipReconcileStuck, blocked reason uwReasonOther 2ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > document_deleted -> sentence uwErrDeleted, blocked reason uwReasonDeleted 2ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > permission_revoked -> sentence uwErrForbidden, blocked reason uwReasonForbidden 2ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > member_deactivated -> sentence uwLockDeactivated, blocked reason uwReasonDeactivated 6ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > organization_suspended -> sentence uwLockSuspended, blocked reason uwReasonSuspended 3ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > drafts_full -> sentence uwConflictDraftCapReached, blocked reason uwReasonOther 2ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > other_window -> sentence uwLockOtherWindow, blocked reason uwReasonOther 6ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > reuses the existing deleted / forbidden / suspended / deactivated reasons in the blocked chip 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > gives the account-side blocks no retry action (a re-check is the Queue row’s) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > errorActionOf > sign in for an expired session, retry for transport trouble, nothing for a verdict 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > launchNoticeOf > shows progress while opening, with the title when known 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > launchNoticeOf > clears once the document opened 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > launchNoticeOf > asks to sign in and stays until acted on 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > launchNoticeOf > has copy per failure code; the expired link says to open it again from UniWork 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > signed-in -> picker 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > refreshing -> picker 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > server-unreachable -> picker 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > loading -> picker 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > signed-out -> sign-in 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > session-expired -> sign-in 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > session-revoked -> sign-in 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > signing-in -> none 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > not-configured -> settings 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > wrong-deployment -> settings 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > keyring-unavailable -> settings 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > keystore-locked -> settings 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > says what to do in each unsigned state 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > starts loading, selects the first workspace and starts the first list fetch 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > shows the no-workspaces state when the account has none 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > lists documents and highlights the first one that can be opened 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > drops an answer for an older request (workspace switched while loading) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a new search starts a fresh list and distinguishes empty from no results 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > ignores a search that did not change the committed text 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > appends the next page, keeps the highlight, and clears the cursor at the end 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a failed Load more keeps the rows and reports the error under them 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a list failure with network offers retry 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a list failure with server_error offers retry 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a list failure with session_expired offers sign-in 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a list failure with forbidden offers none 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > Retry reloads the list; after a workspace-list failure it reloads the workspaces 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > opening is one at a time; a failure is kept inline and can be cleared 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > keeps the same workspace when the workspace list reloads 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > keyboard navigation skips documents that cannot be opened > moves over openable rows only 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > keyboard navigation skips documents that cannot be opened > has no highlight when nothing can be opened 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > keyboard navigation skips documents that cannot be opened > classifies formats: only the six office formats open 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > keyboard navigation skips documents that cannot be opened > debounces the search long enough to ride out typing 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > time and path helpers > formats today as a time and other days as a date; empty when unusable 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > time and path helpers > names who updated a document when the server says 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > time and path helpers > compares Windows paths regardless of slash direction and drive-letter case 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > time and path helpers > is the one shared implementation, so main and the renderer key a path alike (R1-be-10) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openRecentEntry > opens a local file by path, exactly as before, with no UniWork call 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > openRecentEntry > opens a UniWork recent through UniWork by document id, never by its path 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openRecentEntry > reports a refusal and a rejected call as failures the person can read 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > recentRowPolicy > a local row keeps every file action exactly as before 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recentRowPolicy > a UniWork row has a badge and none of Show in folder, rename, delete, move, drag or bulk select 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > a UniWork recent whose working copy is gone > is not "missing": opening it downloads the document again 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > a UniWork recent whose working copy is gone > a click on it opens it (a fresh download), a local missing file asks first 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > a UniWork recent whose working copy is gone > shows no Modified time: the working copy's file time is the download time 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recents refresh after a UniWork document opens > refreshes when the picker or a recents row reports an opened document 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recents refresh after a UniWork document opens > refreshes when main reports a document opened from the web 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recents refresh after a UniWork document opens > ignores opening, sign-in and failure events 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recents refresh after a UniWork document opens > stops listening once unsubscribed 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > start sends the PKCE query and refuses redirects / caching 19ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > start rejects a non-https authorization URL 1ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > exchange posts snake_case and parses the session strictly 1ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > refresh rejects session {"deployment_id":"other"} as wrong_deployment 1ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > refresh rejects session {} as malformed_response 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > refresh rejects session {"expires_in":"900"} as malformed_response 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > refresh rejects session {"refresh_expires_in":0} as malformed_response 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > refresh rejects session {"token_type":"MAC"} as malformed_response 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 401 {"error":{"code":"auth_code_invalid"}} to auth_code_invalid 1ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 401 {"error":{"code":"device_revoked"}} to device_revoked 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 401 {"error":{"code":"refresh_reused"}} to refresh_reused 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 401 {"error":{"code":"unauthorized"}} to unauthorized 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 401 null to unauthorized 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 429 {"error":{"code":"rate_limited"}} to rate_limited 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 429 null to rate_limited 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 503 {"error":{"code":"desktop_auth_unavailable"}} to desktop_auth_unavailable 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 502 null to server_error 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 400 {"error":{"code":"invalid_request"}} to invalid_request 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps HTTP 403 null to forbidden 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > maps network failure, timeout and bad JSON 11ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > times out a response whose body stalls after the headers 11ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > tells a server verdict from a bare HTTP 401 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > reads profile, orgs and billing with a bearer token 1ms
+ ✓ tests/uniwork-auth-transport.test.ts > UniWork transport > refuses an http origin outside dev loopback 1ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure network -> server-unreachable (network) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure timeout -> server-unreachable (timeout) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure server_error -> server-unreachable (server_error) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure desktop_auth_unavailable -> server-unreachable (server_error) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure malformed_response -> server-unreachable (malformed_response) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure rate_limited -> server-unreachable (rate_limited) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure unauthorized -> session-expired (unauthorized) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure auth_code_invalid -> session-expired (auth_code_invalid) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure device_revoked -> session-revoked (device_revoked) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure refresh_reused -> session-revoked (refresh_reused) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure wrong_deployment -> wrong-deployment (wrong_deployment) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure invalid_request -> server-unreachable (server_error) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > session failure forbidden -> server-unreachable (server_error) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > sign-in failure network -> server-unreachable (network) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > sign-in failure desktop_auth_unavailable -> server-unreachable (server_error) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > sign-in failure auth_code_invalid -> signed-out (auth_code_invalid) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > sign-in failure rate_limited -> signed-out (rate_limited) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > sign-in failure malformed_response -> signed-out (malformed_response) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > sign-in failure wrong_deployment -> wrong-deployment (wrong_deployment) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > a bare 401 (no server envelope) never clears the session 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > uses the remembered org, else picks a single active one, else asks (G8-16) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > error mapping > the remembered org is per account + machine (F-3) 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > deployment profile > prefers userData, then the baked default, then env, then the app setting 1ms
+ ✓ tests/uniwork-auth-transport.test.ts > deployment profile > no longer reads a profile beside the AppImage or inside resources 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > deployment profile > takes the channel from the build file, and ignores a userData profile of another channel 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > deployment profile > skips an invalid userData profile and refuses http outside dev loopback 0ms
+ ✓ tests/uniwork-auth-transport.test.ts > deployment profile > derives the exact callback per channel 0ms
+ ✓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > fills myRole from GET /workspaces/{id}/me, null when the role read fails 19ms
+ ✓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > reads each workspace role in parallel and keeps the rows 2ms
+ ✓ tests/uniwork-docs-library.test.ts > workspaces with my role (S17) > with no selected org returns an empty list and calls nothing 1ms
+ ✓ tests/uniwork-docs-library.test.ts > shared with me (S17) > aggregates across the org workspaces, newest first, with workspaceName 3ms
+ ✓ tests/uniwork-docs-library.test.ts > shared with me (S17) > pages locally with an opaque cursor 2ms
+ ✓ tests/uniwork-docs-library.test.ts > shared with me (S17) > an empty account gets an empty page, not an error 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member id to a name 2ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > an id that is not a member resolves to null (person left / non-human) 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > versionByName stays null even when updated_by resolves to a member 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 5xx members answer is null names, never cached, and the next open retries 2ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > a network error is null names, never cached, and the next open retries 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 403 from the members list is null names, never an error result, and IS cached 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > a 404 from the members list is null names, never an error result, and IS cached 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > two concurrent panel opens share one members request 7ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > the members list is fetched once per org, not once per document 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > resolves a member from page 2 of a >100-member org, still one logical read (RBE1-01) 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > a non-human creator/updater resolves to null with no lookup (RBE1-06) 1ms
+ ✓ tests/uniwork-docs-library.test.ts > document properties (S17) > missing server fields become null, never an error 1ms
+ ✓ tests/uniwork-docs-library.test.ts > member-name cache and org switch (S16) > drops the cached names when the selected org changes 1ms
+ ✓ tests/uniwork-docs-client.test.ts > egress > builds only apiOrigin/api/v1 URLs, never follows redirects, never caches 5ms
+ ✓ tests/uniwork-docs-client.test.ts > egress > refuses ids that would leave the route 1ms
+ ✓ tests/uniwork-docs-client.test.ts > egress > a redirect is an error, never followed 1ms
+ ✓ tests/uniwork-docs-client.test.ts > egress > times out a stalled request 21ms
+ ✓ tests/uniwork-docs-client.test.ts > egress > not signed in never reaches the network 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 0 -> Response { status: 403, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 1ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 1 -> Response { status: 403, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 2 -> Response { status: 403, statusText: '', headers: Headers { 'content-type': 'text/plain;charset=UTF-8' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 3 -> Response { status: 404, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 4 -> Response { status: 404, statusText: '', headers: Headers { 'content-type': 'text/plain;charset=UTF-8' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 5 -> Response { status: 410, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 6 -> Response { status: 410, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 7 -> Response { status: 400, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 8 -> Response { status: 413, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 9 -> Response { status: 409, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 10 -> Response { status: 409, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 11 -> Response { status: 409, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > case 12 -> Response { status: 502, statusText: '', headers: Headers { 'Content-Type': 'application/json' }, body: undefined, bodyUsed: false, ok: false, redirected: false, type: 'default', url: '' } 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > 409 document_version_conflict keeps fields.current_revision as a string 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > strict parsing: a revision as a number is malformed 0ms
+ ✓ tests/uniwork-docs-client.test.ts > error envelope mapping > sends the commit body in snake_case with the revision as a decimal string 0ms
+ ✓ tests/uniwork-docs-client.test.ts > Retry-After (G5-06 be-9) > 429 / 503 / 409 idempotency_in_flight carry it, delta-seconds or an HTTP date 2ms
+ ✓ tests/uniwork-docs-client.test.ts > 401: one shared refresh, one retry (real account session) > refreshes once and retries with the new token 4ms
+ ✓ tests/uniwork-docs-client.test.ts > 401: one shared refresh, one retry (real account session) > a second 401 is session_expired; concurrent 401s share one refresh 1ms
+ ✓ tests/uniwork-docs-client.test.ts > 401: one shared refresh, one retry (real account session) > the launch exchange refreshes once on a 401 (an idle-expired token) and redeems 1ms
+ ✓ tests/uniwork-docs-client.test.ts > 401: one shared refresh, one retry (real account session) > a second 401 on the launch exchange is session_expired 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 410 change_cursor_expired is a cursor verdict, never deleted (also through errorFromResponse) 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 400 change_cursor_invalid is a cursor verdict, never deleted 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 401 -> session_expired; anything else -> the documents mapping 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 501 unsupported_operation is the feed cursor verdict (errChangeFeedPending), never deleted 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > keeps an int64 revision exact (past 2^53) and compares it as bigint 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > a malformed page is malformed_response 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > sends the cursor in the query only, clamps the limit, and maps the final 401 to session_expired 14ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > cold start: full snapshot, then the feed cursor is saved 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > crash between page apply and cursor save -> the same page replays, one effect 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a page the store refused keeps the cursor, surfaces the error and is retried (G504-be-1) 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a refused commit keeps store_unavailable its own code, never keystore_locked (R2-be-2) 3ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a cancelled run stops before the next request and moves no cursor (G504-be-7) 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a replayed page is idempotent, and an older revision never overwrites a newer one 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > crash mid-resync saves no cursor; the next run starts the snapshot over 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > A -> B and a deployment switch never touch the other scope cursor or cache 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 410 change_cursor_expired -> full resync, nothing marked deleted 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 400 change_cursor_invalid -> cursor cleared, exactly one full resync, nothing deleted 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > an invalid cursor whose resync is refused again backs off instead of a second resync 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 on a saved feed cursor clears it and resyncs once in the same pass (G5-01a) 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 on a later incremental page earns exactly one fallback, never a loop 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 during the fallback is a failure, not a second resync 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 on a cursorless snapshot request stays a failure 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > full resync evicts lost-permission cache entries and keeps drafts 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > resync hitting 410 again -> capped exponential backoff on the clock 3ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > sync_feed off -> no feed request 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > an unknown phase is applied as changes and logged once 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 401 -> session_expired, cursor and cache untouched 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > 'canonical-open' 2ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > 'wrong-scheme' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > 'wrong-host' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > 'nested-path' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > 'duplicate-ticket' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > 'server-url' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > 'path-metadata' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > 'login-code' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > ticket 'login-code-prefix' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > ticket 'too-short' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > ticket 'login-state-prefix' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > ticket 'oversized' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser (shared vectors) > accepts only the active channel scheme, a single slash path, and no fragment/port/userinfo 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser: the server profile > reads a ticket with the four profile parameters 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser: the server profile > reads the app-home form: profile without a ticket 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser: the server profile > reads the home route: the profile, never a ticket 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser: the server profile > keeps the old ticket-only link valid 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser: the server profile > rejects a partial profile, a repeated parameter and any other parameter 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser: the server profile > rejects values the profile rules refuse 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > deep-link parser: the server profile > allows http loopback only for a dev link on the dev scheme 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > parses the valid vector 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > 'foreign-server-url' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > 'missing-receipt' 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > keeps a valid comment_id from the ticket and ignores a malformed one 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > a historical version must carry ?version=N 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > HTTP 401 -> session_expired, request in snake_case 14ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > HTTP 403 -> forbidden, request in snake_case 1ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > HTTP 404 -> ticket_invalid, request in snake_case 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > HTTP 410 -> ticket_invalid, request in snake_case 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > HTTP 409 -> server_error, request in snake_case 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > exchange receipt > HTTP 500 -> server_error, request in snake_case 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller > redeems once, opens with the descriptor, reveals the window 3ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller > a ticket naming a comment reveals it after the editor is ready 1ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller > a malformed link fails without any exchange 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller > signed out: holds the ticket in memory and redeems it after sign-in within the TTL 2ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller > signed out past the TTL: the link expired, never exchanged 1ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller > a lost exchange response is terminal: the ticket is never retried 1ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller > an exchange refused as session_expired (auth before the ticket) holds the ticket and asks for sign-in 1ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller > a session of another deployment never exchanges 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller: the server profile comes before the ticket > applies the profile, then redeems the ticket 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller: the server profile comes before the ticket > a declined server drops the link: nothing redeemed or held 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller: the server profile comes before the ticket > a refused server (other channel) fails the ticket without redeeming it 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller: the server profile comes before the ticket > the home link (profile, no ticket) only applies the profile 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller: the server profile comes before the ticket > a ticket held for the old server is dropped when a link moves the server 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller: the server profile comes before the ticket > an unchanged server keeps the held ticket 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller: the server profile comes before the ticket > a ticket-only link never touches the profile 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller: the server profile comes before the ticket > a bare scheme only reveals the window 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > launch controller: the server profile comes before the ticket > routes the bare scheme and the profile link to the launch route, not sign-in 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > cold-start launch events are not lost before the renderer listens > main keeps the latest event while the shell page loads and sends it once loaded 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > cold-start launch events are not lost before the renderer listens > a live event supersedes the held one, so a later subscriber gets nothing stale 1ms
+ ✓ tests/uniwork-docs-launch.test.ts > cold-start launch events are not lost before the renderer listens > every subscriber within the window gets the held cold-start event, in either order (R2-2) 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > cold-start launch events are not lost before the renderer listens > the held event expires for every subscriber after the window (R2-2) 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > cold-start launch events are not lost before the renderer listens > a held event older than the ticket lifetime is not replayed 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > the reveal push holder reports its outcome and can be dropped (D1-4) > reports delivered / deferred / none 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > the reveal push holder reports its outcome and can be dropped (D1-4) > drops a deferred payload that is no longer wanted once the page finishes loading 2ms
+ ✓ tests/uniwork-docs-launch.test.ts > the reveal push holder reports its outcome and can be dropped (D1-4) > still sends the deferred payload while it is wanted 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > routing launch links next to the sign-in callback > a launch link is not a sign-in callback 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > routing launch links next to the sign-in callback > holds cold-start argv and early open-url links in order until the launch route starts 0ms
+ ✓ tests/uniwork-docs-launch.test.ts > routing launch links next to the sign-in callback > second instance: argv first, then the lock data 0ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > opens the session scope once and hands back its registered stores 10ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > shares one open between concurrent calls 7ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > reports a locked keychain without remembering it, and opens after the unlock 4ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > without a session there is no store to open 0ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > follows an account switch and forgets a wiped scope 6ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > a keychain that relocks after the handle was cached refuses, and revokes it (G504-be-3) 5ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > a pending open is never shared with another scope, and a stale result is discarded (G504-be-6) 5ms
+ ✓ tests/uniwork-sync-session-store.test.ts > createSyncStoreAccess > a completion that lands after forget is discarded and not cached (G504-be-6) 17ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > round-trips a credential through safeStorage 7ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > never writes the refresh token or profile in plaintext 3ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > refuses the Linux basic_text backend (no plaintext fallback) 1ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > refuses when encryption is unavailable (locked keyring) 0ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > keeps the file and reports keystore_locked when decryption fails (locked keyring) 2ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > a locked keychain reports keystore_locked, never keyring_unavailable 2ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > a keychain that locks at save time reports keystore_locked, never io 8ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > a filesystem failure at save time is still io 0ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > a fresh save replaces a credential the keyring can no longer decrypt 3ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > canStore() is false without usable encryption and writes nothing 0ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > drops a file that decrypts to garbage 4ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > leaves a newer-format file alone and reads as signed out 1ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > never resurrects a rotated-out refresh token (no backup copy) 3ms
+ ✓ tests/uniwork-auth-credentials.test.ts > uniwork credential store > clear removes the credential and its backup 2ms
+ ✓ tests/uniwork-sync-store-keys.test.ts > uniwork sync store key provider > creates one 32-byte key per scope and returns the same key later 12ms
+ ✓ tests/uniwork-sync-store-keys.test.ts > uniwork sync store key provider > never writes the plaintext key to disk 3ms
+ ✓ tests/uniwork-sync-store-keys.test.ts > uniwork sync store key provider > reports keystore_locked when an existing key cannot be decrypted (locked keychain) 3ms
+ ✓ tests/uniwork-sync-store-keys.test.ts > uniwork sync store key provider > reports keystore_locked when a locked keychain refuses to wrap a new key 1ms
+ ✓ tests/uniwork-sync-store-keys.test.ts > uniwork sync store key provider > reports keyring_unavailable without a usable keyring 0ms
+ ✓ tests/uniwork-sync-store-keys.test.ts > uniwork sync store key provider > reports io when the wrapped key decrypts to something that is not a key 3ms
+ ✓ tests/uniwork-sync-store-keys.test.ts > uniwork sync store key provider > rejects a scope that is not safe as a path segment 1ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > W2 red-before: the two mappings the contract fixes > 403 office_capability_off maps to capability_off and is not terminal 1ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > W2 red-before: the two mappings the contract fixes > 410 commit_intent_unknown maps to intent_unknown, never deleted 1ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > HTTP 403 office_capability_off -> capability_off 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > HTTP 410 commit_intent_unknown -> intent_unknown 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > HTTP 410 document_deleted -> document_deleted 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > HTTP 403 forbidden -> permission_revoked 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > HTTP 403 member_deactivated -> member_deactivated 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > HTTP 403 organization_suspended -> organization_suspended 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > HTTP 403 quota_exceeded -> quota_exceeded 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > HTTP 410 document_gone -> deleted 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > HTTP 403 some_other_denial -> forbidden 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(capability_off) -> false 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(intent_unknown) -> false 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(conflict) -> false 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(permission_revoked) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(member_deactivated) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(organization_suspended) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(document_deleted) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(deleted) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(forbidden) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(not_found) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(quota_exceeded) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(idempotency_mismatch) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(too_large) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(engine_incompatible) -> true 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(network) -> false 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(timeout) -> false 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(session_expired) -> false 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > isTerminalRefusal(server_error) -> false 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > error mapping rows (shared contract) > a 409 the pipeline cannot replay is still terminal; other statuses are not 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > committed: GET on the commit route with the Idempotency-Key header, receipt parsed 15ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > a revision past 2^53 stays the server decimal string 1ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > in_flight resolves with the outcome only 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > not_committed resolves with the outcome only 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > 410 commit_intent_unknown is {outcome:unknown}, not an error and not deleted 1ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > 401 -> session_expired 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > 404 -> not_found, never a lookup outcome 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > 400 is a failure (a client bug), never not_committed or unknown 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > malformed bodies are malformed_response, never outcomes 4ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > parseCommitLookup reads the same bodies directly 0ms
+ ✓ tests/uniwork-docs-commit-lookup.test.ts > GET /documents/{id}/versions/commit (lookupCommit) > an id that would leave the route is refused before any request 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > decideProfileChange > refuses a profile of another channel, saved or not 1ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > decideProfileChange > the same deployment id: unchanged, or a silent update when the origin moved 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > decideProfileChange > no profile yet, or another deployment id: ask 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profile applier > same deployment id with a new origin: no question, the old sign-in ends through the hooks 1ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profile applier > a moved origin whose close prompt is cancelled changes nothing 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profile applier > a new deployment id asks once, ends the old session, then saves and adopts 1ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profile applier > no saved profile asks too 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profile applier > declining changes nothing 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profile applier > cancelling the sign-out prompt changes nothing 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profile applier > another channel is refused with no prompt and no change 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profile applier > the same profile is unchanged; a typed address (confirmed) skips the question 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profile applier > a failed write is refused and nothing is adopted 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > serializeProfileApplies > drops a link while a change is open, queues a typed address, decides each in turn 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > userData profile file > is written atomically and read back for the same channel only 1ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profileFromAddress (the typed address) > takes the deployment id from the server config 18ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profileFromAddress (the typed address) > does not read past 64 KB of a typed host answer 1ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profileFromAddress (the typed address) > keeps the default id when the server answers without one 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profileFromAddress (the typed address) > refuses http outside dev loopback, a path, and an empty address 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profileFromAddress (the typed address) > dev accepts a loopback address over http 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > profileFromAddress (the typed address) > a server that does not answer is not saved 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > baked default (release env) > empty env means no default, only the channel 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > baked default (release env) > bakes a valid pair as a normalized origin 0ms
+ ✓ tests/uniwork-auth-profile-store.test.ts > baked default (release env) > fails the build on half a pair, a bad id, http, or a path 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > bindingKindOf (the classifier) > reads schema 1 and an in-window schema 2 as current, and a newer store as newer 3ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > bindingKindOf (the classifier) > ignores min_app_version completely: lower, higher, missing or malformed 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > bindingKindOf (the classifier) > anything without an integer schema >= 1 stays unrecognized 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > bindingKindAt (reading the folder) > classifies the three shapes, and is null when there is nothing to read 2ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > BindingStore.lookup reads both schemas of this build > a schema-1 working copy is bound, normalized to the schema-2 shape 2ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > BindingStore.lookup reads both schemas of this build > a schema-2 working copy inside the window is bound too 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > BindingStore.lookup reads both schemas of this build > a schema-2 copy above the window and a schema-3 copy are not bound documents 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > BindingStore.lookup reads both schemas of this build > a schema-1 copy with a pendingIntent parses: the intent field is ignored (the store owns it) 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > bindingKindOf / newerStoreAt (the lock) > locks a working copy whose store is newer, naming it by its basename 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > bindingKindOf / newerStoreAt (the lock) > this build’s own schemas, a plain local file and a path outside the root are never locked 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > bindingKindOf / newerStoreAt (the lock) > an unreadable or absent binding is not a lock, and a lock never writes anything 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > BindingStore.newerStoreIn (the launch route knows only the folder) > names the lock after the document file inside the folder 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > BindingStore.newerStoreIn (the launch route knows only the folder) > picks the name in sorted order, so it is the same on every run (R1-be-8) 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > BindingStore.newerStoreIn (the launch route knows only the folder) > falls back to the folder name, and is null for a schema this build reads 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > BindingStore.classify reads the binding once (R1-be-5) > classifies a path in one read: newer, bound or plain 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > BindingStore.classify reads the binding once (R1-be-5) > a schema-2 copy of this build classifies as bound, one read 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > BindingStore.classify reads the binding once (R1-be-5) > a binding for another file name in the same folder is plain 1ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > parseBinding + write (what this build stamps) > a schema-1 value reads as schema 2 and is rewritten with the OQ-P4 fields 15ms
+ ✓ tests/uniwork-docs-binding-store.test.ts > parseBinding + write (what this build stamps) > a malformed raw value never parses, whatever the schema claims 0ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > docx: menu:command save 2ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > xlsx: the sheets menu action channel, not menu:command 0ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > pptx: slides:menu save 0ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > md: requestMarkdownSave(wc, save), nothing sent 1ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > html: requestHtmlSave(wc, save), nothing sent 0ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > pdf: flushPdfSave(wc) with no options, i.e. an explicit user Save 0ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > returns false when nothing shows the path, so the service falls back 0ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > returns false for a destroyed view without touching any module 2ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > returns false for a home tab 1ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > a rejected module save does not escape as an unhandled rejection 0ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > md/html/pdf tell the caller when the module did not write; docs/sheets/slides cannot (R2-4) 15ms
+ ✓ tests/uniwork-docs-module-save.test.ts > UniWork chip Retry / conflict overwrite run the owning module Save > is wired into the shell for every service Save path 2ms
+ ✓ tests/uniwork-sync-queue-pause.test.ts > uniwork sync pause flag store > is not paused by default 8ms
+ ✓ tests/uniwork-sync-queue-pause.test.ts > uniwork sync pause flag store > keeps a pause flag across a re-open of the store 21ms
+ ✓ tests/uniwork-sync-queue-pause.test.ts > uniwork sync pause flag store > a scope that cannot open reports its keystore_locked state 4ms
+ ✓ tests/uniwork-docs-close-guard.test.ts > UniWork close guard seam > unbound paths and no guard close as before 2ms
+ ✓ tests/uniwork-docs-close-guard.test.ts > UniWork close guard seam > quit: a refused UniWork prompt keeps the window open and shows that tab 12ms
+ ✓ tests/uniwork-docs-close-guard.test.ts > UniWork close guard seam > quit: every UniWork prompt accepted closes the window 6ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > ttl 0 or missing -> 300 s 3ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > honours a server ttl 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > 500 within the TTL keeps the value as is 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > after the TTL a failed read ({"status":500}) keeps the last G5 capabilities, ai_uniwork off 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > after the TTL a failed read ("offline") keeps the last G5 capabilities, ai_uniwork off 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > after the TTL a failed read ({"status":200,"body":{"sync_feed":"yes"}}) keeps the last G5 capabilities, ai_uniwork off 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > never read -> write on, feed / library / AI off 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > org A never applies to org B 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > 401 -> session_expired 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability cache > concurrent reads share one request; clear() drops a read already in flight 0ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability fetch > reads the org route and maps the final 401 to status 401 13ms
+ ✓ tests/uniwork-sync-capability.test.ts > capability fetch > a network failure rejects (offline) 1ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > grants the first window generation 1 and writes the lease atomically 2ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > refuses a second window while the first holds a fresh lease 0ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > lets another owner take over generation 2 after the holder stops beating for goneMs 1ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > keeps the generation when the same owner re-acquires 0ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > leaves exactly one winner when two owners race the same acquire 1ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > names the lease by a hash and never writes the document key in plaintext 0ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > keeps a beating lease fresh past goneMs while another window is refused 1ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > goes read-only when a stalled holder resumes after a take-over 0ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > releases only its own generation and deletes the lease when it holds it 1ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > reads a heartbeat/check of a missing lease as false 0ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > treats a corrupt lease as stale and takes it over 0ms
+ ✓ tests/uniwork-sync-doc-lock.test.ts > uniwork sync per-document lock > leaves no lock behind on the real filesystem 7ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > save while an intent exists → no new intent, effect pendingNext (N+1 stays dirty) 2ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > save with no intent stores the snapshot, parked by the offline/capability/pause facts 1ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > dispatch picks a queued intent up as validating, and the phase reports walk it to committing 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > 409 base conflict → conflict with the SAME intent 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > lookup committed → committed (receipt kept) + effect cleanup(generation) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > a committed event keeps the receipt and cleans up the generation 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > lookup not_committed → queued with attempt+1 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > lookup not_committed with sync_write off → paused_admin, and offline → paused_offline 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > lookup unknown → reconciling-stuck (never queued) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > lookup in_flight keeps reconciling and backs off the next lookup 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > reconciling older than stuckAfterMs → stuck 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > a stuck tick every recheckMs → effect lookup only, never a new attempt 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > capability(false) → paused_admin from every non-terminal, non-reconciling waiting state 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > capability(true) resumes a paused_admin as queued (paused_user if the user is paused) 2ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > offline + Ctrl/⌘+S with the capability past TTL → paused_offline, not paused_admin 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > pause → paused_user (durable); resume → queued; paused_user + coming online stays paused_user 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > cancel allowed only from queued / paused_* / failed / conflict → cancelled (cancelReason user) + effect keepDraft 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > discard on stuck → effect keepDraft then cancelled, refused anywhere else 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > supersede (Overwrite/Reload, or "Lưu lại" on failed) → cancelled (cancelReason superseded) BEFORE any new intent 1ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > tombstone / document_deleted → blocked, replay stops 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > 401 → blocked(session_expired); 403 by code → blocked with that code; other 403 → blocked(permission_revoked) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > capability_off → paused_admin (never blocked) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > quota → failed (and the other permanent errors too) 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > a lost response after the commit started → reconciling, never failed 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > a transient failure before the commit retries queued with backoff, or waits the network offline 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > keystore lock while reconciling → stays reconciling 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > backoff: nextRetryAt jitters between half and the cap, and never passes backoffMaxMs 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > backoff: Retry-After is honoured but clamped to retryAfterClampMs 0ms
+ ✓ tests/uniwork-sync-queue-machine.test.ts > uniwork save queue machine > every event with no record is a no-op except save 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > docs: refuses only the path the policy names 1ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > sheets: refuses only the path the policy names 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > slides: refuses only the path the policy names 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > docs: a policy without refuseOpen or a throwing one never refuses 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > sheets: a policy without refuseOpen or a throwing one never refuses 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > uniworkRefusesOpen (one helper per module) > slides: a policy without refuseOpen or a throwing one never refuses 0ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > installUniworkModuleSeams forwards refuseLockedPath (R1-be-3) > every module policy asks the service through refuseOpen 2ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > installUniworkModuleSeams forwards refuseLockedPath (R1-be-3) > the seam is the service itself, installed once by index.ts 2ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > each open chokepoint refuses before its first file read > docs: loadDocx guards after the type check and before the first read 2ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > each open chokepoint refuses before its first file read > slides: openAndBuild guards before readFile and answers null 1ms
+ ✓ tests/uniwork-docs-module-open-guard.test.ts > each open chokepoint refuses before its first file read > sheets: openWorkbookSession guards before the snapshot copy 1ms
+ ✓ tests/uniwork-auth-callback.test.ts > PKCE > matches the RFC 7636 appendix B S256 vector (base64url, no padding) 1ms
+ ✓ tests/uniwork-auth-callback.test.ts > PKCE > generates 64-char unreserved verifiers and 43-char challenges 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > PKCE > attempt store keeps one live attempt with a 10 minute TTL 1ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > accepts the exact redirect with code + state 1ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > rejects wrong scheme 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > rejects near-miss path 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > rejects case change 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > rejects extra key 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > rejects duplicate code 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > rejects fragment 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > rejects missing code 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > rejects no query 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > rejects state mismatch 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback validation > rejects an expired attempt and a missing attempt 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback URL extraction > recognizes both sign-in schemes but not the office-bridge scheme 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback URL extraction > finds the callback in cold-start / second-instance argv 0ms
+ ✓ tests/uniwork-auth-callback.test.ts > callback URL extraction > reads second-instance additionalData 0ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > routeDocumentPath refuses a locked path before it routes to a module 2ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the UniWork service wiring passes the guard through and the shell hook exists 1ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the wiring refuses inside the service openPath and registers both invoke handlers 0ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the preload exposes the three lock methods on the shared channels 0ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the preload does not replay a held lock to a late subscriber (R1-be-1) 0ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the channel names match the lane contract exactly 0ms
+ ✓ tests/uniwork-docs-lock-open-route.test.ts > the shell open router (G5-04g) > the preload exposes the lock list push and keeps keystore locks (R1-fe-1 BE) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > workingCopyOwner > reads the account from the working-copy path; null outside the root 2ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > closes every UniWork document tab and deletes their AI history; local tabs stay 2ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > forgets the S11 locks of every working copy, and never a local file (R1-be-6) 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > a cancelled prompt closes nothing and keeps the locks: the account did not go away (R1-be-6) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > a cancelled unsaved-changes prompt closes nothing, not even the clean tabs (GOA9-r4-02) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > asks every prompt before it closes the first tab 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > Sign out > signOutUniwork logs out only after every document closed, then clears 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > the durable store at the account boundary (W3b) > sign-out wipes the outgoing scope, after the locks and with a live owner 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > the durable store at the account boundary (W3b) > a cancelled sign-out keeps the store: the account did not go away 1ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > the durable store at the account boundary (W3b) > a sign-in as another account wipes only the switched-out scope 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > closes the previous account's tabs and deletes their AI history; own and local stay 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > forgets the S11 locks of the account that went away, keeping its own (R1-be-6) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > forgets the locks before it closes anything: panel state must not wait on a save prompt (F4 residual) 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > runs once per account, and again after a switch 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > a cancelled prompt leaves the boundary open, so the next status push asks again 0ms
+ ✓ tests/uniwork-docs-account-boundary.test.ts > a sign-in that changes the account > a status push while prompts are open does not start a second pass 0ms
+ ✓ tests/uniwork-auth-wiring.test.ts > authorization URL gate > opens https URLs only 3ms
+ ✓ tests/uniwork-auth-wiring.test.ts > authorization URL gate > allows http loopback on the dev channel only 0ms
+ ✓ tests/uniwork-auth-wiring.test.ts > authorization URL gate > skips the real browser behind the unpackaged E2E seam 0ms
+ ✓ tests/uniwork-auth-wiring.test.ts > protocol registration > registers only the active channel scheme, dev form with execPath + appPath 0ms
+ ✓ tests/uniwork-auth-wiring.test.ts > protocol registration > registers nothing without a deployment profile 0ms
+ ✓ tests/uniwork-auth-wiring.test.ts > device metadata > names the platform the way the consent page shows it 1ms
+ ✓ tests/uniwork-auth-wiring.test.ts > sign-in callback routing > holds a cold-start argv callback until the account starts 1ms
+ ✓ tests/uniwork-auth-wiring.test.ts > sign-in callback routing > queues open-url before ready and routes directly afterwards 0ms
+ ✓ tests/uniwork-auth-wiring.test.ts > sign-in callback routing > routes a second instance callback from argv first, then lock data 1ms
+ ✓ tests/uniwork-auth-wiring.test.ts > sign-in callback app events > open-url: a sign-in callback goes to the account, anything else to the fallback 0ms
+ ✓ tests/uniwork-auth-wiring.test.ts > sign-in callback app events > second-instance: a sign-in callback is consumed, files and bridge URLs fall through 0ms
+ ✓ tests/uniwork-auth-wiring.test.ts > credential store wiring > a locked OS keychain surfaces as keystore_locked through the real store 2ms
+ ✓ tests/uniwork-docs-pdf-flush.test.ts > internal PDF flushes never count as a user Save > marks an export flush of a bound PDF as not explicit, so no UniWork save intent fires 3ms
+ ✓ tests/uniwork-docs-pdf-flush.test.ts > internal PDF flushes never count as a user Save > passes a failed flush through so an export still aborts 0ms
+ ✓ tests/uniwork-docs-pdf-flush.test.ts > internal PDF flushes never count as a user Save > leaves File > Save as the only direct flushPdfSave call in the shell 2ms
+ ✓ tests/uniwork-sync-queue-record.test.ts > uniwork queue record > upgrades a v1 record to v2: state queued, attempt 0, generation 1, facts from the binding 2ms
+ ✓ tests/uniwork-sync-queue-record.test.ts > uniwork queue record > keeps the v1 fields and reads the v2 record as it is 0ms
+ ✓ tests/uniwork-sync-queue-record.test.ts > uniwork queue record > reads malformed records as null 0ms
+ ✓ tests/uniwork-sync-queue-record.test.ts > uniwork queue record > accepts a v2 record that carries no org/workspace (a v1 write upgraded without facts) 0ms
+ ✓ tests/uniwork-sync-queue-record.test.ts > uniwork queue record > the next intent generation: one past a v2 record, 1 over a v1 record or nothing 0ms
+ ✓ tests/uniwork-sync-queue-record.test.ts > uniwork queue record > the v1 parser keeps the G5-04 shape check 0ms
+ ✓ tests/uniwork-sync-queue-record.test.ts > uniwork queue record > lists the queue states and marks the terminal ones 1ms
+ ✓ tests/uniwork-docs-formats.test.ts > sanitizeFilename > replaces separators, reserved and control characters with underscores 2ms
+ ✓ tests/uniwork-docs-formats.test.ts > sanitizeFilename > keeps ordinary names and tabs only as the format extension requires 0ms
+ ✓ tests/uniwork-docs-formats.test.ts > sanitizeFilename > trims dots and spaces, avoids Windows device names and never returns an empty base 0ms
+ ✓ tests/uniwork-docs-formats.test.ts > sanitizeFilename > tests the part before the first dot for Windows device names, superscript ports included 0ms
+ ✓ tests/uniwork-docs-formats.test.ts > sanitizeFilename > cuts a long title by code points, so an emoji on the limit stays whole 1ms
+ ✓ tests/uniwork-docs-formats.test.ts > sanitizeFilename > replaces a lone surrogate with an underscore instead of leaving it to the file system 0ms
+ ✓ tests/uniwork-docs-formats.test.ts > workingCopyName > names the copy after the document title, with the format extension 0ms
+ ✓ tests/uniwork-docs-formats.test.ts > workingCopyName > falls back to the stored upload name when the title is empty or carries U+FFFD 0ms
+ ✓ tests/uniwork-docs-formats.test.ts > workingCopyName > never lets a replacement character into a file name 1ms
+ ✓ tests/uniwork-docs-formats.test.ts > workingCopyName > keeps Vietnamese diacritics (precomposed and combining) untouched 0ms
+ ✓ tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > a deferred push across a reload stays held and the new realm pulls it once (probe) 3ms
+ ✓ tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > a reveal decided after the reload, before the new realm pulls, stays held 0ms
+ ✓ tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > a main-frame commit (did-navigate) resets too 0ms
+ ✓ tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > a crashed renderer drops the subscription, so the next pull gets the reveal 0ms
+ ✓ tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > a closed editor's subscription does not outlive it: the reopened editor pulls the hold 0ms
+ ✓ tests/uniwork-comments-reveal-reload.test.ts > D2-2: a replaced editor realm drops its reveal subscription > in-page and subframe navigations keep the subscription: a delivered push ends the hold 0ms
+ ✓ tests/uniwork-docs-editor-state-poll.test.ts > UniWork editor state poll > asks only for bound paths and forwards answered states 2ms
+ ✓ tests/uniwork-docs-editor-state-poll.test.ts > UniWork editor state poll > never overlaps a pass that waits on a busy editor, and survives a failing read 1ms
+ ✓ tests/uniwork-docs-editor-state-poll.test.ts > UniWork editor state poll > reads the save mark before it asks the editors 0ms
+ ✓ tests/uniwork-docs-strings.test.ts > UniWork document dialogs follow the UI language (GOA9-r2-01) > Vietnamese conflict and discard dialogs name the document 1ms
+ ✓ tests/uniwork-docs-strings.test.ts > UniWork document dialogs follow the UI language (GOA9-r2-01) > English, and English for every other UI language 0ms
+ ✓ tests/uniwork-docs-strings.test.ts > UniWork document dialogs follow the UI language (GOA9-r2-01) > every key has a Vietnamese text of its own 2ms
+ ✓ tests/uniwork-sync-store-level.test.ts > uniwork store level gate (OQ-P4 b) > is store level 2 1ms
+ ✓ tests/uniwork-sync-store-level.test.ts > uniwork store level gate (OQ-P4 b) > opens schema 1 and a schema 2 binding at or below the level 0ms
+ ✓ tests/uniwork-sync-store-level.test.ts > uniwork store level gate (OQ-P4 b) > locks a schema 2 binding with a missing or malformed level 0ms
+ ✓ tests/uniwork-sync-store-level.test.ts > uniwork store level gate (OQ-P4 b) > locks a level newer than this build 0ms
+ ✓ tests/uniwork-sync-store-level.test.ts > uniwork store level gate (OQ-P4 b) > locks schema >= 3 whatever the level says 0ms
+ ✓ tests/uniwork-sync-store-level.test.ts > uniwork store level gate (OQ-P4 b) > locks a malformed binding 0ms
+ ✓ tests/uniwork-sync-store-level.test.ts > uniwork store level gate (OQ-P4 b) > treats min_app_version as display only: equal level decides the same way 0ms
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 1. capability: every field parses and the fork cache reads the org once
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 2. snapshot: FeedConsumer applies every seeded id and moves the cursor after the commit
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 3. paging: limit=1 chains every page by next_cursor and lists each id once
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 4. replay: the saved feed cursor falls back to exactly one snapshot, deleting nothing
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 5. tampered cursor: 400 change_cursor_invalid, one full resync, nothing deleted
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 6. expired cursor: 410 change_cursor_expired clears into one full resync
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 7. capability and feed with a bad token: 401 maps to session_expired
+ ↓ tests/live/uniwork-sync-live.test.ts > G5-04 AC-5 live: real D server against the fork feed/capability > 8. sync_feed off: 403 office_capability_off and no feed request at all
+
+ Test Files  50 passed | 1 skipped (51)
+      Tests  1112 passed | 8 skipped (1120)
+   Start at  22:29:18
+   Duration  6.52s (transform 4.16s, setup 0ms, import 5.51s, tests 8.17s, environment 820ms)
+
