@@ -1,0 +1,5 @@
+$ git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git log --oneline -3
+277889c8ff1e8631964d879c1468b8809494693b
+277889c8f test(documents): pin the comments panel rows the first pass left unproven
+d86894dc3 test(e2e): match the Edit menu item exactly
+6fe106a13 fix(office): give the page its comments panel back when the editor frame unmounts
