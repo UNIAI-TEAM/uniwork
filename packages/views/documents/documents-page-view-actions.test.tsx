@@ -1,0 +1,413 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
+import { initI18n } from "@uniwork/core/i18n";
+import type { User, Workspace } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
+import { NavigationProvider, type NavigationAdapter } from "../navigation";
+import { requestMock, wrap } from "../test/api-mock";
+import { DocumentsPageView } from "./documents-page-view";
+
+// The library's row commands and its views beyond the home root: download and
+// go-to-source on a file from another module, starring, the Recent / Shared /
+// Starred / Archived / Elsewhere views, and the navigation sheet below `xl`.
+
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
+
+const downloadBlob = vi.hoisted(() => vi.fn());
+vi.mock("@uniwork/core/api/http", async (original) => {
+  const { requestMock: transport } = await import("../test/request-mock");
+  return {
+    ...(await original<typeof import("@uniwork/core/api/http")>()),
+    request: (...args: unknown[]) => transport(...args),
+    requestBlob: (...args: unknown[]) => downloadBlob(...args),
+  };
+});
+
+const { t } = initI18n();
+
+const WS = "ws1";
+const LIST_BASE = `/api/v1/workspaces/${WS}/documents`;
+const user = { id: "u1", email: "an@example.com", display_name: "An", locale: "vi" } as User;
+const workspace: Workspace = {
+  id: WS,
+  slug: "doi",
+  name: "Đội",
+  organization_id: "org1",
+  organization_slug: "acme",
+  organization_name: "Acme",
+};
+
+function summary(over: Record<string, unknown> = {}) {
+  return { id: "d1", workspace_id: WS, kind: "page", title: "Kế hoạch Q4", revision: "1", my_level: "manage", updated_at: "2026-09-28T03:00:00Z", ...over };
+}
+
+function source(over: Record<string, unknown> = {}) {
+  return {
+    id: "chat:m1",
+    source: "chat",
+    parent: { kind: "chat_channel", id: "c1", title: "Kênh chung" },
+    name: "Đề xuất ngân sách.pdf",
+    mime_type: "application/pdf",
+    extension: "pdf",
+    size_bytes: 2_400_000,
+    updated_at: "2026-10-09T03:00:00Z",
+    owner: { id: "u2", kind: "human", name: "Dũng" },
+    can_open_in_app: true,
+    can_save: true,
+    ...over,
+  };
+}
+
+interface Routes {
+  list?: (path: string) => unknown[];
+  recent?: (path: string) => unknown[] | Promise<never>;
+  recentCursor?: (path: string) => string | null;
+  shared?: () => unknown[];
+  favorites?: () => unknown[];
+  sources?: (path: string) => unknown[];
+  sourcesCursor?: (path: string) => string | null;
+  post?: (path: string) => unknown;
+  del?: (path: string) => unknown;
+}
+
+function route(routes: Routes) {
+  requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+    const method = opts?.method ?? "GET";
+    const run = (fn: () => unknown) => {
+      try {
+        return Promise.resolve(fn());
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    };
+    if (path.includes("/documents/favorites")) return run(() => ({ favorites: routes.favorites?.() ?? [] }));
+    if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+    if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
+      return run(() => ({ items: routes.sources?.(path) ?? [], next_cursor: routes.sourcesCursor?.(path) ?? null }));
+    }
+    if (path.startsWith(`${LIST_BASE}/recent`)) {
+      const rows = routes.recent?.(path);
+      return Array.isArray(rows) || !rows ? Promise.resolve({ documents: rows ?? [], next_cursor: routes.recentCursor?.(path) ?? null }) : rows;
+    }
+    if (path.startsWith(`${LIST_BASE}/shared-with-me`)) return run(() => ({ documents: routes.shared?.() ?? [], next_cursor: null }));
+    if (method === "POST") return run(() => routes.post?.(path) ?? {});
+    if (method === "DELETE") return run(() => routes.del?.(path) ?? { status: "ok" });
+    if (path.startsWith(LIST_BASE)) return run(() => ({ documents: routes.list?.(path) ?? [], next_cursor: null }));
+    return Promise.resolve({});
+  });
+}
+
+function nav(): NavigationAdapter {
+  return {
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    pathname: "/acme/doi/documents",
+    searchParams: new URLSearchParams(),
+    getShareableUrl: (p) => p,
+  };
+}
+
+function renderView(adapter: NavigationAdapter = nav()) {
+  const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
+  render(
+    wrap(
+      <NavigationProvider value={adapter}>
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <FeatureFlagsProvider service={service}>
+            <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+          </FeatureFlagsProvider>
+        </WorkspaceProvider>
+      </NavigationProvider>,
+    ),
+  );
+  return adapter;
+}
+
+async function rowOf(title: string) {
+  const row = (await screen.findByText(title)).closest("tr");
+  if (!row) throw new Error(`no row for ${title}`);
+  return row as HTMLElement;
+}
+
+async function pickFromMenu(title: string, item: string) {
+  const row = await rowOf(title);
+  fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: item }));
+}
+
+const calls = (method: string) => requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method === method);
+const sidebarItem = (label: string) => screen.getAllByRole("button", { name: new RegExp(label) })[0]!;
+
+beforeEach(() => {
+  requestMock.mockReset();
+  downloadBlob.mockReset();
+  toast.success.mockReset();
+  toast.error.mockReset();
+  resetAuthStoreForTests();
+  setSessionUser({ ...user, onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {} });
+});
+
+describe("file from another module", () => {
+  it("downloads the blob through a temporary link named after the file", async () => {
+    route({ sources: () => [source()] });
+    downloadBlob.mockResolvedValue(new Blob(["pdf"], { type: "application/pdf" }));
+    renderView();
+    const createUrl = vi.fn().mockReturnValue("blob:budget");
+    const revokeUrl = vi.fn();
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL: createUrl, revokeObjectURL: revokeUrl }));
+    const clicked: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(`${this.download}|${this.href}`);
+    });
+    try {
+      const row = await rowOf("Đề xuất ngân sách.pdf");
+      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.download") }));
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      expect(clicked[0]).toBe("Đề xuất ngân sách.pdf|blob:budget");
+      expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Am1/download`);
+      // The link is gone from the page and the object URL is released shortly after.
+      expect(document.querySelector("a[download]")).toBeNull();
+      await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith("blob:budget"), { timeout: 3000 });
+      expect(toast.error).not.toHaveBeenCalled();
+    } finally {
+      click.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("says why when the download is refused", async () => {
+    route({ sources: () => [source()] });
+    downloadBlob.mockRejectedValue(new ApiError("Tệp đã bị xoá", "not_found", 404));
+    renderView();
+    const row = await rowOf("Đề xuất ngân sách.pdf");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.download") }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Tệp đã bị xoá"));
+  });
+
+  it("falls back to the generic copy when the failure carries no message", async () => {
+    route({ sources: () => [source()] });
+    downloadBlob.mockRejectedValue("offline");
+    renderView();
+    const row = await rowOf("Đề xuất ngân sách.pdf");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.download") }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.download_failed")));
+  });
+
+  it("opens the module that holds the file, inside this workspace", async () => {
+    route({ sources: () => [source()] });
+    const adapter = renderView();
+    await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.open_chat"));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat");
+  });
+
+  it("opens the task a comment attachment belongs to", async () => {
+    route({ sources: () => [source({ id: "task:a1", source: "task", name: "Phụ lục.docx", extension: "docx", parent: { kind: "task", id: "t7", title: "Việc" } })] });
+    const adapter = renderView();
+    await pickFromMenu("Phụ lục.docx", t("documents.home.row.go_to_source"));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/tasks/t7");
+  });
+
+  it("goes nowhere for a parent the web app has no page for", async () => {
+    route({ sources: () => [source({ parent: { kind: "unknown", id: "x", title: "?" } })] });
+    const adapter = renderView();
+    const row = await rowOf("Đề xuất ngân sách.pdf");
+    fireEvent.click(within(row).getAllByRole("button", { name: /Đề xuất ngân sách.pdf/ })[0]!);
+    expect(adapter.push).not.toHaveBeenCalled();
+  });
+});
+
+describe("starring a document", () => {
+  it("stars a row and reports a refused star", async () => {
+    route({ list: () => [summary()], post: () => { throw new ApiError("Không có quyền", "forbidden", 403); } });
+    renderView();
+    await pickFromMenu("Kế hoạch Q4", t("documents.home.row.star"));
+    await waitFor(() => expect(calls("POST").some(([path]) => path === "/api/v1/documents/d1/favorite")).toBe(true));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không có quyền"));
+  });
+
+  it("offers the un-star on a starred row and calls the delete route", async () => {
+    route({
+      list: () => [summary()],
+      favorites: () => [{ document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" }],
+    });
+    renderView();
+    await pickFromMenu("Kế hoạch Q4", t("documents.home.row.unstar"));
+    await waitFor(() => expect(calls("DELETE").some(([path]) => path === "/api/v1/documents/d1/favorite")).toBe(true));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("uses the generic copy when the failure has no message", async () => {
+    route({ list: () => [summary()], post: () => Promise.reject("offline") as never });
+    renderView();
+    await pickFromMenu("Kế hoạch Q4", t("documents.home.row.star"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.star_failed")));
+  });
+
+  it("shows the starred count in the sidebar and lists the starred documents", async () => {
+    route({
+      list: () => [summary()],
+      favorites: () => [{ document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" }, { document_id: "d9", workspace_id: "other", title: "Khác", kind: "page" }],
+    });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+    // A favourite of another workspace is not counted here.
+    await waitFor(() => expect(within(sidebarItem(t("documents.home.sidebar.starred"))).getByText("1")).toBeInTheDocument());
+
+    fireEvent.click(sidebarItem(t("documents.home.sidebar.starred")));
+    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.starred") })).toBeInTheDocument();
+    expect(await rowOf("Kế hoạch Q4")).toBeInTheDocument();
+    expect(screen.queryByText("Khác")).toBeNull();
+  });
+});
+
+describe("library views", () => {
+  it("lists Recent and Shared with me from their own routes", async () => {
+    route({
+      list: () => [summary()],
+      recent: () => [summary({ id: "r1", title: "Vừa mở" })],
+      shared: () => [summary({ id: "s1", title: "Hợp đồng chung", updated_by: "agent-1", updated_by_kind: "agent" })],
+    });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+
+    fireEvent.click(sidebarItem(t("documents.home.sidebar.recent")));
+    expect(await screen.findByText("Vừa mở")).toBeInTheDocument();
+    expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
+
+    fireEvent.click(sidebarItem(t("documents.home.sidebar.shared")));
+    const row = await rowOf("Hợp đồng chung");
+    // An editor that is an agent without a member entry is named as an agent, not left blank.
+    expect(within(row).getByText(t("documents.home.editor_agent"))).toBeInTheDocument();
+  });
+
+  it("says the recent list could not be read and retries it", async () => {
+    let attempts = 0;
+    route({
+      recent: () => {
+        attempts += 1;
+        if (attempts === 1) throw new ApiError("boom", "internal", 500);
+        return [summary({ id: "r1", title: "Vừa mở" })];
+      },
+    });
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) }));
+    expect(await screen.findByText(t("documents.library.error_title"))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.library.retry") }));
+    expect(await screen.findByText("Vừa mở")).toBeInTheDocument();
+  });
+
+  it("pages Recent with Load more", async () => {
+    const cursorOf = (path: string) => new URLSearchParams(path.split("?")[1] ?? "").get("cursor");
+    route({
+      recent: (path) => (cursorOf(path) === "c2" ? [summary({ id: "r2", title: "Mở hôm qua" })] : [summary({ id: "r1", title: "Vừa mở" })]),
+      recentCursor: (path) => (cursorOf(path) === "c2" ? null : "c2"),
+    });
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) }));
+    await screen.findByText("Vừa mở");
+    fireEvent.click(screen.getByRole("button", { name: t("documents.library.load_more") }));
+    expect(await screen.findByText("Mở hôm qua")).toBeInTheDocument();
+    expect(screen.getByText("Vừa mở")).toBeInTheDocument();
+  });
+
+  it("retries the starred list when it could not be read", async () => {
+    let attempts = 0;
+    route({
+      favorites: () => {
+        attempts += 1;
+        if (attempts === 1) throw new ApiError("boom", "internal", 500);
+        return [{ document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" }];
+      },
+    });
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.starred")) }));
+    expect(await screen.findByText(t("documents.library.error_title"))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.library.retry") }));
+    expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
+  });
+
+  it("separates a refusal from a failure", async () => {
+    route({ recent: () => { throw new ApiError("no", "forbidden", 403); } });
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) }));
+    expect(await screen.findByText(t("documents.library.permission_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.library.error_title"))).toBeNull();
+  });
+
+  it("lists archived documents without move or archive commands", async () => {
+    route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? [summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z" })] : []) });
+    renderView();
+    fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
+    const row = await rowOf("Cũ");
+    expect(within(row).getByText(t("documents.library.archived_badge"))).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) }));
+    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
+  });
+
+  it("lists one module's files from the sidebar and names the view after it", async () => {
+    const filters: string[] = [];
+    route({
+      list: () => [summary()],
+      sources: (path) => {
+        filters.push(path);
+        return [source()];
+      },
+    });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.origin.chat") }));
+    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.chat") })).toBeInTheDocument();
+    expect(filters.some((path) => new URLSearchParams(path.split("?")[1] ?? "").get("source") === "chat")).toBe(true);
+    expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
+    expect(await rowOf("Đề xuất ngân sách.pdf")).toBeInTheDocument();
+  });
+
+  it("pages one module's files with Load more", async () => {
+    route({
+      list: () => [summary()],
+      sources: (path) => {
+        const cursor = new URLSearchParams(path.split("?")[1] ?? "").get("cursor");
+        if (cursor === "c2") return [source({ id: "chat:m2", name: "Phụ lục.pdf" })];
+        return [source()];
+      },
+      sourcesCursor: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("cursor") === "c2" ? null : "c2"),
+    });
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.origin.chat") }));
+    await rowOf("Đề xuất ngân sách.pdf");
+
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.library.load_more") }));
+    expect(await screen.findByText("Phụ lục.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull();
+  });
+
+  it("shows the empty copy of the open view, not the home copy", async () => {
+    route({});
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.shared")) }));
+    expect(await screen.findByText(t("documents.home.empty.shared_title"))).toBeInTheDocument();
+  });
+});
+
+describe("navigation sheet", () => {
+  it("opens the same navigation below xl and closes it after a choice", async () => {
+    route({ list: () => [summary()], recent: () => [summary({ id: "r1", title: "Vừa mở" })] });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.sidebar.open") }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByText(t("documents.tree.sheet_title"))).toBeInTheDocument();
+    fireEvent.click(within(sheet).getByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) }));
+
+    expect(await screen.findByText("Vừa mở")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});

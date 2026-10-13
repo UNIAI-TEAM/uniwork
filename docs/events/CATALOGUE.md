@@ -226,6 +226,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `project_resource.created` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
 | `project_resource.deleted` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
 | `project_resource.updated` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
+| `privacy.export_requested` | 1 | `request_id`, `organization_id` | — | - | outbox |
+| `privacy.deletion_requested` | 1 | `request_id`, `organization_id` | — | - | outbox |
 | `transcript.appended` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `user.offline` | 1 | `user_id` | — | workspace | ephemeral |
 | `user.presence` | 1 | `user_id` | — | workspace | ephemeral |
