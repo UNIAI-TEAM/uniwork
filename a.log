@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -6
+60c3692e1b4493b1364f296ec5ac2732e5a1e34f
+60c3692e1 chore(server): raise the Go coverage floor to 74
+34114e496 Merge G5-08s offline lease server side into the G5-G7 root (UNI-1350)
+391eeea97 Merge G7-06 AC-4 re-pin goldens into the G5-G7 root (UNI-1378)
+28a6eb166 Merge the D root 536e10f47 into G5-08s (UNI-1350)
+536e10f47 docs(office): mark the G8 experience spine final after the user signed G8-09
+7093d12cb Merge G8-09 UX spine G8 into the G5-G7 root (UNI-1404)
