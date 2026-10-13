@@ -11,13 +11,17 @@ import { requestMock } from "../../test/api-mock";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 import { useFrameComments } from "./use-frame-comments";
 
-// One fake workspace socket for every test: the hook subscribes with onAny.
+// One fake workspace socket for every test: the hook subscribes with onAny. The session's
+// new-version source (use-frame-remote-source.ts) subscribes with on/onReconnect; this file is
+// about comments, so those stay silent.
 const socket = new Set<(message: WSMessage) => void>();
 const fakeClient = {
   onAny: (handler: (message: WSMessage) => void) => {
     socket.add(handler);
     return () => { socket.delete(handler); };
   },
+  on: () => () => {},
+  onReconnect: () => () => {},
 };
 vi.mock("@uniwork/core/realtime", () => ({ useOptionalWS: () => ({ client: fakeClient }) }));
 // The draft key needs IndexedDB; this file is about comments.

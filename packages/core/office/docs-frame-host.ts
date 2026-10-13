@@ -1,7 +1,7 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at 17d21132a344b56b891b8b52d16049c980786a8e
-// (fork lane feature/UNI-1403-g8-08-comments-protocol, fix r1 + the OQ-C2 anchor rules, on X-02 r2b: the comments capability, commentsLevel, InitUser.id,
-// comments.* / mentions.search requests, comments.changed / comments.reveal, commentsErrorFromHttp, commentsAccess; G8-08).
+// web/docs/protocol/host.ts at 6dce8341a5703902afde0886c29e416ecec55a41
+// (fork lane feature/UNI-1351-g5-03w-new-version-web rebased on fork main 7e082de3: the G8-08 comments protocol with the OQ-C2 anchor rules
+// on X-02 r2b, plus G5-03w doc.blocked).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
@@ -42,6 +42,7 @@ import {
   PROTOCOL_VERSION,
   toProtocolError,
   type CommentsRevealResult,
+  type DocBlockedPayload,
   type FileMeta,
   type FrameEvents,
   type FrameRequests,
@@ -145,6 +146,11 @@ export interface DocsFrameHost {
     commentId: string,
     options?: RequestOptions & { retry?: boolean },
   ): Promise<CommentsRevealResult>
+  /**
+   * the open document is blocked for this viewer (additive, G5-03w). A frame before it has no
+   * listener and drops it silently; the host keeps refusing its saves either way.
+   */
+  notifyBlocked(payload: DocBlockedPayload): void
   /** live theme / language switches (no-ops before the handshake; getInit supplies the initial values) */
   setTheme(theme: Theme): void
   setLanguage(locale: string): void
@@ -389,6 +395,7 @@ export function createDocsFrameHost(options: DocsFrameHostOptions): DocsFrameHos
       for (const wake of [...commentsWakers]) wake()
     },
     revealComment,
+    notifyBlocked: (p) => emitIfReady('doc.blocked', { ...p }),
     setTheme: (theme) => emitIfReady('theme', { theme }),
     setLanguage: (locale) => emitIfReady('language', { locale }),
     pushToken: (t) =>

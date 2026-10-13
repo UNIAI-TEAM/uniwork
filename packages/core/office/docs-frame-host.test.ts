@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Endpoint, type RejectInfo } from "./docs-frame-endpoint";
 import { createDocsFrameHost, type DocsFrameHostOptions } from "./docs-frame-host";
 import {
-  CAPABILITY_KEYS, DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, isDecimalRevision, openReplyRevision, parseEnvelope,
+  CAPABILITY_KEYS, DocsProtocolError, HOST_EVENT_TYPES, PROTOCOL_NS, PROTOCOL_VERSION, isDecimalRevision, openReplyRevision, parseEnvelope,
   type ApiOpenPayload, type Envelope,
 } from "./docs-frame-protocol";
 
@@ -167,6 +167,30 @@ describe("X-02 protocol shape (vendored)", () => {
     const req = sent.find((m) => m.kind === "request" && m.type === "doc.closeCheck")!;
     deliver("response", "doc.closeCheck", { dirty: false, autoSave: false }, { id: req.id });
     await expect(check).resolves.toEqual({ dirty: false, autoSave: false });
+    expect(onReject).not.toHaveBeenCalled();
+  });
+});
+
+describe("doc.blocked (G5-03w, vendored)", () => {
+  it("is an additive host event under version 1; any non-empty reason validates", () => {
+    expect(PROTOCOL_VERSION).toBe(1);
+    expect(HOST_EVENT_TYPES).toContain("doc.blocked");
+    for (const reason of ["permission_revoked", "document_deleted", "organization_suspended", "member_deactivated", "document_archived", "newer_reason"]) {
+      expect(env("event", "doc.blocked", { document_id: "doc-1", reason }).ok).toBe(true);
+    }
+    expect(env("event", "doc.blocked", { document_id: "doc-1", reason: "" }).ok).toBe(false);
+    expect(env("event", "doc.blocked", { document_id: "", reason: "document_deleted" }).ok).toBe(false);
+  });
+
+  it("is sent only after the handshake, and expects no reply", async () => {
+    const onReject = vi.fn();
+    const { host, sent, handshake, flush } = harness({ onReject });
+    host.notifyBlocked({ document_id: "doc-1", reason: "permission_revoked" });
+    expect(sent).toHaveLength(0);
+    await handshake();
+    host.notifyBlocked({ document_id: "doc-1", reason: "document_deleted" });
+    await flush();
+    expect(sent.at(-1)).toMatchObject({ kind: "event", type: "doc.blocked", payload: { document_id: "doc-1", reason: "document_deleted" } });
     expect(onReject).not.toHaveBeenCalled();
   });
 });
