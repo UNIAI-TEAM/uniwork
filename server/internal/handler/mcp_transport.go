@@ -71,11 +71,13 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, log *slog.Logg
 			panic("mcp: tool " + t.Name + " has an invalid input schema: " + err.Error())
 		}
 		srv.AddTool(&mcp.Tool{
-			Name: t.Name, Description: t.Description, InputSchema: schema,
+			Name: t.Name, Title: t.Title, Description: t.Description, InputSchema: schema,
 			// Read-only is the whole of v1 (TestMCPToolsAreReadOnly). Clients
 			// may skip a confirmation for such a tool; none of them is open
 			// world, as every result comes from the person's organization.
-			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(false)},
+			// The title is repeated here because some clients, and the
+			// connector directories' review, read it from the annotations.
+			Annotations: &mcp.ToolAnnotations{Title: t.Title, ReadOnlyHint: true, DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(false)},
 		}, func(ctx context.Context, req *mcp.CallToolRequest) (res *mcp.CallToolResult, _ error) {
 			telemetry.SetMCP(ctx, "", "", t.Name)
 			start := time.Now()

@@ -24,7 +24,19 @@ func TestMCPToolsAreReadOnly(t *testing.T) {
 	if got := r.Names(); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("tools = %v, want %v", got, want)
 	}
+	// Clients show the title to the person (directory review requires one);
+	// the name stays what the model calls.
+	wantTitles := map[string]string{
+		"list_workspaces": "List workspaces",
+		"my_work":         "My work",
+		"search":          "Search UniWork",
+		"get_task":        "Get task",
+		"get_meeting":     "Get meeting",
+	}
 	for _, tool := range r {
+		if tool.Title != wantTitles[tool.Name] {
+			t.Fatalf("tool %s title = %q, want %q", tool.Name, tool.Title, wantTitles[tool.Name])
+		}
 		var schema map[string]any
 		if tool.Kind != ai.ToolRead || tool.Risk != ai.RiskLow || tool.Handle == nil || json.Unmarshal(tool.Schema, &schema) != nil || schema["type"] != "object" {
 			t.Fatalf("incomplete tool %s", tool.Name)
