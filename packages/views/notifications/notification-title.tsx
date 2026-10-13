@@ -59,6 +59,7 @@ export function NotificationTitle({ notification: n, unread }: { notification: N
       case "task":
       case "meeting":
       case "workspace":
+      case "document":
         return <span className="font-medium text-foreground">{value}</span>;
       case "status": {
         const cfg = STATUS_CONFIG[value as TaskStatus];

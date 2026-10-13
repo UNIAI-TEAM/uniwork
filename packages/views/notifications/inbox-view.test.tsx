@@ -284,4 +284,84 @@ describe("InboxView", () => {
     fireEvent.blur(screen.getByRole("link", { name: /Việc n1/ }), { relatedTarget: document.body });
     await waitFor(() => expect(within(list).getAllByRole("heading", { level: 2 })).toHaveLength(2));
   });
+
+  // S15 from the Inbox side (G8-07): the link names the comment, the second line is the
+  // comment as plain text, and each exception keeps the row while hiding what it may not show.
+  describe("document comment rows", () => {
+    const ULID = "01JABCDEFGHJKMNPQRSTVWXYZ0";
+    const doc = (id: string, extra: Record<string, unknown> = {}, params: Record<string, string> = {}) =>
+      row(id, {
+        kind: "document_commented", title_key: "notifications.kind.document_commented",
+        resource_type: "document", resource_id: "d-" + id,
+        params: { actor: "Bình", document: "Hợp đồng", comment_id: "c-" + id, kind: "comment", snippet: "Xem giúp", ...params },
+        ...extra,
+      });
+
+    it("opens the document at the comment and shows the snippet with mentions as names", async () => {
+      mockApi([doc("n1", {}, { snippet: `Nhờ [@Lê Thu \\[Hà\\]](mention://member/${ULID}) xem điều 4` })]);
+      renderInbox();
+      const link = await screen.findByRole("link", { name: sentence("Bình đã bình luận trong “Hợp đồng”") });
+      expect(link).toHaveAttribute("href", "/acme/team/documents/d-n1?comment=c-n1");
+      expect(link.querySelector("[data-notification-snippet=text]")).toHaveTextContent("Nhờ @Lê Thu [Hà] xem điều 4");
+      expect(link).not.toHaveTextContent("mention://");
+    });
+
+    it("renders a document name with quotes, ampersands and angle brackets as typed", async () => {
+      mockApi([doc("n1", {}, { document: `Q&A "<b>bản 2</b>"` })]);
+      renderInbox();
+      const link = await screen.findByRole("link", { name: /Q&A/ });
+      expect(link).toHaveTextContent(`Bình đã bình luận trong “Q&A "<b>bản 2</b>"”`);
+      expect(link.querySelector("b")).toBeNull();
+    });
+
+    it("keeps a row whose document the reader lost access to, without its snippet", async () => {
+      mockApi([doc("n1", { resource_access_lost: true }, { snippet: "" })]);
+      renderInbox();
+      const link = await screen.findByRole("link", { name: /Hợp đồng/ });
+      // The page answers 403 and says so (S15 row 2); the row only stops quoting the comment.
+      expect(link).toHaveAttribute("href", "/acme/team/documents/d-n1?comment=c-n1");
+      expect(link.querySelector("[data-notification-snippet]")).toBeNull();
+    });
+
+    it("never quotes a snippet for a lost document even if one arrives", async () => {
+      mockApi([doc("n1", { resource_access_lost: true }, { snippet: "bí mật" })]);
+      renderInbox();
+      await screen.findByRole("link", { name: /Hợp đồng/ });
+      expect(screen.queryByText(/bí mật/)).toBeNull();
+    });
+
+    it("keeps a gone document as a row that is not a link", async () => {
+      mockApi([doc("n1", { resource_deleted: true })]);
+      renderInbox();
+      const list = await screen.findByRole("list", { name: "Hộp việc" });
+      expect(list.querySelector('[data-notification-id="n1"]')).toHaveTextContent("đã xóa");
+      expect(screen.queryByRole("link", { name: /Hợp đồng/ })).toBeNull();
+      expect(screen.queryByText("Xem giúp")).toBeNull();
+    });
+
+    it.each([
+      ["comment", "Bình luận này đã bị xóa."],
+      ["discussion", "Bài thảo luận này đã bị xóa."],
+    ])("says a deleted %s is gone instead of quoting it, and still opens the document", async (kind, text) => {
+      mockApi([doc("n1", { comment_deleted: true }, { kind })]);
+      renderInbox();
+      const link = await screen.findByRole("link", { name: /Hợp đồng/ });
+      expect(link.querySelector("[data-notification-snippet=deleted]")).toHaveTextContent(text);
+      expect(link).not.toHaveTextContent("Xem giúp");
+      expect(link).toHaveAttribute("href", "/acme/team/documents/d-n1?comment=c-n1");
+    });
+
+    it("opens a resolved comment's notification without resolving or reopening anything", async () => {
+      mockApi([doc("n1", { kind: "document_comment_resolved", title_key: "notifications.kind.document_comment_resolved" })], {
+        total: 1, by_workspace: { ws1: 1 },
+      });
+      const nav = renderInbox();
+      const link = await screen.findByRole("link", { name: /giải quyết/ });
+      fireEvent.click(link);
+      await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/acme/team/documents/d-n1?comment=c-n1"));
+      const writes = requestMock.mock.calls.filter(([, init]) => (init as { method?: string } | undefined)?.method);
+      expect(writes.map(([path]) => path)).toEqual(["/api/v1/me/notifications/read"]);
+    });
+  });
 });
+
