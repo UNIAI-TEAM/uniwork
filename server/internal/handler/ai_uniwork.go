@@ -72,17 +72,6 @@ func (h *handlers) uniworkChat(w http.ResponseWriter, r *http.Request, scope ser
 	respondJSON(w, http.StatusOK, ai.NewUniworkChatCompletion(turn.Response, meta))
 }
 
-// uniworkChatCompletions is R1: the organization route (web session or desktop
-// bearer). The organization comes from the path, the module from the body (a
-// local file, S10, D-3).
-func (a *aiHandlers) uniworkChatCompletions(w http.ResponseWriter, r *http.Request) {
-	userID, orgID, ok := a.resolve(w, r)
-	if !ok {
-		return
-	}
-	a.uniworkChat(w, r, service.UniworkScope{UserID: userID, OrgID: orgID})
-}
-
 // uniworkDocumentChatCompletions is R3: the desktop session route for a
 // document (A10). It names the user and the document only; the service takes
 // the organization, workspace and module from the document, and rechecks that
@@ -102,6 +91,10 @@ func (h *handlers) uniworkDocumentChatCompletions(w http.ResponseWriter, r *http
 // document; the resolver rechecked the token's user may still view it, and
 // the module is the token's — the server never trusts a module the client
 // sends on this route (rule 3/7, D-3).
+//
+// The org route R1 mounts this same turn with the session resolver
+// (ai_mount.go): its context carries no frame claim, it names no document, and
+// the service reads the turn's module from the body there (D-3, a local file).
 func (a *aiHandlers) uniworkFrameChatCompletions(w http.ResponseWriter, r *http.Request) {
 	userID, orgID, ok := a.resolve(w, r)
 	if !ok {
