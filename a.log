@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+8b2560c429490e917176e623a22f2df0f8ba4f23
+4adb115bcf6fbf6f427954cc860468d4207deaf9
+8b2560c42 refactor(office): read the snapshot evidence only for destroyed-evidence removals
+278420d4b test(office): pin the reconstructed change-feed removals
+5fe6e21ff fix(office): reconstruct change-feed removals at removal time
+79276d512 fix(office): keep the empty feed keyset off the xid8 cast
+d1cb54c46 feat(office): measure the incremental change feed's lag
+27e492692 feat(core): parse the change feed's incremental rows
+7704383ee feat(office): expose the change feed's incremental rows on the wire
+c1a82416a chore(office): regenerate the sqlc model for the feed epoch table
+6c29e7b8c feat(office): serve the incremental change feed from audit positions
+31d0ce9bc feat(office): add the change-feed commit position on audit_events
