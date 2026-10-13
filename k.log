@@ -1,0 +1,6 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; AI_PROVIDER=fake bash scripts/test-go.sh; echo "TEST_GO_EXIT=$?"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+internal/handler/ai_uniwork.go:78:22: func (*aiHandlers).uniworkChatCompletions is unused (U1000)
+internal/handler/ai_uniwork_test.go:187:2: this value of out is never used (SA4006)
+TEST_GO_EXIT=1

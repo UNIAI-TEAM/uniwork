@@ -1,0 +1,2 @@
+$ cd server && test -z "$(gofmt -l ./internal ./cmd ./pkg ./migrations)" && echo gofmt-clean
+gofmt-clean

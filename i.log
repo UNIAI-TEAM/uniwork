@@ -1,0 +1,15 @@
+$ cd server && go test -count=1 -v ./migrations/ -run 'TestNewTablesCarryOrganizationID|TestEveryBusinessTableCarriesOrganizationID|TestEveryQueryNamesItsTenant|TestMigrationPrefixesSortTheSameAsStringsAndNumbers|TestActorKindOnEveryCreatedBy|TestTenantColumnIsNotNull|Lint'
+=== RUN   TestMigrationPrefixesSortTheSameAsStringsAndNumbers
+--- PASS: TestMigrationPrefixesSortTheSameAsStringsAndNumbers (0.00s)
+=== RUN   TestNewTablesCarryOrganizationID
+--- PASS: TestNewTablesCarryOrganizationID (0.00s)
+=== RUN   TestEveryBusinessTableCarriesOrganizationID
+--- PASS: TestEveryBusinessTableCarriesOrganizationID (0.01s)
+=== RUN   TestActorKindOnEveryCreatedBy
+--- PASS: TestActorKindOnEveryCreatedBy (0.01s)
+=== RUN   TestEveryQueryNamesItsTenant
+--- PASS: TestEveryQueryNamesItsTenant (0.06s)
+=== RUN   TestTenantColumnIsNotNull
+--- PASS: TestTenantColumnIsNotNull (0.04s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/migrations	0.126s

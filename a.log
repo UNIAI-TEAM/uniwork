@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+e7f3d73b046dccfd47581416d530d0b0e90e2e74
+061101c94d847721fd3a393f935d1c8261fd4e7e
+e7f3d73b0 docs(office): register the UniWork AI document route in contract-p0 (UNI-1367)
+249f15303 feat(ai): serve the UniWork AI turn from the service, handlers and routes (UNI-1367)
+354e6b215 test(ai): cover the interim prompt, the module table, A7 and the timeout
+90a6866f4 feat(ai): give the gateway a filter mode, a timeout code and a fake delay
+33d4198e9 feat(ai): implement the UniWork AI facade wire
+23bf523e6 feat(ai): register the interim UniWork AI system prompt
+5bb1c4987 test(ai): pin the UniWork AI facade contract ahead of its implementation
+bc52db892 feat(ai): keep the UniWork AI transcript in Postgres with its TTL worker (UNI-1367)
