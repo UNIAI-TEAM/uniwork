@@ -54,6 +54,18 @@ function blockOfSaveError(error: ProtocolErrorShape): FrameBlock | null {
   return null;
 }
 
+/**
+ * The verdict of a failed head read (`GET /documents/{id}`): 404/410 is a deleted document, a 403
+ * is a lost share unless its code is one of the reasons with their own wording, which the server
+ * keeps refusing by itself (the Save path reads them the same way). Anything else (offline, 5xx)
+ * is no verdict.
+ */
+export function blockOfHeadError(status: number, code: string): FrameBlock | null {
+  if (status === 404 || status === 410) return "document_deleted";
+  if (status === 403 && !OWN_REASON_403.has(code)) return "permission_revoked";
+  return null;
+}
+
 const asBig = (revision: string | null | undefined): bigint | null => (isDecimalRevision(revision) ? BigInt(revision) : null);
 
 export interface FrameRemoteVersion {

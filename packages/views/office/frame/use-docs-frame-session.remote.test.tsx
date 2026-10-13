@@ -331,6 +331,21 @@ describe("useDocsFrameSession: revoke and delete block the frame", () => {
     expect(frame.save).not.toHaveBeenCalled();
   });
 
+  it("a head read refused for an organization reason blocks nothing: the server refuses those Saves itself", async () => {
+    for (const code of ["organization_suspended", "member_deactivated", "document_archived"]) {
+      const frame = await openedFrame();
+      frame.server.headError = new ApiError(code, code, 403);
+      await act(async () => { ws.emit("document.share_revoked", { document_id: "doc-1", workspace_id: "ws-1", share_id: "s-1" }); });
+      await flush();
+      expect(frame.hook.result.current.blocked).toBeNull();
+      const reply = await frame.answer(frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(2), etag: "9" }));
+      expect(reply.error).toBeUndefined();
+      expect(frame.save).toHaveBeenCalledTimes(1);
+      frame.hook.unmount();
+      ws.handlers.clear(); ws.reconnects.clear(); document.body.innerHTML = "";
+    }
+  });
+
   it("a Save the server refuses with 410 blocks the next one; a suspended organization does not", async () => {
     const frame = await openedFrame();
     frame.save.mockRejectedValueOnce(new DocsProtocolError({ code: "forbidden", message: "organization_suspended (HTTP 403)", status: 403, details: { apiCode: "organization_suspended" } }));

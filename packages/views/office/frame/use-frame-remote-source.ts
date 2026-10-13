@@ -6,7 +6,7 @@ import { listDocumentChanges } from "@uniwork/core/api/endpoints/document-change
 import { getDocument } from "@uniwork/core/api/endpoints/documents";
 import { useOptionalWS } from "@uniwork/core/realtime";
 import type { WSEventType } from "@uniwork/core/types/events";
-import type { FrameBlock, FrameRemoteVersion, RemoteHead } from "./frame-remote-version";
+import { blockOfHeadError, type FrameBlock, type FrameRemoteVersion, type RemoteHead } from "./frame-remote-version";
 
 /**
  * Where the host learns of a new head for the open document: the realtime `document.*` frames
@@ -55,9 +55,9 @@ function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }:
         latest.current.onHead({ revision: doc.revision, versionId: doc.file?.version_id ?? null, savedAt: doc.updated_at || new Date().toISOString() });
       } catch (error) {
         if (!live() || !(error instanceof ApiError)) return;
-        if (error.status === 404 || error.status === 410) latest.current.onBlocked("document_deleted");
-        else if (error.status === 403) latest.current.onBlocked("permission_revoked");
         // Anything else (offline, 5xx) is not a verdict: the next frame or reconnect asks again.
+        const block = blockOfHeadError(error.status, error.code);
+        if (block) latest.current.onBlocked(block);
       }
     };
 
