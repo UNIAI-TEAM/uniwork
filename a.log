@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+044a834b36395f96c721cd6b5186604e0b6e474d
+044a834b3 test(office): pin the shared comment body fixture through the host relay
+d82b00893 chore(office): re-vendor the frame protocol at fork 17d21132 (OQ-C2 anchor rules)
+853430b4a test(office): pin the OQ-C2 anchor rule in the vendored comments.create validator

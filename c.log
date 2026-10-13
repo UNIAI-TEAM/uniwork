@@ -1,0 +1,12 @@
+$ pnpm --filter @uniwork/views --filter @uniwork/core typecheck
+Scope: 2 of 12 workspace projects
+packages/core typecheck$ tsc --noEmit
+packages/core typecheck: api/endpoints/frame-comments.test.ts(137,13): error TS2352: Conversion of type 'FrameCommentList | null' to type '{ comments: { body: string; }[]; }' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+packages/core typecheck:   Type '{ unchanged: false; comments: FrameWireComment[]; mentions: Record<string, unknown>[]; list_token: string; }' is not comparable to type '{ comments: { body: string; }[]; }'.
+packages/core typecheck:     Types of property 'comments' are incompatible.
+packages/core typecheck:       Type 'FrameWireComment[]' is not comparable to type '{ body: string; }[]'.
+packages/core typecheck:         Property 'body' is missing in type 'FrameWireComment' but required in type '{ body: string; }'.
+packages/core typecheck: Failed
+/workspace/packages/core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/core@0.0.0 typecheck: `tsc --noEmit`
+Exit status 2

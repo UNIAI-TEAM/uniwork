@@ -1,0 +1,1 @@
+$ (cd packages/views && pnpm exec eslint --max-warnings 0 office/frame/use-frame-comments.test.tsx) && (cd packages/core && pnpm exec eslint --max-warnings 0 api/endpoints/frame-comments.test.ts)
