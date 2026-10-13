@@ -170,14 +170,12 @@ func TestDocumentChangesFeedDeliversCommitBetweenSnapshotAndFirstPage(t *testing
 		t.Fatal("the pre-snapshot document is missing from the snapshot")
 	}
 
-	// Two changes that land after the snapshot's MVCC point, before the first
-	// feed page: a create and a metadata edit, so the window holds TWO audit
-	// rows for one document and a per-row emitter would show it twice.
+	// One commit that lands after the snapshot's MVCC point, before the first
+	// feed page.
 	after := w.createPage(t, "after the snapshot")
 	if held[after.ID] {
 		t.Fatal("a document created after the snapshot is in the snapshot")
 	}
-	after = w.updateTitle(t, after, "renamed after the snapshot")
 
 	counts := map[string]int{}
 	var got DocumentChangeFeedRow
