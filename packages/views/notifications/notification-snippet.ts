@@ -4,7 +4,8 @@ import { K } from "../documents/document-comments-keys";
 // The mention token of the comment body (contract-collab §4.2), and the same
 // token cut by the server's snippet bound (the snippet ends in "…").
 const MENTION = /\[@((?:[^[\]\\]|\\.)*)\]\(mention:\/\/member\/[0-9A-Za-z]{26}\)/g;
-const CUT_MENTION = /\[@((?:[^[\]\\\n]|\\.)*?)(?:\](?:\([^)\s]*)?)?…$/;
+// A lone backslash before the cut is the start of an escape the bound split in two.
+const CUT_MENTION = /\[@((?:[^[\]\\\n]|\\.)*)\\?(?:\](?:\([^)\s]*)?)?…$/;
 
 /** `\[`, `\]`, `\(`, `\)` and `\\` in a token label are Markdown escapes. */
 const unescapeLabel = (label: string) => label.replace(/\\(.)/g, "$1");

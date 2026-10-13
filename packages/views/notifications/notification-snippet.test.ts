@@ -17,6 +17,11 @@ describe("plainSnippet", () => {
     ["Nhờ [@Lê Thu…", "Nhờ @Lê Thu…"],
     ["Nhờ [@Lê Thu](…", "Nhờ @Lê Thu…"],
     ["Nhờ [@Lê Thu](mention://mem…", "Nhờ @Lê Thu…"],
+    // Cut right after the backslash of an escape inside the label, and right after a whole escape.
+    ["Nhờ [@Lê Thu\\…", "Nhờ @Lê Thu…"],
+    ["Nhờ [@Lê \\[Hà\\…", "Nhờ @Lê [Hà…"],
+    ["Nhờ [@Lê \\[Hà\\]…", "Nhờ @Lê [Hà]…"],
+    ["Nhờ [@Lê \\[Hà\\]](mention://member/01JABCDEFGHJKMNPQRSTVW…", "Nhờ @Lê [Hà]…"],
   ])("still reads a token the snippet bound cut as a name: %s", (raw, plain) => {
     expect(plainSnippet(raw)).toBe(plain);
   });
