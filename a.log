@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+78561b77c20dbf703b2dc4a52ba54b2fe0bec547
+ef66d871f8d1e14a2c628a1d945c1e9e7a777761
+78561b77c docs(office): read the feed lag rationale on one line
+50d0b14a1 test(office): widen the move guard's INSERT leg and give each route its own fixture
+6f6c8705a test(office): keep the T-2 window to one commit
+a4095177a test(office): replay A's feed-phase cursor as B
+b0a201a51 test(office): expose the feed lag gauge from the real registry
+a8aec113a test(office): count feed rows per document, decode the cursor, run the sync path
+89a720aa5 test(office): pin the feed row's exact wire key set
+d909e6750 test(office): match a workspace write over the whole statement
+beaa2380f docs(office): reflow the cursor wording and say keyset intact
+b0ef07a4d test(office): pin the removal 410/removal branches and the cursor position

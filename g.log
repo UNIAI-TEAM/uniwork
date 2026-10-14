@@ -1,0 +1,17 @@
+$ pnpm install --frozen-lockfile >/dev/null 2>&1; cd packages/core && pnpm exec vitest run api/endpoints/document-changes.test.ts; echo "CORE_EXIT=$?"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+
+
+ Test Files  1 passed (1)
+      Tests  40 passed (40)
+   Start at  00:02:16
+   Duration  1.27s (transform 82ms, setup 408ms, import 139ms, tests 24ms, environment 587ms)
+
+CORE_EXIT=0
