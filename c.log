@@ -1,0 +1,162 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -race -count=1 -v ./internal/notification/...; echo "NOTIFICATION_EXIT=$?"
+=== RUN   TestChatReminderDueNotifiesRoomMembers
+--- PASS: TestChatReminderDueNotifiesRoomMembers (0.29s)
+=== RUN   TestChatMessagesReachTheInbox
+--- PASS: TestChatMessagesReachTheInbox (0.26s)
+=== RUN   TestChatReachesRecipientsInOtherWorkspaces
+--- PASS: TestChatReachesRecipientsInOtherWorkspaces (0.28s)
+=== RUN   TestRuleTaskAssigned
+--- PASS: TestRuleTaskAssigned (0.28s)
+=== RUN   TestMergeWithinWindow
+--- PASS: TestMergeWithinWindow (0.27s)
+=== RUN   TestConsumerIdempotent
+--- PASS: TestConsumerIdempotent (0.28s)
+=== RUN   TestPrefsGate
+--- PASS: TestPrefsGate (0.31s)
+=== RUN   TestMentioned
+--- PASS: TestMentioned (0.29s)
+=== RUN   TestPushGone
+--- PASS: TestPushGone (0.29s)
+=== RUN   TestPushUsesShortKindTitle
+--- PASS: TestPushUsesShortKindTitle (0.25s)
+=== RUN   TestDigestOncePerDay
+--- PASS: TestDigestOncePerDay (0.24s)
+=== RUN   TestMeetingReminderOnce
+--- PASS: TestMeetingReminderOnce (0.23s)
+=== RUN   TestDigestAppliesTheDocumentReadGate
+--- PASS: TestDigestAppliesTheDocumentReadGate (0.28s)
+=== RUN   TestDocumentCommentMentionNotification
+--- PASS: TestDocumentCommentMentionNotification (0.25s)
+=== RUN   TestDocumentDiscussionMentionNotification
+--- PASS: TestDocumentDiscussionMentionNotification (0.23s)
+=== RUN   TestDocumentCommentWithoutMentionNotifiesNobody
+--- PASS: TestDocumentCommentWithoutMentionNotifiesNobody (0.26s)
+=== RUN   TestDocumentCommentReplyNotification
+--- PASS: TestDocumentCommentReplyNotification (0.26s)
+=== RUN   TestDocumentDiscussionReplyNotification
+--- PASS: TestDocumentDiscussionReplyNotification (0.28s)
+=== RUN   TestDocumentCommentReplyMentionPriority
+--- PASS: TestDocumentCommentReplyMentionPriority (0.28s)
+=== RUN   TestDocumentCommentResolveNotification
+--- PASS: TestDocumentCommentResolveNotification (0.27s)
+=== RUN   TestDocumentCommentReplyRevokedReader
+--- PASS: TestDocumentCommentReplyRevokedReader (0.27s)
+=== RUN   TestDocumentCommentResolveRevokedReader
+--- PASS: TestDocumentCommentResolveRevokedReader (0.25s)
+=== RUN   TestDocumentCommentMentionEditFlow
+--- PASS: TestDocumentCommentMentionEditFlow (0.30s)
+=== RUN   TestDocumentCommentMentionDuplicateNames
+--- PASS: TestDocumentCommentMentionDuplicateNames (0.26s)
+=== RUN   TestDocumentCommentMentionSelfSkipped
+--- PASS: TestDocumentCommentMentionSelfSkipped (0.25s)
+=== RUN   TestDocumentCommentMentionSelfKeptOnAnothersEdit
+--- PASS: TestDocumentCommentMentionSelfKeptOnAnothersEdit (0.23s)
+=== RUN   TestDocumentCommentMentionNeedsRead
+--- PASS: TestDocumentCommentMentionNeedsRead (0.24s)
+=== RUN   TestDocumentCommentMentionDeactivated
+--- PASS: TestDocumentCommentMentionDeactivated (0.24s)
+=== RUN   TestDocumentCommentMentionDirectShare
+--- PASS: TestDocumentCommentMentionDirectShare (0.28s)
+=== RUN   TestDocumentCommentSnippetBound
+--- PASS: TestDocumentCommentSnippetBound (0.25s)
+=== RUN   TestServiceDocumentInboxReadableKeepsSnippet
+--- PASS: TestServiceDocumentInboxReadableKeepsSnippet (0.25s)
+=== RUN   TestServiceDocumentInboxAccessLostDropsSnippetKeys
+--- PASS: TestServiceDocumentInboxAccessLostDropsSnippetKeys (0.28s)
+=== RUN   TestServiceDocumentInboxGoneIsResourceDeleted
+--- PASS: TestServiceDocumentInboxGoneIsResourceDeleted (0.25s)
+=== RUN   TestServiceDocumentInboxCommentDeleted
+=== RUN   TestServiceDocumentInboxCommentDeleted/tombstoned
+=== RUN   TestServiceDocumentInboxCommentDeleted/hard_deleted
+--- PASS: TestServiceDocumentInboxCommentDeleted (0.50s)
+    --- PASS: TestServiceDocumentInboxCommentDeleted/tombstoned (0.27s)
+    --- PASS: TestServiceDocumentInboxCommentDeleted/hard_deleted (0.23s)
+=== RUN   TestServiceDocumentInboxDoesNotChangeResolveState
+--- PASS: TestServiceDocumentInboxDoesNotChangeResolveState (0.24s)
+=== RUN   TestDocumentCommentNotificationsCarryCommentIDAndKind
+--- PASS: TestDocumentCommentNotificationsCarryCommentIDAndKind (0.24s)
+=== RUN   TestResourceURLDocumentVectors
+=== RUN   TestResourceURLDocumentVectors/vector_1:_recipient_is_a_member_of_the_notification's_workspace
+=== RUN   TestResourceURLDocumentVectors/vector_2:_shared_from_another_workspace,_recipient_reads_it_there
+=== RUN   TestResourceURLDocumentVectors/vector_3:_recipient_has_no_workspace_in_the_document's_organization
+=== RUN   TestResourceURLDocumentVectors/a_discussion_thread_appends_kind=discussion
+=== RUN   TestResourceURLDocumentVectors/no_comment_id_opens_the_bare_document
+--- PASS: TestResourceURLDocumentVectors (0.25s)
+    --- PASS: TestResourceURLDocumentVectors/vector_1:_recipient_is_a_member_of_the_notification's_workspace (0.00s)
+    --- PASS: TestResourceURLDocumentVectors/vector_2:_shared_from_another_workspace,_recipient_reads_it_there (0.01s)
+    --- PASS: TestResourceURLDocumentVectors/vector_3:_recipient_has_no_workspace_in_the_document's_organization (0.01s)
+    --- PASS: TestResourceURLDocumentVectors/a_discussion_thread_appends_kind=discussion (0.00s)
+    --- PASS: TestResourceURLDocumentVectors/no_comment_id_opens_the_bare_document (0.00s)
+=== RUN   TestDocumentMentionClaimInAppOff
+--- PASS: TestDocumentMentionClaimInAppOff (0.24s)
+=== RUN   TestDocumentMentionClaimRollsBackWithTheNotification
+--- PASS: TestDocumentMentionClaimRollsBackWithTheNotification (0.22s)
+=== RUN   TestDocumentMentionClaimOneOfTwoConsumers
+--- PASS: TestDocumentMentionClaimOneOfTwoConsumers (0.24s)
+=== RUN   TestTitleDocumentNameVerbatimAllKinds
+--- PASS: TestTitleDocumentNameVerbatimAllKinds (0.00s)
+=== RUN   TestShortPushTitlesCarryNoDocumentName
+--- PASS: TestShortPushTitlesCarryNoDocumentName (0.00s)
+=== RUN   TestPushConsumerSendsNameFreeShortTitle
+--- PASS: TestPushConsumerSendsNameFreeShortTitle (0.23s)
+=== RUN   TestPushConsumerMessageKeepsDocumentNameVerbatim
+--- PASS: TestPushConsumerMessageKeepsDocumentNameVerbatim (0.22s)
+=== RUN   TestEmailHubNewMailRequiresCurrentOrganizationMembership
+=== RUN   TestEmailHubNewMailRequiresCurrentOrganizationMembership/member_left_organization
+=== RUN   TestEmailHubNewMailRequiresCurrentOrganizationMembership/member_deactivated
+=== RUN   TestEmailHubNewMailRequiresCurrentOrganizationMembership/organization_suspended
+--- PASS: TestEmailHubNewMailRequiresCurrentOrganizationMembership (0.75s)
+    --- PASS: TestEmailHubNewMailRequiresCurrentOrganizationMembership/member_left_organization (0.23s)
+    --- PASS: TestEmailHubNewMailRequiresCurrentOrganizationMembership/member_deactivated (0.26s)
+    --- PASS: TestEmailHubNewMailRequiresCurrentOrganizationMembership/organization_suspended (0.26s)
+=== RUN   TestEmailHubNewMailAllowsOrganizationMemberWithoutWorkspace
+--- PASS: TestEmailHubNewMailAllowsOrganizationMemberWithoutWorkspace (0.25s)
+=== RUN   TestEmailHubNewMailRejectsRevokedWorkspaceScope
+--- PASS: TestEmailHubNewMailRejectsRevokedWorkspaceScope (0.25s)
+=== RUN   TestKindsMatchClientList
+--- PASS: TestKindsMatchClientList (0.00s)
+=== RUN   TestRuleMeetingEndedNudgesHost
+--- PASS: TestRuleMeetingEndedNudgesHost (0.23s)
+=== RUN   TestRuleMeetingEndedStaysQuiet
+=== RUN   TestRuleMeetingEndedStaysQuiet/nothing_to_summarize
+=== RUN   TestRuleMeetingEndedStaysQuiet/summaries_unavailable
+=== RUN   TestRuleMeetingEndedStaysQuiet/port_not_wired
+=== RUN   TestRuleMeetingEndedStaysQuiet/already_summarized
+--- PASS: TestRuleMeetingEndedStaysQuiet (0.96s)
+    --- PASS: TestRuleMeetingEndedStaysQuiet/nothing_to_summarize (0.25s)
+    --- PASS: TestRuleMeetingEndedStaysQuiet/summaries_unavailable (0.25s)
+    --- PASS: TestRuleMeetingEndedStaysQuiet/port_not_wired (0.23s)
+    --- PASS: TestRuleMeetingEndedStaysQuiet/already_summarized (0.22s)
+=== RUN   TestResourceURLOpensTheSummaryPanel
+--- PASS: TestResourceURLOpensTheSummaryPanel (0.22s)
+=== RUN   TestMeetingReminderClaimsEachMeetingOnce
+--- PASS: TestMeetingReminderClaimsEachMeetingOnce (0.25s)
+=== RUN   TestMeetingReminderSkipsAFailingMeeting
+2026/10/14 05:17:34 WARN meeting reminder: meeting skipped meeting_id=01M4WDGBN9TYXA012GKNM4FQHM err=boom
+--- PASS: TestMeetingReminderSkipsAFailingMeeting (0.24s)
+=== RUN   TestMeetingReminderIgnoresAMeetingCancelledMeanwhile
+--- PASS: TestMeetingReminderIgnoresAMeetingCancelledMeanwhile (0.24s)
+=== RUN   TestRulesMembershipAndMeeting
+--- PASS: TestRulesMembershipAndMeeting (0.25s)
+=== RUN   TestWebPushSenderStatusMapping
+2026/10/14 05:17:34 INFO push not configured, printing message endpoint=http://127.0.0.1:33641 title="" url=""
+--- PASS: TestWebPushSenderStatusMapping (0.01s)
+=== RUN   TestPushConsumerIdentityAndOff
+--- PASS: TestPushConsumerIdentityAndOff (0.00s)
+=== RUN   TestRuleChatFollowUpCreated
+--- PASS: TestRuleChatFollowUpCreated (0.21s)
+=== RUN   TestServiceInboxAndIsolation
+--- PASS: TestServiceInboxAndIsolation (0.26s)
+=== RUN   TestServicePreferencesAndPush
+--- PASS: TestServicePreferencesAndPush (0.24s)
+=== RUN   TestServiceRestoreIntoReopenedGroup
+--- PASS: TestServiceRestoreIntoReopenedGroup (0.26s)
+=== RUN   TestDropParamKeysKeepsNonStringValues
+--- PASS: TestDropParamKeysKeepsNonStringValues (0.00s)
+=== RUN   TestTitlesMatchClientLocales
+--- PASS: TestTitlesMatchClientLocales (0.05s)
+=== RUN   TestTitleDocumentNameVerbatim
+--- PASS: TestTitleDocumentNameVerbatim (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/notification	16.838s
+NOTIFICATION_EXIT=0
