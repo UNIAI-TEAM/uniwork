@@ -1,0 +1,345 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18380 FRONTEND_ORIGIN=http://localhost:13300 API_PUBLIC_URL=http://localhost:18380 PREVIEW_ORIGIN=http://localhost:13301 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18380 NEXT_PUBLIC_WS_URL=ws://localhost:18380 NEXT_PUBLIC_APP_URL=http://localhost:13300 E2E_BASE_URL=http://localhost:13300 E2E_API_URL=http://localhost:18380; pnpm --filter @uniwork/e2e test --reporter=line 2>&1 | tail -400; rc=${PIPESTATUS[0]}; echo "E2E_EXIT=$rc"; exit $rc
+
+> @uniwork/e2e@0.0.0 test /workspace/e2e
+> playwright test --reporter=line
+
+
+Running 302 tests using 1 worker
+
+(node:71077) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:71077) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/302] admin-contrast.spec.ts:50:3 › tương phản chữ của console admin đạt WCAG AA — light
+[2/302] admin-contrast.spec.ts:50:3 › tương phản chữ của console admin đạt WCAG AA — dark
+[3/302] admin.spec.ts:26:1 › a platform admin suspends and unsuspends an organization from /admin
+[4/302] agent-integration-parity-smoke.spec.ts:49:1 › agent chrome hidden: no Squads/Runtimes nav or AgentRun panels
+[5/302] ask-uni.spec.ts:41:1 › ⌘J answers from the asker's own workspace only
+[6/302] audit.spec.ts:17:1 › a task edit shows up in the organization's audit log
+[7/302] audit.spec.ts:159:1 › @files-smoke audit export: an owner creates a CSV and downloads it
+[8/302] audit.spec.ts:199:1 › audit export: JSON Lines mirrors the log, and a lapsed link is withdrawn
+[9/302] auth-contrast.spec.ts:16:3 › tương phản chữ đạt WCAG AA — /login light
+[10/302] auth-contrast.spec.ts:39:3 › tương phản chữ đạt WCAG AA — /register light
+[11/302] auth-contrast.spec.ts:16:3 › tương phản chữ đạt WCAG AA — /login dark
+[12/302] auth-contrast.spec.ts:39:3 › tương phản chữ đạt WCAG AA — /register dark
+[13/302] auth-layout.spec.ts:18:3 › rail giữ tỉ lệ, cột form không trôi — /login
+[14/302] auth-layout.spec.ts:18:3 › rail giữ tỉ lệ, cột form không trôi — /register
+[15/302] auth-layout.spec.ts:62:1 › tiêu đề dẫn được trang ở desktop, và nút hiện mật khẩu đủ lớn cho chuột
+[16/302] auth-layout.spec.ts:97:3 › nút hiện mật khẩu › đổi được bằng chuột và bằng chạm
+[17/302] auth-layout.spec.ts:133:1 › luật autofill tới được trình duyệt sau khi build
+[18/302] changelog.spec.ts:3:1 › public releases have readable groups, stable links and shareable anchors
+[19/302] changelog.spec.ts:16:1 › both themes preserve reading order without horizontal page overflow
+[20/302] chat-smoke.spec.ts:11:1 › workspace chat sends and shows a text message
+[21/302] create-task-parity.spec.ts:62:1 › create task: fields, draft recovery, duplicate, view action, attachment
+[22/302] documents-comments.spec.ts:90:1 › discussion panel posts, replies, edits, resolves, reopens and survives a reload
+[23/302] documents-home.spec.ts:48:1 › create card, folder, move and the other-modules section on the owner's home
+[24/302] documents-home.spec.ts:113:1 › the header Open UniWork Office falls back to the installer dialog when no app answers
+[25/302] documents-home.spec.ts:218:3 › a view-only member › sees create cards at the root, none inside a folder shared at view level
+[26/302] documents-home.spec.ts:239:3 › a view-only member › gets no Move or Archive on a row shared at view level
+[27/302] documents-isolation.spec.ts:94:1 › another organization answers not found across read, history, comments and download
+[28/302] documents-isolation.spec.ts:106:1 › an organization member outside the document workspace answers not found
+[29/302] documents-isolation.spec.ts:110:1 › an account in no organization answers not found
+[30/302] documents-isolation.spec.ts:115:1 › a deactivated member is refused with member_deactivated
+[31/302] documents-isolation.spec.ts:122:1 › two saves from one base: the first wins, the stale one conflicts
+[32/302] documents-isolation.spec.ts:145:1 › a create replay returns the same page; a changed payload under the same key is refused
+[33/302] documents-isolation.spec.ts:161:1 › a plain member creates, types and reloads a page in the browser
+[34/302] documents-isolation.spec.ts:182:1 › a workspace member without access sees the not-found screen, not the content
+[35/302] documents-isolation.spec.ts:188:1 › the other organization's shell sends a foreign document URL to the picker
+[36/302] documents-sharing-ui.spec.ts:29:1 › share, public link, anonymous read, access log and revoke
+[37/302] documents-sharing.spec.ts:56:1 › a cross-workspace grant reaches the recipient and its revoke takes it away
+[38/302] documents-sharing.spec.ts:93:1 › a principal from another organization cannot be granted access
+[39/302] documents-sharing.spec.ts:105:1 › the other organization cannot manage the document's access
+[40/302] documents-sharing.spec.ts:115:1 › a public link reads anonymously only while it is live and the switch is on
+[41/302] documents-versions.spec.ts:27:1 › version checkpoint restores the working copy and a second session sees it
+[42/302] documents.spec.ts:80:1 › a page is created, typed into, and survives a reload
+[43/302] documents.spec.ts:128:1 › a file document takes a new version and downloads it
+[44/302] documents.spec.ts:160:1 › the library lists pages across its tabs and the tree opens one
+[45/302] documents.spec.ts:224:1 › the library and the page editor never call the Office service
+[46/302] files-avatar.spec.ts:92:1 › @files-smoke avatar: đổi ảnh, thấy ở header
+[47/302] files-avatar.spec.ts:106:1 › thay avatar lần hai, hiện ở tổ chức thứ hai
+[48/302] files-avatar.spec.ts:191:1 › ảnh sai loại bị từ chối
+[49/302] files-foundation.spec.ts:24:1 › @files-smoke readiness reports the storage adapter, liveness stays up
+[50/302] files-task.spec.ts:95:1 › @files-smoke đính kèm task: tải lên, thấy tệp, tải về đúng bytes
+[51/302] files-task.spec.ts:120:1 › bình luận kèm tệp: gửi bình luận có đính kèm
+[52/302] files-task.spec.ts:141:1 › ảnh trong mô tả sống sót sau khi tải lại
+[53/302] files-task.spec.ts:165:1 › gỡ một trong nhiều tệp đính kèm
+[54/302] files-task.spec.ts:220:1 › tệp trên 25 MiB bị từ chối
+[55/302] files-task.spec.ts:232:1 › loại tệp không được hỗ trợ bị từ chối
+[56/302] files-task.spec.ts:262:1 › tổ chức khác đoán URL tệp thì bị chặn
+[57/302] graph-related-panel.spec.ts:10:1 › a task made from a meeting shows where it came from and who owned it
+[58/302] home.spec.ts:16:1 › home lists my work due today and completes it
+[59/302] landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 1440-light
+[60/302] landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 768-light
+[61/302] landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 820-dark
+[62/302] landing-action-motion.spec.ts:94:1 › reduced motion keeps click results without spatial effects
+[63/302] landing-business-os.spec.ts:6:3 › Business OS shows all capabilities around four readable light previews
+[64/302] landing-business-os.spec.ts:6:3 › Business OS shows all capabilities around four readable dark previews
+[65/302] landing-business-os.spec.ts:51:1 › the full Business OS gallery fits mobile in English
+[66/302] landing-business-os.spec.ts:73:1 › previews respond to keyboard and respect reduced motion
+[67/302] landing-business-os.spec.ts:101:1 › gallery motion pauses on request and outside the viewport
+[68/302] landing-catalog.spec.ts:5:1 › catalog covers 25 reference entries without implying illustrations are working modules
+[69/302] landing-catalog.spec.ts:30:1 › project and organization previews work locally and source links stay within the showcase
+[70/302] landing-chapters.spec.ts:16:3 › public chapters 1440-vi-light
+[71/302] landing-chapters.spec.ts:16:3 › public chapters 390-en-dark
+[72/302] landing-chapters.spec.ts:16:3 › public chapters 1510-en-dark
+[73/302] landing-chapters.spec.ts:16:3 › public chapters 768-vi-light
+[74/302] landing-chapters.spec.ts:16:3 › public chapters 320-vi-light
+[75/302] landing-chapters.spec.ts:75:1 › contextual closing demo links open their actual preview
+[76/302] landing-closing.spec.ts:18:3 › product-led closing /features/tasks 1440-en-light
+[77/302] landing-closing.spec.ts:18:3 › product-led closing / 1554-vi-dark
+[78/302] landing-closing.spec.ts:18:3 › product-led closing /features/tasks 768-vi-light
+[79/302] landing-closing.spec.ts:18:3 › product-led closing /features/tasks 390-en-dark
+[80/302] landing-closing.spec.ts:18:3 › product-led closing / 390-vi-light
+[81/302] landing-closing.spec.ts:18:3 › product-led closing /solutions/product 1254-vi-light
+[82/302] landing-closing.spec.ts:18:3 › product-led closing /solutions/operations 390-en-dark
+[83/302] landing-closing.spec.ts:18:3 › product-led closing /features/documents 1510-en-dark
+[84/302] landing-closing.spec.ts:18:3 › product-led closing /features/documents 320-vi-light
+[85/302] landing-demo-parity.spec.ts:10:3 › V2 demo fits the original landing 1440-light
+[86/302] landing-demo-parity.spec.ts:10:3 › V2 demo fits the original landing 1440-dark
+[87/302] landing-demo-parity.spec.ts:10:3 › V2 demo fits the original landing 1024-dark
+[88/302] landing-demo-parity.spec.ts:10:3 › V2 demo fits the original landing 390-dark
+[89/302] landing-demo-request.spec.ts:8:2 › demo request keeps details on failure and confirms a saved receipt at 1440px
+[90/302] landing-demo-request.spec.ts:8:2 › demo request keeps details on failure and confirms a saved receipt at 390px
+[91/302] landing-demo-request.spec.ts:45:2 › hero and demo text stay readable in light mode
+[92/302] landing-demo-request.spec.ts:45:2 › hero and demo text stay readable in dark mode
+[93/302] landing-density.spec.ts:5:3 › product stage shares the landing frame at 1910px
+[94/302] landing-density.spec.ts:5:3 › product stage shares the landing frame at 1440px
+[95/302] landing-density.spec.ts:5:3 › product stage shares the landing frame at 768px
+[96/302] landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px
+[97/302] landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: en
+[98/302] landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: vi
+[99/302] landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: en
+[100/302] landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: vi
+[101/302] landing-dual-navigation.spec.ts:6:3 › manual navigation layers share one preview at 1440px
+[102/302] landing-dual-navigation.spec.ts:6:3 › manual navigation layers share one preview at 768px
+[103/302] landing-dual-navigation.spec.ts:6:3 › manual navigation layers share one preview at 390px
+[104/302] landing-dual-navigation.spec.ts:54:3 › English dark navigation stays legible at 1440px
+[105/302] landing-dual-navigation.spec.ts:54:3 › English dark navigation stays legible at 390px
+[106/302] landing-fast-refresh.spec.ts:10:3 › a mounted en landing updates dictionary copy without losing state
+[107/302] landing-fast-refresh.spec.ts:10:3 › a mounted vi landing updates dictionary copy without losing state
+[108/302] landing-feature-visuals.spec.ts:6:1 › every product chapter retains visual examples on a narrow English screen
+[109/302] landing-feature-visuals.spec.ts:31:1 › visual directory navigates to chapters and the full preview still expands
+[110/302] landing-hydration.spec.ts:7:3 › landing SSR and hydration use the same current en copy
+[111/302] landing-hydration.spec.ts:7:3 › landing SSR and hydration use the same current vi copy
+[112/302] landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-light
+[113/302] landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-dark
+[114/302] landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 390-dark
+[115/302] landing-lovable.spec.ts:61:1 › scaled action film keeps the explicit assignment and completion sequence
+[116/302] landing-lovable.spec.ts:87:1 › expanded film preserves reduced motion and exposes playback controls
+[117/302] landing-lovable.spec.ts:110:1 › meeting listing pauses the film and returning to the room restores it
+[118/302] landing-meetings.spec.ts:5:1 › online meetings are a view of the same workspace
+[119/302] landing-meetings.spec.ts:17:1 › meeting controls are accessible local simulations, with conditional AI follow-up
+[120/302] landing-motion.spec.ts:5:1 › landing demo controls perform the actions they advertise without workspace writes
+[121/302] landing-motion.spec.ts:29:1 › product showcase, cinematic playback and reduced motion remain usable
+[122/302] landing-motion.spec.ts:55:1 › hero offers registration and a demo request in a minimal opening
+[123/302] landing-motion.spec.ts:74:1 › Starter and FAQ signals animate only while visible and respect reduced motion
+[124/302] landing-motion.spec.ts:100:1 › framed scenes arrive on scroll and remain readable after the entrance
+[125/302] landing-motion.spec.ts:150:1 › nonessential motion stops offscreen
+[126/302] landing-motion.spec.ts:177:1 › GPU unavailable leaves the product showcase and demo intact
+[127/302] landing-office-design.spec.ts:19:3 › Office B has working themed editors at 1306px light en
+[128/302] landing-office-design.spec.ts:19:3 › Office B has working themed editors at 1440px dark vi
+[129/302] landing-office-design.spec.ts:19:3 › Office B has working themed editors at 768px light en
+[130/302] landing-office-design.spec.ts:19:3 › Office B has working themed editors at 390px light vi
+[131/302] landing-office-design.spec.ts:19:3 › Office B has working themed editors at 390px dark en
+[132/302] landing-office-design.spec.ts:98:1 › Office images follow an explicit theme change
+[133/302] landing-office-editions.spec.ts:10:3 › Office menu keeps Enterprise and truthful upcoming Personal at 1440px in light
+[134/302] landing-office-editions.spec.ts:10:3 › Office menu keeps Enterprise and truthful upcoming Personal at 390px in dark
+[135/302] landing-office-editions.spec.ts:36:1 › Office trial opens a published Windows installer download
+[136/302] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1440px
+[137/302] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1280px
+[138/302] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1100px
+[139/302] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 1099px
+[140/302] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 768px
+[141/302] landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 390px
+[142/302] landing-opening.spec.ts:107:3 › opening supports English and dark mode at 1440px
+[143/302] landing-opening.spec.ts:107:3 › opening supports English and dark mode at 390px
+[144/302] landing-opening.spec.ts:125:1 › opening respects a changed reduced-motion preference
+[145/302] landing-playback.spec.ts:8:1 › preview plays a real sequence, pauses and stops outside the viewport
+[146/302] landing-playback.spec.ts:29:1 › reduced motion is still by default and manual exploration retains local actions
+[147/302] landing-playback.spec.ts:49:3 › every storyboard reaches its last beat without clipping at 1440px
+[148/302] landing-playback.spec.ts:99:1 › storyboards become readable three-step stories at 390px
+[149/302] landing-playback.spec.ts:121:1 › original UNI wears the shared mark and retains its static fallback
+[150/302] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: desktop-vi
+[151/302] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: desktop-en
+[152/302] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: mobile-vi
+[153/302] landing-playback.spec.ts:138:5 › scripted views, brand and contrast: mobile-en
+[154/302] landing-product-pages.spec.ts:6:1 › product menu opens real introduction routes, with demo explicitly separate
+[155/302] landing-product-pages.spec.ts:32:1 › all feature introductions have unique content, canonical URL and reference UI
+[156/302] landing-product-pages.spec.ts:59:3 › public pages render without overflow 1440-light
+[157/302] landing-product-pages.spec.ts:59:3 › public pages render without overflow 390-dark
+[158/302] landing-product-pages.spec.ts:93:1 › English introductions and solution/resources links remain usable
+[159/302] landing-realism.spec.ts:11:3 › pending and source destination stay readable at 1440px
+[160/302] landing-realism.spec.ts:11:3 › pending and source destination stay readable at 820px
+[161/302] landing-realism.spec.ts:46:1 › Today and Projects task links open manual details even on direct entry
+[162/302] landing-realism.spec.ts:68:1 › chat waits for creation before attaching the task
+[163/302] landing-realism.spec.ts:85:1 › email keeps the same thread and Ask UNI only opens its cited source
+[164/302] landing-realism.spec.ts:114:1 › assignment opens details and a member picker without completing the task
+[165/302] landing-realism.spec.ts:136:1 › screen sharing needs source selection and confirmation; planned entries never autoplay
+[166/302] landing-reference.spec.ts:8:3 › Lovable reference structure and remaining landing sections at 1440px
+[167/302] landing-reference.spec.ts:8:3 › Lovable reference structure and remaining landing sections at 390px
+[168/302] landing-reference.spec.ts:69:34 › Today rows and counts share completion, reopening and reset state at 1440px
+[169/302] landing-reference.spec.ts:69:34 › Today rows and counts share completion, reopening and reset state at 390px
+[170/302] landing-reference.spec.ts:95:1 › skip link remains hidden without focus across tall section captures
+[171/302] landing-scenes.spec.ts:6:1 › original UNI artwork and face stay unchanged while the foreleg waves
+[172/302] landing-scenes.spec.ts:57:3 › mascot expression and native scene handoff: desktop
+[173/302] landing-scenes.spec.ts:57:3 › mascot expression and native scene handoff: mobile
+[174/302] landing-scenes.spec.ts:103:1 › missing original artwork leaves the shared mark without removed controls
+[175/302] landing-scenes.spec.ts:116:1 › shirt mark and artwork share coordinates before and after resize
+[176/302] landing-scroll.spec.ts:7:3 › all explorer states and disclosures have translated text and labels: vi
+[177/302] landing-scroll.spec.ts:7:3 › all explorer states and disclosures have translated text and labels: en
+[178/302] landing-scroll.spec.ts:38:1 › grouped feature navigation supports keyboard selection
+[179/302] landing-scroll.spec.ts:58:1 › security and roadmap details are available without overwhelming the default view
+[180/302] landing-scroll.spec.ts:74:1 › decision sections use prominent semantic icon anchors
+[181/302] landing-scroll.spec.ts:103:1 › trust band explains provider choice without repeating security claims
+[182/302] landing-scroll.spec.ts:118:1 › feature selector stays visible in reduced motion without a decorative rail
+[183/302] landing-studio.spec.ts:8:1 › studio demo switches views and tabs locally, with keyboard support
+[184/302] landing-studio.spec.ts:39:1 › mobile menu closes with Escape and returns focus
+[185/302] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop
+[186/302] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile
+[187/302] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: user-1294
+[188/302] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: desktop-dark-en
+[189/302] landing-studio.spec.ts:59:3 › studio responsive, assets and contrast: mobile-dark-en
+[190/302] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1536 en light
+[191/302] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 1280 vi dark
+[192/302] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 768 vi light
+[193/302] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 390 en dark
+[194/302] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 390 vi light
+[195/302] landing-trust.spec.ts:17:3 › trust chapter stays compact and usable: 320 vi dark
+[196/302] landing-updates.spec.ts:8:1 › new product stories are local demos with truthful availability
+[197/302] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-vi
+[198/302] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: desktop-en
+[199/302] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-vi
+[200/302] landing-updates.spec.ts:40:5 › unified workspace views render in both themes: mobile-en
+[201/302] landing-updates.spec.ts:65:1 › workspace finishes revealing without extra scrolling and respect reduced motion
+[202/302] landing-why.spec.ts:14:3 › Why UniWork — 1440px vi light
+[203/302] landing-why.spec.ts:14:3 › Why UniWork — 1510px en dark
+[204/302] landing-why.spec.ts:14:3 › Why UniWork — 768px en light
+[205/302] landing-why.spec.ts:14:3 › Why UniWork — 390px en dark
+[206/302] landing-why.spec.ts:14:3 › Why UniWork — 320px vi light
+[207/302] landing-workspace.spec.ts:5:1 › one workspace stage replaces the index and separate feature bands
+[208/302] landing-workspace.spec.ts:22:1 › feature deep links select the right panel and sidebar works with keyboard
+[209/302] landing-workspace.spec.ts:40:1 › local state survives view switches and the global reset clears every demo
+[210/302] landing-workspace.spec.ts:68:1 › tablet product stage stays readable and Starter keeps one honest action
+[211/302] landing.spec.ts:48:3 › landing › dải tin cậy, FAQ và hai trang giải pháp
+[212/302] landing.spec.ts:141:3 › landing › đổi ngôn ngữ và chế độ sáng tối ngay trên header
+[213/302] landing.spec.ts:175:3 › landing › mỗi request nhận đúng ngôn ngữ của chính nó
+[214/302] landing.spec.ts:198:5 › landing › tương phản chữ đạt WCAG AA — light
+[215/302] landing.spec.ts:198:5 › landing › tương phản chữ đạt WCAG AA — dark
+[216/302] meeting-prejoin-contrast.spec.ts:20:3 › chữ trong khung camera tắt ở màn chuẩn bị vào họp đạt WCAG AA — light
+[217/302] meeting-prejoin-contrast.spec.ts:20:3 › chữ trong khung camera tắt ở màn chuẩn bị vào họp đạt WCAG AA — dark
+[218/302] meetings-attendance.spec.ts:13:1 › attendance: secretary marks, quorum warns, finalize locks and shows on the timeline
+[219/302] meetings-livekit.spec.ts:17:3 › meeting livekit smoke › instant meeting → prejoin → stage shell
+[220/302] meetings-livekit.spec.ts:45:3 › meeting livekit smoke › a signed-in user from another organization joins through an invite link (UNI-901)
+[221/302] meetings-livekit.spec.ts:86:3 › meeting livekit smoke › recording: egress writes the file, the webhook completes it, playback seeks
+[222/302] meetings.spec.ts:19:1 › meeting: create → start → summary panel → ics → end
+[223/302] meetings.spec.ts:77:1 › recording playback: listed, exact bytes, member reads, other org blocked @files-smoke
+[224/302] notifications.spec.ts:34:1 › assigning a task lights the assignee's inbox badge without a reload
+[225/302] office-docs-web.spec.ts:52:3 › frame serving › index.html carries the pinned CSP, same-origin framing and revalidation
+[226/302] office-docs-web.spec.ts:65:3 › frame serving › hashed assets and fonts are immutable and match the manifest digest
+[227/302] office-docs-web.spec.ts:78:3 › frame serving › an unpinned version is a 404 that still carries the locked-down policy
+[228/302] office-docs-web.spec.ts:84:3 › frame serving › the frame boots under its own CSP without a single violation
+[229/302] office-docs-web.spec.ts:117:3 › open, edit, save › a DOCX opens in the frame, an edit is saved as a new version and survives a reopen
+[230/302] office-docs-web.spec.ts:154:3 › open, edit, save › Save as makes a copy, the page follows it and the frame keeps editing the copy
+[231/302] office-docs-web.spec.ts:197:3 › open, edit, save › an inserted image passes the frame CSP and is stored in the docx
+[232/302] office-docs-web.spec.ts:225:3 › open, edit, save › PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback
+[233/302] office-docs-web.spec.ts:252:3 › open, edit, save › a token mint the server refuses with feature_disabled shows the unavailable notice
+[234/302] office-docs-web.spec.ts:263:3 › open, edit, save › an organization override turning the flag off shows the unavailable notice and no frame mounts
+[235/302] office-docs-web.spec.ts:277:3 › bundle not installed › a flag-on organization sees the not-set-up notice and no iframe is mounted
+[236/302] office-markdown-assets-web.spec.ts:64:3 › markdown pictures › a relative picture resolves, and a pasted one is stored as a document asset
+[237/302] office-markdown-web.spec.ts:30:3 › bundle installed › index.html is served with the module's pinned CSP and same-origin framing
+[238/302] office-markdown-web.spec.ts:60:5 › bundle installed › open, edit, save › a .md opens in the markdown frame and the handshake completes
+[239/302] office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (vi, light)
+[240/302] office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (vi, dark)
+[241/302] office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (en, light)
+[242/302] office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (en, dark)
+[243/302] office-markdown-web.spec.ts:90:5 › bundle installed › open, edit, save › an edit is saved as a new version and survives a reopen
+[244/302] office-markdown-web.spec.ts:110:5 › bundle installed › open, edit, save › with the flag off the unavailable notice shows and no frame mounts
+[245/302] office-markdown-web.spec.ts:125:3 › bundle not installed › a flag-on organization sees the not-set-up notice and no iframe is mounted
+[246/302] office-modules-web.spec.ts:115:5 › served headers › pdf: index.html is served with the pinned policy
+[247/302] office-modules-web.spec.ts:115:5 › served headers › html: index.html is served with the pinned policy
+[248/302] office-modules-web.spec.ts:115:5 › served headers › slides: index.html is served with the pinned policy
+[249/302] office-modules-web.spec.ts:115:5 › served headers › sheets: index.html is served with the pinned policy
+[250/302] office-modules-web.spec.ts:126:3 › served headers › html: preview.html is served with its own sandboxed policy, not the frame's
+[251/302] office-modules-web.spec.ts:163:5 › pdf module › a text.pdf opens in the pdf frame and the handshake completes
+[252/302] office-modules-web.spec.ts:176:5 › pdf module › a pdf frame bundle that answers 404 shows the load failure, not an endless skeleton
+[253/302] office-modules-web.spec.ts:187:7 › pdf module › a frame whose script is blocked shows the load failure at once and says why
+[254/302] office-modules-web.spec.ts:163:5 › html module › a page.html opens in the html frame and the handshake completes
+[255/302] office-modules-web.spec.ts:176:5 › html module › a html frame bundle that answers 404 shows the load failure, not an endless skeleton
+[256/302] office-modules-web.spec.ts:203:7 › html module › an edit in the html frame is saved as a new version
+[257/302] office-modules-web.spec.ts:163:5 › slides module › a deck.pptx opens in the slides frame and the handshake completes
+[258/302] office-modules-web.spec.ts:176:5 › slides module › a slides frame bundle that answers 404 shows the load failure, not an endless skeleton
+[259/302] office-modules-web.spec.ts:163:5 › sheets module › a book.xlsx opens in the sheets frame and the handshake completes
+[260/302] office-modules-web.spec.ts:176:5 › sheets module › a sheets frame bundle that answers 404 shows the load failure, not an endless skeleton
+[261/302] office-modules-web.spec.ts:203:7 › sheets module › an edit in the sheets frame is saved as a new version
+[262/302] onboarding-contrast.spec.ts:13:3 › tương phản chữ đạt WCAG AA — light
+[263/302] onboarding-contrast.spec.ts:13:3 › tương phản chữ đạt WCAG AA — dark
+[264/302] onboarding-focus.spec.ts:14:1 › mọi điểm dừng Tab đều có chỉ báo focus nhìn thấy được — cả 4 bước
+[265/302] onboarding-focus.spec.ts:61:1 › chỉ có MỘT chỉ báo focus, không lồng hai vòng
+[266/302] onboarding-focus.spec.ts:84:1 › vòng focus tách được khỏi nền ngay sát nó (>= 3:1) — cả 4 bước
+[267/302] onboarding-mobile.spec.ts:11:1 › không có thanh cuộn ngang ở bất kỳ bước nào
+[268/302] onboarding-mobile.spec.ts:23:1 › rail ẩn, thanh tiến độ nói được vị trí bước
+[269/302] onboarding-mobile.spec.ts:31:1 › mọi vùng chạm đạt 44px ở mọi bước
+[270/302] onboarding-mobile.spec.ts:82:1 › CTA chính không bị vệt mờ của vùng cuộn ăn vào
+[271/302] onboarding-shell.spec.ts:36:1 › onboarding — structural blocks match the column width on every step
+[272/302] onboarding-shell.spec.ts:56:1 › onboarding — the shell survives step changes instead of re-mounting
+[273/302] onboarding-smoke.spec.ts:10:1 › register → onboarding 4 bước → 🎉 → task hướng dẫn
+[274/302] organization-switch.spec.ts:32:3 › organization switch › a member of A opens B's invitation, leaves A in the wizard and lands in B
+[275/302] organization-switch.spec.ts:84:3 › organization switch › a sole owner closes the organization, lands on /get-started and founds a new one
+[276/302] people.spec.ts:47:1 › directory, department, accent-insensitive search, then deactivation
+[277/302] projects-suite-parity-smoke.spec.ts:35:1 › projects suite: list + detail TaskSurface always on
+[278/302] reset-password.spec.ts:5:1 › quên mật khẩu → link trong mail → mật khẩu mới đăng nhập được
+[279/302] sidebar-rail.spec.ts:9:1 › every nav row is clickable in the collapsed icon rail
+[280/302] smoke.spec.ts:9:1 › register → workspace → task → meeting
+[281/302] smoke.spec.ts:70:1 › đường dẫn không tồn tại hiện trang không tìm thấy, không phải màn hình trắng
+[282/302] task-detail-parity-smoke.spec.ts:55:1 › task detail: suite comment + attachment always on
+[283/302] tasks-collection-parity-smoke.spec.ts:34:1 › tasks collection: suite mode controls always on
+[284/302] tasks-table.spec.ts:187:1 › board → table stays responsive and navigation still works
+[285/302] tasks-table.spec.ts:204:1 › title sort holds across Tải thêm pages
+[286/302] tasks-table.spec.ts:216:1 › search finds a task outside the first page
+[287/302] tasks-table.spec.ts:236:1 › a child on the third page nests under its parent
+[288/302] tasks-table.spec.ts:265:1 › groups by project, then by priority
+[289/302] tasks-table.spec.ts:281:1 › a select property edits in place and survives reload
+[290/302] tasks-table.spec.ts:309:1 › keyboard column reorder persists across reload
+[291/302] text-size.spec.ts:16:1 › the largest text size scales the app, survives a reload and keeps screens in bounds
+[292/302] verify.spec.ts:10:1 › mã sai → lỗi; gửi lại đang khoá; mã đúng → onboarding; cổng chặn khi chưa xác thực
+[293/302] verify.spec.ts:39:1 › nút Google chỉ hiện khi server báo có Google
+[294/302] verify.spec.ts:47:1 › tương phản chữ đạt WCAG AA — /verify light và dark
+(node:74619) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:74619) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[295/302] files-chat.spec.ts:127:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke
+files-chat.spec.ts:127:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke
+[api] 401 POST http://localhost:18380/api/v1/auth/refresh
+
+[api] 401 POST http://localhost:18380/api/v1/auth/refresh
+
+[296/302] files-chat.spec.ts:152:3 › chat file and voice messages › a voice message plays for the second member with its duration
+[297/302] files-chat.spec.ts:177:3 › chat file and voice messages › a resend with the same client_msg_id does not duplicate the message
+[298/302] files-chat.spec.ts:213:3 › chat file and voice messages › a member of another organization cannot reach the workspace or its files
+[299/302] files-chat.spec.ts:241:3 › chat file and voice messages › an unsupported file type is refused before it is sent
+[300/302] files-chat.spec.ts:263:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions
+files-chat.spec.ts:263:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions
+[api] 403 POST http://localhost:18380/api/v1/workspaces/01M4WW3STCK9Q25M7B27TKPY15/chat/rooms/01M4WW46N7VZ6P9CME2XS6XK29/read
+
+(node:74736) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:74736) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[301/302] meetings-governance.spec.ts:154:1 › votes: the secretary drafts, opens and closes an item; the result reaches the detail page and the timeline
+[302/302] meetings-governance.spec.ts:253:3 › votes in the meeting room › a member votes through the prompt card and the secret result reaches the room
+  45 skipped
+  257 passed (15.7m)
+E2E_EXIT=0
