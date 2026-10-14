@@ -4657,7 +4657,25 @@
       "headline_resume_many": "Pick one of your workspaces, or create a new one.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
       "create_failed_toast": "Couldn't create that. Please try again.",
-      "picker_label": "Choose a workspace"
+      "picker_label": "Choose a workspace",
+      "random_names": {
+        "mercury": "Mercury",
+        "venus": "Venus",
+        "earth": "Earth",
+        "mars": "Mars",
+        "jupiter": "Jupiter",
+        "saturn": "Saturn",
+        "uranus": "Uranus",
+        "neptune": "Neptune",
+        "luna": "Moon",
+        "polaris": "Polaris",
+        "sirius": "Sirius",
+        "vega": "Vega",
+        "altair": "Altair",
+        "andromeda": "Andromeda",
+        "orion": "Orion",
+        "galaxy": "Galaxy"
+      }
     },
     "step_invite": {
       "headline": "Invite teammates to {{workspace}}.",

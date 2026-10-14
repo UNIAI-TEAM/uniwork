@@ -4656,7 +4656,25 @@
       "headline_resume_many": "Chọn workspace của bạn, hoặc tạo cái mới.",
       "slug_invalid_error": "Định danh không hợp lệ: chữ thường, số và dấu gạch ngang, 2–40 ký tự.",
       "create_failed_toast": "Không tạo được. Vui lòng thử lại.",
-      "picker_label": "Chọn workspace"
+      "picker_label": "Chọn workspace",
+      "random_names": {
+        "mercury": "Sao Thủy",
+        "venus": "Sao Kim",
+        "earth": "Trái Đất",
+        "mars": "Sao Hỏa",
+        "jupiter": "Sao Mộc",
+        "saturn": "Sao Thổ",
+        "uranus": "Thiên Vương",
+        "neptune": "Hải Vương",
+        "luna": "Mặt Trăng",
+        "polaris": "Sao Bắc Cực",
+        "sirius": "Thiên Lang",
+        "vega": "Chức Nữ",
+        "altair": "Ngưu Lang",
+        "andromeda": "Tiên Nữ",
+        "orion": "Lạp Hộ",
+        "galaxy": "Thiên Hà"
+      }
     },
     "step_invite": {
       "headline": "Mời đồng nghiệp vào {{workspace}}.",
