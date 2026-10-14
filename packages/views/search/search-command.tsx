@@ -25,6 +25,7 @@ import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { usePreferenceSavedToast } from "../layout/preference-toast";
+import { formatSearchPath } from "../documents/documents-search-results";
 
 /** How many recent tasks the palette lists; the store keeps more. */
 const RECENT_TASKS_SHOWN = 5;
@@ -136,10 +137,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
           {showDocuments ? (
             <CommandGroup heading={t("search.groups.documents")}>
               {documentsGroup.map((doc) => {
-                const pathText = (doc.path ?? [])
-                  .map((item) => item.title.trim())
-                  .filter(Boolean)
-                  .join(" › ");
+                const { display: pathDisplay, full: pathFull } = formatSearchPath(doc.path);
                 return (
                   <CommandItem
                     key={doc.id}
@@ -154,13 +152,19 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
                   >
                     {doc.kind === "folder" ? <Folder /> : doc.kind === "file" ? <File /> : <FileText />}
                     <span className="truncate">{doc.title || t("documents.detail.untitled")}</span>
-                    {pathText ? (
-                      <span
-                        title={pathText}
-                        className="min-w-0 truncate text-caption text-muted-foreground"
-                      >
-                        {pathText}
-                      </span>
+                    {pathFull ? (
+                      <>
+                        <span
+                          aria-hidden
+                          title={pathFull}
+                          className="min-w-0 shrink truncate text-caption text-muted-foreground"
+                        >
+                          {pathDisplay}
+                        </span>
+                        <span className="sr-only">
+                          {t("documents.search.path", { path: pathFull })}
+                        </span>
+                      </>
                     ) : null}
                     {doc.snippet ? (
                       <span className="min-w-0 flex-1 truncate text-caption text-muted-foreground">

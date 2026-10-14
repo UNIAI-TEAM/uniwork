@@ -288,7 +288,7 @@ describe("SearchCommand documents group", () => {
     expect(documentCalls).toEqual([]);
   });
 
-  it("navigates a folder hit to the folder URL (never the detail page) and shows the hit's path while keeping full-content search", async () => {
+  it("navigates a folder hit to the folder URL (never the detail page) and shows the hit's left-truncated path with full title and sr text while keeping full-content search", async () => {
     const urls: string[] = [];
     requestMock.mockImplementation((path: string) => {
       if (path.includes("/documents?")) {
@@ -300,8 +300,10 @@ describe("SearchCommand documents group", () => {
               kind: "folder",
               title: "Hợp đồng mua sắm",
               path: [
-                { id: "p-root", title: "Pháp chế" },
-                { id: "p-sub", title: "2026" },
+                { id: "p-1", title: "Khối Vận hành" },
+                { id: "p-2", title: "Phòng Pháp chế" },
+                { id: "p-3", title: "Ban Hợp đồng" },
+                { id: "p-4", title: "2026" },
               ],
             }),
           ],
@@ -319,7 +321,10 @@ describe("SearchCommand documents group", () => {
 
     const group = await screen.findByRole("group", { name: DOCUMENTS_GROUP });
     expect(await within(group).findByText("Hợp đồng mua sắm")).toBeInTheDocument();
-    expect(within(group).getByText(/Pháp chế › 2026/)).toBeInTheDocument();
+    const fullPath = "Khối Vận hành › Phòng Pháp chế › Ban Hợp đồng › 2026";
+    const pathEl = within(group).getByTitle(fullPath);
+    expect(pathEl.textContent).toBe("… › Ban Hợp đồng › 2026");
+    expect(within(group).getByText(`Đường dẫn: ${fullPath}`)).toBeInTheDocument();
 
     // ⌘K keeps full-content search (FD-D7: no match=title parameter).
     expect(urls).toHaveLength(1);
