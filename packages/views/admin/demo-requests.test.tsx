@@ -12,7 +12,7 @@ it("support can read requests without write controls", async () => {
   requestMock.mockImplementation(async (path: string) => path.endsWith("/me") ? { platform_role: "support" } : { requests: [request], total: 1 });
   render(wrapWithNav(<AdminDemoRequestsView />, nav));
   expect(await screen.findByText("lan@example.com")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Cập nhật", exact: true })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Cập nhật" })).not.toBeInTheDocument();
 });
 it("an admin update requires a reason and awaits the receipt", async () => {
   const user = userEvent.setup();
@@ -22,13 +22,13 @@ it("an admin update requires a reason and awaits the receipt", async () => {
     return { requests: [request], total: 1 };
   });
   render(wrapWithNav(<AdminDemoRequestsView />, nav));
-  await user.click(await screen.findByRole("button", { name: "Cập nhật", exact: true }));
+  await user.click(await screen.findByRole("button", { name: "Cập nhật" }));
   await user.click(screen.getByLabelText("Trạng thái"));
   await user.click(await screen.findByRole("option", { name: "Đang xử lý" }));
-  expect(screen.getByRole("button", { name: "Xác nhận", exact: true })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Xác nhận" })).toBeDisabled();
   fireEvent.change(screen.getByLabelText("Lý do"), { target: { value: "Đã liên hệ để đặt lịch demo" } });
-  await waitFor(() => expect(screen.getByRole("button", { name: "Xác nhận", exact: true })).not.toBeDisabled());
-  await user.click(screen.getByRole("button", { name: "Xác nhận", exact: true }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Xác nhận" })).not.toBeDisabled());
+  await user.click(screen.getByRole("button", { name: "Xác nhận" }));
   await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/admin/demo-requests/d1", expect.objectContaining({ method: "PATCH", body: { status: "in_progress", reason: "Đã liên hệ để đặt lịch demo" } })));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 });
