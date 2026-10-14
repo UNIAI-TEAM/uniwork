@@ -17,8 +17,8 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 }
 
 func TestObjectKeyShape(t *testing.T) {
-	got := ObjectKey("acc", "thr")
-	if got != "email-hub/accounts/acc/threads/thr/body.v1.json.gz" {
+	got := ObjectKey("org", "acc", "thr")
+	if got != "v1/orgs/org/email-hub/accounts/acc/threads/thr/body.v1.json.gz" {
 		t.Fatalf("unexpected key: %s", got)
 	}
 }
