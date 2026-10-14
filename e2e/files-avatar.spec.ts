@@ -103,7 +103,7 @@ test("@files-smoke avatar: đổi ảnh, thấy ở header", async ({ page }) =>
   await expectDecoded(page, w.email);
 });
 
-test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page }) => {
+test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page, request }) => {
   const w = workspaceFor("replace");
   await onboardToWorkspace(page, w);
   const auth = await captureAuth(page);
@@ -127,7 +127,9 @@ test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page })
   // belongs to one active organization at a time (ADR 0032), so another
   // person founds the second organization and invites this account, which
   // switches to it by closing the organization it founded alone.
-  const host = await createRecordingAccount(page, auth.api, "avatar-host");
+  // The `request` fixture keeps the host's refresh cookie out of the page's
+  // jar; registering through page.request would sign the page in as the host.
+  const host = await createRecordingAccount({ request }, auth.api, "avatar-host");
   const invited = await page.request.post(`${auth.api}/api/v1/workspaces/${host.wsId}/invitations`, {
     headers: { authorization: `Bearer ${host.token}` },
     data: { emails: [w.email], role: "member" },
@@ -174,7 +176,7 @@ test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page })
 
   // Someone in an unrelated organization who learns the file id cannot
   // resolve it through the files API: it is not a file they staged.
-  const outsider = await createRecordingAccount(page, auth.api, "avatar-outsider");
+  const outsider = await createRecordingAccount({ request }, auth.api, "avatar-outsider");
   const resolved = await page.request.post(`${auth.api}/api/v1/workspaces/${outsider.wsId}/files/resolve`, {
     headers: { authorization: `Bearer ${outsider.token}` },
     data: { file_ids: [avatarFileID(secondSrc)] },
