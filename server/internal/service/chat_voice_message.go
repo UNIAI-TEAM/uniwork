@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -37,6 +38,9 @@ type VoiceMessageInfo struct {
 	ObjectKey   string
 	ContentType string
 	SizeBytes   int64
+	// Read URL signed for the viewer (signChatMedia); empty when unsigned.
+	URL          string
+	URLExpiresAt time.Time
 }
 
 type PrepareVoiceMessageInput struct {

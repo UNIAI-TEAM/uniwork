@@ -80,6 +80,7 @@ func (s *ChatService) SearchRoomMessages(
 	for _, row := range rows {
 		out = append(out, chatMessageRowFromSearchRow(row, userID))
 	}
+	s.signChatMedia(ctx, room, out)
 	return out, nil
 }
 
@@ -145,6 +146,7 @@ func (s *ChatService) ListRoomMessagesAround(
 			}
 		}
 	}
+	s.signChatMedia(ctx, room, out)
 	return out, nil
 }
 
