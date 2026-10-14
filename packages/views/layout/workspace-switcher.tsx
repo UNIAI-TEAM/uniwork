@@ -26,7 +26,7 @@ import { WorkspaceIcon } from "./workspace-icon";
  * Switching is an in-app push, not a reload — the layout resolves the new
  * pair and the realtime provider reconnects on its own.
  *
- * The initial tile is not decoration: in the collapsed icon rail it is the
+ * The workspace icon is not decoration: in the collapsed icon rail it is the
  * only thing left of this control, and a rail whose top slot is blank reads
  * as a broken header rather than a nav.
  */
@@ -79,7 +79,7 @@ export function WorkspaceSwitcher({
         {/* aria-hidden, which also keeps it visible in the icon rail: the
             menu-button primitive makes every other direct span child
             sr-only there, and the rail was once left with no workspace mark
-            at all. Its meaning (initial, unread dot) is in the aria-label. */}
+            at all. Its meaning (workspace icon, unread dot) is in the aria-label. */}
         <span aria-hidden className="relative shrink-0">
           <WorkspaceIcon
             workspace={current}
@@ -101,7 +101,7 @@ export function WorkspaceSwitcher({
         </span>
         <ChevronDown aria-hidden className="ml-auto size-3! text-muted-foreground group-data-[collapsible=icon]:hidden" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-60">
+      <DropdownMenuContent align="start" className="max-w-80 min-w-60">
         {[...groups.entries()].map(([orgId, g]) => (
           <DropdownMenuGroup key={orgId}>
             <DropdownMenuLabel>{g.name}</DropdownMenuLabel>
@@ -109,14 +109,13 @@ export function WorkspaceSwitcher({
               <DropdownMenuItem
                 key={w.id}
                 onClick={() => go(paths.workspace(w.organization_slug, w.slug).tasks())}
-                className={cn(w.id === current.id && "font-medium")}
               >
                 <WorkspaceIcon
                   workspace={w}
                   className="size-5 rounded-sm bg-muted text-caption font-semibold text-muted-foreground"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate">{w.name}</span>
+                  <span className={cn("block truncate", w.id === current.id && "font-medium")}>{w.name}</span>
                   {w.description ? (
                     <span className="block truncate text-caption text-muted-foreground">{w.description}</span>
                   ) : null}

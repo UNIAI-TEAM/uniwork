@@ -27,7 +27,8 @@ export function WorkspaceIcon({
       ) : workspace.icon_emoji ? (
         <span className="leading-none">{workspace.icon_emoji}</span>
       ) : (
-        workspace.name.trim().slice(0, 1).toUpperCase()
+        // Array.from keeps a surrogate pair (an emoji first letter) whole.
+        (Array.from(workspace.name.trim())[0] ?? "").toUpperCase()
       )}
     </span>
   );

@@ -13,6 +13,8 @@ describe("WorkspaceIcon", () => {
     expect(container).toHaveTextContent("🚀");
     rerender(<WorkspaceIcon workspace={{ name: " alpha" }} />);
     expect(container).toHaveTextContent("A");
+    rerender(<WorkspaceIcon workspace={{ name: "🚀 Rocket" }} />);
+    expect(container).toHaveTextContent("🚀");
   });
 
   it("falls back to the emoji or the initial when the image does not load", () => {
