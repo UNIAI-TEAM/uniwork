@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+668f8a28a545b5fcaa080ee9958d1db53fd33193
+0f3f42bc22df209fb3b2fa1566da1000f960bf94
+668f8a28 Merge fork G5-03a + G8-12 + G8-13 (880e7f76) into G6-05m
+880e7f76 fix(shell): move the comments anchor base and level with a guarded clean reload
+e6fbf14f test(shell): pin the comments anchor base and level after a guarded clean reload
