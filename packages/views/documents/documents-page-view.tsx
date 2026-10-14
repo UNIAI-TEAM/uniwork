@@ -34,6 +34,9 @@ import { documentErrorMessage } from "./document-error-message";
 import { useDropUpload } from "./use-drop-upload";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
+import { DocumentsSearchBox } from "./documents-search-box";
+import { DocumentsSearchResults } from "./documents-search-results";
+import { useDocumentsSearch } from "./use-documents-search";
 
 function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
   if (searchParams.get("folder")) return { kind: "home" };
@@ -119,6 +122,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   );
 
   const library = useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip });
+  const search = useDocumentsSearch(wsId, enabled);
   const folder = useDocument(wsId, folderId ?? "", {
     enabled: enabled && !!folderId,
     retry: shouldRetryFolderDetail,
@@ -291,12 +295,23 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
         tone={moduleTone("documents")}
         title={t("documents.page.title")}
         count={enabled && view.kind === "home" && !folderId && !listLoading && !state.hasMore ? listedCount : undefined}
+        className={
+          enabled
+            ? "h-auto min-h-12 flex-wrap py-2 sm:h-12 sm:flex-nowrap sm:py-0 [&>div:last-child]:contents sm:[&>div:last-child]:flex"
+            : undefined
+        }
         actions={
           enabled ? (
-            <div className="flex items-center gap-2">
-              {officeHome ? <OfficeHomeLaunch {...officeHome} /> : null}
-              {canCreate ? <CreateMenu {...createProps} /> : null}
-            </div>
+            <>
+              <DocumentsSearchBox
+                search={search}
+                className="order-last basis-full sm:order-first sm:basis-auto sm:w-48 md:w-64"
+              />
+              <div className="flex shrink-0 items-center gap-2">
+                {officeHome ? <OfficeHomeLaunch {...officeHome} /> : null}
+                {canCreate ? <CreateMenu {...createProps} /> : null}
+              </div>
+            </>
           ) : null
         }
       />
@@ -313,7 +328,18 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
             aria-label={t("documents.page.title")}
             {...drop.zoneProps}
           >
-            {folderInvalid ? (
+            {search.active ? (
+              <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
+                <DocumentsSearchResults
+                  search={search}
+                  onSelectFolder={(id) => {
+                    search.clear();
+                    goHome({ kind: "home" }, id);
+                  }}
+                  onSelectDocument={onOpen}
+                />
+              </div>
+            ) : folderInvalid ? (
               <CollectionPageState
                 icon={CircleAlert}
                 tone="destructive"

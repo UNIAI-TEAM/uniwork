@@ -8946,7 +8946,7 @@
         "path_root": "Documents (gốc)",
         "loading": "Đang tìm…",
         "empty_title": "Không tìm thấy kết quả",
-        "empty_description": "Thử tên khác hoặc đổi bộ lọc. Nhấn Esc để quay lại thư mục.",
+        "empty_description": "Thử tên khác hoặc đổi bộ lọc. Xóa ô tìm để quay lại thư mục.",
         "error_title": "Không tìm được",
         "error_description": "Kiểm tra kết nối rồi thử lại."
       }
