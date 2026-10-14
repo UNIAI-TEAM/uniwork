@@ -21,6 +21,7 @@ import type { DocumentSummaryRow } from "./library-rows";
 import { canArchiveRow, canMoveRow, rowLevel } from "./row-level";
 import { favoriteRow, knownDocuments } from "./starred-rows";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
+import { shouldRetryFolderDetail } from "./use-tree-reveal";
 
 export const TREE_ROW_KEYSHORTCUTS =
   "Control+ArrowUp Control+ArrowDown Control+ArrowLeft Control+ArrowRight Meta+ArrowUp Meta+ArrowDown Meta+ArrowLeft Meta+ArrowRight Shift+F10 ContextMenu";
@@ -95,6 +96,7 @@ export function DocumentTreeRowMenu({
 
   const detail = useDocument(wsId, node.id, {
     enabled: isOpen && myLevel === undefined && Boolean(wsId) && Boolean(node.id),
+    retry: shouldRetryFolderDetail,
   });
 
   const knownLevel = knownDocuments(
@@ -103,7 +105,7 @@ export function DocumentTreeRowMenu({
 
   const nodeLevelField = (node as { my_level?: string | null }).my_level;
   const resolvedLevel =
-    myLevel ?? nodeLevelField ?? (detail.isError ? null : (detail.data?.my_level ?? knownLevel));
+    myLevel ?? nodeLevelField ?? (detail.isError ? undefined : detail.data?.my_level) ?? knownLevel;
   const level = rowLevel({ my_level: resolvedLevel });
   const canEdit = canMoveRow(level);
   const canDelete = canArchiveRow(level);
