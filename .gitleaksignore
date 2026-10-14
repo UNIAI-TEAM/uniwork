@@ -26,3 +26,7 @@ fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/service/ai_credentials_
 # Neither is a credential. The introducing commit stays in history.
 249f15303fa7080a4fa3d0cc489d88baee2584e2:server/internal/handler/ai_uniwork_test.go:generic-api-key:28
 249f15303fa7080a4fa3d0cc489d88baee2584e2:server/internal/handler/ai_uniwork_test.go:generic-api-key:279
+# PR #279 squash 850c91de8: ai_uniwork_test.go:287 passes the fixed test ULID
+# "01J8X4WS0N1P2Q3R4S5T6U7V8" as an unknown conversation id; generic-api-key
+# matches it only on entropy next to the word "conversation". Not a credential.
+850c91de8bfa831de1dc9a0848d4d6003131d161:server/internal/handler/ai_uniwork_test.go:generic-api-key:287
