@@ -35,6 +35,7 @@ func registerAdmin(r api, h Routes, limit, support, admin func(http.Handler) htt
 		a.Use(limit)
 		a.Use(support)
 		a.Get("/me", h.AdminMe, apiOp{summary: "Admin: my platform role", description: "Vai trò platform của người gọi; 404 khi không có.", tags: tags, sdo: sdo.AdminMeSDO{}, auth: true})
+		a.Get("/demo-requests", h.AdminListDemoRequests, apiOp{summary: "Admin: demo requests", description: "Danh sách yêu cầu demo, lọc theo status, limit và offset.", tags: tags, sdo: sdo.DemoRequestListSDO{}, auth: true})
 		a.Get("/organizations", h.AdminListOrganizations, apiOp{summary: "Admin: list organizations", description: "Danh sách tổ chức kèm gói, số thành viên/workspace, hoạt động gần nhất. Query: q, status, limit (mặc định 50, tối đa 200), offset, sort (created_desc | activity_desc | activity_asc). Trả kèm total của cả tập lọc.", tags: tags, sdo: sdo.AdminOrganizationListSDO{}, auth: true})
 		a.Get("/organizations/{orgID}", h.AdminGetOrganization, apiOp{summary: "Admin: organization detail", description: "Chi tiết, quota (entitlement snapshot) và 20 thao tác admin gần nhất.", tags: tags, sdo: sdo.AdminOrganizationDetailSDO{}, auth: true})
 		a.Get("/trace/{traceID}", h.AdminTrace, apiOp{summary: "Admin: trace lookup", description: "Audit, outbox và admin_actions mang cùng trace id (tối đa 500 dòng mỗi bảng).", tags: tags, sdo: sdo.AdminTraceSDO{}, auth: true})
@@ -47,6 +48,7 @@ func registerAdmin(r api, h Routes, limit, support, admin func(http.Handler) htt
 		a.Get("/flags/{key}/overrides", h.AdminListFlagOverrides, apiOp{summary: "Admin: list overrides", description: "Override của một flag theo scope.", tags: tags, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})
 		a.Group(func(w api) {
 			w.Use(admin)
+			w.Patch("/demo-requests/{demoRequestID}", h.AdminUpdateDemoRequest, apiOp{summary: "Admin: process demo request", description: "Cập nhật trạng thái, ghi lý do vào admin_actions và audit_events trong cùng transaction.", tags: tags, sdi: sdi.UpdateDemoRequestSDI{}, sdo: sdo.DemoRequestSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/suspend", h.AdminSuspendOrganization, apiOp{summary: "Admin: suspend organization", description: "status → suspended; mọi request của thành viên trả 403 organization_suspended. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/unsuspend", h.AdminUnsuspendOrganization, apiOp{summary: "Admin: unsuspend organization", description: "status → active. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/plan", h.AdminChangePlan, apiOp{summary: "Admin: change plan", description: "Đổi gói thủ công (pilot, đối tác), ghi admin_actions với before/after.", tags: tags, sdi: sdi.AdminChangePlanSDI{}, sdo: sdo.SubscriptionSDO{}, auth: true})

@@ -206,15 +206,17 @@ const (
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
-	ActionOrganizationSuspended   = "organization.suspended"
-	ActionOrganizationUnsuspended = "organization.unsuspended"
-	ActionPlatformRoleGranted     = "platform_role.granted"
-	ActionPlatformRoleRevoked     = "platform_role.revoked"
-	ActionFlagOverrideSet         = "flag.override_set"
-	ActionFlagOverrideDeleted     = "flag.override_deleted"
-	ActionPlanCreated             = "plan.created"
-	ActionPlanUpdated             = "plan.updated"
-	ActionPlanFeatureUpdated      = "plan.feature_updated"
+	ActionOrganizationSuspended    = "organization.suspended"
+	ActionOrganizationUnsuspended  = "organization.unsuspended"
+	ActionPlatformRoleGranted      = "platform_role.granted"
+	ActionPlatformRoleRevoked      = "platform_role.revoked"
+	ActionFlagOverrideSet          = "flag.override_set"
+	ActionFlagOverrideDeleted      = "flag.override_deleted"
+	ActionPlanCreated              = "plan.created"
+	ActionDemoRequestCreated       = "demo_request.created"
+	ActionDemoRequestStatusUpdated = "demo_request.status_updated"
+	ActionPlanUpdated              = "plan.updated"
+	ActionPlanFeatureUpdated       = "plan.feature_updated"
 
 	// An operator closed a desktop device session family on the owner's behalf.
 	ActionDesktopDeviceRevoked = "desktop_device.revoked"

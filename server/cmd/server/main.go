@@ -608,6 +608,7 @@ func main() {
 		WebVitals:           webVitals(reg),
 		Readiness:           readiness,
 		Admin:               adminSvc,
+		DemoRequests:        service.NewDemoRequestService(pool, q),
 		Version:             version,
 		Commit:              commit,
 	})

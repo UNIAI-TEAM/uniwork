@@ -286,6 +286,7 @@ const maxPreTenantMigrationPrefix = 65
 // Identity and infrastructure tables that are not tenant data. Add a name
 // here only with the reason beside it.
 var tenantExemptTables = map[string]string{
+	"demo_requests":             "public pre-account contact intake; the prospective team has no organization and only platform staff may read it",
 	"users":                     "identity, above every organization",
 	"refresh_tokens":            "session credential, keyed by user",
 	"desktop_auth_attempts":     "pending account authorization, before organization selection",
