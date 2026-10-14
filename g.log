@@ -1,0 +1,82 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18380 FRONTEND_ORIGIN=http://localhost:13300 API_PUBLIC_URL=http://localhost:18380 PREVIEW_ORIGIN=http://localhost:13301 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18380 NEXT_PUBLIC_WS_URL=ws://localhost:18380 NEXT_PUBLIC_APP_URL=http://localhost:13300 E2E_BASE_URL=http://localhost:13300 E2E_API_URL=http://localhost:18380; pnpm --filter @uniwork/e2e test --reporter=line 2>&1 | tail -80; rc=${PIPESTATUS[0]}; echo "E2E_EXIT=$rc"; exit $rc
+    Error Context: test-results/smoke-register-→-workspace-→-task-→-meeting/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/smoke-register-→-workspace-→-task-→-meeting/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/smoke-register-→-workspace-→-task-→-meeting/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+(node:21872) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:21872) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[281/302] smoke.spec.ts:67:1 › đường dẫn không tồn tại hiện trang không tìm thấy, không phải màn hình trắng
+[282/302] task-detail-parity-smoke.spec.ts:55:1 › task detail: suite comment + attachment always on
+[283/302] tasks-collection-parity-smoke.spec.ts:34:1 › tasks collection: suite mode controls always on
+[284/302] tasks-table.spec.ts:187:1 › board → table stays responsive and navigation still works
+[285/302] tasks-table.spec.ts:204:1 › title sort holds across Tải thêm pages
+[286/302] tasks-table.spec.ts:216:1 › search finds a task outside the first page
+[287/302] tasks-table.spec.ts:236:1 › a child on the third page nests under its parent
+[288/302] tasks-table.spec.ts:265:1 › groups by project, then by priority
+[289/302] tasks-table.spec.ts:281:1 › a select property edits in place and survives reload
+[290/302] tasks-table.spec.ts:309:1 › keyboard column reorder persists across reload
+[291/302] text-size.spec.ts:16:1 › the largest text size scales the app, survives a reload and keeps screens in bounds
+[292/302] verify.spec.ts:10:1 › mã sai → lỗi; gửi lại đang khoá; mã đúng → onboarding; cổng chặn khi chưa xác thực
+[293/302] verify.spec.ts:39:1 › nút Google chỉ hiện khi server báo có Google
+[294/302] verify.spec.ts:47:1 › tương phản chữ đạt WCAG AA — /verify light và dark
+(node:22040) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:22040) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[295/302] files-chat.spec.ts:127:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke
+files-chat.spec.ts:127:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke
+[api] 401 POST http://localhost:18380/api/v1/auth/refresh
+
+[api] 401 POST http://localhost:18380/api/v1/auth/refresh
+
+[296/302] files-chat.spec.ts:152:3 › chat file and voice messages › a voice message plays for the second member with its duration
+[297/302] files-chat.spec.ts:177:3 › chat file and voice messages › a resend with the same client_msg_id does not duplicate the message
+[298/302] files-chat.spec.ts:213:3 › chat file and voice messages › a member of another organization cannot reach the workspace or its files
+[299/302] files-chat.spec.ts:241:3 › chat file and voice messages › an unsupported file type is refused before it is sent
+[300/302] files-chat.spec.ts:263:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions
+files-chat.spec.ts:263:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions
+[api] 403 POST http://localhost:18380/api/v1/workspaces/01M4WPVJ82ECCQMYFD1NCH8JRT/chat/rooms/01M4WPVZD6C75JARGQSQFNKNCW/read
+
+(node:22158) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:22158) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[301/302] meetings-governance.spec.ts:154:1 › votes: the secretary drafts, opens and closes an item; the result reaches the detail page and the timeline
+[302/302] meetings-governance.spec.ts:253:3 › votes in the meeting room › a member votes through the prompt card and the secret result reaches the room
+  9 failed
+    files-avatar.spec.ts:106:1 › thay avatar lần hai, hiện ở tổ chức thứ hai ───────────────────────
+    landing-distill.spec.ts:7:5 › compact landing keeps content and actions at 390px: en ───────────
+    landing-distill.spec.ts:7:5 › compact landing keeps content and actions at 390px: vi ───────────
+    landing-motion.spec.ts:170:1 › GPU unavailable leaves the product showcase and demo intact ─────
+    landing-playback.spec.ts:116:1 › original UNI wears the shared mark and retains its static fallback 
+    landing-realism.spec.ts:10:3 › pending and source destination stay readable at 1440px ──────────
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 en dark ───────────────
+    onboarding-smoke.spec.ts:9:1 › register → onboarding 4 bước → 🎉 → task hướng dẫn ──────────────
+    smoke.spec.ts:9:1 › register → workspace → task → meeting ──────────────────────────────────────
+  45 skipped
+  248 passed (18.1m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=line`
+Exit status 1
+E2E_EXIT=1
