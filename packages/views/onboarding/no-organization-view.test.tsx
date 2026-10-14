@@ -68,7 +68,8 @@ describe("NoOrganizationView", () => {
     );
     renderView();
     const join = screen.getByRole("region", { name: "Tham gia tổ chức" });
-    const first = await within(join).findByRole("link", { name: /Acme › Team/ });
+    // Named in words: a screen reader hears "Team trong Acme", not the "›" glyph.
+    const first = await within(join).findByRole("link", { name: "Xem lời mời vào Team trong Acme" });
     expect(first).toHaveAttribute("href", "/invite/tok-ws");
     expect(first.closest("li")).toHaveTextContent("Nguyễn Văn An mời bạn vào");
     const second = within(join).getByRole("link", { name: /Beta/ });
@@ -172,6 +173,6 @@ describe("NoOrganizationView", () => {
     expect(screen.queryByText(/Chưa có lời mời nào/)).not.toBeInTheDocument();
     requestMock.mockResolvedValue({ invitations: [workspaceInvite] });
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
-    await waitFor(() => expect(screen.getByRole("link", { name: /Acme › Team/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("link", { name: /Team trong Acme/ })).toBeInTheDocument());
   });
 });

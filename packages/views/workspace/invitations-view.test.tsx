@@ -62,6 +62,13 @@ describe("InvitationsView", () => {
     await waitFor(() => expect(onEmpty).toHaveBeenCalled());
   });
 
+  it("says who was invited, not an empty name, when the inviter has none", async () => {
+    answer([{ ...base, id: "i1", token: "t1", org_role: "member", invited_by: { display_name: "  " } }]);
+    render(wrapWithNav(<InvitationsView onEmpty={() => {}} onSkip={() => {}} />));
+    const item = within(await screen.findByRole("list", { name: "Lời mời đang chờ bạn" })).getByRole("listitem");
+    expect(item.textContent?.startsWith("Bạn được mời vào")).toBe(true);
+  });
+
   it("names the organization role and the expiry date on each row", async () => {
     answer([{ ...base, id: "i1", token: "t1", org_role: "admin", expires_at: "2099-03-05T00:00:00Z" }]);
     render(wrapWithNav(<InvitationsView onEmpty={() => {}} onSkip={() => {}} />));
