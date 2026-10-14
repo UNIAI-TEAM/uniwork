@@ -262,8 +262,21 @@ export const DocumentSummarySchema = z.object({
   updated_at: z.string().optional().default(""),
   // Folders contract v1.0 (FD-05/FD-06): the ancestors a search row sits
   // under, root first, cut at the first one the caller cannot read. Optional
-  // on the wire; missing or drifted reads as [] (a row at the root).
-  path: z.array(DocumentPathItemSchema).nullable().optional().catch([]).transform((p) => p ?? []),
+  // on the wire; missing or not an array reads as [] (a row at the root), and
+  // a malformed ancestor cuts the path there, as the server does.
+  path: z
+    .unknown()
+    .optional()
+    .transform((raw) => {
+      if (!Array.isArray(raw)) return [];
+      const prefix: z.infer<typeof DocumentPathItemSchema>[] = [];
+      for (const item of raw) {
+        const parsed = DocumentPathItemSchema.safeParse(item);
+        if (!parsed.success) break;
+        prefix.push(parsed.data);
+      }
+      return prefix;
+    }),
 });
 /** Uploaded bytes, or something UniWork made (page, folder, blank file, converted copy). */
 export type DocumentOrigin = "upload" | "created";
