@@ -1,6 +1,6 @@
 # Connector MCP v2 (đọc + ghi) Implementation Plan
 
-> **Trạng thái:** in-progress — plan chờ duyệt (UNI-1567); chưa phase nào bắt đầu.
+> **Trạng thái:** in-progress — Phase 0 (UNI-1587) đã làm xong trên nhánh, chờ PR; Phase 1–4 chưa bắt đầu.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

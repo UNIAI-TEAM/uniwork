@@ -12,4 +12,4 @@ Khi một ứng dụng AI ghi sai hàng loạt: ở `/admin/flags`, đặt overr
 (toàn cục, hoặc tổ chức bị ảnh hưởng, lý do ≥ 10 ký tự). Tool ghi biến mất ngay ở lần `tools/list`
 kế tiếp và mọi lời gọi tool ghi trả `write_disabled`; phần đọc chạy tiếp, không thu hồi token.
 Admin tổ chức cũng tự tắt được ở Cài đặt › Truy cập AI › "Cho phép tạo và sửa".
-Lần ra lệnh nào do ứng dụng nào: `audit_events.metadata->'via'->>'grant_id'`.
+Lần ra lệnh nào do ứng dụng nào: `audit_events.metadata::jsonb->'via'->>'grant_id'` (cột `metadata` là `TEXT`, nên cần ép `::jsonb`).
