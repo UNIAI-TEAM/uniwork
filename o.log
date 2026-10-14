@@ -1,0 +1,56 @@
+$ npm run lint
+
+> genoffice@0.1.0 lint
+> eslint .
+
+
+/home/ubuntu/work/uniwork-office/apps/docs/src/renderer/App.tsx
+  5160:6  warning  React Hook useEffect has missing dependencies: 'colMode', 'hasVertical', and 'watermarkDirty'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/docs/src/renderer/editor/page-gap-nav.ts
+  287:11  warning  Unused eslint-disable directive (no problems were reported from 'no-console')
+
+/home/ubuntu/work/uniwork-office/apps/html/src/renderer/preview/PreviewFrame.tsx
+  68:42  warning  React Hook useMemo has unnecessary dependencies: 'nonce' and 'url'. Either exclude them or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/pdf/src/renderer/App.tsx
+  2277:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+  2311:6  warning  React Hook useEffect has a missing dependency: 'resolveDocFont'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  3652:6  warning  React Hook useEffect has a missing dependency: 't'. Either include it or remove the dependency array               react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/pdf/src/renderer/ai/AiPanel.tsx
+  338:5  warning  React Hook useEffect has a missing dependency: 'clarify'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/sheets/src/renderer/App.tsx
+  3468:77  warning  The ref value 'visualInstallTimerRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'visualInstallTimerRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+  3469:43  warning  The ref value 'visualDisposablesRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'visualDisposablesRef.current' to a variable inside the effect, and use that variable in the cleanup function    react-hooks/exhaustive-deps
+  3480:6   warning  React Hook useEffect has missing dependencies: 'handleInspectWorkbook', 'installPageBreakLayers', 'queueChartDataSync', 'recomputeSheetContent', 'visualContext', and 'visualSyncContext'. Either include them or remove the dependency array                                              react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/sheets/src/renderer/ExcelShell.tsx
+  608:6  warning  React Hook useEffect has missing dependencies: 'aiPreset.autoRun', 'aiPreset.text', 'onPromptChange', and 'onSend'. Either include them or remove the dependency array. If 'onPromptChange' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+  658:5  warning  React Hook useMemo has a missing dependency: 'onListFunctions'. Either include it or remove the dependency array. If 'onListFunctions' changes too often, find the parent component that defines it and wrap that definition in useCallback                                                       react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/sheets/src/renderer/InsertFunctionDialog.tsx
+  331:5  warning  React Hook useMemo has a missing dependency: 't'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/shell/src/renderer/src/AgentIntentBanner.tsx
+  37:6  warning  React Hook useEffect has a missing dependency: 'runApply'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/shell/src/renderer/src/NewChatPane.tsx
+   512:5  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+   513:5  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+  1776:6  warning  React Hook useEffect has a missing dependency: 'submit'. Either include it or remove the dependency array                                 react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/shell/src/renderer/src/PracticeHome.tsx
+  195:6  warning  React Hook useEffect has missing dependencies: 'practice.facets', 'practice.materialRoles', and 'practice.titleFacetId'. Either include them or remove the dependency array. If 'setAddRole' needs the current value of 'practice.materialRoles', you can also switch to useReducer instead of useState and read 'practice.materialRoles' in the reducer  react-hooks/exhaustive-deps
+  289:6  warning  React Hook useEffect has a missing dependency: 'meta'. Either include it or remove the dependency array                                                                                                                                                                                                                                                   react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/slides/src/renderer/App.tsx
+  934:5  warning  React Hook useCallback has an unnecessary dependency: 'fitZoom'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/slides/src/renderer/TextEditOverlay.tsx
+  768:6  warning  React Hook useEffect has missing dependencies: 'anchor', 'box.h', 'box.w', 'insets.b', 'insets.l', 'insets.r', 'insets.t', and 'vertText'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 21 problems (0 errors, 21 warnings)
+  0 errors and 2 warnings potentially fixable with the `--fix` option.
+
