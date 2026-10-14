@@ -1,6 +1,5 @@
 import {
   expect,
-  test,
   type APIResponse,
   type Locator,
   type Page,
@@ -81,6 +80,8 @@ interface FolderWorkspaceSetup {
   wsSlug: string;
   owner: FolderTestUser;
   member?: FolderTestUser;
+  /** Additional workspace members (own tokens, own rate-limit buckets) for parallel seeding. */
+  extraMembers: FolderTestUser[];
 }
 
 interface DocumentBreadcrumbDTO {
@@ -250,14 +251,36 @@ async function fetchUserId(page: Page, token: string): Promise<string> {
   return body.user.id;
 }
 
+async function addWorkspaceMember(
+  page: Page,
+  owner: { token: string; wsId: string },
+  tag: string,
+): Promise<FolderTestUser> {
+  const peer = await registerApiUser(page, e2eApiUrl, tag);
+  await joinWorkspaceAsMember(page, e2eApiUrl, owner.token, owner.wsId, peer);
+  const done = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/me/onboarding/complete`, {
+      headers: authHeaders(peer.token),
+    }),
+  );
+  const doneText = await done.text();
+  expect(
+    done.ok(),
+    `complete onboarding ${tag}: ${done.status()} ${doneText}`,
+  ).toBeTruthy();
+  const id = await fetchUserId(page, peer.token);
+  return { id, email: peer.email, token: peer.token };
+}
+
 /**
  * Registers user A (workspace owner) and optionally invites/accepts user B
- * (workspace member) in the same workspace via the HTTP API.
+ * (workspace member) in the same workspace via the HTTP API. `extraMembers`
+ * adds more members (each with its own token, so its own rate-limit bucket).
  */
 export async function seedFolderWorkspace(
   page: Page,
   tag: string,
-  options?: { withMemberB?: boolean },
+  options?: { withMemberB?: boolean; extraMembers?: number },
 ): Promise<FolderWorkspaceSetup> {
   const accountA = await createRecordingAccount(page, e2eApiUrl, `${tag}-a`);
   const ownerId = await fetchUserId(page, accountA.token);
@@ -267,29 +290,16 @@ export async function seedFolderWorkspace(
     wsId: accountA.wsId,
     wsSlug: accountA.wsSlug,
     owner: { id: ownerId, email: accountA.email, token: accountA.token },
+    extraMembers: [],
   };
+  const ownerAuth = { token: accountA.token, wsId: accountA.wsId };
   if (options?.withMemberB) {
-    const peerB = await registerApiUser(page, e2eApiUrl, `${tag}-b`);
-    await joinWorkspaceAsMember(
-      page,
-      e2eApiUrl,
-      accountA.token,
-      accountA.wsId,
-      peerB,
-      "member",
+    setup.member = await addWorkspaceMember(page, ownerAuth, `${tag}-b`);
+  }
+  for (let i = 0; i < (options?.extraMembers ?? 0); i += 1) {
+    setup.extraMembers.push(
+      await addWorkspaceMember(page, ownerAuth, `${tag}-s${i + 1}`),
     );
-    const done = await requestWithRetry429(() =>
-      page.request.post(`${e2eApiUrl}/api/v1/me/onboarding/complete`, {
-        headers: authHeaders(peerB.token),
-      }),
-    );
-    const doneText = await done.text();
-    expect(
-      done.ok(),
-      `complete onboarding B: ${done.status()} ${doneText}`,
-    ).toBeTruthy();
-    const memberId = await fetchUserId(page, peerB.token);
-    setup.member = { id: memberId, email: peerB.email, token: peerB.token };
   }
   return setup;
 }
@@ -299,15 +309,6 @@ export async function loginFolderUser(
   email: string,
 ): Promise<void> {
   await loginViaUi(page, email);
-}
-
-export function skipWithoutFd09(
-  reason = "skip: needs FD-09 (UNI-1469)",
-): void {
-  if (!process.env.E2E_FD09) {
-    console.log(reason);
-    test.skip(true, reason);
-  }
 }
 
 export async function apiCreateDocument(
@@ -457,78 +458,68 @@ export async function createFolderChain(
 }
 
 /**
- * Seeds `count` child pages under `rootFolderId` while staying strictly under
- * the server's 300 req/min global rate limit (`server/internal/handler/router/router.go:90`):
- * caps at max 240 requests per rolling minute across the test (batches of 40 with a wait).
+ * Seeds `count` child pages under `rootFolderId` in parallel with one token per
+ * lane. The global limiter keys by bearer token (300/min per token,
+ * `server/internal/handler/router/router.go:90`), so spreading the work over
+ * several workspace members keeps every token far below its budget; a 429 is
+ * still retried after its Retry-After. Returns the elapsed milliseconds.
  */
-export async function seedFolderSubtreeBatch(
+export async function seedFolderSubtreeParallel(
   page: Page,
-  token: string,
+  tokens: string[],
   wsId: string,
   rootFolderId: string,
   count: number,
   prefix: string,
-  batchSize = 40,
+  concurrencyPerToken = 4,
+): Promise<number> {
+  expect(tokens.length, "at least one token to seed with").toBeGreaterThan(0);
+  const startedAt = Date.now();
+  let next = 0;
+  const lane = async (token: string): Promise<void> => {
+    while (next < count) {
+      const idx = next;
+      next += 1;
+      await createPage(
+        page,
+        token,
+        wsId,
+        `${prefix}-${idx + 1}`,
+        rootFolderId,
+      );
+    }
+  };
+  await Promise.all(
+    tokens.flatMap((token) =>
+      Array.from({ length: concurrencyPerToken }, () => lane(token)),
+    ),
+  );
+  return Date.now() - startedAt;
+}
+
+/**
+ * Asserts the rows of the Documents content table appear in this top-to-bottom
+ * order. Rows are located through `contentRow` (table role + title text) and
+ * compared by their rendered position, so the check reads what the viewer sees.
+ */
+export async function expectRowOrder(
+  page: Page,
+  titles: string[],
 ): Promise<void> {
-  const maxPerMinute = 240;
-  const rollingWindowMs = 62_000;
-  const interBatchWaitMs = 10_500;
-  // Pre-seed with timestamps for the caller's setup requests (e.g. createFolder(hugeFolder))
-  // so the rolling minute across the whole test never exceeds 240 requests.
-  const sentTimestamps: number[] = [Date.now(), Date.now()];
-  let created = 0;
-
-  while (created < count) {
-    const now = Date.now();
-    while (
-      sentTimestamps.length > 0 &&
-      now - sentTimestamps[0]! >= rollingWindowMs
-    ) {
-      sentTimestamps.shift();
-    }
-
-    const availableInWindow = maxPerMinute - sentTimestamps.length;
-    if (availableInWindow <= 0) {
-      const waitMs = sentTimestamps[0]! + rollingWindowMs - Date.now() + 250;
-      if (waitMs > 0) {
-        await sleep(waitMs);
-      }
-      continue;
-    }
-
-    const currentBatchSize = Math.min(
-      batchSize,
-      count - created,
-      availableInWindow,
-    );
-    const batchStart = created;
-    created += currentBatchSize;
-    const batchStamp = Date.now();
-    for (let i = 0; i < currentBatchSize; i += 1) {
-      sentTimestamps.push(batchStamp);
-    }
-
-    let offset = 0;
-    const concurrency = Math.min(10, currentBatchSize);
-    const worker = async (): Promise<void> => {
-      while (offset < currentBatchSize) {
-        const idx = batchStart + offset;
-        offset += 1;
-        await createPage(
-          page,
-          token,
-          wsId,
-          `${prefix}-${idx + 1}`,
-          rootFolderId,
-        );
-      }
-    };
-    await Promise.all(Array.from({ length: concurrency }, () => worker()));
-
-    if (created < count) {
-      await sleep(interBatchWaitMs);
-    }
+  const tops: number[] = [];
+  for (const title of titles) {
+    const row = contentRow(page, title);
+    await expect(row, `row ${title} is listed`).toHaveCount(1);
+    await expect(row).toBeVisible();
+    const box = await row.boundingBox();
+    expect(box, `row ${title} has a box`).toBeTruthy();
+    tops.push(box!.y);
   }
+  const rendered = titles
+    .map((title, i) => ({ title, top: tops[i]! }))
+    .sort((a, b) => a.top - b.top)
+    .map((r) => r.title);
+  expect(rendered).toEqual(titles);
 }
 
 export async function getDocument(
@@ -899,4 +890,59 @@ export async function listDocumentSources(
   ).toBeTruthy();
   const body = JSON.parse(rawText) as { items?: DocumentSourceItemDTO[] };
   return body.items ?? [];
+}
+
+interface DocumentRefIds {
+  taskId: string;
+  meetingId: string;
+  wsId: string;
+  roomId: string;
+  messageId: string;
+}
+
+function pickText(
+  raw: unknown,
+  wrapper: string,
+  field: "description" | "title" | "body",
+): string {
+  const root = (raw ?? {}) as Record<string, unknown>;
+  const inner = (root[wrapper] ?? root) as Record<string, unknown>;
+  const value = inner[field];
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * Reads back the text of a task description, a meeting title and a chat message
+ * body that each mention a document by its URL, through their own APIs.
+ */
+export async function readDocumentReferenceTexts(
+  page: Page,
+  token: string,
+  refs: DocumentRefIds,
+): Promise<{ task: string; meeting: string; chat: string }> {
+  const get = async (url: string): Promise<unknown> => {
+    const res = await requestWithRetry429(() =>
+      page.request.get(url, { headers: authHeaders(token) }),
+    );
+    const text = await res.text();
+    expect(res.ok(), `GET ${url}: ${res.status()} ${text}`).toBeTruthy();
+    return JSON.parse(text) as unknown;
+  };
+  const [task, meeting, chat] = await Promise.all([
+    get(`${e2eApiUrl}/api/v1/tasks/${refs.taskId}`),
+    get(`${e2eApiUrl}/api/v1/meetings/${refs.meetingId}`),
+    get(
+      `${e2eApiUrl}/api/v1/workspaces/${refs.wsId}/chat/rooms/${refs.roomId}/messages/${refs.messageId}`,
+    ),
+  ]);
+  return {
+    task: pickText(task, "task", "description"),
+    meeting: pickText(meeting, "meeting", "title"),
+    chat: pickText(chat, "message", "body"),
+  };
+}
+
+/** The document ids a text points at through `/documents/<id>` links, in order. */
+export function documentIdsLinkedIn(text: string): string[] {
+  return [...text.matchAll(/\/documents\/([0-9A-Za-z]+)/g)].map((m) => m[1]!);
 }
