@@ -1,0 +1,2697 @@
+$ extra=$(dpkg -l | awk '/^ii/ && $2 ~ /^fonts-/ {print $2}' | grep -vxE 'fonts-dejavu-core|fonts-liberation'); sudo apt-get purge -y $extra xfonts-base xfonts-cyrillic xfonts-encodings xfonts-scalable xfonts-terminus xfonts-utils >/dev/null 2>&1; rm -rf apps/sheets/native/xlsx-engine/target; npm test
+
+> genoffice@0.1.0 test
+> npm run test -w @genoffice/i18n && npm run test -w @uniwork/practice-core && npm run test -w @uniwork/office-bridge-contracts && npm run test -w @uniwork/office-bridge && npm run test -w @uniwork/office-bridge-adapter && npm run test -w @genoffice/electron-utils && npm run test -w @genoffice/font-metrics && npm run test -w @genoffice/zip-gate && npm run test -w @genoffice/docx-engine && npm run test -w @genoffice/pdf2docx && npm run test -w @genoffice/html2docx && npm run test -w @genoffice/file-parse && npm run test -w @genoffice/pptx-engine && npm run test -w @genoffice/xlsx-gateway && npm run test -w @genoffice/pptx-ops && npm run test -w @genoffice/pptx-render && npm run test -w @genoffice/pipelines && npm run test -w @genoffice/ai-search && npm run test -w @genoffice/agent-core && npm run test -w @genoffice/ai-provider && npm run test -w @genoffice/project-store && npm run test -w @genoffice/cli && npm run test -w @genoffice/ui && npm run test -w @genoffice/docs && npm run test -w @genoffice/sheets && npm run test -w @genoffice/shell && npm run test -w @genoffice/slides && npm run test -w @genoffice/pdf && npm run test -w @genoffice/markdown && npm run test -w @genoffice/html && node --test scripts/*.test.mjs
+
+
+> @genoffice/i18n@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/i18n
+
+
+ Test Files  1 passed (1)
+      Tests  26 passed (26)
+   Start at  14:38:02
+   Duration  203ms (transform 65ms, setup 0ms, import 80ms, tests 11ms, environment 0ms)
+
+
+> @uniwork/practice-core@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/practice-core
+
+
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+   Start at  14:38:02
+   Duration  226ms (transform 159ms, setup 0ms, import 201ms, tests 15ms, environment 0ms)
+
+
+> @uniwork/office-bridge-contracts@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/office-bridge-contracts
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  14:38:03
+   Duration  171ms (transform 41ms, setup 0ms, import 78ms, tests 5ms, environment 0ms)
+
+
+> @uniwork/office-bridge@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/office-bridge
+
+
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+   Start at  14:38:03
+   Duration  246ms (transform 161ms, setup 0ms, import 266ms, tests 29ms, environment 0ms)
+
+
+> @uniwork/office-bridge-adapter@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/office-bridge-adapter
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  14:38:04
+   Duration  389ms (transform 118ms, setup 0ms, import 175ms, tests 121ms, environment 0ms)
+
+
+> @genoffice/electron-utils@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/electron-utils
+
+
+ Test Files  20 passed (20)
+      Tests  304 passed (304)
+   Start at  14:38:05
+   Duration  5.21s (transform 516ms, setup 0ms, import 1.36s, tests 7.16s, environment 1ms)
+
+
+> @genoffice/font-metrics@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/font-metrics
+
+
+ Test Files  5 passed (5)
+      Tests  25 passed (25)
+   Start at  14:38:10
+   Duration  337ms (transform 259ms, setup 0ms, import 335ms, tests 47ms, environment 0ms)
+
+
+> @genoffice/zip-gate@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/zip-gate
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  14:38:11
+   Duration  213ms (transform 51ms, setup 0ms, import 76ms, tests 50ms, environment 0ms)
+
+
+> @genoffice/docx-engine@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/docx-engine
+
+
+ Test Files  176 passed (176)
+      Tests  1708 passed | 1 skipped (1709)
+   Start at  14:38:12
+   Duration  25.13s (transform 4.00s, setup 0ms, import 29.66s, tests 28.55s, environment 12ms)
+
+
+> @genoffice/pdf2docx@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/pdf2docx
+
+
+ Test Files  54 passed (54)
+      Tests  815 passed | 7 skipped (822)
+   Start at  14:38:37
+   Duration  8.83s (transform 3.39s, setup 0ms, import 8.45s, tests 12.71s, environment 4ms)
+
+
+> @genoffice/html2docx@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/html2docx
+
+
+ Test Files  13 passed (13)
+      Tests  110 passed (110)
+   Start at  14:38:46
+   Duration  149.57s (transform 494ms, setup 0ms, import 2.19s, tests 151.81s, environment 1ms)
+
+
+> @genoffice/file-parse@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/file-parse
+
+
+ Test Files  7 passed (7)
+      Tests  129 passed (129)
+   Start at  14:41:16
+   Duration  2.19s (transform 2.26s, setup 0ms, import 3.64s, tests 1.45s, environment 0ms)
+
+
+> @genoffice/pptx-engine@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/pptx-engine
+
+
+ Test Files  120 passed | 1 skipped (121)
+      Tests  1254 passed | 1 skipped (1255)
+   Start at  14:41:19
+   Duration  21.28s (transform 3.10s, setup 0ms, import 14.89s, tests 36.72s, environment 438ms)
+
+
+> @genoffice/xlsx-gateway@0.1.0 test
+> vitest run --passWithNoTests
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/xlsx-gateway
+
+
+ Test Files  38 passed (38)
+      Tests  248 passed (248)
+   Start at  14:41:40
+   Duration  2.43s (transform 1.28s, setup 0ms, import 2.69s, tests 966ms, environment 2ms)
+
+
+> @genoffice/pptx-ops@0.1.0 test
+> vitest run --passWithNoTests
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/pptx-ops
+
+
+ Test Files  12 passed (12)
+      Tests  68 passed (68)
+   Start at  14:41:43
+   Duration  1.72s (transform 1.87s, setup 0ms, import 3.22s, tests 558ms, environment 1ms)
+
+
+> @genoffice/pptx-render@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/pptx-render
+
+
+ Test Files  26 passed (26)
+      Tests  386 passed (386)
+   Start at  14:41:45
+   Duration  4.10s (transform 1.45s, setup 0ms, import 2.68s, tests 7.07s, environment 2ms)
+
+
+> @genoffice/pipelines@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/pipelines
+
+
+ Test Files  6 passed (6)
+      Tests  77 passed (77)
+   Start at  14:41:50
+   Duration  1.15s (transform 1.76s, setup 0ms, import 2.47s, tests 307ms, environment 0ms)
+
+
+> @genoffice/ai-search@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ai-search
+
+
+ Test Files  10 passed (10)
+      Tests  124 passed (124)
+   Start at  14:41:51
+   Duration  1.28s (transform 815ms, setup 0ms, import 2.29s, tests 248ms, environment 1ms)
+
+
+> @genoffice/agent-core@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/agent-core
+
+
+ Test Files  14 passed (14)
+      Tests  211 passed (211)
+   Start at  14:41:53
+   Duration  909ms (transform 512ms, setup 0ms, import 794ms, tests 589ms, environment 1ms)
+
+
+> @genoffice/ai-provider@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ai-provider
+
+
+ Test Files  46 passed (46)
+      Tests  568 passed (568)
+   Start at  14:41:54
+   Duration  3.07s (transform 749ms, setup 0ms, import 1.74s, tests 3.37s, environment 3ms)
+
+
+> @genoffice/project-store@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/project-store
+
+
+ Test Files  11 passed (11)
+      Tests  125 passed | 2 skipped (127)
+   Start at  14:41:57
+   Duration  673ms (transform 343ms, setup 0ms, import 497ms, tests 415ms, environment 1ms)
+
+
+> @genoffice/cli@0.10.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/cli
+
+
+ Test Files  53 passed (53)
+      Tests  423 passed | 29 skipped (452)
+   Start at  14:41:58
+   Duration  24.85s (transform 15.02s, setup 0ms, import 38.12s, tests 30.88s, environment 4ms)
+
+
+> @genoffice/ui@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+
+ Test Files  45 passed (45)
+      Tests  831 passed (831)
+   Start at  14:42:24
+   Duration  7.69s (transform 2.31s, setup 0ms, import 4.81s, tests 3.88s, environment 9.84s)
+
+
+> @genoffice/docs@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+
+ Test Files  394 passed (394)
+      Tests  3673 passed (3673)
+   Start at  14:42:32
+   Duration  173.53s (transform 12.58s, setup 0ms, import 218.43s, tests 110.71s, environment 150.87s)
+
+
+> @genoffice/sheets@0.1.0 test
+> npm run native:test && npm run native:build && vitest run
+
+
+> @genoffice/sheets@0.1.0 native:test
+> cargo test --manifest-path native/xlsx-engine/Cargo.toml --config native/xlsx-engine/.cargo/config.toml
+
+   Compiling libc v0.2.186
+   Compiling cfg-if v1.0.4
+   Compiling version_check v0.9.5
+   Compiling memchr v2.8.3
+   Compiling find-msvc-tools v0.1.9
+   Compiling proc-macro2 v1.0.106
+   Compiling generic-array v0.14.7
+   Compiling typenum v1.20.1
+   Compiling shlex v2.0.1
+   Compiling quote v1.0.46
+   Compiling pkg-config v0.3.33
+   Compiling unicode-ident v1.0.24
+   Compiling crc32fast v1.5.0
+   Compiling jobserver v0.1.35
+   Compiling crypto-common v0.1.7
+   Compiling autocfg v1.5.1
+   Compiling cc v1.4.0
+   Compiling syn v2.0.119
+   Compiling getrandom v0.2.17
+   Compiling subtle v2.6.1
+   Compiling num-traits v0.2.19
+   Compiling serde_core v1.0.228
+   Compiling simd-adler32 v0.3.10
+   Compiling rand_core v0.6.4
+   Compiling block-buffer v0.10.4
+   Compiling adler2 v2.0.1
+   Compiling zerocopy v0.8.55
+   Compiling digest v0.10.7
+   Compiling miniz_oxide v0.8.9
+   Compiling zstd-sys v2.0.16+zstd.1.5.7
+   Compiling cpufeatures v0.2.17
+   Compiling zlib-rs v0.6.6
+   Compiling bzip2-sys v0.1.13+1.0.8
+   Compiling serde v1.0.228
+   Compiling siphasher v1.0.3
+   Compiling zstd-safe v5.0.2+zstd.1.5.2
+   Compiling phf_shared v0.12.1
+   Compiling flate2 v1.1.9
+   Compiling serde_derive v1.0.228
+   Compiling inout v0.1.4
+   Compiling aho-corasick v1.1.4
+   Compiling ppv-lite86 v0.2.21
+   Compiling encoding_rs v0.8.35
+   Compiling hashbrown v0.17.1
+   Compiling zmij v1.0.23
+   Compiling rustversion v1.0.23
+   Compiling bumpalo v3.20.3
+   Compiling log v0.4.33
+   Compiling regex-syntax v0.8.11
+   Compiling iana-time-zone v0.1.65
+   Compiling itoa v1.0.18
+   Compiling getrandom v0.4.3
+   Compiling equivalent v1.0.2
+   Compiling base64ct v1.8.3
+   Compiling chrono-tz v0.10.4
+   Compiling password-hash v0.4.2
+   Compiling indexmap v2.14.0
+   Compiling chrono v0.4.45
+   Compiling zopfli v0.8.3
+   Compiling regex-automata v0.4.16
+   Compiling rand_chacha v0.3.1
+   Compiling cipher v0.4.4
+   Compiling phf v0.12.1
+   Compiling bitcode_derive v0.6.9
+   Compiling sha2 v0.10.9
+   Compiling approx v0.5.1
+   Compiling hmac v0.12.1
+   Compiling csv-core v0.1.13
+   Compiling ryu v1.0.23
+   Compiling bytemuck v1.25.2
+   Compiling byteorder v1.5.0
+   Compiling serde_json v1.0.150
+   Compiling deranged v0.5.8
+   Compiling thiserror v1.0.69
+   Compiling num-conv v0.2.2
+   Compiling time-core v0.1.9
+   Compiling powerfmt v0.2.0
+   Compiling bitcode v0.6.9
+   Compiling time v0.3.54
+   Compiling zstd v0.11.2+zstd.1.5.2
+   Compiling csv v1.4.0
+   Compiling regex v1.13.1
+   Compiling pbkdf2 v0.11.0
+   Compiling statrs v0.18.0
+   Compiling bzip2 v0.4.4
+   Compiling aes v0.8.4
+   Compiling rand v0.8.7
+   Compiling thiserror-impl v1.0.69
+   Compiling sha1 v0.10.7
+   Compiling typed-path v0.12.3
+   Compiling either v1.17.0
+   Compiling constant_time_eq v0.1.5
+   Compiling debug_unsafe v0.1.4
+   Compiling rustix v1.1.4
+   Compiling atoi_simd v0.18.1
+   Compiling zip v8.6.0
+   Compiling zip v0.6.6
+   Compiling itertools v0.12.1
+   Compiling quick-xml v0.41.0
+   Compiling codepage v0.1.2
+   Compiling fast-float2 v0.2.3
+   Compiling bitflags v2.13.1
+   Compiling linux-raw-sys v0.12.1
+   Compiling roxmltree v0.19.0
+   Compiling calamine v0.36.0
+   Compiling ironcalc_base v0.7.1
+   Compiling uuid v1.24.0
+   Compiling zip v4.6.1
+   Compiling quick-xml v0.38.4
+   Compiling roxmltree v0.21.1
+   Compiling base64 v0.22.1
+   Compiling once_cell v1.21.4
+   Compiling fastrand v2.4.1
+   Compiling tempfile v3.27.0
+   Compiling ironcalc v0.7.1
+   Compiling xlsx-sidecar v0.1.0 (/home/ubuntu/work/uniwork-office/apps/sheets/native/xlsx-engine)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 25.67s
+     Running unittests src/lib.rs (native/xlsx-engine/target/debug/deps/xlsx_sidecar-b3d25764e7589b6c)
+
+running 236 tests
+test archive::tests::canonical_entry_name_folds_producer_quirks_and_rejects_escapes ... ok
+test archive::tests::extracts_requested_entries_and_reports_manifest ... ok
+test archive::tests::rejects_edits_on_missing_or_conflicting_entries ... ok
+test archive::tests::scans_decoded_text_across_entity_references ... ok
+test find::tests::look_in_values_versus_formulas ... ok
+test find::tests::match_case_and_entire_cell ... ok
+test find::tests::number_text_mirrors_javascript ... ok
+test find::tests::pages_with_limit_and_cursor ... ok
+test find::tests::single_sheet_scope_and_cancel ... ok
+test archive::tests::saves_with_raw_copy_replacement_removal_and_addition ... ok
+test archive::tests::saves_leading_slash_source_with_canonical_names ... ok
+test recalc::tests::a_sheet_name_is_recognised_only_as_a_bare_reference ... ok
+test convert::tests::converts_a_calamine_readable_workbook_into_minimal_xlsx ... ok
+test find::tests::substring_search_is_case_insensitive_across_sheets_and_shared_strings ... ok
+test recalc::tests::ampersand_sheet_references_resolve_across_sheets ... ok
+test recalc::tests::caps_read_volume ... ok
+test find::tests::wildcards_follow_excel_semantics ... ok
+test recalc::tests::an_errored_request_does_not_poison_the_cache ... ok
+test recalc::tests::an_irreparable_local_reference_is_not_pinned_to_an_invented_zero ... ok
+test recalc::tests::keeps_at_most_one_heavy_model_resident ... ok
+test recalc::tests::every_reference_in_one_formula_is_requoted ... ok
+test recalc::tests::external_link_formulas_keep_their_cached_values ... ok
+test recalc::tests::quoting_covers_every_bare_reference_and_leaves_the_rest_alone ... ok
+test recalc::tests::purge_hits_regardless_of_path_spelling ... ok
+test recalc::tests::purge_drops_the_resident_model ... ok
+test recalc::tests::rebuilds_when_an_edit_is_reverted ... ok
+test recalc::tests::caps_resident_models ... ok
+test recalc::tests::recalculates_after_edits ... ok
+test recalc::tests::rejects_unknown_sheets ... ok
+test shared_formulas::tests::does_not_shift_ascii_suffixes_inside_unicode_names ... ok
+test shared_formulas::tests::escaped_quotes_stay_verbatim ... ok
+test shared_formulas::tests::leaves_strings_quoted_sheets_and_functions_alone ... ok
+test shared_formulas::tests::numbers_and_names_pass_through ... ok
+test recalc::tests::rebuilds_when_the_file_changes_on_disk ... ok
+test shared_formulas::tests::out_of_bounds_shift_fails ... ok
+test recalc::tests::reuses_the_resident_model_and_applies_edits_incrementally ... ok
+test shared_formulas::tests::preserves_unicode_defined_names ... ok
+test shared_formulas::tests::registry_expands_followers_from_the_master ... ok
+test shared_formulas::tests::shifts_relative_refs_and_keeps_absolute_parts ... ok
+test shared_formulas::tests::shifts_whole_column_and_row_ranges ... ok
+test shared_formulas::tests::spec_example_followers ... ok
+test recalc::tests::types_error_results_but_not_error_looking_text ... ok
+test tests::an_uncancelled_open_completes_and_keeps_its_cache_directory ... ok
+test tests::assigns_implicit_addresses_without_r ... ok
+test tests::blank_cell_keeps_shrink_to_fit_only_style ... ok
+test tests::builtin_palette_matches_calibration ... ok
+test tests::cache_directory_outlives_the_open_only_once_committed ... ok
+test tests::cancel_after_the_cache_directory_is_created_reclaims_it ... ok
+test tests::applies_system_short_date_to_builtin_date_formats ... ok
+test tests::cancelled_open_registers_no_session ... ok
+test tests::bare_ole_object_falls_back_to_the_vml_shape ... ok
+test tests::array_anchors_and_lonely_masters_stay_in_the_index ... ok
+test tests::captures_array_formula_refs_on_master_cells ... ok
+test tests::caps_header_text_by_utf16_length ... ok
+test tests::decodes_xlsx_character_escapes ... ok
+test tests::custom_table_style_resolves_dxf_bands ... ok
+test tests::escaped_cr_before_raw_line_break_is_one_break ... ok
+test tests::chartsheet_keeps_its_tab_and_renders_its_chart ... ok
+test tests::formula_cfvos_and_legacy_databar_extents ... ok
+test tests::empty_shared_string_value_keeps_sheet_readable ... ok
+test tests::ignores_worksheets_without_sparkline_ext ... ok
+test tests::full_width_dimension_is_remeasured ... ok
+test tests::expands_shared_formulas_into_followers ... ok
+test tests::legacy_sheet_password_attribute_reads_as_legacy_hash ... ok
+test tests::keeps_tables_with_x14_alt_text_ext ... ok
+test tests::keeps_value_less_cells_whose_style_paints_borders_or_fill ... ok
+test tests::light_table_style_carries_border_color ... ok
+test tests::malformed_dimension_ref_is_ignored ... ok
+test tests::malformed_cell_address_does_not_make_the_workbook_unopenable ... ok
+test tests::medium_full_color_styles_fill_both_row_bands ... ok
+test tests::nameless_table_style_gets_no_palette ... ok
+test tests::normal_view_zoom_follows_the_view_type ... ok
+test tests::normalizes_crlf_and_stray_cr_to_lf ... ok
+test tests::normalizes_worksheet_paths_with_forward_slashes ... ok
+test tests::missing_wps_media_keeps_cached_cell_values ... ok
+test tests::normal_font_name_survives_theme_substitution ... ok
+test tests::ole_object_keeps_the_fallback_shapes_z_order_slot ... ok
+test tests::omits_empty_sparklines_field_from_metadata_json ... ok
+test tests::ole_object_without_anchor_borrows_the_drawing_fallback ... ok
+test tests::ole_object_with_object_pr_uses_its_anchor_and_preview ... ok
+test tests::opens_backslash_and_case_drifted_package ... ok
+test tests::opens_leading_slash_package ... ok
+test tests::opens_percent_encoded_worksheet_target ... ok
+test tests::parses_cell_font_vert_align ... ok
+test tests::caps_wps_pictures_without_hiding_unrendered_cells ... ok
+test tests::parses_chart_semantics_and_textbox_paragraphs ... ok
+test tests::parses_multiple_sparkline_cells_and_skips_empty_groups ... ok
+test tests::parses_excel_addresses ... ok
+test tests::parses_shrink_to_fit_alignment ... ok
+test tests::parses_sheet_view_right_to_left ... ok
+test tests::parses_sparkline_group_types_and_colors ... ok
+test tests::parses_one_cell_anchor_ext_and_line_style ... ok
+test tests::parses_workbook_pr_date1904 ... ok
+test tests::parses_workbook_view_active_tab ... ok
+test tests::phonetic_runs_stay_out_of_shared_strings ... ok
+test tests::pivot_disabled_grand_totals_serialize_false ... ok
+test tests::pivot_style_palette_calibrated_bands ... ok
+test tests::pivot_light_low_stripes_off_stays_styled ... ok
+test tests::pivot_style_light_resolves_band_fill ... ok
+test tests::preserves_future_function_markers_in_sheet_and_defined_names ... ok
+test tests::pivot_wire_carries_bands_and_row_kinds ... ok
+test tests::reads_cdata_wrapped_sparkline_refs ... ok
+test tests::reads_auto_filter_column_criteria ... ok
+test tests::prefixed_table_part_is_parsed ... ok
+test tests::reads_sheet_protection_flags_hash_and_unlocked_styles ... ok
+test tests::over_cap_picture_cells_keep_the_cached_error ... ok
+test tests::reads_threaded_comment_body_instead_of_legacy_mirror ... ok
+test tests::reads_saved_print_settings_and_print_names ... ok
+test tests::rejects_entries_escaping_the_package ... ok
+test tests::reads_xml_entry_that_matches_its_declaration ... ok
+test tests::rejects_oversized_ranges ... ok
+test tests::reports_row_and_column_default_styles ... ok
+test tests::reports_row_heights_without_custom_height_flag ... ok
+test tests::resolves_alternate_content_style_entries ... ok
+test tests::resolves_encoded_internal_relationship_targets ... ok
+test tests::resolves_in_cell_rich_value_pictures ... ok
+test tests::resolves_locale_reserved_builtin_number_formats ... ok
+test tests::resolves_rich_value_from_a_non_first_metadata_record ... ok
+test tests::resolves_wps_cell_images_per_formula_cell_and_suppresses_cached_text ... ok
+test tests::rich_run_bool_props_honor_val_zero ... ok
+test tests::reads_header_footer_variants_and_pictures ... ok
+test tests::serializes_sparklines_in_expected_shape ... ok
+test tests::shared_and_inline_strings_decode_escapes ... ok
+test tests::rich_run_vert_align_reaches_the_wire ... ok
+test tests::rejects_xml_entry_that_inflates_past_its_declared_size ... ok
+test tests::rejects_media_entry_that_inflates_past_its_declared_size ... ok
+test tests::sheet_state_maps_hidden_and_very_hidden ... ok
+test tests::shared_groups_keep_cross_sheet_refs_and_list_followers_when_the_span_has_holes ... ok
+test tests::slicer_alternate_content_becomes_a_captioned_placeholder_not_the_fallback_text ... ok
+test tests::source_linked_chart_formats_follow_the_cells ... ok
+test tests::sparse_sheet_reports_stored_cells_not_bounding_box ... ok
+test tests::stale_single_cell_dimension_is_remeasured ... ok
+test tests::stale_single_row_dimension_is_remeasured ... ok
+test tests::stale_small_dimension_is_remeasured ... ok
+test tests::stored_cell_budget_is_shared_across_sheets ... ok
+test tests::source_linked_chart_formats_resolve_in_one_pass_per_worksheet ... ok
+test tests::strips_future_function_markers_outside_strings ... ok
+test tests::stored_cell_count_includes_style_only_cells ... ok
+test tests::tint_matches_excel_shades ... ok
+test tests::shared_group_spanning_chunks_indexes_the_master_only ... ok
+test tests::text_nodes_without_preserve_drop_edge_whitespace ... ok
+test tests::unlocked_normal_style_marks_locked_xfs_explicitly ... ok
+test tests::truncates_oversized_sparkline_groups ... ok
+test tests::trusted_dimension_still_counts_stored_cells ... ok
+test tests::unstyled_cells_resolve_to_the_default_xf ... ok
+test tests::vm_without_rich_data_parts_keeps_the_cached_error ... ok
+test visuals::source_formats::tests::prefetch_resolves_every_referenced_cell_in_one_pass ... ok
+test visuals::source_formats::tests::splits_sheet_qualified_first_cells ... ok
+test visuals::tests::alpha_mod_fix_becomes_opacity ... ok
+test visuals::tests::anchor_properties_read_edit_as_alt_text_hyperlink_and_picture_xfrm ... ok
+test visuals::tests::axes_report_their_axpos_side ... ok
+test tests::x14_databar_twin_merges_axis_and_extents ... ok
+test visuals::tests::blip_fill_shape_never_falls_back_to_style_fill_ref ... ok
+test visuals::tests::axis_text_sizes_colors_and_display_units_are_read ... ok
+test tests::zero_default_sizes_normalize_to_none ... ok
+test visuals::tests::category_group_spans_follow_the_expanded_idx_slots ... ok
+test visuals::tests::category_groups_and_categories_emit_in_idx_order ... ok
+test visuals::tests::collects_axis_titles ... ok
+test visuals::tests::chart_space_and_plot_area_fills_reach_the_metadata ... ok
+test visuals::tests::combo_secondary_axis_links_to_its_own_series_cells ... ok
+test visuals::tests::custom_geometry_maps_svg_commands ... ok
+test visuals::tests::custom_geometry_mixed_fills_expose_fillable_subpaths_only ... ok
+test visuals::tests::custom_geometry_rejects_arcs ... ok
+test visuals::tests::custom_geometry_scales_secondary_paths_into_the_first ... ok
+test visuals::tests::custom_geometry_stroke_only_open_path_with_degenerate_height ... ok
+test visuals::tests::custom_geometry_uniform_fills_have_no_fill_d ... ok
+test visuals::tests::combo_series_carry_their_plot_group ... ok
+test visuals::tests::default_series_accent_follows_ser_idx ... ok
+test visuals::tests::drawing_gradient_fill_blends_its_outermost_stops ... ok
+test visuals::tests::dxf_gradient_fill_becomes_the_blended_highlight_color ... ok
+test visuals::tests::dxf_pattern_fill_still_prefers_bg_color ... ok
+test visuals::tests::deleted_axes_report_hidden ... ok
+test visuals::tests::empty_or_degenerate_src_rect_is_no_crop ... ok
+test visuals::tests::expands_group_chart_children_with_their_part_path ... ok
+test visuals::tests::expands_group_children_through_child_space ... ok
+test visuals::tests::gradient_fill_blends_outermost_stops ... ok
+test visuals::tests::gradient_fill_without_resolvable_stops_stays_unfilled ... ok
+test visuals::tests::folds_3d_plot_types_onto_flat_pipelines ... ok
+test visuals::tests::folded_3d_line_series_ignore_nofill_outline ... ok
+test visuals::tests::header_footer_slot_accepts_only_the_six_positions_and_variants ... ok
+test visuals::tests::indexed_palette_override_wins_below_system_slots ... ok
+test visuals::tests::horizontal_bar_value_axis_takes_the_value_cells_format ... ok
+test visuals::tests::grouped_children_read_alt_text_hyperlink_and_picture_xfrm ... ok
+test visuals::tests::locale_reserved_builtins_follow_viewer_locale ... ok
+test visuals::tests::keeps_labelled_zero_tails_and_unlabelled_series ... ok
+test visuals::tests::maps_data_labels_from_plot_or_series ... ok
+test visuals::tests::maps_legend_positions_and_defaults ... ok
+test visuals::tests::media_types_cover_gdi_metafiles ... ok
+test visuals::tests::media_types_cover_webp ... ok
+test visuals::tests::media_types_ignore_content_type_parameters_in_the_extension ... ok
+test visuals::tests::marks_interior_blank_values ... ok
+test visuals::tests::maps_data_label_position_and_format ... ok
+test visuals::tests::numbers_unnamed_series_like_excel ... ok
+test visuals::tests::multi_level_categories_use_the_innermost_level_only ... ok
+test visuals::tests::outline_solid_fill_is_not_the_shape_fill ... ok
+test visuals::tests::parses_absolute_anchor_as_offsets_from_origin ... ok
+test visuals::tests::parses_src_rect_crop_fractions ... ok
+test visuals::tests::pivot_row_kinds_compact_bottom_subtotals ... ok
+test visuals::tests::outer_category_levels_become_groups_with_spans ... ok
+test visuals::tests::pivot_row_kinds_tabular_and_single_field_are_data ... ok
+test visuals::tests::pivot_row_kinds_three_levels_and_blank ... ok
+test visuals::tests::reads_cell_linked_chart_titles_from_the_str_cache ... ok
+test visuals::tests::reads_gridlines_only_when_a_value_axis_exists ... ok
+test visuals::tests::reads_gap_width_and_hole_size ... ok
+test visuals::tests::reads_category_formats_from_num_cache_and_axis ... ok
+test visuals::tests::reads_grouping_from_first_grouped_plot ... ok
+test visuals::tests::reads_plot_level_line_marker_flag ... ok
+test visuals::tests::reads_per_point_labels_and_series_label_mode ... ok
+test visuals::tests::reads_point_colors_from_srgb_and_scheme_fills ... ok
+test visuals::tests::reads_series_and_point_explosions ... ok
+test visuals::tests::reads_series_line_width_in_px ... ok
+test visuals::tests::resolves_style_fill_ref_theme_gradient ... ok
+test visuals::tests::rotated_shape_reports_true_frame_extent ... ok
+test visuals::tests::reads_value_axis_bounds ... ok
+test visuals::tests::serializes_category_formats_with_expected_json_names ... ok
+test visuals::tests::shape_pattern_fill_blends_its_colors ... ok
+test visuals::tests::series_labels_override_an_all_zero_plot_element ... ok
+test visuals::tests::shape_with_blip_fill_keeps_geometry_and_carries_fill_media ... ok
+test visuals::tests::serializes_new_fields_with_expected_json_names ... ok
+test visuals::tests::shape_without_fill_or_style_is_transparent ... ok
+test visuals::tests::sole_named_series_still_becomes_auto_title ... ok
+test visuals::tests::sole_unnamed_series_keeps_placeholder_title ... ok
+test visuals::tests::srgb_fills_apply_their_child_modifiers ... ok
+test visuals::tests::sparse_string_caches_expand_into_idx_slots ... ok
+test visuals::tests::style_ref_idx_zero_means_no_fill ... ok
+test visuals::tests::source_linked_num_fmt_prefers_cells_then_cache_then_literal ... ok
+test visuals::tests::sys_clr_solid_fill_resolves ... ok
+test visuals::tests::theme_attribute_wins_over_rgb_cache ... ok
+test visuals::tests::uncached_series_name_reference_is_kept_for_lookup ... ok
+test visuals::tests::text_box_reads_body_overflow_modes ... ok
+test visuals::tests::vml_anchor_parses_pixel_offsets_into_emu ... ok
+test visuals::tests::trims_blank_tails_and_aligns_sparse_value_caches ... ok
+test visuals::tests::vml_size_reads_points_and_converts_other_units ... ok
+test visuals::tests::value_axis_prefers_the_left_axis ... ok
+test visuals::tests::zero_extent_anchor_detection ... ok
+test tests::shared_followers_do_not_count_toward_the_formula_budget ... ok
+
+test result: ok. 236 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.52s
+
+     Running unittests src/main.rs (native/xlsx-engine/target/debug/deps/xlsx_sidecar-b8fa4b34c9e74437)
+
+running 7 tests
+test tests::close_purge_queues_while_cache_is_locked ... ok
+test tests::close_purge_applies_immediately_when_cache_is_free ... ok
+test tests::cancelled_requests_are_skipped_once ... ok
+test tests::cancel_during_an_in_flight_open_abandons_it ... ok
+test tests::concurrent_recalc_reports_busy ... ok
+test tests::queued_purge_applies_before_the_next_recalc ... ok
+test tests::save_archive_keeps_the_source_resident_model_warm ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests xlsx_sidecar
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+> @genoffice/sheets@0.1.0 native:build
+> cargo build --release --manifest-path native/xlsx-engine/Cargo.toml --config native/xlsx-engine/.cargo/config.toml
+
+   Compiling libc v0.2.186
+   Compiling cfg-if v1.0.4
+   Compiling version_check v0.9.5
+   Compiling memchr v2.8.3
+   Compiling proc-macro2 v1.0.106
+   Compiling generic-array v0.14.7
+   Compiling typenum v1.20.1
+   Compiling find-msvc-tools v0.1.9
+   Compiling shlex v2.0.1
+   Compiling jobserver v0.1.35
+   Compiling pkg-config v0.3.33
+   Compiling quote v1.0.46
+   Compiling cc v1.4.0
+   Compiling unicode-ident v1.0.24
+   Compiling crypto-common v0.1.7
+   Compiling autocfg v1.5.1
+   Compiling crc32fast v1.5.0
+   Compiling getrandom v0.2.17
+   Compiling num-traits v0.2.19
+   Compiling syn v2.0.119
+   Compiling serde_core v1.0.228
+   Compiling simd-adler32 v0.3.10
+   Compiling subtle v2.6.1
+   Compiling rand_core v0.6.4
+   Compiling block-buffer v0.10.4
+   Compiling zstd-sys v2.0.16+zstd.1.5.7
+   Compiling adler2 v2.0.1
+   Compiling zerocopy v0.8.55
+   Compiling miniz_oxide v0.8.9
+   Compiling digest v0.10.7
+   Compiling zlib-rs v0.6.6
+   Compiling cpufeatures v0.2.17
+   Compiling bzip2-sys v0.1.13+1.0.8
+   Compiling siphasher v1.0.3
+   Compiling zstd-safe v5.0.2+zstd.1.5.2
+   Compiling serde v1.0.228
+   Compiling flate2 v1.1.9
+   Compiling phf_shared v0.12.1
+   Compiling ppv-lite86 v0.2.21
+   Compiling serde_derive v1.0.228
+   Compiling inout v0.1.4
+   Compiling aho-corasick v1.1.4
+   Compiling encoding_rs v0.8.35
+   Compiling base64ct v1.8.3
+   Compiling iana-time-zone v0.1.65
+   Compiling regex-syntax v0.8.11
+   Compiling zmij v1.0.23
+   Compiling log v0.4.33
+   Compiling hashbrown v0.17.1
+   Compiling itoa v1.0.18
+   Compiling rustversion v1.0.23
+   Compiling chrono-tz v0.10.4
+   Compiling bumpalo v3.20.3
+   Compiling equivalent v1.0.2
+   Compiling indexmap v2.14.0
+   Compiling zopfli v0.8.3
+   Compiling regex-automata v0.4.16
+   Compiling chrono v0.4.45
+   Compiling password-hash v0.4.2
+   Compiling cipher v0.4.4
+   Compiling rand_chacha v0.3.1
+   Compiling phf v0.12.1
+   Compiling sha2 v0.10.9
+   Compiling bitcode_derive v0.6.9
+   Compiling approx v0.5.1
+   Compiling hmac v0.12.1
+   Compiling csv-core v0.1.13
+   Compiling thiserror v1.0.69
+   Compiling time-core v0.1.9
+   Compiling deranged v0.5.8
+   Compiling byteorder v1.5.0
+   Compiling getrandom v0.4.3
+   Compiling num-conv v0.2.2
+   Compiling ryu v1.0.23
+   Compiling serde_json v1.0.150
+   Compiling powerfmt v0.2.0
+   Compiling bytemuck v1.25.2
+   Compiling time v0.3.54
+   Compiling bitcode v0.6.9
+   Compiling csv v1.4.0
+   Compiling pbkdf2 v0.11.0
+   Compiling statrs v0.18.0
+   Compiling rand v0.8.7
+   Compiling aes v0.8.4
+   Compiling bzip2 v0.4.4
+   Compiling regex v1.13.1
+   Compiling sha1 v0.10.7
+   Compiling thiserror-impl v1.0.69
+   Compiling debug_unsafe v0.1.4
+   Compiling either v1.17.0
+   Compiling constant_time_eq v0.1.5
+   Compiling typed-path v0.12.3
+   Compiling ironcalc_base v0.7.1
+   Compiling itertools v0.12.1
+   Compiling zip v8.6.0
+   Compiling atoi_simd v0.18.1
+   Compiling zstd v0.11.2+zstd.1.5.2
+   Compiling zip v0.6.6
+   Compiling quick-xml v0.41.0
+   Compiling codepage v0.1.2
+   Compiling roxmltree v0.19.0
+   Compiling fast-float2 v0.2.3
+   Compiling calamine v0.36.0
+   Compiling uuid v1.24.0
+   Compiling ironcalc v0.7.1
+   Compiling zip v4.6.1
+   Compiling quick-xml v0.38.4
+   Compiling roxmltree v0.21.1
+   Compiling base64 v0.22.1
+   Compiling xlsx-sidecar v0.1.0 (/home/ubuntu/work/uniwork-office/apps/sheets/native/xlsx-engine)
+    Finished `release` profile [optimized] target(s) in 45.14s
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+
+ Test Files  357 passed | 1 skipped (358)
+      Tests  3640 passed | 1 skipped (3641)
+   Start at  14:46:43
+   Duration  103.64s (transform 20.06s, setup 0ms, import 233.25s, tests 35.59s, environment 4.92s)
+
+
+> @genoffice/shell@1.0.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+(node:99356) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:99544) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:99620) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:99972) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Socket]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:99972) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Socket]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+ ❯ tests/uniwork-org-choice-ui.test.ts (18 tests | 1 failed) 139ms
+     × changes the organization through selectOrg 19ms
+(node:99986) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:100342) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-org-choice-ui.test.ts > Settings › Account › Working organization > changes the organization through selectOrg
+AssertionError: expected '/* Settings modal (opened from the ac…' to match /\.acct-org-dd \.gs-dd-pop \{[^}]*max-…/
+
+- Expected:
+/\.acct-org-dd \.gs-dd-pop \{[^}]*max-width: calc\(100vw/
+
++ Received:
+"/* Settings modal (opened from the account menu): two-pane dialog matched to
+   GenMail's settings window (values read from its packaged CSS) — borderless
+   header/nav, label-left / control-right rows with hairline dividers.
+   Chrome colors use semantic tokens only (see CLAUDE.md theming rules). */
+
+.set-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--ui-vh) * 5) 24px;
+  background: var(--color-bg-overlay);
+  backdrop-filter: blur(6px);
+}
+
+.set-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(960px, 100%);
+  height: min(720px, calc(var(--ui-vh) * 90));
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-modal-strong);
+  overflow: hidden;
+}
+
+/* one visible focus ring for keyboard users across all panes */
+.set-dialog :is(button, a[href], summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.set-dialog :is(.set-btn, .set-nav-item, .set-close, .set-about-legal-btn) {
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.set-dialog
+  :is(.set-btn, .set-close, .set-about-legal-btn):active:not(:disabled):not(
+    [aria-disabled='true']
+  ) {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .set-dialog * {
+    transition: none !important;
+  }
+}
+
+.set-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+}
+
+.set-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.set-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.set-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.set-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.set-nav {
+  flex-shrink: 0;
+  width: 232px;
+  padding: 8px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.set-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.set-nav-item svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.set-nav-item:hover:not(.active) {
+  background: var(--bg-hover);
+}
+
+.set-nav-item.active {
+  background: var(--bg-hover-strong);
+  font-weight: 600;
+}
+
+.set-nav-item.active svg {
+  color: var(--text-primary);
+}
+
+.set-nav-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.set-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 28px 24px;
+  overflow-y: auto;
+  /* height of the sticky title row, so focus/scroll-into-view lands below it */
+  scroll-padding-top: 49px;
+  container: set-pane / inline-size;
+}
+
+/* a narrow pane (minimum window size) stacks a text field under its label
+   instead of squeezing the description into a column beside a 200px input */
+@container set-pane (max-width: 520px) {
+  .set-field:has(> .set-input:not(.set-num-input)) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .set-field > .set-input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+}
+
+/* minimum window: the nav gives the pane room */
+@media (max-width: 900px) {
+  .set-nav {
+    width: 188px;
+    padding-inline: 10px;
+  }
+
+  .set-pane {
+    padding-inline: 22px;
+  }
+
+  .set-pane-head {
+    margin-inline: -22px;
+    padding-inline: 22px;
+  }
+}
+
+/* the pane scrolls, so rows must keep their natural height: .set-field's
+   explicit min-height would otherwise let flex shrink collapse tall rows
+   (multi-line stacks) below their content and overlap the next row */
+.set-pane > * {
+  flex-shrink: 0;
+}
+
+.set-pane-title {
+  margin: 8px 0 18px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+/* title row pinned to the top of the scrolling pane so the test/save actions
+   and their result pill stay in view however long the form is */
+.set-pane-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 -28px 12px;
+  padding: 8px 28px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+}
+
+.set-pane-head .set-pane-title {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.set-pane-actions {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.set-pane-actions .set-ai-status {
+  margin-right: 0;
+}
+
+.set-field {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 52px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.set-field:last-child,
+.set-field:has(+ .set-pane-subtitle) {
+  border-bottom: none;
+}
+
+.set-field-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.set-field-label {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+.set-field-value {
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-align: right;
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+
+/* stacked label + secondary description (analytics toggle row) */
+.set-field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.set-field-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+/* MCP service row: the label + description + status stack reads better with the
+   switch aligned to the label line instead of centered against three lines */
+.set-field-top {
+  align-items: flex-start;
+}
+
+.set-field-top .set-switch {
+  margin-top: 2px;
+}
+
+/* MCP pane: running/stopped line with a status dot */
+.set-mcp-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.set-status-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.set-status-dot.running {
+  background: var(--success);
+}
+
+.set-status-dot.error {
+  background: var(--danger);
+}
+
+/* MCP pane: client config example — heading row with the copy button, then the
+   snippet on its own full-width row (a side-by-side flex row squeezes the
+   tall snippet against the button) */
+.set-config-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.set-config-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+/* MCP pane: compact action group in a config/log head row */
+.set-btn-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+/* MCP pane: copyable config snippet */
+.set-code {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  overflow-x: auto;
+  white-space: pre;
+  user-select: text;
+}
+
+/* MCP pane: in-pane log viewer — fixed height, scrolls, follows the tail */
+.set-log {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.set-log-empty {
+  color: var(--text-muted);
+}
+
+/* on/off switch (analytics toggle) */
+.set-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 42px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: var(--bg-hover-strong);
+  box-shadow: inset 0 0 0 1px var(--border-control);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.set-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-modal-strong);
+  transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+[dir='rtl'] .set-switch::after {
+  left: auto;
+  right: 2px;
+}
+
+.set-switch[aria-checked='true'] {
+  background: var(--color-btn-primary);
+  box-shadow: none;
+}
+
+.set-switch[aria-checked='true']::after {
+  transform: translateX(18px);
+}
+
+[dir='rtl'] .set-switch[aria-checked='true']::after {
+  transform: translateX(-18px);
+}
+
+.set-switch:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Shared dropdown (@genoffice/ui gs-dd) in settings rows: borderless text trigger */
+.set-dd {
+  flex-shrink: 0;
+}
+
+.set-dd .gs-dd-btn {
+  height: auto;
+  gap: 6px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.set-dd .gs-dd-btn:hover,
+.set-dd .gs-dd-btn:focus-visible {
+  background: var(--bg-hover);
+}
+
+.set-dd .gs-dd-pop {
+  min-width: 180px;
+}
+
+.set-dd .gs-dd-item {
+  font-size: 13px;
+}
+
+/* brand mark in the AI provider dropdown (trigger value + option rows are
+   flex containers from gs-dd); monochrome marks follow the text color */
+.set-provider-logo {
+  flex-shrink: 0;
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  color: var(--text-primary);
+}
+
+.set-provider-logo svg {
+  width: 100%;
+  height: 100%;
+}
+
+.set-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.set-btn:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--bg-hover-strong);
+}
+
+.set-btn:disabled,
+.set-btn[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.set-btn.primary {
+  border-color: var(--color-btn-primary);
+  background: var(--color-btn-primary);
+  color: var(--color-btn-primary-text);
+}
+
+.set-btn.primary:disabled,
+.set-btn.primary[aria-disabled='true'] {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.set-btn.primary:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--color-btn-primary-hover);
+}
+
+.set-btn.danger {
+  color: var(--danger-text);
+}
+
+.set-ai-hub-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.set-pane-footer {
+  margin-top: auto;
+  padding-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── AI model pane ── */
+
+.set-input {
+  flex-shrink: 0;
+  width: 46%;
+  min-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-control);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+.set-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.set-num-input {
+  width: 64px;
+  min-width: 0;
+  text-align: right;
+}
+
+.set-input:focus {
+  outline: none;
+  border-color: var(--accent, var(--text-primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.set-input::placeholder {
+  color: var(--text-muted);
+}
+
+.set-ai-note {
+  padding: 8px 0 2px;
+  line-height: 1.5;
+}
+
+/* feedback pill: spinner while testing, green on success/saved, red on failure */
+.set-ai-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-right: auto; /* status hugs the left edge, action buttons stay right */
+  padding: 4px 10px 4px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+}
+
+.set-ai-status.ok {
+  color: var(--success);
+  border-color: var(--success-border);
+  background: var(--success-bg);
+}
+
+.set-ai-status.err {
+  color: var(--danger);
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+}
+
+.set-ai-status-icon {
+  flex-shrink: 0;
+}
+
+.set-ai-status-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-ai-spin {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--text-secondary);
+  border-radius: 50%;
+  animation: set-ai-spin 0.8s linear infinite;
+}
+
+@keyframes set-ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.set-pane-subtitle {
+  margin: 28px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.set-pane-subhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 28px 0 4px;
+}
+
+/* collapsible media block: the head is the toggle, the chevron says so */
+.set-ai-block-head {
+  cursor: pointer;
+  list-style: none;
+  border-radius: 8px;
+}
+
+.set-ai-block-head::-webkit-details-marker {
+  display: none;
+}
+
+.set-ai-block-head::before {
+  content: '';
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-inline: 2px 0;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+[dir='rtl'] .set-ai-block-head::before {
+  transform: rotate(135deg);
+}
+
+.set-ai-block[open] > .set-ai-block-head::before {
+  transform: rotate(45deg);
+}
+
+.set-ai-block-provider {
+  margin-inline-start: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.set-ai-block-head .set-ai-status {
+  margin-inline: 0;
+}
+
+.set-ai-block:not([open]) > .set-ai-block-head {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.set-pane-subhead .set-pane-subtitle {
+  margin: 0;
+}
+
+.set-pane-subhead .set-ai-status {
+  margin-right: 0;
+  padding: 2px 8px 2px 6px;
+  font-size: 12px;
+}
+
+/* ── Integrations pane ── */
+
+.set-intg-hero {
+  margin: 8px 0 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-content);
+}
+
+.set-intg-hero-title {
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.set-intg-hero-steps {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: intg-step;
+}
+
+.set-intg-hero-steps li {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-primary);
+  counter-increment: intg-step;
+}
+
+.set-intg-hero-steps li::before,
+.set-intg-step-no {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-btn-primary);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-btn-primary-text);
+}
+
+.set-intg-hero-steps li::before {
+  content: counter(intg-step);
+}
+
+.set-intg-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-intg-version {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.set-intg-lead {
+  padding: 4px 0 8px;
+}
+
+.set-intg-warn {
+  padding: 0 0 8px;
+  color: var(--danger);
+}
+
+.set-intg-row {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.set-intg-row .set-field {
+  border-bottom: none;
+}
+
+.set-intg-row[data-state='installed'] .set-intg-state {
+  color: var(--success);
+}
+
+.set-intg-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-intg-details {
+  margin-top: 10px;
+}
+
+.set-intg-details > summary {
+  padding-block: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.set-intg-details > summary:hover {
+  color: var(--text);
+}
+
+.set-intg-cli {
+  margin-top: 24px;
+}
+
+/* the two routes (CLI, MCP) as numbered parts with a rule between them */
+.set-intg-part {
+  margin-top: 8px;
+}
+
+.set-intg-part + .set-intg-part {
+  margin-top: 28px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.set-intg-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 22px 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.set-intg-mcp-http {
+  margin-top: 8px;
+}
+
+.set-mcp-advanced {
+  margin-top: 16px;
+}
+
+.set-intg-code-block {
+  align-items: flex-start;
+}
+
+.set-intg-code-block code {
+  white-space: pre;
+  word-break: normal;
+  overflow-x: auto;
+}
+
+.set-intg-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.set-intg-option:last-of-type {
+  border-bottom: none;
+}
+
+.set-intg-option .set-field-stack {
+  flex: 1;
+}
+
+.set-intg-code {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 6px 6px 6px 10px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+}
+
+.set-intg-code code {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text);
+  user-select: text;
+  word-break: break-all;
+}
+
+.set-intg-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.set-intg-example {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.set-intg-example-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  user-select: text;
+}
+
+/* the path about to be written, shown before any write happens */
+.set-intg-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-content);
+}
+
+.set-intg-confirm .set-field-desc {
+  overflow-wrap: anywhere;
+}
+
+.set-intg-notice {
+  padding: 0 0 10px;
+}
+
+.set-intg-path {
+  text-align: left;
+}
+
+/* ── Backup & Storage addon ─────────────────────────────── */
+.set-backup {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.set-backup-lead {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.set-backup-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-content);
+}
+
+.set-backup-status span {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.set-backup-status strong {
+  font-size: 13px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.set-backup-sim {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.set-backup-login {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-content);
+}
+
+.set-backup-login p {
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.set-backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.set-backup-skus {
+  display: flex;
+  flex-direction: column;
+}
+
+.set-backup-sku .set-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-backup-price {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.set-backup-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.set-backup-msg {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.set-backup-err {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+/* ── UniAI PWA install ──────────────────────────────────── */
+.set-uniai {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.set-uniai-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-content);
+}
+
+.set-uniai-qr-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
+}
+
+.set-uniai-qr {
+  width: 160px;
+  height: 160px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.set-uniai-qr-placeholder {
+  background: var(--bg-content);
+}
+
+.set-uniai-hero strong {
+  display: block;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.set-uniai-url {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.set-uniai-qr-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  max-width: 28rem;
+}
+
+.set-uniai-steps,
+.set-uniai-bullets {
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.set-uniai-steps li + li,
+.set-uniai-bullets li + li {
+  margin-top: 8px;
+}
+
+/* Settings → About: product identity above the version rows */
+.set-about-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0 18px;
+}
+
+.set-about-logo {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 14px;
+}
+
+.set-about-name {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.set-about-tagline {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.set-about-copyright {
+  margin: 18px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+/* Settings → About: upstream attribution and the shipped legal files */
+.set-about-attribution {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.set-about-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.set-about-legal-error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--danger);
+}
+
+/* ── Settings → Account: UniWork account ── */
+
+.acct-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0 8px;
+}
+
+.acct-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.acct-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-subtle);
+}
+
+.acct-card-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--account-avatar-bg);
+  color: var(--surface);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.acct-card-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* wraps under the avatar before the email has to break inside a word */
+  flex: 1 1 10rem;
+}
+
+.acct-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.acct-card-email {
+  font-size: 12px;
+  color: var(--text-secondary);
+  /* only a single token wider than the whole card breaks inside a word */
+  overflow-wrap: break-word;
+}
+
+.acct-card-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.acct-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-content);
+  color: var(--text-primary);
+}
+
+.acct-notice.warn {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+}
+
+.acct-notice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.acct-notice-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.acct-notice-body {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.acct-notice-error,
+.acct-inline-error {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--danger-text);
+}
+
+.acct-dot-spinner {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: acct-spin 0.9s linear infinite;
+}
+
+@keyframes acct-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acct-dot-spinner {
+    animation: none;
+  }
+}
+
+/* server address form: label over a full-width field, actions under it */
+.acct-server-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.acct-server-form .set-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.acct-actions {
+  flex-wrap: wrap;
+  padding-top: 12px;
+}
+
+.acct-actions .set-btn:focus-visible,
+.acct-org-dd .gs-dd-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* working-organization popup: grows leftwards from the trigger's right edge
+ * (the value sits at the row end), wide enough for a reason line, and never
+ * wider than the window */
+.acct-org-dd .gs-dd-pop {
+  left: auto;
+  right: anchor(right);
+  min-width: max(220px, anchor-size(width));
+  max-width: calc(var(--ui-vw) * 100 - 48px);
+}
+
+.acct-org-dd .gs-dd-item {
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.acct-org-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.acct-org-opt-name {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.acct-org-opt-reason {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--danger-text);
+}
+
+/* organization step after sign-in (account in several organizations) */
+.uw-org-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-content);
+}
+
+.uw-org-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uw-org-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.uw-org-body,
+.uw-org-gone {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.uw-org-gone {
+  padding: 6px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.uw-org-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uw-org-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.uw-org-row:hover {
+  background: var(--hover);
+}
+
+.uw-org-row.checked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.uw-org-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.uw-org-row.locked {
+  cursor: default;
+  background: var(--surface);
+}
+
+.uw-org-row.locked .uw-org-name {
+  color: var(--text-muted);
+}
+
+.uw-org-radio {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.uw-org-row.checked .uw-org-radio {
+  border: 5px solid var(--accent);
+}
+
+.uw-org-row.locked .uw-org-radio {
+  border-style: dashed;
+}
+
+.uw-org-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.uw-org-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.uw-org-role,
+.uw-org-reason {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.uw-org-reason {
+  color: var(--danger-text);
+}
+
+.uw-org-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.uw-org-actions .set-btn {
+  gap: 6px;
+}
+
+.uw-org-actions .set-btn[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.uw-org-actions .set-btn:focus-visible,
+.uw-org-blocked .set-btn:focus-visible,
+.uw-org-error .set-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.uw-org-blocked,
+.uw-org-error {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.uw-org-blocked .acct-notice-text,
+.uw-org-error .acct-notice-text {
+  flex: 1 1 12rem;
+}
+
+.uw-org-error .acct-notice-title {
+  font-weight: 400;
+}
+
+.uw-org-error .set-btn {
+  flex-shrink: 0;
+}
+
+@media (pointer: coarse) {
+  .uw-org-actions .set-btn,
+  .uw-org-blocked .set-btn,
+  .uw-org-error .set-btn {
+    height: 44px;
+  }
+}
+
+/* UniWork cloud AI (Settings → Account rows, AI media notice) */
+.cloud-notice {
+  margin-bottom: 12px;
+}
+
+.cloud-notice .acct-notice-text {
+  flex: 1;
+}
+
+.cloud-notice-action {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.cloud-state.credits-exhausted,
+.cloud-state.subscription-inactive,
+.cloud-state.unavailable {
+  color: var(--danger-text);
+}
+
+.cloud-state.not-entitled,
+.cloud-renews {
+  color: var(--text-secondary);
+}
+
+.cloud-renews {
+  margin-left: 8px;
+  font-size: 12px;
+}
+
+/* unsaved-changes prompt pinned to the bottom of the dialog */
+.set-leave {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 22px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-content);
+}
+
+/* a pane that could not load: the reason and a retry, inline */
+.set-inline-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--danger-border);
+  background: var(--danger-bg);
+  font-size: 13px;
+  color: var(--danger-text);
+}
+
+/* loading placeholder rows for panes that read their settings first */
+.set-skel {
+  display: block;
+  width: 34%;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--bg-hover);
+  animation: set-skel-pulse 1.4s ease-in-out infinite;
+}
+
+.set-skel-control {
+  width: 28%;
+  height: 26px;
+  margin-inline-start: auto;
+}
+
+@keyframes set-skel-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .set-skel {
+    animation: none;
+  }
+}
+"
+
+ ❯ tests/uniwork-org-choice-ui.test.ts:373:17
+    371|       /\.acct-org-dd \.gs-dd-item \{[^}]*white-space: normal;[^}]*over…
+    372|     )
+    373|     expect(css).toMatch(/\.acct-org-dd \.gs-dd-pop \{[^}]*max-width: c…
+       |                 ^
+    374|     await click(open)
+    375|     expect(account.selectOrg).toHaveBeenCalledWith('org-2')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 221 passed | 2 skipped (224)
+      Tests  1 failed | 3469 passed | 17 skipped (3487)
+   Start at  14:48:27
+   Duration  34.21s (transform 15.81s, setup 0ms, import 35.93s, tests 30.87s, environment 14.04s)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /home/ubuntu/work/uniwork-office/apps/shell
+npm error workspace @genoffice/shell@1.0.0
+npm error location /home/ubuntu/work/uniwork-office/apps/shell
+npm error command failed
+npm error command sh -c vitest run
