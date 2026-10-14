@@ -74,6 +74,16 @@ func viewFromInOrgRow(r db.ListWorkspacesInOrgRow) WorkspaceView {
 	}, OrganizationSlug: r.OrganizationSlug, OrganizationName: r.OrganizationName}
 }
 
+// ViewsFromOrgRows turns rows an already-authorized org listing returned into
+// views with the icon URL signed.
+func (s *WorkspaceService) ViewsFromOrgRows(ctx context.Context, rows []db.ListWorkspacesInOrgRow) []WorkspaceView {
+	out := make([]WorkspaceView, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, s.withIconURL(ctx, viewFromInOrgRow(r)))
+	}
+	return out
+}
+
 func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name, slug string) (WorkspaceView, error) {
 	if _, err := s.orgs.RequireMember(ctx, orgID, userID); err != nil {
 		return WorkspaceView{}, err

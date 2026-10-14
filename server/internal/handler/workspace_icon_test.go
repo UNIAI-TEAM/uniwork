@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"encoding/json"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -77,14 +78,43 @@ func TestPatchWorkspaceProfileFields(t *testing.T) {
 
 func TestWorkspaceIconUploadAndRemove(t *testing.T) {
 	srv, token, wsID := workspaceForProfileTest(t)
-	if res := postWorkspaceIcon(t, srv, token, wsID, docsPNG); res.StatusCode != 200 {
-		t.Fatalf("upload: %d", res.StatusCode)
+	res := postWorkspaceIcon(t, srv, token, wsID, docsPNG)
+	var up map[string]any
+	if err := json.NewDecoder(res.Body).Decode(&up); err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != 200 || up["workspace"].(map[string]any)["icon_url"] == "" {
+		t.Fatalf("upload: %d %v", res.StatusCode, up)
 	}
 	if res := postWorkspaceIcon(t, srv, token, wsID, []byte("not a picture")); res.StatusCode != 415 {
 		t.Fatalf("text upload: %d, want 415", res.StatusCode)
 	}
-	res, out := doJSON(t, srv, "DELETE", "/api/v1/workspaces/"+wsID+"/icon", token, nil)
-	if res.StatusCode != 200 || out["workspace"].(map[string]any)["icon_url"] != "" {
-		t.Fatalf("remove: %d %v", res.StatusCode, out)
+	res2, out := doJSON(t, srv, "DELETE", "/api/v1/workspaces/"+wsID+"/icon", token, nil)
+	if res2.StatusCode != 200 || out["workspace"].(map[string]any)["icon_url"] != "" {
+		t.Fatalf("remove: %d %v", res2.StatusCode, out)
+	}
+}
+
+func TestOrgWorkspaceListCarriesProfileFields(t *testing.T) {
+	srv, token, wsID := workspaceForProfileTest(t)
+	res, out := doJSON(t, srv, "PATCH", "/api/v1/workspaces/"+wsID, token, map[string]string{
+		"description": "Nhóm làm sản phẩm", "icon_emoji": "🚀",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("patch: %d %v", res.StatusCode, out)
+	}
+	orgID := out["workspace"].(map[string]any)["organization_id"].(string)
+	res, out = doJSON(t, srv, "GET", "/api/v1/orgs/"+orgID+"/workspaces", token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list: %d %v", res.StatusCode, out)
+	}
+	list := out["workspaces"].([]any)
+	if len(list) != 1 {
+		t.Fatalf("workspaces = %v", list)
+	}
+	ws := list[0].(map[string]any)
+	if ws["description"] != "Nhóm làm sản phẩm" || ws["icon_emoji"] != "🚀" || ws["task_prefix"] == "" {
+		t.Fatalf("workspace = %v", ws)
 	}
 }
