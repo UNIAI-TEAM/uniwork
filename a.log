@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+ef0a84754f617e80d0d4042cf9e0e0e6f490e6c9
+4170dfcdeb96564d40b09862ffcf1cdc909f37fb
+ef0a8475 fix(ai): standalone editors answer the UniWork AI flag pull with off
+9f8ac8b9 fix(ai): the Sheets AI live region no longer exposes role=status
+7c899cab chore(format): prettier the G6-05 files the cloud format:check listed
