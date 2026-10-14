@@ -1,0 +1,14 @@
+$ HARNESS_SKIP_APP=1 bash scripts/office/g5g6g7/harness/start.sh; rc=$?; cat .harness-run/start-status.json; echo "START_EXIT=$rc"; [ $rc -eq 0 ]
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /workspace/.harness-run
+harness: D server  http://localhost:35451 (metrics 127.0.0.1:43619)
+harness: D web     http://localhost:41839
+harness: fork      0d03b18
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:35451 ...
+harness: HARNESS_SKIP_APP=1 — the fork is not cloned and the app is not started
+harness: up (server + web)
+{"state":"up","reason":""}
+START_EXIT=0

@@ -1,0 +1,2 @@
+$ cd /tmp && rm -rf uw-g503a-i && git clone -q https://github.com/UNIAI-TEAM/uniwork-office uw-g503a-i && cd uw-g503a-i && git checkout -q 45b652d8 && git rev-parse HEAD
+45b652d80d362996d85a4446390f91390d7a97bc

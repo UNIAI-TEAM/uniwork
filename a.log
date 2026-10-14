@@ -1,0 +1,5 @@
+$ git rev-parse HEAD && ls docs/office/g5g6g7/fixtures/fx-docx-report-vi.docx docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.xlsx && echo HAS_FIXTURES
+73581da74d6acb206fdf38da9ae09d739d2b4575
+docs/office/g5g6g7/fixtures/fx-docx-report-vi.docx
+docs/office/g5g6g7/fixtures/fx-xlsx-revenue-xyz.xlsx
+HAS_FIXTURES

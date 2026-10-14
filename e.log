@@ -1,0 +1,92 @@
+$ D_ROOT=$(pwd); export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh" >/dev/null 2>&1; nvm use 22 >/dev/null 2>&1; node -v; ORIGIN=$(grep -m1 '^API_ORIGIN=' "$D_ROOT/.harness-run/ports.env" | cut -d= -f2-); echo "origin set: ${ORIGIN:+yes}"; cd /tmp/uw-g503a-i && UNIWORK_LIVE_ORIGIN="$ORIGIN" UNIWORK_LIVE_FIXTURE_DIR="$D_ROOT/docs/office/g5g6g7/fixtures" NODE_ENV=test AI_PROVIDER=fake npx vitest run --root apps/shell tests/live/uniwork-remote-newer-live.test.ts --reporter=verbose; rc=$?; echo "LIVE_I_EXIT=$rc"; [ $rc -eq 0 ]
+v22.14.0
+origin set: yes
+
+ RUN  v4.1.11 /tmp/uw-g503a-i/apps/shell
+
+ ✓ tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I0. cold start: the real feed lists every seeded head through the runtime 34ms
+ × tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I1. docx clean reload: a web save lands as the new head (bytes sha, base, bar updated) 90102ms
+   → I1: the live feed did not deliver the expected state within 90s (9 runtime tick(s), 20 feed page(s) seen; office_sync_feed=true)
+ × tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I2. docx dirty kept: the next web save moves nothing (bytes, base, no download) 90192ms
+   → I2: the live feed did not deliver the expected state within 90s (9 runtime tick(s), 38 feed page(s) seen; office_sync_feed=true)
+ × tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I3. xlsx clean reload: the web save lands as the new head (bytes sha, base, bar updated) 90048ms
+   → I3: the live feed did not deliver the expected state within 90s (9 runtime tick(s), 56 feed page(s) seen; office_sync_feed=true)
+ × tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I4. xlsx dirty kept: the next web save moves nothing (bytes, base, no download) 90155ms
+   → I4: the live feed did not deliver the expected state within 90s (9 runtime tick(s), 74 feed page(s) seen; office_sync_feed=true)
+ × tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I5. self-echo: this app's own commit raises no bar on the copy that made it 90144ms
+   → I5: the live feed did not deliver the expected state within 90s (9 runtime tick(s), 92 feed page(s) seen; office_sync_feed=true)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I1. docx clean reload: a web save lands as the new head (bytes sha, base, bar updated)
+Error: I1: the live feed did not deliver the expected state within 90s (9 runtime tick(s), 20 feed page(s) seen; office_sync_feed=true)
+ ❯ syncUntil tests/live/uniwork-remote-newer-live.test.ts:309:13
+    307|     }
+    308|     if (Date.now() >= deadline) {
+    309|       throw new Error(
+       |             ^
+    310|         `${step}: the live feed did not deliver the expected state wit…
+    311|           `${Math.round(STEP_SYNC_BUDGET_MS / 1000)}s (${ticks} runtim…
+ ❯ tests/live/uniwork-remote-newer-live.test.ts:616:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I2. docx dirty kept: the next web save moves nothing (bytes, base, no download)
+Error: I2: the live feed did not deliver the expected state within 90s (9 runtime tick(s), 38 feed page(s) seen; office_sync_feed=true)
+ ❯ syncUntil tests/live/uniwork-remote-newer-live.test.ts:309:13
+    307|     }
+    308|     if (Date.now() >= deadline) {
+    309|       throw new Error(
+       |             ^
+    310|         `${step}: the live feed did not deliver the expected state wit…
+    311|           `${Math.round(STEP_SYNC_BUDGET_MS / 1000)}s (${ticks} runtim…
+ ❯ tests/live/uniwork-remote-newer-live.test.ts:696:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I3. xlsx clean reload: the web save lands as the new head (bytes sha, base, bar updated)
+Error: I3: the live feed did not deliver the expected state within 90s (9 runtime tick(s), 56 feed page(s) seen; office_sync_feed=true)
+ ❯ syncUntil tests/live/uniwork-remote-newer-live.test.ts:309:13
+    307|     }
+    308|     if (Date.now() >= deadline) {
+    309|       throw new Error(
+       |             ^
+    310|         `${step}: the live feed did not deliver the expected state wit…
+    311|           `${Math.round(STEP_SYNC_BUDGET_MS / 1000)}s (${ticks} runtim…
+ ❯ tests/live/uniwork-remote-newer-live.test.ts:774:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I4. xlsx dirty kept: the next web save moves nothing (bytes, base, no download)
+Error: I4: the live feed did not deliver the expected state within 90s (9 runtime tick(s), 74 feed page(s) seen; office_sync_feed=true)
+ ❯ syncUntil tests/live/uniwork-remote-newer-live.test.ts:309:13
+    307|     }
+    308|     if (Date.now() >= deadline) {
+    309|       throw new Error(
+       |             ^
+    310|         `${step}: the live feed did not deliver the expected state wit…
+    311|           `${Math.round(STEP_SYNC_BUDGET_MS / 1000)}s (${ticks} runtim…
+ ❯ tests/live/uniwork-remote-newer-live.test.ts:841:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/live/uniwork-remote-newer-live.test.ts > G5-A03 live: a web save on the real D server reaches the desktop > I5. self-echo: this app's own commit raises no bar on the copy that made it
+Error: I5: the live feed did not deliver the expected state within 90s (9 runtime tick(s), 92 feed page(s) seen; office_sync_feed=true)
+ ❯ syncUntil tests/live/uniwork-remote-newer-live.test.ts:309:13
+    307|     }
+    308|     if (Date.now() >= deadline) {
+    309|       throw new Error(
+       |             ^
+    310|         `${step}: the live feed did not deliver the expected state wit…
+    311|           `${Math.round(STEP_SYNC_BUDGET_MS / 1000)}s (${ticks} runtim…
+ ❯ tests/live/uniwork-remote-newer-live.test.ts:911:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 1 passed (6)
+   Start at  07:46:32
+   Duration  451.25s (transform 281ms, setup 0ms, import 334ms, tests 450.83s, environment 0ms)
+
+LIVE_I_EXIT=1
