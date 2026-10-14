@@ -54,6 +54,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 	_, err = pool.Exec(ctx, `TRUNCATE users, organizations, organization_members,
 		workspaces, workspace_members, invitations, refresh_tokens,
 		project_resources, projects, idempotency_keys, feature_flag_overrides,
+		demo_requests,
 		task_source_contexts, attachments, task_reactions, comment_reactions,
 		home_preferences, task_view_preferences, task_views, task_pins, task_subscribers,
 		task_dependencies, task_label_links, task_properties, task_labels, task_statuses,
@@ -82,6 +83,8 @@ func DB(t *testing.T) *pgxpool.Pool {
 		mcp_clients, mcp_auth_attempts, mcp_grants, mcp_tokens,
 		document_access_logs, document_share_links, document_shares,
 		document_assets, document_versions, documents, office_jobs,
+		document_change_snapshots, document_change_snapshot_items,
+		office_offline_leases, office_offline_policy,
 		graph_dirty, graph_node_facts, graph_edges, graph_nodes,
 		saved_signatures CASCADE`)
 	if err != nil {

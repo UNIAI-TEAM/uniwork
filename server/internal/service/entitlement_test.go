@@ -356,3 +356,52 @@ func TestRecordingAndSummaryNeedTheFlag(t *testing.T) {
 		t.Fatalf("summary without the flag: got %v", err)
 	}
 }
+
+func TestMeterPeriodStart(t *testing.T) {
+	start := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	paid := db.Subscription{
+		CurrentPeriodStart: pgtype.Timestamptz{Time: start, Valid: true},
+		CurrentPeriodEnd:   pgtype.Timestamptz{Time: start.Add(30 * 24 * time.Hour), Valid: true},
+	}
+	got := meterPeriodStart(paid, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC))
+	if !got.Valid || !got.Time.Equal(start) {
+		t.Fatalf("paid term: got %v, want %v", got.Time, start)
+	}
+	free := db.Subscription{CurrentPeriodStart: pgtype.Timestamptz{Time: start, Valid: true}}
+	// 23:30 UTC on 31 Jan is 06:30 on 1 Feb in Vietnam, so the meter month has turned.
+	now := time.Date(2026, 1, 31, 23, 30, 0, 0, time.UTC)
+	got = meterPeriodStart(free, now)
+	want := time.Date(2026, 2, 1, 0, 0, 0, 0, vietnam)
+	if !got.Valid || !got.Time.Equal(want) {
+		t.Fatalf("calendar month: got %v, want %v", got.Time, want)
+	}
+}
+
+func TestAccumulatingQuotaResetsMonthlyWithoutPeriodEnd(t *testing.T) {
+	f := newEntitlementFixture(t)
+	snap, err := f.ent.Snapshot(f.ctx, f.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := lookup(snap.Entitlements, FeatureAITokens)
+	if !ok || e.Limit == nil {
+		t.Fatalf("ai.tokens entitlement: %+v", e)
+	}
+	var period time.Time
+	if err := f.pool.QueryRow(f.ctx, `UPDATE subscriptions SET current_period_start = now() - interval '40 days' WHERE organization_id = $1 RETURNING current_period_start`, f.orgID).Scan(&period); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO usage_counters (organization_id, meter_key, period_start, total) VALUES ($1, $2, $3, $4)`, f.orgID, FeatureAITokens, period, *e.Limit); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.ent.CheckQuota(f.ctx, f.orgID, FeatureAITokens, 1); err != nil {
+		t.Fatalf("a full counter from a previous month must not block this month: %v", err)
+	}
+	again, err := f.ent.Snapshot(f.ctx, f.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cur, _ := lookup(again.Entitlements, FeatureAITokens); cur.Current != 0 {
+		t.Fatalf("this month's ai.tokens = %d, want 0", cur.Current)
+	}
+}

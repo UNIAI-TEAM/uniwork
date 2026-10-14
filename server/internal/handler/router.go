@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 
@@ -31,6 +32,7 @@ type Deps struct {
 	McpTools      *service.McpToolService
 	Verification  *service.VerificationService
 	PasswordReset *service.PasswordResetService
+	DemoRequests  *service.DemoRequestService
 	GoogleAuth    *service.GoogleAuthService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
@@ -57,10 +59,13 @@ type Deps struct {
 	AIBYOK *service.AIBYOKService
 	// AICloud is the Office cloud tools service (GO-A7); nil answers 503
 	// cloud_unavailable on its routes.
-	AICloud  *service.AICloudService
-	Meetings *service.MeetingService
-	Chat     *service.ChatService
-	Hub      *realtime.Hub
+	AICloud *service.AICloudService
+	// AIUniwork is the UniWork AI façade (G6-03a): the org, document and
+	// frame routes. nil answers 503 ai_disabled on them.
+	AIUniwork *service.AIUniworkService
+	Meetings  *service.MeetingService
+	Chat      *service.ChatService
+	Hub       *realtime.Hub
 
 	// Graph is the Work Graph read service (C-11); nil answers 501 on the
 	// graph routes until the server wires it.
@@ -101,6 +106,15 @@ type Deps struct {
 	// (UNI-1013). When omitted, New derives it from Documents and JWT_SECRET.
 	OfficeFrame           *service.OfficeFrameService
 	OfficeDesktopDownload *service.OfficeDesktopDownloadService
+	// OfficeCapabilities answers the app capability route (X-03): which
+	// Office features are enabled for one organization. nil answers 503.
+	OfficeCapabilities *service.OfficeCapabilitiesService
+	// DocumentChanges is the Office change feed (G5-01a). When omitted, New
+	// derives it from Documents, FeatureFlags and the deployment config.
+	DocumentChanges *service.DocumentChangesService
+	// OfficeLease grants, renews and releases offline leases (G5-08s). When
+	// omitted, New derives it from Documents, FeatureFlags and JWT_SECRET.
+	OfficeLease *service.OfficeLeaseService
 
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
@@ -141,11 +155,43 @@ type handlers struct {
 	mcpHandler http.Handler
 }
 
+// frameIdentity names the person behind an Office frame token for the global
+// rate limiter (G6-03b §5.3). The limiter runs before routing, so it cannot
+// read the frame auth's context: it verifies the token itself, the same HMAC
+// and lifetime checks OfficeFrameService.Verify applies on the route, and
+// touches no database. The name is the person plus the document: one person's
+// documents do not pool into one wallet, and a stolen token cannot spend
+// another person's budget. A token that does not verify names nobody, so the
+// request keeps its address's budget instead of a forgeable one.
+func (h *handlers) frameIdentity(r *http.Request) string {
+	if h.OfficeFrame == nil {
+		return ""
+	}
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || token == "" {
+		return ""
+	}
+	claims, err := h.OfficeFrame.Verify(token)
+	if err != nil {
+		return ""
+	}
+	return "user:" + claims.UserID + ":doc:" + claims.DocumentID
+}
+
 // New builds the HTTP handler. Routes live in package router, split by
 // OpenAPI tag. This constructor only maps *handlers methods onto Routes.
 func New(d Deps) http.Handler {
 	if d.OfficeDesktopDownload == nil && d.Organizations != nil {
 		d.OfficeDesktopDownload = service.NewOfficeDesktopDownloadService(d.Organizations, d.Cfg)
+	}
+	if d.OfficeCapabilities == nil && d.Organizations != nil {
+		d.OfficeCapabilities = service.NewOfficeCapabilitiesService(d.Organizations, d.FeatureFlags)
+	}
+	if d.DocumentChanges == nil && d.Documents != nil {
+		d.DocumentChanges = service.NewDocumentChangesService(d.Documents, d.FeatureFlags, d.Cfg)
+	}
+	if d.OfficeLease == nil && d.Documents != nil {
+		d.OfficeLease = service.NewOfficeLeaseService(d.Documents, d.FeatureFlags, d.Cfg)
 	}
 	if d.OfficeLaunch == nil && d.Documents != nil {
 		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
@@ -179,6 +225,7 @@ func New(d Deps) http.Handler {
 			return d.DesktopAuth.CheckDeviceSession(ctx, userID, sessionID)
 		},
 		OfficeFrameAuth: h.officeFrameAuth,
+		FrameIdentity:   h.frameIdentity,
 	}, rt.Routes{
 		Health: h.health,
 		Ready:  h.ready,
@@ -186,6 +233,9 @@ func New(d Deps) http.Handler {
 		Config:                     h.config,
 		OfficeDesktopDownload:      h.officeDesktopDownload,
 		RUM:                        h.rum,
+		CreateDemoRequest:          h.createDemoRequest,
+		AdminListDemoRequests:      h.adminListDemoRequests,
+		AdminUpdateDemoRequest:     h.adminUpdateDemoRequest,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
 		AdminGetOrganization:       h.adminGetOrganization,
@@ -463,6 +513,10 @@ func New(d Deps) http.Handler {
 		AiCloudAnalyzeMedia:   aiMount.CloudAnalyzeMedia,
 		AiCloudTranscribe:     aiMount.CloudTranscribe,
 
+		AiUniworkChatCompletions:            aiMount.UniworkChatCompletions,
+		AiUniworkDocumentChatCompletions:    h.uniworkDocumentChatCompletions,
+		OfficeFrameAiUniworkChatCompletions: frameAI.UniworkChatCompletions,
+
 		ListPlans:           h.listPlans,
 		GetSubscription:     h.getSubscription,
 		ChangePlan:          h.changePlan,
@@ -651,6 +705,7 @@ func New(d Deps) http.Handler {
 		GetOfficeJobOutput:      h.getOfficeJobOutput,
 		CancelOfficeJob:         h.cancelOfficeJob,
 		OfficeCapability:        h.officeCapability,
+		OfficeAppCapabilities:   h.officeAppCapabilities,
 		CreateOfficeLaunch:      h.createOfficeLaunch,
 		ExchangeOfficeLaunch:    h.exchangeOfficeLaunch,
 		RevokeOfficeLaunch:      h.revokeOfficeLaunch,
@@ -662,6 +717,7 @@ func New(d Deps) http.Handler {
 		PatchDocument:           h.patchDocument,
 		UploadDocumentFile:      h.uploadDocumentFile,
 		CommitDocumentVersion:   h.commitDocumentVersion,
+		LookupCommitIntent:      h.lookupCommitIntent,
 		ListDocumentVersions:    h.listDocumentVersions,
 		CreateDocumentVersion:   h.createDocumentVersion,
 		GetDocumentVersion:      h.getDocumentVersion,
@@ -706,6 +762,9 @@ func New(d Deps) http.Handler {
 		ReopenDocumentComment:         h.reopenDocumentComment,
 		AddDocumentCommentReaction:    h.addDocumentCommentReaction,
 		RemoveDocumentCommentReaction: h.removeDocumentCommentReaction,
+		ListDocumentCommentRevisions:  h.listDocumentCommentRevisions,
+		ListDocumentMentionCandidates: h.listDocumentMentionCandidates,
+		PutDocumentCommentAnchors:     h.putDocumentCommentAnchors,
 		FavoriteDocument:              h.favoriteDocument,
 		UnfavoriteDocument:            h.unfavoriteDocument,
 		ListDocumentFavorites:         h.listDocumentFavorites,
@@ -717,24 +776,27 @@ func New(d Deps) http.Handler {
 		SaveAICredential:     aiMount.CredentialSave,
 		DeleteAICredential:   aiMount.CredentialDelete,
 
-		ListDocuments:          h.listDocuments,
-		ListRecentDocuments:    h.listRecentDocuments,
-		ListSharedWithMe:       h.listSharedWithMe,
-		DocumentTree:           h.getDocumentTree,
-		MoveDocument:           h.moveDocument,
-		ArchiveDocument:        h.archiveDocument,
-		RestoreDocument:        h.restoreDocument,
-		ListDocumentShares:     h.listDocumentShares,
-		CreateDocumentShare:    h.createDocumentShare,
-		RevokeDocumentShare:    h.revokeDocumentShare,
-		CreateDocumentLink:     h.createDocumentLink,
-		RevokeDocumentLink:     h.revokeDocumentLink,
-		ListDocumentAccessLogs: h.listDocumentAccessLogs,
-		GetDocumentSettings:    h.getDocumentSettings,
-		SetDocumentSettings:    h.setDocumentSettings,
-		GetPublicDocument:      h.getPublicDocument,
-		DownloadPublicDocument: h.downloadPublicDocument,
-		GetPublicDocumentAsset: h.getPublicDocumentAsset,
+		ListDocuments:            h.listDocuments,
+		ListRecentDocuments:      h.listRecentDocuments,
+		ListDocumentChanges:      h.listDocumentChanges,
+		PutOfficeOfflineLease:    h.putOfficeOfflineLease,
+		DeleteOfficeOfflineLease: h.deleteOfficeOfflineLease,
+		ListSharedWithMe:         h.listSharedWithMe,
+		DocumentTree:             h.getDocumentTree,
+		MoveDocument:             h.moveDocument,
+		ArchiveDocument:          h.archiveDocument,
+		RestoreDocument:          h.restoreDocument,
+		ListDocumentShares:       h.listDocumentShares,
+		CreateDocumentShare:      h.createDocumentShare,
+		RevokeDocumentShare:      h.revokeDocumentShare,
+		CreateDocumentLink:       h.createDocumentLink,
+		RevokeDocumentLink:       h.revokeDocumentLink,
+		ListDocumentAccessLogs:   h.listDocumentAccessLogs,
+		GetDocumentSettings:      h.getDocumentSettings,
+		SetDocumentSettings:      h.setDocumentSettings,
+		GetPublicDocument:        h.getPublicDocument,
+		DownloadPublicDocument:   h.downloadPublicDocument,
+		GetPublicDocumentAsset:   h.getPublicDocumentAsset,
 	})
 }
 

@@ -199,6 +199,67 @@ func (q *Queries) DeleteDocumentAutoVersionsBelow(ctx context.Context, arg Delet
 	return items, nil
 }
 
+const deleteDocumentCommentMentionsByDocument = `-- name: DeleteDocumentCommentMentionsByDocument :exec
+DELETE FROM document_comment_mentions
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+`
+
+type DeleteDocumentCommentMentionsByDocumentParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+func (q *Queries) DeleteDocumentCommentMentionsByDocument(ctx context.Context, arg DeleteDocumentCommentMentionsByDocumentParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentCommentMentionsByDocument, arg.OrganizationID, arg.WorkspaceID, arg.DocumentID)
+	return err
+}
+
+const deleteDocumentCommentReactionsByDocument = `-- name: DeleteDocumentCommentReactionsByDocument :exec
+DELETE FROM comment_reactions r
+USING document_comments c
+WHERE r.comment_id = c.id
+  AND c.document_id = $1
+  AND c.organization_id = $2
+  AND c.workspace_id = $3
+  AND r.organization_id = $2
+  AND r.workspace_id = $3
+`
+
+type DeleteDocumentCommentReactionsByDocumentParams struct {
+	DocumentID     string `json:"document_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// The comment orbit purges in one order: reactions, mentions, revisions, then
+// the comments they hang on. comment_reactions carries no document_id, so its
+// rows are reached through document_comments and must go first (G8-03).
+func (q *Queries) DeleteDocumentCommentReactionsByDocument(ctx context.Context, arg DeleteDocumentCommentReactionsByDocumentParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentCommentReactionsByDocument, arg.DocumentID, arg.OrganizationID, arg.WorkspaceID)
+	return err
+}
+
+const deleteDocumentCommentRevisionsByDocument = `-- name: DeleteDocumentCommentRevisionsByDocument :exec
+DELETE FROM document_comment_revisions
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+`
+
+type DeleteDocumentCommentRevisionsByDocumentParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+func (q *Queries) DeleteDocumentCommentRevisionsByDocument(ctx context.Context, arg DeleteDocumentCommentRevisionsByDocumentParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentCommentRevisionsByDocument, arg.OrganizationID, arg.WorkspaceID, arg.DocumentID)
+	return err
+}
+
 const deleteDocumentComments = `-- name: DeleteDocumentComments :exec
 DELETE FROM document_comments
 WHERE organization_id = $1
@@ -662,7 +723,7 @@ WHERE id = $2
   AND content_saved_at IS NOT NULL
   AND content_saved_at < $6
   AND (last_version_at IS NULL OR last_version_at < content_saved_at)
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision
 `
 
 type MarkDocumentAutoVersionedParams struct {
@@ -726,6 +787,7 @@ func (q *Queries) MarkDocumentAutoVersioned(ctx context.Context, arg MarkDocumen
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArchiveBatchID,
+		&i.ContentRevision,
 	)
 	return i, err
 }

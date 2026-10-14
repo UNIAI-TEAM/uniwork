@@ -1,0 +1,37 @@
+{
+  "host": "web",
+  "forkSha": "cb76dde5",
+  "pinVersion": "0.1.0-cb76dde",
+  "viewport": {
+    "w": 64,
+    "h": 48
+  },
+  "deviceScaleFactor": 1,
+  "capturedAt": "2026-10-12T00:00:00.000Z",
+  "fixtures": {
+    "fx-xlsx-revenue-xyz": {
+      "status": "ok",
+      "reason": ""
+    },
+    "fx-docx-report-vi": {
+      "status": "ok",
+      "reason": ""
+    },
+    "fx-pptx-deck-vi": {
+      "status": "ok",
+      "reason": ""
+    },
+    "fx-pdf-invoice-vi": {
+      "status": "ok",
+      "reason": ""
+    },
+    "fx-md-notes-vi": {
+      "status": "ok",
+      "reason": ""
+    },
+    "fx-html-page-vi": {
+      "status": "ok",
+      "reason": ""
+    }
+  }
+}

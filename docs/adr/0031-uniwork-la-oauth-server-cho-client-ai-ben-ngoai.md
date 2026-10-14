@@ -1,7 +1,8 @@
 # 0031 — UniWork là OAuth authorization server cho client AI bên ngoài; token MCP tách khỏi token phiên
 
 **Trạng thái:** accepted (2026-10-12) — chấp nhận bởi bavinh2803 khi duyệt spec
-`2026-10-12-mcp-connector-design.md` (UNI-1308).
+`2026-10-12-mcp-connector-design.md` (UNI-1308). Mục 3 (tool ghi theo ADR 0010) bị thay bởi
+[0033](0033-tool-ghi-qua-mcp-chay-truc-tiep-bang-actor-human.md) ngày 2026-10-14; các mục còn lại vẫn giữ.
 
 ## Bối cảnh
 

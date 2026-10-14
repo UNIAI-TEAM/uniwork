@@ -1,0 +1,31 @@
+-- Office change feed, incremental position (G5-01b, UNI-1346; contract-p0
+-- reserved range 9991791830000300..0000399).
+--
+-- The incremental feed needs a position that is ordered by COMMIT, not by
+-- wall-clock or ULID: a ULID minted before a slow commit sorts below rows that
+-- committed first, so it cannot be a keyset. The one append-only table every
+-- document command already writes (ADR 0009: the audit row and the business
+-- change share one transaction) is audit_events, and its rows are never
+-- UPDATEd (audit_events_no_update trigger) - so a row's transaction id is a
+-- stable commit-order position. xact_id stores it once, at INSERT, so the feed
+-- reads a plain indexed column instead of a system column (PostgreSQL refuses
+-- CREATE INDEX on xmin, and xmin is a 32-bit xid without an epoch).
+--
+-- Two statements, both DDL, both no-ops for existing rows:
+--   1. ADD COLUMN without a default: an in-place catalogue change, no table
+--      rewrite, and every existing row keeps NULL (a row written before this
+--      migration has no position; the feed answers 410 for a cursor older than
+--      the migration, forcing one cold start).
+--   2. SET DEFAULT pg_current_xact_id(): a catalogue-only change. PostgreSQL
+--      does NOT rewrite the table when a column with a volatile default is
+--      added, but keeping ADD and SET DEFAULT as separate statements makes
+--      "existing rows stay NULL" true by construction rather than by the
+--      version's rewrite heuristic.
+--
+-- The runner applies this file as one implicit transaction (embed.go Up), so a
+-- row inserted between the two statements cannot be observed: the file either
+-- lands whole or not at all. The two statements must stay in ONE file for
+-- exactly that reason.
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS xact_id xid8;
+
+ALTER TABLE audit_events ALTER COLUMN xact_id SET DEFAULT pg_current_xact_id();

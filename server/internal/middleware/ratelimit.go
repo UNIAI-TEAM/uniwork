@@ -94,7 +94,7 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 // address (an office NAT) each get the whole budget. A request it cannot
 // name falls back to the IP key. A nil identity is RateLimit.
 func RateLimitByIdentity(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc) func(http.Handler) http.Handler {
-	return rateLimit(rdb, limit, window, trustedProxies, identity, func(r *http.Request) string { return r.URL.Path })
+	return rateLimit(rdb, limit, window, trustedProxies, identity, func(r *http.Request) string { return r.URL.Path }, "")
 }
 
 // RateLimitByIdentityBucket is RateLimitByIdentity with one budget shared by
@@ -102,14 +102,22 @@ func RateLimitByIdentity(rdb *redis.Client, limit int, window time.Duration, tru
 // the request path, so a group whose paths carry ids (a document, an
 // organization, a provider) is limited per person per group, not per person
 // per URL. An empty bucket keys by path, which is RateLimitByIdentity.
-func RateLimitByIdentityBucket(rdb *redis.Client, bucket string, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc) func(http.Handler) http.Handler {
+//
+// code overrides the refusal's error code (G6-03b Q6): the ai-uniwork bucket
+// answers ai_rate_limited, every other bucket keeps the default rate_limited.
+// Empty is the default.
+func RateLimitByIdentityBucket(rdb *redis.Client, bucket string, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc, code ...string) func(http.Handler) http.Handler {
 	if bucket == "" {
 		return RateLimitByIdentity(rdb, limit, window, trustedProxies, identity)
 	}
 	// "~" never starts a request path or a method-prefixed route pattern, so
-	// a bucket cannot share a path's or a route's counter.
+	// a bucket cannot share a path's or the route's counter.
 	scope := "~" + bucket
-	return rateLimit(rdb, limit, window, trustedProxies, identity, func(*http.Request) string { return scope })
+	refusal := ""
+	if len(code) > 0 {
+		refusal = code[0]
+	}
+	return rateLimit(rdb, limit, window, trustedProxies, identity, func(*http.Request) string { return scope }, refusal)
 }
 
 // RateLimitPerRoute is RateLimitByIdentity keyed by the matched route pattern
@@ -125,10 +133,13 @@ func RateLimitPerRoute(rdb *redis.Client, limit int, window time.Duration, trust
 			}
 		}
 		return r.URL.Path
-	})
+	}, "")
 }
 
-func rateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc, route func(*http.Request) string) func(http.Handler) http.Handler {
+func rateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc, route func(*http.Request) string, code string) func(http.Handler) http.Handler {
+	if code == "" {
+		code = "rate_limited"
+	}
 	return func(next http.Handler) http.Handler {
 		if rdb == nil {
 			return next
@@ -161,7 +172,7 @@ func rateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				// Same envelope as handler.respondError; the client maps the code.
-				_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("rate_limited", "too many requests"))
+				_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO(code, "too many requests"))
 				return
 			}
 

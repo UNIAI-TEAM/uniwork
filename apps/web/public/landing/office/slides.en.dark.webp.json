@@ -1,0 +1,99 @@
+{
+  "prompt": "Source: actual UniWork slides editor, installed pinned product frame /office-frame/slides/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 c9fd550d1b888f4ec93888e1c977d968c8a2c86f39d9397b5d73133f3d98fa84. Captured 2026-10-14T03:17:36.672Z from http://localhost:3000, language en, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample results.pptx supplied as raw bytes, SHA-256 ecd665e884b4a135a39436c37a46468b0b455691a60fbccfb12cf3192ad2377a; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+  "createdAt": "2026-10-14T03:21:54.417Z",
+  "id": "slides-en-dark",
+  "bucket": "produce",
+  "source_crop": null,
+  "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+  "output_path": "apps/web/public/landing/office/slides.en.dark.webp",
+  "strategy": "real-product-frame-source-fixture-capture",
+  "prompt_used": null,
+  "origin": "Source: actual UniWork slides editor, installed pinned product frame /office-frame/slides/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 c9fd550d1b888f4ec93888e1c977d968c8a2c86f39d9397b5d73133f3d98fa84. Captured 2026-10-14T03:17:36.672Z from http://localhost:3000, language en, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample results.pptx supplied as raw bytes, SHA-256 ecd665e884b4a135a39436c37a46468b0b455691a60fbccfb12cf3192ad2377a; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+  "dimensions": {
+    "width": 2400,
+    "height": 1500
+  },
+  "format": "webp",
+  "transparency": false,
+  "bytes": 99414,
+  "sha256": "23e4a590a1fd9ed36061e7946072eea1538878a7a5613dc047520ae78d066d81",
+  "illustrative_data": true,
+  "source_files": [
+    {
+      "path": "scripts/office-landing/capture.mjs",
+      "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+    },
+    {
+      "path": "scripts/office-landing/samples.mjs",
+      "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+    },
+    {
+      "path": "scripts/office-landing/deck.mjs",
+      "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+    },
+    {
+      "path": "scripts/office-landing/report.mjs",
+      "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+    }
+  ],
+  "source_archive": {
+    "schema": 1,
+    "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+    "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+  },
+  "capture": {
+    "editor": "slides",
+    "lang": "en",
+    "theme": "dark",
+    "filename": "slides.en.dark.webp",
+    "aiPanel": true,
+    "frame": "1200x750",
+    "width": 2400,
+    "height": 1500,
+    "bytes": 99414,
+    "capturedAt": "2026-10-14T03:17:36.672Z",
+    "captureMode": "installed-product-frame-source-fixture",
+    "entry": "/office-frame/slides/0.1.0-0d03b18/index.html",
+    "pin": {
+      "schema": 1,
+      "version": "0.1.0-0d03b18",
+      "gitSha": "0d03b18",
+      "entry": "index.html",
+      "manifestSha256": "c9fd550d1b888f4ec93888e1c977d968c8a2c86f39d9397b5d73133f3d98fa84",
+      "headers": {
+        "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; media-src blob:"
+      }
+    },
+    "sample": {
+      "name": "results.pptx",
+      "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "sha256": "ecd665e884b4a135a39436c37a46468b0b455691a60fbccfb12cf3192ad2377a",
+      "illustrative": true
+    },
+    "effectiveCapabilities": {
+      "save": true,
+      "saveAs": false,
+      "recents": false,
+      "filePick": false,
+      "print": false,
+      "exportPdf": false,
+      "exportHtml": false,
+      "attachments": false,
+      "images": false,
+      "ai": true,
+      "webSearch": false,
+      "imageSearch": false,
+      "imageGeneration": false,
+      "desktopOpen": false
+    },
+    "state": {
+      "theme": "dark",
+      "locale": "en-US",
+      "background": "rgb(37, 37, 37)"
+    },
+    "errors": [],
+    "protocolErrors": []
+  },
+  "deviations": [],
+  "qa_status": "accepted"
+}

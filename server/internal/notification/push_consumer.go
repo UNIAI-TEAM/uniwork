@@ -107,7 +107,7 @@ func (c *PushConsumer) message(ctx context.Context, locale string, n db.Notifica
 	if err != nil {
 		return PushMessage{}, err
 	}
-	return PushMessage{Title: Title(locale, n.Kind, params), URL: url, Tag: n.GroupKey}, nil
+	return PushMessage{Title: PushTitle(locale, n.Kind, params), URL: url, Tag: n.GroupKey}, nil
 }
 
 // ResourceURL is the deep link a notification opens, mirroring

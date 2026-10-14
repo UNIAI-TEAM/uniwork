@@ -15,8 +15,10 @@ type Prefs struct {
 
 // DefaultPrefs is what applies when the user never touched the row (spec §2
 // #6): in-app everything, push only what is time-sensitive, digest on.
+// Replies and resolves stay in-app only (G8-D4: push on for mentions).
 func DefaultPrefs(kind string) Prefs {
-	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindTaskAssigned || kind == KindMeetingStarting ||
+	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentDiscussionMentioned ||
+		kind == KindTaskAssigned || kind == KindMeetingStarting ||
 		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM
 	return Prefs{InApp: true, Push: push, Email: true}
 }

@@ -36,8 +36,16 @@ export const documentKeys = {
   sourcesRoot: (wsId: string) => [...documentKeys.workspace(wsId), "sources"] as const,
   recent: (wsId: string) => [...documentKeys.workspace(wsId), "recent"] as const,
   sharedWithMe: (wsId: string) => [...documentKeys.workspace(wsId), "shared"] as const,
-  tree: (wsId: string, root: string = "") =>
-    [...documentKeys.workspace(wsId), "tree", root] as const,
+  // The folders-only tree appends a segment, so the full tree's key stays
+  // its prefix and one tree invalidation refreshes both.
+  tree: (wsId: string, root: string = "", foldersOnly: boolean = false) =>
+    foldersOnly
+      ? ([...documentKeys.workspace(wsId), "tree", root, "folders_only"] as const)
+      : ([...documentKeys.workspace(wsId), "tree", root] as const),
+  // What archiving a subtree would move (FD-06). Under the workspace root so
+  // a `document.moved`/`archived`/`restored` frame refreshes open counts.
+  archiveImpact: (wsId: string, documentId: string) =>
+    [...documentKeys.workspace(wsId), "archive-impact", documentId] as const,
   shares: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "shares"] as const,
   accessLogs: (wsId: string, documentId: string, action: string = "") =>
@@ -57,6 +65,16 @@ export const documentKeys = {
     [...documentKeys.all, wsId, "asset", documentId, "idle"] as const,
   comments: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "comments"] as const,
+  /**
+   * The mention picker's people for one document (G8-06). The search term and
+   * the page size are part of the key so two pickers asking for different
+   * pages never share one entry; the key hangs off the detail root like
+   * `comments`, but a comment frame does not touch it - the candidate set
+   * changes with access, not with the thread. A nil limit (the server's
+   * default page) is a distinct key segment, never confused with a page size.
+   */
+  mentionCandidates: (wsId: string, documentId: string, query: string = "", limit?: number) =>
+    [...documentKeys.detail(wsId, documentId), "mention-candidates", query, limit ?? null] as const,
   /**
    * The favorites prefix: every org-scoped list hangs off it, so one
    * invalidation after a favorite/unfavorite covers the caller's open lists

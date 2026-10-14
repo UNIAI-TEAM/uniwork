@@ -1,0 +1,56 @@
+{
+  "fixtureId": "fx-pptx-deck-vi",
+  "format": "pptx",
+  "fixtureSha256": "958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20",
+  "synthetic": true,
+  "slideCount": 3,
+  "slides": [
+    {
+      "index": 1,
+      "title": "Kết quả kinh doanh quý 1 năm 2026",
+      "subtitle": "Bản trình bày tổng hợp từ dữ liệu mẫu"
+    },
+    {
+      "index": 2,
+      "title": "Điểm chính",
+      "bullets": [
+        "Tổng doanh thu quý 1 đạt 22.060.000 đồng.",
+        "Khu vực Bắc đóng góp nhiều nhất, khu vực Trung ít nhất.",
+        "Cột giảm giá nhập theo hai cách cần được thống nhất."
+      ]
+    },
+    {
+      "index": 3,
+      "title": "Doanh thu theo khu vực",
+      "table": {
+        "header": [
+          "Khu vực",
+          "Doanh thu Q1 (đồng)",
+          "Tỷ trọng"
+        ],
+        "rows": [
+          [
+            "Bắc",
+            "9.060.000",
+            "41,1%"
+          ],
+          [
+            "Nam",
+            "7.200.000",
+            "32,6%"
+          ],
+          [
+            "Trung",
+            "5.800.000",
+            "26,3%"
+          ],
+          [
+            "Tổng cộng",
+            "22.060.000",
+            "100,0%"
+          ]
+        ]
+      }
+    }
+  ]
+}

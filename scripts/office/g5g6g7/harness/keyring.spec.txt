@@ -1,0 +1,15 @@
+# G7-01 headless Linux keyring spike (UNI-1376, g7-qa): can a cloud VM keep a desktop session?
+# Usage (from the D lane worktree, branch pushed; the runner runs each line in its own `bash -c` at the repo root):
+#   node <runner>/cloud-runner.mjs test --spec scripts/office/g5g6g7/harness/keyring.spec.txt --lane <slug> --out <report>
+# To add it to a bigger spec: `cat my-spec.txt scripts/office/g5g6g7/harness/keyring.spec.txt > spec.txt` (no setup other lines need).
+# Markers to read in the report (README > "Headless keyring (Linux)" says what each means):
+#   KEYRING_APT_EXIT, KEYRING_FORK_EXIT + KEYRING_FORK dir=.. sha=.., KEYRING_DAEMON, KEYRING_RT match=yes|no,
+#   SAFESTORAGE (JSON, expect backend gnome_libsecret + roundTrip ok + status ready), SAFESTORAGE_NODESKTOP / SAFESTORAGE_FORCED
+#   (informational: what the app needs besides the keyring), NO_KEYRING (JSON, expect status keyring_unavailable), *_EXIT codes.
+# Every line but the last ends with `; true`, so one failed step never hides the markers after it; the last line's exit code is the round's.
+# The throwaway keyring password is made inside keyring-session.sh from /dev/urandom: it is in no line of this file, no log and no process argument.
+# Packages: sudo when the VM user is not root (passwordless sudo is assumed; without it the install fails and the session line says BLOCKED, never a pass).
+if [ "$(id -u)" -eq 0 ]; then S=""; elif sudo -n true 2>/dev/null; then S="sudo"; else S=""; fi; export DEBIAN_FRONTEND=noninteractive; $S apt-get update -q; $S apt-get install -y -q --no-install-recommends gnome-keyring dbus-x11 xvfb libsecret-tools; echo "KEYRING_APT_EXIT=$?"; true
+bash scripts/office/g5g6g7/harness/keyring-fork.sh; echo "KEYRING_FORK_EXIT=$?"; true
+dbus-run-session -- bash scripts/office/g5g6g7/harness/keyring-session.sh; echo "KEYRING_SESSION_EXIT=$?"; true
+env DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/uniwork-no-session-bus xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" node scripts/office/g5g6g7/harness/keyring-probe.mjs --label NO_KEYRING --expect keyring_unavailable; rc=$?; echo "NO_KEYRING_EXIT=$rc"; exit $rc

@@ -250,6 +250,100 @@ hợp đồng của lane GO-A7 (UNI-1008), được xây ở `server/internal/se
 TypeScript là `packages/core/api/endpoints/ai-office.ts`. Nếu một route đổi trong lúc
 xây, sửa tại đây cùng thay đổi.
 
+### 3.6 UniWork AI (G6-03a, UNI-1367)
+
+Façade openai-compatible của UniWork AI: một lượt agent mỗi request, hội thoại do **server** giữ
+(client chỉ gửi câu hỏi mới, hoặc kết quả công cụ của tool call server vừa phát; không bao giờ gửi
+lịch sử hay lượt assistant của mình).
+
+| Việc | Route | Danh tính | Ghi chú |
+| --- | --- | --- | --- |
+| Chat, tổ chức | `POST /orgs/{orgID}/ai/uniwork/chat/completions` | bearer phiên (web hoặc thiết bị desktop) | Tệp cục bộ (S10): `module` đi trong body; hội thoại buộc (user, org, module) |
+| Chat, tài liệu (desktop) | `POST /documents/{documentID}/ai/uniwork/chat/completions` | bearer thiết bị desktop | Tổ chức, workspace và module suy từ **tài liệu**; `module` trong body bị bỏ qua; quyền đọc kiểm lại mỗi request (mất quyền → dọn hội thoại của người đó cho tài liệu) |
+| Chat, tài liệu (frame web) | `POST /office-frame/documents/{documentID}/ai/uniwork/chat/completions` | bearer frame-token | Module lấy từ **claim của token**; `module` trong body bị bỏ qua |
+
+Body (openai-compatible): `{ model?, messages, tools?, stream?, module? }` — `model`, `temperature`,
+`max_tokens`, `tool_choice` bị bỏ qua (policy của server quyết). `messages` là **một lượt**: câu hỏi
+mới (role `user`, đúng 1, message cuối) hoặc kết quả công cụ (role `tool` + `tool_call_id` do server
+cấp); lượt `assistant` của client bị bỏ qua, role `system`/`developer` → 400. Body ≤ **1 MiB**.
+
+Kết quả: `stream:false` → `chat.completion`; `stream:true` → `text/event-stream` gồm **một**
+`chat.completion.chunk` rồi `data: [DONE]`. Header 200 chỉ gửi sau khi Gateway đã có câu trả lời
+upstream; mọi lỗi là HTTP status thật + `{code, message}` (không bao giờ 200 rỗng). Header
+`X-UniWork-AI-Conversation` có ở mọi câu trả lời (kể cả lỗi, khi server biết id) và client gửi lại để
+tiếp tục; `X-UniWork-AI-Run` là G6-03b. `x_uniwork = { dropped_tool_calls: [{index, name, reason:
+view_only|not_allowlisted}], step, limit }`; call bị bỏ **không bao giờ** có trong `tool_calls` và
+`finish_reason` giữ chuẩn (`tool_calls` khi còn call hợp lệ, ngược lại `stop`).
+
+- **Hội thoại**: transcript lưu ở Postgres, mã hóa AES-256-GCM, TTL nhàn rỗi 30 phút / tuyệt đối 24 h
+  / ≤ 20 lượt người dùng. Không gửi header = **bắt đầu hội thoại mới** cho cùng khóa (hội thoại sống
+  cũ bị thay trong cùng transaction); id đã dọn, hết hạn hoặc khác scope → 409
+  `conversation_expired` (client bắt đầu hội thoại mới). Khóa hội thoại gồm **module**, nên trên route
+  tổ chức client phải gửi `module` ở **mọi** lượt của cùng hội thoại.
+- **Cổng**: `RequireMember` → `office.ai_cloud` (403 `entitlement_required`) → kill switch
+  `office_ai_uniwork` và cờ định dạng `office_ai_uniwork_<token>` (403 `office_capability_off`,
+  `fields.capability = "ai_uniwork"` hoặc `"ai_uniwork_<token>"`, token ∈
+  `{docx,xlsx,pptx,pdf,markdown,html}`; không suy được định dạng thì chỉ kiểm kill switch) →
+  `CheckQuota` (`ai.tokens`) → trần đồng thời. Thiếu `AI_CONVERSATION_KEY` hoặc Gateway tắt → 503
+  `ai_disabled` (fail closed).
+- **Trần đồng thời** (G7-D1 giữ số cuối): 8 lượt mỗi tổ chức và 64 toàn hệ thống khi có Redis (lease
+  có hạn ≈ 65 s, fail-open khi Redis lỗi), 32 lượt mỗi pod luôn áp; vượt → 429 `ai_uniwork_busy` +
+  `Retry-After: 5`. Ba route **miễn `LoadShed` theo mẫu route** (một lượt có thể chờ model tới 55 s;
+  một tiền tố sẽ miễn luôn BYOK/cloud), nhánh miễn vẫn đặt body deadline.
+- **Hạn và trần dữ liệu**: hạn **55 s** tính từ lúc request tới, phủ cả phần trước upstream → quá hạn
+  504 `ai_provider_timeout` (không tự chạy lại). Tool result > 64 KiB/lần hoặc > 256 KiB/request → 413
+  `ai_tool_result_too_large`; body > 1 MiB → 413 `payload_too_large`.
+- **Upstream 429**: 429 `ai_rate_limited` + `Retry-After` (giá trị nhà cung cấp, kẹp 300; thiếu → 30).
+
+Trạng thái: G6-03a (UNI-1367) — code ở `server/internal/ai/openai_facade.go` (dịch wire + allowlist),
+`server/internal/service/ai_uniwork.go` (cổng + hội thoại + trần đồng thời),
+`server/internal/handler/ai_uniwork.go` + `server/internal/handler/router/ai_uniwork.go` (route). Lượt
+chạy/usage (run id, trần lượt, nhóm rate limit `ai-uniwork`, 402 `credits_exhausted`) là **G6-03b**
+(§3.7); grant/trạng thái theo định dạng ở `GET /orgs/{orgID}/ai/cloud` và
+`GET /orgs/{orgID}/office/capabilities` là **G6-03c**/**X-03**; adapter fork là **G6-05**.
+
+### 3.7 Lượt chạy: run id, trần lượt, rate limit (G6-03b, UNI-1370)
+
+Một **run** là một chuỗi lượt liên tiếp của cùng một câu hỏi: lượt câu hỏi mở run, mỗi vòng
+tool-result tiếp nối nó. Run do **server** cấp và đếm; client chỉ chuyển tiếp id.
+
+| Chiều | Giá trị | Ai đọc |
+| --- | --- | --- |
+| Response | `X-UniWork-AI-Run: <ULID>` trên **mọi** câu trả lời của run, kể cả câu trả lời lỗi khi run đã tồn tại | Client (G6-05) |
+| Request | header `X-UniWork-AI-Run` trên mọi lượt tiếp theo của run (tool-result, retry sau 429, câu hỏi tiếp) | Service |
+
+- **Mở run**: client **không** gửi header run ⇒ server tạo run mới sau khi qua hết cổng cục bộ, ngay
+  trước lượt gọi model (run mở ra là đã tiêu 1 lượt). **Tiếp run**: client gửi header và run còn sống,
+  thuộc đúng hội thoại ⇒ run tiếp tục (câu hỏi hay tool-result đều được). "Hỏi tiếp" thành run mới là do
+  client **bỏ header** khi mở lượt agent mới — ranh giới run do client quyết, transcript vẫn của hội thoại
+  nên run sau thấy lượt trước.
+- **Không có lượt tool-result thiếu header run**: lượt đó là 400 `invalid_request` (nhận nó như run mới
+  sẽ mở đường lách trần 8 vòng). Run id không thuộc — lạ, đã hết hạn, của hội thoại khác, của tổ chức
+  khác — là 409 `run_expired`: client bỏ id và hỏi lại như run mới, hội thoại vẫn sống (khác
+  `conversation_expired`). Mã này đã có hàng ở contract-p0 §4 (G6-D1 lô #2 đã ký 2026-10-13).
+- **Trần 8 vòng / 10 lượt** (attempt-based: chỉ lượt đã tới Gateway mới đếm; lượt bị limiter, trần đồng
+  thời, 402 credits, 400/403/404/409 từ chối trước đó không đếm): vượt → **409 `run_limit_reached` +
+  `fields.limit = "model_calls" | "tool_rounds"`** (không `Retry-After`). Trần áp trước lượt gọi model
+  và sau limiter, nên lượt bị trần không giữ slot đồng thời và không ghi usage. `run_limit_reached` kết
+  thúc run về phía client; lượt kế của người dùng mở run mới (bỏ header) trong cùng hội thoại.
+- **Hết tín dụng**: `CheckQuota` (`ai.tokens`) chạy trước hội thoại và trước trần ⇒ **402
+  `credits_exhausted`** (`fields.meter = "ai.tokens"`), **không** gọi model, **không** có dòng usage,
+  **không** tiêu lượt (cùng hình dạng với route cloud §3.3).
+- **Rate limit**: ba route UniWork AI dùng **một** nhóm `ai-uniwork`, **60 lượt/phút mỗi người** (không
+  theo id tổ chức/tài liệu), trả 429 **`ai_rate_limited`** + `Retry-After: 60` — khác `rate_limited` của
+  mọi nhóm khác. Một run đủ trần là tối đa 11 request (1 câu hỏi + 8 vòng + retry) nên **không bao giờ**
+  chạm nhóm. Limiter toàn cục 300/phút nay khóa theo **danh tính frame token** `(người dùng, tài liệu)`
+  thay vì địa chỉ IP: một tòa nhà sau NAT không còn chia chung ngân sách của mọi frame.
+- **`x_uniwork.step/limit`** (BE3A-11): `step` = `tool_rounds` của run **sau** lượt này (0 ở lượt câu hỏi
+  đầu), `limit` = 8; hai trường **luôn có mặt** (giá trị 0 vẫn phát) trong cả `chat.completion` lẫn chunk
+  SSE. Lượt lỗi không có `x_uniwork`; client đọc `step` từ lượt thành công gần nhất.
+- **Header run trên lượt bị từ chối trước khi run tồn tại** (402/403/404, 409 `conversation_expired`, 429
+  của limiter — limiter chạy trước handler): **không** có header run; client giữ id đang có (Q6).
+- **TTL của run** bằng vòng sống của hội thoại (30 phút nhàn rỗi / 24 h tuyệt đối; `expires_at` của run
+  ≤ của hội thoại), dọn trong cùng vòng quét của hội thoại (run hết hạn, run mồ côi). Mỗi lượt gọi model
+  có khoá meter riêng theo `(run id, seq)` nên retry không bị tính hai lần; provider không trả usage ⇒
+  dòng usage `usage_unknown` + metric, được đối soát (ước lượng từ transcript) đúng một lần.
+
 ## 4. Bản cài (GO-A8, UNI-1009)
 
 Server chỉ phát link, không lưu bản cài. Biến môi trường (đều có trong
@@ -274,3 +368,36 @@ tài liệu docx dùng renderer đó là **GO-B3 (UNI-1013)**. Trên develop hi�
 route hay trang web nào cho khung này: chỉ có component `OfficeFrame` trong
 `packages/views/office/frame/` (editor G3 cũ). Các route/đường dẫn mới sẽ được
 ghi vào mục này khi hai lane đó đăng ký chúng.
+
+## 6. Capability theo tổ chức (X-03, UNI-1340)
+
+App desktop đọc danh sách tính năng Office đang bật cho một tổ chức trước khi dùng
+feed, Lưu, thư viện offline hay UniWork AI. Đây là route **chỉ app**; web không dùng
+(web đọc `office_sync_feed` qua `GET /api/v1/config`, xem EXPERIENCE › Foundation ›
+Grant và flag). Không nhầm với `GET /documents/{documentID}/office/capabilities`
+(`OfficeCapabilitySDO`), route theo **một tài liệu** trả định dạng/thao tác của engine.
+
+| Việc | Route |
+| --- | --- |
+| Capability theo tổ chức | `GET /orgs/{orgID}/office/capabilities` |
+
+- **Auth:** phiên thiết bị bearer (`RequireAuthWithDevice`, cùng nhóm `authed` như mục 3);
+  không có nhóm route riêng cho app. `orgID` là ULID tổ chức.
+- **Quyền:** chỉ `OrganizationService.RequireMember`; người không phải thành viên nhận
+  **403/404** theo `mapServiceError`, tài khoản bị vô hiệu hóa / tổ chức bị đình chỉ theo
+  cổng sẵn có. Handler không tự quyết quyền. Đây là **read**: không ghi audit.
+- **Đánh giá flag:** cùng bộ đánh giá và thứ tự override **user > organization > global**
+  mà `GET /api/v1/config` dùng. Flag chỉ **ẩn năng lực**, không cấp quyền.
+- **Hình dạng:**
+  `{sync_feed, sync_write, offline_library, ai_uniwork, ai_uniwork_formats[], ttl_seconds}`.
+  `ai_uniwork_formats` liệt kê các định dạng có `office_ai_uniwork_<format>` bật **và**
+  `office_ai_uniwork` bật (tắt kill switch thì danh sách rỗng).
+- **`ttl_seconds`:** hằng số **300**. Cách app lưu và dùng bản này (TTL, lỗi, "chưa từng
+  đọc được") là luật của [EXPERIENCE › State Patterns › Capability tắt](../g5g6g7/ux/EXPERIENCE.md)
+  (nguồn duy nhất; không chép lại ở đây).
+- **Mã lỗi:** route feed/intent/lease/AI về sau **tự từ chối bằng `office_capability_off`
+  (403, `fields.capability`)** khi flag tắt — server là nguồn thật, client cũ vẫn bị chặn.
+  Bốn mã mới của phase đăng ký **không lớp** `error_class` (contract-p0 §4):
+  `change_cursor_expired` (410), `change_cursor_invalid` (400), `run_limit_reached` (409),
+  `office_capability_off` (403). Tên `commit_intent_unknown` (410) **mới chỉ được giữ chỗ
+  trong tài liệu, chưa phát** cho tới khi G5-D2 chốt retention intent.

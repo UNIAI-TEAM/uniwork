@@ -8,6 +8,7 @@ const MARKETING_ROOTS = [
   paths.learn(),
   paths.pricing(),
   paths.enterprise(),
+  paths.requestDemo(),
   paths.office(),
 ];
 

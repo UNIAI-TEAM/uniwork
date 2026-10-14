@@ -1,5 +1,5 @@
 "use client";
-import { ArrowDown, ArrowRight, FolderOpen, KeyRound, MessageSquare, RotateCcwClock, ShieldCheck } from "lucide-react";
+import { ArrowRight, Download, FolderOpen, KeyRound, MessageSquare, RotateCcwClock, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,9 +7,9 @@ import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Faq } from "./faq";
 import { MarketingShell } from "./marketing-shell";
-import { OFFICE_EDITOR_ANCHOR, OFFICE_EDITOR_ICONS, OFFICE_TASKS, type OfficeEditorKey } from "./office-data";
-import { OfficeDownloadColumns, OfficeHeroDownloads, useOfficeInstallers } from "./office-downloads";
-import { OfficeEditorBlocks, OfficeEditorTabs, OfficeShot } from "./office-editors";
+import { OFFICE_BUSINESS_ANCHOR, OFFICE_EDITOR_ANCHOR, OFFICE_EDITOR_ICONS, OFFICE_TASKS, type OfficeEditorKey } from "./office-data";
+import { OfficeDownloadColumns, useOfficeInstallers } from "./office-downloads";
+import { OfficeEditorSummary, OfficeEditorTabs } from "./office-editors";
 import "./marketing-chapters.css";
 import "./office.css";
 
@@ -18,10 +18,10 @@ const WORKS = [{ key: "open", icon: FolderOpen }, { key: "version", icon: Rotate
 
 /**
  * THESIS: UniWork Office is the desktop office app of the UniWork Work OS.
- * STORY: Download it, see the six editors, see what a task becomes, learn that AI and files follow
- * the UniWork account, read the answers, download again, then see how it works with UniWork.
- * FORM: Section order and arrangement follow the reference product page; every word and
- * every image is UniWork's own.
+ * OWN-WORLD: Be Vietnam Pro, neutral ground, restrained cyan/slate stage and real editor media.
+ * STORY: Download the published trial, explore six editors and understand connected files and AI.
+ * FIRST VIEWPORT: Centered promise and actions above one broad, six-tab product preview.
+ * FORM: User-approved B (surface seed 62bbd639, structure 1) supersedes A; the user removes the redundant edition strip.
  */
 export function OfficePage() {
   const { t } = useTranslation();
@@ -31,34 +31,34 @@ export function OfficePage() {
     setActive(editor);
     document.getElementById(OFFICE_EDITOR_ANCHOR)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
-  return <MarketingShell closingTitle="landing.office.closing" closingDemoHref={`${paths.office()}#${OFFICE_EDITOR_ANCHOR}`}><div className="chapter-world office-world">
-    <section className="office-hero chapter-width" aria-labelledby="office-title">
-      <p className="office-kicker">{t("landing.office.hero.kicker")}</p>
-      <h1 id="office-title">{t("landing.office.hero.title")}</h1>
-      <p className="office-sub">{t("landing.office.hero.sub")}</p>
-      <OfficeHeroDownloads />
-      <a href={`#${OFFICE_EDITOR_ANCHOR}`} className="chapter-link">{t("landing.office.hero.demo")}<ArrowDown aria-hidden /></a>
-      <ul className="office-trust">{TRUST.map((key) => <li key={key}><ShieldCheck aria-hidden />{t(`landing.office.hero.${key}`)}</li>)}</ul>
-      <OfficeShot editor="docs" priority />
+  return <MarketingShell className="office-site" closingTitle="landing.office.closing" closingAction={{ href: `${paths.office()}#${OFFICE_EDITOR_ANCHOR}`, labelKey: "landing.office.hero.explore", icon: "arrow" }}><div className="chapter-world office-world">
+    <section id={OFFICE_BUSINESS_ANCHOR} className="office-hero chapter-width" aria-labelledby="office-title">
+      <div className="office-hero-copy">
+        <h1 id="office-title">{t("landing.office.hero.title")}</h1>
+        <p className="office-sub">{t("landing.office.hero.sub")}</p>
+        <div className="office-hero-actions">
+          <a href="#office-download" className={`${buttonVariants({ variant: "brand", size: "lg" })} office-trial-action`}><Download aria-hidden />{t("landing.office.hero.trial")}</a>
+          <Link href={paths.requestDemo()} className={`${buttonVariants({ variant: "outline", size: "lg" })} office-explore-action`}>{t("landing.demo.cta")}<ArrowRight aria-hidden /></Link>
+        </div>
+      </div>
+      <div id={OFFICE_EDITOR_ANCHOR} className="office-hero-preview"><OfficeEditorTabs active={active} onActiveChange={setActive} /></div>
     </section>
 
-    <section id={OFFICE_EDITOR_ANCHOR} className="office-section chapter-width" aria-labelledby="office-editors-title">
-      <div className="office-heading"><h2 id="office-editors-title">{t("landing.office.editors.title")}</h2><p>{t("landing.office.editors.formats")}</p></div>
-      <OfficeEditorTabs active={active} onActiveChange={setActive} />
-      <OfficeEditorBlocks />
+    <section id="office-editor-details" className="chapter-width" aria-labelledby="office-editor-summary-title">
+      <OfficeEditorSummary editor={active} />
     </section>
 
     <section className="office-section chapter-soft" aria-labelledby="office-tasks-title"><div className="chapter-width">
       <div className="office-heading"><h2 id="office-tasks-title">{t("landing.office.tasks.title")}</h2><p>{t("landing.office.tasks.sub")}</p></div>
-      <ol className="office-tasks">{OFFICE_TASKS.map(({ key, editor }, index) => {
+      <ul className="office-tasks">{OFFICE_TASKS.map(({ key, editor }) => {
         const Icon = OFFICE_EDITOR_ICONS[editor];
         return <li key={key} className="office-task">
-          <span className="office-task-head"><Icon aria-hidden /><span className="office-task-number" aria-hidden>{String(index + 1).padStart(2, "0")}</span></span>
+          <span className="office-task-head"><Icon aria-hidden /></span>
           <h3>{t(`landing.office.tasks.${key}.title`)}</h3>
           <p>{t(`landing.office.tasks.${key}.description`)}</p>
           <button type="button" className="chapter-link office-task-link" onClick={() => openEditor(editor)}>{t("landing.office.tasks.open", { editor: t(`landing.office.editors.${editor}.name`) })}<ArrowRight aria-hidden /></button>
         </li>;
-      })}</ol>
+      })}</ul>
     </div></section>
 
     <section className="office-section chapter-width" aria-labelledby="office-ai-title">
@@ -67,6 +67,7 @@ export function OfficePage() {
         {index === 0 ? <KeyRound aria-hidden /> : <FolderOpen aria-hidden />}
         <h3>{t(`landing.office.ai.${key}.title`)}</h3><p>{t(`landing.office.ai.${key}.description`)}</p>
       </article>)}</div>
+      <ul className="office-trust">{TRUST.map((key) => <li key={key}><ShieldCheck aria-hidden />{t(`landing.office.hero.${key}`)}</li>)}</ul>
       <Link className="chapter-link" href={paths.enterprise()}>{t("landing.office.ai.link")}<ArrowRight aria-hidden /></Link>
     </section>
 
@@ -80,7 +81,6 @@ export function OfficePage() {
     <section className="office-section chapter-width" aria-labelledby="office-works-title">
       <div className="office-heading"><h2 id="office-works-title">{t("landing.office.works.title")}</h2><p>{t("landing.office.works.sub")}</p></div>
       <div className="office-works">{WORKS.map(({ key, icon: Icon }) => <article key={key}><Icon aria-hidden /><h3>{t(`landing.office.works.${key}.title`)}</h3><p>{t(`landing.office.works.${key}.description`)}</p></article>)}</div>
-      <div className="marketing-actions"><Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link></div>
     </section>
   </div></MarketingShell>;
 }

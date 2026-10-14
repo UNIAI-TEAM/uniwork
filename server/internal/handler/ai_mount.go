@@ -49,6 +49,10 @@ type AIMountable struct {
 	CloudImages         http.HandlerFunc
 	CloudAnalyzeMedia   http.HandlerFunc
 	CloudTranscribe     http.HandlerFunc
+	// UniworkChatCompletions is the UniWork AI turn (G6-03a, R2): the handler
+	// is the session one, mounted with this group's resolver, so a frame token
+	// route continues the conversation of the token's user and module.
+	UniworkChatCompletions http.HandlerFunc
 }
 
 // NewAIMountable returns the AI handlers of d acting for whoever resolve
@@ -61,18 +65,19 @@ func NewAIMountable(d Deps, resolve AIActorResolver) AIMountable {
 func (h *handlers) aiMountable(resolve AIActorResolver) AIMountable {
 	a := &aiHandlers{handlers: h, actor: resolve}
 	return AIMountable{
-		CredentialsList:     a.listAICredentials,
-		CredentialSave:      a.saveAICredential,
-		CredentialDelete:    a.deleteAICredential,
-		ByokChatCompletions: a.byokProxy(ai.ProxyChatCompletions),
-		ByokMessages:        a.byokProxy(ai.ProxyMessages),
-		ByokGenerate:        a.byokProxy(ai.ProxyGenerate),
-		ByokModels:          a.byokProxy(ai.ProxyModels),
-		CloudStatus:         a.aiCloudStatus,
-		CloudSearch:         a.aiCloudSearch,
-		CloudImages:         a.aiCloudImages,
-		CloudAnalyzeMedia:   a.aiCloudAnalyzeMedia,
-		CloudTranscribe:     a.aiCloudTranscribe,
+		CredentialsList:        a.listAICredentials,
+		CredentialSave:         a.saveAICredential,
+		CredentialDelete:       a.deleteAICredential,
+		ByokChatCompletions:    a.byokProxy(ai.ProxyChatCompletions),
+		ByokMessages:           a.byokProxy(ai.ProxyMessages),
+		ByokGenerate:           a.byokProxy(ai.ProxyGenerate),
+		ByokModels:             a.byokProxy(ai.ProxyModels),
+		CloudStatus:            a.aiCloudStatus,
+		CloudSearch:            a.aiCloudSearch,
+		CloudImages:            a.aiCloudImages,
+		CloudAnalyzeMedia:      a.aiCloudAnalyzeMedia,
+		CloudTranscribe:        a.aiCloudTranscribe,
+		UniworkChatCompletions: a.uniworkFrameChatCompletions,
 	}
 }
 

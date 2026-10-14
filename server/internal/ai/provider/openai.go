@@ -31,12 +31,28 @@ func NewOpenAI(baseURL, apiKey string, timeout time.Duration) *OpenAI {
 func (o *OpenAI) Name() string { return "openai" }
 
 type oaiMessage struct {
-	Role      string        `json:"role"`
-	Content   string        `json:"content,omitempty"`
+	Role string `json:"role"`
+	// Content is untyped so a role "tool" message always carries it (OpenAI
+	// rejects a tool message without content) while an empty assistant or
+	// user content stays omitted, as before.
+	Content any `json:"content,omitempty"`
+	// ToolCalls replays the assistant's request (id + function) so the tool
+	// result below it has something to answer.
 	ToolCalls []oaiToolCall `json:"tool_calls,omitempty"`
+	// ToolCallID is set on a role "tool" message and names the call it answers.
+	ToolCallID string `json:"tool_call_id,omitempty"`
+}
+
+// oaiResponseMessage is the answer side of a message: Content is always text
+// there (the untyped request field exists only for role "tool").
+type oaiResponseMessage struct {
+	Content   string        `json:"content"`
+	ToolCalls []oaiToolCall `json:"tool_calls"`
 }
 
 type oaiToolCall struct {
+	ID       string `json:"id,omitempty"`
+	Type     string `json:"type,omitempty"`
 	Function struct {
 		Name      string `json:"name"`
 		Arguments string `json:"arguments"`
@@ -44,7 +60,9 @@ type oaiToolCall struct {
 }
 
 func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error) {
-	body := map[string]any{"model": req.Model, "max_tokens": req.MaxTokens}
+	// stream is explicit: an upstream that reads a missing field as true
+	// answers in SSE, which this JSON reader cannot parse (spike G6-02 §8.1).
+	body := map[string]any{"model": req.Model, "max_tokens": req.MaxTokens, "stream": false}
 	if req.Temperature > 0 {
 		body["temperature"] = req.Temperature
 	}
@@ -53,8 +71,18 @@ func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (Completio
 		msgs = append(msgs, oaiMessage{Role: "system", Content: req.System})
 	}
 	for _, m := range req.Messages {
+		msg := oaiMessage{Role: m.Role, ToolCallID: m.ToolCallID}
+		if m.Content != "" || m.Role == "tool" {
+			msg.Content = m.Content
+		}
+		for _, tc := range m.ToolCalls {
+			var call oaiToolCall
+			call.ID, call.Type = tc.ID, "function"
+			call.Function.Name, call.Function.Arguments = tc.Name, string(tc.Input)
+			msg.ToolCalls = append(msg.ToolCalls, call)
+		}
 		if len(m.Parts) == 0 {
-			msgs = append(msgs, oaiMessage{Role: m.Role, Content: m.Content})
+			msgs = append(msgs, msg)
 			continue
 		}
 		content := make([]map[string]any, 0, len(m.Parts)+1)
@@ -93,13 +121,12 @@ func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (Completio
 	var out struct {
 		Model   string `json:"model"`
 		Choices []struct {
-			Message      oaiMessage `json:"message"`
-			FinishReason string     `json:"finish_reason"`
+			Message      oaiResponseMessage `json:"message"`
+			FinishReason string             `json:"finish_reason"`
 		} `json:"choices"`
-		Usage struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
-		} `json:"usage"`
+		// Kept raw so an absent usage block stays distinguishable from a
+		// present one with zero tokens (spec §8.2).
+		Usage json.RawMessage `json:"usage"`
 	}
 	if err := postJSON(ctx, o.http, o.baseURL+"/chat/completions", o.apiKey, body, &out); err != nil {
 		return CompletionResponse{}, err
@@ -110,10 +137,22 @@ func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (Completio
 	c := out.Choices[0]
 	resp := CompletionResponse{
 		Text: c.Message.Content, Model: out.Model, StopReason: c.FinishReason,
-		InputTokens: out.Usage.PromptTokens, OutputTokens: out.Usage.CompletionTokens,
+	}
+	if len(out.Usage) > 0 && string(out.Usage) != "null" {
+		var usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+		}
+		if err := json.Unmarshal(out.Usage, &usage); err != nil {
+			return CompletionResponse{}, fmt.Errorf("openai: unreadable usage: %w", err)
+		}
+		resp.UsagePresent = true
+		resp.InputTokens, resp.OutputTokens = usage.PromptTokens, usage.CompletionTokens
 	}
 	for _, tc := range c.Message.ToolCalls {
-		resp.ToolCalls = append(resp.ToolCalls, ToolCall{Name: tc.Function.Name, Input: json.RawMessage(tc.Function.Arguments)})
+		resp.ToolCalls = append(resp.ToolCalls, ToolCall{
+			ID: tc.ID, Name: tc.Function.Name, Input: json.RawMessage(tc.Function.Arguments),
+		})
 	}
 	return resp, nil
 }
@@ -138,9 +177,9 @@ func (o *OpenAI) Embed(context.Context, EmbedRequest) (EmbedResponse, error) {
 	return EmbedResponse{}, ErrUnsupported
 }
 
-// postJSON is shared by the HTTP adapters. A non-2xx status is an error
-// carrying the vendor's status code and the first bytes of its body, which
-// is what an operator needs and nothing a log should not hold.
+// postJSON is shared by the HTTP adapters. A non-2xx status is a
+// *StatusError carrying the vendor's status, Retry-After and the first bytes
+// of its body.
 func postJSON(ctx context.Context, client *http.Client, url, bearer string, body any, out any) error {
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -164,11 +203,7 @@ func postJSON(ctx context.Context, client *http.Client, url, bearer string, body
 		return err
 	}
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		snippet := string(data)
-		if len(snippet) > 200 {
-			snippet = snippet[:200]
-		}
-		return fmt.Errorf("provider: %s → %d: %s", url, res.StatusCode, snippet)
+		return &StatusError{Status: res.StatusCode, RetryAfter: retryAfter(res.Header, time.Now()), URL: url, Detail: snippet(data)}
 	}
 	return json.Unmarshal(data, out)
 }

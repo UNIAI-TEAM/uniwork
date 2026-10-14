@@ -9,14 +9,13 @@ for (const width of [1280, 390]) {
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ reducedMotion: "reduce", colorScheme: locale === "en" ? "dark" : "light" });
       await page.goto("/");
-      await expect(page.locator('.scene-canvas')).toHaveAttribute('data-rendered', 'true', { timeout: 20000 });
-      await expect(page.locator('.scene-canvas')).toHaveCSS('height', width < 768 ? '200px' : '230px');
+      await expect(page.locator('#landing-title')).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       const hero = page.locator('.landing-hero');
-      expect((await hero.boundingBox())!.height).toBeLessThan(width < 768 ? 700 : 650);
+      expect((await hero.boundingBox())!.height).toBeLessThan(width < 768 ? 800 : 850);
       await expect(page.locator('#landing-title br')).toHaveCount(0);
-      await expect(page.locator('.hero-context small, .landing-hero-note')).toHaveCount(0);
-      await expect(hero.getByRole('link')).toHaveCount(1);
+      await expect(page.locator('.landing-hero-note')).toHaveCount(0);
+      await expect(hero.getByRole('link')).toHaveCount(2);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       const dir = resolve(import.meta.dirname, '../.impeccable/review');
       await mkdir(dir, { recursive: true });

@@ -21,21 +21,23 @@ func TestDocumentCommentThread(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// No kind on a root: discussion is the default since G8-03 (OQ-C2); the
+	// rows that existed before the change are discussions too (G8-D5).
 	if root.DocumentID != d.ID || root.OrganizationID != tn.orgID || root.WorkspaceID != tn.wsA ||
-		root.AuthorID != tn.member.ID || root.AuthorKind != "human" || root.CommentType != "comment" {
+		root.AuthorID != tn.member.ID || root.AuthorKind != "human" || root.CommentType != "discussion" {
 		t.Fatalf("root comment = %+v", root)
 	}
 	reply, err := f.svc.AddDocumentComment(f.ctx, acl, d.ID, AddCommentInput{Body: "sẽ xử", ParentID: &root.ID}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reply.ParentCommentID.String != root.ID {
-		t.Fatalf("reply parent = %v", reply.ParentCommentID)
+	if reply.ParentCommentID.String != root.ID || reply.CommentType != "discussion" {
+		t.Fatalf("reply = %+v", reply)
 	}
 
-	list, err := f.svc.DocumentComments(f.ctx, member, d.ID)
-	if err != nil || len(list) != 2 {
-		t.Fatalf("comments = %d %v", len(list), err)
+	list, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{})
+	if err != nil || len(list.Rows) != 2 || list.Token == "" {
+		t.Fatalf("comments = %d %v token=%q", len(list.Rows), err, list.Token)
 	}
 
 	// The same Idempotency-Key replays the stored response instead of
@@ -51,9 +53,9 @@ func TestDocumentCommentThread(t *testing.T) {
 	if again.ID != replay.ID {
 		t.Fatalf("idempotent replay wrote a second row: %s vs %s", again.ID, replay.ID)
 	}
-	list, err = f.svc.DocumentComments(f.ctx, member, d.ID)
-	if err != nil || len(list) != 3 {
-		t.Fatalf("comments after replay = %d %v", len(list), err)
+	list, err = f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{})
+	if err != nil || len(list.Rows) != 3 {
+		t.Fatalf("comments after replay = %d %v", len(list.Rows), err)
 	}
 }
 
@@ -98,7 +100,7 @@ func TestDocumentCommentLevels(t *testing.T) {
 	member, outsider, acl := Human(tn.member.ID), Human(tn.outsider.ID), Human(tn.aclOwner.ID)
 
 	// A workspace member of a restricted document: nothing, not even read.
-	if _, err := f.svc.DocumentComments(f.ctx, member, d.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("member on restricted doc: %v, want ErrNotFound", err)
 	}
 	if _, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "x"}, ""); !errors.Is(err, ErrNotFound) {
@@ -111,8 +113,8 @@ func TestDocumentCommentLevels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := f.svc.DocumentComments(f.ctx, outsider, d.ID); err != nil || len(got) != 1 {
-		t.Fatalf("viewer comments = %d %v", len(got), err)
+	if got, err := f.svc.DocumentComments(f.ctx, outsider, d.ID, DocumentCommentListInput{}); err != nil || len(got.Rows) != 1 {
+		t.Fatalf("viewer comments = %d %v", len(got.Rows), err)
 	}
 	if _, err := f.svc.AddDocumentComment(f.ctx, outsider, d.ID, AddCommentInput{Body: "viewer writes"}, ""); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("viewer write: %v, want ErrForbidden", err)
@@ -142,11 +144,11 @@ func TestDocumentCommentLevels(t *testing.T) {
 	if _, err := f.svc.UpdateDocumentComment(f.ctx, acl, mc.ID, UpdateCommentInput{Body: "manage sửa"}); err != nil {
 		t.Fatalf("manage edit: %v", err)
 	}
-	if err := f.svc.DeleteDocumentComment(f.ctx, member, c.ID); !errors.Is(err, ErrForbidden) {
+	if _, err := f.svc.DeleteDocumentComment(f.ctx, member, c.ID); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("editor deleting another's: %v, want ErrForbidden", err)
 	}
-	if err := f.svc.DeleteDocumentComment(f.ctx, acl, mc.ID); err != nil {
-		t.Fatalf("manage delete: %v", err)
+	if outcome, err := f.svc.DeleteDocumentComment(f.ctx, acl, mc.ID); err != nil || outcome != DocumentCommentOutcomeRemoved {
+		t.Fatalf("manage delete = %q %v", outcome, err)
 	}
 }
 
@@ -162,7 +164,7 @@ func TestDocumentCommentAnonymousAndAgent(t *testing.T) {
 	if _, err := f.svc.AddDocumentComment(f.ctx, Actor{}, d.ID, AddCommentInput{Body: "anon"}, ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("anonymous write: %v, want ErrNotFound", err)
 	}
-	if _, err := f.svc.DocumentComments(f.ctx, Actor{}, d.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := f.svc.DocumentComments(f.ctx, Actor{}, d.ID, DocumentCommentListInput{}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("anonymous read: %v, want ErrNotFound", err)
 	}
 	if _, err := f.svc.AddDocumentComment(f.ctx, agent, d.ID, AddCommentInput{Body: "agent"}, ""); !errors.Is(err, ErrForbidden) {
@@ -185,8 +187,79 @@ func TestDocumentCommentSystemTypeRefused(t *testing.T) {
 			t.Fatalf("comment_type %q accepted", ct)
 		}
 	}
-	if c, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "x", CommentType: "comment"}, ""); err != nil || c.CommentType != "comment" {
-		t.Fatalf("plain comment: %v %+v", err, c)
+	if c, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "x", CommentType: "discussion"}, ""); err != nil || c.CommentType != "discussion" {
+		t.Fatalf("plain discussion: %v %+v", err, c)
+	}
+}
+
+// REV (G8-04 r3c): the revision history is a contiguous sequence of content
+// edits. A resolve or reopen moves updated_at (so the list_token moves) but
+// must not consume a revision number, or the next edit inserts a history row
+// whose (comment_id, revision) is already taken and the edit answers 500
+// duplicate key on idx_document_comment_revisions_comment. Two owner PATCHes
+// in a row and a PATCH after resolve, after reopen and after an anchor PUT
+// each answer 200 with a distinct revision.
+func TestDocumentCommentRevisionAfterStateChanges(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "rev")
+	d, versions := f.anchorDoc(t, tn, "xlsx", 1)
+	member, acl := Human(tn.member.ID), Human(tn.aclOwner.ID)
+
+	// An anchored root kind=comment (R3-3): an anchorless discussion would
+	// hit the PUT's skip branch and write nothing, so the anchor PUT leg below
+	// would pass even if UpdateDocumentCommentAnchor started bumping revision.
+	c := f.anchoredCreate(t, member, d, versions[0].ID, string(anchorRaw("xlsx", nil)), "")
+	up1, err := f.svc.UpdateDocumentComment(f.ctx, member, c.ID, UpdateCommentInput{Body: "sửa 1"})
+	if err != nil || up1.Revision != c.Revision+1 {
+		t.Fatalf("first update = %v %+v", err, up1)
+	}
+	// Two owner PATCHes in a row.
+	up2, err := f.svc.UpdateDocumentComment(f.ctx, member, c.ID, UpdateCommentInput{Body: "sửa 2"})
+	if err != nil || up2.Revision != up1.Revision+1 {
+		t.Fatalf("second update in a row = %v %+v", err, up2)
+	}
+	if _, err := f.svc.ResolveDocumentComment(f.ctx, acl, c.ID); err != nil {
+		t.Fatal(err)
+	}
+	up3, err := f.svc.UpdateDocumentComment(f.ctx, member, c.ID, UpdateCommentInput{Body: "sửa 3"})
+	if err != nil || up3.Revision != up2.Revision+1 {
+		t.Fatalf("update after resolve = %v %+v", err, up3)
+	}
+	if _, err := f.svc.UnresolveDocumentComment(f.ctx, acl, c.ID); err != nil {
+		t.Fatal(err)
+	}
+	up4, err := f.svc.UpdateDocumentComment(f.ctx, member, c.ID, UpdateCommentInput{Body: "sửa 4"})
+	if err != nil || up4.Revision != up3.Revision+1 {
+		t.Fatalf("update after reopen = %v %+v", err, up4)
+	}
+	// A new anchor so the PUT writes the row (R3-3): the same anchor as the
+	// create would be a no-op and leave UpdateDocumentCommentAnchor unexercised.
+	res, err := f.svc.PutDocumentCommentAnchors(f.ctx, member, d.ID, DocumentCommentAnchorsInput{
+		VersionID:      versions[0].ID,
+		AnchorsPresent: true,
+		Anchors: []DocumentCommentAnchorItem{{
+			CommentID: c.ID, Anchor: anchorRaw("xlsx", map[string]any{"range": "B9"}), State: DocumentCommentAnchorExact,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Updated) != 1 || res.Updated[0] != c.ID {
+		t.Fatalf("anchor PUT updated = %v, want [%s]", res.Updated, c.ID)
+	}
+	up5, err := f.svc.UpdateDocumentComment(f.ctx, member, c.ID, UpdateCommentInput{Body: "sửa 5"})
+	if err != nil || up5.Revision != up4.Revision+1 {
+		t.Fatalf("update after anchor PUT = %v %+v", err, up5)
+	}
+	// The history holds one row per edit, numbered 1..5 with no gap and no
+	// collision, while the comment is at revision 6.
+	var rows, maxRev int64
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT count(*), COALESCE(max(revision), 0) FROM document_comment_revisions WHERE comment_id = $1`, c.ID).Scan(&rows, &maxRev); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 5 || maxRev != 5 {
+		t.Fatalf("revision rows = %d, max = %d, want 5/5", rows, maxRev)
 	}
 }
 
@@ -206,14 +279,15 @@ func TestDocumentCommentRevokeBetweenWrites(t *testing.T) {
 	if _, err := f.svc.AddDocumentComment(f.ctx, actor, d.ID, AddCommentInput{Body: "sau"}, ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("comment after revoke: %v, want ErrNotFound", err)
 	}
-	if _, err := f.svc.DocumentComments(f.ctx, actor, d.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := f.svc.DocumentComments(f.ctx, actor, d.ID, DocumentCommentListInput{}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("read after revoke: %v, want ErrNotFound", err)
 	}
 }
 
-// Edit and resolve bump revision; a repeated resolve is a no-op. Reactions
-// upsert once and remove once; a comment id of another document is not
-// found rather than probed.
+// Edit bumps revision; resolve and reopen move updated_at but keep the
+// content-edit revision stable (REV r3c), and a repeated resolve is a no-op.
+// Reactions upsert once and remove once; a comment id of another document is
+// not found rather than probed.
 func TestDocumentCommentEditResolveReact(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "esr")
@@ -230,7 +304,7 @@ func TestDocumentCommentEditResolveReact(t *testing.T) {
 		t.Fatalf("update = %v %+v", err, up)
 	}
 	res, err := f.svc.ResolveDocumentComment(f.ctx, acl, c.ID)
-	if err != nil || !res.ResolvedAt.Valid || res.ResolvedByID.String != tn.aclOwner.ID || res.Revision != up.Revision+1 {
+	if err != nil || !res.ResolvedAt.Valid || res.ResolvedByID.String != tn.aclOwner.ID || res.Revision != up.Revision {
 		t.Fatalf("resolve = %v %+v", err, res)
 	}
 	again, err := f.svc.ResolveDocumentComment(f.ctx, acl, c.ID)
@@ -238,7 +312,7 @@ func TestDocumentCommentEditResolveReact(t *testing.T) {
 		t.Fatalf("repeat resolve bumped revision: %v %+v", err, again)
 	}
 	un, err := f.svc.UnresolveDocumentComment(f.ctx, acl, c.ID)
-	if err != nil || un.ResolvedAt.Valid || un.Revision != res.Revision+1 {
+	if err != nil || un.ResolvedAt.Valid || un.Revision != res.Revision {
 		t.Fatalf("unresolve = %v %+v", err, un)
 	}
 

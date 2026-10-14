@@ -67,3 +67,16 @@ describe("web navigation adapter leave guards", () => {
     expect(router.forward).not.toHaveBeenCalled();
   });
 });
+
+describe("web navigation adapter openExternal", () => {
+  it("hard-navigates the same window to the URL, without asking the leave guards", () => {
+    const assign = vi.fn();
+    vi.stubGlobal("window", { location: { assign } });
+    const guard = vi.fn(() => Promise.resolve(false));
+    guardWith(guard);
+    createWebNavigationAdapter(fakeRouter(), PATH, new URLSearchParams()).openExternal?.("https://pay.example/c/1");
+    vi.unstubAllGlobals();
+    expect(assign).toHaveBeenCalledWith("https://pay.example/c/1");
+    expect(guard).not.toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,80 @@
+[
+  {
+    "question": "Q1",
+    "section": "code",
+    "text": "code:Prompt.Sections"
+  },
+  {
+    "question": "Q1",
+    "section": "code",
+    "text": "code:OfficeSystemPrompt"
+  },
+  {
+    "question": "Q2",
+    "section": "common",
+    "text": "Not supported: no listed tool can do it, a tool refused, or these rules forbid it."
+  },
+  {
+    "question": "Q2",
+    "section": "sheets",
+    "text": "say the value cannot be computed here, as a warning in the answer.",
+    "note": "FE14-8: an engine that cannot compute is an Answer chip with a warning, not Not supported; revisit if Q2 adds a structured signal."
+  },
+  {
+    "question": "Q3",
+    "section": "common",
+    "text": "Where a module guide or tool description disagrees with these rules, follow these rules."
+  },
+  {
+    "question": "Q4",
+    "section": "common",
+    "text": "call ask_clarification before computing or editing: at most 4 short questions, with the choices you see.",
+    "note": "EXPERIENCE.md defect, not a pack question: EXPERIENCE names the tool ask_user (:133, :677), the UX keeper fixes it to ask_clarification. The sentence stays mapped for the cap-of-4 product choice only (FE14-10)."
+  },
+  {
+    "question": "Q5",
+    "section": "sheets",
+    "text": "Add an image only from a URL returned by image_search or generate_image in this turn, or from a file the user attached in this chat; never from a local file path."
+  },
+  {
+    "question": "Q5",
+    "section": "common",
+    "text": "Never save, upload or export the document, or create documents or versions (a file a listed tool writes in an edit, like an inserted image, is fine)",
+    "note": "FE14-3 / FE14-11: rule 3 allows tool-written image files only while Q5 keeps image tools on."
+  },
+  {
+    "question": "Q5",
+    "section": "markdown",
+    "text": "Insert or generate an image only when the user asks and insert_image or generate_image is listed; it saves an image file next to the document, so say so."
+  },
+  {
+    "question": "Q6",
+    "section": "sheets",
+    "text": "Hidden and filtered rows are included by default."
+  },
+  {
+    "question": "Q6",
+    "section": "sheets",
+    "text": "Never give it as the answer: say it was not recalculated."
+  },
+  {
+    "question": "Q6",
+    "section": "sheets",
+    "text": "summarize_range and compare_ranges leave out total and subtotal rows by default; list the rows left out."
+  },
+  {
+    "question": "Q7",
+    "section": "pdf",
+    "text": "Do not split, extract, merge, replace, crop or resize pages, insert pages, or change the file; answer that it is not supported here."
+  },
+  {
+    "question": "Q8",
+    "section": "docs",
+    "text": "If the document is protected (read only, forms or comments only), do not edit: answer that editing is not supported here."
+  },
+  {
+    "question": "Q9",
+    "section": "whole-pack",
+    "text": "whole-pack"
+  }
+]

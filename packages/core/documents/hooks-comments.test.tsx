@@ -9,7 +9,10 @@ import {
   useAddDocumentCommentReaction,
   useCreateDocumentComment,
   useDeleteDocumentComment,
+  useDocumentCommentRevisions,
   useDocumentComments,
+  useDocumentCommentThread,
+  useDocumentMentionCandidates,
   useRemoveDocumentCommentReaction,
   useReopenDocumentComment,
   useResolveDocumentComment,
@@ -63,7 +66,44 @@ describe("document comment hooks", () => {
     const thread = renderHook(() => useDocumentComments("w1", "d1"), { wrapper });
     await waitFor(() => expect(thread.result.current.isSuccess).toBe(true));
     expect(thread.result.current.data?.[0]?.id).toBe("c1");
-    expect(qc.getQueryData(documentKeys.comments("w1", "d1"))).toHaveLength(1);
+    expect(qc.getQueryData<{ comments: unknown[] }>(documentKeys.comments("w1", "d1"))?.comments).toHaveLength(1);
+  });
+
+  it("caches the mention name table with the rows it came with", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [commentBody()],
+        mentions: [{ user_id: "u9", display_name: "Bình", state: "ok" }],
+        list_token: "lt1:a",
+      }),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const thread = renderHook(() => useDocumentCommentThread("w1", "d1"), { wrapper: wrapperFor(qc) });
+    await waitFor(() => expect(thread.result.current.isSuccess).toBe(true));
+    expect(thread.result.current.data?.comments.map((c) => c.id)).toEqual(["c1"]);
+    expect(thread.result.current.data?.mentions).toEqual([
+      { user_id: "u9", display_name: "Bình", avatar_url: "", state: "ok" },
+    ]);
+  });
+
+  it("loads one comment's edit history under the comments key and fails loudly on a malformed answer", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ revisions: [{ id: "r1", revision: 1, body: "cũ", created_by_id: "u1", created_at: "2026-09-28T08:00:00Z" }] }))
+      .mockResolvedValueOnce(json({ nope: true }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = wrapperFor(qc);
+    const idle = renderHook(() => useDocumentCommentRevisions("w1", "d1", "c1", { enabled: false }), { wrapper });
+    expect(idle.result.current.fetchStatus).toBe("idle");
+
+    const history = renderHook(() => useDocumentCommentRevisions("w1", "d1", "c1"), { wrapper });
+    await waitFor(() => expect(history.result.current.isSuccess).toBe(true));
+    expect(history.result.current.data?.[0]?.body).toBe("cũ");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("/documents/d1/comments/c1/revisions");
+    expect(qc.getQueryData([...documentKeys.comments("w1", "d1"), "revisions", "c1"])).toHaveLength(1);
+
+    const broken = renderHook(() => useDocumentCommentRevisions("w1", "d1", "c2"), { wrapper });
+    await waitFor(() => expect(broken.result.current.isError).toBe(true));
+    expect(broken.result.current.error).toBeInstanceOf(DocumentNotVerifiableError);
   });
 
   it("every comment mutation invalidates the document's comment key", async () => {
@@ -119,6 +159,33 @@ describe("document comment hooks", () => {
     });
   });
 
+  it("loads the mention picker per term and page, and stays idle without ids", async () => {
+    vi.mocked(fetch).mockResolvedValue(json({ candidates: [{ user_id: "u1", display_name: "An" }] }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = wrapperFor(qc);
+
+    const idle = renderHook(() => useDocumentMentionCandidates("", "", ""), { wrapper });
+    expect(idle.result.current.fetchStatus).toBe("idle");
+
+    const closed = renderHook(
+      () => useDocumentMentionCandidates("w1", "d1", "an", { enabled: false }),
+      { wrapper },
+    );
+    expect(closed.result.current.fetchStatus).toBe("idle");
+
+    const picker = renderHook(
+      () => useDocumentMentionCandidates("w1", "d1", "  an  ", { limit: 10 }),
+      { wrapper },
+    );
+    await waitFor(() => expect(picker.result.current.isSuccess).toBe(true));
+    expect(picker.result.current.data?.[0]?.user_id).toBe("u1");
+    // The trimmed term and the page size are in the key, so two pages never
+    // share one cache entry.
+    expect(qc.getQueryData(documentKeys.mentionCandidates("w1", "d1", "an", 10))).toHaveLength(1);
+    const [url] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toContain("/mention-candidates?q=an&limit=10");
+  });
+
   it("a malformed delete or reaction answer is not verifiable", async () => {
     const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const wrapper = wrapperFor(qc);
@@ -146,5 +213,54 @@ describe("document comment hooks", () => {
         remove.result.current.mutateAsync({ commentId: "c1", emoji: "👍" }),
       ).rejects.toBeInstanceOf(DocumentNotVerifiableError);
     });
+  });
+});
+
+describe("document comment list read (G8-03 two shapes)", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  it("keeps the cached list on an unchanged answer instead of writing an empty one", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ comments: [commentBody()], list_token: "lt1:a" }))
+      .mockResolvedValueOnce(json({ unchanged: true, list_token: "lt1:a", comments: [] }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const thread = renderHook(() => useDocumentComments("w1", "d1"), { wrapper: wrapperFor(qc) });
+    await waitFor(() => expect(thread.result.current.isSuccess).toBe(true));
+
+    await act(async () => {
+      await thread.result.current.refetch();
+    });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    // The cache, not result.current: the hook only re-renders for the
+    // properties a test has read, and the point is what the query stored.
+    const cached = qc.getQueryData<{ comments: { id: string }[] }>(documentKeys.comments("w1", "d1"));
+    expect(cached?.comments.map((c) => c.id)).toEqual(["c1"]);
+    expect(qc.getQueryState(documentKeys.comments("w1", "d1"))?.status).toBe("success");
+  });
+
+  it("throws on an unprovable answer and leaves the last list in the cache", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ comments: [commentBody()], list_token: "lt1:a" }))
+      .mockResolvedValueOnce(json({ comments: "nope" }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const thread = renderHook(() => useDocumentComments("w1", "d1"), { wrapper: wrapperFor(qc) });
+    await waitFor(() => expect(thread.result.current.isSuccess).toBe(true));
+
+    await act(async () => {
+      await thread.result.current.refetch();
+    });
+    await waitFor(() => expect(thread.result.current.isError).toBe(true));
+    expect(thread.result.current.error).toBeInstanceOf(DocumentNotVerifiableError);
+    const cached = qc.getQueryData<{ comments: { id: string }[] }>(documentKeys.comments("w1", "d1"));
+    expect(cached?.comments.map((c) => c.id)).toEqual(["c1"]);
   });
 });

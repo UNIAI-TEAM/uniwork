@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
-	"github.com/unicomhub/uniwork/server/internal/mentions"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -48,6 +46,14 @@ type SummaryChecker interface {
 	SummaryAvailable(ctx context.Context, orgID string) bool
 }
 
+// MentionClaim names the durable mention row a draft may deliver at most
+// once: the consumer claims it (ClaimDocumentCommentMention) inside the same
+// transaction that writes the notification, and 0 rows updated drops the
+// draft (contract-collab section 8.2).
+type MentionClaim struct {
+	MentionID string
+}
+
 // Draft is a notification a rule wants to create for one user. The consumer
 // applies preferences, merging and idempotency on top.
 type Draft struct {
@@ -61,6 +67,9 @@ type Draft struct {
 	ActorKind      string
 	ActorID        string
 	Params         map[string]string
+	// Claim is set on mention drafts: the rule only reads mention rows, the
+	// consumer's write() claims the row in the notification's own tx.
+	Claim *MentionClaim
 }
 
 // env is what a rule may touch: read queries, the membership gate and the
@@ -81,14 +90,18 @@ var rules = map[string]rule{
 	"task.updated":           ruleTaskUpdated,
 	"task.comment_added":     ruleTaskCommentAdded,
 	"document.comment_added": ruleDocumentCommentAdded,
-	"participant.invited":    ruleParticipantInvited,
-	"member.joined":          ruleMemberJoined,
-	"member.role_changed":    ruleRoleChanged,
-	"audit.exported":         ruleAuditExported,
-	"chat.follow_up.created": ruleChatFollowUpCreated,
-	"chat.reminder.due":      ruleChatReminderDue,
-	"email_hub.new_mail":     ruleEmailHubNewMail,
-	"meeting.ended":          ruleMeetingEnded,
+	// The edit-time mentions and the resolve notification of the UNI-1337
+	// table (contract-collab section 8.3, G8-05).
+	"document.comment_updated":  ruleDocumentCommentUpdated,
+	"document.comment_resolved": ruleDocumentCommentResolved,
+	"participant.invited":       ruleParticipantInvited,
+	"member.joined":             ruleMemberJoined,
+	"member.role_changed":       ruleRoleChanged,
+	"audit.exported":            ruleAuditExported,
+	"chat.follow_up.created":    ruleChatFollowUpCreated,
+	"chat.reminder.due":         ruleChatReminderDue,
+	"email_hub.new_mail":        ruleEmailHubNewMail,
+	"meeting.ended":             ruleMeetingEnded,
 
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
@@ -334,112 +347,204 @@ func ruleTaskCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[strin
 	return out, nil
 }
 
-// sortedKeys keeps the candidate scan (and so the draft order) deterministic.
-func sortedKeys(m map[string]bool) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		if k != "" {
-			out = append(out, k)
-		}
-	}
-	sort.Strings(out)
-	return out
+// isActorOfEvent reports whether uid is the human actor of the event; a rule
+// never notifies somebody about their own action.
+func isActorOfEvent(ev outbox.Row, uid string) bool {
+	return ev.ActorKind.String == string(audit.KindHuman) && ev.ActorID.String == uid
 }
 
-// ruleDocumentCommentAdded turns a document comment into mention and
-// commented notifications. Every candidate - the mentioned ids, the ACL
-// owner, every earlier human commenter - goes through the injected
-// FilterDocumentReaders at delivery time, so a share revoked between the
-// comment and this run yields no row and no stored snippet; a direct-share
-// recipient in another workspace still gets it while the share holds, which
-// is why this rule does not gate on workspace membership.
-func ruleDocumentCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
-	if e.docs == nil {
-		// No document permission port wired: silent beats leaking a snippet
-		// to someone who cannot read the document.
-		return nil, nil
+// documentCommentContext loads the document and comment an event names, and
+// proves the pair belongs to the event's own tenant. ok=false means "nothing
+// to do": the document or comment is gone, or the row is not the event's.
+func documentCommentContext(ctx context.Context, e env, ev outbox.Row, p map[string]string) (db.Document, db.DocumentComment, bool, error) {
+	if p["document_id"] == "" || p["comment_id"] == "" {
+		return db.Document{}, db.DocumentComment{}, false, nil
 	}
 	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return db.Document{}, db.DocumentComment{}, false, nil
 	}
 	if err != nil {
-		return nil, err
+		return db.Document{}, db.DocumentComment{}, false, err
 	}
 	// The id came from the event payload: only trust a document that lives
 	// in the event's own tenant pair.
 	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
 		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
-		return nil, nil
+		return db.Document{}, db.DocumentComment{}, false, nil
 	}
 	comment, err := e.q.GetDocumentComment(ctx, db.GetDocumentCommentParams{
 		ID: p["comment_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil // deleted between the event and this delivery
+		return doc, db.DocumentComment{}, false, nil // deleted between the event and this delivery
 	}
 	if err != nil {
+		return db.Document{}, db.DocumentComment{}, false, err
+	}
+	return doc, comment, true, nil
+}
+
+// ruleDocumentCommentAdded drafts the create-time recipients of the UNI-1337
+// table (contract-collab section 8.3): the people whose mention row nobody
+// claimed yet, and - for a reply - the parent's author when no mention
+// already speaks for them. A new comment or thread without a mention notifies
+// nobody; document_commented is no longer emitted, its kind survives for rows
+// written before this change.
+func ruleDocumentCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	return documentCommentMentionRule(ctx, e, ev, p, true)
+}
+
+// ruleDocumentCommentUpdated drafts the edit-time mentions only (UNI-1336
+// "mentions on edit"): an edit can add or drop mention tokens, but it never
+// re-announces a reply, so the reply arm stays out.
+func ruleDocumentCommentUpdated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	return documentCommentMentionRule(ctx, e, ev, p, false)
+}
+
+// documentCommentMentionRule is the create/edit body: it reads the comment's
+// unclaimed active mention rows (the rules never write; the claim happens in
+// the consumer's transaction, section 8.2) and re-checks read access at
+// delivery time, so a share revoked between the comment and this run yields
+// no draft and no claim.
+func documentCommentMentionRule(ctx context.Context, e env, ev outbox.Row, p map[string]string, withReply bool) ([]Draft, error) {
+	if e.docs == nil {
+		// No document permission port wired: silent beats leaking a snippet
+		// to someone who cannot read the document.
+		return nil, nil
+	}
+	doc, comment, ok, err := documentCommentContext(ctx, e, ev, p)
+	if err != nil || !ok {
 		return nil, err
 	}
-	comments, err := e.q.ListDocumentComments(ctx, db.ListDocumentCommentsParams{
-		DocumentID: doc.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+	if comment.DeletedAt.Valid {
+		return nil, nil
+	}
+	rows, err := e.q.ListClaimableDocumentCommentMentions(ctx, db.ListClaimableDocumentCommentMentionsParams{
+		CommentID: comment.ID, DocumentID: doc.ID,
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 	})
 	if err != nil {
 		return nil, err
 	}
-
-	mentioned := mentions.MemberIDs(comment.Body)
-	mentionedSet := map[string]bool{}
-	candidates := map[string]bool{}
-	for _, uid := range mentioned {
-		mentionedSet[uid] = true
-		candidates[uid] = true
-	}
-	for _, c := range comments {
-		if c.AuthorKind == string(audit.KindHuman) {
-			candidates[c.AuthorID] = true
+	var parent db.DocumentComment
+	hasParent := false
+	if withReply && comment.ParentCommentID.Valid {
+		parent, err = e.q.GetDocumentComment(ctx, db.GetDocumentCommentParams{
+			ID: comment.ParentCommentID.String, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		})
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			// The parent was hard-deleted between the reply and this run.
+		case err != nil:
+			return nil, err
+		default:
+			hasParent = true
 		}
 	}
-	if doc.AclOwnerID.Valid {
-		candidates[doc.AclOwnerID.String] = true
+	// One read gate for everyone the drafts depend on: the mention rows and
+	// the parent's author.
+	candidates := make([]string, 0, len(rows)+1)
+	for _, r := range rows {
+		candidates = append(candidates, r.UserID)
 	}
-	readers, err := e.docs.FilterDocumentReaders(ctx, doc.ID, sortedKeys(candidates))
-	if err != nil {
-		return nil, err
+	if hasParent && parent.AuthorKind == string(audit.KindHuman) {
+		candidates = append(candidates, parent.AuthorID)
 	}
 	readable := map[string]bool{}
-	for _, uid := range readers {
-		readable[uid] = true
+	if len(candidates) > 0 {
+		readers, err := e.docs.FilterDocumentReaders(ctx, doc.ID, candidates)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range readers {
+			readable[id] = true
+		}
 	}
-	isActor := func(uid string) bool {
-		return ev.ActorKind.String == string(audit.KindHuman) && ev.ActorID.String == uid
+	params := map[string]string{
+		"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+		"snippet": snippet(comment.Body), "comment_id": comment.ID, "kind": comment.CommentType,
 	}
-	params := map[string]string{"actor": actorName(ctx, e.q, ev), "document": doc.Title, "snippet": snippet(comment.Body)}
-
+	kind := KindDocumentMentioned
+	if comment.CommentType == "discussion" {
+		kind = KindDocumentDiscussionMentioned
+	}
 	var out []Draft
-	for _, uid := range mentioned {
-		if !readable[uid] || isActor(uid) {
+	touched := map[string]bool{}
+	for _, r := range rows {
+		// A row's creator is the author of its token: a self-mention never
+		// notifies the person who wrote it, whichever actor triggers this
+		// event - a later edit by another member that keeps the token must
+		// not resurrect it.
+		if !readable[r.UserID] || isActorOfEvent(ev, r.UserID) || r.CreatedBy == r.UserID {
 			continue
 		}
+		touched[r.UserID] = true
 		out = append(out, Draft{
-			UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-			Kind: KindDocumentMentioned, GroupKey: "document:" + doc.ID + ":mention:" + comment.ID,
+			UserID: r.UserID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: kind, GroupKey: "document:" + doc.ID + ":mention:" + comment.ID,
 			ResourceType: "document", ResourceID: doc.ID,
 			ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+			Claim: &MentionClaim{MentionID: r.ID},
 		})
 	}
-	for _, uid := range sortedKeys(candidates) {
-		if mentionedSet[uid] || !readable[uid] || isActor(uid) {
-			continue
+	if hasParent && parent.AuthorKind == string(audit.KindHuman) {
+		uid := parent.AuthorID
+		if touched[uid] || isActorOfEvent(ev, uid) || !readable[uid] {
+			return out, nil
+		}
+		replyKind := KindDocumentCommentReplied
+		if comment.CommentType == "discussion" {
+			replyKind = KindDocumentDiscussionReplied
 		}
 		out = append(out, Draft{
 			UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-			Kind: KindDocumentCommented, GroupKey: "document:" + doc.ID + ":commented",
+			Kind: replyKind, GroupKey: "document:" + doc.ID + ":replied:" + comment.ID,
 			ResourceType: "document", ResourceID: doc.ID,
 			ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
 		})
 	}
 	return out, nil
+}
+
+// ruleDocumentCommentResolved tells the author of a resolved Comment (the
+// provisional OQ-C7 reading of the UNI-1337 table): only kind=comment
+// resolves notify, a Discussion stays silent.
+func ruleDocumentCommentResolved(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if e.docs == nil {
+		return nil, nil
+	}
+	doc, comment, ok, err := documentCommentContext(ctx, e, ev, p)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+	if comment.DeletedAt.Valid || !comment.ResolvedAt.Valid || comment.CommentType != "comment" {
+		return nil, nil
+	}
+	uid := comment.AuthorID
+	if comment.AuthorKind != string(audit.KindHuman) || isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	readers, err := e.docs.FilterDocumentReaders(ctx, doc.ID, []string{uid})
+	if err != nil {
+		return nil, err
+	}
+	if len(readers) == 0 {
+		return nil, nil
+	}
+	return []Draft{{
+		UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		Kind: KindDocumentCommentResolved, GroupKey: "document:" + doc.ID + ":resolved:" + comment.ID,
+		ResourceType: "document", ResourceID: doc.ID,
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String,
+		Params: map[string]string{
+			"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+			"snippet": snippet(comment.Body), "comment_id": comment.ID, "kind": comment.CommentType,
+		},
+	}}, nil
 }
 
 func ruleParticipantInvited(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {

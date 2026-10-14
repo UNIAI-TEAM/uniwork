@@ -10,9 +10,10 @@ import (
 )
 
 // officeFrameAILimits are the per-person budgets of the frame AI routes: the
-// same buckets and numbers as GO-A7's session routes (ADR 0029 D6).
+// same buckets and numbers as GO-A7's session routes (ADR 0029 D6), plus the
+// ai-uniwork bucket G6-03b adds to both mounts of the UniWork AI turn.
 type officeFrameAILimits struct {
-	credentials, byok, cloud func(http.Handler) http.Handler
+	credentials, byok, cloud, uniwork func(http.Handler) http.Handler
 }
 
 // tag: ai — GO-A7's AI routes on the web Office frame token (UNI-1014,
@@ -39,6 +40,7 @@ type officeFrameAILimits struct {
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/cloud/images
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/cloud/media/analyze
 //	POST   /api/v1/office-frame/documents/{documentID}/ai/cloud/transcribe
+//	POST   /api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions
 func registerOfficeFrameAI(r api, h Routes, flags *featureflag.Service, frameAuth func(http.Handler) http.Handler, limits officeFrameAILimits) {
 	if frameAuth == nil {
 		frameAuth = frameAuthNotFound
@@ -115,6 +117,18 @@ func registerOfficeFrameAI(r api, h Routes, flags *featureflag.Service, frameAut
 		summary:     "Frame: Office cloud transcription",
 		description: frame + "Chuyển âm thanh (≤ 25 MiB) thành văn bản; 1000 token-equivalent mỗi phút bắt đầu." + cloudErrs,
 		tags:        []string{"ai"}, sdi: sdi.AiCloudTranscribeSDI{}, sdo: sdo.AiCloudTextSDO{}, auth: true,
+	})
+
+	// The UniWork AI turn (G6-03a, R2): the session handler mounted on the
+	// frame token, but the module is the token's, never the body's (rule 3/7,
+	// D-3). G6-03b puts it on the ai-uniwork bucket, the one the two session
+	// routes draw on, so a person's frame and host tab share one 60/min.
+	f.With(limits.uniwork).Post(base+"/uniwork/chat/completions", h.OfficeFrameAiUniworkChatCompletions, apiOp{
+		summary: "Frame: UniWork AI chat, one turn",
+		description: frame + "Như POST /orgs/{orgID}/ai/uniwork/chat/completions: một lượt, hội thoại do server giữ " +
+			"(header X-UniWork-AI-Conversation), stream=true trả SSE một chunk rồi [DONE]. Module lấy từ claim của token; " +
+			"trường module trong body bị bỏ qua." + uniworkChatErrs,
+		tags: []string{"ai"}, sdi: sdi.AiUniworkChatCompletionsSDI{}, sdo: sdo.AiUniworkChatCompletionsSDO{}, auth: true,
 	})
 }
 

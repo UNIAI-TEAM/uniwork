@@ -40,6 +40,7 @@ export function createWebNavigationAdapter(
     forward: () => guarded(() => router.forward()),
     pathname,
     searchParams,
+    openExternal: (url) => window.location.assign(url),
     getShareableUrl: (path) => (typeof window === "undefined" ? path : window.location.origin + path),
     // router.prefetch is a no-op in dev by Next's design; in production it
     // warms the RSC payload so the next push commits with no round-trip.
