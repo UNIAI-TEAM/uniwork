@@ -1,0 +1,6 @@
+$ pnpm --filter @uniwork/core typecheck; echo "CORE_TC_EXIT=$?"
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
+CORE_TC_EXIT=0
