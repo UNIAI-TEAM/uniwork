@@ -147,7 +147,10 @@ export function AcceptInviteView({
     description: t("invitations.loading_description"),
     body: <InvitePreviewSkeleton />,
   });
-  const failed = (error: unknown): Screen => {
+  // `retrying`: the invitation is being read again after a failed read. With
+  // nothing cached that read shows the skeleton; with a stale preview cached
+  // the error stays on screen, so its Retry button carries the wait.
+  const failed = (error: unknown, retrying = false): Screen => {
     const reason = inviteErrorReason(error);
     return {
       id: `error-${reason}`,
@@ -156,6 +159,7 @@ export function AcceptInviteView({
       body: (
         <InviteErrorBody
           reason={reason}
+          retrying={retrying}
           onRetry={() => {
             setRefusal(null);
             // An accepted invitation is asked again by the effect, not by a button.
@@ -177,7 +181,7 @@ export function AcceptInviteView({
     if (status !== "authed") return status === "anon" ? null : loading();
     if (refusal?.kind === "fatal") return failed(refusal.error);
     if (refusal?.kind === "gone") return gone(refusal.reason);
-    if (preview.error) return failed(preview.error);
+    if (preview.error) return failed(preview.error, preview.isFetching);
     // The repeat ask of an accepted invitation met another change: no button
     // to press again on the "joining" screen, so offer the retry here.
     if (!joined && invitationStatus === "accepted" && refusal?.kind === "retry") return failed(refusal.error);
