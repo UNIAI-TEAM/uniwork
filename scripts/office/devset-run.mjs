@@ -1078,6 +1078,26 @@ async function proveRealPanelEndToEnd({
   const harnessDir = '/tmp/g608-panel-harness';
   fs.rmSync(harnessDir, { recursive: true, force: true });
   fs.mkdirSync(harnessDir, { recursive: true });
+
+  const genDir = path.join(frameDir, 'node_modules', '@genoffice');
+  fs.mkdirSync(genDir, { recursive: true });
+  for (const pkg of fs.readdirSync(path.join(frameDir, 'packages'))) {
+    const p = path.join(frameDir, 'packages', pkg);
+    const linkPath = path.join(genDir, pkg);
+    if (fs.statSync(p).isDirectory()) {
+      fs.rmSync(linkPath, { recursive: true, force: true });
+      fs.symlinkSync(p, linkPath);
+    }
+  }
+  for (const app of fs.readdirSync(path.join(frameDir, 'apps'))) {
+    const p = path.join(frameDir, 'apps', app);
+    const linkPath = path.join(genDir, app);
+    if (fs.statSync(p).isDirectory()) {
+      fs.rmSync(linkPath, { recursive: true, force: true });
+      fs.symlinkSync(p, linkPath);
+    }
+  }
+
   fs.symlinkSync(
     path.join(frameDir, 'node_modules'),
     path.join(harnessDir, 'node_modules'),
@@ -1085,6 +1105,7 @@ async function proveRealPanelEndToEnd({
 
   const vitePort = 15173;
   const proxyPort = 15180;
+  const nodeStubsPath = path.join(frameDir, 'web/modules/sheets/engine/node-stubs.ts');
 
   fs.writeFileSync(
     path.join(harnessDir, 'vite.config.mjs'),
@@ -1094,7 +1115,12 @@ export default {
   plugins: [react()],
   cacheDir: ${JSON.stringify(path.join(harnessDir, '.vite-cache'))},
   server: { port: ${vitePort}, strictPort: true, host: ${JSON.stringify(LOOPBACK_HOST)}, fs: { strict: false } },
-  resolve: { preserveSymlinks: false },
+  resolve: {
+    preserveSymlinks: false,
+    alias: [
+      { find: /^node:(crypto|fs|fs\\/promises|os|path)$/, replacement: ${JSON.stringify(nodeStubsPath)} },
+    ],
+  },
 };
 `,
   );
@@ -1124,7 +1150,7 @@ document.documentElement.lang = lang;
 
 async function main() {
   const { createWebAi, withWebAi } = await import(/* @vite-ignore */ F + '/web/modules/shared/ai/web-ai.ts');
-  const { mirrorUniworkAiFlag } = await import('@genoffice/ai-provider/browser');
+  const aiBrowser = await import('@genoffice/ai-provider/browser');
   const { AgentLoop } = await import('@genoffice/agent-core');
   await import('@genoffice/ui/tokens.css');
   await import('@genoffice/ui/ai-model-picker.css');
@@ -1156,10 +1182,15 @@ async function main() {
     module: mod,
   });
   await webAi.active();
+  if (typeof aiBrowser.setUniworkAiAvailable === 'function') {
+    aiBrowser.setUniworkAiAvailable(true);
+  }
   webAi.choose('uniwork');
   const aiMembers = withWebAi({}, webAi);
   (window as any).uniworkAiFlag = { get: async () => true, onChange: () => () => {} };
-  mirrorUniworkAiFlag();
+  if (typeof aiBrowser.mirrorUniworkAiFlag === 'function') {
+    aiBrowser.mirrorUniworkAiFlag();
+  }
 
   const proxyApi = new Proxy(
     {
@@ -1231,19 +1262,22 @@ async function main() {
         {
           name: 'get_workbook_context',
           description: 'Get workbook overview: sheet names and dimensions.',
-          parameters: { type: 'object', properties: {}, required: [] },
+          inputSchema: { type: 'object', properties: {}, required: [] },
           execute: async () => ({
-            sheets: [
-              { id: 'Bán hàng T1', name: 'Bán hàng T1', rows: 9, cols: 9 },
-              { id: 'Tỷ giá & Tham chiếu', name: 'Tỷ giá & Tham chiếu', rows: 5, cols: 3 },
-            ],
-            activeSheet: 'Bán hàng T1',
+            summary: 'Read workbook context',
+            output: JSON.stringify({
+              sheets: [
+                { id: 'Bán hàng T1', name: 'Bán hàng T1', rows: 9, cols: 9 },
+                { id: 'Tỷ giá & Tham chiếu', name: 'Tỷ giá & Tham chiếu', rows: 5, cols: 3 },
+              ],
+              activeSheet: 'Bán hàng T1',
+            }),
           }),
         },
         {
           name: 'read_cells',
           description: 'Read values and formulas of cells.',
-          parameters: {
+          inputSchema: {
             type: 'object',
             properties: { addresses: { type: 'array', items: { type: 'string' } }, sheetId: { type: 'string' } },
             required: ['addresses'],
@@ -1253,23 +1287,29 @@ async function main() {
             for (const a of args.addresses ?? ['G8', 'G9']) {
               cells[a] = xlsxOracle.sheets?.['Bán hàng T1']?.cells?.[a] ?? null;
             }
-            return { sheetId: 'Bán hàng T1', cells };
+            return {
+              summary: 'Read cells',
+              output: JSON.stringify({ sheetId: 'Bán hàng T1', cells }),
+            };
           },
         },
         {
           name: 'read_range',
           description: 'Read rectangular cell range.',
-          parameters: {
+          inputSchema: {
             type: 'object',
             properties: { range: { type: 'string' }, sheetId: { type: 'string' } },
             required: ['range'],
           },
           execute: async () => ({
-            sheetId: 'Bán hàng T1',
-            cells: {
-              G8: xlsxOracle.sheets?.['Bán hàng T1']?.cells?.G8,
-              G9: xlsxOracle.sheets?.['Bán hàng T1']?.cells?.G9,
-            },
+            summary: 'Read range',
+            output: JSON.stringify({
+              sheetId: 'Bán hàng T1',
+              cells: {
+                G8: xlsxOracle.sheets?.['Bán hàng T1']?.cells?.G8,
+                G9: xlsxOracle.sheets?.['Bán hàng T1']?.cells?.G9,
+              },
+            }),
           }),
         },
       ],
@@ -1477,7 +1517,9 @@ main().catch((err) => {
 
     await new Promise((resolve) => proxyServer.listen(proxyPort, LOOPBACK_HOST, resolve));
 
-    const { chromium } = await import('playwright');
+    const { createRequire } = await import('node:module');
+    const reqFromFrame = createRequire(path.join(frameDir, 'package.json'));
+    const { chromium } = reqFromFrame('playwright');
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     const panelProofs = [];
     try {
@@ -1540,8 +1582,9 @@ main().catch((err) => {
             const msgs = document.querySelectorAll('.ai-msg-assistant');
             if (!msgs || msgs.length === 0) return false;
             const last = msgs[msgs.length - 1];
+            if (last.classList.contains('ai-msg-streaming')) return false;
             const txt = (last.textContent ?? '').trim();
-            return txt.length > 15 && !txt.includes('Đang') && !txt.includes('Thinking');
+            return txt.length > 0;
           },
           null,
           { timeout: 60000 },
