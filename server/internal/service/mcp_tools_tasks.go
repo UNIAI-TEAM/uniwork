@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -416,9 +417,12 @@ func (in mcpUpdateTaskIn) check() error {
 		name string
 		o    mcpOpt[string]
 	}
-	for _, f := range []field{{"title", in.Title}, {"description", in.Description}, {"status", in.Status}, {"priority", in.Priority}} {
+	if in.Description.Null {
+		return McpInvalidArgs{Msg: `description cannot be null; send "" to clear it`}
+	}
+	for _, f := range []field{{"title", in.Title}, {"status", in.Status}, {"priority", in.Priority}} {
 		if f.o.Null {
-			return McpInvalidArgs{Msg: f.name + " cannot be null; send a value (an empty description clears it)"}
+			return McpInvalidArgs{Msg: f.name + " cannot be null; send a value"}
 		}
 	}
 	if title := strings.TrimSpace(in.Title.Value); in.Title.Set && (title == "" || utf8.RuneCountInString(title) > mcpMaxTitleRunes) {
@@ -441,6 +445,11 @@ func (in mcpUpdateTaskIn) check() error {
 	}
 	if len(in.AddLabelIDs) > mcpMaxLabels || len(in.RemoveLabelIDs) > mcpMaxLabels {
 		return McpInvalidArgs{Msg: fmt.Sprintf("add_label_ids and remove_label_ids hold at most %d labels each", mcpMaxLabels)}
+	}
+	for _, id := range in.AddLabelIDs {
+		if slices.Contains(in.RemoveLabelIDs, id) {
+			return McpInvalidArgs{Msg: "a label cannot be in both add_label_ids and remove_label_ids"}
+		}
 	}
 	return nil
 }
@@ -617,9 +626,14 @@ func (s *McpToolService) UpdateTask(ctx context.Context, p McpPrincipal, in mcpU
 		McpChange{"parent_task_id", mcpNullable(b.ParentTaskID), mcpNullable(a.ParentTaskID)},
 		McpChange{"labels", labelsBefore, labelsAfter},
 	)}
+	var notes []string
 	if len(failed) > 0 {
-		res.Note = "the fields in changes were saved; these did not go through: " + strings.Join(failed, "; ")
+		notes = append(notes, "the fields in changes were saved; these did not go through: "+strings.Join(failed, "; "))
 	}
+	if before.Description != after.Description && utf8.RuneCountInString(before.Description) > mcpMaxHitRunes {
+		notes = append(notes, "the old description was too long to return in full, so its from in changes cannot restore it")
+	}
+	res.Note = strings.Join(notes, ". ")
 	return res, nil
 }
 
@@ -652,7 +666,7 @@ func mcpTaskTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpCreateTaskIn) (any, error) {
 				return s.CreateTask(ctx, p, in)
 			}),
-		mcpWriteTool("update_task", "Update task", "Changes one task as the user: omitted fields stay as they are, null clears one. revision must be the one you read; if the task changed since, nothing is written and the call fails with revision_conflict. Everyone in the workspace sees the change; a new assignee is notified, and a status change notifies the task's assignee and creator.", "call update_task again with the from values in changes (a from value cut short with … is not the whole old text)", true, mcpSchemaUpdateTask,
+		mcpWriteTool("update_task", "Update task", "Changes one task as the user: omitted fields stay as they are, null clears one. revision must be the one you read; if the task changed since, nothing is written and the call fails with revision_conflict. Everyone in the workspace sees the change; a new assignee is notified, and a status change notifies the task's assignee and creator.", "call update_task again with the from values in changes; put labels back with add_label_ids and remove_label_ids, using the label ids in changes", true, mcpSchemaUpdateTask,
 			func(ctx context.Context, p McpPrincipal, in mcpUpdateTaskIn) (any, error) {
 				return s.UpdateTask(ctx, p, in)
 			}),

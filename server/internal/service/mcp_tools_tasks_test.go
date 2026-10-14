@@ -869,16 +869,60 @@ func TestMcpUpdateTaskTellsAbsentFromNull(t *testing.T) {
 	if task, _ := x.tools.ask.tasks.Get(context.Background(), x.ua.ID, x.taskID); task.DueDate.Valid {
 		t.Fatal("due_date null did not clear it")
 	}
+	// A label on the task, so naming it in both lists is refused for that
+	// reason and not because it is unknown.
+	label, err := x.tools.ask.tasks.CreateTaskLabel(context.Background(), Human(x.ua.ID), x.w.ID, CreateTaskLabelInput{Name: "Khẩn", Color: "#ef4444"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := x.tools.ask.tasks.AttachTaskLabel(context.Background(), Human(x.ua.ID), x.taskID, label.ID); err != nil {
+		t.Fatal(err)
+	}
 	rev := strconv.FormatInt(x.revision(t, x.taskID), 10)
-	for _, extra := range []string{`"title":null`, `"title":"   "`, `"assignee_id":""`, `"parent_task_id":" "`, `"due_date":"23/10/2026"`, `"priority":"asap"`} {
+	both := `"add_label_ids":["` + label.ID + `"],"remove_label_ids":["` + label.ID + `"]`
+	for _, extra := range []string{`"title":null`, `"title":"   "`, `"assignee_id":""`, `"parent_task_id":" "`, `"due_date":"23/10/2026"`, `"priority":"asap"`, both} {
 		_, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+`,`+extra+`}`)
 		var bad McpInvalidArgs
-		if !errors.As(err, &bad) {
+		if !errors.As(err, &bad) || (extra == both && !strings.Contains(bad.Msg, "both")) {
 			t.Errorf("%s: %v, want McpInvalidArgs", extra, err)
 		}
 	}
 	if strconv.FormatInt(x.revision(t, x.taskID), 10) != rev {
 		t.Fatal("a refused update wrote")
+	}
+	// A null is refused in the words of its own field.
+	for field, want := range map[string]string{"title": "send a value", "status": "send a value", "priority": "send a value", "description": `send "" to clear it`} {
+		_, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+`,"`+field+`":null}`)
+		var bad McpInvalidArgs
+		if !errors.As(err, &bad) || !strings.HasPrefix(bad.Msg, field+" cannot be null") || !strings.Contains(bad.Msg, want) || (field != "description" && strings.Contains(bad.Msg, "description")) {
+			t.Errorf("%s null: %v, want a refusal saying %q", field, err, want)
+		}
+	}
+}
+
+// A description too long for changes says so: from cannot bring it back.
+func TestMcpUpdateTaskSaysWhenTheOldDescriptionIsCut(t *testing.T) {
+	x := newMcpToolWorld(t)
+	long := strings.Repeat("Nội dung dài. ", 200)
+	if _, err := x.tools.ask.tasks.Update(context.Background(), Human(x.ua.ID), x.taskID, UpdateTaskInput{Description: &long}); err != nil {
+		t.Fatal(err)
+	}
+	rev := strconv.FormatInt(x.revision(t, x.taskID), 10)
+	raw, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+`,"description":"Ngắn"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, _ := writeResult(t, raw)
+	if !strings.Contains(res.Note, "description") {
+		t.Fatalf("note %q does not say the old description was cut: %s", res.Note, raw)
+	}
+	rev = strconv.FormatInt(x.revision(t, x.taskID), 10)
+	raw, err = callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+`,"description":"Ngắn nữa"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, _ := writeResult(t, raw); res.Note != "" {
+		t.Fatalf("a short old description still notes a cut: %q", res.Note)
 	}
 }
 

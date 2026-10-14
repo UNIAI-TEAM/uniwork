@@ -61,6 +61,7 @@ func TestMCPToolCatalogue(t *testing.T) {
 	for name, words := range map[string][]string{
 		"list_tasks":   {"ordered by status key alphabetically, then position", "pass status to narrow", "truncated"},
 		"list_members": {"query", "truncated"},
+		"update_task":  {"revision_conflict", "add_label_ids and remove_label_ids"},
 	} {
 		tool, _ := r.Get(name)
 		for _, w := range words {
