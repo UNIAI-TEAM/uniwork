@@ -248,6 +248,8 @@ func (s *McpToolService) GetTask(ctx context.Context, p McpPrincipal, workspaceI
 	if out.Labels, err = s.labelsOf(ctx, p, t.ID); err != nil {
 		return McpTask{}, hidden(err)
 	}
+	desc := capRunes(t.Description, mcpMaxItemRunes, "")
+	out.Description, out.DescriptionTruncated = &desc, desc != t.Description
 	return out, nil
 }
 
@@ -357,7 +359,7 @@ func McpTools(s *McpToolService) ai.Registry {
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.Search(ctx, p, a.WorkspaceID, a.Query)
 			}),
-		tool("get_task", "Get task", "One task with its comments, labels and revision. task_id is the id or the PREFIX-N reference.", mcpSchemaTask, []string{"workspace_id", "task_id"},
+		tool("get_task", "Get task", "One task with its comments, labels and revision, and its description exactly as stored (Markdown) to edit from; description_truncated says it was longer than 16000 characters and was cut. task_id is the id or the PREFIX-N reference.", mcpSchemaTask, []string{"workspace_id", "task_id"},
 			func(ctx context.Context, p McpPrincipal, a mcpArgs) (any, error) {
 				return s.GetTask(ctx, p, a.WorkspaceID, a.TaskID)
 			}),

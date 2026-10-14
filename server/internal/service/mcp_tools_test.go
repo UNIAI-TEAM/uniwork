@@ -61,7 +61,9 @@ func TestMCPToolCatalogue(t *testing.T) {
 	for name, words := range map[string][]string{
 		"list_tasks":   {"ordered by status key alphabetically, then position", "pass status to narrow", "truncated"},
 		"list_members": {"query", "truncated"},
-		"update_task":  {"revision_conflict", "add_label_ids and remove_label_ids"},
+		"update_task":  {"revision_conflict", "add_label_ids and remove_label_ids", "too long"},
+		"add_comment":  {"assignee", "creator", "earlier commenters", "@"},
+		"get_task":     {"description", "description_truncated"},
 	} {
 		tool, _ := r.Get(name)
 		for _, w := range words {
@@ -840,7 +842,7 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 	check("search", raw, err, itemKeys)
 	taskKeys := with("revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels")
 	raw, err = callMcpTool(t, x.tools, x.p, "get_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`"}`)
-	check("get_task", raw, err, taskKeys)
+	check("get_task", raw, err, with("revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels", "description", "description_truncated"))
 	// The list tools wrap their rows: the wrapper and each row are checked.
 	checkWrapped := func(name, rowsKey string, input string, rowKeys map[string]bool) {
 		t.Helper()
@@ -1053,6 +1055,11 @@ func TestMcpExcerptsAreCapped(t *testing.T) {
 	if !strings.Contains(item.Excerpt, "UniWork") {
 		t.Errorf("get_task cut does not say the full item is in UniWork: %.80q", tail(item.Excerpt, 80))
 	}
+	// The exact description is cut at the same limit, with no marker inside
+	// the text and a flag saying so.
+	if item.Description == nil || *item.Description != strings.Repeat("ạ", 16000) || !item.DescriptionTruncated {
+		t.Errorf("get_task description of a long task: %d characters, truncated %v; want the first 16000 and the flag", utf8.RuneCountInString(deref(item.Description)), item.DescriptionTruncated)
+	}
 	item, err = x.tools.GetTask(ctx, x.p, x.w.ID, chatty.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -1069,7 +1076,7 @@ func TestMcpExcerptsAreCapped(t *testing.T) {
 
 	// Short items are returned whole, with no marker.
 	whole, err := x.tools.GetTask(ctx, x.p, x.w.ID, x.taskID)
-	if err != nil || strings.Contains(whole.Excerpt, "…") || strings.Contains(whole.Excerpt, "UniWork") {
+	if err != nil || strings.Contains(whole.Excerpt, "…") || strings.Contains(whole.Excerpt, "UniWork") || whole.Description == nil || whole.DescriptionTruncated {
 		t.Fatalf("short task = %+v, %v", whole, err)
 	}
 	foundShort, err := x.tools.Search(ctx, x.p, x.w.ID, "báo cáo")
@@ -1135,4 +1142,11 @@ func TestMcpSearchRefusesAQueryWithNoWord(t *testing.T) {
 	if err != nil || len(srcs) == 0 {
 		t.Fatalf("control: Ask UNI search for %q = %+v, %v; want the latest items", "a", srcs, err)
 	}
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

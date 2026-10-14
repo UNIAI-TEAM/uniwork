@@ -51,6 +51,11 @@ type McpTask struct {
 	ParentTaskID string     `json:"parent_task_id,omitempty"`
 	StartDate    string     `json:"start_date,omitempty"`
 	Labels       []McpLabel `json:"labels,omitempty"`
+	// Description is the stored Markdown, which only get_task sets: exact, cut
+	// at mcpMaxItemRunes with DescriptionTruncated when longer, so a model
+	// edits from the real text and not from the excerpt.
+	Description          *string `json:"description,omitempty"`
+	DescriptionTruncated bool    `json:"description_truncated,omitempty"`
 }
 
 // McpMemberList and McpTaskList are what the list tools return: the rows,
@@ -318,6 +323,10 @@ func (s *McpToolService) CreateTask(ctx context.Context, p McpPrincipal, in mcpC
 	if err != nil {
 		return McpWriteResult{}, err
 	}
+	assigneeID, err := mcpID("assignee_id", in.AssigneeID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
 	if err := s.inGrant(ctx, p, in.WorkspaceID); err != nil {
 		return McpWriteResult{}, err
 	}
@@ -335,11 +344,12 @@ func (s *McpToolService) CreateTask(ctx context.Context, p McpPrincipal, in mcpC
 	}
 	t, err := s.ask.tasks.Create(ctx, Human(p.UserID), in.WorkspaceID, CreateTaskInput{
 		Title: in.Title, Description: in.Description, Status: in.Status, Priority: in.Priority,
-		AssigneeID: optString(in.AssigneeID), StartDate: optString(in.StartDate), DueDate: optString(in.DueDate),
+		AssigneeID: assigneeID, StartDate: optString(in.StartDate), DueDate: optString(in.DueDate),
 		ProjectID: projectID, ParentTaskID: parent, LabelIDs: in.LabelIDs,
 	})
 	// A client that retries a create it never saw the answer to lands here.
-	// The task named is the caller's own, in the workspace they asked about.
+	// The task named is an active task with this title under the same project
+	// and parent of the workspace asked about, which the caller can see.
 	var ce CodedError
 	if errors.As(err, &ce) && ce.Code == "active_duplicate_task" {
 		id, _ := ce.Fields["task_id"].(string)
@@ -424,6 +434,9 @@ func (in mcpUpdateTaskIn) check() error {
 		if f.o.Null {
 			return McpInvalidArgs{Msg: f.name + " cannot be null; send a value"}
 		}
+	}
+	if utf8.RuneCountInString(in.Description.Value) > mcpMaxItemRunes {
+		return McpInvalidArgs{Msg: fmt.Sprintf("description holds at most %d characters here; a longer one could not be undone", mcpMaxItemRunes)}
 	}
 	if title := strings.TrimSpace(in.Title.Value); in.Title.Set && (title == "" || utf8.RuneCountInString(title) > mcpMaxTitleRunes) {
 		return McpInvalidArgs{Msg: fmt.Sprintf("title must be 1-%d characters", mcpMaxTitleRunes)}
@@ -541,6 +554,11 @@ func (s *McpToolService) UpdateTask(ctx context.Context, p McpPrincipal, in mcpU
 	if err := CheckTaskRevision(*in.Revision, before.Revision); err != nil {
 		return McpWriteResult{}, err
 	}
+	// Undo sends from back, and get_task shows no more than this: a longer
+	// description replaced here could not be restored.
+	if in.Description.Set && utf8.RuneCountInString(before.Description) > mcpMaxItemRunes {
+		return McpWriteResult{}, McpInvalidArgs{Msg: "the description is too long to replace safely here; edit it in UniWork"}
+	}
 	base, err := s.ask.base(ctx, in.WorkspaceID)
 	if err != nil {
 		return McpWriteResult{}, err
@@ -575,19 +593,25 @@ func (s *McpToolService) UpdateTask(ctx context.Context, p McpPrincipal, in mcpU
 		return McpWriteResult{}, err
 	}
 	actor := Human(p.UserID)
-	if _, err := s.ask.tasks.Update(ctx, actor, before.ID, UpdateTaskInput{
+	// written is the task as this call left it: the row Update returned, and
+	// the parent SetParent set. changes reads it, so an edit by someone else
+	// before the read-back is never reported as this call's.
+	written, err := s.ask.tasks.Update(ctx, actor, before.ID, UpdateTaskInput{
 		ExpectedRevision: in.Revision,
 		Title:            in.Title.ptr(), Description: in.Description.ptr(), Status: in.Status.ptr(), Priority: in.Priority.ptr(),
 		AssigneeID: in.AssigneeID.ptr2(), StartDate: in.StartDate.ptr2(), DueDate: in.DueDate.ptr2(), ProjectID: in.ProjectID.ptr2(),
-	}); err != nil {
+	})
+	if err != nil {
 		return McpWriteResult{}, err
 	}
 	// The update is saved. From here a failure is named in the note, never
 	// returned: a model that read "failed" would apply the rest twice.
 	var failed []string
 	if parent != nil {
-		if _, err := s.ask.tasks.SetParent(ctx, actor, before.ID, *parent); err != nil {
+		if t, err := s.ask.tasks.SetParent(ctx, actor, before.ID, *parent); err != nil {
 			failed = append(failed, "parent_task_id ("+mcpStepError(err)+")")
+		} else {
+			written.ParentTaskID = t.ParentTaskID
 		}
 	}
 	for _, id := range add {
@@ -612,28 +636,28 @@ func (s *McpToolService) UpdateTask(ctx context.Context, p McpPrincipal, in mcpU
 		}
 		return McpWriteResult{Note: note}, nil
 	}
-	b, a := s.taskOf(base, before), s.taskOf(base, after)
+	b, w, a := s.taskOf(base, before), s.taskOf(base, written), s.taskOf(base, after)
 	a.Labels = labelsAfter
-	res := McpWriteResult{Item: a, Revision: after.Revision, Changes: mcpChanges(
-		McpChange{"title", before.Title, after.Title},
-		McpChange{"description", before.Description, after.Description},
-		McpChange{"status", before.Status, after.Status},
-		McpChange{"priority", before.Priority, after.Priority},
-		McpChange{"assignee_id", mcpNullable(b.AssigneeID), mcpNullable(a.AssigneeID)},
-		McpChange{"start_date", mcpNullable(b.StartDate), mcpNullable(a.StartDate)},
-		McpChange{"due_date", mcpNullable(b.DueDate), mcpNullable(a.DueDate)},
-		McpChange{"project_id", mcpNullable(b.ProjectID), mcpNullable(a.ProjectID)},
-		McpChange{"parent_task_id", mcpNullable(b.ParentTaskID), mcpNullable(a.ParentTaskID)},
+	changes := mcpChanges(McpChange{"title", before.Title, written.Title})
+	if before.Description != written.Description {
+		// Uncut, unlike the rest: both sides are at most mcpMaxItemRunes, and
+		// from is how the model puts the old text back.
+		changes = append(changes, McpChange{"description", before.Description, written.Description})
+	}
+	changes = append(changes, mcpChanges(
+		McpChange{"status", before.Status, written.Status},
+		McpChange{"priority", before.Priority, written.Priority},
+		McpChange{"assignee_id", mcpNullable(b.AssigneeID), mcpNullable(w.AssigneeID)},
+		McpChange{"start_date", mcpNullable(b.StartDate), mcpNullable(w.StartDate)},
+		McpChange{"due_date", mcpNullable(b.DueDate), mcpNullable(w.DueDate)},
+		McpChange{"project_id", mcpNullable(b.ProjectID), mcpNullable(w.ProjectID)},
+		McpChange{"parent_task_id", mcpNullable(b.ParentTaskID), mcpNullable(w.ParentTaskID)},
 		McpChange{"labels", labelsBefore, labelsAfter},
-	)}
-	var notes []string
+	)...)
+	res := McpWriteResult{Item: a, Revision: after.Revision, Changes: changes}
 	if len(failed) > 0 {
-		notes = append(notes, "the fields in changes were saved; these did not go through: "+strings.Join(failed, "; "))
+		res.Note = "the fields in changes were saved; these did not go through: " + strings.Join(failed, "; ")
 	}
-	if before.Description != after.Description && utf8.RuneCountInString(before.Description) > mcpMaxHitRunes {
-		notes = append(notes, "the old description was too long to return in full, so its from in changes cannot restore it")
-	}
-	res.Note = strings.Join(notes, ". ")
 	return res, nil
 }
 
@@ -642,7 +666,7 @@ var (
 	mcpSchemaListMembers = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"query":{"type":"string","maxLength":200,"description":"Optional. Part of a name, any case."}},"required":["workspace_id"],"additionalProperties":false}`)
 	mcpSchemaListTasks   = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"status":{"type":"string","description":"A status key from task_options."},"project_id":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},"required":["workspace_id"],"additionalProperties":false}`)
 	mcpSchemaCreateTask  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"title":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","description":"Markdown."},"status":{"type":"string","description":"A status key from task_options. Omit for the default open status."},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"assignee_id":{"type":"string","description":"A user_id from list_members."},"start_date":{"type":"string","description":"YYYY-MM-DD"},"due_date":{"type":"string","description":"YYYY-MM-DD"},"project_id":{"type":"string"},"parent_task_id":{"type":"string","description":"Id or PREFIX-N of the parent task."},"label_ids":{"type":"array","items":{"type":"string"},"maxItems":20}},"required":["workspace_id","title"],"additionalProperties":false}`)
-	mcpSchemaUpdateTask  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"task_id":{"type":"string","description":"Id or PREFIX-N."},"revision":{"type":"integer","description":"The revision you read with get_task or list_tasks."},"title":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","description":"Markdown; replaces the whole description."},"status":{"type":"string","description":"A status key from task_options."},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"assignee_id":{"type":["string","null"],"description":"A user_id from list_members; null unassigns."},"start_date":{"type":["string","null"],"description":"YYYY-MM-DD; null clears it."},"due_date":{"type":["string","null"],"description":"YYYY-MM-DD; null clears it."},"project_id":{"type":["string","null"],"description":"null takes the task out of its project."},"parent_task_id":{"type":["string","null"],"description":"Id or PREFIX-N of the parent task; null clears it."},"add_label_ids":{"type":"array","items":{"type":"string"},"maxItems":20,"description":"Label ids from task_options."},"remove_label_ids":{"type":"array","items":{"type":"string"},"maxItems":20,"description":"Ids of labels on the task."}},"required":["workspace_id","task_id","revision"],"additionalProperties":false}`)
+	mcpSchemaUpdateTask  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"task_id":{"type":"string","description":"Id or PREFIX-N."},"revision":{"type":"integer","description":"The revision you read with get_task or list_tasks."},"title":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","maxLength":16000,"description":"Markdown; replaces the whole description. Edit from the description get_task returns."},"status":{"type":"string","description":"A status key from task_options."},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"assignee_id":{"type":["string","null"],"description":"A user_id from list_members; null unassigns."},"start_date":{"type":["string","null"],"description":"YYYY-MM-DD; null clears it."},"due_date":{"type":["string","null"],"description":"YYYY-MM-DD; null clears it."},"project_id":{"type":["string","null"],"description":"null takes the task out of its project."},"parent_task_id":{"type":["string","null"],"description":"Id or PREFIX-N of the parent task; null clears it."},"add_label_ids":{"type":"array","items":{"type":"string"},"maxItems":20,"description":"Label ids from task_options."},"remove_label_ids":{"type":"array","items":{"type":"string"},"maxItems":20,"description":"Ids of labels on the task."}},"required":["workspace_id","task_id","revision"],"additionalProperties":false}`)
 	mcpSchemaAddComment  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"task_id":{"type":"string","description":"Id or PREFIX-N."},"body":{"type":"string","minLength":1,"maxLength":20000,"description":"Markdown."},"reply_to":{"type":"string","description":"Id of the comment this answers."}},"required":["workspace_id","task_id","body"],"additionalProperties":false}`)
 )
 
@@ -666,11 +690,11 @@ func mcpTaskTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpCreateTaskIn) (any, error) {
 				return s.CreateTask(ctx, p, in)
 			}),
-		mcpWriteTool("update_task", "Update task", "Changes one task as the user: omitted fields stay as they are, null clears one. revision must be the one you read; if the task changed since, nothing is written and the call fails with revision_conflict. Everyone in the workspace sees the change; a new assignee is notified, and a status change notifies the task's assignee and creator.", "call update_task again with the from values in changes; put labels back with add_label_ids and remove_label_ids, using the label ids in changes", true, mcpSchemaUpdateTask,
+		mcpWriteTool("update_task", "Update task", "Changes one task as the user: omitted fields stay as they are, null clears one. revision must be the one you read; if the task changed since, nothing is written and the call fails with revision_conflict. Everyone in the workspace sees the change; a new assignee is notified, and a status change notifies the task's assignee and creator. A description longer than 16000 characters is too long to replace here; edit it in UniWork.", "call update_task again with the from values in changes; put labels back with add_label_ids and remove_label_ids, using the label ids in changes", true, mcpSchemaUpdateTask,
 			func(ctx context.Context, p McpPrincipal, in mcpUpdateTaskIn) (any, error) {
 				return s.UpdateTask(ctx, p, in)
 			}),
-		mcpWriteTool("add_comment", "Add comment", "Adds a comment to a task as the user. Everyone who can see the task sees it; subscribers are notified.", "the user deletes the comment in UniWork", false, mcpSchemaAddComment,
+		mcpWriteTool("add_comment", "Add comment", "Adds a comment to a task as the user. Everyone who can see the task sees it. The task's assignee, its creator, earlier commenters and anyone named in the body as @Display Name are notified.", "the user deletes the comment in UniWork", false, mcpSchemaAddComment,
 			func(ctx context.Context, p McpPrincipal, in mcpAddCommentIn) (any, error) {
 				return s.AddComment(ctx, p, in)
 			}),

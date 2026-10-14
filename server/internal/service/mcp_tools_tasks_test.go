@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -361,6 +362,7 @@ func TestMcpCreateTaskValidates(t *testing.T) {
 		ws + `"title":"A","start_date":"2026-13-01"}`:                                       "start_date must be a date",
 		ws + `"title":"A","parent_task_id":"  "}`:                                           "parent_task_id",
 		ws + `"title":"A","project_id":" "}`:                                                "project_id",
+		ws + `"title":"A","assignee_id":"  "}`:                                              "assignee_id",
 		ws + `"title":"A","priority":"asap"}`:                                               "priority",
 		ws + `"title":"A","label_ids":["` + strings.Join(make([]string, 21), `","`) + `"]}`: "label_ids",
 	} {
@@ -784,6 +786,20 @@ func TestMcpWriteToolsRecordTheViaOnTheirAuditRows(t *testing.T) {
 	}
 	task := call("create_task", `{"workspace_id":"`+x.w.ID+`","title":"Việc qua ứng dụng AI"}`)
 	comment := call("add_comment", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","body":"Bình luận qua ứng dụng AI"}`)
+	// update_task is several commands, each its own row: every one names the app.
+	label, err := x.tools.ask.tasks.CreateTaskLabel(context.Background(), Human(x.ua.ID), x.w.ID, CreateTaskLabelInput{Name: "Qua AI", Color: "#3b82f6"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	call("update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+strconv.FormatInt(x.revision(t, x.taskID), 10)+`,"title":"Sửa qua ứng dụng AI","add_label_ids":["`+label.ID+`"]}`)
+	var rows, carry int
+	if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT count(*), count(*) FILTER (WHERE metadata::jsonb->'via' = $2::jsonb) FROM audit_events WHERE resource_id = $1 AND action = 'task.updated'`,
+		x.taskID, `{"kind":"mcp","client_id":"c1","grant_id":"g1","client_name":"Claude"}`).Scan(&rows, &carry); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 2 || carry != rows {
+		t.Errorf("update_task wrote %d task.updated rows, %d with the via; want 2, all with it", rows, carry)
+	}
 	for _, row := range []struct{ what, where, id string }{
 		{"task.created", `resource_id = $1 AND action = 'task.created'`, task["id"].(string)},
 		{"comment", `metadata::jsonb->>'comment_id' = $1`, comment["id"].(string)},
@@ -900,29 +916,74 @@ func TestMcpUpdateTaskTellsAbsentFromNull(t *testing.T) {
 	}
 }
 
-// A description too long for changes says so: from cannot bring it back.
-func TestMcpUpdateTaskSaysWhenTheOldDescriptionIsCut(t *testing.T) {
+// Undo holds for a description: from is the whole old text up to what
+// get_task returns, so sending it back restores it exactly. A description
+// longer than that is refused before anything is written, since nothing
+// could put it back.
+func TestMcpUpdateTaskDescriptionUndo(t *testing.T) {
 	x := newMcpToolWorld(t)
-	long := strings.Repeat("Nội dung dài. ", 200)
-	if _, err := x.tools.ask.tasks.Update(context.Background(), Human(x.ua.ID), x.taskID, UpdateTaskInput{Description: &long}); err != nil {
+	ctx := context.Background()
+	update := func(extra string) (json.RawMessage, error) {
+		t.Helper()
+		rev := strconv.FormatInt(x.revision(t, x.taskID), 10)
+		return callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+extra+`}`)
+	}
+	long := strings.Repeat("Dòng **một**.\n", 357) + "Hết"
+	if n := utf8.RuneCountInString(long); n < 5000 || n > mcpMaxItemRunes {
+		t.Fatalf("fixture is %d characters", n)
+	}
+	if _, err := x.tools.ask.tasks.Update(ctx, Human(x.ua.ID), x.taskID, UpdateTaskInput{Description: &long}); err != nil {
 		t.Fatal(err)
 	}
-	rev := strconv.FormatInt(x.revision(t, x.taskID), 10)
-	raw, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+`,"description":"Ngắn"}`)
+	read, err := x.tools.GetTask(ctx, x.p, x.w.ID, x.taskID)
+	if err != nil || deref(read.Description) != long || read.DescriptionTruncated {
+		t.Fatalf("get_task description is not the stored text (%v)", err)
+	}
+	raw, err := update(`,"description":"Ngắn"`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, _ := writeResult(t, raw)
-	if !strings.Contains(res.Note, "description") {
-		t.Fatalf("note %q does not say the old description was cut: %s", res.Note, raw)
+	var out struct {
+		Changes []McpChange
+		Note    string
 	}
-	rev = strconv.FormatInt(x.revision(t, x.taskID), 10)
-	raw, err = callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+`,"description":"Ngắn nữa"}`)
-	if err != nil {
+	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatal(err)
 	}
-	if res, _ := writeResult(t, raw); res.Note != "" {
-		t.Fatalf("a short old description still notes a cut: %q", res.Note)
+	var from string
+	for _, c := range out.Changes {
+		if c.Field == "description" {
+			from, _ = c.From.(string)
+		}
+	}
+	if from != long || out.Note != "" {
+		t.Fatalf("description from is %d characters (note %q), want the whole %d", utf8.RuneCountInString(from), out.Note, utf8.RuneCountInString(long))
+	}
+	b, _ := json.Marshal(from)
+	if _, err := update(`,"description":` + string(b)); err != nil {
+		t.Fatal(err)
+	}
+	if task, _ := x.tools.ask.tasks.Get(ctx, x.ua.ID, x.taskID); task.Description != long {
+		t.Fatal("sending from back did not restore the description")
+	}
+
+	tooLong := strings.Repeat("ạ", mcpMaxItemRunes+1)
+	var bad McpInvalidArgs
+	if _, err := update(`,"description":"` + tooLong + `"`); !errors.As(err, &bad) || !strings.Contains(bad.Msg, "description") {
+		t.Fatalf("a new description over the limit: %v, want McpInvalidArgs", err)
+	}
+	if _, err := x.tools.ask.tasks.Update(ctx, Human(x.ua.ID), x.taskID, UpdateTaskInput{Description: &tooLong}); err != nil {
+		t.Fatal(err)
+	}
+	before := x.revision(t, x.taskID)
+	if _, err := update(`,"title":"Đổi tên","description":"Ngắn"`); !errors.As(err, &bad) || !strings.Contains(bad.Msg, "edit it in UniWork") {
+		t.Fatalf("replacing a description over the limit: %v, want McpInvalidArgs", err)
+	}
+	if x.revision(t, x.taskID) != before {
+		t.Fatal("a refused description replace wrote")
+	}
+	if _, err := update(`,"title":"Đổi tên"`); err != nil {
+		t.Fatalf("a call that leaves the long description alone: %v", err)
 	}
 }
 
