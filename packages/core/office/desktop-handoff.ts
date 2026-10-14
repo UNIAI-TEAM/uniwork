@@ -24,6 +24,17 @@ export function officeClientId(channel: OfficeChannel): "uniwork-office-dev" | "
   return officeScheme(channel);
 }
 
+const commentIdPattern = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * The `?comment=` of the page, as the launch ticket's optional `comment_id`:
+ * only an id-shaped value rides, anything else is left off (the app then
+ * opens the document alone, as for any comment the server does not know).
+ */
+export function launchCommentId(raw: string | null | undefined): string | undefined {
+  return raw && commentIdPattern.test(raw) ? raw : undefined;
+}
+
 const ticketPattern = /^ticket_[A-Za-z0-9_-]{32,185}$/;
 const deploymentPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const loopbackHosts = ["localhost", "127.0.0.1", "[::1]"];

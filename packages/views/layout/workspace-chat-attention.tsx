@@ -7,6 +7,8 @@ import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences
 import { useNotifications } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
 import { getWebNotificationPermission, showWebNotification } from "@uniwork/core/platform";
+import { useWorkspaces } from "@uniwork/core/workspaces";
+import { notificationTitleKey } from "../notifications/notification-title";
 import { resourceHref } from "../notifications/resource-href";
 import { useWorkspace } from "./workspace-context";
 
@@ -43,6 +45,9 @@ function useTitleCount(count: number) {
 export function WorkspaceChatAttention() {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
+  const workspaceList = useWorkspaces();
+  const workspaces = workspaceList.data;
+  const workspacesLoading = workspaceList.isPending;
   useTitleCount(useChatUnreadBadge(workspace.id));
 
   const push = usePush();
@@ -52,7 +57,9 @@ export function WorkspaceChatAttention() {
   const newestSeen = useRef<number | null>(null);
   useEffect(() => {
     const rows = recent.data?.notifications;
-    if (!rows) return;
+    // The link of a banner is fixed when it shows, so it waits for the list of
+    // workspaces it is looked up in; a failed list falls back to the open one.
+    if (!rows || workspacesLoading) return;
     const stamp = (n: (typeof rows)[number]) => Date.parse(n.updated_at ?? n.created_at) || 0;
     const before = newestSeen.current;
     newestSeen.current = Math.max(before ?? -Infinity, ...rows.map(stamp));
@@ -69,11 +76,11 @@ export function WorkspaceChatAttention() {
         slug: workspace.slug,
         itemId: n.id,
         issueKey: n.id,
-        href: resourceHref(n, workspace),
-        title: t(n.title_key, n.params),
+        href: resourceHref(n, workspace, workspaces ?? []),
+        title: t(notificationTitleKey(n), n.params),
         body: "",
       });
     }
-  }, [recent.data, t, workspace]);
+  }, [recent.data, t, workspace, workspaces, workspacesLoading]);
   return null;
 }

@@ -8,6 +8,11 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 func TestOfficeLaunchCreateRouteBindsTicketToDocumentAndHidesItFromNonMembers(t *testing.T) {
@@ -100,5 +105,133 @@ func TestOfficeLaunchRevokeRouteHidesAnotherAccountsReceipt(t *testing.T) {
 	res, body = doJSON(t, w.srv, "DELETE", "/api/v1/office/sessions/"+row.ID, w.token, nil)
 	if res.StatusCode != 200 {
 		t.Fatalf("owner revoke = %d %v", res.StatusCode, body)
+	}
+}
+
+// G8-07 §3: the launch ticket carries an optional comment_id. Present, it is
+// validated against the document's own tenant pair, stored and echoed back;
+// absent, the behaviour is unchanged.
+func TestOfficeLaunchCreateRouteCarriesOptionalCommentID(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	documentID := w.createMarkdownFile(t, "# comment launch\n")
+
+	// A discussion comment on the document, through the API.
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/comments", w.token, map[string]any{"body": "mở ở đây"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, out)
+	}
+	commentID := out["comment"].(map[string]any)["id"].(string)
+
+	// Absent: unchanged behaviour, no comment_id in the answer.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("launch without comment: %d %v", res.StatusCode, out)
+	}
+	if _, ok := out["comment_id"]; ok {
+		t.Fatalf("absent comment_id echoed: %v", out)
+	}
+
+	// Present: stored on the row and echoed back.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": commentID,
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("launch with comment: %d %v", res.StatusCode, out)
+	}
+	if got, _ := out["comment_id"].(string); got != commentID {
+		t.Fatalf("comment_id echo = %q, want %q", got, commentID)
+	}
+	ticket, _ := out["launch_ticket"].(string)
+	sum := sha256.Sum256([]byte(ticket))
+	row, err := w.q.GetOfficeLaunchSessionByHash(context.Background(), base64.RawURLEncoding.EncodeToString(sum[:]))
+	if err != nil {
+		t.Fatalf("look up launch row: %v", err)
+	}
+	if !row.CommentID.Valid || row.CommentID.String != commentID {
+		t.Fatalf("stored comment_id = %v, want %q", row.CommentID, commentID)
+	}
+
+	// A comment id that names no comment of this document is refused and
+	// stores nothing (same 404 as a random id: no existence oracle).
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": "01J8X4NOTHINGATALL000000",
+	})
+	if res.StatusCode != 404 {
+		t.Fatalf("unknown comment id = %d %v", res.StatusCode, out)
+	}
+}
+
+// R1-1: the ticket may only name a comment of ITS OWN document. A live
+// comment of another document in the same workspace must be refused with the
+// same 404 as an unknown id, and no launch row may be stored; the same id
+// still works on its own document.
+func TestOfficeLaunchCommentIDMustBelongToTheDocument(t *testing.T) {
+	var pool *pgxpool.Pool
+	w := newOfficeWorldTweaked(t, true, func(*filesfake.Fake) service.OfficeEngine { return newHandlerStubEngine(t) },
+		func(_ *Deps, p *pgxpool.Pool) { pool = p })
+	documentID := w.createMarkdownFile(t, "# comment owner\n")
+	otherDocumentID := w.createMarkdownFile(t, "# foreign comment\n")
+
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+otherDocumentID+"/comments", w.token, map[string]any{"body": "bình luận của tài liệu khác"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create foreign comment: %d %v", res.StatusCode, out)
+	}
+	foreignCommentID := out["comment"].(map[string]any)["id"].(string)
+
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": foreignCommentID,
+	})
+	if res.StatusCode != 404 {
+		t.Fatalf("foreign-document comment id = %d %v", res.StatusCode, out)
+	}
+	if _, ok := out["launch_ticket"]; ok {
+		t.Fatalf("refused launch answered a ticket: %v", out)
+	}
+	var stored int
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM office_launch_sessions WHERE document_id = $1", documentID).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored != 0 {
+		t.Fatalf("foreign-document comment stored %d launch rows", stored)
+	}
+
+	// Control: the same comment id on its own document is accepted.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+otherDocumentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": foreignCommentID,
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("own-document comment id = %d %v", res.StatusCode, out)
+	}
+	if got, _ := out["comment_id"].(string); got != foreignCommentID {
+		t.Fatalf("own-document comment echo = %q, want %q", got, foreignCommentID)
+	}
+}
+
+// R1-6: a present comment_id must be a ULID-shaped value. A blank or
+// oversized one is malformed and refused with the shared 400 error shape
+// before any lookup, so a caller never learns whether it could exist.
+func TestOfficeLaunchCommentIDMalformedIsRejected(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	documentID := w.createMarkdownFile(t, "# malformed comment id\n")
+	for _, c := range []struct {
+		name string
+		id   string
+	}{
+		{"empty", ""},
+		{"oversized", strings.Repeat("A", 27)},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+				"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": c.id,
+			})
+			if res.StatusCode != 400 {
+				t.Fatalf("malformed comment_id %q = %d %v", c.id, res.StatusCode, out)
+			}
+			if code, _ := errCodeClass(out); code != "invalid_request" {
+				t.Fatalf("malformed comment_id code = %q, want invalid_request", code)
+			}
+		})
 	}
 }

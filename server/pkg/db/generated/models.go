@@ -1695,6 +1695,7 @@ type OfficeLaunchSession struct {
 	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
 	CreatedBy       string             `json:"created_by"`
 	CreatedByKind   string             `json:"created_by_kind"`
+	CommentID       pgtype.Text        `json:"comment_id"`
 }
 
 type OfficeOfflineLease struct {

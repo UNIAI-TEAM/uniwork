@@ -12,7 +12,8 @@ export default function LoginPage() {
   const next = sanitizeNextUrl(searchParams.get("next"));
   const rawError = searchParams.get("error");
   const initialError = rawError && GOOGLE_ERRORS.has(rawError) ? (rawError as GoogleLoginError) : null;
-  const reason = searchParams.get("reason") === "meeting_invite" ? ("meeting_invite" as const) : null;
+  const rawReason = searchParams.get("reason");
+  const reason = rawReason === "meeting_invite" || rawReason === "session_expired" ? rawReason : null;
   const initialMfa = searchParams.get("mfa") === "1";
   return (
     <LoginView
