@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+5e2dc663e043f297ea124f564c518e46e76a5b36
+49b239b108f86cc7f81e29333f5662ba7aa7a9fe
+5e2dc663e test(documents): measure the subtree walk early stop with EXPLAIN
+cf502148c feat(documents): serve the folder-only tree for the FOLDERS sidebar
+4eb159fb1 feat(documents): stop the archive walk after the row bound and check access by ids
+9e63e33a8 feat(documents): raise the tree bound to 20 and cap every subtree CTE by max_level
+49b239b10 chore: merge G5-01b incremental change feed (UNI-1346) into the G5-G7 root
+0fdba3f2a chore: merge G6-03b UniWork AI runs (UNI-1370) into the G5-G7 root

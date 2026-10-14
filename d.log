@@ -1,0 +1,4 @@
+$ bash scripts/go-cover-floor.sh "$PWD/.go-tmp/cover.out"; echo "FLOOR_EXIT=$?"; (cd server && go tool cover -func="$OLDPWD/.go-tmp/cover.out" | tail -1); cat server/coverage.floor
+FLOOR_EXIT=0
+total:													(statements)					74.4%
+74

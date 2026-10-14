@@ -1,0 +1,47 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake FD03_EXPLAIN=1 FD03_EXPLAIN_REPORT="$PWD/../.go-tmp/explain-fd03.md" go test -count=1 -timeout 30m -v ./internal/service/ -run 'TestFD03RowCapEvidence$|TestDocumentDepthBound$|TestDocumentArchiveRowCap$'; echo "FD03_EXPLAIN_EXIT=$?"; cat ../.go-tmp/explain-fd03.md | grep -E '^## |walk ids=|Execution Time|query '
+=== RUN   TestDocumentArchiveRowCap
+=== RUN   TestDocumentArchiveRowCap/an_archived_node_on_the_path_is_walked_but_does_not_count
+=== RUN   TestDocumentArchiveRowCap/archived_children_never_count_against_the_live_cap
+=== RUN   TestDocumentArchiveRowCap/over_the_live_cap_refuses_and_writes_nothing
+--- PASS: TestDocumentArchiveRowCap (0.27s)
+    --- PASS: TestDocumentArchiveRowCap/an_archived_node_on_the_path_is_walked_but_does_not_count (0.00s)
+    --- PASS: TestDocumentArchiveRowCap/archived_children_never_count_against_the_live_cap (0.00s)
+    --- PASS: TestDocumentArchiveRowCap/over_the_live_cap_refuses_and_writes_nothing (0.00s)
+=== RUN   TestDocumentDepthBound
+=== RUN   TestDocumentDepthBound/a_chain_of_exactly_the_bound_is_created_and_the_next_level_is_refused
+=== RUN   TestDocumentDepthBound/a_move_counts_the_destination_depth_plus_the_subtree_height
+=== RUN   TestDocumentDepthBound/the_tree_read_returns_every_level_up_to_the_bound_and_cuts_below
+=== RUN   TestDocumentDepthBound/a_chain_at_the_bound_archives_whole_with_no_live_descendant
+=== RUN   TestDocumentDepthBound/an_unmanageable_node_deep_in_the_chain_refuses_the_whole_archive
+=== RUN   TestDocumentDepthBound/the_cycle_guard_still_fires_deep_in_the_chain
+=== RUN   TestDocumentDepthBound/a_chain_past_twice_the_bound_is_refused,_not_walked_forever
+--- PASS: TestDocumentDepthBound (0.37s)
+    --- PASS: TestDocumentDepthBound/a_chain_of_exactly_the_bound_is_created_and_the_next_level_is_refused (0.05s)
+    --- PASS: TestDocumentDepthBound/a_move_counts_the_destination_depth_plus_the_subtree_height (0.02s)
+    --- PASS: TestDocumentDepthBound/the_tree_read_returns_every_level_up_to_the_bound_and_cuts_below (0.01s)
+    --- PASS: TestDocumentDepthBound/a_chain_at_the_bound_archives_whole_with_no_live_descendant (0.01s)
+    --- PASS: TestDocumentDepthBound/an_unmanageable_node_deep_in_the_chain_refuses_the_whole_archive (0.01s)
+    --- PASS: TestDocumentDepthBound/the_cycle_guard_still_fires_deep_in_the_chain (0.01s)
+    --- PASS: TestDocumentDepthBound/a_chain_past_twice_the_bound_is_refused,_not_walked_forever (0.01s)
+=== RUN   TestFD03RowCapEvidence
+    document_rowcap_explain_test.go:435: evidence written to /workspace/server/../.go-tmp/explain-fd03.md
+--- PASS: TestFD03RowCapEvidence (16.60s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	17.278s
+FD03_EXPLAIN_EXIT=0
+## Wide shape: 1 root + 100000 live children
+walk ids=1001, recursive-union rows=1001, largest heap node=1001, bitmap index rows=0
+query 2.829ms, EXPLAIN (ANALYZE, BUFFERS) 2.744ms, archive command (refusal) 3.004ms
+Execution Time: 2.025 ms
+## Wide shape: 1 root + 1000000 live children
+walk ids=1001, recursive-union rows=1001, largest heap node=1000, bitmap index rows=0
+query 413.332ms, EXPLAIN (ANALYZE, BUFFERS) 150.89ms, archive command (refusal) 157.449ms
+Execution Time: 149.758 ms
+## Deep shape: 20 levels x 50 children per spine node (951 nodes)
+walk ids=951, recursive-union rows=951, largest heap node=951
+query 3.909ms, EXPLAIN (ANALYZE, BUFFERS) 5.226ms, archive command (951 rows archived) 51.833ms
+Execution Time: 4.391 ms
+## Archived nodes on the path: 1 root + 100000 archived siblings + 20 archived ancestors + 1 live leaf
+walk ids=2 (the live child was reached), recursive-union rows=100022, largest heap node=100022
+query 397.216ms, EXPLAIN (ANALYZE, BUFFERS) 489.658ms, archive command (2 rows archived) 321.152ms
+Execution Time: 488.399 ms
