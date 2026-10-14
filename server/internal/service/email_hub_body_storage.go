@@ -23,7 +23,7 @@ func (s *EmailHubService) persistThreadBody(
 	text = imapclient.SanitizeUTF8(text)
 	html = imapclient.SanitizeUTF8(html)
 	if s.bodyOnObjectStorage() {
-		key := bodystore.ObjectKey(accountID, threadID)
+		key := bodystore.ObjectKey(organizationID, accountID, threadID)
 		data, err := bodystore.Encode(text, html)
 		if err != nil {
 			return err
@@ -71,7 +71,19 @@ func (s *EmailHubService) hydrateThreadBodyFromObject(ctx context.Context, view 
 }
 
 func (s *EmailHubService) deleteEmailHubBodyObjects(ctx context.Context, keys []string) {
-	if s.store == nil {
+	deleteEmailHubBodyObjects(ctx, s.store, keys)
+}
+
+// objectStore is the body store of a possibly unwired hub (nil: none).
+func (s *EmailHubService) objectStore() storage.Storage {
+	if s == nil {
+		return nil
+	}
+	return s.store
+}
+
+func deleteEmailHubBodyObjects(ctx context.Context, store storage.Storage, keys []string) {
+	if store == nil {
 		return
 	}
 	seen := make(map[string]struct{}, len(keys))
@@ -84,7 +96,7 @@ func (s *EmailHubService) deleteEmailHubBodyObjects(ctx context.Context, keys []
 			continue
 		}
 		seen[k] = struct{}{}
-		s.store.Delete(ctx, k)
+		store.Delete(ctx, k)
 	}
 }
 

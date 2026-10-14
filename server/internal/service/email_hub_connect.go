@@ -139,7 +139,7 @@ func (s *EmailHubService) resetEmailHubServerCache(ctx context.Context, acc db.E
 	s.hubWatch.forceStop(acc.ID)
 	if err := s.gov.withIMAP(acc.ID, func() error {
 		s.gov.forgetMailboxes(acc.ID)
-		return cleanUpDisconnectedEmailHubAccount(ctx, s.q, acc.ID, acc.OrganizationID)
+		return cleanUpDisconnectedEmailHubAccount(ctx, s.q, s.store, acc.ID, acc.OrganizationID)
 	}); err != nil {
 		s.log.Warn("email hub server change cleanup failed", "account_id", acc.ID, "code", emailHubErrCode(err))
 	}
