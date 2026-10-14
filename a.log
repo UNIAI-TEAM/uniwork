@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+ba66a57b660a0fd77e6c6cc17af82d732857b48d
+ba66a57b6 test(e2e): FD-A10 checks what the file view renders for an uploaded file
+0fec965e4 test(e2e): give FD-A03 sort seed distinct updated times
+9373109cc test(e2e): FD-A10 asserts the document renders after its link is opened
+a8e1c4766 test(e2e): match FD-12 seeded names exactly in role lookups
