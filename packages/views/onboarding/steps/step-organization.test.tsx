@@ -308,9 +308,14 @@ describe("StepOrganization", () => {
     const long = { ...org, name: "Công ty Cổ phần Giải pháp Công nghệ Ánh Dương Toàn Cầu", slug: "anh-duong-toan-cau" };
     renderStep({ organizations: [long, other] });
     const name = screen.getByText(long.name);
+    // No clamp either: at 200% text on a phone two lines held only
+    // "Anpha Stud…", and the address had no other place on the screen.
     expect(name).not.toHaveClass("truncate");
-    expect(name).toHaveClass("line-clamp-2", "[overflow-wrap:anywhere]");
-    expect(screen.getByText(/anh-duong-toan-cau/)).not.toHaveClass("truncate");
+    expect(name).not.toHaveClass("line-clamp-2");
+    expect(name).toHaveClass("[overflow-wrap:anywhere]");
+    const address = screen.getByText(/anh-duong-toan-cau/);
+    expect(address).not.toHaveClass("truncate");
+    expect(address).not.toHaveClass("line-clamp-2");
   });
 
   it("lets a CTA that carries the organization's name wrap", () => {

@@ -345,12 +345,14 @@ export function PickerCard({
       <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-body font-semibold text-primary-foreground">
         {avatar}
       </span>
-      {/* Two lines each, then clamped, and breakable anywhere: a long name
-          or address is read in full in most cases instead of being cut at
-          one line with no way to see the rest on a touch screen. */}
+      {/* Wrapped in full and breakable anywhere, never clamped: the card
+          grows instead. A two-line clamp still cut a short name to
+          "Anpha Stud…" at 200% text on a phone, where the avatar and padding
+          leave the text a few characters, and a touch screen has no way to
+          show the rest. */}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="line-clamp-2 text-body font-medium text-foreground [overflow-wrap:anywhere]">{title}</span>
-        <span className="line-clamp-2 font-mono text-caption text-muted-foreground [overflow-wrap:anywhere]">{subtitle}</span>
+        <span className="text-body font-medium text-foreground [overflow-wrap:anywhere]">{title}</span>
+        <span className="font-mono text-caption text-muted-foreground [overflow-wrap:anywhere]">{subtitle}</span>
       </span>
       <RadioMark selected={selected} />
     </button>
