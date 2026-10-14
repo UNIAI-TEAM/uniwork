@@ -28,6 +28,9 @@ type isoReference struct {
 	// allow2xx marks a filter or a batch: answering is fine as long as it
 	// shows and changes nothing of A's.
 	allow2xx bool
+	// docKey names the fixture document the path's {documentID} should name
+	// instead of the default page (for an anchor case, a file document).
+	docKey string
 	// noControl says why the own-ids request is not sent (it is
 	// destructive, or there is no own counterpart).
 	noControl string
@@ -85,6 +88,18 @@ func (c isoReference) build(w *isoWorld, own, ref *isoTenant) isoBody {
 		b.headers = map[string]string{"Idempotency-Key": "iso-ref-" + ref.tag + "-" + isoHash(c.method+c.pattern+string(key))}
 	}
 	return b
+}
+
+// refPath fills c.pattern for tn. A case with docKey names that fixture
+// document in {documentID} instead of the default page - an anchor case needs
+// a file document, which a page is not.
+func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
+	t.Helper()
+	path, ok := isoPath(t, c.pattern, tn)
+	if !ok || c.docKey == "" {
+		return path, ok
+	}
+	return strings.Replace(path, tn.ids["document"], tn.get(t, c.docKey), 1), true
 }
 
 func isoHash(s string) string {
@@ -178,6 +193,16 @@ var isoReferences = []isoReference{
 		"principal_type": "organization", "principal_id": isoRef("org"), "level": "view"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "reply parent", body: map[string]any{
 		"body": "ref", "type": "comment", "parent_id": isoRef("docComment")}, covers: []string{"CreateDocumentCommentSDI.parent_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "anchor base version", docKey: "anchorDoc", body: map[string]any{
+		"body": "ref", "kind": "comment", "anchor": map[string]any{"format": "docx", "v": 1, "path": []any{3, 0}, "start": 12, "end": 40, "quote": "q", "prefix": "", "suffix": ""},
+		"base_version_id": isoRef("anchorVersionID")},
+		covers: []string{"CreateDocumentCommentSDI.base_version_id"}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/comments/anchors", what: "version of another document", docKey: "anchorDoc", body: map[string]any{
+		"version_id": isoRef("anchorVersionID"), "anchors": []any{}}, covers: []string{"PutDocumentCommentAnchorsSDI.version_id"}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/comments/anchors", what: "comment of another document", docKey: "anchorDoc", allow2xx: true, body: map[string]any{
+		"version_id": isoOwn("anchorVersionID"), "anchors": []any{map[string]any{
+			"comment_id": isoRef("docComment"), "anchor": map[string]any{"format": "docx", "v": 1, "path": []any{3, 0}, "start": 12, "end": 40, "quote": "q", "prefix": "", "suffix": ""}, "state": "exact"}}},
+		covers: []string{"DocumentCommentAnchorItemSDI.comment_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "parent page", idempotent: true, body: map[string]any{
 		"consent": "copy", "parent_id": isoRef("document")}, covers: []string{"CopyDocumentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "convert job", idempotent: true, body: map[string]any{
@@ -207,6 +232,10 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/auth/desktop/authorize", what: "pending attempt", body: map[string]any{
 		"attempt_id": isoRef("desktopAttempt"), "csrf_token": "ref", "decision": "approve"},
 		noControl: "approving B's own attempt would need the CSRF token only its consent page was shown", covers: []string{"DesktopConsentSDI.attempt_id"}},
+	// T6 of the offline lease threat model: A's signed lease replayed on B's
+	// own document from B's device names a row that is not B's.
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/office/offline-lease", what: "another tenant's lease", body: map[string]any{
+		"lease": isoRef("offlineLease")}},
 	{method: "POST", pattern: "/api/v1/office/sessions/exchange", what: "ticket and device", body: map[string]any{
 		"launch_ticket": isoRef("launchTicket"), "client_id": "uniwork-office", "deployment_id": "default", "device_session_id": isoRef("deviceSession")},
 		noControl: "a redeemed ticket is spent, and the matrix signs B in with a browser token, not a device bearer", covers: []string{"ExchangeOfficeLaunchSessionSDI.device_session_id"}},
@@ -291,7 +320,7 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 		if c.noControl != "" {
 			continue
 		}
-		path, ok := isoPath(t, c.pattern, w.bravo)
+		path, ok := c.refPath(t, w.bravo)
 		if !ok {
 			continue
 		}
@@ -311,6 +340,7 @@ var isoRefFieldExempt = map[string]string{
 	"SendChatMessageSDI.client_msg_id":      "the client's idempotency key, not a row",
 	"MintChatVoiceTokenSDI.call_id":         "a client-generated call id, not a row",
 	"VoiceSignalSDI.call_id":                "a client-generated call id, not a row",
+	"AiUniworkMessageSDI.tool_call_id":      "the model's tool call id, matched against the server's own transcript, not a row",
 	"MintChatVoiceTokenSDI.room_id":         "the route names no other row: the cross-tenant pass sends A's room in the body",
 	"ResolveInviteLinkSDI.link_id":          "public route: the link id comes with its secret, and holding both is the grant",
 	"SummarizeEmailHubThreadSDI.account_id": "the mixed pass sends B's workspace with A's thread and A's account in the body",

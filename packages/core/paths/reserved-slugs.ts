@@ -35,6 +35,7 @@ export const RESERVED_SLUGS = [
   "projects",
   "public",
   "register",
+  "request-demo",
   "reset-password",
   "settings",
   "share",

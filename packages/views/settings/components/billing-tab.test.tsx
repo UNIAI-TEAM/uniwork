@@ -4,7 +4,8 @@ import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
-import { requestMock, wrapWithNav } from "../../test/api-mock";
+import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
+import type { NavigationAdapter } from "../../navigation";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { BillingTab } from "./billing-tab";
 import { formatPrice } from "./plan-cards";
@@ -64,12 +65,13 @@ function mockApi(role: string, sub: Record<string, unknown> = subscription) {
   });
 }
 
-function renderTab() {
+function renderTab(nav: NavigationAdapter = fakeNav()) {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
         <BillingTab />
       </WorkspaceProvider>,
+      nav,
     ),
   );
 }
@@ -155,11 +157,11 @@ describe("BillingTab", () => {
     requestMock.mockImplementation((path: string, init?: unknown) =>
       String(path).includes("checkout") ? Promise.resolve({ url: "https://pay.example/checkout/1" }) : base(path, init),
     );
-    const assign = vi.fn();
-    Object.defineProperty(window, "location", { value: { ...window.location, assign }, writable: true });
-    renderTab();
+    const openExternal = vi.fn();
+    const nav = { ...fakeNav(), openExternal };
+    renderTab(nav);
     fireEvent.click(await screen.findByRole("button", { name: "Thanh toán" }));
-    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://pay.example/checkout/1"));
+    await waitFor(() => expect(openExternal).toHaveBeenCalledWith("https://pay.example/checkout/1"));
   });
 
   it("asks before switching to a free plan", async () => {

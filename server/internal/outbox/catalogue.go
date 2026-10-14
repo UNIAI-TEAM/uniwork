@@ -279,10 +279,20 @@ var catalogue = []EventDef{
 	{Topic: "document.comment_unresolved", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.comment_reaction_added", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.comment_reaction_removed", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_anchors_updated", Version: 1, Payload: []string{"document_id", "workspace_id", "version_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// Favorites are one user's own list; the event reaches that user's
 	// connections (payload.user_id resolves the user scope) and nobody else.
 	{Topic: "document.favorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "document.unfavorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+
+	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
+	// holder's own connections. revoked makes an online device lock its copy
+	// now instead of at the next renewal; granted/renewed/released keep the
+	// holder's other devices' offline library in step.
+	{Topic: "office_lease.granted", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "office_lease.renewed", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "office_lease.released", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "office_lease.revoked", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 
 	// Billing (F-02). Both go to each owner/admin, one row per person, because
 	// the realtime consumer resolves user scope from payload.user_id.

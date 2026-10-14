@@ -11,7 +11,6 @@ import {
   mentionUnreadMapFromRooms,
   roomPreviewMapFromRooms,
   selectLazyChatScopeRoomIds,
-  useBlockChatUser,
   useChatBlockStatus,
   useChatRooms,
   useCreateChatGroup,
@@ -25,7 +24,6 @@ import {
   useSendChatThreadMessage,
   useSendChatVoiceMessage,
   useSendChatFileMessage,
-  useUnblockChatUser,
   useChatSendOutboxFlush,
   useChatSendOutboxCount,
   useSyncChatRoomsOnAuth,
@@ -55,6 +53,7 @@ import { ChatPageAuthLoading } from "./chat-page-auth-loading";
 import { ChatPageContent } from "./chat-page-content";
 import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
+import { useChatBlockActions } from "./use-chat-block-actions";
 import { useChatMediaSend } from "./use-chat-media-send";
 import { useChatPageSignals } from "./use-chat-page-signals";
 import { useChatVoiceCall } from "./chat-voice-call-host";
@@ -102,8 +101,6 @@ export function ChatPageView({
   const sendFileMessage = useSendChatFileMessage(workspaceId);
   useChatSendOutboxFlush(workspaceId, currentUserId);
   const pendingOutboxCount = useChatSendOutboxCount(workspaceId, currentUserId);
-  const blockUser = useBlockChatUser(workspaceId);
-  const unblockUser = useUnblockChatUser(workspaceId);
 
   const { workspaceRoom, contacts: roomContacts, groups, channels } = useMemo(
     () => sidebarFromChatRooms(rooms),
@@ -127,8 +124,6 @@ export function ChatPageView({
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [dmSettingsOpen, setDmSettingsOpen] = useState(false);
   const [leavingConversation, setLeavingConversation] = useState(false);
-  const [blockingContact, setBlockingContact] = useState(false);
-  const [unblockingContact, setUnblockingContact] = useState(false);
   const [invitingMembers, setInvitingMembers] = useState(false);
   const [composerPriority, setComposerPriority] = useState<ComposerMessagePriority | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -394,34 +389,18 @@ export function ChatPageView({
     enabled: Boolean(activeRoomId) && !showLoading && !dmBlocked,
   });
 
-  const handleBlockContact = useCallback(async () => {
-    if (!activeContact) return;
-    setBlockingContact(true);
-    setConnectError(null);
-    try {
-      await blockUser.mutateAsync(activeContact.user_id);
-      setTarget({ kind: "workspace" });
-      setResolvedDmRoomId(null);
-      setDmSettingsOpen(false);
-    } catch (err: unknown) {
-      setConnectError(chatErrorMessage(err, t, t("chat.block_failed")));
-    } finally {
-      setBlockingContact(false);
-    }
-  }, [activeContact, blockUser, t]);
-
-  const handleUnblockContact = useCallback(async () => {
-    if (!activeContact) return;
-    setUnblockingContact(true);
-    setConnectError(null);
-    try {
-      await unblockUser.mutateAsync(activeContact.user_id);
-    } catch (err: unknown) {
-      setConnectError(chatErrorMessage(err, t, t("chat.unblock_failed")));
-    } finally {
-      setUnblockingContact(false);
-    }
-  }, [activeContact, unblockUser, t]);
+  const leaveBlockedConversation = useCallback(() => {
+    setTarget({ kind: "workspace" });
+    setResolvedDmRoomId(null);
+    setDmSettingsOpen(false);
+  }, []);
+  const { blockingContact, unblockingContact, handleBlockContact, handleUnblockContact } =
+    useChatBlockActions({
+      workspaceId,
+      peerUserId: activeContact?.user_id ?? null,
+      setConnectError,
+      onBlocked: leaveBlockedConversation,
+    });
 
   const { handleSendVoice, handleSendFile } = useChatMediaSend({
     activeRoomId,

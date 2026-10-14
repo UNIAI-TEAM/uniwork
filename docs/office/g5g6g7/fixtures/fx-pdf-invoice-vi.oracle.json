@@ -1,0 +1,78 @@
+{
+  "fixtureId": "fx-pdf-invoice-vi",
+  "format": "pdf",
+  "fixtureSha256": "17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd",
+  "synthetic": true,
+  "pageCount": 1,
+  "textLayer": true,
+  "fonts": [
+    "NotoSans-Regular (subset, embedded)",
+    "NotoSans-Bold (subset, embedded)"
+  ],
+  "invoiceNumber": "HD-2026-0001",
+  "invoiceDate": "01/10/2026",
+  "lineItems": [
+    {
+      "stt": 1,
+      "name": "Áo thun cổ tròn",
+      "qty": 10,
+      "price": 50000,
+      "amount": 500000
+    },
+    {
+      "stt": 2,
+      "name": "Quần jeans nam",
+      "qty": 5,
+      "price": 120000,
+      "amount": 600000
+    },
+    {
+      "stt": 3,
+      "name": "Mũ lưỡi trai",
+      "qty": 20,
+      "price": 20000,
+      "amount": 400000
+    }
+  ],
+  "subtotal": 1500000,
+  "vatRate": 10,
+  "vat": 150000,
+  "total": 1650000,
+  "textLines": [
+    "HÓA ĐƠN BÁN HÀNG",
+    "Số hóa đơn: HD-2026-0001",
+    "Ngày lập: 01/10/2026",
+    "Đơn vị bán: Công ty TNHH Mẫu An Bình",
+    "Mã số thuế: 0000000000",
+    "Người mua: Công ty Cổ phần Thử Nghiệm Hà Nội",
+    "Địa chỉ: 12 Phố Mẫu, Quận Ba Đình, Hà Nội",
+    "STT",
+    "Tên hàng hóa",
+    "Số lượng",
+    "Đơn giá (đồng)",
+    "Thành tiền (đồng)",
+    "1",
+    "Áo thun cổ tròn",
+    "10",
+    "50.000",
+    "500.000",
+    "2",
+    "Quần jeans nam",
+    "5",
+    "120.000",
+    "600.000",
+    "3",
+    "Mũ lưỡi trai",
+    "20",
+    "20.000",
+    "400.000",
+    "Cộng tiền hàng:",
+    "1.500.000",
+    "Thuế GTGT (10%):",
+    "150.000",
+    "Tổng thanh toán:",
+    "1.650.000",
+    "Bằng chữ: Một triệu sáu trăm năm mươi nghìn đồng.",
+    "Dữ liệu tổng hợp để kiểm thử, không phải hóa đơn thật."
+  ]
+}

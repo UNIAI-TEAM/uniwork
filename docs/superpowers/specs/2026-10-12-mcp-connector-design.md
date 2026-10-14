@@ -32,7 +32,7 @@ MCP server** có OAuth riêng; không viết adapter riêng cho từng nền t�
 | Chủ đề | Quyết định |
 | --- | --- |
 | Hướng | Client AI bên ngoài gọi vào UniWork. UniWork dùng nhiều LLM (BYO key) là spec khác |
-| Phạm vi v1 | Chỉ đọc. Tool ghi là spec sau, đi qua `action_proposals` của ADR 0010 |
+| Phạm vi v1 | Chỉ đọc. Tool ghi: spec `2026-10-14-mcp-connector-write-design.md` (ADR 0033, ghi trực tiếp bằng actor human, không qua `action_proposals`) |
 | Kiến trúc | MCP endpoint và OAuth server nằm trong server Go hiện có (ADR 0025) |
 | Transport | Streamable HTTP, stateless — không `Mcp-Session-Id`, không sticky session |
 | SDK | `github.com/modelcontextprotocol/go-sdk` (SDK Go chính thức) |
@@ -62,7 +62,7 @@ admin tổ chức đã chủ động cho phép khi bật connector.
 
 ### 3.2 Ngoài phạm vi
 
-- Tool ghi (tạo/sửa task, comment) — spec sau, phụ thuộc `action_proposals`.
+- Tool ghi (tạo/sửa task, comment) — spec `2026-10-14-mcp-connector-write-design.md` (UNI-1567).
 - Tài liệu (ADR 0016) — v1.1, cùng tầng tool, thêm một tool `search` mở rộng.
 - Chat, Email Hub, transcript cuộc họp.
 - MCP `resources`, `prompts`, `sampling`, `elicitation`; MCP Apps / Apps SDK UI.
@@ -310,8 +310,8 @@ có phải thành viên không", nên **trước mọi tool nhận `workspace_id
 
 ### 7.4 Tool
 
-Mọi tool: annotation `readOnlyHint: true`, `destructiveHint: false`,
-`openWorldHint: false`; trả `structuredContent` kèm bản `text` cùng nội dung. URL là
+Mọi tool có `title` cho người đọc (ở trường của tool và trong annotation) và
+annotation `readOnlyHint: true`, `destructiveHint: false`, `openWorldHint: false`; trả `structuredContent` kèm bản `text` cùng nội dung. URL là
 tuyệt đối: `FRONTEND_ORIGIN` + `Href` của `ai.Source`.
 
 | Tool | Input | Nguồn | Output |
@@ -505,8 +505,8 @@ khỏi token phiên". Ghi:
 **Việc sau (spec riêng)**
 
 1. v1.1: tài liệu trong `search` và `get_document`.
-2. Tool ghi qua `action_proposals` (ADR 0010), scope `write`.
-3. Nộp Directory: cần privacy policy, trang hỗ trợ, tài khoản demo, annotation đầy đủ.
+2. Tool ghi, scope `write`: spec `2026-10-14-mcp-connector-write-design.md` (ADR 0033 thay hướng `action_proposals`).
+3. Nộp Directory (UNI-1428): cần privacy policy, trang hỗ trợ, tài khoản demo; annotation đã đủ.
 4. MCP Apps / Apps SDK: thẻ task tương tác.
 
 ## 15. Bước tiếp theo

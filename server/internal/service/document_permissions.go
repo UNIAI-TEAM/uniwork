@@ -286,17 +286,26 @@ func decideDocumentAccess(doc db.Document, access DocumentAccess, required Docum
 // from the row's own tenant pair. An id from another tenant is not found,
 // never forbidden.
 func (s *DocumentService) authorizeDocument(ctx context.Context, actor Actor, documentID string, required DocumentLevel) (db.Document, DocumentAccess, error) {
+	return s.authorizeDocumentQ(ctx, s.q, actor, documentID, required)
+}
+
+// authorizeDocumentQ is authorizeDocument read through q. A caller that
+// already holds a transaction - the document mutation gate, and through it
+// the mention write - passes its q, so the row read, the organization gate
+// and effectiveLevel all run on that one connection: a mutation holding the
+// document row lock never borrows a second pool connection for a read gate.
+func (s *DocumentService) authorizeDocumentQ(ctx context.Context, q *db.Queries, actor Actor, documentID string, required DocumentLevel) (db.Document, DocumentAccess, error) {
 	if !validActor(actor) || documentID == "" {
 		return db.Document{}, DocumentAccess{}, ErrNotFound
 	}
-	doc, err := s.q.GetDocumentByID(ctx, documentID)
+	doc, err := q.GetDocumentByID(ctx, documentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.Document{}, DocumentAccess{}, ErrNotFound
 	}
 	if err != nil {
 		return db.Document{}, DocumentAccess{}, err
 	}
-	access, err := s.effectiveLevel(ctx, s.q, actor, doc)
+	access, err := s.effectiveLevel(ctx, q, actor, doc)
 	if err != nil {
 		return db.Document{}, DocumentAccess{}, err
 	}

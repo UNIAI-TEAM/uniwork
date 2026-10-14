@@ -11,24 +11,26 @@ type McpConsentClientSDO struct {
 
 // McpConsentOrgSDO is one organization the person may share.
 type McpConsentOrgSDO struct {
-	ID      string `json:"id" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7V8"`
-	Slug    string `json:"slug" description:"Slug tổ chức" example:"acme"`
-	Name    string `json:"name" description:"Tên tổ chức" example:"Acme"`
-	Enabled bool   `json:"enabled" description:"Tổ chức đã bật connector" example:"true"`
-	Reason  string `json:"reason" description:"Lý do không chọn được: connector_disabled hoặc rỗng" example:"connector_disabled"`
+	ID           string `json:"id" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7V8"`
+	Slug         string `json:"slug" description:"Slug tổ chức" example:"acme"`
+	Name         string `json:"name" description:"Tên tổ chức" example:"Acme"`
+	Enabled      bool   `json:"enabled" description:"Tổ chức đã bật connector" example:"true"`
+	WriteEnabled bool   `json:"write_enabled" description:"Tổ chức cho phép ứng dụng AI ghi" example:"false"`
+	Reason       string `json:"reason" description:"Lý do không chọn được: connector_disabled hoặc rỗng" example:"connector_disabled"`
 }
 
 // McpConsentSDO is GET /api/v1/auth/connect/attempts/{attemptID}. Once the
 // attempt has ended, client is null, organizations is empty and csrf_token is
 // empty: only status says how it ended.
 type McpConsentSDO struct {
-	AttemptID     string               `json:"attempt_id" description:"ULID yêu cầu kết nối" example:"01J8X4ATT0N1P2Q3R4S5T6U7V8"`
-	Status        string               `json:"status" description:"pending | approved | cancelled | expired" example:"pending"`
-	Client        *McpConsentClientSDO `json:"client" description:"Client OAuth; null khi attempt đã kết thúc"`
-	RedirectHost  string               `json:"redirect_host" description:"Host nhận code" example:"claude.ai"`
-	Scope         string               `json:"scope" description:"Scope xin cấp" example:"read"`
-	Organizations []McpConsentOrgSDO   `json:"organizations" description:"Tổ chức người dùng có thể chọn"`
-	CSRFToken     string               `json:"csrf_token" description:"Token CSRF cho lệnh POST; rỗng khi attempt đã kết thúc" example:"m3Vq0tFz9kE"`
+	AttemptID      string               `json:"attempt_id" description:"ULID yêu cầu kết nối" example:"01J8X4ATT0N1P2Q3R4S5T6U7V8"`
+	Status         string               `json:"status" description:"pending | approved | cancelled | expired" example:"pending"`
+	Client         *McpConsentClientSDO `json:"client" description:"Client OAuth; null khi attempt đã kết thúc"`
+	RedirectHost   string               `json:"redirect_host" description:"Host nhận code" example:"claude.ai"`
+	Scope          string               `json:"scope" description:"Scope xin cấp" example:"read"`
+	Organizations  []McpConsentOrgSDO   `json:"organizations" description:"Tổ chức người dùng có thể chọn"`
+	CSRFToken      string               `json:"csrf_token" description:"Token CSRF cho lệnh POST; rỗng khi attempt đã kết thúc" example:"m3Vq0tFz9kE"`
+	WriteRequested bool                 `json:"write_requested" description:"Ứng dụng xin quyền tạo và sửa" example:"true"`
 }
 
 // McpConsentResultSDO is the answer to the person's decision.
@@ -67,4 +69,9 @@ type McpPolicySDO struct {
 	EnabledAt *string `json:"enabled_at" description:"RFC 3339 hoặc null" example:"2026-10-12T08:00:00Z"`
 	EnabledBy string  `json:"enabled_by" description:"ULID người bật" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
 	McpURL    string  `json:"mcp_url" description:"URL dán vào client AI" example:"https://api.uniwork.vn/mcp"`
+
+	WriteEnabled   bool    `json:"write_enabled" description:"Ứng dụng AI được tạo và sửa" example:"false"`
+	WriteAvailable bool    `json:"write_available" description:"Nền tảng đã mở quyền ghi cho tổ chức" example:"true"`
+	WriteEnabledAt *string `json:"write_enabled_at" description:"RFC 3339 hoặc null" example:"2026-10-14T08:00:00Z"`
+	WriteEnabledBy string  `json:"write_enabled_by" description:"ULID người bật" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
 }

@@ -30,6 +30,14 @@ const (
 	// the document, not a task.
 	KindDocumentCommented = "document_commented"
 	KindDocumentMentioned = "document_mentioned"
+	// The G8-05 kinds (contract-collab section 8.3): a mention in a
+	// Discussion, a reply in either flow, and resolving a Comment. The
+	// old document_commented stays registered for rows written before the
+	// UNI-1337 recipient table landed - the rules never emit it again.
+	KindDocumentCommentReplied      = "document_comment_replied"
+	KindDocumentDiscussionMentioned = "document_discussion_mentioned"
+	KindDocumentDiscussionReplied   = "document_discussion_replied"
+	KindDocumentCommentResolved     = "document_comment_resolved"
 	// Chat (H1): one row per room or thread while unread, so a burst of
 	// messages is one notification and one push.
 	KindChatMentioned     = "chat_mentioned"
@@ -43,6 +51,7 @@ var Kinds = []string{
 	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned,
+	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
 	KindChatMentioned, KindChatDM, KindChatThreadReplied,
 }
 

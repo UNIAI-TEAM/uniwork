@@ -10,7 +10,7 @@ import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwo
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsFill, HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DocumentActionsMenu } from "./document-actions-menu";
-import { DocumentCommentsHeaderActions, DocumentCommentsProvider } from "./document-comments-context";
+import { DocumentCommentsHeaderActions, DocumentCommentsProvider, documentCommentsTitleKey } from "./document-comments-context";
 
 const { t } = initI18n();
 const WS = "ws1";
@@ -119,12 +119,13 @@ describe("DocumentActionsMenu with an embedded editor", () => {
       ),
     );
     await screen.findByRole("button", { name: "office-save" });
-    // An office file's drawer is the file discussion, not the editor's own Comments pane.
-    const trigger = screen.getByRole("button", { name: t("documents.comments.file_open") });
+    // The trigger and the phone menu entry carry the panel's own name (S12/S13).
+    const label = t(documentCommentsTitleKey(doc));
+    const trigger = screen.getByRole("button", { name: label });
     expect(trigger.closest("[data-document-comments-actions]")).toHaveClass("hidden", "sm:flex");
     await openMenu();
     expect(screen.getByRole("menuitem", { name: "editor-entry" })).toBeInTheDocument();
-    const comments = screen.getByRole("menuitem", { name: t("documents.comments.file_open") });
+    const comments = screen.getByRole("menuitem", { name: label });
     expect(comments).toHaveClass("sm:hidden");
     fireEvent.click(comments);
     await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));

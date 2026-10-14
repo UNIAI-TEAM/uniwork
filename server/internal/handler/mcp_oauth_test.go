@@ -204,7 +204,7 @@ func (w *mcpOAuthWorld) code(t *testing.T, clientID, redirect string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	back, err := w.d.McpAuth.Approve(ctx, w.userID, attempt, consent.CSRFToken, w.orgID)
+	back, err := w.d.McpAuth.Approve(ctx, w.userID, attempt, consent.CSRFToken, w.orgID, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func TestMcpDiscoveryDocuments(t *testing.T) {
 		if len(servers) != 1 || servers[0] != mcpTestIssuer {
 			t.Fatalf("%s authorization_servers = %v", path, doc["authorization_servers"])
 		}
-		if scopes, _ := doc["scopes_supported"].([]any); len(scopes) != 1 || scopes[0] != "read" {
+		if scopes, _ := doc["scopes_supported"].([]any); len(scopes) != 2 || scopes[0] != "read" || scopes[1] != "write" {
 			t.Fatalf("%s scopes_supported = %v", path, doc["scopes_supported"])
 		}
 		if methods, _ := doc["bearer_methods_supported"].([]any); len(methods) != 1 || methods[0] != "header" {

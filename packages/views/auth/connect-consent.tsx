@@ -6,6 +6,7 @@ import { Check, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import type { ConnectConsent } from "@uniwork/core/api/endpoints/connect";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
 import { Bezel } from "../layout/brand-surface";
 
@@ -21,7 +22,7 @@ type ConnectConsentProps = {
   consent: ConnectConsent | null;
   state?: ConnectConsentState;
   errorCode?: string;
-  onDecision: (decision: "approve" | "cancel", organizationId?: string) => Promise<void>;
+  onDecision: (decision: "approve" | "cancel", organizationId?: string, write?: boolean) => Promise<void>;
   onRetry?: () => void;
 };
 
@@ -29,18 +30,22 @@ export function ConnectConsentView({ consent, state = "pending", errorCode, onDe
   const { t } = useTranslation();
   const enabled = consent?.organizations.filter((o) => o.enabled) ?? [];
   const [picked, setPicked] = useState("");
+  const [allowWrite, setAllowWrite] = useState(false);
   const [pending, setPending] = useState<"approve" | "cancel" | null>(null);
   const client = consent?.client ?? null;
   const showForm = state === "pending" && consent !== null && client !== null;
   // A lone enabled organization is chosen for the person; a pick that a
   // reloaded consent no longer offers falls back to the same rule.
   const orgId = enabled.some((o) => o.id === picked) ? picked : enabled.length === 1 ? (enabled[0]?.id ?? "") : "";
+  // Write is offered only when the app asked for it and the chosen organization
+  // has opened it (ADR 0033); the box starts unticked and nothing ticks it for the person.
+  const writeOffered = !!consent?.write_requested && enabled.some((o) => o.id === orgId && o.write_enabled);
 
   async function decide(decision: "approve" | "cancel") {
     if (pending !== null || (decision === "approve" && !orgId)) return;
     setPending(decision);
     try {
-      await onDecision(decision, decision === "approve" ? orgId : undefined);
+      await onDecision(decision, decision === "approve" ? orgId : undefined, decision === "approve" && writeOffered && allowWrite);
     } finally {
       setPending(null);
     }
@@ -63,7 +68,7 @@ export function ConnectConsentView({ consent, state = "pending", errorCode, onDe
               {showForm ? t("auth.connect.title", { client: client.name }) : t("auth.connect.resultTitle")}
             </h1>
             {showForm
-              ? <p className="text-body text-muted-foreground">{t("auth.connect.description")}</p>
+              ? <p className="text-body text-muted-foreground">{t(writeOffered ? "auth.connect.descriptionWrite" : "auth.connect.description")}</p>
               : <p role="status" className="text-body text-muted-foreground">{result}</p>}
           </div>
 
@@ -82,7 +87,11 @@ export function ConnectConsentView({ consent, state = "pending", errorCode, onDe
               <fieldset className="flex flex-col gap-3">
                 <legend className="mb-2 text-label font-semibold">{t("auth.connect.organization")}</legend>
                 {enabled.length === 0 ? <p className="text-body text-muted-foreground">{t("auth.connect.noOrganization")}</p> : null}
-                <RadioGroup value={orgId} onValueChange={(value) => setPicked(String(value))} className="flex flex-col gap-2">
+                <RadioGroup value={orgId} onValueChange={(value) => {
+                    setPicked(String(value));
+                    // A tick was given for one organization; it does not carry over to another.
+                    setAllowWrite(false);
+                  }} className="flex flex-col gap-2">
                   {consent.organizations.map((o) => (
                     <label key={o.id} htmlFor={`connect-org-${o.id}`} className="flex items-start gap-3 rounded-lg border border-border/70 p-3">
                       <RadioGroupItem id={`connect-org-${o.id}`} value={o.id} disabled={!o.enabled} />
@@ -94,6 +103,23 @@ export function ConnectConsentView({ consent, state = "pending", errorCode, onDe
                   ))}
                 </RadioGroup>
               </fieldset>
+
+              {writeOffered ? (
+                <label htmlFor="connect-allow-write" className="flex items-start gap-3 rounded-lg border border-border/70 p-3">
+                  {/* The whole card toggles; the name is the title alone and the hint is its description. */}
+                  <Checkbox
+                    id="connect-allow-write"
+                    checked={allowWrite}
+                    onCheckedChange={(next) => setAllowWrite(next === true)}
+                    aria-labelledby="connect-allow-write-title"
+                    aria-describedby="connect-allow-write-hint"
+                  />
+                  <span className="flex flex-col">
+                    <span id="connect-allow-write-title" className="font-semibold">{t("auth.connect.allowWrite")}</span>
+                    <span id="connect-allow-write-hint" className="text-caption text-muted-foreground">{t("auth.connect.allowWriteHint")}</span>
+                  </span>
+                </label>
+              ) : null}
 
               <div className="flex flex-col gap-1 text-body">
                 <p className="font-semibold">{t("auth.connect.shares")}</p>

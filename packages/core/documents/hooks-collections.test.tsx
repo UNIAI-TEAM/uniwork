@@ -7,6 +7,7 @@ import { isDocumentNotVerifiable } from "../types/document";
 import {
   documentFilterKey,
   useArchiveDocument,
+  useDocumentArchiveImpact,
   useDocumentList,
   useDocumentTree,
   useMoveDocument,
@@ -214,5 +215,75 @@ describe("documents collection hooks", () => {
     await act(async () => {
       await expectNotVerifiable(() => second.result.current.mutateAsync({ documentId: "d1" }));
     });
+  });
+
+  // ---- FD-06 (UNI-1466) ----------------------------------------------------
+
+  it("useDocumentTree passes folders_only through and keys it apart from the full tree", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ documents: [{ id: "f1", title: "T", kind: "folder", position: 0, children: [] }] }),
+    );
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useDocumentTree("w1", undefined, { foldersOnly: true }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/tree?folders_only=true",
+    );
+    expect(qc.getQueryData(documentKeys.tree("w1", "", true))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.tree("w1"))).toBeUndefined();
+  });
+
+  it("useDocumentList searches titles of documents through the extended filter", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody([summary("d1", { path: [{ id: "f1", title: "Hợp đồng" }] })])),
+    );
+    const { result } = renderHook(
+      () => useDocumentList("w1", { q: "hop", kind: "document", match: "title" }),
+      { wrapper: setup().wrapper },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const parsed = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(parsed.searchParams.get("kind")).toBe("document");
+    expect(parsed.searchParams.get("match")).toBe("title");
+    expect(result.current.data?.pages[0]?.documents[0]?.path).toEqual([{ id: "f1", title: "Hợp đồng" }]);
+  });
+
+  it("useDocumentArchiveImpact waits for enabled, then reads under the archive-impact key", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      json({ folders: 2, documents: 5, total: 8, max_nodes: 1000, too_large: false }),
+    );
+    const { qc, wrapper } = setup();
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useDocumentArchiveImpact("w1", "d1", { enabled }),
+      { wrapper, initialProps: { enabled: false } },
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/documents/d1/archive-impact",
+    );
+    expect(result.current.data).toEqual({ folders: 2, documents: 5, total: 8, max_nodes: 1000, too_large: false });
+    expect(qc.getQueryData(documentKeys.archiveImpact("w1", "d1"))).toEqual(result.current.data);
+    // staleTime 0: the counts are stale the moment they land, so reopening
+    // the dialog always asks again.
+    expect(qc.getQueryCache().find({ queryKey: documentKeys.archiveImpact("w1", "d1") })?.isStale()).toBe(true);
+  });
+
+  it("useDocumentArchiveImpact turns an unreadable answer into not verifiable, never counts", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ folders: 2 }));
+    const { result } = renderHook(() => useDocumentArchiveImpact("w1", "d1", { enabled: true }), {
+      wrapper: setup().wrapper,
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(isDocumentNotVerifiable(result.current.error)).toBe(true);
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("useDocumentArchiveImpact stays idle without a workspace or a document", () => {
+    const { wrapper } = setup();
+    renderHook(() => useDocumentArchiveImpact("", "d1", { enabled: true }), { wrapper });
+    renderHook(() => useDocumentArchiveImpact("w1", "", { enabled: true }), { wrapper });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

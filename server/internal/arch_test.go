@@ -312,12 +312,16 @@ func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
 // fenced: only service/admin.go calls Admin* queries, and admin.go never
 // reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
 func TestAdminQueriesStayInAdminService(t *testing.T) {
+	demoQueries := regexp.MustCompile(`\bq\.(AdminListDemoRequests|AdminCountDemoRequests|AdminGetDemoRequest|AdminUpdateDemoRequest)\(`)
 	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride|AdminListInvoices|AdminCountInvoices|AdminListPaymentIntents|AdminCountPaymentIntents|AdminGetInvoiceByID|AdminMarkInvoiceRefunded|AdminRequestInvoiceRefund|AdminRequestPartialInvoiceRefund|AdminConfirmInvoiceRefund|AdminRevertInvoiceRefundRequest|AdminPatchInvoiceRefundProviderRef)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
 		slash := filepath.ToSlash(path)
+		if strings.HasSuffix(slash, "internal/service/admin_demo_requests.go") {
+			return nil
+		}
 		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.HasSuffix(slash, "internal/service/admin_billing.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund_vnpay.go") || strings.HasSuffix(slash, "internal/service/admin_plans.go") || strings.Contains(slash, "pkg/db/generated/") {
 			return nil
 		}
@@ -325,7 +329,7 @@ func TestAdminQueriesStayInAdminService(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if adminQueries.Match(src) {
+		if adminQueries.Match(src) || demoQueries.Match(src) {
 			t.Errorf("%s calls an admin.sql query; only service/admin.go may", path)
 		}
 		return nil
@@ -482,5 +486,31 @@ func TestGraphTablesWrittenOnlyByProjector(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestMcpToolsCallNoDelete holds ADR 0033 on the code side: no
+// service/mcp_tools*.go file calls a Delete*/BatchDelete* command, or
+// ArchiveDocument. Every tool file is named mcp_tools_<area>.go.
+func TestMcpToolsCallNoDelete(t *testing.T) {
+	files, err := filepath.Glob("service/mcp_tools*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) == 0 {
+		t.Fatal("no service/mcp_tools*.go found; the glob is stale")
+	}
+	banned := regexp.MustCompile(`\.(Delete\w*|BatchDelete\w*|ArchiveDocument|DeleteComment|DeleteProject)\(`)
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if loc := banned.FindIndex(raw); loc != nil {
+			t.Errorf("%s calls %s; MCP tools never delete (ADR 0033)", f, raw[loc[0]:loc[1]])
+		}
 	}
 }

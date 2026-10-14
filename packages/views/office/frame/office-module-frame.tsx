@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -22,8 +22,8 @@ import { DocsFrameFailure } from "./docs-frame-failure";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
-import { SaveConflictDialog } from "./save-conflict-dialog";
 import { useDocsFrameSession } from "./use-docs-frame-session";
+import { useFrameComments } from "./use-frame-comments";
 
 export interface OfficeModuleFrameControls {
   save: () => Promise<boolean>;
@@ -57,6 +57,12 @@ export interface OfficeModuleFrameProps {
   desktopOpen?: FrameDesktopOpenProps;
   /** The workspace's document list: a reader who is refused the document is offered the way back there. */
   libraryHref?: string;
+  /** The user's effective level on the document (`my_level`); the editor's comments panel shows only what it allows. */
+  myLevel?: string | null;
+  /** The comment a deep link names (`?comment=`): the editor's panel scrolls to it when it has comments. */
+  revealCommentId?: string | null;
+  /** The editor says whether its own panel is the page's comments panel (a frame that predates comments says no). */
+  onFrameCommentsChange?: (framePanel: boolean) => void;
   className?: string;
 }
 
@@ -92,7 +98,7 @@ function useFrameTheme(): Theme {
  */
 export function OfficeModuleFrame({
   module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, className,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId, onFrameCommentsChange, className,
 }: OfficeModuleFrameProps) {
   const frameApi = api ?? defaultFrameApi(module);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
@@ -112,8 +118,13 @@ export function OfficeModuleFrame({
   // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
+  const frameComments = useFrameComments({ wsId, documentId, myLevel, revealCommentId });
+  const { framePanel } = frameComments;
+  const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
+  onFrameCommentsChangeRef.current = onFrameCommentsChange;
   const session = useDocsFrameSession({
     iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
+    comments: frameComments.binding,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
@@ -130,13 +141,30 @@ export function OfficeModuleFrame({
       if (base.trim().toLocaleLowerCase() !== source.trim().toLocaleLowerCase()) return name;
       return `${tRootRef.current("documents.copy.title_placeholder", { title: base })}${name.slice(base.length)}`;
     },
+    // "Download my version" in the frame's conflict dialog: "<title> (my version)", the host adds the extension.
+    downloadName: () => tRootRef.current("office.docsFrame.mine_file_name", { title: stripExtension(frameTitleRef.current ?? title) }),
     onError: (error: ProtocolErrorShape) => {
       if (error.code === "cancelled") return;
       const key = KNOWN_ERRORS.has(error.code) ? error.code : "internal";
       toast.error(tRef.current(`errors.${key}`));
     },
   });
-  const { dirty, saveState, save, print } = session;
+  const { dirty, saveState, print } = session;
+  // The page's own panel is hidden only while a frame serves comments. A re-key keeps the claim
+  // (use-frame-comments holds it until the next ack); a failed frame no longer serves anything, and
+  // an unmount (module fallback, error view, another document) takes it back in the cleanup.
+  const claimsComments = framePanel && session.status !== "failed";
+  useEffect(() => {
+    onFrameCommentsChangeRef.current?.(claimsComments);
+    return () => onFrameCommentsChangeRef.current?.(false);
+  }, [claimsComments]);
+  const saveSession = session.save;
+  // Header Save and the desktop handoff only need to know whether the edits are now on the server
+  // (a new version, or the newest one reloaded over them).
+  const save = useCallback(async () => {
+    const outcome = await saveSession("user");
+    return outcome === "saved" || outcome === "reloaded";
+  }, [saveSession]);
 
   // A dialog inside the frame is modal for the whole page: dim and inert the chrome around the frame.
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -148,13 +176,14 @@ export function OfficeModuleFrame({
 
   useEffect(() => {
     if (!controlsRef) return undefined;
-    controlsRef.current = { save: () => save("user"), print };
+    controlsRef.current = { save, print };
     return () => { controlsRef.current = null; };
   }, [controlsRef, print, save]);
 
   // Ctrl/Cmd+P while focus sits in the page (not the frame) prints the document, not the page.
   useEffect(() => {
-    if (session.status !== "ready") return undefined;
+    // The frame's own dialog is modal for the page: the page's shortcuts wait until it closes.
+    if (session.status !== "ready" || session.modal) return undefined;
     const onKey = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
@@ -163,19 +192,33 @@ export function OfficeModuleFrame({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [print, session.status]);
+  }, [print, session.modal, session.status]);
 
   // Unsaved edits: the in-app leave dialog, and the browser's own prompt on unload.
   const [leaveOpen, setLeaveOpen] = useState(false);
+  // A leave the frame's dialog cancelled closes this one with its save still "failed": a fresh
+  // instance (mounted while closed) keeps that failure line from showing on the next leave.
+  const [leaveRound, setLeaveRound] = useState(0);
   const leaveResolve = useRef<((allowed: boolean) => void) | null>(null);
+  // A leave's Save that the frame's dialog took over: the leave dialog stays closed until that Save
+  // answers, even once the frame's dialog has closed, and comes back only if it failed.
+  const leaveSaving = useRef(false);
+  const [leaveHeld, setLeaveHeld] = useState(false);
+  useEffect(() => { if (session.modal && leaveSaving.current) setLeaveHeld(true); }, [session.modal]);
   const finishLeave = (allowed: boolean) => {
     const resolve = leaveResolve.current;
     leaveResolve.current = null;
     setLeaveOpen(false);
+    setLeaveHeld(false);
     resolve?.(allowed);
   };
+  // The editor failed for good and its failure screen replaced the leave dialog: the leave that
+  // was pending (a Save in flight, or the dialog being read) ends as refused, since nothing is
+  // left to answer it. Later leaves have no editor to save, so the guard below is not registered.
+  const failed = session.status === "failed";
+  useEffect(() => { if (failed) finishLeave(false); }, [failed]);
   useEffect(() => {
-    if (!dirty) return undefined;
+    if (!dirty || failed) return undefined;
     const unregister = registerLeaveGuard(() => new Promise<boolean>((resolve) => {
       leaveResolve.current?.(false);
       leaveResolve.current = resolve;
@@ -184,7 +227,7 @@ export function OfficeModuleFrame({
     const onBeforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => { unregister(); window.removeEventListener("beforeunload", onBeforeUnload); };
-  }, [dirty]);
+  }, [dirty, failed]);
   useEffect(() => () => { leaveResolve.current?.(false); }, []);
   // Closing the leave dialog (Stay, Escape, the close button) hands keyboard focus back to the
   // editor in the frame, so Ctrl+S works without a click. Returning false keeps Base UI from
@@ -200,6 +243,13 @@ export function OfficeModuleFrame({
     try { iframe.contentWindow?.focus(); } catch { /* a frame that is not same-origin keeps the iframe focus */ }
     return false;
   };
+
+  // When the frame's dialog closes, the keyboard goes back into the frame, not to the page's body.
+  const wasModal = useRef(false);
+  useEffect(() => {
+    if (wasModal.current && !session.modal) focusFrame();
+    wasModal.current = session.modal;
+  }, [session.modal]);
 
   // Save stays reachable in the page header at every width (an icon on a phone, labelled from `sm`).
   // It is quiet while nothing is unsaved and stays in the tab order when it is.
@@ -219,7 +269,7 @@ export function OfficeModuleFrame({
           aria-disabled={saveQuiet || saving || undefined}
           aria-label={saveLabel}
           title={saveLabel}
-          onClick={() => { if (!saveQuiet && !saving) void save("user"); }}
+          onClick={() => { if (!saveQuiet && !saving) void save(); }}
           data-office-frame-save
         >
           <Save aria-hidden />
@@ -269,7 +319,7 @@ export function OfficeModuleFrame({
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
       {desktopOpen && !booting && !session.viewOnly ? (
-        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} dirty={dirty} save={() => save("user")} requestRef={appOpenRef} />
+        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} dirty={dirty} save={save} requestRef={appOpenRef} />
       ) : null}
       <iframe
         key={session.attempt}
@@ -307,16 +357,29 @@ export function OfficeModuleFrame({
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : null}
+      {/*
+        A Save from here may meet a newer version: the frame then shows its own conflict dialog,
+        which owns the page meanwhile, so this one steps aside until the frame answers. The leave
+        waits for that answer; Cancel in the frame's dialog means stay.
+      */}
       <LeaveDialog
-        open={leaveOpen}
+        key={`leave-${leaveRound}`}
+        open={leaveOpen && !session.modal && !leaveHeld}
         dirty
         onOpenChange={(open) => { if (!open) finishLeave(false); }}
-        onSave={() => save("navigate")}
+        onSave={async () => {
+          leaveSaving.current = true;
+          const outcome = await saveSession("navigate").finally(() => { leaveSaving.current = false; });
+          if (outcome === "cancelled") { finishLeave(false); setLeaveRound((n) => n + 1); }
+          // Failed: the leave dialog comes back with its failure line. Saved or reloaded: the
+          // leave goes ahead and finishLeave closes it, so it never reopens in between.
+          if (outcome === "failed") setLeaveHeld(false);
+          return outcome === "saved" || outcome === "reloaded";
+        }}
         onDiscard={async () => true}
         onChoice={(choice) => { if (choice !== "stay") finishLeave(true); }}
         finalFocus={focusFrame}
       />
-      <SaveConflictDialog open={session.conflict} onKeep={session.keepEdits} onReload={session.reloadLatest} finalFocus={focusFrame} />
     </div>
   );
 }

@@ -12,6 +12,9 @@ type Routes struct {
 	Config                     http.HandlerFunc
 	OfficeDesktopDownload      http.HandlerFunc
 	RUM                        http.HandlerFunc
+	CreateDemoRequest          http.HandlerFunc
+	AdminListDemoRequests      http.HandlerFunc
+	AdminUpdateDemoRequest     http.HandlerFunc
 	AdminMe                    http.HandlerFunc
 	AdminListOrganizations     http.HandlerFunc
 	AdminGetOrganization       http.HandlerFunc
@@ -54,6 +57,7 @@ type Routes struct {
 	RevokeOrgConnectedApp http.HandlerFunc
 	OrgMcpPolicy          http.HandlerFunc
 	SetOrgMcpPolicy       http.HandlerFunc
+	SetOrgMcpWritePolicy  http.HandlerFunc
 
 	Register              http.HandlerFunc
 	Login                 http.HandlerFunc
@@ -294,6 +298,11 @@ type Routes struct {
 	AiCloudImages         http.HandlerFunc
 	AiCloudAnalyzeMedia   http.HandlerFunc
 	AiCloudTranscribe     http.HandlerFunc
+	// UniWork AI (G6-03a): the org session route, the desktop document route
+	// and the web frame's mount of the same turn.
+	AiUniworkChatCompletions            http.HandlerFunc
+	AiUniworkDocumentChatCompletions    http.HandlerFunc
+	OfficeFrameAiUniworkChatCompletions http.HandlerFunc
 
 	ListPlans           http.HandlerFunc
 	GetSubscription     http.HandlerFunc
@@ -488,6 +497,7 @@ type Routes struct {
 	GetOfficeJobOutput      http.HandlerFunc
 	CancelOfficeJob         http.HandlerFunc
 	OfficeCapability        http.HandlerFunc
+	OfficeAppCapabilities   http.HandlerFunc
 	CreateOfficeLaunch      http.HandlerFunc
 	ExchangeOfficeLaunch    http.HandlerFunc
 	RevokeOfficeLaunch      http.HandlerFunc
@@ -500,6 +510,7 @@ type Routes struct {
 	PatchDocument          http.HandlerFunc
 	UploadDocumentFile     http.HandlerFunc
 	CommitDocumentVersion  http.HandlerFunc
+	LookupCommitIntent     http.HandlerFunc
 	ListDocumentVersions   http.HandlerFunc
 	CreateDocumentVersion  http.HandlerFunc
 	GetDocumentVersion     http.HandlerFunc
@@ -548,9 +559,14 @@ type Routes struct {
 	ReopenDocumentComment         http.HandlerFunc
 	AddDocumentCommentReaction    http.HandlerFunc
 	RemoveDocumentCommentReaction http.HandlerFunc
-	FavoriteDocument              http.HandlerFunc
-	UnfavoriteDocument            http.HandlerFunc
-	ListDocumentFavorites         http.HandlerFunc
+	// ListDocumentCommentRevisions is the edit history (G8-03, UNI-1398).
+	ListDocumentCommentRevisions  http.HandlerFunc
+	ListDocumentMentionCandidates http.HandlerFunc
+	// PutDocumentCommentAnchors is the editor's anchor map (G8-04, UNI-1399).
+	PutDocumentCommentAnchors http.HandlerFunc
+	FavoriteDocument          http.HandlerFunc
+	UnfavoriteDocument        http.HandlerFunc
+	ListDocumentFavorites     http.HandlerFunc
 
 	// Saved signatures (UNI-925 B6): the caller's own signature images.
 	ListSavedSignatures  http.HandlerFunc
@@ -564,22 +580,26 @@ type Routes struct {
 
 	// Documents collections, lifecycle, sharing and public reads (C-01 §5.1,
 	// §5.3, §5.4; UNI-679, G1-05b).
-	ListDocuments          http.HandlerFunc
-	ListRecentDocuments    http.HandlerFunc
-	ListSharedWithMe       http.HandlerFunc
-	DocumentTree           http.HandlerFunc
-	MoveDocument           http.HandlerFunc
-	ArchiveDocument        http.HandlerFunc
-	RestoreDocument        http.HandlerFunc
-	ListDocumentShares     http.HandlerFunc
-	CreateDocumentShare    http.HandlerFunc
-	RevokeDocumentShare    http.HandlerFunc
-	CreateDocumentLink     http.HandlerFunc
-	RevokeDocumentLink     http.HandlerFunc
-	ListDocumentAccessLogs http.HandlerFunc
-	GetDocumentSettings    http.HandlerFunc
-	SetDocumentSettings    http.HandlerFunc
-	GetPublicDocument      http.HandlerFunc
-	DownloadPublicDocument http.HandlerFunc
-	GetPublicDocumentAsset http.HandlerFunc
+	ListDocuments       http.HandlerFunc
+	ListRecentDocuments http.HandlerFunc
+	ListDocumentChanges http.HandlerFunc
+	// Offline lease of one desktop device on one document (G5-08s).
+	PutOfficeOfflineLease    http.HandlerFunc
+	DeleteOfficeOfflineLease http.HandlerFunc
+	ListSharedWithMe         http.HandlerFunc
+	DocumentTree             http.HandlerFunc
+	MoveDocument             http.HandlerFunc
+	ArchiveDocument          http.HandlerFunc
+	RestoreDocument          http.HandlerFunc
+	ListDocumentShares       http.HandlerFunc
+	CreateDocumentShare      http.HandlerFunc
+	RevokeDocumentShare      http.HandlerFunc
+	CreateDocumentLink       http.HandlerFunc
+	RevokeDocumentLink       http.HandlerFunc
+	ListDocumentAccessLogs   http.HandlerFunc
+	GetDocumentSettings      http.HandlerFunc
+	SetDocumentSettings      http.HandlerFunc
+	GetPublicDocument        http.HandlerFunc
+	DownloadPublicDocument   http.HandlerFunc
+	GetPublicDocumentAsset   http.HandlerFunc
 }

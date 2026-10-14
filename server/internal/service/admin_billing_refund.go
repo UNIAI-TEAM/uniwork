@@ -51,7 +51,11 @@ func (s *AdminService) RefundInvoice(ctx context.Context, adminID, invoiceID, re
 
 	switch inv.Provider {
 	case "manual":
-		return s.refundInvoiceManual(ctx, adminID, invoiceID, reason, providerRef, inv, amount)
+		if partial {
+			return db.Invoice{}, CodedError{Code: "invalid_refund_amount", Status: http.StatusBadRequest,
+				Msg: "hóa đơn thanh toán thủ công chỉ hoàn được toàn bộ"}
+		}
+		return s.refundInvoiceManual(ctx, adminID, invoiceID, reason, providerRef, inv)
 	case "vnpay":
 		return s.refundInvoiceVnpay(ctx, adminID, invoiceID, reason, providerRef, clientIP, inv, amount, partial)
 	default:
@@ -64,9 +68,7 @@ func (s *AdminService) refundInvoiceManual(
 	ctx context.Context,
 	adminID, invoiceID, reason, providerRef string,
 	inv db.AdminGetInvoiceByIDRow,
-	amount int64,
 ) (db.Invoice, error) {
-	_ = amount
 	ctx, traceID := ensureTrace(ctx)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -78,6 +80,10 @@ func (s *AdminService) refundInvoiceManual(
 	after, err := q.AdminMarkInvoiceRefunded(ctx, db.AdminMarkInvoiceRefundedParams{
 		ID: invoiceID, RefundProviderRef: nullTextOptional(providerRef), RefundReason: textRequired(reason),
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Invoice{}, CodedError{Code: "invoice_not_refundable", Status: http.StatusConflict,
+			Msg: "trạng thái hóa đơn đã đổi — tải lại danh sách"}
+	}
 	if err != nil {
 		return db.Invoice{}, err
 	}

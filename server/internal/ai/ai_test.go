@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,6 +98,25 @@ func TestFromEnv(t *testing.T) {
 func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)
+		if p.Sections != nil {
+			// The office pack (G6-14) is the exception: its System is the
+			// common section and the module section is appended per turn, so
+			// the assembled variants are what must close with the footer. It
+			// is free-text (no OutputSchema) and has no Render: the façade
+			// sends the conversation itself. prompts_office_test.go pins its
+			// goldens, caps and version pins.
+			// The registry checks every prompt gets still hold (BE14-6).
+			if p.Key() != k || strings.TrimSpace(p.System) == "" {
+				t.Errorf("%s: incomplete sectioned prompt (key %s, empty common System %v)", k, p.Key(), strings.TrimSpace(p.System) == "")
+			}
+			for _, m := range officeModuleSections {
+				got, err := officeAssemble(p, m.module)
+				if err != nil || !strings.HasSuffix(got, UntrustedFooter) {
+					t.Errorf("%s: %s variant does not end with the untrusted footer: %v", k, m.module, err)
+				}
+			}
+			continue
+		}
 		if !strings.HasSuffix(p.System, UntrustedFooter) {
 			t.Errorf("%s: system prompt does not end with the untrusted footer", k)
 		}
@@ -158,6 +179,13 @@ func TestPromptSnapshots(t *testing.T) {
 	}
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)
+		if p.Sections != nil {
+			// The office pack has one System per module and no Render: its
+			// goldens (testdata/office_uniwork_ai_v1_*.golden) and their test
+			// live in prompts_office_test.go, which keeps this snapshot's
+			// one-SYSTEM-one-USER shape for every other prompt.
+			continue
+		}
 		got := "SYSTEM:\n" + p.System + "\n\nUSER:\n" + p.Render(fixtures[k])
 		path := filepath.Join("testdata", strings.ReplaceAll(k, "@", "_v")+".golden")
 		if *update {
@@ -372,8 +400,11 @@ func askReq() Request {
 
 func TestGatewayMetersBeforeAndAfter(t *testing.T) {
 	ctx := context.Background()
+	// UsagePresent is set explicitly: the fake stands in for a vendor that
+	// answered with a usage block, and this test pins the priced path (BE3B-4).
+	// A reply without the flag is the no-usage shape, tested separately.
 	fp := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
-		return provider.CompletionResponse{Text: `{"answer":"ok","citations":[]}`, Model: "fake", InputTokens: 1_000_000, OutputTokens: 500_000}
+		return provider.CompletionResponse{Text: `{"answer":"ok","citations":[]}`, Model: "fake", UsagePresent: true, InputTokens: 1_000_000, OutputTokens: 500_000}
 	}}
 	quota := &fakeQuota{}
 	g, q := gatewayFixture(t, fp, quota)
@@ -422,6 +453,75 @@ func TestGatewayMetersBeforeAndAfter(t *testing.T) {
 	unpriced, _ := q.AiGetUsageEvent(ctx, resp3.UsageEventID)
 	if unpriced.Status != "succeeded" || unpriced.CostMicros != 0 || unpriced.RateID.Valid {
 		t.Fatalf("%+v", unpriced)
+	}
+}
+
+// The unknown-usage branch is UniWork AI's alone (BE3B-4, design §6.3): every
+// other capability keeps the pre-03b priced path, so a vendor that omitted the
+// usage block still settles succeeded with a cost and is still metered — not a
+// usage_unknown row nobody reconciles (AiUniworkUnknownUsageEvents filters
+// capability = 'office_uniwork_ai').
+//
+// One database fixture for both calls: testutil.DB serializes tests with a
+// session advisory lock, so a second call inside the same test would wait on
+// the first pool's lock forever.
+func TestGatewayUnknownUsageBranchScopedToUniwork(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.DB(t)
+	if _, err := pool.Exec(ctx, "DELETE FROM ai_model_rates WHERE provider = 'fake'"); err != nil {
+		t.Fatal(err)
+	}
+	q := db.New(pool)
+	// A reply that positively reports no usage block: UsagePresent false and
+	// no tokens (the shape the branch exists for).
+	noUsage := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: "{}", Model: "fake"}
+	}}
+	if _, err := q.AiInsertRate(ctx, db.AiInsertRateParams{ID: util.NewID(), Provider: "fake", Model: "fake", InputMicrosPerMtok: 2_000_000, OutputMicrosPerMtok: 4_000_000, EffectiveAt: pgtype.Timestamptz{Time: time.Now().Add(-time.Hour), Valid: true}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A non-UniWork capability: priced/metered as before, no unknown row.
+	quota := &fakeQuota{}
+	g := NewGateway(q, noUsage, quota, nil, Options{Timeout: time.Second})
+	resp, err := g.Complete(ctx, askReq())
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := q.AiGetUsageEvent(ctx, resp.UsageEventID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status != "succeeded" || row.ReasonCode.Valid || row.CostMicros != 0 || !row.CompletedAt.Valid {
+		t.Fatalf("non-UniWork no-usage row = %+v, want succeeded priced at 0 with no reason code", row)
+	}
+	if resp.UsagePresent {
+		t.Fatal("a vendor that sent no usage block must report UsagePresent false")
+	}
+	if len(quota.recorded) != 1 {
+		t.Fatalf("non-UniWork no-usage call metered %d times, want the priced path to still record", len(quota.recorded))
+	}
+
+	// UniWork AI on the same shape: the A16 branch, no meter call.
+	uQuota := &fakeQuota{}
+	ug := NewGateway(q, noUsage, uQuota, nil, Options{Timeout: time.Second})
+	uresp, err := ug.Complete(ctx, Request{
+		Actor: audit.User("u1"), OrganizationID: "org1", WorkspaceID: "ws1",
+		Capability: CapOfficeUniworkAI, PromptID: PromptOfficeUniworkAI, Module: "xlsx",
+		History: []provider.Message{{Role: "user", Content: "how many rows?"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	urow, err := q.AiGetUsageEvent(ctx, uresp.UsageEventID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if urow.Status != "succeeded" || urow.ReasonCode.String != UsageUnknownReason || urow.CostMicros != 0 {
+		t.Fatalf("UniWork no-usage row = %+v, want succeeded/%s at cost 0", urow, UsageUnknownReason)
+	}
+	if len(uQuota.recorded) != 0 {
+		t.Fatalf("UniWork unknown-usage call metered %d times, want the reconciler to own that charge", len(uQuota.recorded))
 	}
 }
 
@@ -515,6 +615,30 @@ func TestFakeReplyCitesEverySource(t *testing.T) {
 	}
 	if _, err := ParseSummaryJSON(FakeReply(provider.CompletionRequest{System: "meeting"}).Text); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestFakeReplyReportsUsage pins BE-4: under AI_PROVIDER=fake the gateway
+// builds &provider.Fake{Reply: FakeReply} (config.go), so this response is
+// what every fake turn returns. It must report usage like the scripted
+// provider/fake.go path does; otherwise, once G6-03b reads UsagePresent,
+// every CI and E2E fake turn would take the usage_unknown branch and never
+// reach quota.Record (spec §8.2).
+func TestFakeReplyReportsUsage(t *testing.T) {
+	p, _ := LookupPrompt(PromptCopilotAnswer)
+	cases := []provider.CompletionRequest{
+		{Model: "fake", System: p.System, Messages: []provider.Message{{Role: "user", Content: "Sources: (none)"}}},
+		{Model: "fake", System: "You catch a teammate up", Messages: []provider.Message{{Role: "user", Content: "Sources: (none)"}}},
+		{Model: "fake", System: "meeting", Messages: []provider.Message{{Role: "user", Content: "x"}}},
+	}
+	for _, req := range cases {
+		resp := FakeReply(req)
+		if !resp.UsagePresent || resp.InputTokens <= 0 || resp.OutputTokens <= 0 {
+			t.Fatalf("system %q: usage not reported: %+v", req.System, resp)
+		}
+		if resp.Model != req.Model {
+			t.Fatalf("system %q: model %q", req.System, resp.Model)
+		}
 	}
 }
 
@@ -631,5 +755,275 @@ func TestGatewayMediaAttachments(t *testing.T) {
 		Vars: map[string]any{}, Attachments: []provider.Part{{MIME: "video/mp4"}},
 	}); !errors.Is(err, ErrMediaUnsupported) {
 		t.Fatalf("unsupported media: %v", err)
+	}
+}
+
+// ---- office_uniwork_ai (G6-13, G6-D1 A1) -----------------------------------
+
+func TestPolicyOfficeUniworkAI(t *testing.T) {
+	for prov, want := range map[string]string{"anthropic": "claude-opus-5", "openai": "gpt-4o", "fake": "fake"} {
+		p, model, err := ResolveModel(CapOfficeUniworkAI, prov, nil, nil)
+		if err != nil || model != want || p.MaxTokens != 4096 || p.Temperature != 0 {
+			t.Fatalf("%s: %+v %s %v", prov, p, model, err)
+		}
+	}
+	// No ollama default: UniWork AI is not configured on an ollama deployment,
+	// and the refusal says for which capability.
+	if _, _, err := ResolveModel(CapOfficeUniworkAI, "ollama", nil, nil); err == nil || !strings.Contains(err.Error(), "office_uniwork_ai") {
+		t.Fatalf("ollama must refuse office_uniwork_ai: %v", err)
+	}
+	env := func(v string) func(string) string {
+		return func(k string) string {
+			if k == "AI_MODEL_OFFICE_UNIWORK_AI" {
+				return v
+			}
+			return ""
+		}
+	}
+	if _, m, _ := ResolveModel(CapOfficeUniworkAI, "openai", env("gpt-4o-mini"), nil); m != "gpt-4o-mini" {
+		t.Fatalf("override in allowlist ignored: %s", m)
+	}
+	if _, m, _ := ResolveModel(CapOfficeUniworkAI, "openai", env("dev-model"), []string{"dev-model"}); m != "dev-model" {
+		t.Fatalf("AI_MODEL_ALLOW not honoured: %s", m)
+	}
+	var logs strings.Builder
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	defer slog.SetDefault(prev)
+	if _, m, _ := ResolveModel(CapOfficeUniworkAI, "openai", env("dev-model"), nil); m != "gpt-4o" {
+		t.Fatalf("override outside allowlist accepted: %s", m)
+	}
+	if out := logs.String(); !strings.Contains(out, "outside allowlist") || !strings.Contains(out, "office_uniwork_ai") || !strings.Contains(out, "dev-model") {
+		t.Fatalf("no warning logged: %q", out)
+	}
+	// Existing capabilities keep their policies: ollama still has a default.
+	if _, m, err := ResolveModel(CapCopilotAnswer, "ollama", nil, nil); err != nil || m != "llama3.1" {
+		t.Fatalf("copilot on ollama: %s %v", m, err)
+	}
+}
+
+// ---- Tool-result turn (G6-13): one Complete per tool-result round ------------
+
+func toolTurnHistory(id string) []provider.Message {
+	return []provider.Message{
+		{Role: "user", Content: "what is in A1?"},
+		{Role: "assistant", ToolCalls: []provider.ToolCall{{ID: id, Name: "get_cell", Input: json.RawMessage(`{"cell":"A1"}`)}}},
+		{Role: "tool", ToolCallID: id, Content: `{"value":42}`},
+	}
+}
+
+// TestRequestMessages pins what reaches the provider: the old path is
+// History + the rendered prompt (unchanged for every existing caller), a
+// tool-result turn is History exactly, with no invented user message.
+func TestRequestMessages(t *testing.T) {
+	p, _ := LookupPrompt(PromptCopilotAnswer)
+	req := askReq()
+	req.History = []provider.Message{{Role: "user", Content: "trước"}, {Role: "assistant", Content: "sau"}}
+	req.Attachments = []provider.Part{{MIME: "image/png", Data: []byte{1}}}
+	got, err := requestMessages(req, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := append(append([]provider.Message{}, req.History...), provider.Message{Role: "user", Content: p.Render(req.Vars), Parts: req.Attachments})
+	if gj, wj := mustJSON(t, got), mustJSON(t, want); gj != wj {
+		t.Fatalf("default path changed:\n%s\n%s", gj, wj)
+	}
+
+	turn := Request{ToolResultTurn: true, History: toolTurnHistory("call_1")}
+	got, err = requestMessages(turn, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gj, wj := mustJSON(t, got), mustJSON(t, turn.History); gj != wj {
+		t.Fatalf("tool turn must be History as is:\n%s\n%s", gj, wj)
+	}
+	// Parallel calls: every result after the assistant turn that asked.
+	parallel := toolTurnHistory("call_1")
+	parallel[1].ToolCalls = append(parallel[1].ToolCalls, provider.ToolCall{ID: "call_2", Name: "get_cell"})
+	parallel = append(parallel, provider.Message{Role: "tool", ToolCallID: "call_2", Content: "7"})
+	if _, err := requestMessages(Request{ToolResultTurn: true, History: parallel}, p); err != nil {
+		t.Fatalf("parallel results refused: %v", err)
+	}
+
+	// Every call must be paired with exactly one result: an unanswered call, a
+	// repeated result, a repeated call id and an empty call id are all refused
+	// (BE13-1).
+	partial := toolTurnHistory("call_1")
+	partial[1].ToolCalls = append(partial[1].ToolCalls, provider.ToolCall{ID: "call_2", Name: "get_cell"})
+	duplicate := append(toolTurnHistory("call_1"), provider.Message{Role: "tool", ToolCallID: "call_1", Content: "again"})
+	repeated := toolTurnHistory("call_1")
+	repeated[1].ToolCalls = append(repeated[1].ToolCalls, provider.ToolCall{ID: "call_1", Name: "get_cell"})
+	nameless := toolTurnHistory("call_1")
+	nameless[1].ToolCalls = append([]provider.ToolCall{{Name: "get_cell"}}, nameless[1].ToolCalls...)
+	// Parts on a role "tool" message would reach the vendor as media on a tool
+	// result (BE13-4).
+	withParts := toolTurnHistory("call_1")
+	withParts[2].Parts = []provider.Part{{MIME: "image/png", Data: []byte{1}}}
+
+	for name, bad := range map[string]Request{
+		"empty history":   {ToolResultTurn: true},
+		"ends with user":  {ToolResultTurn: true, History: toolTurnHistory("call_1")[:1]},
+		"result w/o call": {ToolResultTurn: true, History: []provider.Message{{Role: "user", Content: "q"}, {Role: "tool", ToolCallID: "call_1", Content: "1"}}},
+		"unknown id":      {ToolResultTurn: true, History: append(toolTurnHistory("call_1")[:2], provider.Message{Role: "tool", ToolCallID: "call_9", Content: "1"})},
+		"missing id":      {ToolResultTurn: true, History: append(toolTurnHistory("call_1")[:2], provider.Message{Role: "tool", Content: "1"})},
+		"attachments":     {ToolResultTurn: true, History: toolTurnHistory("call_1"), Attachments: []provider.Part{{MIME: "image/png"}}},
+		"unanswered call": {ToolResultTurn: true, History: partial},
+		"dup result id":   {ToolResultTurn: true, History: duplicate},
+		"dup call id":     {ToolResultTurn: true, History: repeated},
+		"call w/o id":     {ToolResultTurn: true, History: nameless},
+		"parts on result": {ToolResultTurn: true, History: withParts},
+	} {
+		if _, err := requestMessages(bad, p); err == nil {
+			t.Fatalf("%s: accepted", name)
+		}
+	}
+
+	// A prompt without Render (office_uniwork_ai, BE14-1) renders nothing:
+	// History goes as is and must end with the user's message; a tool-result
+	// turn takes the same path as for any prompt.
+	office := officePack(t)
+	conv := []provider.Message{{Role: "user", Content: "trước"}, {Role: "assistant", Content: "sau"}, {Role: "user", Content: "cột X?"}}
+	got, err = requestMessages(Request{History: conv}, office)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gj, wj := mustJSON(t, got), mustJSON(t, conv); gj != wj {
+		t.Fatalf("render-less turn must be History as is:\n%s\n%s", gj, wj)
+	}
+	if got, err = requestMessages(Request{ToolResultTurn: true, History: toolTurnHistory("call_1")}, office); err != nil || len(got) != 3 {
+		t.Fatalf("render-less tool turn: %v %d", err, len(got))
+	}
+	for name, bad := range map[string]Request{
+		"no history":       {},
+		"ends assistant":   {History: conv[:2]},
+		"attachments":      {History: conv, Attachments: []provider.Part{{MIME: "image/png"}}},
+		"tool turn broken": {ToolResultTurn: true, History: toolTurnHistory("call_1")[:2]},
+	} {
+		if _, err := requestMessages(bad, office); err == nil || !strings.HasPrefix(err.Error(), "ai: policy:") {
+			t.Fatalf("render-less %s: %v", name, err)
+		}
+	}
+}
+
+// TestSystemTextOfficeModule: the system text a Sections prompt sends is the
+// variant assembled for Request.Module; every other prompt sends its System
+// whatever Module says, and a missing or unknown module is a policy refusal.
+func TestSystemTextOfficeModule(t *testing.T) {
+	office := officePack(t)
+	for _, m := range officeModuleSections {
+		want, err := OfficeSystemPrompt(m.module)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := systemText(Request{Module: m.module}, office)
+		if err != nil || got != want {
+			t.Fatalf("%s: %v\n%s", m.module, err, firstDiff(want, got))
+		}
+		if !strings.Contains(got, office.Sections[m.section]) || !strings.HasPrefix(got, office.System) {
+			t.Fatalf("%s: not COMMON+MODULE", m.module)
+		}
+	}
+	for _, module := range []string{"", "sheets", "XLSX", "csv"} {
+		if _, err := systemText(Request{Module: module}, office); err == nil || !strings.HasPrefix(err.Error(), "ai: policy:") {
+			t.Fatalf("module %q: %v", module, err)
+		}
+	}
+	copilot, _ := LookupPrompt(PromptCopilotAnswer)
+	if got, err := systemText(Request{Module: "xlsx"}, copilot); err != nil || got != copilot.System {
+		t.Fatalf("single-System prompt changed: %v", err)
+	}
+	other := Prompt{ID: "other", Version: 1, System: "s", Sections: map[string]string{"sheets": "x"}}
+	if _, err := systemText(Request{Module: "xlsx"}, other); err == nil {
+		t.Fatal("a Sections prompt with no assembler accepted")
+	}
+}
+
+// TestGatewayOfficeRefusedBeforeUsageRow: an office turn without a known
+// module never reaches the usage row or the provider. The gateway has no
+// database here, so reaching insertUsage would panic.
+func TestGatewayOfficeRefusedBeforeUsageRow(t *testing.T) {
+	fp := &provider.Fake{}
+	g := NewGateway(nil, fp, nil, nil, Options{Timeout: time.Second})
+	for _, module := range []string{"", "unknown"} {
+		_, err := g.Complete(context.Background(), Request{
+			Actor: audit.User("u1"), OrganizationID: "org1", Capability: CapOfficeUniworkAI,
+			PromptID: PromptOfficeUniworkAI, Module: module,
+			History: []provider.Message{{Role: "user", Content: "cột X?"}},
+		})
+		if err == nil || !strings.HasPrefix(err.Error(), "ai: policy:") {
+			t.Fatalf("module %q: %v", module, err)
+		}
+	}
+	if fp.Calls != 0 {
+		t.Fatalf("provider called %d times", fp.Calls)
+	}
+}
+
+func mustJSON(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// TestGatewayToolResultTurn drives two rounds through the Gateway with the
+// scripted fake: round 1 asks for a tool, round 2 sends the result under the
+// same id and gets the answer; ids survive into Response and the audit column.
+func TestGatewayToolResultTurn(t *testing.T) {
+	const key = "test_tool_turn@1"
+	prompts[key] = Prompt{ID: "test_tool_turn", Version: 1, System: "sys " + UntrustedFooter,
+		Render: func(vars map[string]any) string { return fmt.Sprint(vars["question"]) }}
+	t.Cleanup(func() { delete(prompts, key) })
+	ctx := context.Background()
+	fp := &provider.Fake{}
+	g, q := gatewayFixture(t, fp, &fakeQuota{})
+	req := Request{
+		Actor: audit.User("u1"), OrganizationID: "org1", Capability: CapOfficeUniworkAI, PromptID: key,
+		Vars:  map[string]any{"question": "what is in A1?"},
+		Tools: Registry{{Name: "get_cell", Kind: ToolRead, Risk: RiskLow}},
+	}
+	first, err := g.Complete(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.ToolCalls) != 1 || first.ToolCalls[0].ID != provider.FakeToolCallID {
+		t.Fatalf("round 1 %+v", first)
+	}
+	row, err := q.AiGetUsageEvent(ctx, first.UsageEventID)
+	if err != nil || row.Status != "succeeded" || !strings.Contains(row.ToolCalls, `"id":"`+provider.FakeToolCallID+`"`) {
+		t.Fatalf("round 1 audit %+v %v", row, err)
+	}
+
+	req.ToolResultTurn = true
+	req.Vars = nil
+	req.History = []provider.Message{
+		{Role: "user", Content: "what is in A1?"},
+		{Role: "assistant", ToolCalls: first.ToolCalls},
+		{Role: "tool", ToolCallID: first.ToolCalls[0].ID, Content: `{"value":42}`},
+	}
+	second, err := g.Complete(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(second.Text, provider.FakeToolCallID) || len(second.ToolCalls) != 0 {
+		t.Fatalf("round 2 %+v", second)
+	}
+	if gj, wj := mustJSON(t, fp.Last.Messages), mustJSON(t, req.History); gj != wj {
+		t.Fatalf("round 2 sent more than the history:\n%s\n%s", gj, wj)
+	}
+	if len(fp.Last.Tools) != 1 {
+		t.Fatalf("tools not offered on round 2: %+v", fp.Last.Tools)
+	}
+	row2, _ := q.AiGetUsageEvent(ctx, second.UsageEventID)
+	if row2.Status != "succeeded" || row2.Capability != "office_uniwork_ai" || row2.PromptID != key {
+		t.Fatalf("round 2 usage %+v", row2)
+	}
+	// A malformed turn is refused before a usage row or a provider call.
+	calls := fp.Calls
+	req.History = req.History[:2]
+	if _, err := g.Complete(ctx, req); err == nil || fp.Calls != calls {
+		t.Fatalf("malformed turn reached the provider: %v", err)
 	}
 }

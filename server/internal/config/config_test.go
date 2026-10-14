@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -268,6 +269,49 @@ func TestEmailHubRedirectURL(t *testing.T) {
 		if got := c.EmailHubRedirectURL(provider); got != want {
 			t.Errorf("EmailHubRedirectURL(%q) = %q, want %q", provider, got, want)
 		}
+	}
+}
+
+// BE-F1-11: OFFICE_CHANGE_SNAPSHOT_TTL has a dev default, but a value that is
+// SET must parse - a misspelled TTL fails the load instead of silently keeping
+// the 15m default in production.
+func TestLoadRejectsMalformedOfficeChangeSnapshotTTL(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{"unset keeps the dev default", "", true},
+		{"valid duration", "30m", true},
+		{"nonsense text", "nonsense", false},
+		{"missing unit", "15", false},
+		{"zero", "0", false},
+		{"negative", "-5m", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("OFFICE_CHANGE_SNAPSHOT_TTL", tc.raw)
+			c, err := Load()
+			if tc.want && err != nil {
+				t.Fatalf("Load() error = %v, want success", err)
+			}
+			if !tc.want {
+				if err == nil {
+					t.Fatal("Load() accepted a malformed OFFICE_CHANGE_SNAPSHOT_TTL")
+				}
+				if !strings.Contains(err.Error(), "OFFICE_CHANGE_SNAPSHOT_TTL") {
+					t.Fatalf("error %q does not name the variable", err)
+				}
+				return
+			}
+			if tc.raw == "" && c.OfficeChangeSnapshotTTL != 0 {
+				t.Fatalf("OfficeChangeSnapshotTTL = %v for unset, want 0 (the service default)", c.OfficeChangeSnapshotTTL)
+			}
+			if tc.raw != "" && c.OfficeChangeSnapshotTTL != 30*time.Minute {
+				t.Fatalf("OfficeChangeSnapshotTTL = %v, want the parsed 30m", c.OfficeChangeSnapshotTTL)
+			}
+		})
 	}
 }
 

@@ -230,6 +230,14 @@ func (e *docStorageEnv) commit(actor Actor, docID, uploadID string, base int64, 
 	})
 }
 
+// commitSync runs a commit on the desktop sync path (sync true) or the web
+// path (false); office_sync_write gates only the former (G5-07).
+func (e *docStorageEnv) commitSync(actor Actor, docID, uploadID string, base int64, key string, sync bool) (DocumentFileResult, error) {
+	return e.svc.CommitFileVersion(context.Background(), actor, docID, CommitFileVersionInput{
+		UploadID: uploadID, BaseRevision: base, IdempotencyKey: key, Sync: sync,
+	})
+}
+
 func (e *docStorageEnv) doc(t *testing.T, id string) db.Document {
 	t.Helper()
 	d, err := e.f.q.GetDocumentByID(context.Background(), id)

@@ -2,24 +2,29 @@ import { z } from "zod";
 import {
   DocumentCommentEnvelopeSchema,
   DocumentCommentListEnvelopeSchema,
+  DocumentCommentRevisionListEnvelopeSchema,
   type DocumentComment,
+  type DocumentCommentKind,
+  type DocumentCommentListEnvelope,
+  type DocumentCommentMention,
+  type DocumentCommentRevision,
 } from "../../types/document";
 import { CommentReactionSchema, type CommentReaction } from "../../types/task-collaboration";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 
-// Document comment endpoints (G1-07, UNI-681; lane 07b). The transport
+// Document comment endpoints (G1-07, UNI-681; lane 07b; G8-03). The transport
 // returns unknown; every response goes through parseWithFallback, and a
 // mutation resolves null when the answer cannot prove the write - the hooks
 // turn that into "result not verifiable" so a malformed answer never reads as
-// saved. `type` is accepted for wire parity with task comments but the
-// document allowlist is "comment" only: the server refuses anything else, and
-// this client never sends one.
+// saved. `kind` is the thread flow since G8-03; `type` survives for wire
+// parity with task comments and never decides the kind.
 
 const enc = encodeURIComponent;
 
 const CommentResponse = DocumentCommentEnvelopeSchema;
 const CommentListResponse = DocumentCommentListEnvelopeSchema;
+const RevisionListResponse = DocumentCommentRevisionListEnvelopeSchema;
 const ReactionResponse = z.object({ reaction: CommentReactionSchema });
 const StatusResponse = z.object({ status: z.string() });
 
@@ -28,6 +33,18 @@ export interface CreateDocumentCommentBody {
   /** ULID of the comment this one replies to; the parent must hang on the
    *  same document (the server answers 400 otherwise). */
   parent_id?: string;
+  /** Thread flow (G8-03): `comment` is the anchored kind, `discussion` the
+   *  document's shared thread. Empty lets the server inherit a reply's kind
+   *  and start a discussion for a root. */
+  kind?: DocumentCommentKind;
+  /** Anchor (G8-04): the JSON position, accepted on a root `kind=comment`
+   *  only, always with `base_version_id`. The server validates it against
+   *  the document's own format. */
+  anchor?: Record<string, unknown>;
+  /** ULID of the version the anchor was written against (G8-04); required
+   *  when `anchor` is present. An unresolvable version is the server's 400
+   *  anchor_version_invalid. */
+  base_version_id?: string;
 }
 
 export interface UpdateDocumentCommentBody {
@@ -52,17 +69,81 @@ function commentPath(documentId: string, commentId?: string, suffix?: string): s
   return suffix ? `${withComment}/${suffix}` : withComment;
 }
 
-/** GET /api/v1/documents/{documentID}/comments - the thread, oldest first. */
+/** Query controls for the thread read (G8-03): `kind` narrows to one thread
+ *  flow, `sinceToken` is the listToken of the caller's previous full list. */
+export interface ListDocumentCommentsOptions {
+  kind?: DocumentCommentKind;
+  sinceToken?: string;
+  signal?: AbortSignal;
+}
+
+/** The thread read's two proven shapes (contract-collab section 2.1): a full
+ *  list, or `unchanged` with the token alone - the caller keeps the list it
+ *  already holds. The unchanged shape carries no `comments` on purpose, so a
+ *  caller can never write an empty list over the cached one. */
+export type DocumentCommentList =
+  | { unchanged: true; listToken: string }
+  | {
+      unchanged: false;
+      comments: DocumentComment[];
+      mentions: DocumentCommentMention[];
+      listToken: string;
+    };
+
+/** GET /api/v1/documents/{documentID}/comments - the thread, oldest first.
+ *  Resolves null when the answer proves neither shape (malformed, or missing
+ *  both `unchanged` and a parseable `comments`), so the caller keeps its list
+ *  instead of clearing it; the web query sends no sinceToken at all. */
 export async function listDocumentComments(
   documentId: string,
-  signal?: AbortSignal,
-): Promise<DocumentComment[]> {
-  const raw = await request(commentPath(documentId), { signal });
-  return parseWithFallback<{ comments: DocumentComment[] }>(raw, CommentListResponse, {
-    comments: [],
-  }, {
-    endpoint: "GET /api/v1/documents/{id}/comments",
-  }).comments;
+  opts?: ListDocumentCommentsOptions,
+): Promise<DocumentCommentList | null> {
+  const params = new URLSearchParams();
+  if (opts?.kind) params.set("kind", opts.kind);
+  if (opts?.sinceToken) params.set("since_token", opts.sinceToken);
+  const query = params.toString();
+  const raw = await request(query ? `${commentPath(documentId)}?${query}` : commentPath(documentId), {
+    signal: opts?.signal,
+  });
+  const page = parseWithFallback<DocumentCommentListEnvelope | null>(
+    raw,
+    CommentListResponse,
+    null,
+    { endpoint: "GET /api/v1/documents/{id}/comments" },
+  );
+  if (!page) return null;
+  if (page.unchanged === true && page.list_token !== "") {
+    return { unchanged: true, listToken: page.list_token };
+  }
+  // A reply without `unchanged` is the pre-G8 server: a parsed comments array
+  // is a full list. Without one there is nothing to write.
+  if (!page.comments) return null;
+  return {
+    unchanged: false,
+    comments: page.comments,
+    mentions: page.mentions,
+    listToken: page.list_token,
+  };
+}
+
+/** GET /api/v1/documents/{documentID}/comments/{commentID}/revisions - the
+ *  edit history, newest first (G8-03). Resolves null on a malformed answer so
+ *  the caller keeps what it had; a tombstoned comment is the server's 409. */
+export async function listDocumentCommentRevisions(
+  documentId: string,
+  commentId: string,
+  opts?: { signal?: AbortSignal },
+): Promise<DocumentCommentRevision[] | null> {
+  const raw = await request(commentPath(documentId, commentId, "revisions"), {
+    signal: opts?.signal,
+  });
+  const parsed = parseWithFallback<{ revisions: DocumentCommentRevision[] } | null>(
+    raw,
+    RevisionListResponse,
+    null,
+    { endpoint: "GET /api/v1/documents/{id}/comments/{commentId}/revisions" },
+  );
+  return parsed?.revisions ?? null;
 }
 
 /** POST /api/v1/documents/{documentID}/comments - add (or reply). */
@@ -161,4 +242,126 @@ export async function removeDocumentCommentReaction(
   return parseWithFallback<{ status: string }>(raw, StatusResponse, { status: "" }, {
     endpoint: "DELETE /api/v1/documents/{id}/comments/{commentId}/reactions",
   }).status === "ok";
+}
+
+// ---- Comment anchors (G8-04, UNI-1399) ------------------------------------
+// The editor's post-save anchor map: the version just committed plus one item
+// per comment. The server compares version ordinals (never ULIDs), answers
+// the changed ids, the skipped ones with a shared reason and the document's
+// listToken; repeating the same payload changes no row. A malformed answer
+// resolves null - a PUT that cannot prove its write must not read as saved.
+
+/** One skipped anchors item; `reason` is `older_version` or
+ *  `not_applicable` (the latter folds every hidden case, so the client
+ *  never learns why). */
+export const DocumentCommentAnchorSkipSchema = z.object({
+  comment_id: z.string().optional().default(""),
+  reason: z.string().optional().default(""),
+});
+export type DocumentCommentAnchorSkip = z.infer<typeof DocumentCommentAnchorSkipSchema>;
+
+const DocumentCommentAnchorsResponse = z.object({
+  updated: z.array(z.string()).catch([]).optional(),
+  skipped: z.array(DocumentCommentAnchorSkipSchema).catch([]).optional(),
+  list_token: z.string().optional(),
+});
+
+export interface PutDocumentCommentAnchorsBody {
+  /** ULID of the version just saved (the receipt's version). */
+  version_id: string;
+  anchors: {
+    comment_id: string;
+    anchor: Record<string, unknown>;
+    /** What the editor found: `exact` when it saw the position, `lost`
+     *  when it could not. The server demotes exact to stale when the
+     *  version is not the head. */
+    state: "exact" | "lost";
+  }[];
+}
+
+export interface DocumentCommentAnchorsResult {
+  updated: string[];
+  skipped: DocumentCommentAnchorSkip[];
+  listToken: string;
+}
+
+/** PUT /api/v1/documents/{documentID}/comments/anchors (G8-04) - apply the
+ *  editor's anchor map. Resolves null when the answer proves neither an
+ *  `updated` array nor a `list_token`, so a malformed answer never reads as
+ *  a saved remap. */
+export async function putDocumentCommentAnchors(
+  documentId: string,
+  body: PutDocumentCommentAnchorsBody,
+  opts?: { signal?: AbortSignal },
+): Promise<DocumentCommentAnchorsResult | null> {
+  const raw = await request(commentPath(documentId, undefined, "anchors"), {
+    method: "PUT",
+    body,
+    signal: opts?.signal,
+  });
+  const parsed = parseWithFallback<{
+    updated?: string[];
+    skipped?: DocumentCommentAnchorSkip[];
+    list_token?: string;
+  } | null>(raw, DocumentCommentAnchorsResponse, null, {
+    endpoint: "PUT /api/v1/documents/{id}/comments/anchors",
+  });
+  if (!parsed || (!Array.isArray(parsed.updated) && !parsed.list_token)) return null;
+  return {
+    updated: parsed.updated ?? [],
+    skipped: parsed.skipped ?? [],
+    listToken: parsed.list_token ?? "",
+  };
+}
+
+// ---- Mention candidates (G8-06, UNI-1401) --------------------------------
+// One person the mention picker may offer: someone who holds at least view on
+// the document today. `email` is absent, not empty, when the caller may not
+// list the document workspace's members - a reader who reaches the document
+// through a direct share of another workspace sees no email - so the picker
+// reads absence as "not offered", never as "no address".
+
+export const MentionCandidateSchema = z.object({
+  user_id: z.string(),
+  display_name: z.string().optional().default(""),
+  avatar_url: z.string().optional(),
+  email: z.string().optional(),
+});
+export type MentionCandidate = z.infer<typeof MentionCandidateSchema>;
+
+const MentionCandidateListResponse = z.object({
+  candidates: z.array(MentionCandidateSchema),
+});
+
+export interface MentionCandidateQuery {
+  /** Search term over the display name and the email; the server folds
+   *  accents, so "nguyen" finds "Nguyễn". */
+  q?: string;
+  /** Page size; the server clamps to [1, 50] with a default of 20. */
+  limit?: number;
+}
+
+/** GET /api/v1/documents/{documentID}/mention-candidates - the picker's
+ *  people. A malformed answer degrades to an empty list, exactly like the
+ *  comment thread. */
+export async function listDocumentMentionCandidates(
+  documentId: string,
+  query?: MentionCandidateQuery,
+  signal?: AbortSignal,
+): Promise<MentionCandidate[]> {
+  const params = new URLSearchParams();
+  const q = query?.q?.trim();
+  if (q) params.set("q", q);
+  if (query?.limit !== undefined) params.set("limit", String(query.limit));
+  const search = params.toString();
+  const raw = await request(
+    `/api/v1/documents/${enc(documentId)}/mention-candidates${search ? `?${search}` : ""}`,
+    { signal },
+  );
+  return parseWithFallback<{ candidates: MentionCandidate[] }>(
+    raw,
+    MentionCandidateListResponse,
+    { candidates: [] },
+    { endpoint: "GET /api/v1/documents/{id}/mention-candidates" },
+  ).candidates;
 }

@@ -33,15 +33,15 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false }: { inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only" } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, ackComments = false }: { onFrameCommentsChange?: (framePanel: boolean) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only" } = {}) {
   requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : Promise.reject(new Error(`unexpected ${path}`))));
   lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const bare = <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} />;
+  const bare = <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} onFrameCommentsChange={onFrameCommentsChange} />;
   const framed = fileActions
     ? <OfficeTooLargeProvider value={{ desktopAction: fileActions === "download_only" ? null : <button type="button">Mở trong UniWork Office</button>, onDownload: vi.fn() }}>{bare}</OfficeTooLargeProvider>
     : bare;
-  render(
+  const view = render(
     <QueryClientProvider client={client}>
       <ThemeProvider defaultTheme="light" enableSystem={false}>
         <DocsFrameRefusalContext.Provider value={refuse ?? null}>
@@ -63,11 +63,12 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
     const m = message as Envelope;
     received.push(m);
     if (m.kind === "request" && m.type === "init") {
-      queueMicrotask(() => { void post(envelope("response", "init", { protocolVersion: 1, capabilities: {} }, m.id)); });
+      queueMicrotask(() => { void post(envelope("response", "init", { protocolVersion: 1, capabilities: ackComments ? { comments: true } : {} }, m.id)); });
     }
   });
   return {
     iframe,
+    unmount: () => view.unmount(),
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     ready: (payload: Record<string, unknown>) => post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, ...payload })),
     inits: () => received.filter((m) => m.kind === "request" && m.type === "init"),
@@ -89,6 +90,24 @@ describe("OfficeModuleFrame", () => {
       module: "pdf", documentId: "doc-1", token: "tok-1",
       capabilities: { save: true, saveAs: true, recents: false, print: true, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false },
     });
+  });
+
+  it("takes back its comments claim when the frame unmounts, so the page's own panel returns", async () => {
+    const onFrameCommentsChange = vi.fn();
+    const frame = mountFrame("pdf", { onFrameCommentsChange, ackComments: true });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(onFrameCommentsChange).toHaveBeenLastCalledWith(true));
+    frame.unmount();
+    expect(onFrameCommentsChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("gives the claim back when the frame fails, so the page's own panel returns beside the error", async () => {
+    const onFrameCommentsChange = vi.fn();
+    const frame = mountFrame("pdf", { onFrameCommentsChange, ackComments: true });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(onFrameCommentsChange).toHaveBeenLastCalledWith(true));
+    await frame.event("error", { error: { code: "internal", message: "boom" }, fatal: true });
+    await waitFor(() => expect(onFrameCommentsChange).toHaveBeenLastCalledWith(false));
   });
 
   it("names the signed-in user to the editor", async () => {
@@ -636,3 +655,32 @@ describe("the frame's app.open request (A7)", () => {
   });
 });
 
+
+const ALL_DOWNLOAD_MODULES: OfficeModule[] = ["docs", "pdf", "markdown", "html", "slides", "sheets"];
+
+describe("the frame's api.download (conflict dialog: download my version)", () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+  const EXT: Record<OfficeModule, string> = { docs: "docx", pdf: "pdf", markdown: "md", html: "html", slides: "pptx", sheets: "xlsx" };
+
+  it.each(ALL_DOWNLOAD_MODULES)("%s: advertises download to an editor and saves the bytes as '<title> (bản của tôi)' in the module's format", async (module) => {
+    const frame = mountFrame(module);
+    await frame.ready({ module });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { download: true } });
+    const clicks: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { clicks.push(this.download); });
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:mine"), revokeObjectURL: vi.fn() });
+    const id = frame.request("api.download", { data: new ArrayBuffer(3) });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toEqual({ delivered: true }));
+    expect(clicks).toEqual([`Scan (bản của tôi).${EXT[module]}`]);
+  });
+
+  it("offers no download to a viewer and refuses one", async () => {
+    const frame = mountFrame("sheets", { canEdit: false });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { download: false } });
+    const id = frame.request("api.download", { data: new ArrayBuffer(3) });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+  });
+});

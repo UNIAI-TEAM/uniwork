@@ -291,14 +291,21 @@ What the UniWork page owns around every module frame, one behaviour for all six:
   load and generic failures.
 - **Failed save.** The header keeps "Save could not be confirmed" until the
   frame reports dirty again (the next edit), then says "Unsaved".
-- **Save conflict has one owner per save.** A save the frame starts (Ctrl+S)
-  opens the frame's own Reload latest / Overwrite / Cancel dialog; the host
-  hears only a non-fatal `error` event and shows nothing. A save the page starts
-  (header Save, `reason: "user"`) answers `{ ok: false, error: { code: "conflict" } }`
-  and the **host** asks, in the page language: "Someone saved a newer version"
-  with **Keep my edits** (default) and **Reload latest** (a fresh frame, the
-  page's own copy refetched). A leave-dialog save (`navigate`) keeps its inline
-  failure line. The server words its messages in the *account* language, so
+- **One conflict dialog, in the frame (G5-09w).** Every save that meets a
+  newer version, the frame's own (Ctrl+S) and the page's (header Save
+  `reason: "user"`, leave dialog `reason: "navigate"`), opens the frame's
+  dialog (EXPERIENCE.md › Conflict dialog (S5)); the host has none. The page
+  sends `save` with `timeoutMs: 0` and a 30 s watchdog that stops while the
+  frame runs `api.save` or reports `modal {open: true}` and restarts when
+  either ends without an answer; a watchdog cancel reads as `timeout` (header
+  error + toast), a frame-answered `cancelled` as unsaved edits (no toast).
+  Overwrite (`versionId`) reads "saved", Reload latest (no `versionId`)
+  "ready". The page is inert while the frame reports `modal`, the leave
+  dialog steps aside until the answer, and Cancel there means stay. A frame
+  reload while a save is open cancels it and lifts the inert page. The host
+  answers the frame's `api.download` (capability `download`, editors only):
+  `<title> (my version).<module ext>`, the module's MIME type, at most the
+  50 MiB DocumentFile cap, one Blob + `<a download>`, no server request. The server words its messages in the *account* language, so
   `ProtocolErrorShape.message` never carries them: it is the English developer
   text `<api code> (HTTP <status>)` (`document_version_conflict (HTTP 409)`),
   the stable code is `details.apiCode`, and a frame that shows a notice maps

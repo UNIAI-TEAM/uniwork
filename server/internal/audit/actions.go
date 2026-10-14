@@ -139,6 +139,9 @@ const (
 	ActionDocumentVersionCreated  = "document.version_created"
 	ActionDocumentVersionRestored = "document.version_restored"
 	ActionDocumentAssetUploaded   = "document.asset_uploaded"
+	// G5-07 (UNI-1345): a commit attempt took over a logical intent whose
+	// previous attempt's claim expired, fencing that attempt for good.
+	ActionDocumentCommitIntentRenewed = "document.commit_intent_renewed"
 
 	// Document access (UNI-676): shares and public links on one document,
 	// and the organization's public-link switch.
@@ -158,6 +161,7 @@ const (
 	ActionDocumentCommentUnresolved      = "document.comment_unresolved"
 	ActionDocumentCommentReactionAdded   = "document.comment_reaction_added"
 	ActionDocumentCommentReactionRemoved = "document.comment_reaction_removed"
+	ActionDocumentCommentAnchorsUpdated  = "document.comment_anchors_updated"
 	ActionDocumentFavorited              = "document.favorited"
 	ActionDocumentUnfavorited            = "document.unfavorited"
 
@@ -184,6 +188,16 @@ const (
 	ActionOfficeLaunchSessionRevoked  = "office.launch_session_revoked"
 	ActionOfficeDesktopDownloaded     = "office.desktop_downloaded"
 
+	// Office offline leases (G5-08s, decision G5-D1 row 16): grant, renew,
+	// release and revoke of one device's lease on one document, each with an
+	// office_lease.* outbox row; a revoke names its reason in metadata. The
+	// policy bump is the uniwork-admin org-wide revoke (admin_actions too).
+	ActionOfficeOfflineLeaseGranted  = "office.offline_lease_granted"
+	ActionOfficeOfflineLeaseRenewed  = "office.offline_lease_renewed"
+	ActionOfficeOfflineLeaseReleased = "office.offline_lease_released"
+	ActionOfficeOfflineLeaseRevoked  = "office.offline_lease_revoked"
+	ActionOfficeOfflinePolicyBumped  = "office.offline_policy_bumped"
+
 	// Saved signatures (UNI-925 B6): a person's reusable signature images,
 	// stored server-side. Rows are personal and only the owner's own editor
 	// consumes them, so they audit without an outbox event.
@@ -206,25 +220,29 @@ const (
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
-	ActionOrganizationSuspended   = "organization.suspended"
-	ActionOrganizationUnsuspended = "organization.unsuspended"
-	ActionPlatformRoleGranted     = "platform_role.granted"
-	ActionPlatformRoleRevoked     = "platform_role.revoked"
-	ActionFlagOverrideSet         = "flag.override_set"
-	ActionFlagOverrideDeleted     = "flag.override_deleted"
-	ActionPlanCreated             = "plan.created"
-	ActionPlanUpdated             = "plan.updated"
-	ActionPlanFeatureUpdated      = "plan.feature_updated"
+	ActionOrganizationSuspended    = "organization.suspended"
+	ActionOrganizationUnsuspended  = "organization.unsuspended"
+	ActionPlatformRoleGranted      = "platform_role.granted"
+	ActionPlatformRoleRevoked      = "platform_role.revoked"
+	ActionFlagOverrideSet          = "flag.override_set"
+	ActionFlagOverrideDeleted      = "flag.override_deleted"
+	ActionPlanCreated              = "plan.created"
+	ActionDemoRequestCreated       = "demo_request.created"
+	ActionDemoRequestStatusUpdated = "demo_request.status_updated"
+	ActionPlanUpdated              = "plan.updated"
+	ActionPlanFeatureUpdated       = "plan.feature_updated"
 
 	// An operator closed a desktop device session family on the owner's behalf.
 	ActionDesktopDeviceRevoked = "desktop_device.revoked"
 
 	// MCP connector (UNI-1308): consent creates a grant; a person or an org
 	// admin revokes it; a replayed code or refresh token closes its family.
-	ActionMcpGrantCreated              = "mcp_grant.created"
-	ActionMcpGrantRevoked              = "mcp_grant.revoked"
-	ActionMcpTokenFamilyRevoked        = "mcp_token.family_revoked"
-	ActionOrganizationMcpPolicyChanged = "organization.mcp_policy_changed"
+	ActionMcpGrantCreated                   = "mcp_grant.created"
+	ActionMcpGrantRevoked                   = "mcp_grant.revoked"
+	ActionMcpGrantScopeChanged              = "mcp_grant.scope_changed"
+	ActionMcpTokenFamilyRevoked             = "mcp_token.family_revoked"
+	ActionOrganizationMcpPolicyChanged      = "organization.mcp_policy_changed"
+	ActionOrganizationMcpWritePolicyChanged = "organization.mcp_write_policy_changed"
 
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"

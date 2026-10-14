@@ -6,12 +6,14 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/office"
 )
 
 // AICloudService is the organization-tier door to the UniWork cloud tools
@@ -61,36 +63,74 @@ type CloudCredits struct {
 
 type AICloudStatus struct {
 	Enabled bool
-	// Reason says why Enabled is false: entitlement_required,
-	// subscription_inactive or cloud_unavailable.
-	Reason  string
-	Tools   ai.CloudAvailability
-	Credits CloudCredits
+	// Reason says why Enabled is false (entitlement_required,
+	// subscription_inactive, cloud_unavailable), or, with Enabled true,
+	// credits_exhausted when the ai.tokens meter of the period is spent.
+	Reason string
+	Tools  ai.CloudAvailability
+	// Chat is UniWork AI chat (G6-03c, spec G5-G7 §8.1): the caller is a
+	// member, the plan has office.ai_cloud, the gateway has UniWork AI
+	// configured and office_ai_uniwork is on for the caller. Credits do not
+	// enter it: a spent meter shows as Reason, and the turn answers 402.
+	Chat bool
+	// UniworkAIFormats are the formats whose office_ai_uniwork_<format> is on
+	// for the caller, set only with Chat (the X-03 evaluation).
+	UniworkAIFormats []string
+	Credits          CloudCredits
 }
 
 // Status never refuses a member: a plan without office.ai_cloud reads as
 // enabled=false with the reason, so the client can explain instead of hide.
-func (s *AICloudService) Status(ctx context.Context, userID, orgID string) (AICloudStatus, error) {
+// caps is the X-03 capability evaluation (office_ai_uniwork and its formats,
+// override user > organization > global); nil leaves chat off. The flags only
+// hide chat, they never grant it: they are read only for an entitled caller
+// on a server with UniWork AI configured.
+func (s *AICloudService) Status(ctx context.Context, userID, orgID string, caps *OfficeCapabilitiesService) (AICloudStatus, error) {
 	if _, err := s.orgs.RequireMember(ctx, orgID, userID); err != nil {
 		return AICloudStatus{}, err
 	}
 	var out AICloudStatus
+	entitled := true
 	if err := s.ent.Can(ctx, orgID, FeatureOfficeAICloud); err != nil {
 		var ce CodedError
 		if !errors.As(err, &ce) {
 			return AICloudStatus{}, err
 		}
 		out.Reason = ce.Code
+		entitled = false
 	} else {
 		out.Tools = s.gw.CloudAvailability()
-		t := out.Tools
-		out.Enabled = t.WebSearch || t.ImageSearch || t.ImageGenerate || t.MediaAnalyze || t.Transcribe
-		if !out.Enabled {
-			out.Reason = ai.ErrCloudUnavailable.Code
+		if caps != nil && s.gw.UniworkAIConfigured() {
+			// An error from caps.Get leaves chat off without failing the status.
+			// A flags-store refresh error does not reach here: the feature-flag
+			// provider keeps serving its last snapshot (featureflags/db_provider.go),
+			// for every flag, so a cached "on" stays on until the store answers again.
+			if c, err := caps.Get(ctx, userID, orgID); err == nil && c.AIUniwork {
+				out.Chat = true
+				out.UniworkAIFormats = c.AIUniworkFormats
+			}
 		}
 	}
 	out.Credits = s.credits(ctx, orgID)
+	if entitled {
+		out.Enabled, out.Reason = cloudState(out.Tools, out.Chat, out.Credits)
+	}
 	return out, nil
+}
+
+// cloudState is Enabled and Reason of an entitled organization: enabled
+// while some cloud tool or chat can run (else cloud_unavailable), and
+// credits_exhausted beside enabled=true once the period's meter is spent, so
+// the client shows its credits-exhausted state rather than hiding the cloud.
+func cloudState(tools ai.CloudAvailability, chat bool, credits CloudCredits) (bool, string) {
+	t := tools
+	if !(t.WebSearch || t.ImageSearch || t.ImageGenerate || t.MediaAnalyze || t.Transcribe || chat) {
+		return false, ai.ErrCloudUnavailable.Code
+	}
+	if credits.Remaining != nil && *credits.Remaining <= 0 {
+		return true, errCreditsExhausted.Code
+	}
+	return true, ""
 }
 
 // credits is the ai.tokens meter of the current period. A billing read that
@@ -415,4 +455,33 @@ func imageSize(size, aspect string) string {
 		return "1024x1536"
 	}
 	return "auto"
+}
+
+// UniworkAIFor is the frame grant uniwork_ai for a document opened in module
+// (G6-03c): chat is on for the caller and office_ai_uniwork_<format> is on for
+// the format that module opens. A module with no such format is off.
+func (st AICloudStatus) UniworkAIFor(module string) bool {
+	if !st.Chat {
+		return false
+	}
+	format, ok := uniworkAIFormatOfModule(module)
+	return ok && slices.Contains(st.UniworkAIFormats, format)
+}
+
+// uniworkAIFormatOfModule names the office_ai_uniwork_<format> token of the
+// format a web frame module opens, read from the frame's own module table so
+// the two never drift. Every format token is its office.Format but Markdown,
+// whose flag says markdown where the format says md.
+func uniworkAIFormatOfModule(module string) (string, bool) {
+	for _, m := range officeFrameModules {
+		if m.module != module {
+			continue
+		}
+		format := string(m.format)
+		if m.format == office.FormatMD {
+			format = "markdown"
+		}
+		return format, slices.Contains(officeAIUniworkFormats, format)
+	}
+	return "", false
 }

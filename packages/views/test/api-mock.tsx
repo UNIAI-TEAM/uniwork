@@ -27,11 +27,12 @@ export function wrap(ui: React.ReactElement, client?: QueryClient) {
 }
 
 /** A NavigationAdapter whose push/replace/back are vi.fn() spies. */
-function fakeNav(pathname = "/"): NavigationAdapter {
+export function fakeNav(pathname = "/"): NavigationAdapter {
   return {
     push: vi.fn(),
     replace: vi.fn(),
     back: vi.fn(),
+    openExternal: vi.fn(),
     pathname,
     searchParams: new URLSearchParams(),
     getShareableUrl: (p) => p,

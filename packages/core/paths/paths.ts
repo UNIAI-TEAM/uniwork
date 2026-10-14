@@ -56,6 +56,7 @@ export const paths = {
   changelog: () => "/changelog",
   pricing: () => "/pricing",
   enterprise: () => "/enterprise",
+  requestDemo: () => "/request-demo",
   /** Public page of the UniWork Office desktop app (landing menu "Office"). */
   office: () => "/office",
   /**
@@ -69,6 +70,7 @@ export const paths = {
   admin: {
     root: () => "/admin",
     organizations: () => "/admin/organizations",
+    demoRequests: () => "/admin/demo-requests",
     organization: (id: string) => `/admin/organizations/${id}`,
     flags: () => "/admin/flags",
     plans: () => "/admin/plans",
@@ -89,6 +91,9 @@ export const paths = {
       project: (id: string) => `${base}/projects/${id}`,
       meetings: () => `${base}/meetings`,
       documents: () => `${base}/documents`,
+      // A folder is a query on the documents page, not a page of its own
+      // (FD-06): consistency.test.ts has no route to match it against.
+      documentsFolder: (id: string) => `${base}/documents?folder=${encodeURIComponent(id)}`,
       document: (id: string) => `${base}/documents/${id}`,
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
@@ -138,6 +143,7 @@ export const GLOBAL_PREFIXES = [
   "/changelog",
   "/pricing",
   "/enterprise",
+  "/request-demo",
   "/office",
 ] as const;
 

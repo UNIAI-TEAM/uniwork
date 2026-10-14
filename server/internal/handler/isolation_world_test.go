@@ -17,6 +17,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
@@ -88,6 +90,19 @@ type isoWorld struct {
 	// token -> {document id, its frame token}. do() prefers it on that
 	// document's own routes (resolve, linked), which a DOCX token cannot open.
 	frameMarkdown map[string][2]string
+	// uniworkProvider is the fake provider behind the UniWork AI gateway, kept
+	// so a test can read the messages the model was sent (the transcript rule:
+	// what reaches the vendor is what the server stored) and decide the
+	// answer; uniworkStore is the real conversation store over the test
+	// database, and uniworkBox seals its turns.
+	uniworkProvider *provider.Fake
+	uniworkStore    *ai.ConversationStorePG
+	uniworkBox      *secretbox.Box
+	// deviceTokens maps a tenant owner's session token to an access token
+	// of their desktop device session (buildOffice). do() sends it in its
+	// place on the offline lease routes, which refuse a browser session, so
+	// every pass reaches the document check as the same caller.
+	deviceTokens map[string]string
 }
 
 // newIsolationServer wires every service the production binary wires
@@ -222,9 +237,35 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	// Voice-call tokens are signed locally; any key pair lets the route run.
 	d.Cfg.LiveKitURL, d.Cfg.LiveKitAPIKey, d.Cfg.LiveKitAPISecret = "ws://livekit.invalid", "isolation", "isolation-matrix-livekit-secret-0123456789"
 
+	// The UniWork AI façade (G6-03a): its own gateway over a fake provider this
+	// file keeps, so a test can read the messages the model was sent, and the
+	// real conversation store (A9) over the test database — the transcript
+	// lives on the server, and the isolation digest must see it there.
+	t.Setenv(ai.ConversationKeyEnv, isoUniworkConversationKey)
+	uniworkKey, err := secretbox.LoadKey(ai.ConversationKeyEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uniworkBox, err := secretbox.New(uniworkKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uniworkProvider := &provider.Fake{}
+	uniworkStore := ai.NewConversationStore(pool, q, uniworkBox)
+	d.AIUniwork = service.NewAIUniworkService(d.Organizations, service.NewEntitlementService(pool, q), docs,
+		d.FeatureFlags, service.NewAIGateway(pool, q, uniworkProvider, ai.Options{}), uniworkStore, d.Redis)
+	// The run counters behind the façade, wired exactly as main.go wires them
+	// (G6-03b, A3/A12): without it the world answers every turn with no run
+	// header, so the wire contract and the foreign-run refusal are never
+	// exercised over the real router (BE3B-5).
+	d.AIUniwork.SetRunStore(ai.NewRunStore(q))
+
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
-	return &isoWorld{srv: srv, pool: pool, q: q, deps: d, files: fs, box: box}
+	return &isoWorld{
+		srv: srv, pool: pool, q: q, deps: d, files: fs, box: box,
+		uniworkProvider: uniworkProvider, uniworkStore: uniworkStore, uniworkBox: uniworkBox,
+	}
 }
 
 // isoBody is what a matrix request sends: JSON, a multipart file part, or
@@ -287,6 +328,9 @@ func (w *isoWorld) do(t *testing.T, method, path, token string, body isoBody) (i
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
+	}
+	if device, ok := w.deviceTokens[token]; ok && strings.Contains(path, "/office/offline-lease") {
+		token = device
 	}
 	if frame, ok := w.frameTokens[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/") {
 		if md, ok := w.frameMarkdown[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/documents/"+md[0]) {
@@ -471,6 +515,14 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	// The frame token stays; it is now sent in place of the new session.
 	w.frameTokens[tn.token] = tn.ids["frameToken"]
 	w.frameMarkdown[tn.token] = [2]string{tn.ids["frameMarkdown"], tn.ids["frameMarkdownToken"]}
+	device, err := long.MintSession(tn.userID, tn.ids["deviceSession"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.deviceTokens == nil {
+		w.deviceTokens = map[string]string{}
+	}
+	w.deviceTokens[tn.token] = device
 	return tn
 }
 
@@ -618,6 +670,18 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	tn.ids["asset"] = isoID(t, out, "asset")
 	out = w.call(t, "POST", dp+"/versions", tn.token, map[string]any{"label": m + " version"})
 	tn.ids["version"] = fmt.Sprint(out["version"].(map[string]any)["version"])
+	tn.ids["versionID"] = isoID(t, out, "version")
+	// An anchorable file document for the anchored create reference case
+	// (R1-6). The main document above stays a page: every reference case
+	// parents a page or folder under it, so turning it into a file document
+	// would break those controls. One docx upload whose first version is the
+	// head; base_version_id binds to that version.
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": m + " Anchor"}, filename: strings.ToLower(m) + "-anchor.docx",
+		contentType: isoDocxMime, content: isoFrameDocx,
+	})
+	tn.ids["anchorDoc"] = isoID(t, out, "document")
+	tn.ids["anchorVersionID"] = isoString(t, out, "document", "file", "version_id")
 
 	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
 		fields: map[string]string{"title": m + " File"}, filename: strings.ToLower(m) + ".md", contentType: "text/markdown",
@@ -634,6 +698,21 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		filename: strings.ToLower(m) + "-v2.md", contentType: "text/markdown", content: []byte("# " + m + " staged body\n"),
 	})
 	tn.ids["docUpload"] = isoString(t, out, "upload_id")
+	// A commit intent (G5-07) without moving the file document: a commit on
+	// a stale base claims the intent, is refused 409 and leaves it not
+	// committed, so the base_revision the commit route sends stays valid.
+	out = w.upload(t, "/api/v1/documents/"+tn.ids["fileDocument"]+"/uploads", tn.token, isoMultipart{
+		filename: strings.ToLower(m) + "-intent.md", contentType: "text/markdown", content: []byte("# " + m + " intent body\n"),
+	})
+	status, raw = w.do(t, http.MethodPost, "/api/v1/documents/"+tn.ids["fileDocument"]+"/versions/commit", tn.token, isoBody{
+		json:    map[string]any{"upload_id": isoString(t, out, "upload_id"), "base_revision": "999"},
+		headers: map[string]string{"Idempotency-Key": "iso-intent-" + tn.tag},
+	})
+	isoExpect(t, http.MethodPost, "stale commit intent", status, raw, http.StatusConflict)
+	// An open change-feed snapshot (G5-01a): one row per page, so the
+	// snapshot tables hold A's rows and the cursor is A's to replay.
+	out = w.call(t, "GET", "/api/v1/workspaces/"+tn.wsID+"/documents/changes?limit=1", tn.token, nil)
+	tn.ids["changeCursor"] = isoString(t, out, "next_cursor")
 }
 
 func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
@@ -784,6 +863,32 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 	}
 	tn.ids["notification"] = n.ID
 
+	// The comment orbit G8-03 added (UNI-1398): one edit-history row and one
+	// mention row of the document comment. Revisions are written by the edit
+	// route and mentions by G8-05; the world seeds them so both tables hold a
+	// row of the tenant's and their read paths can be attacked.
+	//
+	// The seeded history row says revision 1's body was replaced, so the
+	// comment itself must sit at revision 2: the edit path inserts the body
+	// it replaces under the comment's CURRENT revision, and a comment left at
+	// 1 would collide with this row on the unique (comment_id, revision) the
+	// next PATCH takes (the REV 500 the write-control pass surfaces).
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_comment_revisions
+		(id, organization_id, workspace_id, document_id, comment_id, body, revision, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 1, $7, 'human')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["document"], tn.ids["docComment"], m+" doc comment (cũ)", tn.userID); err != nil {
+		t.Fatalf("document comment revision: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `UPDATE document_comments SET revision = 2 WHERE id = $1`, tn.ids["docComment"]); err != nil {
+		t.Fatalf("document comment revision sync: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO document_comment_mentions
+		(id, organization_id, workspace_id, document_id, comment_id, user_id, state, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, 'human')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["document"], tn.ids["docComment"], tn.peerID, tn.userID); err != nil {
+		t.Fatalf("document comment mention: %v", err)
+	}
+
 	// A connected Google calendar.
 	tokenEnc, err := w.box.Seal([]byte("token"))
 	if err != nil {
@@ -796,6 +901,33 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		SelectedCalendarIds:  []byte(`[]`),
 	}); err != nil {
 		t.Fatalf("calendar connection: %v", err)
+	}
+
+	// A UniWork AI transcript of the tenant (G6-03a, A9): one conversation and
+	// its first turn, written the way ConversationStore.Create/Append write
+	// them, so both new tables hold a row of the tenant's.
+	tn.ids["aiUniworkConversation"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ai_uniwork_conversations
+		(id, organization_id, user_id, document_id, module, created_by, created_by_kind, expires_at)
+		VALUES ($1, $2, $3, $4, 'sheets', $3, 'human', now() + interval '30 minutes')`,
+		tn.ids["aiUniworkConversation"], tn.orgID, tn.userID, tn.ids["document"]); err != nil {
+		t.Fatalf("uniwork ai conversation: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ai_uniwork_turns
+		(id, organization_id, conversation_id, run_id, seq, role, ciphertext)
+		VALUES ($1, $2, $3, 'iso-run', 1, 'user', $4)`,
+		util.NewID(), tn.orgID, tn.ids["aiUniworkConversation"], []byte("iso-sealed")); err != nil {
+		t.Fatalf("uniwork ai turn: %v", err)
+	}
+	// A run of the transcript (G6-03b, A3/A12): the counters one question may
+	// spend, written the way RunStorePG.TakeTurn opens one, so every tenant
+	// table that carries A's organization_id holds a row of A's.
+	tn.ids["aiUniworkRun"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ai_uniwork_runs
+		(id, organization_id, conversation_id, model_calls, created_by, created_by_kind, expires_at)
+		VALUES ($1, $2, $3, 1, $4, 'human', now() + interval '30 minutes')`,
+		tn.ids["aiUniworkRun"], tn.orgID, tn.ids["aiUniworkConversation"], tn.userID); err != nil {
+		t.Fatalf("uniwork ai run: %v", err)
 	}
 }
 

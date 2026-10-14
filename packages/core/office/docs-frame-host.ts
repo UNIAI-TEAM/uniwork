@@ -1,9 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at 0d03b185c8060bafc4e2afe7173e0a10260465bd
-// (fork main, the lane head 0d03b185, protocol unchanged since 0e384f8: DR1 draft recovery, the modal event, SP1, H2, the AI1
-// capability keys, the C18a key wording, app.open (A7) and api.assets.resolve (A1b) in one lineage). Byte-identical except the
-// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change
-// the fork, re-vendor, update this SHA.
+// web/docs/protocol/host.ts at 6dce8341a5703902afde0886c29e416ecec55a41
+// (fork lane feature/UNI-1351-g5-03w-new-version-web rebased on fork main 7e082de3: the G8-08 comments protocol with the OQ-C2 anchor rules
+// on X-02 r2b, plus G5-03w doc.blocked).
+// Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
+// Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
 /**
  * Host-side protocol endpoint (runs in the UniWork page that embeds the
@@ -19,10 +19,12 @@
  *   mid-handshake) aborts it and starts over.
  * - Token refresh: answers the frame's `token.refresh` via `refreshToken`,
  *   or pushes one proactively with `pushToken`.
- * - `api.*` requests from the frame are proxied by the `api` handlers the
- *   host supplies (token-authorised fetches stay in the page).
+ * - `api.*` (and `comments.*` / `mentions.search`) requests from the frame are
+ *   proxied by the `api` handlers the host supplies (token-authorised fetches
+ *   stay in the page).
  */
 import {
+  DEFAULT_TIMEOUT_MS,
   Endpoint,
   armTimeout,
   err,
@@ -32,11 +34,15 @@ import {
   type RequestOptions,
 } from './docs-frame-endpoint'
 import {
+  COMMENTS_REVEAL_MIN_TIMEOUT_MS,
+  COMMENTS_REVEAL_RETRY_MS,
   DocsProtocolError,
   FRAME_REQUEST_TYPES,
   checkFrameModule,
   PROTOCOL_VERSION,
   toProtocolError,
+  type CommentsRevealResult,
+  type DocBlockedPayload,
   type FileMeta,
   type FrameEvents,
   type FrameRequests,
@@ -46,6 +52,7 @@ import {
   type OfficeModule,
   type ProtocolErrorShape,
   type ReadyPayload,
+  type RemoteVersionPayload,
   type Theme,
   type TokenPayload,
 } from './docs-frame-protocol'
@@ -114,12 +121,42 @@ export interface DocsFrameHost {
   closeCheck(options?: RequestOptions): Promise<HostRequests['doc.closeCheck']['result']>
   /** the open document was renamed outside the editor */
   notifyRenamed(file: FileMeta): void
+  /**
+   * a newer version was saved elsewhere (additive, X-02). A frame before X-02 has no listener and
+   * drops it silently (no reply, no reject).
+   */
+  notifyRemoteVersion(payload: RemoteVersionPayload): void
+  /**
+   * the comments of `documentId` changed (additive, G8-08: realtime `document.comment_*` /
+   * `comment_anchors_updated`). Sent only to a frame whose InitAck has `comments`; also wakes a
+   * pending `revealComment` retry. The wake ignores `documentId` and releases every pending retry
+   * (one host = one document, so there is nothing to tell apart).
+   */
+  notifyCommentsChanged(documentId: string): void
+  /**
+   * ask the frame to show a comment thread (additive, G8-08, contract-collab §10 ordering).
+   * Rejects `unsupported` without sending when the InitAck has no `comments` (the caller falls back
+   * to its own panel). The timeout is never below COMMENTS_REVEAL_MIN_TIMEOUT_MS. On `not_ready` /
+   * `timeout` it retries once, after COMMENTS_REVEAL_RETRY_MS or on the next
+   * `notifyCommentsChanged`, whichever comes first (`retry: false` disables that); a second
+   * failure rejects and the caller shows nothing. `revealed: false` = the frame already shows
+   * the "not found" state itself.
+   */
+  revealComment(
+    commentId: string,
+    options?: RequestOptions & { retry?: boolean },
+  ): Promise<CommentsRevealResult>
+  /**
+   * the open document is blocked for this viewer (additive, G5-03w). A frame before it has no
+   * listener and drops it silently; the host keeps refusing its saves either way.
+   */
+  notifyBlocked(payload: DocBlockedPayload): void
   /** live theme / language switches (no-ops before the handshake; getInit supplies the initial values) */
   setTheme(theme: Theme): void
   setLanguage(locale: string): void
   /** proactive token rotation */
   pushToken(token: TokenPayload): void
-  on<K extends 'dirty' | 'title' | 'modal' | 'resize' | 'saved' | 'error'>(
+  on<K extends 'dirty' | 'title' | 'modal' | 'resize' | 'saved' | 'error' | 'aiRun'>(
     type: K,
     listener: FrameEventListener<K>,
   ): () => void
@@ -148,6 +185,8 @@ export function createDocsFrameHost(options: DocsFrameHostOptions): DocsFrameHos
     resolve: (a: InitAck) => void
     reject: (e: DocsProtocolError) => void
   }>()
+  /** pending reveal retries, woken early by `notifyCommentsChanged` */
+  const commentsWakers = new Set<() => void>()
 
   const failHandshake = (e: DocsProtocolError): void => {
     options.onHandshakeError?.(e)
@@ -282,6 +321,52 @@ export function createDocsFrameHost(options: DocsFrameHostOptions): DocsFrameHos
     return (await ep.request(type, payload, opts)) as HostRequests[K]['result']
   }
 
+  async function revealComment(
+    commentId: string,
+    o: RequestOptions & { retry?: boolean } = {},
+  ): Promise<CommentsRevealResult> {
+    const { retry = true, ...req } = o
+    const base = req.timeoutMs ?? options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    // the frame answers `not_ready` itself within its wait limit; never time out before it
+    const timeoutMs =
+      Number.isFinite(base) && base > 0 ? Math.max(base, COMMENTS_REVEAL_MIN_TIMEOUT_MS) : base
+    const attempt = async (): Promise<CommentsRevealResult> => {
+      const a = await whenReady({ timeoutMs, signal: req.signal })
+      if (a.capabilities.comments !== true) {
+        throw err('unsupported', 'the frame does not show server comments')
+      }
+      return (await ep.request(
+        'comments.reveal',
+        { comment_id: commentId },
+        { ...req, timeoutMs },
+      )) as CommentsRevealResult
+    }
+    try {
+      return await attempt()
+    } catch (e) {
+      const pe = toProtocolError(e)
+      if (!retry || (pe.code !== 'not_ready' && pe.code !== 'timeout')) throw pe
+    }
+    await new Promise<void>((resolve, reject) => {
+      const wake = (): void => {
+        clearTimer()
+        commentsWakers.delete(wake)
+        req.signal?.removeEventListener('abort', onAbort)
+        resolve()
+      }
+      const onAbort = (): void => {
+        clearTimer()
+        commentsWakers.delete(wake)
+        reject(err('cancelled', 'revealComment aborted'))
+      }
+      const clearTimer = armTimeout(COMMENTS_REVEAL_RETRY_MS, wake)
+      if (req.signal?.aborted) return onAbort()
+      req.signal?.addEventListener('abort', onAbort, { once: true })
+      commentsWakers.add(wake)
+    })
+    return attempt()
+  }
+
   const emitIfReady = (type: string, payload: unknown): void => {
     if (!ack) return
     try {
@@ -302,6 +387,15 @@ export function createDocsFrameHost(options: DocsFrameHostOptions): DocsFrameHos
     print: (p = {}, o) => call('print', p, o),
     closeCheck: (o) => call('doc.closeCheck', {}, o),
     notifyRenamed: (file) => emitIfReady('file.renamed', { file }),
+    notifyRemoteVersion: (p) => emitIfReady('doc.remoteVersion', { ...p }),
+    notifyCommentsChanged(documentId) {
+      if (ack?.capabilities.comments === true) {
+        emitIfReady('comments.changed', { document_id: documentId })
+      }
+      for (const wake of [...commentsWakers]) wake()
+    },
+    revealComment,
+    notifyBlocked: (p) => emitIfReady('doc.blocked', { ...p }),
     setTheme: (theme) => emitIfReady('theme', { theme }),
     setLanguage: (locale) => emitIfReady('language', { locale }),
     pushToken: (t) =>
@@ -311,6 +405,7 @@ export function createDocsFrameHost(options: DocsFrameHostOptions): DocsFrameHos
       if (disposed) return
       disposed = true
       ack = null
+      commentsWakers.clear()
       for (const w of [...waiters]) w.reject(err('cancelled', 'host disposed'))
       ep.dispose()
     },

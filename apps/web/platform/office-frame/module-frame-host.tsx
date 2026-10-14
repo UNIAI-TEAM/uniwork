@@ -4,6 +4,7 @@ import { paths } from "@uniwork/core/paths";
 import type { Document } from "@uniwork/core/types/document";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec, officeModuleTooLarge } from "@uniwork/core/office/office-modules";
+import { useReportFrameComments } from "@uniwork/views/documents";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { downloadDocumentFile } from "@uniwork/core/api/endpoints/documents";
@@ -24,7 +25,8 @@ type ModuleHostProps = OfficeEditorHostProps & { module: OfficeModule };
 function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; desktopOpen: FrameDesktopOpenProps }) {
   const { module, document, wsId, readonly, className, frameVersion, desktopOpen } = props;
   const { workspace } = useWorkspace();
-  const { push } = useNavigation();
+  const { push, searchParams } = useNavigation();
+  const reportFrameComments = useReportFrameComments();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   return (
     <OfficeModuleFrame
@@ -36,6 +38,11 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; deskto
       readonly={readonly}
       className={className}
       libraryHref={ws.documents()}
+      myLevel={document.my_level}
+      // A comment deep link (?comment=<id>): the editor's panel reveals it when it has comments.
+      revealCommentId={searchParams.get("comment")}
+      // A frame that serves comments is the page's one comments panel: the page hides its own.
+      onFrameCommentsChange={reportFrameComments}
       desktopOpen={desktopOpen}
       // Save as made a new document and the frame already edits it; follow it so the URL names what is open.
       onSavedAs={(copyId) => push(ws.document(copyId))}
