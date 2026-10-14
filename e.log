@@ -1,0 +1,22 @@
+$ pnpm --filter @uniwork/web test 2>&1 | grep -E 'Test Files|Tests |FAIL' | tail -20; echo "WEB_TEST_EXIT=${PIPESTATUS[0]}"
+⎯⎯⎯⎯⎯⎯ Failed Tests 16 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  features/landing/office-header.test.tsx > the landing header's Office menu > sits after AI teammates and before Pricing in the desktop navigation
+ FAIL  features/landing/office-header.test.tsx > the landing header's Office menu > is in the mobile menu in the same place, and closes the menu when followed
+ FAIL  features/landing/office-header.test.tsx > the landing header's Office menu > is labelled Office in English too
+ FAIL  features/landing/office-page.test.tsx > the Office page > lays out the sections in order, each with its own copy
+ FAIL  features/landing/office-page.test.tsx > the Office page > offers the published installers per OS, straight from the config, and hides the rest
+ FAIL  features/landing/office-page.test.tsx > the Office page > says so instead of showing dead buttons when nothing is published
+ FAIL  features/landing/office-page.test.tsx > the Office page > speaks English and keeps clear of claims UniWork does not make
+ FAIL  features/landing/office-page.test.tsx > the Office page > picks the Apple Silicon build for a Mac whose chip the browser proves, keeping the variants beneath
+ FAIL  features/landing/office-page.test.tsx > the Office page > picks the Intel build for a Mac whose chip the browser proves, keeping the variants beneath
+ FAIL  features/landing/office-page.test.tsx > the Office page > shows both Mac builds with a hint when the chip cannot be told
+ FAIL  features/landing/office-page.test.tsx > the Office page > shows the only published Mac build as the one button
+ FAIL  features/landing/office-page.test.tsx > the Office page > leads Linux with the visitor's format and falls back to the first published one
+ FAIL  features/landing/office-page.test.tsx > the Office page > renders the OS button shell at once, so nothing shifts when the config arrives
+ FAIL  features/landing/office-page.test.tsx > the Office page > shows a visible error with a retry when the config cannot be loaded
+ FAIL  features/landing/office-page.test.tsx > the Office page > drops a frame whose image had already failed before it could report an error
+ FAIL  features/landing/office-page.test.tsx > the Office page > serves one screenshot per editor and language, and drops a frame whose image fails
+ Test Files  2 failed | 16 passed (18)
+      Tests  16 failed | 175 passed (191)
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 test: `vitest run --passWithNoTests=false --coverage`
+WEB_TEST_EXIT=1

@@ -1,0 +1,4 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -2
+7099fbf5f51b05552e6935f29e19fd078ad55006
+7099fbf5f chore: merge the latest develop into the G5-G7 root
+a56ba0bc2 feat(marketing): refine landing and Office with demo intake
