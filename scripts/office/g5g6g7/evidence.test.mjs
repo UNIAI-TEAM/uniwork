@@ -222,6 +222,35 @@ test('a skip line only turns a clean exit into BLOCKED, and never masks a failur
   assert.equal(masked.exitCode, 1);
 });
 
+test('Playwright "<n> skipped" lines with leading whitespace are classified as BLOCKED, while "0 skipped" stays PASS (C6)', () => {
+  assert.deepEqual(classifyResult({ exitCode: 0, output: 'Running 2 tests using 1 worker\n  2 skipped' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: 2 skipped',
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '    1 skipped\n  3 passed (4.2s)' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: 1 skipped',
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '12 skipped' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: 12 skipped',
+  });
+  // "0 skipped" (with or without leading whitespace) must NOT count as a skip.
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '  0 skipped\n  3 passed (2.1s)' }), {
+    result: 'PASS',
+    blocker: null,
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '0 skipped' }), {
+    result: 'PASS',
+    blocker: null,
+  });
+  // A non-zero exit with "<n> skipped" stays FAIL.
+  assert.deepEqual(classifyResult({ exitCode: 1, output: '  2 skipped\n  1 failed' }), {
+    result: 'FAIL',
+    blocker: null,
+  });
+});
+
 test('a missing or drifted fixture is BLOCKED and never PASS, and the command does not run', () => {
   const missing = runEvidence({
     requirementId: 'G5-A01',

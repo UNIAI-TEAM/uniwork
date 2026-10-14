@@ -32,12 +32,13 @@ const LEDGER_NAME = 'evidence.jsonl';
 // (the C harness exits 77 when the cloud VM lacks xvfb or Electron libs), and a
 // line that says the check was skipped is the same statement in text form. The
 // word may be `skip`, `skipped` or `skipping` in any case, at the start of a line
-// or right after a clause boundary ("no xvfb; skipping G7-10"), because the plan
-// Section 8 fallback is written exactly that way. The line is read only when the
+// (with optional leading whitespace) or right after a clause boundary ("no xvfb;
+// skipping G7-10"), or Playwright's `<n> skipped` count form (`"  2 skipped"`,
+// where `<n> >= 1`; `"0 skipped"` is not a skip). The line is read only when the
 // command exited 0, so a failure that mentions a skip stays a FAIL. The direction
 // is deliberate: a verbose check that says "skip" is BLOCKED, never PASS.
 export const SKIP_EXIT_CODE = 77;
-const SKIP_LINE = /(?:^|[;.]\s+)(?:skip|skipped|skipping)\b/i;
+const SKIP_LINE = /(?:^\s*|[;.]\s+)(?:(?:skip|skipped|skipping)\b|[1-9]\d*\s+skipped\b)/i;
 
 /** Every evidence line carries these fields (spec Section 9.1). */
 export const REQUIRED_FIELDS = [
