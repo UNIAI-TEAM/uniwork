@@ -9,6 +9,7 @@ import {
   getArchiveImpact,
   getDocument,
   getDocumentTree,
+  getFixtureFilePath,
   grantDocumentShare,
   listDocuments,
   listDocumentSources,
@@ -397,6 +398,63 @@ test("FD-A03 open folder content view lists only direct children, folders first,
   await expect(
     table.getByRole("button", { name: /^Trang ngoài gốc/ }),
   ).toBeVisible();
+});
+
+test("FD-A03 upload into the open folder places the uploaded file under the open folder (not at root)", async ({
+  page,
+}) => {
+  const ws = await seedFolderWorkspace(page, "fd-a03-upload");
+  const openFolder = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Thư mục Nhận Tải Lên",
+  );
+
+  await loginFolderUser(page, ws.owner.email);
+  await page.goto(
+    `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${openFolder.id}`,
+  );
+  // Wait for folder detail breadcrumb to render so parentForCreate === openFolder.id
+  // (packages/views/documents/documents-page-view.tsx:156,185-194).
+  await expect(
+    page
+      .getByRole("navigation", { name: "Đường dẫn thư mục" })
+      .getByText("Thư mục Nhận Tải Lên"),
+  ).toBeVisible();
+
+  // Open the real Upload file dialog from the header/cards (packages/views/documents/documents-home-create.tsx:117,135).
+  await page.getByRole("button", { name: /^Tải file lên/ }).first().click();
+  const uploadDialog = page.getByRole("dialog", { name: "Tải tệp lên" });
+  await expect(uploadDialog).toBeVisible();
+  await uploadDialog
+    .getByLabel("Chọn tệp")
+    .setInputFiles(getFixtureFilePath("fx-docx-report-vi"));
+  await uploadDialog.getByRole("button", { name: "Tải lên" }).click();
+  await expect(uploadDialog).toBeHidden();
+  await expect(page).toHaveURL(/\/documents\/[0-9A-Za-z]+$/);
+
+  const uploadedDocId = page.url().split("/documents/")[1]!.split(/[?#]/)[0]!;
+  expect(uploadedDocId).toBeTruthy();
+
+  // Assert through the API that the uploaded document's parent_id equals openFolder.id
+  // and that it is listed in openFolder's content (not at the workspace root).
+  const uploadedDetail = await getDocument(page, ws.owner.token, uploadedDocId);
+  expect(uploadedDetail.ok).toBe(true);
+  expect(uploadedDetail.data?.parent_id).toBe(openFolder.id);
+
+  const folderChildren = await listDocuments(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    { parent_id: openFolder.id },
+  );
+  expect(folderChildren.documents.map((d) => d.id)).toContain(uploadedDocId);
+
+  const rootChildren = await listDocuments(page, ws.owner.token, ws.wsId, {
+    parent_id: "",
+  });
+  expect(rootChildren.documents.map((d) => d.id)).not.toContain(uploadedDocId);
 });
 
 test("FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps ID/parent/children and updates title and search", async ({

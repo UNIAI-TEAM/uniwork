@@ -39,6 +39,10 @@ const FIXTURE_FILES = {
 
 type FolderFixtureId = keyof typeof FIXTURE_FILES;
 
+export function getFixtureFilePath(fixtureId: FolderFixtureId): string {
+  return FIXTURE_FILES[fixtureId].path;
+}
+
 interface FolderTestUser {
   id: string;
   email: string;
