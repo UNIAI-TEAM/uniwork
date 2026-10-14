@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
-import { DISCARD_CLASS } from "../leave-dialog";
 
 interface SaveConflictDialogProps {
   open: boolean;
@@ -40,7 +39,7 @@ export function SaveConflictDialog({ open, onKeep, onReload, finalFocus }: SaveC
         </DialogHeader>
         <DialogFooter className="flex-col items-stretch sm:flex-col">
           <Button ref={keep} type="button" onClick={onKeep}>{t("keep")}</Button>
-          <Button type="button" variant="destructive" className={DISCARD_CLASS} onClick={onReload}>{t("reload")}</Button>
+          <Button type="button" variant="destructive" onClick={onReload}>{t("reload")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
