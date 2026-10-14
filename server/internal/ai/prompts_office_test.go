@@ -193,36 +193,61 @@ func officeEstimate(s string) int {
 // is not vendored in the repo, and the estimator over-counts English BPE
 // (chars/3.5 is ~15% above ~4 chars/token).
 func TestOfficePackTokenCaps(t *testing.T) {
-	p := officePack(t)
-	wantEst := map[string]int{
-		"common": 790, "sheets": 1190, "docs": 595, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
+	versions := []struct {
+		key     string
+		wantEst map[string]int
+		worst   int
+	}{
+		{
+			key: "office_uniwork_ai@1",
+			wantEst: map[string]int{
+				"common": 800, "sheets": 1090, "docs": 571, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
+			},
+			worst: 1890,
+		},
+		{
+			key: "office_uniwork_ai@2",
+			wantEst: map[string]int{
+				"common": 790, "sheets": 1190, "docs": 595, "slides": 236, "pdf": 252, "markdown": 224, "html": 164,
+			},
+			worst: 1980,
+		},
 	}
-	commonVariant := p.System + "\n" + UntrustedFooter
-	if got := officeEstimate(commonVariant); got != wantEst["common"] || got > 800 {
-		t.Errorf("common+footer estimate %d (pinned %d), cap 800", got, wantEst["common"])
-	}
-	for _, m := range officeModuleSections {
-		if got := officeEstimate(p.Sections[m.section]); got != wantEst[m.section] || got > 1200 {
-			t.Errorf("%s estimate %d (pinned %d), cap 1200", m.section, got, wantEst[m.section])
-		}
-	}
-	// The A2 cap is on the assembled turn: common + the largest module + the
-	// join separators. Each variant is counted whole, so the separators are
-	// measured, not assumed.
-	worst := 0
-	for _, m := range officeModuleSections {
-		text, err := OfficeSystemPrompt(m.module)
-		if err != nil {
-			t.Fatalf("%s: %v", m.module, err)
-		}
-		if got := officeEstimate(text); got > 2000 {
-			t.Errorf("%s assembled estimate %d, cap 2000", m.module, got)
-		} else if got > worst {
-			worst = got
-		}
-	}
-	if worst != 1980 {
-		t.Errorf("worst assembled estimate %d, pinned 1980", worst)
+	for _, v := range versions {
+		v := v
+		t.Run(v.key, func(t *testing.T) {
+			p, ok := LookupPrompt(v.key)
+			if !ok {
+				t.Fatalf("%s is not registered", v.key)
+			}
+			commonVariant := p.System + "\n" + UntrustedFooter
+			if got := officeEstimate(commonVariant); got != v.wantEst["common"] || got > 800 {
+				t.Errorf("%s common+footer estimate %d (pinned %d), cap 800", v.key, got, v.wantEst["common"])
+			}
+			for _, m := range officeModuleSections {
+				if got := officeEstimate(p.Sections[m.section]); got != v.wantEst[m.section] || got > 1200 {
+					t.Errorf("%s %s estimate %d (pinned %d), cap 1200", v.key, m.section, got, v.wantEst[m.section])
+				}
+			}
+			// The A2 cap is on the assembled turn: common + the largest module + the
+			// join separators. Each variant is counted whole, so the separators are
+			// measured, not assumed.
+			worst := 0
+			for _, m := range officeModuleSections {
+				text, err := officeAssemble(p, m.module)
+				if err != nil {
+					t.Fatalf("%s %s: %v", v.key, m.module, err)
+				}
+				if got := officeEstimate(text); got > 2000 {
+					t.Errorf("%s %s assembled estimate %d, cap 2000", v.key, m.module, got)
+				} else if got > worst {
+					worst = got
+				}
+			}
+			if worst != v.worst {
+				t.Errorf("%s worst assembled estimate %d, pinned %d", v.key, worst, v.worst)
+			}
+		})
 	}
 }
 
