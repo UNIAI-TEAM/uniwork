@@ -555,7 +555,7 @@ describe("DocumentsPageView", () => {
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Hợp đồng" }));
+    fireEvent.click(within(dialog).getByRole("treeitem", { name: "Hợp đồng" }));
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
     await waitFor(() => {
       const call = postCall("POST");
@@ -565,10 +565,13 @@ describe("DocumentsPageView", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("keeps a refused move in the dialog with the localized reason, and never offers a folder inside itself", async () => {
+  it("keeps a refused move in the dialog with the localized reason, and shows a folder and its subtree as aria-disabled", async () => {
     route({
       list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })],
-      tree: () => [treeNode({ id: "f1", title: "Hợp đồng", kind: "folder", children: [treeNode({ id: "f2", title: "Con", kind: "folder", parent_id: "f1" })] })],
+      tree: () => [
+        treeNode({ id: "f1", title: "Hợp đồng", kind: "folder", children: [treeNode({ id: "f2", title: "Con", kind: "folder", parent_id: "f1" })] }),
+        treeNode({ id: "f3", title: "Tài chính", kind: "folder" }),
+      ],
       detail: (id) => summary({ id, kind: "folder", revision: "2" }),
       post: () => {
         throw new ApiError("server text", "document_parent_kind", 422);
@@ -579,8 +582,9 @@ describe("DocumentsPageView", () => {
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).queryByRole("button", { name: "Hợp đồng" })).toBeNull();
-    expect(within(dialog).queryByRole("button", { name: "Con" })).toBeNull();
+    expect(within(dialog).getByRole("treeitem", { name: "Hợp đồng" })).toHaveAttribute("aria-disabled", "true");
+    expect(within(dialog).getByRole("treeitem", { name: "Con" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(within(dialog).getByRole("treeitem", { name: "Tài chính" }));
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
     expect(await within(dialog).findByText(t("documents.errors.document_parent_kind"))).toBeInTheDocument();
   });
@@ -697,7 +701,7 @@ describe("DocumentsPageView", () => {
     expect(await within(dialog).findByText(t("documents.errors.source_not_saveable"))).toBeInTheDocument();
   });
 
-  it("does not offer a move target past the depth limit", async () => {
+  it("disables move targets past the depth limit with the localized reason", async () => {
     const chain = (level: number): ReturnType<typeof treeNode> =>
       treeNode({
         id: `l${level}`,
@@ -714,10 +718,14 @@ describe("DocumentsPageView", () => {
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
     const dialog = await screen.findByRole("dialog");
-    // A page with one child takes two levels: TREE_MAX_LEVEL - 2 is the deepest target.
-    expect(within(dialog).getByRole("button", { name: `Cấp ${TREE_MAX_LEVEL - 2}` })).toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: `Cấp ${TREE_MAX_LEVEL - 1}` })).toBeNull();
-    expect(within(dialog).queryByRole("button", { name: `Cấp ${TREE_MAX_LEVEL}` })).toBeNull();
+    // A page with one child takes two levels: TREE_MAX_LEVEL - 2 is the deepest enabled target.
+    expect(within(dialog).getByRole("treeitem", { name: `Cấp ${TREE_MAX_LEVEL - 2}` })).not.toHaveAttribute("aria-disabled");
+    const tooDeep19 = within(dialog).getByRole("treeitem", { name: `Cấp ${TREE_MAX_LEVEL - 1}` });
+    const tooDeep20 = within(dialog).getByRole("treeitem", { name: `Cấp ${TREE_MAX_LEVEL}` });
+    expect(tooDeep19).toHaveAttribute("aria-disabled", "true");
+    expect(tooDeep19).toHaveAccessibleDescription(t("documents.home.move.reason_too_deep", { max: TREE_MAX_LEVEL }));
+    expect(tooDeep20).toHaveAttribute("aria-disabled", "true");
+    expect(tooDeep20).toHaveAccessibleDescription(t("documents.home.move.reason_too_deep", { max: TREE_MAX_LEVEL }));
   });
 
   it("explains a folder too large to archive at once", async () => {

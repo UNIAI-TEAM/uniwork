@@ -399,8 +399,8 @@ describe("DocumentTree row menu dialogs and toasts", () => {
     fireEvent.contextMenu(row);
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") }));
     const moveDialog = await screen.findByRole("dialog");
-    expect(within(moveDialog).getByRole("heading", { name: t("documents.home.move.title") })).toBeInTheDocument();
-    fireEvent.click(within(moveDialog).getByRole("button", { name: "Tài chính" }));
+    expect(within(moveDialog).getByRole("heading", { name: t("documents.home.move.picker_title") })).toBeInTheDocument();
+    fireEvent.click(within(moveDialog).getByRole("treeitem", { name: "Tài chính" }));
     fireEvent.click(within(moveDialog).getByRole("button", { name: t("documents.home.move.submit") }));
     await waitFor(() => expect(moves).toEqual([{ parent_id: "f2", revision: "4" }]));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
