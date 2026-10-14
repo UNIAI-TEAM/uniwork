@@ -2452,7 +2452,6 @@ describe("G7-10 ADDENDUM r5 (G710-BE-10..13, G1-G3)", () => {
   it("G1: an app start.sh reported but whose recorded process is gone at loop start FAILs (exit 1) with the pid, never BLOCKED", async () => {
     const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
     const gone = await deadPid();
-    assert.equal(isProcessAlive(gone), false, "the test's own precondition: the pid is gone");
     withCdpPort(scratch);
     withAppPid(scratch, gone);
     const mock = createMockDServer({ aiMode: "503-disabled" });
@@ -2477,6 +2476,10 @@ describe("G7-10 ADDENDUM r5 (G710-BE-10..13, G1-G3)", () => {
     } finally {
       scratch.cleanup();
     }
+    // The test's own precondition, last: the claim above is about the loop's
+    // verdict, and a revision that never read the run's PID file would fail it
+    // with "unknown" instead.
+    assert.equal(isProcessAlive(gone), false, "the test's own precondition: the pid is gone");
   });
 
   it("G1: CDP refused while the app process is alive FAILs (exit 1) with the reason; the app-not-started run keeps BLOCKED", async () => {
