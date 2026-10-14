@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+f1c5bf01b0784e0b548d13cdf01a3b8004e6c4b5
+41f1d6618319c47e929a82c90434c99b4a8eee58
+f1c5bf01 test(web): wait for AI stream to finish in e2e ask helpers
+e523791f Merge fork main 41f1d661 (PR #6 genoffice port, 1.0.0) into G6-05m
+41f1d661 Merge pull request #6 from UNIAI-TEAM/feature/upstream-port-2026-10-14

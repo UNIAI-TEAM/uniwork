@@ -1,0 +1,27 @@
+$ WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e sheets-ai; rc=$?; echo "SHEETS_AI_E2E_EXIT=$rc"; (exit $rc)
+
+Running 18 tests using 1 worker
+
+(node:9692) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/sheets-ai.spec.ts:123:7 › sheets: web AI › grant off: no AI UI anywhere and no AI request (3.0s)
+  ✓   2 [chromium] › web/e2e/sheets-ai.spec.ts:149:7 › sheets: web AI › grant on at 390 px: the dock starts collapsed and opens as an overlay, the grid keeps its width (S-03) (1.6s)
+  ✓   3 [chromium] › web/e2e/sheets-ai.spec.ts:180:7 › sheets: web AI › grant on: panel, reply streams with the frame token, the model is offered only web-safe tools (1.6s)
+  ✓   4 [chromium] › web/e2e/sheets-ai.spec.ts:218:7 › sheets: web AI › view-only (no save grant): the composer carries the notice, the model gets read tools only (1.7s)
+  ✓   5 [chromium] › web/e2e/sheets-ai.spec.ts:246:7 › sheets: web AI › an editing frame has no view-only notice (1.4s)
+  ✓   6 [chromium] › web/e2e/sheets-ai.spec.ts:254:7 › sheets: web AI › grant on: a plan operation edits a cell and the save carries it (1.9s)
+  ✓   7 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 402 renders the credits_exhausted state (1.4s)
+  ✓   8 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 403 renders the entitlement_required state (1.5s)
+  ✓   9 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 404 renders the credential_missing state (1.5s)
+  ✓  10 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 424 renders the provider_auth_failed state (1.5s)
+  ✓  11 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 429 renders the rate_limited state (1.4s)
+  ✓  12 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 502 renders the provider_unreachable state (1.5s)
+  ✓  13 [chromium] › web/e2e/sheets-ai.spec.ts:339:7 › sheets: web AI › grant on: 503 cloud_unavailable from a cloud tool renders its state (1.4s)
+  ✓  14 [chromium] › web/e2e/sheets-ai.spec.ts:363:7 › sheets: web AI › AI settings = UniWork credentials: add a key from the gear, reply streams (1.8s)
+  ✓  15 [chromium] › web/e2e/sheets-ai.spec.ts:390:11 › sheets: web AI › screenshots light en (1.8s)
+  ✓  16 [chromium] › web/e2e/sheets-ai.spec.ts:390:11 › sheets: web AI › screenshots light vi (1.8s)
+  ✓  17 [chromium] › web/e2e/sheets-ai.spec.ts:390:11 › sheets: web AI › screenshots dark en (1.8s)
+  ✓  18 [chromium] › web/e2e/sheets-ai.spec.ts:390:11 › sheets: web AI › screenshots dark vi (1.8s)
+
+  18 passed (32.3s)
+SHEETS_AI_E2E_EXIT=0
