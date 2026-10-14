@@ -1,0 +1,2 @@
+$ rm -rf /tmp/fd12-evidence-r7; echo clean
+clean
