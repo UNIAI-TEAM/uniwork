@@ -123,23 +123,33 @@ test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page })
   await expectDecoded(page, w.email);
 
   // A second organization for the same account: the avatar belongs to the
-  // account, so the shell in the second org shows the same image.
-  const orgSlug = `avatar-second-${stamp}`;
-  const wsSlug = `avatar-second-team-${stamp}`;
-  const orgRes = await page.request.post(`${auth.api}/api/v1/orgs`, {
-    headers: { authorization: auth.auth },
-    data: { name: `Avatar Second ${stamp}`, slug: orgSlug },
+  // account, so the shell in the second org shows the same image. An account
+  // belongs to one active organization at a time (ADR 0032), so another
+  // person founds the second organization and invites this account, which
+  // switches to it by closing the organization it founded alone.
+  const host = await createRecordingAccount(page, auth.api, "avatar-host");
+  const invited = await page.request.post(`${auth.api}/api/v1/workspaces/${host.wsId}/invitations`, {
+    headers: { authorization: `Bearer ${host.token}` },
+    data: { emails: [w.email], role: "member" },
   });
-  expect(orgRes.status()).toBe(201);
-  const orgId = ((await orgRes.json()) as { organization: { id: string } }).organization.id;
-
-  const wsRes = await page.request.post(`${auth.api}/api/v1/orgs/${orgId}/workspaces`, {
+  expect(invited.ok(), `invite: HTTP ${invited.status()} ${await invited.text()}`).toBeTruthy();
+  const listed = await page.request.get(`${auth.api}/api/v1/me/invitations`, { headers: { authorization: auth.auth } });
+  expect(listed.ok()).toBeTruthy();
+  const token = ((await listed.json()) as { invitations: { token: string }[] }).invitations[0]?.token;
+  expect(token, `no invitation for ${w.email}`).toBeTruthy();
+  const preview = await page.request.get(`${auth.api}/api/v1/invitations/${token}`, { headers: { authorization: auth.auth } });
+  expect(preview.ok()).toBeTruthy();
+  const { conflicts } = (await preview.json()) as {
+    conflicts: { organization: { id: string; slug: string }; required_action: string }[];
+  };
+  expect(conflicts.map((c) => [c.organization.slug, c.required_action])).toEqual([[w.orgSlug, "close"]]);
+  const accepted = await page.request.post(`${auth.api}/api/v1/invitations/${token}/accept`, {
     headers: { authorization: auth.auth },
-    data: { name: `Avatar Second Team ${stamp}`, slug: wsSlug },
+    data: { resolve: [{ organization_id: conflicts[0].organization.id, action: "close", confirm_slug: w.orgSlug }] },
   });
-  expect(wsRes.status()).toBe(201);
+  expect(accepted.ok(), `accept: HTTP ${accepted.status()} ${await accepted.text()}`).toBeTruthy();
 
-  await page.goto(`/${orgSlug}/${wsSlug}/tasks`);
+  await page.goto(`/${host.orgSlug}/${host.wsSlug}/tasks`);
   await expect
     .poll(async () => objectPath(await sidebarAvatar(page, w.email).getAttribute("src")), { timeout: 20_000 })
     .toBe(objectPath(secondSrc));
