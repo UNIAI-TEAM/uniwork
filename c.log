@@ -1,0 +1,58 @@
+$ npm test -w @genoffice/markdown; rc=$?; echo "TEST_MARKDOWN_EXIT=$rc"; (exit $rc)
+
+> @genoffice/markdown@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+1:26:22 PM [vite] (client) warning: Duplicate key "loadURL" in object literal
+33 |      loadFile: vi.fn(),
+34 |      loadURL: vi.fn(),
+35 |      loadURL: vi.fn(),
+   |      ^
+36 |      once: vi.fn((event: string, listener: () => void) => listeners.set(event, listener)),
+37 |      send: vi.fn(),
+
+  Plugin: vite:esbuild
+  File: /home/ubuntu/work/uniwork-office/apps/markdown/tests/close-asset-cleanup.test.ts
+ ❯ tests/mono-font-stack.test.ts (4 tests | 2 failed) 9ms
+     × markdown/src/renderer/styles.css 7ms
+     × html/src/renderer/styles.css 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/mono-font-stack.test.ts > mono font stacks keep Vietnamese marks right > markdown/src/renderer/styles.css
+ FAIL  tests/mono-font-stack.test.ts > mono font stacks keep Vietnamese marks right > html/src/renderer/styles.css
+AssertionError: font-family: 'SF Mono', Menlo, Consolas, monospace: expected 'font-family: \'SF Mono\', Menlo, Cons…' to match /Noto Sans Mono[\s\S]*Liberation Mono[…/
+
+- Expected:
+/Noto Sans Mono[\s\S]*Liberation Mono[\s\S]*monospace/
+
++ Received:
+"font-family: 'SF Mono', Menlo, Consolas, monospace"
+
+ ❯ tests/mono-font-stack.test.ts:31:30
+     29|       expect(stacks.length).toBeGreaterThan(0)
+     30|       for (const stack of stacks) {
+     31|         expect(stack, stack).toMatch(/Noto Sans Mono[\s\S]*Liberation …
+       |                              ^
+     32|       }
+     33|     })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed | 76 passed (77)
+      Tests  2 failed | 995 passed (997)
+   Start at  13:26:20
+   Duration  33.04s (transform 4.42s, setup 0ms, import 17.70s, tests 45.35s, environment 28.27s)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /home/ubuntu/work/uniwork-office/apps/markdown
+npm error workspace @genoffice/markdown@0.1.0
+npm error location /home/ubuntu/work/uniwork-office/apps/markdown
+npm error command failed
+npm error command sh -c vitest run
+TEST_MARKDOWN_EXIT=1
