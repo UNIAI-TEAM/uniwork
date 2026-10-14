@@ -246,7 +246,8 @@ func (s *OrganizationMemberService) TransferOwnership(ctx context.Context, actor
 
 // checkOwnerPassword is the password an owner re-enters to hand the
 // organization over (OPEN_QUESTIONS P2): TransferOwnership and the invitation
-// switch both ask for it before their transaction.
+// switch both ask for it before their transaction. A mismatch is 403
+// password_incorrect, never the login's 401 (see ErrPasswordIncorrect).
 func checkOwnerPassword(ctx context.Context, q *db.Queries, userID, password string) error {
 	me, err := q.GetUserByID(ctx, userID)
 	if err != nil {
@@ -257,7 +258,7 @@ func checkOwnerPassword(ctx context.Context, q *db.Queries, userID, password str
 			"tài khoản chưa có mật khẩu; đặt mật khẩu trước khi chuyển quyền chủ sở hữu")
 	}
 	if !auth.CheckPassword(me.PasswordHash.String, password) {
-		return ErrInvalidCredentials
+		return errPasswordIncorrect()
 	}
 	return nil
 }

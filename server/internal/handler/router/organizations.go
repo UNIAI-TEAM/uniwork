@@ -100,12 +100,13 @@ func registerOrganizations(r api, h Routes) {
 		auth:        true,
 	})
 	r.Post("/orgs/{org}/transfer-ownership", h.TransferOrgOwnership, apiOp{
-		summary:     "Transfer organization ownership",
-		description: "Chủ sở hữu chuyển quyền cho một thành viên đang hoạt động; owner cũ thành admin trong cùng transaction. Cần nhập lại mật khẩu.",
-		tags:        []string{"organizations"},
-		sdi:         sdi.TransferOwnershipSDI{},
-		sdo:         sdo.OrgMemberSDO{},
-		auth:        true,
+		summary: "Transfer organization ownership",
+		description: "Chủ sở hữu chuyển quyền cho một thành viên đang hoạt động; owner cũ thành admin trong cùng transaction. Cần nhập lại mật khẩu: " +
+			"403 password_incorrect khi sai (không phải 401, để client không làm mới phiên rồi gửi lại), 403 password_required khi tài khoản chưa có mật khẩu.",
+		tags: []string{"organizations"},
+		sdi:  sdi.TransferOwnershipSDI{},
+		sdo:  sdo.OrgMemberSDO{},
+		auth: true,
 	})
 	r.Get("/orgs/{org}/invitations", h.ListOrgInvitations, apiOp{
 		summary:     "List pending organization invitations",

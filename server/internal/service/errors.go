@@ -29,6 +29,18 @@ var (
 	ErrSubscriptionInactive = errors.New("subscription_inactive")
 )
 
+// ErrPasswordIncorrect: a signed-in caller re-entered their password to
+// confirm an action (handing an organization over) and it did not match.
+// It is not ErrInvalidCredentials on purpose: that one answers 401, which the
+// client reads as an expired session and answers by refreshing and replaying
+// the request — the password would be checked, and sent, twice. Login keeps
+// 401 invalid_credentials.
+var ErrPasswordIncorrect = errors.New("password_incorrect")
+
+func errPasswordIncorrect() error {
+	return CodedError{Code: "password_incorrect", Status: http.StatusForbidden, Msg: "mật khẩu không đúng", Err: ErrPasswordIncorrect}
+}
+
 // Organization status values (F-11). Anything but active is closed to the
 // organization's own members; only /api/v1/admin reaches it.
 const (

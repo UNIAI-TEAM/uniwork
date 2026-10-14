@@ -198,7 +198,7 @@ func TestRevokeInvitationStopsTheToken(t *testing.T) {
 
 func TestTransferOwnershipIsAtomicAndNeedsThePassword(t *testing.T) {
 	f := newOrgInviteFixture(t)
-	if _, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.admin.ID, "wrong-password"); !errors.Is(err, ErrInvalidCredentials) {
+	if _, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.admin.ID, "wrong-password"); !errors.Is(err, ErrPasswordIncorrect) || !codedIs(err, "password_incorrect") {
 		t.Fatalf("wrong password: got %v", err)
 	}
 	if _, err := f.svc.TransferOwnership(f.ctx, f.admin.ID, f.org.ID, f.member.ID, "password123"); !errors.Is(err, ErrForbidden) {

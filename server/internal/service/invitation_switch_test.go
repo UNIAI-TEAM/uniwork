@@ -230,7 +230,7 @@ func TestSwitchOrganizationByInvitation(t *testing.T) {
 		f := newOrgMembersFixture(t)
 		target, _, token := f.switchTarget(t, "dich", f.owner.Email)
 		resolve := []SwitchResolution{{OrganizationID: f.org.ID, Action: SwitchActionTransfer, TransferToUserID: f.admin.ID, Password: "wrong-password"}}
-		if _, err := f.ws.AcceptInvite(f.ctx, f.owner.ID, token, resolve); !errors.Is(err, ErrInvalidCredentials) {
+		if _, err := f.ws.AcceptInvite(f.ctx, f.owner.ID, token, resolve); !errors.Is(err, ErrPasswordIncorrect) {
 			t.Fatalf("wrong password: %v", err)
 		}
 		resolve[0].Password = "password123"
