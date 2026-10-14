@@ -4,6 +4,7 @@ import {
   apiCreateDocument,
   archiveDocument,
   contentRow,
+  contentRowOpen,
   createFolder,
   createFolderChain,
   createPage,
@@ -74,14 +75,20 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to
     title: "M".repeat(255),
     kind: "folder",
   });
-  expect(apiMax255.status).toBe(201);
+  expect(
+    apiMax255.status,
+    `${apiMax255.status} ${JSON.stringify(apiMax255.error)}`,
+  ).toBe(201);
   expect(apiMax255.data?.title.length).toBe(255);
 
   const apiTooLong = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
     title: over255,
     kind: "folder",
   });
-  expect(apiTooLong.status).toBe(400);
+  expect(
+    apiTooLong.status,
+    `${apiTooLong.status} ${JSON.stringify(apiTooLong.error)}`,
+  ).toBe(400);
 
   await input.fill("Hợp đồng 2026");
   await input.press("Enter");
@@ -131,6 +138,9 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to
   await subDialog.getByRole("button", { name: "Tạo" }).click();
   await expect(subDialog).toBeHidden();
   await expect(contentRow(page, "Phụ lục Q1")).toBeVisible();
+  await expect(
+    contentRow(page, "Phụ lục Q1").getByRole("img", { name: "Thư mục" }),
+  ).toBeVisible();
 
   await tree
     .getByRole("button", { name: "Thao tác cho Hợp đồng 2026" })
@@ -169,7 +179,10 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to
       parent_id: level20.id,
     },
   );
-  expect(tooDeepCreate.status).toBe(422);
+  expect(
+    tooDeepCreate.status,
+    `${tooDeepCreate.status} ${JSON.stringify(tooDeepCreate.error)}`,
+  ).toBe(422);
   expect(tooDeepCreate.error?.code).toBe("document_too_deep");
 });
 
@@ -280,10 +293,14 @@ test("FD-A02 sidebar folder tree expands/collapses independently, reveals active
   await tree.getByRole("button", { name: "Thu gọn Dự án Alpha" }).click();
   await expect(childAItem).toBeHidden();
   await createFolder(page, ws.owner.token, ws.wsId, "Dự án Delta", childB.id);
-  await patchDocument(page, ws.owner.token, branchB.id, {
+  const patchedB = await patchDocument(page, ws.owner.token, branchB.id, {
     revision: branchB.revision,
     title: "Dự án Beta Mới",
   });
+  expect(
+    patchedB.ok,
+    `patchDocument: ${patchedB.status} ${JSON.stringify(patchedB.error)}`,
+  ).toBe(true);
   await expect(
     tree.getByRole("treeitem", { name: "Dự án Beta Mới" }),
   ).toBeVisible({ timeout: 15_000 });
@@ -356,9 +373,22 @@ test("FD-A03 open folder content view lists only direct children, folders first,
   const table = page.getByRole("table", { name: "Tài liệu" });
   await expect(table).toBeVisible();
   await expect(contentRow(page, "Báo cáo")).toBeVisible();
+  await expect(
+    contentRow(page, "Báo cáo").getByRole("img", { name: "Thư mục" }),
+  ).toBeVisible();
   await expect(contentRow(page, "Chứng từ")).toBeVisible();
   await expect(contentRow(page, "An toàn kho")).toBeVisible();
+  await expect(
+    contentRow(page, "An toàn kho").getByRole("img", {
+      name: "Trang UniWork",
+    }),
+  ).toBeVisible();
   await expect(contentRow(page, "Biên bản kiểm kê")).toBeVisible();
+  await expect(
+    contentRow(page, "Biên bản kiểm kê").getByRole("img", {
+      name: "Tài liệu Word",
+    }),
+  ).toBeVisible();
   await expect(contentRow(page, "Trang ngoài gốc")).toHaveCount(0);
   await expect(contentRow(page, "Thư mục Cháu")).toHaveCount(0);
   await expect(contentRow(page, "Tài liệu Cháu")).toHaveCount(0);
@@ -389,6 +419,7 @@ test("FD-A03 open folder content view lists only direct children, folders first,
   // Documents home keeps the workspace library view.
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
   await expect(contentRow(page, "Trang ngoài gốc")).toBeVisible();
+  await expect(contentRowOpen(page, "Trang ngoài gốc")).toBeVisible();
 });
 
 test("FD-A03 upload into the open folder places the uploaded file under the open folder (not at root)", async ({
@@ -527,13 +558,25 @@ test("FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps 
   await expect(breadcrumb.getByText("Nhánh 1 Mới")).toBeVisible();
 
   const folderAAfter = await getDocument(page, ws.owner.token, folderA.id);
+  expect(
+    folderAAfter.ok,
+    `getDocument: ${folderAAfter.status} ${JSON.stringify(folderAAfter.error)}`,
+  ).toBe(true);
   expect(folderAAfter.data?.id).toBe(folderA.id);
   // server/internal/handler/documents.go:834-836 omits parent_id when doc.ParentID is null at root.
   expect(folderAAfter.data?.parent_id).toBeUndefined();
   const childAfter = await getDocument(page, ws.owner.token, child.id);
+  expect(
+    childAfter.ok,
+    `getDocument: ${childAfter.status} ${JSON.stringify(childAfter.error)}`,
+  ).toBe(true);
   expect(childAfter.data?.id).toBe(child.id);
   expect(childAfter.data?.parent_id).toBe(folderA.id);
   const detail = await getDocument(page, ws.owner.token, doc.id);
+  expect(
+    detail.ok,
+    `getDocument: ${detail.status} ${JSON.stringify(detail.error)}`,
+  ).toBe(true);
   expect(detail.data?.id).toBe(doc.id);
   expect(detail.data?.parent_id).toBe(child.id);
   expect(detail.data?.breadcrumbs?.map((b) => b.title)).toEqual([
@@ -625,8 +668,16 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
     timeout: 15_000,
   });
   const dragAfter = await getDocument(page, ws.owner.token, dragFolder.id);
+  expect(
+    dragAfter.ok,
+    `getDocument: ${dragAfter.status} ${JSON.stringify(dragAfter.error)}`,
+  ).toBe(true);
   expect(dragAfter.data?.parent_id).toBe(dstFolder.id);
   const dragChildAfter = await getDocument(page, ws.owner.token, dragChild.id);
+  expect(
+    dragChildAfter.ok,
+    `getDocument: ${dragChildAfter.status} ${JSON.stringify(dragChildAfter.error)}`,
+  ).toBe(true);
   expect(dragChildAfter.data?.id).toBe(dragChild.id);
   expect(dragChildAfter.data?.parent_id).toBe(dragFolder.id);
 
@@ -642,9 +693,17 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
   await expect(moveDialog).toBeHidden();
 
   const movedSub = await getDocument(page, ws.owner.token, subFolder.id);
+  expect(
+    movedSub.ok,
+    `getDocument: ${movedSub.status} ${JSON.stringify(movedSub.error)}`,
+  ).toBe(true);
   expect(movedSub.data?.parent_id).toBe(dstFolder.id);
   expect(movedSub.data?.title).toBe("Con Nguồn (2)");
   const movedDoc = await getDocument(page, ws.owner.token, fileDoc.id);
+  expect(
+    movedDoc.ok,
+    `getDocument: ${movedDoc.status} ${JSON.stringify(movedDoc.error)}`,
+  ).toBe(true);
   expect(movedDoc.data?.id).toBe(fileDoc.id);
   expect(movedDoc.data?.parent_id).toBe(subFolder.id);
   expect(movedDoc.data?.breadcrumbs?.map((b) => b.title)).toEqual([
@@ -740,7 +799,10 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
     parent_id: level19.id,
     revision: branch2.revision,
   });
-  expect(tooDeepMove.status).toBe(422);
+  expect(
+    tooDeepMove.status,
+    `${tooDeepMove.status} ${JSON.stringify(tooDeepMove.error)}`,
+  ).toBe(422);
   expect(tooDeepMove.error?.code).toBe("document_too_deep");
 
   const okAt20Move = await moveDocument(page, ws.owner.token, branch2.id, {
@@ -805,7 +867,10 @@ test("FD-A06 moving folder into itself or a descendant is rejected with 422 docu
       parent_id: targetId,
       revision: folderA.revision,
     });
-    expect(res.status).toBe(422);
+    expect(
+      res.status,
+      `move(${targetId}): ${res.status} ${JSON.stringify(res.error)}`,
+    ).toBe(422);
     expect(res.error?.code).toBe("document_cycle");
   }
 
@@ -944,13 +1009,15 @@ test("FD-A07 moving a document between folders keeps ID, versions, and comments 
   expect(movedMd.data?.title).toBe("notes (2).md");
 
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderA.id}`);
-  for (const name of [
-    "report.docx",
-    "report (2).docx",
-    "notes.md",
-    "notes (2).md",
-  ]) {
-    await expect(contentRow(page, name)).toBeVisible();
+  for (const [name, typeLabel] of [
+    ["report.docx", "Tài liệu Word"],
+    ["report (2).docx", "Tài liệu Word"],
+    ["notes.md", "Tài liệu Markdown"],
+    ["notes (2).md", "Tài liệu Markdown"],
+  ] as const) {
+    const row = contentRow(page, name);
+    await expect(row).toBeVisible();
+    await expect(row.getByRole("img", { name: typeLabel })).toBeVisible();
   }
 });
 
@@ -1055,7 +1122,15 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
     ws.wsId,
     "Thư mục Đã Xóa",
   );
-  await archiveDocument(page, ws.owner.token, archivedFolder.id);
+  const archivedRes = await archiveDocument(
+    page,
+    ws.owner.token,
+    archivedFolder.id,
+  );
+  expect(
+    archivedRes.ok,
+    `archiveDocument: ${archivedRes.status} ${JSON.stringify(archivedRes.error)}`,
+  ).toBe(true);
 
   for (const badId of ["01INVALIDFOLDER000000000000", archivedFolder.id]) {
     await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${badId}`);
@@ -1478,7 +1553,10 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
     kind: "folder",
     parent_id: parent.id,
   });
-  expect(upperDup.status).toBe(409);
+  expect(
+    upperDup.status,
+    `${upperDup.status} ${JSON.stringify(upperDup.error)}`,
+  ).toBe(409);
   expect(upperDup.error?.code).toBe("folder_name_taken");
 
   const nfdDup = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
@@ -1486,7 +1564,10 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
     kind: "folder",
     parent_id: parent.id,
   });
-  expect(nfdDup.status).toBe(409);
+  expect(
+    nfdDup.status,
+    `${nfdDup.status} ${JSON.stringify(nfdDup.error)}`,
+  ).toBe(409);
   expect(nfdDup.error?.code).toBe("folder_name_taken");
 
   // 2. Accent-sensitive: "Ma" and "Mã" are distinct and both succeed under the same parent.
@@ -1495,7 +1576,10 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
     kind: "folder",
     parent_id: parent.id,
   });
-  expect(folderMa.status).toBe(201);
+  expect(
+    folderMa.status,
+    `${folderMa.status} ${JSON.stringify(folderMa.error)}`,
+  ).toBe(201);
   const folderMaAccent = await apiCreateDocument(
     page,
     ws.owner.token,
@@ -1506,7 +1590,10 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
       parent_id: parent.id,
     },
   );
-  expect(folderMaAccent.status).toBe(201);
+  expect(
+    folderMaAccent.status,
+    `${folderMaAccent.status} ${JSON.stringify(folderMaAccent.error)}`,
+  ).toBe(201);
 
   // 3. Two concurrent creates with the same name under the same parent yield one 201 and one 409.
   // server/internal/service/document_names.go:73-74 (normalizeDocumentTitle) applies norm.NFC(strings.TrimSpace(raw))
@@ -1535,7 +1622,10 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
       `race-2-${Date.now()}`,
     ),
   ]);
-  expect([race1.status, race2.status].sort()).toEqual([201, 409]);
+  expect(
+    [race1.status, race2.status].sort(),
+    `race1=${race1.status} (${JSON.stringify(race1.error)}), race2=${race2.status} (${JSON.stringify(race2.error)})`,
+  ).toEqual([201, 409]);
 
   // 4. Same-name documents (pages and files) under the same parent are allowed (201).
   const page1 = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
@@ -1548,8 +1638,12 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
     kind: "page",
     parent_id: parent.id,
   });
-  expect(page1.status).toBe(201);
-  expect(page2.status).toBe(201);
+  expect(page1.status, `${page1.status} ${JSON.stringify(page1.error)}`).toBe(
+    201,
+  );
+  expect(page2.status, `${page2.status} ${JSON.stringify(page2.error)}`).toBe(
+    201,
+  );
   const file1 = await uploadFixtureFile(
     page,
     ws.owner.token,
@@ -1585,7 +1679,10 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
       parent_id: parent.id,
     },
   );
-  expect(blindCollision.status).toBe(409);
+  expect(
+    blindCollision.status,
+    `${blindCollision.status} ${JSON.stringify(blindCollision.error)}`,
+  ).toBe(409);
   expect(blindCollision.error?.code).toBe("folder_name_taken");
   expect(blindCollision.rawText).not.toContain(restrictedSibling.id);
   expect(blindCollision.rawText).not.toContain(restrictedSibling.title);
@@ -1618,7 +1715,7 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
   );
 });
 
-test("FD-A12 archiving and restoring folder subtree counts items, updates a second session live, renames on restore collision, and blocks 403 and >1000 nodes (422 folder_too_large)", async ({
+test("FD-A12 archiving and restoring folder subtree counts items, updates a second session live, renames on restore collision, and blocks 403", async ({
   page,
   browser,
 }) => {
@@ -1758,6 +1855,10 @@ test("FD-A12 archiving and restoring folder subtree counts items, updates a seco
   }
 
   const doc1After = await getDocument(page, ws.owner.token, doc1.id);
+  expect(
+    doc1After.ok,
+    `getDocument: ${doc1After.status} ${JSON.stringify(doc1After.error)}`,
+  ).toBe(true);
   expect(doc1After.data?.parent_id).toBe(sub1.id);
   // server/internal/handler/documents.go:868-871 omits archived_at when doc.ArchivedAt is null.
   expect(doc1After.data?.archived_at).toBeUndefined();
@@ -1777,14 +1878,32 @@ test("FD-A12 archiving and restoring folder subtree counts items, updates a seco
     folderB.id,
   );
   const impactB = await getArchiveImpact(page, ws.member!.token, folderB.id);
-  expect(impactB.status).toBe(403);
-  const archiveB = await archiveDocument(page, ws.member!.token, folderB.id);
-  expect(archiveB.status).toBe(403);
   expect(
-    (await getDocument(page, ws.owner.token, childOfA.id)).data?.archived_at,
-  ).toBeUndefined();
+    impactB.status,
+    `${impactB.status} ${JSON.stringify(impactB.error)}`,
+  ).toBe(403);
+  const archiveB = await archiveDocument(page, ws.member!.token, folderB.id);
+  expect(
+    archiveB.status,
+    `${archiveB.status} ${JSON.stringify(archiveB.error)}`,
+  ).toBe(403);
+  const childOfAAfter = await getDocument(page, ws.owner.token, childOfA.id);
+  expect(
+    childOfAAfter.ok,
+    `getDocument: ${childOfAAfter.status} ${JSON.stringify(childOfAAfter.error)}`,
+  ).toBe(true);
+  expect(childOfAAfter.data?.archived_at).toBeUndefined();
+});
 
-  // Subtree > 1000 nodes: archive-impact reports too_large: true and archive refuses with 422 folder_too_large.
+test("FD-A12 tree over 1000 nodes reports too_large on archive-impact and blocks archive with 422 folder_too_large", async ({
+  page,
+}) => {
+  test.setTimeout(8 * 60_000);
+  const ws = await seedFolderWorkspace(page, "fd-a12-1000");
+  // Subtree > 1000 nodes (hugeFolder + 1000 child pages = 1001 total nodes):
+  // archive-impact reports too_large: true and archive refuses with 422 folder_too_large.
+  // Seeding throttles to <= 240 requests per rolling minute (batches of 40 + wait) to stay under
+  // the server's 300 req/min per-identity limiter (server/internal/handler/router/router.go:90).
   const hugeFolder = await createFolder(
     page,
     ws.owner.token,
@@ -1798,7 +1917,7 @@ test("FD-A12 archiving and restoring folder subtree counts items, updates a seco
     hugeFolder.id,
     1000,
     "Mục",
-    25,
+    40,
   );
   const hugeImpact = await getArchiveImpact(
     page,
@@ -1815,7 +1934,10 @@ test("FD-A12 archiving and restoring folder subtree counts items, updates a seco
     ws.owner.token,
     hugeFolder.id,
   );
-  expect(hugeArchive.status).toBe(422);
+  expect(
+    hugeArchive.status,
+    `${hugeArchive.status} ${JSON.stringify(hugeArchive.error)}`,
+  ).toBe(422);
   expect(hugeArchive.error?.code).toBe("folder_too_large");
 });
 

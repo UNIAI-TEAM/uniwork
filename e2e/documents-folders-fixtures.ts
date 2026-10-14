@@ -1,4 +1,10 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { e2eApiUrl } from "./api-url";
@@ -9,34 +15,23 @@ import {
   registerApiUser,
 } from "./meeting-recording-fixture";
 
-const CONTENT_ROW_TYPE_LABELS = [
-  "Thư mục",
-  "Trang UniWork",
-  "Tài liệu Word",
-  "Bảng tính Excel",
-  "Bản trình bày PowerPoint",
-  "Tài liệu PDF",
-  "Tài liệu Markdown",
-  "Tài liệu HTML",
-  "File",
-].join("|");
-
 /**
- * Locates the primary row button in the Documents library / folder content table
- * (`packages/views/documents/documents-library-list.tsx:135` `aria-label="Tài liệu"`,
- * `packages/views/documents/documents-library-row.tsx:198-211`, and
- * `packages/views/documents/document-type-icon.tsx:40-72`, which prefixes the
- * button's accessible name with `role="img" aria-label={t("documents.file_types.*")}`).
+ * Locates the table row (`tbody tr`) in the Documents library / folder content table
+ * (`packages/views/documents/documents-library-list.tsx:135` `aria-label="Tài liệu"`)
+ * containing the exact title text.
  */
 export function contentRow(page: Page, title: string): Locator {
-  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return page
     .getByRole("table", { name: "Tài liệu" })
-    .getByRole("button", {
-      name: new RegExp(
-        `^(?:(?:${CONTENT_ROW_TYPE_LABELS})\\s+)?${escaped}(?!\\s*\\(\\d+\\))(?:\\s|$)`,
-      ),
-    });
+    .locator("tbody tr")
+    .filter({ has: page.getByText(title, { exact: true }) });
+}
+
+/**
+ * Locates the primary open/drag button inside a Documents library row.
+ */
+export function contentRowOpen(page: Page, title: string): Locator {
+  return contentRow(page, title).getByRole("button").first();
 }
 
 const repoRoot =
@@ -187,15 +182,71 @@ function authHeaders(
   return headers;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Retries a request when the server's rate limiter returns 429 Too Many Requests,
+ * honoring the Retry-After header (seconds) or falling back to 15s.
+ */
+async function requestWithRetry429(
+  send: () => Promise<APIResponse>,
+  maxRetries = 5,
+): Promise<APIResponse> {
+  for (let attempt = 0; ; attempt += 1) {
+    const res = await send();
+    if (res.status() !== 429 || attempt >= maxRetries) {
+      return res;
+    }
+    const retryAfterHeader = res.headers()["retry-after"];
+    const retryAfterSec = retryAfterHeader
+      ? Number.parseInt(retryAfterHeader, 10)
+      : Number.NaN;
+    const waitMs =
+      Number.isFinite(retryAfterSec) && retryAfterSec > 0
+        ? retryAfterSec * 1000 + 1000
+        : 15_000;
+    await sleep(waitMs);
+  }
+}
+
+async function parseApiResult<T>(
+  res: APIResponse,
+  extractData: (raw: Record<string, unknown>, ok: boolean) => T | undefined,
+): Promise<ApiCallResult<T>> {
+  const rawText = await res.text();
+  let raw: Record<string, unknown> = {};
+  try {
+    raw = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    raw = { message: rawText };
+  }
+  const errObj = raw.error as ApiErrorBody | undefined;
+  return {
+    status: res.status(),
+    ok: res.ok(),
+    data: extractData(raw, res.ok()),
+    error: errObj ?? {
+      code: typeof raw.code === "string" ? raw.code : undefined,
+      message: typeof raw.message === "string" ? raw.message : rawText,
+    },
+    rawText,
+  };
+}
+
 async function fetchUserId(page: Page, token: string): Promise<string> {
-  const res = await page.request.get(`${e2eApiUrl}/api/v1/me`, {
-    headers: authHeaders(token),
-  });
+  const res = await requestWithRetry429(() =>
+    page.request.get(`${e2eApiUrl}/api/v1/me`, {
+      headers: authHeaders(token),
+    }),
+  );
+  const rawText = await res.text();
   expect(
     res.ok(),
-    `GET /me failed: ${res.status()} ${await res.text()}`,
+    `GET /me failed: ${res.status()} ${rawText}`,
   ).toBeTruthy();
-  const body = (await res.json()) as { user: { id: string } };
+  const body = JSON.parse(rawText) as { user: { id: string } };
   return body.user.id;
 }
 
@@ -227,13 +278,15 @@ export async function seedFolderWorkspace(
       peerB,
       "member",
     );
-    const done = await page.request.post(
-      `${e2eApiUrl}/api/v1/me/onboarding/complete`,
-      { headers: authHeaders(peerB.token) },
+    const done = await requestWithRetry429(() =>
+      page.request.post(`${e2eApiUrl}/api/v1/me/onboarding/complete`, {
+        headers: authHeaders(peerB.token),
+      }),
     );
+    const doneText = await done.text();
     expect(
       done.ok(),
-      `complete onboarding B: ${done.status()} ${await done.text()}`,
+      `complete onboarding B: ${done.status()} ${doneText}`,
     ).toBeTruthy();
     const memberId = await fetchUserId(page, peerB.token);
     setup.member = { id: memberId, email: peerB.email, token: peerB.token };
@@ -270,34 +323,19 @@ export async function apiCreateDocument(
   },
   idempotencyKey?: string,
 ): Promise<ApiCallResult<DocumentDTO>> {
-  const res = await page.request.post(
-    `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents`,
-    {
+  const key =
+    idempotencyKey ??
+    `doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const res = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/workspaces/${wsId}/documents`, {
       headers: {
-        ...authHeaders(
-          token,
-          idempotencyKey ??
-            `doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        ),
+        ...authHeaders(token, key),
         "content-type": "application/json",
       },
       data: input,
-    },
+    }),
   );
-  const rawText = await res.text();
-  const raw = JSON.parse(rawText) as {
-    document?: DocumentDTO;
-    error?: ApiErrorBody;
-    code?: string;
-    message?: string;
-  };
-  return {
-    status: res.status(),
-    ok: res.ok(),
-    data: raw.document,
-    error: raw.error ?? { code: raw.code, message: raw.message },
-    rawText,
-  };
+  return parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
 }
 
 export async function createFolder(
@@ -316,7 +354,7 @@ export async function createFolder(
   });
   expect(
     res.ok && res.data,
-    `createFolder(${title}) failed: ${res.status} ${JSON.stringify(res.error)}`,
+    `createFolder(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
   ).toBeTruthy();
   return res.data!;
 }
@@ -349,7 +387,7 @@ export async function createPage(
   });
   expect(
     res.ok && res.data,
-    `createPage(${title}) failed: ${res.status} ${JSON.stringify(res.error)}`,
+    `createPage(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
   ).toBeTruthy();
   return res.data!;
 }
@@ -372,25 +410,26 @@ export async function uploadFixtureFile(
     mimeType: meta.mimeType,
     buffer: readFileSync(meta.path),
   };
-  const res = await page.request.post(
-    `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents/files`,
-    {
-      headers: authHeaders(
-        token,
-        `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      ),
-      multipart: multipart as Parameters<typeof page.request.post>[1] extends
-        | { multipart?: infer M }
-        | undefined
-        ? M
-        : never,
-    },
+  const key = `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const res = await requestWithRetry429(() =>
+    page.request.post(
+      `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents/files`,
+      {
+        headers: authHeaders(token, key),
+        multipart: multipart as Parameters<typeof page.request.post>[1] extends
+          | { multipart?: infer M }
+          | undefined
+          ? M
+          : never,
+      },
+    ),
   );
+  const rawText = await res.text();
   expect(
     res.ok(),
-    `uploadFixtureFile(${fixtureId}) failed: ${res.status()} ${await res.text()}`,
+    `uploadFixtureFile(${fixtureId}) failed: ${res.status()} ${rawText}`,
   ).toBeTruthy();
-  const body = (await res.json()) as { document: DocumentDTO };
+  const body = JSON.parse(rawText) as { document: DocumentDTO };
   return body.document;
 }
 
@@ -417,6 +456,11 @@ export async function createFolderChain(
   return chain;
 }
 
+/**
+ * Seeds `count` child pages under `rootFolderId` while staying strictly under
+ * the server's 300 req/min global rate limit (`server/internal/handler/router/router.go:90`):
+ * caps at max 240 requests per rolling minute across the test (batches of 40 with a wait).
+ */
 export async function seedFolderSubtreeBatch(
   page: Page,
   token: string,
@@ -424,25 +468,67 @@ export async function seedFolderSubtreeBatch(
   rootFolderId: string,
   count: number,
   prefix: string,
-  concurrency = 25,
+  batchSize = 40,
 ): Promise<void> {
-  let nextIdx = 0;
-  const worker = async (): Promise<void> => {
-    while (nextIdx < count) {
-      const idx = nextIdx;
-      nextIdx += 1;
-      await createPage(
-        page,
-        token,
-        wsId,
-        `${prefix}-${idx + 1}`,
-        rootFolderId,
-      );
+  const maxPerMinute = 240;
+  const rollingWindowMs = 62_000;
+  const interBatchWaitMs = 10_500;
+  // Pre-seed with timestamps for the caller's setup requests (e.g. createFolder(hugeFolder))
+  // so the rolling minute across the whole test never exceeds 240 requests.
+  const sentTimestamps: number[] = [Date.now(), Date.now()];
+  let created = 0;
+
+  while (created < count) {
+    const now = Date.now();
+    while (
+      sentTimestamps.length > 0 &&
+      now - sentTimestamps[0]! >= rollingWindowMs
+    ) {
+      sentTimestamps.shift();
     }
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, count) }, () => worker()),
-  );
+
+    const availableInWindow = maxPerMinute - sentTimestamps.length;
+    if (availableInWindow <= 0) {
+      const waitMs = sentTimestamps[0]! + rollingWindowMs - Date.now() + 250;
+      if (waitMs > 0) {
+        await sleep(waitMs);
+      }
+      continue;
+    }
+
+    const currentBatchSize = Math.min(
+      batchSize,
+      count - created,
+      availableInWindow,
+    );
+    const batchStart = created;
+    created += currentBatchSize;
+    const batchStamp = Date.now();
+    for (let i = 0; i < currentBatchSize; i += 1) {
+      sentTimestamps.push(batchStamp);
+    }
+
+    let offset = 0;
+    const concurrency = Math.min(10, currentBatchSize);
+    const worker = async (): Promise<void> => {
+      while (offset < currentBatchSize) {
+        const idx = batchStart + offset;
+        offset += 1;
+        await createPage(
+          page,
+          token,
+          wsId,
+          `${prefix}-${idx + 1}`,
+          rootFolderId,
+        );
+      }
+    };
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+    if (created < count) {
+      await sleep(interBatchWaitMs);
+    }
+  }
 }
 
 export async function getDocument(
@@ -450,21 +536,12 @@ export async function getDocument(
   token: string,
   docId: string,
 ): Promise<ApiCallResult<DocumentDTO>> {
-  const res = await page.request.get(`${e2eApiUrl}/api/v1/documents/${docId}`, {
-    headers: authHeaders(token),
-  });
-  const raw = (await res.json()) as {
-    document?: DocumentDTO;
-    error?: ApiErrorBody;
-    code?: string;
-    message?: string;
-  };
-  return {
-    status: res.status(),
-    ok: res.ok(),
-    data: raw.document,
-    error: raw.error ?? { code: raw.code, message: raw.message },
-  };
+  const res = await requestWithRetry429(() =>
+    page.request.get(`${e2eApiUrl}/api/v1/documents/${docId}`, {
+      headers: authHeaders(token),
+    }),
+  );
+  return parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
 }
 
 export async function patchDocument(
@@ -477,30 +554,16 @@ export async function patchDocument(
     visibility?: "workspace" | "restricted";
   },
 ): Promise<ApiCallResult<DocumentDTO>> {
-  const res = await page.request.patch(
-    `${e2eApiUrl}/api/v1/documents/${docId}`,
-    {
+  const res = await requestWithRetry429(() =>
+    page.request.patch(`${e2eApiUrl}/api/v1/documents/${docId}`, {
       headers: {
         ...authHeaders(token),
         "content-type": "application/json",
       },
       data: body,
-    },
+    }),
   );
-  const rawText = await res.text();
-  const raw = JSON.parse(rawText) as {
-    document?: DocumentDTO;
-    error?: ApiErrorBody;
-    code?: string;
-    message?: string;
-  };
-  return {
-    status: res.status(),
-    ok: res.ok(),
-    data: raw.document,
-    error: raw.error ?? { code: raw.code, message: raw.message },
-    rawText,
-  };
+  return parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
 }
 
 export async function moveDocument(
@@ -509,31 +572,17 @@ export async function moveDocument(
   docId: string,
   body: { parent_id?: string | null; position?: number; revision: string },
 ): Promise<ApiCallResult<DocumentDTO>> {
-  const res = await page.request.post(
-    `${e2eApiUrl}/api/v1/documents/${docId}/move`,
-    {
+  const key = `move-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const res = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/move`, {
       headers: {
-        ...authHeaders(
-          token,
-          `move-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        ),
+        ...authHeaders(token, key),
         "content-type": "application/json",
       },
       data: body,
-    },
+    }),
   );
-  const raw = (await res.json()) as {
-    document?: DocumentDTO;
-    error?: ApiErrorBody;
-    code?: string;
-    message?: string;
-  };
-  return {
-    status: res.status(),
-    ok: res.ok(),
-    data: raw.document,
-    error: raw.error ?? { code: raw.code, message: raw.message },
-  };
+  return parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
 }
 
 export async function getArchiveImpact(
@@ -541,21 +590,14 @@ export async function getArchiveImpact(
   token: string,
   docId: string,
 ): Promise<ApiCallResult<ArchiveImpactDTO>> {
-  const res = await page.request.get(
-    `${e2eApiUrl}/api/v1/documents/${docId}/archive-impact`,
-    { headers: authHeaders(token) },
+  const res = await requestWithRetry429(() =>
+    page.request.get(`${e2eApiUrl}/api/v1/documents/${docId}/archive-impact`, {
+      headers: authHeaders(token),
+    }),
   );
-  const raw = (await res.json()) as ArchiveImpactDTO & {
-    error?: ApiErrorBody;
-    code?: string;
-    message?: string;
-  };
-  return {
-    status: res.status(),
-    ok: res.ok(),
-    data: res.ok() ? raw : undefined,
-    error: raw.error ?? { code: raw.code, message: raw.message },
-  };
+  return parseApiResult(res, (raw, ok) =>
+    ok ? (raw as unknown as ArchiveImpactDTO) : undefined,
+  );
 }
 
 export async function archiveDocument(
@@ -563,26 +605,15 @@ export async function archiveDocument(
   token: string,
   docId: string,
 ): Promise<ApiCallResult<ArchiveResultDTO>> {
-  const res = await page.request.post(
-    `${e2eApiUrl}/api/v1/documents/${docId}/archive`,
-    {
-      headers: authHeaders(
-        token,
-        `arch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      ),
-    },
+  const key = `arch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const res = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/archive`, {
+      headers: authHeaders(token, key),
+    }),
   );
-  const raw = (await res.json()) as ArchiveResultDTO & {
-    error?: ApiErrorBody;
-    code?: string;
-    message?: string;
-  };
-  return {
-    status: res.status(),
-    ok: res.ok(),
-    data: res.ok() ? raw : undefined,
-    error: raw.error ?? { code: raw.code, message: raw.message },
-  };
+  return parseApiResult(res, (raw, ok) =>
+    ok ? (raw as unknown as ArchiveResultDTO) : undefined,
+  );
 }
 
 export async function restoreDocument(
@@ -590,26 +621,15 @@ export async function restoreDocument(
   token: string,
   docId: string,
 ): Promise<ApiCallResult<ArchiveResultDTO>> {
-  const res = await page.request.post(
-    `${e2eApiUrl}/api/v1/documents/${docId}/restore`,
-    {
-      headers: authHeaders(
-        token,
-        `rest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      ),
-    },
+  const key = `rest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const res = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/restore`, {
+      headers: authHeaders(token, key),
+    }),
   );
-  const raw = (await res.json()) as ArchiveResultDTO & {
-    error?: ApiErrorBody;
-    code?: string;
-    message?: string;
-  };
-  return {
-    status: res.status(),
-    ok: res.ok(),
-    data: res.ok() ? raw : undefined,
-    error: raw.error ?? { code: raw.code, message: raw.message },
-  };
+  return parseApiResult(res, (raw, ok) =>
+    ok ? (raw as unknown as ArchiveResultDTO) : undefined,
+  );
 }
 
 export async function listDocuments(
@@ -634,15 +654,18 @@ export async function listDocuments(
   if (params?.archived) search.set("archived", "true");
   if (params?.limit !== undefined) search.set("limit", String(params.limit));
   const qs = search.toString();
-  const res = await page.request.get(
-    `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents${qs ? `?${qs}` : ""}`,
-    { headers: authHeaders(token) },
+  const res = await requestWithRetry429(() =>
+    page.request.get(
+      `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents${qs ? `?${qs}` : ""}`,
+      { headers: authHeaders(token) },
+    ),
   );
+  const rawText = await res.text();
   expect(
     res.ok(),
-    `listDocuments(${qs}) failed: ${res.status()} ${await res.text()}`,
+    `listDocuments(${qs}) failed: ${res.status()} ${rawText}`,
   ).toBeTruthy();
-  return (await res.json()) as {
+  return JSON.parse(rawText) as {
     documents: DocumentSummaryDTO[];
     next_cursor: string;
   };
@@ -658,15 +681,18 @@ export async function getDocumentTree(
   if (params?.root) search.set("root", params.root);
   if (params?.folders_only) search.set("folders_only", "true");
   const qs = search.toString();
-  const res = await page.request.get(
-    `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents/tree${qs ? `?${qs}` : ""}`,
-    { headers: authHeaders(token) },
+  const res = await requestWithRetry429(() =>
+    page.request.get(
+      `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents/tree${qs ? `?${qs}` : ""}`,
+      { headers: authHeaders(token) },
+    ),
   );
+  const rawText = await res.text();
   expect(
     res.ok(),
-    `getDocumentTree(${qs}) failed: ${res.status()} ${await res.text()}`,
+    `getDocumentTree(${qs}) failed: ${res.status()} ${rawText}`,
   ).toBeTruthy();
-  const body = (await res.json()) as { documents: DocumentTreeNodeDTO[] };
+  const body = JSON.parse(rawText) as { documents: DocumentTreeNodeDTO[] };
   return body.documents;
 }
 
@@ -677,9 +703,8 @@ export async function grantDocumentShare(
   principalId: string,
   level: "view" | "edit" | "manage",
 ): Promise<string> {
-  const res = await page.request.post(
-    `${e2eApiUrl}/api/v1/documents/${docId}/shares`,
-    {
+  const res = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/shares`, {
       headers: {
         ...authHeaders(token),
         "content-type": "application/json",
@@ -689,13 +714,14 @@ export async function grantDocumentShare(
         principal_id: principalId,
         level,
       },
-    },
+    }),
   );
+  const rawText = await res.text();
   expect(
     res.ok(),
-    `grantDocumentShare failed: ${res.status()} ${await res.text()}`,
+    `grantDocumentShare failed: ${res.status()} ${rawText}`,
   ).toBeTruthy();
-  const body = (await res.json()) as { share: { id: string } };
+  const body = JSON.parse(rawText) as { share: { id: string } };
   return body.share.id;
 }
 
@@ -714,39 +740,34 @@ export async function seedDocumentArtifacts(
   const docRes = await getDocument(page, token, docId);
   expect(
     docRes.ok && docRes.data,
-    `seedDocumentArtifacts getDocument(${docId}): ${docRes.status} ${JSON.stringify(docRes.error)}`,
+    `seedDocumentArtifacts getDocument(${docId}): ${docRes.status} ${JSON.stringify(docRes.error)} ${docRes.rawText ?? ""}`,
   ).toBeTruthy();
   const doc = docRes.data!;
   if (doc.kind === "page") {
     // server/internal/service/document_versions.go:67-69: POST /documents/{id}/versions is for page documents only.
-    const vRes = await page.request.post(
-      `${e2eApiUrl}/api/v1/documents/${docId}/versions`,
-      {
+    const vKey = `ver-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const vRes = await requestWithRetry429(() =>
+      page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/versions`, {
         headers: {
-          ...authHeaders(
-            token,
-            `ver-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          ),
+          ...authHeaders(token, vKey),
           "content-type": "application/json",
         },
         data: { label: "v-before-move" },
-      },
+      }),
     );
+    const vText = await vRes.text();
     expect(
       vRes.ok(),
-      `seed version: ${vRes.status()} ${await vRes.text()}`,
+      `seed version: ${vRes.status()} ${vText}`,
     ).toBeTruthy();
   } else if (doc.kind === "file") {
     // server/internal/service/document_versions.go:67-69 & server/internal/handler/documents.go:259-320:
     // file documents create version 1 on upload and subsequent versions via /uploads + /versions/commit.
     const meta = FIXTURE_FILES["fx-docx-report-vi"];
-    const upRes = await page.request.post(
-      `${e2eApiUrl}/api/v1/documents/${docId}/uploads`,
-      {
-        headers: authHeaders(
-          token,
-          `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        ),
+    const upKey = `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const upRes = await requestWithRetry429(() =>
+      page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/uploads`, {
+        headers: authHeaders(token, upKey),
         multipart: {
           file: {
             name: meta.name,
@@ -754,53 +775,55 @@ export async function seedDocumentArtifacts(
             buffer: readFileSync(meta.path),
           },
         },
-      },
+      }),
     );
+    const upText = await upRes.text();
     expect(
       upRes.ok(),
-      `stage file upload: ${upRes.status()} ${await upRes.text()}`,
+      `stage file upload: ${upRes.status()} ${upText}`,
     ).toBeTruthy();
-    const uploaded = (await upRes.json()) as { upload_id: string };
-    const commitRes = await page.request.post(
-      `${e2eApiUrl}/api/v1/documents/${docId}/versions/commit`,
-      {
-        headers: {
-          ...authHeaders(
-            token,
-            `commit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          ),
-          "content-type": "application/json",
+    const uploaded = JSON.parse(upText) as { upload_id: string };
+    const commitKey = `commit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const commitRes = await requestWithRetry429(() =>
+      page.request.post(
+        `${e2eApiUrl}/api/v1/documents/${docId}/versions/commit`,
+        {
+          headers: {
+            ...authHeaders(token, commitKey),
+            "content-type": "application/json",
+          },
+          data: {
+            upload_id: uploaded.upload_id,
+            base_revision: doc.revision,
+          },
         },
-        data: {
-          upload_id: uploaded.upload_id,
-          base_revision: doc.revision,
-        },
-      },
+      ),
     );
+    const commitText = await commitRes.text();
     expect(
       commitRes.ok(),
-      `commit file version: ${commitRes.status()} ${await commitRes.text()}`,
+      `commit file version: ${commitRes.status()} ${commitText}`,
     ).toBeTruthy();
   }
-  const cRes = await page.request.post(
-    `${e2eApiUrl}/api/v1/documents/${docId}/comments`,
-    {
+  const cRes = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/comments`, {
       headers: {
         ...authHeaders(token),
         "content-type": "application/json",
       },
       data: { body: "Ghi chú trước khi chuyển thư mục", kind: "discussion" },
-    },
+    }),
   );
+  const cText = await cRes.text();
   expect(
     cRes.ok(),
-    `seed comment: ${cRes.status()} ${await cRes.text()}`,
+    `seed comment: ${cRes.status()} ${cText}`,
   ).toBeTruthy();
   await grantDocumentShare(page, token, docId, shareUserId, "view");
   const afterDoc = await getDocument(page, token, docId);
   expect(
     afterDoc.ok && afterDoc.data,
-    `seedDocumentArtifacts refresh(${docId}): ${afterDoc.status} ${JSON.stringify(afterDoc.error)}`,
+    `seedDocumentArtifacts refresh(${docId}): ${afterDoc.status} ${JSON.stringify(afterDoc.error)} ${afterDoc.rawText ?? ""}`,
   ).toBeTruthy();
   return afterDoc.data!;
 }
@@ -811,33 +834,44 @@ export async function readDocumentArtifacts(
   docId: string,
 ): Promise<DocumentArtifactsSnapshot> {
   const [vRes, cRes, sRes] = await Promise.all([
-    page.request.get(`${e2eApiUrl}/api/v1/documents/${docId}/versions`, {
-      headers: authHeaders(token),
-    }),
-    page.request.get(`${e2eApiUrl}/api/v1/documents/${docId}/comments`, {
-      headers: authHeaders(token),
-    }),
-    page.request.get(`${e2eApiUrl}/api/v1/documents/${docId}/shares`, {
-      headers: authHeaders(token),
-    }),
+    requestWithRetry429(() =>
+      page.request.get(`${e2eApiUrl}/api/v1/documents/${docId}/versions`, {
+        headers: authHeaders(token),
+      }),
+    ),
+    requestWithRetry429(() =>
+      page.request.get(`${e2eApiUrl}/api/v1/documents/${docId}/comments`, {
+        headers: authHeaders(token),
+      }),
+    ),
+    requestWithRetry429(() =>
+      page.request.get(`${e2eApiUrl}/api/v1/documents/${docId}/shares`, {
+        headers: authHeaders(token),
+      }),
+    ),
+  ]);
+  const [vText, cText, sText] = await Promise.all([
+    vRes.text(),
+    cRes.text(),
+    sRes.text(),
   ]);
   expect(
     vRes.ok(),
-    `versions(${docId}): ${vRes.status()} ${await vRes.text()}`,
+    `versions(${docId}): ${vRes.status()} ${vText}`,
   ).toBeTruthy();
   expect(
     cRes.ok(),
-    `comments(${docId}): ${cRes.status()} ${await cRes.text()}`,
+    `comments(${docId}): ${cRes.status()} ${cText}`,
   ).toBeTruthy();
   expect(
     sRes.ok(),
-    `shares(${docId}): ${sRes.status()} ${await sRes.text()}`,
+    `shares(${docId}): ${sRes.status()} ${sText}`,
   ).toBeTruthy();
-  const versions = (await vRes.json()) as {
+  const versions = JSON.parse(vText) as {
     versions: Array<{ version: number }>;
   };
-  const comments = (await cRes.json()) as { comments: Array<{ id: string }> };
-  const shares = (await sRes.json()) as { shares: Array<{ id: string }> };
+  const comments = JSON.parse(cText) as { comments: Array<{ id: string }> };
+  const shares = JSON.parse(sText) as { shares: Array<{ id: string }> };
   return {
     versionNumbers: versions.versions.map((v) => v.version),
     commentIds: comments.comments.map((c) => c.id),
@@ -852,14 +886,17 @@ export async function listDocumentSources(
   source?: "chat" | "task" | "meeting" | "email",
 ): Promise<DocumentSourceItemDTO[]> {
   const qs = source ? `?source=${encodeURIComponent(source)}` : "";
-  const res = await page.request.get(
-    `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents/sources${qs}`,
-    { headers: authHeaders(token) },
+  const res = await requestWithRetry429(() =>
+    page.request.get(
+      `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents/sources${qs}`,
+      { headers: authHeaders(token) },
+    ),
   );
+  const rawText = await res.text();
   expect(
     res.ok(),
-    `listDocumentSources failed: ${res.status()} ${await res.text()}`,
+    `listDocumentSources failed: ${res.status()} ${rawText}`,
   ).toBeTruthy();
-  const body = (await res.json()) as { items?: DocumentSourceItemDTO[] };
+  const body = JSON.parse(rawText) as { items?: DocumentSourceItemDTO[] };
   return body.items ?? [];
 }
