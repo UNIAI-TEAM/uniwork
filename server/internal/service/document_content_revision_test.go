@@ -41,26 +41,37 @@ func TestDocumentContentRevision(t *testing.T) {
 			}
 		})
 
-		t.Run("move then commit is committed", func(t *testing.T) {
-			created := env.createFile(t, member, "moved.pdf", pdfBody("moved-v1"))
-			parent := env.page(t, member, json.RawMessage(`{"type":"doc","content":[]}`))
-			moved, err := env.svc.MoveDocument(ctx, member, created.Document.ID, MoveDocumentInput{
-				ParentID: parent.Document.ID, Revision: created.Document.Revision, IdempotencyKey: util.NewID(),
+		// T-8: the move-then-save rule is exercised on BOTH commit routes - the
+		// web path (Sync false) and the desktop/dispatch path (Sync true, the
+		// office_sync_write-gated route G5-07). The compare is shared, but the
+		// card's wording is "dispatch", so the sync route is driven literally.
+		for _, dispatch := range []struct {
+			name string
+			sync bool
+		}{{"web", false}, {"desktop", true}} {
+			t.Run("move then "+dispatch.name+" commit is committed", func(t *testing.T) {
+				// BE-G5-3: a marker and a slash-free filename per iteration, so
+				// the two routes never share upload bytes or a name.
+				created := env.createFile(t, member, "moved-"+dispatch.name+"-v1.pdf", pdfBody("moved-"+dispatch.name+"-v1"))
+				parent := env.page(t, member, json.RawMessage(`{"type":"doc","content":[]}`))
+				moved, err := env.svc.MoveDocument(ctx, member, created.Document.ID, MoveDocumentInput{
+					ParentID: parent.Document.ID, Revision: created.Document.Revision, IdempotencyKey: util.NewID(),
+				})
+				mustf(t, err, "move")
+				if moved.Document.Revision <= created.Document.Revision {
+					t.Fatalf("move did not bump revision: %d", moved.Document.Revision)
+				}
+				if moved.Document.ContentRevision != created.Document.ContentRevision {
+					t.Fatalf("move changed content_revision: %d -> %d", created.Document.ContentRevision, moved.Document.ContentRevision)
+				}
+				up := env.upload(t, member, created.Document.ID, "moved-"+dispatch.name+"-v2.pdf", pdfBody("moved-"+dispatch.name+"-v2"))
+				res, err := env.commitSync(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID(), dispatch.sync)
+				mustf(t, err, "commit on the pre-move base")
+				if res.Document.Revision != moved.Document.Revision+1 || res.Document.ContentRevision != res.Document.Revision {
+					t.Fatalf("after commit: revision %d content_revision %d", res.Document.Revision, res.Document.ContentRevision)
+				}
 			})
-			mustf(t, err, "move")
-			if moved.Document.Revision <= created.Document.Revision {
-				t.Fatalf("move did not bump revision: %d", moved.Document.Revision)
-			}
-			if moved.Document.ContentRevision != created.Document.ContentRevision {
-				t.Fatalf("move changed content_revision: %d -> %d", created.Document.ContentRevision, moved.Document.ContentRevision)
-			}
-			up := env.upload(t, member, created.Document.ID, "moved-v2.pdf", pdfBody("moved-v2"))
-			res, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
-			mustf(t, err, "commit on the pre-move base")
-			if res.Document.Revision != moved.Document.Revision+1 || res.Document.ContentRevision != res.Document.Revision {
-				t.Fatalf("after commit: revision %d content_revision %d", res.Document.Revision, res.Document.ContentRevision)
-			}
-		})
+		}
 
 		t.Run("unarchive then save is saved", func(t *testing.T) {
 			created := env.createFile(t, member, "trash.pdf", pdfBody("trash-v1"))

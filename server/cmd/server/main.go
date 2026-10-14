@@ -456,6 +456,7 @@ func main() {
 	docChangesSweep := docChanges.NewSnapshotSweeper(log)
 	if reg != nil {
 		docChangesSweep.SetMetrics(reg.OfficeChanges)
+		docChanges.SetFeedLagMetrics(reg.OfficeChanges)
 	}
 	// Offline leases (G5-08s): the routes and the revoke consumer read the
 	// ACL through the same DocumentService; the consumer rides the notify lane

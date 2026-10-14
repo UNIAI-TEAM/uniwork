@@ -30,9 +30,29 @@ const documentChangeSchema = z.object({
   version_id: z.string().nullish(),
 });
 
+// An incremental-feed row (G5-01b). `change_kind` is upsert or removal; on a
+// removal `kind` is empty and `removal` carries the reason (permission_revoked,
+// moved_workspace) - ids, revision and the reason only. `document_deleted`
+// stays in the enum for forward compatibility, but the current feed never
+// sends it: a purge answers 410 change_cursor_expired, so the caller resyncs
+// instead of receiving that reason.
+const documentChangeFeedSchema = z.object({
+  document_id: z.string().min(1),
+  change_kind: z.string(),
+  kind: z.string(),
+  revision: z.string().regex(/^\d+$/),
+  current_version: z.number().int(),
+  version_id: z.string().nullish(),
+  archived: z.boolean(),
+  removal: z.string(),
+});
+
 const documentChangePageSchema = z.object({
   phase: z.string(),
   changes: z.array(documentChangeSchema),
+  // Optional so a page from a server older than G5-01b still parses: an
+  // absent feed is an empty one, never a malformed answer.
+  feed: z.array(documentChangeFeedSchema).optional(),
   has_more: z.boolean(),
   next_cursor: z.string().min(1),
   expires_at: z.string(),
@@ -49,10 +69,40 @@ export interface DocumentChange {
   versionId: string | null;
 }
 
+/** One incremental-feed row (G5-01b); switch on `changeKind` with a default. */
+export interface DocumentChangeFeedRow {
+  documentId: string;
+  /** Server enum (upsert | removal today); switch with a default. */
+  changeKind: string;
+  /** Document kind on an upsert; empty on a removal. */
+  kind: string;
+  /** Decimal string; compare by BigInt, never Number. */
+  revision: string;
+  /** Upsert's latest version number; 0 on a removal. */
+  currentVersion: number;
+  /** Head version record (file documents); null on page/folder and removals. */
+  versionId: string | null;
+  /** Archived document (an upsert, distinct from a removal). */
+  archived: boolean;
+  /** Removal reason; empty on an upsert. */
+  removal: string;
+}
+
 export interface DocumentChangePage {
   /** Server enum (snapshot today; the incremental feed adds its own value). */
   phase: string;
   changes: DocumentChange[];
+  /** Incremental-feed rows; empty on a snapshot page. */
+  feed: DocumentChangeFeedRow[];
+  /**
+   * More rows to come. On a feed page it is true only when the page advanced
+   * the cursor (delivered or skipped at least one row) and more eligible rows
+   * exist: a page whose only candidates are held back by the server's
+   * in-flight guard answers false with the cursor POSITION unchanged - the
+   * keyset (AfterXact/AfterID) stands still while the opaque token may be
+   * re-signed with a fresh expiry - so poll again later instead of looping on
+   * the same cursor.
+   */
   hasMore: boolean;
   /** Opaque; pass it back unchanged as `cursor` for the next page. */
   nextCursor: string;
@@ -133,6 +183,16 @@ export async function listDocumentChanges(
         revision: c.revision,
         currentVersion: c.current_version,
         versionId: c.version_id ?? null,
+      })),
+      feed: (parsed.feed ?? []).map((f) => ({
+        documentId: f.document_id,
+        changeKind: f.change_kind,
+        kind: f.kind,
+        revision: f.revision,
+        currentVersion: f.current_version,
+        versionId: f.version_id ?? null,
+        archived: f.archived,
+        removal: f.removal,
       })),
       hasMore: parsed.has_more,
       nextCursor: parsed.next_cursor,

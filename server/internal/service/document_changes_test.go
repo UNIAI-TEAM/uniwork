@@ -135,9 +135,9 @@ func TestDocumentChangesSnapshotIsStableUnderConcurrentWriters(t *testing.T) {
 		}
 	}
 	// The last page hands out a feed cursor whose high-water mark excludes
-	// every commit after the snapshot: G5-01b continues from it. The check is
-	// a real concurrent transaction (BE-F1-2): its xid8 is fixed before the
-	// snapshot opens, so the mark must not see it.
+	// every commit after the snapshot: G5-01b serves the feed from there. The
+	// check is a real concurrent transaction (BE-F1-2): its xid8 is fixed
+	// before the snapshot opens, so the mark must not see it.
 	claims, err := w.svc.codec.verify(last.NextCursor, changeCursorScope{
 		deployment: "dep-test", userID: w.tn.member.ID, organization: w.tn.orgID, workspace: w.tn.wsA,
 	}, w.now)
@@ -147,8 +147,9 @@ func TestDocumentChangesSnapshotIsStableUnderConcurrentWriters(t *testing.T) {
 	if hwmSeesTxn(t, w, claims.HighWater, concurrentXID(t, w)) {
 		t.Fatal("a transaction open when the snapshot began is visible in its high-water mark")
 	}
-	if _, err := w.list(t, w.tn.member.ID, last.NextCursor, 2); !codedIs(err, "unsupported_operation") {
-		t.Fatalf("feed cursor before G5-01b: %v, want unsupported_operation", err)
+	feed, err := w.list(t, w.tn.member.ID, last.NextCursor, 2)
+	if err != nil || feed.Phase != changeCursorPhaseFeed {
+		t.Fatalf("feed cursor after the snapshot = %+v, %v; want a feed page (G5-01b)", feed, err)
 	}
 }
 

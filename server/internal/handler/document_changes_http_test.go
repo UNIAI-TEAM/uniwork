@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -27,9 +28,14 @@ type changeFeedWorld struct {
 	srv    *httptest.Server
 	token  string
 	userID string
-	orgID  string
-	wsID   string
-	q      *db.Queries
+	// memberToken/memberID is a second registered user who is a plain
+	// workspace member: unlike the owner (seeAll -> manage) they can lose
+	// their read when the only share that admitted them is revoked.
+	memberToken string
+	memberID    string
+	orgID       string
+	wsID        string
+	q           *db.Queries
 }
 
 // newChangeFeedWorld builds the full handler stack with the real
@@ -57,17 +63,31 @@ func newChangeFeedWorld(t *testing.T) *changeFeedWorld {
 		t.Fatalf("create ws: %d %v", res.StatusCode, out)
 	}
 	w.wsID = out["workspace"].(map[string]any)["id"].(string)
-	w.seedDoc(t, util.NewID())
+	// A second user: an organization and workspace member, never an admin, so
+	// a share revoke really takes their read away (the owner keeps manage and
+	// can never lose read through a share).
+	w.memberToken, w.memberID = filesRegister(t, srv, "change-feed-member@example.com")
+	if err := q.AddOrganizationMember(context.Background(), db.AddOrganizationMemberParams{
+		OrganizationID: w.orgID, UserID: w.memberID, Role: "member",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.AddWorkspaceMember(context.Background(), db.AddWorkspaceMemberParams{
+		WorkspaceID: w.wsID, OrganizationID: w.orgID, UserID: w.memberID, Role: "member",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	w.seedDoc(t, util.NewID(), "workspace")
 	return w
 }
 
 // seedDoc inserts one page document straight into the database: the HTTP
 // create route is behind the documents flag, which this suite does not need.
-func (w *changeFeedWorld) seedDoc(t *testing.T, id string) {
+func (w *changeFeedWorld) seedDoc(t *testing.T, id, visibility string) {
 	t.Helper()
 	row := map[string]any{
 		"id": id, "organization_id": w.orgID, "workspace_id": w.wsID,
-		"kind": "page", "title": "Tài liệu", "visibility": "workspace",
+		"kind": "page", "title": "Tài liệu", "visibility": visibility,
 		"created_by": w.userID, "created_by_kind": "human", "updated_by": w.userID, "updated_by_kind": "human",
 	}
 	names, args, marks := make([]string, 0, len(row)), make([]any, 0, len(row)), make([]string, 0, len(row))
@@ -83,11 +103,18 @@ func (w *changeFeedWorld) seedDoc(t *testing.T, id string) {
 
 func (w *changeFeedWorld) feed(t *testing.T, query string) (int, map[string]any) {
 	t.Helper()
+	return w.feedAs(t, w.token, query)
+}
+
+// feedAs is feed with an explicit bearer token: a cursor is bound to the
+// account it was minted for, so each caller pages their own.
+func (w *changeFeedWorld) feedAs(t *testing.T, token, query string) (int, map[string]any) {
+	t.Helper()
 	path := "/api/v1/workspaces/" + w.wsID + "/documents/changes"
 	if query != "" {
 		path += "?" + query
 	}
-	res, out := doJSON(t, w.srv, "GET", path, w.token, nil)
+	res, out := doJSON(t, w.srv, "GET", path, token, nil)
 	return res.StatusCode, out
 }
 
@@ -108,7 +135,7 @@ func TestDocumentChangesHTTPErrorAnswers(t *testing.T) {
 	// Two documents and limit=1: the cold start hands out a mid-pagination
 	// SNAPSHOT cursor, the only kind that names the snapshot. A single-page
 	// snapshot hands out the feed cursor, which answers 501 until G5-01b.
-	w.seedDoc(t, util.NewID())
+	w.seedDoc(t, util.NewID(), "workspace")
 
 	status, out := w.feed(t, "limit=1")
 	if status != http.StatusOK {
@@ -171,8 +198,8 @@ func TestDocumentChangesHTTPErrorAnswers(t *testing.T) {
 // contract maximum rather than refused.
 func TestDocumentChangesHTTPLimitParsing(t *testing.T) {
 	w := newChangeFeedWorld(t)
-	w.seedDoc(t, util.NewID())
-	w.seedDoc(t, util.NewID())
+	w.seedDoc(t, util.NewID(), "workspace")
+	w.seedDoc(t, util.NewID(), "workspace")
 
 	for _, raw := range []string{"abc", "-1", "1.5"} {
 		status, out := w.feed(t, "limit="+raw)
@@ -240,5 +267,135 @@ func TestDocumentChangesRevisionWireIsDecimalString(t *testing.T) {
 	}
 	if revision != strconv.FormatInt(big, 10) {
 		t.Fatalf("revision = %q, want %q", revision, strconv.FormatInt(big, 10))
+	}
+}
+
+// feedRowKeys asserts the raw JSON row carries EXACTLY the keys of the feed SDO
+// (T-1): the removal and the upsert row both ship the same eight fields, so a
+// new field on the SDO - a name, a path, metadata - cannot be added without this
+// test noticing. Values are checked separately by the caller.
+func feedRowKeys(t *testing.T, label string, row map[string]any) {
+	t.Helper()
+	want := []string{
+		"document_id", "change_kind", "kind", "revision",
+		"current_version", "version_id", "archived", "removal",
+	}
+	got := make([]string, 0, len(row))
+	for k := range row {
+		got = append(got, k)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("%s row keys = %v, want exactly %v (the feed SDO wire keys)", label, got, want)
+	}
+}
+
+// TestDocumentChangesHTTPFeedRows pins the incremental feed's wire row
+// (G5-01b): a feed page fills `feed` and leaves `changes` empty, and a removal
+// carries the document id, the change kind and its reason - no title, no path,
+// no metadata - on the raw body. The removal is a revoked share (a purge
+// answers 410 where the removing change destroyed its evidence, the
+// service-level rule of BE-G1-2). The caller is the second registered user, the
+// share principal, so revoking that share really takes their read away - the
+// owner (the other account) keeps manage and can never lose read - and the
+// cold-start cursor is minted by that same account.
+func TestDocumentChangesHTTPFeedRows(t *testing.T) {
+	w := newChangeFeedWorld(t)
+	docID := util.NewID()
+	w.seedDoc(t, docID, "restricted")
+	shareID := util.NewID()
+	if _, err := testPool.Exec(context.Background(),
+		`INSERT INTO document_shares (id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind)
+		 VALUES ($1, $2, $3, $4, 'user', $5, 'view', $6, 'human')`,
+		shareID, w.orgID, w.wsID, docID, w.memberID, w.userID); err != nil {
+		t.Fatal(err)
+	}
+
+	// The cold start over the shared document hands out the feed cursor, for
+	// the share principal's own account.
+	status, out := w.feedAs(t, w.memberToken, "")
+	if status != http.StatusOK {
+		t.Fatalf("cold start = %d %v, want 200", status, out)
+	}
+	cursor, _ := out["next_cursor"].(string)
+	if cursor == "" {
+		t.Fatalf("cold start hands out no cursor: %v", out)
+	}
+
+	// The share is revoked, with the audit row the command writes.
+	if _, err := testPool.Exec(context.Background(),
+		`UPDATE document_shares SET revoked_at = now() WHERE id = $1`, shareID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testPool.Exec(context.Background(),
+		`INSERT INTO audit_events (id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, correlation_id, metadata)
+		 VALUES ($1, $2, $3, 'human', $4, 'document.share_revoked', 'document', $5, $6, $7)`,
+		util.NewID(), w.orgID, w.wsID, w.userID, docID, util.NewID(),
+		fmt.Sprintf(`{"principal_type":"user","principal_id":%q,"level":"view"}`, w.memberID)); err != nil {
+		t.Fatal(err)
+	}
+
+	status, out = w.feedAs(t, w.memberToken, "cursor="+url.QueryEscape(cursor))
+	if status != http.StatusOK {
+		t.Fatalf("feed page = %d %v, want 200", status, out)
+	}
+	if phase, _ := out["phase"].(string); phase != "feed" {
+		t.Fatalf("phase = %q, want feed", phase)
+	}
+	if changes, _ := out["changes"].([]any); len(changes) != 0 {
+		t.Fatalf("a feed page carries %d snapshot rows, want none", len(changes))
+	}
+	feed, _ := out["feed"].([]any)
+	if len(feed) != 1 {
+		t.Fatalf("feed page = %v, want one row", out["feed"])
+	}
+	row, _ := feed[0].(map[string]any)
+	var revision int64
+	if err := testPool.QueryRow(context.Background(), `SELECT revision FROM documents WHERE id = $1`, docID).Scan(&revision); err != nil {
+		t.Fatal(err)
+	}
+	// T-1: the row carries EXACTLY the SDO's keys and the ids-only values - no
+	// title, no path, no metadata, nothing free-text.
+	feedRowKeys(t, "removal", row)
+	if row["document_id"] != docID || row["change_kind"] != "removal" ||
+		row["kind"] != "" || row["revision"] != strconv.FormatInt(revision, 10) || row["removal"] != "permission_revoked" {
+		t.Fatalf("removal row = %v", row)
+	}
+	if row["current_version"] != float64(0) || row["version_id"] != nil || row["archived"] != false {
+		t.Fatalf("removal row carries a document field: %v", row)
+	}
+
+	// An upsert row ships the SAME key set: a change to a document the member
+	// can read (here a document.updated audit row, the shape a metadata edit
+	// writes) reaches them as an upsert with its real values.
+	upsertID := util.NewID()
+	w.seedDoc(t, upsertID, "workspace")
+	if _, err := testPool.Exec(context.Background(),
+		`INSERT INTO audit_events (id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, correlation_id)
+		 VALUES ($1, $2, $3, 'human', $4, 'document.updated', 'document', $5, $6)`,
+		util.NewID(), w.orgID, w.wsID, w.userID, upsertID, util.NewID()); err != nil {
+		t.Fatal(err)
+	}
+	status, out = w.feedAs(t, w.memberToken, "cursor="+url.QueryEscape(out["next_cursor"].(string)))
+	if status != http.StatusOK {
+		t.Fatalf("upsert page = %d %v, want 200", status, out)
+	}
+	feed, _ = out["feed"].([]any)
+	if len(feed) != 1 {
+		t.Fatalf("upsert page = %v, want one row", out["feed"])
+	}
+	upsert, _ := feed[0].(map[string]any)
+	feedRowKeys(t, "upsert", upsert)
+	var upsertRevision int64
+	if err := testPool.QueryRow(context.Background(), `SELECT revision FROM documents WHERE id = $1`, upsertID).Scan(&upsertRevision); err != nil {
+		t.Fatal(err)
+	}
+	if upsert["document_id"] != upsertID || upsert["change_kind"] != "upsert" ||
+		upsert["kind"] != "page" || upsert["revision"] != strconv.FormatInt(upsertRevision, 10) {
+		t.Fatalf("upsert row = %v", upsert)
+	}
+	if upsert["removal"] != "" || upsert["version_id"] != nil || upsert["archived"] != false {
+		t.Fatalf("upsert row carries a removal field: %v", upsert)
 	}
 }

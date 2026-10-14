@@ -96,11 +96,14 @@ func (o *Office) SetOfficeEngine(ready bool, queueDepth int) {
 	}
 }
 
-// OfficeChangeFeed counts the change-feed snapshot sweep (G5-01a): rows the
-// TTL worker deleted, by table. It satisfies
-// service.DocumentChangeSweepMetrics.
+// OfficeChangeFeed counts the change-feed snapshot sweep (G5-01a) and reports
+// the incremental feed's lag (G5-01b): rows the TTL worker deleted, by table,
+// and the age of the oldest change the feed had not delivered when it last
+// served a page. It satisfies service.DocumentChangeSweepMetrics and
+// service.DocumentChangeFeedLagMetrics.
 type OfficeChangeFeed struct {
 	SnapshotRowsSwept *prometheus.CounterVec
+	FeedLag           prometheus.Gauge
 }
 
 func NewOfficeChangeFeed() *OfficeChangeFeed {
@@ -109,17 +112,30 @@ func NewOfficeChangeFeed() *OfficeChangeFeed {
 			Name: "uniwork_office_change_snapshot_rows_swept_total",
 			Help: "Expired Office change-feed snapshot rows deleted by the TTL sweep, by table.",
 		}, []string{"table"}),
+		FeedLag: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "uniwork_office_change_feed_lag_seconds",
+			Help: "Age in seconds of the oldest committed document change the incremental change feed had not delivered when it last served a page; 0 when that page caught the caller up.",
+		}),
 	}
 }
 
 func (o *OfficeChangeFeed) Collectors() []prometheus.Collector {
-	return []prometheus.Collector{o.SnapshotRowsSwept}
+	return []prometheus.Collector{o.SnapshotRowsSwept, o.FeedLag}
 }
 
 // ObserveChangeSnapshotSweep records one committed sweep batch.
 func (o *OfficeChangeFeed) ObserveChangeSnapshotSweep(snapshots, items int64) {
 	o.SnapshotRowsSwept.WithLabelValues("document_change_snapshots").Add(float64(snapshots))
 	o.SnapshotRowsSwept.WithLabelValues("document_change_snapshot_items").Add(float64(items))
+}
+
+// ObserveDocumentChangeFeedLag records the lag of the last served feed page:
+// how long the oldest change the feed had not delivered had waited (G5-01b).
+// The gauge is the last page across all workspaces, which is what an alert on
+// "the feed is falling behind" reads; the per-workspace split is a G5-D2
+// decision, not a label set built here.
+func (o *OfficeChangeFeed) ObserveDocumentChangeFeedLag(seconds float64) {
+	o.FeedLag.Set(seconds)
 }
 
 // OfficeLease counts the offline lease paths (G5-08s, decision G5-D1 row 17;

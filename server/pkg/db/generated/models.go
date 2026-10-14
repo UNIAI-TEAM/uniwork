@@ -197,6 +197,7 @@ type AuditEvent struct {
 	IpAddress      pgtype.Text        `json:"ip_address"`
 	UserAgent      pgtype.Text        `json:"user_agent"`
 	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
+	XactID         pgtype.Uint64      `json:"xact_id"`
 }
 
 type AuditExport struct {
@@ -262,6 +263,12 @@ type CalendarConnection struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	DisconnectedAt       pgtype.Timestamptz `json:"disconnected_at"`
+}
+
+type ChangeFeedEpoch struct {
+	ID        string             `json:"id"`
+	XactID    pgtype.Uint64      `json:"xact_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type ChatBlock struct {

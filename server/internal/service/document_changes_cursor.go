@@ -43,6 +43,12 @@ type changeCursorClaims struct {
 	// HighWater is the snapshot's pg_snapshot, carried on the feed cursor so
 	// the feed position outlives the swept snapshot row.
 	HighWater string `json:"h,omitempty"`
+	// AfterXact / AfterID are the feed keyset: the (xact_id, id) of the last
+	// row the previous feed page returned (G5-01b). Both empty is the first
+	// feed page. xact_id is the commit-ordered transaction id of the audit
+	// row behind the change; id breaks ties inside one transaction.
+	AfterXact string `json:"x,omitempty"`
+	AfterID   string `json:"i,omitempty"`
 	ExpiresAt int64  `json:"e"`
 }
 
@@ -121,6 +127,8 @@ func (c changeCursorCodec) verify(token string, scope changeCursorScope, now tim
 			return changeCursorClaims{}, ErrChangeCursorInvalid
 		}
 	case changeCursorPhaseFeed:
+		// A feed cursor carries the snapshot mark it continues from; the
+		// keyset may be empty (the first feed page).
 		if claims.HighWater == "" {
 			return changeCursorClaims{}, ErrChangeCursorInvalid
 		}

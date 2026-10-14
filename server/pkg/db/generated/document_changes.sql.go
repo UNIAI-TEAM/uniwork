@@ -11,6 +11,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const changeFeedEpochSeen = `-- name: ChangeFeedEpochSeen :one
+SELECT COALESCE((
+  SELECT pg_visible_in_snapshot(e.xact_id, $1::text::pg_snapshot)
+  FROM change_feed_epoch e
+  ORDER BY e.xact_id DESC
+  LIMIT 1
+), false)::boolean AS seen
+`
+
+// Does a high-water mark postdate the change-feed position column? The epoch
+// row (migration 9991791830000302) carries the xid from which
+// audit_events.xact_id is filled; a mark that cannot see it was taken before
+// the column, so commits between the mark and the column have no position and
+// the feed answers 410 instead of a page with a hole in it. A missing epoch
+// row (the migration never ran) reads as not seen.
+func (q *Queries) ChangeFeedEpochSeen(ctx context.Context, highWater string) (bool, error) {
+	row := q.db.QueryRow(ctx, changeFeedEpochSeen, highWater)
+	var seen bool
+	err := row.Scan(&seen)
+	return seen, err
+}
+
 const currentChangeHighWater = `-- name: CurrentChangeHighWater :one
 
 SELECT pg_current_snapshot()::text AS high_water
@@ -41,6 +63,58 @@ func (q *Queries) DeleteDocumentChangeSnapshotItems(ctx context.Context, snapsho
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const documentChangeFeedPending = `-- name: DocumentChangeFeedPending :one
+SELECT count(*)::bigint AS pending,
+       COALESCE(EXTRACT(EPOCH FROM (now() - min(a.occurred_at))), 0)::float8 AS lag_seconds
+FROM audit_events a
+WHERE a.organization_id = $1
+  AND a.workspace_id = $2
+  AND a.resource_type = 'document'
+  AND a.xact_id IS NOT NULL
+  AND NOT pg_visible_in_snapshot(a.xact_id, $3::text::pg_snapshot)
+  AND (CASE WHEN $4::text = '' THEN TRUE
+            ELSE (a.xact_id, a.id) > ($4::xid8, $5::text) END)
+`
+
+type DocumentChangeFeedPendingParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+	HighWater      string      `json:"high_water"`
+	AfterXact      string      `json:"after_xact"`
+	AfterID        string      `json:"after_id"`
+}
+
+type DocumentChangeFeedPendingRow struct {
+	Pending    int64   `json:"pending"`
+	LagSeconds float64 `json:"lag_seconds"`
+}
+
+// The feed's backlog after the position one page handed out: every change
+// after it the page read would eventually deliver, and the age of the oldest
+// of them. This count deliberately DROPS the page read's in-flight-xid guard
+// (BE-G1-3): a change held back because its transaction was still open when
+// the page read is still owed, so it is part of the backlog. The guard itself
+// stays on the page read (ListDocumentChangeFeed) - it is what stops a client
+// from advancing past a transaction that may still roll back. This count does
+// NOT decide has_more: the page's own keyset advance does, so a page whose
+// every candidate is held back answers has_more=false with its cursor
+// position unchanged (keyset intact) (BE-G2-2) and this backlog simply drains
+// on a later poll. The age is the feed lag metric: a long-running transaction
+// (the xmin horizon) keeps this count and the age non-zero while no page
+// delivers, which is the stall the runbook names. No row answers (0, 0).
+func (q *Queries) DocumentChangeFeedPending(ctx context.Context, arg DocumentChangeFeedPendingParams) (DocumentChangeFeedPendingRow, error) {
+	row := q.db.QueryRow(ctx, documentChangeFeedPending,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.HighWater,
+		arg.AfterXact,
+		arg.AfterID,
+	)
+	var i DocumentChangeFeedPendingRow
+	err := row.Scan(&i.Pending, &i.LagSeconds)
+	return i, err
 }
 
 const getDocumentChangeSnapshot = `-- name: GetDocumentChangeSnapshot :one
@@ -164,6 +238,90 @@ func (q *Queries) InsertDocumentChangeSnapshotItems(ctx context.Context, arg Ins
 	return result.RowsAffected(), nil
 }
 
+const listDocumentChangeFeed = `-- name: ListDocumentChangeFeed :many
+SELECT a.id, a.action, a.resource_id, a.xact_id::text AS xact_id, a.metadata, a.changes
+FROM audit_events a
+WHERE a.organization_id = $1
+  AND a.workspace_id = $2
+  AND a.resource_type = 'document'
+  AND a.xact_id IS NOT NULL
+  AND NOT pg_visible_in_snapshot(a.xact_id, $3::text::pg_snapshot)
+  AND a.xact_id < pg_snapshot_xmin(pg_current_snapshot())
+  -- CASE, not OR: the empty first-page keyset must never reach the ::xid8
+  -- cast, and only CASE guarantees that the branch is not evaluated.
+  AND (CASE WHEN $4::text = '' THEN TRUE
+            ELSE (a.xact_id, a.id) > ($4::xid8, $5::text) END)
+ORDER BY a.xact_id, a.id
+LIMIT $6
+`
+
+type ListDocumentChangeFeedParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+	HighWater      string      `json:"high_water"`
+	AfterXact      string      `json:"after_xact"`
+	AfterID        string      `json:"after_id"`
+	PageLimit      int32       `json:"page_limit"`
+}
+
+type ListDocumentChangeFeedRow struct {
+	ID         string `json:"id"`
+	Action     string `json:"action"`
+	ResourceID string `json:"resource_id"`
+	XactID     string `json:"xact_id"`
+	Metadata   string `json:"metadata"`
+	Changes    string `json:"changes"`
+}
+
+// ---- Incremental feed (G5-01b, UNI-1346) -----------------------------------
+// The feed continues from a snapshot's high-water mark. Its position is the
+// COMMITTED transaction id of the audit row every document command already
+// writes (ADR 0009): audit_events rows are never UPDATEd (the append-only
+// trigger), so xact_id is a stable commit-order keyset. ULIDs and created_at
+// are not commit ordered and cannot play that role.
+//
+// "After the snapshot" is NOT pg_visible_in_snapshot alone. A transaction that
+// was in flight when the high-water mark was taken is invisible to it AND
+// absent from the snapshot's items, so the feed must carry it - but a
+// transaction that is STILL in flight when the feed reads must not be carried
+// yet, or a client could advance its cursor past a change that later commits.
+// The guard is xact_id < pg_snapshot_xmin(pg_current_snapshot()): only
+// transactions that are already committed as of this read are eligible, so an
+// in-flight one is held back for the next page and never skipped.
+func (q *Queries) ListDocumentChangeFeed(ctx context.Context, arg ListDocumentChangeFeedParams) ([]ListDocumentChangeFeedRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentChangeFeed,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.HighWater,
+		arg.AfterXact,
+		arg.AfterID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentChangeFeedRow{}
+	for rows.Next() {
+		var i ListDocumentChangeFeedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Action,
+			&i.ResourceID,
+			&i.XactID,
+			&i.Metadata,
+			&i.Changes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentChangeSnapshotItems = `-- name: ListDocumentChangeSnapshotItems :many
 SELECT document_id, kind, revision, current_version, file_version_id
 FROM document_change_snapshot_items
@@ -218,6 +376,123 @@ func (q *Queries) ListDocumentChangeSnapshotItems(ctx context.Context, arg ListD
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentsForChangeFeed = `-- name: ListDocumentsForChangeFeed :many
+SELECT
+  d.id, d.organization_id, d.workspace_id, d.kind, d.revision,
+  d.current_version, d.file_version_id, d.archived_at,
+  d.owner_id, d.visibility, d.acl_owner_id
+FROM documents d
+WHERE d.organization_id = $1
+  AND d.id = ANY($2::text[])
+`
+
+type ListDocumentsForChangeFeedParams struct {
+	OrganizationID string   `json:"organization_id"`
+	Ids            []string `json:"ids"`
+}
+
+type ListDocumentsForChangeFeedRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Kind           string             `json:"kind"`
+	Revision       int64              `json:"revision"`
+	CurrentVersion int32              `json:"current_version"`
+	FileVersionID  pgtype.Text        `json:"file_version_id"`
+	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+	OwnerID        pgtype.Text        `json:"owner_id"`
+	Visibility     string             `json:"visibility"`
+	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
+}
+
+// One page's documents, WITHOUT the workspace filter: a row whose document now
+// lives in another workspace of the same organization is a removal for this
+// workspace, and a row with no document is a hard delete. Cross-tenant ids
+// read nothing. Exactly the columns the feed reads (BE-G1-6) - never SELECT *,
+// which would drag content, content_text and search_text through a hot read.
+func (q *Queries) ListDocumentsForChangeFeed(ctx context.Context, arg ListDocumentsForChangeFeedParams) ([]ListDocumentsForChangeFeedRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentsForChangeFeed, arg.OrganizationID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentsForChangeFeedRow{}
+	for rows.Next() {
+		var i ListDocumentsForChangeFeedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.Kind,
+			&i.Revision,
+			&i.CurrentVersion,
+			&i.FileVersionID,
+			&i.ArchivedAt,
+			&i.OwnerID,
+			&i.Visibility,
+			&i.AclOwnerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const readableAtSnapshotIDs = `-- name: ReadableAtSnapshotIDs :many
+SELECT document_id FROM document_change_snapshot_items
+WHERE snapshot_id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+  AND document_id = ANY($4::text[])
+`
+
+type ReadableAtSnapshotIDsParams struct {
+	SnapshotID     string   `json:"snapshot_id"`
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+}
+
+// The document ids the caller's snapshot held among these candidates: the
+// snapshot items were materialised at the snapshot's MVCC point, so they are
+// exactly what the caller could read then. Since the removal basis moved to a
+// reconstruction at removal time (BE-G1-1/BE-G1-2) this set is NOT the
+// permission decision: it is consulted only for the two kinds whose pre-change
+// state the removal itself destroys (a purge removes the row and its shares; a
+// document that becomes Work-Product-owned overwrites its permission row) - a
+// held id makes the removal due (owned) or its evidence unreconstructable
+// (purge, answered 410), an absent id with no granting action on the page
+// proves no removal is due. An empty set from a swept snapshot is never read
+// as "not held": the caller checks the snapshot row still exists first.
+func (q *Queries) ReadableAtSnapshotIDs(ctx context.Context, arg ReadableAtSnapshotIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, readableAtSnapshotIDs,
+		arg.SnapshotID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Ids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var document_id string
+		if err := rows.Scan(&document_id); err != nil {
+			return nil, err
+		}
+		items = append(items, document_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

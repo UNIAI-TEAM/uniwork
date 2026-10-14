@@ -39,10 +39,6 @@ const (
 var (
 	ErrChangeCursorInvalid = CodedError{Code: "change_cursor_invalid", Status: http.StatusBadRequest, Msg: "invalid change cursor"}
 	ErrChangeCursorExpired = CodedError{Code: "change_cursor_expired", Status: http.StatusGone, Msg: "change cursor expired; start a full resync"}
-	// errChangeFeedPending answers a feed cursor until the incremental feed
-	// (G5-01b) lands: refusing it loudly is the only answer that cannot lose
-	// a commit.
-	errChangeFeedPending = CodedError{Code: "unsupported_operation", Status: http.StatusNotImplemented, Msg: "the incremental change feed is not available yet"}
 )
 
 // officeCapabilityOff is the refusal of a capability hidden by a flag
@@ -79,6 +75,17 @@ type DocumentChangesService struct {
 	// isoOverride, when set, replaces REPEATABLE READ in openSnapshot and
 	// page, so a guard can prove it turns red under READ COMMITTED.
 	isoOverride pgx.TxIsoLevel
+	// feedLag, when set, observes the lag of every served feed page (G5-01b
+	// metric): the age of the oldest committed change the feed had not
+	// delivered yet. main.go wires it to metrics.OfficeChangeFeed; nil is the
+	// production path for a build without metrics and for tests that do not
+	// measure lag.
+	feedLag DocumentChangeFeedLagMetrics
+}
+
+// SetFeedLagMetrics attaches the incremental feed's lag recorder.
+func (s *DocumentChangesService) SetFeedLagMetrics(m DocumentChangeFeedLagMetrics) {
+	s.feedLag = m
 }
 
 // isoLevel is the isolation of the snapshot and page transactions:
@@ -143,8 +150,12 @@ type DocumentChange struct {
 // DocumentChangePage is one page. NextCursor is always set: a snapshot cursor
 // while HasMore, then the feed cursor carrying the high-water mark.
 type DocumentChangePage struct {
-	Phase      string
-	Changes    []DocumentChange
+	Phase   string
+	Changes []DocumentChange
+	// Feed carries the incremental-feed rows (phase feed); Changes is the
+	// snapshot page's shape. A feed row adds the change kind and, for a
+	// removal, the removal reason - the snapshot shape stays untouched.
+	Feed       []DocumentChangeFeedRow
 	HasMore    bool
 	NextCursor string
 	ExpiresAt  time.Time
@@ -179,7 +190,7 @@ func (s *DocumentChangesService) List(ctx context.Context, actor Actor, workspac
 		return DocumentChangePage{}, err
 	}
 	if claims.Phase == changeCursorPhaseFeed {
-		return DocumentChangePage{}, errChangeFeedPending
+		return s.pageFeed(ctx, cs, claims, limit)
 	}
 	return s.page(ctx, cs, claims.SnapshotID, claims.After, limit)
 }
@@ -352,6 +363,12 @@ func (s *DocumentChangesService) page(ctx context.Context, cs changeCursorScope,
 		out.ExpiresAt = snap.ExpiresAt.Time
 	} else {
 		claims.Phase, claims.HighWater = changeCursorPhaseFeed, snap.HighWater
+		// The snapshot id rides along as evidence availability for the two
+		// removal kinds whose pre-change state the change itself destroys
+		// (purge, becoming Work-Product-owned); BE-G1-1/BE-G1-2: it is not the
+		// permission decision, and a pre-fix cursor without it answers 410
+		// where that evidence would be needed.
+		claims.SnapshotID = snapshotID
 		out.ExpiresAt = now.Add(DocumentChangeFeedCursorTTL)
 		claims.ExpiresAt = out.ExpiresAt.Unix()
 	}
