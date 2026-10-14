@@ -8,12 +8,15 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -23,6 +26,7 @@ const testHandlerAIKey = "sk-handler-0123456789wxyz"
 type aiCredentialWorld struct {
 	srv      *httptest.Server
 	token    string
+	ownerID  string
 	orgID    string
 	member   string
 	outsider string
@@ -32,7 +36,7 @@ func newAICredentialWorld(t *testing.T) *aiCredentialWorld {
 	t.Helper()
 	srv := newTestServer(t)
 	w := &aiCredentialWorld{srv: srv}
-	w.token, _ = filesRegister(t, srv, "aikey-owner@example.com")
+	w.token, w.ownerID = filesRegister(t, srv, "aikey-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "AI Key Org", "slug": "ai-key-org"})
 	if res.StatusCode != 201 {
 		t.Fatalf("create org: %d %v", res.StatusCode, out)
@@ -227,5 +231,75 @@ func TestAICredentialHTTPWithoutKeyAnswers503(t *testing.T) {
 	outsider, _ := filesRegister(t, srv, "aikey-nobox-outsider@example.com")
 	if status, raw := rawCall(t, srv, "GET", base, outsider, ""); status != http.StatusNotFound {
 		t.Fatalf("outsider without AI_CREDENTIAL_KEY = %d %s, want 404", status, raw)
+	}
+}
+
+// G6-05k (ADR 0034): GET /orgs/{orgID}/ai/credentials carries byok {enabled,
+// reason} for both a web session and a desktop device session, and an older
+// client that only decodes {items, providers} continues to parse.
+func TestAICredentialHTTPListCarriesBYOKStatus(t *testing.T) {
+	w := newAICredentialWorld(t)
+	base := "/api/v1/orgs/" + w.orgID + "/ai/credentials"
+	if status, raw := rawCall(t, w.srv, "PUT", base+"/openai", w.token, `{"api_key":"`+testHandlerAIKey+`","model":"gpt-4.1-mini"}`); status != http.StatusCreated {
+		t.Fatalf("create = %d %s", status, raw)
+	}
+
+	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
+	deviceToken, err := minter.MintSession(w.ownerID, "cred-device-session")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type olderClientShape struct {
+		Items []struct {
+			Provider string `json:"provider"`
+			KeyHint  string `json:"key_hint"`
+		} `json:"items"`
+		Providers []struct {
+			ID string `json:"id"`
+		} `json:"providers"`
+	}
+
+	for _, c := range []struct {
+		name, token string
+	}{
+		{"web session", w.token},
+		{"device session", deviceToken},
+	} {
+		status, raw := rawCall(t, w.srv, "GET", base, c.token, "")
+		if status != http.StatusOK {
+			t.Fatalf("%s list = %d %s", c.name, status, raw)
+		}
+		var full map[string]any
+		if err := json.Unmarshal([]byte(raw), &full); err != nil {
+			t.Fatalf("%s decode full = %v", c.name, err)
+		}
+		byok, ok := full["byok"].(map[string]any)
+		if !ok || byok["enabled"] != true || byok["reason"] != "" {
+			t.Fatalf("%s byok = %v, want enabled=true reason=\"\"", c.name, full["byok"])
+		}
+		var older olderClientShape
+		if err := json.Unmarshal([]byte(raw), &older); err != nil {
+			t.Fatalf("%s older-shape decode = %v", c.name, err)
+		}
+		if len(older.Items) != 1 || older.Items[0].Provider != "openai" || older.Items[0].KeyHint != "…wxyz" || len(older.Providers) == 0 {
+			t.Fatalf("%s older-shape = %+v", c.name, older)
+		}
+	}
+
+	if _, err := testPool.Exec(context.Background(), `UPDATE subscriptions SET overrides = '{"office.ai_byok": false}'::jsonb WHERE organization_id = $1`, w.orgID); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name, token string
+	}{
+		{"web session", w.token},
+		{"device session", deviceToken},
+	} {
+		res, out := doJSON(t, w.srv, "GET", base, c.token, nil)
+		byok, ok := out["byok"].(map[string]any)
+		if res.StatusCode != http.StatusOK || !ok || byok["enabled"] != false || byok["reason"] != "entitlement_required" {
+			t.Fatalf("%s without office.ai_byok = %d %v, want enabled=false reason=entitlement_required", c.name, res.StatusCode, out)
+		}
 	}
 }
