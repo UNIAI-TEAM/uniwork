@@ -328,7 +328,7 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 	if !ok {
 		return acceptOutcome{}, errOrganizationSwitchRequired(conflicts)
 	}
-	mailboxes, err := s.giveUp(ctx, qtx, userID, inv.ID, org.ID, conflicts, plan, locked)
+	mailboxes, err := s.giveUp(ctx, qtx, userID, conflicts, plan, locked)
 	if err != nil {
 		return acceptOutcome{}, err
 	}
@@ -400,14 +400,17 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 // order their rows were locked: leave, transfer then leave, or close (spec
 // §4.4 step 5). Each step decides again under its own row locks; one that
 // finds the organization changed since the conflicts were read makes the
-// whole switch stale. The audit rows name the invitation and the organization
-// being joined, so the trail shows a switch rather than a plain exit.
-func (s *WorkspaceService) giveUp(ctx context.Context, q *db.Queries, userID, invitationID, joiningOrgID string,
+// whole switch stale. The old organization's audit rows say it was a switch
+// rather than a plain exit, and name nothing of the organization joined:
+// which tenant someone moved to is not the old tenant's business (ADR 0008).
+// The joined side's member.joined row carries the invitation, and the shared
+// correlation id ties the two for the platform.
+func (s *WorkspaceService) giveUp(ctx context.Context, q *db.Queries, userID string,
 	conflicts []MembershipConflict, plan map[string]SwitchResolution, locked map[string]bool,
 ) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
 	ordered := append([]MembershipConflict(nil), conflicts...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Organization.ID < ordered[j].Organization.ID })
-	meta := map[string]any{"invitation_id": invitationID, "switched_to_organization_id": joiningOrgID}
+	meta := map[string]any{"reason": "organization_switch"}
 	var mailboxes []db.DisconnectEmailHubAccountsForUserRow
 	for _, c := range ordered {
 		orgID := c.Organization.ID

@@ -200,15 +200,29 @@ func TestSwitchOrganizationByInvitation(t *testing.T) {
 		if got := f.activeOrgIDs(t, f.member.ID); len(got) != 1 || got[0] != target.ID {
 			t.Fatalf("active organizations: %v", got)
 		}
-		var invitationID, switchedTo string
-		if err := f.pool.QueryRow(f.ctx, `SELECT metadata::jsonb->>'invitation_id', metadata::jsonb->>'switched_to_organization_id'
+		// The old organization's trail says it was a switch, and names
+		// nothing of the organization joined: that is another tenant's
+		// business (ADR 0008). The joined side keeps the invitation.
+		var reason string
+		var foreign bool
+		if err := f.pool.QueryRow(f.ctx, `SELECT metadata::jsonb->>'reason',
+			metadata::jsonb ?| array['invitation_id', 'switched_to_organization_id']
 			FROM audit_events WHERE action = 'member.left' AND resource_id = $1 AND organization_id = $2`, f.member.ID, f.org.ID).
-			Scan(&invitationID, &switchedTo); err != nil {
+			Scan(&reason, &foreign); err != nil {
 			t.Fatal(err)
 		}
+		if reason != "organization_switch" || foreign {
+			t.Fatalf("member.left metadata: reason %q, names the joined tenant %v", reason, foreign)
+		}
 		inv, err := f.q.GetInvitationByTokenAnyState(f.ctx, token)
-		if err != nil || invitationID != inv.ID || switchedTo != target.ID {
-			t.Fatalf("member.left metadata: %q %q (%v)", invitationID, switchedTo, err)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var joinedInvitation string
+		if err := f.pool.QueryRow(f.ctx, `SELECT metadata::jsonb->>'invitation_id' FROM audit_events
+			WHERE action = 'member.joined' AND resource_id = $1 AND organization_id = $2`, f.member.ID, target.ID).
+			Scan(&joinedInvitation); err != nil || joinedInvitation != inv.ID {
+			t.Fatalf("member.joined metadata: %q (%v)", joinedInvitation, err)
 		}
 	})
 
@@ -253,10 +267,13 @@ func TestSwitchOrganizationByInvitation(t *testing.T) {
 		if o.Status != "archived" || o.SuspendedReason.String != "organization_closed" {
 			t.Fatalf("old organization: %s %q", o.Status, o.SuspendedReason.String)
 		}
-		var switchedTo string
-		if err := f.pool.QueryRow(f.ctx, `SELECT metadata::jsonb->>'switched_to_organization_id' FROM audit_events
-			WHERE action = 'organization.closed' AND resource_id = $1`, f.org.ID).Scan(&switchedTo); err != nil || switchedTo != target.ID {
-			t.Fatalf("organization.closed metadata: %q (%v)", switchedTo, err)
+		var reason string
+		var foreign bool
+		if err := f.pool.QueryRow(f.ctx, `SELECT metadata::jsonb->>'reason',
+			metadata::jsonb ?| array['invitation_id', 'switched_to_organization_id'] FROM audit_events
+			WHERE action = 'organization.closed' AND resource_id = $1`, f.org.ID).Scan(&reason, &foreign); err != nil ||
+			reason != "organization_switch" || foreign {
+			t.Fatalf("organization.closed metadata: reason %q, names the joined tenant %v (%v)", reason, foreign, err)
 		}
 		if got := f.activeOrgIDs(t, f.owner.ID); len(got) != 1 || got[0] != target.ID {
 			t.Fatalf("active organizations: %v", got)

@@ -214,7 +214,7 @@ xóa privacy đang chờ (C-06) vẫn chạy bình thường trên tổ chức �
 
 - **Topic mới `organization.closed`** — payload `{organization_id}`, scope `organization`, outbox. Thêm vào cả ba bản: `docs/events/CATALOGUE.md`, `server/internal/outbox/catalogue.go`, `packages/core/types/events.ts`. Action audit `organization.closed` trong `internal/audit/actions.go`; dòng `Close` trong `audit_coverage_test.go`.
 - `AccessRevoker` xử lý `organization.closed` như `organization.suspended` (`DisconnectOrganization`).
-- Luồng chuyển tổ chức **không** có topic riêng: cùng transaction phát `organization.ownership_transferred` (nếu transfer), `member.left` hoặc `organization.closed`, rồi `member.joined`. Metadata audit `member.left` thêm `invitation_id`, `switched_to_organization_id`. `member.left` ngắt mọi socket của người dùng sau 2 s; socket tổ chức mới tự kết nối lại và qua kiểm tra.
+- Luồng chuyển tổ chức **không** có topic riêng: cùng transaction phát `organization.ownership_transferred` (nếu transfer), `member.left` hoặc `organization.closed`, rồi `member.joined`. Metadata audit `member.left` / `organization.closed` của tổ chức cũ chỉ ghi `reason: "organization_switch"`, không ghi id của tổ chức mới hay lời mời: tổ chức mới là chuyện của tenant khác (ADR 0008). Dòng `member.joined` bên tổ chức mới giữ `invitation_id`; `correlation_id` chung nối hai dòng cho platform. `member.left` ngắt mọi socket của người dùng sau 2 s; socket tổ chức mới tự kết nối lại và qua kiểm tra.
 - Client `packages/core/realtime/use-realtime-sync.ts`: `member.left` / `member.joined` có `user_id` là chính mình (thao tác ở tab khác) ⇒ invalidate thêm danh sách tổ chức, danh sách workspace, `/me`. Guard tự đưa về `/get-started` khi mất quyền.
 
 ## 6. Web
