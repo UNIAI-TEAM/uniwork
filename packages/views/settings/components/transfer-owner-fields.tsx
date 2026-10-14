@@ -142,7 +142,7 @@ export function TransferPasswordField({
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
       />
-      {error ? <SettingsFieldError id={errorId}>{error}</SettingsFieldError> : null}
+      <SettingsFieldError id={errorId}>{error ?? null}</SettingsFieldError>
     </Field>
   );
 }

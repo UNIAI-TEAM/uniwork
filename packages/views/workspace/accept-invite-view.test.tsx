@@ -504,7 +504,7 @@ describe("AcceptInviteView", () => {
       next();
       expect(await screen.findByText(/Bạn là thành viên duy nhất của Acme/)).toBeInTheDocument();
       expect(screen.getByText(/Acme sẽ được lưu trữ/)).toBeInTheDocument();
-      const field = screen.getByLabelText("Gõ đường dẫn tổ chức để xác nhận");
+      const field = screen.getByLabelText("Gõ định danh tổ chức để xác nhận");
       // Slugs are lowercase: a phone keyboard must not capitalise or correct them.
       expect(field).toHaveAttribute("autocapitalize", "none");
       expect(field).toHaveAttribute("autocorrect", "off");
@@ -562,7 +562,7 @@ describe("AcceptInviteView", () => {
       );
       expect(await screen.findByText("Tình hình đã thay đổi trong lúc bạn thao tác. Xem lại từng mục dưới đây.")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Xử lý tổ chức cũ" })).toBeInTheDocument();
-      expect(screen.getByLabelText("Gõ đường dẫn tổ chức để xác nhận")).toBeInTheDocument();
+      expect(screen.getByLabelText("Gõ định danh tổ chức để xác nhận")).toBeInTheDocument();
       expect(screen.queryByRole("checkbox", { name: "Tôi muốn rời Acme" })).not.toBeInTheDocument();
     });
 

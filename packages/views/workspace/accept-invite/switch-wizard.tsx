@@ -105,7 +105,7 @@ export function SwitchWizard({
         setRefusedPasswordless(true);
         setAnnouncement(t("invitations.switch.no_password_reason"));
       } else {
-        setPasswordError(t("invitations.switch.wrong_password"));
+        setPasswordError(t("org.transfer.wrong_password"));
         focusInvalid.current = true;
       }
       setStep(2);

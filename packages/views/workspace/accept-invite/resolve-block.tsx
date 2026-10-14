@@ -142,7 +142,7 @@ function TransferBlock({ conflict, draft, onChange, passwordError, passwordless 
         empty={none ? t("org.transfer.no_candidate") : undefined}
       />
       {passwordless ? (
-        <DestructiveNotice>{t("invitations.switch.no_password", { name })}</DestructiveNotice>
+        <DestructiveNotice>{t("org.transfer.no_password", { name })}</DestructiveNotice>
       ) : (
         <TransferPasswordField
           id={`${prefix}-password`}
@@ -179,7 +179,7 @@ function CloseBlock({ conflict, draft, onChange }: BlockProps) {
           aria-describedby={mismatch ? `${id}-hint ${id}-error` : `${id}-hint`}
         />
         <FieldDescription id={`${id}-hint`}>{t("org.close.confirm_hint", { slug })}</FieldDescription>
-        {mismatch ? <SettingsFieldError id={`${id}-error`}>{t("org.close.confirm_mismatch", { slug })}</SettingsFieldError> : null}
+        <SettingsFieldError id={`${id}-error`}>{mismatch ? t("org.close.confirm_mismatch", { slug }) : null}</SettingsFieldError>
       </Field>
     </>
   );

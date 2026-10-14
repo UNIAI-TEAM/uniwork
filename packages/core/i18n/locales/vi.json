@@ -4367,7 +4367,15 @@
         "new_owner": "Người bạn chọn trở thành chủ sở hữu, toàn quyền với tổ chức.",
         "you_admin": "Bạn trở thành quản trị.",
         "no_undo": "Bạn không tự lấy lại quyền sở hữu được."
-      }
+      },
+      "wrong_password": "Mật khẩu chưa đúng. Nhập lại để chuyển quyền sở hữu.",
+      "no_password": "Chuyển quyền sở hữu {{name}} cần xác nhận bằng mật khẩu, nhưng tài khoản của bạn chưa có mật khẩu (bạn đăng nhập bằng Google). Liên hệ bộ phận hỗ trợ để được giúp.",
+      "confirm_lede": "Không có gì bị xóa, nhưng tổ chức không còn do bạn nắm.",
+      "action_pending": "Đang chuyển quyền…",
+      "reason_pick": "Chọn chủ sở hữu mới để tiếp tục.",
+      "reason_name": "Gõ đúng tên tổ chức để tiếp tục.",
+      "reason_password": "Nhập mật khẩu hiện tại để tiếp tục.",
+      "reason_no_password": "Chưa thể chuyển quyền khi tài khoản chưa có mật khẩu."
     },
     "deactivated": {
       "title": "Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này",
@@ -4399,7 +4407,7 @@
       "action": "Đóng tổ chức",
       "confirm_title": "Đóng {{name}}?",
       "confirm_body": "{{name}} sẽ được lưu trữ: mọi workspace và dữ liệu còn nguyên nhưng không ai truy cập được, kể cả bạn. Chỉ bộ phận hỗ trợ khôi phục được. Lời mời đang chờ bị thu hồi và gói trả phí bị hủy.",
-      "confirm_label": "Gõ đường dẫn tổ chức để xác nhận",
+      "confirm_label": "Gõ định danh tổ chức để xác nhận",
       "confirm_hint": "Gõ đúng \"{{slug}}\".",
       "confirm_mismatch": "Chưa khớp với \"{{slug}}\".",
       "done": "Đã đóng tổ chức",
@@ -4410,7 +4418,9 @@
         "no_access": "Không ai mở được nữa, kể cả bạn.",
         "restore": "Chỉ bộ phận hỗ trợ khôi phục được.",
         "billing": "Lời mời đang chờ bị thu hồi và gói trả phí bị hủy."
-      }
+      },
+      "action_pending": "Đang đóng…",
+      "reason_slug": "Gõ đúng định danh tổ chức để đóng."
     }
   },
   "invitations": {
@@ -4480,8 +4490,6 @@
       "unknown": "Chưa xử lý được {{name}} ở trang này. Tải lại trang để thử lại.",
       "incomplete": "Hoàn tất từng mục ở trên để tiếp tục.",
       "blocked_reason": "Chưa thể tiếp tục khi còn tổ chức đang tạm ngưng.",
-      "wrong_password": "Mật khẩu chưa đúng. Nhập lại để chuyển quyền sở hữu.",
-      "no_password": "Chuyển quyền sở hữu {{name}} cần xác nhận bằng mật khẩu, nhưng tài khoản của bạn chưa có mật khẩu (bạn đăng nhập bằng Google). Liên hệ bộ phận hỗ trợ để được giúp.",
       "no_password_reason": "Chưa thể tiếp tục khi tài khoản chưa có mật khẩu.",
       "confirm_heading": "Xác nhận chuyển tổ chức",
       "confirm_leave": "Rời {{name}}",
