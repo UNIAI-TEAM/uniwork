@@ -6,28 +6,43 @@ import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { OFFICE_EDITOR_ICONS, OFFICE_EDITOR_KEYS, officeShotSrc, type OfficeEditorKey } from "./office-data";
 
-/**
- * A real capture of the editor. A shot that cannot load removes its frame
- * instead of leaving a broken image behind. An image that failed before React
- * attached `onError` (server HTML, slow hydration) is caught by the effect.
- */
-export function OfficeShot({ editor, priority = false }: { editor: OfficeEditorKey; priority?: boolean }) {
-  const { t, i18n } = useTranslation();
+/** Source-keyed captures recover when the visitor chooses another editor or language. */
+function OfficeCapture({ src, theme, alt, unavailable, priority }: {
+  src: string;
+  theme: "light" | "dark";
+  alt: string;
+  unavailable: string;
+  priority: boolean;
+}) {
   const [failed, setFailed] = useState(false);
   const image = useRef<HTMLImageElement>(null);
   useEffect(() => {
     const img = image.current;
     if (img?.complete && img.naturalWidth === 0) setFailed(true);
   }, []);
-  if (failed) return null;
+  if (failed) return <p className={`office-shot-${theme} office-preview-error`} role="status">{unavailable}</p>;
+  return <Image ref={image} className={`office-shot-${theme}`} data-theme={theme} src={src} width={2400} height={1500} alt={alt}
+    sizes="(min-width: 1100px) 800px, calc(100vw - 40px)" priority={priority} unoptimized onError={() => setFailed(true)} />;
+}
+
+/** CSS selects the correct capture before hydration, including manually selected themes. */
+export function OfficeShot({ editor, priority = false }: { editor: OfficeEditorKey; priority?: boolean }) {
+  const { t, i18n } = useTranslation();
+  const alt = t("landing.office.editors.imageAlt", { editor: t(`landing.office.editors.${editor}.name`) });
   return <figure className="office-shot">
-    <Image ref={image} src={officeShotSrc(editor, i18n.language)} width={2400} height={1500} alt={t("landing.office.editors.imageAlt", { editor: t(`landing.office.editors.${editor}.name`) })}
-      sizes="(min-width: 1360px) 1296px, 100vw" priority={priority} unoptimized onError={() => setFailed(true)} />
+    <div className="office-shot-frame">{(["light", "dark"] as const).map(theme => {
+      const src = officeShotSrc(editor, i18n.language, theme);
+      return <OfficeCapture key={src} src={src} theme={theme} alt={alt} unavailable={t("landing.office.editors.imageUnavailable")} priority={priority} />;
+    })}</div>
+    <figcaption>{t("landing.office.editors.imageCaption")}</figcaption>
   </figure>;
 }
 
 /** The tabbed overview: one tab per editor, the selected editor's screenshot below. */
-export function OfficeEditorTabs({ active, onActiveChange }: { active: OfficeEditorKey; onActiveChange: (editor: OfficeEditorKey) => void }) {
+export function OfficeEditorTabs({ active, onActiveChange }: {
+  active: OfficeEditorKey;
+  onActiveChange: (editor: OfficeEditorKey) => void;
+}) {
   const { t } = useTranslation();
   return <Tabs value={active} onValueChange={(value) => onActiveChange(value as OfficeEditorKey)} className="office-tabs">
     <TabsList aria-label={t("landing.office.editors.tabs")} className="office-tab-list">
@@ -36,25 +51,18 @@ export function OfficeEditorTabs({ active, onActiveChange }: { active: OfficeEdi
         return <TabsTrigger key={key} value={key} className="office-tab"><Icon aria-hidden />{t(`landing.office.editors.${key}.name`)}</TabsTrigger>;
       })}
     </TabsList>
-    {OFFICE_EDITOR_KEYS.map((key) => <TabsContent key={key} value={key} className="office-tab-panel">
-      <OfficeShot editor={key} />
-      <p className="office-tab-caption">{t(`landing.office.editors.${key}.description`)}</p>
+    {OFFICE_EDITOR_KEYS.map((key) => <TabsContent key={key} value={key} className="office-tab-panel" aria-describedby="office-editor-description">
+      <OfficeShot editor={key} priority={key === "docs"} />
     </TabsContent>)}
   </Tabs>;
 }
 
-/** The six stacked blocks, screenshot and text alternating sides. */
-export function OfficeEditorBlocks() {
+/** Selected capabilities supplement the single preview without repeating its controls or image. */
+export function OfficeEditorSummary({ editor }: { editor: OfficeEditorKey }) {
   const { t } = useTranslation();
-  return <div className="office-blocks">{OFFICE_EDITOR_KEYS.map((key) => {
-    const Icon = OFFICE_EDITOR_ICONS[key];
-    return <section className="office-block" key={key} id={`office-block-${key}`} aria-labelledby={`office-block-${key}-title`}>
-      <div className="office-block-copy">
-        <span className="office-block-kicker"><Icon aria-hidden />{t(`landing.office.editors.${key}.name`)}</span>
-        <h3 id={`office-block-${key}-title`}>{t(`landing.office.editors.${key}.title`)}</h3>
-        <ul>{[1, 2, 3].map((n) => <li key={n}><Check aria-hidden />{t(`landing.office.editors.${key}.p${n}`)}</li>)}</ul>
-      </div>
-      <OfficeShot editor={key} />
-    </section>;
-  })}</div>;
+  return <div className="office-editor-summary">
+    <div><h2 id="office-editor-summary-title">{t(`landing.office.editors.${editor}.title`)}</h2>
+      <p id="office-editor-description">{t(`landing.office.editors.${editor}.description`)}</p></div>
+    <ul className="office-editor-points">{[1, 2, 3].map(n => <li key={n}><Check aria-hidden />{t(`landing.office.editors.${editor}.p${n}`)}</li>)}</ul>
+  </div>;
 }

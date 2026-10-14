@@ -4840,7 +4840,8 @@
       "trace": "Trace",
       "quota": "Hạn mức",
       "system": "Hệ thống",
-      "overview": "Tổng quan"
+      "overview": "Tổng quan",
+      "demo_requests": "Yêu cầu demo"
     },
     "common": {
       "retry": "Thử lại",
@@ -5228,6 +5229,36 @@
       "suspended_hint": "Thành viên bị chặn cho tới khi bỏ tạm ngưng.",
       "realtime": "Kết nối realtime",
       "build": "Bản {{version}} · {{commit}}"
+    },
+    "demo_requests": {
+      "title": "Yêu cầu demo",
+      "description": "Thông tin khách đăng ký demo từ website. Theo dõi và cập nhật tiến trình xử lý.",
+      "filter": "Lọc yêu cầu demo",
+      "all": "Tất cả",
+      "status": {
+        "new": "Mới",
+        "in_progress": "Đang xử lý",
+        "completed": "Hoàn tất"
+      },
+      "refresh": "Tải lại",
+      "empty": "Chưa có yêu cầu demo",
+      "empty_description": "Yêu cầu khớp bộ lọc sẽ xuất hiện tại đây sau khi khách gửi biểu mẫu.",
+      "load_error": "Không tải được yêu cầu demo",
+      "retry_hint": "Hãy tải lại để thử một lần nữa.",
+      "contact": "Người liên hệ",
+      "company": "Công ty / đội ngũ",
+      "message": "Nội dung quan tâm",
+      "status_label": "Trạng thái",
+      "received": "Nhận lúc",
+      "action": "Thao tác",
+      "people": "{{size}} người",
+      "no_message": "Không có nội dung bổ sung",
+      "update": "Cập nhật",
+      "update_title": "Cập nhật yêu cầu demo",
+      "update_error": "Chưa cập nhật được. Hãy thử lại.",
+      "previous": "Trước",
+      "next": "Tiếp",
+      "page": "Trang {{page}}"
     }
   },
   "people": {
@@ -5636,6 +5667,10 @@
       "office": {
         "title": "UniWork Office — ứng dụng văn phòng có AI",
         "description": "Bộ ứng dụng văn phòng cho macOS, Windows và Linux: soạn văn bản, bảng tính, trình chiếu, PDF, HTML và Markdown với AI, dùng chung tài khoản và workspace UniWork."
+      },
+      "demo": {
+        "title": "Yêu cầu demo | UniWork",
+        "description": "Đặt một buổi giới thiệu UniWork theo nhu cầu của đội ngũ bạn."
       }
     },
     "revision": {
@@ -6856,24 +6891,33 @@
       "filmStep2": "Rõ bước tiếp theo"
     },
     "demo": {
-      "search": "Tìm công việc minh họa",
-      "localOnly": "Dữ liệu thử trong trình duyệt, không gửi lên máy chủ.",
-      "tryIt": "Thử tìm kiếm, hoàn thành việc hoặc gửi một tin nhắn",
-      "reset": "Đặt lại demo",
-      "noResults": "Không tìm thấy công việc. Thử từ khóa khác.",
-      "complete": "Đánh dấu hoàn thành",
-      "reopen": "Mở lại công việc",
-      "openDiscussion": "Mở trao đổi",
-      "openTask": "Mở công việc",
-      "messageHistory": "Lịch sử trao đổi minh họa",
-      "messageLabel": "Tin nhắn minh họa",
-      "messagePlaceholder": "Thử gửi tin nhắn cho nhóm…",
-      "send": "Gửi tin nhắn",
-      "you": "Bạn",
-      "ownerQuestion": "Ai đang phụ trách?",
-      "ownerAnswer": "Hoàng Anh phụ trách thiết kế onboarding. Minh Linh giữ brief sản phẩm, UNI tổng hợp phản hồi và Thanh Ngân phụ trách phạm vi ra mắt.",
-      "completedCount_one": "{{count}} trong 4 công việc minh họa đã hoàn thành.",
-      "completedCount_other": "{{count}} trong 4 công việc minh họa đã hoàn thành."
+      "cta": "Yêu cầu demo",
+      "back": "Về trang chủ",
+      "headline": "Khám phá UniWork cùng đội ngũ của bạn.",
+      "description": "Chia sẻ cách đội ngũ đang làm việc. Cùng xem UniWork có thể kết nối công việc, trao đổi và tri thức trong một nơi như thế nào.",
+      "title": "Yêu cầu demo",
+      "form_description": "Để lại thông tin để đội ngũ UniWork liên hệ và sắp xếp buổi giới thiệu.",
+      "benefits": {
+        "workflow": "Bắt đầu từ quy trình và nhu cầu của đội ngũ.",
+        "product": "Xem cách quản lý công việc, trao đổi và họp trên UniWork.",
+        "questions": "Trao đổi về triển khai và những câu hỏi của bạn."
+      },
+      "name": "Họ và tên",
+      "email": "Email công việc",
+      "company": "Công ty hoặc đội ngũ",
+      "team_size": "Quy mô đội ngũ",
+      "choose_size": "Chọn quy mô",
+      "people": "{{size}} người",
+      "message": "Bạn muốn tìm hiểu điều gì? (không bắt buộc)",
+      "message_placeholder": "Ví dụ: quản lý dự án, cộng tác hoặc triển khai cho đội ngũ.",
+      "submit": "Gửi yêu cầu demo",
+      "submitting": "Đang gửi...",
+      "privacy": "Thông tin này được dùng để liên hệ với bạn về buổi demo.",
+      "error": "Chưa gửi được yêu cầu. Thông tin bạn đã nhập vẫn được giữ lại; hãy thử lại.",
+      "rate_limit": "Bạn đã gửi nhiều yêu cầu gần đây. Vui lòng thử lại sau.",
+      "success_title": "Đã nhận yêu cầu demo",
+      "success_description": "Yêu cầu đã được lưu. Đội ngũ UniWork sẽ liên hệ qua {{email}} để sắp xếp buổi demo.",
+      "receipt": "Mã yêu cầu: {{id}}"
     },
     "explorer": {
       "sub": "Chọn một tính năng. Thấy cách cả đội kết nối.",
@@ -6921,9 +6965,25 @@
       "fewerQuestions": "Thu gọn câu hỏi"
     },
     "studio": {
-      "heroLine1": "Cả nhóm.",
-      "heroLine2": "Một workspace.",
-      "heroDescription": "UniWork Business OS kết nối công việc, họp, trao đổi và AI trong một workspace.",
+      "heroEyebrow": "Nền tảng làm việc hợp nhất",
+      "heroLine1": "Mọi công việc.",
+      "heroLine2": "Một nền tảng duy nhất.",
+      "heroDescription": "Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.",
+      "heroShowcaseAlt": "Vòng xoay giao diện UniWork gồm công việc, trao đổi, họp và bộ công cụ tài liệu",
+      "heroShowScreen": "Xem màn hình {{screen}}",
+      "heroDocsScreen": "Tài liệu",
+      "heroSheetsScreen": "Bảng tính",
+      "heroSlidesScreen": "Trình chiếu",
+      "heroPdfScreen": "PDF",
+      "heroWebScreen": "Trang web",
+      "heroWorkTitle": "Quản lý công việc",
+      "heroWorkDescription": "Tập trung mọi công việc, rõ ràng, minh bạch",
+      "heroChatTitle": "Trao đổi & cộng tác",
+      "heroChatDescription": "Thảo luận nhanh, kết nối đội ngũ",
+      "heroMeetingsTitle": "Họp trực tuyến",
+      "heroMeetingsDescription": "Làm việc mọi lúc, mọi nơi",
+      "heroAiTitle": "AI đồng hành",
+      "heroAiDescription": "Tìm kiếm, tóm tắt, đề xuất, hỗ trợ công việc",
       "explore": "Khám phá UniWork",
       "heroNote": "Tiếng Việt & English · Dành cho đội ngũ hiện đại",
       "previewModes": "Khám phá giao diện minh họa",
@@ -7009,7 +7069,8 @@
       "trustNote": "Tự chọn mô hình AI. Chung một bối cảnh công việc.",
       "skip": "Chuyển đến nội dung",
       "previewLabel": "Trải nghiệm minh họa",
-      "prelaunch": "UniWork đang trong giai đoạn trước phát hành rộng."
+      "prelaunch": "UniWork đang trong giai đoạn trước phát hành rộng.",
+      "heroHeadlineHighlight": "Một <highlight>nền tảng</highlight> duy nhất."
     },
     "nav": {
       "main": "Điều hướng chính",
@@ -7898,10 +7959,19 @@
       }
     },
     "office": {
+      "editions": {
+        "business": "Office for Enterprise",
+        "businessDescription": "Tài liệu và AI cùng workspace của nhóm.",
+        "personal": "Office for Personal",
+        "personalDescription": "Phiên bản dành cho nhu cầu cá nhân đang được phát triển.",
+        "development": "Đang phát triển"
+      },
       "hero": {
         "kicker": "Ứng dụng văn phòng của UniWork",
         "title": "UniWork Office",
-        "sub": "Bộ ứng dụng văn phòng có AI cho macOS, Windows và Linux. Đăng nhập bằng tài khoản UniWork, mở file từ workspace của nhóm và lưu lại thành phiên bản mới.",
+        "sub": "Soạn thảo tài liệu, bảng tính và bài trình bày với AI. Kết nối cùng workspace UniWork.",
+        "explore": "Khám phá bộ soạn thảo",
+        "trial": "Tải dùng thử",
         "downloadFor": "Tải cho {{os}}",
         "variants": "Bản cài cho {{os}}",
         "downloadBoth": {
@@ -7920,6 +7990,8 @@
         "formats": "Hỗ trợ DOCX, XLSX, PPTX, PDF, HTML và Markdown",
         "tabs": "Trình soạn thảo",
         "imageAlt": "UniWork Office: {{editor}} với bảng AI",
+        "imageCaption": "Giao diện minh hoạ",
+        "imageUnavailable": "Không tải được ảnh xem trước. Tải lại trang để thử lại.",
         "docs": {
           "name": "Văn bản",
           "title": "Soạn văn bản với AI ngay bên cạnh",

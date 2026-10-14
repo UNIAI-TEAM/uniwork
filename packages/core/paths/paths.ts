@@ -50,6 +50,7 @@ export const paths = {
   changelog: () => "/changelog",
   pricing: () => "/pricing",
   enterprise: () => "/enterprise",
+  requestDemo: () => "/request-demo",
   /** Public page of the UniWork Office desktop app (landing menu "Office"). */
   office: () => "/office",
   /**
@@ -63,6 +64,7 @@ export const paths = {
   admin: {
     root: () => "/admin",
     organizations: () => "/admin/organizations",
+    demoRequests: () => "/admin/demo-requests",
     organization: (id: string) => `/admin/organizations/${id}`,
     flags: () => "/admin/flags",
     plans: () => "/admin/plans",
@@ -134,6 +136,7 @@ export const GLOBAL_PREFIXES = [
   "/changelog",
   "/pricing",
   "/enterprise",
+  "/request-demo",
   "/office",
 ] as const;
 

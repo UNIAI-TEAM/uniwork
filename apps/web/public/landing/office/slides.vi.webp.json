@@ -1,0 +1,52 @@
+{
+  "prompt": "Source: pre-existing UniWork slides vi light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob 61a26e0a89ea4749c44ec6954e5fc7ebedc0aae1, exact file apps/web/public/landing/office/slides.vi.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+  "createdAt": "2026-10-14T03:21:55.277Z",
+  "id": "slides-vi-light",
+  "bucket": "direct",
+  "source_crop": null,
+  "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+  "output_path": "apps/web/public/landing/office/slides.vi.webp",
+  "strategy": "preserve-existing-committed-product-screenshot",
+  "prompt_used": null,
+  "origin": "Source: pre-existing UniWork slides vi light editor screenshot committed in repository commit 568278d78fe988cb444665922b5d161f58f487eb, git blob 61a26e0a89ea4749c44ec6954e5fc7ebedc0aae1, exact file apps/web/public/landing/office/slides.vi.webp. Source capture workflow: scripts/office-landing/capture.mjs and illustrative source samples in samples.mjs, deck.mjs and report.mjs at that commit. Raster bytes are preserved. Historical runtime, exact capture timestamp, sample binary hash and original browser session are not retained, so this record identifies the committed origin rather than certifying those unknown details. The depicted sample content is illustrative and names a fictional company.",
+  "dimensions": {
+    "width": 2400,
+    "height": 1500
+  },
+  "format": "webp",
+  "transparency": false,
+  "bytes": 98920,
+  "sha256": "09b1b2641b3715a4a620cae72ccf9feab05f4245a685b0ab211bd1a72f675ede",
+  "illustrative_data": true,
+  "source_files": [
+    {
+      "path": "scripts/office-landing/capture.mjs",
+      "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "sha256": "242f37f4b80305494df39d72e7b7f22e7f1a97b79ef344d4fb54e67e894cdee2"
+    },
+    {
+      "path": "scripts/office-landing/samples.mjs",
+      "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+    },
+    {
+      "path": "scripts/office-landing/deck.mjs",
+      "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+    },
+    {
+      "path": "scripts/office-landing/report.mjs",
+      "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+    }
+  ],
+  "source_archive": {
+    "schema": 1,
+    "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+    "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+  },
+  "historical_commit": "568278d78fe988cb444665922b5d161f58f487eb",
+  "historical_blob": "61a26e0a89ea4749c44ec6954e5fc7ebedc0aae1",
+  "deviations": [],
+  "qa_status": "accepted"
+}
