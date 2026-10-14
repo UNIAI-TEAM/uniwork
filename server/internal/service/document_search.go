@@ -379,6 +379,9 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	if err := s.attachListAccess(ctx, scope, workspaceID, agent, out.Items); err != nil {
 		return DocumentListPage{}, err
 	}
+	if !query.Valid {
+		return out, nil
+	}
 	return out, s.attachListPaths(ctx, scope, workspaceID, agent, out.Items)
 }
 
@@ -511,6 +514,11 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	cursor, err := decodeDocumentCursor(in.Cursor)
 	if err != nil {
 		return DocumentListPage{}, err
+	}
+	switch in.Match {
+	case "", DocumentMatchTitle:
+	default:
+		return DocumentListPage{}, Invalid("match phải là title")
 	}
 	limit := in.Limit
 	if limit <= 0 {

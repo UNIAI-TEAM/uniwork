@@ -196,10 +196,13 @@ type ListDocumentsSDI struct {
 // ListRecentDocumentsSDI documents GET
 // /api/v1/workspaces/{workspaceID}/documents/recent: the documents the person
 // opened or edited recently (access log + updated_by). Only a human has a
-// "recent"; an agent gets 403.
+// "recent"; an agent gets 403. The recent query never applies q; match ("" or
+// "title", else 400) is validated identically to the list route so a shared
+// client query string is accepted and ignored.
 type ListRecentDocumentsSDI struct {
 	Cursor *string `query:"cursor" description:"next_cursor của trang trước" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"10"`
+	Match  *string `query:"match" description:"Chỉ nhận title (hoặc bỏ trống); recent không lọc theo q nên giá trị hợp lệ được chấp nhận và bỏ qua, giá trị khác -> 400" example:"title"`
 }
 
 // ListSharedWithMeSDI documents GET
