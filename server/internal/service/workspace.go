@@ -374,6 +374,13 @@ func (s *WorkspaceService) updateFrom(ctx context.Context, userID string, before
 	if p, ok := to["task_prefix"]; ok && !taskPrefixPattern.MatchString(p.(string)) {
 		return WorkspaceView{}, Invalid(taskPrefixInvalid)
 	}
+	if sl, ok := to["slug"]; ok {
+		// normalize skipped the format check for the unlocked row's slug;
+		// the locked row may differ.
+		if err := ValidateSlug(sl.(string)); err != nil {
+			return WorkspaceView{}, err
+		}
+	}
 	if err := s.applyWorkspaceChanges(ctx, q, locked, in, to); err != nil {
 		return WorkspaceView{}, err
 	}
@@ -611,9 +618,14 @@ func moveWorkspaceAlias(ctx context.Context, q *db.Queries, w db.Workspace, kind
 			return err
 		}
 	}
-	return q.InsertWorkspaceAlias(ctx, db.InsertWorkspaceAliasParams{
+	err := q.InsertWorkspaceAlias(ctx, db.InsertWorkspaceAliasParams{
 		ID: util.NewID(), OrganizationID: w.OrganizationID, WorkspaceID: w.ID, Kind: kind, Value: from,
 	})
+	if isUniqueViolation(err) {
+		// Only out-of-band data can hold the value under another workspace.
+		return ErrConflict
+	}
+	return err
 }
 
 // recordWorkspaceUpdated writes the one audit row and outbox event of a

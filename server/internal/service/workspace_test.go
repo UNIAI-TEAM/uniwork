@@ -644,3 +644,30 @@ func TestWorkspaceConcurrentSlugChangesConflict(t *testing.T) {
 		t.Fatalf("ok=%d conflict=%d, want 1 and 1", ok, conflict)
 	}
 }
+
+// A slug the unlocked row already had skips the format check; if the locked
+// row has moved on, the re-sent old value is a real change and is validated.
+func TestWorkspaceSlugRevalidatedAgainstTheLockedRow(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Delta", "doi-delta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(ctx, `UPDATE workspaces SET slug = 'x' WHERE id = $1`, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	stale, err := f.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(ctx, `UPDATE workspaces SET slug = 'doi-delta-2' WHERE id = $1`, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	// The name keeps the unlocked hint non-empty, so the locked diff runs.
+	same, name := "x", "Đội Delta 2"
+	var ve ValidationError
+	if _, err := f.ws.updateFrom(ctx, f.ua.ID, stale, UpdateWorkspaceInput{Slug: &same, Name: &name}); !errors.As(err, &ve) {
+		t.Fatalf("stale legacy slug: err = %v, want ValidationError", err)
+	}
+}
