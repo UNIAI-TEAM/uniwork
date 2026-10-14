@@ -667,7 +667,7 @@ describe("AcceptInviteView", () => {
 
     it("sends the owner back to the password when the server refuses it", async () => {
       await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })], () =>
-        Promise.reject(new ApiError("x", "invalid_credentials", 401)),
+        Promise.reject(new ApiError("x", "password_incorrect", 403)),
       );
       next();
       await pickHeir();

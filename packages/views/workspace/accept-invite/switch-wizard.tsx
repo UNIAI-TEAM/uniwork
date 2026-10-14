@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRightLeft, CircleAlert, Info } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@uniwork/core/auth";
+import type { PasswordRefusal } from "@uniwork/core/organizations/errors";
 import type { InvitationPreview, MembershipConflict, SwitchResolution } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -12,9 +13,6 @@ import { LaterLink } from "./invite-screens";
 import { ResolveBlock } from "./resolve-block";
 import { EMPTY_DRAFT, draftReady, toResolution, type SwitchDraft } from "./switch-draft";
 import { ConfirmStepBody, ConflictStepBody, StepHeading, SwitchProgress, conflictHeading } from "./switch-steps";
-
-/** Why the server refused the owner's password; the wizard sends them back to it. */
-export type PasswordRefusal = "invalid_credentials" | "password_required";
 
 /**
  * Joining another organization from its invitation (spec 2026-10-13 §6.1):
@@ -101,9 +99,9 @@ export function SwitchWizard({
       setDrafts((prev) =>
         Object.fromEntries(Object.entries(prev).map(([id, d]) => [id, { ...d, password: "" }])),
       );
-      // password_required: the account has no password at all, so asking
-      // for it again would only send the same refusal back.
-      if (why === "password_required") {
+      // "missing": the account has no password at all, so asking for it
+      // again would only send the same refusal back.
+      if (why === "missing") {
         setRefusedPasswordless(true);
         setAnnouncement(t("invitations.switch.no_password_reason"));
       } else {

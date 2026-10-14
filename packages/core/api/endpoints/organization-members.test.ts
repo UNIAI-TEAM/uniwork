@@ -92,6 +92,17 @@ describe("organization member endpoints", () => {
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).not.toContain("pw");
   });
 
+  it("transferOwnership surfaces a wrong re-entered password once, without a session refresh", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ error: { code: "password_incorrect", message: "mật khẩu không đúng" } }, 403),
+    );
+    await expect(transferOwnership("acme", "u2", "wrong")).rejects.toMatchObject({
+      code: "password_incorrect",
+      status: 403,
+    });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  });
+
   it("leaveOrganization reports failure rather than throwing on a malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
     await expect(leaveOrganization("acme")).resolves.toBe(true);

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, errorCode } from "@uniwork/core/api";
 import { useSession } from "@uniwork/core/auth";
-import { organizationSwitchConflicts } from "@uniwork/core/organizations/errors";
+import { organizationSwitchConflicts, passwordRefusal, type PasswordRefusal } from "@uniwork/core/organizations/errors";
 import type { MembershipConflict, SwitchResolution, Workspace } from "@uniwork/core/types";
 import { useAcceptInvite, useInvitationPreview } from "@uniwork/core/workspaces";
 import { AuthShell } from "../auth/auth-shell";
@@ -17,7 +17,7 @@ import {
 } from "./accept-invite/invite-screens";
 import { JoinInvitationBody } from "./accept-invite/invitation-card";
 import type { RetryReason } from "./accept-invite/invite-notices";
-import { SwitchWizard, type PasswordRefusal } from "./accept-invite/switch-wizard";
+import { SwitchWizard } from "./accept-invite/switch-wizard";
 
 /** What the page does after a refused accept, beyond showing it. */
 type Refusal =
@@ -34,7 +34,8 @@ function classify(err: unknown): Refusal {
   if (code === "close_confirm_mismatch") return { kind: "changed", conflicts: null };
   const gone = goneReason(code);
   if (gone) return { kind: "gone", reason: gone };
-  if (code === "invalid_credentials" || code === "password_required") return { kind: "password", why: code };
+  const password = passwordRefusal(err);
+  if (password) return { kind: "password", why: password };
   if (code === "membership_busy") return { kind: "retry", why: "busy", error: err };
   return { kind: "fatal", error: err };
 }
