@@ -1,10 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -16,6 +19,22 @@ type byokPublicResolver struct{}
 func (byokPublicResolver) LookupIPAddr(context.Context, string) ([]net.IPAddr, error) {
 	return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
 }
+
+type stubBYOKResolver struct {
+	configured bool
+}
+
+func (r stubBYOKResolver) Configured() bool { return r.configured }
+
+func (r stubBYOKResolver) Resolve(context.Context, string, string, string) (ai.BYOKCredential, error) {
+	return ai.BYOKCredential{}, ErrNotFound
+}
+
+type stubBYOKEntitlements struct {
+	err error
+}
+
+func (e stubBYOKEntitlements) Can(context.Context, string, string) error { return e.err }
 
 // The proxy's gates run in order — member, provider/route, entitlement,
 // stored key — and only then is a vendor dialled. The dial hook fails, so
@@ -79,8 +98,9 @@ func TestAIBYOKServiceGates(t *testing.T) {
 // Status and Enabled report whether the person could use the BYOK proxy here:
 // a non-member gets ErrNotFound, a member with the plan gets (true, ""), a
 // missing credential store gets (false, "ai_credentials_unavailable"), a plan
-// without office.ai_byok gets (false, "entitlement_required"), and nothing
-// calls a vendor.
+// without office.ai_byok gets (false, "entitlement_required"), an inactive
+// subscription gets (false, "subscription_inactive"), an unexpected coded
+// refusal logs and falls back to (false, ""), and nothing calls a vendor.
 func TestAIBYOKServiceEnabled(t *testing.T) {
 	f := newAICredentialFixture(t)
 	gw := ai.NewGateway(f.q, nil, nil, nil, ai.Options{})
@@ -102,6 +122,7 @@ func TestAIBYOKServiceEnabled(t *testing.T) {
 	for _, noStore := range []*AIBYOKService{
 		NewAIBYOKService(f.orgs, ents, nil, gw),
 		NewAIBYOKService(f.orgs, ents, NewAICredentialService(f.pool, f.q, f.orgs, ents, nil), gw),
+		NewAIBYOKService(f.orgs, ents, stubBYOKResolver{configured: false}, gw),
 	} {
 		if ok, reason, err := noStore.Status(f.ctx, f.owner.ID, f.orgID); ok || reason != "ai_credentials_unavailable" || err != nil {
 			t.Fatalf("no credential store status = %v %q %v, want false \"ai_credentials_unavailable\" nil", ok, reason, err)
@@ -118,5 +139,30 @@ func TestAIBYOKServiceEnabled(t *testing.T) {
 	}
 	if ok, err := svc.Enabled(f.ctx, f.owner.ID, f.orgID); ok || err != nil {
 		t.Fatalf("without office.ai_byok = %v %v, want false", ok, err)
+	}
+
+	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET status = 'suspended', overrides = '{}'::jsonb WHERE organization_id = $1`, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	if ok, reason, err := svc.Status(f.ctx, f.owner.ID, f.orgID); ok || reason != "subscription_inactive" || err != nil {
+		t.Fatalf("inactive subscription status = %v %q %v, want false \"subscription_inactive\" nil", ok, reason, err)
+	}
+	if ok, err := svc.Enabled(f.ctx, f.owner.ID, f.orgID); ok || err != nil {
+		t.Fatalf("inactive subscription = %v %v, want false", ok, err)
+	}
+
+	var logs bytes.Buffer
+	prevLog := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prevLog) })
+
+	unlistedSvc := NewAIBYOKService(f.orgs, stubBYOKEntitlements{
+		err: CodedError{Code: "future_internal_code", Status: http.StatusForbidden},
+	}, stubBYOKResolver{configured: true}, gw)
+	if ok, reason, err := unlistedSvc.Status(f.ctx, f.owner.ID, f.orgID); ok || reason != "" || err != nil {
+		t.Fatalf("unallowlisted reason status = %v %q %v, want false \"\" nil", ok, reason, err)
+	}
+	if out := logs.String(); !strings.Contains(out, "level=ERROR") || !strings.Contains(out, "future_internal_code") || strings.Contains(out, f.owner.Email) {
+		t.Fatalf("unallowlisted reason log = %q, want ERROR with code and no PII", out)
 	}
 }

@@ -7,9 +7,12 @@ package handler
 // answers 503 instead of failing to boot.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +23,14 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+type failingBYOKEntitlements struct {
+	err error
+}
+
+func (f failingBYOKEntitlements) Can(context.Context, string, string) error {
+	return f.err
+}
 
 const testHandlerAIKey = "sk-handler-0123456789wxyz"
 
@@ -238,14 +249,26 @@ func TestAICredentialHTTPWithoutKeyAnswers503(t *testing.T) {
 // reason} for both a web session and a desktop device session, and an older
 // client that only decodes {items, providers} continues to parse.
 func TestAICredentialHTTPListCarriesBYOKStatus(t *testing.T) {
-	w := newAICredentialWorld(t)
-	base := "/api/v1/orgs/" + w.orgID + "/ai/credentials"
-	if status, raw := rawCall(t, w.srv, "PUT", base+"/openai", w.token, `{"api_key":"`+testHandlerAIKey+`","model":"gpt-4.1-mini"}`); status != http.StatusCreated {
+	d, _ := newTestDeps(t, nil, discardOutbox{})
+	var logs bytes.Buffer
+	d.Log = slog.New(slog.NewTextHandler(&logs, nil))
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+
+	webToken, ownerID := filesRegister(t, srv, "aikey-byok-owner@example.com")
+	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", webToken, map[string]string{"name": "AI Key BYOK Org", "slug": "ai-key-byok-org"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create org: %d %v", res.StatusCode, out)
+	}
+	orgID := out["organization"].(map[string]any)["id"].(string)
+
+	base := "/api/v1/orgs/" + orgID + "/ai/credentials"
+	if status, raw := rawCall(t, srv, "PUT", base+"/openai", webToken, `{"api_key":"`+testHandlerAIKey+`","model":"gpt-4.1-mini"}`); status != http.StatusCreated {
 		t.Fatalf("create = %d %s", status, raw)
 	}
 
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	deviceToken, err := minter.MintSession(w.ownerID, "cred-device-session")
+	deviceToken, err := minter.MintSession(ownerID, "cred-device-session")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,10 +286,10 @@ func TestAICredentialHTTPListCarriesBYOKStatus(t *testing.T) {
 	for _, c := range []struct {
 		name, token string
 	}{
-		{"web session", w.token},
+		{"web session", webToken},
 		{"device session", deviceToken},
 	} {
-		status, raw := rawCall(t, w.srv, "GET", base, c.token, "")
+		status, raw := rawCall(t, srv, "GET", base, c.token, "")
 		if status != http.StatusOK {
 			t.Fatalf("%s list = %d %s", c.name, status, raw)
 		}
@@ -287,19 +310,45 @@ func TestAICredentialHTTPListCarriesBYOKStatus(t *testing.T) {
 		}
 	}
 
-	if _, err := testPool.Exec(context.Background(), `UPDATE subscriptions SET overrides = '{"office.ai_byok": false}'::jsonb WHERE organization_id = $1`, w.orgID); err != nil {
+	if _, err := testPool.Exec(context.Background(), `UPDATE subscriptions SET overrides = '{"office.ai_byok": false}'::jsonb WHERE organization_id = $1`, orgID); err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range []struct {
 		name, token string
 	}{
-		{"web session", w.token},
+		{"web session", webToken},
 		{"device session", deviceToken},
 	} {
-		res, out := doJSON(t, w.srv, "GET", base, c.token, nil)
+		res, out := doJSON(t, srv, "GET", base, c.token, nil)
 		byok, ok := out["byok"].(map[string]any)
 		if res.StatusCode != http.StatusOK || !ok || byok["enabled"] != false || byok["reason"] != "entitlement_required" {
 			t.Fatalf("%s without office.ai_byok = %d %v, want enabled=false reason=entitlement_required", c.name, res.StatusCode, out)
 		}
+	}
+
+	// G05KBE-4d: h.AIBYOK == nil reports a neutral reason ("") while the credential store works.
+	noBYOKDeps := d
+	noBYOKDeps.AIBYOK = nil
+	noBYOKSrv := httptest.NewServer(New(noBYOKDeps))
+	t.Cleanup(noBYOKSrv.Close)
+	res, out = doJSON(t, noBYOKSrv, "GET", base, webToken, nil)
+	if byok, ok := out["byok"].(map[string]any); res.StatusCode != http.StatusOK || !ok || byok["enabled"] != false || byok["reason"] != "" {
+		t.Fatalf("nil AIBYOK = %d %v, want 200 enabled=false reason=\"\"", res.StatusCode, out)
+	}
+
+	// G05KBE-4e: an unexpected entitlement-lookup error logs and keeps the list answering 200 with neutral byok.
+	logs.Reset()
+	errBYOKDeps := d
+	errBYOKDeps.AIBYOK = service.NewAIBYOKService(d.Organizations, failingBYOKEntitlements{err: errors.New("entitlement db hiccup")}, d.AICredentials, nil)
+	errBYOKSrv := httptest.NewServer(New(errBYOKDeps))
+	t.Cleanup(errBYOKSrv.Close)
+	res, out = doJSON(t, errBYOKSrv, "GET", base, webToken, nil)
+	items, _ := out["items"].([]any)
+	byok, ok := out["byok"].(map[string]any)
+	if res.StatusCode != http.StatusOK || len(items) != 1 || !ok || byok["enabled"] != false || byok["reason"] != "" {
+		t.Fatalf("unexpected entitlement error = %d %v, want 200 with items and byok enabled=false reason=\"\"", res.StatusCode, out)
+	}
+	if logOut := logs.String(); !strings.Contains(logOut, "level=ERROR") || !strings.Contains(logOut, "entitlement db hiccup") || strings.Contains(logOut, "aikey-byok-owner@example.com") {
+		t.Fatalf("unexpected entitlement error log = %q, want ERROR without PII", logOut)
 	}
 }

@@ -68,6 +68,9 @@ func TestAIBYOKDeviceSessionStreamsAndMetersDesktopCapability(t *testing.T) {
 
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	q := db.New(pool)
+	d.Cfg.DesktopAuthClientID = "uniwork-office"
+	d.Cfg.DesktopAuthDeploymentIDs = []string{"default"}
+	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
 	gw := ai.NewGateway(q, nil, nil, nil, ai.Options{})
 	gw.SetBYOKClient(provider.NewBYOKClient(provider.BYOKClientOptions{
 		Resolver:  frameAIPublicResolver{},
@@ -93,8 +96,17 @@ func TestAIBYOKDeviceSessionStreamsAndMetersDesktopCapability(t *testing.T) {
 		t.Fatalf("save key = %d %s", code, body)
 	}
 
+	const deviceSessionID = "byok-device-session"
+	if _, err := q.CreateDeviceSession(context.Background(), db.CreateDeviceSessionParams{
+		ID: deviceSessionID, UserID: userID, SessionFamilyID: "byok-family-1",
+		ClientID: "uniwork-office", DeploymentID: "default", DeviceLabel: "MacBook",
+		Platform: "darwin", Build: "1.0.0", RefreshTokenDigest: "byok-refresh-digest-1",
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedByKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	deviceToken, err := minter.MintSession(userID, "byok-device-session")
+	deviceToken, err := minter.MintSession(userID, deviceSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,6 +150,13 @@ func TestAIBYOKDeviceSessionStreamsAndMetersDesktopCapability(t *testing.T) {
 	}
 	if rows[1].Capability != string(ai.CapOfficeBYOKDesktop) || rows[1].Calls != 1 {
 		t.Fatalf("desktop usage row = %+v, want capability %q calls=1", rows[1], ai.CapOfficeBYOKDesktop)
+	}
+
+	if _, err := q.RevokeDeviceSession(context.Background(), db.RevokeDeviceSessionParams{ID: deviceSessionID, UserID: userID}); err != nil {
+		t.Fatal(err)
+	}
+	if code, body := rawCall(t, srv, "POST", chatPath, deviceToken, `{"model":"gpt-4.1-mini","stream":true,"messages":[]}`); code != http.StatusUnauthorized || !strings.Contains(body, "device_revoked") {
+		t.Fatalf("revoked device session = %d %s, want 401 device_revoked", code, body)
 	}
 }
 
