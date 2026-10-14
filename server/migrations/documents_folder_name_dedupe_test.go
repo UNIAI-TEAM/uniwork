@@ -8,6 +8,7 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -348,6 +349,7 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 // copy cannot appear unnoticed.
 func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
 	var sources []string
+	var dedupe string
 	for _, glob := range []string{
 		"*_documents_folder_name_dedupe.up.sql",
 		"*_documents_folder_name_uidx.up.sql",
@@ -357,34 +359,114 @@ func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
 			t.Fatalf("want one %s, found %v (%v)", glob, matches, err)
 		}
 		sources = append(sources, matches[0])
+		if strings.Contains(glob, "dedupe") {
+			dedupe = matches[0]
+		}
 	}
 	sources = append(sources, filepath.Join("..", "pkg", "db", "queries", "document_names.sql"))
 
-	const key = `COLLATE "und-x-icu"`
 	for _, name := range sources {
 		raw, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		sql := stripSQLComments(string(raw))
-		occurrences := 0
-		for i := 0; ; {
-			at := strings.Index(sql[i:], key)
-			if at < 0 {
-				break
-			}
-			at += i
-			occurrences++
-			i = at + len(key)
-			if !insideLowerCall(sql, at) {
-				t.Errorf("%s:%d: COLLATE %q is outside its lower() call; write lower(x COLLATE %q)",
-					name, strings.Count(sql[:at], "\n")+1, "und-x-icu", "und-x-icu")
-			}
+		checkKeyShape(t, name, string(raw))
+	}
+
+	// The runbook holds a fourth copy of the key expression - the one an
+	// operator actually runs (BE-FD02P2-1). It is markdown, not SQL, so it
+	// needs its own reader: the recovery block must stay the dedupe migration's
+	// statement verbatim (whitespace aside), and every key expression in the
+	// file keeps the inside-lower() shape.
+	runbook := filepath.Join("..", "..", "docs", "runbooks", "documents-folder-name-index.md")
+	blocks := fencedSQLBlocks(t, runbook)
+	recovery := 0
+	for i, block := range blocks {
+		if strings.Contains(block, `COLLATE "und-x-icu"`) {
+			checkKeyShape(t, fmt.Sprintf("%s: sql block %d", runbook, i+1), block)
 		}
-		if occurrences == 0 {
-			t.Errorf("%s carries no lower(... COLLATE \"und-x-icu\") key expression", name)
+		if !strings.Contains(block, "normalize(title, NFC)") {
+			continue
+		}
+		recovery++
+		if want, got := normalizeSQL(readMigration(t, dedupe)), normalizeSQL(block); want != got {
+			t.Errorf("%s: the recovery SQL is not %s verbatim\nwant: %s\ngot:  %s", runbook, dedupe, want, got)
 		}
 	}
+	if recovery != 1 {
+		t.Fatalf("%s: want one fenced SQL block holding the dedupe recovery, found %d", runbook, recovery)
+	}
+}
+
+// checkKeyShape asserts every COLLATE "und-x-icu" in sql sits inside its
+// lower() call - the shape that resolves the argument under the ICU collation
+// - and that sql carries the key at all.
+func checkKeyShape(t *testing.T, name, sql string) {
+	t.Helper()
+	const key = `COLLATE "und-x-icu"`
+	sql = stripSQLComments(sql)
+	occurrences := 0
+	for i := 0; ; {
+		at := strings.Index(sql[i:], key)
+		if at < 0 {
+			break
+		}
+		at += i
+		occurrences++
+		i = at + len(key)
+		if !insideLowerCall(sql, at) {
+			t.Errorf("%s:%d: COLLATE %q is outside its lower() call; write lower(x COLLATE %q)",
+				name, strings.Count(sql[:at], "\n")+1, "und-x-icu", "und-x-icu")
+		}
+	}
+	if occurrences == 0 {
+		t.Errorf("%s carries no lower(... COLLATE \"und-x-icu\") key expression", name)
+	}
+}
+
+// fencedSQLBlocks returns the body of every ```sql fenced block in a markdown
+// file, indentation left as written (callers normalise whitespace before
+// comparing).
+func fencedSQLBlocks(t *testing.T, name string) []string {
+	t.Helper()
+	raw, err := os.ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var blocks []string
+	var cur []string
+	in := false
+	for _, line := range strings.Split(string(raw), "\n") {
+		switch strings.TrimSpace(line) {
+		case "```sql":
+			if in {
+				t.Fatalf("%s: nested ```sql fence", name)
+			}
+			in, cur = true, nil
+		case "```":
+			if in {
+				blocks = append(blocks, strings.Join(cur, "\n"))
+				in = false
+			}
+		default:
+			if in {
+				cur = append(cur, line)
+			}
+		}
+	}
+	if in {
+		t.Fatalf("%s: unterminated ```sql fence", name)
+	}
+	if len(blocks) == 0 {
+		t.Fatalf("%s: no ```sql block", name)
+	}
+	return blocks
+}
+
+// normalizeSQL collapses runs of whitespace, so a copy that differs from its
+// source only in indentation or line wrapping still compares equal.
+func normalizeSQL(sql string) string {
+	return strings.Join(strings.Fields(sql), " ")
 }
 
 // insideLowerCall reports whether the innermost call open at offset at is
