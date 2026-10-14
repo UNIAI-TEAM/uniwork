@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git log --oneline -4; git diff --stat e74abc0f8..HEAD
+2117dc8ef595258a8b47b8ac989d6014f5297373
+2117dc8ef docs(office): record G6-05's partial proof on the G6-A03/A07/A08 rows
+ad72ff65c test(office): the pinned frame answering a uniworkAi grant keeps the session up
+a474d581f feat(office): grant the frame uniworkAi from the minted uniwork_ai grant
+e74abc0f8 chore: merge develop after PR #280 (dev.13 links, frames web-0.1.0-06d77a2) into the G5-G7 root
+ docs/office/g5g6g7/acceptance-rows.json            | 48 ++++++++++++++++++++++
+ .../office/frame/docs-frame-session-model.test.ts  | 37 +++++++++++++++++
+ .../views/office/frame/docs-frame-session-model.ts | 11 +++--
+ .../office/frame/office-module-frame.test.tsx      | 47 ++++++++++++++++++++-
+ 4 files changed, 138 insertions(+), 5 deletions(-)

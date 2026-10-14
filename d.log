@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/views exec eslint --max-warnings 0 office/frame/docs-frame-session-model.ts office/frame/docs-frame-session-model.test.ts office/frame/office-module-frame.test.tsx; echo "VIEWS_ESLINT_EXIT=$?"
+VIEWS_ESLINT_EXIT=0
