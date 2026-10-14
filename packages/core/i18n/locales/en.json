@@ -217,7 +217,7 @@
       "shareMeetings": "Meetings and their AI summaries, without transcripts",
       "shareNot": "Never chat messages or email",
       "allowWrite": "Allow create and edit",
-      "allowWriteHint": "The app asks you before each change. Each change is recorded with your name and the app's, and can be undone.",
+      "allowWriteHint": "Many AI apps ask before each change, but UniWork cannot check that. Each change is recorded with your name and the app's, and can be undone.",
       "approve": "Allow",
       "approving": "Allowing…",
       "loading": "Loading the connection request…",

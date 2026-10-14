@@ -217,7 +217,7 @@
       "shareMeetings": "Cuộc họp và bản tóm tắt AI, không có bản ghi lời thoại",
       "shareNot": "Không gồm tin nhắn chat và email",
       "allowWrite": "Cho phép tạo và sửa",
-      "allowWriteHint": "Ứng dụng hỏi bạn trước mỗi thay đổi. Mỗi thay đổi ghi tên bạn kèm tên ứng dụng và hoàn tác được.",
+      "allowWriteHint": "Nhiều ứng dụng AI hỏi trước mỗi thay đổi, nhưng UniWork không kiểm được điều đó. Mỗi thay đổi ghi tên bạn kèm tên ứng dụng và hoàn tác được.",
       "approve": "Cho phép",
       "approving": "Đang cho phép…",
       "loading": "Đang tải yêu cầu kết nối…",

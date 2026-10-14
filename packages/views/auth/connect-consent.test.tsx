@@ -61,6 +61,10 @@ describe("ConnectConsentView", () => {
     render(wrap(<ConnectConsentView consent={consent} onDecision={onDecision} />));
     const box = screen.getByRole("checkbox", { name: "Allow create and edit" });
     expect(box).not.toBeChecked();
+    // ADR 0033: UniWork cannot see whether the app asks before a change, so
+    // the hint must not promise that it does.
+    expect(box).toHaveAccessibleDescription(/UniWork cannot check that/);
+    expect(box).not.toHaveAccessibleDescription(/asks you/);
     fireEvent.click(box);
     fireEvent.click(screen.getByRole("button", { name: "Allow" }));
     await waitFor(() => expect(onDecision).toHaveBeenCalledWith("approve", "o1", true));
