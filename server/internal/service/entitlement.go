@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -222,6 +223,27 @@ func (s *EntitlementService) Can(ctx context.Context, orgID, feature string) err
 	return err
 }
 
+// vietnam is the calendar free-plan meters use. Asia/Ho_Chi_Minh is UTC+7
+// with no daylight saving; the fixed zone is the same offset when the zone
+// database is missing.
+var vietnam = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+	if err != nil {
+		return time.FixedZone("Asia/Ho_Chi_Minh", 7*60*60)
+	}
+	return loc
+}()
+
+// meterPeriodStart keys accumulating counters: the paid term when the
+// subscription has one, else the calendar month in Vietnam time.
+func meterPeriodStart(sub db.Subscription, now time.Time) pgtype.Timestamptz {
+	if sub.CurrentPeriodEnd.Valid {
+		return sub.CurrentPeriodStart
+	}
+	n := now.In(vietnam)
+	return pgtype.Timestamptz{Time: time.Date(n.Year(), n.Month(), 1, 0, 0, 0, 0, vietnam), Valid: true}
+}
+
 // snapshotCount is the current value of a meter that counts a source table.
 func snapshotCount(ctx context.Context, q *db.Queries, orgID, meter string) (int64, error) {
 	switch meter {
@@ -241,7 +263,7 @@ func (s *EntitlementService) current(ctx context.Context, q *db.Queries, sub db.
 	if e.MeterMode == "snapshot" {
 		return snapshotCount(ctx, q, sub.OrganizationID, e.Key)
 	}
-	c, err := q.GetUsageCounter(ctx, db.GetUsageCounterParams{OrganizationID: sub.OrganizationID, MeterKey: e.Key, PeriodStart: sub.CurrentPeriodStart})
+	c, err := q.GetUsageCounter(ctx, db.GetUsageCounterParams{OrganizationID: sub.OrganizationID, MeterKey: e.Key, PeriodStart: meterPeriodStart(sub, time.Now())})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil
 	}
@@ -325,7 +347,7 @@ func (s *EntitlementService) consume(ctx context.Context, q *db.Queries, in Cons
 		}
 	}
 	row, err := q.AddUsageWithinLimit(ctx, db.AddUsageWithinLimitParams{
-		OrganizationID: in.OrganizationID, MeterKey: in.Meter, PeriodStart: sub.CurrentPeriodStart,
+		OrganizationID: in.OrganizationID, MeterKey: in.Meter, PeriodStart: meterPeriodStart(sub, time.Now()),
 		Total: in.Delta, LimitTotal: limit,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -369,7 +391,7 @@ func (s *EntitlementService) RecordMeetingMinutes(ctx context.Context, q *db.Que
 		eventIDs[i] = util.NewID()
 	}
 	rows, err := q.MeterAttendanceMinutes(ctx, db.MeterAttendanceMinutesParams{
-		OrganizationID: orgID, MeterKey: FeatureMeetingMinutes, PeriodStart: sub.CurrentPeriodStart,
+		OrganizationID: orgID, MeterKey: FeatureMeetingMinutes, PeriodStart: meterPeriodStart(sub, time.Now()),
 		SessionIds: sessionIDs, EventIds: eventIDs, ActorID: strText(meetingMinutesActor.ID),
 	})
 	if err != nil || len(rows) == 0 {
@@ -533,7 +555,7 @@ func (s *EntitlementService) Snapshot(ctx context.Context, orgID string) (Entitl
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}
-	counters, err := s.q.ListUsageCounters(ctx, db.ListUsageCountersParams{OrganizationID: orgID, PeriodStart: sub.CurrentPeriodStart})
+	counters, err := s.q.ListUsageCounters(ctx, db.ListUsageCountersParams{OrganizationID: orgID, PeriodStart: meterPeriodStart(sub, time.Now())})
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}
