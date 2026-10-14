@@ -1,0 +1,2 @@
+$ cd server && go vet ./... && go tool staticcheck ./internal/ai/... ./internal/service/... ./internal/handler/...; echo "VET_STATICCHECK_EXIT=$?"
+VET_STATICCHECK_EXIT=0

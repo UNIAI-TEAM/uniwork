@@ -1,0 +1,269 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && AI_PROVIDER=fake go test -race -count=1 -v ./internal/handler/ -run 'TestAICloud|TestOfficeFrame|TestRouter|OpenAPI|TestEveryBodyIDFieldHasAReferenceCase'; echo "GO_HANDLER_EXIT=$?"
+=== RUN   TestAICloudImagesTakeFourMaxSizeReferences
+2026/10/14 11:18:38 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/14 11:18:38 INFO http request method=POST path=/api/v1/auth/register status=200 duration=17.06ms request_id=cursor/evLgxL6MRS-000001 correlation_id=01M4X25G6C9PSJ5EN5K1JZ5AW8
+2026/10/14 11:18:38 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=3.067ms request_id=cursor/evLgxL6MRS-000002 correlation_id=01M4X25G6Y7QV98H4K5J5SM30K
+2026/10/14 11:18:38 INFO http request method=POST path=/api/v1/orgs status=201 duration=6.727ms request_id=cursor/evLgxL6MRS-000003 correlation_id=01M4X25G728286P1FS6TVYR2Y0
+2026/10/14 11:18:38 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.396ms request_id=cursor/evLgxL6MRS-000004 correlation_id=01M4X25G79RSAS7FWSP9EDPW9N
+2026/10/14 11:18:38 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.454ms request_id=cursor/evLgxL6MRS-000005 correlation_id=01M4X25G7QVGS8E3Y7XVD18P8Q
+2026/10/14 11:18:38 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.336ms request_id=cursor/evLgxL6MRS-000006 correlation_id=01M4X25G7TY7YNWCDRM5CH7ACQ
+2026/10/14 11:18:38 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.804ms request_id=cursor/evLgxL6MRS-000007 correlation_id=01M4X25G881ACQDQGZQQMX2EH6
+2026/10/14 11:18:42 INFO ai: cloud call usage_event_id=01M4X25MCX8TN37FM5RC9DJ5FY capability=cloud_image_generate latency_ms=0
+2026/10/14 11:18:42 INFO http request method=POST path=/api/v1/orgs/01M4X25G741RX4H698Z30K8XWS/ai/cloud/images status=200 duration=2.820313s request_id=cursor/evLgxL6MRS-000008 correlation_id=01M4X25HMX3J5CBQHCWDANP4TR
+--- PASS: TestAICloudImagesTakeFourMaxSizeReferences (4.64s)
+=== RUN   TestAICloudAnalyzeRefusesTypesOutsideTheAllowlist
+2026/10/14 11:18:43 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/auth/register status=200 duration=15.818ms request_id=cursor/evLgxL6MRS-000009 correlation_id=01M4X25MMEV4TT2TQRM52TZ1W5
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=3.151ms request_id=cursor/evLgxL6MRS-000010 correlation_id=01M4X25MMY8KM31Y5P50GGRDJ4
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/orgs status=201 duration=5.638ms request_id=cursor/evLgxL6MRS-000011 correlation_id=01M4X25MN2HJFCMQG8KEF17SXP
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.045ms request_id=cursor/evLgxL6MRS-000012 correlation_id=01M4X25MN8SV8PNS38S5DYH7RP
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.545ms request_id=cursor/evLgxL6MRS-000013 correlation_id=01M4X25MNPFSMAH4N22B929QAB
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.585ms request_id=cursor/evLgxL6MRS-000014 correlation_id=01M4X25MNSP1XRDR27MFDYQ7HZ
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.757ms request_id=cursor/evLgxL6MRS-000015 correlation_id=01M4X25MP7RCXQ6PB5YB30D0EW
+2026/10/14 11:18:43 INFO http request method=GET path=/api/v1/orgs/01M4X25MN41PTJ5ZXRF6NA8FRV/ai/cloud status=200 duration=5.541ms request_id=cursor/evLgxL6MRS-000016 correlation_id=01M4X25MP9QEZ3CRNP04YS4JT0
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25MN41PTJ5ZXRF6NA8FRV/ai/cloud/media/analyze status=422 duration=1.094ms request_id=cursor/evLgxL6MRS-000017 correlation_id=01M4X25MPG3P7E6HKF9S6DJG5F
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25MN41PTJ5ZXRF6NA8FRV/ai/cloud/media/analyze status=422 duration=843µs request_id=cursor/evLgxL6MRS-000018 correlation_id=01M4X25MPHK155W88365RAR77G
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25MN41PTJ5ZXRF6NA8FRV/ai/cloud/media/analyze status=422 duration=1.599ms request_id=cursor/evLgxL6MRS-000019 correlation_id=01M4X25MPKGZWEMRHD9MBCWJD8
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25MN41PTJ5ZXRF6NA8FRV/ai/cloud/media/analyze status=422 duration=1.08ms request_id=cursor/evLgxL6MRS-000020 correlation_id=01M4X25MPNJWCC6DX9BK3E0AB5
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25MN41PTJ5ZXRF6NA8FRV/ai/cloud/media/analyze status=422 duration=955µs request_id=cursor/evLgxL6MRS-000021 correlation_id=01M4X25MPPFX0671Q3R69S7Q62
+2026/10/14 11:18:43 INFO http request method=GET path=/api/v1/orgs/01M4X25MN41PTJ5ZXRF6NA8FRV/ai/cloud status=200 duration=1.894ms request_id=cursor/evLgxL6MRS-000022 correlation_id=01M4X25MPR4MRM8KC21RYGNKFT
+2026/10/14 11:18:43 INFO ai: call usage_event_id=01M4X25MPWZWGTG0N9KP9CB272 capability=media_analysis latency_ms=0
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/orgs/01M4X25MN41PTJ5ZXRF6NA8FRV/ai/cloud/media/analyze status=200 duration=5.196ms request_id=cursor/evLgxL6MRS-000023 correlation_id=01M4X25MPT90Y43M52NV5N5JN8
+--- PASS: TestAICloudAnalyzeRefusesTypesOutsideTheAllowlist (0.32s)
+=== RUN   TestAICloudToolsSucceedOnFakeVendors
+2026/10/14 11:18:43 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/auth/register status=200 duration=16.16ms request_id=cursor/evLgxL6MRS-000024 correlation_id=01M4X25MXA36R2SSHSSMTQTJDN
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=5.025ms request_id=cursor/evLgxL6MRS-000025 correlation_id=01M4X25MXVGQRPWER97F05GW5K
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/orgs status=201 duration=6.049ms request_id=cursor/evLgxL6MRS-000026 correlation_id=01M4X25MY1G44B9P7N0HKWTZG7
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.612ms request_id=cursor/evLgxL6MRS-000027 correlation_id=01M4X25MY8KM99EFKP7GNWAG8R
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.189ms request_id=cursor/evLgxL6MRS-000028 correlation_id=01M4X25MYPFVTH996GR7MGVMSF
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.405ms request_id=cursor/evLgxL6MRS-000029 correlation_id=01M4X25MYSVZH33VX710CNMG49
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.148ms request_id=cursor/evLgxL6MRS-000030 correlation_id=01M4X25MZ7X86F6KKQ3SVTYD2J
+2026/10/14 11:18:43 INFO http request method=GET path=/api/v1/orgs/01M4X25MY3X6X02MK7N1CVJKDQ/ai/cloud status=200 duration=5.082ms request_id=cursor/evLgxL6MRS-000031 correlation_id=01M4X25MZA49B2K2X9H4CEDNST
+2026/10/14 11:18:43 INFO ai: cloud call usage_event_id=01M4X25MZJ2D26ZR4F2FEEE0XZ capability=cloud_search latency_ms=0
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/orgs/01M4X25MY3X6X02MK7N1CVJKDQ/ai/cloud/search status=200 duration=4.735ms request_id=cursor/evLgxL6MRS-000032 correlation_id=01M4X25MZGYJR50ZBKDNZ5S7FP
+2026/10/14 11:18:43 INFO http request method=GET path=/api/v1/orgs/01M4X25MY3X6X02MK7N1CVJKDQ/ai/cloud status=200 duration=2.146ms request_id=cursor/evLgxL6MRS-000033 correlation_id=01M4X25MZN9FT48FCBWV932597
+2026/10/14 11:18:43 INFO ai: cloud call usage_event_id=01M4X25MZSJ48B8BKA26DXQHXS capability=cloud_search latency_ms=0
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/orgs/01M4X25MY3X6X02MK7N1CVJKDQ/ai/cloud/search status=200 duration=3.29ms request_id=cursor/evLgxL6MRS-000034 correlation_id=01M4X25MZR58YKZTCZSCF78CM1
+2026/10/14 11:18:43 INFO ai: cloud call usage_event_id=01M4X25MZXN6NJXAQZRHM6FQWP capability=cloud_image_generate latency_ms=0
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/orgs/01M4X25MY3X6X02MK7N1CVJKDQ/ai/cloud/images status=200 duration=2.578ms request_id=cursor/evLgxL6MRS-000035 correlation_id=01M4X25MZWAT83CVGWY7J0DBXY
+2026/10/14 11:18:43 INFO http request method=GET path=/api/v1/orgs/01M4X25MY3X6X02MK7N1CVJKDQ/ai/cloud status=200 duration=2.012ms request_id=cursor/evLgxL6MRS-000036 correlation_id=01M4X25MZZHK3328HGFDQMH5N1
+2026/10/14 11:18:43 INFO ai: call usage_event_id=01M4X25N0390D93D2TKFFF2DD3 capability=media_analysis latency_ms=0
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/orgs/01M4X25MY3X6X02MK7N1CVJKDQ/ai/cloud/media/analyze status=200 duration=3.579ms request_id=cursor/evLgxL6MRS-000037 correlation_id=01M4X25N023Q7JGQ6KP9S9A1HH
+2026/10/14 11:18:43 INFO http request method=GET path=/api/v1/orgs/01M4X25MY3X6X02MK7N1CVJKDQ/ai/cloud status=200 duration=2.267ms request_id=cursor/evLgxL6MRS-000038 correlation_id=01M4X25N06XAW8XND6XHK8JC2X
+2026/10/14 11:18:43 INFO ai: cloud call usage_event_id=01M4X25N0BR5ETWVR8HCC5V8EP capability=cloud_transcribe latency_ms=0
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/orgs/01M4X25MY3X6X02MK7N1CVJKDQ/ai/cloud/transcribe status=200 duration=3.164ms request_id=cursor/evLgxL6MRS-000039 correlation_id=01M4X25N09AF28751JP3N8KRJD
+2026/10/14 11:18:43 INFO http request method=GET path=/api/v1/orgs/01M4X25MY3X6X02MK7N1CVJKDQ/ai/cloud status=200 duration=2.021ms request_id=cursor/evLgxL6MRS-000040 correlation_id=01M4X25N0D9D55GMRCEZ2G85EE
+--- PASS: TestAICloudToolsSucceedOnFakeVendors (0.30s)
+=== RUN   TestAICloudEntitlementCreditsAndAvailability
+2026/10/14 11:18:43 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/auth/register status=200 duration=16.091ms request_id=cursor/evLgxL6MRS-000041 correlation_id=01M4X25N763TQRB299XC62J5T3
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.288ms request_id=cursor/evLgxL6MRS-000042 correlation_id=01M4X25N7PRZ2Q59QQXK74VGB8
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/orgs status=201 duration=6.03ms request_id=cursor/evLgxL6MRS-000043 correlation_id=01M4X25N7SSNFVVXKZ3GF5JARW
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.48ms request_id=cursor/evLgxL6MRS-000044 correlation_id=01M4X25N80DP1E18MRF80JNQFY
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.458ms request_id=cursor/evLgxL6MRS-000045 correlation_id=01M4X25N8EFE8RH7XKZF0AEM1B
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.466ms request_id=cursor/evLgxL6MRS-000046 correlation_id=01M4X25N8HDBCCCP3EA27FRJ7S
+2026/10/14 11:18:43 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.31ms request_id=cursor/evLgxL6MRS-000047 correlation_id=01M4X25N8ZZVH11HBRDG5QYKGC
+2026/10/14 11:18:43 INFO http request method=GET path=/api/v1/orgs/01M4X25N7V7ARVXVRNJEV29MZ6/ai/cloud status=200 duration=4.888ms request_id=cursor/evLgxL6MRS-000048 correlation_id=01M4X25N90RXFTVTNZF7WXNSPE
+2026/10/14 11:18:43 ERROR http request method=POST path=/api/v1/orgs/01M4X25N7V7ARVXVRNJEV29MZ6/ai/cloud/images status=503 duration=1.069ms request_id=cursor/evLgxL6MRS-000049 correlation_id=01M4X25N969CMAT1GDNBHGYKWN
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25N7V7ARVXVRNJEV29MZ6/ai/cloud/search status=402 duration=1.351ms request_id=cursor/evLgxL6MRS-000050 correlation_id=01M4X25N98C94JC4HMQ32DS8AN
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25N7V7ARVXVRNJEV29MZ6/ai/cloud/transcribe status=402 duration=1.606ms request_id=cursor/evLgxL6MRS-000051 correlation_id=01M4X25N9AYYEXZG3CZ0AT2X0Z
+2026/10/14 11:18:43 INFO http request method=GET path=/api/v1/orgs/01M4X25N7V7ARVXVRNJEV29MZ6/ai/cloud status=200 duration=1.88ms request_id=cursor/evLgxL6MRS-000052 correlation_id=01M4X25N9CRXRKK4R0MV85H3FE
+2026/10/14 11:18:43 INFO http request method=GET path=/api/v1/orgs/01M4X25N7V7ARVXVRNJEV29MZ6/ai/cloud status=200 duration=1.729ms request_id=cursor/evLgxL6MRS-000053 correlation_id=01M4X25N9FWCVMDBFND0K3BNWG
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25N7V7ARVXVRNJEV29MZ6/ai/cloud/search status=403 duration=812µs request_id=cursor/evLgxL6MRS-000054 correlation_id=01M4X25N9HK4FYQ3DAJ0J9D9VW
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25N7V7ARVXVRNJEV29MZ6/ai/cloud/images status=403 duration=1.064ms request_id=cursor/evLgxL6MRS-000055 correlation_id=01M4X25N9KTDDTXVW0KB826MEX
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25N7V7ARVXVRNJEV29MZ6/ai/cloud/media/analyze status=403 duration=830µs request_id=cursor/evLgxL6MRS-000056 correlation_id=01M4X25N9MH6F9GQDPG5WK4RJH
+2026/10/14 11:18:43 WARN http request method=POST path=/api/v1/orgs/01M4X25N7V7ARVXVRNJEV29MZ6/ai/cloud/transcribe status=403 duration=827µs request_id=cursor/evLgxL6MRS-000057 correlation_id=01M4X25N9PCJR3657W68H4PNVH
+--- PASS: TestAICloudEntitlementCreditsAndAvailability (0.30s)
+=== RUN   TestAICloudRefusesOutsiderBeforeInput
+2026/10/14 11:18:43 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/auth/register status=200 duration=15.063ms request_id=cursor/evLgxL6MRS-000058 correlation_id=01M4X25NH14GTEDWBMD9M0VB2F
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.658ms request_id=cursor/evLgxL6MRS-000059 correlation_id=01M4X25NHHEZ28JAXTG2V26996
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/orgs status=201 duration=5.993ms request_id=cursor/evLgxL6MRS-000060 correlation_id=01M4X25NHMFHBTWSASCRD8VA5V
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.567ms request_id=cursor/evLgxL6MRS-000061 correlation_id=01M4X25NHVZBNPN8D44MZ2YY4C
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.422ms request_id=cursor/evLgxL6MRS-000062 correlation_id=01M4X25NJ9MWEHFXSJ2XZCCX00
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/auth/register status=200 duration=14.2ms request_id=cursor/evLgxL6MRS-000063 correlation_id=01M4X25NJC7VCGKWPG6G0PR7AZ
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.463ms request_id=cursor/evLgxL6MRS-000064 correlation_id=01M4X25NJVDFA1G3T1C0KAS6Z6
+2026/10/14 11:18:44 WARN http request method=GET path=/api/v1/orgs/01M4X25NHP4NTC2XYF9CQJ1PGQ/ai/cloud status=403 duration=479µs request_id=cursor/evLgxL6MRS-000065 correlation_id=01M4X25NJXDK97MBYBSK2C6NB5
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NHP4NTC2XYF9CQJ1PGQ/ai/cloud/transcribe status=403 duration=367µs request_id=cursor/evLgxL6MRS-000066 correlation_id=01M4X25NJYNBK1PFJKV2BJM88T
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NHP4NTC2XYF9CQJ1PGQ/ai/cloud/search status=403 duration=390µs request_id=cursor/evLgxL6MRS-000067 correlation_id=01M4X25NJZ3SCF4SA8VH7KNQ87
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NHP4NTC2XYF9CQJ1PGQ/ai/cloud/images status=403 duration=475µs request_id=cursor/evLgxL6MRS-000068 correlation_id=01M4X25NJZ3SCF4SA8VJC2N1T3
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NHP4NTC2XYF9CQJ1PGQ/ai/cloud/media/analyze status=403 duration=364µs request_id=cursor/evLgxL6MRS-000069 correlation_id=01M4X25NK04Z6J9AQNPNVC4Q9P
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NHP4NTC2XYF9CQJ1PGQ/ai/cloud/search status=401 duration=48µs request_id=cursor/evLgxL6MRS-000070 correlation_id=01M4X25NK107FKRJBAPJVNQRQF
+--- PASS: TestAICloudRefusesOutsiderBeforeInput (0.30s)
+=== RUN   TestAICloudRejectsMalformedBodies
+2026/10/14 11:18:44 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/auth/register status=200 duration=15.3ms request_id=cursor/evLgxL6MRS-000071 correlation_id=01M4X25NT1PGFBS0YMZPTVP0HW
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.829ms request_id=cursor/evLgxL6MRS-000072 correlation_id=01M4X25NTH633GX68EMNF11QCW
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/orgs status=201 duration=5.587ms request_id=cursor/evLgxL6MRS-000073 correlation_id=01M4X25NTNVD02ZT6C5EFT0C24
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.121ms request_id=cursor/evLgxL6MRS-000074 correlation_id=01M4X25NTVJCNVWQ31VEH0SJAS
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.47ms request_id=cursor/evLgxL6MRS-000075 correlation_id=01M4X25NV9KWT8Q8HTW705X8JD
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.777ms request_id=cursor/evLgxL6MRS-000076 correlation_id=01M4X25NVB0QP20XRHNH4YX7B8
+2026/10/14 11:18:44 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.511ms request_id=cursor/evLgxL6MRS-000077 correlation_id=01M4X25NVSBKB0W2CZYWTAXXV4
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/search status=400 duration=2.555ms request_id=cursor/evLgxL6MRS-000078 correlation_id=01M4X25NWMV6YYC1HAD8B3AEV6
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/search status=400 duration=1.696ms request_id=cursor/evLgxL6MRS-000079 correlation_id=01M4X25NWQ32H9EPYXGXHK3CCB
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/search status=400 duration=1.097ms request_id=cursor/evLgxL6MRS-000080 correlation_id=01M4X25NWTYSRGFHPRCCG439HR
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/search status=400 duration=1.054ms request_id=cursor/evLgxL6MRS-000081 correlation_id=01M4X25NWVD74G5HW8GHDX8RRZ
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/images status=400 duration=1.142ms request_id=cursor/evLgxL6MRS-000082 correlation_id=01M4X25NWX915MCK2EY4G11VYA
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/images status=400 duration=933µs request_id=cursor/evLgxL6MRS-000083 correlation_id=01M4X25NWY20NHNSXEYCJTZQ36
+2026/10/14 11:18:44 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/images status=400 duration=747µs request_id=cursor/evLgxL6MRS-000084 correlation_id=01M4X25NX0G1DXSASMHX6EYFBN
+2026/10/14 11:18:45 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/images status=400 duration=601.957ms request_id=cursor/evLgxL6MRS-000085 correlation_id=01M4X25P6Z1BR9XYB1A90EDH6Q
+2026/10/14 11:18:45 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/media/analyze status=400 duration=1.018ms request_id=cursor/evLgxL6MRS-000086 correlation_id=01M4X25PSTHNTHK90FXNZ6MC1Y
+2026/10/14 11:18:45 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/media/analyze status=400 duration=1.338ms request_id=cursor/evLgxL6MRS-000087 correlation_id=01M4X25PSWJDDKHH25T9SCD6YY
+2026/10/14 11:18:45 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/media/analyze status=400 duration=961µs request_id=cursor/evLgxL6MRS-000088 correlation_id=01M4X25PSY1EFHFMR8ENHWDWMD
+2026/10/14 11:18:45 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/transcribe status=400 duration=650µs request_id=cursor/evLgxL6MRS-000089 correlation_id=01M4X25PSZCZQ1Y0P24CNKH2RE
+2026/10/14 11:18:45 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/transcribe status=400 duration=823µs request_id=cursor/evLgxL6MRS-000090 correlation_id=01M4X25PT1XAF2H6NRH357WY38
+2026/10/14 11:18:45 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/search status=400 duration=314µs request_id=cursor/evLgxL6MRS-000091 correlation_id=01M4X25PT3BW32S7XS2RK15XNR
+2026/10/14 11:18:45 WARN http request method=POST path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud/search status=413 duration=14.569ms request_id=cursor/evLgxL6MRS-000092 correlation_id=01M4X25PT6SWWJT9AB0F11S7F7
+2026/10/14 11:18:45 INFO http request method=GET path=/api/v1/orgs/01M4X25NTPXGGG1VYS206404QC/ai/cloud status=200 duration=7.257ms request_id=cursor/evLgxL6MRS-000093 correlation_id=01M4X25PTN32FRAW9DETNBEDS4
+--- PASS: TestAICloudRejectsMalformedBodies (1.28s)
+=== RUN   TestAICloudStatusChatFollowsEntitlementFlagsAndCredits
+2026/10/14 11:18:45 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/auth/register status=200 duration=16.435ms request_id=cursor/evLgxL6MRS-000094 correlation_id=01M4X25Q2HTQYQBKRXXM730PXB
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.151ms request_id=cursor/evLgxL6MRS-000095 correlation_id=01M4X25Q33M6QHD0YH221QQWX3
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/orgs status=201 duration=6.73ms request_id=cursor/evLgxL6MRS-000096 correlation_id=01M4X25Q3529H97RZ0Z71WF05S
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.313ms request_id=cursor/evLgxL6MRS-000097 correlation_id=01M4X25Q3DX84MCYEGPBTRDB79
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.649ms request_id=cursor/evLgxL6MRS-000098 correlation_id=01M4X25Q3VG3K1YR0GH2QFBM0V
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.413ms request_id=cursor/evLgxL6MRS-000099 correlation_id=01M4X25Q3X8VHVCEQNKMSQTVKK
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.549ms request_id=cursor/evLgxL6MRS-000100 correlation_id=01M4X25Q4CZ8XP7KKJSSZREJQS
+2026/10/14 11:18:45 INFO http request method=GET path=/api/v1/orgs/01M4X25Q370S1GP70RXDKB9CD5/ai/cloud status=200 duration=5.129ms request_id=cursor/evLgxL6MRS-000101 correlation_id=01M4X25Q4EEWBXXC0Z0FGC11HH
+2026/10/14 11:18:45 INFO http request method=GET path=/api/v1/orgs/01M4X25Q370S1GP70RXDKB9CD5/ai/cloud status=200 duration=2.888ms request_id=cursor/evLgxL6MRS-000102 correlation_id=01M4X25Q4MEVA1A7BF5QJMB9Z8
+2026/10/14 11:18:45 INFO http request method=GET path=/api/v1/orgs/01M4X25Q370S1GP70RXDKB9CD5/ai/cloud status=200 duration=3.167ms request_id=cursor/evLgxL6MRS-000103 correlation_id=01M4X25Q4RFETWDNCSYYGKK2D0
+2026/10/14 11:18:45 INFO http request method=GET path=/api/v1/orgs/01M4X25Q370S1GP70RXDKB9CD5/ai/cloud status=200 duration=2.835ms request_id=cursor/evLgxL6MRS-000104 correlation_id=01M4X25Q4X03EA7Y95WQ39DJX2
+2026/10/14 11:18:45 INFO http request method=GET path=/api/v1/orgs/01M4X25Q370S1GP70RXDKB9CD5/ai/cloud status=200 duration=2.466ms request_id=cursor/evLgxL6MRS-000105 correlation_id=01M4X25Q51P6E72EM9T882T7DZ
+2026/10/14 11:18:45 INFO http request method=GET path=/api/v1/orgs/01M4X25Q370S1GP70RXDKB9CD5/ai/cloud status=200 duration=14.124ms request_id=cursor/evLgxL6MRS-000106 correlation_id=01M4X25Q54VZVDMJ8XCGP3ECJD
+2026/10/14 11:18:45 INFO http request method=GET path=/api/v1/orgs/01M4X25Q370S1GP70RXDKB9CD5/ai/cloud status=200 duration=1.568ms request_id=cursor/evLgxL6MRS-000107 correlation_id=01M4X25Q5MBWAW5ATKJZ9APKNH
+--- PASS: TestAICloudStatusChatFollowsEntitlementFlagsAndCredits (0.34s)
+=== RUN   TestAICloudStatusChatNeedsTheGateway
+2026/10/14 11:18:45 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/auth/register status=200 duration=17.025ms request_id=cursor/evLgxL6MRS-000108 correlation_id=01M4X25QDQF5AP67CPAE4SWJYD
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.999ms request_id=cursor/evLgxL6MRS-000109 correlation_id=01M4X25QE9MSZA6QKBXJ1KFZST
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/orgs status=201 duration=6.064ms request_id=cursor/evLgxL6MRS-000110 correlation_id=01M4X25QECSHQXFHMRBPJ7M2ND
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.532ms request_id=cursor/evLgxL6MRS-000111 correlation_id=01M4X25QEJQT2B0QNZDH9J3025
+2026/10/14 11:18:45 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.505ms request_id=cursor/evLgxL6MRS-000112 correlation_id=01M4X25QF0B418SCYRS4BNR94T
+2026/10/14 11:18:46 INFO http request method=POST path=/api/v1/auth/register status=200 duration=14.93ms request_id=cursor/evLgxL6MRS-000113 correlation_id=01M4X25QF30F0D4WR07NMYEHZC
+2026/10/14 11:18:46 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.876ms request_id=cursor/evLgxL6MRS-000114 correlation_id=01M4X25QFJ1DD01J5R8XG77EW4
+2026/10/14 11:18:46 INFO http request method=GET path=/api/v1/orgs/01M4X25QEDGSH261FXKV3G214G/ai/cloud status=200 duration=5.973ms request_id=cursor/evLgxL6MRS-000115 correlation_id=01M4X25QFP7737ZVSH4CD6CE7Z
+--- PASS: TestAICloudStatusChatNeedsTheGateway (0.33s)
+=== RUN   TestAICloudStatusCarriesTheUniworkModel
+2026/10/14 11:18:46 INFO local storage initialized dir=./data/uploads baseURL=""
+2026/10/14 11:18:46 INFO http request method=POST path=/api/v1/auth/register status=200 duration=17.078ms request_id=cursor/evLgxL6MRS-000116 correlation_id=01M4X25QQNCRC0XKMNZV838DV0
+2026/10/14 11:18:46 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.43ms request_id=cursor/evLgxL6MRS-000117 correlation_id=01M4X25QR7GRA8BPF3FY9BSWSW
+2026/10/14 11:18:46 INFO http request method=POST path=/api/v1/orgs status=201 duration=7.75ms request_id=cursor/evLgxL6MRS-000118 correlation_id=01M4X25QRABGC67CDSJ3C1SSTZ
+2026/10/14 11:18:46 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.68ms request_id=cursor/evLgxL6MRS-000119 correlation_id=01M4X25QRKC9MTSPX1EMHS9SG8
+2026/10/14 11:18:46 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.001ms request_id=cursor/evLgxL6MRS-000120 correlation_id=01M4X25QS1M4R58Q6P3GJ23JAZ
+2026/10/14 11:18:46 INFO http request method=POST path=/api/v1/auth/register status=200 duration=13.352ms request_id=cursor/evLgxL6MRS-000121 correlation_id=01M4X25QS3JN6SW9F2ZEKKKWBE
+2026/10/14 11:18:46 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.119ms request_id=cursor/evLgxL6MRS-000122 correlation_id=01M4X25QSH3T1EE0HP3AG1NFTR
+2026/10/14 11:18:46 INFO http request method=GET path=/api/v1/orgs/01M4X25QRDA9ZKZFKWA5M4JT9C/ai/cloud status=200 duration=5.208ms request_id=cursor/evLgxL6MRS-000123 correlation_id=01M4X25QSKER5HTP5TXSN3JEQ1
+2026/10/14 11:18:46 INFO http request method=GET path=/api/v1/orgs/01M4X25QRDA9ZKZFKWA5M4JT9C/ai/cloud status=200 duration=2.445ms request_id=cursor/evLgxL6MRS-000124 correlation_id=01M4X25QSS1QTTNSQRKBD8T6M9
+2026/10/14 11:18:46 INFO http request method=GET path=/api/v1/orgs/01M4X25QRDA9ZKZFKWA5M4JT9C/ai/cloud status=200 duration=2.263ms request_id=cursor/evLgxL6MRS-000125 correlation_id=01M4X25QSWGW7BMQ91214C8K8X
+2026/10/14 11:18:46 WARN ai: model override outside allowlist, using default capability=office_uniwork_ai override=dev-model default=fake
+2026/10/14 11:18:46 INFO http request method=GET path=/api/v1/orgs/01M4X25QRDA9ZKZFKWA5M4JT9C/ai/cloud status=200 duration=2.113ms request_id=cursor/evLgxL6MRS-000126 correlation_id=01M4X25QSZGFHWSQYJZR7ZAC0F
+--- PASS: TestAICloudStatusCarriesTheUniworkModel (0.34s)
+=== RUN   TestDocumentChangesOpenAPI
+--- PASS: TestDocumentChangesOpenAPI (4.33s)
+=== RUN   TestDocumentCommentsOpenAPICatalog
+--- PASS: TestDocumentCommentsOpenAPICatalog (4.05s)
+=== RUN   TestDocuments05bOpenAPI
+--- PASS: TestDocuments05bOpenAPI (4.56s)
+=== RUN   TestEveryBodyIDFieldHasAReferenceCase
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.01s)
+=== RUN   TestOfficeAppCapabilitiesOpenAPI
+--- PASS: TestOfficeAppCapabilitiesOpenAPI (4.17s)
+=== RUN   TestOfficeDesktopDownloadOpenAPI
+--- PASS: TestOfficeDesktopDownloadOpenAPI (4.09s)
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWrite
+--- PASS: TestOfficeFrameViewOnlyTokenCannotWrite (0.36s)
+=== RUN   TestOfficeFrameTokenStopsWhenAccessIsRevoked
+--- PASS: TestOfficeFrameTokenStopsWhenAccessIsRevoked (0.46s)
+=== RUN   TestOfficeFrameCommitReplaysOnTheSameIdempotencyKey
+--- PASS: TestOfficeFrameCommitReplaysOnTheSameIdempotencyKey (0.33s)
+=== RUN   TestOfficeFrameRecentsJudgeTheFileNotTheTitle
+--- PASS: TestOfficeFrameRecentsJudgeTheFileNotTheTitle (0.41s)
+=== RUN   TestOfficeFrameAIHappyPath
+--- PASS: TestOfficeFrameAIHappyPath (0.33s)
+=== RUN   TestOfficeFrameAIRefusesEverythingButThisDocumentsToken
+--- PASS: TestOfficeFrameAIRefusesEverythingButThisDocumentsToken (0.41s)
+=== RUN   TestOfficeFrameAIRechecksViewAccessPerRequest
+--- PASS: TestOfficeFrameAIRechecksViewAccessPerRequest (0.32s)
+=== RUN   TestOfficeFrameAIEntitlementRequired
+--- PASS: TestOfficeFrameAIEntitlementRequired (0.36s)
+=== RUN   TestOfficeFrameAIFollowsTheModuleFlag
+--- PASS: TestOfficeFrameAIFollowsTheModuleFlag (0.30s)
+=== RUN   TestOfficeFrameTokenCarriesTheAIGrant
+--- PASS: TestOfficeFrameTokenCarriesTheAIGrant (0.35s)
+=== RUN   TestOfficeFrameGrantsUniworkAIWithoutBYOK
+--- PASS: TestOfficeFrameGrantsUniworkAIWithoutBYOK (0.32s)
+=== RUN   TestOfficeFrameUniworkAIFollowsTheFormatFlags
+--- PASS: TestOfficeFrameUniworkAIFollowsTheFormatFlags (0.42s)
+=== RUN   TestOfficeFrameUniworkAINeedsAConfiguredGateway
+=== RUN   TestOfficeFrameUniworkAINeedsAConfiguredGateway/no_provider
+=== RUN   TestOfficeFrameUniworkAINeedsAConfiguredGateway/provider_without_a_model
+--- PASS: TestOfficeFrameUniworkAINeedsAConfiguredGateway (0.62s)
+    --- PASS: TestOfficeFrameUniworkAINeedsAConfiguredGateway/no_provider (0.30s)
+    --- PASS: TestOfficeFrameUniworkAINeedsAConfiguredGateway/provider_without_a_model (0.32s)
+=== RUN   TestOfficeFrameCloudStatusCarriesTheUniworkModel
+--- PASS: TestOfficeFrameCloudStatusCarriesTheUniworkModel (0.31s)
+=== RUN   TestOfficeFrameUniworkAIOnlyForMembersWithAccess
+--- PASS: TestOfficeFrameUniworkAIOnlyForMembersWithAccess (0.45s)
+=== RUN   TestOfficeFrameOpenResolvesRelativeReferences
+--- PASS: TestOfficeFrameOpenResolvesRelativeReferences (0.41s)
+=== RUN   TestOfficeFrameOpenHasNoAssetsOutsideTextModules
+--- PASS: TestOfficeFrameOpenHasNoAssetsOutsideTextModules (0.29s)
+=== RUN   TestOfficeFrameSiblingNeedsItsOwnViewAccess
+--- PASS: TestOfficeFrameSiblingNeedsItsOwnViewAccess (0.37s)
+=== RUN   TestOfficeFrameExportPDFRoute
+--- PASS: TestOfficeFrameExportPDFRoute (0.42s)
+=== RUN   TestOfficeFrameExportWithoutExportEngine
+--- PASS: TestOfficeFrameExportWithoutExportEngine (0.28s)
+=== RUN   TestOfficeFrameModuleFlagsArePerModuleAndPerOrganization
+--- PASS: TestOfficeFrameModuleFlagsArePerModuleAndPerOrganization (0.40s)
+=== RUN   TestOfficeFrameSheetsMintRefusesAWorkbookOverTheCap
+--- PASS: TestOfficeFrameSheetsMintRefusesAWorkbookOverTheCap (0.69s)
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/docs
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/pdf
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/markdown
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/html
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/slides
+=== RUN   TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/sheets
+--- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule (0.60s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/docs (0.04s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/pdf (0.03s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/markdown (0.03s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/html (0.03s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/slides (0.03s)
+    --- PASS: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/sheets (0.03s)
+=== RUN   TestOfficeFrameSignedAssetKeepsTheModule
+--- PASS: TestOfficeFrameSignedAssetKeepsTheModule (0.37s)
+=== RUN   TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap
+--- PASS: TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap (0.61s)
+=== RUN   TestOfficeFrameLinkedTakesNoFrameToken
+--- PASS: TestOfficeFrameLinkedTakesNoFrameToken (0.35s)
+=== RUN   TestOfficeFrameResolveTypedPaths
+--- PASS: TestOfficeFrameResolveTypedPaths (0.39s)
+=== RUN   TestOfficeFrameResolveRefreshesURLsPastTheirLifetime
+--- PASS: TestOfficeFrameResolveRefreshesURLsPastTheirLifetime (0.44s)
+=== RUN   TestOfficeFrameSignedURLsFollowTheLiveACL
+--- PASS: TestOfficeFrameSignedURLsFollowTheLiveACL (0.39s)
+=== RUN   TestOfficeFrameWalkStopsAtATrashedAncestor
+--- PASS: TestOfficeFrameWalkStopsAtATrashedAncestor (0.36s)
+=== RUN   TestOfficeFrameOpenBoundsTheACLChecks
+--- PASS: TestOfficeFrameOpenBoundsTheACLChecks (0.89s)
+=== RUN   TestOfficeFrameTokenNeedsTheFlag
+--- PASS: TestOfficeFrameTokenNeedsTheFlag (0.28s)
+=== RUN   TestOfficeFrameOpenSaveConflictReopen
+--- PASS: TestOfficeFrameOpenSaveConflictReopen (0.37s)
+=== RUN   TestOfficeFrameTokenOpensOnlyItsDocument
+--- PASS: TestOfficeFrameTokenOpensOnlyItsDocument (0.27s)
+=== RUN   TestOfficeFrameImagesAreSignedPerAsset
+--- PASS: TestOfficeFrameImagesAreSignedPerAsset (0.32s)
+=== RUN   TestOfficeFrameFlagIsEvaluatedPerOrganization
+--- PASS: TestOfficeFrameFlagIsEvaluatedPerOrganization (0.34s)
+=== RUN   TestOfficeLeaseOpenAPI
+--- PASS: TestOfficeLeaseOpenAPI (4.08s)
+=== RUN   TestRouterKeepsRemoteAddrDespiteForwardedHeaders
+--- PASS: TestRouterKeepsRemoteAddrDespiteForwardedHeaders (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	49.174s
+GO_HANDLER_EXIT=0

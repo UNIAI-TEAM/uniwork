@@ -1,0 +1,5 @@
+$ command -v gitleaks >/dev/null || go install github.com/zricethezav/gitleaks/v8@v8.21.2; GL=$(command -v gitleaks || echo "$(go env GOPATH)/bin/gitleaks"); "$GL" detect --no-banner --redact -v --log-opts="$(git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7)..HEAD"; echo "GITLEAKS_EXIT=$?"
+[90m11:36AM[0m [32mINF[0m 8 commits scanned.
+[90m11:36AM[0m [32mINF[0m scan completed in 19.2ms
+[90m11:36AM[0m [32mINF[0m no leaks found
+GITLEAKS_EXIT=0
