@@ -463,7 +463,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Get("/workspaces/{workspaceID}/documents/tree", h.DocumentTree, apiOp{
 		summary:     "Read the document tree",
-		description: "Cây sidebar tối đa 5 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được -> 404.",
+		description: "Cây sidebar tối đa 20 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được -> 404.",
 		tags:        []string{"documents"},
 		sdi:         sdi.DocumentTreeSDI{},
 		sdo:         sdo.DocumentTreeSDO{},
@@ -471,7 +471,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/move", h.MoveDocument, apiOp{
 		summary:     "Move a document",
-		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình (kể cả thư mục vào chính nó hoặc thư mục con) -> 422 document_cycle, cha sai loại -> 422 document_parent_kind, quá 5 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
+		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình (kể cả thư mục vào chính nó hoặc thư mục con) -> 422 document_cycle, cha sai loại -> 422 document_parent_kind, quá 20 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
 		tags:        []string{"documents"},
 		sdi:         sdi.MoveDocumentSDI{},
 		sdo:         sdo.DocumentSDO{},

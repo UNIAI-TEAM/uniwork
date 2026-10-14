@@ -165,7 +165,7 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDocumentTree is GET /workspaces/{workspaceID}/documents/tree?root=: the
-// sidebar forest to five levels, metadata only. An unreadable root is not
+// sidebar forest to the depth bound, metadata only. An unreadable root is not
 // found; its children are not leaked through it.
 func (h *handlers) getDocumentTree(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
@@ -182,8 +182,8 @@ func (h *handlers) getDocumentTree(w http.ResponseWriter, r *http.Request) {
 }
 
 // moveDocument is POST /documents/{documentID}/move: reparent/reorder inside
-// one workspace. A stale revision, a cycle, a depth past five or a foreign
-// parent is refused by the service; Idempotency-Key replays a retry.
+// one workspace. A stale revision, a cycle, a depth past the bound or a
+// foreign parent is refused by the service; Idempotency-Key replays a retry.
 func (h *handlers) moveDocument(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")

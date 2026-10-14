@@ -6,10 +6,10 @@
 
 -- The subtree rooted at one document: the root row itself plus every
 -- descendant, each with its distance from the root (1 = the root). The
--- recursion is capped at twice the tree bound so a corrupted parent chain is
--- reported by the service, not walked forever. Archived nodes stay in the
--- result - a cycle or a depth check through an already-archived node is
--- still one.
+-- recursion is capped at max_level (twice the tree bound, from
+-- subtreeMaxLevel) so a corrupted parent chain is reported by the service,
+-- not walked forever. Archived nodes stay in the result - a cycle or a depth
+-- check through an already-archived node is still one.
 -- name: ListDocumentSubtree :many
 WITH RECURSIVE sub AS (
   SELECT r.id, 1 AS lvl
@@ -23,7 +23,7 @@ WITH RECURSIVE sub AS (
   JOIN sub ON d.parent_id = sub.id
   WHERE d.organization_id = sqlc.arg(organization_id)
     AND d.workspace_id = sqlc.arg(workspace_id)
-    AND sub.lvl < 10
+    AND sub.lvl < sqlc.arg(max_level)::int
 )
 SELECT d.*, sub.lvl AS subtree_depth
 FROM sub
@@ -198,7 +198,8 @@ RETURNING id;
 -- The live (not archived) ids of a subtree, at most max_rows of them: the
 -- archive command asks for one row past its bound to learn the subtree is too
 -- big without walking all of it. The recursion walks through archived nodes
--- like ListDocumentSubtree and only the output is filtered.
+-- like ListDocumentSubtree and only the output is filtered; its level cap is
+-- max_level from subtreeMaxLevel.
 -- name: ListLiveDocumentSubtreeIDs :many
 WITH RECURSIVE sub AS (
   SELECT r.id, 1 AS lvl
@@ -212,7 +213,7 @@ WITH RECURSIVE sub AS (
   JOIN sub ON d.parent_id = sub.id
   WHERE d.organization_id = sqlc.arg(organization_id)
     AND d.workspace_id = sqlc.arg(workspace_id)
-    AND sub.lvl < 10
+    AND sub.lvl < sqlc.arg(max_level)::int
 )
 SELECT d.id
 FROM sub
@@ -228,7 +229,9 @@ LIMIT sqlc.arg(max_rows);
 -- effectiveLevel (workspace-principal shares, work-product owners); a node it
 -- omits is manageable, so one query replaces a per-node access loop for the
 -- common archive. Owned documents are always returned: the owner resolver
--- decides them, never these columns.
+-- decides them, never these columns. It never walks the tree itself: the
+-- caller hands it the bounded id set ListLiveDocumentSubtreeIDs returned, so
+-- the gate runs on at most one archive bound of rows whatever the tree size.
 -- name: ListDocumentSubtreeNeedingAccessCheck :many
 WITH RECURSIVE sub AS (
   SELECT r.id, 1 AS lvl
@@ -242,7 +245,7 @@ WITH RECURSIVE sub AS (
   JOIN sub ON d.parent_id = sub.id
   WHERE d.organization_id = sqlc.arg(organization_id)
     AND d.workspace_id = sqlc.arg(workspace_id)
-    AND sub.lvl < 10
+    AND sub.lvl < sqlc.arg(max_level)::int
 )
 SELECT d.id
 FROM sub

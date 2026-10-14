@@ -134,9 +134,11 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	}
 
 	// The subtree tells both checks what they need: the members for the
-	// cycle test and the height for the depth bound.
+	// cycle test and the height for the depth bound. max_level is the
+	// corrupted-chain guard, shared with every other subtree walk.
 	subtree, err := q.ListDocumentSubtree(ctx, db.ListDocumentSubtreeParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
+		MaxLevel: subtreeMaxLevel(),
 	})
 	if err != nil {
 		return DocumentView{}, err

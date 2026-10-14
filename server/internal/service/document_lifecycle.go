@@ -83,6 +83,7 @@ func (s *DocumentService) requireManageOnSubtree(ctx context.Context, q *db.Quer
 		check, err = q.ListDocumentSubtreeNeedingAccessCheck(ctx, db.ListDocumentSubtreeNeedingAccessCheckParams{
 			IsWsAdmin: isAdmin, IsWsMember: isMember, ActorID: actor.ID,
 			OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, RootID: root.ID,
+			MaxLevel: subtreeMaxLevel(),
 		})
 		if err != nil {
 			return err
@@ -213,7 +214,7 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 		// any lock-holding work, and the access check below is one query.
 		live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
-			MaxRows: int32(s.archiveBound()) + 1,
+			MaxRows: int32(s.archiveBound()) + 1, MaxLevel: subtreeMaxLevel(),
 		})
 		if err != nil {
 			return DocumentArchiveResult{}, err

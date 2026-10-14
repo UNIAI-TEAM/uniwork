@@ -172,27 +172,29 @@ func TestDocumentTree(t *testing.T) {
 		wantCode(t, err, "document_cycle")
 	})
 
-	t.Run("the five-level bound counts the moved subtree", func(t *testing.T) {
-		// chain of five: r -> c2 -> c3 -> c4 -> c5 is at the bound already.
+	t.Run("the bound counts the moved subtree", func(t *testing.T) {
+		// A chain of maxDocumentDepth: r -> c2 -> ... -> c20 is at the bound
+		// already (FD-D2).
 		r := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		prev := r
 		chain := []db.Document{r}
-		for i := 0; i < 4; i++ {
+		for i := 1; i < maxDocumentDepth; i++ {
 			n := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: prev.ID})
 			chain = append(chain, n)
 			prev = n
 		}
 		other := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
-		// The whole chain (height 5) under a depth-1 root would reach 6.
+		// The whole chain (height maxDocumentDepth) under a depth-1 root
+		// would reach one past the bound.
 		_, err := f.svc.MoveDocument(f.ctx, owner, r.ID, MoveDocumentInput{ParentID: other.ID, Revision: 1})
 		wantCode(t, err, "document_too_deep")
-		// A leaf at depth 5 cannot take a child either.
+		// A leaf at the deepest level cannot take a child either.
 		newRoot := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
-		_, err = f.svc.MoveDocument(f.ctx, owner, newRoot.ID, MoveDocumentInput{ParentID: chain[4].ID, Revision: 1})
+		_, err = f.svc.MoveDocument(f.ctx, owner, newRoot.ID, MoveDocumentInput{ParentID: chain[maxDocumentDepth-1].ID, Revision: 1})
 		wantCode(t, err, "document_too_deep")
-		// The same leaf under a depth-4 page is legal.
-		if _, err := f.svc.MoveDocument(f.ctx, owner, newRoot.ID, MoveDocumentInput{ParentID: chain[3].ID, Revision: 1}); err != nil {
-			t.Fatalf("depth-5 move refused: %v", err)
+		// The same leaf under a one-shallower page is legal.
+		if _, err := f.svc.MoveDocument(f.ctx, owner, newRoot.ID, MoveDocumentInput{ParentID: chain[maxDocumentDepth-2].ID, Revision: 1}); err != nil {
+			t.Fatalf("move to the bound refused: %v", err)
 		}
 	})
 
