@@ -567,6 +567,13 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{followUpID}":
 		return tn.get(t, "followUp")
 	case "{documentID}":
+		// The restore route acts on a folder in the trash (E6 FD-02): the
+		// folder kind is what the matrix varies on it, so the name it has to
+		// place back among live siblings is part of every pass. The page kind
+		// is held by the repo's own lifecycle tests.
+		if pattern == "/api/v1/documents/{documentID}/restore" {
+			return tn.get(t, "archivedFolder")
+		}
 		if under("/office-frame/") && (under("/linked/") || under("/assets/resolve")) {
 			return tn.get(t, "frameMarkdown")
 		}
