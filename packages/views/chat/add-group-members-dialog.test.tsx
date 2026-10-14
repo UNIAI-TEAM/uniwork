@@ -82,7 +82,7 @@ describe("AddGroupMembersDialog", () => {
     );
 
     expect(screen.queryByRole("button", { name: /An/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mời vào nhóm" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Mời vào nhóm" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("Chọn ít nhất một người để mời.")).toBeInTheDocument();
   });
 });

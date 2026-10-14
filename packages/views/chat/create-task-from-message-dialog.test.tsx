@@ -97,7 +97,7 @@ describe("CreateTaskFromMessageDialog", () => {
     expect(document.querySelector(`label[for="${title.id}"]`)).not.toBeNull();
     fireEvent.change(title, { target: { value: "  " } });
     expect(screen.getByText("Cần tiêu đề việc")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tạo việc" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Tạo việc" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("offers agents as assignees, grouped apart from people", () => {

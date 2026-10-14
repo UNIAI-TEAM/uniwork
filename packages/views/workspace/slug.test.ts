@@ -9,7 +9,7 @@ describe("slug helpers", () => {
     expect(nameToSlug("🎉")).toBe("");
   });
   it("random identity has valid slug with 4-char suffix", () => {
-    const id = randomWorkspaceIdentity(() => 0.5);
+    const id = randomWorkspaceIdentity((base) => base, () => 0.5);
     expect(id.name.length).toBeGreaterThan(0);
     expect(SLUG_REGEX.test(id.slug)).toBe(true);
     expect(id.slug).toMatch(/-[a-z0-9]{4}$/);
@@ -35,7 +35,7 @@ describe("slug helpers", () => {
   });
   it("a random identity always satisfies the length rule", () => {
     for (const r of [0, 0.25, 0.5, 0.75, 0.999]) {
-      expect(isSlugLengthValid(randomWorkspaceIdentity(() => r).slug)).toBe(true);
+      expect(isSlugLengthValid(randomWorkspaceIdentity((base) => base, () => r).slug)).toBe(true);
     }
   });
   it("isSlugConflict keys on 409", () => {

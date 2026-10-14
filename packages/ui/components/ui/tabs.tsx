@@ -77,8 +77,11 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-content"
+      // No `outline-none`: the panel is a tab stop (tabIndex 0), so the
+      // global :focus-visible outline is how a keyboard user sees they
+      // reached it; rounded-md keeps that outline's corners soft.
       className={cn(
-        "flex-1 text-body outline-none",
+        "flex-1 rounded-md text-body",
         // Tailwind `flex` on a panel overrides the native `[hidden]` display rule.
         "[hidden]:!hidden",
         className,

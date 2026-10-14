@@ -25,6 +25,7 @@ export const RESERVED_SLUGS = [
   "members",
   "my-tasks",
   "new",
+  "no-workspace",
   "oauth",
   "office",
   "office-frame",

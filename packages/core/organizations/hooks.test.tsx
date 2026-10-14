@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { workspaceKeys } from "../workspaces/keys";
-import { organizationKeys, useCloseOrganization } from "./hooks";
+import { peopleKeys } from "../people/hooks";
+import { organizationKeys, orgMemberKeys, useCloseOrganization, useTransferOwnership } from "./hooks";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -57,5 +58,38 @@ describe("useCloseOrganization", () => {
       code: "close_confirm_mismatch",
     });
     expect(qc.getQueryData(organizationKeys.list())).toHaveLength(1);
+  });
+});
+
+describe("useTransferOwnership", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  it("refreshes what the caller's role decides, and nothing else", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ member: { user_id: "u2", role: "owner" } }));
+    const qc = seeded();
+    const touched = [
+      organizationKeys.list(),
+      orgMemberKeys.me("acme"),
+      orgMemberKeys.list("acme", "active"),
+      peopleKeys.list("acme", {}),
+      workspaceKeys.list(),
+      workspaceKeys.me("w1"),
+      workspaceKeys.members("w1"),
+    ];
+    const untouched = [["tasks", "w1"], orgMemberKeys.me("other-org"), ["meetings", "w1"]];
+    for (const key of [...touched, ...untouched]) qc.setQueryData(key, { seeded: true });
+    const { result } = renderHook(() => useTransferOwnership("acme"), { wrapper: wrapperFor(qc) });
+    await act(() => result.current.mutateAsync({ toUserId: "u2", password: "pw" }));
+    for (const key of touched) expect(qc.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(true);
+    for (const key of untouched) expect(qc.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(false);
   });
 });
