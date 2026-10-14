@@ -1,0 +1,18 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -v ./internal/service/ -run 'TestDocumentFolderNameCreateMapsARealUniqueViolation$|TestDocumentFolderName' 2>&1 | grep -E '^(=== RUN|--- |ok|FAIL|PASS)' ; echo "INDEX_SERVICE_EXIT=${PIPESTATUS[0]}"
+=== RUN   TestDocumentFolderNameCreateMapsARealUniqueViolation
+--- PASS: TestDocumentFolderNameCreateMapsARealUniqueViolation (0.40s)
+=== RUN   TestDocumentFolderNameDuplicate
+=== RUN   TestDocumentFolderNameDuplicate/a_live_sibling_refuses_the_name,_case-insensitively
+=== RUN   TestDocumentFolderNameDuplicate/accents_stay_significant
+=== RUN   TestDocumentFolderNameDuplicate/NFD_and_NFC_spellings_are_one_name
+=== RUN   TestDocumentFolderNameDuplicate/another_parent,_an_archived_folder_and_another_kind_keep_the_name_free
+=== RUN   TestDocumentFolderNameDuplicate/a_rename_to_a_taken_name_is_refused_and_changes_nothing
+=== RUN   TestDocumentFolderNameDuplicate/a_folder_the_caller_cannot_read_still_refuses_without_its_id_or_name
+=== RUN   TestDocumentFolderNameDuplicate/the_cap_is_255_runes_for_a_folder_and_500_for_a_document
+=== RUN   TestDocumentFolderNameDuplicate/pages_and_files_may_repeat_a_name_(FD-D10)
+--- PASS: TestDocumentFolderNameDuplicate (0.29s)
+=== RUN   TestDocumentFolderNameConcurrentCreate
+--- PASS: TestDocumentFolderNameConcurrentCreate (0.23s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	0.952s
+INDEX_SERVICE_EXIT=0
