@@ -12,7 +12,9 @@ Linux runner VM and records one evidence line through the G7-01 evidence runner.
 Fresh ports matter: a warm cloud VM still holds `:3000`/`:8080` from an earlier
 round, and a run that silently reuses them tests old code against new specs.
 Nothing outside the run's own PID file is ever touched — `stop.sh` signals
-exactly the process groups `start.sh` recorded, never a process by name. Each
+exactly the process groups `start.sh` recorded, never a process by name; `start.sh`
+uses that same logic on an earlier start's recorded groups before it starts
+anything (see "A warm run dir is cleaned before anything starts" below). Each
 piece starts with `setsid`, so the recorded PID is its group leader and one
 signal reaches its children too (that is what takes down the `Xvfb` this run's
 `xvfb-run` started, and leaves every other display alone).
@@ -106,6 +108,23 @@ and the exact command in `start.sh`'s output.
 * The deep-link instance is recorded in `pids` as `handoff` while it lives
   (stop.sh stops it too) and killed as a group if it outlives its timeout.
 * `stop.sh` also removes the run's `uploads/` and `server-cwd/` by exact path.
+* **A warm run dir is cleaned before anything starts.** If the run dir still holds
+  a `pids` file, `start.sh` runs `stop.sh` for it — the same PID-file logic, never
+  a process by name — and a stop that cannot finish is a **FAIL** with the reason,
+  not a second stack on one run dir. The earlier start's `userdata/` is then moved
+  to `userdata.previous-<utc stamp>` (kept, never deleted) and this start's app
+  gets a fresh `userdata/`: `session.bin`, the sync store and Electron's
+  single-instance lock all live in there, so a second app instance can never hand
+  off to a stale one. Cloud round r3 shared one run dir between two starts whose
+  harness was never stopped; the rerun's app lost the single-instance lock to the
+  stale app, quit, and every loop read the missing app as BLOCKED.
+* **The app must still be alive once its DevTools endpoint answers.** The display
+  file start.sh waits for is written *before* Electron starts, so "the wrapper
+  ran" is not evidence of an app: an app that is already gone (or whose endpoint
+  never answers within `HARNESS_APP_CDP_WAIT_SECONDS`) makes the start **FAIL**
+  with the reason, instead of an "up" that the loops then cannot use. An app that
+  was started and is then missing at a loop start is a FAIL there too, never
+  BLOCKED — see the tracer's `decideAppSignInOutcome`.
 
 ## Exit codes
 
@@ -132,6 +151,8 @@ ran, the claim was false).
 | `HARNESS_DRY_RUN` | `0` | `1` = ports and preconditions only |
 | `HARNESS_SKIP_APP` | `0` | `1` = server + web only |
 | `HARNESS_LOG_TAIL_LINES` | `40` | lines of each component log printed on failure |
+| `HARNESS_APP_CDP_WAIT_SECONDS` | `60` | how long the app's DevTools endpoint may take to answer before the start FAILs |
+| `HARNESS_APP_SETTLE_SECONDS` | `2` | how long the app must stay alive after DevTools answered before the start calls the run up |
 | `HARNESS_DOC_WAIT_MS` | `60000` | how long `document-step.mjs` waits for the app's working copy |
 | `HARNESS_HANDOFF_TIMEOUT_MS` | `30000` | how long the second Electron instance that carries the deep link may run before it is killed (as a process group) |
 | `HARNESS_DOC_EMAIL` / `HARNESS_DOC_PASSWORD` | unset | document step, desktop mode: reuse this existing account instead of seeding one (both or neither) |
