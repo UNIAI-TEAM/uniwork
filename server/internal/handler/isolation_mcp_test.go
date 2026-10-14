@@ -174,6 +174,11 @@ func TestIsolationMCP(t *testing.T) {
 		{"list_tasks", map[string]string{"workspace_id": a.wsID}},
 		{"get_task", map[string]string{"workspace_id": a.wsID, "task_id": aRef3}},
 		{"get_task", map[string]string{"workspace_id": b.wsID, "task_id": aRef3}},
+		// The project tools of Phase 2: A's projects, and A's project named in
+		// A's workspace and in B's.
+		{"list_projects", map[string]string{"workspace_id": a.wsID}},
+		{"get_project", map[string]string{"workspace_id": a.wsID, "project_id": aProject}},
+		{"get_project", map[string]string{"workspace_id": b.wsID, "project_id": aProject}},
 	}
 	// writeAttacks aim B's write grant at A's rows: A's workspace and task, and
 	// A's ids named in a call that is about B's own workspace and task. Each
@@ -280,6 +285,15 @@ func TestIsolationMCP(t *testing.T) {
 		if leak := a.leakIn(raw, ""); leak != "" {
 			t.Errorf("%s get_task %s in B's workspace leaked %s: %s", label, aRef, leak, raw)
 		}
+		// B's workspace holds no project of A's, whatever the search names: an
+		// empty list that carries nothing of A's.
+		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "list_projects", map[string]string{"workspace_id": b.wsID, "query": a.marker})
+		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), `\"projects\":[]`) {
+			t.Errorf("%s list_projects in B's workspace by A's marker: %d %s", label, status, raw)
+		}
+		if leak := a.leakIn(raw, ""); leak != "" {
+			t.Errorf("%s list_projects by A's marker leaked %s: %s", label, leak, raw)
+		}
 		// A's project filters B's workspace to nothing; the answer names none of A's.
 		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "list_tasks", map[string]string{"workspace_id": b.wsID, "project_id": aProject})
 		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), `\"tasks\":[]`) {
@@ -343,7 +357,7 @@ func TestIsolationMCP(t *testing.T) {
 			// A task named by its PREFIX-N is not in the answer under that
 			// name; it shows A's marker like a list does.
 			want := a.marker
-			if id := args["task_id"] + args["meeting_id"]; len(id) >= 20 {
+			if id := args["task_id"] + args["meeting_id"] + args["project_id"]; len(id) >= 20 {
 				want = id
 			}
 			if !strings.Contains(strings.ToLower(string(raw)), strings.ToLower(want)) {
@@ -357,6 +371,10 @@ func TestIsolationMCP(t *testing.T) {
 		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "get_task", map[string]string{"workspace_id": b.wsID, "task_id": b.get(t, "task")})
 		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), b.get(t, "task")) {
 			t.Fatalf("B reading B's own task through MCP: %d %s", status, raw)
+		}
+		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "get_project", map[string]string{"workspace_id": b.wsID, "project_id": b.get(t, "project")})
+		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), b.get(t, "project")) {
+			t.Fatalf("B reading B's own project through MCP: %d %s", status, raw)
 		}
 
 		// A's own grant runs every attacked write tool with the attack's own

@@ -36,6 +36,8 @@ var mcpToolCatalogue = []mcpCatalogueEntry{
 	{"create_task", "Create task", ai.ToolWrite, false},
 	{"update_task", "Update task", ai.ToolWrite, true},
 	{"add_comment", "Add comment", ai.ToolWrite, false},
+	{"list_projects", "List projects", ai.ToolRead, false},
+	{"get_project", "Get project", ai.ToolRead, false},
 }
 
 func TestMCPToolCatalogue(t *testing.T) {
@@ -60,11 +62,13 @@ func TestMCPToolCatalogue(t *testing.T) {
 		t.Errorf("my_work description does not say what the list holds: %q", d)
 	}
 	for name, words := range map[string][]string{
-		"list_tasks":   {"ordered by status key alphabetically, then position", "pass status to narrow", "truncated"},
-		"list_members": {"query", "truncated"},
-		"update_task":  {"revision_conflict", "add_label_ids and remove_label_ids", "too long", strconv.Itoa(mcpMaxItemRunes)},
-		"add_comment":  {"assignee", "creator", "earlier commenters", "@"},
-		"get_task":     {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
+		"list_tasks":    {"ordered by status key alphabetically, then position", "pass status to narrow", "truncated"},
+		"list_members":  {"query", "truncated"},
+		"update_task":   {"revision_conflict", "add_label_ids and remove_label_ids", "too long", strconv.Itoa(mcpMaxItemRunes)},
+		"add_comment":   {"assignee", "creator", "earlier commenters", "@"},
+		"get_task":      {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
+		"get_project":   {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count"},
+		"list_projects": {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
 	} {
 		tool, _ := r.Get(name)
 		for _, w := range words {
@@ -117,6 +121,8 @@ func mcpReadInputs(x *mcpToolWorld) map[string]string {
 		"list_members":    wsArg,
 		"task_options":    wsArg,
 		"list_tasks":      wsArg,
+		"list_projects":   wsArg,
+		"get_project":     `{"workspace_id":"` + ws + `","project_id":"` + x.projectID + `"}`,
 	}
 }
 
@@ -125,6 +131,7 @@ func mcpReadInputs(x *mcpToolWorld) map[string]string {
 func TestMCPReadToolsDoNotMutate(t *testing.T) {
 	x := newMcpToolWorld(t)
 	x.meetingID = x.meeting(t, x.ua.ID, x.w.ID, "Họp giao ban", "").ID
+	x.projectID = x.project(t, "Dự án đọc")
 	inputs := mcpReadInputs(x)
 	count := func() (n int) {
 		if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT (SELECT count(*) FROM audit_events WHERE organization_id = $1) + (SELECT count(*) FROM outbox_events WHERE organization_id = $1)`, x.w.OrganizationID).Scan(&n); err != nil {
@@ -161,6 +168,7 @@ type mcpToolWorld struct {
 	w         db.Workspace
 	taskID    string
 	meetingID string
+	projectID string
 }
 
 func newMcpToolWorld(t *testing.T) *mcpToolWorld {
@@ -867,6 +875,28 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 	}
 	checkWrapped("list_tasks", "tasks", `{"workspace_id":"`+x.w.ID+`"}`, taskKeys)
 	checkWrapped("list_members", "members", `{"workspace_id":"`+x.w.ID+`"}`, map[string]bool{"user_id": true, "name": true, "role": true})
+	// A project with everything set, and a task in it, so each key can show.
+	leadType, start, due, desc := "member", "2026-10-01", "2026-12-31", "Mục tiêu quý"
+	project, err := x.tools.ask.tasks.CreateProject(ctx, Human(x.ua.ID), x.w.ID, CreateProjectInput{Title: "Dự án báo cáo", Description: &desc, Priority: "high", LeadType: &leadType, LeadID: &x.ua.ID, StartDate: &start, DueDate: &due})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := x.tools.ask.tasks.Create(ctx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Việc của dự án", ProjectID: &project.ID}); err != nil {
+		t.Fatal(err)
+	}
+	projectKeys := with("revision", "priority", "lead_id", "start_date", "task_count", "done_count")
+	checkWrapped("list_projects", "projects", `{"workspace_id":"`+x.w.ID+`"}`, projectKeys)
+	raw, err = callMcpTool(t, x.tools, x.p, "get_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+project.ID+`"}`)
+	check("get_project", raw, err, with("revision", "priority", "lead_id", "start_date", "task_count", "done_count", "tasks", "description", "description_truncated"))
+	var got struct{ Tasks []map[string]json.RawMessage }
+	if err := json.Unmarshal(raw, &got); err != nil || len(got.Tasks) != 1 {
+		t.Fatalf("get_project = %s (%v)", raw, err)
+	}
+	for k := range got.Tasks[0] {
+		if !taskKeys[k] {
+			t.Errorf("get_project task has undocumented field %q: %s", k, raw)
+		}
+	}
 	raw, err = callMcpTool(t, x.tools, x.p, "get_meeting", `{"workspace_id":"`+x.w.ID+`","meeting_id":"`+m.ID+`"}`)
 	check("get_meeting", raw, err, itemKeys)
 	raw, err = callMcpTool(t, x.tools, x.p, "my_work", `{}`)

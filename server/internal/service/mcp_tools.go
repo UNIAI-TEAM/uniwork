@@ -369,5 +369,6 @@ func McpTools(s *McpToolService) ai.Registry {
 				return s.GetMeeting(ctx, p, a.WorkspaceID, a.MeetingID)
 			}),
 	}
-	return append(r, mcpTaskTools(s)...)
+	r = append(r, mcpTaskTools(s)...)
+	return append(r, mcpProjectTools(s)...)
 }
