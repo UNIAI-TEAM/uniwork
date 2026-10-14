@@ -97,7 +97,7 @@ test("framed scenes arrive on scroll and remain readable after the entrance", as
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
   await expect(page.locator(".landing-signal, .landing-chapter-junction")).toHaveCount(0);
-  await expect(page.locator(".landing-product-story > section")).toHaveCount(3);
+  await expect(page.locator(".landing-product-story > section")).toHaveCount(4);
   await expect(page.locator(".landing-conversion-story > section")).toHaveCount(3);
 
   const chapter = page.locator(".landing-trust-story");
@@ -109,33 +109,36 @@ test("framed scenes arrive on scroll and remain readable after the entrance", as
   expect(frame!.x).toBeGreaterThan(20);
   expect(frame!.width).toBeLessThan(1294);
 
-  const platformSurface = page.locator("#platform > div");
-  await expect(platformSurface).toHaveAttribute("data-scroll-reveal", "pending");
-  const beforeOpacity = Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity));
-  const beforeTransform = await platformSurface.evaluate((element) => getComputedStyle(element).transform);
+  // The compact opening leaves #platform's top inside the 584px viewport, so
+  // it is revealed on load. The solutions chapter is the first one that only
+  // arrives on scroll.
+  const revealSurface = page.locator("#giai-phap > div");
+  await expect(revealSurface).toHaveAttribute("data-scroll-reveal", "pending");
+  const beforeOpacity = Number(await revealSurface.evaluate((element) => getComputedStyle(element).opacity));
+  const beforeTransform = await revealSurface.evaluate((element) => getComputedStyle(element).transform);
   expect(beforeOpacity).toBeLessThan(.5);
   expect(beforeTransform).not.toBe("none");
   await page.evaluate(() => {
-    const section = document.querySelector("#platform");
+    const section = document.querySelector("#giai-phap");
     if (!section) return;
     const top = section.getBoundingClientRect().top + window.scrollY;
     window.scrollTo({ top: top - window.innerHeight * .8, behavior: "instant" });
   });
   // A single wheel movement is enough: reading does not require more scrolling.
-  await expect(platformSurface).toHaveAttribute("data-scroll-reveal", "ready");
-  await expect.poll(async () => Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
-  await page.locator("#platform").scrollIntoViewIfNeeded();
-  await expect.poll(async () => Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity))).toBeGreaterThan(.98);
-  await expect.poll(() => platformSurface.evaluate((element) => getComputedStyle(element).transform)).not.toBe(beforeTransform);
+  await expect(revealSurface).toHaveAttribute("data-scroll-reveal", "ready");
+  await expect.poll(async () => Number(await revealSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
+  await page.locator("#giai-phap").scrollIntoViewIfNeeded();
+  await expect.poll(async () => Number(await revealSurface.evaluate((element) => getComputedStyle(element).opacity))).toBeGreaterThan(.98);
+  await expect.poll(() => revealSurface.evaluate((element) => getComputedStyle(element).transform)).not.toBe(beforeTransform);
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-  await page.locator("#platform").scrollIntoViewIfNeeded();
-  await expect(platformSurface).toHaveAttribute("data-scroll-reveal", "ready");
-  await expect.poll(async () => Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
+  await page.locator("#giai-phap").scrollIntoViewIfNeeded();
+  await expect(revealSurface).toHaveAttribute("data-scroll-reveal", "ready");
+  await expect.poll(async () => Number(await revealSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
 
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect.poll(() => platformSurface.evaluate((element) => getComputedStyle(element).transform)).toBe("none");
-  await expect.poll(() => platformSurface.evaluate((element) => getComputedStyle(element).clipPath)).toBe("none");
-  await expect.poll(async () => Number(await platformSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
+  await expect.poll(() => revealSurface.evaluate((element) => getComputedStyle(element).transform)).toBe("none");
+  await expect.poll(() => revealSurface.evaluate((element) => getComputedStyle(element).clipPath)).toBe("none");
+  await expect.poll(async () => Number(await revealSurface.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
 });
 
 test("nonessential motion stops offscreen", async ({ page }) => {
