@@ -362,8 +362,10 @@ func (s *WorkspaceService) updateFrom(ctx context.Context, userID string, before
 	if len(to) == 0 {
 		return s.GetView(ctx, userID, workspaceID)
 	}
-	if _, ok := to["icon_emoji"]; ok && !releaseIcon && locked.IconFileID.Valid {
-		// An icon file appeared after the unlocked read and was not released.
+	if _, writesIcon := to["icon_emoji"]; writesIcon != releaseIcon && locked.IconFileID.Valid {
+		// An icon file appeared after the unlocked read: either it was not
+		// released although the emoji is written, or it was released although
+		// nothing writes the icon. Rolling back undoes the release.
 		return WorkspaceView{}, ErrConflict
 	}
 	if p, ok := to["task_prefix"]; ok && !taskPrefixPattern.MatchString(p.(string)) {

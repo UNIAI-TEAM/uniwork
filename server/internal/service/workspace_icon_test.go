@@ -295,3 +295,40 @@ func TestReleaseIconFileInTxReleasesTheCurrentFile(t *testing.T) {
 		t.Fatalf("missing workspace: %v", err)
 	}
 }
+
+// An icon file that lands between the unlocked read and the lock, while the
+// release was decided from the stale emoji, must not commit a name change
+// next to a released file.
+func TestWorkspaceUpdateConflictsWhenIconFileAppearsUnderStaleHint(t *testing.T) {
+	f, w, rec := iconRecorderFixture(t)
+	ctx := context.Background()
+	emoji := "🚀"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{IconEmoji: &emoji}); err != nil {
+		t.Fatal(err)
+	}
+	stale, err := f.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	up, err := f.ws.UploadIcon(ctx, f.ua.ID, w.ID, "logo.png", bytes.NewReader(workspaceIconPNG))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec.reset()
+	clear, name := "", "Đội Alpha 2"
+	_, err = f.ws.updateFrom(ctx, f.ua.ID, stale, UpdateWorkspaceInput{IconEmoji: &clear, Name: &name})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("err = %v, want ErrConflict", err)
+	}
+	got, err := f.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != w.Name || got.IconFileID.String != up.IconFileID.String {
+		t.Fatalf("workspace changed despite the conflict: %+v", got)
+	}
+	held, err := WorkspaceIconProvider{}.HeldBy(ctx, f.q, []files.FileID{files.FileID(up.IconFileID.String)})
+	if err != nil || len(held) != 1 {
+		t.Fatalf("held = %v err %v, want the file still held", held, err)
+	}
+}
