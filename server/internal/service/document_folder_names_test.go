@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/text/unicode/norm"
@@ -332,6 +333,31 @@ func TestDocumentMoveAutoRename(t *testing.T) {
 		}
 		if !strings.HasSuffix(title, " (2)") {
 			t.Fatalf("title = %q, want a (2) suffix", title)
+		}
+	})
+
+	t.Run("a file whose extension alone fills the cap still fits it", func(t *testing.T) {
+		// A 500-rune file title "a." + 498 x: the extension is 499 runes, so
+		// the suffix cannot fit beside it. The name the move writes must stay
+		// within the cap - the extension gives way, the suffix does not - or
+		// the row lands above the frozen FD-D3 limit the SDI advertises.
+		dst := env.folder(t, "", "Đích đuôi dài")
+		title := "a." + strings.Repeat("x", maxDocumentTitle-2)
+		if got := len([]rune(title)); got != maxDocumentTitle {
+			t.Fatalf("fixture title is %d runes, want %d", got, maxDocumentTitle)
+		}
+		env.file(t, dst.ID, title, "ext-heavy-one.txt", "ext-heavy-one")
+		moving := env.file(t, "", title, "ext-heavy-two.txt", "ext-heavy-two")
+		moved, err := env.svc.MoveDocument(env.ctx, env.member, moving.ID, MoveDocumentInput{ParentID: dst.ID, Revision: moving.Revision})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := moved.Document.Title
+		if n := utf8.RuneCountInString(got); n > maxDocumentTitle {
+			t.Fatalf("auto-renamed title is %d runes, over the %d cap: %q", n, maxDocumentTitle, got)
+		}
+		if !strings.HasSuffix(got, " (2)") {
+			t.Fatalf("title = %q, want the (2) suffix kept", got)
 		}
 	})
 
@@ -696,4 +722,50 @@ func mentionsAny(text string, needles []string) bool {
 		}
 	}
 	return false
+}
+
+// TestSuffixedTitleNeverExceedsTheCap pins the "(n)" rule at the boundary the
+// review found open: a file whose extension is nearly the whole cap used to
+// push the result past it, because the one-rune floor of trimTitleRunes kept a
+// base rune beside a suffix and an extension that already filled the budget.
+// Every extension length must yield a name within the kind's cap with the
+// suffix intact.
+func TestSuffixedTitleNeverExceedsTheCap(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		kind     string
+		extRunes int
+	}{
+		{name: "no extension", kind: DocumentKindPage, extRunes: 0},
+		{name: "extension well inside the cap", kind: DocumentKindFile, extRunes: 4},
+		{name: "extension at cap minus the suffix", kind: DocumentKindFile, extRunes: maxDocumentTitle - 5},
+		{name: "extension one short of the cap", kind: DocumentKindFile, extRunes: maxDocumentTitle - 2},
+		{name: "extension at the cap", kind: DocumentKindFile, extRunes: maxDocumentTitle},
+		{name: "extension over the cap", kind: DocumentKindFile, extRunes: maxDocumentTitle + 40},
+		{name: "a folder has no extension", kind: DocumentKindFolder, extRunes: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cap := documentTitleLimit(tc.kind)
+			ext := ""
+			if tc.extRunes > 0 {
+				ext = "." + strings.Repeat("x", tc.extRunes-1)
+			}
+			base := strings.Repeat("b", cap) + ext
+			out := suffixedTitle(tc.kind, base, 2)
+			if n := utf8.RuneCountInString(out); n > cap {
+				t.Errorf("suffixedTitle(%s, %d-rune extension) = %d runes, over the %d cap: %q",
+					tc.kind, tc.extRunes, n, cap, out)
+			}
+			// The suffix is never cut; a file keeps whatever of its extension
+			// fits after it, so the name ends in the extension only when the
+			// extension was kept.
+			if at := strings.Index(out, " (2)"); at < 0 {
+				t.Errorf("suffixedTitle(%s, %d-rune extension) = %q, want the suffix kept",
+					tc.kind, tc.extRunes, out)
+			} else if rest := out[at+len(" (2)"):]; rest != "" && rest != ext {
+				t.Errorf("suffixedTitle(%s, %d-rune extension) = %q, want only the extension after the suffix",
+					tc.kind, tc.extRunes, out)
+			}
+		})
+	}
 }

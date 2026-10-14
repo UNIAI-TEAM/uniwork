@@ -101,10 +101,11 @@ func titleSuffixRoot(kind, title string) (root, ext string) {
 
 // trimTitleRunes cuts s to at most limit runes and drops a combining mark the
 // cut left dangling, so a composed character is never split into a bare base
-// letter plus a stray accent.
+// letter plus a stray accent. A limit of 0 cuts everything away: the caller
+// uses it when the suffix and the extension already fill the cap.
 func trimTitleRunes(s string, limit int) string {
-	if limit < 1 {
-		limit = 1
+	if limit < 0 {
+		limit = 0
 	}
 	runes := []rune(s)
 	if len(runes) <= limit {
@@ -120,10 +121,24 @@ func trimTitleRunes(s string, limit int) string {
 // suffixedTitle is the "(n)" name: "base (2)", a file "base (2).docx". The
 // base is trimmed by rune on the NFC title so the whole name fits the kind's
 // cap; the suffix is never cut.
+//
+// The extension and the suffix are reserved first, and the base gets what is
+// left. When even those two do not fit the cap - a file whose extension alone
+// is longer than the cap minus the suffix - the extension is dropped rather
+// than the suffix, so the returned name is never over the cap: a name past the
+// cap would be refused by the next rename of the same row.
 func suffixedTitle(kind, base string, n int) string {
 	suffix := " (" + strconv.Itoa(n) + ")"
 	root, ext := titleSuffixRoot(kind, norm.NFC.String(base))
-	budget := documentTitleLimit(kind) - len([]rune(suffix)) - len([]rune(ext))
+	limit := documentTitleLimit(kind)
+	budget := limit - len([]rune(suffix)) - len([]rune(ext))
+	if budget < 0 {
+		ext = ""
+		budget = limit - len([]rune(suffix))
+	}
+	if budget < 0 {
+		budget = 0
+	}
 	return trimTitleRunes(root, budget) + suffix + ext
 }
 

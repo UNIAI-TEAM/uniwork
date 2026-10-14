@@ -31,6 +31,7 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 	q := r.URL.Query()
 	in := service.ListDocumentsInput{
 		Query:     strings.TrimSpace(q.Get("q")),
+		Match:     strings.TrimSpace(q.Get("match")),
 		Kind:      strings.TrimSpace(q.Get("kind")),
 		UpdatedBy: strings.TrimSpace(q.Get("updated_by")),
 		Cursor:    strings.TrimSpace(q.Get("cursor")),
@@ -283,7 +284,14 @@ func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 		if item.Access.Level != service.DocumentLevelNone {
 			access = &item.Access
 		}
-		out.Documents = append(out.Documents, documentSummaryDTO(item.Document, item.Facts, item.Snippet, access))
+		dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
+		if len(item.Path) > 0 {
+			dto.Path = make([]sdo.DocumentPathItemSDO, len(item.Path))
+			for i, p := range item.Path {
+				dto.Path[i] = sdo.DocumentPathItemSDO{ID: p.ID, Title: p.Title}
+			}
+		}
+		out.Documents = append(out.Documents, dto)
 	}
 	if page.NextCursor != "" {
 		out.NextCursor = &page.NextCursor
