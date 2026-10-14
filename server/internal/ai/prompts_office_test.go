@@ -493,3 +493,100 @@ func TestOfficePackModuleMaxTokens(t *testing.T) {
 		t.Errorf("OfficeModuleMaxTokens(unknown) = %d, want %d", got, capCeiling)
 	}
 }
+
+// TestGatewayOfficeModuleMaxTokens verifies BE68-1: Gateway.Complete sets
+// provider.CompletionRequest.MaxTokens from OfficeModuleMaxTokens(req.Module)
+// for CapOfficeUniworkAI (lowering xlsx/pptx/pdf to 2048 and docx/md to 3072
+// while keeping html at 4096), refuses unknown/empty modules on the sectioned
+// office prompt before reaching the provider, falls back to 4096 when a
+// non-sectioned prompt runs under CapOfficeUniworkAI with an empty/unknown
+// module, and leaves every other capability's MaxTokens unchanged.
+func TestGatewayOfficeModuleMaxTokens(t *testing.T) {
+	ctx := context.Background()
+	fp := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: "ok", Model: "fake", UsagePresent: true, InputTokens: 20, OutputTokens: 5}
+	}}
+	g, _ := gatewayFixture(t, fp, &fakeQuota{})
+
+	wantByModule := map[string]int{
+		"xlsx": 2048,
+		"docx": 3072,
+		"pptx": 2048,
+		"pdf":  2048,
+		"md":   3072,
+		"html": 4096,
+	}
+	for _, m := range officeModuleSections {
+		req := Request{
+			Actor:          audit.User("u1"),
+			OrganizationID: "org1",
+			WorkspaceID:    "ws1",
+			Capability:     CapOfficeUniworkAI,
+			PromptID:       PromptOfficeUniworkAI,
+			Module:         m.module,
+			History:        []provider.Message{{Role: "user", Content: "check"}},
+		}
+		if _, err := g.Complete(ctx, req); err != nil {
+			t.Fatalf("module %s: %v", m.module, err)
+		}
+		if fp.Last.MaxTokens != wantByModule[m.module] {
+			t.Fatalf("module %s: provider MaxTokens = %d, want %d", m.module, fp.Last.MaxTokens, wantByModule[m.module])
+		}
+	}
+
+	// Empty and unknown modules on the sectioned office prompt are refused by
+	// systemText before reaching the provider; OfficeModuleMaxTokens itself
+	// falls back to 4096 (and a non-sectioned prompt under CapOfficeUniworkAI
+	// with an empty/unknown module receives 4096).
+	for _, badModule := range []string{"", "unknown"} {
+		callsBefore := fp.Calls
+		_, err := g.Complete(ctx, Request{
+			Actor:          audit.User("u1"),
+			OrganizationID: "org1",
+			WorkspaceID:    "ws1",
+			Capability:     CapOfficeUniworkAI,
+			PromptID:       PromptOfficeUniworkAI,
+			Module:         badModule,
+			History:        []provider.Message{{Role: "user", Content: "check"}},
+		})
+		if err == nil || !strings.HasPrefix(err.Error(), "ai: policy:") {
+			t.Fatalf("module %q on sectioned office prompt: got err %v, want policy refusal", badModule, err)
+		}
+		if fp.Calls != callsBefore {
+			t.Fatalf("module %q reached provider (%d -> %d calls)", badModule, callsBefore, fp.Calls)
+		}
+	}
+
+	const nonSectionedKey = "test_office_ceiling_fallback@1"
+	prompts[nonSectionedKey] = Prompt{
+		ID: "test_office_ceiling_fallback", Version: 1, System: "sys " + UntrustedFooter,
+		Render: func(map[string]any) string { return "q" },
+	}
+	t.Cleanup(func() { delete(prompts, nonSectionedKey) })
+	for _, fallbackMod := range []string{"", "unknown"} {
+		if _, err := g.Complete(ctx, Request{
+			Actor:          audit.User("u1"),
+			OrganizationID: "org1",
+			WorkspaceID:    "ws1",
+			Capability:     CapOfficeUniworkAI,
+			PromptID:       nonSectionedKey,
+			Module:         fallbackMod,
+		}); err != nil {
+			t.Fatalf("fallback module %q: %v", fallbackMod, err)
+		}
+		if fp.Last.MaxTokens != 4096 {
+			t.Fatalf("fallback module %q: provider MaxTokens = %d, want 4096", fallbackMod, fp.Last.MaxTokens)
+		}
+	}
+
+	// Other capabilities ignore Request.Module and keep their own policy.MaxTokens.
+	copilotReq := askReq()
+	copilotReq.Module = "xlsx"
+	fp.Reply = FakeReply
+	if _, err := g.Complete(ctx, copilotReq); err != nil {
+		t.Fatalf("copilot with Module=xlsx: %v", err)
+	}
+	if wantCopilot := policies[CapCopilotAnswer].MaxTokens; fp.Last.MaxTokens != wantCopilot {
+		t.Fatalf("copilot MaxTokens = %d, want %d", fp.Last.MaxTokens, wantCopilot)
+	}
+}

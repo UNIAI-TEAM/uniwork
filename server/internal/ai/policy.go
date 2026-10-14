@@ -65,21 +65,23 @@ var policies = map[Capability]ModelPolicy{
 }
 
 // officeModuleMaxTokens tunes the max output tokens per genoffice module (G6-08,
-// UNI-1373): each module is capped to the largest single-turn tool-call JSON or
-// answer its dev-set and editing workflows require, bounded by
-// policies[CapOfficeUniworkAI].MaxTokens (4096).
+// UNI-1373): each module ceiling is lowered from the 4096 capability ceiling
+// (except HTML, which stays at 4096) to the largest single-turn tool-call JSON
+// or answer its dev-set and editing workflows require. The Gateway asks for it
+// on every UniWork AI turn (officeMaxTokens below), so the map is the ceiling
+// the provider is really called with, not a table tests read.
 var officeModuleMaxTokens = map[string]int{
-	// Spreadsheet tool calls (read_range, summarize_range, propose_operations) and scoped numerical answers fit within 2048 tokens.
+	// Spreadsheet tool calls (read_range, summarize_range, propose_operations) and scoped numerical answers fit within 2048 tokens (lowered from 4096).
 	"xlsx": 2048,
-	// Word multi-paragraph replace_blocks / apply_ops payloads plus verbatim before/after edit summaries fit within 3072 tokens.
+	// Word multi-paragraph replace_blocks / apply_ops payloads plus verbatim before/after edit summaries fit within 3072 tokens (lowered from 4096).
 	"docx": 3072,
-	// Slide shape text rewrites via apply_ops and slide-scoped summaries are compact per slide and fit within 2048 tokens.
+	// Slide shape text rewrites via apply_ops and slide-scoped summaries are compact per slide and fit within 2048 tokens (lowered from 4096).
 	"pptx": 2048,
-	// PDF page-scoped answers, notes and single-block text edits fit within 2048 tokens.
+	// PDF page-scoped answers, notes and single-block text edits fit within 2048 tokens (lowered from 4096).
 	"pdf": 2048,
-	// Markdown multi-block apply_ops batches preserve surrounding source verbatim and fit within 3072 tokens.
+	// Markdown multi-block apply_ops batches preserve surrounding source verbatim and fit within 3072 tokens (lowered from 4096).
 	"md": 3072,
-	// HTML DOM apply_ops batches can carry larger element subtrees up to the 4096 capability ceiling.
+	// HTML DOM apply_ops batches can carry larger element subtrees and retain the full 4096 capability ceiling.
 	"html": 4096,
 }
 
@@ -91,6 +93,21 @@ func OfficeModuleMaxTokens(module string) int {
 		return n
 	}
 	return policies[CapOfficeUniworkAI].MaxTokens
+}
+
+// officeMaxTokens is the output ceiling the provider is asked for on one
+// request. A UniWork AI turn (CapOfficeUniworkAI) is capped per genoffice
+// module — OfficeModuleMaxTokens(req.Module) lowers xlsx/pptx/pdf to 2048 and
+// docx/md to 3072 from the 4096 capability ceiling (G6-08, BE68-1). An empty
+// or unknown module keeps the capability ceiling here: the sectioned office
+// prompt is refused by systemText before a request is built, and a
+// non-sectioned prompt under this capability carries no module by design.
+// Every other capability ignores Request.Module and keeps its own policy.
+func officeMaxTokens(req Request, p ModelPolicy) int {
+	if req.Capability == CapOfficeUniworkAI {
+		return OfficeModuleMaxTokens(req.Module)
+	}
+	return p.MaxTokens
 }
 
 // allowedModels is the allowlist every override is checked against
