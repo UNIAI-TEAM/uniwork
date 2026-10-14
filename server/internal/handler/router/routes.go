@@ -54,6 +54,7 @@ type Routes struct {
 	RevokeOrgConnectedApp http.HandlerFunc
 	OrgMcpPolicy          http.HandlerFunc
 	SetOrgMcpPolicy       http.HandlerFunc
+	SetOrgMcpWritePolicy  http.HandlerFunc
 
 	Register              http.HandlerFunc
 	Login                 http.HandlerFunc

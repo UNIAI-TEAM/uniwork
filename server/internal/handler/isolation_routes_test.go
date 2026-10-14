@@ -220,6 +220,11 @@ var isoRoutes = map[string]isoSpec{
 		body: func(w *isoWorld, tn *isoTenant) isoBody {
 			return isoBody{json: map[string]any{"enabled": tn != w.alpha}}
 		}},
+	"PUT /api/v1/orgs/{org}/mcp-policy/write": {
+		reason: "the attack on A sends enabled false, which would switch A's write access off, so A's tenant digest catches a breach; every other tenant's own call sends true, a repeated enable (buildMcp turns write on) that answers 200",
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"enabled": tn != w.alpha}}
+		}},
 
 	"GET /uploads/*": {class: isoPublic, reason: "legacy local-disk objects by unguessable key; FileService objects (v1/) are refused - TestServeFileRefusesFileServiceObjects and the uploads subtest"},
 

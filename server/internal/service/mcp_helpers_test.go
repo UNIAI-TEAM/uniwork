@@ -155,3 +155,8 @@ func (w *mcpWorld) liveTokens(t *testing.T) int {
 	}
 	return n
 }
+
+// mcpFlagsExcept answers true for every flag but one.
+type mcpFlagsExcept struct{ off string }
+
+func (f mcpFlagsExcept) IsEnabled(_ context.Context, key string, _ bool) bool { return key != f.off }

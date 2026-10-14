@@ -54,6 +54,7 @@ var catalogue = []Flag{
 	{Key: "graph", Description: "Work Graph: marker đánh dấu node bẩn cho tổ chức này, worker chiếu (C-11). Bật rồi chạy graph-rebuild --org", Default: false, Public: false, Owner: "graph", ReviewAt: day(2027, 1, 31)},
 	{Key: "graph_ui", Description: "Work Graph: section Liên quan và dòng thời gian trên trang việc (C-11)", Default: false, Public: true, Owner: "graph", ReviewAt: day(2027, 1, 31)},
 	{Key: "mcp_connector", Description: "Connector MCP: client AI bên ngoài (Claude, ChatGPT, Gemini) đọc task và cuộc họp (UNI-1308)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 1, 31)},
+	{Key: "mcp_connector_write", Description: "Connector MCP: tool ghi (tạo, sửa task, dự án, cuộc họp, tài liệu) cho grant có scope write (UNI-1567, ADR 0033)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 3, 31)},
 }
 
 // Catalogue returns a copy of the declared flags.

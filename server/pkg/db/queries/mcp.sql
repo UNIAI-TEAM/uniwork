@@ -188,20 +188,31 @@ UPDATE mcp_tokens SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL;
 UPDATE mcp_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL AND expires_at > now();
 
 -- name: GetOrganizationMcpPolicy :one
-SELECT id, mcp_enabled_at, mcp_enabled_by FROM organizations WHERE id = $1;
+SELECT id, mcp_enabled_at, mcp_enabled_by, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1;
 
 -- name: GetOrganizationMcpPolicyForUpdate :one
 -- SetPolicy reads the value it is about to change under the row lock, so the
 -- audit row's before/after is true and a repeated toggle writes no second row.
-SELECT id, mcp_enabled_at, mcp_enabled_by FROM organizations WHERE id = $1 FOR UPDATE;
+SELECT id, mcp_enabled_at, mcp_enabled_by, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1 FOR UPDATE;
 
 -- name: SetOrganizationMcpPolicy :one
+-- Turning the connector off turns write off with it: write never outlives read.
 UPDATE organizations SET
   mcp_enabled_at = CASE WHEN sqlc.arg(enabled)::bool THEN COALESCE(mcp_enabled_at, now()) ELSE NULL END,
   mcp_enabled_by = CASE WHEN sqlc.arg(enabled)::bool THEN sqlc.arg(actor_id)::text ELSE NULL END,
+  mcp_write_enabled_at = CASE WHEN sqlc.arg(enabled)::bool THEN mcp_write_enabled_at ELSE NULL END,
+  mcp_write_enabled_by = CASE WHEN sqlc.arg(enabled)::bool THEN mcp_write_enabled_by ELSE NULL END,
   updated_at = now()
 WHERE id = sqlc.arg(id)
-RETURNING id, mcp_enabled_at, mcp_enabled_by;
+RETURNING id, mcp_enabled_at, mcp_enabled_by, mcp_write_enabled_at, mcp_write_enabled_by;
+
+-- name: SetOrganizationMcpWritePolicy :one
+UPDATE organizations SET
+  mcp_write_enabled_at = CASE WHEN sqlc.arg(enabled)::bool THEN COALESCE(mcp_write_enabled_at, now()) ELSE NULL END,
+  mcp_write_enabled_by = CASE WHEN sqlc.arg(enabled)::bool THEN sqlc.arg(actor_id)::text ELSE NULL END,
+  updated_at = now()
+WHERE id = sqlc.arg(id)
+RETURNING id, mcp_enabled_at, mcp_enabled_by, mcp_write_enabled_at, mcp_write_enabled_by;
 
 -- name: DeleteExpiredMcpAuthAttempts :execrows
 DELETE FROM mcp_auth_attempts WHERE expires_at < now() - interval '1 day';

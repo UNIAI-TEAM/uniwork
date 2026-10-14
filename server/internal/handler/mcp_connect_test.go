@@ -697,7 +697,7 @@ func TestMcpPolicyOverHTTP(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("read: %d %v", res.StatusCode, off)
 	}
-	wantKeys(t, "policy", off, "enabled", "available", "enabled_at", "enabled_by", "mcp_url")
+	wantKeys(t, "policy", off, "enabled", "available", "enabled_at", "enabled_by", "mcp_url", "write_enabled", "write_available", "write_enabled_at", "write_enabled_by")
 	if off["enabled"] != false || off["available"] != true || off["enabled_at"] != nil || off["enabled_by"] != "" || off["mcp_url"] != mcpTestIssuer+"/mcp" {
 		t.Fatalf("policy before the switch = %v", off)
 	}
@@ -769,6 +769,34 @@ func TestMcpPolicyNeedsOrgAdmin(t *testing.T) {
 	}
 }
 
+// Write access is a second switch under the connector's own (ADR 0033): it
+// refuses to turn on while the connector is off, and reads back on the policy.
+func TestMcpWritePolicyOverHTTP(t *testing.T) {
+	w := newMcpConnectWorld(t, "write-policy", nil)
+	path := "/api/v1/orgs/" + w.owner.slug + "/mcp-policy"
+
+	res, out := doJSON(t, w.srv, "PUT", path+"/write", w.owner.token, map[string]any{"enabled": true})
+	wantError(t, "write on before the connector", res, out, http.StatusConflict, "connector_off")
+
+	w.setPolicy(t, w.owner, true)
+	res, on := doJSON(t, w.srv, "PUT", path+"/write", w.owner.token, map[string]any{"enabled": true})
+	if res.StatusCode != http.StatusOK || on["write_enabled"] != true || on["write_available"] != true || on["write_enabled_by"] != w.owner.userID {
+		t.Fatalf("write on: %d %v", res.StatusCode, on)
+	}
+	if at, _ := on["write_enabled_at"].(string); at == "" {
+		t.Errorf("write_enabled_at = %v, want an RFC 3339 time", on["write_enabled_at"])
+	}
+	res, read := doJSON(t, w.srv, "GET", path, w.owner.token, nil)
+	if res.StatusCode != http.StatusOK || read["write_enabled"] != true || read["write_available"] != true || read["enabled"] != true {
+		t.Errorf("read after write on: %d %v", res.StatusCode, read)
+	}
+
+	res, off := doJSON(t, w.srv, "PUT", path+"/write", w.owner.token, map[string]any{"enabled": false})
+	if res.StatusCode != http.StatusOK || off["write_enabled"] != false || off["write_enabled_at"] != nil || off["enabled"] != true {
+		t.Errorf("write off: %d %v", res.StatusCode, off)
+	}
+}
+
 func TestMcpPolicyCannotTurnOnWhileThePlatformFlagIsOff(t *testing.T) {
 	w := newMcpConnectWorld(t, "flag-off", func(d *Deps) { d.McpAuth.SetFlags(mcpTestFlags(false)) })
 	path := "/api/v1/orgs/" + w.owner.slug + "/mcp-policy"
@@ -813,6 +841,7 @@ func TestMcpAdminRoutesAnswerForAClosedDoor(t *testing.T) {
 				{"DELETE", base + "/connected-apps/" + grantID},
 				{"GET", base + "/mcp-policy"},
 				{"PUT", base + "/mcp-policy"},
+				{"PUT", base + "/mcp-policy/write"},
 			} {
 				res, out := doJSON(t, w.srv, r.method, r.path, admin.token, map[string]any{"enabled": false})
 				wantError(t, r.method+" "+r.path, res, out, http.StatusForbidden, c.code)
@@ -856,5 +885,6 @@ func mcpConnectRoutes(tn mcpTenant) []mcpConnectRoute {
 		{"DELETE", org + "/connected-apps/" + id, nil},
 		{"GET", org + "/mcp-policy", nil},
 		{"PUT", org + "/mcp-policy", map[string]any{"enabled": true}},
+		{"PUT", org + "/mcp-policy/write", map[string]any{"enabled": true}},
 	}
 }

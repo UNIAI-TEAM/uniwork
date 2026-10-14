@@ -168,26 +168,40 @@ func (s *McpAuthService) consentOrganizations(ctx context.Context, userID string
 
 // orgEnabled is the platform flag AND the organization's own switch.
 func (s *McpAuthService) orgEnabled(ctx context.Context, userID, orgID string) (bool, error) {
-	if !s.flagOn(ctx, userID, orgID) {
-		return false, nil
+	enabled, _, err := s.orgAccess(ctx, userID, orgID)
+	return enabled, err
+}
+
+// orgAccess reads both switches of the organization once: enabled is the
+// connector (flag and switch), write is enabled AND the write flag AND the
+// organization's write switch (ADR 0033).
+func (s *McpAuthService) orgAccess(ctx context.Context, userID, orgID string) (enabled, write bool, err error) {
+	if !s.flag(ctx, mcpFlagKey, userID, orgID) {
+		return false, false, nil
 	}
 	p, err := s.q.GetOrganizationMcpPolicy(ctx, orgID)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
-	return p.McpEnabledAt.Valid, nil
+	enabled = p.McpEnabledAt.Valid
+	write = enabled && p.McpWriteEnabledAt.Valid && s.flag(ctx, mcpWriteFlagKey, userID, orgID)
+	return enabled, write, nil
 }
 
 func (s *McpAuthService) flagOn(ctx context.Context, userID, orgID string) bool {
+	return s.flag(ctx, mcpFlagKey, userID, orgID)
+}
+
+func (s *McpAuthService) flag(ctx context.Context, key, userID, orgID string) bool {
 	if s.flags == nil {
 		return false
 	}
 	def := false
-	if f, ok := featureflags.Lookup(mcpFlagKey); ok {
+	if f, ok := featureflags.Lookup(key); ok {
 		def = f.Default
 	}
 	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: userID, OrganizationID: orgID})
-	return s.flags.IsEnabled(ctx, mcpFlagKey, def)
+	return s.flags.IsEnabled(ctx, key, def)
 }
 
 // Approve records the person's consent for one organization and issues the

@@ -21,6 +21,9 @@ func (w *isoWorld) buildMcp(t *testing.T, tn *isoTenant) {
 	if _, err := svc.SetPolicy(ctx, tn.userID, tn.orgID, true); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := svc.SetWritePolicy(ctx, tn.userID, tn.orgID, true); err != nil {
+		t.Fatal(err)
+	}
 	reg, err := svc.Register(ctx, service.McpRegistration{ClientName: "iso-" + tn.tag, RedirectURIs: []string{mcpTestRedirect}, TokenEndpointAuthMethod: "none"})
 	if err != nil {
 		t.Fatal(err)

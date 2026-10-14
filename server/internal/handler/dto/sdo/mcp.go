@@ -67,4 +67,9 @@ type McpPolicySDO struct {
 	EnabledAt *string `json:"enabled_at" description:"RFC 3339 hoặc null" example:"2026-10-12T08:00:00Z"`
 	EnabledBy string  `json:"enabled_by" description:"ULID người bật" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
 	McpURL    string  `json:"mcp_url" description:"URL dán vào client AI" example:"https://api.uniwork.vn/mcp"`
+
+	WriteEnabled   bool    `json:"write_enabled" description:"Ứng dụng AI được tạo và sửa" example:"false"`
+	WriteAvailable bool    `json:"write_available" description:"Nền tảng đã mở quyền ghi cho tổ chức" example:"true"`
+	WriteEnabledAt *string `json:"write_enabled_at" description:"RFC 3339 hoặc null" example:"2026-10-14T08:00:00Z"`
+	WriteEnabledBy string  `json:"write_enabled_by" description:"ULID người bật" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
 }

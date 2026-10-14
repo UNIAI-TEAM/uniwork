@@ -13,3 +13,8 @@ type McpConsentSDI struct {
 type McpPolicySDI struct {
 	Enabled bool `json:"enabled" description:"Cho phép trợ lý AI bên ngoài truy cập tổ chức" example:"true"`
 }
+
+// McpWritePolicySDI is PUT /api/v1/orgs/{org}/mcp-policy/write.
+type McpWritePolicySDI struct {
+	Enabled bool `json:"enabled" description:"Cho phép ứng dụng AI đã kết nối tạo và sửa dữ liệu" example:"true"`
+}

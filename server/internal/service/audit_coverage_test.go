@@ -50,10 +50,12 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionAuthDesktopTokenRotated:     "covered by desktop_auth_test.go",
 	audit.ActionAuthDesktopSessionRevoked:   "covered by desktop_auth_test.go",
 
-	audit.ActionMcpGrantCreated:              "covered by mcp_authorize_test.go",
-	audit.ActionMcpGrantRevoked:              "covered by mcp_grants_test.go",
-	audit.ActionMcpTokenFamilyRevoked:        "covered by mcp_tokens_test.go",
-	audit.ActionOrganizationMcpPolicyChanged: "covered by mcp_grants_test.go",
+	audit.ActionMcpGrantCreated:                   "covered by mcp_authorize_test.go",
+	audit.ActionMcpGrantRevoked:                   "covered by mcp_grants_test.go",
+	audit.ActionMcpGrantScopeChanged:              "covered by mcp_authorize_test.go",
+	audit.ActionMcpTokenFamilyRevoked:             "covered by mcp_tokens_test.go",
+	audit.ActionOrganizationMcpPolicyChanged:      "covered by mcp_grants_test.go",
+	audit.ActionOrganizationMcpWritePolicyChanged: "covered by mcp_grants_test.go",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -1485,8 +1487,10 @@ func auditActions() []string {
 		audit.ActionEmailHubAccountAuthFailed,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
+		audit.ActionMcpGrantScopeChanged,
 		audit.ActionMcpTokenFamilyRevoked,
 		audit.ActionOrganizationMcpPolicyChanged,
+		audit.ActionOrganizationMcpWritePolicyChanged,
 	}
 }
 

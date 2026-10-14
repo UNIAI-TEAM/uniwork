@@ -56,7 +56,10 @@ func (h *handlers) grantsSDO(gs []service.McpGrantView) sdo.McpGrantListSDO {
 }
 
 func (h *handlers) policySDO(p service.McpPolicy) sdo.McpPolicySDO {
-	return sdo.McpPolicySDO{Enabled: p.Enabled, Available: p.Available, EnabledAt: mcpTimePtr(p.EnabledAt), EnabledBy: p.EnabledBy, McpURL: h.McpAuth.ResourceURL()}
+	return sdo.McpPolicySDO{
+		Enabled: p.Enabled, Available: p.Available, EnabledAt: mcpTimePtr(p.EnabledAt), EnabledBy: p.EnabledBy, McpURL: h.McpAuth.ResourceURL(),
+		WriteEnabled: p.WriteEnabled, WriteAvailable: p.WriteAvailable, WriteEnabledAt: mcpTimePtr(p.WriteEnabledAt), WriteEnabledBy: p.WriteEnabledBy,
+	}
 }
 
 // mcpConsent shows an attempt and issues a fresh CSRF token. Reading never
@@ -197,6 +200,26 @@ func (h *handlers) setOrgMcpPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := h.McpAuth.SetPolicy(r.Context(), middleware.UserID(r.Context()), orgID, in.Enabled)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, h.policySDO(p))
+}
+
+func (h *handlers) setOrgMcpWritePolicy(w http.ResponseWriter, r *http.Request) {
+	if !h.mcpReady(w) {
+		return
+	}
+	orgID, ok := h.orgIDFromSlug(w, r)
+	if !ok {
+		return
+	}
+	var in sdi.McpWritePolicySDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	p, err := h.McpAuth.SetWritePolicy(r.Context(), middleware.UserID(r.Context()), orgID, in.Enabled)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

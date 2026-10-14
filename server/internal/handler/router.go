@@ -225,6 +225,7 @@ func New(d Deps) http.Handler {
 		RevokeOrgConnectedApp: h.revokeOrgConnectedApp,
 		OrgMcpPolicy:          h.orgMcpPolicy,
 		SetOrgMcpPolicy:       h.setOrgMcpPolicy,
+		SetOrgMcpWritePolicy:  h.setOrgMcpWritePolicy,
 
 		Register:              h.register,
 		Login:                 h.login,
