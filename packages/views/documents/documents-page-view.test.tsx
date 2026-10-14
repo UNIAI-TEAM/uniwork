@@ -449,6 +449,8 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
 
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folders.new") }));
+    const dialog = await screen.findByRole("dialog", { name: t("documents.home.folders.create_title_root") });
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
 
     const crumbs = await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
     expect(within(crumbs).getByText(t("documents.home.folders.default_name"))).toBeInTheDocument();
