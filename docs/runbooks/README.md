@@ -1,6 +1,6 @@
 # Runbooks theo alert
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-08 · **Nguồn alert:** `deploy/alerts.yml` · **Hướng dẫn chung:** [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md)
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-14 · **Nguồn alert:** `deploy/alerts.yml` · **Hướng dẫn chung:** [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md)
 
 Mỗi rule trong `deploy/alerts.yml` có `runbook_url` trỏ tới đúng một file ở
 đây; `scripts/alerts-runbooks.test.mjs` fail khi thiếu file, thiếu mục hoặc có
@@ -27,6 +27,12 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `WebVitalsLCPPoor` | 3 | p75 LCP > 2,5 s trong 30 phút | [WebVitalsLCPPoor.md](WebVitalsLCPPoor.md) |
 
 Hướng dẫn chung (chạy stack, env, sampling, `/readyz`): [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md).
+
+Runbook vận hành (không gắn alert, mở theo bước deploy):
+
+| Runbook | Dùng khi |
+| --- | --- |
+| [documents-folder-name-index.md](documents-folder-name-index.md) | Index unique tên thư mục (`idx_documents_folder_name_uidx`, FD-02/UNI-1462) INVALID hoặc không dựng được sau deploy |
 
 Sev 1: gọi ngay, mọi giờ. Sev 2: xử lý trong giờ làm việc, tối đa 4 giờ.
 Sev 3: đưa vào sprint, không đánh thức ai.

@@ -8,10 +8,19 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 // An alert without a runbook is a pager that says "something is wrong" at
 // 3am and nothing else; a runbook without an alert is prose nobody will ever
-// open under pressure. Both directions fail here.
+// open under pressure - unless it is a listed operator runbook, opened by a
+// deploy step. Both directions fail here.
 
 const SECTIONS = ["## Triệu chứng", "## Kiểm tra", "## Khắc phục", "## Leo thang"];
 const RUNBOOK_DIR = "docs/runbooks";
+
+/** Operator runbooks: opened by a deploy step or a change review, not by a
+ * pager. They keep the four sections and the status line like every runbook
+ * here; only the alert-linkage rules below skip them. Add a name with the
+ * reason it has no alert. */
+const OPERATOR_RUNBOOKS = new Set([
+  "documents-folder-name-index.md", // FD-02 (UNI-1462): release-order check after the folder-name index deploy
+]);
 
 /** `{alert, runbook_url}` pairs from deploy/alerts.yml. */
 // ponytail: line scanner, not a YAML parser — rules are flat `- alert:` blocks;
@@ -53,9 +62,12 @@ test("every runbook has the four sections in order and a status line", () => {
   }
 });
 
-test("every runbook is referenced by an alert", () => {
+test("every runbook is referenced by an alert or is a listed operator runbook", () => {
   const referenced = new Set(rules().map((r) => `${r.alert}.md`));
-  const orphans = runbookFiles().filter((f) => !referenced.has(f));
+  for (const f of OPERATOR_RUNBOOKS) {
+    assert.ok(fs.existsSync(path.join(root, RUNBOOK_DIR, f)), `operator runbook listed but missing: ${f}`);
+  }
+  const orphans = runbookFiles().filter((f) => !referenced.has(f) && !OPERATOR_RUNBOOKS.has(f));
   assert.deepEqual(orphans, [], `runbooks without an alert: ${orphans.join(", ")}`);
 });
 
