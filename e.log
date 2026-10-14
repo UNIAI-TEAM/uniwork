@@ -1,0 +1,9 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && AI_PROVIDER=fake go test -count=1 -v ./internal/service/ ./internal/handler/ -run 'AIUniwork|OfficeFrameAI' 2>&1 | grep -E '^(--- (FAIL|SKIP)|PASS|FAIL|ok|panic)'; echo "AI_CALLERS_EXIT=${PIPESTATUS[0]}"
+--- SKIP: TestAIUniworkConcurrencyGlobalRefusalUnwinds (0.00s)
+--- SKIP: TestAIUniworkConcurrencyReleaseOnCancelledRequest (0.00s)
+--- SKIP: TestAIUniworkLeasesExpireIndependently (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	1.649s
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	9.857s
+AI_CALLERS_EXIT=0

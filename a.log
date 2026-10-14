@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+b7b57112fe8d24cbf00704d22b6c76afd7cd8388
+9d987d3533337ea972e5d4f93bd67df8a188d9f7
+b7b57112f docs(office): add G6-08 dev set and instruction pack tuning report
+a5fb94a74 test(office): verify office_uniwork_ai@2 goldens and Calc formula evaluation in runner
+0bc907395 feat(ai): register office_uniwork_ai@2 pack and tune output token ceilings
+4df589a37 feat(scripts): add G6-08 dev set runner and real panel measurement harness (UNI-1373)
+092c37a2b test(office): add G6-08 synthetic dev set and guard test
+9d987d353 chore: merge the G5-G7 root (0d767e164) into FD-04

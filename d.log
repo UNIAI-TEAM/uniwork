@@ -1,0 +1,13 @@
+$ cd server && unset OPENAI_API_KEY OPENAI_BASE_URL && AI_PROVIDER=fake go test -count=1 -v ./internal/ai/ -run 'TestOfficePack|TestOfficeSystemPrompt|TestGatewayOfficeUniworkUsageRow|TestPromptSnapshots|TestSystemPromptsEndWithUntrustedFooter' 2>&1 | grep -E '^(--- (PASS|FAIL|SKIP)|PASS|FAIL|ok)'; echo "PACK_EXIT=${PIPESTATUS[0]}"
+--- PASS: TestSystemPromptsEndWithUntrustedFooter (0.00s)
+--- PASS: TestPromptSnapshots (0.00s)
+--- PASS: TestOfficePackGoldens (0.00s)
+--- PASS: TestOfficeSystemPromptUnknownModule (0.00s)
+--- PASS: TestOfficePackTokenCaps (0.00s)
+--- PASS: TestOfficePackVersionPins (0.00s)
+--- PASS: TestOfficePackProvisionalMap (0.00s)
+--- PASS: TestGatewayOfficeUniworkUsageRow (0.25s)
+--- PASS: TestOfficePackModuleMaxTokens (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/ai	0.254s
+PACK_EXIT=0
