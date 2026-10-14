@@ -10,7 +10,7 @@ của contract-p0 và phải được cập nhật khi kênh đổi.
 
 | Kênh | Nền tảng và gói (theo `deploy/app/env/uniwork-be.env`, chỉ tên tệp) | Đang phục vụ | N′ |
 | --- | --- | --- | --- |
-| Web (frame trong `apps/web`) | Trình duyệt; pin bundle genoffice `0.1.0-0d03b18` (6 module) | Cùng bản deploy của web | Không áp dụng: web không có store cục bộ schema 2; rollback web là rollback deploy |
+| Web (frame trong `apps/web`) | Trình duyệt; pin bundle genoffice `0.1.0-811107c` (6 module) | Cùng bản deploy của web | Không áp dụng: web không có store cục bộ schema 2; rollback web là rollback deploy |
 | Desktop dev | Windows x64 (`win32_x64-setup.exe`), macOS arm64 và x64 (`.dmg`), Linux x64 (`.deb`, `.AppImage`) | `0.11.0-dev.7` (`unsigned`) | **Chưa có.** `0.11.0-dev.7` chưa có G5-04g; N′ dự kiến `0.11.0-dev.8` nếu không có tag chen. Advisor ghi số thật khi bản đó phát hành |
 | Desktop beta | Cùng bộ gói như dev khi có | Rỗng | Chưa phát hành |
 | Desktop stable | Cùng bộ gói như dev khi có | Rỗng | Chưa phát hành |
