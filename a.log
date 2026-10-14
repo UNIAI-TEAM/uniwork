@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+c8b78bceee24e79d3ec8cca2050df6ab69017f13
+c8b78bcee fix(documents): keep the valid prefix of a search row's path
+483e6fd8d test(documents): a malformed ancestor keeps the path's valid prefix
+85d2e5d3b test(documents): pass the depth limit to the too-deep expectations
+e46a7a1ee fix(documents): name the depth limit in the tree's too-deep toast
+c384c8ab2 feat(documents): map folder_name_taken and pass the depth limit
+51eeb8e2b feat(realtime): refresh documents on moved, archived and restored
+1233a5421 feat(documents): documentsFolder path builder
+533866918 feat(documents): folder client contract v1.0 in core
