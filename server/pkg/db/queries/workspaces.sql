@@ -16,10 +16,24 @@ UPDATE workspaces SET
 WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
 RETURNING *;
 
--- name: SetWorkspaceIconEmoji :one
-UPDATE workspaces SET icon_emoji = sqlc.narg('icon_emoji'), updated_at = now()
+-- name: SetWorkspaceIcon :one
+-- Writes both icon columns at once: a workspace shows an emoji or a file,
+-- never both (workspaces_one_icon).
+UPDATE workspaces
+SET icon_emoji = sqlc.narg('icon_emoji'), icon_file_id = sqlc.narg('icon_file_id'), updated_at = now()
 WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
 RETURNING *;
+
+-- name: GetWorkspaceIconFileIDForUpdate :one
+SELECT icon_file_id FROM workspaces
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+FOR UPDATE;
+
+-- name: ListWorkspaceIconFileIDs :many
+-- tenant: system
+-- FileService asks which of these files a workspace still shows.
+SELECT icon_file_id FROM workspaces
+WHERE icon_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: GetWorkspaceBySlugs :one
 -- tenant: by-id

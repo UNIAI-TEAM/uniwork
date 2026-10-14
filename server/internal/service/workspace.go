@@ -31,6 +31,9 @@ type WorkspaceView struct {
 	db.Workspace
 	OrganizationSlug string
 	OrganizationName string
+	// IconURL is the presigned uploaded icon, resolved at read time; "" when
+	// there is no file or presigning failed.
+	IconURL string
 }
 
 type WorkspaceService struct {
@@ -67,7 +70,7 @@ func viewFromInOrgRow(r db.ListWorkspacesInOrgRow) WorkspaceView {
 		ID: r.ID, OrganizationID: r.OrganizationID, Slug: r.Slug, Name: r.Name,
 		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		MatrixRoomID: r.MatrixRoomID, TaskPrefix: r.TaskPrefix, TaskCounter: r.TaskCounter,
-		Description: r.Description, IconEmoji: r.IconEmoji,
+		Description: r.Description, IconEmoji: r.IconEmoji, IconFileID: r.IconFileID,
 	}, OrganizationSlug: r.OrganizationSlug, OrganizationName: r.OrganizationName}
 }
 
@@ -166,7 +169,7 @@ func (s *WorkspaceService) GetView(ctx context.Context, userID, workspaceID stri
 	if err != nil {
 		return WorkspaceView{}, err
 	}
-	return viewFromInOrgRow(db.ListWorkspacesInOrgRow(r)), nil
+	return s.withIconURL(ctx, viewFromInOrgRow(db.ListWorkspacesInOrgRow(r))), nil
 }
 
 func (s *WorkspaceService) ListForUser(ctx context.Context, userID string) ([]WorkspaceView, error) {
@@ -176,7 +179,7 @@ func (s *WorkspaceService) ListForUser(ctx context.Context, userID string) ([]Wo
 	}
 	out := make([]WorkspaceView, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, viewFromInOrgRow(db.ListWorkspacesInOrgRow(r)))
+		out = append(out, s.withIconURL(ctx, viewFromInOrgRow(db.ListWorkspacesInOrgRow(r))))
 	}
 	return out, nil
 }
@@ -214,7 +217,7 @@ func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSl
 		}
 		return WorkspaceView{}, ErrNotFound // không lộ sự tồn tại
 	}
-	return viewFromInOrgRow(db.ListWorkspacesInOrgRow(r)), nil
+	return s.withIconURL(ctx, viewFromInOrgRow(db.ListWorkspacesInOrgRow(r))), nil
 }
 
 // RequireMember: quyền workspace = dòng workspace_members HOẶC owner/admin của
@@ -428,8 +431,15 @@ func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Quer
 		}
 	}
 	if _, ok := to["icon_emoji"]; ok {
+		// An emoji replaces an uploaded icon; the file is released in this
+		// transaction (spec 2026-10-14 §5.1).
+		if before.IconFileID.Valid {
+			if err := releaseFilesInTx(ctx, s.files, q, []files.FileID{files.FileID(before.IconFileID.String)}); err != nil {
+				return err
+			}
+		}
 		emoji := pgtype.Text{String: *in.IconEmoji, Valid: *in.IconEmoji != ""}
-		if _, err := q.SetWorkspaceIconEmoji(ctx, db.SetWorkspaceIconEmojiParams{
+		if _, err := q.SetWorkspaceIcon(ctx, db.SetWorkspaceIconParams{
 			ID: before.ID, OrganizationID: before.OrganizationID, IconEmoji: emoji,
 		}); err != nil {
 			return err

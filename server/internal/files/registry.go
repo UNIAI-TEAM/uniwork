@@ -331,6 +331,12 @@ func DefaultSpecs() []PurposeSpec {
 			Policy:  Policy{MaxBytes: 10 << 20, MIMEAllowlist: imageMIMETypes, ChecksumRequired: true, ReadMode: ReadProxy},
 			// Opened by G1-03 with documents.assets.
 		},
+		{
+			Purpose: WorkspaceIcon,
+			Prefix:  "workspace-icons",
+			Scope:   ScopeOrgWorkspace,
+			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
+		},
 	}
 }
 

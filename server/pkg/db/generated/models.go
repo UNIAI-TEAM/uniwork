@@ -2204,6 +2204,7 @@ type Workspace struct {
 	TaskCounter    int64              `json:"task_counter"`
 	Description    string             `json:"description"`
 	IconEmoji      pgtype.Text        `json:"icon_emoji"`
+	IconFileID     pgtype.Text        `json:"icon_file_id"`
 }
 
 type WorkspaceAgentMember struct {
