@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -357,6 +359,8 @@ func TestMcpCreateTaskValidates(t *testing.T) {
 		ws + `"title":"` + strings.Repeat("ạ", 501) + `"}`:                                  "title",
 		ws + `"title":"A","due_date":"23/10/2026"}`:                                         "due_date must be a date",
 		ws + `"title":"A","start_date":"2026-13-01"}`:                                       "start_date must be a date",
+		ws + `"title":"A","parent_task_id":"  "}`:                                           "parent_task_id",
+		ws + `"title":"A","project_id":" "}`:                                                "project_id",
 		ws + `"title":"A","priority":"asap"}`:                                               "priority",
 		ws + `"title":"A","label_ids":["` + strings.Join(make([]string, 21), `","`) + `"]}`: "label_ids",
 	} {
@@ -436,6 +440,11 @@ func TestMcpAddCommentRepliesAndValidates(t *testing.T) {
 		t.Fatalf("add_comment by %s = %s (%v)", ref, raw, err)
 	}
 
+	// A blank reply_to is a mistake to correct, not a root comment by accident.
+	var blank McpInvalidArgs
+	if _, err := add(`,"reply_to":"  "`, "Không phải gốc"); !errors.As(err, &blank) || !strings.Contains(blank.Msg, "reply_to") {
+		t.Errorf("blank reply_to: %v, want McpInvalidArgs about reply_to", err)
+	}
 	for name, body := range map[string]string{"empty": "", "blank": " \n ", "too long": strings.Repeat("ạ", mcpMaxBodyRunes+1)} {
 		var bad McpInvalidArgs
 		if _, err := add("", body); !errors.As(err, &bad) || !strings.Contains(bad.Msg, "body") {
@@ -492,6 +501,14 @@ func TestMcpWriteToolErrorsNameNothingTheCallerCannotSee(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	labelC, err := tasks.CreateTaskLabel(ctx, Human(x.ub.ID), wsC.ID, CreateTaskLabelInput{Name: "Nhãn kín của C", Color: "#ef4444"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	label2, err := tasks.CreateTaskLabel(ctx, Human(x.ua.ID), ws2.ID, CreateTaskLabelInput{Name: "Nhãn của workspace hai", Color: "#3b82f6"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	other := x.task(t, x.ua.ID, x.w.ID, "Việc khác cùng workspace")
 	commentOther, err := tasks.AddComment(ctx, Human(x.ua.ID), other.ID, "Bình luận của việc khác")
 	if err != nil {
@@ -509,6 +526,7 @@ func TestMcpWriteToolErrorsNameNothingTheCallerCannotSee(t *testing.T) {
 	secrets := []string{
 		taskC.ID, taskC.Title, commentC.ID, commentC.Body, projectC.ID, projectC.Title, wsC.ID, x.ub.ID, x.ub.Email, x.ub.DisplayName,
 		task2.ID, task2.Title, comment2.ID, comment2.Body, project2.ID, project2.Title, ws2.ID, commentOther.Body,
+		labelC.ID, labelC.Name, label2.ID, label2.Name,
 	}
 	create := func(extra string) error {
 		_, err := callMcpTool(t, x.tools, x.p, "create_task", `{"workspace_id":"`+x.w.ID+`","title":"Việc mới"`+extra+`}`)
@@ -542,13 +560,26 @@ func TestMcpWriteToolErrorsNameNothingTheCallerCannotSee(t *testing.T) {
 	if !errors.As(err, &te) || te.Code != "assignee_not_member" {
 		t.Errorf("assignee of another organization: %v, want assignee_not_member", err)
 	}
+	// A label of another organization or workspace reads exactly as one that
+	// exists nowhere, and the message names neither.
+	var badLabel, noLabel McpInvalidArgs
+	err = create(`,"label_ids":["` + labelC.ID + `"]`)
+	errNone := create(`,"label_ids":["01NOSUCHLABEL"]`)
+	errOther := create(`,"label_ids":["` + label2.ID + `"]`)
+	if !errors.As(err, &badLabel) || !errors.As(errNone, &noLabel) || badLabel.Msg != noLabel.Msg || !strings.Contains(badLabel.Msg, "label") {
+		t.Errorf("label of another organization: %v, nonexistent label: %v; want the same McpInvalidArgs about label", err, errNone)
+	}
+	var badLabel2 McpInvalidArgs
+	if !errors.As(errOther, &badLabel2) || badLabel2.Msg != noLabel.Msg {
+		t.Errorf("label of another workspace: %v, want the same refusal as a nonexistent label", errOther)
+	}
 	var bad McpInvalidArgs
 	err = comment(x.w.ID, x.taskID, `,"reply_to":"`+commentOther.ID+`"`)
 	if !errors.As(err, &bad) || !strings.Contains(bad.Msg, "reply_to") || strings.Contains(bad.Msg, "parent_id") {
 		t.Errorf("reply to a comment of another task: %v, want McpInvalidArgs naming reply_to", err)
 	}
 
-	refusals := []error{te, bad}
+	refusals := []error{te, bad, badLabel, badLabel2, noLabel}
 	for _, err := range absent {
 		refusals = append(refusals, err)
 	}
@@ -620,5 +651,107 @@ func TestMcpWriteToolsStayInTheGrantsOrganization(t *testing.T) {
 	}
 	if count(); tasks != 2 || comments != 1 {
 		t.Fatalf("control writes left %d tasks and %d comments in B, want 2 and 1", tasks, comments)
+	}
+}
+
+// A create with label_ids returns the task as it is after the write: the
+// labels are on it, once each however often the call names them.
+func TestMcpCreateTaskReturnsItsLabels(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	urgent, err := x.tools.ask.tasks.CreateTaskLabel(ctx, Human(x.ua.ID), x.w.ID, CreateTaskLabelInput{Name: "Khẩn", Color: "#ef4444"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := x.tools.ask.tasks.CreateTaskLabel(ctx, Human(x.ua.ID), x.w.ID, CreateTaskLabelInput{Name: "Khách hàng", Color: "#3b82f6"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := callMcpTool(t, x.tools, x.p, "create_task", `{"workspace_id":"`+x.w.ID+`","title":"Gọi lại khách","label_ids":["`+urgent.ID+`","`+client.ID+`","`+urgent.ID+`"]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, _ := writeResult(t, raw)
+	var out struct{ Item McpTask }
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, l := range out.Item.Labels {
+		got[l.ID] = l.Name
+	}
+	if len(out.Item.Labels) != 2 || got[urgent.ID] != "Khẩn" || got[client.ID] != "Khách hàng" || res.Note != "" {
+		t.Fatalf("create_task labels = %+v, note %q; want both labels once: %s", out.Item.Labels, res.Note, raw)
+	}
+	read, err := callMcpTool(t, x.tools, x.p, "get_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+out.Item.ID+`"}`)
+	var one McpTask
+	if err != nil || json.Unmarshal(read, &one) != nil || len(one.Labels) != 2 {
+		t.Fatalf("get_task after create = %s (%v), want the same two labels", read, err)
+	}
+}
+
+// A create that committed does not fail because its labels could not be read
+// back: the result keeps the task and says what is missing.
+func TestMcpWithLabelsNeverFailsACommittedWrite(t *testing.T) {
+	task := McpTask{McpItem: McpItem{Kind: "task", ID: "t1"}, Revision: 1}
+	res := McpWriteResult{Item: task, Revision: 1}
+	ok := mcpWithLabels(res, task, []McpLabel{{ID: "l1", Name: "Khẩn"}}, nil)
+	if got, _ := ok.Item.(McpTask); len(got.Labels) != 1 || ok.Note != "" || ok.Revision != 1 {
+		t.Fatalf("labels read: %+v", ok)
+	}
+	lost := mcpWithLabels(res, task, nil, errors.New("db down"))
+	if got, _ := lost.Item.(McpTask); got.ID != "t1" || got.Labels != nil || lost.Note == "" || lost.Revision != 1 || strings.Contains(lost.Note, "db down") {
+		t.Fatalf("labels lost: %+v", lost)
+	}
+}
+
+// reply_to is the model's name for what the service calls parent_id; only that
+// refusal is renamed, anything else goes through the usual mapping untouched.
+func TestMcpReplyError(t *testing.T) {
+	var bad McpInvalidArgs
+	if got := mcpReplyError(taskCommentAdapter{}.foreignParentError()); !errors.As(got, &bad) || !strings.Contains(bad.Msg, "reply_to") || strings.Contains(bad.Msg, "parent_id") {
+		t.Errorf("foreign parent = %v, want McpInvalidArgs naming reply_to", got)
+	}
+	for _, err := range []error{Invalid("nội dung không hợp lệ"), ErrNotFound, errors.New("db down"), nil} {
+		if got := mcpReplyError(err); got != err {
+			t.Errorf("mcpReplyError(%v) = %v, want it unchanged", err, got)
+		}
+	}
+}
+
+// What a write tool does as the person it also says through whom: a row
+// recorded inside a call that came through an AI app names the app and the
+// grant (ADR 0033).
+func TestMcpWriteToolsRecordTheViaOnTheirAuditRows(t *testing.T) {
+	x := newMcpToolWorld(t)
+	via := audit.Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"}
+	ctx := audit.WithVia(context.Background(), via)
+	call := func(name, input string) map[string]any {
+		t.Helper()
+		tool, ok := McpTools(x.tools).Get(name)
+		if !ok {
+			t.Fatalf("no tool %q", name)
+		}
+		raw, err := tool.Handle(ctx, ai.ToolContext{ActorID: x.p.UserID, OrganizationID: x.p.OrganizationID}, json.RawMessage(input))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		_, item := writeResult(t, raw)
+		return item
+	}
+	task := call("create_task", `{"workspace_id":"`+x.w.ID+`","title":"Việc qua ứng dụng AI"}`)
+	comment := call("add_comment", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","body":"Bình luận qua ứng dụng AI"}`)
+	for _, row := range []struct{ what, where, id string }{
+		{"task.created", `resource_id = $1 AND action = 'task.created'`, task["id"].(string)},
+		{"comment", `metadata::jsonb->>'comment_id' = $1`, comment["id"].(string)},
+	} {
+		var kind, client, grant, name string
+		q := `SELECT coalesce(metadata::jsonb->'via'->>'kind',''), coalesce(metadata::jsonb->'via'->>'client_id',''), coalesce(metadata::jsonb->'via'->>'grant_id',''), coalesce(metadata::jsonb->'via'->>'client_name','') FROM audit_events WHERE ` + row.where
+		if err := x.tools.ask.pool.QueryRow(context.Background(), q, row.id).Scan(&kind, &client, &grant, &name); err != nil {
+			t.Fatalf("%s audit row: %v", row.what, err)
+		}
+		if (audit.Via{Kind: kind, ClientID: client, GrantID: grant, ClientName: name}) != via {
+			t.Errorf("%s audit via = %q/%q/%q/%q, want %+v", row.what, kind, client, grant, name, via)
+		}
 	}
 }

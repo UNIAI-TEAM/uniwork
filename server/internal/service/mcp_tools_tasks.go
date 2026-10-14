@@ -256,6 +256,41 @@ func optString(v string) *string {
 	return &v
 }
 
+// mcpID is an optional id argument: omitted is nil, an id is kept. A blank one
+// is a mistake for the model to correct; the service would read it as
+// omitted and write something the model did not mean.
+func mcpID(field, v string) (*string, error) {
+	if v == "" {
+		return nil, nil
+	}
+	if strings.TrimSpace(v) == "" {
+		return nil, McpInvalidArgs{Msg: field + " must not be blank; omit it instead"}
+	}
+	return &v, nil
+}
+
+// mcpWithLabels puts the labels read back after a create into its result. The
+// task exists by then, so a failed read leaves the result as it is and says
+// so instead of failing a write that committed.
+func mcpWithLabels(res McpWriteResult, task McpTask, labels []McpLabel, err error) McpWriteResult {
+	if err != nil {
+		res.Note = "the task was created, but its labels could not be read back; call get_task to see them"
+		return res
+	}
+	task.Labels = labels
+	res.Item = task
+	return res
+}
+
+// mcpReplyError names reply_to where the service says parent_id, a name the
+// model never used. Every other error is left to the usual mapping.
+func mcpReplyError(err error) error {
+	if errors.Is(err, taskCommentAdapter{}.foreignParentError()) {
+		return McpInvalidArgs{Msg: "reply_to must be a comment on this task"}
+	}
+	return err
+}
+
 func (s *McpToolService) CreateTask(ctx context.Context, p McpPrincipal, in mcpCreateTaskIn) (McpWriteResult, error) {
 	if title := strings.TrimSpace(in.Title); title == "" || utf8.RuneCountInString(title) > mcpMaxTitleRunes {
 		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("title must be 1-%d characters", mcpMaxTitleRunes)}
@@ -274,6 +309,14 @@ func (s *McpToolService) CreateTask(ctx context.Context, p McpPrincipal, in mcpC
 	if len(in.LabelIDs) > mcpMaxLabels {
 		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("label_ids holds at most %d labels", mcpMaxLabels)}
 	}
+	parentRef, err := mcpID("parent_task_id", in.ParentTaskID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	projectID, err := mcpID("project_id", in.ProjectID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
 	if err := s.inGrant(ctx, p, in.WorkspaceID); err != nil {
 		return McpWriteResult{}, err
 	}
@@ -282,8 +325,8 @@ func (s *McpToolService) CreateTask(ctx context.Context, p McpPrincipal, in mcpC
 		return McpWriteResult{}, err
 	}
 	var parent *string
-	if strings.TrimSpace(in.ParentTaskID) != "" {
-		pt, err := s.task(ctx, p, in.WorkspaceID, in.ParentTaskID)
+	if parentRef != nil {
+		pt, err := s.task(ctx, p, in.WorkspaceID, *parentRef)
 		if err != nil {
 			return McpWriteResult{}, err
 		}
@@ -292,7 +335,7 @@ func (s *McpToolService) CreateTask(ctx context.Context, p McpPrincipal, in mcpC
 	t, err := s.ask.tasks.Create(ctx, Human(p.UserID), in.WorkspaceID, CreateTaskInput{
 		Title: in.Title, Description: in.Description, Status: in.Status, Priority: in.Priority,
 		AssigneeID: optString(in.AssigneeID), StartDate: optString(in.StartDate), DueDate: optString(in.DueDate),
-		ProjectID: optString(in.ProjectID), ParentTaskID: parent, LabelIDs: in.LabelIDs,
+		ProjectID: projectID, ParentTaskID: parent, LabelIDs: in.LabelIDs,
 	})
 	// A client that retries a create it never saw the answer to lands here.
 	// The task named is the caller's own, in the workspace they asked about.
@@ -305,7 +348,13 @@ func (s *McpToolService) CreateTask(ctx context.Context, p McpPrincipal, in mcpC
 	if err != nil {
 		return McpWriteResult{}, err
 	}
-	return McpWriteResult{Item: s.taskOf(base, t), Revision: t.Revision}, nil
+	task := s.taskOf(base, t)
+	res := McpWriteResult{Item: task, Revision: t.Revision}
+	if len(in.LabelIDs) == 0 {
+		return res, nil
+	}
+	labels, err := s.labelsOf(ctx, p, t.ID)
+	return mcpWithLabels(res, task, labels, err), nil
 }
 
 type mcpAddCommentIn struct {
@@ -319,6 +368,10 @@ func (s *McpToolService) AddComment(ctx context.Context, p McpPrincipal, in mcpA
 	if n := utf8.RuneCountInString(strings.TrimSpace(in.Body)); n == 0 || n > mcpMaxBodyRunes {
 		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("body must be 1-%d characters", mcpMaxBodyRunes)}
 	}
+	replyTo, err := mcpID("reply_to", in.ReplyTo)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
 	t, err := s.task(ctx, p, in.WorkspaceID, in.TaskID)
 	if err != nil {
 		return McpWriteResult{}, err
@@ -329,14 +382,9 @@ func (s *McpToolService) AddComment(ctx context.Context, p McpPrincipal, in mcpA
 	if err != nil {
 		return McpWriteResult{}, err
 	}
-	c, err := s.ask.tasks.AddCommentSuite(ctx, Human(p.UserID), t.ID, AddCommentInput{Body: in.Body, ParentID: optString(in.ReplyTo)}, "")
-	var invalid ValidationError
-	if in.ReplyTo != "" && errors.As(err, &invalid) {
-		// The service calls it parent_id, a name the model never used.
-		return McpWriteResult{}, McpInvalidArgs{Msg: "reply_to must be a comment on this task"}
-	}
+	c, err := s.ask.tasks.AddCommentSuite(ctx, Human(p.UserID), t.ID, AddCommentInput{Body: in.Body, ParentID: replyTo}, "")
 	if err != nil {
-		return McpWriteResult{}, err
+		return McpWriteResult{}, mcpReplyError(err)
 	}
 	return McpWriteResult{Item: McpComment{ID: c.ID, TaskID: t.ID, Body: capRunes(c.Body, mcpMaxHitRunes, mcpHitCut), URL: s.frontend + base + "/tasks/" + t.ID}}, nil
 }
@@ -365,7 +413,7 @@ func mcpTaskTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpListTasksIn) (any, error) {
 				return s.ListTasks(ctx, p, in)
 			}),
-		mcpWriteTool("create_task", "Create task", "Creates a task in the workspace as the user. Everyone in the workspace sees it; the assignee is notified.", "change its status, or delete it in UniWork", false, mcpSchemaCreateTask,
+		mcpWriteTool("create_task", "Create task", "Creates a task in the workspace as the user. Everyone in the workspace sees it; the assignee finds it in their work.", "change its status, or delete it in UniWork", false, mcpSchemaCreateTask,
 			func(ctx context.Context, p McpPrincipal, in mcpCreateTaskIn) (any, error) {
 				return s.CreateTask(ctx, p, in)
 			}),
