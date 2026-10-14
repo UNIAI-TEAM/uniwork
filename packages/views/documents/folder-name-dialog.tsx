@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FOLDER_TITLE_MAX } from "@uniwork/core/documents/folder-limits";
+import { DOCUMENT_TITLE_MAX, FOLDER_TITLE_MAX } from "@uniwork/core/documents/folder-limits";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import { useCreateFolder } from "@uniwork/core/documents/hooks-library";
 import { documentKeys } from "@uniwork/core/documents/keys";
@@ -40,8 +40,12 @@ export interface FolderNameDialogProps {
   wsId?: string;
   /** Parent folder ID for create mode (`null` or omitted = root). */
   parentId?: string | null;
-  /** Target folder ID for rename mode. */
+  /** Target folder or document ID for rename mode. */
   folderId?: string;
+  /** Target item kind in rename mode (`"folder"` max 255, document kinds max 500 per FD-D3). */
+  kind?: string;
+  /** Known revision of the item being renamed, used as a fallback if detail query is absent. */
+  revision?: string;
   /** Called with the server-verified folder after a successful create or rename. */
   onSuccess?: (folder: { id: string; title: string }) => void;
   /** Custom submit handler; when omitted, `wsId` drives the create/rename request. */
@@ -51,10 +55,10 @@ export interface FolderNameDialogProps {
 }
 
 /**
- * Shared create / rename folder dialog (addendum §3.6, FD-07 & FD-08):
- * validates blank and >255-character names before any network call, surfaces
- * `409 folder_name_taken` at the field, and toasts only after the server
- * answers with a verifiable folder.
+ * Shared create / rename folder & document dialog (addendum §3.6, FD-07 & FD-08):
+ * validates blank and >255-character folder names (or >500-character document
+ * names per FD-D3) before any network call, surfaces `409 folder_name_taken`
+ * at the field, and toasts only after the server answers with a verifiable item.
  */
 export function FolderNameDialog({
   open,
@@ -67,6 +71,8 @@ export function FolderNameDialog({
   wsId = "",
   parentId = null,
   folderId = "",
+  kind = "folder",
+  revision: initialRevision,
   onSuccess,
   onSubmit,
   pending: externalPending = false,
@@ -93,6 +99,7 @@ export function FolderNameDialog({
   const displayError = fieldError ?? externalError;
   const fallbackKey =
     mode === "create" ? "documents.home.folders.create_failed" : "documents.home.folders.rename_failed";
+  const maxTitleLength = mode === "rename" && kind !== "folder" ? DOCUMENT_TITLE_MAX : FOLDER_TITLE_MAX;
 
   const dialogTitle =
     title ??
@@ -114,8 +121,8 @@ export function FolderNameDialog({
       setFieldError(t("documents.home.folders.name_empty"));
       return;
     }
-    if ([...trimmed].length > FOLDER_TITLE_MAX) {
-      setFieldError(t("documents.home.folders.name_too_long", { max: FOLDER_TITLE_MAX }));
+    if ([...trimmed].length > maxTitleLength) {
+      setFieldError(t("documents.home.folders.name_too_long", { max: maxTitleLength }));
       return;
     }
     setFieldError(null);
@@ -150,9 +157,9 @@ export function FolderNameDialog({
         onOpenChange(false);
         onSuccess?.({ id: created.id, title: created.title });
       } else {
-        const cached = knownDocuments(
-          queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) }),
-        ).get(folderId)?.revision;
+        const cached =
+          knownDocuments(queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) })).get(folderId)
+            ?.revision ?? initialRevision;
         const revision =
           (await loadMoveRevision(queryClient, wsId, folderId).catch(() => null)) ?? cached;
         if (!revision) {
