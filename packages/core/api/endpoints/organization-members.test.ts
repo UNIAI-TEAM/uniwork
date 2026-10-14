@@ -83,6 +83,42 @@ describe("organization member endpoints", () => {
     expect(vi.mocked(fetch).mock.calls[1]![1]).toMatchObject({ method: "POST" });
   });
 
+  it("inviteToOrganization sends the chosen workspaces, and every list reads the ones granted", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        invitations: [
+          { id: "i1", email: "an@acme.vn", org_role: "member", workspaces: [{ id: "w1", slug: "sales", name: "Sales" }] },
+        ],
+        skipped: [],
+      }),
+    );
+    const sent = await inviteToOrganization("acme", ["an@acme.vn"], "member", ["w1"]);
+    expect(sent.invitations[0]!.workspaces).toEqual([{ id: "w1", slug: "sales", name: "Sales" }]);
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual({
+      emails: ["an@acme.vn"],
+      org_role: "member",
+      workspace_ids: ["w1"],
+    });
+
+    // Older servers omit the key; a drifted list costs only itself.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        invitations: [
+          { id: "i1", email: "an@acme.vn", org_role: "member" },
+          { id: "i2", email: "binh@acme.vn", org_role: "member", workspaces: "sales" },
+        ],
+      }),
+    );
+    const listed = await listOrgInvitations("acme");
+    expect(listed.invitations.map((i) => i.workspaces)).toEqual([[], []]);
+  });
+
+  it("inviteToOrganization without workspaces sends an empty choice", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ invitations: [], skipped: [] }));
+    await inviteToOrganization("acme", ["an@acme.vn"], "member");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toMatchObject({ workspace_ids: [] });
+  });
+
   it("revokeOrgInvitation and transferOwnership report failure rather than throwing", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: 1 }));
     await expect(revokeOrgInvitation("acme", "i1")).resolves.toBe(false);

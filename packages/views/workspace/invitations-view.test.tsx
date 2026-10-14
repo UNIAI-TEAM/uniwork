@@ -55,6 +55,20 @@ describe("InvitationsView", () => {
     expect(within(item).getByRole("link", { name: "Xem lời mời vào Acme" })).toBeInTheDocument();
   });
 
+  /** UNI-1582: an organization invitation names the workspaces it grants, so the person knows where they land. */
+  it("names every workspace an organization invitation grants", async () => {
+    answer([
+      {
+        ...base, id: "i1", token: "t1", org_role: "member",
+        workspaces: [{ id: "w1", slug: "sales", name: "Sales" }, { id: "w2", slug: "ops", name: "Ops" }],
+      },
+    ]);
+    render(wrapWithNav(<InvitationsView onEmpty={() => {}} onSkip={() => {}} />));
+    const item = within(await screen.findByRole("list", { name: "Lời mời đang chờ bạn" })).getByRole("listitem");
+    expect(item).toHaveTextContent("Acme › Sales, Ops");
+    expect(within(item).getByRole("link", { name: "Xem lời mời vào Sales, Ops trong Acme" })).toBeInTheDocument();
+  });
+
   it("hands over once there is nothing to show", async () => {
     answer([]);
     const onEmpty = vi.fn();

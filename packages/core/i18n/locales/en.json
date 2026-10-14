@@ -4337,7 +4337,7 @@
     },
     "invitations": {
       "title": "Invite people to the organization",
-      "description": "They join the company directly and pick a workspace afterwards.",
+      "description": "Invitees join the organization, and the workspaces you pick when they accept.",
       "send": "Send invitations",
       "revoke": "Revoke",
       "revoked": "Invitation revoked",
@@ -4353,7 +4353,13 @@
       "sent_one": "Sent {{count}} invitation",
       "sent_other": "Sent {{count}} invitations",
       "none_sent": "No invitations sent: the addresses left in the field are already members or not valid.",
-      "load_error": "Couldn't load the invitations."
+      "load_error": "Couldn't load the invitations.",
+      "workspaces_label": "Join workspaces",
+      "workspaces_hint": "Invitees become members of the workspaces you pick. With none picked, they join the organization but cannot open a workspace yet.",
+      "workspaces_none": "The organization has no workspace yet.",
+      "workspaces_load_error": "Couldn't load the workspaces.",
+      "grants": "Joins {{list}}",
+      "grants_none": "No workspace yet"
     },
     "transfer": {
       "title": "Transfer ownership",
@@ -4453,7 +4459,7 @@
       "description_inviter": "{{inviter}} invited you to join this organization.",
       "organization": "Organization",
       "workspace": "Workspace",
-      "no_workspace": "No workspace yet. You'll pick one after joining.",
+      "no_workspace": "No workspace granted yet. An admin will add you to one later.",
       "role": "Role",
       "inviter": "Invited by",
       "expiry": "Expires",
@@ -4503,6 +4509,7 @@
       "confirm_transfer": "Transfer ownership of {{name}} to {{person}}, then leave",
       "confirm_close": "Close {{name}}",
       "confirm_join": "Join {{name}} as {{role}}",
+      "confirm_workspaces": "Join workspace {{list}}",
       "confirm_note": "Everything happens in one go. If any step fails, you stay where you are.",
       "action": "Switch to {{name}}",
       "busy": "Another change to your account is in progress. Try again in a moment.",

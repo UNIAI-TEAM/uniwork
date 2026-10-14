@@ -2,7 +2,7 @@
 import { ChevronRight, CircleAlert, RefreshCw } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
-import type { PendingInvitation } from "@uniwork/core/types";
+import { invitationWorkspaces, type PendingInvitation } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -64,7 +64,9 @@ export function InvitationList({
 function InvitationRow({ invitation, compact }: { invitation: PendingInvitation; compact: boolean }) {
   const { t, i18n } = useTranslation();
   const organization = invitation.organization.name;
-  const workspace = invitation.workspace?.name;
+  // Every workspace accepting grants (UNI-1582); none for an invitation that
+  // opens the organization alone.
+  const workspace = invitationWorkspaces(invitation).map((w) => w.name).join(", ") || undefined;
   // "›" is drawn, not read: a screen reader hears "Team trong Acme" instead
   // of the glyph's name, and the link's name says the same.
   const viewLabel = workspace

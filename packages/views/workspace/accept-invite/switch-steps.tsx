@@ -1,8 +1,18 @@
 "use client";
-import { Archive, ArrowRightLeft, Check, LogIn, LogOut, ShieldCheck, TriangleAlert, type LucideIcon } from "lucide-react";
+import {
+  Archive,
+  ArrowRightLeft,
+  Check,
+  LayoutGrid,
+  LogIn,
+  LogOut,
+  ShieldCheck,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 import { forwardRef } from "react";
 import { useTranslation } from "react-i18next";
-import type { InvitationPreview, MembershipConflict } from "@uniwork/core/types";
+import { invitationWorkspaces, type InvitationPreview, type MembershipConflict } from "@uniwork/core/types";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import {
@@ -192,6 +202,7 @@ export function ConfirmStepBody({
 }) {
   const { t } = useTranslation();
   const to = invitation.organization.name;
+  const workspaces = invitationWorkspaces(invitation).map((w) => w.name);
   return (
     <div className="flex flex-col gap-4">
       <OrgRoute invitation={invitation} conflicts={conflicts} />
@@ -219,6 +230,15 @@ export function ConfirmStepBody({
             {t("invitations.switch.confirm_join", { name: to, role: roleLabel(t, invitation.org_role) })}
           </span>
         </li>
+        {/* Where the switch lands, when the invitation grants a workspace (UNI-1582). */}
+        {workspaces.length > 0 ? (
+          <li className="flex items-start gap-3 text-body">
+            <LayoutGrid aria-hidden className="mt-0.5 size-4 shrink-0 text-brand" />
+            <span className="min-w-0 text-pretty text-foreground [overflow-wrap:anywhere]">
+              {t("invitations.switch.confirm_workspaces", { list: workspaces.join(", ") })}
+            </span>
+          </li>
+        ) : null}
       </ol>
       {/* A standing fact about the switch, on the muted band; the shield
           keeps its success tint over the band's current-colour icon rule. */}

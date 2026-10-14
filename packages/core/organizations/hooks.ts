@@ -161,8 +161,8 @@ export function useOrgInvitations(orgSlug: string, enabled = true) {
 export function useInviteToOrganization(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ emails, orgRole }: { emails: string[]; orgRole: string }) =>
-      orgMembers.inviteToOrganization(orgSlug, emails, orgRole),
+    mutationFn: ({ emails, orgRole, workspaceIds }: { emails: string[]; orgRole: string; workspaceIds?: string[] }) =>
+      orgMembers.inviteToOrganization(orgSlug, emails, orgRole, workspaceIds),
     onSuccess: () => qc.invalidateQueries({ queryKey: orgMemberKeys.all(orgSlug) }),
   });
 }

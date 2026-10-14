@@ -335,10 +335,24 @@ describe("AcceptInviteView", () => {
       const { workspace: _ws, inviter_name: _name, ...orgLevel } = invitation();
       serve({ preview: { invitation: orgLevel, conflicts: [] }, onAccept: async () => ({ organization: beta }) });
       const onAccepted = renderView();
-      expect(await screen.findByText("Chưa vào workspace nào. Bạn chọn workspace sau khi tham gia.")).toBeInTheDocument();
+      expect(
+        await screen.findByText("Chưa được cấp workspace. Quản trị viên sẽ thêm bạn vào workspace sau."),
+      ).toBeInTheDocument();
       expect(screen.getByText("Bạn được mời tham gia tổ chức này.")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Tham gia" }));
       await waitFor(() => expect(onAccepted).toHaveBeenCalledWith(null));
+    });
+
+    /** UNI-1582: the card lists every workspace accepting grants. */
+    it("lists the workspaces an organization invitation grants", async () => {
+      signIn();
+      const { workspace: _ws, ...orgLevel } = invitation();
+      const granted = [{ id: "w3", slug: "sales", name: "Sales" }, { id: "w2", slug: "ops", name: "Ops" }];
+      serve({ preview: { invitation: { ...orgLevel, workspaces: granted }, conflicts: [] } });
+      renderView();
+      const details = await screen.findByRole("list", { name: "Tham gia Beta" });
+      expect(within(details).getByText("Sales, Ops")).toBeInTheDocument();
+      expect(within(details).queryByText(/Chưa được cấp workspace/)).not.toBeInTheDocument();
     });
 
     it("lets the person put it off without accepting", async () => {
@@ -443,6 +457,8 @@ describe("AcceptInviteView", () => {
       expect(await screen.findByRole("heading", { name: "Xác nhận chuyển tổ chức" })).toBeInTheDocument();
       expect(screen.getByText("Rời Acme")).toBeInTheDocument();
       expect(screen.getByText("Tham gia Beta với vai trò Thành viên")).toBeInTheDocument();
+      // Where the switch lands is part of what is confirmed (UNI-1582).
+      expect(screen.getByText("Vào workspace Ops")).toBeInTheDocument();
       expect(acceptCalls()).toHaveLength(0);
 
       fireEvent.click(screen.getByRole("button", { name: "Chuyển sang Beta" }));

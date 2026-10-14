@@ -4336,7 +4336,7 @@
     },
     "invitations": {
       "title": "Mời vào tổ chức",
-      "description": "Người được mời vào thẳng tổ chức, chọn workspace sau.",
+      "description": "Người được mời vào tổ chức, và vào các workspace bạn chọn khi chấp nhận.",
       "send": "Gửi lời mời",
       "revoke": "Thu hồi",
       "revoked": "Đã thu hồi lời mời",
@@ -4352,7 +4352,13 @@
       "sent_one": "Đã gửi {{count}} lời mời",
       "sent_other": "Đã gửi {{count}} lời mời",
       "none_sent": "Chưa gửi lời mời nào: các địa chỉ còn lại trong ô đã là thành viên hoặc không hợp lệ.",
-      "load_error": "Không tải được danh sách lời mời."
+      "load_error": "Không tải được danh sách lời mời.",
+      "workspaces_label": "Vào workspace",
+      "workspaces_hint": "Người được mời thành thành viên của các workspace đã chọn. Không chọn workspace nào thì họ vào tổ chức nhưng chưa mở được workspace.",
+      "workspaces_none": "Tổ chức chưa có workspace nào.",
+      "workspaces_load_error": "Không tải được danh sách workspace.",
+      "grants": "Vào {{list}}",
+      "grants_none": "Chưa cấp workspace"
     },
     "transfer": {
       "title": "Chuyển quyền sở hữu",
@@ -4452,7 +4458,7 @@
       "description_inviter": "{{inviter}} mời bạn tham gia tổ chức này.",
       "organization": "Tổ chức",
       "workspace": "Workspace",
-      "no_workspace": "Chưa vào workspace nào. Bạn chọn workspace sau khi tham gia.",
+      "no_workspace": "Chưa được cấp workspace. Quản trị viên sẽ thêm bạn vào workspace sau.",
       "role": "Vai trò",
       "inviter": "Người mời",
       "expiry": "Thời hạn",
@@ -4502,6 +4508,7 @@
       "confirm_transfer": "Chuyển quyền sở hữu {{name}} cho {{person}}, rồi rời tổ chức",
       "confirm_close": "Đóng {{name}}",
       "confirm_join": "Tham gia {{name}} với vai trò {{role}}",
+      "confirm_workspaces": "Vào workspace {{list}}",
       "confirm_note": "Mọi bước diễn ra cùng lúc. Nếu một bước không thành, bạn vẫn ở tổ chức hiện tại như cũ.",
       "action": "Chuyển sang {{name}}",
       "busy": "Đang có một thay đổi khác với tài khoản của bạn. Thử lại sau giây lát.",

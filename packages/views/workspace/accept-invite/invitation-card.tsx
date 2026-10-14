@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { appHost } from "@uniwork/core/config";
-import type { InvitationPreview } from "@uniwork/core/types";
+import { invitationWorkspaces, type InvitationPreview } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -39,6 +39,8 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 function InvitationDetails({ invitation, label }: { invitation: Invitation; label: string }) {
   const { t } = useTranslation();
   const days = daysLeft(invitation.expires_at);
+  // Every workspace accepting grants (UNI-1582), so the person knows where they land.
+  const workspaces = invitationWorkspaces(invitation).map((w) => w.name);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
@@ -54,8 +56,8 @@ function InvitationDetails({ invitation, label }: { invitation: Invitation; labe
       </div>
       <ul aria-label={label} className="flex flex-col divide-y divide-border/70 rounded-xl bg-muted/50 px-4 py-1">
         <Row label={t("invitations.preview.workspace")}>
-          {invitation.workspace ? (
-            invitation.workspace.name
+          {workspaces.length > 0 ? (
+            workspaces.join(", ")
           ) : (
             <span className="font-normal text-muted-foreground">{t("invitations.preview.no_workspace")}</span>
           )}

@@ -104,7 +104,7 @@ export function OrganizationTab() {
     <SettingsTab title={t("settings.page.tabs.organization")} description={t("org.members.description")}>
       <OrgMembersSection orgSlug={orgSlug} />
 
-      {canManageMembers.allowed ? <OrgInvitationsSection orgSlug={orgSlug} /> : null}
+      {canManageMembers.allowed ? <OrgInvitationsSection orgSlug={orgSlug} orgId={workspace.organization_id} /> : null}
 
       {/* A plain member has only the Leave row, so the owner's sentence about
           handing the organization over would describe actions they lack. */}
