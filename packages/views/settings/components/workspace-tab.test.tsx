@@ -1,11 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { requestMock, wrap } from "../../test/api-mock";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { WorkspaceTab } from "./workspace-tab";
+
+const { toastError, toastSuccess } = vi.hoisted(() => ({ toastError: vi.fn(), toastSuccess: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
 initI18n();
 
@@ -52,6 +55,8 @@ describe("WorkspaceTab", () => {
     resetAuthStoreForTests();
     setSessionUser(user);
     requestMock.mockReset();
+    toastError.mockReset();
+    toastSuccess.mockReset();
   });
 
   it("shows a member the name as text, not a read-only field, with the address and organization", async () => {
@@ -108,5 +113,44 @@ describe("WorkspaceTab", () => {
     await waitFor(() => expect(callsWith("POST").map(([path]) => path)).toContain("/api/v1/workspaces/ws1/icon"));
     fireEvent.click(screen.getByRole("button", { name: "Bỏ icon" }));
     await waitFor(() => expect(callsWith("DELETE").map(([path]) => path)).toContain("/api/v1/workspaces/ws1/icon"));
+  });
+
+  it("keeps the user's trailing space when the refetch returns the trimmed description", async () => {
+    const { rerender } = renderAs("admin");
+    const box = await screen.findByRole("textbox", { name: "Mô tả" });
+    fireEvent.change(box, { target: { value: "hello " } });
+    fireEvent.blur(box);
+    await waitFor(() => expect(patchBodies()).toContainEqual({ description: "hello " }));
+    rerender(
+      wrap(
+        <WorkspaceProvider workspace={{ ...workspace, description: "hello" }} user={user}>
+          <WorkspaceTab />
+        </WorkspaceProvider>,
+      ),
+    );
+    expect(await screen.findByRole("textbox", { name: "Mô tả" })).toHaveValue("hello ");
+  });
+
+  it("still adopts a description changed elsewhere when the field is untouched", async () => {
+    const { rerender } = renderAs("admin", { ...workspace, description: "cũ" });
+    await screen.findByRole("textbox", { name: "Mô tả" });
+    rerender(
+      wrap(
+        <WorkspaceProvider workspace={{ ...workspace, description: "mới" }} user={user}>
+          <WorkspaceTab />
+        </WorkspaceProvider>,
+      ),
+    );
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Mô tả" })).toHaveValue("mới"));
+  });
+
+  it("refuses an icon over 2 MiB without uploading it", async () => {
+    renderAs("admin");
+    const input = await screen.findByLabelText("Tải ảnh lên", { selector: "input" });
+    const big = new File(["x"], "big.png", { type: "image/png" });
+    Object.defineProperty(big, "size", { value: 2 * 1024 * 1024 + 1 });
+    fireEvent.change(input, { target: { files: [big] } });
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Ảnh lớn hơn 2 MB. Chọn ảnh nhỏ hơn."));
+    expect(callsWith("POST")).toHaveLength(0);
   });
 });

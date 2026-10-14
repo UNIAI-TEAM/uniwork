@@ -3,6 +3,7 @@
 import { ImageUp, FaceSlightlySmilingPlus, Trash2 } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import type { Workspace } from "@uniwork/core/types";
 import { usePatchWorkspace, useRemoveWorkspaceIcon, useUploadWorkspaceIcon } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -17,6 +18,8 @@ const EmojiPicker = lazy(() =>
 
 /** The image types the workspace_icon files purpose accepts. */
 const ICON_ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
+/** The server's upload cap for workspace icons (2 MiB). */
+const MAX_ICON_BYTES = 2 * 1024 * 1024;
 
 /** Preview plus the three icon actions an owner or admin has (spec §6.4). */
 export function WorkspaceIconField({ workspace }: { workspace: Workspace }) {
@@ -41,6 +44,10 @@ export function WorkspaceIconField({ workspace }: { workspace: Workspace }) {
     // Clear the input so choosing the same file again still fires change.
     if (fileInput.current) fileInput.current.value = "";
     if (!file) return;
+    if (file.size > MAX_ICON_BYTES) {
+      toast.error(t("profile.avatarTooLarge"));
+      return;
+    }
     upload.mutate({ wsId: workspace.id, file }, { onError: (err) => toastApiError(err, t("workspace.icon_upload_error")) });
   };
 

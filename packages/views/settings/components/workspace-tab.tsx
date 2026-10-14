@@ -1,7 +1,7 @@
 "use client";
 
 import { Copy } from "lucide-react";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { useWorkspacePermissions } from "@uniwork/core/permissions";
@@ -76,8 +76,22 @@ export function WorkspaceTab() {
     setName(workspace.name);
   }, [workspace.id, workspace.name]);
 
+  // Take a new server value only into a field the user has not edited: the
+  // server trims what autosave sent, and the refetch must not eat a trailing
+  // space or keystrokes typed while the save was in flight.
+  const lastSaved = useRef({ id: workspace.id, value: savedDescription });
   useEffect(() => {
-    setDescription(savedDescription);
+    const prev = lastSaved.current;
+    lastSaved.current = { id: workspace.id, value: savedDescription };
+    if (prev.id !== workspace.id) {
+      setDescription(savedDescription);
+      return;
+    }
+    setDescription((current) =>
+      descriptionsEqual(current, savedDescription) || !descriptionsEqual(current, prev.value)
+        ? current
+        : savedDescription,
+    );
   }, [workspace.id, savedDescription]);
 
   const saveName = useCallback(
@@ -211,7 +225,9 @@ export function WorkspaceTab() {
               </p>
             </div>
           ) : (
-            <SettingsValue>{workspace.description || t("workspace.about_empty")}</SettingsValue>
+            <SettingsValue className="overflow-visible whitespace-pre-wrap text-clip break-words">
+              {workspace.description || t("workspace.about_empty")}
+            </SettingsValue>
           )}
         </SettingsRow>
         <SettingsRow label={t("workspace.url")} description={t("workspace.url_hint")} size="none">
