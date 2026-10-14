@@ -30,7 +30,7 @@ function RailCascade() {
     <ul className="flex w-full max-w-[26rem] flex-col [@media(max-height:48rem)]:hidden">
       {RAIL_POINTS.map(({ key, icon, tone, place }, i) => (
         <li key={key} className="relative" style={{ zIndex: i + 1 }}>
-          <Rise index={i + 3}>
+          <Rise index={i + 2}>
             <div
               className={place}
             >
@@ -122,20 +122,16 @@ export function AuthShell({
             <div className="my-auto flex flex-col gap-10 py-10">
               <div className="flex flex-col gap-5">
                 <Rise index={0}>
-                  <span className="inline-flex rounded-full bg-surface px-3 py-1 text-overline text-muted-foreground ring-1 ring-border/60">
-                    {t("auth.railEyebrow")}
-                  </span>
-                </Rise>
-                <Rise index={1}>
                   {/* A brand statement, not the title of a section: a <p>, so
                       the page's heading outline starts at the form's <h1>
                       instead of this line coming first. Hero scale steps with
-                      the column: 36px at lg, 48px from xl, 60px from 2xl. */}
+                      the column: 36px at lg, 48px from xl, 60px from 2xl. No
+                      eyebrow pill above it: the statement carries itself. */}
                   <p className="max-w-[34rem] text-balance font-display text-hero-sm font-bold text-foreground xl:text-hero 2xl:text-hero-lg">
                     {t("auth.railTagline")}
                   </p>
                 </Rise>
-                <Rise index={2}>
+                <Rise index={1}>
                   <p className="max-w-[30rem] text-pretty text-body-lg text-muted-foreground">{t("auth.railLede")}</p>
                 </Rise>
               </div>
