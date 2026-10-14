@@ -12,7 +12,7 @@ test("every product chapter retains visual examples on a narrow English screen",
   for (const key of features) {
     await page.goto(`/features/${key}`);
     const illustrations = page.locator('.feature-world .feature-art[role="img"]');
-    await expect(illustrations).toHaveCount(4);
+    await expect(illustrations).toHaveCount(2);
     for (const illustration of await illustrations.all()) {
       await expect(illustration).toBeVisible();
       await expect(illustration).toHaveAttribute("aria-label", /^Illustrative data:/);

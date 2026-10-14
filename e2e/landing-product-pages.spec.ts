@@ -37,7 +37,8 @@ test("all feature introductions have unique content, canonical URL and reference
     const heading = page.getByRole("heading", { level: 1 });
     await expect(heading).toHaveCount(1);
     headings.add(await heading.innerText());
-    await expect(page.locator(".feature-page-details li")).toHaveCount(3);
+    await expect(page.locator(".feature-page-details").getByRole("tab")).toHaveCount(3);
+    await expect(page.locator('.feature-page-details .feature-art[role="img"]:visible')).toHaveCount(1);
     await expect(page.locator(".feature-page-visual .lovable-canvas")).toBeVisible();
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`/features/${key}$`));
     expect(await page.locator("main").innerText()).not.toContain("landing.");

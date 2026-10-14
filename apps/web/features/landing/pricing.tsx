@@ -28,7 +28,7 @@ import { Container, SectionTitle } from "./layout-primitives";
  */
 const QUOTAS = ["q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8"] as const;
 
-export function Pricing() {
+export function Pricing({ showIntroduction = true }: { showIntroduction?: boolean }) {
   const { t } = useTranslation();
   const root = useRef<HTMLElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -50,18 +50,19 @@ export function Pricing() {
     <section
       ref={root}
       id={ANCHORS.pricing}
-      aria-labelledby="landing-pricing-title"
+      aria-labelledby={showIntroduction ? "landing-pricing-title" : undefined}
+      aria-label={showIntroduction ? undefined : t("landing.pricing.planName")}
       className="pricing-section scroll-mt-16 bg-surface py-24 sm:scroll-mt-18 sm:py-32"
     >
       <Container ref={body}>
-        <div className="max-w-3xl">
+        {showIntroduction && <div className="pricing-introduction max-w-3xl">
           <SectionTitle className="mt-0">
             <span id="landing-pricing-title">{t("landing.pricing.title")}</span>
           </SectionTitle>
           <p className="mt-4 max-w-prose text-title-sm leading-relaxed text-pretty text-muted-foreground">{t("landing.pricing.sub")}</p>
-        </div>
+        </div>}
 
-        <div className="pricing-offer mt-12 grid gap-6 lg:grid-cols-[minmax(0,22rem)_1fr] lg:gap-10">
+        <div className={cn("pricing-offer grid gap-6 lg:grid-cols-[minmax(0,22rem)_1fr] lg:gap-10", showIntroduction && "mt-12")}>
           <div className="pricing-plan rounded-xl bg-brand/5 p-8">
             <span className="pricing-plan-mark" aria-hidden><Logo variant="mark" size={36} decorative /></span>
             <div className="pricing-plan-diagram" aria-hidden>

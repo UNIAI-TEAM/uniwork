@@ -7971,6 +7971,7 @@
         "trustOffline": "Sửa file trên máy không cần kết nối; AI cloud và tài liệu UniWork cần kết nối"
       },
       "editors": {
+        "example": "Ví dụ: {{title}}",
         "title": "Sáu trình soạn thảo. Một workspace.",
         "formats": "Hỗ trợ DOCX, XLSX, PPTX, PDF, HTML và Markdown",
         "tabs": "Trình soạn thảo",
@@ -8067,6 +8068,20 @@
           "description": "File lưu vào workspace nằm trong workspace UniWork của nhóm: mở từ Tài liệu, lưu thành phiên bản mới, chia sẻ và bình luận. File lưu trên máy thì ở lại trên máy và sửa được khi không có kết nối; AI cloud và tài liệu UniWork cần kết nối."
         },
         "link": "Xem cách UniWork phân quyền"
+      },
+      "connection": {
+        "title": "Cùng tài khoản. Liền mạch với workspace.",
+        "sub": "Làm việc trên máy, kết nối với dữ liệu và quyền truy cập của nhóm.",
+        "account": { "title": "Một tài khoản", "description": "Đăng nhập Office bằng tài khoản UniWork." },
+        "ai": { "title": "AI theo nhu cầu", "description": "Dùng gói của tổ chức hoặc khóa API riêng." },
+        "permissions": { "title": "Quyền truy cập nhất quán", "description": "File trong workspace theo phân quyền của tổ chức." },
+        "flow": {
+          "title": "File trên máy và workspace",
+          "local": "Trên máy", "localDescription": "Lưu file tại máy, chỉnh sửa không cần mạng.",
+          "workspace": "Workspace", "workspaceDescription": "Lưu phiên bản, chia sẻ và bình luận cùng nhóm.",
+          "action": "Mở / Lưu phiên bản", "note": "Mở và lưu phiên bản trong workspace cần kết nối."
+        },
+        "details": { "ai": "AI và dữ liệu của bạn", "files": "Lưu file và yêu cầu kết nối" }
       },
       "faq": {
         "title": "Câu hỏi thường gặp",

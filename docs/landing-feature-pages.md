@@ -23,7 +23,7 @@ with mint/cyan; AI uses the brand accent with violet/cyan; organization uses suc
 with mint/lime. The default uses cobalt with the studio stage/cyan. These local
 aliases introduce no global tokens.
 
-Three workflow examples follow the hero. The first row has unequal columns
+The original three-illustration layout described below is superseded by the 2026-10-14 content distillation. Three workflow explanations now share one selected example stage; all titles and explanations remain visible. The earlier first row had unequal columns
 (1.2:1); the final row spans both columns with the illustration on the left and
 its original product point on the right. The existing full `ProductPlayback` or
 `LovableReference` follows, retaining playback, expansion and other actual controls,
@@ -174,3 +174,9 @@ evidence that planned capabilities are released.
 The follow-up request removes the thick colored outer mat around a members/access illustration in dark mode. Shared **marketing-preview.css** removes padding and background from dark chapter scenes, feature hero/detail illustrations, directory and related thumbnails, route thumbnails and Why-page proof illustrations. Native window corners, internal sample colors and captions remain. Feature heroes use the same upright presentation as the light theme; directory windows fill their thumbnail crop.
 
 Twelve region captures in .impeccable/review/marketing-frames/ were opened and validated across 1440px light/dark, 768px dark and 390px dark, with zero horizontal overflow. Three focused Playwright tests passed, including the 25-page mobile dark chapter/contrast check and both Office edition-navigation cases. Five i18n parity tests, scoped ESLint, the single detector pass ([]) and diff whitespace checks passed. make check was attempted but Make is unavailable; the full repository gate is unverified.
+
+## Content consolidation (2026-10-14)
+
+The user requested checking and optimizing duplicate content across the other introduction pages. All three original example titles and explanations remain visible in a vertical Base UI tablist, paired with one selected illustration. The first example is selected by default; keyboard navigation and activation retain the primitive's semantics. The grid stacks on mobile. This supersedes the earlier three full illustrative rows and their mobile stack, while preserving all four source variants (hero and examples), the full playable/expandable preview and related navigation.
+
+The extra availability paragraph inside the third example is removed; truthful scope remains in the hero and beside the full preview. This does not imply a capability release. Shared palette, semantic media, captions and factual copy remain. See [the cross-page decisions](landing-content-distillation.md) and the current evidence under `.impeccable/review/marketing-distill/`.
