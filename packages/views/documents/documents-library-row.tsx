@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, MonitorUp, Star, StarOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -80,7 +80,17 @@ function initial(name: string): string {
   return name.trim().charAt(0).toUpperCase();
 }
 
-export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; handlers: LibraryRowHandlers; archived: boolean }) {
+export function LibraryRowView({
+  row,
+  handlers,
+  archived,
+  typeCell,
+}: {
+  row: LibraryRow;
+  handlers: LibraryRowHandlers;
+  archived: boolean;
+  typeCell?: ReactNode;
+}) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
   const title = rowTitle(row) || t("documents.detail.untitled");
@@ -192,6 +202,9 @@ export function LibraryRowView({ row, handlers, archived }: { row: LibraryRow; h
             </span>
           </button>
         </td>
+        {typeCell !== undefined ? (
+          <td className="hidden px-3 py-2 text-caption text-muted-foreground md:table-cell">{typeCell}</td>
+        ) : null}
         <td className="hidden px-3 py-2 md:table-cell">
           <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
             <span aria-hidden className={cn("size-1.5 rounded-full", origin === "created" || origin === "documents" ? "bg-primary" : "bg-muted-foreground")} />

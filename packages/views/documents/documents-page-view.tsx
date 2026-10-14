@@ -356,6 +356,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   onChip={setChip}
                   groupBy={groupBy}
                   onGroupBy={setGroupBy}
+                  sort={view.kind === "home" && folderId ? library.sort : null}
+                  onSort={view.kind === "home" && folderId ? library.setSort : undefined}
                 />
                 <DocumentsLibraryList
                   groups={groups}
@@ -364,6 +366,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
                   filtered={filtered}
                   cardsShown={canCreate && view.kind === "home"}
                   archived={view.kind === "archived"}
+                  showType={view.kind === "home" && Boolean(folderId)}
                   hasMore={state.hasMore}
                   loadingMore={state.loadingMore}
                   onLoadMore={state.loadMore}

@@ -15,7 +15,7 @@ import {
 } from "@uniwork/ui/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
-import { GROUP_BY, TYPE_CHIPS, type GroupBy, type TypeChip } from "./library-rows";
+import { FOLDER_SORT, GROUP_BY, TYPE_CHIPS, type FolderSort, type GroupBy, type TypeChip } from "./library-rows";
 
 export const SCOPE_TABS = ["home", "recent", "shared", "archived"] as const;
 export type ScopeTab = (typeof SCOPE_TABS)[number];
@@ -29,12 +29,16 @@ export interface LibraryToolbarProps {
   onChip: (chip: TypeChip) => void;
   groupBy: GroupBy;
   onGroupBy: (groupBy: GroupBy) => void;
+  /** Present when an open folder (`?folder`) is displayed; replaces Group by. */
+  sort?: FolderSort | null;
+  onSort?: (sort: FolderSort) => void;
 }
 
-/** Scope tabs, the type chips and "Group by" above the table. */
-export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, onGroupBy }: LibraryToolbarProps) {
+/** Scope tabs, the type chips and "Group by" (or folder "Sort by") above the table. */
+export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, onGroupBy, sort, onSort }: LibraryToolbarProps) {
   const { t } = useTranslation();
   const groupItems = GROUP_BY.map((value) => ({ value, label: t(`documents.home.group_by.${value}`) }));
+  const sortItems = FOLDER_SORT.map((value) => ({ value, label: t(`documents.home.sort.${value}`) }));
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Tabs value={scope ?? ""} onValueChange={(next) => onScope(next as ScopeTab)}>
@@ -71,21 +75,43 @@ export function LibraryToolbar({ scope, count, onScope, chip, onChip, groupBy, o
         ))}
       </div>
       <div className="ml-auto flex items-center gap-2">
-        <Label htmlFor="documents-group-by" className="text-caption text-muted-foreground">
-          {t("documents.home.group_by.label")}
-        </Label>
-        <Select value={groupBy} onValueChange={(next) => next && onGroupBy(next as GroupBy)} items={groupItems}>
-          <SelectTrigger id="documents-group-by" size="sm" variant="subtle" className="w-36">
-            <SelectValue>{groupItems.find((item) => item.value === groupBy)?.label}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {groupItems.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {sort && onSort ? (
+          <>
+            <Label htmlFor="documents-folder-sort" className="text-caption text-muted-foreground">
+              {t("documents.home.sort.label")}
+            </Label>
+            <Select value={sort} onValueChange={(next) => next && onSort(next as FolderSort)} items={sortItems}>
+              <SelectTrigger id="documents-folder-sort" size="sm" variant="subtle" className="w-44">
+                <SelectValue>{sortItems.find((item) => item.value === sort)?.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {sortItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        ) : (
+          <>
+            <Label htmlFor="documents-group-by" className="text-caption text-muted-foreground">
+              {t("documents.home.group_by.label")}
+            </Label>
+            <Select value={groupBy} onValueChange={(next) => next && onGroupBy(next as GroupBy)} items={groupItems}>
+              <SelectTrigger id="documents-group-by" size="sm" variant="subtle" className="w-36">
+                <SelectValue>{groupItems.find((item) => item.value === groupBy)?.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {groupItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
       </div>
     </div>
   );

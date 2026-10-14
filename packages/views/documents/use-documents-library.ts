@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { documentKeys } from "@uniwork/core/documents/keys";
@@ -20,8 +20,12 @@ import {
   indexTree,
   matchesChip,
   mergeNewestFirst,
+  readFolderSort,
+  sortFolderRows,
   sourceRow,
+  writeFolderSort,
   type FolderInfo,
+  type FolderSort,
   type LibraryRow,
   type TypeChip,
 } from "./library-rows";
@@ -91,6 +95,11 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const home = view.kind === "home";
   const sourceType = SOURCE_TYPES.has(chip) ? (chip as DocumentSourceType) : undefined;
   const sourcesWanted = chip !== "page" && ((home && !folderId) || view.kind === "sources");
+  const [sort, setSortState] = useState<FolderSort>(() => readFolderSort());
+  const setSort = useCallback((next: FolderSort) => {
+    setSortState(next);
+    writeFolderSort(next);
+  }, []);
 
   const queryClient = useQueryClient();
   const tree = useDocumentTree(wsId, undefined, { enabled });
@@ -185,6 +194,16 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
       break;
     default: {
       const docs = documentState(homeQuery);
+      if (folderId) {
+        const directRows = docs.rows.filter(
+          (row) => row.type === "document" && (row.doc.parent_id === undefined || row.doc.parent_id === folderId),
+        );
+        state = {
+          ...docs,
+          rows: sortFolderRows(directRows, sort),
+        };
+        break;
+      }
       const merge = sourcesWanted && sourcesAvailable;
       state = merge
         ? {
@@ -211,5 +230,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     starredIds: new Set(starred.map((fav) => fav.document_id)),
     starredCount: favorites.data ? starred.length : null,
     sourcesAvailable,
+    sort,
+    setSort,
   };
 }

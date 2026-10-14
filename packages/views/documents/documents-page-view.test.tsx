@@ -938,7 +938,7 @@ describe("DocumentsPageView", () => {
       fireEvent.click(screen.getByRole("treeitem", { name: /Dự án CCB/ }));
       expect(await screen.findByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
       expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
-      expect(screen.getByRole("columnheader", { name: t("documents.home.columns.type") })).toBeInTheDocument();
+      expect(await screen.findByRole("columnheader", { name: t("documents.home.columns.type") })).toBeInTheDocument();
       expect(groupHeaders()).toEqual([]);
     });
 
@@ -950,8 +950,9 @@ describe("DocumentsPageView", () => {
       });
       renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
 
-      expect(await screen.findByText(t("documents.home.empty.folder_title"))).toBeInTheDocument();
-      expect(screen.getByRole("status")).toHaveTextContent(t("documents.home.empty.folder_title"));
+      const emptyTitle = await screen.findByText(t("documents.home.empty.folder_title"));
+      expect(emptyTitle).toBeInTheDocument();
+      expect(emptyTitle.closest("[role='status']")).toHaveTextContent(t("documents.home.empty.description"));
       expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
       expect(screen.queryByRole("table")).toBeNull();
     });
