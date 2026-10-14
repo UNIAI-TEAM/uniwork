@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
-import { OFFICE_EDITOR_ICONS, OFFICE_EDITOR_KEYS, officeShotSrc, type OfficeEditorKey } from "./office-data";
+import { OFFICE_EDITOR_ICONS, OFFICE_EDITOR_KEYS, OFFICE_EXAMPLES, officeShotSrc, type OfficeEditorKey } from "./office-data";
 
 /** Source-keyed captures recover when the visitor chooses another editor or language. */
 function OfficeCapture({ src, theme, alt, unavailable, priority }: {
@@ -53,6 +53,7 @@ export function OfficeEditorTabs({ active, onActiveChange }: {
     </TabsList>
     {OFFICE_EDITOR_KEYS.map((key) => <TabsContent key={key} value={key} className="office-tab-panel" aria-describedby="office-editor-description">
       <OfficeShot editor={key} priority={key === "docs"} />
+      <OfficeEditorSummary editor={key} />
     </TabsContent>)}
   </Tabs>;
 }
@@ -60,9 +61,15 @@ export function OfficeEditorTabs({ active, onActiveChange }: {
 /** Selected capabilities supplement the single preview without repeating its controls or image. */
 export function OfficeEditorSummary({ editor }: { editor: OfficeEditorKey }) {
   const { t } = useTranslation();
-  return <div className="office-editor-summary">
+  const example = OFFICE_EXAMPLES[editor];
+  return <section id="office-editor-details" className="office-editor-summary" aria-labelledby="office-editor-summary-title">
     <div><h2 id="office-editor-summary-title">{t(`landing.office.editors.${editor}.title`)}</h2>
-      <p id="office-editor-description">{t(`landing.office.editors.${editor}.description`)}</p></div>
+      <p id="office-editor-description">{t(`landing.office.editors.${editor}.description`)}</p>
+      <div className="office-editor-example" data-office-example={example}>
+        <h3>{t("landing.office.editors.example", { title: t(`landing.office.tasks.${example}.title`) })}</h3>
+        <p>{t(`landing.office.tasks.${example}.description`)}</p>
+      </div>
+    </div>
     <ul className="office-editor-points">{[1, 2, 3].map(n => <li key={n}><Check aria-hidden />{t(`landing.office.editors.${editor}.p${n}`)}</li>)}</ul>
-  </div>;
+  </section>;
 }

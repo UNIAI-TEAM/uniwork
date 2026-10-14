@@ -204,6 +204,7 @@
       "eyebrow": "Kết nối trợ lý AI",
       "title": "Cho phép {{client}} truy cập UniWork?",
       "description": "Ứng dụng này sẽ đọc dữ liệu công việc của bạn trong tổ chức bạn chọn. Nó không thể tạo, sửa hay xóa gì.",
+      "descriptionWrite": "Ứng dụng này sẽ đọc dữ liệu công việc của bạn trong tổ chức bạn chọn. Nếu bạn cho phép, nó còn tạo và sửa thay bạn, nhưng không bao giờ xóa.",
       "verified": "Đã xác minh",
       "unverified": "Chưa xác minh",
       "unverifiedWarning": "UniWork chưa xác minh ứng dụng này. Chỉ tiếp tục nếu bạn vừa tự thêm nó.",
@@ -215,6 +216,8 @@
       "shareTasks": "Công việc của bạn và công việc trong các workspace bạn tham gia, kèm bình luận",
       "shareMeetings": "Cuộc họp và bản tóm tắt AI, không có bản ghi lời thoại",
       "shareNot": "Không gồm tin nhắn chat và email",
+      "allowWrite": "Cho phép tạo và sửa",
+      "allowWriteHint": "Nhiều ứng dụng AI hỏi trước mỗi thay đổi, nhưng UniWork không kiểm được điều đó. Mỗi thay đổi ghi tên bạn kèm tên ứng dụng và hoàn tác được.",
       "approve": "Cho phép",
       "approving": "Đang cho phép…",
       "loading": "Đang tải yêu cầu kết nối…",
@@ -1312,6 +1315,8 @@
       "meta": "{{org}} · kết nối {{created}}",
       "lastUsed": "dùng lần cuối {{when}}",
       "verified": "Đã xác minh",
+      "scopeRead": "Chỉ đọc",
+      "scopeWrite": "Đọc và ghi",
       "revoke": "Thu hồi",
       "revokeAria": "Thu hồi {{client}}",
       "revokeTitle": "Thu hồi {{client}}?",
@@ -1325,6 +1330,10 @@
       "adminOnly": "Chỉ owner và admin tổ chức xem được mục này.",
       "toggleLabel": "Cho phép trợ lý AI bên ngoài truy cập",
       "toggleDescription": "Dữ liệu chia sẻ: công việc, bình luận, cuộc họp và tóm tắt AI. Không gồm chat và email. Tắt sẽ chặn ngay mọi ứng dụng đã kết nối.",
+      "writeLabel": "Cho phép tạo và sửa",
+      "writeDescription": "Ứng dụng đã kết nối được tạo và sửa công việc thay thành viên, khi thành viên cho phép. Không bao giờ xóa. Tắt sẽ chặn ngay mọi thao tác ghi; quyền đọc giữ nguyên.",
+      "writeNeedsConnector": "Bật truy cập của trợ lý AI trước.",
+      "writeUnavailable": "Quyền ghi chưa mở cho tổ chức của bạn.",
       "addressBody": "Thành viên dán địa chỉ này vào phần thêm connector của Claude, ChatGPT hoặc Gemini CLI. Gửi cho họ nếu mục Ứng dụng AI chưa hiện trong cài đặt của họ.",
       "unavailable": "Tính năng chưa mở cho tổ chức của bạn.",
       "saveFailed": "Không lưu được thay đổi. Thử lại.",
@@ -1332,6 +1341,8 @@
       "empty": "Chưa ai kết nối ứng dụng AI. Mỗi thành viên tự kết nối trong Cài đặt › Ứng dụng AI của mình.",
       "error": "Không tải được danh sách. Thử lại.",
       "meta": "{{user}} · kết nối {{created}}",
+      "scopeRead": "Chỉ đọc",
+      "scopeWrite": "Đọc và ghi",
       "revoke": "Thu hồi",
       "revokeAria": "Thu hồi {{client}} của {{user}}",
       "revokeTitle": "Thu hồi {{client}}?",
@@ -2208,6 +2219,7 @@
       "identifier_missing": "—",
       "activity_group": "{{count}} hoạt động",
       "activity_more": "Xem thêm {{count}} hoạt động",
+      "activity_via": "qua {{client}}",
       "section_properties": "Thuộc tính",
       "section_parent": "Công việc cha",
       "parent_remove": "Bỏ công việc cha",
@@ -7986,6 +7998,7 @@
         "trustOffline": "Sửa file trên máy không cần kết nối; AI cloud và tài liệu UniWork cần kết nối"
       },
       "editors": {
+        "example": "Ví dụ: {{title}}",
         "title": "Sáu trình soạn thảo. Một workspace.",
         "formats": "Hỗ trợ DOCX, XLSX, PPTX, PDF, HTML và Markdown",
         "tabs": "Trình soạn thảo",
@@ -8082,6 +8095,20 @@
           "description": "File lưu vào workspace nằm trong workspace UniWork của nhóm: mở từ Tài liệu, lưu thành phiên bản mới, chia sẻ và bình luận. File lưu trên máy thì ở lại trên máy và sửa được khi không có kết nối; AI cloud và tài liệu UniWork cần kết nối."
         },
         "link": "Xem cách UniWork phân quyền"
+      },
+      "connection": {
+        "title": "Cùng tài khoản. Liền mạch với workspace.",
+        "sub": "Làm việc trên máy, kết nối với dữ liệu và quyền truy cập của nhóm.",
+        "account": { "title": "Một tài khoản", "description": "Đăng nhập Office bằng tài khoản UniWork." },
+        "ai": { "title": "AI theo nhu cầu", "description": "Dùng gói của tổ chức hoặc khóa API riêng." },
+        "permissions": { "title": "Quyền truy cập nhất quán", "description": "File trong workspace theo phân quyền của tổ chức." },
+        "flow": {
+          "title": "File trên máy và workspace",
+          "local": "Trên máy", "localDescription": "Lưu file tại máy, chỉnh sửa không cần mạng.",
+          "workspace": "Workspace", "workspaceDescription": "Lưu phiên bản, chia sẻ và bình luận cùng nhóm.",
+          "action": "Mở / Lưu phiên bản", "note": "Mở và lưu phiên bản trong workspace cần kết nối."
+        },
+        "details": { "ai": "AI và dữ liệu của bạn", "files": "Lưu file và yêu cầu kết nối" }
       },
       "faq": {
         "title": "Câu hỏi thường gặp",

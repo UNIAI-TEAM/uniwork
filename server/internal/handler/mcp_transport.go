@@ -15,6 +15,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 )
@@ -35,20 +36,67 @@ type mcpPrincipalKey struct{}
 // handler waits for it), so the transport ties the two itself.
 type mcpRequestKey struct{}
 
-// mcpCallContext is what mcpServe puts on the request before the SDK reads it.
+// mcpCallContext is what mcpServe puts on the request before the SDK reads
+// it: the principal, the HTTP request's own context, and the app as the
+// audit via of every row the tool writes.
 func mcpCallContext(r *http.Request, p service.McpPrincipal) context.Context {
-	ctx := context.WithValue(r.Context(), mcpPrincipalKey{}, p)
+	ctx := audit.WithVia(r.Context(), audit.Via{Kind: "mcp", ClientID: p.ClientID, GrantID: p.GrantID, ClientName: p.ClientName})
+	ctx = context.WithValue(ctx, mcpPrincipalKey{}, p)
 	return context.WithValue(ctx, mcpRequestKey{}, r.Context())
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+// mcpBudget counts write calls per grant (ADR 0033); nil means no budget.
+type mcpBudget interface {
+	Allow(ctx context.Context, subject string) bool
+}
+
+// mcpWriteRefusal is why a write tool may not run for p, or "" when it may.
+// The budget is spent only by a call that would otherwise run.
+func mcpWriteRefusal(ctx context.Context, p service.McpPrincipal, budget mcpBudget) string {
+	switch {
+	case !p.WriteOpen:
+		return "write_disabled: the organization or UniWork has not opened write access for AI apps; only reading is available"
+	case !p.CanWrite():
+		return "insufficient_scope: this connection may only read; reconnect UniWork in the AI app and allow create and edit"
+	case budget != nil && !budget.Allow(ctx, p.GrantID):
+		return "write_rate_limited: too many changes in the last minute; wait a minute and try again"
+	}
+	return ""
+}
+
+// mcpHideWriteTools takes the write tools out of tools/list for a principal
+// that cannot write, so a model never plans with a tool it cannot call.
+func mcpHideWriteTools(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		res, err := next(ctx, method, req)
+		if err != nil || method != "tools/list" {
+			return res, err
+		}
+		p, _ := ctx.Value(mcpPrincipalKey{}).(service.McpPrincipal)
+		list, ok := res.(*mcp.ListToolsResult)
+		if p.CanWrite() || !ok {
+			return res, nil
+		}
+		kept := make([]*mcp.Tool, 0, len(list.Tools))
+		for _, t := range list.Tools {
+			if t.Annotations == nil || t.Annotations.ReadOnlyHint {
+				kept = append(kept, t)
+			}
+		}
+		out := *list // the SDK may cache its own result; never edit it
+		out.Tools = kept
+		return &out, nil
+	}
+}
 
 // newMcpHandler builds the go-sdk server once. Stateless: no session id, no
 // sticky routing across replicas. The SDK's localhost DNS-rebinding guard is
 // off because every request must carry a bearer token and the API sits behind
 // a reverse proxy on the same host, which makes the request arrive from
 // 127.0.0.1 with the public Host header (spec §7.1, Review Focus 2).
-func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, log *slog.Logger) http.Handler {
+func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, budget mcpBudget, log *slog.Logger) http.Handler {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -62,6 +110,7 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, log *slog.Logg
 			// nothing here answers logging/setLevel.
 			Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{ListChanged: false}},
 		})
+	srv.AddReceivingMiddleware(mcpHideWriteTools)
 	for _, t := range tools {
 		var schema map[string]any
 		if err := json.Unmarshal(t.Schema, &schema); err != nil {
@@ -72,12 +121,13 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, log *slog.Logg
 		}
 		srv.AddTool(&mcp.Tool{
 			Name: t.Name, Title: t.Title, Description: t.Description, InputSchema: schema,
-			// Read-only is the whole of v1 (TestMCPToolsAreReadOnly). Clients
-			// may skip a confirmation for such a tool; none of them is open
-			// world, as every result comes from the person's organization.
-			// The title is repeated here because some clients, and the
-			// connector directories' review, read it from the annotations.
-			Annotations: &mcp.ToolAnnotations{Title: t.Title, ReadOnlyHint: true, DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(false)},
+			// Annotations come from the tool (ADR 0033): clients may skip the
+			// confirmation for a read-only tool and must ask before a write.
+			// None is open world: every result comes from the person's
+			// organization. The title is repeated here because some clients,
+			// and the connector directories' review, read it from the
+			// annotations.
+			Annotations: &mcp.ToolAnnotations{Title: t.Title, ReadOnlyHint: t.Kind == ai.ToolRead, DestructiveHint: boolPtr(t.Destructive), OpenWorldHint: boolPtr(false)},
 		}, func(ctx context.Context, req *mcp.CallToolRequest) (res *mcp.CallToolResult, _ error) {
 			telemetry.SetMCP(ctx, "", "", t.Name)
 			start := time.Now()
@@ -108,6 +158,15 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, log *slog.Logg
 				metrics.ObserveTool(t.Name, "error", time.Since(start))
 				return res, nil
 			}
+			// Anything that is not a read is gated like a write: tools/list
+			// hides every tool whose Kind is not read, so the call gate must
+			// refuse the same set, or a tool with no Kind runs unchecked.
+			if t.Kind != ai.ToolRead {
+				if why := mcpWriteRefusal(ctx, p, budget); why != "" {
+					metrics.ObserveTool(t.Name, "refused", time.Since(start))
+					return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: why}}}, nil
+				}
+			}
 			args, _ := json.Marshal(req.Params.Arguments)
 			out, err := t.Handle(ctx, p.ToolContext(), args)
 			outcome, res := mcpToolResult(ctx, out, err)
@@ -125,12 +184,13 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, log *slog.Logg
 }
 
 // mcpToolResult turns a tool outcome into an MCP result and the label the
-// metrics count it under (ok, invalid, not_found, cancelled, error). A model's mistake is an isError result it can read
+// metrics count it under (ok, invalid, refused, not_found, cancelled, error). A model's mistake is an isError result it can read
 // and fix, never a JSON-RPC error. Not found and forbidden read the same, so
 // an id's existence never leaks (spec §7.5).
 func mcpToolResult(ctx context.Context, out json.RawMessage, err error) (string, *mcp.CallToolResult) {
 	text := func(s string) []mcp.Content { return []mcp.Content{&mcp.TextContent{Text: s}} }
 	var bad service.McpInvalidArgs
+	var refused service.McpToolError
 	switch {
 	case err == nil:
 		res := &mcp.CallToolResult{Content: text(string(out))}
@@ -144,6 +204,8 @@ func mcpToolResult(ctx context.Context, out json.RawMessage, err error) (string,
 			}
 		}
 		return "ok", res
+	case errors.As(err, &refused):
+		return "refused", &mcp.CallToolResult{IsError: true, Content: text(refused.Error())}
 	case errors.As(err, &bad):
 		return "invalid", &mcp.CallToolResult{IsError: true, Content: text(bad.Error())}
 	case errors.Is(err, service.ErrNotFound), errors.Is(err, service.ErrForbidden):

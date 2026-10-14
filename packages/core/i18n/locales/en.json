@@ -204,6 +204,7 @@
       "eyebrow": "Connect an AI assistant",
       "title": "Allow {{client}} to access UniWork?",
       "description": "This app will read your work data in the organization you choose. It cannot create, change or delete anything.",
+      "descriptionWrite": "This app will read your work data in the organization you choose. If you allow it, it can also create and edit for you, but never delete.",
       "verified": "Verified",
       "unverified": "Unverified",
       "unverifiedWarning": "UniWork has not verified this app. Continue only if you just added it yourself.",
@@ -215,6 +216,8 @@
       "shareTasks": "Your tasks and tasks in your workspaces, with comments",
       "shareMeetings": "Meetings and their AI summaries, without transcripts",
       "shareNot": "Never chat messages or email",
+      "allowWrite": "Allow create and edit",
+      "allowWriteHint": "Many AI apps ask before each change, but UniWork cannot check that. Each change is recorded with your name and the app's, and can be undone.",
       "approve": "Allow",
       "approving": "Allowing…",
       "loading": "Loading the connection request…",
@@ -1313,6 +1316,8 @@
       "meta": "{{org}} · connected {{created}}",
       "lastUsed": "last used {{when}}",
       "verified": "Verified",
+      "scopeRead": "Read only",
+      "scopeWrite": "Read and write",
       "revoke": "Revoke",
       "revokeAria": "Revoke {{client}}",
       "revokeTitle": "Revoke {{client}}?",
@@ -1326,6 +1331,10 @@
       "adminOnly": "Only organization owners and admins can see this.",
       "toggleLabel": "Allow external AI assistants",
       "toggleDescription": "Shared: tasks, comments, meetings and AI summaries. Never chat or email. Turning this off blocks every connected app at once.",
+      "writeLabel": "Allow create and edit",
+      "writeDescription": "Connected apps may create and edit work for members who allow it. Never delete. Turning this off blocks every write at once; reading stays.",
+      "writeNeedsConnector": "Turn on AI assistant access first.",
+      "writeUnavailable": "Write access is not open for your organization yet.",
       "addressBody": "Members paste this address where Claude, ChatGPT or Gemini CLI adds a connector. Send it to them if AI apps does not show in their settings yet.",
       "unavailable": "This feature is not yet available to your organization.",
       "saveFailed": "Could not save the change. Try again.",
@@ -1333,6 +1342,8 @@
       "empty": "Nobody has connected an AI app. Members connect from Settings › AI apps.",
       "error": "Could not load the list. Try again.",
       "meta": "{{user}} · connected {{created}}",
+      "scopeRead": "Read only",
+      "scopeWrite": "Read and write",
       "revoke": "Revoke",
       "revokeAria": "Revoke {{user}}'s {{client}}",
       "revokeTitle": "Revoke {{client}}?",
@@ -2209,6 +2220,7 @@
       "identifier_missing": "—",
       "activity_group": "{{count}} activities",
       "activity_more": "Show {{count}} more activities",
+      "activity_via": "via {{client}}",
       "section_properties": "Properties",
       "section_parent": "Parent task",
       "parent_remove": "Remove parent task",
@@ -7991,6 +8003,7 @@
         "trustOffline": "Edit files on your computer without a connection; cloud AI and UniWork documents need one"
       },
       "editors": {
+        "example": "Example: {{title}}",
         "title": "Six editors. One workspace.",
         "formats": "Works with DOCX, XLSX, PPTX, PDF, HTML and Markdown",
         "tabs": "Editors",
@@ -8087,6 +8100,20 @@
           "description": "Files you save to the workspace live in your team's UniWork workspace: open from Documents, save as a new version, share and comment. Files stored on your computer stay on your computer and can be edited without a connection; cloud AI and UniWork documents need one."
         },
         "link": "See how UniWork handles permissions"
+      },
+      "connection": {
+        "title": "One account. Connected to your workspace.",
+        "sub": "Work on your computer, connected to your team's files and access rules.",
+        "account": { "title": "One account", "description": "Sign in to Office with your UniWork account." },
+        "ai": { "title": "AI on your terms", "description": "Use your organization's plan or your own API key." },
+        "permissions": { "title": "Consistent access", "description": "Workspace files follow your organization's permissions." },
+        "flow": {
+          "title": "Files on your computer and in your workspace",
+          "local": "On your computer", "localDescription": "Keep files locally and edit without a connection.",
+          "workspace": "Workspace", "workspaceDescription": "Save versions, share and comment with your team.",
+          "action": "Open / Save a version", "note": "Opening and saving workspace versions need a connection."
+        },
+        "details": { "ai": "AI and your data", "files": "File storage and connection requirements" }
       },
       "faq": {
         "title": "Frequently asked questions",
