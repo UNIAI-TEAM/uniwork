@@ -484,3 +484,28 @@ func TestGraphTablesWrittenOnlyByProjector(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestMcpToolsCallNoDelete holds ADR 0033 on the code side: no MCP tool file
+// calls a command that deletes or archives.
+func TestMcpToolsCallNoDelete(t *testing.T) {
+	files, err := filepath.Glob("service/mcp_tools*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) == 0 {
+		t.Fatal("no service/mcp_tools*.go found; the glob is stale")
+	}
+	banned := regexp.MustCompile(`\.(Delete\w*|BatchDelete\w*|ArchiveDocument|DeleteComment|DeleteProject)\(`)
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if loc := banned.FindIndex(raw); loc != nil {
+			t.Errorf("%s calls %s; MCP tools never delete (ADR 0033)", f, raw[loc[0]:loc[1]])
+		}
+	}
+}

@@ -354,8 +354,13 @@ Every command that changes business state writes an `audit_events` row and its
   opaque tokens (`uwm_at_`, `uwm_rt_`) that only `/mcp` accepts, and `/mcp`
   never accepts a session JWT: `TestMcpTokenRejectedByREST` and
   `TestSessionTokenRejectedByMCP`. Its tools act as the human who consented,
-  through `RequireMember`, and only read: `TestMCPToolsAreReadOnly`. A write
-  tool, when one exists, follows ADR 0010.
+  through `RequireMember` (ADR 0033): read tools never write
+  (`TestMCPReadToolsDoNotMutate`); write tools run only with the `write`
+  scope, the `mcp_connector_write` flag and the organization's write switch
+  (`TestMCPWriteToolsNeedScopeFlagAndPolicy`), never delete
+  (`TestMCPHasNoDeleteTool`, `TestMcpToolsCallNoDelete`), each names its undo
+  (`TestMCPWriteToolsDeclareUndo`), and every row they audit carries
+  `metadata.via`.
 
 ## Platform Admin and Observability
 
