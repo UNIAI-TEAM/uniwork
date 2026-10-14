@@ -27,8 +27,15 @@ export default function InvitationsPage() {
     () => replace(resolvePostAuthDestination(workspaces, user, organizations)),
     [replace, workspaces, user, organizations],
   );
-  if (status !== "authed" || step === "verify" || !orgsFetched) return null;
-  // "Để sau" goes where an empty list would: onboarding, a workspace, or
-  // /get-started.
-  return <InvitationsView onEmpty={onEmpty} onSkip={onEmpty} />;
+  // Mounted at once, so the frame and its heading are there while the gates
+  // resolve; only the exits wait for the organization list. "Để sau" goes
+  // where an empty list would: onboarding, a workspace, or /get-started.
+  return (
+    <InvitationsView
+      enabled={status === "authed" && step !== "verify"}
+      exitReady={orgsFetched}
+      onEmpty={onEmpty}
+      onSkip={onEmpty}
+    />
+  );
 }

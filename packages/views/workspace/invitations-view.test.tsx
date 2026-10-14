@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createQueryClient } from "@uniwork/core";
 import { initI18n } from "@uniwork/core/i18n";
+import { resolveLoggedInDestination } from "../auth/post-auth-redirect";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { InvitationsView } from "./invitations-view";
 
@@ -113,5 +115,44 @@ describe("InvitationsView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Để sau" }));
     expect(onSkip).toHaveBeenCalledTimes(1);
     expect(requestMock.mock.calls.some(([path]) => String(path).includes("/accept"))).toBe(false);
+  });
+
+  /**
+   * Sign-in already asked for the invitations to choose this page; the page
+   * reads that answer from the cache instead of asking the server again.
+   */
+  it("asks for the invitations once between sign-in and the list", async () => {
+    answer([{ ...base, id: "i1", token: "t1", org_role: "member" }]);
+    const client = createQueryClient();
+    const user = { email_verified_at: "2026-08-27T00:00:00Z", onboarded_at: null };
+    expect(await resolveLoggedInDestination(user, [], client)).toBe("/invitations");
+    render(wrapWithNav(<InvitationsView onEmpty={() => {}} onSkip={() => {}} />, undefined, client));
+    expect(await screen.findByRole("link", { name: "Xem lời mời vào Acme" })).toBeInTheDocument();
+    expect(requestMock.mock.calls.filter(([path]) => path === "/api/v1/me/invitations")).toHaveLength(1);
+  });
+
+  it("holds the request and keeps its heading while the host resolves the session", () => {
+    answer([]);
+    render(wrapWithNav(<InvitationsView enabled={false} onEmpty={() => {}} onSkip={() => {}} />));
+    expect(screen.getByRole("heading", { level: 1, name: "Lời mời đang chờ bạn" })).toBeInTheDocument();
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it("waits for the host to know where an empty list leads before leaving, and holds Later until then", async () => {
+    answer([]);
+    const onEmpty = vi.fn();
+    const onSkip = vi.fn();
+    const client = createQueryClient();
+    const { rerender } = render(
+      wrapWithNav(<InvitationsView exitReady={false} onEmpty={onEmpty} onSkip={onSkip} />, undefined, client),
+    );
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/me/invitations"));
+    const later = screen.getByRole("button", { name: "Để sau" });
+    expect(later).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(later);
+    expect(onSkip).not.toHaveBeenCalled();
+    expect(onEmpty).not.toHaveBeenCalled();
+    rerender(wrapWithNav(<InvitationsView exitReady onEmpty={onEmpty} onSkip={onSkip} />, undefined, client));
+    await waitFor(() => expect(onEmpty).toHaveBeenCalled());
   });
 });

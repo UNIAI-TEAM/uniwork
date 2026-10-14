@@ -1,10 +1,26 @@
-import { describe, expect, it, vi } from "vitest";
-import { resolveLoggedInDestination } from "./post-auth-redirect";
+import { QueryClient } from "@tanstack/react-query";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveLoggedInDestination as resolveWith } from "./post-auth-redirect";
 
 const fetchMy = vi.fn();
-vi.mock("@uniwork/core/workspaces", () => ({ fetchMyInvitations: (...a: unknown[]) => fetchMy(...a) }));
+vi.mock("@uniwork/core/workspaces", () => ({
+  fetchMyInvitations: (...a: unknown[]) => fetchMy(...a),
+  workspaceKeys: { myInvitations: () => ["my-invitations"] },
+}));
 const fetchOrgs = vi.fn();
-vi.mock("@uniwork/core/organizations", () => ({ fetchOrganizations: (...a: unknown[]) => fetchOrgs(...a) }));
+vi.mock("@uniwork/core/organizations", () => ({
+  fetchOrganizations: (...a: unknown[]) => fetchOrgs(...a),
+  organizationKeys: { list: () => ["organizations"] },
+}));
+
+// The app's defaults (createQueryClient): a 15s staleTime and one retry,
+// which the lookups must override so sign-in never waits on a retry.
+let qc: QueryClient;
+beforeEach(() => {
+  qc = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } });
+});
+const resolveLoggedInDestination = (user: Parameters<typeof resolveWith>[0], ws: Parameters<typeof resolveWith>[1]) =>
+  resolveWith(user, ws, qc);
 
 const verified = { email_verified_at: "2026-08-27T00:00:00Z", onboarded_at: null };
 const onboarded = { email_verified_at: "2026-08-27T00:00:00Z", onboarded_at: "2026-08-27T00:00:00Z" };
@@ -42,5 +58,26 @@ describe("resolveLoggedInDestination", () => {
     fetchOrgs.mockClear();
     await resolveLoggedInDestination(unverified, []);
     expect(fetchOrgs).not.toHaveBeenCalled();
+  });
+
+  /** The next screen reads the same keys, so it opens on this answer instead of asking again. */
+  it("leaves the invitations it found in the cache for /invitations", async () => {
+    const invites = [{ id: "i" }];
+    fetchMy.mockResolvedValueOnce(invites);
+    expect(await resolveLoggedInDestination(verified, [])).toBe("/invitations");
+    expect(qc.getQueryData(["my-invitations"])).toBe(invites);
+  });
+  it("leaves the organization list in the cache for /get-started", async () => {
+    const orgs: unknown[] = [];
+    fetchOrgs.mockResolvedValueOnce(orgs);
+    expect(await resolveLoggedInDestination(onboarded, [])).toBe("/get-started");
+    expect(qc.getQueryData(["organizations"])).toBe(orgs);
+  });
+  it("asks the server even when an earlier answer is cached, and does not retry a failure", async () => {
+    qc.setQueryData(["my-invitations"], [{ id: "stale" }]);
+    fetchMy.mockClear();
+    fetchMy.mockRejectedValueOnce(new Error("x"));
+    expect(await resolveLoggedInDestination(verified, [])).toBe("/onboarding");
+    expect(fetchMy).toHaveBeenCalledTimes(1);
   });
 });
