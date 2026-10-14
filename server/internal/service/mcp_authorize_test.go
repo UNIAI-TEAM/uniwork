@@ -404,3 +404,30 @@ func TestApproveNeverWidensBeyondTheRequest(t *testing.T) {
 		t.Fatalf("scope = %q, want read", got)
 	}
 }
+
+// The platform write flag is the third leg of the gate: with the organization's
+// write switch on, turning the flag off still keeps write out of the grant.
+func TestApproveNeedsThePlatformWriteFlag(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	c := w.publicClient(t, "https://x.test/cb")
+
+	w.svc.SetFlags(mcpFlagsExcept{off: mcpWriteFlagKey})
+	id := w.startWrite(t, c)
+	consent, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !consent.WriteRequested || !consent.Organizations[0].Enabled || consent.Organizations[0].WriteEnabled {
+		t.Fatalf("consent with the write flag off = %+v, want the connector on and write closed", consent)
+	}
+	if _, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.grantScope(t, c.ClientID); got != "read" {
+		t.Fatalf("scope with the write flag off = %q, want read", got)
+	}
+}
