@@ -93,7 +93,8 @@ test("English introductions and solution/resources links remain usable", async (
   await expect(page.locator("h1")).toHaveText("Meet together. Keep the context.");
   await page.locator(".header-directory-toggle").nth(1).click();
   await expect(page.locator('#header-directory-solutions a[href="/solutions/product"]')).toBeVisible();
-  await page.getByRole("banner").getByRole("button", { name: "Tìm hiểu", exact: true }).click();
+  // This test runs in English, so the Learn directory toggle carries its English name.
+  await page.getByRole("banner").getByRole("button", { name: "Learn", exact: true }).click();
   await expect(page.locator("#header-directory-solutions")).toHaveCount(0);
   await page.locator('#header-directory-learn a[href="/learn"]').first().click();
   await expect(page).toHaveURL(/\/learn$/);

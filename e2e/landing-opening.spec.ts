@@ -66,7 +66,9 @@ for (const width of [1440, 1280, 1100, 1099, 768, 390]) {
       await expect(page.locator("#header-directory-products")).toHaveCount(0);
       await header.getByRole("button", { name: "Office", exact: true }).click();
       await expect(page.locator('#header-directory-office a[href="/office#office-business"]')).toBeVisible();
-      await expect(page.locator('#header-directory-office a[href="/office#office-personal"]')).toContainText("Đang phát triển");
+      // Office for Personal is announced, not offered: a label without a link (office-header.test.tsx).
+      await expect(page.locator("#header-directory-office [data-office-personal]")).toContainText("Đang phát triển");
+      await expect(page.locator("#header-directory-office a")).toHaveCount(1);
       await page.keyboard.press("Escape");
       await header.getByRole("button", { name: "Tìm hiểu", exact: true }).click();
       await expect(page.locator('#header-directory-learn a[href="/changelog"]')).toBeVisible();
@@ -88,7 +90,8 @@ for (const width of [1440, 1280, 1100, 1099, 768, 390]) {
       await expect(page.locator('#landing-mobile-menu a[href="/features/agents"]')).toHaveText("Nhân sự AI");
       await page.locator('#landing-mobile-menu summary').filter({ hasText: /^Office$/ }).click();
       await expect(page.locator('#landing-mobile-menu a[href="/office#office-business"]')).toBeVisible();
-      await expect(page.locator('#landing-mobile-menu a[href="/office#office-personal"]')).toContainText("Đang phát triển");
+      await expect(page.locator("#landing-mobile-menu [data-office-personal]")).toContainText("Đang phát triển");
+      await expect(page.locator("#landing-mobile-menu .header-office-links a")).toHaveCount(1);
       await page.locator('#landing-mobile-menu summary').filter({ hasText: "Tìm hiểu" }).click();
       await expect(page.locator('#landing-mobile-menu a[href="/changelog"]')).toBeVisible();
       await page.keyboard.press("Escape");
