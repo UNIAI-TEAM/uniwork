@@ -108,6 +108,39 @@ func TestMCPWriteToolsNeedScopeFlagAndPolicy(t *testing.T) {
 	}
 }
 
+// A tool whose Kind is neither read nor write is hidden from tools/list, so
+// the call gate must treat it as a write: refused without the write scope and
+// spending the budget when it may run.
+func TestMcpUnknownKindIsGatedLikeAWrite(t *testing.T) {
+	schema := json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
+	var ran []string
+	registry := ai.Registry{{Name: "mystery", Title: "Mystery", Description: "no kind", Risk: ai.RiskLow, Schema: schema,
+		Handle: func(context.Context, ai.ToolContext, json.RawMessage) (json.RawMessage, error) {
+			ran = append(ran, "mystery")
+			return json.RawMessage(`{"ok":true}`), nil
+		}}}
+	call := func(h http.Handler) map[string]any {
+		out := mcpDirectCall(t, h, `{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"mystery","arguments":{}}}`)
+		res, _ := out["result"].(map[string]any)
+		return res
+	}
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+	reader := service.McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1", Scope: "read", WriteOpen: true}
+	if res := call(mcpServeAs(newMcpHandler(registry, &mcpToolCounts{}, nil, quiet), reader)); res["isError"] != true || !strings.HasPrefix(resultText(res), "insufficient_scope:") {
+		t.Fatalf("read-only principal = %v, want insufficient_scope", res)
+	}
+	if len(ran) != 0 {
+		t.Fatalf("tool ran for a read-only principal: %v", ran)
+	}
+	h := mcpServeAs(newMcpHandler(registry, &mcpToolCounts{}, &fakeBudget{left: 1}, quiet), writer())
+	if res := call(h); res["isError"] == true {
+		t.Fatalf("first call by a writer refused: %v", res)
+	}
+	if res := call(h); res["isError"] != true || !strings.HasPrefix(resultText(res), "write_rate_limited:") {
+		t.Fatalf("second call = %v, want write_rate_limited", res)
+	}
+}
+
 // Writes count against the grant's budget; reads never do.
 func TestMcpWriteBudget(t *testing.T) {
 	var ran []string

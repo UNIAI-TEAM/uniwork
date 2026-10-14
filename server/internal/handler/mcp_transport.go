@@ -158,7 +158,10 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, budget mcpBudg
 				metrics.ObserveTool(t.Name, "error", time.Since(start))
 				return res, nil
 			}
-			if t.Kind == ai.ToolWrite {
+			// Anything that is not a read is gated like a write: tools/list
+			// hides every tool whose Kind is not read, so the call gate must
+			// refuse the same set, or a tool with no Kind runs unchecked.
+			if t.Kind != ai.ToolRead {
 				if why := mcpWriteRefusal(ctx, p, budget); why != "" {
 					metrics.ObserveTool(t.Name, "refused", time.Since(start))
 					return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: why}}}, nil
