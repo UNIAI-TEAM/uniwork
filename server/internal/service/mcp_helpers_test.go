@@ -113,7 +113,7 @@ func (w *mcpWorld) approveAs(t *testing.T, u db.User, c McpClient, redirect stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	to, err := w.svc.Approve(w.ctx, u.ID, id, consent.CSRFToken, w.org.ID)
+	to, err := w.svc.Approve(w.ctx, u.ID, id, consent.CSRFToken, w.org.ID, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,3 +155,8 @@ func (w *mcpWorld) liveTokens(t *testing.T) int {
 	}
 	return n
 }
+
+// mcpFlagsExcept answers true for every flag but one.
+type mcpFlagsExcept struct{ off string }
+
+func (f mcpFlagsExcept) IsEnabled(_ context.Context, key string, _ bool) bool { return key != f.off }

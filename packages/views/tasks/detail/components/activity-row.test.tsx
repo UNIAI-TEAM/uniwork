@@ -124,6 +124,23 @@ describe("TaskActivityRow", () => {
     expect(time?.textContent?.trim()).not.toBe("2026-09-12T09:00:00Z");
   });
 
+  it("nói ứng dụng AI mà thay đổi đi qua", () => {
+    const el = row({ metadata: { via: { kind: "mcp", client_name: "Claude" } } }, "Lan");
+    expect(screen.getByText("qua Claude")).toBeInTheDocument();
+    // Tên người thực hiện vẫn đứng đầu: đó là người đã cho phép.
+    expect(el).toHaveTextContent("Lan");
+  });
+
+  it("bỏ qua via mà máy chủ gửi sai dạng", () => {
+    for (const via of ["Claude", null, 7, [], {}, { client_name: 3 }]) {
+      const { unmount } = render(
+        <TaskActivityRow event={{ ...base, metadata: { via } }} actorName="Lan" />,
+      );
+      expect(screen.queryByText(/qua /)).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
   it("hành động lạ vẫn hiện chính tên nó thay vì bịa ra câu khác", () => {
     const el = row({ action: "task.archived_by_a_newer_server" });
     expect(el).toHaveTextContent("task.archived_by_a_newer_server");

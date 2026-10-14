@@ -1740,6 +1740,8 @@ type Organization struct {
 	McpEnabledAt        pgtype.Timestamptz `json:"mcp_enabled_at"`
 	McpEnabledBy        pgtype.Text        `json:"mcp_enabled_by"`
 	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	McpWriteEnabledAt   pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy   pgtype.Text        `json:"mcp_write_enabled_by"`
 }
 
 type OrganizationMember struct {
