@@ -58,7 +58,9 @@ tăng = retry đã commit từ trước. Kết nối giữa app và server (`Off
 
 **Khắc phục.** `in_flight`: chờ claim hết hạn (≤ 2 phút) rồi để app tra lại. `unknown`: xem mục "Upload hết hạn" và
 `OfficeIntentLookupUnknown`; người dùng giữ bản cục bộ và quyết định lưu như một lần Lưu mới sau khi kiểm lịch sử phiên bản.
-Không xóa dòng `document_commit_intents`, không sửa `idempotency_keys`. Nếu app báo kẹt mà server đã `committed`:
+Server không phân biệt khóa chưa từng nhận với khóa đã bị dọn: cả hai đều trả `unknown` và đi theo đường
+`reconciling` kẹt này (quyết định G5-D2 (c), Advisor 2026-10-14: không tách); app tự gửi lại khóa chưa từng nhận là backlog
+trong bản nháp G5-D2, không phải hành vi v1. Không xóa dòng `document_commit_intents`, không sửa `idempotency_keys`. Nếu app báo kẹt mà server đã `committed`:
 đó là lỗi app, báo owner fork (queue G5-06) kèm `correlation_id`.
 
 ## Upload hết hạn
