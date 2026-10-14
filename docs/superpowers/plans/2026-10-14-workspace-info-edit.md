@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- Migration mới tên `999<13 chữ số unix-ms>_<name>`, prefix lớn hơn `9991791952151612`. Plan dùng `9991791960000000`–`9991791960000005`; nếu nhánh khác đã chiếm, tăng lên, giữ thứ tự.
+- Migration mới tên `999<13 chữ số unix-ms>_<name>`, prefix lớn hơn `9991792000000001` (migration đã áp dụng của nhánh MCP). Plan dùng `9991792100000000`–`9991792100000005`; nếu nhánh khác đã chiếm, tăng lên, giữ thứ tự.
 - Không `FOREIGN KEY`/`REFERENCES`, không cascade. Mỗi index một file, `CREATE [UNIQUE] INDEX CONCURRENTLY`. Mỗi `.up.sql` có `.down.sql`.
 - Bảng tenant mới có `organization_id TEXT NOT NULL` ngay migration đầu. Id là ULID `util.NewID()`.
 - Query sqlc chạm bảng tenant: có `organization_id = sqlc.arg(...)`/`workspace_id = sqlc.arg(...)`, **hoặc** dòng `-- tenant: <by-id|self|token|system|platform|parent col>`, **không bao giờ cả hai** (`TestEveryQueryNamesItsTenant`). `sqlc.narg` không được tính là tham số tenant.
@@ -42,12 +42,12 @@
 
 | File | Trách nhiệm | Task |
 |---|---|---|
-| `server/migrations/9991791960000000_workspace_description_icon_emoji.{up,down}.sql` | cột `description`, `icon_emoji` | 1 |
-| `server/migrations/9991791960000001_workspace_icon_file.{up,down}.sql` | cột `icon_file_id` + `workspaces_one_icon` | 2 |
-| `server/migrations/9991791960000002_file_upload_sessions_workspace_icon.{up,down}.sql` | purpose `workspace_icon` trong 2 CHECK | 2 |
-| `server/migrations/9991791960000003_workspace_aliases.{up,down}.sql` | bảng `workspace_aliases` | 7 |
-| `server/migrations/9991791960000004_workspace_aliases_slug_idx.{up,down}.sql` | unique index alias slug | 7 |
-| `server/migrations/9991791960000005_workspace_aliases_task_prefix_idx.{up,down}.sql` | index alias tiền tố | 7 |
+| `server/migrations/9991792100000000_workspace_description_icon_emoji.{up,down}.sql` | cột `description`, `icon_emoji` | 1 |
+| `server/migrations/9991792100000001_workspace_icon_file.{up,down}.sql` | cột `icon_file_id` + `workspaces_one_icon` | 2 |
+| `server/migrations/9991792100000002_file_upload_sessions_workspace_icon.{up,down}.sql` | purpose `workspace_icon` trong 2 CHECK | 2 |
+| `server/migrations/9991792100000003_workspace_aliases.{up,down}.sql` | bảng `workspace_aliases` | 7 |
+| `server/migrations/9991792100000004_workspace_aliases_slug_idx.{up,down}.sql` | unique index alias slug | 7 |
+| `server/migrations/9991792100000005_workspace_aliases_task_prefix_idx.{up,down}.sql` | index alias tiền tố | 7 |
 | `server/pkg/db/queries/workspaces.sql` | `UpdateWorkspaceProfile`, `SetWorkspaceIcon…`, query icon, lock slug | 1, 2, 9 |
 | `server/pkg/db/queries/workspace_aliases.sql` (mới) | insert/delete/tra alias | 7, 9 |
 | `server/pkg/db/queries/file_gc.sql`, `tasks.sql` | tham chiếu file icon; tra mã qua alias | 2, 7 |
@@ -69,7 +69,7 @@
 ### Task 1: Backend — mô tả và icon emoji
 
 **Files:**
-- Create: `server/migrations/9991791960000000_workspace_description_icon_emoji.up.sql`, `.down.sql`
+- Create: `server/migrations/9991792100000000_workspace_description_icon_emoji.up.sql`, `.down.sql`
 - Modify: `server/pkg/db/queries/workspaces.sql` (thay `UpdateWorkspaceName`)
 - Modify: `server/internal/service/workspace.go:64-70` (`viewFromInOrgRow`), `:287-348` (`UpdateWorkspaceInput`, `Update`)
 - Regenerate: `server/pkg/db/generated/`
@@ -190,7 +190,7 @@ Expected: FAIL, lỗi biên dịch `unknown field Description in struct literal 
 
 - [ ] **Step 3: Migration**
 
-`server/migrations/9991791960000000_workspace_description_icon_emoji.up.sql`:
+`server/migrations/9991792100000000_workspace_description_icon_emoji.up.sql`:
 
 ```sql
 -- What a workspace says about itself (spec 2026-10-14 §4.1): a short
@@ -201,7 +201,7 @@ ALTER TABLE workspaces
   ADD COLUMN IF NOT EXISTS icon_emoji  TEXT;
 ```
 
-`server/migrations/9991791960000000_workspace_description_icon_emoji.down.sql`:
+`server/migrations/9991792100000000_workspace_description_icon_emoji.down.sql`:
 
 ```sql
 ALTER TABLE workspaces DROP COLUMN IF EXISTS icon_emoji;
@@ -426,7 +426,7 @@ Expected: PASS. `go build ./...` phải biên dịch được cả `internal/han
 - [ ] **Step 7: Commit**
 
 ```bash
-git add server/migrations/9991791960000000_* server/pkg/db/queries/workspaces.sql server/pkg/db/generated server/internal/service/workspace.go server/internal/service/workspace_test.go
+git add server/migrations/9991792100000000_* server/pkg/db/queries/workspaces.sql server/pkg/db/generated server/internal/service/workspace.go server/internal/service/workspace_test.go
 git commit -m "feat(workspace): edit description and emoji icon in WorkspaceService.Update
 
 Update now takes optional name, description and icon_emoji; a field sent
@@ -440,7 +440,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 2: Backend — ảnh icon qua FileService
 
 **Files:**
-- Create: `server/migrations/9991791960000001_workspace_icon_file.{up,down}.sql`, `server/migrations/9991791960000002_file_upload_sessions_workspace_icon.{up,down}.sql`
+- Create: `server/migrations/9991792100000001_workspace_icon_file.{up,down}.sql`, `server/migrations/9991792100000002_file_upload_sessions_workspace_icon.{up,down}.sql`
 - Create: `server/internal/service/workspace_icon.go`, `server/internal/service/workspace_icon_test.go`
 - Modify: `server/internal/files/types.go` (hằng + `purposes`), `server/internal/files/registry.go` (dòng registry)
 - Modify: `server/pkg/db/queries/workspaces.sql`, `server/pkg/db/queries/file_gc.sql`
@@ -596,7 +596,7 @@ Expected: FAIL, `f.ws.UploadIcon undefined`.
 
 - [ ] **Step 3: Migrations**
 
-`server/migrations/9991791960000001_workspace_icon_file.up.sql`:
+`server/migrations/9991792100000001_workspace_icon_file.up.sql`:
 
 ```sql
 -- The uploaded workspace icon (spec 2026-10-14 §4.1), a file of purpose
@@ -606,14 +606,14 @@ ALTER TABLE workspaces
   ADD CONSTRAINT workspaces_one_icon CHECK (icon_emoji IS NULL OR icon_file_id IS NULL);
 ```
 
-`server/migrations/9991791960000001_workspace_icon_file.down.sql`:
+`server/migrations/9991792100000001_workspace_icon_file.down.sql`:
 
 ```sql
 ALTER TABLE workspaces DROP CONSTRAINT IF EXISTS workspaces_one_icon;
 ALTER TABLE workspaces DROP COLUMN IF EXISTS icon_file_id;
 ```
 
-`server/migrations/9991791960000002_file_upload_sessions_workspace_icon.up.sql`:
+`server/migrations/9991792100000002_file_upload_sessions_workspace_icon.up.sql`:
 
 ```sql
 -- workspace_icon joins the org + workspace branch (spec 2026-10-14 §5.4).
@@ -642,7 +642,7 @@ ALTER TABLE file_upload_sessions ADD CONSTRAINT file_upload_sessions_scope_match
   );
 ```
 
-`server/migrations/9991791960000002_file_upload_sessions_workspace_icon.down.sql`:
+`server/migrations/9991792100000002_file_upload_sessions_workspace_icon.down.sql`:
 
 ```sql
 -- Sessions of the purpose being removed would fail the narrower checks.
@@ -1023,7 +1023,7 @@ Expected: PASS. Nếu một test trong `internal/files/filescontract`, `file_ser
 - [ ] **Step 8: Commit**
 
 ```bash
-git add server/migrations/9991791960000001_* server/migrations/9991791960000002_* server/internal/files server/pkg/db server/internal/service
+git add server/migrations/9991792100000001_* server/migrations/9991792100000002_* server/internal/files server/pkg/db server/internal/service
 git commit -m "feat(workspace): upload an image as the workspace icon
 
 New files purpose workspace_icon (org + workspace scope, 2 MiB image,
@@ -2269,7 +2269,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 7: Backend — tiền tố mã task và bảng alias
 
 **Files:**
-- Create: `server/migrations/9991791960000003_workspace_aliases.{up,down}.sql`, `9991791960000004_workspace_aliases_slug_idx.{up,down}.sql`, `9991791960000005_workspace_aliases_task_prefix_idx.{up,down}.sql`
+- Create: `server/migrations/9991792100000003_workspace_aliases.{up,down}.sql`, `9991792100000004_workspace_aliases_slug_idx.{up,down}.sql`, `9991792100000005_workspace_aliases_task_prefix_idx.{up,down}.sql`
 - Create: `server/pkg/db/queries/workspace_aliases.sql`
 - Modify: `server/pkg/db/queries/workspaces.sql` (`UpdateWorkspaceProfile`), `server/pkg/db/queries/tasks.sql` (`ListTasksByIdentifier`)
 - Modify: `server/internal/service/workspace.go` (input, normalize, changes, apply)
@@ -2377,7 +2377,7 @@ Expected: FAIL, `unknown field TaskPrefix in struct literal of type UpdateWorksp
 
 - [ ] **Step 3: Migrations**
 
-`server/migrations/9991791960000003_workspace_aliases.up.sql`:
+`server/migrations/9991792100000003_workspace_aliases.up.sql`:
 
 ```sql
 -- Old slugs and task prefixes a workspace still answers to (spec 2026-10-14
@@ -2397,7 +2397,7 @@ CREATE TABLE workspace_aliases (
 );
 ```
 
-`server/migrations/9991791960000003_workspace_aliases.down.sql`:
+`server/migrations/9991792100000003_workspace_aliases.down.sql`:
 
 ```sql
 -- The two indexes are dropped in their own files: DROP INDEX CONCURRENTLY
@@ -2405,27 +2405,27 @@ CREATE TABLE workspace_aliases (
 DROP TABLE IF EXISTS workspace_aliases;
 ```
 
-`server/migrations/9991791960000004_workspace_aliases_slug_idx.up.sql`:
+`server/migrations/9991792100000004_workspace_aliases_slug_idx.up.sql`:
 
 ```sql
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_workspace_aliases_slug
   ON workspace_aliases (organization_id, value) WHERE kind = 'slug';
 ```
 
-`server/migrations/9991791960000004_workspace_aliases_slug_idx.down.sql`:
+`server/migrations/9991792100000004_workspace_aliases_slug_idx.down.sql`:
 
 ```sql
 DROP INDEX CONCURRENTLY IF EXISTS idx_workspace_aliases_slug;
 ```
 
-`server/migrations/9991791960000005_workspace_aliases_task_prefix_idx.up.sql`:
+`server/migrations/9991792100000005_workspace_aliases_task_prefix_idx.up.sql`:
 
 ```sql
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workspace_aliases_task_prefix
   ON workspace_aliases (upper(value)) WHERE kind = 'task_prefix';
 ```
 
-`server/migrations/9991791960000005_workspace_aliases_task_prefix_idx.down.sql`:
+`server/migrations/9991792100000005_workspace_aliases_task_prefix_idx.down.sql`:
 
 ```sql
 DROP INDEX CONCURRENTLY IF EXISTS idx_workspace_aliases_task_prefix;
