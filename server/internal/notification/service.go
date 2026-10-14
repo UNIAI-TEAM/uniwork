@@ -236,7 +236,12 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 			}
 			switch state {
 			case service.DocumentGone:
+				// Gone is decided before the organization/level gate, so a
+				// revoked recipient of a trashed document lands here; the
+				// content keys go with it, exactly as they do for
+				// access_lost (R1-5), so no snippet outlives the trash.
 				item.ResourceDeleted = true
+				item.Params = dropParamKeys(n.Params, snippetKeys...)
 			case service.DocumentAccessLost:
 				item.ResourceAccessLost = true
 				item.Params = dropParamKeys(n.Params, snippetKeys...)
