@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady } from "./landing-ready";
 
 async function checkHeroBackground(page: Page) {
   const loaded = await page.locator(".landing-hero").evaluate(async element => {
@@ -34,6 +35,7 @@ for (const width of [1440, 1280, 1100, 1099, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
+    await landingReady(page);
     await expect(page.locator(".header-shell")).toHaveCSS("display", "flex");
     await expect(page.locator(".landing-hero-stage")).toHaveCSS("display", "flex");
     await expect(page.locator(".landing-hero-copy")).toHaveCSS("text-align", "center");
@@ -107,6 +109,7 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" });
     await page.goto("/");
+    await landingReady(page);
     await expect(page.locator("#landing-title")).toContainText("Every piece of work.");
     await expect(page.locator("html")).toHaveClass(/dark/);
     await checkHeaderFits(page);
@@ -122,6 +125,7 @@ for (const width of [1440, 390]) {
 test("opening respects a changed reduced-motion preference", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
+  await landingReady(page);
   await expect(page.locator("#landing-title")).toBeVisible();
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.locator('.landing-hero-copy')).toHaveCSS('animation-name', 'none');

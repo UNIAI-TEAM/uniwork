@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { landingReady } from "./landing-ready";
 
 const features = ["dashboard", "tasks", "projects", "today", "calendar", "workflows", "meetings", "chat", "email", "outputs", "documents", "approvals", "knowledge", "ask", "agents", "automation", "organization", "audit"];
 
@@ -6,6 +7,7 @@ test("product menu opens real introduction routes, with demo explicitly separate
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  await landingReady(page);
   const product = page.locator(".header-directory-toggle").nth(0);
   await product.click();
   const menu = page.locator("#header-directory-products");
@@ -33,6 +35,7 @@ test("all feature introductions have unique content, canonical URL and reference
   const headings = new Set<string>();
   for (const key of features) {
     const response = await page.goto(`/features/${key}`);
+    await landingReady(page);
     expect(response?.status()).toBe(200);
     const heading = page.getByRole("heading", { level: 1 });
     await expect(heading).toHaveCount(1);
@@ -44,6 +47,7 @@ test("all feature introductions have unique content, canonical URL and reference
   }
   expect(headings.size).toBe(features.length);
   await page.goto("/features/not-a-feature");
+  await landingReady(page);
   // Streamed App Router responses can already have sent 200 when notFound runs.
   // The app-wide not-found screen (apps/web/app/not-found.tsx) has no "404" heading.
   await expect(page.getByTestId("app-not-found")).toBeVisible();
@@ -58,6 +62,7 @@ for (const sample of [{ width: 1440, color: "light" }, { width: 390, color: "dar
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: sample.color });
     for (const route of ["features/tasks", "features", "solutions", "learn", "pricing", "enterprise"]) {
       const response = await page.goto(`/${route}`);
+      await landingReady(page);
       expect(response?.status()).toBe(200);
       await expect(page.locator("h1")).toHaveCount(1);
       expect(await page.locator("main").innerText()).not.toContain("landing.");
@@ -90,6 +95,7 @@ test("English introductions and solution/resources links remain usable", async (
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/features/meetings");
+  await landingReady(page);
   await expect(page.locator("h1")).toHaveText("Meet together. Keep the context.");
   await page.locator(".header-directory-toggle").nth(1).click();
   await expect(page.locator('#header-directory-solutions a[href="/solutions/product"]')).toBeVisible();

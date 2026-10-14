@@ -1,9 +1,11 @@
 import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
+import { landingReady } from "./landing-ready";
 
 test("online meetings are a view of the same workspace", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/#hop");
+  await landingReady(page);
   const workspace = page.locator("#product-preview");
   await openManualPreview(page);
   await expect(workspace.getByRole("tab", { name: "Họp trực tuyến", exact: true })).toHaveAttribute("aria-selected", "true");
@@ -27,6 +29,7 @@ test("meeting controls are accessible local simulations, with conditional AI fol
     if (request.method() !== "GET" && /\/api\/v1\/.*meeting/.test(request.url())) writes.push(request.url());
   });
   await page.goto("/");
+  await landingReady(page);
   await selectWorkspaceFeature(page, "meetings");
   const room = page.locator(".meeting-room");
   await expect(room).toContainText("Không truy cập mic, camera hay màn hình của bạn");

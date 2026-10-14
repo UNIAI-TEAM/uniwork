@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { resolve } from "node:path";
 import { auditText } from "./contrast";
+import { landingReady } from "./landing-ready";
 
 for (const scenario of [
   { width: 1440, theme: "light", locale: "vi", personal: "Office for Personal", status: "Đang phát triển" },
@@ -11,6 +12,7 @@ for (const scenario of [
     await page.setViewportSize({ width: scenario.width, height: 900 });
     await page.emulateMedia({ colorScheme: scenario.theme, reducedMotion: "reduce" });
     await page.goto("/");
+    await landingReady(page);
     if (scenario.width < 1100) {
       await page.locator(".header-mobile-toggle").click();
       await page.locator("#landing-mobile-menu summary").filter({ hasText: /^Office$/ }).click();
@@ -34,6 +36,7 @@ for (const scenario of [
 test("Office trial opens a published Windows installer download", async ({ page }) => {
   const configResponse = page.waitForResponse(response => response.url().includes("/api/v1/config") && response.request().method() === "GET");
   await page.goto("/office");
+  await landingReady(page);
   const config = await (await configResponse).json();
   const published = [config.office_installers?.stable, config.office_installers?.beta, config.office_installers?.dev]
     .find((rows: { platform: string; url: string }[] | undefined) => rows?.length) ?? [];

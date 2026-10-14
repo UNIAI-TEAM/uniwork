@@ -4,6 +4,7 @@ import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
 import vi from "../packages/core/i18n/locales/vi.json" with { type: "json" };
 import en from "../packages/core/i18n/locales/en.json" with { type: "json" };
+import { landingReady } from "./landing-ready";
 
 const scenarios = [
   { width: 1306, theme: "light", locale: "en" },
@@ -21,6 +22,7 @@ for (const scenario of scenarios) {
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: scenario.theme });
     const configResponse = page.waitForResponse(response => response.url().includes("/api/v1/config") && response.request().method() === "GET");
     await page.goto("/office");
+    await landingReady(page);
     const config = await (await configResponse).json();
     const published = [config.office_installers?.stable, config.office_installers?.beta, config.office_installers?.dev]
       .find((rows: { platform: string }[] | undefined) => rows?.length) ?? [];
@@ -97,6 +99,7 @@ test("Office images follow an explicit theme change", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   await page.goto("/office");
+  await landingReady(page);
   await expect(page.locator(".office-hero-preview img:visible")).toHaveAttribute("data-theme", "light");
   await page.getByRole("button", { name: "Giao diện", exact: true }).click();
   await page.getByRole("menuitemradio", { name: "Tối", exact: true }).click();

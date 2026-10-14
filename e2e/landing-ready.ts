@@ -13,7 +13,9 @@ import type { Page } from "@playwright/test";
 export async function landingReady(page: Page, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await page.evaluate(() => document.querySelector('[id^="S:"]') === null)) return;
+    // A page that navigates again right away destroys the context mid-call.
+    const settled = await page.evaluate(() => document.querySelector('[id^="S:"]') === null).catch(() => false);
+    if (settled) return;
     await page.waitForTimeout(50);
   }
 }

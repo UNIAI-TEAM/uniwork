@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { auditText } from "./contrast";
+import { landingReady } from "./landing-ready";
 
 /**
  * Mọi section dưới màn hình đầu vào trang ở `opacity: 0` cho tới khi
@@ -46,6 +47,7 @@ async function revealEverything(page: Page) {
 test.describe("landing", () => {
   test("dải tin cậy, FAQ và hai trang giải pháp", async ({ page }) => {
     await page.goto("/");
+    await landingReady(page);
     // Trang công khai nằm trong `Providers` của ứng dụng, nên khi tải nó vẫn
     // gọi GET /config (trang marketing không còn gọi /auth/refresh). Lúc request
     // đó xong, React dựng lại nhánh cây và mọi node đang được giữ đều bị gỡ khỏi
@@ -100,6 +102,7 @@ test.describe("landing", () => {
     ).toBeVisible();
 
     await page.goto("/solutions/operations");
+    await landingReady(page);
     await expect(
       page.getByRole("heading", { level: 1, name: "Phân công rõ ràng. Tìm lại được dấu vết." }),
     ).toBeVisible();
@@ -118,6 +121,7 @@ test.describe("landing", () => {
 
     // Khối khoảng trống thị trường dẫn sang trang phân tích, và trang đó mở được.
     await page.goto("/");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
     const gap = page.getByRole("link", { name: "Đọc phân tích đầy đủ" });
     await gap.scrollIntoViewIfNeeded();
@@ -136,6 +140,7 @@ test.describe("landing", () => {
 
   test("đổi ngôn ngữ và chế độ sáng tối ngay trên header", async ({ page }) => {
     await page.goto("/");
+    await landingReady(page);
     await page.waitForLoadState("networkidle");
 
     // Tên nút cũng là một câu trong FAQ, nên hai control này được lấy trong
@@ -193,6 +198,7 @@ test.describe("landing", () => {
     test(`tương phản chữ đạt WCAG AA — ${mode}`, async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto("/");
+      await landingReady(page);
       await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
       await revealEverything(page);
 
@@ -204,11 +210,13 @@ test.describe("landing", () => {
       expect(home.fails, `trang chủ (${mode}): ${home.fails.join(" | ")}`).toEqual([]);
 
       await page.goto("/solutions/product");
+      await landingReady(page);
       await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
       const solution = await auditText(page);
       expect(solution.fails, `trang giải pháp (${mode}): ${solution.fails.join(" | ")}`).toEqual([]);
 
       await page.goto("/why-uniwork");
+      await landingReady(page);
       await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
       await revealEverything(page);
       const why = await auditText(page);
