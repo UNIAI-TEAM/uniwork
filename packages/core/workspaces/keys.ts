@@ -6,4 +6,6 @@ export const workspaceKeys = {
   allMembers: () => ["members"] as const,
   me: (wsId: string) => ["workspace-me", wsId] as const,
   myInvitations: () => ["my-invitations"] as const,
+  /** One invitation as its invitee sees it (spec 2026-10-13 §4.3). */
+  invitationPreview: (token: string) => ["invitation-preview", token] as const,
 };

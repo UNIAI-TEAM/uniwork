@@ -35,6 +35,56 @@
           "smallDialogs": "Các hộp thoại nhập liệu tránh mép màn hình nhỏ và sắp xếp lại phần tiêu đề để nội dung dễ thao tác hơn."
         },
         "note": "Kết nối email và các tính năng AI cần cấu hình tương ứng của tổ chức. Mỗi tính năng vẫn tuân theo quyền truy cập trong ứng dụng."
+      },
+      "v1_1_0": {
+        "title": "Dữ liệu tổ chức, Office và cập nhật Email Hub",
+        "summary": "Xuất và đặt lịch xóa dữ liệu tổ chức, khám phá UniWork Office, theo dõi phiên bản ứng dụng và sử dụng Email Hub, thanh toán VNPay ổn định hơn.",
+        "note": "Xuất và xóa dữ liệu tổ chức dành cho chủ sở hữu tổ chức. Trang Tài liệu phụ thuộc vào việc tổ chức có bật tính năng này. Nút tải bộ cài chỉ hiện với bản đã phát hành. Kết nối email và các tính năng AI vẫn cần cấu hình tương ứng của tổ chức.",
+        "features": {
+          "ca1d8c53d5022a921403f4dc38949d308db212f2e": "Chủ sở hữu có thể xuất dữ liệu nghiệp vụ của tổ chức thành tệp ZIP, đặt lịch xóa sau 5 ngày và hủy trước khi tác vụ chạy. Trong thời gian chờ xóa, thành viên không truy cập được; nhật ký hoạt động và hóa đơn được giữ lại.",
+          "cadea71f7d7b076297076d43eddb74258e3fbc453": "Trang Nhật ký cập nhật công khai tại /changelog liệt kê các phiên bản theo tháng với tính năng mới, cải tiến và sửa lỗi, có liên kết trên menu chính và chân trang.",
+          "c568278d78fe988cb444665922b5d161f58f487eb": "Trang giới thiệu UniWork Office tại /office với sáu trình soạn, ảnh màn hình thật và nút tải bộ cài theo hệ điều hành; chỉ bản cài đã phát hành mới hiện. Trang Tài liệu mới — thư mục, tạo tệp docx, pptx, pdf trống và tệp từ chat, việc, cuộc họp, Email Hub — dùng được khi tổ chức bật tính năng Tài liệu."
+        },
+        "improvements": {
+          "c71ffdf93b83f81b3b7b7bb3f6530b58373687b6e": "Trang giới thiệu hiển thị ảnh chụp thật của màn hình việc, trò chuyện, cuộc họp và trình soạn tài liệu, theo ngôn ngữ đang dùng và khớp giao diện sáng hoặc tối.",
+          "cb79dc17d1dbcc8783e58379bbf1ff2edb430d04a": "Email Hub tái sử dụng nội dung thư vừa tải trước trong 30 giây, giảm lượt tải lặp khi bạn di chuột qua danh sách.",
+          "c0b6f78a7b876b8a4c19fcb6d28edaf3c752019d4": "Email Hub tránh tải lại hộp thư nhiều lần cho cùng một sự kiện; yêu cầu tải danh sách không còn cần thiết được hủy."
+        },
+        "fixes": {
+          "c768fddab7062f11312bfa9bfd8d50c7967dac816": "Thanh toán VNPay được phản hồi bằng đúng mã xác nhận, nên giao dịch đã trả không còn bị coi là chưa xác nhận và gọi lại nhiều lần.",
+          "ccb2733aec4322d35334e953e23ad6058a0149565": "Thanh toán VNPay đã hoàn tất vẫn được ghi nhận khi liên kết thanh toán đã hết hạn hoặc được thay thế, cập nhật gói và tạo hóa đơn tương ứng.",
+          "c5e727e48bbd9c29c40c04b707315db20e6c086f1": "Khi phản hồi thanh toán từ VNPay không về, một lượt đối soát tự động kiểm tra lại giao dịch và áp dụng khoản đã trả, hoặc đánh dấu thất bại nếu chưa trả.",
+          "cbea7437a334f574eb0916083fe1108575338371d": "Quyền truy cập nội dung thư trong Email Hub được áp dụng nhất quán.",
+          "cd8d9d6735f802da39818b11f34d4484f1768faf0": "Tiêu đề thư gửi đi có dấu tiếng Việt được mã hóa đúng chuẩn nên không còn hiện sai ký tự ở phía người nhận.",
+          "c8ca4dcdc17f4c9a17b264412f20895eeaf2e2f40": "Kết nối IMAP có thời hạn chờ khi mở kết nối và đăng nhập, nên máy chủ thư không phản hồi sẽ báo lỗi thay vì treo.",
+          "c70e7e68ffc6f459dec9a14f590f82c1146f5d7b3": "Trả lời một thư trong mục Đã gửi điền đúng người nhận ban đầu thay vì điền chính bạn.",
+          "c0109dcd7ecfa62901b357636b12b2171e13e903a": "Phân trang thư mục Tạm ẩn không còn bỏ sót hoặc lặp lại thư.",
+          "c4ac1f76ba20df9ffe1062b6ce768a2734c0043c2": "Thông báo thư mới dừng gửi cho người đã rời tổ chức, bị vô hiệu hóa hoặc thuộc tổ chức đang bị đình chỉ.",
+          "c56a8b72a1d4332176ae1361423a64694da765366": "Số thư chưa đọc cập nhật đúng sau khi đọc hoặc đánh dấu thư ở những trang danh sách đã tải.",
+          "c63db9e50bf5f1ab1273abb619174f7ca2ad5bbdd": "Tạo nhiều việc từ tóm tắt email chạy trọn gói: lỗi giữa chừng không để lại việc thừa và vẫn thử lại được.",
+          "cd7bf6a7bd4323ce0c5ace8d31f2ac35d75916f6d": "Thư gửi đi giữ đúng dấu tiếng Việt và cách xuống dòng, kể cả khi phần nội dung HTML rất dài.",
+          "c7edda0f13968681d35798817688ff6abc3312a61": "Đổi sang thư khác khi AI đang tóm tắt không còn làm bản tóm tắt và việc cần làm của thư cũ hiện trên thư mới.",
+          "c872812edb8f905bd6add41ed8330ced0b92a52d4": "Trạng thái đang đồng bộ của thư mục không còn kẹt khi đổi bộ lọc giữa chừng.",
+          "c39042c585c161e0307083cc2b6d959e4cc34b522": "Ngắt kết nối hộp thư đang mở sẽ chuyển sang hộp thư còn lại mới nhất thay vì chọn lại chính hộp thư vừa gỡ.",
+          "c4449109cd71c872845a082d5e449db65c8608428": "Tải bộ cài UniWork Office ngay trên trang hiện tại, không mở rồi đóng một tab GitHub.",
+          "cebd6f5acb86f81fe3d9bbb0b1a2716f57fec8e34": "Số thư ở sidebar Email Hub được cập nhật sau khi chuyển, tạm hoãn, đánh dấu đã đọc hoặc đồng bộ hộp thư.",
+          "cfc9fab018432964c96177b0205d4d17b0a976ae9": "Tệp đính kèm dạng văn bản hoặc HTML không còn ghi đè nội dung chính của thư. Thư chỉ có nội dung trong tệp đính kèm vẫn đọc được.",
+          "cbaebb1de6eb919b01291da742a8707bd9adc46a3": "Giao dịch VNPay bị hủy hoặc lỗi được ghi nhận riêng, tránh để lần thanh toán sau ở trạng thái chờ vì bị nhầm là trùng lặp."
+        }
+      },
+      "v1_2_0": {
+        "title": "Cỡ chữ trong Cài đặt, kết nối trợ lý AI chỉ đọc và sửa lỗi thanh toán",
+        "summary": "Chọn cỡ chữ trong Cài đặt để đọc dễ hơn; kết nối Claude, ChatGPT hoặc Gemini để đọc việc, cuộc họp và workspace trong UniWork, với trang đồng ý và phần quản lý kết nối; cùng hai bản sửa cho số hóa đơn và hoàn tiền.",
+        "note": "Cỡ chữ lưu theo từng thiết bị và chưa áp dụng cho nội dung mở trong trình soạn Office. Kết nối trợ lý AI đang trong giai đoạn thử nghiệm: tổ chức phải được bật tính năng này và chủ sở hữu phải bật công tắc trong Cài đặt › Truy cập AI. Kết nối chỉ đọc dữ liệu, không tạo hay sửa dữ liệu trong UniWork. Thẻ Truy cập AI dành cho chủ sở hữu và quản trị viên.",
+        "features": {
+          "c2ed272790a5e7f71d9fd77926ad85854dc7df408": "Kết nối Claude, ChatGPT hoặc Gemini với UniWork để trợ lý AI đọc việc, cuộc họp và workspace của bạn ngay trong ứng dụng AI. Kết nối chỉ đọc, phải được bạn đồng ý trên trang xác nhận của UniWork, và trợ lý chỉ thấy đúng dữ liệu bạn được phép xem trong tổ chức đang chọn; danh sách việc kèm cuộc họp hôm nay và ngày mai.",
+          "ce480747bc1afa886cce9de6d91949902606cff8a": "Trong Cài đặt, thẻ Ứng dụng AI cho bạn xem và thu hồi từng kết nối trợ lý AI của mình; chủ sở hữu và quản trị viên có thêm thẻ Truy cập AI để bật hoặc tắt tính năng cho cả tổ chức và thu hồi mọi kết nối. Đặt lại mật khẩu, rời tổ chức hoặc xóa tài khoản đều thu hồi kết nối.",
+          "cefde3523923a9318a79928fb309010f00fe608cf": "Cài đặt › Tùy chọn có thêm mục Cỡ chữ với ba mức Mặc định, Lớn và Rất lớn, giúp đọc dễ hơn trên màn hình nhỏ hoặc khi cần chữ to. Mức đã chọn áp dụng ngay khi trang mở, lưu riêng cho từng thiết bị và đổi theo ở mọi tab của cùng trình duyệt; bố cục, khoảng cách và biểu tượng giữ nguyên."
+        },
+        "fixes": {
+          "cbb792c946bfaa4df7d8d15502548baa760b1739e": "Hai giao dịch thanh toán hoàn tất trong cùng một giây không còn trùng số hóa đơn, nên lần thanh toán sau không bị kẹt ở trạng thái chờ. Năm trong số hóa đơn tính theo giờ Việt Nam.",
+          "c75c5ddc68ad9e7a61ff80b2a4c0fb4518e068a25": "Khi hai yêu cầu hoàn tiền được gửi cùng lúc cho một giao dịch, chỉ một yêu cầu được xử lý; yêu cầu còn lại báo xung đột thay vì gửi thêm một lệnh hoàn tiền."
+        }
       }
     }
   },
@@ -150,6 +200,32 @@
       "emailUnknown": "Chưa có email",
       "libraryWorkspace": "Thư viện tài liệu"
     },
+    "connect": {
+      "eyebrow": "Kết nối trợ lý AI",
+      "title": "Cho phép {{client}} truy cập UniWork?",
+      "description": "Ứng dụng này sẽ đọc dữ liệu công việc của bạn trong tổ chức bạn chọn. Nó không thể tạo, sửa hay xóa gì.",
+      "verified": "Đã xác minh",
+      "unverified": "Chưa xác minh",
+      "unverifiedWarning": "UniWork chưa xác minh ứng dụng này. Chỉ tiếp tục nếu bạn vừa tự thêm nó.",
+      "redirectHost": "Mã đăng nhập sẽ gửi tới",
+      "organization": "Tổ chức",
+      "orgDisabled": "Quản trị viên chưa bật kết nối cho tổ chức này",
+      "noOrganization": "Chưa tổ chức nào của bạn bật kết nối trợ lý AI. Hãy nhờ quản trị viên bật trong Cài đặt › Truy cập AI.",
+      "shares": "Ứng dụng sẽ đọc được",
+      "shareTasks": "Công việc của bạn và công việc trong các workspace bạn tham gia, kèm bình luận",
+      "shareMeetings": "Cuộc họp và bản tóm tắt AI, không có bản ghi lời thoại",
+      "shareNot": "Không gồm tin nhắn chat và email",
+      "approve": "Cho phép",
+      "approving": "Đang cho phép…",
+      "loading": "Đang tải yêu cầu kết nối…",
+      "resultTitle": "Kết quả kết nối",
+      "approved": "Đã cho phép. Đang quay lại ứng dụng…",
+      "cancelled": "Đã hủy. Đang quay lại ứng dụng…",
+      "expired": "Yêu cầu kết nối đã hết hạn. Hãy thêm lại UniWork từ ứng dụng AI.",
+      "error": "Không mở được yêu cầu kết nối. Thử lại, hoặc thêm lại UniWork từ ứng dụng AI.",
+      "errorCode": "Ứng dụng AI gửi một yêu cầu UniWork không chấp nhận ({{code}}). Hãy thêm lại UniWork từ ứng dụng AI.",
+      "retry": "Thử lại"
+    },
     "forgot": {
       "title": "Quên mật khẩu",
       "subtitle": "Nhập email tài khoản, chúng tôi sẽ gửi link đặt lại.",
@@ -254,6 +330,8 @@
       "gone": "Lời mời đã được dùng, đã bị thu hồi, hoặc link không đúng.",
       "deactivated": "Tài khoản của bạn trong tổ chức này đang bị ngưng. Liên hệ quản trị viên để được mở lại.",
       "suspended": "Tổ chức này đang tạm ngưng hoạt động.",
+      "deletionScheduled": "Tổ chức này đang chờ xóa nên không nhận thêm thành viên.",
+      "askInviterHint": "Nếu bạn nghĩ đây là nhầm lẫn, hỏi lại người đã mời bạn.",
       "rateLimited": "Bạn thử quá nhiều lần. Chờ một lát rồi mở lại link.",
       "wrongAccount": "Lời mời này gửi tới một email khác với tài khoản bạn đang đăng nhập.",
       "wrongAccountHint": "Đăng nhập bằng email đã nhận lời mời rồi mở lại link.",
@@ -412,7 +490,9 @@
         "organization": "Thành viên tổ chức",
         "departments": "Phòng ban",
         "security": "Bảo mật",
-        "shortcuts": "Phím tắt"
+        "shortcuts": "Phím tắt",
+        "connectedApps": "Ứng dụng AI",
+        "aiAccess": "Truy cập AI"
       },
       "nav_label": "Mục cài đặt",
       "section_picker": "Chọn mục cài đặt",
@@ -469,6 +549,12 @@
       },
       "appearanceHint": "Sáng, tối hoặc theo hệ điều hành. Chỉ lưu trên thiết bị này.",
       "accentHint": "Màu của nút chính, liên kết và mục đang chọn. Chỉ lưu trên thiết bị này.",
+      "textSize": "Cỡ chữ",
+      "textSizeHint": "Cỡ chữ của toàn bộ ứng dụng. Chỉ lưu trên thiết bị này.",
+      "textSizeDefault": "Mặc định",
+      "textSizeLarge": "Lớn",
+      "textSizeXLarge": "Rất lớn",
+      "textSizeSample": "Aa",
       "languageHint": "Chỉ lưu trên trình duyệt này. Thiết bị khác giữ lựa chọn riêng.",
       "timezoneHint": "Lưu theo tài khoản, áp dụng trên mọi thiết bị. Email tóm tắt gửi lúc 08:00 theo múi giờ này.",
       "timezoneSearch": "Tìm thành phố hoặc UTC…",
@@ -1212,6 +1298,46 @@
       "load_error": "Không tải được danh sách thành viên.",
       "danger_title": "Vùng nguy hiểm",
       "leave_description": "Bạn sẽ mất quyền vào việc, cuộc họp và chat của workspace này. Muốn quay lại, cần có người mời bạn lần nữa."
+    },
+    "connectedApps": {
+      "title": "Ứng dụng AI đã kết nối",
+      "description": "Claude, ChatGPT, Gemini và các trợ lý AI khác bạn đã cho phép đọc dữ liệu UniWork.",
+      "connectTitle": "Kết nối trợ lý AI",
+      "connectBody": "Dán địa chỉ này vào phần thêm connector của Claude, ChatGPT hoặc Gemini CLI, rồi đăng nhập UniWork khi được hỏi.",
+      "copy": "Sao chép địa chỉ",
+      "copied": "Đã sao chép",
+      "section": "Ứng dụng đã kết nối",
+      "empty": "Chưa có ứng dụng AI nào được kết nối. Sao chép địa chỉ ở trên rồi dán vào ứng dụng AI để kết nối.",
+      "error": "Không tải được danh sách ứng dụng. Thử lại.",
+      "meta": "{{org}} · kết nối {{created}}",
+      "lastUsed": "dùng lần cuối {{when}}",
+      "verified": "Đã xác minh",
+      "revoke": "Thu hồi",
+      "revokeAria": "Thu hồi {{client}}",
+      "revokeTitle": "Thu hồi {{client}}?",
+      "revokeBody": "Ứng dụng mất quyền đọc dữ liệu UniWork ngay. Muốn dùng lại, bạn phải kết nối lại từ ứng dụng.",
+      "revoked": "Đã thu hồi {{client}}",
+      "revokeFailed": "Không thu hồi được. Thử lại."
+    },
+    "aiAccess": {
+      "title": "Truy cập của trợ lý AI",
+      "description": "Cho phép thành viên kết nối Claude, ChatGPT, Gemini để đọc công việc và cuộc họp của tổ chức.",
+      "adminOnly": "Chỉ owner và admin tổ chức xem được mục này.",
+      "toggleLabel": "Cho phép trợ lý AI bên ngoài truy cập",
+      "toggleDescription": "Dữ liệu chia sẻ: công việc, bình luận, cuộc họp và tóm tắt AI. Không gồm chat và email. Tắt sẽ chặn ngay mọi ứng dụng đã kết nối.",
+      "addressBody": "Thành viên dán địa chỉ này vào phần thêm connector của Claude, ChatGPT hoặc Gemini CLI. Gửi cho họ nếu mục Ứng dụng AI chưa hiện trong cài đặt của họ.",
+      "unavailable": "Tính năng chưa mở cho tổ chức của bạn.",
+      "saveFailed": "Không lưu được thay đổi. Thử lại.",
+      "grantsTitle": "Ứng dụng đã kết nối trong tổ chức",
+      "empty": "Chưa ai kết nối ứng dụng AI. Mỗi thành viên tự kết nối trong Cài đặt › Ứng dụng AI của mình.",
+      "error": "Không tải được danh sách. Thử lại.",
+      "meta": "{{user}} · kết nối {{created}}",
+      "revoke": "Thu hồi",
+      "revokeAria": "Thu hồi {{client}} của {{user}}",
+      "revokeTitle": "Thu hồi {{client}}?",
+      "revokeBody": "Ứng dụng của {{user}} mất quyền đọc dữ liệu tổ chức ngay.",
+      "revoked": "Đã thu hồi {{client}}",
+      "revokeFailed": "Không thu hồi được. Thử lại."
     },
     "state": {
       "load_error": "Không tải được phần này.",
@@ -3447,8 +3573,6 @@
     "sidebar_filter_empty_channel_hint": "Tìm kênh để tham gia, hoặc tạo kênh mới.",
     "sidebar_result_count_one": "{{count}} cuộc trò chuyện",
     "sidebar_result_count_other": "{{count}} cuộc trò chuyện",
-    "invite_joining": "Đang tham gia…",
-    "invite_join_failed": "Không tham gia được workspace. Thử lại.",
     "no_conversation_hint_hidden": "Danh sách trò chuyện đang ẩn. Hiện lại để mở một cuộc trò chuyện.",
     "group_name_optional_label": "Tên nhóm (tùy chọn)",
     "errors": {
@@ -4207,7 +4331,7 @@
       "action": "Rời tổ chức",
       "done": "Đã rời tổ chức",
       "confirm_title": "Rời {{name}}?",
-      "confirm_body": "Bạn sẽ mất quyền vào mọi workspace trong {{name}}. Muốn quay lại, bạn cần một quản trị mời lại."
+      "confirm_body": "Bạn mất quyền vào mọi workspace trong {{name}} ngay lập tức. Muốn quay lại, cần một quản trị mời lại."
     },
     "invitations": {
       "title": "Mời vào tổ chức",
@@ -4230,30 +4354,38 @@
       "load_error": "Không tải được danh sách lời mời."
     },
     "transfer": {
-      "title": "Chuyển quyền chủ sở hữu",
+      "title": "Chuyển quyền sở hữu",
       "description": "Chủ sở hữu mới toàn quyền với tổ chức. Bạn trở thành quản trị và không tự lấy lại được.",
       "action": "Chuyển quyền",
       "new_owner": "Chủ sở hữu mới",
+      "pick_placeholder": "Chọn thành viên",
       "confirm_label": "Gõ tên tổ chức để xác nhận",
-      "confirm_hint": "Gõ đúng “{{name}}”.",
       "password_label": "Mật khẩu hiện tại của bạn",
       "no_candidate": "Chưa có thành viên nào đang hoạt động để nhận quyền.",
-      "done": "Đã chuyển quyền chủ sở hữu",
-      "confirm_mismatch": "Chưa khớp với “{{name}}”.",
+      "done": "Đã chuyển quyền sở hữu",
+      "confirm_mismatch": "Chưa khớp với \"{{name}}\".",
       "loading_candidates": "Đang tải danh sách thành viên…",
-      "candidates_error": "Không tải được danh sách thành viên để chọn."
+      "candidates_error": "Không tải được danh sách thành viên để chọn.",
+      "confirm_title": "Chuyển quyền sở hữu {{name}}?",
+      "confirm_prompt": "Gõ <v>{{name}}</v> vào ô dưới.",
+      "consequences": {
+        "new_owner": "Người bạn chọn trở thành chủ sở hữu, toàn quyền với tổ chức.",
+        "you_admin": "Bạn trở thành quản trị.",
+        "no_undo": "Bạn không tự lấy lại quyền sở hữu được."
+      }
     },
     "deactivated": {
       "title": "Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này",
       "description": "Quản trị tổ chức đã tạm dừng quyền truy cập của bạn. Dữ liệu bạn đã tạo vẫn còn. Liên hệ quản trị để được mở lại.",
-      "workspaces_link": "Xem tổ chức khác"
+      "get_started_link": "Tạo hoặc tham gia tổ chức khác"
     },
     "danger": {
       "title": "Vùng nguy hiểm",
-      "description": "Những thao tác này đổi người nắm tổ chức hoặc đưa bạn ra khỏi tổ chức."
+      "description": "Những thao tác này đổi người nắm tổ chức hoặc đưa bạn ra khỏi tổ chức.",
+      "description_member": "Rời tổ chức sẽ đưa bạn ra khỏi mọi workspace trong đó."
     },
     "reasons": {
-      "leave_last_owner": "Bạn là chủ sở hữu. Chuyển quyền chủ sở hữu cho người khác trước khi rời.",
+      "leave_last_owner": "Bạn là chủ sở hữu. Chuyển quyền sở hữu cho người khác trước khi rời.",
       "last_owner": "Quyền của chủ sở hữu chỉ đổi bằng cách chuyển quyền.",
       "member_deactivated": "Tài khoản của bạn trong tổ chức này đang bị vô hiệu hóa.",
       "not_org_member": "Bạn không còn là thành viên của tổ chức này.",
@@ -4262,17 +4394,106 @@
       "not_admin_role": "Chỉ chủ sở hữu và quản trị thực hiện được thao tác này.",
       "not_owner_role": "Chỉ chủ sở hữu tổ chức thực hiện được thao tác này.",
       "not_resource_owner": "Bạn không thực hiện được thao tác này với chính mình.",
-      "fallback": "Bạn chưa thực hiện được thao tác này."
+      "fallback": "Bạn chưa thực hiện được thao tác này.",
+      "leave_sole_owner": "Bạn là chủ sở hữu và là thành viên duy nhất. Đóng tổ chức thay vì rời.",
+      "organization_has_members": "Tổ chức vẫn còn thành viên khác. Chuyển quyền sở hữu trước khi đóng."
+    },
+    "close": {
+      "title": "Đóng tổ chức",
+      "description": "Lưu trữ tổ chức và rời khỏi đó. Workspace và dữ liệu được giữ nguyên, nhưng không ai vào được nữa.",
+      "action": "Đóng tổ chức",
+      "confirm_title": "Đóng {{name}}?",
+      "confirm_body": "{{name}} sẽ được lưu trữ: mọi workspace và dữ liệu còn nguyên nhưng không ai truy cập được, kể cả bạn. Chỉ bộ phận hỗ trợ khôi phục được. Lời mời đang chờ bị thu hồi và gói trả phí bị hủy.",
+      "confirm_label": "Gõ đường dẫn tổ chức để xác nhận",
+      "confirm_hint": "Gõ đúng \"{{slug}}\".",
+      "confirm_mismatch": "Chưa khớp với \"{{slug}}\".",
+      "done": "Đã đóng tổ chức",
+      "confirm_lede": "Không có gì bị xóa, nhưng tổ chức ngừng hoạt động.",
+      "confirm_prompt": "Gõ <v>{{slug}}</v> vào ô dưới.",
+      "consequences": {
+        "archived": "{{name}} được lưu trữ: mọi workspace và dữ liệu còn nguyên.",
+        "no_access": "Không ai mở được nữa, kể cả bạn.",
+        "restore": "Chỉ bộ phận hỗ trợ khôi phục được.",
+        "billing": "Lời mời đang chờ bị thu hồi và gói trả phí bị hủy."
+      }
     }
   },
   "invitations": {
     "title": "Bạn có lời mời",
-    "subtitle": "Tham gia để bắt đầu làm việc cùng đồng nghiệp.",
+    "list_title": "Lời mời đang chờ bạn",
+    "subtitle": "Mở một lời mời để xem tổ chức, vai trò và tham gia.",
+    "loading_description": "Đang mở lời mời của bạn.",
     "invitedBy": "{{name}} mời bạn vào",
     "join": "Tham gia",
-    "joinAll": "Tham gia tất cả",
     "empty": "Không có lời mời nào",
-    "role": "với vai trò {{role}}"
+    "view": "Xem",
+    "viewLabel": "Xem lời mời vào {{name}}",
+    "expires_on": "hết hạn <time>{{date}}</time>",
+    "expires_soon": "Sắp hết hạn",
+    "load_error": "Không tải được danh sách lời mời.",
+    "see_all": "Xem lời mời của tôi",
+    "preview": {
+      "title": "Tham gia {{name}}",
+      "description": "Bạn được mời tham gia tổ chức này.",
+      "description_inviter": "{{inviter}} mời bạn tham gia tổ chức này.",
+      "organization": "Tổ chức",
+      "workspace": "Workspace",
+      "no_workspace": "Chưa vào workspace nào. Bạn chọn workspace sau khi tham gia.",
+      "role": "Vai trò",
+      "inviter": "Người mời",
+      "expiry": "Thời hạn",
+      "expires_in_one": "Còn {{count}} ngày",
+      "expires_in_other": "Còn {{count}} ngày",
+      "join": "Tham gia"
+    },
+    "gone": {
+      "title": "Lời mời không còn hiệu lực",
+      "expired": "Lời mời đã hết hạn.",
+      "revoked": "Lời mời đã bị thu hồi.",
+      "accepted": "Lời mời đã được dùng.",
+      "still_in": "Bạn vẫn ở {{name}}, không có gì thay đổi.",
+      "hint_expired": "Lời mời chỉ có hiệu lực trong một thời gian. Nhờ người mời gửi lại link mới.",
+      "hint_revoked": "Người mời đã thu hồi lời mời này. Nếu vẫn cần tham gia, nhờ họ gửi lời mời mới.",
+      "hint_accepted": "Mỗi lời mời chỉ dùng được một lần. Nhờ người mời gửi lại link mới nếu bạn cần."
+    },
+    "switch": {
+      "title": "Chuyển sang {{name}}",
+      "description": "Mỗi tài khoản thuộc một tổ chức. Tham gia {{name}} nghĩa là rời tổ chức hiện tại.",
+      "steps_label": "Các bước chuyển tổ chức",
+      "step_position": "Bước {{current}} trên {{total}}",
+      "step_conflict": "Tổ chức hiện tại",
+      "step_resolve": "Xử lý tổ chức cũ",
+      "step_confirm": "Xác nhận",
+      "conflict_heading": "Bạn đang thuộc {{names}}",
+      "route_label": "Chuyển từ {{from}} sang {{to}}",
+      "now": "Hiện tại",
+      "after": "Sau khi chuyển",
+      "role_as": "Vai trò: {{role}}",
+      "lose_heading": "Bạn sẽ không còn vào được {{name}}",
+      "lose_kept": "Những gì bạn đã tạo vẫn ở lại đó.",
+      "resolve_heading": "Xử lý tổ chức cũ",
+      "changed": "Tình hình đã thay đổi trong lúc bạn thao tác. Xem lại từng mục dưới đây.",
+      "leave_body": "Bạn rời {{name}}, tổ chức vẫn hoạt động bình thường.",
+      "leave_confirm": "Tôi muốn rời {{name}}",
+      "transfer_body": "Bạn là chủ sở hữu của {{name}}. Chuyển quyền sở hữu cho một thành viên khác, rồi bạn rời tổ chức.",
+      "close_body": "Bạn là thành viên duy nhất của {{name}}, nên tổ chức sẽ được đóng.",
+      "close_badge": "Đóng tổ chức",
+      "blocked": "{{name}} đang tạm ngưng nên chưa chuyển quyền sở hữu hay đóng được. Liên hệ bộ phận hỗ trợ để được giúp.",
+      "unknown": "Chưa xử lý được {{name}} ở trang này. Tải lại trang để thử lại.",
+      "incomplete": "Hoàn tất từng mục ở trên để tiếp tục.",
+      "blocked_reason": "Chưa thể tiếp tục khi còn tổ chức đang tạm ngưng.",
+      "wrong_password": "Mật khẩu chưa đúng. Nhập lại để chuyển quyền sở hữu.",
+      "no_password": "Chuyển quyền sở hữu {{name}} cần xác nhận bằng mật khẩu, nhưng tài khoản của bạn chưa có mật khẩu (bạn đăng nhập bằng Google). Liên hệ bộ phận hỗ trợ để được giúp.",
+      "no_password_reason": "Chưa thể tiếp tục khi tài khoản chưa có mật khẩu.",
+      "confirm_heading": "Xác nhận chuyển tổ chức",
+      "confirm_leave": "Rời {{name}}",
+      "confirm_transfer": "Chuyển quyền sở hữu {{name}} cho {{person}}, rồi rời tổ chức",
+      "confirm_close": "Đóng {{name}}",
+      "confirm_join": "Tham gia {{name}} với vai trò {{role}}",
+      "confirm_note": "Mọi bước diễn ra cùng lúc. Nếu một bước không thành, bạn vẫn ở tổ chức hiện tại như cũ.",
+      "action": "Chuyển sang {{name}}",
+      "busy": "Đang có một thay đổi khác với tài khoản của bạn. Thử lại sau giây lát."
+    }
   },
   "onboarding": {
     "step_nav": {
@@ -4347,16 +4568,14 @@
     },
     "step_organization": {
       "headline_first": "Đặt tên tổ chức của bạn.",
-      "headline_resume": "Tiếp tục với {{name}}, hoặc tạo tổ chức khác.",
-      "lede_first": "Tổ chức là công ty hoặc đội nhóm; mọi workspace nằm trong đó. Bạn có thể tạo thêm sau.",
-      "lede_resume": "Chọn tổ chức bạn đã thuộc, hoặc tạo tổ chức mới.",
+      "headline_resume": "Tiếp tục với {{name}}.",
+      "lede_first": "Tổ chức là công ty hoặc đội nhóm; mọi workspace nằm trong đó.",
+      "lede_resume": "Mỗi tài khoản thuộc một tổ chức. Workspace mới nằm trong tổ chức bạn chọn.",
       "name_label": "Tên tổ chức",
       "name_placeholder": "Unicom, Đội Marketing, Lớp 12A…",
       "url_label": "Đường dẫn",
       "slug_placeholder": "unicom",
-      "create_new_title": "Tạo tổ chức mới",
-      "create_new_subtitle": "Bắt đầu một tổ chức riêng",
-      "hint_pick": "Chọn tổ chức hoặc tạo mới.",
+      "hint_pick": "Chọn tổ chức để tiếp tục.",
       "hint_name_first": "Đặt tên tổ chức để tạo.",
       "hint_creating": "Sẽ tạo {{name}}.",
       "hint_creating_pending": "Đang tạo {{name}}…",
@@ -4365,15 +4584,22 @@
       "cta_create_named": "Tạo {{name}}",
       "cta_creating": "Đang tạo…",
       "cta_open": "Tiếp tục với {{name}}",
-      "slug_taken_error": "Định danh tổ chức này đã có người dùng.",
-      "headline_resume_many": "Chọn tổ chức của bạn, hoặc tạo tổ chức khác.",
-      "slug_invalid_error": "Định danh không hợp lệ: chữ thường, số và dấu gạch ngang, 2–40 ký tự.",
+      "slug_taken_error": "Đường dẫn này đã có người dùng.",
+      "headline_resume_many": "Chọn tổ chức của bạn.",
+      "slug_invalid_error": "Đường dẫn không hợp lệ: chữ thường, số và dấu gạch ngang, 2–40 ký tự.",
       "hint_slug_needed": "Đặt đường dẫn cho tổ chức để tạo.",
-      "create_failed_toast": "Không tạo được tổ chức. Vui lòng thử lại.",
+      "create_failed_toast": "Không tạo được tổ chức. Thử lại.",
       "picker_label": "Chọn tổ chức",
       "url_preview_label": "Đường dẫn tổ chức",
       "url_preview_prefix": "Mọi thứ của tổ chức này nằm dưới ",
-      "url_preview_suffix": "."
+      "url_preview_suffix": ".",
+      "manage_organization": "Quản lý tổ chức",
+      "lede_resume_one": "Workspace mới sẽ nằm trong {{name}}. Mỗi tài khoản thuộc một tổ chức.",
+      "resume_other_org": "Cần tổ chức khác? Rời hoặc đóng {{name}} trước.",
+      "already_member_title": "Bạn đã thuộc {{name}}",
+      "already_member_title_unnamed": "Bạn đã thuộc một tổ chức",
+      "already_member_body": "Mỗi tài khoản chỉ thuộc một tổ chức. Muốn tạo tổ chức mới, rời hoặc đóng tổ chức hiện tại trước.",
+      "already_member_hint": "Tổ chức của bạn đã có sẵn."
     },
     "step_workspace": {
       "headline_first": "Đặt tên workspace.",
@@ -4450,6 +4676,19 @@
       "save_failed": "Không lưu được câu trả lời",
       "skip_failed": "Không thể hoàn tất phần khởi đầu",
       "complete_failed": "Không thể hoàn tất. Vui lòng thử lại."
+    },
+    "noOrganization": {
+      "title": "Bạn chưa thuộc tổ chức nào",
+      "description": "Mỗi tài khoản thuộc một tổ chức. Tạo tổ chức của riêng bạn, hoặc tham gia tổ chức đã mời bạn.",
+      "held_title": "Bạn đang thuộc {{name}}",
+      "held_description": "Mỗi tài khoản thuộc một tổ chức, nên bạn chưa thể tạo tổ chức mới. Bạn vẫn có thể mở lời mời của tổ chức khác.",
+      "create_title": "Tạo tổ chức",
+      "create_body": "Bắt đầu tổ chức và workspace đầu tiên. Bạn là chủ sở hữu.",
+      "create_action": "Tạo tổ chức",
+      "join_title": "Tham gia tổ chức",
+      "join_body": "Mở một lời mời để xem và tham gia.",
+      "join_empty_title": "Chưa có lời mời nào",
+      "join_empty_body": "Nhờ quản trị viên của tổ chức mời địa chỉ <email>{{email}}</email>."
     }
   },
   "ui": {
@@ -4972,7 +5211,7 @@
     "suspended": {
       "title": "Tổ chức đang tạm ngưng",
       "description": "Tổ chức này tạm thời không truy cập được. Liên hệ chủ sở hữu tổ chức để biết thêm.",
-      "workspaces_link": "Về danh sách workspace"
+      "get_started_link": "Tham gia tổ chức khác"
     },
     "overview": {
       "title": "Tổng quan",

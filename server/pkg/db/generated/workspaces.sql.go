@@ -137,28 +137,59 @@ func (q *Queries) DeleteWorkspaceMember(ctx context.Context, arg DeleteWorkspace
 	return err
 }
 
-const getInvitationByToken = `-- name: GetInvitationByToken :one
-SELECT id, workspace_id, email, role, token, expires_at, accepted_at, created_at, organization_id, org_role, invited_by, revoked_at FROM invitations
-WHERE token = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+const getInvitationByTokenAnyState = `-- name: GetInvitationByTokenAnyState :one
+SELECT i.id, i.organization_id, i.workspace_id, i.email, i.role, i.org_role,
+       i.expires_at, i.accepted_at, i.revoked_at,
+       o.name AS organization_name, o.slug AS organization_slug,
+       w.name AS workspace_name, w.slug AS workspace_slug,
+       u.display_name AS invited_by_name
+FROM invitations i
+JOIN organizations o ON o.id = i.organization_id
+LEFT JOIN workspaces w ON w.id = i.workspace_id
+LEFT JOIN users u ON u.id = i.invited_by
+WHERE i.token = $1
 `
 
+type GetInvitationByTokenAnyStateRow struct {
+	ID               string             `json:"id"`
+	OrganizationID   string             `json:"organization_id"`
+	WorkspaceID      pgtype.Text        `json:"workspace_id"`
+	Email            string             `json:"email"`
+	Role             string             `json:"role"`
+	OrgRole          string             `json:"org_role"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	AcceptedAt       pgtype.Timestamptz `json:"accepted_at"`
+	RevokedAt        pgtype.Timestamptz `json:"revoked_at"`
+	OrganizationName string             `json:"organization_name"`
+	OrganizationSlug string             `json:"organization_slug"`
+	WorkspaceName    pgtype.Text        `json:"workspace_name"`
+	WorkspaceSlug    pgtype.Text        `json:"workspace_slug"`
+	InvitedByName    pgtype.Text        `json:"invited_by_name"`
+}
+
 // tenant: token
-func (q *Queries) GetInvitationByToken(ctx context.Context, token string) (Invitation, error) {
-	row := q.db.QueryRow(ctx, getInvitationByToken, token)
-	var i Invitation
+// The invitation page reads the invitation whatever its state, so it can say
+// why a link no longer works, with the names the invitee is shown: the
+// organization, the workspace when there is one, and who sent it. Unlocked:
+// accepting reads it again under LockInvitationByToken.
+func (q *Queries) GetInvitationByTokenAnyState(ctx context.Context, token string) (GetInvitationByTokenAnyStateRow, error) {
+	row := q.db.QueryRow(ctx, getInvitationByTokenAnyState, token)
+	var i GetInvitationByTokenAnyStateRow
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.WorkspaceID,
 		&i.Email,
 		&i.Role,
-		&i.Token,
+		&i.OrgRole,
 		&i.ExpiresAt,
 		&i.AcceptedAt,
-		&i.CreatedAt,
-		&i.OrganizationID,
-		&i.OrgRole,
-		&i.InvitedBy,
 		&i.RevokedAt,
+		&i.OrganizationName,
+		&i.OrganizationSlug,
+		&i.WorkspaceName,
+		&i.WorkspaceSlug,
+		&i.InvitedByName,
 	)
 	return i, err
 }
@@ -554,7 +585,7 @@ FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
 LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $1
 LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = $1
-WHERE m.user_id IS NOT NULL OR om.role IN ('owner','admin')
+WHERE (m.user_id IS NOT NULL OR om.role IN ('owner','admin')) AND o.status <> 'archived'
 ORDER BY w.created_at, w.id
 `
 
@@ -575,6 +606,8 @@ type ListWorkspacesForUserRow struct {
 
 // tenant: self
 // Workspace user là thành viên trực tiếp, HOẶC thuộc org mà user là owner/admin.
+// An archived organization (closed or deleted) keeps its workspace rows for a
+// restore (ADR 0032 D4), but nobody can open them, so they are not listed.
 func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]ListWorkspacesForUserRow, error) {
 	rows, err := q.db.Query(ctx, listWorkspacesForUser, userID)
 	if err != nil {
@@ -608,14 +641,46 @@ func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]L
 	return items, nil
 }
 
-const markInvitationAccepted = `-- name: MarkInvitationAccepted :exec
-UPDATE invitations SET accepted_at = now() WHERE id = $1
+const lockInvitationByToken = `-- name: LockInvitationByToken :one
+SELECT id, workspace_id, email, role, token, expires_at, accepted_at, created_at, organization_id, org_role, invited_by, revoked_at FROM invitations WHERE token = $1 FOR UPDATE
+`
+
+// tenant: token
+// Accepting reads the invitation under a row lock, whatever its state, so a
+// revoke or a second accept running at the same moment queues behind it.
+func (q *Queries) LockInvitationByToken(ctx context.Context, token string) (Invitation, error) {
+	row := q.db.QueryRow(ctx, lockInvitationByToken, token)
+	var i Invitation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Email,
+		&i.Role,
+		&i.Token,
+		&i.ExpiresAt,
+		&i.AcceptedAt,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.OrgRole,
+		&i.InvitedBy,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const markInvitationAccepted = `-- name: MarkInvitationAccepted :execrows
+UPDATE invitations SET accepted_at = now()
+WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
 `
 
 // tenant: by-id
-func (q *Queries) MarkInvitationAccepted(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, markInvitationAccepted, id)
-	return err
+// Zero rows means the invitation stopped being pending; the accept rolls back.
+func (q *Queries) MarkInvitationAccepted(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, markInvitationAccepted, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const revokeInvitation = `-- name: RevokeInvitation :one
@@ -647,6 +712,21 @@ func (q *Queries) RevokeInvitation(ctx context.Context, arg RevokeInvitationPara
 		&i.RevokedAt,
 	)
 	return i, err
+}
+
+const revokePendingInvitationsForOrg = `-- name: RevokePendingInvitationsForOrg :execrows
+UPDATE invitations SET revoked_at = now()
+WHERE organization_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL
+`
+
+// A closed organization takes nobody in: its open invitations are revoked
+// with it, and the rows stay for the trail.
+func (q *Queries) RevokePendingInvitationsForOrg(ctx context.Context, organizationID string) (int64, error) {
+	result, err := q.db.Exec(ctx, revokePendingInvitationsForOrg, organizationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setWorkspaceMatrixRoomID = `-- name: SetWorkspaceMatrixRoomID :one

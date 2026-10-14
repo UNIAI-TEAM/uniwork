@@ -47,6 +47,7 @@ describe("PreferencesTab", () => {
     renderTab();
     expect(screen.getByRole("group", { name: "Chế độ hiển thị" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Màu nhấn" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Cỡ chữ" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Giao diện" })).toBeNull();
     expect(screen.getByText(/Chỉ lưu trên trình duyệt này/)).toBeInTheDocument();
     expect(screen.getByText(/Lưu theo tài khoản/)).toBeInTheDocument();

@@ -1,14 +1,110 @@
 [
   {
+    "id": "release-1-2-0",
+    "version": "1.2.0",
+    "date": "2026-10-13",
+    "sourceRef": "f4e2bb9643a298fd11584f44f1cd6a61ba0efc2a",
+    "contentKey": "v1_2_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c2ed272790a5e7f71d9fd77926ad85854dc7df408",
+          "ce480747bc1afa886cce9de6d91949902606cff8a",
+          "cefde3523923a9318a79928fb309010f00fe608cf"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "cbb792c946bfaa4df7d8d15502548baa760b1739e",
+          "c75c5ddc68ad9e7a61ff80b2a4c0fb4518e068a25"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-1-0",
+    "version": "1.1.0",
+    "date": "2026-10-13",
+    "sourceRef": "4449109cd71c872845a082d5e449db65c8608428",
+    "contentKey": "v1_1_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "ca1d8c53d5022a921403f4dc38949d308db212f2e",
+          "cadea71f7d7b076297076d43eddb74258e3fbc453",
+          "c568278d78fe988cb444665922b5d161f58f487eb"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "c71ffdf93b83f81b3b7b7bb3f6530b58373687b6e",
+          "cb79dc17d1dbcc8783e58379bbf1ff2edb430d04a",
+          "c0b6f78a7b876b8a4c19fcb6d28edaf3c752019d4"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c768fddab7062f11312bfa9bfd8d50c7967dac816",
+          "ccb2733aec4322d35334e953e23ad6058a0149565",
+          "c5e727e48bbd9c29c40c04b707315db20e6c086f1",
+          "cbea7437a334f574eb0916083fe1108575338371d",
+          "cd8d9d6735f802da39818b11f34d4484f1768faf0",
+          "c8ca4dcdc17f4c9a17b264412f20895eeaf2e2f40",
+          "c70e7e68ffc6f459dec9a14f590f82c1146f5d7b3",
+          "c0109dcd7ecfa62901b357636b12b2171e13e903a",
+          "c4ac1f76ba20df9ffe1062b6ce768a2734c0043c2",
+          "c56a8b72a1d4332176ae1361423a64694da765366",
+          "c63db9e50bf5f1ab1273abb619174f7ca2ad5bbdd",
+          "cd7bf6a7bd4323ce0c5ace8d31f2ac35d75916f6d",
+          "c7edda0f13968681d35798817688ff6abc3312a61",
+          "c872812edb8f905bd6add41ed8330ced0b92a52d4",
+          "c39042c585c161e0307083cc2b6d959e4cc34b522",
+          "c4449109cd71c872845a082d5e449db65c8608428",
+          "cebd6f5acb86f81fe3d9bbb0b1a2716f57fec8e34",
+          "cfc9fab018432964c96177b0205d4d17b0a976ae9",
+          "cbaebb1de6eb919b01291da742a8707bd9adc46a3"
+        ]
+      }
+    ]
+  },
+  {
     "id": "release-1-0-0",
     "version": "1.0.0",
     "date": "2026-10-12",
     "sourceRef": "4b7bd3fc082e033c317b9794b4d9b6a949cb92f0",
     "contentKey": "initial",
     "sections": [
-      { "kind": "features", "items": ["work", "chat", "meetings", "office", "email", "ask"] },
-      { "kind": "improvements", "items": ["senderImages", "connectionForms", "publicPages"] },
-      { "kind": "fixes", "items": ["mailboxStatus", "smallDialogs"] }
+      {
+        "kind": "features",
+        "items": [
+          "work",
+          "chat",
+          "meetings",
+          "office",
+          "email",
+          "ask"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "senderImages",
+          "connectionForms",
+          "publicPages"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "mailboxStatus",
+          "smallDialogs"
+        ]
+      }
     ]
   }
 ]

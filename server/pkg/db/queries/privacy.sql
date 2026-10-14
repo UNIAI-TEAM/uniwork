@@ -111,12 +111,14 @@ UPDATE organization_members SET
 WHERE organization_id = $1 AND deactivated_at IS NULL;
 
 -- name: CancelOrganizationSubscriptions :exec
+-- Privacy deletion cancels as the system; closing an organization cancels as
+-- the owner who closed it.
 UPDATE subscriptions SET
   status = 'canceled',
   canceled_at = COALESCE(canceled_at, now()),
   updated_at = now(),
   updated_by = $2,
-  updated_by_kind = 'system'
+  updated_by_kind = sqlc.arg(updated_by_kind)
 WHERE organization_id = $1 AND status <> 'canceled';
 
 -- name: AnonymizeOrganization :exec

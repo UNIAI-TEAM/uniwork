@@ -100,7 +100,7 @@ func TestAcceptOrganizationInviteAddsMemberWithoutAWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token)
+	result, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,8 +119,16 @@ func TestAcceptOrganizationInviteAddsMemberWithoutAWorkspace(t *testing.T) {
 	if err != nil || !u.OnboardedAt.Valid {
 		t.Fatalf("onboarded: %v", err)
 	}
-	// The token is single use.
-	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token); !errors.Is(err, ErrNotFound) {
+	// The token is single use: a second call by the member it admitted is the
+	// retry of a lost response and answers the same (EC-12); somebody else
+	// holding the link gets nothing (the mailbox check, then 410).
+	if again, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token, nil); err != nil || again.Organization.ID != f.org.ID {
+		t.Fatalf("retried token: %v %+v", err, again)
+	}
+	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.invitee.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token, nil); !codedIs(err, "invitation_accepted") {
 		t.Fatalf("reused token: %v", err)
 	}
 }
@@ -149,7 +157,7 @@ func TestADeactivatedMemberIsNotReAdmittedByAnInvitation(t *testing.T) {
 	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.invitee.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("the invitee is not a member yet: %v", err)
 	}
-	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, other[0].Token); err != nil {
+	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, other[0].Token, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.invitee.ID); err != nil {
@@ -173,7 +181,7 @@ func TestRevokeInvitationStopsTheToken(t *testing.T) {
 	if err := f.svc.RevokeInvitation(f.ctx, f.admin.ID, f.org.ID, invs[0].ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token); !errors.Is(err, ErrNotFound) {
+	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token, nil); !codedIs(err, "invitation_revoked") {
 		t.Fatalf("revoked token still works: %v", err)
 	}
 	pending, err := f.svc.PendingInvitations(f.ctx, f.owner.ID, f.org.ID)
@@ -250,7 +258,7 @@ func TestInvitationIsRedeemedOnlyByTheInvitedAddress(t *testing.T) {
 	}
 	token := invs[0].Token
 
-	_, err = f.ws.AcceptInvite(f.ctx, f.member.ID, token)
+	_, err = f.ws.AcceptInvite(f.ctx, f.member.ID, token, nil)
 	if !codedIs(err, "invitation_email_mismatch") || codedStatus(err) != 403 {
 		t.Fatalf("accept by another account = %v, want 403 invitation_email_mismatch", err)
 	}
@@ -258,7 +266,7 @@ func TestInvitationIsRedeemedOnlyByTheInvitedAddress(t *testing.T) {
 		t.Fatalf("the other account's role moved to %q (%v); the refused accept must change nothing", m.Role, err)
 	}
 
-	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, token); err != nil {
+	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, token, nil); err != nil {
 		t.Fatalf("accept by the invitee: %v", err)
 	}
 	if m, err := f.q.GetOrganizationMember(f.ctx, db.GetOrganizationMemberParams{OrganizationID: f.org.ID, UserID: f.invitee.ID}); err != nil || m.Role != OrgRoleAdmin {
@@ -280,7 +288,7 @@ func TestInvitationNeedsTheProvenAddress(t *testing.T) {
 	token := invs[0].Token
 
 	lookalike := registerVerified(t, f.q, as, "ſam@example.com", "Giả")
-	if _, err := f.ws.AcceptInvite(f.ctx, lookalike.ID, token); !codedIs(err, "invitation_email_mismatch") {
+	if _, err := f.ws.AcceptInvite(f.ctx, lookalike.ID, token, nil); !codedIs(err, "invitation_email_mismatch") {
 		t.Fatalf("accept by a look-alike address = %v, want invitation_email_mismatch", err)
 	}
 
@@ -291,7 +299,7 @@ func TestInvitationNeedsTheProvenAddress(t *testing.T) {
 	if _, err := f.ws.PendingInvitations(f.ctx, squatter.User.ID); !errors.Is(err, ErrEmailUnverified) {
 		t.Fatalf("pending invitations of an unproven address = %v, want ErrEmailUnverified", err)
 	}
-	if _, err := f.ws.AcceptInvite(f.ctx, squatter.User.ID, token); !errors.Is(err, ErrEmailUnverified) {
+	if _, err := f.ws.AcceptInvite(f.ctx, squatter.User.ID, token, nil); !errors.Is(err, ErrEmailUnverified) {
 		t.Fatalf("accept by an unproven address = %v, want ErrEmailUnverified", err)
 	}
 	for _, id := range []string{lookalike.ID, squatter.User.ID} {

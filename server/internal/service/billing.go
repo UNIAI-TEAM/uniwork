@@ -123,8 +123,13 @@ func (s *BillingService) requireOwner(ctx context.Context, userID, orgID string)
 	return platformAdmin, nil
 }
 
+// planIsPaid is true when an owner must not take the plan through ChangePlan.
+// A listed price above zero needs checkout. A missing price is a "contact us"
+// plan: it is not free, and treating it as free would activate it forever
+// with no invoice and no past-due sweep. A zero price is a free plan and
+// stays a self-serve change. Platform staff skip this gate.
 func planIsPaid(p db.Plan) bool {
-	return p.PriceAmount.Valid && p.PriceAmount.Int64 > 0
+	return !p.PriceAmount.Valid || p.PriceAmount.Int64 > 0
 }
 
 func planListPrice(p db.Plan) int64 {

@@ -1,5 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { emailHubLocale, formatBytes, formatEmailListDate, senderInitial } from "./email-hub-format";
+
+function legacyListDate(iso: string, locale: string, now: Date): string {
+  const date = new Date(iso);
+  if (date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()) {
+    return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  }
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString(locale, { day: "numeric", month: "short" });
+  }
+  return date.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function legacyFullDate(iso: string, locale: string): string {
+  const date = new Date(iso);
+  const datePart = date.toLocaleDateString(locale, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const timePart = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  return `${datePart} · ${timePart}`;
+}
 
 describe("senderInitial", () => {
   it("takes the first letter of a Vietnamese name, diacritics included", () => {
@@ -29,6 +52,40 @@ describe("formatEmailListDate", () => {
 
   it("returns an empty string for an unparseable date", () => {
     expect(formatEmailListDate("nope", "vi-VN", now)).toBe("");
+  });
+});
+
+describe("email date formatter cache", () => {
+  it("keeps vi/en output and constructs each locale/options formatter only once", async () => {
+    vi.resetModules();
+    const NativeDateTimeFormat = Intl.DateTimeFormat;
+    const constructor = vi.spyOn(Intl, "DateTimeFormat").mockImplementation(function DateTimeFormat(locale, options) {
+      return new NativeDateTimeFormat(locale, options);
+    });
+
+    try {
+      const { formatEmailFullDate, formatEmailListDate: formatListDate } = await import("./email-hub-format");
+      const now = new Date(2026, 8, 24, 18, 30);
+      const today = new Date(2026, 8, 24, 9, 5).toISOString();
+      const thisYear = new Date(2026, 1, 3, 9, 5).toISOString();
+      const older = new Date(2025, 11, 30, 9, 5).toISOString();
+
+      for (const locale of ["vi-VN", "en-US"]) {
+        for (const iso of [today, thisYear, older]) {
+          const first = formatListDate(iso, locale, now);
+          expect(formatListDate(iso, locale, now)).toBe(first);
+          expect(first).toBe(legacyListDate(iso, locale, now));
+        }
+
+        const first = formatEmailFullDate(today, locale);
+        expect(formatEmailFullDate(today, locale)).toBe(first);
+        expect(first).toBe(legacyFullDate(today, locale));
+      }
+
+      expect(constructor).toHaveBeenCalledTimes(10);
+    } finally {
+      constructor.mockRestore();
+    }
   });
 });
 

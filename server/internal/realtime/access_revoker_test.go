@@ -42,7 +42,7 @@ func instantRevoker(hub *Hub, inv MembershipInvalidator) *AccessRevoker {
 }
 
 func TestAccessRevokerSubscribesToEveryTopicThatTakesAccessAway(t *testing.T) {
-	want := []string{"member.removed", "member.deactivated", "member.left", "chat.room.member_removed", "session.revoked", "organization.suspended"}
+	want := []string{"member.removed", "member.deactivated", "member.left", "chat.room.member_removed", "session.revoked", "organization.suspended", "organization.closed"}
 	got := NewAccessRevoker(NewHub(), nil).Topics()
 	if len(got) != len(want) {
 		t.Fatalf("topics = %v, want %v", got, want)
@@ -118,34 +118,41 @@ func TestAccessRevokerEndsTheRevokedSession(t *testing.T) {
 	waitFor(t, "s1 unregistered", func() bool { return totalClients(hub) == 1 })
 }
 
+// A suspended organization and a closed one (ADR 0032) end every member's
+// access the same way.
 func TestAccessRevokerClosesEverySocketOfASuspendedOrganization(t *testing.T) {
-	hub, server := newTestHub(t)
-	defer server.Close()
-	hub.SetOrganizationResolver(func(_ context.Context, workspaceID string) (string, error) {
-		if workspaceID == "ws-other" {
-			return "o2", nil
-		}
-		return "o1", nil
-	})
-	a := connectAs(t, server, "ws-a", Identity{UserID: "u1"})
-	b := connectAs(t, server, "ws-b", Identity{UserID: "u2"})
-	connectAs(t, server, "ws-other", Identity{UserID: "u1"})
-	waitFor(t, "registration", func() bool { return totalClients(hub) == 3 })
-	inv := &recordingInvalidator{}
+	for _, row := range []outbox.Row{
+		// The row names one of the organization's owners; every member goes.
+		{Topic: "organization.suspended", Payload: `{"organization_id":"o1","user_id":"owner"}`},
+		{Topic: "organization.closed", Payload: `{"organization_id":"o1"}`},
+	} {
+		t.Run(row.Topic, func(t *testing.T) {
+			hub, server := newTestHub(t)
+			defer server.Close()
+			hub.SetOrganizationResolver(func(_ context.Context, workspaceID string) (string, error) {
+				if workspaceID == "ws-other" {
+					return "o2", nil
+				}
+				return "o1", nil
+			})
+			a := connectAs(t, server, "ws-a", Identity{UserID: "u1"})
+			b := connectAs(t, server, "ws-b", Identity{UserID: "u2"})
+			connectAs(t, server, "ws-other", Identity{UserID: "u1"})
+			waitFor(t, "registration", func() bool { return totalClients(hub) == 3 })
+			inv := &recordingInvalidator{}
 
-	// The row names one of the organization's owners; every member goes.
-	if err := instantRevoker(hub, inv).Handle(context.Background(), outbox.Row{
-		Topic: "organization.suspended", Payload: `{"organization_id":"o1","user_id":"owner"}`,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	expectClose(t, a, websocket.ClosePolicyViolation)
-	expectClose(t, b, websocket.ClosePolicyViolation)
-	waitFor(t, "o1 sockets unregistered", func() bool { return totalClients(hub) == 1 })
-	got := inv.got()
-	sort.Strings(got)
-	if len(got) != 2 || got[0] != "u1@ws-a" || got[1] != "u2@ws-b" {
-		t.Fatalf("invalidated = %v, want the closed sockets' memberships", got)
+			if err := instantRevoker(hub, inv).Handle(context.Background(), row); err != nil {
+				t.Fatal(err)
+			}
+			expectClose(t, a, websocket.ClosePolicyViolation)
+			expectClose(t, b, websocket.ClosePolicyViolation)
+			waitFor(t, "o1 sockets unregistered", func() bool { return totalClients(hub) == 1 })
+			got := inv.got()
+			sort.Strings(got)
+			if len(got) != 2 || got[0] != "u1@ws-a" || got[1] != "u2@ws-b" {
+				t.Fatalf("invalidated = %v, want the closed sockets' memberships", got)
+			}
+		})
 	}
 }
 

@@ -120,11 +120,16 @@ func (v *VNPay) QueryTransaction(ctx context.Context, in QueryTransactionInput) 
 	}, nil
 }
 
-// QueryDRRefundSettled is true when QueryDr reports the original Pay txn was reversed/refunded
-// (VNPay vnp_TransactionStatus 04 = reversed, 05 = refunded — merchant portal approval).
+// QueryDRRefundSettled is true when QueryDr reports the original Pay txn was reversed.
+// VNPay vnp_TransactionStatus 04 means the refund settled. 05 means VNPay is still processing it.
 // SignQueryDRResponseForTest builds vnp_SecureHash for QueryDr mock responses (tests only).
 func SignQueryDRResponseForTest(resp map[string]string, secret string) string {
 	return vnpQueryDRResponseSign(resp, secret)
+}
+
+// SignRefundResponseForTest builds vnp_SecureHash for refund mock responses (tests only).
+func SignRefundResponseForTest(resp map[string]string, secret string) string {
+	return vnpRefundResponseSign(resp, secret)
 }
 
 func QueryDRRefundSettled(params map[string]string) bool {
@@ -132,7 +137,7 @@ func QueryDRRefundSettled(params map[string]string) bool {
 		return false
 	}
 	switch params["vnp_TransactionStatus"] {
-	case "04", "05":
+	case "04":
 		return true
 	default:
 		return false

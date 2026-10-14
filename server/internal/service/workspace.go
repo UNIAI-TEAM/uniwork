@@ -44,11 +44,19 @@ type WorkspaceService struct {
 	// files is optional: with FileService wired, member avatars stored as
 	// file ids resolve to presigned URLs (UNI-744).
 	files files.Service
+	// members runs the leave, transfer and close an invitation switch makes
+	// in its own transaction (spec §4.4). Built here so there is no nil path.
+	members *OrganizationMemberService
 }
 
 func NewWorkspaceService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, r mail.Renderer, out mail.Enqueuer) *WorkspaceService {
-	return &WorkspaceService{pool: pool, q: q, orgs: orgs, render: r, out: out, ent: NewEntitlementService(pool, q)}
+	return &WorkspaceService{pool: pool, q: q, orgs: orgs, render: r, out: out, ent: NewEntitlementService(pool, q),
+		members: NewOrganizationMemberService(pool, q, orgs)}
 }
+
+// SetEmailHub lets an invitation switch revoke the OAuth grants of the
+// mailboxes it disconnects from the organizations left behind, as Leave does.
+func (s *WorkspaceService) SetEmailHub(h *EmailHubService) { s.members.SetEmailHub(h) }
 
 // SetFiles selects the FileService path for avatar URL emission.
 func (s *WorkspaceService) SetFiles(f files.Service) { s.files = f }
@@ -635,153 +643,6 @@ func (s *WorkspaceService) PendingInvitations(ctx context.Context, userID string
 		return nil, err
 	}
 	return s.q.ListInvitationsForEmail(ctx, u.Email)
-}
-
-// AcceptResult is what accepting an invitation produced. Workspace is nil for
-// an organization-level invitation: the person is in the company but not yet
-// in any team, and the client sends them to the workspace picker.
-type AcceptResult struct {
-	Organization db.Organization
-	Workspace    *WorkspaceView
-}
-
-// sameMailbox: addresses are stored lower-cased, so the comparison is exact.
-// Unicode case folding (strings.EqualFold) would let "ſam@" redeem "sam@".
-func sameMailbox(a, b string) bool {
-	norm := func(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
-	return norm(a) == norm(b)
-}
-
-// AcceptInvite turns one invitation into membership, in a single transaction:
-// organization member (if new), profile, workspace member when the invitation
-// named one, the invitation marked accepted, and the user marked onboarded.
-// There is never a state where somebody is a member but not onboarded.
-func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token string) (AcceptResult, error) {
-	inv, err := s.q.GetInvitationByToken(ctx, token)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return AcceptResult{}, ErrNotFound
-	}
-	if err != nil {
-		return AcceptResult{}, err
-	}
-	// The token travels by mail and gets forwarded, pasted and screenshotted;
-	// it names the mailbox it was sent to, and only an account that has
-	// proven that mailbox may redeem it. Otherwise anyone the link reaches -
-	// or anyone who registers the invitee's address first - joins the
-	// organization as whoever was invited (ADR 0008 isolation matrix).
-	if err := requireVerifiedEmail(ctx, s.q, userID); err != nil {
-		return AcceptResult{}, err
-	}
-	caller, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
-		return AcceptResult{}, err
-	}
-	if !sameMailbox(caller.Email, inv.Email) {
-		return AcceptResult{}, errInvitationForAnotherEmail()
-	}
-	org, err := s.q.GetOrganizationByID(ctx, inv.OrganizationID)
-	if err != nil {
-		return AcceptResult{}, err
-	}
-	var ws db.Workspace
-	if inv.WorkspaceID.Valid {
-		ws, err = s.q.GetWorkspaceByID(ctx, inv.WorkspaceID.String)
-		if err != nil {
-			return AcceptResult{}, err
-		}
-	}
-	// A membership that was switched off is not reopened by an invitation:
-	// only an owner or admin can let that person back in (spec F-03 §4.2).
-	existing, err := s.orgs.RequireMember(ctx, org.ID, userID)
-	isNewMember := errors.Is(err, ErrForbidden)
-	switch {
-	case errors.Is(err, ErrMemberDeactivated):
-		return AcceptResult{}, err
-	case isNewMember:
-	case err != nil:
-		return AcceptResult{}, err
-	}
-	_ = existing
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return AcceptResult{}, err
-	}
-	defer tx.Rollback(ctx)
-	qtx := s.q.WithTx(tx)
-	// members.max counts organization members, so only a person new to the
-	// organization consumes a seat; an existing member joining another
-	// workspace does not (spec F-02 §4.3).
-	if isNewMember {
-		if err := s.ent.Consume(ctx, qtx, ConsumeInput{OrganizationID: org.ID, Meter: FeatureMembersMax, Delta: 1, Actor: Human(userID)}); err != nil {
-			return AcceptResult{}, err
-		}
-	}
-	if err := qtx.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
-		OrganizationID: org.ID, UserID: userID, Role: orgRoleOrMember(inv.OrgRole),
-	}); err != nil {
-		return AcceptResult{}, err
-	}
-	joiner, err := qtx.GetUserByID(ctx, userID)
-	if err != nil {
-		return AcceptResult{}, err
-	}
-	if err := ensureMemberProfile(ctx, qtx, org.ID, userID, joiner.DisplayName, joiner.Email); err != nil {
-		return AcceptResult{}, err
-	}
-	if inv.WorkspaceID.Valid {
-		if err := qtx.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: ws.ID, OrganizationID: ws.OrganizationID, UserID: userID, Role: inv.Role}); err != nil {
-			return AcceptResult{}, err
-		}
-		if err := syncDefaultChatRoomMembers(ctx, qtx, ws.ID); err != nil {
-			return AcceptResult{}, err
-		}
-	}
-	if err := qtx.MarkInvitationAccepted(ctx, inv.ID); err != nil {
-		return AcceptResult{}, err
-	}
-	if _, err := qtx.MarkUserOnboarded(ctx, userID); err != nil {
-		return AcceptResult{}, err
-	}
-	entry := audit.Entry{
-		OrganizationID: org.ID,
-		Actor:          audit.User(userID),
-		Action:         audit.ActionMemberJoined,
-		ResourceType:   "organization_member", ResourceID: userID,
-		Changes:  audit.Diff(nil, map[string]any{"role": orgRoleOrMember(inv.OrgRole)}),
-		Metadata: map[string]any{"invitation_id": inv.ID},
-	}
-	payload := map[string]string{"organization_id": org.ID, "user_id": userID}
-	if inv.WorkspaceID.Valid {
-		entry.WorkspaceID = ws.ID
-		entry.ResourceType = "workspace_member"
-		entry.Changes = audit.Diff(nil, map[string]any{"role": inv.Role})
-		payload["workspace_id"] = ws.ID
-	}
-	if err := auditRecorder.Record(ctx, qtx, entry, audit.Event{Topic: "member.joined", Payload: payload}); err != nil {
-		return AcceptResult{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return AcceptResult{}, err
-	}
-	out := AcceptResult{Organization: org}
-	if inv.WorkspaceID.Valid {
-		view, err := s.GetView(ctx, userID, ws.ID)
-		if err != nil {
-			return AcceptResult{}, err
-		}
-		out.Workspace = &view
-	}
-	return out, nil
-}
-
-// orgRoleOrMember keeps an unknown role out of the membership row: the column
-// has a CHECK constraint, and "member" is the safe reading of anything else.
-func orgRoleOrMember(role string) string {
-	if role == OrgRoleAdmin || role == OrgRoleOwner {
-		return role
-	}
-	return OrgRoleMember
 }
 
 // OrganizationOf names the organization a workspace belongs to. The realtime

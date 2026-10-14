@@ -2247,7 +2247,6 @@ WHERE t.account_id = $1
     )
   )
 ORDER BY
-  CASE WHEN $4 = 'SNOOZED' THEN t.snoozed_until END ASC NULLS LAST,
   t.sent_at DESC,
   t.id DESC
 LIMIT $12

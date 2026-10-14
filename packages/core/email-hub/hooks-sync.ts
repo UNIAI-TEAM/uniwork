@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { errorCode } from "../api/http";
 import * as api from "../api/endpoints/email-hub";
-import { emailHubKeys, invalidateEmailHubThreadsForAccount, invalidateEmailHubUnread } from "./query-cache";
+import { emailHubKeys, invalidateEmailHubCounts, invalidateEmailHubThreadsForAccount } from "./query-cache";
 
 const emailHubLazySyncFolders = new Set(["SENT", "DRAFTS", "TRASH", "ARCHIVE", "SPAM"]);
 /** IMAP-heavy folders: soft sync once when opened; force sync still when list is empty. */
@@ -92,6 +92,7 @@ export function useEmailHubLazyFolderSync(
     );
     return () => {
       cancelled = true;
+      setSyncing(false);
     };
   }, [accountId, folder, opts.skip, qc, wsId]);
 
@@ -118,13 +119,17 @@ export function useEmailHubLazyFolderSync(
       accountId,
       "INBOX",
       false,
-      () => invalidateEmailHubThreadsForAccount(qc, wsId, accountId),
+      () => {
+        invalidateEmailHubThreadsForAccount(qc, wsId, accountId);
+        invalidateEmailHubCounts(qc, wsId, accountId);
+      },
       () => {
         if (!cancelled) setSyncing(false);
       },
     );
     return () => {
       cancelled = true;
+      setSyncing(false);
     };
   }, [accountId, folder, opts.skip, qc, wsId]);
 
@@ -180,6 +185,7 @@ export function useEmailHubLazyFolderSync(
     );
     return () => {
       cancelled = true;
+      setSyncing(false);
     };
   }, [accountId, folder, opts.listFetched, opts.listTotal, opts.skip, qc, wsId]);
 
@@ -250,7 +256,7 @@ export function useEmailHubLiveSync(
         const res = await api.syncEmailHub(wsId, accountId, "INBOX", false, true, false);
         if (res.synced) {
           invalidateEmailHubThreadsForAccount(qc, wsId, accountId);
-          invalidateEmailHubUnread(qc, wsId);
+          invalidateEmailHubCounts(qc, wsId, accountId);
         }
       } catch (err) {
         refetchAccountsOnReauth(err, reauthSeen, qc, wsId);

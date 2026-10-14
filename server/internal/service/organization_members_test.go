@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
@@ -19,6 +20,7 @@ import (
 // written against.
 type orgMembersFixture struct {
 	ctx    context.Context
+	pool   *pgxpool.Pool
 	q      *db.Queries
 	orgs   *OrganizationService
 	svc    *OrganizationMemberService
@@ -36,7 +38,7 @@ func newOrgMembersFixture(t *testing.T) *orgMembersFixture {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
-	f := &orgMembersFixture{ctx: context.Background(), q: q, auth: as}
+	f := &orgMembersFixture{ctx: context.Background(), pool: pool, q: q, auth: as}
 	f.orgs = NewOrganizationService(pool, q)
 	f.svc = NewOrganizationMemberService(pool, q, f.orgs)
 	f.ws = NewWorkspaceService(pool, q, f.orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})

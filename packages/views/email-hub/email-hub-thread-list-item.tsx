@@ -54,6 +54,8 @@ export function EmailHubThreadListItem({
 }: EmailHubThreadListItemProps) {
   const { t, i18n } = useTranslation();
   const locale = emailHubLocale(i18n.language);
+  const fullDate = formatEmailFullDate(row.sent_at, locale);
+  const listDate = formatEmailListDate(row.sent_at, locale);
   const outgoing = row.folder === "SENT" || row.folder === "DRAFTS";
   const displayName = outgoing
     ? t("email_hub.to_recipient", { name: row.to_addrs[0] ?? row.from_addr })
@@ -125,7 +127,7 @@ export function EmailHubThreadListItem({
             unread ? t("email_hub.filters.unread") : null,
             displayName,
             subject,
-            formatEmailFullDate(row.sent_at, locale),
+            fullDate,
             row.has_attachments ? t("email_hub.has_attachments") : null,
           ]
             .filter(Boolean)
@@ -153,13 +155,13 @@ export function EmailHubThreadListItem({
             </span>
             <time
               dateTime={row.sent_at}
-              title={formatEmailFullDate(row.sent_at, locale)}
+              title={fullDate}
               className={cn(
                 "shrink-0 text-caption tabular-nums @3xl:hidden",
                 unread ? "font-semibold text-foreground" : "text-muted-foreground",
               )}
             >
-              {formatEmailListDate(row.sent_at, locale)}
+              {listDate}
             </time>
           </div>
 
@@ -212,14 +214,14 @@ export function EmailHubThreadListItem({
 
           <time
             dateTime={row.sent_at}
-            title={formatEmailFullDate(row.sent_at, locale)}
+            title={fullDate}
             className={cn(
               "hidden w-20 shrink-0 text-right text-caption tabular-nums @3xl:block",
               hasActions && "@3xl:group-hover/row:invisible @3xl:group-focus-within/row:invisible",
               unread ? "font-semibold text-foreground" : "text-muted-foreground",
             )}
           >
-            {formatEmailListDate(row.sent_at, locale)}
+            {listDate}
           </time>
         </div>
 

@@ -286,13 +286,20 @@ func TestParseAnswerDropsUnknownCitations(t *testing.T) {
 }
 
 func TestParseEmailThreadSummaryJSON(t *testing.T) {
-	in := `{"summary":"Tóm tắt","key_points":["a"],"action_items":[{"title":"Làm X","owner":"","due":""}],"needs_reply":true,"reply_hint":"Trả lời hạn"}`
+	in := `{"summary":"Tóm tắt","key_points":["a"],"action_items":[{"title":"  Làm X  ","owner":"An","due":"mai"},{"title":"   ","owner":"Bình","due":"thứ sáu"},{"title":"Làm Y","owner":"Chi","due":"tuần sau"}],"needs_reply":true,"reply_hint":"Trả lời hạn"}`
 	out, err := ParseEmailThreadSummaryJSON(in)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if out.Summary != "Tóm tắt" || !out.NeedsReply || len(out.KeyPoints) != 1 {
 		t.Fatalf("unexpected: %+v", out)
+	}
+	if len(out.ActionItems) != 2 {
+		t.Fatalf("action items = %+v, want two nonblank items", out.ActionItems)
+	}
+	if out.ActionItems[0] != (ActionItem{Title: "Làm X", Owner: "An", Due: "mai"}) ||
+		out.ActionItems[1] != (ActionItem{Title: "Làm Y", Owner: "Chi", Due: "tuần sau"}) {
+		t.Fatalf("action item order or metadata changed: %+v", out.ActionItems)
 	}
 }
 

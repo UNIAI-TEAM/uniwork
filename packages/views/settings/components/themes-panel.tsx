@@ -40,7 +40,7 @@ export const MOCK_TOKENS = {
  * draws the same outline the global `:focus-visible` rule gives every other
  * control (2px `--ring`, offset 2px) while the radio inside has focus.
  */
-const FOCUS_FROM_RADIO =
+export const FOCUS_FROM_RADIO =
   "has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring";
 
 /** One miniature app window: rail on the left, a card with copy lines. */

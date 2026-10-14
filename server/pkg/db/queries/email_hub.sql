@@ -729,7 +729,6 @@ WHERE t.account_id = sqlc.arg('account_id')
     )
   )
 ORDER BY
-  CASE WHEN sqlc.arg('folder') = 'SNOOZED' THEN t.snoozed_until END ASC NULLS LAST,
   t.sent_at DESC,
   t.id DESC
 LIMIT sqlc.arg('limit_val');

@@ -218,10 +218,9 @@ func TestCalendarListEventsIsolatesWorkspaces(t *testing.T) {
 
 	f.task(t, "in-alpha", "2026-09-15", &f.a.ID)
 
-	org2, err := f.orgs.Create(ctx, f.a.ID, "Org2", "org-cal-2")
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The same person in a second organization: an account from before
+	// ADR 0032, which only raw seeding can build now.
+	org2 := createLegacyOrganization(t, f.orgs, f.a.ID, "Org2", "org-cal-2")
 	v2, err := f.ws.CreateInOrg(ctx, f.a.ID, org2.ID, "Beta", "beta")
 	if err != nil {
 		t.Fatal(err)
