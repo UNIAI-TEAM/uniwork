@@ -1,0 +1,125 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake FD04_EXPLAIN=1 FD04_EXPLAIN_REPORT="$PWD/../.go-tmp/explain-fd04.md" go test -count=1 -timeout 30m -v ./internal/service/ -run 'TestFD04ArchiveImpactEvidence$|TestDocumentArchiveImpact|TestDocumentArchiveWalkIndexExists$'; echo "FD04_EXPLAIN_EXIT=$?"; cat ../.go-tmp/explain-fd04.md 2>/dev/null | grep -E "^## |rows|Execution Time|ms"
+=== RUN   TestDocumentArchiveWalkIndexExists
+--- PASS: TestDocumentArchiveWalkIndexExists (0.21s)
+=== RUN   TestFD04ArchiveImpactEvidence
+    document_archive_impact_explain_test.go:363: evidence written to /workspace/server/../.go-tmp/explain-fd04.md
+--- PASS: TestFD04ArchiveImpactEvidence (26.83s)
+=== RUN   TestDocumentArchiveImpact
+=== RUN   TestDocumentArchiveImpact/counts_the_live_shape:_sub-folders_and_documents,_root_only_in_the_total
+=== RUN   TestDocumentArchiveImpact/an_empty_folder_is_one_row_and_reads_write_nothing
+=== RUN   TestDocumentArchiveImpact/the_bound_itself_counts,_one_node_past_it_refuses_with_no_counts
+=== RUN   TestDocumentArchiveImpact/past_the_bound_the_refusal_wins_over_a_node_the_caller_cannot_manage
+=== RUN   TestDocumentArchiveImpact/an_archived_node_on_the_path_is_walked_but_not_counted
+=== RUN   TestDocumentArchiveImpact/a_tree_at_the_depth_bound_is_counted_whole
+=== RUN   TestDocumentArchiveImpact/one_node_the_caller_cannot_manage_refuses_the_whole_read
+=== RUN   TestDocumentArchiveImpact/an_owned_root_refuses_exactly_like_the_archive_command
+=== RUN   TestDocumentArchiveImpact/a_document_of_another_tenant_is_not_found
+=== RUN   TestDocumentArchiveImpact/the_numbers_come_from_one_REPEATABLE_READ,_read-only_snapshot
+--- PASS: TestDocumentArchiveImpact (0.44s)
+    --- PASS: TestDocumentArchiveImpact/counts_the_live_shape:_sub-folders_and_documents,_root_only_in_the_total (0.01s)
+    --- PASS: TestDocumentArchiveImpact/an_empty_folder_is_one_row_and_reads_write_nothing (0.00s)
+    --- PASS: TestDocumentArchiveImpact/the_bound_itself_counts,_one_node_past_it_refuses_with_no_counts (0.07s)
+    --- PASS: TestDocumentArchiveImpact/past_the_bound_the_refusal_wins_over_a_node_the_caller_cannot_manage (0.01s)
+    --- PASS: TestDocumentArchiveImpact/an_archived_node_on_the_path_is_walked_but_not_counted (0.01s)
+    --- PASS: TestDocumentArchiveImpact/a_tree_at_the_depth_bound_is_counted_whole (0.01s)
+    --- PASS: TestDocumentArchiveImpact/one_node_the_caller_cannot_manage_refuses_the_whole_read (0.00s)
+    --- PASS: TestDocumentArchiveImpact/an_owned_root_refuses_exactly_like_the_archive_command (0.00s)
+    --- PASS: TestDocumentArchiveImpact/a_document_of_another_tenant_is_not_found (0.02s)
+    --- PASS: TestDocumentArchiveImpact/the_numbers_come_from_one_REPEATABLE_READ,_read-only_snapshot (0.02s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	27.509s
+FD04_EXPLAIN_EXIT=0
+archiveBound() = 1000, max_rows = 1001, max_level = 40 (2*maxDocumentDepth).
+## Wide shape at the bound: 1 root + 999 live children
+impact {Folders:0 Documents:999 Total:1000 MaxNodes:1000 TooLarge:false}, end-to-end 5.003ms
+walk ids=1000 recursive-union rows=1000 largest heap node=1000, walk query 1.143ms, walk EXPLAIN 1.737ms
+count rows=[page=999], count query 640µs, count EXPLAIN 1.201ms
+Limit  (cost=717.43..740.09 rows=1001 width=40) (actual time=0.225..1.227 rows=1000 loops=1)
+    ->  Recursive Union  (cost=0.28..655.93 rows=3001 width=44) (actual time=0.006..0.662 rows=1000 loops=1)
+          ->  Index Scan using documents_pkey on documents r  (cost=0.28..8.30 rows=1 width=44) (actual time=0.005..0.006 rows=1 loops=1)
+          ->  Hash Join  (cost=0.26..61.76 rows=300 width=44) (actual time=0.162..0.277 rows=500 loops=2)
+                ->  Seq Scan on documents d_1  (cost=0.00..54.00 rows=1000 width=67) (actual time=0.001..0.101 rows=1000 loops=2)
+                ->  Hash  (cost=0.22..0.22 rows=3 width=36) (actual time=0.085..0.085 rows=500 loops=2)
+                      ->  WorkTable Scan on sub sub_1  (cost=0.00..0.22 rows=3 width=36) (actual time=0.001..0.030 rows=500 loops=2)
+  ->  Hash Join  (cost=61.50..129.43 rows=3001 width=40) (actual time=0.225..1.168 rows=1000 loops=1)
+        ->  CTE Scan on sub  (cost=0.00..60.02 rows=3001 width=32) (actual time=0.006..0.813 rows=1000 loops=1)
+        ->  Hash  (cost=49.00..49.00 rows=1000 width=40) (actual time=0.217..0.217 rows=1000 loops=1)
+              ->  Seq Scan on documents d  (cost=0.00..49.00 rows=1000 width=40) (actual time=0.001..0.130 rows=1000 loops=1)
+Planning Time: 0.124 ms
+Execution Time: 1.275 ms
+HashAggregate  (cost=67.16..67.18 rows=2 width=13) (actual time=0.334..0.335 rows=1 loops=1)
+  ->  Seq Scan on documents d  (cost=2.50..64.00 rows=632 width=5) (actual time=0.027..0.238 rows=999 loops=1)
+Planning Time: 0.159 ms
+Execution Time: 0.344 ms
+## Past the bound: 1 root + 10000 live direct children
+impact too_large, end-to-end 2.604ms
+walk ids=1001 recursive-union rows=1001 largest heap node=1001, walk query 1.69ms, walk EXPLAIN 2.349ms
+Limit  (cost=6411.42..6798.01 rows=1001 width=40) (actual time=0.007..1.768 rows=1001 loops=1)
+    ->  Recursive Union  (cost=0.29..6411.13 rows=30001 width=44) (actual time=0.004..0.372 rows=1001 loops=1)
+          ->  Index Scan using documents_pkey on documents r  (cost=0.29..8.31 rows=1 width=44) (actual time=0.003..0.004 rows=1 loops=1)
+          ->  Hash Join  (cost=0.26..610.28 rows=3000 width=44) (actual time=0.005..0.260 rows=1000 loops=1)
+                ->  Seq Scan on documents d_1  (cost=0.00..535.01 rows=10001 width=67) (actual time=0.001..0.121 rows=1001 loops=1)
+                ->  Hash  (cost=0.22..0.22 rows=3 width=36) (actual time=0.002..0.002 rows=1 loops=1)
+                      ->  WorkTable Scan on sub sub_1  (cost=0.00..0.22 rows=3 width=36) (actual time=0.001..0.001 rows=1 loops=1)
+  ->  Nested Loop  (cost=0.29..11587.08 rows=30001 width=40) (actual time=0.006..1.707 rows=1001 loops=1)
+        ->  CTE Scan on sub  (cost=0.00..600.02 rows=30001 width=32) (actual time=0.004..0.532 rows=1001 loops=1)
+        ->  Index Scan using documents_pkey on documents d  (cost=0.29..0.37 rows=1 width=40) (actual time=0.001..0.001 rows=1 loops=1001)
+Planning Time: 0.113 ms
+Execution Time: 1.818 ms
+## Past the bound: 1 root + 100000 live direct children
+impact too_large, end-to-end 3.92ms
+walk ids=1001 recursive-union rows=1001 largest heap node=1001, walk query 2.519ms, walk EXPLAIN 2.565ms
+Limit  (cost=63981.68..64500.76 rows=1001 width=41) (actual time=0.014..1.991 rows=1001 loops=1)
+    ->  Recursive Union  (cost=0.42..63981.26 rows=300001 width=45) (actual time=0.009..0.395 rows=1001 loops=1)
+          ->  Index Scan using documents_pkey on documents r  (cost=0.42..8.44 rows=1 width=45) (actual time=0.008..0.009 rows=1 loops=1)
+          ->  Hash Join  (cost=0.26..6097.28 rows=30000 width=45) (actual time=0.008..0.276 rows=1000 loops=1)
+                ->  Seq Scan on documents d_1  (cost=0.00..5347.01 rows=100001 width=68) (actual time=0.002..0.129 rows=1001 loops=1)
+                ->  Hash  (cost=0.22..0.22 rows=3 width=36) (actual time=0.002..0.003 rows=1 loops=1)
+                      ->  WorkTable Scan on sub sub_1  (cost=0.00..0.22 rows=3 width=36) (actual time=0.001..0.001 rows=1 loops=1)
+  ->  Nested Loop  (cost=0.42..155568.21 rows=300001 width=41) (actual time=0.013..1.928 rows=1001 loops=1)
+        ->  CTE Scan on sub  (cost=0.00..6000.02 rows=300001 width=32) (actual time=0.010..0.558 rows=1001 loops=1)
+        ->  Index Scan using documents_pkey on documents d  (cost=0.42..0.50 rows=1 width=41) (actual time=0.001..0.001 rows=1 loops=1001)
+Planning Time: 0.169 ms
+Execution Time: 2.046 ms
+Latency flat in N: 10000 rows 2.604ms vs 100000 rows 3.92ms.
+## Deep shape: 20 levels x 50 children per spine node (951 nodes)
+impact {Folders:0 Documents:950 Total:951 MaxNodes:1000 TooLarge:false}, end-to-end 5.468ms
+walk ids=951 recursive-union rows=951 largest heap node=951, walk query 3.183ms, walk EXPLAIN 4.748ms
+count rows=[page=950], count query 693µs, count EXPLAIN 1ms
+Limit  (cost=728.39..751.05 rows=1001 width=66) (actual time=0.228..4.118 rows=951 loops=1)
+    ->  Recursive Union  (cost=0.28..663.00 rows=1501 width=70) (actual time=0.006..3.562 rows=951 loops=1)
+          ->  Index Scan using documents_pkey on documents r  (cost=0.28..8.30 rows=1 width=70) (actual time=0.006..0.007 rows=1 loops=1)
+          ->  Hash Join  (cost=0.26..63.97 rows=150 width=70) (actual time=0.087..0.172 rows=48 loops=20)
+                ->  Seq Scan on documents d_1  (cost=0.00..58.27 rows=951 width=129) (actual time=0.000..0.094 rows=951 loops=20)
+                ->  Hash  (cost=0.22..0.22 rows=3 width=36) (actual time=0.009..0.009 rows=48 loops=20)
+                      ->  WorkTable Scan on sub sub_1  (cost=0.00..0.22 rows=3 width=36) (actual time=0.000..0.003 rows=48 loops=20)
+  ->  Hash Join  (cost=65.40..99.38 rows=1501 width=66) (actual time=0.227..4.061 rows=951 loops=1)
+        ->  CTE Scan on sub  (cost=0.00..30.02 rows=1501 width=32) (actual time=0.007..3.701 rows=951 loops=1)
+        ->  Hash  (cost=53.51..53.51 rows=951 width=66) (actual time=0.219..0.219 rows=951 loops=1)
+              ->  Seq Scan on documents d  (cost=0.00..53.51 rows=951 width=66) (actual time=0.002..0.128 rows=951 loops=1)
+Planning Time: 0.133 ms
+Execution Time: 4.162 ms
+HashAggregate  (cost=72.53..72.55 rows=2 width=13) (actual time=0.319..0.320 rows=1 loops=1)
+  ->  Seq Scan on documents d  (cost=2.38..67.78 rows=950 width=5) (actual time=0.030..0.236 rows=950 loops=1)
+Planning Time: 0.154 ms
+Execution Time: 0.329 ms
+## Workspace-dominant: 1 workspace with 1000000 bulk rows + a 951-node 20-level spine
+impact {Folders:0 Documents:950 Total:951 MaxNodes:1000 TooLarge:false}, end-to-end 292.076ms
+walk ids=951 recursive-union rows=951 largest heap node=1, walk query 10.855ms, walk EXPLAIN 11.413ms
+count rows=[page=950], count query 2.262ms, count EXPLAIN 2.343ms
+Limit  (cost=224956.06..226770.11 rows=1001 width=41) (actual time=7.148..10.183 rows=951 loops=1)
+    ->  Recursive Union  (cost=0.42..224955.63 rows=139001 width=45) (actual time=0.024..1.498 rows=951 loops=1)
+          ->  Index Scan using documents_pkey on documents r  (cost=0.42..8.45 rows=1 width=45) (actual time=0.022..0.023 rows=1 loops=1)
+          ->  Nested Loop  (cost=0.42..22355.72 rows=13900 width=45) (actual time=0.005..0.068 rows=48 loops=20)
+                ->  WorkTable Scan on sub sub_1  (cost=0.00..0.22 rows=3 width=36) (actual time=0.000..0.003 rows=48 loops=20)
+                ->  Index Scan using idx_documents_ws_parent_all on documents d_1  (cost=0.42..7393.92 rows=4633 width=68) (actual time=0.001..0.001 rows=1 loops=951)
+  ->  Nested Loop  (cost=0.42..251903.96 rows=139001 width=41) (actual time=0.033..3.010 rows=951 loops=1)
+        ->  CTE Scan on sub  (cost=0.00..2780.02 rows=139001 width=32) (actual time=0.025..1.653 rows=951 loops=1)
+        ->  Index Scan using documents_pkey on documents d  (cost=0.42..1.79 rows=1 width=41) (actual time=0.001..0.001 rows=1 loops=951)
+Planning Time: 0.164 ms
+  Timing: Generation 0.511 ms, Inlining 0.000 ms, Optimization 0.350 ms, Emission 6.773 ms, Total 7.634 ms
+Execution Time: 10.769 ms
+HashAggregate  (cost=4114.91..4114.93 rows=2 width=13) (actual time=1.402..1.403 rows=1 loops=1)
+  ->  Index Scan using documents_pkey on documents d  (cost=0.42..4110.16 rows=951 width=5) (actual time=0.266..1.311 rows=950 loops=1)
+Planning Time: 0.176 ms
+Execution Time: 1.415 ms

@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+ec6516cf23c2d61563bc0b4242942195c20d613d
+8cf3fb18cf3d097fc078deb496577d24ca1c92cb
+ec6516cf2 chore: merge the G5-G7 root (8cf3fb18c) into FD-04
+f2db875ee chore: merge FD-02 PR1 (5905ef049) into FD-04
+8cf3fb18c test(views): commit the heir pick with a pointerdown so the password-refusal tests stop flaking
+c1b176c60 fix(documents): refuse an owned root in archive-impact like the command (FD-04)
+f9851e9a8 test(documents): measure the archive walk on a workspace-dominant table (FD-04)
+239e337c1 feat(documents): index the archive walk's parent lookup (FD-04)
