@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+01442dcee1f1305ea652580eeb4917125e118cf7
+49b239b108f86cc7f81e29333f5662ba7aa7a9fe
+01442dcee docs(office): pin the support matrix web bundle to the repo value
+e78649750 docs(ops): fix lease revoker lane and stop pointing at dashboards without the series
+4f915fbcf test(ops): ignore Go comments when the alert guard collects registered metrics
+e53819ce9 docs(office): support matrix per channel with N-prime and metric ownership
+66685e94d docs(ops): runbook for Office sync, offline lease and UniWork AI operations
+cb9c2dcc4 test(ops): fail an alert on a metric the server never registers
