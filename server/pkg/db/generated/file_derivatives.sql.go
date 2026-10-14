@@ -64,6 +64,47 @@ func (q *Queries) InsertFileDerivative(ctx context.Context, arg InsertFileDeriva
 	return result.RowsAffected(), nil
 }
 
+const listFileDerivatives = `-- name: ListFileDerivatives :many
+SELECT source_file_id, file_id FROM file_derivatives
+WHERE source_file_id = ANY($1::text[])
+  AND variant = $2
+  AND organization_id = $3
+`
+
+type ListFileDerivativesParams struct {
+	SourceFileIds  []string `json:"source_file_ids"`
+	Variant        string   `json:"variant"`
+	OrganizationID string   `json:"organization_id"`
+}
+
+type ListFileDerivativesRow struct {
+	SourceFileID string `json:"source_file_id"`
+	FileID       string `json:"file_id"`
+}
+
+// The batch form of GetFileDerivative for ResolveMany: the derived files
+// behind sources the module already authorized; the tenant comes from the
+// caller's scope.
+func (q *Queries) ListFileDerivatives(ctx context.Context, arg ListFileDerivativesParams) ([]ListFileDerivativesRow, error) {
+	rows, err := q.db.Query(ctx, listFileDerivatives, arg.SourceFileIds, arg.Variant, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListFileDerivativesRow{}
+	for rows.Next() {
+		var i ListFileDerivativesRow
+		if err := rows.Scan(&i.SourceFileID, &i.FileID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listHeldFileDerivatives = `-- name: ListHeldFileDerivatives :many
 SELECT d.file_id FROM file_derivatives d
 JOIN files s ON s.id = d.source_file_id

@@ -150,6 +150,46 @@ func (s *FileService) derivativeRecord(ctx context.Context, in files.OpenInput) 
 	return rec, true, nil
 }
 
+// derivativeRecords is derivativeRecord for a batch: the derived file each
+// source should be signed as, keyed by source, in two queries whatever the
+// batch size. A source missing from the map signs its original.
+func (s *FileService) derivativeRecords(ctx context.Context, scope files.Scope, variant files.Variant, ids []files.FileID) (map[files.FileID]fileRecord, error) {
+	out := map[files.FileID]fileRecord{}
+	if variant == "" || scope.OrganizationID == "" || len(ids) == 0 {
+		return out, nil
+	}
+	sources := make([]string, 0, len(ids))
+	for _, id := range uniqueFileIDs(ids) {
+		sources = append(sources, string(id))
+	}
+	links, err := s.q.ListFileDerivatives(ctx, db.ListFileDerivativesParams{
+		SourceFileIds: sources, Variant: string(variant), OrganizationID: scope.OrganizationID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("files: derivative lookup: %w", err)
+	}
+	if len(links) == 0 {
+		return out, nil
+	}
+	derivedIDs := make([]files.FileID, len(links))
+	for i, l := range links {
+		derivedIDs[i] = files.FileID(l.FileID)
+	}
+	records, err := s.loadResolvable(ctx, scope, derivedIDs)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	for _, l := range links {
+		rec, ok := records[files.FileID(l.FileID)]
+		if !ok || fileState(rec.file) != nil || sessionGrant(rec.session, now) != nil {
+			continue
+		}
+		out[files.FileID(l.SourceFileID)] = rec
+	}
+	return out, nil
+}
+
 // fileDerivativeProvider holds a derived file while its source is not
 // deleted. FileService registers it itself: the link table is its own, so no
 // module catalogue row names it.
