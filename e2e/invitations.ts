@@ -18,11 +18,15 @@ export async function inviteFromSettings(page: Page, orgSlug: string, wsSlug: st
 /**
  * Opens an organization's invitation from the pending list. Every row links
  * to the invitation's own page (spec 2026-10-13 §6.2), which shows what
- * joining means before anything changes.
+ * joining means before anything changes. A row into a workspace is named
+ * "Xem lời mời vào <workspace> trong <organization>", one into the
+ * organization itself "Xem lời mời vào <organization>": both end on the
+ * organization's name.
  */
 export async function openInvitation(page: Page, organizationName: string): Promise<void> {
   await page.goto("/invitations");
-  await page.getByRole("link", { name: `Xem lời mời vào ${organizationName}` }).click();
+  const name = new RegExp(`^Xem lời mời vào (?:.+ trong )?${organizationName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+  await page.getByRole("link", { name }).click();
   await expect(page).toHaveURL(/\/invite\/[^/]+$/, { timeout: 15_000 });
 }
 
