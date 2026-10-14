@@ -13,7 +13,7 @@ import "encoding/json"
 // (+ Idempotency-Key header). It creates a page or a folder; a file document
 // is created by CreateDocumentFileSDI on the multipart route.
 type CreateDocumentSDI struct {
-	Title      string           `json:"title" minLength:"1" description:"Tiêu đề trang hoặc tên thư mục, 1–500 ký tự" example:"Kế hoạch Q4"`
+	Title      string           `json:"title" minLength:"1" description:"Tiêu đề trang (1–500 ký tự) hoặc tên thư mục (1–255 ký tự, không trùng thư mục còn sống cùng cha)" example:"Kế hoạch Q4"`
 	Kind       string           `json:"kind" description:"page (mặc định) hoặc folder; file dùng route multipart /documents/files. Thư mục không nhận content" example:"page"`
 	ParentID   *string          `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; thư mục chỉ nằm trong thư mục; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Icon       *string          `json:"icon" description:"Emoji ≤ 8 ký tự" example:"📄"`
@@ -41,7 +41,7 @@ type CreateDocumentFileSDI struct {
 // with fields.current_revision.
 type PatchDocumentSDI struct {
 	Revision   string           `json:"revision" description:"Revision nền dạng chuỗi thập phân" example:"41"`
-	Title      *string          `json:"title" description:"Tiêu đề mới, 1–500 ký tự" example:"Kế hoạch Q4 (bản nháp)"`
+	Title      *string          `json:"title" description:"Tiêu đề mới: 1–500 ký tự cho trang/tệp, 1–255 cho thư mục (đổi tên trùng thư mục còn sống cùng cha → 409 folder_name_taken)" example:"Kế hoạch Q4 (bản nháp)"`
 	Icon       *string          `json:"icon" description:"Emoji mới; chuỗi rỗng để gỡ icon (bỏ qua = giữ nguyên)" example:"📑"`
 	Content    *json.RawMessage `json:"content" description:"ProseMirror JSON mới; server sanitize và rút content_text"`
 	Visibility *string          `json:"visibility" description:"workspace hoặc restricted; đổi visibility cần manage" example:"restricted"`

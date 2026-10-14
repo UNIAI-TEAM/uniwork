@@ -411,6 +411,23 @@ func (s *DocumentService) withDocumentMutation(
 	ctx context.Context, actor Actor, documentID string, required DocumentLevel,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
 ) error {
+	return s.withDocumentMutationLocked(ctx, actor, documentID, "", required, fn)
+}
+
+// withDocumentMutationLocked is withDocumentMutation for a command that may
+// place a name into a parent: when treeWorkspaceID is set, the workspace tree
+// lock is taken once the transaction is open and before the document row lock
+// - the one order every naming command keeps (appendix §3.3) - so this
+// command's duplicate check and its write run serialized against every other
+// naming writer, never after a row lock that a move already holds.
+//
+// workspace_id never changes on a row, so the id read before the transaction
+// still names the row's workspace; a row that somehow disagrees is refused
+// rather than trusted.
+func (s *DocumentService) withDocumentMutationLocked(
+	ctx context.Context, actor Actor, documentID, treeWorkspaceID string, required DocumentLevel,
+	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
+) error {
 	if !validActor(actor) || documentID == "" {
 		return ErrNotFound
 	}
@@ -420,12 +437,20 @@ func (s *DocumentService) withDocumentMutation(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+	if treeWorkspaceID != "" {
+		if err := q.LockDocumentTree(ctx, treeWorkspaceID); err != nil {
+			return err
+		}
+	}
 	doc, err := q.LockDocumentByID(ctx, documentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return err
+	}
+	if treeWorkspaceID != "" && doc.WorkspaceID != treeWorkspaceID {
+		return ErrNotFound
 	}
 	access, err := s.effectiveLevel(ctx, q, actor, doc)
 	if err != nil {
