@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { paths } from "@uniwork/core/paths";
 import { useMarkRead, useNotifications, useUnreadCount } from "@uniwork/core/notifications";
+import { useWorkspaces } from "@uniwork/core/workspaces";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -27,6 +28,7 @@ const HEADER_ACTION = "pointer-coarse:h-11";
 export function NotificationBell() {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
+  const workspaces = useWorkspaces().data;
   const [open, setOpen] = useState(false);
   const unread = useUnreadCount();
   const count = unread.data?.by_workspace[workspace.id] ?? 0;
@@ -101,7 +103,7 @@ export function NotificationBell() {
               <NotificationRow
                 key={n.id}
                 notification={n}
-                href={resourceHref(n, workspace)}
+                href={resourceHref(n, workspace, workspaces ?? [])}
                 compact
                 onOpen={(row) => {
                   setOpen(false);

@@ -35,6 +35,8 @@ interface DocumentCommentsChrome {
   setTab: (tab: DocumentCommentsTab) => void;
   /** The comment a `?comment=` link names, or "". */
   deepLinkId: string;
+  /** The tab hint a `?comment=` link carries (`&kind=discussion`), for a post no longer in the list. */
+  deepLinkKind: DocumentCommentsTab;
 }
 
 /**
@@ -60,6 +62,7 @@ export function DocumentCommentsProvider({
 }) {
   const nav = useOptionalNavigation();
   const deepLinkId = nav?.searchParams.get("comment") ?? "";
+  const deepLinkKind: DocumentCommentsTab = nav?.searchParams.get("kind") === "discussion" ? "discussion" : "comment";
   // A deep link opens the panel on arrival; the panel then picks the tab that holds the thread.
   const [open, setOpenState] = useState(() => deepLinkId !== "");
   const [tab, setTab] = useState<DocumentCommentsTab>(() => (anchorableFormat(doc) ? "comment" : "discussion"));
@@ -75,8 +78,8 @@ export function DocumentCommentsProvider({
     if (!next) triggerRef.current?.focus();
   }, []);
   const value = useMemo(
-    () => (framePanel ? null : { wsId, doc, open, setOpen, triggerRef, tab, setTab, deepLinkId }),
-    [framePanel, wsId, doc, open, setOpen, tab, deepLinkId],
+    () => (framePanel ? null : { wsId, doc, open, setOpen, triggerRef, tab, setTab, deepLinkId, deepLinkKind }),
+    [framePanel, wsId, doc, open, setOpen, tab, deepLinkId, deepLinkKind],
   );
   return (
     <FrameCommentsReportContext.Provider value={setFramePanel}>

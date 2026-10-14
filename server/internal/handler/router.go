@@ -32,6 +32,7 @@ type Deps struct {
 	McpTools      *service.McpToolService
 	Verification  *service.VerificationService
 	PasswordReset *service.PasswordResetService
+	DemoRequests  *service.DemoRequestService
 	GoogleAuth    *service.GoogleAuthService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
@@ -232,6 +233,9 @@ func New(d Deps) http.Handler {
 		Config:                     h.config,
 		OfficeDesktopDownload:      h.officeDesktopDownload,
 		RUM:                        h.rum,
+		CreateDemoRequest:          h.createDemoRequest,
+		AdminListDemoRequests:      h.adminListDemoRequests,
+		AdminUpdateDemoRequest:     h.adminUpdateDemoRequest,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
 		AdminGetOrganization:       h.adminGetOrganization,

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useReadHomeNotification } from "@uniwork/core/home";
 import { paths } from "@uniwork/core/paths";
 import type { HomeSummary } from "@uniwork/core/types/home";
+import { useWorkspaces } from "@uniwork/core/workspaces";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
@@ -37,6 +38,7 @@ export function HomeInbox({
 }) {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
+  const workspaces = useWorkspaces().data;
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const read = useReadHomeNotification(workspace.id);
   const items = summary?.inbox ?? [];
@@ -68,7 +70,7 @@ export function HomeInbox({
             <NotificationRow
               key={n.id}
               notification={n}
-              href={resourceHref(n, workspace)}
+              href={resourceHref(n, workspace, workspaces ?? [])}
               compact
               // Every row here is unread, so the unread bar would mark them all.
               unreadBar={false}

@@ -470,6 +470,20 @@ type DataSubjectRequest struct {
 	EraseAt         pgtype.Timestamptz `json:"erase_at"`
 }
 
+type DemoRequest struct {
+	ID          string             `json:"id"`
+	RequestKey  string             `json:"request_key"`
+	FullName    string             `json:"full_name"`
+	WorkEmail   string             `json:"work_email"`
+	CompanyName string             `json:"company_name"`
+	TeamSize    string             `json:"team_size"`
+	Message     string             `json:"message"`
+	Locale      string             `json:"locale"`
+	Status      string             `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Department struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -1681,6 +1695,7 @@ type OfficeLaunchSession struct {
 	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
 	CreatedBy       string             `json:"created_by"`
 	CreatedByKind   string             `json:"created_by_kind"`
+	CommentID       pgtype.Text        `json:"comment_id"`
 }
 
 type OfficeOfflineLease struct {

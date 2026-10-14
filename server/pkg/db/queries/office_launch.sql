@@ -4,14 +4,14 @@
 -- name: InsertOfficeLaunchSession :one
 INSERT INTO office_launch_sessions (
   id, ticket_hash, account_id, organization_id, workspace_id, document_id,
-  operation, version, client_id, deployment_id, expires_at, created_by,
-  created_by_kind
+  operation, version, client_id, deployment_id, comment_id, expires_at,
+  created_by, created_by_kind
 ) VALUES (
   sqlc.arg(id), sqlc.arg(ticket_hash), sqlc.arg(account_id),
   sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(document_id),
   sqlc.arg(operation), sqlc.arg(version), sqlc.arg(client_id),
-  sqlc.arg(deployment_id), sqlc.arg(expires_at), sqlc.arg(created_by),
-  sqlc.arg(created_by_kind)
+  sqlc.arg(deployment_id), sqlc.narg(comment_id), sqlc.arg(expires_at),
+  sqlc.arg(created_by), sqlc.arg(created_by_kind)
 )
 RETURNING *;
 

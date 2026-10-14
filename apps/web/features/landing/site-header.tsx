@@ -19,14 +19,11 @@ import "./header-directory.css";
 const GROUPS = [
   { key: "products", label: "landing.productPages.product" },
   { key: "solutions", label: "landing.nav.solutions" },
+  { key: "office", label: "landing.nav.office" },
   { key: "learn", label: "landing.productPages.learn" },
 ] as const;
 const LINKS = [
-  { label: "landing.workforce.badge", to: paths.feature("agents") },
-  { label: "landing.nav.office", to: paths.office() },
   { label: "landing.footer.pricing", to: paths.pricing() },
-  { label: "landing.productPages.enterprise", to: paths.enterprise() },
-  { label: "changelog.title", to: paths.changelog() },
 ] as const;
 
 export function SiteHeader() {
@@ -55,7 +52,7 @@ export function SiteHeader() {
     return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("pointerdown", outside); };
   }, [mobileOpen, directory]);
   useEffect(() => {
-    const desktop = matchMedia("(min-width: 1340px)");
+    const desktop = matchMedia("(min-width: 1100px)");
     const dismiss = () => { setMobileOpen(false); setDirectory(null); };
     desktop.addEventListener("change", dismiss);
     return () => desktop.removeEventListener("change", dismiss);
