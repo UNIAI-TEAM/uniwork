@@ -237,6 +237,18 @@ type DocumentArchiveSDO struct {
 	Affected []string    `json:"affected" description:"ULID các tài liệu đã đổi trạng thái trong đợt" example:"[\"01J8X4DOC0N1P2Q3R4S5T6U7\"]"`
 }
 
+// DocumentArchiveImpactSDO answers GET /documents/{id}/archive-impact (FD-04,
+// addendum §3.4): what one archive of the subtree would move, or — past the
+// bound — that it is too large for one archive. folders/documents exclude the
+// root; total includes it, so it is the number of rows the archive writes.
+type DocumentArchiveImpactSDO struct {
+	Folders   int  `json:"folders" description:"Số thư mục con còn sống sẽ vào thùng rác, không gồm chính gốc" example:"2"`
+	Documents int  `json:"documents" description:"Số trang và tệp còn sống sẽ vào thùng rác, không gồm chính gốc; trang con trong trang cũng tính" example:"5"`
+	Total     int  `json:"total" description:"Tổng số dòng lệnh lưu trữ sẽ ghi, gồm chính gốc; chỉ chính xác khi too_large = false" example:"8"`
+	MaxNodes  int  `json:"max_nodes" description:"Trần số nút một lần lưu trữ nhận" example:"1000"`
+	TooLarge  bool `json:"too_large" description:"true = cây con vượt trần: không có số đếm, nút xác nhận bị khóa và thông báo folder_too_large" example:"false"`
+}
+
 // DocumentShareDTO is one live grant row with what it grants right now.
 // `active` is false when the row no longer reaches anyone (a user who left,
 // a workspace gone from the organization). `effective_level` is the level the

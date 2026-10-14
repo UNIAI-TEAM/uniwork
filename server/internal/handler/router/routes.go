@@ -589,6 +589,7 @@ type Routes struct {
 	DocumentTree             http.HandlerFunc
 	MoveDocument             http.HandlerFunc
 	ArchiveDocument          http.HandlerFunc
+	ArchiveImpact            http.HandlerFunc
 	RestoreDocument          http.HandlerFunc
 	ListDocumentShares       http.HandlerFunc
 	CreateDocumentShare      http.HandlerFunc

@@ -229,6 +229,23 @@ func (h *handlers) archiveDocument(w http.ResponseWriter, r *http.Request) {
 	h.documentLifecycleCommand(w, r, false)
 }
 
+// archiveImpact is GET /documents/{documentID}/archive-impact: what the
+// archive command would move, without moving it (FD-04, addendum §3.4). The
+// service answers the same refusals the command would, so the dialog never
+// shows numbers for a delete that cannot happen.
+func (h *handlers) archiveImpact(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	impact, err := h.Documents.ArchiveImpact(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, documentArchiveImpactSDO(impact))
+}
+
 // restoreDocument is POST /documents/{documentID}/restore: only the nodes a
 // single archive batch moved come back; Idempotency-Key replays a retry.
 func (h *handlers) restoreDocument(w http.ResponseWriter, r *http.Request) {
@@ -363,6 +380,17 @@ func documentArchiveSDO(res service.DocumentArchiveResult) sdo.DocumentArchiveSD
 		out.BatchID = &batch
 	}
 	return out
+}
+
+// documentArchiveImpactSDO renders the counts the delete dialog shows.
+func documentArchiveImpactSDO(impact service.DocumentArchiveImpact) sdo.DocumentArchiveImpactSDO {
+	return sdo.DocumentArchiveImpactSDO{
+		Folders:   impact.Folders,
+		Documents: impact.Documents,
+		Total:     impact.Total,
+		MaxNodes:  impact.MaxNodes,
+		TooLarge:  impact.TooLarge,
+	}
 }
 
 // documentAccessLogCursor pins the (occurred_at, id) keyset of the last row

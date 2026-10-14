@@ -29,13 +29,18 @@ SELECT d.*, sub.lvl AS subtree_depth
 FROM sub
 JOIN documents d ON d.id = sub.id;
 
--- The move write (C-01 §5.1 POST .../move): parent and position change, the
--- revision guard is the optimistic check the service already made under the
--- row and tree locks. Archived rows refuse through archived_at IS NULL.
+-- The move write (C-01 §5.1 POST .../move): parent, position, title and the
+-- folded search text change, the revision guard is the optimistic check the
+-- service already made under the row and tree locks. The title is written on
+-- every move - the service renames "(n)" when the destination holds the name
+-- (§3.3) - and search_text follows it in the same statement so a rename is
+-- findable at once. Archived rows refuse through archived_at IS NULL.
 -- name: MoveDocument :one
 UPDATE documents
 SET parent_id = sqlc.narg(parent_id),
     position = sqlc.arg(position),
+    title = sqlc.arg(title),
+    search_text = sqlc.arg(search_text),
     revision = revision + 1,
     updated_by = sqlc.arg(updated_by),
     updated_by_kind = sqlc.arg(updated_by_kind),
@@ -104,11 +109,16 @@ WHERE id = sqlc.arg(id)
   AND archived_at IS NOT NULL;
 
 -- A restored node whose parent did not come back with it (still archived, or
--- purged) re-roots itself so it is reachable again.
+-- purged) re-roots itself so it is reachable again. The restore writes the
+-- final title here too, while the row is still in the trash: the partial
+-- unique index does not apply to archived rows, so the batch is named first
+-- and cleared second (§3.3).
 -- name: DetachDocumentToRoot :one
 UPDATE documents
 SET parent_id = NULL,
     position = sqlc.arg(position),
+    title = sqlc.arg(title),
+    search_text = sqlc.arg(search_text),
     revision = revision + 1,
     updated_by = sqlc.arg(updated_by),
     updated_by_kind = sqlc.arg(updated_by_kind),
@@ -116,6 +126,23 @@ SET parent_id = NULL,
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
+RETURNING *;
+
+-- The restore's other name write: a batch member keeps its parent and only its
+-- title moves. Written while the row is still archived, for the same reason as
+-- the detach above.
+-- name: RenameArchivedDocument :one
+UPDATE documents
+SET title = sqlc.arg(title),
+    search_text = sqlc.arg(search_text),
+    revision = revision + 1,
+    updated_by = sqlc.arg(updated_by),
+    updated_by_kind = sqlc.arg(updated_by_kind),
+    updated_at = now()
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND archived_at IS NOT NULL
 RETURNING *;
 
 -- The §13.6 owner seam: archive/restore of every document a work product
@@ -226,6 +253,24 @@ FROM sub
 JOIN documents d ON d.id = sub.id
 WHERE d.archived_at IS NULL
 LIMIT sqlc.arg(max_rows);
+
+-- The live rows of the bounded id set the archive walk returned, counted by
+-- kind and WITHOUT the root: GET /documents/{documentID}/archive-impact
+-- answers folders/documents over the subtree and adds the root back in total
+-- only (FD-04, addendum §3.4). The caller hands the ids
+-- ListLiveDocumentSubtreeIDs read inside the same REPEATABLE READ, read-only
+-- transaction, so the id set, the manage gate and these counts all come from
+-- one snapshot; archived_at IS NULL repeats the archive command's own write
+-- predicate, so the count is exactly the rows it would stamp besides the root.
+-- name: CountLiveDocumentSubtreeByKind :many
+SELECT d.kind, count(*) AS n
+FROM documents d
+WHERE d.organization_id = sqlc.arg(organization_id)
+  AND d.workspace_id = sqlc.arg(workspace_id)
+  AND d.id = ANY(sqlc.arg(ids)::text[])
+  AND d.id <> sqlc.arg(root_id)
+  AND d.archived_at IS NULL
+GROUP BY d.kind;
 
 -- The live nodes of the bounded id set the archive walk returned that the
 -- actor does not hold manage on through a path plain SQL can read: a workspace
