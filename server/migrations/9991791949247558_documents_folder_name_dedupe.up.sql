@@ -52,7 +52,7 @@ free AS (
   WHERE NOT EXISTS (
     SELECT 1 FROM live l
     WHERE l.workspace_id = g.workspace_id AND l.parent_key = g.parent_key
-      AND l.name_key = lower(g.base_title || ' (' || n.n || ')') COLLATE "und-x-icu"
+      AND l.name_key = lower((g.base_title || ' (' || n.n || ')') COLLATE "und-x-icu")
   )
 )
 UPDATE documents d
