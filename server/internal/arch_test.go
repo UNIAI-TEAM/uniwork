@@ -485,8 +485,9 @@ func TestGraphTablesWrittenOnlyByProjector(t *testing.T) {
 	}
 }
 
-// TestMcpToolsCallNoDelete holds ADR 0033 on the code side: no MCP tool file
-// calls a command that deletes or archives.
+// TestMcpToolsCallNoDelete holds ADR 0033 on the code side: no
+// service/mcp_tools*.go file calls a Delete*/BatchDelete* command, or
+// ArchiveDocument. Every tool file is named mcp_tools_<area>.go.
 func TestMcpToolsCallNoDelete(t *testing.T) {
 	files, err := filepath.Glob("service/mcp_tools*.go")
 	if err != nil {

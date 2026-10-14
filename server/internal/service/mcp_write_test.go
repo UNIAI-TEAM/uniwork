@@ -36,6 +36,8 @@ func TestDecodeIntoRefusesWhatTheModelCanFix(t *testing.T) {
 		`{"title":7}`:       "wrong type",
 		`[1,2]`:             "JSON object",
 		`{"title":"A"} {}`:  "one JSON object",
+		`{"title":"A"}}`:    "one JSON object",
+		`{"title":"A"}]`:    "one JSON object",
 		`{"label_ids":"x"}`: "wrong type",
 	} {
 		err := decodeInto(json.RawMessage(raw), &in{})

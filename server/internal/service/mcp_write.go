@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"reflect"
 	"strings"
 
@@ -33,7 +34,9 @@ func decodeInto(input json.RawMessage, into any) error {
 		}
 		return McpInvalidArgs{Msg: "arguments must be a JSON object"}
 	}
-	if dec.More() {
+	// More() is false before a stray } or ], so ask for a second value and
+	// require the end of input instead.
+	if err := dec.Decode(&json.RawMessage{}); !errors.Is(err, io.EOF) {
 		return McpInvalidArgs{Msg: "arguments must be one JSON object"}
 	}
 	return nil

@@ -360,7 +360,8 @@ Every command that changes business state writes an `audit_events` row and its
   (`TestMCPWriteToolsNeedScopeFlagAndPolicy`), never delete
   (`TestMCPHasNoDeleteTool`, `TestMcpToolsCallNoDelete`), each names its undo
   (`TestMCPWriteToolsDeclareUndo`), and every row they audit carries
-  `metadata.via`.
+  `metadata.via` (`TestMcpCallCarriesTheVia`,
+  `TestRecordWritesTheViaOfTheRequest`).
 
 ## Platform Admin and Observability
 
