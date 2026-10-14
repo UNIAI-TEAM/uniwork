@@ -1,0 +1,59 @@
+$ npm run check:english-comments
+
+> genoffice@0.1.0 check:english-comments
+> node tools/check-english-comments.mjs && node --test tools/check-english-comments.test.mjs
+
+check-english-comments: OK
+TAP version 13
+# Subtest: findViolations
+    # Subtest: flags Han prose in Markdown
+    ok 1 - flags Han prose in Markdown
+      ---
+      duration_ms: 1.377317
+      type: 'test'
+      ...
+    # Subtest: exempts Han inside a ``` fence
+    ok 2 - exempts Han inside a ``` fence
+      ---
+      duration_ms: 0.192144
+      type: 'test'
+      ...
+    # Subtest: flags Han again after the fence closes
+    ok 3 - flags Han again after the fence closes
+      ---
+      duration_ms: 0.515535
+      type: 'test'
+      ...
+    # Subtest: supports ~~~ fences
+    ok 4 - supports ~~~ fences
+      ---
+      duration_ms: 0.106632
+      type: 'test'
+      ...
+    # Subtest: flags Han in a .ts // comment
+    ok 5 - flags Han in a .ts // comment
+      ---
+      duration_ms: 0.114339
+      type: 'test'
+      ...
+    # Subtest: ignores Han in a .ts string literal
+    ok 6 - ignores Han in a .ts string literal
+      ---
+      duration_ms: 0.190745
+      type: 'test'
+      ...
+    1..6
+ok 1 - findViolations
+  ---
+  duration_ms: 3.168017
+  type: 'suite'
+  ...
+1..1
+# tests 6
+# suites 1
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 44.760218
