@@ -7,10 +7,18 @@ RETURNING *;
 -- tenant: by-id
 SELECT * FROM workspaces WHERE id = $1;
 
--- name: UpdateWorkspaceName :one
--- tenant: by-id
-UPDATE workspaces SET name = $2, updated_at = now()
-WHERE id = $1
+-- name: UpdateWorkspaceProfile :one
+-- A NULL argument keeps the column as it is.
+UPDATE workspaces SET
+  name        = COALESCE(sqlc.narg('name'), name),
+  description = COALESCE(sqlc.narg('description'), description),
+  updated_at  = now()
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+RETURNING *;
+
+-- name: SetWorkspaceIconEmoji :one
+UPDATE workspaces SET icon_emoji = sqlc.narg('icon_emoji'), updated_at = now()
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
 RETURNING *;
 
 -- name: GetWorkspaceBySlugs :one

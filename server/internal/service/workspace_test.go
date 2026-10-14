@@ -318,3 +318,93 @@ func TestWorkspaceCreateSeedsTaskStatuses(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkspaceUpdateDescriptionAndEmoji(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	desc, emoji := "  Nhóm làm sản phẩm  ", "🚀"
+	got, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Description: &desc, IconEmoji: &emoji})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Description != "Nhóm làm sản phẩm" || got.IconEmoji.String != "🚀" {
+		t.Fatalf("after update: %+v", got.Workspace)
+	}
+	clear, blank := "", "   "
+	got, err = f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{IconEmoji: &clear, Description: &blank})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.IconEmoji.Valid || got.Description != "" {
+		t.Fatalf("after clearing: %+v", got.Workspace)
+	}
+}
+
+func TestWorkspaceUpdateCountsRunesAndAcceptsComposedEmoji(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 500 Vietnamese letters are 1500 bytes: the cap is on runes.
+	long := strings.Repeat("ệ", 500)
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Description: &long}); err != nil {
+		t.Fatalf("500 runes: %v", err)
+	}
+	for _, e := range []string{"👩🏽‍💻", "🇻🇳", "1️⃣"} {
+		e := e
+		if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{IconEmoji: &e}); err != nil {
+			t.Fatalf("emoji %q: %v", e, err)
+		}
+	}
+}
+
+func TestWorkspaceUpdateRejectsBadInput(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tooLong := strings.Repeat("ệ", 501)
+	spaced, longEmoji := "a b", strings.Repeat("🚀", 17)
+	cases := map[string]UpdateWorkspaceInput{
+		"nothing sent":         {},
+		"description too long": {Description: &tooLong},
+		"emoji with a space":   {IconEmoji: &spaced},
+		"emoji too long":       {IconEmoji: &longEmoji},
+	}
+	for name, in := range cases {
+		var ve ValidationError
+		if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, in); !errors.As(err, &ve) {
+			t.Errorf("%s: err = %v, want ValidationError", name, err)
+		}
+	}
+}
+
+func TestWorkspaceUpdateSameValueWritesNoAudit(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	same := "Đội Alpha"
+	if _, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Name: &same}); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events WHERE workspace_id = $1 AND action = 'workspace.updated'`, w.ID,
+	).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("audit rows for an unchanged name = %d, want 0", n)
+	}
+}

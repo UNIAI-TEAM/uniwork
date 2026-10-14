@@ -2202,6 +2202,8 @@ type Workspace struct {
 	MatrixRoomID   pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix     string             `json:"task_prefix"`
 	TaskCounter    int64              `json:"task_counter"`
+	Description    string             `json:"description"`
+	IconEmoji      pgtype.Text        `json:"icon_emoji"`
 }
 
 type WorkspaceAgentMember struct {

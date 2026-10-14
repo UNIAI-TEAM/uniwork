@@ -6,6 +6,7 @@ import (
 	netmail "net/mail"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -66,6 +67,7 @@ func viewFromInOrgRow(r db.ListWorkspacesInOrgRow) WorkspaceView {
 		ID: r.ID, OrganizationID: r.OrganizationID, Slug: r.Slug, Name: r.Name,
 		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		MatrixRoomID: r.MatrixRoomID, TaskPrefix: r.TaskPrefix, TaskCounter: r.TaskCounter,
+		Description: r.Description, IconEmoji: r.IconEmoji,
 	}, OrganizationSlug: r.OrganizationSlug, OrganizationName: r.OrganizationName}
 }
 
@@ -285,36 +287,33 @@ func (s *WorkspaceService) requireActorMember(ctx context.Context, workspaceID s
 }
 
 type UpdateWorkspaceInput struct {
-	Name *string
+	Name        *string
+	Description *string
+	IconEmoji   *string
 }
 
-const maxWorkspaceNameRunes = 100
+const (
+	maxWorkspaceNameRunes        = 100
+	maxWorkspaceDescriptionRunes = 500
+	maxWorkspaceIconEmojiRunes   = 16
+)
 
-// Update changes workspace settings the caller is allowed to edit. v1: name only.
+// Update changes what an owner or admin may edit about a workspace (spec
+// 2026-10-14 §5.1). A nil field keeps its value; a field sent with its
+// current value is not a change, and a call that changes nothing writes no
+// audit row and no event.
 func (s *WorkspaceService) Update(ctx context.Context, userID, workspaceID string, in UpdateWorkspaceInput) (WorkspaceView, error) {
-	m, err := s.RequireMember(ctx, workspaceID, userID)
+	before, err := s.requireWorkspaceAdmin(ctx, userID, workspaceID)
 	if err != nil {
 		return WorkspaceView{}, err
 	}
-	if m.Role != "owner" && m.Role != "admin" {
-		return WorkspaceView{}, ErrForbidden
-	}
-	if in.Name == nil {
-		return WorkspaceView{}, Invalid("name is required")
-	}
-	name := strings.TrimSpace(*in.Name)
-	if name == "" {
-		return WorkspaceView{}, Invalid("tên workspace không được để trống")
-	}
-	if utf8.RuneCountInString(name) > maxWorkspaceNameRunes {
-		return WorkspaceView{}, Invalid("tên workspace quá dài")
-	}
-	before, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return WorkspaceView{}, ErrNotFound
-	}
+	in, err = normalizeWorkspaceInput(in)
 	if err != nil {
 		return WorkspaceView{}, err
+	}
+	from, to := workspaceChanges(before, in)
+	if len(to) == 0 {
+		return s.GetView(ctx, userID, workspaceID)
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -324,27 +323,133 @@ func (s *WorkspaceService) Update(ctx context.Context, userID, workspaceID strin
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	if _, err := q.UpdateWorkspaceName(ctx, db.UpdateWorkspaceNameParams{ID: workspaceID, Name: name}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return WorkspaceView{}, ErrNotFound
-		}
+	if err := s.applyWorkspaceChanges(ctx, q, before, in, to); err != nil {
 		return WorkspaceView{}, err
 	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: before.OrganizationID, WorkspaceID: workspaceID,
-		Actor:        audit.User(userID),
-		Action:       audit.ActionWorkspaceUpdated,
-		ResourceType: "workspace", ResourceID: workspaceID,
-		Changes: audit.Diff(map[string]any{"name": before.Name}, map[string]any{"name": name}),
-	}, audit.Event{Topic: "workspace.updated", Payload: map[string]string{
-		"workspace_id": workspaceID, "organization_id": before.OrganizationID,
-	}}); err != nil {
+	if err := recordWorkspaceUpdated(ctx, q, userID, before, from, to); err != nil {
 		return WorkspaceView{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return WorkspaceView{}, err
 	}
 	return s.GetView(ctx, userID, workspaceID)
+}
+
+// requireWorkspaceAdmin is the gate every workspace-settings write shares:
+// owner or admin of the workspace (organization owners and admins count as
+// admin through RequireMember). It returns the row as it stands.
+func (s *WorkspaceService) requireWorkspaceAdmin(ctx context.Context, userID, workspaceID string) (db.Workspace, error) {
+	m, err := s.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
+		return db.Workspace{}, err
+	}
+	if m.Role != "owner" && m.Role != "admin" {
+		return db.Workspace{}, ErrForbidden
+	}
+	w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Workspace{}, ErrNotFound
+	}
+	return w, err
+}
+
+// normalizeWorkspaceInput trims and validates every field that was sent.
+func normalizeWorkspaceInput(in UpdateWorkspaceInput) (UpdateWorkspaceInput, error) {
+	if in.Name == nil && in.Description == nil && in.IconEmoji == nil {
+		return in, Invalid("không có thông tin nào để đổi")
+	}
+	out := UpdateWorkspaceInput{}
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" {
+			return out, Invalid("tên workspace không được để trống")
+		}
+		if utf8.RuneCountInString(name) > maxWorkspaceNameRunes {
+			return out, Invalid("tên workspace quá dài")
+		}
+		out.Name = &name
+	}
+	if in.Description != nil {
+		d := strings.TrimSpace(*in.Description)
+		if utf8.RuneCountInString(d) > maxWorkspaceDescriptionRunes {
+			return out, Invalid("mô tả workspace tối đa 500 ký tự")
+		}
+		out.Description = &d
+	}
+	if in.IconEmoji != nil {
+		e := strings.TrimSpace(*in.IconEmoji)
+		// shortcut: any short run of non-space characters passes; nothing
+		// checks it is really an emoji. Upgrade if people put words here.
+		if utf8.RuneCountInString(e) > maxWorkspaceIconEmojiRunes || strings.ContainsFunc(e, unicode.IsSpace) {
+			return out, Invalid("icon workspace phải là một emoji")
+		}
+		out.IconEmoji = &e
+	}
+	return out, nil
+}
+
+// workspaceChanges compares the validated input with the row. from and to
+// hold only the fields that change, keyed as the audit diff names them.
+func workspaceChanges(before db.Workspace, in UpdateWorkspaceInput) (from, to map[string]any) {
+	from, to = map[string]any{}, map[string]any{}
+	change := func(key, old, next string) {
+		if old != next {
+			from[key], to[key] = old, next
+		}
+	}
+	if in.Name != nil {
+		change("name", before.Name, *in.Name)
+	}
+	if in.Description != nil {
+		change("description", before.Description, *in.Description)
+	}
+	if in.IconEmoji != nil {
+		change("icon_emoji", before.IconEmoji.String, *in.IconEmoji)
+	}
+	return from, to
+}
+
+// applyWorkspaceChanges writes the changed fields inside the caller's
+// transaction; to holds only fields whose value really changes.
+func (s *WorkspaceService) applyWorkspaceChanges(ctx context.Context, q *db.Queries, before db.Workspace, in UpdateWorkspaceInput, to map[string]any) error {
+	profile := db.UpdateWorkspaceProfileParams{ID: before.ID, OrganizationID: before.OrganizationID}
+	if _, ok := to["name"]; ok {
+		profile.Name = pgtype.Text{String: *in.Name, Valid: true}
+	}
+	if _, ok := to["description"]; ok {
+		profile.Description = pgtype.Text{String: *in.Description, Valid: true}
+	}
+	if profile.Name.Valid || profile.Description.Valid {
+		if _, err := q.UpdateWorkspaceProfile(ctx, profile); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+	}
+	if _, ok := to["icon_emoji"]; ok {
+		emoji := pgtype.Text{String: *in.IconEmoji, Valid: *in.IconEmoji != ""}
+		if _, err := q.SetWorkspaceIconEmoji(ctx, db.SetWorkspaceIconEmojiParams{
+			ID: before.ID, OrganizationID: before.OrganizationID, IconEmoji: emoji,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// recordWorkspaceUpdated writes the one audit row and outbox event of a
+// workspace-settings change, in the caller's transaction.
+func recordWorkspaceUpdated(ctx context.Context, q *db.Queries, userID string, w db.Workspace, from, to map[string]any) error {
+	return auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
+		Actor:        audit.User(userID),
+		Action:       audit.ActionWorkspaceUpdated,
+		ResourceType: "workspace", ResourceID: w.ID,
+		Changes: audit.Diff(from, to),
+	}, audit.Event{Topic: "workspace.updated", Payload: map[string]string{
+		"workspace_id": w.ID, "organization_id": w.OrganizationID,
+	}})
 }
 
 func (s *WorkspaceService) Members(ctx context.Context, userID, workspaceID string) ([]db.ListWorkspaceMembersRow, error) {
