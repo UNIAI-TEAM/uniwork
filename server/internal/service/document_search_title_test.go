@@ -38,7 +38,7 @@ func TestDocumentTitleSearchAndKind(t *testing.T) {
 	})
 	docBodyOnly := f.treeDoc(t, tn, treeDocSpec{
 		ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
-		kind: DocumentKindPage, title: "Biên bản", contentText: "thảo luận về Hợp đồng",
+		kind: DocumentKindPage, parent: folder.ID, title: "Biên bản", contentText: "thảo luận về Hợp đồng",
 		searchText: documentSearchText("Biên bản", "thảo luận về Hợp đồng"),
 	})
 
@@ -58,7 +58,7 @@ func TestDocumentTitleSearchAndKind(t *testing.T) {
 		}
 	})
 
-	t.Run("no match keeps legacy search_text behavior", func(t *testing.T) {
+	t.Run("no match keeps legacy search_text behavior and row shape", func(t *testing.T) {
 		page, err := f.svc.ListDocuments(f.ctx, Human(tn.member.ID), tn.wsA, ListDocumentsInput{
 			Query: "hop dong", Limit: 50,
 		})
@@ -68,6 +68,45 @@ func TestDocumentTitleSearchAndKind(t *testing.T) {
 		ids := listIDs(page)
 		if !containsID(ids, folder.ID) || !containsID(ids, docTitle.ID) || !containsID(ids, fileTitle.ID) || !containsID(ids, docBodyOnly.ID) {
 			t.Fatalf("default search ids = %v, want all four matches", ids)
+		}
+		var bodyItem *DocumentListItem
+		for i := range page.Items {
+			if page.Items[i].Document.ID == docBodyOnly.ID {
+				bodyItem = &page.Items[i]
+				break
+			}
+		}
+		if bodyItem == nil {
+			t.Fatalf("missing docBodyOnly %s in items", docBodyOnly.ID)
+		}
+		if bodyItem.Document.Title != "Biên bản" || bodyItem.Document.Kind != DocumentKindPage || !strings.Contains(bodyItem.Snippet, "thảo luận về Hợp đồng") {
+			t.Fatalf("legacy search row shape = title=%q kind=%q snippet=%q", bodyItem.Document.Title, bodyItem.Document.Kind, bodyItem.Snippet)
+		}
+		if len(bodyItem.Path) != 1 || bodyItem.Path[0].ID != folder.ID || bodyItem.Path[0].Title != "Hợp đồng" {
+			t.Fatalf("legacy search row path = %+v, want [{%s Hợp đồng}]", bodyItem.Path, folder.ID)
+		}
+	})
+
+	t.Run("recent validates match identically to list and accepts match=title", func(t *testing.T) {
+		if _, err := f.svc.ListRecentDocuments(f.ctx, Human(tn.member.ID), tn.wsA, ListDocumentsInput{
+			Match: "bogus",
+		}); err == nil {
+			t.Fatal("expected Invalid error for recent match=bogus, got nil")
+		}
+		recentPage, err := f.svc.ListRecentDocuments(f.ctx, Human(tn.aclOwner.ID), tn.wsA, ListDocumentsInput{
+			Query: "hop dong", Match: "title", Limit: 50,
+		})
+		if err != nil {
+			t.Fatalf("recent with match=title: %v", err)
+		}
+		rIDs := listIDs(recentPage)
+		if !containsID(rIDs, docTitle.ID) || !containsID(rIDs, docBodyOnly.ID) {
+			t.Fatalf("recent ids = %v, want %s and %s", rIDs, docTitle.ID, docBodyOnly.ID)
+		}
+		for _, it := range recentPage.Items {
+			if len(it.Path) != 0 {
+				t.Fatalf("recent item %s unexpectedly carried path %+v", it.Document.ID, it.Path)
+			}
 		}
 	})
 
@@ -230,6 +269,9 @@ func TestDocumentListPath(t *testing.T) {
 
 	t.Run("foreign-tenant poison parent never enters path", func(t *testing.T) {
 		tnOther := f.tenant(t, "tpathother")
+		if tnOther.owner.ID == tn.owner.ID || tnOther.orgID == tn.orgID {
+			t.Fatalf("second org must be founded by a fresh account (ADR 0032): tn=%s/%s tnOther=%s/%s", tn.owner.ID, tn.orgID, tnOther.owner.ID, tnOther.orgID)
+		}
 		poison := f.treeDoc(t, tnOther, treeDocSpec{
 			ws: tnOther.wsA, visibility: "workspace", aclOwner: tnOther.owner.ID, createdBy: tnOther.owner.ID,
 			kind: DocumentKindFolder, title: "PoisonForeignFolder",
@@ -318,17 +360,98 @@ func TestDocumentListPath(t *testing.T) {
 			t.Fatalf("query count grew with result size: 5 items = %d queries, 50 items = %d queries", q5, q50)
 		}
 	})
+
+	t.Run("list without q returns no path and issues no ancestor query", func(t *testing.T) {
+		tnPlain := f.tenant(t, "tplain")
+		parentFolder := f.treeDoc(t, tnPlain, treeDocSpec{
+			ws: tnPlain.wsA, visibility: "workspace", aclOwner: tnPlain.aclOwner.ID, createdBy: tnPlain.aclOwner.ID,
+			kind: DocumentKindFolder, title: "Thư mục cha không tìm kiếm",
+		})
+		childPage := f.treeDoc(t, tnPlain, treeDocSpec{
+			ws: tnPlain.wsA, visibility: "workspace", aclOwner: tnPlain.aclOwner.ID, createdBy: tnPlain.aclOwner.ID,
+			kind: DocumentKindPage, parent: parentFolder.ID, title: "Trang con duyệt phẳng",
+		})
+		trashedChild := f.treeDoc(t, tnPlain, treeDocSpec{
+			ws: tnPlain.wsA, visibility: "workspace", aclOwner: tnPlain.aclOwner.ID, createdBy: tnPlain.aclOwner.ID,
+			kind: DocumentKindPage, parent: parentFolder.ID, title: "Trang con trong thùng rác", archived: true,
+		})
+
+		cfg := f.pool.Config()
+		capTracer := &sqlCaptureTracer{}
+		cfg.ConnConfig.Tracer = capTracer
+		cPool, err := pgxpool.NewWithConfig(f.ctx, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(cPool.Close)
+		tracedSvc := newDocumentServiceForTest(cPool, db.New(cPool))
+
+		// 1. Flat browse without q.
+		flatPage, err := tracedSvc.ListDocuments(f.ctx, Human(tnPlain.member.ID), tnPlain.wsA, ListDocumentsInput{Limit: 50})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !containsID(listIDs(flatPage), childPage.ID) {
+			t.Fatalf("flat list missing child %s: %v", childPage.ID, listIDs(flatPage))
+		}
+		for _, it := range flatPage.Items {
+			if len(it.Path) != 0 {
+				t.Fatalf("flat list without q returned path on %s: %+v", it.Document.ID, it.Path)
+			}
+		}
+
+		// 2. Folder children (parent_id) without q.
+		parentID := parentFolder.ID
+		childrenPage, err := tracedSvc.ListDocuments(f.ctx, Human(tnPlain.member.ID), tnPlain.wsA, ListDocumentsInput{
+			ParentID: &parentID, Limit: 50,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !containsID(listIDs(childrenPage), childPage.ID) {
+			t.Fatalf("children list missing child %s: %v", childPage.ID, listIDs(childrenPage))
+		}
+		for _, it := range childrenPage.Items {
+			if len(it.Path) != 0 {
+				t.Fatalf("parent_id list without q returned path on %s: %+v", it.Document.ID, it.Path)
+			}
+		}
+
+		// 3. Trash view (archived=true) without q.
+		trashPage, err := tracedSvc.ListDocuments(f.ctx, Human(tnPlain.aclOwner.ID), tnPlain.wsA, ListDocumentsInput{
+			Archived: true, Limit: 50,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !containsID(listIDs(trashPage), trashedChild.ID) {
+			t.Fatalf("trash list missing trashed child %s: %v", trashedChild.ID, listIDs(trashPage))
+		}
+		for _, it := range trashPage.Items {
+			if len(it.Path) != 0 {
+				t.Fatalf("trash list without q returned path on %s: %+v", it.Document.ID, it.Path)
+			}
+		}
+
+		if capTracer.ancestorsCalls > 0 {
+			t.Fatalf("non-search list issued %d ListDocumentAncestors queries, want 0", capTracer.ancestorsCalls)
+		}
+	})
 }
 
 type sqlCaptureTracer struct {
-	sql  string
-	args []any
+	sql            string
+	args           []any
+	ancestorsCalls int
 }
 
 func (c *sqlCaptureTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	if strings.Contains(data.SQL, "-- name: ListDocumentsPage") {
 		c.sql = data.SQL
 		c.args = data.Args
+	}
+	if strings.Contains(data.SQL, "-- name: ListDocumentAncestors") {
+		c.ancestorsCalls++
 	}
 	return ctx
 }
@@ -422,8 +545,9 @@ func TestDocumentTitleSearchExplainUsesIndex(t *testing.T) {
 	if !strings.Contains(explainText, "idx_documents_title_fold") {
 		t.Fatalf("EXPLAIN ANALYZE did not use idx_documents_title_fold:\n%s", explainText)
 	}
-	reportPath := filepath.FromSlash("D:/.Vietants_Project/uniwork-workspace/.uniwork-dev/office-g5g6g7/reports/e6-search/explain-title-idx.txt")
-	if err := os.MkdirAll(filepath.Dir(reportPath), 0o755); err == nil {
-		_ = os.WriteFile(reportPath, []byte(explainText), 0o644)
+	outFile := filepath.Join(t.TempDir(), "explain-title-idx.txt")
+	if err := os.WriteFile(outFile, []byte(explainText), 0o644); err != nil {
+		t.Fatalf("write temp explain output: %v", err)
 	}
+	t.Logf("EXPLAIN (ANALYZE, BUFFERS) plan (%s):\n%s", outFile, explainText)
 }
