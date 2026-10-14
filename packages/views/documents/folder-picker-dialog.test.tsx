@@ -213,6 +213,93 @@ describe("FolderPickerDialog", () => {
     expect(props.onSubmit).toHaveBeenCalledWith("f1-sub");
   });
 
+  it("ignores Space on an aria-disabled row (same as Enter) while keeping ArrowLeft/ArrowRight and the chevron for expand/collapse", () => {
+    const props = renderPicker({
+      currentFolderId: "f1",
+      initialFolderId: "f1",
+      movingId: "f1",
+    });
+    const f1Row = screen.getByRole("treeitem", { name: "Hợp đồng" });
+    expect(f1Row).toHaveAttribute("aria-disabled", "true");
+    expect(f1Row).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("treeitem", { name: "Phụ lục" })).toBeInTheDocument();
+
+    // Space and Enter on a disabled parent row neither select nor collapse/expand it
+    f1Row.focus();
+    fireEvent.keyDown(f1Row, { key: " " });
+    fireEvent.keyDown(f1Row, { key: "Enter" });
+    expect(f1Row).toHaveAttribute("aria-selected", "false");
+    expect(f1Row).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("treeitem", { name: "Phụ lục" })).toBeInTheDocument();
+
+    // ArrowLeft and ArrowRight still collapse and expand the disabled branch
+    fireEvent.keyDown(f1Row, { key: "ArrowLeft" });
+    expect(f1Row).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("treeitem", { name: "Phụ lục" })).toBeNull();
+
+    fireEvent.keyDown(f1Row, { key: "ArrowRight" });
+    expect(f1Row).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("treeitem", { name: "Phụ lục" })).toBeInTheDocument();
+
+    // Chevron button also collapses and expands without selecting
+    fireEvent.click(within(f1Row).getByRole("button", { name: t("documents.tree.collapse", { title: "Hợp đồng" }) }));
+    expect(f1Row).toHaveAttribute("aria-expanded", "false");
+    expect(f1Row).toHaveAttribute("aria-selected", "false");
+    fireEvent.click(within(f1Row).getByRole("button", { name: t("documents.tree.expand", { title: "Hợp đồng" }) }));
+    expect(f1Row).toHaveAttribute("aria-expanded", "true");
+    expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("disables a folder at TREE_MAX_LEVEL with reason_too_deep and does not preselect it when saving a source (no movingId)", async () => {
+    const deepTree = buildDeepChain(TREE_MAX_LEVEL);
+    const maxFolderId = `lvl-${TREE_MAX_LEVEL}`;
+    const parentFolderId = `lvl-${TREE_MAX_LEVEL - 1}`;
+    const expectedReason = t("documents.home.move.reason_too_deep", { max: TREE_MAX_LEVEL });
+    const baseProps: React.ComponentProps<typeof FolderPickerDialog> = {
+      open: true,
+      onOpenChange: vi.fn(),
+      title: t("documents.home.save_source.title"),
+      description: t("documents.home.save_source.description", { name: "Đề xuất.pdf" }),
+      submitLabel: t("documents.home.save_source.submit"),
+      pickerLabel: t("documents.home.save_source.picker_label"),
+      rootLabel: t("documents.home.save_source.root"),
+      tree: deepTree,
+      initialFolderId: maxFolderId,
+      pending: false,
+      error: null,
+      onSubmit: vi.fn(),
+    };
+    const { rerender } = render(<FolderPickerDialog {...baseProps} />);
+
+    const maxRow = screen.getByRole("treeitem", { name: `Cấp ${TREE_MAX_LEVEL}` });
+    const allowedRow = screen.getByRole("treeitem", { name: `Cấp ${TREE_MAX_LEVEL - 1}` });
+    const submitBtn = screen.getByRole("button", { name: t("documents.home.save_source.submit") });
+
+    expect(maxRow).toHaveAttribute("aria-disabled", "true");
+    expect(maxRow).toHaveAttribute("aria-selected", "false");
+    expect(maxRow).toHaveAccessibleDescription(expectedReason);
+    expect(maxRow).toHaveTextContent(expectedReason);
+    expect(allowedRow).not.toHaveAttribute("aria-disabled");
+    expect(submitBtn).toHaveAttribute("aria-disabled", "true");
+
+    // Reopening at level 20 also keeps it unselected and submit blocked
+    rerender(<FolderPickerDialog {...baseProps} open={false} />);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    rerender(<FolderPickerDialog {...baseProps} open />);
+    expect(await screen.findByRole("treeitem", { name: `Cấp ${TREE_MAX_LEVEL}` })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: t("documents.home.save_source.submit") })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("treeitem", { name: `Cấp ${TREE_MAX_LEVEL - 1}` }));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.save_source.submit") }));
+    expect(baseProps.onSubmit).toHaveBeenCalledWith(parentFolderId);
+  });
+
   it("holds its buttons with aria-disabled while pending: they keep focus and do nothing", () => {
     const props = renderPicker({ pending: true });
     const submit = screen.getByRole("button", { name: t("documents.home.move.submit") });
