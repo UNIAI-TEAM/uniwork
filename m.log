@@ -1,0 +1,16 @@
+$ pnpm test 2>&1 | grep -E 'Test Files|Tests |FAIL' | tail -40; echo "ALL_TEST_EXIT=${PIPESTATUS[0]}"
+@uniwork/office-contracts:test:  Test Files  3 passed (3)
+@uniwork/office-contracts:test:       Tests  38 passed (38)
+@uniwork/web:test:  Test Files  18 passed (18)
+@uniwork/web:test:       Tests  191 passed (191)
+@uniwork/office-engine-app:test:  Test Files  10 passed (10)
+@uniwork/office-engine-app:test:       Tests  107 passed | 11 skipped (121)
+@uniwork/ui:test:  Test Files  33 passed (33)
+@uniwork/ui:test:       Tests  278 passed (278)
+@uniwork/office-engine:test:  Test Files  71 passed | 1 skipped (72)
+@uniwork/office-engine:test:       Tests  921 passed | 5 skipped (926)
+@uniwork/core:test:  Test Files  238 passed (238)
+@uniwork/core:test:       Tests  2281 passed (2281)
+@uniwork/views:test:  Test Files  542 passed (542)
+@uniwork/views:test:       Tests  4364 passed (4364)
+ALL_TEST_EXIT=0

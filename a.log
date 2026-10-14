@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+03242aa64353875cd1b190acd73c22d81fc2edfc
+03242aa64 Merge branch 'feature/UNI-923-develop-e2e' into feature/UNI-923-develop-ci-dev13
+601929c20 test(e2e): reach the avatar's second organization by switching to it
+7e71a7756 test(e2e): align the landing specs with the redesigned opening and header
