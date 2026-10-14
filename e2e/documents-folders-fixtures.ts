@@ -37,7 +37,7 @@ const FIXTURE_FILES = {
   },
 } as const;
 
-export type FolderFixtureId = keyof typeof FIXTURE_FILES;
+type FolderFixtureId = keyof typeof FIXTURE_FILES;
 
 interface FolderTestUser {
   id: string;
@@ -45,7 +45,7 @@ interface FolderTestUser {
   token: string;
 }
 
-export interface FolderWorkspaceSetup {
+interface FolderWorkspaceSetup {
   orgId: string;
   orgSlug: string;
   wsId: string;
@@ -60,7 +60,7 @@ interface DocumentBreadcrumbDTO {
   icon: string | null;
 }
 
-export interface DocumentDTO {
+interface DocumentDTO {
   id: string;
   organization_id: string;
   workspace_id: string;
@@ -77,7 +77,7 @@ export interface DocumentDTO {
   breadcrumbs?: DocumentBreadcrumbDTO[];
 }
 
-export interface DocumentSummaryDTO {
+interface DocumentSummaryDTO {
   id: string;
   parent_id: string | null;
   kind: "page" | "file" | "folder";
@@ -91,7 +91,7 @@ export interface DocumentSummaryDTO {
   path?: Array<{ id: string; title: string }>;
 }
 
-export interface DocumentTreeNodeDTO {
+interface DocumentTreeNodeDTO {
   id: string;
   parent_id: string | null;
   kind: "page" | "file" | "folder";
@@ -106,14 +106,15 @@ interface ApiErrorBody {
   message?: string;
 }
 
-export interface ApiCallResult<T> {
+interface ApiCallResult<T> {
   status: number;
   ok: boolean;
   data?: T;
   error?: ApiErrorBody;
+  rawText?: string;
 }
 
-export interface ArchiveImpactDTO {
+interface ArchiveImpactDTO {
   folders: number;
   documents: number;
   total: number;
@@ -121,13 +122,28 @@ export interface ArchiveImpactDTO {
   too_large: boolean;
 }
 
-export interface ArchiveResultDTO {
+interface ArchiveResultDTO {
   document: DocumentDTO;
   batch_id: string;
   affected: string[];
 }
 
-function authHeaders(token: string, idempotencyKey?: string): Record<string, string> {
+interface DocumentSourceItemDTO {
+  id: string;
+  source: string;
+  name: string;
+  parent?: {
+    kind: string;
+    id: string;
+    title: string;
+    ref?: string;
+  };
+}
+
+function authHeaders(
+  token: string,
+  idempotencyKey?: string,
+): Record<string, string> {
   const headers: Record<string, string> = {
     authorization: `Bearer ${token}`,
   };
@@ -185,7 +201,10 @@ export async function seedFolderWorkspace(
   return setup;
 }
 
-export async function loginFolderUser(page: Page, email: string): Promise<void> {
+export async function loginFolderUser(
+  page: Page,
+  email: string,
+): Promise<void> {
   await loginViaUi(page, email);
 }
 
@@ -209,18 +228,24 @@ export async function apiCreateDocument(
     visibility?: "workspace" | "restricted";
     content?: unknown;
   },
+  idempotencyKey?: string,
 ): Promise<ApiCallResult<DocumentDTO>> {
   const res = await page.request.post(
     `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents`,
     {
       headers: {
-        ...authHeaders(token, `doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+        ...authHeaders(
+          token,
+          idempotencyKey ??
+            `doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        ),
         "content-type": "application/json",
       },
       data: input,
     },
   );
-  const raw = (await res.json()) as {
+  const rawText = await res.text();
+  const raw = JSON.parse(rawText) as {
     document?: DocumentDTO;
     error?: ApiErrorBody;
     code?: string;
@@ -231,6 +256,7 @@ export async function apiCreateDocument(
     ok: res.ok(),
     data: raw.document,
     error: raw.error ?? { code: raw.code, message: raw.message },
+    rawText,
   };
 }
 
@@ -404,7 +430,11 @@ export async function patchDocument(
   page: Page,
   token: string,
   docId: string,
-  body: { revision: string; title?: string; visibility?: "workspace" | "restricted" },
+  body: {
+    revision: string;
+    title?: string;
+    visibility?: "workspace" | "restricted";
+  },
 ): Promise<ApiCallResult<DocumentDTO>> {
   const res = await page.request.patch(
     `${e2eApiUrl}/api/v1/documents/${docId}`,
@@ -416,7 +446,8 @@ export async function patchDocument(
       data: body,
     },
   );
-  const raw = (await res.json()) as {
+  const rawText = await res.text();
+  const raw = JSON.parse(rawText) as {
     document?: DocumentDTO;
     error?: ApiErrorBody;
     code?: string;
@@ -427,6 +458,7 @@ export async function patchDocument(
     ok: res.ok(),
     data: raw.document,
     error: raw.error ?? { code: raw.code, message: raw.message },
+    rawText,
   };
 }
 
@@ -553,7 +585,8 @@ export async function listDocuments(
   },
 ): Promise<{ documents: DocumentSummaryDTO[]; next_cursor: string }> {
   const search = new URLSearchParams();
-  if (params?.parent_id !== undefined) search.set("parent_id", params.parent_id);
+  if (params?.parent_id !== undefined)
+    search.set("parent_id", params.parent_id);
   if (params?.q !== undefined) search.set("q", params.q);
   if (params?.match !== undefined) search.set("match", params.match);
   if (params?.kind !== undefined) search.set("kind", params.kind);
@@ -625,7 +658,7 @@ export async function grantDocumentShare(
   return body.share.id;
 }
 
-export interface DocumentArtifactsSnapshot {
+interface DocumentArtifactsSnapshot {
   versionNumbers: number[];
   commentIds: string[];
   shareIds: string[];
@@ -689,4 +722,23 @@ export async function readDocumentArtifacts(
     commentIds: comments.comments.map((c) => c.id),
     shareIds: shares.shares.map((s) => s.id),
   };
+}
+
+export async function listDocumentSources(
+  page: Page,
+  token: string,
+  wsId: string,
+  source?: "chat" | "task" | "meeting" | "email",
+): Promise<DocumentSourceItemDTO[]> {
+  const qs = source ? `?source=${encodeURIComponent(source)}` : "";
+  const res = await page.request.get(
+    `${e2eApiUrl}/api/v1/workspaces/${wsId}/documents/sources${qs}`,
+    { headers: authHeaders(token) },
+  );
+  expect(
+    res.ok(),
+    `listDocumentSources failed: ${res.status()} ${await res.text()}`,
+  ).toBeTruthy();
+  const body = (await res.json()) as { items?: DocumentSourceItemDTO[] };
+  return body.items ?? [];
 }

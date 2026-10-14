@@ -11,6 +11,7 @@ import {
   getDocumentTree,
   grantDocumentShare,
   listDocuments,
+  listDocumentSources,
   loginFolderUser,
   moveDocument,
   patchDocument,
@@ -23,7 +24,7 @@ import {
   uploadFixtureFile,
 } from "./documents-folders-fixtures";
 
-test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu; rejects blank, >200 chars, and duplicate sibling names", async ({
+test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to depth 20; rejects blank, >255 chars, and depth 21", async ({
   page,
 }) => {
   test.slow();
@@ -42,18 +43,40 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu; reject
   const input = dialog.getByLabel("Tên thư mục");
   await expect(input).toBeVisible();
 
+  let folderPostCalls = 0;
+  const countCreatePost = (req: { method: () => string; url: () => string }) => {
+    if (
+      req.method() === "POST" &&
+      req.url().endsWith(`/api/v1/workspaces/${ws.wsId}/documents`)
+    ) {
+      folderPostCalls += 1;
+    }
+  };
+  page.on("request", countCreatePost);
+
   await input.fill("   ");
   await dialog.getByRole("button", { name: "Tạo" }).click();
   await expect(dialog.getByRole("alert")).toContainText("Nhập tên thư mục.");
+  expect(folderPostCalls).toBe(0);
 
-  const over200 = "K".repeat(201);
-  await input.fill(over200);
+  const over255 = "K".repeat(256);
+  await input.fill(over255);
   await dialog.getByRole("button", { name: "Tạo" }).click();
   await expect(dialog.getByRole("alert")).toContainText(
-    "Tên thư mục tối đa 200 ký tự.",
+    "Tên thư mục tối đa 255 ký tự.",
   );
+  expect(folderPostCalls).toBe(0);
+  page.off("request", countCreatePost);
+
+  const apiMax255 = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
+    title: "M".repeat(255),
+    kind: "folder",
+  });
+  expect(apiMax255.status).toBe(201);
+  expect(apiMax255.data?.title.length).toBe(255);
+
   const apiTooLong = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
-    title: over200,
+    title: over255,
     kind: "folder",
   });
   expect(apiTooLong.status).toBe(400);
@@ -75,18 +98,26 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu; reject
   expect(rootFolder?.kind).toBe("folder");
   expect(rootFolder?.parent_id).toBeNull();
 
-  await sidebar.getByRole("button", { name: "Tạo thư mục" }).click();
-  await input.fill("  hop   dong 2026 ");
-  await dialog.getByRole("button", { name: "Tạo" }).click();
-  await expect(dialog.getByRole("alert")).toContainText(
-    "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
-  );
-  await expect(input).toHaveValue("  hop   dong 2026 ");
-  await input.press("Escape");
-  await expect(dialog).toBeHidden();
-
   await tree.getByRole("treeitem", { name: "Hợp đồng 2026" }).click();
   await expect(page).toHaveURL(new RegExp(`folder=${rootFolder!.id}`));
+
+  // Clicking sidebar "+" while inside an open folder creates at the workspace root (parent_id: null).
+  await sidebar.getByRole("button", { name: "Tạo thư mục" }).click();
+  await expect(dialog).toBeVisible();
+  await input.fill("Thư mục Gốc Khi Đang Mở Con");
+  await dialog.getByRole("button", { name: "Tạo" }).click();
+  await expect(dialog).toBeHidden();
+  const rootListAfterPlus = await listDocuments(page, ws.owner.token, ws.wsId, {
+    parent_id: "",
+  });
+  const createdFromPlus = rootListAfterPlus.documents.find(
+    (d) => d.title === "Thư mục Gốc Khi Đang Mở Con",
+  );
+  expect(createdFromPlus?.parent_id).toBeNull();
+
+  await page.goto(
+    `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${rootFolder!.id}`,
+  );
   await page.getByRole("button", { name: "Tạo mới", exact: true }).click();
   await page.getByRole("menuitem", { name: "Thư mục" }).click();
   const subDialog = page.getByRole("dialog", {
@@ -117,28 +148,64 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu; reject
     "Biên bản",
     "Phụ lục Q1",
   ]);
+
+  // Depth 20 is allowed; depth 21 is rejected with 422 document_too_deep.
+  const chain = await createFolderChain(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    20,
+    "Cấp",
+  );
+  const level20 = chain[19]!;
+  expect(level20.parent_id).toBe(chain[18]!.id);
+  const tooDeepCreate = await apiCreateDocument(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    {
+      title: "Cấp 21",
+      kind: "folder",
+      parent_id: level20.id,
+    },
+  );
+  expect(tooDeepCreate.status).toBe(422);
+  expect(tooDeepCreate.error?.code).toBe("document_too_deep");
 });
 
-test("FD-A02 sidebar folder tree expands/collapses, persists across reload, syncs active folder, and keeps folders_only", async ({
+test("FD-A02 sidebar folder tree expands/collapses independently, reveals active ?folder= ancestors, and stays collapsed across a refetch", async ({
   page,
 }) => {
   const ws = await seedFolderWorkspace(page, "fd-a02");
-  const parent = await createFolder(
+  const branchA = await createFolder(
     page,
     ws.owner.token,
     ws.wsId,
     "Dự án Alpha",
   );
-  const child = await createFolder(
+  const childA = await createFolder(
     page,
     ws.owner.token,
     ws.wsId,
-    "Thiết kế",
-    parent.id,
+    "Thiết kế Alpha",
+    branchA.id,
   );
-  await createPage(page, ws.owner.token, ws.wsId, "Trang Ghi chú", parent.id);
+  const branchB = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Dự án Beta",
+  );
+  const childB = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Triển khai Beta",
+    branchB.id,
+  );
+  await createPage(page, ws.owner.token, ws.wsId, "Trang Ghi chú", branchA.id);
   await uploadFixtureFile(page, ws.owner.token, ws.wsId, "fx-docx-report-vi", {
-    parentId: parent.id,
+    parentId: branchA.id,
     title: "Báo cáo Đính kèm",
   });
 
@@ -146,19 +213,29 @@ test("FD-A02 sidebar folder tree expands/collapses, persists across reload, sync
     folders_only: true,
   });
   expect(treeNodes.every((n) => n.kind === "folder")).toBe(true);
-  expect(treeNodes[0]?.children.every((n) => n.kind === "folder")).toBe(true);
+  expect(treeNodes.every((n) => n.children.every((c) => c.kind === "folder"))).toBe(
+    true,
+  );
 
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
 
   const tree = page.getByRole("tree", { name: "Cây tài liệu" });
-  const parentItem = tree.getByRole("treeitem", { name: "Dự án Alpha" });
-  await expect(parentItem).toBeVisible();
-  await expect(tree.getByRole("treeitem", { name: "Thiết kế" })).toBeHidden();
+  const itemA = tree.getByRole("treeitem", { name: "Dự án Alpha" });
+  const itemB = tree.getByRole("treeitem", { name: "Dự án Beta" });
+  await expect(itemA).toBeVisible();
+  await expect(itemB).toBeVisible();
+  await expect(tree.getByRole("treeitem", { name: "Thiết kế Alpha" })).toBeHidden();
+  await expect(tree.getByRole("treeitem", { name: "Triển khai Beta" })).toBeHidden();
 
+  // Expanding branch A does not expand sibling branch B.
   await tree.getByRole("button", { name: "Mở rộng Dự án Alpha" }).click();
-  const childItem = tree.getByRole("treeitem", { name: "Thiết kế" });
-  await expect(childItem).toBeVisible();
+  await expect(
+    tree.getByRole("treeitem", { name: "Thiết kế Alpha" }),
+  ).toBeVisible();
+  await expect(
+    tree.getByRole("treeitem", { name: "Triển khai Beta" }),
+  ).toBeHidden();
   await expect(
     tree.getByRole("treeitem", { name: "Trang Ghi chú" }),
   ).toHaveCount(0);
@@ -166,23 +243,53 @@ test("FD-A02 sidebar folder tree expands/collapses, persists across reload, sync
     tree.getByRole("treeitem", { name: "Báo cáo Đính kèm" }),
   ).toHaveCount(0);
 
-  await page.reload();
-  await expect(tree.getByRole("treeitem", { name: "Thiết kế" })).toBeVisible();
-
-  await childItem.click();
-  await expect(page).toHaveURL(new RegExp(`folder=${child.id}`));
-  await expect(childItem).toHaveAttribute("aria-current", "page");
-
+  // Expanding branch B then collapsing branch A leaves branch B expanded.
+  await tree.getByRole("button", { name: "Mở rộng Dự án Beta" }).click();
+  await expect(
+    tree.getByRole("treeitem", { name: "Triển khai Beta" }),
+  ).toBeVisible();
   await tree.getByRole("button", { name: "Thu gọn Dự án Alpha" }).click();
-  await expect(childItem).toBeHidden();
-  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${child.id}`);
-  await expect(tree.getByRole("treeitem", { name: "Thiết kế" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  await expect(
+    tree.getByRole("treeitem", { name: "Thiết kế Alpha" }),
+  ).toBeHidden();
+  await expect(
+    tree.getByRole("treeitem", { name: "Triển khai Beta" }),
+  ).toBeVisible();
+
+  // Trigger a tree refetch via a server mutation (realtime invalidation) without page reload:
+  // the collapsed branch A must stay collapsed while branch B stays expanded and the new root folder appears.
+  await createFolder(page, ws.owner.token, ws.wsId, "Dự án Gamma");
+  await expect(
+    tree.getByRole("treeitem", { name: "Dự án Gamma" }),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(
+    tree.getByRole("treeitem", { name: "Thiết kế Alpha" }),
+  ).toBeHidden();
+  await expect(
+    tree.getByRole("treeitem", { name: "Triển khai Beta" }),
+  ).toBeVisible();
+
+  // Opening ?folder=childA.id expands every ancestor once and marks the active row.
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${childA.id}`);
+  const childAItem = tree.getByRole("treeitem", { name: "Thiết kế Alpha" });
+  await expect(childAItem).toBeVisible();
+  await expect(childAItem).toHaveAttribute("aria-current", "page");
+
+  // If the user collapses the ancestor while viewing childA, a subsequent tree refetch does not force it back open.
+  await tree.getByRole("button", { name: "Thu gọn Dự án Alpha" }).click();
+  await expect(childAItem).toBeHidden();
+  await createFolder(page, ws.owner.token, ws.wsId, "Dự án Delta", childB.id);
+  await patchDocument(page, ws.owner.token, branchB.id, {
+    revision: branchB.revision,
+    title: "Dự án Beta Mới",
+  });
+  await expect(
+    tree.getByRole("treeitem", { name: "Dự án Beta Mới" }),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(childAItem).toBeHidden();
 });
 
-test("FD-A03 open folder content view lists folders first, supports sorting, scopes creation, and handles invalid folder ID", async ({
+test("FD-A03 open folder content view lists only direct children, folders first, sorted by name or updated per viewer", async ({
   page,
 }) => {
   const ws = await seedFolderWorkspace(page, "fd-a03");
@@ -193,7 +300,7 @@ test("FD-A03 open folder content view lists folders first, supports sorting, sco
     "Kế toán",
   );
   await createPage(page, ws.owner.token, ws.wsId, "Trang ngoài gốc");
-  const emptyFolder = await createFolder(
+  const subFolder = await createFolder(
     page,
     ws.owner.token,
     ws.wsId,
@@ -207,7 +314,34 @@ test("FD-A03 open folder content view lists folders first, supports sorting, sco
     "Chứng từ",
     rootFolder.id,
   );
-  await createPage(page, ws.owner.token, ws.wsId, "An toàn kho", rootFolder.id);
+  await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Thư mục Cháu",
+    subFolder.id,
+  );
+  await createPage(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Tài liệu Cháu",
+    subFolder.id,
+  );
+  const directPage = await createPage(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "An toàn kho",
+    rootFolder.id,
+  );
+  await createPage(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Trang Con Của Trang",
+    directPage.id,
+  );
   await uploadFixtureFile(page, ws.owner.token, ws.wsId, "fx-docx-report-vi", {
     parentId: rootFolder.id,
     title: "Biên bản kiểm kê",
@@ -223,6 +357,15 @@ test("FD-A03 open folder content view lists folders first, supports sorting, sco
   await expect(
     table.getByRole("button", { name: /^Trang ngoài gốc/ }),
   ).toHaveCount(0);
+  await expect(
+    table.getByRole("button", { name: /^Thư mục Cháu/ }),
+  ).toHaveCount(0);
+  await expect(
+    table.getByRole("button", { name: /^Tài liệu Cháu/ }),
+  ).toHaveCount(0);
+  await expect(
+    table.getByRole("button", { name: /^Trang Con Của Trang/ }),
+  ).toHaveCount(0);
 
   const rowTexts = async (): Promise<string[]> =>
     table.locator("tbody tr td:first-child").allInnerTexts();
@@ -231,46 +374,27 @@ test("FD-A03 open folder content view lists folders first, supports sorting, sco
   expect(initialRows[0]).toContain("Báo cáo");
   expect(initialRows[1]).toContain("Chứng từ");
 
-  const sortSelect = page.getByLabel("Sắp xếp");
-  await sortSelect.selectOption("updated");
+  const sortTrigger = page.getByLabel("Sắp xếp");
+  await sortTrigger.click();
+  await page.getByRole("option", { name: "Cập nhật (mới nhất)" }).click();
   await page.reload();
-  await expect(page.getByLabel("Sắp xếp")).toHaveValue("updated");
+  await expect(page.getByLabel("Sắp xếp")).toContainText(
+    "Cập nhật (mới nhất)",
+  );
   const updatedRows = await rowTexts();
   const folderIndices = updatedRows
     .map((t, i) => (t.includes("Báo cáo") || t.includes("Chứng từ") ? i : -1))
     .filter((i) => i >= 0);
   expect(folderIndices).toEqual([0, 1]);
 
-  await page.getByRole("button", { name: "Tạo mới", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Thư mục" }).click();
-  const dlg = page.getByRole("dialog", {
-    name: "Thư mục con mới trong Kế toán",
-  });
-  await dlg.getByLabel("Tên thư mục").fill("Sổ cái");
-  await dlg.getByRole("button", { name: "Tạo" }).click();
-  const afterCreate = await listDocuments(page, ws.owner.token, ws.wsId, {
-    parent_id: rootFolder.id,
-  });
-  expect(afterCreate.documents.some((d) => d.title === "Sổ cái")).toBe(true);
-
-  await page.goto(
-    `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${emptyFolder.id}`,
-  );
-  await expect(page.getByText("Thư mục này chưa có gì")).toBeVisible();
-
-  await page.goto(
-    `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=01INVALIDFOLDER000000000000`,
-  );
+  // Documents home keeps the workspace library view.
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
   await expect(
-    page.getByRole("alert").getByText("Không mở được thư mục này"),
+    table.getByRole("button", { name: /^Trang ngoài gốc/ }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Về Documents (gốc)" }).click();
-  await expect(page).toHaveURL(
-    new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents$`),
-  );
 });
 
-test("FD-A04 rename folder from tree menu, table row menu, and breadcrumb header updates UI and rejects duplicates", async ({
+test("FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps ID/parent/children and updates title and search", async ({
   page,
 }) => {
   const ws = await seedFolderWorkspace(page, "fd-a04");
@@ -308,6 +432,9 @@ test("FD-A04 rename folder from tree menu, table row menu, and breadcrumb header
   await renameDialog.getByRole("button", { name: "Lưu" }).click();
   await expect(renameDialog).toBeHidden();
   await expect(
+    page.getByText("Đã đổi tên thành Thư mục A1"),
+  ).toBeVisible();
+  await expect(
     tree.getByRole("treeitem", { name: "Thư mục A1" }),
   ).toBeVisible();
 
@@ -336,23 +463,53 @@ test("FD-A04 rename folder from tree menu, table row menu, and breadcrumb header
     name: "Đường dẫn thư mục",
   });
   await breadcrumb.getByRole("button", { name: "Đổi tên thư mục" }).click();
-  await input.fill("Nhánh 1 Mới");
-  await renameDialog.getByRole("button", { name: "Lưu" }).click();
+  const inlineInput = breadcrumb.getByLabel("Tên thư mục");
+  await inlineInput.fill("Nhánh 1 Mới");
+  await inlineInput.press("Enter");
   await expect(breadcrumb.getByText("Nhánh 1 Mới")).toBeVisible();
 
+  const folderAAfter = await getDocument(page, ws.owner.token, folderA.id);
+  expect(folderAAfter.data?.id).toBe(folderA.id);
+  expect(folderAAfter.data?.parent_id).toBeNull();
+  const childAfter = await getDocument(page, ws.owner.token, child.id);
+  expect(childAfter.data?.id).toBe(child.id);
+  expect(childAfter.data?.parent_id).toBe(folderA.id);
   const detail = await getDocument(page, ws.owner.token, doc.id);
+  expect(detail.data?.id).toBe(doc.id);
+  expect(detail.data?.parent_id).toBe(child.id);
   expect(detail.data?.breadcrumbs?.map((b) => b.title)).toEqual([
     "Thư mục A1",
     "Nhánh 1 Mới",
   ]);
+
+  const searchRenamed = await listDocuments(page, ws.owner.token, ws.wsId, {
+    q: "Nhanh 1 Moi",
+    match: "title",
+  });
+  expect(searchRenamed.documents.map((d) => d.id)).toContain(child.id);
 });
 
-test("FD-A05 move document or folder between folders and to root updates parent, tree, and breadcrumbs", async ({
+test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live", async ({
   page,
+  browser,
 }) => {
-  const ws = await seedFolderWorkspace(page, "fd-a05");
+  test.slow();
+  const ws = await seedFolderWorkspace(page, "fd-a05", { withMemberB: true });
   const srcFolder = await createFolder(page, ws.owner.token, ws.wsId, "Nguồn");
   const dstFolder = await createFolder(page, ws.owner.token, ws.wsId, "Đích");
+  const dragFolder = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Thư mục Kéo Thả",
+  );
+  const dragChild = await createPage(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Trang Trong Kéo Thả",
+    dragFolder.id,
+  );
   const subFolder = await createFolder(
     page,
     ws.owner.token,
@@ -369,34 +526,162 @@ test("FD-A05 move document or folder between folders and to root updates parent,
   );
 
   await loginFolderUser(page, ws.owner.email);
-  await page.goto(
-    `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${subFolder.id}`,
-  );
-  const table = page.getByRole("table", { name: "Tài liệu" });
-  await table
-    .getByRole("button", { name: "Thao tác cho Hồ sơ chuyển" })
-    .click();
-  await page.getByRole("menuitem", { name: /^Di chuyển/ }).click();
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${dstFolder.id}`);
 
-  const moveDialog = page.getByRole("dialog", { name: /^Di chuyển/ });
+  // 1. Drag-and-drop move in the sidebar tree (PointerSensor distance >= 5px).
+  const tree = page.getByRole("tree", { name: "Cây tài liệu" });
+  const dragItem = tree.getByRole("treeitem", { name: "Thư mục Kéo Thả" });
+  const dropTarget = tree.getByRole("treeitem", { name: "Đích" });
+  await expect(dragItem).toBeVisible();
+  await expect(dropTarget).toBeVisible();
+  const srcBox = await dragItem.boundingBox();
+  const dstBox = await dropTarget.boundingBox();
+  expect(srcBox && dstBox).toBeTruthy();
+  await page.mouse.move(
+    srcBox!.x + srcBox!.width / 2,
+    srcBox!.y + srcBox!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    srcBox!.x + srcBox!.width / 2 + 12,
+    srcBox!.y + srcBox!.height / 2 + 12,
+    { steps: 5 },
+  );
+  await page.mouse.move(
+    dstBox!.x + dstBox!.width / 2,
+    dstBox!.y + dstBox!.height / 2,
+    { steps: 10 },
+  );
+  await page.mouse.up();
+
+  const table = page.getByRole("table", { name: "Tài liệu" });
+  await expect(
+    table.getByRole("button", { name: /^Thư mục Kéo Thả/ }),
+  ).toBeVisible({ timeout: 15_000 });
+  const dragAfter = await getDocument(page, ws.owner.token, dragFolder.id);
+  expect(dragAfter.data?.parent_id).toBe(dstFolder.id);
+  const dragChildAfter = await getDocument(page, ws.owner.token, dragChild.id);
+  expect(dragChildAfter.data?.id).toBe(dragChild.id);
+  expect(dragChildAfter.data?.parent_id).toBe(dragFolder.id);
+
+  // 2. Move via the Move dialog and collision auto-rename on folder move.
+  await createFolder(page, ws.owner.token, ws.wsId, "Con Nguồn", dstFolder.id);
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${srcFolder.id}`);
+  await table.getByRole("button", { name: "Thao tác cho Con Nguồn" }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển" }).click();
+  const moveDialog = page.getByRole("dialog", { name: "Di chuyển" });
   await expect(moveDialog).toBeVisible();
-  await moveDialog.getByRole("radio", { name: "Đích" }).click();
+  await moveDialog.getByRole("button", { name: "Đích", exact: true }).click();
   await moveDialog.getByRole("button", { name: "Di chuyển" }).click();
   await expect(moveDialog).toBeHidden();
 
+  const movedSub = await getDocument(page, ws.owner.token, subFolder.id);
+  expect(movedSub.data?.parent_id).toBe(dstFolder.id);
+  expect(movedSub.data?.title).toBe("Con Nguồn (2)");
   const movedDoc = await getDocument(page, ws.owner.token, fileDoc.id);
-  expect(movedDoc.data?.parent_id).toBe(dstFolder.id);
-  expect(movedDoc.data?.breadcrumbs?.map((b) => b.title)).toEqual(["Đích"]);
+  expect(movedDoc.data?.id).toBe(fileDoc.id);
+  expect(movedDoc.data?.parent_id).toBe(subFolder.id);
+  expect(movedDoc.data?.breadcrumbs?.map((b) => b.title)).toEqual([
+    "Đích",
+    "Con Nguồn (2)",
+  ]);
 
-  const movedSub = await moveDocument(page, ws.owner.token, subFolder.id, {
-    parent_id: null,
-    revision: subFolder.revision,
+  // 3. Two-session realtime update: User A has srcFolder open and a second tab with search results open;
+  // User B (in a second browser context) moves a folder out of srcFolder into dstFolder;
+  // User A's tree, open folder content, and open search result list update without reload.
+  const liveFolder = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Hồ sơ Realtime Move",
+    srcFolder.id,
+  );
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${srcFolder.id}`);
+  await expect(
+    table.getByRole("button", { name: /^Hồ sơ Realtime Move/ }),
+  ).toBeVisible();
+
+  const searchPageA = await page.context().newPage();
+  await searchPageA.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
+  const searchInputA = searchPageA.getByRole("searchbox", {
+    name: "Tìm trong Documents",
   });
-  expect(movedSub.ok).toBe(true);
-  expect(movedSub.data?.parent_id).toBeNull();
+  await searchInputA.fill("Hồ sơ Realtime Move");
+  const resultsListA = searchPageA.getByRole("list", {
+    name: "Tìm trong Documents",
+  });
+  await expect(
+    resultsListA.getByText("Đường dẫn: Nguồn"),
+  ).toBeVisible();
+
+  const contextB = await browser.newContext();
+  try {
+    const pageB = await contextB.newPage();
+    await loginFolderUser(pageB, ws.member!.email);
+    await pageB.goto(
+      `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${srcFolder.id}`,
+    );
+    const moveResB = await moveDocument(
+      pageB,
+      ws.member!.token,
+      liveFolder.id,
+      {
+        parent_id: dstFolder.id,
+        revision: liveFolder.revision,
+      },
+    );
+    expect(moveResB.ok).toBe(true);
+
+    // User A's open folder content and search result path update via WebSocket invalidation without reload.
+    await expect(
+      table.getByRole("button", { name: /^Hồ sơ Realtime Move/ }),
+    ).toHaveCount(0, { timeout: 15_000 });
+    await expect(
+      resultsListA.getByText("Đường dẫn: Đích"),
+    ).toBeVisible({ timeout: 15_000 });
+    await tree.getByRole("button", { name: "Mở rộng Đích" }).click();
+    await expect(
+      tree.getByRole("treeitem", { name: "Hồ sơ Realtime Move" }),
+    ).toBeVisible({ timeout: 15_000 });
+  } finally {
+    await searchPageA.close();
+    await contextB.close();
+  }
+
+  // 4. Depth + subtree height <= 20 is accepted; > 20 is rejected with 422 document_too_deep.
+  const chain = await createFolderChain(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    19,
+    "SâuMove",
+  );
+  const level18 = chain[17]!;
+  const level19 = chain[18]!;
+  const branch2 = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Nhánh 2 cấp",
+  );
+  await createFolder(page, ws.owner.token, ws.wsId, "Nhánh con", branch2.id);
+
+  const tooDeepMove = await moveDocument(page, ws.owner.token, branch2.id, {
+    parent_id: level19.id,
+    revision: branch2.revision,
+  });
+  expect(tooDeepMove.status).toBe(422);
+  expect(tooDeepMove.error?.code).toBe("document_too_deep");
+
+  const okAt20Move = await moveDocument(page, ws.owner.token, branch2.id, {
+    parent_id: level18.id,
+    revision: branch2.revision,
+  });
+  expect(okAt20Move.ok).toBe(true);
+  expect(okAt20Move.data?.parent_id).toBe(level18.id);
 });
 
-test("FD-A05 (FD-09 UI) tree-shaped Move-to picker disables current location with reason and shows move toast", async ({
+test("FD-A05 (FD-09 UI) tree-shaped Move-to picker disables >20 depth targets and shows move toast", async ({
   page,
 }) => {
   test.skip(!process.env.E2E_FD09, "skip: needs FD-09 (UNI-1469)");
@@ -414,13 +699,12 @@ test("FD-A05 (FD-09 UI) tree-shaped Move-to picker disables current location wit
     .click();
   await page.getByRole("menuitem", { name: /^Di chuyển/ }).click();
   const picker = page.getByRole("dialog", { name: "Di chuyển tới" });
-  await expect(picker.getByText("Vị trí hiện tại")).toBeVisible();
   await picker.getByRole("treeitem", { name: /Thư mục Đích/ }).click();
   await picker.getByRole("button", { name: "Di chuyển" }).click();
   await expect(page.getByText("Đã chuyển tới Thư mục Đích")).toBeVisible();
 });
 
-test("FD-A06 moving folder into itself or a descendant is rejected with 422 document_cycle and leaves tree unchanged", async ({
+test("FD-A06 moving folder into itself or a descendant is rejected with 422 document_cycle and blocked in tree drag-and-drop", async ({
   page,
 }) => {
   const ws = await seedFolderWorkspace(page, "fd-a06");
@@ -452,13 +736,41 @@ test("FD-A06 moving folder into itself or a descendant is rejected with 422 docu
     expect(res.error?.code).toBe("document_cycle");
   }
 
-  const tree = await getDocumentTree(page, ws.owner.token, ws.wsId, {
+  // Dragging Cấp A onto its descendant Cấp B in the tree is refused with toast and no move request.
+  await loginFolderUser(page, ws.owner.email);
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderB.id}`);
+  const tree = page.getByRole("tree", { name: "Cây tài liệu" });
+  const itemA = tree.getByRole("treeitem", { name: "Cấp A" });
+  const itemB = tree.getByRole("treeitem", { name: "Cấp B" });
+  await expect(itemA).toBeVisible();
+  await expect(itemB).toBeVisible();
+  const boxA = await itemA.boundingBox();
+  const boxB = await itemB.boundingBox();
+  expect(boxA && boxB).toBeTruthy();
+  await page.mouse.move(boxA!.x + boxA!.width / 2, boxA!.y + boxA!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    boxA!.x + boxA!.width / 2 + 10,
+    boxA!.y + boxA!.height / 2 + 10,
+    { steps: 5 },
+  );
+  await page.mouse.move(boxB!.x + boxB!.width / 2, boxB!.y + boxB!.height / 2, {
+    steps: 10,
+  });
+  await page.mouse.up();
+  await expect(
+    page.getByText(
+      "Không thể chuyển thư mục vào chính nó hoặc thư mục con của nó.",
+    ),
+  ).toBeVisible();
+
+  const treeAfter = await getDocumentTree(page, ws.owner.token, ws.wsId, {
     folders_only: true,
   });
-  expect(tree.length).toBe(1);
-  expect(tree[0]?.id).toBe(folderA.id);
-  expect(tree[0]?.children[0]?.id).toBe(folderB.id);
-  expect(tree[0]?.children[0]?.children[0]?.id).toBe(folderC.id);
+  expect(treeAfter.length).toBe(1);
+  expect(treeAfter[0]?.id).toBe(folderA.id);
+  expect(treeAfter[0]?.children[0]?.id).toBe(folderB.id);
+  expect(treeAfter[0]?.children[0]?.children[0]?.id).toBe(folderC.id);
 });
 
 test("FD-A06 (FD-09 UI) Move-to picker disables self and descendants with reason Nằm trong chính nó", async ({
@@ -480,44 +792,12 @@ test("FD-A06 (FD-09 UI) Move-to picker disables self and descendants with reason
   await expect(picker.getByText("Nằm trong chính nó").first()).toBeVisible();
 });
 
-test("FD-A07 moving item into folder with colliding name auto-renames to Name (2) / Name (2).ext while create/rename still 409", async ({
+test("FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision", async ({
   page,
 }) => {
-  const ws = await seedFolderWorkspace(page, "fd-a07");
+  const ws = await seedFolderWorkspace(page, "fd-a07", { withMemberB: true });
   const folderA = await createFolder(page, ws.owner.token, ws.wsId, "Phòng A");
   const folderB = await createFolder(page, ws.owner.token, ws.wsId, "Phòng B");
-
-  await createFolder(page, ws.owner.token, ws.wsId, "Báo cáo", folderA.id);
-  const dupFolder = await createFolder(
-    page,
-    ws.owner.token,
-    ws.wsId,
-    "Báo cáo",
-    folderB.id,
-  );
-  const movedFolder = await moveDocument(page, ws.owner.token, dupFolder.id, {
-    parent_id: folderA.id,
-    revision: dupFolder.revision,
-  });
-  expect(movedFolder.ok).toBe(true);
-  expect(movedFolder.data?.title).toBe("Báo cáo (2)");
-
-  const dupCreate = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
-    title: "Báo cáo",
-    kind: "folder",
-    parent_id: folderA.id,
-  });
-  expect(dupCreate.status).toBe(409);
-  expect(dupCreate.error?.code).toBe("folder_name_taken");
-
-  const dupRename = await patchDocument(
-    page,
-    ws.owner.token,
-    movedFolder.data!.id,
-    { revision: movedFolder.data!.revision, title: "Báo cáo" },
-  );
-  expect(dupRename.status).toBe(409);
-  expect(dupRename.error?.code).toBe("folder_name_taken");
 
   await uploadFixtureFile(page, ws.owner.token, ws.wsId, "fx-docx-report-vi", {
     parentId: folderA.id,
@@ -530,12 +810,40 @@ test("FD-A07 moving item into folder with colliding name auto-renames to Name (2
     "fx-docx-report-vi",
     { parentId: folderB.id, title: "report.docx" },
   );
-  const movedDocx = await moveDocument(page, ws.owner.token, docxB.id, {
-    parent_id: folderA.id,
-    revision: docxB.revision,
-  });
+  await seedDocumentArtifacts(page, ws.owner.token, docxB.id, ws.member!.id);
+  const beforeArtifacts = await readDocumentArtifacts(
+    page,
+    ws.owner.token,
+    docxB.id,
+  );
+
+  await loginFolderUser(page, ws.owner.email);
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderB.id}`);
+  const table = page.getByRole("table", { name: "Tài liệu" });
+  await table.getByRole("button", { name: "Thao tác cho report.docx" }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển" }).click();
+  const moveDialog = page.getByRole("dialog", { name: "Di chuyển" });
+  await moveDialog.getByRole("button", { name: "Phòng A", exact: true }).click();
+  await moveDialog.getByRole("button", { name: "Di chuyển" }).click();
+  await expect(moveDialog).toBeHidden();
+
+  const movedDocx = await getDocument(page, ws.owner.token, docxB.id);
   expect(movedDocx.ok).toBe(true);
+  expect(movedDocx.data?.id).toBe(docxB.id);
+  expect(movedDocx.data?.parent_id).toBe(folderA.id);
   expect(movedDocx.data?.title).toBe("report (2).docx");
+
+  const afterArtifacts = await readDocumentArtifacts(
+    page,
+    ws.owner.token,
+    docxB.id,
+  );
+  expect(afterArtifacts).toEqual(beforeArtifacts);
+
+  const listB = await listDocuments(page, ws.owner.token, ws.wsId, {
+    parent_id: folderB.id,
+  });
+  expect(listB.documents).toHaveLength(0);
 
   await uploadFixtureFile(page, ws.owner.token, ws.wsId, "fx-md-notes-vi", {
     parentId: folderA.id,
@@ -555,12 +863,8 @@ test("FD-A07 moving item into folder with colliding name auto-renames to Name (2
   expect(movedMd.ok).toBe(true);
   expect(movedMd.data?.title).toBe("notes (2).md");
 
-  await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderA.id}`);
-  const table = page.getByRole("table", { name: "Tài liệu" });
   for (const name of [
-    "Báo cáo",
-    "Báo cáo (2)",
     "report.docx",
     "report (2).docx",
     "notes.md",
@@ -574,7 +878,7 @@ test("FD-A07 moving item into folder with colliding name auto-renames to Name (2
   }
 });
 
-test("FD-A07 (FD-09 UI) moving colliding item via Move-to picker shows toast Đã chuyển và đổi tên thành", async ({
+test("FD-A07 (FD-09 UI) moving colliding item via Move-to picker disables current location and shows toast Đã chuyển và đổi tên thành", async ({
   page,
 }) => {
   test.skip(!process.env.E2E_FD09, "skip: needs FD-09 (UNI-1469)");
@@ -593,6 +897,7 @@ test("FD-A07 (FD-09 UI) moving colliding item via Move-to picker shows toast Đ�
     .click();
   await page.getByRole("menuitem", { name: /^Di chuyển/ }).click();
   const picker = page.getByRole("dialog", { name: "Di chuyển tới" });
+  await expect(picker.getByText("Vị trí hiện tại")).toBeVisible();
   await picker.getByRole("treeitem", { name: /Phòng A/ }).click();
   await picker.getByRole("button", { name: "Di chuyển" }).click();
   await expect(
@@ -600,83 +905,141 @@ test("FD-A07 (FD-09 UI) moving colliding item via Move-to picker shows toast Đ�
   ).toBeVisible();
 });
 
-test("FD-A08 folder depth cap of 20 allows level 20 and rejects level 21 on create and move with 422 document_too_deep", async ({
+test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder=", async ({
   page,
 }) => {
-  test.slow();
-  const ws = await seedFolderWorkspace(page, "fd-a08");
-  const chain = await createFolderChain(
+  const ws = await seedFolderWorkspace(page, "fd-a08", { withMemberB: true });
+  const level1 = await createFolder(
     page,
     ws.owner.token,
     ws.wsId,
-    20,
-    "Cấp",
+    "Khối Kỹ thuật",
   );
-  const level19 = chain[18]!;
-  const level20 = chain[19]!;
-
-  const tooDeepCreate = await apiCreateDocument(
+  const level2 = await createFolder(
     page,
     ws.owner.token,
     ws.wsId,
-    {
-      title: "Cấp 21",
-      kind: "folder",
-      parent_id: level20.id,
-    },
+    "Nền tảng",
+    level1.id,
   );
-  expect(tooDeepCreate.status).toBe(422);
-  expect(tooDeepCreate.error?.code).toBe("document_too_deep");
-
-  const fileAt20 = await uploadFixtureFile(
+  const level3 = await createFolder(
     page,
     ws.owner.token,
     ws.wsId,
-    "fx-docx-report-vi",
-    { parentId: level19.id, title: "Tệp ở cấp 20" },
+    "Kiến trúc",
+    level2.id,
   );
-  const movePast20 = await moveDocument(page, ws.owner.token, fileAt20.id, {
-    parent_id: level20.id,
-    revision: fileAt20.revision,
-  });
-  expect(movePast20.status).toBe(422);
-  expect(movePast20.error?.code).toBe("document_too_deep");
-
-  const branchRoot = await createFolder(
-    page,
-    ws.owner.token,
-    ws.wsId,
-    "Nhánh 2 cấp",
-  );
-  await createFolder(
-    page,
-    ws.owner.token,
-    ws.wsId,
-    "Nhánh con",
-    branchRoot.id,
-  );
-  const moveSubtreePast20 = await moveDocument(
-    page,
-    ws.owner.token,
-    branchRoot.id,
-    { parent_id: level19.id, revision: branchRoot.revision },
-  );
-  expect(moveSubtreePast20.status).toBe(422);
-  expect(moveSubtreePast20.error?.code).toBe("document_too_deep");
 
   await loginFolderUser(page, ws.owner.email);
-  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${level20.id}`);
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${level3.id}`);
+
   const breadcrumb = page.getByRole("navigation", {
     name: "Đường dẫn thư mục",
   });
   await expect(breadcrumb).toBeVisible();
-  await expect(breadcrumb.getByText(level20.title)).toHaveAttribute(
+  await expect(
+    breadcrumb.getByRole("button", { name: "Tài liệu" }),
+  ).toBeVisible();
+  await expect(
+    breadcrumb.getByRole("button", { name: "Khối Kỹ thuật" }),
+  ).toBeVisible();
+  await expect(
+    breadcrumb.getByRole("button", { name: "Nền tảng" }),
+  ).toBeVisible();
+  await expect(breadcrumb.getByText("Kiến trúc")).toHaveAttribute(
     "aria-current",
     "page",
   );
+
+  // Clicking ancestor segments navigates and browser Back/Forward follow.
+  await breadcrumb.getByRole("button", { name: "Khối Kỹ thuật" }).click();
+  await expect(page).toHaveURL(new RegExp(`folder=${level1.id}`));
+  await expect(breadcrumb.getByText("Khối Kỹ thuật")).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  await breadcrumb.getByRole("button", { name: "Tài liệu" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents$`),
+  );
+
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`folder=${level1.id}`));
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`folder=${level3.id}`));
+  await page.goForward();
+  await expect(page).toHaveURL(new RegExp(`folder=${level1.id}`));
+
+  // Unknown and archived ?folder= show the error state with link to root (never an empty list).
+  const archivedFolder = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Thư mục Đã Xóa",
+  );
+  await archiveDocument(page, ws.owner.token, archivedFolder.id);
+
+  for (const badId of ["01INVALIDFOLDER000000000000", archivedFolder.id]) {
+    await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${badId}`);
+    await expect(
+      page.getByRole("alert").getByText("Không mở được thư mục này"),
+    ).toBeVisible();
+    await expect(page.getByText("Thư mục này chưa có gì")).toHaveCount(0);
+    await page.getByRole("link", { name: "Về Documents (gốc)" }).click();
+    await expect(page).toHaveURL(
+      new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents$`),
+    );
+  }
+
+  // Unreadable ancestor is omitted from breadcrumb, and forbidden ?folder= shows error state.
+  const secretRoot = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Thư mục Cha Bí Mật",
+    null,
+    "restricted",
+  );
+  const sharedChild = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Thư mục Con Được Chia Sẻ",
+    secretRoot.id,
+    "restricted",
+  );
+  await grantDocumentShare(
+    page,
+    ws.owner.token,
+    sharedChild.id,
+    ws.member!.id,
+    "view",
+  );
+
+  await loginFolderUser(page, ws.member!.email);
+  await page.goto(
+    `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${sharedChild.id}`,
+  );
+  await expect(
+    breadcrumb.getByText("Thư mục Con Được Chia Sẻ"),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(breadcrumb.getByText("Thư mục Cha Bí Mật")).toHaveCount(0);
+
+  await page.goto(
+    `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${secretRoot.id}`,
+  );
+  await expect(
+    page.getByRole("alert").getByText("Không mở được thư mục này"),
+  ).toBeVisible();
+  await expect(page.getByText("Thư mục Cha Bí Mật")).toHaveCount(0);
+  await page.getByRole("link", { name: "Về Documents (gốc)" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents$`),
+  );
 });
 
-test("FD-A08 (FD-09 UI) deep breadcrumb collapses middle levels into menu and Move-to picker disables >20 depth targets", async ({
+test("FD-A08 (FD-09 UI) deep breadcrumb collapses >4 levels into keyboard-reachable menu Các cấp ẩn", async ({
   page,
 }) => {
   test.skip(!process.env.E2E_FD09, "skip: needs FD-09 (UNI-1469)");
@@ -701,10 +1064,10 @@ test("FD-A08 (FD-09 UI) deep breadcrumb collapses middle levels into menu and Mo
   await expect(page).toHaveURL(new RegExp(`folder=${chain[2]!.id}`));
 });
 
-test("FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, and exclude body-only matches", async ({
+test("FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches", async ({
   page,
 }) => {
-  const ws = await seedFolderWorkspace(page, "fd-a09");
+  const ws = await seedFolderWorkspace(page, "fd-a09", { withMemberB: true });
   const finFolder = await createFolder(
     page,
     ws.owner.token,
@@ -736,9 +1099,53 @@ test("FD-A09 unified search and ⌘K find folders and documents by title, filter
     "fx-xlsx-revenue-xyz",
     { parentId: q1Folder.id, title: "Bảng tính Hợp đồng Quý 1" },
   );
-  await createPage(page, ws.owner.token, ws.wsId, "Trang ghi chú nội bộ", null, {
-    bodyText: "Chuỗi bí mật chỉ nằm trong thân bài BODYONLYTOKEN99",
+  await createPage(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Trang ghi chú nội bộ",
+    null,
+    {
+      bodyText: "Chuỗi bí mật chỉ nằm trong thân bài BODYONLYTOKEN99",
+    },
+  );
+
+  // Restricted ancestor with a shared child folder to verify search path never leaks unreadable ancestor.
+  const restrictedParent = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Thư mục Cha Ẩn",
+    null,
+    "restricted",
+  );
+  const sharedLeaf = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Hợp đồng Chia Sẻ Riêng",
+    restrictedParent.id,
+    "restricted",
+  );
+  await grantDocumentShare(
+    page,
+    ws.owner.token,
+    sharedLeaf.id,
+    ws.member!.id,
+    "view",
+  );
+
+  const memberSearch = await listDocuments(page, ws.member!.token, ws.wsId, {
+    q: "Hop dong Chia Se Rieng",
+    match: "title",
   });
+  const foundLeaf = memberSearch.documents.find((d) => d.id === sharedLeaf.id);
+  expect(foundLeaf).toBeTruthy();
+  expect(
+    (foundLeaf?.path ?? []).some(
+      (seg) => seg.id === restrictedParent.id || seg.title === "Thư mục Cha Ẩn",
+    ),
+  ).toBe(false);
 
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
@@ -753,7 +1160,7 @@ test("FD-A09 unified search and ⌘K find folders and documents by title, filter
   await expect(resultsList.getByText("Báo cáo Hợp đồng Quý 1")).toBeVisible();
   await expect(resultsList.getByText("Bảng tính Hợp đồng Quý 1")).toBeVisible();
   await expect(
-    resultsList.getByText("Đường dẫn: Tài chính 2026 / Quý 1").first(),
+    resultsList.getByText("Đường dẫn: Tài chính 2026 › Quý 1").first(),
   ).toBeVisible();
 
   const filterGroup = page.getByRole("radiogroup", { name: "Lọc kết quả" });
@@ -787,7 +1194,7 @@ test("FD-A09 unified search and ⌘K find folders and documents by title, filter
   await expect(page).toHaveURL(new RegExp(`folder=${q1Folder.id}`));
 });
 
-test("FD-A10 moving a document between folders preserves ID, versions, comments, shares, and links", async ({
+test("FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing", async ({
   page,
 }) => {
   const ws = await seedFolderWorkspace(page, "fd-a10", { withMemberB: true });
@@ -834,6 +1241,32 @@ test("FD-A10 moving a document between folders preserves ID, versions, comments,
     },
   );
   expect(taskRes.ok()).toBeTruthy();
+  const taskId = ((await taskRes.json()) as { task: { id: string } }).task.id;
+
+  // Attach a file on the task so it appears in "Từ nơi khác" (GET /documents/sources & ?view=sources).
+  const sourceFileName = "tai-lieu-tu-noi-khac-fd-a10.txt";
+  const attachRes = await page.request.post(
+    `${e2eApiUrl}/api/v1/tasks/${taskId}/attachments`,
+    {
+      headers: { authorization: `Bearer ${ws.owner.token}` },
+      multipart: {
+        file: {
+          name: sourceFileName,
+          mimeType: "text/plain",
+          buffer: Buffer.from("Nội dung đính kèm công việc FD-A10\n"),
+        },
+      },
+    },
+  );
+  expect(attachRes.ok()).toBeTruthy();
+
+  const sourcesBefore = await listDocumentSources(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "task",
+  );
+  expect(sourcesBefore.some((s) => s.name === sourceFileName)).toBe(true);
 
   const meetingRes = await page.request.post(
     `${e2eApiUrl}/api/v1/workspaces/${ws.wsId}/meetings`,
@@ -853,6 +1286,7 @@ test("FD-A10 moving a document between folders preserves ID, versions, comments,
   );
   expect(chatRes.ok()).toBeTruthy();
 
+  // Move the document to folderB, then move folderB into folderA.
   const moved = await moveDocument(page, ws.owner.token, doc.id, {
     parent_id: folderB.id,
     revision: doc.revision,
@@ -861,19 +1295,36 @@ test("FD-A10 moving a document between folders preserves ID, versions, comments,
   expect(moved.data?.id).toBe(doc.id);
   expect(moved.data?.parent_id).toBe(folderB.id);
 
+  const movedFolder = await moveDocument(page, ws.owner.token, folderB.id, {
+    parent_id: folderA.id,
+    revision: folderB.revision,
+  });
+  expect(movedFolder.ok).toBe(true);
+
   const after = await readDocumentArtifacts(page, ws.owner.token, doc.id);
   expect(after).toEqual(before);
 
-  const listOld = await listDocuments(page, ws.owner.token, ws.wsId, {
-    parent_id: folderA.id,
-  });
   const listNew = await listDocuments(page, ws.owner.token, ws.wsId, {
     parent_id: folderB.id,
   });
-  expect(listOld.documents.map((d) => d.id)).not.toContain(doc.id);
   expect(listNew.documents.map((d) => d.id)).toEqual([doc.id]);
 
+  // "Từ nơi khác" API and UI still list the source item after document and folder moves.
+  const sourcesAfter = await listDocumentSources(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "task",
+  );
+  expect(sourcesAfter.some((s) => s.name === sourceFileName)).toBe(true);
+
   await loginFolderUser(page, ws.owner.email);
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
+  const sidebar = page.getByRole("navigation", { name: "Điều hướng tài liệu" });
+  await expect(sidebar.getByText("Từ nơi khác")).toBeVisible();
+  await sidebar.getByRole("button", { name: "Công việc" }).click();
+  await expect(page.getByText(sourceFileName).first()).toBeVisible();
+
   await page.goto(docUrl);
   await expect(page).toHaveURL(new RegExp(`/documents/${doc.id}$`));
 });
@@ -887,105 +1338,166 @@ test("FD-A10 (entity/email link API) structured graph DOCUMENT links and email-h
   }
 });
 
-test("FD-A11 view-only user on folder sees allowed content, cannot write, and never sees restricted children", async ({
+test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents", async ({
   page,
 }) => {
   const ws = await seedFolderWorkspace(page, "fd-a11", { withMemberB: true });
-  const folder = await createFolder(
+  const parent = await createFolder(
     page,
     ws.owner.token,
     ws.wsId,
-    "Hồ sơ Nội bộ",
-    null,
-    "restricted",
-  );
-  await grantDocumentShare(
-    page,
-    ws.owner.token,
-    folder.id,
-    ws.member!.id,
-    "view",
+    "Thư mục Cha",
   );
 
-  await uploadFixtureFile(page, ws.owner.token, ws.wsId, "fx-docx-report-vi", {
-    parentId: folder.id,
-    title: "Báo cáo Công khai",
+  // 1. Create "Hợp đồng" and verify case-insensitive & NFD duplicates return 409 folder_name_taken.
+  await createFolder(page, ws.owner.token, ws.wsId, "Hợp đồng", parent.id);
+
+  const upperDup = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
+    title: "HỢP ĐỒNG",
+    kind: "folder",
+    parent_id: parent.id,
   });
-  const secretDoc = await createPage(
+  expect(upperDup.status).toBe(409);
+  expect(upperDup.error?.code).toBe("folder_name_taken");
+
+  const nfdDup = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
+    title: "Hợp đồng".normalize("NFD"),
+    kind: "folder",
+    parent_id: parent.id,
+  });
+  expect(nfdDup.status).toBe(409);
+  expect(nfdDup.error?.code).toBe("folder_name_taken");
+
+  // 2. Accent-sensitive: "Ma" and "Mã" are distinct and both succeed under the same parent.
+  const folderMa = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
+    title: "Ma",
+    kind: "folder",
+    parent_id: parent.id,
+  });
+  expect(folderMa.status).toBe(201);
+  const folderMaAccent = await apiCreateDocument(
     page,
     ws.owner.token,
     ws.wsId,
-    "Mật khẩu Tuyệt mật",
-    folder.id,
-    { visibility: "restricted" },
+    {
+      title: "Mã",
+      kind: "folder",
+      parent_id: parent.id,
+    },
   );
-  await createFolder(
+  expect(folderMaAccent.status).toBe(201);
+
+  // 3. Two concurrent creates with the same name under the same parent yield one 201 and one 409.
+  const [race1, race2] = await Promise.all([
+    apiCreateDocument(
+      page,
+      ws.owner.token,
+      ws.wsId,
+      {
+        title: " Đua   Song Song ",
+        kind: "folder",
+        parent_id: parent.id,
+      },
+      `race-1-${Date.now()}`,
+    ),
+    apiCreateDocument(
+      page,
+      ws.owner.token,
+      ws.wsId,
+      {
+        title: "đua song song",
+        kind: "folder",
+        parent_id: parent.id,
+      },
+      `race-2-${Date.now()}`,
+    ),
+  ]);
+  expect([race1.status, race2.status].sort()).toEqual([201, 409]);
+
+  // 4. Same-name documents (pages and files) under the same parent are allowed (201).
+  const page1 = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
+    title: "Biên bản trùng tên",
+    kind: "page",
+    parent_id: parent.id,
+  });
+  const page2 = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
+    title: "Biên bản trùng tên",
+    kind: "page",
+    parent_id: parent.id,
+  });
+  expect(page1.status).toBe(201);
+  expect(page2.status).toBe(201);
+  const file1 = await uploadFixtureFile(
     page,
     ws.owner.token,
     ws.wsId,
-    "Thư mục Bí mật",
-    folder.id,
+    "fx-docx-report-vi",
+    { parentId: parent.id, title: "bao-cao-trung.docx" },
+  );
+  const file2 = await uploadFixtureFile(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "fx-docx-report-vi",
+    { parentId: parent.id, title: "bao-cao-trung.docx" },
+  );
+  expect(file1.id).not.toBe(file2.id);
+
+  // 5. Restricted sibling folder collision: 409 response to User B carries NO id or title of A's restricted folder.
+  const restrictedSibling = await createFolder(
+    page,
+    ws.owner.token,
+    ws.wsId,
+    "Dự Án Mật Của Owner",
+    parent.id,
     "restricted",
   );
+  const blindCollision = await apiCreateDocument(
+    page,
+    ws.member!.token,
+    ws.wsId,
+    {
+      title: "dự án mật của owner",
+      kind: "folder",
+      parent_id: parent.id,
+    },
+  );
+  expect(blindCollision.status).toBe(409);
+  expect(blindCollision.error?.code).toBe("folder_name_taken");
+  expect(blindCollision.rawText).not.toContain(restrictedSibling.id);
+  expect(blindCollision.rawText).not.toContain(restrictedSibling.title);
 
-  await loginFolderUser(page, ws.member!.email);
-  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folder.id}`);
+  // 6. Both create and rename surface 409 as a field error (role="alert") in the dialog.
+  await loginFolderUser(page, ws.owner.email);
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${parent.id}`);
+
+  await page.getByRole("button", { name: "Tạo mới", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Thư mục" }).click();
+  const createDlg = page.getByRole("dialog", {
+    name: "Thư mục con mới trong Thư mục Cha",
+  });
+  await createDlg.getByLabel("Tên thư mục").fill("HỢP ĐỒNG");
+  await createDlg.getByRole("button", { name: "Tạo" }).click();
+  await expect(createDlg.getByRole("alert")).toContainText(
+    "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
+  );
+  await createDlg.getByLabel("Tên thư mục").press("Escape");
+  await expect(createDlg).toBeHidden();
 
   const table = page.getByRole("table", { name: "Tài liệu" });
-  await expect(
-    table.getByRole("button", { name: /^Báo cáo Công khai/ }),
-  ).toBeVisible();
-  await expect(
-    table.getByRole("button", { name: /^Mật khẩu Tuyệt mật/ }),
-  ).toHaveCount(0);
-  await expect(
-    table.getByRole("button", { name: /^Thư mục Bí mật/ }),
-  ).toHaveCount(0);
-
-  await expect(
-    page.getByText(
-      "Bạn chỉ có quyền xem thư mục Hồ sơ Nội bộ: mở file để đọc, không tạo hay sửa được.",
-    ),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Tạo mới", exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    page
-      .getByRole("navigation", { name: "Đường dẫn thư mục" })
-      .getByRole("button", { name: "Đổi tên thư mục" }),
-  ).toHaveCount(0);
-
-  const searchInput = page.getByRole("searchbox", {
-    name: "Tìm trong Documents",
-  });
-  await searchInput.fill("Mật khẩu Tuyệt mật");
-  await expect(page.getByText("Không tìm thấy kết quả")).toBeVisible();
-
-  const createAsB = await apiCreateDocument(page, ws.member!.token, ws.wsId, {
-    title: "Thử Tạo",
-    kind: "folder",
-    parent_id: folder.id,
-  });
-  expect(createAsB.status).toBe(403);
-  const renameAsB = await patchDocument(page, ws.member!.token, folder.id, {
-    revision: folder.revision,
-    title: "Đổi Tên Trái Phép",
-  });
-  expect(renameAsB.status).toBe(403);
-  const moveAsB = await moveDocument(page, ws.member!.token, folder.id, {
-    parent_id: null,
-    revision: folder.revision,
-  });
-  expect(moveAsB.status).toBe(403);
-  const archiveAsB = await archiveDocument(page, ws.member!.token, folder.id);
-  expect(archiveAsB.status).toBe(403);
-  const secretGet = await getDocument(page, ws.member!.token, secretDoc.id);
-  expect(secretGet.status).toBe(404);
+  await table.getByRole("button", { name: "Thao tác cho Ma" }).click();
+  await page.getByRole("menuitem", { name: "Đổi tên" }).click();
+  const renameDlg = page.getByRole("dialog", { name: "Đổi tên thư mục" });
+  await renameDlg.getByLabel("Tên thư mục").fill("Hợp đồng");
+  await renameDlg.getByRole("button", { name: "Lưu" }).click();
+  await expect(renameDlg.getByRole("alert")).toContainText(
+    "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
+  );
 });
 
-test("FD-A12 archiving and restoring folder subtree moves all items in one batch, blocks on unmanageable child (403) and >1000 nodes (422 folder_too_large)", async ({
+test("FD-A12 archiving and restoring folder subtree counts items, updates a second session live, renames on restore collision, and blocks 403 and >1000 nodes (422 folder_too_large)", async ({
   page,
+  browser,
 }) => {
   test.slow();
   const ws = await seedFolderWorkspace(page, "fd-a12", { withMemberB: true });
@@ -1040,34 +1552,86 @@ test("FD-A12 archiving and restoring folder subtree moves all items in one batch
     too_large: false,
   });
 
-  const archived = await archiveDocument(page, ws.owner.token, rootFolder.id);
-  expect(archived.ok).toBe(true);
-  expect(archived.data?.affected.sort()).toEqual(
-    [rootFolder.id, sub1.id, sub2.id, doc1.id, doc2.id, doc3.id].sort(),
-  );
+  // Two-session live update: User A has the workspace root & a search tab open;
+  // User B (or owner from a second browser context) archives then restores rootFolder;
+  // User A's sidebar tree, table content, and open search results update without reload.
+  await loginFolderUser(page, ws.owner.email);
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
+  const tree = page.getByRole("tree", { name: "Cây tài liệu" });
+  const table = page.getByRole("table", { name: "Tài liệu" });
+  await expect(
+    tree.getByRole("treeitem", { name: "Dự án Đóng" }),
+  ).toBeVisible();
+  await expect(
+    table.getByRole("button", { name: /^Dự án Đóng/ }),
+  ).toBeVisible();
 
-  const searchLive = await listDocuments(page, ws.owner.token, ws.wsId, {
-    q: "Báo cáo Kết thúc",
-    match: "title",
+  const searchPageA = await page.context().newPage();
+  await searchPageA.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
+  const searchInputA = searchPageA.getByRole("searchbox", {
+    name: "Tìm trong Documents",
   });
-  expect(searchLive.documents).toHaveLength(0);
-  const treeLive = await getDocumentTree(page, ws.owner.token, ws.wsId, {
-    folders_only: true,
+  await searchInputA.fill("Dự án Đóng");
+  const resultsListA = searchPageA.getByRole("list", {
+    name: "Tìm trong Documents",
   });
-  expect(treeLive.some((n) => n.id === rootFolder.id)).toBe(false);
+  await expect(resultsListA.getByText("Dự án Đóng")).toBeVisible();
 
-  const restored = await restoreDocument(page, ws.owner.token, rootFolder.id);
-  expect(restored.ok).toBe(true);
+  const contextB = await browser.newContext();
+  try {
+    const pageB = await contextB.newPage();
+    await loginFolderUser(pageB, ws.member!.email);
+    await pageB.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
+
+    const archived = await archiveDocument(
+      pageB,
+      ws.owner.token,
+      rootFolder.id,
+    );
+    expect(archived.ok).toBe(true);
+    expect(archived.data?.affected.sort()).toEqual(
+      [rootFolder.id, sub1.id, sub2.id, doc1.id, doc2.id, doc3.id].sort(),
+    );
+
+    await expect(
+      tree.getByRole("treeitem", { name: "Dự án Đóng" }),
+    ).toHaveCount(0, { timeout: 15_000 });
+    await expect(
+      table.getByRole("button", { name: /^Dự án Đóng/ }),
+    ).toHaveCount(0, { timeout: 15_000 });
+    await expect(
+      searchPageA.getByText("Không tìm thấy kết quả"),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Create a new folder with the same name while rootFolder is in trash so restore collides and auto-renames.
+    await createFolder(pageB, ws.owner.token, ws.wsId, "Dự án Đóng");
+    const restored = await restoreDocument(
+      pageB,
+      ws.owner.token,
+      rootFolder.id,
+    );
+    expect(restored.ok).toBe(true);
+    expect(restored.data?.document.title).toBe("Dự án Đóng (2)");
+
+    await expect(
+      tree.getByRole("treeitem", { name: "Dự án Đóng (2)" }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      table.getByRole("button", { name: /^Dự án Đóng \(2\)/ }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      resultsListA.getByText("Dự án Đóng (2)"),
+    ).toBeVisible({ timeout: 15_000 });
+  } finally {
+    await searchPageA.close();
+    await contextB.close();
+  }
+
   const doc1After = await getDocument(page, ws.owner.token, doc1.id);
   expect(doc1After.data?.parent_id).toBe(sub1.id);
   expect(doc1After.data?.archived_at).toBeNull();
 
-  await archiveDocument(page, ws.owner.token, rootFolder.id);
-  const singleRestore = await restoreDocument(page, ws.owner.token, doc1.id);
-  expect(singleRestore.ok).toBe(true);
-  const doc1AtRoot = await getDocument(page, ws.owner.token, doc1.id);
-  expect(doc1AtRoot.data?.parent_id).toBeNull();
-
+  // Unmanageable descendant: B cannot archive a folder containing A's document (403).
   const folderB = await createFolder(
     page,
     ws.member!.token,
@@ -1085,8 +1649,11 @@ test("FD-A12 archiving and restoring folder subtree moves all items in one batch
   expect(impactB.status).toBe(403);
   const archiveB = await archiveDocument(page, ws.member!.token, folderB.id);
   expect(archiveB.status).toBe(403);
-  expect((await getDocument(page, ws.owner.token, childOfA.id)).data?.archived_at).toBeNull();
+  expect(
+    (await getDocument(page, ws.owner.token, childOfA.id)).data?.archived_at,
+  ).toBeNull();
 
+  // Subtree > 1000 nodes: archive-impact reports too_large: true and archive refuses with 422 folder_too_large.
   const hugeFolder = await createFolder(
     page,
     ws.owner.token,
@@ -1138,7 +1705,7 @@ test("FD-A12 (FD-09 UI) delete folder dialog shows server subfolder/document cou
   const dlg = page.getByRole("dialog", { name: "Xóa thư mục" });
   await expect(
     dlg.getByText(
-      "1 thư mục con và 1 tài liệu sẽ được chuyển vào thùng rác và có thể khôi phục trong 30 ngày.",
+      "1 thư mục con và 1 tài liệu sẽ chuyển vào thùng rác, khôi phục được trong 30 ngày.",
     ),
   ).toBeVisible();
   await dlg.getByRole("button", { name: "Xóa" }).click();
