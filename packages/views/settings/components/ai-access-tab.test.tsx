@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -96,6 +96,11 @@ function renderTab() {
   );
 }
 
+// react-query starts a mutation's request a few awaited ticks after the click,
+// so a "no request was sent" assertion has to wait those out first or it passes
+// even when the guard is missing.
+const flush = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
 beforeEach(() => {
   requestMock.mockReset();
   toastSuccess.mockReset();
@@ -134,6 +139,7 @@ describe("AiAccessTab", () => {
     const toggle = screen.getByRole("switch", { name: SWITCH_NAME });
     expect(toggle).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(toggle);
+    await flush();
     expect(requestMock).not.toHaveBeenCalledWith("/api/v1/orgs/acme/mcp-policy", expect.objectContaining({ method: "PUT" }));
   });
 
@@ -212,6 +218,7 @@ describe("AiAccessTab", () => {
     expect(write).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("Bật truy cập của trợ lý AI trước.")).toBeInTheDocument();
     fireEvent.click(write);
+    await flush();
     expect(requestMock).not.toHaveBeenCalledWith("/api/v1/orgs/acme/mcp-policy/write", expect.anything());
   });
 
@@ -222,6 +229,7 @@ describe("AiAccessTab", () => {
     expect(write).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("Quyền ghi chưa mở cho tổ chức của bạn.")).toBeInTheDocument();
     fireEvent.click(write);
+    await flush();
     expect(requestMock).not.toHaveBeenCalledWith("/api/v1/orgs/acme/mcp-policy/write", expect.anything());
   });
 
