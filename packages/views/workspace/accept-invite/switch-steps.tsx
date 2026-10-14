@@ -89,10 +89,14 @@ export function SwitchProgress({ step }: { step: number }) {
   );
 }
 
-/** A step's heading. It takes focus when the step changes, so a screen reader hears where it landed. */
+/**
+ * A step's heading. It takes focus when the step changes, so a screen reader
+ * hears where it landed; the global :focus-visible outline (not switched off
+ * here) shows a keyboard user the same thing.
+ */
 export const StepHeading = forwardRef<HTMLHeadingElement, { children: string }>(function StepHeading({ children }, ref) {
   return (
-    <h2 ref={ref} tabIndex={-1} className="text-balance text-title-lg font-semibold text-foreground outline-none">
+    <h2 ref={ref} tabIndex={-1} className="rounded-sm text-balance text-title-lg font-semibold text-foreground [overflow-wrap:anywhere]">
       {children}
     </h2>
   );

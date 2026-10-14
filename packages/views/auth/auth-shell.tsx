@@ -157,11 +157,16 @@ export function AuthShell({
               <Bezel>
                 <div className="flex flex-col gap-8 p-6 sm:p-9">
                   <div className="flex flex-col gap-2">
+                    {/* No `outline-none`: when focus moves here after a
+                        keyboard action the global :focus-visible outline marks
+                        where it landed (a pointer action leaves it unmarked).
+                        `overflow-wrap:anywhere` because the title can carry an
+                        organization name with no break opportunity. */}
                     <h1
                       ref={heading}
                       tabIndex={-1}
                       className={cn(
-                        "text-balance font-display font-bold text-foreground outline-none",
+                        "rounded-sm text-balance font-display font-bold text-foreground [overflow-wrap:anywhere]",
                         nameInTitle ? "text-display-sm sm:text-display" : "text-display",
                       )}
                     >

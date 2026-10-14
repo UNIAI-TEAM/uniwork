@@ -120,6 +120,11 @@ describe("AcceptInviteView", () => {
       expect(screen.queryByText("not found")).not.toBeInTheDocument();
       // The page keeps one shell, so the new title moves focus to it: that announces the refusal.
       await waitFor(() => expect(heading).toHaveFocus());
+      // The focus it took is visible to a keyboard user: the global
+      // :focus-visible outline is not switched off on the heading, and a name
+      // with no break opportunity wraps instead of overflowing the card.
+      expect(heading).not.toHaveClass("outline-none");
+      expect(heading).toHaveClass("[overflow-wrap:anywhere]");
       expect(screen.getByRole("link", { name: "Xem workspace của tôi" })).toHaveAttribute("href", "/workspaces");
     });
 
@@ -399,8 +404,10 @@ describe("AcceptInviteView", () => {
       const onAccepted = await openWizard([conflict("leave")]);
       next();
       const heading = await screen.findByRole("heading", { name: "Xử lý tổ chức cũ" });
-      // Focus follows the step, so a screen reader hears where it landed.
+      // Focus follows the step, so a screen reader hears where it landed, and
+      // the global :focus-visible outline shows a keyboard user the same.
       await waitFor(() => expect(heading).toHaveFocus());
+      expect(heading).not.toHaveClass("outline-none");
       const cont = screen.getByRole("button", { name: "Tiếp tục" });
       expect(cont).toHaveAttribute("aria-disabled", "true");
       next();
