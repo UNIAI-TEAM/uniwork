@@ -90,7 +90,8 @@ func registerWorkspaces(r api, h Routes) {
 	})
 	r.Post("/invitations/{token}/accept", h.AcceptInvitation, apiOp{
 		summary: "Accept invitation",
-		description: "Vào tổ chức (và workspace nếu có) ghi trên token lời mời. Body tùy chọn: resolve phải khớp đúng conflicts " +
+		description: "Vào tổ chức và các workspace lời mời cấp (workspace gửi lời mời, hoặc các workspace admin đã chọn; " +
+			"workspace đã bị xóa thì bỏ qua). workspace trong kết quả là nơi hạ cánh, vắng mặt khi chưa có workspace nào. Body tùy chọn: resolve phải khớp đúng conflicts " +
 			"của bản xem trước; mọi bước rời / chuyển quyền / đóng tổ chức cũ và tham gia tổ chức mới chạy trong một transaction. " +
 			"409 organization_switch_required kèm conflicts mới nhất; 410 invitation_expired | invitation_revoked | invitation_accepted; " +
 			"403 organization_suspended | organization_deletion_scheduled khi tổ chức mời không nhận thêm người; " +

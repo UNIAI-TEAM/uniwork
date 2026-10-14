@@ -66,7 +66,7 @@ func newOrgInviteFixture(t *testing.T) *orgInviteFixture {
 func TestInviteToOrganizationSkipsMembersAndReusesPendingTokens(t *testing.T) {
 	f := newOrgInviteFixture(t)
 	invs, skipped, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID,
-		[]string{"inv-new@example.com", "inv-member@example.com", "not-an-email", "INV-NEW@example.com"}, OrgRoleMember)
+		[]string{"inv-new@example.com", "inv-member@example.com", "not-an-email", "INV-NEW@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,24 +79,24 @@ func TestInviteToOrganizationSkipsMembersAndReusesPendingTokens(t *testing.T) {
 	first := invs[0].Token
 	// Inviting the same address again must not mint a second token: the link
 	// already in their inbox would stop working.
-	again, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember)
+	again, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(again) != 1 || again[0].Token != first {
 		t.Fatalf("second invite minted a new token: %+v", again)
 	}
-	if _, _, err := f.svc.InviteToOrg(f.ctx, f.member.ID, f.org.ID, []string{"someone@example.com"}, OrgRoleMember); !errors.Is(err, ErrForbidden) {
+	if _, _, err := f.svc.InviteToOrg(f.ctx, f.member.ID, f.org.ID, []string{"someone@example.com"}, OrgRoleMember, nil); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("member inviting: got %v", err)
 	}
-	if _, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"x@example.com"}, "owner"); err == nil {
+	if _, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"x@example.com"}, "owner", nil); err == nil {
 		t.Fatal("an invitation to the owner role was accepted")
 	}
 }
 
 func TestAcceptOrganizationInviteAddsMemberWithoutAWorkspace(t *testing.T) {
 	f := newOrgInviteFixture(t)
-	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleAdmin)
+	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleAdmin, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestADeactivatedMemberIsNotReAdmittedByAnInvitation(t *testing.T) {
 	// Inviting somebody who was switched off is a mistake: the row is still
 	// there, and the fix is to reactivate them. So the address is skipped
 	// rather than sent a link that would fail on accept.
-	invs, skipped, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-member@example.com"}, OrgRoleMember)
+	invs, skipped, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-member@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestADeactivatedMemberIsNotReAdmittedByAnInvitation(t *testing.T) {
 	}
 	// And an invitation issued before the deactivation cannot be used as a way
 	// back in either.
-	other, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember)
+	other, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestADeactivatedMemberIsNotReAdmittedByAnInvitation(t *testing.T) {
 	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.invitee.ID); err != nil {
 		t.Fatal(err)
 	}
-	second, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember)
+	second, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestADeactivatedMemberIsNotReAdmittedByAnInvitation(t *testing.T) {
 
 func TestRevokeInvitationStopsTheToken(t *testing.T) {
 	f := newOrgInviteFixture(t)
-	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember)
+	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +252,7 @@ func TestTransferOwnershipRefusesADeactivatedTarget(t *testing.T) {
 // letter case, still redeems it.
 func TestInvitationIsRedeemedOnlyByTheInvitedAddress(t *testing.T) {
 	f := newOrgInviteFixture(t)
-	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"INV-NEW@example.com"}, OrgRoleAdmin)
+	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"INV-NEW@example.com"}, OrgRoleAdmin, nil)
 	if err != nil || len(invs) != 1 {
 		t.Fatalf("invite: %v %v", invs, err)
 	}
@@ -281,7 +281,7 @@ func TestInvitationIsRedeemedOnlyByTheInvitedAddress(t *testing.T) {
 func TestInvitationNeedsTheProvenAddress(t *testing.T) {
 	f := newOrgInviteFixture(t)
 	as := NewAuthService(f.orgs.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
-	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"sam@example.com"}, OrgRoleMember)
+	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"sam@example.com"}, OrgRoleMember, nil)
 	if err != nil || len(invs) != 1 {
 		t.Fatalf("invite: %v %v", invs, err)
 	}

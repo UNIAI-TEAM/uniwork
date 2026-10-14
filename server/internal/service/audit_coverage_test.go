@@ -154,7 +154,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionInvitationRevoked: func(t *testing.T, f *auditFixture) {
 			f.build(t)
-			invs, _, err := f.orgMem.InviteToOrg(f.ctx, f.owner.ID, f.orgID, []string{"revoke-me@example.com"}, OrgRoleMember)
+			invs, _, err := f.orgMem.InviteToOrg(f.ctx, f.owner.ID, f.orgID, []string{"revoke-me@example.com"}, OrgRoleMember, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
