@@ -39,7 +39,7 @@
 @media (max-width: 1439px) {
   .site-header .header-nav-link { padding-inline: 8px; }
 }
-@media (max-width: 1099px) {
+@media (max-width: 1239px) {
   .site-header .header-navigation, .site-header .header-directory { display: none; }
   .site-header .header-mobile-toggle { display: inline-flex; }
 }
