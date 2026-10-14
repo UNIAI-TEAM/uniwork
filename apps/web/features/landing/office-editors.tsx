@@ -59,7 +59,7 @@ export function OfficeEditorTabs({ active, onActiveChange }: {
 }
 
 /** Selected capabilities supplement the single preview without repeating its controls or image. */
-export function OfficeEditorSummary({ editor }: { editor: OfficeEditorKey }) {
+function OfficeEditorSummary({ editor }: { editor: OfficeEditorKey }) {
   const { t } = useTranslation();
   const example = OFFICE_EXAMPLES[editor];
   return <section id="office-editor-details" className="office-editor-summary" aria-labelledby="office-editor-summary-title">
