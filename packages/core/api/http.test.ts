@@ -45,6 +45,16 @@ describe("request", () => {
     expect((retryInit.headers as Record<string, string>)["Authorization"]).toBe("Bearer tok-2");
   });
 
+  it("does not refresh or replay a 403: a re-entered password that is wrong is not an expired session", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      okJson({ error: { code: "password_incorrect", message: "m" } }, 403),
+    );
+    await expect(request("/api/v1/orgs/acme/transfer-ownership", { method: "POST", body: { password: "pw" } }))
+      .rejects.toMatchObject({ code: "password_incorrect", status: 403 });
+    // One request: no refresh, no replay carrying the password a second time.
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  });
+
   it("throws ApiError with the code from the body", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(okJson({ error: { code: "not_found", message: "m" } }, 404));
     await expect(request("/api/v1/x")).rejects.toMatchObject({ code: "not_found", status: 404 });

@@ -45,7 +45,6 @@ const player = () => FakeAudio.instances[FakeAudio.instances.length - 1];
 
 beforeEach(() => {
   vi.stubGlobal("Audio", FakeAudio);
-  vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:voice"), revokeObjectURL: vi.fn() });
 });
 
 afterEach(() => {
@@ -53,30 +52,32 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const blob = () => Promise.resolve(new Blob(["a"], { type: "audio/webm" }));
+// The signed storage URL a voice message carries (UNI-1633).
+const signed = (id: string) => () => Promise.resolve(`https://storage.test/chat/voice/${id}?sig=1`);
 
 describe("voice playback store", () => {
   it("plays one message at a time: starting another stops the first", async () => {
-    await toggleChatVoicePlayback("m1", blob);
+    await toggleChatVoicePlayback("m1", signed("m1"));
     expect(useChatVoicePlaybackStore.getState()).toMatchObject({ activeId: "m1", status: "playing" });
+    expect(player()?.src).toBe("https://storage.test/chat/voice/m1?sig=1");
 
-    await toggleChatVoicePlayback("m2", blob);
+    await toggleChatVoicePlayback("m2", signed("m2"));
     expect(useChatVoicePlaybackStore.getState()).toMatchObject({ activeId: "m2", status: "playing" });
-    // One shared element, so nothing of m1 keeps sounding.
+    // One shared element, so nothing of m1 keeps sounding; it streams m2 now.
     expect(FakeAudio.instances).toHaveLength(1);
-    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+    expect(player()?.src).toBe("https://storage.test/chat/voice/m2?sig=1");
   });
 
   it("pauses and resumes the same message, and seeks within it", async () => {
-    await toggleChatVoicePlayback("m1", blob);
-    await toggleChatVoicePlayback("m1", blob);
+    await toggleChatVoicePlayback("m1", signed("m1"));
+    await toggleChatVoicePlayback("m1", signed("m1"));
     expect(useChatVoicePlaybackStore.getState().status).toBe("paused");
     seekChatVoicePlayback("m1", 1500);
     expect(player()?.currentTime).toBe(1.5);
     expect(useChatVoicePlaybackStore.getState().positionMs).toBe(1500);
     seekChatVoicePlayback("other", 99);
     expect(useChatVoicePlaybackStore.getState().positionMs).toBe(1500);
-    await toggleChatVoicePlayback("m1", blob);
+    await toggleChatVoicePlayback("m1", signed("m1"));
     expect(useChatVoicePlaybackStore.getState().status).toBe("playing");
   });
 
@@ -86,7 +87,7 @@ describe("voice playback store", () => {
   });
 
   it("stops everything when the room is left", async () => {
-    await toggleChatVoicePlayback("m1", blob);
+    await toggleChatVoicePlayback("m1", signed("m1"));
     stopChatVoicePlayback();
     expect(useChatVoicePlaybackStore.getState()).toMatchObject({ activeId: null, status: "idle" });
     expect(player()?.paused).toBe(true);

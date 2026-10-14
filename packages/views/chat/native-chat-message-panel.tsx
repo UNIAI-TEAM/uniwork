@@ -454,8 +454,6 @@ export function NativeChatMessagePanel({
       {replyTo ? (
         <ChatReplyComposerBar
           message={replyTo}
-          workspaceId={workspaceId}
-          roomId={roomId}
           onCancel={() => {
             onReplyToChange(null);
             onFocusComposer?.();

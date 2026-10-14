@@ -1,5 +1,5 @@
 "use client";
-import { ArrowDown, ArrowRight, BookOpen, ExternalLink, FileText, GitBranch, MessageSquare, Play, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowRight, BookOpen, ExternalLink, FileText, GitBranch, MessageSquare, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -33,7 +33,7 @@ const PROOFS = [
  */
 export function WhyPage() {
   const { t } = useTranslation();
-  return <MarketingShell closingTitle="landing.why.redesign.closingTitle" closingDemoHref={paths.feature("tasks")}>
+  return <MarketingShell closingTitle="landing.why.redesign.decisionTitle" closingDescription="landing.why.redesign.decisionDescription" closingAction={{ href: paths.feature("tasks"), labelKey: "landing.why.redesign.tryAction", icon: "play" }}>
     <div className="why-page">
       <section className="why-hero why-width" aria-labelledby="why-title">
         <div className="why-hero-copy">
@@ -66,11 +66,6 @@ export function WhyPage() {
           </div>
           <figure className="why-proof-figure"><FeatureIllustration featureKey={feature} index={index} /><figcaption>{t("landing.featureVisuals.sample")}</figcaption></figure>
         </article>)}
-      </section>
-      <section className="why-decision why-width" aria-labelledby="why-decision-title">
-        <Logo variant="mark" size={48} decorative />
-        <div><h2 id="why-decision-title">{t("landing.why.redesign.decisionTitle")}</h2><p>{t("landing.why.redesign.decisionDescription")}</p></div>
-        <Link href={paths.feature("tasks")} className={buttonVariants({ variant: "outline", size: "lg" })}><Play aria-hidden />{t("landing.why.redesign.tryAction")}</Link>
       </section>
     </div>
   </MarketingShell>;

@@ -89,8 +89,8 @@ describe("WorkspaceTopBar", () => {
     const create = screen.getByRole("button", { name: /tạo việc/i });
     expect(create).toHaveTextContent("");
     expect(create).toHaveClass("size-8");
-    expect(screen.getByLabelText(/giao diện/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/ngôn ngữ/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Giao diện" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ngôn ngữ" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();
     expect(screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeInTheDocument();
   });
@@ -119,10 +119,43 @@ describe("WorkspaceTopBar", () => {
     await setLocale("vi");
     renderTopBar();
     const user = userEvent.setup();
-    await user.click(screen.getByLabelText(/ngôn ngữ/i));
+    await user.click(screen.getByRole("button", { name: "Ngôn ngữ" }));
     await user.click(await screen.findByRole("menuitemradio", { name: /english/i }));
     await waitFor(() => expect(success).toHaveBeenCalled());
     expect(success.mock.calls[0]?.[0]).toBe("Language preference saved");
+    success.mockRestore();
+    await setLocale("vi");
+  });
+
+  it("folds theme and language into one menu on a narrow bar, and keeps the four reach actions out", async () => {
+    const success = vi.spyOn(toast, "success").mockImplementation(() => "t");
+    await setLocale("vi");
+    const { container } = renderTopBar();
+    // The bar is a rem query container: below 21rem (a phone at large text)
+    // the two menus swap for one and the actions wrap with the bar's row,
+    // so nothing runs off the edge.
+    const header = container.querySelector("header");
+    expect(header).toHaveClass("@container/topbar", "flex-wrap", "min-h-12");
+    const create = screen.getByRole("button", { name: /tạo việc/i });
+    expect(create.parentElement).toHaveClass("@max-[21rem]/topbar:contents");
+    expect(screen.getByRole("button", { name: "Giao diện" })).toHaveClass("hidden", "@min-[21rem]/topbar:inline-flex");
+    expect(screen.getByRole("button", { name: "Ngôn ngữ" })).toHaveClass("hidden", "@min-[21rem]/topbar:inline-flex");
+    const more = screen.getByRole("button", { name: "Giao diện và ngôn ngữ" });
+    expect(more).toHaveClass("@min-[21rem]/topbar:hidden", "size-8", "text-muted-foreground");
+    // Search, AI, notifications and + New never fold (PRODUCT.md principle 8).
+    // (Ask UNI renders only once the AI capability answers; not here.)
+    for (const name of [/tìm kiếm/i, /thông báo/i, /tạo việc/i]) {
+      expect(screen.getByRole("button", { name })).not.toHaveClass("hidden");
+    }
+
+    const user = userEvent.setup();
+    await user.click(more);
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("group", { name: "Giao diện" })).toBeInTheDocument();
+    expect(within(menu).getByRole("group", { name: "Ngôn ngữ" })).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitemradio", { name: /english/i }));
+    await waitFor(() => expect(success).toHaveBeenCalled());
+    expect(localeAdapter.persist).toHaveBeenCalledWith("en");
     success.mockRestore();
     await setLocale("vi");
   });

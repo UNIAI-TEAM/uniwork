@@ -106,28 +106,25 @@ func (s *BillingService) Current(ctx context.Context, userID, orgID string) (Ent
 	return s.ent.Snapshot(ctx, orgID)
 }
 
-// requireOwner: the organization owner, or platform staff (users.platform_role).
-func (s *BillingService) requireOwner(ctx context.Context, userID, orgID string) (platformAdmin bool, err error) {
-	u, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
-		return false, err
-	}
-	platformAdmin = u.PlatformRole.Valid && u.PlatformRole.String == "admin"
+// requireOwner allows only the organization owner. Platform staff change a
+// plan through AdminService.ChangePlan, which records a reason; the customer
+// routes never let a platform role stand in for membership.
+func (s *BillingService) requireOwner(ctx context.Context, userID, orgID string) error {
 	m, err := s.orgs.RequireMember(ctx, orgID, userID)
-	if err != nil && !(platformAdmin && errors.Is(err, ErrForbidden)) {
-		return false, err
+	if err != nil {
+		return err
 	}
-	if !platformAdmin && m.Role != "owner" {
-		return false, ErrForbidden
+	if m.Role != "owner" {
+		return ErrForbidden
 	}
-	return platformAdmin, nil
+	return nil
 }
 
 // planIsPaid is true when an owner must not take the plan through ChangePlan.
 // A listed price above zero needs checkout. A missing price is a "contact us"
 // plan: it is not free, and treating it as free would activate it forever
 // with no invoice and no past-due sweep. A zero price is a free plan and
-// stays a self-serve change. Platform staff skip this gate.
+// stays a self-serve change. AdminService.ChangePlan skips this gate.
 func planIsPaid(p db.Plan) bool {
 	return !p.PriceAmount.Valid || p.PriceAmount.Int64 > 0
 }
@@ -140,10 +137,11 @@ func planListPrice(p db.Plan) int64 {
 }
 
 // ChangePlan (spec §4.4). An owner may move between free manual plans; a
-// paid plan needs the provider's checkout; platform staff may set any plan.
-// expectedVersion guards against two people changing the plan at once.
+// paid plan needs the provider's checkout. expectedVersion guards against
+// two people changing the plan at once. Platform staff use
+// AdminService.ChangePlan.
 func (s *BillingService) ChangePlan(ctx context.Context, userID, orgID, planCode string, expectedVersion int32) (EntitlementSnapshot, error) {
-	return s.changePlan(ctx, userID, orgID, planCode, expectedVersion, nil)
+	return s.changePlan(ctx, userID, orgID, planCode, expectedVersion, false, nil)
 }
 
 // planChangeHook runs on the subscription transaction, after the plan row and
@@ -151,19 +149,23 @@ func (s *BillingService) ChangePlan(ctx context.Context, userID, orgID, planCode
 // uses it to insert admin_actions in that same transaction.
 type planChangeHook func(ctx context.Context, q *db.Queries, beforeCode, afterCode string) error
 
-func (s *BillingService) changePlan(ctx context.Context, userID, orgID, planCode string, expectedVersion int32, hook planChangeHook) (EntitlementSnapshot, error) {
-	platformAdmin, err := s.requireOwner(ctx, userID, orgID)
-	if err != nil {
-		return EntitlementSnapshot{}, err
+// changePlan is the shared switch. asAdmin is the platform console path: it
+// skips the owner check, the inactive-plan refusal, checkout_required and
+// the paid-downgrade refusal. The customer routes always pass false.
+func (s *BillingService) changePlan(ctx context.Context, userID, orgID, planCode string, expectedVersion int32, asAdmin bool, hook planChangeHook) (EntitlementSnapshot, error) {
+	if !asAdmin {
+		if err := s.requireOwner(ctx, userID, orgID); err != nil {
+			return EntitlementSnapshot{}, err
+		}
 	}
 	plan, err := s.q.GetPlanByCode(ctx, planCode)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !plan.IsActive && !platformAdmin) {
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !plan.IsActive && !asAdmin) {
 		return EntitlementSnapshot{}, ErrNotFound
 	}
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}
-	if planIsPaid(plan) && !platformAdmin {
+	if planIsPaid(plan) && !asAdmin {
 		return EntitlementSnapshot{}, CodedError{Code: "checkout_required", Status: http.StatusForbidden,
 			Msg: "gói này cần thanh toán qua cổng; dùng checkout", Fields: map[string]any{"plan_code": planCode}}
 	}
@@ -198,7 +200,7 @@ func (s *BillingService) changePlan(ctx context.Context, userID, orgID, planCode
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}
-	if !platformAdmin && planListPrice(before) > 0 && planListPrice(plan) < planListPrice(before) {
+	if !asAdmin && planListPrice(before) > 0 && planListPrice(plan) < planListPrice(before) {
 		return EntitlementSnapshot{}, CodedError{Code: "downgrade_not_allowed", Status: http.StatusForbidden,
 			Msg:    "không thể hạ gói trả phí tại đây; dùng hủy gói vào cuối kỳ hoặc liên hệ quản trị",
 			Fields: map[string]any{"current_plan": before.Code, "target_plan": plan.Code}}
@@ -291,7 +293,7 @@ func (s *BillingService) Resume(ctx context.Context, userID, orgID string) (Enti
 }
 
 func (s *BillingService) setCancelAt(ctx context.Context, userID, orgID string, cancel bool) (EntitlementSnapshot, error) {
-	if _, err := s.requireOwner(ctx, userID, orgID); err != nil {
+	if err := s.requireOwner(ctx, userID, orgID); err != nil {
 		return EntitlementSnapshot{}, err
 	}
 	tx, err := s.pool.Begin(ctx)

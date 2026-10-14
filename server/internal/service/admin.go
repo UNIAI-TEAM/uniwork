@@ -268,7 +268,7 @@ func (s *AdminService) ChangePlan(ctx context.Context, adminID, orgID, planCode,
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}
-	return s.billing.changePlan(ctx, adminID, orgID, planCode, cur.Subscription.RowVersion, func(ctx context.Context, q *db.Queries, beforeCode, afterCode string) error {
+	return s.billing.changePlan(ctx, adminID, orgID, planCode, cur.Subscription.RowVersion, true, func(ctx context.Context, q *db.Queries, beforeCode, afterCode string) error {
 		return s.recordAdmin(ctx, q, traceID, adminID, "organization.plan_changed", "organization", orgID,
 			map[string]any{"plan_code": beforeCode}, map[string]any{"plan_code": afterCode}, reason)
 	})

@@ -22,8 +22,6 @@ import {
   sendChatRoomMessage,
   sendChatVoiceMessage,
   sendChatFileMessage,
-  loadChatVoiceBlob,
-  loadChatFileBlob,
   sendWorkspaceChatMessage,
   signalChatTyping,
   signalChatVoiceAccept,
@@ -395,38 +393,52 @@ describe("chat endpoints", () => {
     expect(form.get("reply_to_message_id")).toBeNull();
   });
 
-  it("loadChatFileBlob returns authenticated binary response", async () => {
+  it("listChatRoomMessages carries the signed media URLs, empty when absent", async () => {
+    const base = {
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "A",
+      created_at: "2026-09-05T00:00:00Z",
+    };
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response("%PDF", { headers: { "Content-Type": "application/pdf" } }),
+      json({
+        messages: [
+          {
+            ...base,
+            id: "f1",
+            kind: "file",
+            body: "anh.png",
+            file: {
+              filename: "anh.png",
+              content_type: "image/png",
+              size_bytes: 10,
+              url: "https://storage.test/f1",
+              download_url: "https://storage.test/f1?dl=1",
+              thumb_url: "https://storage.test/f1-thumb",
+              url_expires_at: "2026-09-05T12:00:00Z",
+            },
+          },
+          {
+            ...base,
+            id: "v1",
+            kind: "voice",
+            body: "",
+            voice: { duration_ms: 1000, url: "https://storage.test/v1", url_expires_at: "2026-09-05T12:00:00Z" },
+          },
+          { ...base, id: "f2", kind: "file", body: "old.pdf", file: { filename: "old.pdf" } },
+        ],
+      }),
     );
-    const blob = await loadChatFileBlob("ws1", "room1", "message1");
-    expect(blob.type).toBe("application/pdf");
-    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toMatch(/\/messages\/message1\/file$/);
-  });
-
-  it("loadChatFileBlob asks for the thumbnail variant", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response("jpg", { headers: { "Content-Type": "image/jpeg" } }),
-    );
-    const blob = await loadChatFileBlob("ws1", "room1", "message1", "thumb");
-    expect(blob.type).toBe("image/jpeg");
-    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toMatch(/\/messages\/message1\/file\?variant=thumb$/);
-  });
-
-  it("loadChatVoiceBlob returns authenticated binary response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response("voice", { headers: { "Content-Type": "audio/webm" } }),
-    );
-    const blob = await loadChatVoiceBlob("ws1", "room1", "message1");
-    expect(blob.type).toBe("audio/webm");
-    // jsdom Blob has size/type but no .text()/.arrayBuffer(); FileReader still works.
-    const text = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error ?? new Error("read failed"));
-      reader.readAsText(blob);
+    const [photo, voice, unsigned] = await listChatRoomMessages("ws1", "room1");
+    expect(photo?.file).toMatchObject({
+      url: "https://storage.test/f1",
+      download_url: "https://storage.test/f1?dl=1",
+      thumb_url: "https://storage.test/f1-thumb",
+      url_expires_at: "2026-09-05T12:00:00Z",
     });
-    expect(text).toBe("voice");
+    expect(voice?.voice).toMatchObject({ url: "https://storage.test/v1", url_expires_at: "2026-09-05T12:00:00Z" });
+    expect(unsigned?.file).toMatchObject({ url: "", download_url: "", thumb_url: "", url_expires_at: "" });
   });
 
   it("leaveChatRoom degrades on malformed response", async () => {

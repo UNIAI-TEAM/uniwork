@@ -74,6 +74,10 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
           filename: record.file.filename,
           content_type: record.file.content_type,
           size_bytes: record.file.size_bytes,
+          url: record.file.url,
+          download_url: record.file.download_url,
+          thumb_url: record.file.thumb_url,
+          url_expires_at: record.file.url_expires_at,
         }
       : undefined,
     poll: record.poll

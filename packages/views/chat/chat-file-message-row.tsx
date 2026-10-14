@@ -115,8 +115,6 @@ function ChatFileMessageRowImpl({
                   <div className={cn(edgeToEdge ? "px-2 pt-2" : undefined)}>
                     <ChatReplyQuote
                       message={replyToMessage}
-                      workspaceId={workspaceId}
-                      roomId={roomId}
                       isOwn={isOwn}
                       onJump={onJumpToMessage}
                     />

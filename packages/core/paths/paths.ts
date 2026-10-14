@@ -26,6 +26,12 @@ export const paths = {
    * or join through an invitation (ADR 0032 D12). Hyphenated root, reserved.
    */
   getStarted: () => "/get-started",
+  /**
+   * Where a plain member of an organization lands while no workspace has been
+   * opened to them (UNI-1472, UNI-1582): they are told so and to ask an
+   * admin, never sent to create one. Hyphenated root, reserved.
+   */
+  noWorkspace: () => "/no-workspace",
   newWorkspace: () => "/workspaces/new",
   invitations: () => "/invitations",
   workspaces: () => "/workspaces",
@@ -122,6 +128,7 @@ export const GLOBAL_PREFIXES = [
   "/auth/",
   "/onboarding",
   "/get-started",
+  "/no-workspace",
   "/invitations",
   "/workspaces",
   "/invite/",

@@ -165,7 +165,7 @@ func TestDeleteAccountAnonymisesAndKeepsAudit(t *testing.T) {
 	if err := f.auth.DeleteAccount(ctx, f.owner.ID, DeleteAccountInput{Password: auditPassword}); !errors.Is(err, ErrOwnerMustTransfer) {
 		t.Fatalf("owner: %v", err)
 	}
-	if err := f.auth.DeleteAccount(ctx, f.member.ID, DeleteAccountInput{Password: "wrong"}); !errors.Is(err, ErrInvalidCredentials) {
+	if err := f.auth.DeleteAccount(ctx, f.member.ID, DeleteAccountInput{Password: "wrong"}); !errors.Is(err, ErrPasswordIncorrect) {
 		t.Fatalf("wrong password: %v", err)
 	}
 	sess, err := f.auth.Login(ctx, f.member.Email, auditPassword)

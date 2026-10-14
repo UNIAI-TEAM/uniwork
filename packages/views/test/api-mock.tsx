@@ -13,10 +13,13 @@ export const localeAdapter = {
   persist: vi.fn(),
 };
 
-export function wrap(ui: React.ReactElement) {
+export function wrap(ui: React.ReactElement, client?: QueryClient) {
   return (
     <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } })}
+      client={
+        client ??
+        new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } })
+      }
     >
       <LocaleAdapterProvider adapter={localeAdapter}>{ui}</LocaleAdapterProvider>
     </QueryClientProvider>
@@ -37,6 +40,6 @@ export function fakeNav(pathname = "/"): NavigationAdapter {
 }
 
 /** wrap() plus a NavigationProvider, for screens that navigate. */
-export function wrapWithNav(ui: React.ReactElement, adapter: NavigationAdapter = fakeNav()) {
-  return wrap(<NavigationProvider value={adapter}>{ui}</NavigationProvider>);
+export function wrapWithNav(ui: React.ReactElement, adapter: NavigationAdapter = fakeNav(), client?: QueryClient) {
+  return wrap(<NavigationProvider value={adapter}>{ui}</NavigationProvider>, client);
 }

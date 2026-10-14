@@ -71,6 +71,9 @@ describe("onboarding accessibility contracts", () => {
     // Nhận tiêu điểm bằng chương trình thì phải có tabIndex -1, và KHÔNG được
     // thành một điểm dừng Tab thừa.
     expect(heading).toHaveAttribute("tabindex", "-1");
+    // Người dùng bàn phím phải thấy tiêu điểm đã tới đâu: viền :focus-visible
+    // chung không được tắt trên tiêu đề.
+    expect(heading).not.toHaveClass("outline-none");
   });
 
   it("dàn ý heading chỉ có h1 của bước — rail không chèn heading nào", async () => {

@@ -234,10 +234,10 @@ describe("ConnectAccountDialog", () => {
     fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh" } });
     const submit = screen.getByRole("button", { name: "Kết nối lại" });
     if (blocked) {
-      expect(submit).toBeDisabled();
+      expect(submit).toHaveAttribute("aria-disabled", "true");
       expect(screen.getByRole("status")).toHaveTextContent("Đang tải hộp thư…");
     } else {
-      await waitFor(() => expect(submit).toBeEnabled());
+      await waitFor(() => expect(submit).not.toHaveAttribute("aria-disabled"));
       expect(screen.queryByRole("status")).toBeNull();
     }
   });
@@ -264,7 +264,7 @@ describe("ConnectAccountDialog", () => {
 
     fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh ijkl mnop" } });
     const submit = screen.getByRole("button", { name: "Kết nối lại" });
-    await waitFor(() => expect(submit).toBeEnabled());
+    await waitFor(() => expect(submit).not.toHaveAttribute("aria-disabled"));
     fireEvent.click(submit);
 
     await waitFor(() => expect(onConnected).toHaveBeenCalledWith("acc1"));
@@ -284,7 +284,7 @@ describe("ConnectAccountDialog", () => {
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === ACCOUNTS_PATH)).toBe(true));
     await act(async () => {}); // let the rejected list settle into the error state
     fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh ijkl mnop" } });
-    expect(screen.getByRole("button", { name: "Kết nối lại" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Kết nối lại" })).toHaveAttribute("aria-disabled", "true");
     expect(requestMock).not.toHaveBeenCalledWith(ACCOUNTS_PATH, expect.objectContaining({ method: "POST" }));
     const loadFailed = screen.getByRole("alert");
     expect(loadFailed).toHaveTextContent("Không tải được thông tin hộp thư. Thử lại.");
@@ -354,7 +354,7 @@ describe("ConnectAccountDialog", () => {
     render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
     fireEvent.click(appPasswordOption());
     const submit = screen.getByRole("button", { name: "Kết nối" });
-    expect(submit).toBeEnabled();
+    expect(submit).not.toHaveAttribute("aria-disabled");
 
     fireEvent.click(submit);
     const email = screen.getByLabelText("Email");

@@ -15,9 +15,11 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// AcceptResult is what accepting an invitation produced. Workspace is nil for
-// an organization-level invitation: the person is in the company but not yet
-// in any team, and the client sends them to the workspace picker.
+// AcceptResult is what accepting an invitation produced. Workspace is where
+// the person lands: the invitation's own workspace, else the oldest one it
+// granted, else - for an organization owner or admin - the oldest one they may
+// open. It is nil when the organization has nothing for them yet; the client
+// then says so instead of asking them to create anything (UNI-1472).
 type AcceptResult struct {
 	Organization db.Organization
 	Workspace    *WorkspaceView
@@ -156,8 +158,9 @@ func admitsNewMembers(o db.Organization) error {
 
 // acceptOutcome is what the transaction decided, for the work after commit.
 type acceptOutcome struct {
-	org         db.Organization
-	workspaceID string
+	org          db.Organization
+	invitationID string
+	workspaceID  string
 	// retried is an invitation this account already accepted (EC-12).
 	retried   bool
 	mailboxes []db.DisconnectEmailHubAccountsForUserRow
@@ -203,7 +206,13 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	}
 	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.members.emailHub, out.mailboxes)
 	result := AcceptResult{Organization: out.org}
-	if out.workspaceID != "" {
+	if out.workspaceID == "" {
+		landing, err := s.landingWorkspace(ctx, userID, out.invitationID, out.org.ID)
+		if err != nil {
+			return AcceptResult{}, err
+		}
+		result.Workspace = landing
+	} else {
 		view, err := s.GetView(ctx, userID, out.workspaceID)
 		switch {
 		case err == nil:
@@ -216,6 +225,38 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 		}
 	}
 	return result, nil
+}
+
+// landingWorkspace is where an organization-level invitation leads once
+// accepted: the oldest granted workspace the person can open; failing that,
+// the oldest workspace of the organization they can open at all (an owner or
+// admin opens every one); nil when there is none.
+func (s *WorkspaceService) landingWorkspace(ctx context.Context, userID, invitationID, orgID string) (*WorkspaceView, error) {
+	granted, err := grantedWorkspaces(ctx, s.q, invitationID, orgID, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range granted {
+		view, err := s.GetView(ctx, userID, w.ID)
+		switch {
+		case err == nil:
+			return &view, nil
+		case errors.Is(err, ErrForbidden), errors.Is(err, ErrNotFound):
+			// Removed from it since: try the next one.
+		default:
+			return nil, err
+		}
+	}
+	all, err := s.ListForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range all {
+		if all[i].Workspace.OrganizationID == orgID {
+			return &all[i], nil
+		}
+	}
+	return nil, nil
 }
 
 // lockRaceAsBusy turns a deadlock or serialization failure into a retryable
@@ -302,7 +343,7 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 		if _, err := s.orgs.RequireMemberQ(ctx, qtx, org.ID, userID); err != nil {
 			return acceptOutcome{}, errInvitationAccepted()
 		}
-		return acceptOutcome{org: org, workspaceID: inv.WorkspaceID.String, retried: true}, nil
+		return acceptOutcome{org: org, invitationID: inv.ID, workspaceID: inv.WorkspaceID.String, retried: true}, nil
 	case InvitationRevoked:
 		return acceptOutcome{}, errInvitationRevoked()
 	case InvitationExpired:
@@ -328,7 +369,7 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 	if !ok {
 		return acceptOutcome{}, errOrganizationSwitchRequired(conflicts)
 	}
-	mailboxes, err := s.giveUp(ctx, qtx, userID, inv.ID, org.ID, conflicts, plan, locked)
+	mailboxes, err := s.giveUp(ctx, qtx, userID, conflicts, plan, locked)
 	if err != nil {
 		return acceptOutcome{}, err
 	}
@@ -360,6 +401,14 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 			return acceptOutcome{}, err
 		}
 	}
+	// An organization-level invitation grants the workspaces the admin chose
+	// (UNI-1582), each with its own audit row, in this same transaction.
+	var granted []string
+	if !inv.WorkspaceID.Valid {
+		if granted, err = grantInvitationWorkspaces(ctx, qtx, userID, inv.ID, org.ID); err != nil {
+			return acceptOutcome{}, err
+		}
+	}
 	// The row is locked, so this only finds nothing if the invitation ran
 	// out between the check above and here; the whole switch rolls back.
 	marked, err := qtx.MarkInvitationAccepted(ctx, inv.ID)
@@ -380,6 +429,9 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 		Changes:  audit.Diff(nil, map[string]any{"role": orgRoleOrMember(inv.OrgRole)}),
 		Metadata: map[string]any{"invitation_id": inv.ID},
 	}
+	if len(granted) > 0 {
+		entry.Metadata["workspace_ids"] = granted
+	}
 	payload := map[string]string{"organization_id": org.ID, "user_id": userID}
 	if inv.WorkspaceID.Valid {
 		entry.WorkspaceID = ws.ID
@@ -393,21 +445,24 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 	if err := tx.Commit(ctx); err != nil {
 		return acceptOutcome{}, err
 	}
-	return acceptOutcome{org: org, workspaceID: inv.WorkspaceID.String, mailboxes: mailboxes}, nil
+	return acceptOutcome{org: org, invitationID: inv.ID, workspaceID: inv.WorkspaceID.String, mailboxes: mailboxes}, nil
 }
 
 // giveUp runs the resolution of every conflict in organization id order, the
 // order their rows were locked: leave, transfer then leave, or close (spec
 // §4.4 step 5). Each step decides again under its own row locks; one that
 // finds the organization changed since the conflicts were read makes the
-// whole switch stale. The audit rows name the invitation and the organization
-// being joined, so the trail shows a switch rather than a plain exit.
-func (s *WorkspaceService) giveUp(ctx context.Context, q *db.Queries, userID, invitationID, joiningOrgID string,
+// whole switch stale. The old organization's audit rows say it was a switch
+// rather than a plain exit, and name nothing of the organization joined:
+// which tenant someone moved to is not the old tenant's business (ADR 0008).
+// The joined side's member.joined row carries the invitation, and the shared
+// correlation id ties the two for the platform.
+func (s *WorkspaceService) giveUp(ctx context.Context, q *db.Queries, userID string,
 	conflicts []MembershipConflict, plan map[string]SwitchResolution, locked map[string]bool,
 ) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
 	ordered := append([]MembershipConflict(nil), conflicts...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Organization.ID < ordered[j].Organization.ID })
-	meta := map[string]any{"invitation_id": invitationID, "switched_to_organization_id": joiningOrgID}
+	meta := map[string]any{"reason": "organization_switch"}
 	var mailboxes []db.DisconnectEmailHubAccountsForUserRow
 	for _, c := range ordered {
 		orgID := c.Organization.ID

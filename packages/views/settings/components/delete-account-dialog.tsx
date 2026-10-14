@@ -4,7 +4,7 @@ import { useId, useRef, useState } from "react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
-import { useAuthStore, useDeleteAccount } from "@uniwork/core/auth";
+import { deleteAccountProofRefused, useAuthStore, useDeleteAccount } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -76,7 +76,16 @@ export function DeleteAccountDialog() {
               mode === "password" ? { password: proof } : mode === "code" ? { code: proof.trim() } : { email_confirmation: proof.trim() };
             del.mutate(body, {
               onSuccess: () => push(paths.login()),
-              onError: (err) => fail(apiErrorMessage(err) ?? t("failed")),
+              onError: (err) => {
+                if (!deleteAccountProofRefused(err)) {
+                  fail(apiErrorMessage(err) ?? t("failed"));
+                  return;
+                }
+                // A password or a one-time code is never kept past a refusal;
+                // a typed address stays selected so it can be corrected.
+                if (mode !== "email") setProof("");
+                fail(t(`incorrect.${mode}`));
+              },
             });
           }}
         >
