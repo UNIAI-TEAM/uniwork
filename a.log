@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+595eb764e540e5de1ef3a33764609f0a247d09ba
+595eb764e fix(documents): primary action of a trashed folder row opens Restore, never navigates
+36944dce5 fix(documents): restore trashed folders and unify library row menu words (visual r1 F1, F2, F4)
+d17ea717a chore: merge FD-09 fileForm field order fix (Advisor 19:26Z) into the lane
+58ec5e7fc chore: merge FD-09 fix r1 (review L1-L4) into the lane
+699896e9d fix(documents): order multipart text fields before file in fileForm
+8428d39b5 fix(documents): align folder picker and archive impact edge cases (L1-L4)
+252966754 chore: merge FD-09 W-C (folder delete impact dialog, trash and restore toasts) into the lane
+9e4c44f6b chore: merge FD-09 W-B (collapsed folder breadcrumb) into the lane
