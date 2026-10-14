@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"net/url"
 	"testing"
 	"time"
 
@@ -170,5 +171,43 @@ func TestMcpPrincipalToolContextIsTheConsentingHuman(t *testing.T) {
 	}
 	if p := principalOf(tc); p.UserID != "u1" || p.OrganizationID != "o1" {
 		t.Fatalf("principalOf(ToolContext) = %+v", p)
+	}
+}
+
+// The principal says whether this call may write: the grant's scope and both
+// write switches, read on every request so turning one off acts at once.
+func TestAuthenticateReportsWriteAccess(t *testing.T) {
+	w := newMcpWorld(t)
+	w.enable(t)
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	c := w.publicClient(t, "https://x.test/cb")
+	id := w.startWrite(t, c)
+	consent, err := w.svc.Consent(w.ctx, w.owner.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	to, err := w.svc.Approve(w.ctx, w.owner.ID, id, consent.CSRFToken, w.org.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(to)
+	pair, err := w.svc.Exchange(w.ctx, McpExchangeInput{ClientID: c.ClientID, Code: u.Query().Get("code"), CodeVerifier: mcpTestVerifier, RedirectURI: "https://x.test/cb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := w.svc.Authenticate(w.ctx, pair.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.CanWrite() || p.Scope != "read write" || p.ClientName != "Test Client" {
+		t.Fatalf("principal = %+v, want a writer named Test Client", p)
+	}
+	if _, err := w.svc.SetWritePolicy(w.ctx, w.owner.ID, w.org.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ = w.svc.Authenticate(w.ctx, pair.AccessToken); p.CanWrite() || p.WriteOpen {
+		t.Fatalf("write switch off, principal = %+v", p)
 	}
 }

@@ -135,7 +135,7 @@ func (r *Recorder) Record(ctx context.Context, q *db.Queries, e Entry, emit ...E
 	if err != nil {
 		return err
 	}
-	metadata, err := encodeJSON(e.Metadata)
+	metadata, err := encodeJSON(withVia(e.Metadata, info.Via))
 	if err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (r *Recorder) RecordMany(ctx context.Context, q *db.Queries, batch []Record
 		if err != nil {
 			return err
 		}
-		metadata, err := encodeJSON(e.Metadata)
+		metadata, err := encodeJSON(withVia(e.Metadata, info.Via))
 		if err != nil {
 			return err
 		}

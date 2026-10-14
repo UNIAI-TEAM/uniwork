@@ -283,3 +283,58 @@ func TestRecordManyWritesWhatRecordWould(t *testing.T) {
 		t.Fatalf("an empty batch must be a no-op: %v", err)
 	}
 }
+
+// A row recorded inside a request that came through an AI app names the app
+// and the grant (ADR 0033); the entry's own metadata survives and is not
+// mutated.
+func TestRecordWritesTheViaOfTheRequest(t *testing.T) {
+	pool := testutil.DB(t)
+	ctx := WithVia(context.Background(), Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"})
+	e := entry()
+	e.Metadata = map[string]any{"kept": "yes"}
+	if err := NewRecorder().Record(ctx, db.New(pool), e); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := e.Metadata["via"]; ok {
+		t.Fatal("Record mutated the caller's metadata map")
+	}
+	var kind, grant, name, kept string
+	if err := pool.QueryRow(context.Background(), `SELECT metadata::jsonb->'via'->>'kind', metadata::jsonb->'via'->>'grant_id', metadata::jsonb->'via'->>'client_name', metadata::jsonb->>'kept' FROM audit_events`).Scan(&kind, &grant, &name, &kept); err != nil {
+		t.Fatal(err)
+	}
+	if kind != "mcp" || grant != "g1" || name != "Claude" || kept != "yes" {
+		t.Fatalf("via = %q %q %q, kept = %q", kind, grant, name, kept)
+	}
+}
+
+func TestRecordWithoutViaLeavesMetadataAlone(t *testing.T) {
+	pool := testutil.DB(t)
+	if err := NewRecorder().Record(context.Background(), db.New(pool), entry()); err != nil {
+		t.Fatal(err)
+	}
+	var has bool
+	if err := pool.QueryRow(context.Background(), `SELECT metadata::jsonb ? 'via' FROM audit_events`).Scan(&has); err != nil {
+		t.Fatal(err)
+	}
+	if has {
+		t.Fatal("a request without a via wrote one")
+	}
+}
+
+// RecordMany copies the channel into every row of the batch, like Record.
+func TestRecordManyWritesTheViaOfTheRequest(t *testing.T) {
+	pool := testutil.DB(t)
+	ctx := WithVia(context.Background(), Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"})
+	e1, e2 := entry(), entry()
+	e1.Metadata = map[string]any{"kept": "yes"}
+	if err := NewRecorder().RecordMany(ctx, db.New(pool), []Recorded{{Entry: e1}, {Entry: e2}}); err != nil {
+		t.Fatal(err)
+	}
+	var withVia, kept int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FILTER (WHERE metadata::jsonb->'via'->>'grant_id' = 'g1'), count(*) FILTER (WHERE metadata::jsonb->>'kept' = 'yes') FROM audit_events`).Scan(&withVia, &kept); err != nil {
+		t.Fatal(err)
+	}
+	if withVia != 2 || kept != 1 {
+		t.Fatalf("rows with via = %d (want 2), with kept = %d (want 1)", withVia, kept)
+	}
+}

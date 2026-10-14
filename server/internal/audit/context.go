@@ -15,6 +15,9 @@ type RequestInfo struct {
 	RequestID     string
 	IP            string
 	UserAgent     string
+	// Via is the channel the request came through when it is not the
+	// person's own screen; nil otherwise.
+	Via *Via
 }
 
 type requestKey struct{}
@@ -30,6 +33,37 @@ func ValidCorrelationID(s string) bool { return correlationPattern.MatchString(s
 // WithRequest returns a context carrying the request provenance.
 func WithRequest(ctx context.Context, info RequestInfo) context.Context {
 	return context.WithValue(ctx, requestKey{}, info)
+}
+
+// Via names an AI app that acts for the person through the MCP connector
+// (ADR 0033). Record writes it into metadata.via so history can say who
+// pressed the key and through what.
+type Via struct {
+	Kind       string
+	ClientID   string
+	GrantID    string
+	ClientName string
+}
+
+// WithVia returns ctx with v added to the request provenance.
+func WithVia(ctx context.Context, v Via) context.Context {
+	info := RequestFromContext(ctx)
+	info.Via = &v
+	return WithRequest(ctx, info)
+}
+
+// withVia copies m and adds the channel; the caller's map is never mutated,
+// since callers reuse it.
+func withVia(m map[string]any, v *Via) map[string]any {
+	if v == nil {
+		return m
+	}
+	out := make(map[string]any, len(m)+1)
+	for k, val := range m {
+		out[k] = val
+	}
+	out["via"] = map[string]any{"kind": v.Kind, "client_id": v.ClientID, "grant_id": v.GrantID, "client_name": v.ClientName}
+	return out
 }
 
 // RequestFromContext returns the provenance put there by WithRequest, or the

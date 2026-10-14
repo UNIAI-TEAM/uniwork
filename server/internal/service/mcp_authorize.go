@@ -168,12 +168,6 @@ func (s *McpAuthService) consentOrganizations(ctx context.Context, userID string
 	return out, nil
 }
 
-// orgEnabled is the platform flag AND the organization's own switch.
-func (s *McpAuthService) orgEnabled(ctx context.Context, userID, orgID string) (bool, error) {
-	enabled, _, err := s.orgAccess(ctx, userID, orgID)
-	return enabled, err
-}
-
 // orgAccess reads both switches of the organization once: enabled is the
 // connector (flag and switch), write is enabled AND the write flag AND the
 // organization's write switch (ADR 0033).
