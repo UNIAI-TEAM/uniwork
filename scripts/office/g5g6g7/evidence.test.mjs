@@ -251,6 +251,30 @@ test('Playwright "<n> skipped" lines with leading whitespace are classified as B
   });
 });
 
+test('node:test "# skipped <n>" and "ℹ skipped <n>" summary lines are classified as BLOCKED when <n> >= 1, while "# skipped 0" stays PASS (G710-BE-6)', () => {
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '# pass 0\n# skipped 1' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: # skipped 1',
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: 'ℹ pass 3\nℹ skipped 2' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: ℹ skipped 2',
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: 'ok 1 - check # SKIP no display' }), {
+    result: 'BLOCKED',
+    blocker: 'command reported skip: ok 1 - check # SKIP no display',
+  });
+  // "# skipped 0" and "ℹ skipped 0" must NOT be treated as a skip.
+  assert.deepEqual(classifyResult({ exitCode: 0, output: '# pass 5\n# skipped 0\n# fail 0' }), {
+    result: 'PASS',
+    blocker: null,
+  });
+  assert.deepEqual(classifyResult({ exitCode: 0, output: 'ℹ pass 5\nℹ skipped 0\nℹ fail 0' }), {
+    result: 'PASS',
+    blocker: null,
+  });
+});
+
 test('a missing or drifted fixture is BLOCKED and never PASS, and the command does not run', () => {
   const missing = runEvidence({
     requirementId: 'G5-A01',

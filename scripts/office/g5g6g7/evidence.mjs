@@ -38,7 +38,8 @@ const LEDGER_NAME = 'evidence.jsonl';
 // command exited 0, so a failure that mentions a skip stays a FAIL. The direction
 // is deliberate: a verbose check that says "skip" is BLOCKED, never PASS.
 export const SKIP_EXIT_CODE = 77;
-const SKIP_LINE = /(?:^\s*|[;.]\s+)(?:(?:skip|skipped|skipping)\b|[1-9]\d*\s+skipped\b)/i;
+const SKIP_LINE =
+  /(?:^\s*(?:[#ℹ]\s*)?|[;.]\s+|#\s*)(?:(?:skip|skipped|skipping)\b(?!\s*0\b)|[1-9]\d*\s+skipped\b)/i;
 
 /** Every evidence line carries these fields (spec Section 9.1). */
 export const REQUIRED_FIELDS = [
