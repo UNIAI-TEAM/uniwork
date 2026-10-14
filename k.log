@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/views exec tsc --noEmit; echo "VIEWS_TSC_EXIT=$?"
+VIEWS_TSC_EXIT=0

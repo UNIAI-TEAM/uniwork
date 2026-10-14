@@ -1,0 +1,12 @@
+$ cd server && go test -count=1 -v ./internal -run 'TestProviderSDKOnlyInAIProvider|TestAIPackageOnlyCallsAiQueries|TestActorConstructedOnlyInService|TestArch|Membership'; echo "GO_ARCH_EXIT=$?"
+=== RUN   TestMembershipDecidedInOnePlace
+--- PASS: TestMembershipDecidedInOnePlace (0.01s)
+=== RUN   TestActorConstructedOnlyInService
+--- PASS: TestActorConstructedOnlyInService (0.01s)
+=== RUN   TestProviderSDKOnlyInAIProvider
+--- PASS: TestProviderSDKOnlyInAIProvider (0.22s)
+=== RUN   TestAIPackageOnlyCallsAiQueries
+--- PASS: TestAIPackageOnlyCallsAiQueries (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal	0.247s
+GO_ARCH_EXIT=0

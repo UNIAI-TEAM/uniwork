@@ -1,0 +1,2 @@
+$ pnpm install --frozen-lockfile >/dev/null 2>&1; pnpm --filter @uniwork/core exec tsc --noEmit; echo "CORE_TSC_EXIT=$?"
+CORE_TSC_EXIT=0

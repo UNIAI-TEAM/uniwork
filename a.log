@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+b4c48b6f7e87093a13e61922247dd9ac2a213a53
+0d767e1640d2f46933dfaa45ee9e6046bf03f148
+b4c48b6f7 Merge root feature/UNI-923-office-g5-g6-g7 @ 0d767e164 into G6-05m D
+c7c0f62fc docs: document uniwork_model in the office contract and experience (G6-05m)
+c5db0c6bf feat(core): read uniwork_model from the AI cloud status (G6-05m)
+a87044d8b feat(ai): expose the UniWork AI model on the cloud status (G6-05m)
+2dcc7aa75 test(ai): pin uniwork_model on the cloud status routes (G6-05m, red)
+0d767e164 chore: merge FD-02 PR1 folder names (UNI-1462) into the G5-G7 root
+8cf3fb18c test(views): commit the heir pick with a pointerdown so the password-refusal tests stop flaking
+5905ef049 chore: merge the G5-G7 root (48363fe21) into FD-02

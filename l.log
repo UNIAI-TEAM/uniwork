@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/core exec eslint --max-warnings 0 types/ai-office.ts api/endpoints/ai-office.ts api/endpoints/ai-office.test.ts; echo "CORE_ESLINT_EXIT=$?"
+CORE_ESLINT_EXIT=0
