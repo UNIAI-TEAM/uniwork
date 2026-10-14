@@ -3,6 +3,7 @@ import { e2eApiUrl } from "./api-url";
 import {
   apiCreateDocument,
   archiveDocument,
+  contentRow,
   createFolder,
   createFolderChain,
   createPage,
@@ -129,11 +130,7 @@ test("FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to
   await subDialog.getByLabel("Tên thư mục").fill("Phụ lục Q1");
   await subDialog.getByRole("button", { name: "Tạo" }).click();
   await expect(subDialog).toBeHidden();
-  await expect(
-    page
-      .getByRole("table", { name: "Tài liệu" })
-      .getByRole("button", { name: /^Phụ lục Q1/ }),
-  ).toBeVisible();
+  await expect(contentRow(page, "Phụ lục Q1")).toBeVisible();
 
   await tree
     .getByRole("button", { name: "Thao tác cho Hợp đồng 2026" })
@@ -358,18 +355,14 @@ test("FD-A03 open folder content view lists only direct children, folders first,
 
   const table = page.getByRole("table", { name: "Tài liệu" });
   await expect(table).toBeVisible();
-  await expect(
-    table.getByRole("button", { name: /^Trang ngoài gốc/ }),
-  ).toHaveCount(0);
-  await expect(
-    table.getByRole("button", { name: /^Thư mục Cháu/ }),
-  ).toHaveCount(0);
-  await expect(
-    table.getByRole("button", { name: /^Tài liệu Cháu/ }),
-  ).toHaveCount(0);
-  await expect(
-    table.getByRole("button", { name: /^Trang Con Của Trang/ }),
-  ).toHaveCount(0);
+  await expect(contentRow(page, "Báo cáo")).toBeVisible();
+  await expect(contentRow(page, "Chứng từ")).toBeVisible();
+  await expect(contentRow(page, "An toàn kho")).toBeVisible();
+  await expect(contentRow(page, "Biên bản kiểm kê")).toBeVisible();
+  await expect(contentRow(page, "Trang ngoài gốc")).toHaveCount(0);
+  await expect(contentRow(page, "Thư mục Cháu")).toHaveCount(0);
+  await expect(contentRow(page, "Tài liệu Cháu")).toHaveCount(0);
+  await expect(contentRow(page, "Trang Con Của Trang")).toHaveCount(0);
 
   const rowTexts = async (): Promise<string[]> =>
     table.locator("tbody tr td:first-child").allInnerTexts();
@@ -395,9 +388,7 @@ test("FD-A03 open folder content view lists only direct children, folders first,
 
   // Documents home keeps the workspace library view.
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
-  await expect(
-    table.getByRole("button", { name: /^Trang ngoài gốc/ }),
-  ).toBeVisible();
+  await expect(contentRow(page, "Trang ngoài gốc")).toBeVisible();
 });
 
 test("FD-A03 upload into the open folder places the uploaded file under the open folder (not at root)", async ({
@@ -441,7 +432,10 @@ test("FD-A03 upload into the open folder places the uploaded file under the open
   // Assert through the API that the uploaded document's parent_id equals openFolder.id
   // and that it is listed in openFolder's content (not at the workspace root).
   const uploadedDetail = await getDocument(page, ws.owner.token, uploadedDocId);
-  expect(uploadedDetail.ok).toBe(true);
+  expect(
+    uploadedDetail.ok,
+    `getDocument: ${uploadedDetail.status} ${JSON.stringify(uploadedDetail.error)}`,
+  ).toBe(true);
   expect(uploadedDetail.data?.parent_id).toBe(openFolder.id);
 
   const folderChildren = await listDocuments(
@@ -627,9 +621,9 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
     tree.getByRole("treeitem", { name: "Thư mục Kéo Thả" }),
   ).toHaveAttribute("aria-level", "2", { timeout: 15_000 });
   const table = page.getByRole("table", { name: "Tài liệu" });
-  await expect(
-    table.getByRole("button", { name: /^Thư mục Kéo Thả/ }),
-  ).toBeVisible({ timeout: 15_000 });
+  await expect(contentRow(page, "Thư mục Kéo Thả")).toBeVisible({
+    timeout: 15_000,
+  });
   const dragAfter = await getDocument(page, ws.owner.token, dragFolder.id);
   expect(dragAfter.data?.parent_id).toBe(dstFolder.id);
   const dragChildAfter = await getDocument(page, ws.owner.token, dragChild.id);
@@ -669,9 +663,7 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
     srcFolder.id,
   );
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${srcFolder.id}`);
-  await expect(
-    table.getByRole("button", { name: /^Hồ sơ Realtime Move/ }),
-  ).toBeVisible();
+  await expect(contentRow(page, "Hồ sơ Realtime Move")).toBeVisible();
 
   const searchPageA = await page.context().newPage();
   await searchPageA.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
@@ -702,12 +694,15 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
         revision: liveFolder.revision,
       },
     );
-    expect(moveResB.ok).toBe(true);
+    expect(
+      moveResB.ok,
+      `move: ${moveResB.status} ${JSON.stringify(moveResB.error)}`,
+    ).toBe(true);
 
     // User A's open folder content and search result path update via WebSocket invalidation without reload.
-    await expect(
-      table.getByRole("button", { name: /^Hồ sơ Realtime Move/ }),
-    ).toHaveCount(0, { timeout: 15_000 });
+    await expect(contentRow(page, "Hồ sơ Realtime Move")).toHaveCount(0, {
+      timeout: 15_000,
+    });
     await expect(
       resultsListA.getByText("Đường dẫn: Đích"),
     ).toBeVisible({ timeout: 15_000 });
@@ -752,7 +747,10 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
     parent_id: level18.id,
     revision: branch2.revision,
   });
-  expect(okAt20Move.ok).toBe(true);
+  expect(
+    okAt20Move.ok,
+    `move: ${okAt20Move.status} ${JSON.stringify(okAt20Move.error)}`,
+  ).toBe(true);
   expect(okAt20Move.data?.parent_id).toBe(level18.id);
 });
 
@@ -814,6 +812,7 @@ test("FD-A06 moving folder into itself or a descendant is rejected with 422 docu
   // Dragging Cấp A onto its descendant Cấp B in the tree is refused with toast and no move request.
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderB.id}`);
+  await expect(contentRow(page, "Cấp C")).toBeVisible();
   const tree = page.getByRole("tree", { name: "Cây tài liệu" });
   const itemA = tree.getByRole("treeitem", { name: "Cấp A" });
   const itemB = tree.getByRole("treeitem", { name: "Cấp B" });
@@ -903,7 +902,10 @@ test("FD-A07 moving a document between folders keeps ID, versions, and comments 
   await expect(moveDialog).toBeHidden();
 
   const movedDocx = await getDocument(page, ws.owner.token, docxB.id);
-  expect(movedDocx.ok).toBe(true);
+  expect(
+    movedDocx.ok,
+    `getDocument: ${movedDocx.status} ${JSON.stringify(movedDocx.error)}`,
+  ).toBe(true);
   expect(movedDocx.data?.id).toBe(docxB.id);
   expect(movedDocx.data?.parent_id).toBe(folderA.id);
   expect(movedDocx.data?.title).toBe("report (2).docx");
@@ -935,7 +937,10 @@ test("FD-A07 moving a document between folders keeps ID, versions, and comments 
     parent_id: folderA.id,
     revision: mdB.revision,
   });
-  expect(movedMd.ok).toBe(true);
+  expect(
+    movedMd.ok,
+    `move: ${movedMd.status} ${JSON.stringify(movedMd.error)}`,
+  ).toBe(true);
   expect(movedMd.data?.title).toBe("notes (2).md");
 
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderA.id}`);
@@ -945,11 +950,7 @@ test("FD-A07 moving a document between folders keeps ID, versions, and comments 
     "notes.md",
     "notes (2).md",
   ]) {
-    await expect(
-      table.getByRole("button", {
-        name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
-      }),
-    ).toBeVisible();
+    await expect(contentRow(page, name)).toBeVisible();
   }
 });
 
@@ -1033,6 +1034,7 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
     "aria-current",
     "page",
   );
+  await expect(contentRow(page, "Nền tảng")).toBeVisible();
 
   await breadcrumb.getByRole("button", { name: "Tài liệu" }).click();
   await expect(page).toHaveURL(
@@ -1264,7 +1266,9 @@ test("FD-A09 unified search and ⌘K find folders and documents by title, filter
   const cmdInput = cmdDialog.getByPlaceholder("Gõ trang hoặc lệnh…");
   await expect(cmdInput).toBeVisible();
   await cmdInput.fill("Quý 1");
-  await cmdDialog.getByRole("option", { name: /Quý 1/ }).click();
+  await cmdDialog
+    .getByRole("option", { name: "Quý 1 Đường dẫn: Tài chính 2026", exact: true })
+    .click();
   await expect(page).toHaveURL(new RegExp(`folder=${q1Folder.id}`));
 });
 
@@ -1291,7 +1295,9 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
     "fx-docx-report-vi",
     { parentId: folderA.id, title: "Báo cáo Giữ nguyên ID" },
   );
-  await seedDocumentArtifacts(
+  // seedDocumentArtifacts commits version 2 on file documents (bumping revision 1 -> 2),
+  // so use its returned fresh DocumentDTO revision when moving.
+  const seededDoc = await seedDocumentArtifacts(
     page,
     ws.owner.token,
     doc.id,
@@ -1314,7 +1320,10 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
       data: { title: "Task gắn tài liệu", description: `Xem ${docUrl}` },
     },
   );
-  expect(taskRes.ok()).toBeTruthy();
+  expect(
+    taskRes.ok(),
+    `create task: ${taskRes.status()} ${await taskRes.text()}`,
+  ).toBeTruthy();
   const taskId = ((await taskRes.json()) as { task: { id: string } }).task.id;
 
   // Attach a file on the task so it appears in "Từ nơi khác" (GET /documents/sources & ?view=sources).
@@ -1332,7 +1341,10 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
       },
     },
   );
-  expect(attachRes.ok()).toBeTruthy();
+  expect(
+    attachRes.ok(),
+    `attach task file: ${attachRes.status()} ${await attachRes.text()}`,
+  ).toBeTruthy();
 
   const sourcesBefore = await listDocumentSources(
     page,
@@ -1350,7 +1362,10 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
       data: { title: `Họp duyệt ${docUrl}` },
     },
   );
-  expect(meetingRes.ok()).toBeTruthy();
+  expect(
+    meetingRes.ok(),
+    `create meeting: ${meetingRes.status()} ${await meetingRes.text()}`,
+  ).toBeTruthy();
 
   // Public channel + room message per server/internal/handler/isolation_world_test.go:622-625.
   const chanRes = await page.request.post(
@@ -1360,7 +1375,10 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
       data: { name: "fd-a10-channel", visibility: "public" },
     },
   );
-  expect(chanRes.ok()).toBeTruthy();
+  expect(
+    chanRes.ok(),
+    `create channel: ${chanRes.status()} ${await chanRes.text()}`,
+  ).toBeTruthy();
   const chanBody = (await chanRes.json()) as {
     room?: { id: string };
     channel?: { id: string };
@@ -1378,14 +1396,20 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
       },
     },
   );
-  expect(chatRes.ok()).toBeTruthy();
+  expect(
+    chatRes.ok(),
+    `send chat message: ${chatRes.status()} ${await chatRes.text()}`,
+  ).toBeTruthy();
 
   // Move the document to folderB, then move folderB into folderA.
   const moved = await moveDocument(page, ws.owner.token, doc.id, {
     parent_id: folderB.id,
-    revision: doc.revision,
+    revision: seededDoc.revision,
   });
-  expect(moved.ok).toBe(true);
+  expect(
+    moved.ok,
+    `move: ${moved.status} ${JSON.stringify(moved.error)}`,
+  ).toBe(true);
   expect(moved.data?.id).toBe(doc.id);
   expect(moved.data?.parent_id).toBe(folderB.id);
 
@@ -1393,7 +1417,10 @@ test("FD-A10 moving a document or its folder preserves ID, versions, comments, s
     parent_id: folderA.id,
     revision: folderB.revision,
   });
-  expect(movedFolder.ok).toBe(true);
+  expect(
+    movedFolder.ok,
+    `moveFolder: ${movedFolder.status} ${JSON.stringify(movedFolder.error)}`,
+  ).toBe(true);
 
   const after = await readDocumentArtifacts(page, ws.owner.token, doc.id);
   expect(after).toEqual(before);
@@ -1642,7 +1669,9 @@ test("FD-A12 archiving and restoring folder subtree counts items, updates a seco
   // server/internal/service/document_lifecycle.go:356-383 (GetDocumentArchiveImpact) counts
   // descendant folders (sub1, sub2 = 2), descendant documents (doc1, doc2, doc3 = 3), and total (root + 5 = 6).
   const impact = await getArchiveImpact(page, ws.owner.token, rootFolder.id);
-  expect(impact.ok).toBe(true);
+  expect(impact.ok, `${impact.status} ${JSON.stringify(impact.error)}`).toBe(
+    true,
+  );
   expect(impact.data).toMatchObject({
     folders: 2,
     documents: 3,
@@ -1656,13 +1685,10 @@ test("FD-A12 archiving and restoring folder subtree counts items, updates a seco
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
   const tree = page.getByRole("tree", { name: "Cây tài liệu" });
-  const table = page.getByRole("table", { name: "Tài liệu" });
   await expect(
     tree.getByRole("treeitem", { name: "Dự án Đóng" }),
   ).toBeVisible();
-  await expect(
-    table.getByRole("button", { name: /^Dự án Đóng/ }),
-  ).toBeVisible();
+  await expect(contentRow(page, "Dự án Đóng")).toBeVisible();
 
   const searchPageA = await page.context().newPage();
   await searchPageA.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
@@ -1686,7 +1712,10 @@ test("FD-A12 archiving and restoring folder subtree counts items, updates a seco
       ws.owner.token,
       rootFolder.id,
     );
-    expect(archived.ok).toBe(true);
+    expect(
+      archived.ok,
+      `${archived.status} ${JSON.stringify(archived.error)}`,
+    ).toBe(true);
     expect(archived.data?.affected.sort()).toEqual(
       [rootFolder.id, sub1.id, sub2.id, doc1.id, doc2.id, doc3.id].sort(),
     );
@@ -1694,9 +1723,9 @@ test("FD-A12 archiving and restoring folder subtree counts items, updates a seco
     await expect(
       tree.getByRole("treeitem", { name: "Dự án Đóng" }),
     ).toHaveCount(0, { timeout: 15_000 });
-    await expect(
-      table.getByRole("button", { name: /^Dự án Đóng/ }),
-    ).toHaveCount(0, { timeout: 15_000 });
+    await expect(contentRow(page, "Dự án Đóng")).toHaveCount(0, {
+      timeout: 15_000,
+    });
     await expect(
       searchPageA.getByText("Không tìm thấy kết quả"),
     ).toBeVisible({ timeout: 15_000 });
@@ -1708,15 +1737,18 @@ test("FD-A12 archiving and restoring folder subtree counts items, updates a seco
       ws.owner.token,
       rootFolder.id,
     );
-    expect(restored.ok).toBe(true);
+    expect(
+      restored.ok,
+      `${restored.status} ${JSON.stringify(restored.error)}`,
+    ).toBe(true);
     expect(restored.data?.document.title).toBe("Dự án Đóng (2)");
 
     await expect(
       tree.getByRole("treeitem", { name: "Dự án Đóng (2)" }),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(
-      table.getByRole("button", { name: /^Dự án Đóng \(2\)/ }),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(contentRow(page, "Dự án Đóng (2)")).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(
       resultsListA.getByText("Dự án Đóng (2)"),
     ).toBeVisible({ timeout: 15_000 });
@@ -1773,7 +1805,10 @@ test("FD-A12 archiving and restoring folder subtree counts items, updates a seco
     ws.owner.token,
     hugeFolder.id,
   );
-  expect(hugeImpact.ok).toBe(true);
+  expect(
+    hugeImpact.ok,
+    `${hugeImpact.status} ${JSON.stringify(hugeImpact.error)}`,
+  ).toBe(true);
   expect(hugeImpact.data?.too_large).toBe(true);
   const hugeArchive = await archiveDocument(
     page,

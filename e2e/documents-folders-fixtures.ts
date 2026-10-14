@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { e2eApiUrl } from "./api-url";
@@ -8,6 +8,36 @@ import {
   loginViaUi,
   registerApiUser,
 } from "./meeting-recording-fixture";
+
+const CONTENT_ROW_TYPE_LABELS = [
+  "Thư mục",
+  "Trang UniWork",
+  "Tài liệu Word",
+  "Bảng tính Excel",
+  "Bản trình bày PowerPoint",
+  "Tài liệu PDF",
+  "Tài liệu Markdown",
+  "Tài liệu HTML",
+  "File",
+].join("|");
+
+/**
+ * Locates the primary row button in the Documents library / folder content table
+ * (`packages/views/documents/documents-library-list.tsx:135` `aria-label="Tài liệu"`,
+ * `packages/views/documents/documents-library-row.tsx:198-211`, and
+ * `packages/views/documents/document-type-icon.tsx:40-72`, which prefixes the
+ * button's accessible name with `role="img" aria-label={t("documents.file_types.*")}`).
+ */
+export function contentRow(page: Page, title: string): Locator {
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return page
+    .getByRole("table", { name: "Tài liệu" })
+    .getByRole("button", {
+      name: new RegExp(
+        `^(?:(?:${CONTENT_ROW_TYPE_LABELS})\\s+)?${escaped}(?!\\s*\\(\\d+\\))(?:\\s|$)`,
+      ),
+    });
+}
 
 const repoRoot =
   basename(process.cwd()).toLowerCase() === "e2e"
@@ -161,7 +191,10 @@ async function fetchUserId(page: Page, token: string): Promise<string> {
   const res = await page.request.get(`${e2eApiUrl}/api/v1/me`, {
     headers: authHeaders(token),
   });
-  expect(res.ok(), `GET /me failed: ${res.status()}`).toBeTruthy();
+  expect(
+    res.ok(),
+    `GET /me failed: ${res.status()} ${await res.text()}`,
+  ).toBeTruthy();
   const body = (await res.json()) as { user: { id: string } };
   return body.user.id;
 }
@@ -198,7 +231,10 @@ export async function seedFolderWorkspace(
       `${e2eApiUrl}/api/v1/me/onboarding/complete`,
       { headers: authHeaders(peerB.token) },
     );
-    expect(done.ok(), `complete onboarding B: ${done.status()}`).toBeTruthy();
+    expect(
+      done.ok(),
+      `complete onboarding B: ${done.status()} ${await done.text()}`,
+    ).toBeTruthy();
     const memberId = await fetchUserId(page, peerB.token);
     setup.member = { id: memberId, email: peerB.email, token: peerB.token };
   }
@@ -674,11 +710,11 @@ export async function seedDocumentArtifacts(
   token: string,
   docId: string,
   shareUserId: string,
-): Promise<void> {
+): Promise<DocumentDTO> {
   const docRes = await getDocument(page, token, docId);
   expect(
     docRes.ok && docRes.data,
-    `seedDocumentArtifacts getDocument(${docId}): ${docRes.status}`,
+    `seedDocumentArtifacts getDocument(${docId}): ${docRes.status} ${JSON.stringify(docRes.error)}`,
   ).toBeTruthy();
   const doc = docRes.data!;
   if (doc.kind === "page") {
@@ -696,7 +732,10 @@ export async function seedDocumentArtifacts(
         data: { label: "v-before-move" },
       },
     );
-    expect(vRes.ok(), `seed version: ${vRes.status()}`).toBeTruthy();
+    expect(
+      vRes.ok(),
+      `seed version: ${vRes.status()} ${await vRes.text()}`,
+    ).toBeTruthy();
   } else if (doc.kind === "file") {
     // server/internal/service/document_versions.go:67-69 & server/internal/handler/documents.go:259-320:
     // file documents create version 1 on upload and subsequent versions via /uploads + /versions/commit.
@@ -753,8 +792,17 @@ export async function seedDocumentArtifacts(
       data: { body: "Ghi chú trước khi chuyển thư mục", kind: "discussion" },
     },
   );
-  expect(cRes.ok(), `seed comment: ${cRes.status()}`).toBeTruthy();
+  expect(
+    cRes.ok(),
+    `seed comment: ${cRes.status()} ${await cRes.text()}`,
+  ).toBeTruthy();
   await grantDocumentShare(page, token, docId, shareUserId, "view");
+  const afterDoc = await getDocument(page, token, docId);
+  expect(
+    afterDoc.ok && afterDoc.data,
+    `seedDocumentArtifacts refresh(${docId}): ${afterDoc.status} ${JSON.stringify(afterDoc.error)}`,
+  ).toBeTruthy();
+  return afterDoc.data!;
 }
 
 export async function readDocumentArtifacts(
@@ -773,7 +821,18 @@ export async function readDocumentArtifacts(
       headers: authHeaders(token),
     }),
   ]);
-  expect(vRes.ok() && cRes.ok() && sRes.ok()).toBeTruthy();
+  expect(
+    vRes.ok(),
+    `versions(${docId}): ${vRes.status()} ${await vRes.text()}`,
+  ).toBeTruthy();
+  expect(
+    cRes.ok(),
+    `comments(${docId}): ${cRes.status()} ${await cRes.text()}`,
+  ).toBeTruthy();
+  expect(
+    sRes.ok(),
+    `shares(${docId}): ${sRes.status()} ${await sRes.text()}`,
+  ).toBeTruthy();
   const versions = (await vRes.json()) as {
     versions: Array<{ version: number }>;
   };
