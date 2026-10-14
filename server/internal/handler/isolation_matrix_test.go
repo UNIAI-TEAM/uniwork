@@ -713,6 +713,10 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{invoiceID}":
 		// No invoice rows in the fixture; admin refund answers 404 for unknown ids.
 		return "01J8X4INV0N1P2Q3R4S5T6U7V8"
+	case "{demoRequestID}":
+		// Demo requests are platform rows, not tenant data, and the fixture
+		// has none; the admin route answers an unknown id with 404.
+		return "01J8X4DEM0N1P2Q3R4S5T6U7V8"
 	case "{traceID}":
 		return "0af7651916cd43dd8448eb211c80319c"
 	case "{sessionId}":
