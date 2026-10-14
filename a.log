@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+252966754b5c7a318dc9811f5c52675bca039a73
+252966754 chore: merge FD-09 W-C (folder delete impact dialog, trash and restore toasts) into the lane
+9e4c44f6b chore: merge FD-09 W-B (collapsed folder breadcrumb) into the lane
+9eeb9e0ea feat(documents): wire folder archive-impact counts and delete toasts
+a5ebf0544 feat(documents): replace flat folder picker with tree picker and add move toasts
+4d71c8482 feat(documents): collapse deep FolderBreadcrumb with hidden levels menu (UNI-1469)
+dd3b47ac3 test(documents): add collapsed FolderBreadcrumb tests (UNI-1469)
+061860474 test(documents): cover FD-09 tree move picker, disabled reasons, and move toasts
+c7ab0183c chore: merge FD-10 unified documents search (UNI-1470) into the G5-G7 root
