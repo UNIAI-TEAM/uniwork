@@ -35,6 +35,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSyn
 import { createRequire } from "node:module";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { inflateRawSync } from "node:zlib";
 
 import {
   API_CALLS,
@@ -514,6 +515,98 @@ export function buildXlsxRevenueWithXyzBytes(repoRoot = DEFAULT_REPO_ROOT) {
     },
   ]);
   return { bytes, sha256: sha256Hex(bytes), expectedXyz };
+}
+
+/**
+ * Reads all XML entries from a ZIP buffer (supports both stored method 0 and
+ * deflated method 8) and checks whether the workbook contains the expected X/Y
+ * cell values (`expectedXyz`).
+ */
+export function verifyXlsxContainsExpectedXyz(xlsxBytes, expectedXyz = []) {
+  if (!xlsxBytes || xlsxBytes.length < 22) return false;
+  const buf = Buffer.isBuffer(xlsxBytes) ? xlsxBytes : Buffer.from(xlsxBytes);
+  try {
+    let eocdOffset = -1;
+    const minEocd = Math.max(0, buf.length - 65557);
+    for (let i = buf.length - 22; i >= minEocd; i -= 1) {
+      if (buf.readUInt32LE(i) === 0x06054b50) {
+        eocdOffset = i;
+        break;
+      }
+    }
+    if (eocdOffset < 0) return false;
+    const totalEntries = buf.readUInt16LE(eocdOffset + 10);
+    const cdOffset = buf.readUInt32LE(eocdOffset + 16);
+    let pos = cdOffset;
+    const xmlChunks = [];
+    for (let idx = 0; idx < totalEntries && pos + 46 <= buf.length; idx += 1) {
+      if (buf.readUInt32LE(pos) !== 0x02014b50) break;
+      const method = buf.readUInt16LE(pos + 10);
+      const compSize = buf.readUInt32LE(pos + 20);
+      const nameLen = buf.readUInt16LE(pos + 28);
+      const extraLen = buf.readUInt16LE(pos + 30);
+      const commentLen = buf.readUInt16LE(pos + 32);
+      const localOffset = buf.readUInt32LE(pos + 42);
+      const name = buf.subarray(pos + 46, pos + 46 + nameLen).toString("utf8");
+      pos += 46 + nameLen + extraLen + commentLen;
+      if (!name.endsWith(".xml")) continue;
+      if (localOffset + 30 > buf.length) continue;
+      const localNameLen = buf.readUInt16LE(localOffset + 26);
+      const localExtraLen = buf.readUInt16LE(localOffset + 28);
+      const dataStart = localOffset + 30 + localNameLen + localExtraLen;
+      const rawSlice = buf.subarray(dataStart, dataStart + compSize);
+      const decoded =
+        method === 0
+          ? rawSlice.toString("utf8")
+          : method === 8
+            ? inflateRawSync(rawSlice).toString("utf8")
+            : "";
+      if (decoded) xmlChunks.push(decoded);
+    }
+    const combinedXml = xmlChunks.join("\n");
+    if (!combinedXml) return false;
+    return expectedXyz.every(
+      (row) => combinedXml.includes(String(row.X)) && combinedXml.includes(String(row.Y)),
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Matches a document version in a `GET /api/v1/workspaces/{id}/documents/changes`
+ * response (`DocumentChangeListSDO`, `server/internal/handler/document_changes.go:42-70`,
+ * `server/internal/handler/dto/sdo/document_changes.go:7-47`, `contract-p0.md` / spec §4.1).
+ *
+ * Snapshot rows (`changes[]`, `DocumentChangeSDO`) carry:
+ *   `{ document_id, kind, revision, current_version, version_id }`
+ * Feed rows (`feed[]`, `DocumentChangeFeedSDO`) carry:
+ *   `{ document_id, change_kind, kind, revision, current_version, version_id, archived, removal }`
+ * Neither SDO carries `version` or `checksum_sha256` (previously checked by r3 `tracer.mjs:2314`).
+ */
+export function matchDocumentVersionInChangeFeed(
+  feedPages,
+  { documentId, expectedVersion = 2, previousRevision = "" },
+) {
+  const pages = Array.isArray(feedPages) ? feedPages : [feedPages];
+  for (const pageData of pages) {
+    const items = [
+      ...(Array.isArray(pageData?.changes) ? pageData.changes : []),
+      ...(Array.isArray(pageData?.feed) ? pageData.feed : []),
+    ];
+    for (const item of items) {
+      if (!item || item.document_id !== documentId) continue;
+      if (item.change_kind && item.change_kind !== "upsert") continue;
+      if (item.archived === true) continue;
+      const itemVersion = Number(item.current_version ?? item.version ?? 0);
+      if (itemVersion !== expectedVersion) continue;
+      if (previousRevision && item.revision && String(item.revision) === String(previousRevision)) {
+        continue;
+      }
+      return item;
+    }
+  }
+  return null;
 }
 
 /**
@@ -1395,7 +1488,21 @@ export async function driveWebXlsxSave({
     const frame = page.frameLocator(WEB_SHEETS_IFRAME_SELECTOR);
     const canvas = frame.locator('canvas[id^="univer-sheet-main-canvas"]').first();
     await canvas.waitFor({ state: "visible", timeout: 30_000 });
-    await canvas.click({ position: { x: 300, y: 200 } });
+    const iframeEl = await page.locator(WEB_SHEETS_IFRAME_SELECTOR).first().elementHandle();
+    const contentFrame = iframeEl ? await iframeEl.contentFrame() : null;
+    if (contentFrame) {
+      const wbDeadline = Date.now() + 30_000;
+      while (Date.now() < wbDeadline) {
+        const wbReady = await contentFrame
+          .evaluate(() => {
+            const st = window.__sheetsWebState;
+            return st && typeof st.workbook === "function" ? st.workbook() !== null : true;
+          })
+          .catch(() => true);
+        if (wbReady) break;
+        await page.waitForTimeout(200);
+      }
+    }
     const nameInput = frame.locator('[data-u-comp="defined-name"] input').first();
     await nameInput.waitFor({ state: "visible", timeout: 15_000 });
 
@@ -1417,13 +1524,13 @@ export async function driveWebXlsxSave({
       await nameInput.click();
       await nameInput.fill(ref);
       await nameInput.press("Enter");
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(500);
       await page.keyboard.type(val);
       await page.keyboard.press("Enter");
+      await page.waitForTimeout(300);
     }
 
-    await page.waitForTimeout(300);
-    await canvas.click({ position: { x: 120, y: 80 } });
+    await page.waitForTimeout(500);
     await page.keyboard.press("Control+s");
 
     const deadline = Date.now() + 30_000;
@@ -1436,7 +1543,7 @@ export async function driveWebXlsxSave({
         token,
       });
       if ((vers.data?.versions?.length ?? 0) >= 2) {
-        return { driven: true, saved: true, source: "web" };
+        return { driven: true, saved: true, source: "web", editorCellsTyped: true };
       }
       await sleep(300);
     }
@@ -1445,6 +1552,7 @@ export async function driveWebXlsxSave({
       driven: true,
       saved: false,
       source: "web",
+      editorCellsTyped: true,
       error: timeoutMsg,
       reason: timeoutMsg,
     };
@@ -1454,12 +1562,43 @@ export async function driveWebXlsxSave({
       driven: true,
       saved: false,
       source: "web",
+      editorCellsTyped: false,
       error: errMsg,
       reason: errMsg,
     };
   } finally {
     await browser.close().catch(() => {});
   }
+}
+
+/**
+ * Builds the sanitized desktop sign-in decision record (`F3`) for `tracer-loop-N.json`.
+ * Never includes any session token, password, or secret.
+ */
+export function buildSanitizedAppSignInRecord(rawInput = {}) {
+  const decisionInput = {
+    appStarted: Boolean(rawInput.appStarted),
+    cdpConnected: Boolean(rawInput.cdpConnected),
+    keyringAvailable: Boolean(rawInput.keyringAvailable),
+    accountState: String(rawInput.accountState ?? "unknown"),
+    sessionBinExists: Boolean(rawInput.sessionBinExists),
+    signedInUserId: String(rawInput.signedInUserId ?? ""),
+    expectedUserId: String(rawInput.expectedUserId ?? ""),
+    signInError: String(rawInput.signInError ?? ""),
+    blockerReason: String(rawInput.blockerReason ?? ""),
+  };
+  const out = decideAppSignInOutcome(decisionInput);
+  return {
+    accountStatusState: decisionInput.accountState,
+    sessionBinExists: decisionInput.sessionBinExists,
+    decisionInput,
+    decisionResult: {
+      exitCode: out.exitCode,
+      status: out.status,
+      signedIn: Boolean(out.signedIn),
+      reason: String(out.reason ?? ""),
+    },
+  };
 }
 
 /**
@@ -1483,26 +1622,46 @@ export async function connectAppController({
   deepLinkDeliverer = deliverDeepLink,
 }) {
   if (!portsEnv?.UNIWORK_USER_DATA || !portsEnv?.ELECTRON_BIN || !portsEnv?.SHELL_APP_DIR) {
-    const out = decideAppSignInOutcome({ appStarted: false, cdpConnected: false });
+    const appSignIn = buildSanitizedAppSignInRecord({
+      appStarted: false,
+      cdpConnected: false,
+      keyringAvailable: false,
+      accountState: "not-started",
+      sessionBinExists: false,
+      expectedUserId: userId ?? "",
+    });
     return {
       signedIn: false,
       driven: false,
       signInFailureReason: "",
-      blockerReason: out.reason,
+      blockerReason: appSignIn.decisionResult.reason,
+      appSignIn,
       close: async () => {},
     };
   }
+  const sessionBinPath = join(portsEnv.UNIWORK_USER_DATA, "uniwork-auth", "session.bin");
   const cdpPort = Number(portsEnv.APP_CDP_PORT || 0);
   const chromium = cdpPort > 0 && !cdpConnector ? loadPlaywrightChromium(repoRoot) : null;
   if (!cdpPort || (!cdpConnector && !chromium)) {
     const pre = checkDesktopPrecondition(portsEnv);
+    const reason = pre.ok
+      ? "the app's Save cannot be driven headlessly (no APP_CDP_PORT in ports.env)"
+      : pre.reason;
+    const appSignIn = buildSanitizedAppSignInRecord({
+      appStarted: true,
+      cdpConnected: false,
+      keyringAvailable: false,
+      accountState: pre.ok ? "signed-in" : "no-cdp",
+      sessionBinExists: existsSync(sessionBinPath),
+      expectedUserId: userId ?? "",
+      blockerReason: reason,
+    });
     return {
       signedIn: pre.ok,
       driven: false,
       signInFailureReason: "",
-      blockerReason: pre.ok
-        ? "the app's Save cannot be driven headlessly (no APP_CDP_PORT in ports.env)"
-        : pre.reason,
+      blockerReason: reason,
+      appSignIn,
       close: async () => {},
     };
   }
@@ -1514,13 +1673,24 @@ export async function connectAppController({
       : await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, { timeout: 10_000 });
   } catch (err) {
     const pre = checkDesktopPrecondition(portsEnv);
+    const reason = pre.ok
+      ? `could not connect to the running Electron app over CDP port ${cdpPort}: ${err.message}`
+      : pre.reason;
+    const appSignIn = buildSanitizedAppSignInRecord({
+      appStarted: true,
+      cdpConnected: false,
+      keyringAvailable: false,
+      accountState: pre.ok ? "signed-in" : "cdp-unreachable",
+      sessionBinExists: existsSync(sessionBinPath),
+      expectedUserId: userId ?? "",
+      blockerReason: reason,
+    });
     return {
       signedIn: pre.ok,
       driven: false,
       signInFailureReason: "",
-      blockerReason: pre.ok
-        ? `could not connect to the running Electron app over CDP port ${cdpPort}: ${err.message}`
-        : pre.reason,
+      blockerReason: reason,
+      appSignIn,
       close: async () => {},
     };
   }
@@ -1542,11 +1712,22 @@ export async function connectAppController({
   }
   if (!page) {
     await browser.close().catch(() => {});
+    const reason = "connected to Electron CDP but found no shell renderer window exposing window.aiOffice";
+    const appSignIn = buildSanitizedAppSignInRecord({
+      appStarted: true,
+      cdpConnected: false,
+      keyringAvailable: false,
+      accountState: "no-shell-window",
+      sessionBinExists: existsSync(sessionBinPath),
+      expectedUserId: userId ?? "",
+      blockerReason: reason,
+    });
     return {
       signedIn: false,
       driven: false,
       signInFailureReason: "",
-      blockerReason: "connected to Electron CDP but found no shell renderer window exposing window.aiOffice",
+      blockerReason: reason,
+      appSignIn,
       close: async () => {},
     };
   }
@@ -1560,22 +1741,24 @@ export async function connectAppController({
 
   if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") {
     await browser.close().catch(() => {});
-    const out = decideAppSignInOutcome({
+    const appSignIn = buildSanitizedAppSignInRecord({
       appStarted: true,
       cdpConnected: true,
       keyringAvailable: false,
       accountState: status.state,
+      sessionBinExists: existsSync(sessionBinPath),
+      expectedUserId: userId ?? "",
     });
     return {
       signedIn: false,
       driven: false,
       signInFailureReason: "",
-      blockerReason: out.reason,
+      blockerReason: appSignIn.decisionResult.reason,
+      appSignIn,
       close: async () => {},
     };
   }
 
-  const sessionBinPath = join(portsEnv.UNIWORK_USER_DATA, "uniwork-auth", "session.bin");
   const getProfileAccountId = (st) => st?.profile?.accountId ?? st?.profile?.id ?? "";
   let signInError = "";
 
@@ -1657,7 +1840,7 @@ export async function connectAppController({
 
   const keyringStillAvailable =
     status?.state !== "keyring-unavailable" && status?.state !== "keystore-locked";
-  const signInOutcome = decideAppSignInOutcome({
+  const appSignIn = buildSanitizedAppSignInRecord({
     appStarted: true,
     cdpConnected: true,
     keyringAvailable: keyringStillAvailable,
@@ -1667,6 +1850,7 @@ export async function connectAppController({
     expectedUserId: userId ?? "",
     signInError,
   });
+  const signInOutcome = appSignIn.decisionResult;
 
   if (!signInOutcome.signedIn) {
     await browser.close().catch(() => {});
@@ -1675,6 +1859,7 @@ export async function connectAppController({
       driven: false,
       signInFailureReason: signInOutcome.status === "FAIL" ? signInOutcome.reason : "",
       blockerReason: signInOutcome.status === "BLOCKED" ? signInOutcome.reason : "",
+      appSignIn,
       close: async () => {},
     };
   }
@@ -1699,6 +1884,7 @@ export async function connectAppController({
     driven: true,
     signInFailureReason: "",
     blockerReason: "",
+    appSignIn,
     close: async () => {
       await browser.close().catch(() => {});
     },
@@ -1737,23 +1923,11 @@ export async function connectAppController({
       return { opened: false, binding: null };
     },
     waitForFeedReloadV2: async ({ documentId, expectedSha256 }) => {
-      const wc0 = inspectWorkingCopy({
-        userDataDir: portsEnv.UNIWORK_USER_DATA,
-        deploymentId,
-        documentId,
-        expectedUserId: userId,
-      });
-      if (wc0.workingCopyFilePath) {
-        await closeOpenTabForPath(wc0.workingCopyFilePath);
-      }
-      // Trigger an immediate SyncRuntime pass by toggling the app proxy and calling accountRetry()
-      setAppApiProxyOnline(runDir, false);
-      await page.evaluate(() => window.aiOffice.accountRetry()).catch(() => {});
-      setAppApiProxyOnline(runDir, true);
-      await page.evaluate(() => window.aiOffice.accountRetry()).catch(() => {});
-
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
+      // Do NOT close the open tab for `documentId` before feed reload (F1b):
+      // `UniworkDocsService.noteRemoteChange` (`apps/shell/src/main/uniwork-docs/service.ts:3117`)
+      // checks `if (!doc || !this.deps.isPathOpen(doc.path)) return`, so the tab opened in
+      // `openDocumentV1` must remain open for `guardedReload` (`service.ts:3455-3544`) to run.
+      const checkReloaded = () => {
         const wc = inspectWorkingCopy({
           userDataDir: portsEnv.UNIWORK_USER_DATA,
           deploymentId,
@@ -1770,6 +1944,21 @@ export async function connectAppController({
         ) {
           return { reloaded: true, binding: wc.binding };
         }
+        return null;
+      };
+      const immediate = checkReloaded();
+      if (immediate) return immediate;
+
+      // Trigger an immediate SyncRuntime pass by toggling the app proxy and calling accountRetry()
+      setAppApiProxyOnline(runDir, false);
+      await page.evaluate(() => window.aiOffice.accountRetry()).catch(() => {});
+      setAppApiProxyOnline(runDir, true);
+      await page.evaluate(() => window.aiOffice.accountRetry()).catch(() => {});
+
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const hit = checkReloaded();
+        if (hit) return hit;
         await sleep(300);
       }
       const last = inspectWorkingCopy({
@@ -1888,11 +2077,39 @@ export async function connectAppController({
   };
 }
 
+function resolveAppSignInForCtrl(appCtrl, expectedUserId = "") {
+  if (appCtrl?.appSignIn) return appCtrl.appSignIn;
+  const signedIn = Boolean(appCtrl?.signedIn);
+  const failReason = String(appCtrl?.signInFailureReason ?? "");
+  const blockReason = String(appCtrl?.blockerReason ?? "");
+  return buildSanitizedAppSignInRecord({
+    appStarted: signedIn || Boolean(failReason),
+    cdpConnected: signedIn || Boolean(failReason),
+    keyringAvailable: signedIn || Boolean(failReason),
+    accountState: signedIn ? "signed-in" : failReason ? "signed-out" : "not-started",
+    sessionBinExists: signedIn,
+    signedInUserId: signedIn ? String(expectedUserId ?? "") : "",
+    expectedUserId: String(expectedUserId ?? ""),
+    signInError: failReason,
+    blockerReason: blockReason,
+  });
+}
+
 function finalizeLoopOutcome(decision, loopState) {
   const owner = decision.owner || UPSTREAM_BLOCKED_OWNER;
+  const appSignIn =
+    loopState.details?.appSignIn ??
+    buildSanitizedAppSignInRecord({
+      appStarted: false,
+      cdpConnected: false,
+      keyringAvailable: false,
+      accountState: "not-started",
+      sessionBinExists: false,
+    });
   const details = {
     owner,
     ...loopState.details,
+    appSignIn,
     ...loopState.versionCounts,
     steps: loopState.steps,
     versionCounts: loopState.versionCounts,
@@ -1902,6 +2119,7 @@ function finalizeLoopOutcome(decision, loopState) {
     status: decision.status,
     owner,
     reason: decision.reason,
+    appSignIn,
     steps: loopState.steps,
     versionCounts: loopState.versionCounts,
     details,
@@ -1985,6 +2203,7 @@ async function runLoop1({
         cdpConnector,
         deepLinkDeliverer,
       }));
+    loopState.details.appSignIn = resolveAppSignInForCtrl(appCtrl, seeded.userId);
     loopState.details.appDesktopPrecondition = appCtrl.signedIn
       ? "signed_in"
       : appCtrl.signInFailureReason || appCtrl.blockerReason;
@@ -2011,16 +2230,27 @@ async function runLoop1({
     loopState.details.appOpenedV1 = appOpenedV1;
     loopState.details.appV1Binding = appV1Binding;
 
-    // 2. Capture initial workspace change-feed snapshot cursor at v1.
+    // 2. Capture initial workspace change-feed snapshot cursor at v1 (drain snapshot pages if has_more).
     currentStep = "webFrameOpen";
-    const initialFeed = await callTracerApi({
+    let initialFeed = await callTracerApi({
       apiOrigin,
       fetchImpl,
       name: "listDocumentChanges",
       params: { workspaceID: workspaceId },
       token,
     });
-    const initialCursor = initialFeed.data?.next_cursor ?? "";
+    let initialCursor = initialFeed.data?.next_cursor ?? "";
+    for (let pageIdx = 0; pageIdx < 10 && initialFeed.data?.has_more && initialCursor; pageIdx += 1) {
+      initialFeed = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "listDocumentChanges",
+        params: { workspaceID: workspaceId },
+        query: { cursor: initialCursor },
+        token,
+      });
+      initialCursor = initialFeed.data?.next_cursor ?? initialCursor;
+    }
 
     // 3. Open on Web via the office-frame token + frame document/content API.
     const frameTokenRes = await callTracerApi({
@@ -2248,9 +2478,9 @@ async function runLoop1({
         headers: { "Idempotency-Key": commitKey },
         body: { upload_id: uploadId, base_revision: v1Revision },
       });
-      const v2Version = commitRes.data?.version?.version;
-      const v2Revision = commitRes.data?.document?.revision;
-      v2Checksum = commitRes.data?.version?.checksum_sha256;
+      const v2Version = commitRes.data?.file?.version ?? commitRes.data?.version?.version;
+      const v2Revision = commitRes.data?.revision ?? commitRes.data?.document?.revision;
+      v2Checksum = commitRes.data?.file?.checksum_sha256 ?? commitRes.data?.version?.checksum_sha256;
       if (v2Version !== 2 || v2Checksum !== v2Workbook.sha256 || !v2Revision || v2Revision === v1Revision) {
         if (!webUiAttempted) loopState.steps.webSave = { source: "protocol", status: "FAIL" };
         loopState.details.commit = commitRes.data;
@@ -2269,6 +2499,7 @@ async function runLoop1({
           source: "protocol",
           status: "PASS",
           reason: webUiRes?.reason ?? "protocol diagnostic commit",
+          detail: "protocol diagnostic upload+commit; web UI not driven",
         };
       }
     } else {
@@ -2280,6 +2511,27 @@ async function runLoop1({
         token: frameToken,
       });
       v2Checksum = latestDoc.data?.file?.checksum_sha256 ?? v2Workbook.sha256;
+    }
+
+    // Check whether the committed v2 workbook bytes actually contain the X/Y/Z cell values (F2).
+    const v2ContentRes = await callTracerApi({
+      apiOrigin,
+      fetchImpl,
+      name: "getOfficeFrameDocumentContent",
+      params: { documentID: documentId },
+      token: frameToken,
+      expectBinary: true,
+    });
+    const editorCellsVerifiedInV2 = verifyXlsxContainsExpectedXyz(
+      v2ContentRes.bytes,
+      v2Workbook.expectedXyz,
+    );
+    loopState.details.editorCellsVerifiedInV2 = editorCellsVerifiedInV2;
+    if (webUiAttempted) {
+      loopState.steps.webSave.detail =
+        webUiDriven && webUiRes?.editorCellsTyped !== false && editorCellsVerifiedInV2
+          ? "Playwright typed X/Y/Z cells (E1:G4) in the sheets iframe editor and saved v2 with Control+s; verified in committed workbook"
+          : "host save path driven with frame protocol messages; cell edit in the editor not driven";
     }
 
     const versionsAfterSaveRes = await callTracerApi({
@@ -2296,29 +2548,40 @@ async function runLoop1({
     loopState.details.webSaveSource = webSaveSource;
     if (webUiError) loopState.details.webUiError = webUiError;
 
-    // 6. Verify workspace change feed (G5-01b/G5-02) delivers the new v2 version (protocol check).
+    // 6. Verify workspace change feed (G5-01b/G5-02) delivers the new v2 version (protocol check, F1a).
+    //    `DocumentChangeListSDO` (`server/internal/handler/document_changes.go:42-70`,
+    //    `server/internal/handler/dto/sdo/document_changes.go:7-47`) serializes
+    //    `current_version`, `change_kind: "upsert"`, `kind: "file"`, `revision`, `version_id`
+    //    (with no `version` or `checksum_sha256` field).
     currentStep = "changeFeed";
-    const feedRes = await callTracerApi({
-      apiOrigin,
-      fetchImpl,
-      name: "listDocumentChanges",
-      params: { workspaceID: workspaceId },
-      query: initialCursor ? { cursor: initialCursor } : {},
-      token,
+    const feedPages = [];
+    let feedCursor = initialCursor;
+    for (let pageIdx = 0; pageIdx < 10; pageIdx += 1) {
+      const feedRes = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "listDocumentChanges",
+        params: { workspaceID: workspaceId },
+        query: feedCursor ? { cursor: feedCursor } : {},
+        token,
+      });
+      feedPages.push(feedRes.data);
+      const nextCursor = feedRes.data?.next_cursor ?? "";
+      if (!feedRes.data?.has_more || !nextCursor || nextCursor === feedCursor) break;
+      feedCursor = nextCursor;
+    }
+    const hitInFeed = matchDocumentVersionInChangeFeed(feedPages, {
+      documentId,
+      expectedVersion: 2,
+      previousRevision: v1Revision,
     });
-    const feedItems = [
-      ...(Array.isArray(feedRes.data?.changes) ? feedRes.data.changes : []),
-      ...(Array.isArray(feedRes.data?.feed) ? feedRes.data.feed : []),
-    ];
-    const hitInFeed = feedItems.find(
-      (item) => item.document_id === documentId && item.version === 2 && item.checksum_sha256 === v2Checksum,
-    );
     const changeFeedDeliveredV2 = Boolean(hitInFeed);
     loopState.steps.changeFeed = {
       source: "protocol",
       status: changeFeedDeliveredV2 ? "PASS" : "FAIL",
     };
     loopState.details.changeFeedDeliveredV2 = changeFeedDeliveredV2;
+    loopState.details.changeFeedMatchedItem = hitInFeed ?? null;
     loopState.details.protocolDiagnosticSegment = {
       source: "protocol",
       status: changeFeedDeliveredV2 ? "PASS" : "FAIL",
@@ -2468,6 +2731,7 @@ async function runLoop2({
         cdpConnector,
         deepLinkDeliverer,
       }));
+    loopState.details.appSignIn = resolveAppSignInForCtrl(appCtrl, seeded.userId);
     loopState.details.appDesktopPrecondition = appCtrl.signedIn
       ? "signed_in"
       : appCtrl.signInFailureReason || appCtrl.blockerReason;
@@ -2826,6 +3090,7 @@ async function runLoop3({
         cdpConnector,
         deepLinkDeliverer,
       }));
+    loopState.details.appSignIn = resolveAppSignInForCtrl(appCtrl, seeded.userId);
     loopState.details.appDesktopPrecondition = appCtrl.signedIn
       ? "signed_in"
       : appCtrl.signInFailureReason || appCtrl.blockerReason;
@@ -3192,6 +3457,13 @@ export async function runTracerLoop({
   deepLinkDeliverer = deliverDeepLink,
 }) {
   const normalized = LOOP_ALIASES[String(loop)] ?? String(loop);
+  const defaultAppSignIn = buildSanitizedAppSignInRecord({
+    appStarted: false,
+    cdpConnected: false,
+    keyringAvailable: false,
+    accountState: "not-started",
+    sessionBinExists: false,
+  });
   const startStatus = readStartStatus(runDir);
   const gate = startGate(startStatus);
   if (gate.gate !== "proceed") {
@@ -3201,9 +3473,10 @@ export async function runTracerLoop({
       status: blocked ? "BLOCKED" : "FAIL",
       owner: UPSTREAM_BLOCKED_OWNER,
       reason: gate.reason,
+      appSignIn: defaultAppSignIn,
       steps: {},
       versionCounts: {},
-      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized, startStatus },
+      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized, startStatus, appSignIn: defaultAppSignIn },
     };
   }
 
@@ -3214,9 +3487,10 @@ export async function runTracerLoop({
       status: "FAIL",
       owner: UPSTREAM_BLOCKED_OWNER,
       reason: `no ports.env in ${runDir} (run scripts/office/g5g6g7/harness/start.sh first)`,
+      appSignIn: defaultAppSignIn,
       steps: {},
       versionCounts: {},
-      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized },
+      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized, appSignIn: defaultAppSignIn },
     };
   }
   const portsEnv = parseEnvFile(readFileSync(portsEnvPath, "utf8"));
@@ -3227,9 +3501,10 @@ export async function runTracerLoop({
       status: "FAIL",
       owner: UPSTREAM_BLOCKED_OWNER,
       reason: `API_ORIGIN missing from ${portsEnvPath}`,
+      appSignIn: defaultAppSignIn,
       steps: {},
       versionCounts: {},
-      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized },
+      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized, appSignIn: defaultAppSignIn },
     };
   }
 
@@ -3280,9 +3555,10 @@ export async function runTracerLoop({
       status: "FAIL",
       owner: UPSTREAM_BLOCKED_OWNER,
       reason: `unsupported loop "${loop}"`,
+      appSignIn: defaultAppSignIn,
       steps: {},
       versionCounts: {},
-      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized },
+      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized, appSignIn: defaultAppSignIn },
     };
   } catch (err) {
     return {
@@ -3290,9 +3566,10 @@ export async function runTracerLoop({
       status: "FAIL",
       owner: UPSTREAM_BLOCKED_OWNER,
       reason: err instanceof Error ? err.message : String(err),
+      appSignIn: defaultAppSignIn,
       steps: {},
       versionCounts: {},
-      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized },
+      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized, appSignIn: defaultAppSignIn },
     };
   }
 }
@@ -3311,6 +3588,12 @@ async function main() {
   const reqId = process.env.OFFICE_EVIDENCE_REQ || defaultReq;
   const fixId = process.env.OFFICE_EVIDENCE_FIXTURE || defaultFixture;
   const command = `node scripts/office/g5g6g7/g7-10/tracer.mjs --loop ${args.loop} --run-dir ${args.runDir}`;
+
+  // Truncate/replace `tracer-loop-N.json` at loop start so warm VMs never retain a
+  // stale JSON object from an earlier round (F4).
+  mkdirSync(args.runDir, { recursive: true });
+  const artifactPath = join(args.runDir, `tracer-loop-${args.loop}.json`);
+  rmSync(artifactPath, { force: true });
 
   const startedGate = startGate(readStartStatus(args.runDir));
   if (startedGate.gate !== "proceed") {
@@ -3331,9 +3614,7 @@ async function main() {
     timeoutMs: args.timeoutMs,
   });
 
-  mkdirSync(args.runDir, { recursive: true });
-  const artifactPath = join(args.runDir, `tracer-loop-${args.loop}.json`);
-  appendFileSync(artifactPath, `${JSON.stringify(res, null, 2)}\n`);
+  writeFileSync(artifactPath, `${JSON.stringify(res, null, 2)}\n`);
 
   if (!process.env.OFFICE_EVIDENCE_ID) {
     const paths = harnessPaths(args.runDir);

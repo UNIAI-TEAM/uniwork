@@ -385,32 +385,45 @@ function createMockDServer({
       const cursor = url.searchParams.get("cursor");
       const latest = state.versions.at(-1);
       const reported = omitFromChangeFeed ? state.versions[0] : latest;
-      const item = {
-        document_id: state.docId,
-        workspace_id: state.wsId,
-        organization_id: state.orgId,
-        version_id: reported.id,
-        version: reported.version,
-        revision: reported.revision,
-        checksum_sha256: reported.checksum_sha256,
-        size_bytes: reported.size_bytes,
-      };
+      // Match exact server SDO contract (server/internal/handler/dto/sdo/document_changes.go:7-47):
+      // Snapshot rows (DocumentChangeSDO) and incremental feed rows (DocumentChangeFeedSDO) carry
+      // document_id, kind, revision (decimal string), current_version (int32), and version_id —
+      // NEVER `version` or `checksum_sha256`.
       if (!cursor) {
+        const snapshotItem = {
+          document_id: state.docId,
+          kind: "file",
+          revision: String(reported.revision),
+          current_version: reported.version,
+          version_id: reported.id,
+        };
         return json(200, {
           phase: "snapshot",
-          changes: [item],
+          changes: [snapshotItem],
           feed: [],
           has_more: false,
           next_cursor: `cur-v${reported.version}`,
+          expires_at: "2026-10-21T00:00:00Z",
         });
       }
-      const feedItems = omitFromChangeFeed ? [] : [item];
+      const feedItem = {
+        document_id: state.docId,
+        change_kind: "upsert",
+        kind: "file",
+        revision: String(reported.revision),
+        current_version: reported.version,
+        version_id: reported.id,
+        archived: false,
+        removal: "",
+      };
+      const feedItems = omitFromChangeFeed ? [] : [feedItem];
       return json(200, {
         phase: "feed",
-        changes: feedItems,
+        changes: [],
         feed: feedItems,
         has_more: false,
         next_cursor: `cur-v${reported.version}`,
+        expires_at: "2026-10-21T00:00:00Z",
       });
     }
     if (method === "GET" && path === "/api/v1/auth/desktop/authorize") {
@@ -1037,7 +1050,7 @@ describe("G7-10 Loop 1 (fx-xlsx-revenue-xyz: web open -> AI turn -> editor X/Y/Z
               { method: "GET", headers: { Authorization: `Bearer ${token}` } },
             );
             const feed = await feedRes.json();
-            const hit = (feed.changes ?? []).find((c) => c.document_id === mock.state.docId && c.version === 2);
+            const hit = (feed.changes ?? []).find((c) => c.document_id === mock.state.docId && c.current_version === 2);
             if (!hit) return { reloaded: false, binding: null };
             const v2 = mock.state.versions.at(-1);
             const bindingV2 = {
@@ -1800,5 +1813,350 @@ describe("G7-10 ADDENDUM r3 fixes (C1-C5)", () => {
     }
   });
 });
+
+describe("G7-10 r4 cloud r2 findings (F1-F4)", () => {
+  it("F1a: Loop 1 recognizes v2 in GET /api/v1/workspaces/{id}/documents/changes when the server returns the real DocumentChangeFeedSDO shape (current_version=2, change_kind='upsert', version_id, revision, no version or checksum_sha256 field)", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", skipApp: false });
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    try {
+      const v2Workbook = buildXlsxRevenueWithXyzBytes(REPO_ROOT);
+      const res = await runTracerLoop({
+        loop: "1",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        webDriver: async ({ token, documentId }) => {
+          const v1Revision = mock.state.versions[0].revision;
+          const uploadForm = new FormData();
+          uploadForm.append("file", new Blob([v2Workbook.bytes]), "revenue-q1-q2.xlsx");
+          const upRes = await mock.fetchImpl(
+            `http://127.0.0.1:18080/api/v1/office-frame/documents/${documentId}/uploads`,
+            { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: uploadForm },
+          );
+          const upData = await upRes.json();
+          await mock.fetchImpl(
+            `http://127.0.0.1:18080/api/v1/office-frame/documents/${documentId}/versions/commit`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "Idempotency-Key": `web-ui-f1-${documentId}`,
+              },
+              body: JSON.stringify({ upload_id: upData.upload_id, base_revision: v1Revision }),
+            },
+          );
+          return { driven: true, saved: true, source: "web", editorCellsTyped: true };
+        },
+        appDriver: {
+          signedIn: true,
+          driven: true,
+          openDocumentV1: async () => ({ opened: true, binding: { baseVersion: 1, state: "ready" } }),
+          waitForFeedReloadV2: async () => ({ reloaded: true, binding: { baseVersion: 2, state: "saved" } }),
+        },
+      });
+      assert.equal(res.details.changeFeedDeliveredV2, true, "changeFeedDeliveredV2 must be true for real DocumentChangeFeedSDO");
+      assert.equal(res.steps.changeFeed.status, "PASS");
+      assert.equal(res.exitCode, 0);
+      assert.equal(res.status, "PASS");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("F1b: waitForFeedReloadV2 keeps the document tab open (does not call aiOfficeTabs.close) so UniworkDocsService.noteRemoteChange (which checks isPathOpen(doc.path)) reloads binding.json to v2", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", skipApp: false });
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      const userId = "01JUSER0000000000000000001";
+      const docId = mock.state.docId;
+      const v1Bytes = Buffer.from("v1-xlsx-bytes-without-xyz");
+      const v1Sha256 = sha256Hex(v1Bytes);
+      const v2Workbook = buildXlsxRevenueWithXyzBytes(REPO_ROOT);
+      const sessionBinDir = join(scratch.userData, "uniwork-auth");
+      mkdirSync(sessionBinDir, { recursive: true });
+      writeFileSync(join(sessionBinDir, "session.bin"), "encrypted-session-bytes");
+
+      const docDir = join(scratch.userData, "uniwork-documents", "default", userId, docId);
+      mkdirSync(docDir, { recursive: true });
+      const wcFilePath = join(docDir, "revenue-q1-q2.xlsx");
+      writeFileSync(wcFilePath, v1Bytes);
+      writeFileSync(
+        join(docDir, "binding.json"),
+        JSON.stringify({
+          schema: 2,
+          documentId: docId,
+          accountId: userId,
+          deploymentId: "default",
+          filename: "revenue-q1-q2.xlsx",
+          baseVersion: 1,
+          baseRevision: "1",
+          baseChecksum: v1Sha256,
+          state: "ready",
+        }),
+      );
+
+      let tabOpen = true;
+      let closedTabsCount = 0;
+
+      const fakePage = {
+        evaluate: async (fn, arg) => {
+          const src = fn.toString();
+          if (src.includes("aiOfficeTabs")) {
+            // Simulate window.aiOfficeTabs.list() / close()
+            const win = {
+              aiOfficeTabs: {
+                list: async () => ({
+                  tabs: tabOpen ? [{ id: "tab-1", filePath: wcFilePath }] : [],
+                }),
+                close: async () => {
+                  tabOpen = false;
+                  closedTabsCount += 1;
+                },
+              },
+            };
+            // If tracer calls closeOpenTabForPath, tabOpen becomes false!
+            if (src.includes("aiOfficeTabs.close") || src.includes("aiOfficeTabs?.close")) {
+              await win.aiOfficeTabs.close("tab-1");
+            }
+            return;
+          }
+          if (src.includes("typeof window.aiOffice")) return true;
+          if (src.includes("accountStatus")) {
+            return { state: "signed-in", profile: { accountId: userId } };
+          }
+          if (src.includes("accountRetry")) {
+            // Simulate SyncRuntime -> UniworkDocsService.noteRemoteChange:
+            // service.ts:2577 checks `if (!doc || !this.deps.isPathOpen(doc.path)) return`!
+            if (tabOpen) {
+              writeFileSync(wcFilePath, v2Workbook.bytes);
+              writeFileSync(
+                join(docDir, "binding.json"),
+                JSON.stringify({
+                  schema: 2,
+                  documentId: docId,
+                  accountId: userId,
+                  deploymentId: "default",
+                  filename: "revenue-q1-q2.xlsx",
+                  baseVersion: 2,
+                  baseRevision: "2",
+                  baseChecksum: v2Workbook.sha256,
+                  state: "saved",
+                }),
+              );
+            }
+            return;
+          }
+          return null;
+        },
+      };
+
+      const ctrl = await connectAppController({
+        portsEnv: {
+          UNIWORK_USER_DATA: scratch.userData,
+          ELECTRON_BIN: "/bin/true",
+          SHELL_APP_DIR: scratch.dir,
+          APP_CDP_PORT: "19222",
+        },
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        apiOrigin: "http://127.0.0.1:18080",
+        fetchImpl: mock.fetchImpl,
+        token: "tok-session",
+        userId,
+        timeoutMs: 1_500,
+        cdpConnector: async () => ({
+          contexts: () => [{ pages: () => [fakePage] }],
+          close: async () => {},
+        }),
+        deepLinkDeliverer: () => ({ status: 0, error: null }),
+      });
+
+      const reloadRes = await ctrl.waitForFeedReloadV2({
+        documentId: docId,
+        expectedSha256: v2Workbook.sha256,
+      });
+      await ctrl.close();
+
+      assert.equal(closedTabsCount, 0, "waitForFeedReloadV2 must NOT close the open tab before feed reload");
+      assert.equal(reloadRes.reloaded, true, "waitForFeedReloadV2 must observe v2 reload when tab stays open");
+      assert.equal(reloadRes.binding?.baseVersion, 2);
+      assert.equal(reloadRes.binding?.state, "saved");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("F2: Loop 1 steps.webSave.detail accurately records whether cell edits in the sheet editor were driven and verified vs only host frame save messages", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", skipApp: true });
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      const v1Bytes = Buffer.from("v1-xlsx-bytes-without-xyz");
+      // Case 1: webDriver saves v1 bytes (no X/Y/Z cell edit in the sheet editor)
+      const resHostOnly = await runTracerLoop({
+        loop: "1",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        webDriver: async ({ token, documentId }) => {
+          const v1Revision = mock.state.versions[0].revision;
+          const uploadForm = new FormData();
+          uploadForm.append("file", new Blob([v1Bytes]), "revenue-q1-q2.xlsx");
+          const upRes = await mock.fetchImpl(
+            `http://127.0.0.1:18080/api/v1/office-frame/documents/${documentId}/uploads`,
+            { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: uploadForm },
+          );
+          const upData = await upRes.json();
+          await mock.fetchImpl(
+            `http://127.0.0.1:18080/api/v1/office-frame/documents/${documentId}/versions/commit`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "Idempotency-Key": `web-ui-f2-host-${documentId}`,
+              },
+              body: JSON.stringify({ upload_id: upData.upload_id, base_revision: v1Revision }),
+            },
+          );
+          return { driven: true, saved: true, source: "web", editorCellsTyped: false };
+        },
+      });
+      assert.equal(
+        resHostOnly.steps.webSave.detail,
+        "host save path driven with frame protocol messages; cell edit in the editor not driven",
+      );
+
+      // Case 2: webDriver types X/Y/Z cells in editor and commits v2 workbook containing X/Y/Z
+      const mockEdited = createMockDServer({ aiMode: "503-disabled" });
+      const resCellEdited = await runTracerLoop({
+        loop: "1",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mockEdited.fetchImpl,
+        webDriver: async ({ token, documentId }) => {
+          const v1Revision = mockEdited.state.versions[0].revision;
+          const { bytes } = buildXlsxRevenueWithXyzBytes();
+          const uploadForm = new FormData();
+          uploadForm.append("file", new Blob([bytes]), "revenue-q1-q2.xlsx");
+          const upRes = await mockEdited.fetchImpl(
+            `http://127.0.0.1:18080/api/v1/office-frame/documents/${documentId}/uploads`,
+            { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: uploadForm },
+          );
+          const upData = await upRes.json();
+          await mockEdited.fetchImpl(
+            `http://127.0.0.1:18080/api/v1/office-frame/documents/${documentId}/versions/commit`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "Idempotency-Key": `web-ui-f2-edited-${documentId}`,
+              },
+              body: JSON.stringify({ upload_id: upData.upload_id, base_revision: v1Revision }),
+            },
+          );
+          return { driven: true, saved: true, source: "web", editorCellsTyped: true };
+        },
+      });
+      assert.equal(
+        resCellEdited.steps.webSave.detail,
+        "Playwright typed X/Y/Z cells (E1:G4) in the sheets iframe editor and saved v2 with Control+s; verified in committed workbook",
+      );
+      assert.equal(resCellEdited.details.webSaveVerifiedXyzInV2, true);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("F3: every loop JSON records the sanitized appSignIn decision object (decideAppSignInOutcome input and result, accountStatusState, sessionBinExists) and never any token or credential", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", skipApp: true });
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      for (const loop of ["1", "2", "3"]) {
+        const res = await runTracerLoop({
+          loop,
+          runDir: scratch.dir,
+          repoRoot: REPO_ROOT,
+          fetchImpl: mock.fetchImpl,
+        });
+        assert.ok(res.appSignIn, `loop ${loop} top-level appSignIn must be present`);
+        assert.ok(res.details.appSignIn, `loop ${loop} details.appSignIn must be present`);
+        assert.equal(typeof res.appSignIn.accountStatusState, "string");
+        assert.equal(typeof res.appSignIn.sessionBinExists, "boolean");
+        assert.ok(res.appSignIn.decisionInput, `loop ${loop} appSignIn.decisionInput must be present`);
+        assert.ok(res.appSignIn.decisionResult, `loop ${loop} appSignIn.decisionResult must be present`);
+        assert.equal(res.appSignIn.decisionResult.status, "BLOCKED");
+        const serialized = JSON.stringify(res.appSignIn);
+        assert.ok(!serialized.includes("tok-session"), "appSignIn must never contain any session token");
+        assert.ok(!serialized.includes("password"), "appSignIn must never contain any password");
+      }
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("F4: running tracer.mjs CLI on a warm runDir truncates/replaces tracer-loop-N.json instead of appending behind a stale round's JSON object", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", skipApp: true });
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    const server = http.createServer(async (req, res) => {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const rawBody = Buffer.concat(chunks);
+      const url = `http://localhost${req.url}`;
+      const request = new Request(url, {
+        method: req.method,
+        headers: req.headers,
+        body: ["GET", "HEAD"].includes(req.method) ? undefined : rawBody,
+      });
+      let initBody;
+      const ct = String(req.headers["content-type"] ?? "");
+      if (ct.includes("multipart/form-data")) {
+        initBody = await request.formData();
+      } else if (rawBody.length > 0) {
+        initBody = rawBody.toString("utf8");
+      }
+      const response = await mock.fetchImpl(url, {
+        method: req.method,
+        headers: req.headers,
+        body: initBody,
+      });
+      res.statusCode = response.status;
+      for (const [k, v] of response.headers.entries()) res.setHeader(k, v);
+      res.end(Buffer.from(await response.arrayBuffer()));
+    });
+
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const port = server.address().port;
+    writeFileSync(
+      join(scratch.dir, "ports.env"),
+      `API_ORIGIN=http://127.0.0.1:${port}\nHARNESS_SKIP_APP=1\n`,
+    );
+
+    const artifactPath = join(scratch.dir, "tracer-loop-2.json");
+    writeFileSync(artifactPath, `${JSON.stringify({ staleRound: 1, status: "OLD" }, null, 2)}\n`);
+
+    try {
+      const tracerScript = resolve(HERE, "tracer.mjs");
+      await new Promise((resolveRun, rejectRun) => {
+        const child = spawn(process.execPath, [tracerScript, "--loop", "2", "--run-dir", scratch.dir], {
+          env: { ...process.env, OFFICE_EVIDENCE_ID: "ev-f4-test" },
+          stdio: "ignore",
+        });
+        child.on("error", rejectRun);
+        child.on("close", () => resolveRun());
+      });
+
+      const raw = readFileSync(artifactPath, "utf8");
+      const parsed = JSON.parse(raw);
+      assert.equal(parsed.staleRound, undefined, "stale round 1 JSON object must be replaced, not kept");
+      assert.equal(parsed.details?.loop, "2");
+    } finally {
+      await new Promise((r) => server.close(r));
+      scratch.cleanup();
+    }
+  });
+});
+
 
 
