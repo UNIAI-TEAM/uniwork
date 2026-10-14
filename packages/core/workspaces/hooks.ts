@@ -1,5 +1,5 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../auth/store";
 import * as auth from "../api/endpoints/auth";
 import { setSessionUser } from "../auth/hooks";
@@ -154,14 +154,32 @@ export function useAcceptInvite() {
   });
 }
 
+function refreshWorkspace(qc: QueryClient, orgSlug: string, wsSlug: string) {
+  void qc.invalidateQueries({ queryKey: workspaceKeys.list() });
+  void qc.invalidateQueries({ queryKey: workspaceKeys.bySlugs(orgSlug, wsSlug) });
+}
+
 export function usePatchWorkspace(orgSlug: string, wsSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ wsId, name }: { wsId: string; name: string }) =>
-      workspaces.patchWorkspace(wsId, { name }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: workspaceKeys.list() });
-      void qc.invalidateQueries({ queryKey: workspaceKeys.bySlugs(orgSlug, wsSlug) });
-    },
+    mutationFn: ({ wsId, ...body }: { wsId: string } & workspaces.WorkspacePatch) =>
+      workspaces.patchWorkspace(wsId, body),
+    onSuccess: () => refreshWorkspace(qc, orgSlug, wsSlug),
+  });
+}
+
+export function useUploadWorkspaceIcon(orgSlug: string, wsSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ wsId, file }: { wsId: string; file: File }) => workspaces.uploadWorkspaceIcon(wsId, file),
+    onSuccess: () => refreshWorkspace(qc, orgSlug, wsSlug),
+  });
+}
+
+export function useRemoveWorkspaceIcon(orgSlug: string, wsSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ wsId }: { wsId: string }) => workspaces.removeWorkspaceIcon(wsId),
+    onSuccess: () => refreshWorkspace(qc, orgSlug, wsSlug),
   });
 }
