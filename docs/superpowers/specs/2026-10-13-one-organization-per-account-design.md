@@ -263,7 +263,21 @@ màn lỗi "lời mời không còn hiệu lực, bạn vẫn ở {A}". Thoát �
 Được dùng khi: sau Leave/Close; từ màn `member-deactivated` / `organization-suspended`
 (thay "Xem tổ chức khác"); `resolvePostAuthDestination` / `resolveHomeDestination`
 khi người dùng không có tổ chức active (cần biết tổ chức — đọc `useOrganizations`,
-đã lọc `archived` ở server). Người dùng có tổ chức nhưng 0 workspace vẫn đi `/workspaces/new` như hiện tại.
+đã lọc `archived` ở server). Người dùng có tổ chức nhưng 0 workspace: owner/admin vẫn đi `/workspaces/new`;
+thành viên thường đi `/no-workspace` (`NoWorkspaceView` — "Bạn chưa được cấp workspace", nhờ quản trị viên),
+không bao giờ vào luồng tạo tổ chức/workspace (UNI-1472). Một điểm quyết định chung:
+`workspacelessDestination()` trong `packages/core/paths/resolve.ts`.
+
+### 6.3b. Lời mời cấp tổ chức kèm workspace (UNI-1582)
+
+- Form mời ở Cài đặt › Tổ chức chọn 0..n workspace của tổ chức; `POST /orgs/{org}/invitations` nhận `workspace_ids`
+  (workspace ngoài tổ chức ⇒ 400 `workspace_not_in_organization`). Lưu ở bảng `invitation_workspaces`
+  (`invitation_id`, `workspace_id`, `organization_id`, không FK); lời mời gửi từ workspace giữ `invitations.workspace_id`.
+- Mời lại địa chỉ đang chờ: giữ token, thay lựa chọn workspace bằng lựa chọn mới nhất (audit `member.invited` khi đổi).
+- Accept (kể cả qua luồng chuyển tổ chức) cấp tư cách `member` từng workspace trong cùng transaction, đồng bộ kênh mặc định;
+  workspace đã bị xóa thì bỏ qua. Kết quả `workspace` là nơi hạ cánh: workspace của lời mời, workspace được cấp cũ nhất,
+  hoặc (owner/admin) workspace đầu tiên mở được; vắng mặt khi không có.
+- Bản xem trước, `/me/invitations`, danh sách lời mời của admin trả thêm mảng `workspaces`.
 
 ### 6.4. Chặn tạo tổ chức (FR-02)
 
