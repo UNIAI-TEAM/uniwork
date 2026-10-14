@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+5c111324434def709e9ab8c259d6b13cc4b3fb82
+5c1113244 fix(documents): let a deep link scroll to its thread without taking the editor's focus
+b69ce9eaa test(documents): cover the direct-share open, the frame deep link and the resolved thread from the Inbox
+1c2e6bfc9 test(notification): pin the web link to the push vectors and test the title-less sentence key
