@@ -1,0 +1,12 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -8; git merge-base --is-ancestor 428686df HEAD && echo main-merged-ok
+dfaa774043713b90444f88f1bf8c48f46e3ef98e
+428686df3b5b12f47e1e72d5932ca46ad05e800c
+dfaa7740 merge: fork main 428686df (G8-14 slides comments) into the G5-09 lane
+c8922d85 fix(shell): skip conflictClosed push when conflictOpen was never delivered (G5-09 BE-04)
+f35b87ec fix(shell): use async stat in probeKeepDraft instead of statSync (G5-09 BE-03)
+adb2d386 test(shell): assert conflictClosed push on cancelSave(path, true) and confirmClose close (G5-09 BE-01)
+b7f196e6 fix(shell): guard conflict dialog actions with busyRef against same-frame double clicks (G5-09 FE-204)
+b301e7d9 fix(shell): re-announce identical conflict notice only when produced by reply (G5-09 FE-203)
+4818ec75 fix(shell): skip aria-disabled radios on arrow keys and support Home/End in Reload group (G5-09 FE-202)
+3f88f9c9 fix(shell): restore conflict dialog focus to .tab-item.active when opener is detached (G5-09 FE-201)
+main-merged-ok
