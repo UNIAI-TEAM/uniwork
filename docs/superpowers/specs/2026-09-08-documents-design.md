@@ -334,6 +334,13 @@ Agent: `RequireAgentMember` cho đọc; agent không bao giờ có `edit` trực
 proposal (§8). Platform admin `/admin/*` không đọc nội dung tài liệu (đã là luật F-11); admin chỉ
 thấy đếm và dung lượng theo org.
 
+> **Bổ sung 2026-10-14 (UNI-1413 G8-18, UNI-1628 DOC-05)** — bộ mức quyền và quyền admin được ký lại ở
+> [phụ lục mức quyền](2026-10-14-documents-permission-levels-addendum.md); §4 này **không viết lại**, đọc kèm phụ lục.
+> Phụ lục thay: (1) thang `view < edit < manage` thành `view < comment < edit < manage` và bảng hành động ở trên (thêm cột
+> Comment; viết bình luận cần Comment hoặc Edit); (2) dòng `manage nếu … effective ws role ∈ {owner, admin}` **chỉ cho tài liệu
+> `visibility=workspace`**: trên tài liệu `restricted` admin quản lý nhưng không đọc nội dung, trừ truy cập khẩn cấp có ghi vết
+> (DOC-05). Mọi dòng khác của §4 giữ nguyên.
+
 ## 5. API
 
 Tag `Documents`; SDI/SDO ở `dto/{sdi,sdo}/document.go`; route `router/documents.go` sau
