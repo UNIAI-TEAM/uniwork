@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/web typecheck 2>&1 | grep -E "error TS" | head -10; echo "WEB_TC_EXIT=${PIPESTATUS[0]}"
+WEB_TC_EXIT=0

@@ -1,0 +1,3 @@
+$ node apps/web/scripts/office-frame-sync.mjs --check 2>&1 | tail -8; echo "FRAME_CHECK_EXIT=${PIPESTATUS[0]}"
+office-frame: office-frame docs 0.1.0-05fd209 is not installed; run office-frame:sync
+FRAME_CHECK_EXIT=1

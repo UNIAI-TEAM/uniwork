@@ -1,0 +1,4 @@
+$ node --test scripts/office/frame-protocol-vendor.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs 2>&1 | grep -E "^# (pass|fail)|^not ok"; echo "OFFICE_SCRIPTS_EXIT=${PIPESTATUS[0]}"
+# pass 14
+# fail 0
+OFFICE_SCRIPTS_EXIT=0

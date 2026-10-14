@@ -1,0 +1,4 @@
+$ grep -o "node --test scripts/catalog-check.test.mjs[^|]*" scripts/check.sh | head -1 | bash 2>&1 | grep -E "^# (pass|fail)|^not ok" ; echo "CHECK_SH_NODE_LIST_EXIT=${PIPESTATUS[2]}"
+# pass 310
+# fail 0
+CHECK_SH_NODE_LIST_EXIT=0

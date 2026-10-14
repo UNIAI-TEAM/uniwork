@@ -1,0 +1,4 @@
+$ pnpm --filter @uniwork/core exec vitest run office 2>&1 | grep -E "Test Files|Tests |FAIL" | tail -10; echo "CORE_OFFICE_EXIT=${PIPESTATUS[0]}"
+ Test Files  17 passed (17)
+      Tests  196 passed (196)
+CORE_OFFICE_EXIT=0

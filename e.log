@@ -1,0 +1,4 @@
+$ pnpm --filter @uniwork/web exec vitest run platform/office-frame 2>&1 | grep -E "Test Files|Tests |FAIL" | tail -10; echo "WEB_FRAME_EXIT=${PIPESTATUS[0]}"
+ Test Files  12 passed (12)
+      Tests  147 passed (147)
+WEB_FRAME_EXIT=0
