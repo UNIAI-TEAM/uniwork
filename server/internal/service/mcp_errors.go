@@ -21,6 +21,7 @@ var mcpToolMessages = map[string]string{
 	"active_duplicate_task":     "an active task with this title already exists here; read it instead of creating another",
 	"duplicate_project_title":   "a project with this title already exists in the workspace",
 	"assignee_not_member":       "that person is not a member of this workspace; call list_members for who can be assigned",
+	"lead_not_member":           "that person is not a member of this workspace; call list_members for who can lead it",
 	"quota_exceeded":            "the organization has reached its plan limit for this",
 	"parent_cycle":              "that parent would make the task its own ancestor",
 	"cross_workspace_reference": "tasks, projects and parents must all be in the same workspace",

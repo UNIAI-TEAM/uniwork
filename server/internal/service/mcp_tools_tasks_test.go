@@ -793,6 +793,13 @@ func TestMcpWriteToolsRecordTheViaOnTheirAuditRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	call("update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+strconv.FormatInt(x.revision(t, x.taskID), 10)+`,"title":"Sửa qua ứng dụng AI","add_label_ids":["`+label.ID+`"]}`)
+	project := call("create_project", `{"workspace_id":"`+x.w.ID+`","title":"Dự án qua ứng dụng AI"}`)
+	projectID := project["id"].(string)
+	rev, err := x.tools.ask.tasks.GetProject(context.Background(), Human(x.ua.ID), x.w.ID, projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	call("update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+projectID+`","revision":`+strconv.FormatInt(rev.Revision, 10)+`,"status":"in_progress"}`)
 	var rows, carry int
 	if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT count(*), count(*) FILTER (WHERE metadata::jsonb->'via' = $2::jsonb) FROM audit_events WHERE resource_id = $1 AND action = 'task.updated'`,
 		x.taskID, `{"kind":"mcp","client_id":"c1","grant_id":"g1","client_name":"Claude"}`).Scan(&rows, &carry); err != nil {
@@ -804,6 +811,8 @@ func TestMcpWriteToolsRecordTheViaOnTheirAuditRows(t *testing.T) {
 	for _, row := range []struct{ what, where, id string }{
 		{"task.created", `resource_id = $1 AND action = 'task.created'`, task["id"].(string)},
 		{"comment", `metadata::jsonb->>'comment_id' = $1`, comment["id"].(string)},
+		{"project.created", `resource_id = $1 AND action = 'project.created'`, projectID},
+		{"project.updated", `resource_id = $1 AND action = 'project.updated'`, projectID},
 	} {
 		var kind, client, grant, name string
 		q := `SELECT coalesce(metadata::jsonb->'via'->>'kind',''), coalesce(metadata::jsonb->'via'->>'client_id',''), coalesce(metadata::jsonb->'via'->>'grant_id',''), coalesce(metadata::jsonb->'via'->>'client_name','') FROM audit_events WHERE ` + row.where

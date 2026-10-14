@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
 func (x *mcpToolWorld) project(t *testing.T, title string) string {
@@ -244,5 +246,241 @@ func TestMcpProjectToolsStayInTheGrantsOrganization(t *testing.T) {
 	}
 	if _, err := x.tools.project(ctx, x.p, x.w.ID, "  "); !errors.As(err, new(McpInvalidArgs)) {
 		t.Errorf("blank project id: %v, want invalid arguments", err)
+	}
+}
+
+// projectRevision is a project's current revision, the one update_project
+// must send.
+func (x *mcpToolWorld) projectRevision(t *testing.T, id string) int64 {
+	t.Helper()
+	p, err := x.tools.ask.tasks.GetProject(context.Background(), Human(x.ua.ID), x.w.ID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p.Revision
+}
+
+func TestMcpCreateAndUpdateProject(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	raw, err := callMcpTool(t, x.tools, x.p, "create_project", `{"workspace_id":"`+x.w.ID+`","title":"Ra mắt v2","priority":"high","lead_id":"`+x.ua.ID+`","due_date":"2026-12-01"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	id, _ := item["id"].(string)
+	if id == "" || res.Revision == 0 || item["priority"] != "high" || item["lead_id"] != x.ua.ID || item["due_date"] != "2026-12-01" || item["status"] != "planned" || !strings.Contains(fmt.Sprint(item["url"]), "/projects/"+id) {
+		t.Fatalf("create_project = %s", raw)
+	}
+	onlyKeys(t, "create_project item", item, "kind", "id", "workspace_id", "title", "excerpt", "url", "status", "due_date", "revision", "priority", "lead_id", "start_date", "task_count", "done_count")
+	var kind string
+	if err := x.tools.ask.pool.QueryRow(ctx, `SELECT actor_kind FROM audit_events WHERE action = 'project.created' AND resource_id = $1`, id).Scan(&kind); err != nil || kind != "human" {
+		t.Fatalf("project.created actor_kind = %q (%v), want human", kind, err)
+	}
+	// The item an update returns counts the project's tasks, as get_project does.
+	if _, err := x.tools.ask.tasks.Create(ctx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Việc của v2", ProjectID: &id}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+strconv.FormatInt(res.Revision, 10)+`,"status":"in_progress","due_date":null}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	upd, item := writeResult(t, raw)
+	if item["status"] != "in_progress" || item["due_date"] != nil || item["lead_id"] != x.ua.ID || item["task_count"] != float64(1) || upd.Revision != res.Revision+1 || upd.Note != "" {
+		t.Fatalf("update_project = %s", raw)
+	}
+	if len(upd.Changes) != 2 || upd.Changes[0] != (McpChange{"status", "planned", "in_progress"}) || upd.Changes[1] != (McpChange{"due_date", "2026-12-01", nil}) {
+		t.Fatalf("changes = %+v, want status and due_date", upd.Changes)
+	}
+	// A stale revision is refused and writes nothing.
+	_, err = callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+strconv.FormatInt(res.Revision, 10)+`,"title":"X"}`)
+	var te McpToolError
+	if !errors.As(err, &te) || te.Code != "revision_conflict" || !strings.Contains(te.Msg, strconv.FormatInt(upd.Revision, 10)) {
+		t.Fatalf("stale update_project: %v", err)
+	}
+	if now, _ := x.tools.ask.tasks.GetProject(ctx, Human(x.ua.ID), x.w.ID, id); now.Revision != upd.Revision || now.Title != "Ra mắt v2" {
+		t.Fatalf("a stale update wrote: revision %d, title %q", now.Revision, now.Title)
+	}
+	// A retried create names the project that has the title, for the model to
+	// read instead of making another.
+	_, err = callMcpTool(t, x.tools, x.p, "create_project", `{"workspace_id":"`+x.w.ID+`","title":"  ra mắt V2 "}`)
+	if !errors.As(err, &te) || te.Code != "duplicate_project_title" || !strings.Contains(te.Msg, id) || !strings.Contains(te.Msg, "/projects/"+id) {
+		t.Fatalf("duplicate title: %v", err)
+	}
+	// So does a rename onto another project's title.
+	other := x.project(t, "Dự án khác")
+	_, err = callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+other+`","revision":`+strconv.FormatInt(x.projectRevision(t, other), 10)+`,"title":"Ra mắt v2"}`)
+	if !errors.As(err, &te) || te.Code != "duplicate_project_title" || !strings.Contains(te.Msg, id) {
+		t.Fatalf("rename onto a taken title: %v", err)
+	}
+	// The undo is the from values sent back.
+	raw, err = callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+strconv.FormatInt(upd.Revision, 10)+`,"status":"planned","due_date":"2026-12-01","lead_id":null}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back, item := writeResult(t, raw); item["status"] != "planned" || item["due_date"] != "2026-12-01" || item["lead_id"] != nil || len(back.Changes) != 3 || back.Changes[1] != (McpChange{"lead_id", x.ua.ID, nil}) {
+		t.Fatalf("undo = %s", raw)
+	}
+}
+
+// Only the creator, the lead or a workspace admin edits a project; a member
+// who can read it gets a refusal the model can explain.
+func TestMcpUpdateProjectNeedsAnEditor(t *testing.T) {
+	x := newMcpToolWorld(t)
+	id := x.project(t, "Của chủ")
+	addOrgMemberRole(t, x.tools.q, x.w.OrganizationID, x.ub.ID, OrgRoleMember)
+	addMember(t, x.tools.ask.meetings, x.w.ID, x.ub.ID)
+	rev := x.projectRevision(t, id)
+	member := McpPrincipal{UserID: x.ub.ID, OrganizationID: x.w.OrganizationID}
+	_, err := callMcpTool(t, x.tools, member, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+strconv.FormatInt(rev, 10)+`,"title":"Chiếm"}`)
+	var te McpToolError
+	if !errors.As(err, &te) || te.Code != "not_project_editor" {
+		t.Fatalf("member edit: %v, want not_project_editor", err)
+	}
+	if x.projectRevision(t, id) != rev {
+		t.Fatal("a refused edit wrote")
+	}
+	// Made its lead, the same member may.
+	if _, err := callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+strconv.FormatInt(rev, 10)+`,"lead_id":"`+x.ub.ID+`"}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := callMcpTool(t, x.tools, member, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+strconv.FormatInt(x.projectRevision(t, id), 10)+`,"title":"Của người phụ trách"}`); err != nil {
+		t.Fatalf("the lead's edit: %v", err)
+	}
+}
+
+// What the services would misread or the model could not undo is refused
+// before anything is written, in the words of the field.
+func TestMcpProjectWriteToolsValidateInput(t *testing.T) {
+	x := newMcpToolWorld(t)
+	id := x.project(t, "Kiểm tra")
+	rev := strconv.FormatInt(x.projectRevision(t, id), 10)
+	update := func(extra string) error {
+		_, err := callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`"`+extra+`}`)
+		return err
+	}
+	for extra, want := range map[string]string{
+		``:                                      "revision is required",
+		`,"revision":0`:                         "revision is required",
+		`,"revision":` + rev + `,"title":null`:  "title cannot be null; send a value",
+		`,"revision":` + rev + `,"status":null`: "status cannot be null; send a value",
+		`,"revision":` + rev + `,"priority":null`:      "priority cannot be null; send a value",
+		`,"revision":` + rev + `,"description":null`:   `description cannot be null; send "" to clear it`,
+		`,"revision":` + rev + `,"status":"open"`:      "status must be one of planned, in_progress",
+		`,"revision":` + rev + `,"priority":"asap"`:    "priority must be one of none, low",
+		`,"revision":` + rev + `,"lead_id":" "`:        "lead_id must not be blank; send null to clear it",
+		`,"revision":` + rev + `,"due_date":"1/12/26"`: "due_date must be a date",
+		`,"revision":` + rev + `,"start_date":""`:      "start_date must be a date",
+		`,"revision":` + rev + `,"title":"  "`:         "title must be 1-200 characters",
+	} {
+		var bad McpInvalidArgs
+		if err := update(extra); !errors.As(err, &bad) || !strings.HasPrefix(bad.Msg, want) {
+			t.Errorf("update_project %s: %v, want %q", extra, err, want)
+		}
+	}
+	if strconv.FormatInt(x.projectRevision(t, id), 10) != rev {
+		t.Fatal("a refused update wrote")
+	}
+	for input, want := range map[string]string{
+		`"title":" "`:                           "title must be 1-200 characters",
+		`"title":"A","status":"open"`:           "status must be one of planned",
+		`"title":"A","priority":"asap"`:         "priority must be one of none",
+		`"title":"A","lead_id":" "`:             "lead_id must not be blank",
+		`"title":"A","start_date":"2026-13-01"`: "start_date must be a date",
+		`"title":"A","description":"` + strings.Repeat("ạ", mcpMaxItemRunes+1) + `"`: "description holds at most " + strconv.Itoa(mcpMaxItemRunes),
+	} {
+		_, err := callMcpTool(t, x.tools, x.p, "create_project", `{"workspace_id":"`+x.w.ID+`",`+input+`}`)
+		var bad McpInvalidArgs
+		if !errors.As(err, &bad) || !strings.HasPrefix(bad.Msg, want) {
+			t.Errorf("create_project %s: %v, want %q", tail(input, 60), err, want)
+		}
+	}
+	// A lead outside the workspace is named in words a model can act on, the
+	// same for a person of another organization as for an id nobody has.
+	for _, lead := range []string{x.ub.ID, util.NewID()} {
+		_, err := callMcpTool(t, x.tools, x.p, "create_project", `{"workspace_id":"`+x.w.ID+`","title":"Người lạ","lead_id":"`+lead+`"}`)
+		var te McpToolError
+		if !errors.As(err, &te) || te.Code != "lead_not_member" || !strings.Contains(te.Msg, "list_members") {
+			t.Errorf("lead %s: %v, want lead_not_member", lead, err)
+		}
+	}
+}
+
+// Undo holds for a project description as for a task's: from is the whole old
+// text, and a description too long to put back is never replaced here.
+func TestMcpUpdateProjectDescriptionUndo(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	long := strings.Repeat("Dòng **một**.\n", 357) + "Hết"
+	if n := utf8.RuneCountInString(long); n < 5000 || n > mcpMaxItemRunes {
+		t.Fatalf("fixture is %d characters", n)
+	}
+	p, err := x.tools.ask.tasks.CreateProject(ctx, Human(x.ua.ID), x.w.ID, CreateProjectInput{Title: "Mô tả dài", Description: &long})
+	if err != nil {
+		t.Fatal(err)
+	}
+	update := func(extra string) (json.RawMessage, error) {
+		t.Helper()
+		return callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+p.ID+`","revision":`+strconv.FormatInt(x.projectRevision(t, p.ID), 10)+extra+`}`)
+	}
+	raw, err := update(`,"description":"Ngắn"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, _ := writeResult(t, raw)
+	if len(res.Changes) != 1 || res.Changes[0].Field != "description" || res.Changes[0].From != long || res.Changes[0].To != "Ngắn" {
+		t.Fatalf("description change is cut or missing: %d changes", len(res.Changes))
+	}
+	b, _ := json.Marshal(long)
+	if _, err := update(`,"description":` + string(b)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := x.tools.ask.tasks.GetProject(ctx, Human(x.ua.ID), x.w.ID, p.ID); got.Description != long {
+		t.Fatal("sending from back did not restore the description")
+	}
+
+	tooLong := strings.Repeat("ạ", mcpMaxItemRunes+1)
+	var bad McpInvalidArgs
+	if _, err := update(`,"description":"` + tooLong + `"`); !errors.As(err, &bad) || !strings.Contains(bad.Msg, "description") {
+		t.Fatalf("a new description over the limit: %v, want McpInvalidArgs", err)
+	}
+	if _, err := x.tools.ask.tasks.UpdateProject(ctx, Human(x.ua.ID), x.w.ID, p.ID, UpdateProjectInput{ExpectedRevision: x.projectRevision(t, p.ID), Description: &tooLong}); err != nil {
+		t.Fatal(err)
+	}
+	before := x.projectRevision(t, p.ID)
+	if _, err := update(`,"title":"Đổi tên","description":"Ngắn"`); !errors.As(err, &bad) || !strings.Contains(bad.Msg, "edit it in UniWork") {
+		t.Fatalf("replacing a description over the limit: %v, want McpInvalidArgs", err)
+	}
+	if x.projectRevision(t, p.ID) != before {
+		t.Fatal("a refused description replace wrote")
+	}
+	if _, err := update(`,"title":"Đổi tên"`); err != nil {
+		t.Fatalf("a call that leaves the long description alone: %v", err)
+	}
+}
+
+// create_project never opens a chat channel, even where the service would on
+// request (spec §5.2).
+func TestMcpCreateProjectOpensNoChatChannel(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	x.tools.ask.tasks.Chat = x.tools.ask.chat
+	channels := func(projectID string) (n int) {
+		t.Helper()
+		if err := x.tools.ask.pool.QueryRow(ctx, `SELECT count(*) FROM chat_rooms WHERE project_id = $1`, projectID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	control, err := x.tools.ask.tasks.CreateProject(ctx, Human(x.ua.ID), x.w.ID, CreateProjectInput{Title: "Có kênh", CreateChannel: true})
+	if err != nil || channels(control.ID) != 1 {
+		t.Fatalf("control: the service opens a channel on request (%v)", err)
+	}
+	raw, err := callMcpTool(t, x.tools, x.p, "create_project", `{"workspace_id":"`+x.w.ID+`","title":"Không kênh"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, item := writeResult(t, raw); channels(fmt.Sprint(item["id"])) != 0 {
+		t.Fatal("create_project opened a chat channel")
 	}
 }

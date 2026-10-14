@@ -38,6 +38,8 @@ var mcpToolCatalogue = []mcpCatalogueEntry{
 	{"add_comment", "Add comment", ai.ToolWrite, false},
 	{"list_projects", "List projects", ai.ToolRead, false},
 	{"get_project", "Get project", ai.ToolRead, false},
+	{"create_project", "Create project", ai.ToolWrite, false},
+	{"update_project", "Update project", ai.ToolWrite, true},
 }
 
 func TestMCPToolCatalogue(t *testing.T) {
@@ -62,13 +64,15 @@ func TestMCPToolCatalogue(t *testing.T) {
 		t.Errorf("my_work description does not say what the list holds: %q", d)
 	}
 	for name, words := range map[string][]string{
-		"list_tasks":    {"ordered by status key alphabetically, then position", "pass status to narrow", "truncated"},
-		"list_members":  {"query", "truncated"},
-		"update_task":   {"revision_conflict", "add_label_ids and remove_label_ids", "too long", strconv.Itoa(mcpMaxItemRunes)},
-		"add_comment":   {"assignee", "creator", "earlier commenters", "@"},
-		"get_task":      {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
-		"get_project":   {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count"},
-		"list_projects": {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
+		"list_tasks":     {"ordered by status key alphabetically, then position", "pass status to narrow", "truncated"},
+		"list_members":   {"query", "truncated"},
+		"update_task":    {"revision_conflict", "add_label_ids and remove_label_ids", "too long", strconv.Itoa(mcpMaxItemRunes)},
+		"add_comment":    {"assignee", "creator", "earlier commenters", "@"},
+		"get_task":       {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes)},
+		"get_project":    {"description", "description_truncated", strconv.Itoa(mcpMaxItemRunes), "first 20 tasks", "ordered by status key alphabetically, then position", "task_count"},
+		"list_projects":  {"most recently updated first", "equal to the query first", "include_closed", "truncated", "At most 50"},
+		"create_project": {"without a chat channel", "Everyone in the workspace", "No one is notified", "duplicate_project_title", strconv.Itoa(mcpMaxItemRunes)},
+		"update_project": {"revision_conflict", "creator", "lead", "workspace owner or admin", "not_project_editor", "No one is notified", "too long", strconv.Itoa(mcpMaxItemRunes)},
 	} {
 		tool, _ := r.Get(name)
 		for _, w := range words {
