@@ -16,6 +16,10 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
+// maxOfficeCommentIDLen is the ULID bound of every document comment id
+// (util.NewID); the SDI's maxLength tag documents the same number.
+const maxOfficeCommentIDLen = 26
+
 func (h *handlers) createOfficeLaunch(w http.ResponseWriter, r *http.Request) {
 	if h.OfficeLaunch == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "office launch is not configured")
@@ -25,10 +29,22 @@ func (h *handlers) createOfficeLaunch(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
+	commentID := ""
+	if in.CommentID != nil {
+		commentID = strings.TrimSpace(*in.CommentID)
+		// R1-6: a present comment_id must fit the ULID bound the SDI tags
+		// document; blank or oversized is a 400 here, before any lookup.
+		// Anything else is left to the existence check, which answers the
+		// same 404 for unknown and other-document ids (no existence oracle).
+		if commentID == "" || len(commentID) > maxOfficeCommentIDLen {
+			respondError(w, http.StatusBadRequest, "invalid_request", "comment_id không hợp lệ")
+			return
+		}
+	}
 	row, err := h.OfficeLaunch.Create(r.Context(), service.Human(middleware.UserID(r.Context())), service.OfficeLaunchCreateInput{
 		DocumentID: chi.URLParam(r, "documentID"), Operation: in.Operation, Version: in.Version,
 		DeploymentID: strings.TrimSpace(in.DeploymentID), ClientID: strings.TrimSpace(in.ClientID),
-		ReturnHint: strings.TrimSpace(in.ReturnHint), CommentID: strings.TrimSpace(in.CommentID),
+		ReturnHint: strings.TrimSpace(in.ReturnHint), CommentID: commentID,
 	})
 	if err != nil {
 		h.mapServiceError(w, err)

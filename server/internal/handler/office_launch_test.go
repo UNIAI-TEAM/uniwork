@@ -208,3 +208,30 @@ func TestOfficeLaunchCommentIDMustBelongToTheDocument(t *testing.T) {
 		t.Fatalf("own-document comment echo = %q, want %q", got, foreignCommentID)
 	}
 }
+
+// R1-6: a present comment_id must be a ULID-shaped value. A blank or
+// oversized one is malformed and refused with the shared 400 error shape
+// before any lookup, so a caller never learns whether it could exist.
+func TestOfficeLaunchCommentIDMalformedIsRejected(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	documentID := w.createMarkdownFile(t, "# malformed comment id\n")
+	for _, c := range []struct {
+		name string
+		id   string
+	}{
+		{"empty", ""},
+		{"oversized", strings.Repeat("A", 27)},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+				"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": c.id,
+			})
+			if res.StatusCode != 400 {
+				t.Fatalf("malformed comment_id %q = %d %v", c.id, res.StatusCode, out)
+			}
+			if code, _ := errCodeClass(out); code != "invalid_request" {
+				t.Fatalf("malformed comment_id code = %q, want invalid_request", code)
+			}
+		})
+	}
+}
