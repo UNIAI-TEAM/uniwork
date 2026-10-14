@@ -32,6 +32,8 @@ var mcpToolCatalogue = []mcpCatalogueEntry{
 	{"list_members", "List members", ai.ToolRead, false},
 	{"task_options", "Task options", ai.ToolRead, false},
 	{"list_tasks", "List tasks", ai.ToolRead, false},
+	{"create_task", "Create task", ai.ToolWrite, false},
+	{"add_comment", "Add comment", ai.ToolWrite, false},
 }
 
 func TestMCPToolCatalogue(t *testing.T) {

@@ -258,3 +258,367 @@ func TestMcpGetTaskByReferenceStaysInItsWorkspace(t *testing.T) {
 		}
 	}
 }
+
+func writeResult(t *testing.T, raw json.RawMessage) (McpWriteResult, map[string]any) {
+	t.Helper()
+	var res McpWriteResult
+	if err := json.Unmarshal(raw, &res); err != nil {
+		t.Fatal(err)
+	}
+	item, _ := res.Item.(map[string]any)
+	return res, item
+}
+
+// onlyKeys fails for a field of m outside allowed: what a write tool returns
+// is as documented as what a read tool returns.
+func onlyKeys(t *testing.T, name string, m map[string]any, allowed ...string) {
+	t.Helper()
+	ok := map[string]bool{}
+	for _, k := range allowed {
+		ok[k] = true
+	}
+	for k := range m {
+		if !ok[k] {
+			t.Errorf("%s has undocumented field %q: %v", name, k, m)
+		}
+	}
+}
+
+func TestMcpCreateTask(t *testing.T) {
+	x := newMcpToolWorld(t)
+	raw, err := callMcpTool(t, x.tools, x.p, "create_task", `{"workspace_id":"`+x.w.ID+`","title":"Gửi báo giá ACME","description":"**Gấp**","priority":"high","assignee_id":"`+x.ua.ID+`","due_date":"2026-10-23"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	if res.Revision == 0 || item["title"] != "Gửi báo giá ACME" || item["priority"] != "high" || item["due_date"] != "2026-10-23" || item["assignee_id"] != x.ua.ID || !strings.Contains(item["url"].(string), "/tasks/") {
+		t.Fatalf("create_task = %s", raw)
+	}
+	onlyKeys(t, "create_task item", item, "kind", "id", "workspace_id", "title", "excerpt", "url", "status", "due_date", "revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels")
+	var kind string
+	if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT actor_kind FROM audit_events WHERE action = 'task.created' AND resource_id = $1`, item["id"]).Scan(&kind); err != nil {
+		t.Fatal(err)
+	}
+	if kind != "human" {
+		t.Fatalf("actor_kind = %q, want human", kind)
+	}
+}
+
+// A task goes where the call says: a project and a parent of the same
+// workspace, the parent named by id or by PREFIX-N.
+func TestMcpCreateTaskPlacesItInAProjectAndUnderAParent(t *testing.T) {
+	x := newMcpToolWorld(t)
+	project, err := x.tools.ask.tasks.CreateProject(context.Background(), Human(x.ua.ID), x.w.ID, CreateProjectInput{Title: "Ra mắt Q4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := x.tools.ask.tasks.Get(context.Background(), x.ua.ID, x.taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range []string{x.taskID, x.w.TaskPrefix + "-" + strconv.FormatInt(parent.Number, 10)} {
+		raw, err := callMcpTool(t, x.tools, x.p, "create_task", `{"workspace_id":"`+x.w.ID+`","title":"Việc con của `+ref+`","project_id":"`+project.ID+`","parent_task_id":"`+ref+`"}`)
+		if err != nil {
+			t.Fatalf("parent %s: %v", ref, err)
+		}
+		if _, item := writeResult(t, raw); item["project_id"] != project.ID || item["parent_task_id"] != x.taskID {
+			t.Fatalf("parent %s: create_task = %s", ref, raw)
+		}
+	}
+}
+
+// Review Focus 4: a client that retries after a flaky network is refused, and
+// the refusal names the task the first call made; no second task appears.
+func TestMcpCreateTaskTwiceNamesTheFirst(t *testing.T) {
+	x := newMcpToolWorld(t)
+	in := `{"workspace_id":"` + x.w.ID + `","title":"Chốt hợp đồng"}`
+	raw, err := callMcpTool(t, x.tools, x.p, "create_task", in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, first := writeResult(t, raw)
+	_, err = callMcpTool(t, x.tools, x.p, "create_task", in)
+	var te McpToolError
+	if !errors.As(err, &te) || te.Code != "active_duplicate_task" || !strings.Contains(te.Msg, first["id"].(string)) || !strings.Contains(te.Msg, first["url"].(string)) {
+		t.Fatalf("second create: %v, want active_duplicate_task naming %v", err, first)
+	}
+	var n int
+	if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT count(*) FROM tasks WHERE workspace_id = $1 AND title = $2`, x.w.ID, "Chốt hợp đồng").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("%d tasks titled Chốt hợp đồng after a retry, want 1 (%v)", n, err)
+	}
+}
+
+func TestMcpCreateTaskValidates(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ws := `{"workspace_id":"` + x.w.ID + `",`
+	for in, want := range map[string]string{
+		ws + `"title":""}`:   "title",
+		ws + `"title":"  "}`: "title",
+		ws + `"title":"` + strings.Repeat("ạ", 501) + `"}`:                                  "title",
+		ws + `"title":"A","due_date":"23/10/2026"}`:                                         "due_date must be a date",
+		ws + `"title":"A","start_date":"2026-13-01"}`:                                       "start_date must be a date",
+		ws + `"title":"A","priority":"asap"}`:                                               "priority",
+		ws + `"title":"A","label_ids":["` + strings.Join(make([]string, 21), `","`) + `"]}`: "label_ids",
+	} {
+		_, err := callMcpTool(t, x.tools, x.p, "create_task", in)
+		var bad McpInvalidArgs
+		if !errors.As(err, &bad) || !strings.Contains(bad.Msg, want) {
+			t.Errorf("create_task %.80s: %v, want McpInvalidArgs about %s", in, err, want)
+		}
+	}
+	// A person outside the workspace is a refusal the model can act on.
+	_, err := callMcpTool(t, x.tools, x.p, "create_task", ws+`"title":"B","assignee_id":"`+x.ub.ID+`"}`)
+	var te McpToolError
+	if !errors.As(err, &te) || te.Code != "assignee_not_member" {
+		t.Fatalf("assignee outside: %v", err)
+	}
+	// None of it made a task.
+	var n int
+	if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT count(*) FROM tasks WHERE workspace_id = $1`, x.w.ID).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("%d tasks after refused creates, want the 1 of the fixture (%v)", n, err)
+	}
+}
+
+func TestMcpAddComment(t *testing.T) {
+	x := newMcpToolWorld(t)
+	raw, err := callMcpTool(t, x.tools, x.p, "add_comment", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","body":"Đã gửi bản nháp"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	if item["task_id"] != x.taskID || item["body"] != "Đã gửi bản nháp" || item["id"] == "" || !strings.Contains(item["url"].(string), "/tasks/"+x.taskID) {
+		t.Fatalf("add_comment = %s", raw)
+	}
+	if res.Revision != 0 || strings.Contains(string(raw), `"revision"`) {
+		t.Fatalf("a comment has no revision: %s", raw)
+	}
+	onlyKeys(t, "add_comment item", item, "id", "task_id", "body", "url")
+	out, _ := callMcpTool(t, x.tools, x.p, "get_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`"}`)
+	if !strings.Contains(string(out), "Đã gửi bản nháp") {
+		t.Fatalf("the comment is not on the task: %s", out)
+	}
+	var author, kind string
+	if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT author_id, author_kind FROM task_comments WHERE id = $1`, item["id"]).Scan(&author, &kind); err != nil || author != x.ua.ID || kind != "human" {
+		t.Fatalf("comment author = %q/%q, want the person who consented (%v)", author, kind, err)
+	}
+}
+
+// The task by PREFIX-N, a reply to a comment of the task, and the bounds on
+// the body: an empty one, and one past what the schema promises.
+func TestMcpAddCommentRepliesAndValidates(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	add := func(extra, body string) (json.RawMessage, error) {
+		return callMcpTool(t, x.tools, x.p, "add_comment", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","body":`+strconv.Quote(body)+extra+`}`)
+	}
+	raw, err := add("", "Gốc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, root := writeResult(t, raw)
+	raw, err = add(`,"reply_to":"`+root["id"].(string)+`"`, "Trả lời")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, reply := writeResult(t, raw)
+	c, err := x.tools.ask.tasks.GetComment(ctx, Human(x.ua.ID), reply["id"].(string))
+	if err != nil || c.ParentCommentID.String != root["id"] {
+		t.Fatalf("reply parent = %q, want %v (%v)", c.ParentCommentID.String, root["id"], err)
+	}
+
+	task, err := x.tools.ask.tasks.Get(ctx, x.ua.ID, x.taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := x.w.TaskPrefix + "-" + strconv.FormatInt(task.Number, 10)
+	raw, err = callMcpTool(t, x.tools, x.p, "add_comment", `{"workspace_id":"`+x.w.ID+`","task_id":"`+ref+`","body":"Qua mã tham chiếu"}`)
+	if _, item := writeResult(t, raw); err != nil || item["task_id"] != x.taskID {
+		t.Fatalf("add_comment by %s = %s (%v)", ref, raw, err)
+	}
+
+	for name, body := range map[string]string{"empty": "", "blank": " \n ", "too long": strings.Repeat("ạ", mcpMaxBodyRunes+1)} {
+		var bad McpInvalidArgs
+		if _, err := add("", body); !errors.As(err, &bad) || !strings.Contains(bad.Msg, "body") {
+			t.Errorf("%s body: %v, want McpInvalidArgs about body", name, err)
+		}
+	}
+	// The longest body there is goes in whole; what comes back is cut like a
+	// search hit, so a model is not handed 20000 characters it just wrote.
+	long := strings.Repeat("ạ", mcpMaxBodyRunes)
+	raw, err = add("", long)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, item := writeResult(t, raw)
+	var stored string
+	if err := x.tools.ask.pool.QueryRow(ctx, `SELECT body FROM task_comments WHERE id = $1`, item["id"]).Scan(&stored); err != nil || stored != long {
+		t.Fatalf("stored body has %d runes, want %d (%v)", len([]rune(stored)), mcpMaxBodyRunes, err)
+	}
+	if got := item["body"].(string); len([]rune(got)) != mcpMaxHitRunes || !strings.HasSuffix(got, mcpHitCut) {
+		t.Fatalf("returned body has %d runes, want %d ending %q", len([]rune(got)), mcpMaxHitRunes, mcpHitCut)
+	}
+}
+
+// Phase 0 review gate: whatever a write tool refuses with, the model reads
+// nothing about a row it cannot see. Rows of another organization (the person
+// is in it, the grant is not for it) and of another workspace of the grant's
+// organization are simply absent; a reply target on another task of the same
+// workspace is a mistake the model can fix, said in its own field name.
+func TestMcpWriteToolErrorsNameNothingTheCallerCannotSee(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	tasks := x.tools.ask.tasks
+	_, wsC := x.org(t, x.ub.ID, "Org C", "org-c-mcp")
+	taskC := x.task(t, x.ub.ID, wsC.ID, "Chỉ C biết")
+	commentC, err := tasks.AddComment(ctx, Human(x.ub.ID), taskC.ID, "Bình luận kín của C")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectC, err := tasks.CreateProject(ctx, Human(x.ub.ID), wsC.ID, CreateProjectInput{Title: "Dự án kín của C"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2, err := x.tools.ws.CreateInOrg(ctx, x.ua.ID, x.w.OrganizationID, "Beta", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws2 := v2.Workspace
+	task2 := x.task(t, x.ua.ID, ws2.ID, "Việc của workspace hai")
+	comment2, err := tasks.AddComment(ctx, Human(x.ua.ID), task2.ID, "Bình luận của workspace hai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project2, err := tasks.CreateProject(ctx, Human(x.ua.ID), ws2.ID, CreateProjectInput{Title: "Dự án của workspace hai"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := x.task(t, x.ua.ID, x.w.ID, "Việc khác cùng workspace")
+	commentOther, err := tasks.AddComment(ctx, Human(x.ua.ID), other.ID, "Bình luận của việc khác")
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := func() (tasks, comments int) {
+		t.Helper()
+		if err := x.tools.ask.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM tasks), (SELECT count(*) FROM task_comments)`).Scan(&tasks, &comments); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	tasksBefore, commentsBefore := count()
+
+	secrets := []string{
+		taskC.ID, taskC.Title, commentC.ID, commentC.Body, projectC.ID, projectC.Title, wsC.ID, x.ub.ID, x.ub.Email, x.ub.DisplayName,
+		task2.ID, task2.Title, comment2.ID, comment2.Body, project2.ID, project2.Title, ws2.ID, commentOther.Body,
+	}
+	create := func(extra string) error {
+		_, err := callMcpTool(t, x.tools, x.p, "create_task", `{"workspace_id":"`+x.w.ID+`","title":"Việc mới"`+extra+`}`)
+		return err
+	}
+	comment := func(workspaceID, taskID, extra string) error {
+		_, err := callMcpTool(t, x.tools, x.p, "add_comment", `{"workspace_id":"`+workspaceID+`","task_id":"`+taskID+`","body":"Nội dung"`+extra+`}`)
+		return err
+	}
+	absent := map[string]error{
+		"parent of another organization":             create(`,"parent_task_id":"` + taskC.ID + `"`),
+		"parent of another workspace":                create(`,"parent_task_id":"` + task2.ID + `"`),
+		"project of another organization":            create(`,"project_id":"` + projectC.ID + `"`),
+		"project of another workspace":               create(`,"project_id":"` + project2.ID + `"`),
+		"comment on a task of another organization":  comment(wsC.ID, taskC.ID, ""),
+		"comment on a task under the grant's own id": comment(x.w.ID, taskC.ID, ""),
+		"comment on a task of another workspace":     comment(x.w.ID, task2.ID, ""),
+		"reply to a comment of another organization": comment(x.w.ID, x.taskID, `,"reply_to":"`+commentC.ID+`"`),
+		"reply to a comment of another workspace":    comment(x.w.ID, x.taskID, `,"reply_to":"`+comment2.ID+`"`),
+	}
+	_, err = callMcpTool(t, x.tools, x.p, "create_task", `{"workspace_id":"`+wsC.ID+`","title":"Việc mới"}`)
+	absent["create in a workspace of another organization"] = err
+	for name, err := range absent {
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s: %v, want ErrNotFound", name, err)
+		}
+	}
+
+	var te McpToolError
+	err = create(`,"assignee_id":"` + x.ub.ID + `"`)
+	if !errors.As(err, &te) || te.Code != "assignee_not_member" {
+		t.Errorf("assignee of another organization: %v, want assignee_not_member", err)
+	}
+	var bad McpInvalidArgs
+	err = comment(x.w.ID, x.taskID, `,"reply_to":"`+commentOther.ID+`"`)
+	if !errors.As(err, &bad) || !strings.Contains(bad.Msg, "reply_to") || strings.Contains(bad.Msg, "parent_id") {
+		t.Errorf("reply to a comment of another task: %v, want McpInvalidArgs naming reply_to", err)
+	}
+
+	refusals := []error{te, bad}
+	for _, err := range absent {
+		refusals = append(refusals, err)
+	}
+	for _, err := range refusals {
+		for _, secret := range secrets {
+			if err != nil && strings.Contains(err.Error(), secret) {
+				t.Errorf("error %q names %q, which the caller cannot see", err, secret)
+			}
+		}
+	}
+	if tt, cc := count(); tt != tasksBefore || cc != commentsBefore {
+		t.Errorf("refused writes left %d tasks and %d comments, want %d and %d", tt, cc, tasksBefore, commentsBefore)
+	}
+}
+
+// task checks the workspace against the grant itself, so no tool that reaches
+// a task can forget to: the person is a member of B and may read B's tasks on
+// a screen, but under a grant for A the task is absent, by id and by PREFIX-N.
+func TestMcpTaskRefusesAWorkspaceOutsideTheGrant(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	_, wsB := x.org(t, x.ua.ID, "Org B", "org-b-mcp")
+	taskB := x.task(t, x.ua.ID, wsB.ID, "Việc của B")
+	pB := McpPrincipal{UserID: x.ua.ID, OrganizationID: wsB.OrganizationID}
+	refB := wsB.TaskPrefix + "-" + strconv.FormatInt(taskB.Number, 10)
+	for _, ref := range []string{taskB.ID, refB} {
+		if got, err := x.tools.task(ctx, pB, wsB.ID, ref); err != nil || got.ID != taskB.ID {
+			t.Fatalf("control: grant for B reads %s: %+v, %v", ref, got, err)
+		}
+		if _, err := x.tools.task(ctx, x.p, wsB.ID, ref); !errors.Is(err, ErrNotFound) {
+			t.Errorf("task(%s) under a grant for A: %v, want ErrNotFound", ref, err)
+		}
+	}
+	var bad McpInvalidArgs
+	if _, err := x.tools.task(ctx, x.p, "", x.taskID); !errors.As(err, &bad) || !strings.Contains(bad.Msg, "workspace_id") {
+		t.Errorf("task with no workspace: %v, want McpInvalidArgs about workspace_id", err)
+	}
+}
+
+// The person is a full member of B and could write there on a screen. Under a
+// grant for A neither write tool reaches B, whatever the ids; under a grant
+// for B the same calls work, so the refusal is the grant and nothing else.
+func TestMcpWriteToolsStayInTheGrantsOrganization(t *testing.T) {
+	x := newMcpToolWorld(t)
+	_, wsB := x.org(t, x.ua.ID, "Org B", "org-b-mcp")
+	taskB := x.task(t, x.ua.ID, wsB.ID, "Việc của B")
+	pB := McpPrincipal{UserID: x.ua.ID, OrganizationID: wsB.OrganizationID}
+	create := `{"workspace_id":"` + wsB.ID + `","title":"Việc mới của B"}`
+	comment := `{"workspace_id":"` + wsB.ID + `","task_id":"` + taskB.ID + `","body":"Bình luận của B"}`
+	for tool, in := range map[string]string{"create_task": create, "add_comment": comment} {
+		if _, err := callMcpTool(t, x.tools, x.p, tool, in); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s in B under a grant for A: %v, want ErrNotFound", tool, err)
+		}
+	}
+	var tasks, comments int
+	count := func() {
+		t.Helper()
+		if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT (SELECT count(*) FROM tasks WHERE workspace_id = $1), (SELECT count(*) FROM task_comments WHERE workspace_id = $1)`, wsB.ID).Scan(&tasks, &comments); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if count(); tasks != 1 || comments != 0 {
+		t.Fatalf("refused writes left %d tasks and %d comments in B, want 1 and 0", tasks, comments)
+	}
+	for tool, in := range map[string]string{"create_task": create, "add_comment": comment} {
+		if _, err := callMcpTool(t, x.tools, pB, tool, in); err != nil {
+			t.Errorf("control: %s under a grant for B: %v", tool, err)
+		}
+	}
+	if count(); tasks != 2 || comments != 1 {
+		t.Fatalf("control writes left %d tasks and %d comments in B, want 2 and 1", tasks, comments)
+	}
+}
