@@ -29,6 +29,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
   // deployed yet): the card stays visible, disabled with a hint, for the session.
   // A second click while the first create is in flight must not make a second folder.
   const folderBusy = useRef(false);
+  const folderKeyRef = useRef<{ title: string; parentId: string | null; key: string } | null>(null);
   const [unavailable, setUnavailable] = useState<ReadonlySet<CreateType>>(new Set());
 
   const create = async (type: CreateType, parentId: string | null) => {
@@ -58,18 +59,27 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
     }
   };
 
-  /** A new folder takes its default name; the caller navigates into it. */
-  const newFolder = async (parentId: string | null): Promise<string | null> => {
+  /** A new folder takes the given or default name; the caller navigates into it. */
+  const newFolder = async (parentId: string | null, customTitle?: string): Promise<string | null> => {
     if (folderBusy.current) return null;
     folderBusy.current = true;
+    const title = (customTitle ?? t("documents.home.folders.default_name")).trim();
+    if (folderKeyRef.current?.title !== title || folderKeyRef.current.parentId !== parentId) {
+      folderKeyRef.current = { title, parentId, key: createSafeId() };
+    }
     try {
       const folder = await createFolder.mutateAsync({
-        title: t("documents.home.folders.default_name"),
+        title,
         ...(parentId ? { parentId } : {}),
-        idempotencyKey: createSafeId(),
+        idempotencyKey: folderKeyRef.current.key,
       });
+      folderKeyRef.current = null;
+      toast.success(t("documents.home.folders.toast.created", { title: folder.title }));
       return folder.id;
     } catch (error) {
+      if (customTitle !== undefined) {
+        throw error;
+      }
       toast.error(documentErrorMessage(error, t, "documents.home.folders.create_failed"));
       return null;
     } finally {

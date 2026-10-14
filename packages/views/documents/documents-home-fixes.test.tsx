@@ -173,8 +173,11 @@ describe("new folder (m3)", () => {
     const add = await screen.findByRole("button", { name: t("documents.home.folders.new") });
 
     fireEvent.click(add);
-    fireEvent.click(add);
-    await waitFor(() => expect(add).toHaveAttribute("aria-disabled", "true"));
+    const dialog = await screen.findByRole("dialog", { name: t("documents.home.folders.create_title_root") });
+    const submit = within(dialog).getByRole("button", { name: t("documents.home.folders.create_submit") });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    await waitFor(() => expect(submit).toHaveAttribute("aria-disabled", "true"));
     expect(writes("POST")).toHaveLength(1);
     const headers = (writes("POST")[0]?.[1] as { headers?: Record<string, string> }).headers;
     expect(headers?.["Idempotency-Key"]).toBeTruthy();
