@@ -55,6 +55,17 @@ func TestMCPToolCatalogue(t *testing.T) {
 	if d := r[1].Description; !strings.Contains(d, "assigned to the user") || !strings.Contains(d, "most urgent first") {
 		t.Errorf("my_work description does not say what the list holds: %q", d)
 	}
+	for name, words := range map[string][]string{
+		"list_tasks":   {"ordered by status key alphabetically, then position", "pass status to narrow", "truncated"},
+		"list_members": {"query", "truncated"},
+	} {
+		tool, _ := r.Get(name)
+		for _, w := range words {
+			if !strings.Contains(tool.Description, w) {
+				t.Errorf("%s description does not say %q: %q", name, w, tool.Description)
+			}
+		}
+	}
 }
 
 // TestMCPHasNoDeleteTool holds ADR 0033: nothing reachable over MCP removes
@@ -826,10 +837,29 @@ func TestMcpToolOutputsCarryOnlyDocumentedFields(t *testing.T) {
 	taskKeys := with("revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels")
 	raw, err = callMcpTool(t, x.tools, x.p, "get_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`"}`)
 	check("get_task", raw, err, taskKeys)
-	raw, err = callMcpTool(t, x.tools, x.p, "list_tasks", `{"workspace_id":"`+x.w.ID+`"}`)
-	check("list_tasks", raw, err, taskKeys)
-	raw, err = callMcpTool(t, x.tools, x.p, "list_members", `{"workspace_id":"`+x.w.ID+`"}`)
-	check("list_members", raw, err, map[string]bool{"user_id": true, "name": true, "role": true})
+	// The list tools wrap their rows: the wrapper and each row are checked.
+	checkWrapped := func(name, rowsKey string, input string, rowKeys map[string]bool) {
+		t.Helper()
+		raw, err := callMcpTool(t, x.tools, x.p, name, input)
+		check(name, raw, err, map[string]bool{rowsKey: true, "truncated": true})
+		var wrapper map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &wrapper); err != nil {
+			t.Fatal(err)
+		}
+		var rows []map[string]json.RawMessage
+		if err := json.Unmarshal(wrapper[rowsKey], &rows); err != nil || len(rows) == 0 {
+			t.Fatalf("%s %s = %s (%v)", name, rowsKey, wrapper[rowsKey], err)
+		}
+		for _, row := range rows {
+			for k := range row {
+				if !rowKeys[k] {
+					t.Errorf("%s row has undocumented field %q: %s", name, k, wrapper[rowsKey])
+				}
+			}
+		}
+	}
+	checkWrapped("list_tasks", "tasks", `{"workspace_id":"`+x.w.ID+`"}`, taskKeys)
+	checkWrapped("list_members", "members", `{"workspace_id":"`+x.w.ID+`"}`, map[string]bool{"user_id": true, "name": true, "role": true})
 	raw, err = callMcpTool(t, x.tools, x.p, "get_meeting", `{"workspace_id":"`+x.w.ID+`","meeting_id":"`+m.ID+`"}`)
 	check("get_meeting", raw, err, itemKeys)
 	raw, err = callMcpTool(t, x.tools, x.p, "my_work", `{}`)
