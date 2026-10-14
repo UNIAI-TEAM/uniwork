@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func (x *mcpToolWorld) project(t *testing.T, title string) string {
@@ -482,5 +484,69 @@ func TestMcpCreateProjectOpensNoChatChannel(t *testing.T) {
 	}
 	if _, item := writeResult(t, raw); channels(fmt.Sprint(item["id"])) != 0 {
 		t.Fatal("create_project opened a chat channel")
+	}
+}
+
+// A project led by an agent keeps its lead: the tools set people only, so an
+// agent replaced or cleared here could not be put back by sending from. The
+// call is refused and nothing is written.
+func TestMcpUpdateProjectLeavesAnAgentLeadAlone(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	agent, err := x.tools.q.CreateAgent(ctx, db.CreateAgentParams{
+		ID: util.NewID(), OrganizationID: x.w.OrganizationID, Name: "Trợ lý", Handle: "tro-ly",
+		OwnerUserID: x.ua.ID, AutonomyPolicy: "{}", CreatedBy: x.ua.ID, CreatedByKind: "human",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := x.tools.q.AddWorkspaceAgentMember(ctx, db.AddWorkspaceAgentMemberParams{
+		WorkspaceID: x.w.ID, AgentID: agent.ID, OrganizationID: x.w.OrganizationID, CreatedBy: x.ua.ID, CreatedByKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	id := x.project(t, "Do agent phụ trách")
+	// The way PATCH /projects/{id} sets it: lead_type and lead_id together.
+	agentType, agentID := "agent", agent.ID
+	lt, lid := &agentType, &agentID
+	if _, err := x.tools.ask.tasks.UpdateProject(ctx, Human(x.ua.ID), x.w.ID, id, UpdateProjectInput{ExpectedRevision: x.projectRevision(t, id), LeadType: &lt, LeadID: &lid}); err != nil {
+		t.Fatal(err)
+	}
+	rev := strconv.FormatInt(x.projectRevision(t, id), 10)
+	for _, lead := range []string{`"` + x.ua.ID + `"`, `null`} {
+		_, err := callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+rev+`,"title":"Đổi","lead_id":`+lead+`}`)
+		var bad McpInvalidArgs
+		if !errors.As(err, &bad) || !strings.Contains(bad.Msg, "led by an agent") {
+			t.Errorf("lead_id %s on an agent-led project: %v, want McpInvalidArgs", lead, err)
+		}
+	}
+	if now, _ := x.tools.ask.tasks.GetProject(ctx, Human(x.ua.ID), x.w.ID, id); strconv.FormatInt(now.Revision, 10) != rev || now.LeadID.String != agent.ID || now.Title != "Do agent phụ trách" {
+		t.Fatalf("a refused lead change wrote: %+v", now)
+	}
+	// A call that leaves the lead alone goes through and keeps it.
+	raw, err := callMcpTool(t, x.tools, x.p, "update_project", `{"workspace_id":"`+x.w.ID+`","project_id":"`+id+`","revision":`+rev+`,"title":"Đổi"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, item := writeResult(t, raw); item["lead_id"] != agent.ID || len(res.Changes) != 1 || res.Changes[0].Field != "title" {
+		t.Fatalf("update_project = %s", raw)
+	}
+}
+
+// The project tools offer the task priorities, in that order; the project
+// service accepts exactly that set, and the schemas list it.
+func TestMcpProjectPrioritiesAreTheServices(t *testing.T) {
+	if got, want := slices.Sorted(slices.Values(mcpPriorities)), slices.Sorted(slices.Values(validProjectPriorities)); !slices.Equal(got, want) {
+		t.Fatalf("mcpPriorities %v, project service accepts %v", got, want)
+	}
+	for name, schema := range map[string]json.RawMessage{"create_project": mcpSchemaCreateProject, "update_project": mcpSchemaUpdateProject} {
+		var s struct {
+			Properties struct {
+				Priority struct{ Enum []string }
+			}
+		}
+		if err := json.Unmarshal(schema, &s); err != nil || !slices.Equal(s.Properties.Priority.Enum, mcpPriorities) {
+			t.Errorf("%s priority enum = %v (%v), want %v", name, s.Properties.Priority.Enum, err, mcpPriorities)
+		}
 	}
 }

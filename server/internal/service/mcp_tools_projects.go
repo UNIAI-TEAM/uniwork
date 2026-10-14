@@ -298,8 +298,8 @@ func (in mcpUpdateProjectIn) check() error {
 			return McpInvalidArgs{Msg: f.name + " cannot be null; send a value"}
 		}
 	}
-	if utf8.RuneCountInString(in.Description.Value) > mcpMaxItemRunes {
-		return McpInvalidArgs{Msg: fmt.Sprintf("description holds at most %d characters here; a longer one could not be undone", mcpMaxItemRunes)}
+	if err := mcpDescriptionUndoable(in.Description, ""); err != nil {
+		return err
 	}
 	if in.Title.Set {
 		if err := mcpProjectTitle(in.Title.Value); err != nil {
@@ -346,8 +346,13 @@ func (s *McpToolService) UpdateProject(ctx context.Context, p McpPrincipal, in m
 	}
 	// Undo sends from back, and get_project shows no more than this: a longer
 	// description replaced here could not be restored.
-	if in.Description.Set && utf8.RuneCountInString(before.Description) > mcpMaxItemRunes {
-		return McpWriteResult{}, McpInvalidArgs{Msg: "the description is too long to replace safely here; edit it in UniWork"}
+	if err := mcpDescriptionUndoable(in.Description, before.Description); err != nil {
+		return McpWriteResult{}, err
+	}
+	// The tools set people only: an agent lead replaced or cleared here could
+	// not be put back by sending from.
+	if in.LeadID.Set && before.LeadType.String == "agent" {
+		return McpWriteResult{}, McpInvalidArgs{Msg: "this project is led by an agent; change its lead in UniWork"}
 	}
 	actor := Human(p.UserID)
 	// Read before the write: a failure after it would read as a failed update.
@@ -365,7 +370,13 @@ func (s *McpToolService) UpdateProject(ctx context.Context, p McpPrincipal, in m
 		LeadID: in.LeadID.ptr2(), StartDate: in.StartDate.ptr2(), DueDate: in.DueDate.ptr2(),
 	}
 	if in.LeadID.Set {
-		upd.LeadType = mcpOpt[string]{Set: true, Null: in.LeadID.Null, Value: mcpLeadMember}.ptr2()
+		// lead_type follows lead_id: member with a person, none with null.
+		var leadType *string
+		if !in.LeadID.Null {
+			member := mcpLeadMember
+			leadType = &member
+		}
+		upd.LeadType = &leadType
 	}
 	after, err := s.ask.tasks.UpdateProject(ctx, actor, in.WorkspaceID, before.ID, upd)
 	if err != nil {
@@ -409,7 +420,7 @@ func mcpProjectTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpCreateProjectIn) (any, error) {
 				return s.CreateProject(ctx, p, in)
 			}),
-		mcpWriteTool("update_project", "Update project", "Changes one project as the user: omitted fields stay as they are, null clears lead_id or a date. revision must be the one you read; if the project changed since, nothing is written and the call fails with revision_conflict. Only its creator, its lead or a workspace owner or admin may change it; anyone else gets not_project_editor. Everyone in the workspace sees the change. No one is notified. A description longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters is too long to replace here; edit it in UniWork.", "call update_project again with the from values in changes", true, mcpSchemaUpdateProject,
+		mcpWriteTool("update_project", "Update project", "Changes one project as the user: omitted fields stay as they are, null clears lead_id or a date. revision must be the one you read; if the project changed since, nothing is written and the call fails with revision_conflict. Only its creator, its lead or a workspace owner or admin may change it; anyone else gets not_project_editor. Everyone in the workspace sees the change. No one is notified. A description longer than "+strconv.Itoa(mcpMaxItemRunes)+" characters is too long to replace here, and a project led by an agent keeps its lead; change those in UniWork.", "call update_project again with the from values in changes", true, mcpSchemaUpdateProject,
 			func(ctx context.Context, p McpPrincipal, in mcpUpdateProjectIn) (any, error) {
 				return s.UpdateProject(ctx, p, in)
 			}),

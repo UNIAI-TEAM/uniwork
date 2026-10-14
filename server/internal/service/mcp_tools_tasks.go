@@ -440,8 +440,8 @@ func (in mcpUpdateTaskIn) check() error {
 			return McpInvalidArgs{Msg: f.name + " cannot be null; send a value"}
 		}
 	}
-	if utf8.RuneCountInString(in.Description.Value) > mcpMaxItemRunes {
-		return McpInvalidArgs{Msg: fmt.Sprintf("description holds at most %d characters here; a longer one could not be undone", mcpMaxItemRunes)}
+	if err := mcpDescriptionUndoable(in.Description, ""); err != nil {
+		return err
 	}
 	if title := strings.TrimSpace(in.Title.Value); in.Title.Set && (title == "" || utf8.RuneCountInString(title) > mcpMaxTitleRunes) {
 		return McpInvalidArgs{Msg: fmt.Sprintf("title must be 1-%d characters", mcpMaxTitleRunes)}
@@ -561,8 +561,8 @@ func (s *McpToolService) UpdateTask(ctx context.Context, p McpPrincipal, in mcpU
 	}
 	// Undo sends from back, and get_task shows no more than this: a longer
 	// description replaced here could not be restored.
-	if in.Description.Set && utf8.RuneCountInString(before.Description) > mcpMaxItemRunes {
-		return McpWriteResult{}, McpInvalidArgs{Msg: "the description is too long to replace safely here; edit it in UniWork"}
+	if err := mcpDescriptionUndoable(in.Description, before.Description); err != nil {
+		return McpWriteResult{}, err
 	}
 	base, err := s.ask.base(ctx, in.WorkspaceID)
 	if err != nil {
