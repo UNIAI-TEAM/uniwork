@@ -65,10 +65,14 @@ failure from the round log alone — the r1 round ended on a bare
 `usage: lib.mjs --write <runDir>` with nothing saying which step produced it.
 `HARNESS_LOG_TAIL_LINES` (default `40`) sets the length.
 
-`lib.mjs` has two CLI modes and `start.sh` calls both directly (never through
-`node -e`): `node lib.mjs --write <runDir>` writes a run's ports and env, and
-`node lib.mjs --fork-dir <cacheRoot> <sha>` prints the fork checkout path. A
-failed call names its step and the exact command in `start.sh`'s output.
+`lib.mjs` has four CLI modes and `start.sh` calls them directly (never through
+`node -e`): `node lib.mjs --write <runDir>` writes a run's ports and env,
+`node lib.mjs --fork-dir <cacheRoot> <sha>` prints the fork checkout path,
+`node lib.mjs --app-env <apiOrigin> <userDataDir>` writes NUL-delimited allow-listed
+environment variables for the Electron app, and
+`node lib.mjs --app-proxy <runDir> <listenPort> <targetPort>` runs the harness-local
+TCP proxy between the Electron app and the D server. A failed call names its step
+and the exact command in `start.sh`'s output.
 
 ## What start.sh records, and what it hands to the processes it starts
 
@@ -91,6 +95,14 @@ failed call names its step and the exact command in `start.sh`'s output.
   the fork's few switches. start.sh sources the VM's `.env`, and none of it
   (`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, any `*_KEY`/`*_SECRET`/`*_TOKEN`/
   `*PASSWORD`) reaches the app; `appEnv` throws on such a name.
+* `writeRunEnv` also allocates `APP_PROXY_PORT` and `APP_CDP_PORT` in `ports.env`,
+  writes `userdata/deployment-profile.json` (`apiOrigin: http://127.0.0.1:<APP_PROXY_PORT>`),
+  and initializes `app-proxy.state` (`online`). `start.sh` launches the harness-local
+  TCP proxy (`lib.mjs --app-proxy`) forwarding `APP_PROXY_PORT` to `API_PORT` and passes
+  `--remote-debugging-port=<APP_CDP_PORT>` to the Electron app. Toggling `app-proxy.state`
+  to `offline` (`setAppApiProxyOnline(runDir, false)`) severs the app's link to the D
+  server for offline-save testing (G7-10 Loop 3) while keeping the D server up for the
+  web UI and the test.
 * The deep-link instance is recorded in `pids` as `handoff` while it lives
   (stop.sh stops it too) and killed as a group if it outlives its timeout.
 * `stop.sh` also removes the run's `uploads/` and `server-cwd/` by exact path.

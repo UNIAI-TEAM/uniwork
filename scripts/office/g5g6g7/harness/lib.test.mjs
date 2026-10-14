@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { verify } from "../evidence.mjs";
 import { bashSyntaxError, shBlocks } from "./readme-sh-blocks.mjs";
 import { routeCatalogue, routeMatches } from "./server-contract.helper.mjs";
-import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isMainModule, appOrigin, loopbackOriginsIn, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isAppApiProxyOnline, isMainModule, appOrigin, loopbackOriginsIn, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, setAppApiProxyOnline, startAppApiProxy, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -1783,6 +1783,83 @@ test("document-step's precondition BLOCKED line (no D server up) carries its fix
   assert.match(line.fixtureSha256, /^[0-9a-f]{64}$/);
   assert.match(readFileSync(line.artifact, "utf8"), /BLOCKED: no D server on/);
   assert.deepEqual(verifyLine(line), []);
+});
+
+test("writeRunEnv allocates distinct APP_PROXY_PORT and APP_CDP_PORT and writes deployment-profile.json for the app proxy (G710-L2)", async () => {
+  const runDir = tmpDir("harness-app-proxy-env-");
+  const previous = { DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL };
+  process.env.DATABASE_URL = "postgres://u:p@localhost:5432/db?sslmode=disable";
+  process.env.REDIS_URL = "redis://localhost:6379/0";
+  try {
+    const ports = await writeRunEnv(runDir, { forkSha: "0d03b18", dSha: "deadbeef" });
+    assert.ok(ports.appProxyPort > 0 && ports.appCdpPort > 0);
+    assert.equal(
+      new Set([ports.apiPort, ports.webPort, ports.metricsPort, ports.previewPort, ports.appProxyPort, ports.appCdpPort]).size,
+      6,
+    );
+    const portsText = readFileSync(join(runDir, "ports.env"), "utf8");
+    assert.match(portsText, new RegExp(`^APP_PROXY_PORT=${ports.appProxyPort}$`, "m"));
+    assert.match(portsText, new RegExp(`^APP_CDP_PORT=${ports.appCdpPort}$`, "m"));
+    assert.match(portsText, new RegExp(`^APP_API_ORIGIN=http://127\\.0\\.0\\.1:${ports.appProxyPort}$`, "m"));
+    assert.equal(isAppApiProxyOnline(runDir), true);
+    const profile = JSON.parse(readFileSync(harnessPaths(runDir).deploymentProfile, "utf8"));
+    assert.deepEqual(profile, {
+      deploymentId: "default",
+      apiOrigin: `http://127.0.0.1:${ports.appProxyPort}`,
+      clientId: DEV_CLIENT_ID,
+      channel: "dev",
+    });
+  } finally {
+    if (previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.DATABASE_URL;
+    if (previous.REDIS_URL === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = previous.REDIS_URL;
+  }
+});
+
+test("startAppApiProxy cuts only the app's proxy link while the D server stays reachable to the web and test (G710-L2)", async () => {
+  const runDir = tmpDir("harness-proxy-cut-");
+  const upstream = createHttpServer((req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ok: true, path: req.url }));
+  });
+  await new Promise((r) => upstream.listen(0, "127.0.0.1", r));
+  const targetPort = upstream.address().port;
+  const proxy = await startAppApiProxy({ runDir, listenPort: 0, targetPort });
+  try {
+    // 1. Online: both proxy (app) and direct target (web/test) answer 200
+    const resOnline = await fetch(`http://127.0.0.1:${proxy.port}/healthz`);
+    assert.equal(resOnline.status, 200);
+    // 2. Cut the app proxy: proxy rejects immediately while targetPort still answers 200
+    setAppApiProxyOnline(runDir, false);
+    assert.equal(isAppApiProxyOnline(runDir), false);
+    await assert.rejects(() => fetch(`http://127.0.0.1:${proxy.port}/healthz`));
+    const directWhileCut = await fetch(`http://127.0.0.1:${targetPort}/healthz`);
+    assert.equal(directWhileCut.status, 200);
+    // 3. Resume the app proxy: proxy answers 200 again
+    setAppApiProxyOnline(runDir, true);
+    assert.equal(isAppApiProxyOnline(runDir), true);
+    const resResumed = await fetch(`http://127.0.0.1:${proxy.port}/healthz`);
+    assert.equal(resResumed.status, 200);
+  } finally {
+    await proxy.close();
+    await new Promise((r) => upstream.close(r));
+  }
+});
+
+test("start.sh passes --remote-debugging-port before the shell app dir so the running Electron app can be driven headlessly (G710-L1)", async () => {
+  const stack = mkFakeStack();
+  try {
+    const result = runStart(stack);
+    assert.equal(result.status, 0, `start.sh exited ${result.status}\n${result.stdout}\n${result.stderr}`);
+    const argvFile = join(stack.root, "electron-argv");
+    for (let i = 0; i < 40 && !existsSync(argvFile); i += 1) await new Promise((r) => setTimeout(r, 100));
+    const argv = readFileSync(argvFile, "utf8").split("\n").filter(Boolean);
+    const cdpArg = argv.find((a) => a.startsWith("--remote-debugging-port="));
+    assert.ok(cdpArg, `expected --remote-debugging-port in argv: ${argv.join(" ")}`);
+    assert.match(cdpArg, /^--remote-debugging-port=[1-9]\d*$/);
+    assert.ok(argv.indexOf(cdpArg) < argv.length - 1, "the CDP flag comes before the app dir");
+  } finally {
+    stopFakeStack(stack);
+  }
 });
 
 // Contract section 6: every mkdtemp dir of this file goes through tmpDir() and
