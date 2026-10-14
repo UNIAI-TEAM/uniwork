@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -20,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
@@ -445,7 +447,7 @@ func (m *mcpRecordedMetrics) IncOAuth(e string) {
 	m.oauth = append(m.oauth, e)
 }
 
-func (m *mcpRecordedMetrics) ObserveTool(tool, outcome string, d time.Duration) {
+func (m *mcpRecordedMetrics) ObserveTool(tool, _, outcome string, d time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.tools = append(m.tools, tool+"/"+outcome)
@@ -500,7 +502,7 @@ func TestMcpRequestSpanCarriesClientGrantAndTool(t *testing.T) {
 			continue
 		}
 		found = true
-		if !strings.HasPrefix(attrs["mcp.client_id"], "mcpc_") || attrs["mcp.grant_id"] == "" || attrs["uniwork.actor_kind"] != "human" || attrs["uniwork.organization_id"] == "" {
+		if !strings.HasPrefix(attrs["mcp.client_id"], "mcpc_") || attrs["mcp.grant_id"] == "" || attrs["mcp.scope"] != "read" || attrs["uniwork.actor_kind"] != "human" || attrs["uniwork.organization_id"] == "" {
 			t.Errorf("span attributes = %v", attrs)
 		}
 		for k, v := range attrs {
@@ -511,6 +513,33 @@ func TestMcpRequestSpanCarriesClientGrantAndTool(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("no span carries mcp.tool=my_work (%d spans)", len(sr.Ended()))
+	}
+}
+
+// Every tool call is counted with its kind: read for a read tool, write for
+// anything else, and a refused write still counts as a write (spec §9).
+func TestMcpToolMetricsCarryTheKind(t *testing.T) {
+	var ran []string
+	var via audit.Via
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+	call := func(h http.Handler, tool string) {
+		mcpDirectCall(t, h, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"`+tool+`","arguments":{}}}`)
+	}
+
+	reader := service.McpPrincipal{UserID: "u1", OrganizationID: "o1", GrantID: "g1", Scope: "read", WriteOpen: true}
+	counts := &mcpToolCounts{}
+	h := mcpServeAs(newMcpHandler(writeRegistry(&ran, &via), counts, nil, quiet), reader)
+	call(h, "peek")
+	call(h, "poke")
+	if got := strings.Join(counts.kinds, ","); got != "peek/read/ok,poke/write/refused" {
+		t.Errorf("read grant metrics = %s", got)
+	}
+
+	counts = &mcpToolCounts{}
+	h = mcpServeAs(newMcpHandler(writeRegistry(&ran, &via), counts, nil, quiet), writer())
+	call(h, "poke")
+	if got := strings.Join(counts.kinds, ","); got != "poke/write/ok" {
+		t.Errorf("write grant metrics = %s", got)
 	}
 }
 
