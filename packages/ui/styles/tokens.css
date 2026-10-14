@@ -179,6 +179,11 @@
      badge reads `bg-success-soft`, a module tile reads `bg-tint-green`. */
   --destructive-soft: #fdecec;
   --destructive-soft-foreground: #ad1a1a;
+  /* Hover of the destructive button: one notch deeper than the soft fill and
+     opaque, so the pair measures the same on every plane it lands on (page,
+     card, dialog footer, muted). --destructive-soft-foreground: 5.49 here,
+     6.25 at rest. button.destructive.test.tsx composites both. */
+  --destructive-soft-hover: #fbdada;
   --destructive-solid: #cc2a2f;
   --success-soft: #e6f7ee;
   --success-soft-foreground: #137046;
@@ -423,6 +428,12 @@
      the light values: the white label measures the same either side. */
   --destructive-soft: #3d1a1a;
   --destructive-soft-foreground: #f87171;
+  /* The old dark destructive button was an alpha of its own text red
+     (/20 rest, /30 hover), which brightens toward the ink it carries:
+     4.18 / 3.47 on the dialog footer, 4.69 / 3.86 on a card. Opaque now —
+     --destructive-soft-foreground reads 5.58 at rest and 5.04 on this hover
+     fill on every plane. */
+  --destructive-soft-hover: #4a1f1f;
   --destructive-solid: #cc2a2f;
   --success-soft: #16301f;
   --success-soft-foreground: #4ade80;
@@ -634,6 +645,7 @@ html.dark[data-accent] {
   --color-destructive: var(--destructive);
   --color-destructive-soft: var(--destructive-soft);
   --color-destructive-soft-foreground: var(--destructive-soft-foreground);
+  --color-destructive-soft-hover: var(--destructive-soft-hover);
   --color-destructive-solid: var(--destructive-solid);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
