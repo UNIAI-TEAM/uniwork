@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import {
   FeatureFlagsProvider,
   FeatureFlagService,
@@ -566,8 +567,8 @@ describe("DocumentsPageView", () => {
       },
     });
     renderView(vi.fn());
-    // The folder is in the sidebar tree too; the row menu names it.
-    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    const row = await rowOf("Hợp đồng");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).queryByRole("button", { name: "Hợp đồng" })).toBeNull();
@@ -690,19 +691,25 @@ describe("DocumentsPageView", () => {
 
   it("does not offer a move target past the depth limit", async () => {
     const chain = (level: number): ReturnType<typeof treeNode> =>
-      treeNode({ id: `l${level}`, title: `Cấp ${level}`, kind: "folder", children: level < 5 ? [chain(level + 1)] : [] });
+      treeNode({
+        id: `l${level}`,
+        title: `Cấp ${level}`,
+        kind: "folder",
+        children: level < TREE_MAX_LEVEL ? [chain(level + 1)] : [],
+      });
     route({
       list: () => [summary({ id: "d1" })],
       tree: () => [chain(1), treeNode({ id: "d1", title: "Kế hoạch Q4", children: [treeNode({ id: "d2", title: "Con" })] })],
     });
     renderView(vi.fn());
-    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
+    const row = await rowOf("Kế hoạch Q4");
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
     const dialog = await screen.findByRole("dialog");
-    // A page with one child takes two levels: level 3 is the deepest target.
-    expect(within(dialog).getByRole("button", { name: "Cấp 3" })).toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "Cấp 4" })).toBeNull();
-    expect(within(dialog).queryByRole("button", { name: "Cấp 5" })).toBeNull();
+    // A page with one child takes two levels: TREE_MAX_LEVEL - 2 is the deepest target.
+    expect(within(dialog).getByRole("button", { name: `Cấp ${TREE_MAX_LEVEL - 2}` })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: `Cấp ${TREE_MAX_LEVEL - 1}` })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: `Cấp ${TREE_MAX_LEVEL}` })).toBeNull();
   });
 
   it("explains a folder too large to archive at once", async () => {
@@ -869,7 +876,8 @@ async function cardButton(type: string) {
 }
 
 async function rowOf(title: string) {
-  const name = await screen.findByText(title);
+  const table = await screen.findByRole("table");
+  const name = await within(table).findByText(title);
   const row = name.closest("tr");
   if (!row) throw new Error(`no row for ${title}`);
   return row as HTMLElement;
