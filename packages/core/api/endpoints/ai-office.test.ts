@@ -144,17 +144,24 @@ describe("ai-office endpoints", () => {
     expect(drifted.tools.chat).toBe(false);
   });
 
-  it("getAiCloudStatus reads uniwork_model, \"\" from an older server, and degrades on a malformed one", async () => {
+  it("getAiCloudStatus reads uniwork_model, \"\" from an older server, and keeps the status on a drifted one", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, tools: { chat: true }, uniwork_model: "claude-opus-5" }));
     expect((await getAiCloudStatus("o1")).uniwork_model).toBe("claude-opus-5");
     // An older server omits the field: the UniWork AI row shows the label only.
     vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, tools: { chat: true } }));
     expect((await getAiCloudStatus("o1")).uniwork_model).toBe("");
-    // A malformed value fails the status as a whole: disabled, no model.
-    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, uniwork_model: 7 }));
-    const drifted = await getAiCloudStatus("o1");
-    expect(drifted.enabled).toBe(false);
-    expect(drifted.uniwork_model).toBe("");
+    // A label that drifts (null, or a non-string) degrades alone: the status
+    // stays usable and the UniWork AI row shows the label only.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, tools: { chat: true }, uniwork_model: null }));
+    const nullModel = await getAiCloudStatus("o1");
+    expect(nullModel.enabled).toBe(true);
+    expect(nullModel.tools.chat).toBe(true);
+    expect(nullModel.uniwork_model).toBe("");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, tools: { chat: true }, uniwork_model: 7 }));
+    const numberModel = await getAiCloudStatus("o1");
+    expect(numberModel.enabled).toBe(true);
+    expect(numberModel.tools.chat).toBe(true);
+    expect(numberModel.uniwork_model).toBe("");
   });
 
   it("aiCloudSearch posts the query and degrades to no results", async () => {
