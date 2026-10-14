@@ -111,7 +111,13 @@ export function paramKind(name) {
   return null;
 }
 
-/** An SDI struct's JSON fields: `{ <json key>: { required } }` (required = a minLength or required:"true" tag). */
+/**
+ * An SDI struct's JSON fields: `{ <json key>: { required } }`.
+ * Per docs/api-sdi-sdo.md §3/§4, required fields are non-pointer values without
+ * `omitempty` that carry `minLength:"..."` (or an explicit `required:"true"` tag);
+ * pointer / `omitempty` fields (`*string \`json:"comment_id,omitempty" minLength:"1"\``)
+ * are optional, and their `minLength` tag bounds the value only when present.
+ */
 export function sdiFields(structName) {
   for (const { text } of readAll(SDI_DIR)) {
     const struct = text.match(new RegExp(`type ${structName} struct \\{([\\s\\S]*?)\\n\\}`));
@@ -119,7 +125,10 @@ export function sdiFields(structName) {
     const fields = {};
     for (const line of struct[1].split("\n")) {
       const json = line.match(/json:"([a-z_]+)/);
-      if (json) fields[json[1]] = { required: /minLength:"|required:"true"/.test(line) };
+      if (json) {
+        const optional = /^\s*\w+\s+\*/.test(line) || /json:"[a-z_]+,omitempty"/.test(line);
+        fields[json[1]] = { required: /required:"true"/.test(line) || (!optional && /minLength:"/.test(line)) };
+      }
     }
     return fields;
   }

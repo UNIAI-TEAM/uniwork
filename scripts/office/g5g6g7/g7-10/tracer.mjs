@@ -67,6 +67,10 @@ export const BLOCKED_EXIT = HARNESS_BLOCKED_EXIT;
 export const UPSTREAM_BLOCKED_REASON = "no real upstream on this runner; contract-p0 §8";
 export const UPSTREAM_BLOCKED_OWNER = "g7-qa";
 
+export const WEB_SHEETS_HOST_SELECTOR = '[data-office-docs-frame][data-office-module="sheets"]';
+export const WEB_SHEETS_READY_SELECTOR = '[data-office-docs-frame][data-office-module="sheets"][data-state="ready"]';
+export const WEB_SHEETS_IFRAME_SELECTOR = 'iframe[src*="/office-frame/sheets/"]';
+
 /**
  * Every HTTP route the tracer driver calls against the D server.
  * Path templates match `server/internal/handler/router/*.go` (under `/api/v1`).
@@ -74,6 +78,12 @@ export const UPSTREAM_BLOCKED_OWNER = "g7-qa";
  */
 export const TRACER_API_CALLS = Object.freeze({
   ...API_CALLS,
+  completeOnboarding: {
+    method: "POST",
+    path: "/me/onboarding/complete",
+    sdi: "CompleteOnboardingSDI",
+    body: ["completion_path", "workspace_id"],
+  },
   getDesktopConsent: {
     method: "GET",
     path: "/auth/desktop/authorize",
@@ -699,6 +709,15 @@ async function seedFixtureDocument({
   });
   const workspaceId = wsRes.data.workspace.id;
 
+  // Complete onboarding so web navigation to /<org>/<ws>/documents/<id> never redirects to /onboarding (C2).
+  await callTracerApi({
+    apiOrigin,
+    fetchImpl,
+    name: "completeOnboarding",
+    token,
+    body: { completion_path: "full", workspace_id: workspaceId },
+  });
+
   const accountRecord = {
     apiOrigin,
     email,
@@ -766,10 +785,11 @@ async function cleanupSeededOrganization({ apiOrigin, fetchImpl = fetch, seeded,
 /**
  * Determines whether an AI chat completion response came from a genuine
  * upstream model with real X/Y/Z answers or from `AI_PROVIDER=fake` / disabled.
- * Under `contract-p0.md` §8, the cloud runner runs `AI_PROVIDER=fake` and must
- * NEVER report `PASS` for a real-model AI segment.
+ * Under `contract-p0.md` §8 and spec §12.3 (C4), the cloud runner runs `AI_PROVIDER=fake`
+ * (or answers 503 `ai_disabled` when the fake deployment has AI disabled) and must
+ * report `BLOCKED` (exit 77, owner `g7-qa`, reason `UPSTREAM_BLOCKED_REASON`), NEVER `PASS` or `FAIL`.
  */
-function classifyAiResponse(aiTurnResult, expectedXyz = null) {
+export function classifyAiResponse(aiTurnResult, expectedXyz = null) {
   if (!aiTurnResult.ok) {
     return {
       status: "BLOCKED",
@@ -805,6 +825,52 @@ function classifyAiResponse(aiTurnResult, expectedXyz = null) {
     }
   }
   return { status: "PASS", httpStatus: aiTurnResult.status };
+}
+
+/**
+ * Interprets the response from `GET /api/v1/documents/{id}/versions/commit`
+ * (`lookupCommitIntent`) per the G5-07 contract (`server/internal/service/document_commit_intent.go:193-197, 418-441`,
+ * `server/internal/handler/dto/sdo/document.go:125-135`, `docs/office/g5g6g7/contract-p0.md:89, 126`, C3):
+ *   * HTTP 410 `commit_intent_unknown` (`error.fields.outcome === "unknown"`):
+ *     the server holds no row for that `Idempotency-Key` (never claimed, or swept after TTL).
+ *   * HTTP 200 `{ outcome: "not_committed" }`: a claim row existed and expired without committing.
+ *   * HTTP 200 `{ outcome: "in_flight" }`: a claim row is currently live in flight.
+ *   * HTTP 200 `{ outcome: "committed", version_id, version, revision }`: committed receipt.
+ */
+export function interpretCommitIntentLookup(res) {
+  const status = Number(res?.status ?? 0);
+  const data = res?.data ?? {};
+  if (status === 410) {
+    const code = data?.error?.code ?? "commit_intent_unknown";
+    const outcome = data?.error?.fields?.outcome ?? "unknown";
+    return {
+      httpStatus: 410,
+      code,
+      outcome,
+      hasCommitted: false,
+      hasClaim: false,
+    };
+  }
+  const outcome = data?.outcome ?? "unknown";
+  if (outcome === "committed") {
+    return {
+      httpStatus: status,
+      code: null,
+      outcome: "committed",
+      hasCommitted: true,
+      hasClaim: true,
+      versionId: data?.version_id ?? null,
+      version: data?.version ?? null,
+      revision: data?.revision ?? null,
+    };
+  }
+  return {
+    httpStatus: status,
+    code: null,
+    outcome,
+    hasCommitted: false,
+    hasClaim: outcome === "not_committed" || outcome === "in_flight",
+  };
 }
 
 // ---- Pure Outcome Decision Functions (G710-L1, G710-L2, G710-L3, r3) ---------
@@ -906,6 +972,7 @@ export function decideAppSignInOutcome({
  *     is always `FAIL` (exit 1).
  *   * If the OS keyring was available and app sign-in failed (`appSignInFailureReason`),
  *     the loop is `FAIL` (exit 1) with that reason.
+ *   * If the live web UI was driven and failed (`webUiError`), the loop is `FAIL` (exit 1).
  *   * If the app was signed in and driven (`appSignedIn && appDriven`) yet did
  *     not reload v2 (`!appObservedV2ViaFeed`), the loop is `FAIL` (exit 1).
  *   * Under `AI_PROVIDER=fake` (`!aiRealUpstream`), without a driven web UI
@@ -922,6 +989,7 @@ export function decideLoop1Outcome({
   aiFailureReason = "",
   webUiDriven,
   webSaveSource,
+  webUiError = "",
   appSignedIn,
   appDriven,
   appOpenedV1 = false,
@@ -934,16 +1002,18 @@ export function decideLoop1Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `G6-A03 violation: AI turn created a server version before user Save (versions ${versionsBeforeTurn} -> ${versionsAfterTurn})`,
     };
   }
   if (aiFailureReason) {
-    return { exitCode: 1, status: "FAIL", reason: aiFailureReason };
+    return { exitCode: 1, status: "FAIL", owner: UPSTREAM_BLOCKED_OWNER, reason: aiFailureReason };
   }
   if (versionsAfterSave !== versionsBeforeTurn + 1) {
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `expected ${versionsBeforeTurn + 1} versions after Save, got ${versionsAfterSave}`,
     };
   }
@@ -951,6 +1021,7 @@ export function decideLoop1Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: "committed v2 workbook bytes do not contain the expected X/Y/Z values",
     };
   }
@@ -958,6 +1029,7 @@ export function decideLoop1Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: "workspace change feed did not report v2 after Save",
     };
   }
@@ -965,13 +1037,23 @@ export function decideLoop1Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: appSignInFailureReason,
+    };
+  }
+  if (webUiError) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
+      reason: `web UI failed while driving ${WEB_SHEETS_HOST_SELECTOR}: ${webUiError}`,
     };
   }
   if (appSignedIn && appDriven && (!appOpenedV1 || !appObservedV2ViaFeed || appObservedV2Source !== "app")) {
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `signed-in desktop app did not reload v2 from the workspace change feed into binding.json (appOpenedV1=${appOpenedV1}, appObservedV2ViaFeed=${appObservedV2ViaFeed}, source=${appObservedV2Source})`,
     };
   }
@@ -1005,6 +1087,7 @@ export function decideLoop1Outcome({
   return {
     exitCode: 0,
     status: "PASS",
+    owner: UPSTREAM_BLOCKED_OWNER,
     reason: "Loop 1 passed end to end across web UI, workspace change feed, and desktop app binding.json",
   };
 }
@@ -1033,16 +1116,18 @@ export function decideLoop2Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `G6-A03 violation: AI turn created a server version or queued an app save intent before explicit Save (versions ${versionsBeforeTurn} -> ${versionsAfterTurn}, appIntentsAfterTurn=${appIntentsAfterTurn})`,
     };
   }
   if (aiFailureReason) {
-    return { exitCode: 1, status: "FAIL", reason: aiFailureReason };
+    return { exitCode: 1, status: "FAIL", owner: UPSTREAM_BLOCKED_OWNER, reason: aiFailureReason };
   }
   if (versionsAfterSave !== versionsBeforeTurn + 1 || commitIntentOutcome !== "committed") {
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `expected versionsAfterSave=${versionsBeforeTurn + 1} and commitIntentOutcome=committed, got versions=${versionsAfterSave}, outcome=${commitIntentOutcome}`,
     };
   }
@@ -1050,6 +1135,7 @@ export function decideLoop2Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: appSignInFailureReason,
     };
   }
@@ -1057,6 +1143,7 @@ export function decideLoop2Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `signed-in desktop app failed to save v2 and update binding.json (appOpenedV1=${appOpenedV1}, appSavedV2=${appSavedV2}, saveSource=${saveSource})`,
     };
   }
@@ -1081,6 +1168,7 @@ export function decideLoop2Outcome({
   return {
     exitCode: 0,
     status: "PASS",
+    owner: UPSTREAM_BLOCKED_OWNER,
     reason: "Loop 2 passed end to end: 0 versions/intents on AI turn, v2 committed by explicit app Save",
   };
 }
@@ -1113,6 +1201,7 @@ export function decideLoop3Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: appSignInFailureReason,
     };
   }
@@ -1120,6 +1209,7 @@ export function decideLoop3Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason:
         "G710-L2 violation: test committed v2 over protocol HTTP before the app opened or saved; binding.json at v2 only proves the app opened v2, not an offline save",
     };
@@ -1131,6 +1221,7 @@ export function decideLoop3Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `binding.json settled to ${appBindingAfterReconnect.state} (${appBindingAfterReconnect.error ?? "unknown"}) instead of saved v2 receipt`,
     };
   }
@@ -1158,6 +1249,7 @@ export function decideLoop3Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: "the app did not open v1 (binding.json baseVersion=1) before the offline Save",
     };
   }
@@ -1165,6 +1257,7 @@ export function decideLoop3Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `expected server to still have 1 version while the app's proxy link was cut, got ${serverVersionsWhileCut}`,
     };
   }
@@ -1172,6 +1265,7 @@ export function decideLoop3Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason:
         "the app did not record an offline save state (binding.json state=offline or uniwork-sync/store/.../intents/*.rec) while its proxy link to the D server was cut",
     };
@@ -1187,12 +1281,14 @@ export function decideLoop3Outcome({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `after reconnect, app did not settle to saved v2 receipt with 1 server commit and 0 remaining intents (state=${appBindingAfterReconnect?.state ?? "none"}, baseVersion=${appBindingAfterReconnect?.baseVersion ?? "none"}, serverVersions=${serverVersionsAfterReconnect}, intentsRemaining=${appIntentsAfterReconnect})`,
     };
   }
   return {
     exitCode: 0,
     status: "PASS",
+    owner: UPSTREAM_BLOCKED_OWNER,
     reason: "Loop 3 passed: app opened v1, held offline save intent while cut (server at v1), and settled binding.json to v2 saved receipt on reconnect",
   };
 }
@@ -1227,11 +1323,14 @@ function deliverDeepLink(portsEnv, deepLink) {
 }
 
 /**
- * Drives the real D web UI (`WEB_ORIGIN`) via Playwright for Loop 1:
+ * Drives the real D web UI (`WEB_ORIGIN`) via Playwright for Loop 1 (C2):
  * signs in at `/login`, opens `/${orgSlug}/${wsSlug}/documents/${documentId}`,
- * waits for the Univer sheets iframe (`[data-testid="office-sheets-frame"][data-state="ready"]`),
- * enters the X/Y/Z columns in `E1:G4`, and presses `Control+s` to trigger the
- * web frame's own Save (`POST /api/v1/office-frame/documents/{id}/uploads` +
+ * waits for the OfficeModuleFrame sheets wrapper (`WEB_SHEETS_READY_SELECTOR`:
+ * `[data-office-docs-frame][data-office-module="sheets"][data-state="ready"]`,
+ * matching `packages/views/office/frame/office-module-frame.tsx:310-334` and
+ * `e2e/office-modules-web.spec.ts`), enters the X/Y/Z columns in `E1:G4`, and
+ * presses `Control+s` to trigger the web frame's own Save
+ * (`POST /api/v1/office-frame/documents/{id}/uploads` +
  * `POST /api/v1/office-frame/documents/{id}/versions/commit`).
  */
 export async function driveWebXlsxSave({
@@ -1283,23 +1382,20 @@ export async function driveWebXlsxSave({
     await emailInput.fill(email);
     await passInput.fill(password);
     await page.locator('button[type="submit"]').first().click();
-    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 20_000 });
+    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
 
     await page.goto(`${webOrigin}/${orgSlug}/${wsSlug}/documents/${documentId}`, {
       waitUntil: "domcontentloaded",
       timeout: 30_000,
     });
-    const host = page.locator('[data-testid="office-sheets-frame"]');
-    await host.waitFor({ state: "visible", timeout: 30_000 });
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="office-sheets-frame"]')?.getAttribute("data-state") === "ready",
-      null,
-      { timeout: 30_000 },
-    );
+    const host = page.locator(WEB_SHEETS_HOST_SELECTOR);
+    await host.waitFor({ state: "visible", timeout: 60_000 });
+    await page.locator(WEB_SHEETS_READY_SELECTOR).waitFor({ state: "visible", timeout: 90_000 });
 
-    const frame = page.frameLocator('iframe[src*="/office-frame/sheets/"]');
+    const frame = page.frameLocator(WEB_SHEETS_IFRAME_SELECTOR);
     const canvas = frame.locator('canvas[id^="univer-sheet-main-canvas"]').first();
     await canvas.waitFor({ state: "visible", timeout: 30_000 });
+    await canvas.click({ position: { x: 300, y: 200 } });
     const nameInput = frame.locator('[data-u-comp="defined-name"] input').first();
     await nameInput.waitFor({ state: "visible", timeout: 15_000 });
 
@@ -1321,14 +1417,16 @@ export async function driveWebXlsxSave({
       await nameInput.click();
       await nameInput.fill(ref);
       await nameInput.press("Enter");
+      await page.waitForTimeout(100);
       await page.keyboard.type(val);
       await page.keyboard.press("Enter");
     }
 
+    await page.waitForTimeout(300);
     await canvas.click({ position: { x: 120, y: 80 } });
     await page.keyboard.press("Control+s");
 
-    const deadline = Date.now() + 15_000;
+    const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
       const vers = await callTracerApi({
         apiOrigin,
@@ -1342,11 +1440,22 @@ export async function driveWebXlsxSave({
       }
       await sleep(300);
     }
+    const timeoutMsg = "Playwright pressed Control+s in the sheets frame but server versions did not reach 2 within 30s";
     return {
       driven: true,
       saved: false,
       source: "web",
-      reason: "Playwright pressed Control+s in the sheets frame but server versions did not reach 2 within 15s",
+      error: timeoutMsg,
+      reason: timeoutMsg,
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return {
+      driven: true,
+      saved: false,
+      source: "web",
+      error: errMsg,
+      reason: errMsg,
     };
   } finally {
     await browser.close().catch(() => {});
@@ -1779,6 +1888,26 @@ export async function connectAppController({
   };
 }
 
+function finalizeLoopOutcome(decision, loopState) {
+  const owner = decision.owner || UPSTREAM_BLOCKED_OWNER;
+  const details = {
+    owner,
+    ...loopState.details,
+    ...loopState.versionCounts,
+    steps: loopState.steps,
+    versionCounts: loopState.versionCounts,
+  };
+  return {
+    exitCode: decision.exitCode,
+    status: decision.status,
+    owner,
+    reason: decision.reason,
+    steps: loopState.steps,
+    versionCounts: loopState.versionCounts,
+    details,
+  };
+}
+
 // ---- Loop 1: fx-xlsx-revenue-xyz (Web -> AI -> Editor X/Y/Z Save -> Feed -> App) ----
 
 async function runLoop1({
@@ -1793,30 +1922,36 @@ async function runLoop1({
   cdpConnector = null,
   deepLinkDeliverer = deliverDeepLink,
 }) {
-  const seeded = await seedFixtureDocument({
-    apiOrigin,
-    runDir,
-    fetchImpl,
-    fixtureId: "fx-xlsx-revenue-xyz",
-    repoRoot,
-  });
-  const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
-  const appCtrl =
-    appDriver ??
-    (await connectAppController({
-      portsEnv,
-      runDir,
-      repoRoot,
-      apiOrigin,
-      fetchImpl,
-      token: seeded.token,
-      userId: seeded.userId,
-      deploymentId,
-      timeoutMs,
-      cdpConnector,
-      deepLinkDeliverer,
-    }));
+  const loopState = {
+    steps: {
+      appOpenV1: { source: "app", status: "PENDING" },
+      webFrameOpen: { source: "protocol", status: "PENDING" },
+      aiTurn: { source: "protocol", status: "PENDING" },
+      webSave: { source: "protocol", status: "PENDING" },
+      changeFeed: { source: "protocol", status: "PENDING" },
+      appReloadV2: { source: "protocol", status: "PENDING" },
+    },
+    versionCounts: {
+      versionsBeforeTurn: null,
+      versionsAfterTurn: null,
+      versionsAfterSave: null,
+    },
+    details: {
+      loop: "1",
+      fixtureId: "fx-xlsx-revenue-xyz",
+    },
+  };
+  let currentStep = "webFrameOpen";
+  let appCtrl = null;
+
   try {
+    const seeded = await seedFixtureDocument({
+      apiOrigin,
+      runDir,
+      fetchImpl,
+      fixtureId: "fx-xlsx-revenue-xyz",
+      repoRoot,
+    });
     const {
       email,
       password,
@@ -1829,6 +1964,30 @@ async function runLoop1({
       filename,
       fixture,
     } = seeded;
+    loopState.details.documentId = documentId;
+    loopState.details.workspaceId = workspaceId;
+    loopState.details.v1Sha256 = fixture.sha256;
+
+    const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
+    currentStep = "appOpenV1";
+    appCtrl =
+      appDriver ??
+      (await connectAppController({
+        portsEnv,
+        runDir,
+        repoRoot,
+        apiOrigin,
+        fetchImpl,
+        token: seeded.token,
+        userId: seeded.userId,
+        deploymentId,
+        timeoutMs,
+        cdpConnector,
+        deepLinkDeliverer,
+      }));
+    loopState.details.appDesktopPrecondition = appCtrl.signedIn
+      ? "signed_in"
+      : appCtrl.signInFailureReason || appCtrl.blockerReason;
 
     // 1. If the desktop app is signed in and reachable via CDP, open v1 in the app first
     //    so its working copy / binding.json settles at baseVersion: 1 before the web saves v2.
@@ -1838,9 +1997,22 @@ async function runLoop1({
       const opened = await appCtrl.openDocumentV1({ documentId, userId });
       appOpenedV1 = Boolean(opened?.opened && Number(opened?.binding?.baseVersion ?? 0) === 1);
       appV1Binding = opened?.binding ?? null;
+      loopState.steps.appOpenV1 = {
+        source: "app",
+        status: appOpenedV1 ? "PASS" : "FAIL",
+      };
+    } else {
+      loopState.steps.appOpenV1 = {
+        source: "app",
+        status: appCtrl.signInFailureReason ? "FAIL" : "BLOCKED",
+        reason: appCtrl.signInFailureReason || appCtrl.blockerReason || "app not signed in",
+      };
     }
+    loopState.details.appOpenedV1 = appOpenedV1;
+    loopState.details.appV1Binding = appV1Binding;
 
     // 2. Capture initial workspace change-feed snapshot cursor at v1.
+    currentStep = "webFrameOpen";
     const initialFeed = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -1860,12 +2032,16 @@ async function runLoop1({
     });
     const frameToken = frameTokenRes.data?.token;
     if (!frameToken) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: "mintOfficeFrameToken returned an empty token",
-        details: {},
-      };
+      loopState.steps.webFrameOpen = { source: "protocol", status: "FAIL", reason: "empty frame token" };
+      return finalizeLoopOutcome(
+        {
+          exitCode: 1,
+          status: "FAIL",
+          owner: UPSTREAM_BLOCKED_OWNER,
+          reason: "mintOfficeFrameToken returned an empty token",
+        },
+        loopState,
+      );
     }
 
     const frameDoc = await callTracerApi({
@@ -1879,12 +2055,19 @@ async function runLoop1({
     const v1Version = frameDoc.data?.file?.version;
     const v1Checksum = frameDoc.data?.file?.checksum_sha256;
     if (v1Version !== 1 || v1Checksum !== fixture.sha256 || !v1Revision) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `openOfficeFrameDocument v1 mismatch: version=${v1Version}, checksum=${v1Checksum}, expected=${fixture.sha256}`,
-        details: { v1Version, v1Checksum, expectedSha256: fixture.sha256 },
-      };
+      loopState.steps.webFrameOpen = { source: "protocol", status: "FAIL" };
+      loopState.details.v1Version = v1Version;
+      loopState.details.v1Checksum = v1Checksum;
+      loopState.details.expectedSha256 = fixture.sha256;
+      return finalizeLoopOutcome(
+        {
+          exitCode: 1,
+          status: "FAIL",
+          owner: UPSTREAM_BLOCKED_OWNER,
+          reason: `openOfficeFrameDocument v1 mismatch: version=${v1Version}, checksum=${v1Checksum}, expected=${fixture.sha256}`,
+        },
+        loopState,
+      );
     }
 
     const contentRes = await callTracerApi({
@@ -1896,16 +2079,22 @@ async function runLoop1({
       expectBinary: true,
     });
     if (sha256Hex(contentRes.bytes) !== fixture.sha256) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: "getOfficeFrameDocumentContent bytes did not match fx-xlsx-revenue-xyz v1 sha256",
-        details: {},
-      };
+      loopState.steps.webFrameOpen = { source: "protocol", status: "FAIL" };
+      return finalizeLoopOutcome(
+        {
+          exitCode: 1,
+          status: "FAIL",
+          owner: UPSTREAM_BLOCKED_OWNER,
+          reason: "getOfficeFrameDocumentContent bytes did not match fx-xlsx-revenue-xyz v1 sha256",
+        },
+        loopState,
+      );
     }
+    loopState.steps.webFrameOpen = { source: "protocol", status: "PASS" };
 
     // 4. Count server versions before the AI turn, run the AI turn, and verify
     //    G6-A03 invariant: the AI turn itself creates 0 versions and 0 uploads.
+    currentStep = "aiTurn";
     const versionsBeforeRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -1914,6 +2103,7 @@ async function runLoop1({
       token,
     });
     const versionsBeforeTurn = versionsBeforeRes.data?.versions?.length ?? 0;
+    loopState.versionCounts.versionsBeforeTurn = versionsBeforeTurn;
 
     const aiTurnRes = await callTracerApi({
       apiOrigin,
@@ -1941,6 +2131,8 @@ async function runLoop1({
       token,
     });
     const versionsAfterTurn = versionsAfterTurnRes.data?.versions?.length ?? 0;
+    loopState.versionCounts.versionsAfterTurn = versionsAfterTurn;
+
     const docAfterTurnRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -1951,19 +2143,35 @@ async function runLoop1({
     const revisionAfterTurn = docAfterTurnRes.data?.document?.revision;
 
     if (versionsAfterTurn !== versionsBeforeTurn || revisionAfterTurn !== v1Revision) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `G6-A03 violation: AI turn created a server version or changed revision before user Save (versions ${versionsBeforeTurn} -> ${versionsAfterTurn}, revision ${v1Revision} -> ${revisionAfterTurn})`,
-        details: { versionsBeforeTurn, versionsAfterTurn, v1Revision, revisionAfterTurn },
-      };
+      loopState.steps.aiTurn = { source: "protocol", status: "FAIL" };
+      loopState.details.v1Revision = v1Revision;
+      loopState.details.revisionAfterTurn = revisionAfterTurn;
+      return finalizeLoopOutcome(
+        {
+          exitCode: 1,
+          status: "FAIL",
+          owner: UPSTREAM_BLOCKED_OWNER,
+          reason: `G6-A03 violation: AI turn created a server version or changed revision before user Save (versions ${versionsBeforeTurn} -> ${versionsAfterTurn}, revision ${v1Revision} -> ${revisionAfterTurn})`,
+        },
+        loopState,
+      );
     }
+
+    const v2Workbook = buildXlsxRevenueWithXyzBytes(repoRoot);
+    const aiSegment = classifyAiResponse(aiTurnRes, v2Workbook.expectedXyz);
+    loopState.details.aiSegment = aiSegment;
+    loopState.steps.aiTurn = {
+      source: "protocol",
+      status: aiSegment.status,
+      httpStatus: aiTurnRes.status,
+      reason: aiSegment.reason ?? "",
+    };
 
     // 5. Drive the Web Save: first try the real Playwright web UI against WEB_ORIGIN
     //    (or injected webDriver). If WEB_ORIGIN is not live (e.g. protocol-only unit test),
     //    run the protocol diagnostic commit (`source: "protocol"`) so server invariants
     //    are still checked, while `webSaveSource: "protocol"` prevents a false PASS.
-    const v2Workbook = buildXlsxRevenueWithXyzBytes(repoRoot);
+    currentStep = "webSave";
     const webUiRes =
       typeof webDriver === "function"
         ? await webDriver({
@@ -1990,9 +2198,19 @@ async function runLoop1({
             fetchImpl,
           });
 
-    let webUiDriven = Boolean(webUiRes?.driven && webUiRes?.saved);
-    let webSaveSource = webUiDriven ? "web" : "protocol";
+    const webUiDriven = Boolean(webUiRes?.driven && webUiRes?.saved);
+    const webUiAttempted = Boolean(webUiRes?.driven);
+    const webUiError = webUiAttempted && !webUiDriven ? webUiRes?.error || webUiRes?.reason || "web UI did not save v2" : "";
+    const webSaveSource = webUiAttempted ? "web" : "protocol";
     let v2Checksum = v2Workbook.sha256;
+
+    if (webUiAttempted) {
+      loopState.steps.webSave = {
+        source: "web",
+        status: webUiDriven ? "PASS" : "FAIL",
+        ...(webUiError ? { reason: webUiError } : {}),
+      };
+    }
 
     if (!webUiDriven) {
       const uploadForm = new FormData();
@@ -2007,12 +2225,18 @@ async function runLoop1({
       });
       const uploadId = uploadRes.data?.upload_id;
       if (!uploadId || uploadRes.data?.checksum_sha256 !== v2Workbook.sha256) {
-        return {
-          exitCode: 1,
-          status: "FAIL",
-          reason: "uploadOfficeFrameFile did not return a matching upload_id and sha256",
-          details: { upload: uploadRes.data, expectedSha256: v2Workbook.sha256 },
-        };
+        if (!webUiAttempted) loopState.steps.webSave = { source: "protocol", status: "FAIL" };
+        loopState.details.upload = uploadRes.data;
+        loopState.details.expectedSha256 = v2Workbook.sha256;
+        return finalizeLoopOutcome(
+          {
+            exitCode: 1,
+            status: "FAIL",
+            owner: UPSTREAM_BLOCKED_OWNER,
+            reason: "uploadOfficeFrameFile did not return a matching upload_id and sha256",
+          },
+          loopState,
+        );
       }
       const commitKey = `g710-loop1-${documentId}-v2`;
       const commitRes = await callTracerApi({
@@ -2028,11 +2252,23 @@ async function runLoop1({
       const v2Revision = commitRes.data?.document?.revision;
       v2Checksum = commitRes.data?.version?.checksum_sha256;
       if (v2Version !== 2 || v2Checksum !== v2Workbook.sha256 || !v2Revision || v2Revision === v1Revision) {
-        return {
-          exitCode: 1,
-          status: "FAIL",
-          reason: `commitOfficeFrameVersion did not produce version 2 (got version=${v2Version}, checksum=${v2Checksum})`,
-          details: { commit: commitRes.data },
+        if (!webUiAttempted) loopState.steps.webSave = { source: "protocol", status: "FAIL" };
+        loopState.details.commit = commitRes.data;
+        return finalizeLoopOutcome(
+          {
+            exitCode: 1,
+            status: "FAIL",
+            owner: UPSTREAM_BLOCKED_OWNER,
+            reason: `commitOfficeFrameVersion did not produce version 2 (got version=${v2Version}, checksum=${v2Checksum})`,
+          },
+          loopState,
+        );
+      }
+      if (!webUiAttempted) {
+        loopState.steps.webSave = {
+          source: "protocol",
+          status: "PASS",
+          reason: webUiRes?.reason ?? "protocol diagnostic commit",
         };
       }
     } else {
@@ -2054,8 +2290,14 @@ async function runLoop1({
       token,
     });
     const versionsAfterSave = versionsAfterSaveRes.data?.versions?.length ?? 0;
+    loopState.versionCounts.versionsAfterSave = versionsAfterSave;
+    loopState.details.v2Sha256 = v2Checksum;
+    loopState.details.webUiDriven = webUiDriven;
+    loopState.details.webSaveSource = webSaveSource;
+    if (webUiError) loopState.details.webUiError = webUiError;
 
     // 6. Verify workspace change feed (G5-01b/G5-02) delivers the new v2 version (protocol check).
+    currentStep = "changeFeed";
     const feedRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -2072,8 +2314,19 @@ async function runLoop1({
       (item) => item.document_id === documentId && item.version === 2 && item.checksum_sha256 === v2Checksum,
     );
     const changeFeedDeliveredV2 = Boolean(hitInFeed);
+    loopState.steps.changeFeed = {
+      source: "protocol",
+      status: changeFeedDeliveredV2 ? "PASS" : "FAIL",
+    };
+    loopState.details.changeFeedDeliveredV2 = changeFeedDeliveredV2;
+    loopState.details.protocolDiagnosticSegment = {
+      source: "protocol",
+      status: changeFeedDeliveredV2 ? "PASS" : "FAIL",
+      summary: "Protocol-level 0-version AI turn + v2 commit + workspace change feed check",
+    };
 
     // 7. Observe the app's own working copy / binding.json reload to v2 via SyncRuntime (G710-L3).
+    currentStep = "appReloadV2";
     let appObservedV2ViaFeed = false;
     let appObservedV2Source = "protocol";
     let appV2Binding = null;
@@ -2092,10 +2345,22 @@ async function runLoop1({
       );
       appObservedV2Source = "app";
       appV2Binding = reloaded?.binding ?? null;
+      loopState.steps.appReloadV2 = {
+        source: "app",
+        status: appObservedV2ViaFeed ? "PASS" : "FAIL",
+      };
+    } else {
+      loopState.steps.appReloadV2 = {
+        source: "protocol",
+        status: appCtrl.signInFailureReason ? "FAIL" : "BLOCKED",
+        reason: appCtrl.signInFailureReason || appCtrl.blockerReason || "app not signed in",
+      };
     }
+    loopState.details.appObservedV2ViaFeed = appObservedV2ViaFeed;
+    loopState.details.appObservedV2Source = appObservedV2Source;
+    loopState.details.appV2Binding = appV2Binding;
 
-    // 8. Classify the AI segment per contract-p0 §8 and decide outcome via pure function.
-    const aiSegment = classifyAiResponse(aiTurnRes, v2Workbook.expectedXyz);
+    // 8. Decide outcome via pure function.
     const decision = decideLoop1Outcome({
       versionsBeforeTurn,
       versionsAfterTurn,
@@ -2106,6 +2371,7 @@ async function runLoop1({
       aiFailureReason: aiSegment.status === "FAIL" ? aiSegment.reason : "",
       webUiDriven,
       webSaveSource,
+      webUiError,
       appSignedIn: Boolean(appCtrl.signedIn),
       appDriven: Boolean(appCtrl.driven),
       appOpenedV1,
@@ -2115,37 +2381,25 @@ async function runLoop1({
       desktopBlockReason: appCtrl.blockerReason || "",
     });
 
-    const details = {
-      loop: "1",
-      fixtureId: "fx-xlsx-revenue-xyz",
-      documentId,
-      workspaceId,
-      versionsBeforeTurn,
-      versionsAfterTurn,
-      versionsAfterSave,
-      v1Sha256: fixture.sha256,
-      v2Sha256: v2Checksum,
-      changeFeedDeliveredV2,
-      webUiDriven,
-      webSaveSource,
-      appOpenedV1,
-      appObservedV2ViaFeed,
-      appObservedV2Source,
-      appV1Binding,
-      appV2Binding,
-      protocolDiagnosticSegment: {
-        source: "protocol",
-        status: changeFeedDeliveredV2 ? "PASS" : "FAIL",
-        summary: "Protocol-level 0-version AI turn + v2 commit + workspace change feed check",
+    return finalizeLoopOutcome(decision, loopState);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (loopState.steps[currentStep]) {
+      loopState.steps[currentStep] = {
+        ...loopState.steps[currentStep],
+        status: "FAIL",
+        reason: errMsg,
+      };
+    }
+    return finalizeLoopOutcome(
+      {
+        exitCode: 1,
+        status: "FAIL",
+        owner: UPSTREAM_BLOCKED_OWNER,
+        reason: errMsg,
       },
-      aiSegment,
-      appDesktopPrecondition: appCtrl.signedIn ? "signed_in" : appCtrl.signInFailureReason || appCtrl.blockerReason,
-    };
-
-    return {
-      ...decision,
-      details,
-    };
+      loopState,
+    );
   } finally {
     if (typeof appCtrl?.close === "function") await appCtrl.close();
   }
@@ -2164,40 +2418,79 @@ async function runLoop2({
   cdpConnector = null,
   deepLinkDeliverer = deliverDeepLink,
 }) {
-  const seeded = await seedFixtureDocument({
-    apiOrigin,
-    runDir,
-    fetchImpl,
-    fixtureId: "fx-docx-report-vi",
-    repoRoot,
-  });
-  const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
-  const appCtrl =
-    appDriver ??
-    (await connectAppController({
-      portsEnv,
-      runDir,
-      repoRoot,
-      apiOrigin,
-      fetchImpl,
-      token: seeded.token,
-      userId: seeded.userId,
-      deploymentId,
-      timeoutMs,
-      cdpConnector,
-      deepLinkDeliverer,
-    }));
+  const loopState = {
+    steps: {
+      appOpenV1: { source: "app", status: "PENDING" },
+      aiTurn: { source: "protocol", status: "PENDING" },
+      saveV2: { source: "protocol", status: "PENDING" },
+    },
+    versionCounts: {
+      versionsBeforeTurn: null,
+      versionsAfterTurn: null,
+      versionsAfterSave: null,
+    },
+    details: {
+      loop: "2",
+      fixtureId: "fx-docx-report-vi",
+    },
+  };
+  let currentStep = "appOpenV1";
+  let appCtrl = null;
+
   try {
+    const seeded = await seedFixtureDocument({
+      apiOrigin,
+      runDir,
+      fetchImpl,
+      fixtureId: "fx-docx-report-vi",
+      repoRoot,
+    });
     const { token, userId, workspaceId, documentId, filename } = seeded;
     const docxPair = buildEditedDocxFixtureBytes(repoRoot);
+    loopState.details.documentId = documentId;
+    loopState.details.workspaceId = workspaceId;
+    loopState.details.v1Sha256 = docxPair.v1Sha256;
+    loopState.details.v2Sha256 = docxPair.v2Sha256;
+
+    const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
+    appCtrl =
+      appDriver ??
+      (await connectAppController({
+        portsEnv,
+        runDir,
+        repoRoot,
+        apiOrigin,
+        fetchImpl,
+        token: seeded.token,
+        userId: seeded.userId,
+        deploymentId,
+        timeoutMs,
+        cdpConnector,
+        deepLinkDeliverer,
+      }));
+    loopState.details.appDesktopPrecondition = appCtrl.signedIn
+      ? "signed_in"
+      : appCtrl.signInFailureReason || appCtrl.blockerReason;
 
     let appOpenedV1 = false;
     if (appCtrl.signedIn && appCtrl.driven && typeof appCtrl.openDocumentV1 === "function") {
       const opened = await appCtrl.openDocumentV1({ documentId, userId });
       appOpenedV1 = Boolean(opened?.opened && Number(opened?.binding?.baseVersion ?? 0) === 1);
+      loopState.steps.appOpenV1 = {
+        source: "app",
+        status: appOpenedV1 ? "PASS" : "FAIL",
+      };
+    } else {
+      loopState.steps.appOpenV1 = {
+        source: "app",
+        status: appCtrl.signInFailureReason ? "FAIL" : "BLOCKED",
+        reason: appCtrl.signInFailureReason || appCtrl.blockerReason || "app not signed in",
+      };
     }
+    loopState.details.appOpenedV1 = appOpenedV1;
 
     // 1. Baseline check before AI turn: version count === 1, revision === v1.
+    currentStep = "aiTurn";
     const docBeforeRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -2214,16 +2507,22 @@ async function runLoop2({
       token,
     });
     const versionsBeforeTurn = versionsBeforeRes.data?.versions?.length ?? 0;
+    loopState.versionCounts.versionsBeforeTurn = versionsBeforeTurn;
     if (versionsBeforeTurn !== 1 || !revisionBefore) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `expected 1 version at baseline, got ${versionsBeforeTurn}`,
-        details: { versionsBeforeTurn, revisionBefore },
-      };
+      loopState.steps.aiTurn = { source: "protocol", status: "FAIL" };
+      loopState.details.revisionBefore = revisionBefore;
+      return finalizeLoopOutcome(
+        {
+          exitCode: 1,
+          status: "FAIL",
+          owner: UPSTREAM_BLOCKED_OWNER,
+          reason: `expected 1 version at baseline, got ${versionsBeforeTurn}`,
+        },
+        loopState,
+      );
     }
 
-    // 2. Call the desktop app's document-scoped UniWork AI endpoint.
+    // 2. Call the desktop app's document-scoped UniWork AI endpoint (C4: 503 ai_disabled on fake is BLOCKED, not FAIL).
     const aiTurnRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -2241,6 +2540,8 @@ async function runLoop2({
       },
       allowStatuses: [403, 503],
     });
+    const aiEditQualitySegment = classifyAiResponse(aiTurnRes);
+    loopState.details.aiEditQualitySegment = aiEditQualitySegment;
 
     // 3. G6-A03 early evidence: verify the AI turn created 0 server versions,
     //    did not advance document.revision, and created no commit intent on server or in app.
@@ -2252,6 +2553,8 @@ async function runLoop2({
       token,
     });
     const versionsAfterTurn = versionsAfterTurnRes.data?.versions?.length ?? 0;
+    loopState.versionCounts.versionsAfterTurn = versionsAfterTurn;
+
     const docAfterTurnRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -2262,57 +2565,82 @@ async function runLoop2({
     const revisionAfterTurn = docAfterTurnRes.data?.document?.revision;
 
     const commitKey = `g710-loop2-${documentId}-v2`;
-    const intentBeforeSave = await callTracerApi({
+    const intentBeforeSaveRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
       name: "lookupCommitIntent",
       params: { documentID: documentId },
       token,
       headers: { "Idempotency-Key": commitKey },
+      allowStatuses: [410],
     });
+    const commitIntentBeforeSave = interpretCommitIntentLookup(intentBeforeSaveRes);
+    loopState.details.commitIntentBeforeSave = commitIntentBeforeSave;
+
     const appIntentsAfterTurn = listAppSyncIntentFiles(
       portsEnv.UNIWORK_USER_DATA,
       deploymentId,
       userId,
     ).length;
+    loopState.details.appIntentsAfterTurn = appIntentsAfterTurn;
+
+    const preSaveIntentClean =
+      !commitIntentBeforeSave.hasCommitted &&
+      (commitIntentBeforeSave.outcome === "unknown" || commitIntentBeforeSave.outcome === "not_committed");
 
     if (
       versionsAfterTurn !== 1 ||
       revisionAfterTurn !== revisionBefore ||
-      intentBeforeSave.data?.outcome !== "not_committed" ||
+      !preSaveIntentClean ||
       appIntentsAfterTurn > 0
     ) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `G6-A03 violation: AI turn created a version or save intent before explicit Save (versions=${versionsAfterTurn}, revision=${revisionAfterTurn}, intent=${intentBeforeSave.data?.outcome}, appIntents=${appIntentsAfterTurn})`,
-        details: {
-          versionsBeforeTurn,
-          versionsAfterTurn,
-          revisionBefore,
-          revisionAfterTurn,
-          intentBeforeSave: intentBeforeSave.data,
-          appIntentsAfterTurn,
+      loopState.steps.aiTurn = { source: "protocol", status: "FAIL" };
+      loopState.details.revisionBefore = revisionBefore;
+      loopState.details.revisionAfterTurn = revisionAfterTurn;
+      return finalizeLoopOutcome(
+        {
+          exitCode: 1,
+          status: "FAIL",
+          owner: UPSTREAM_BLOCKED_OWNER,
+          reason: `G6-A03 violation: AI turn created a version or save intent before explicit Save (versions=${versionsAfterTurn}, revision=${revisionAfterTurn}, intent=${commitIntentBeforeSave.outcome}, appIntents=${appIntentsAfterTurn})`,
         },
-      };
+        loopState,
+      );
     }
+
+    loopState.steps.aiTurn = {
+      source: "protocol",
+      status: aiEditQualitySegment.status,
+      httpStatus: aiTurnRes.status,
+      reason: aiEditQualitySegment.reason ?? "",
+    };
+    loopState.details.noAutoSaveSegment = {
+      source: "protocol",
+      status: "PASS",
+      summary: "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save creates version 2",
+    };
 
     // 4. Drive explicit Save of the edited DOCX: in the real app via CDP if signed in,
     //    else run the protocol diagnostic commit (`saveSource: "protocol"`).
+    currentStep = "saveV2";
     let appSavedV2 = false;
     let saveSource = "protocol";
-    let commitIntentOutcome = "not_committed";
+    let commitIntentOutcome = "unknown";
 
     if (appCtrl.signedIn && appCtrl.driven && appOpenedV1 && typeof appCtrl.saveOnlineInApp === "function") {
+      saveSource = "app";
+      loopState.steps.saveV2 = { source: "app", status: "PENDING" };
       const saved = await appCtrl.saveOnlineInApp({
         documentId,
         v2Bytes: docxPair.v2Bytes,
         expectedSha256: docxPair.v2Sha256,
       });
       appSavedV2 = Boolean(saved?.saved && Number(saved?.binding?.baseVersion ?? 0) === 2);
-      saveSource = "app";
       commitIntentOutcome = appSavedV2 ? "committed" : "not_committed";
+      loopState.steps.saveV2 = { source: "app", status: appSavedV2 ? "PASS" : "FAIL" };
     } else {
+      saveSource = "protocol";
+      loopState.steps.saveV2 = { source: "protocol", status: "PENDING" };
       const uploadForm = new FormData();
       uploadForm.append("file", new Blob([docxPair.v2Bytes]), filename);
       const uploadRes = await callTracerApi({
@@ -2325,12 +2653,18 @@ async function runLoop2({
       });
       const uploadId = uploadRes.data?.upload_id;
       if (!uploadId || uploadRes.data?.checksum_sha256 !== docxPair.v2Sha256) {
-        return {
-          exitCode: 1,
-          status: "FAIL",
-          reason: "uploadDocumentFile failed or returned wrong sha256",
-          details: { upload: uploadRes.data, expectedSha256: docxPair.v2Sha256 },
-        };
+        loopState.steps.saveV2 = { source: "protocol", status: "FAIL" };
+        loopState.details.upload = uploadRes.data;
+        loopState.details.expectedSha256 = docxPair.v2Sha256;
+        return finalizeLoopOutcome(
+          {
+            exitCode: 1,
+            status: "FAIL",
+            owner: UPSTREAM_BLOCKED_OWNER,
+            reason: "uploadDocumentFile failed or returned wrong sha256",
+          },
+          loopState,
+        );
       }
 
       const commitRes = await callTracerApi({
@@ -2345,22 +2679,34 @@ async function runLoop2({
       const v2Version = commitRes.data?.version?.version;
       const v2Revision = commitRes.data?.document?.revision;
       if (v2Version !== 2 || !v2Revision || v2Revision === revisionBefore) {
-        return {
-          exitCode: 1,
-          status: "FAIL",
-          reason: `commitDocumentVersion did not create version 2 (got version=${v2Version})`,
-          details: { commit: commitRes.data },
-        };
+        loopState.steps.saveV2 = { source: "protocol", status: "FAIL" };
+        loopState.details.commit = commitRes.data;
+        return finalizeLoopOutcome(
+          {
+            exitCode: 1,
+            status: "FAIL",
+            owner: UPSTREAM_BLOCKED_OWNER,
+            reason: `commitDocumentVersion did not create version 2 (got version=${v2Version})`,
+          },
+          loopState,
+        );
       }
-      const intentAfterSave = await callTracerApi({
+      const intentAfterSaveRes = await callTracerApi({
         apiOrigin,
         fetchImpl,
         name: "lookupCommitIntent",
         params: { documentID: documentId },
         token,
         headers: { "Idempotency-Key": commitKey },
+        allowStatuses: [410],
       });
-      commitIntentOutcome = intentAfterSave.data?.outcome ?? "not_committed";
+      const commitIntentAfterSave = interpretCommitIntentLookup(intentAfterSaveRes);
+      loopState.details.commitIntentAfterSave = commitIntentAfterSave;
+      commitIntentOutcome = commitIntentAfterSave.outcome;
+      loopState.steps.saveV2 = {
+        source: "protocol",
+        status: commitIntentOutcome === "committed" ? "PASS" : "FAIL",
+      };
     }
 
     const versionsAfterSaveRes = await callTracerApi({
@@ -2371,8 +2717,11 @@ async function runLoop2({
       token,
     });
     const versionsAfterSave = versionsAfterSaveRes.data?.versions?.length ?? 0;
+    loopState.versionCounts.versionsAfterSave = versionsAfterSave;
+    loopState.details.commitIntentOutcome = commitIntentOutcome;
+    loopState.details.saveSource = saveSource;
+    loopState.details.appSavedV2 = appSavedV2;
 
-    const aiEditQualitySegment = classifyAiResponse(aiTurnRes);
     const decision = decideLoop2Outcome({
       versionsBeforeTurn,
       versionsAfterTurn,
@@ -2390,32 +2739,25 @@ async function runLoop2({
       desktopBlockReason: appCtrl.blockerReason || "",
     });
 
-    const details = {
-      loop: "2",
-      fixtureId: "fx-docx-report-vi",
-      documentId,
-      workspaceId,
-      versionsBeforeTurn,
-      versionsAfterTurn,
-      versionsAfterSave,
-      commitIntentOutcome,
-      saveSource,
-      appOpenedV1,
-      appSavedV2,
-      v1Sha256: docxPair.v1Sha256,
-      v2Sha256: docxPair.v2Sha256,
-      noAutoSaveSegment: {
-        status: versionsAfterTurn === 1 && appIntentsAfterTurn === 0 ? "PASS" : "FAIL",
-        summary: "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save created version 2",
+    return finalizeLoopOutcome(decision, loopState);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (loopState.steps[currentStep]) {
+      loopState.steps[currentStep] = {
+        ...loopState.steps[currentStep],
+        status: "FAIL",
+        reason: errMsg,
+      };
+    }
+    return finalizeLoopOutcome(
+      {
+        exitCode: 1,
+        status: "FAIL",
+        owner: UPSTREAM_BLOCKED_OWNER,
+        reason: errMsg,
       },
-      aiEditQualitySegment,
-      appDesktopPrecondition: appCtrl.signedIn ? "signed_in" : appCtrl.signInFailureReason || appCtrl.blockerReason,
-    };
-
-    return {
-      ...decision,
-      details,
-    };
+      loopState,
+    );
   } finally {
     if (typeof appCtrl?.close === "function") await appCtrl.close();
   }
@@ -2435,32 +2777,58 @@ async function runLoop3({
   cdpConnector = null,
   deepLinkDeliverer = deliverDeepLink,
 }) {
-  const seeded = await seedFixtureDocument({
-    apiOrigin,
-    runDir,
-    fetchImpl,
-    fixtureId: "fx-docx-report-vi",
-    repoRoot,
-  });
-  const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
-  const appCtrl =
-    appDriver ??
-    (await connectAppController({
-      portsEnv,
-      runDir,
-      repoRoot,
-      apiOrigin,
-      fetchImpl,
-      token: seeded.token,
-      userId: seeded.userId,
-      deploymentId,
-      timeoutMs,
-      cdpConnector,
-      deepLinkDeliverer,
-    }));
+  const loopState = {
+    steps: {
+      appOfflineSave: { source: "app", status: "PENDING" },
+      protocolReconnectDiagnostic: { source: "protocol", status: "PENDING" },
+    },
+    versionCounts: {
+      versionsBeforeCut: 1,
+      serverVersionsWhileCut: null,
+      serverVersionsAfterReconnect: null,
+      versionsAfterIdempotentRetry: null,
+    },
+    details: {
+      loop: "3",
+      fixtureId: "fx-docx-report-vi",
+    },
+  };
+  let currentStep = "appOfflineSave";
+  let seeded = null;
+  let appCtrl = null;
+
   try {
+    seeded = await seedFixtureDocument({
+      apiOrigin,
+      runDir,
+      fetchImpl,
+      fixtureId: "fx-docx-report-vi",
+      repoRoot,
+    });
     const { token, userId, workspaceId, documentId, filename } = seeded;
     const docxPair = buildEditedDocxFixtureBytes(repoRoot);
+    loopState.details.documentId = documentId;
+    loopState.details.workspaceId = workspaceId;
+
+    const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
+    appCtrl =
+      appDriver ??
+      (await connectAppController({
+        portsEnv,
+        runDir,
+        repoRoot,
+        apiOrigin,
+        fetchImpl,
+        token: seeded.token,
+        userId: seeded.userId,
+        deploymentId,
+        timeoutMs,
+        cdpConnector,
+        deepLinkDeliverer,
+      }));
+    loopState.details.appDesktopPrecondition = appCtrl.signedIn
+      ? "signed_in"
+      : appCtrl.signInFailureReason || appCtrl.blockerReason;
 
     // If a legacy r1 spawnAppHook was supplied (which only writes binding.json at v2
     // without driving the app through v1 -> proxy cut -> offline intent -> reconnect),
@@ -2486,19 +2854,13 @@ async function runLoop3({
         appIntentsAfterReconnect: 0,
         serverVersionsAfterReconnect: 1,
       });
-      return {
-        ...decision,
-        details: {
-          loop: "3",
-          fixtureId: "fx-docx-report-vi",
-          documentId,
-          workspaceId,
-          appReceiptSegment: {
-            status: "FAIL",
-            reason: decision.reason,
-          },
-        },
+      loopState.steps.appOfflineSave = { source: "app", status: "FAIL", reason: decision.reason };
+      loopState.details.appReceiptSegment = {
+        source: "app",
+        status: "FAIL",
+        reason: decision.reason,
       };
+      return finalizeLoopOutcome(decision, loopState);
     }
 
     // When the app is signed in and its Save can be driven headlessly (via CDP or appDriver):
@@ -2513,6 +2875,7 @@ async function runLoop3({
     if (appCtrl.signedIn && appCtrl.driven) {
       const opened = await appCtrl.openDocumentV1({ documentId, userId });
       const appOpenedV1 = Boolean(opened?.opened && Number(opened?.binding?.baseVersion ?? 0) === 1);
+      loopState.details.appOpenedV1 = appOpenedV1;
 
       const cutRes = await appCtrl.saveOfflineWhileCut({
         documentId,
@@ -2527,6 +2890,7 @@ async function runLoop3({
         token,
       });
       const serverVersionsWhileCut = versionsWhileCutRes.data?.versions?.length ?? 0;
+      loopState.versionCounts.serverVersionsWhileCut = serverVersionsWhileCut;
       const bindingWhileCut = cutRes?.bindingWhileCut ?? null;
       const intentFilesWhileCut = cutRes?.intentFilesWhileCut ?? [];
       const appHeldOfflineIntentWhileCut = Boolean(
@@ -2535,6 +2899,9 @@ async function runLoop3({
           Number(bindingWhileCut.baseVersion ?? 0) === 1) ||
           intentFilesWhileCut.length > 0,
       );
+      loopState.details.serverVersionsWhileCut = serverVersionsWhileCut;
+      loopState.details.appHeldOfflineIntentWhileCut = appHeldOfflineIntentWhileCut;
+      loopState.details.intentFilesWhileCut = intentFilesWhileCut;
 
       const reconRes = await appCtrl.reconnectAndFlushSave({
         apiOrigin,
@@ -2551,6 +2918,8 @@ async function runLoop3({
         token,
       });
       const serverVersionsAfterReconnect = versionsAfterReconnectRes.data?.versions?.length ?? 0;
+      loopState.versionCounts.serverVersionsAfterReconnect = serverVersionsAfterReconnect;
+      loopState.details.serverVersionsAfterReconnect = serverVersionsAfterReconnect;
       const bindingAfterReconnect = reconRes?.bindingAfterReconnect ?? null;
       const intentFilesAfterReconnect = reconRes?.intentFilesAfterReconnect ?? [];
 
@@ -2567,34 +2936,39 @@ async function runLoop3({
         serverVersionsAfterReconnect,
       });
 
-      return {
-        ...decision,
-        details: {
-          loop: "3",
-          fixtureId: "fx-docx-report-vi",
-          documentId,
-          workspaceId,
-          appOpenedV1,
-          serverVersionsWhileCut,
-          appHeldOfflineIntentWhileCut,
-          intentFilesWhileCut,
-          serverVersionsAfterReconnect,
-          appReceiptSegment: {
-            status: decision.status,
-            source: "app",
-            baseVersion: bindingAfterReconnect?.baseVersion ?? null,
-            baseRevision: bindingAfterReconnect?.baseRevision ?? null,
-            baseVersionId: bindingAfterReconnect?.baseVersionId ?? null,
-            baseChecksum: bindingAfterReconnect?.baseChecksum ?? null,
-            state: bindingAfterReconnect?.state ?? null,
-          },
-        },
+      loopState.steps.appOfflineSave = {
+        source: "app",
+        status: decision.status,
+        ...(decision.status !== "PASS" ? { reason: decision.reason } : {}),
       };
+      loopState.steps.protocolReconnectDiagnostic = {
+        source: "protocol",
+        status: "SKIPPED",
+        reason: "app offline save was driven directly",
+      };
+      loopState.details.appReceiptSegment = {
+        status: decision.status,
+        source: "app",
+        baseVersion: bindingAfterReconnect?.baseVersion ?? null,
+        baseRevision: bindingAfterReconnect?.baseRevision ?? null,
+        baseVersionId: bindingAfterReconnect?.baseVersionId ?? null,
+        baseChecksum: bindingAfterReconnect?.baseChecksum ?? null,
+        state: bindingAfterReconnect?.state ?? null,
+      };
+
+      return finalizeLoopOutcome(decision, loopState);
     }
+
+    loopState.steps.appOfflineSave = {
+      source: "app",
+      status: appCtrl.signInFailureReason ? "FAIL" : "BLOCKED",
+      reason: appCtrl.signInFailureReason || appCtrl.blockerReason || "app not signed in",
+    };
 
     // Otherwise, the app is not signed in or cannot be driven headlessly on this VM.
     // Run the server-side G5-06 idempotent commit/receipt diagnostic ONLY as `source: "protocol"`
     // AFTER confirming the app is blocked, and return `BLOCKED` (exit 77, owner `g7-qa`), never `PASS`.
+    currentStep = "protocolReconnectDiagnostic";
     const docBefore = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -2605,21 +2979,31 @@ async function runLoop3({
     const v1Revision = docBefore.data?.document?.revision;
     const offlineIntentKey = `g710-loop3-offline-${documentId}`;
 
-    const lookupWhileOffline = await callTracerApi({
+    const lookupWhileOfflineRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
       name: "lookupCommitIntent",
       params: { documentID: documentId },
       token,
       headers: { "Idempotency-Key": offlineIntentKey },
+      allowStatuses: [410],
     });
-    if (lookupWhileOffline.data?.outcome !== "not_committed") {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `expected lookupCommitIntent before reconnect to be not_committed, got ${lookupWhileOffline.data?.outcome}`,
-        details: { lookupWhileOffline: lookupWhileOffline.data },
-      };
+    const lookupWhileOffline = interpretCommitIntentLookup(lookupWhileOfflineRes);
+    loopState.details.lookupWhileOffline = lookupWhileOffline;
+    if (
+      lookupWhileOffline.hasCommitted ||
+      (lookupWhileOffline.outcome !== "unknown" && lookupWhileOffline.outcome !== "not_committed")
+    ) {
+      loopState.steps.protocolReconnectDiagnostic = { source: "protocol", status: "FAIL" };
+      return finalizeLoopOutcome(
+        {
+          exitCode: 1,
+          status: "FAIL",
+          owner: UPSTREAM_BLOCKED_OWNER,
+          reason: `expected lookupCommitIntent before reconnect to be unknown (410) or not_committed (200), got httpStatus=${lookupWhileOffline.httpStatus}, outcome=${lookupWhileOffline.outcome}`,
+        },
+        loopState,
+      );
     }
 
     const uploadForm = new FormData();
@@ -2647,14 +3031,17 @@ async function runLoop3({
     const v2Version = commitRes.data?.version?.version;
     const v2Revision = commitRes.data?.document?.revision;
 
-    const lookupAfterReconnect = await callTracerApi({
+    const lookupAfterReconnectRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
       name: "lookupCommitIntent",
       params: { documentID: documentId },
       token,
       headers: { "Idempotency-Key": offlineIntentKey },
+      allowStatuses: [410],
     });
+    const lookupAfterReconnect = interpretCommitIntentLookup(lookupAfterReconnectRes);
+    loopState.details.lookupAfterReconnect = lookupAfterReconnect;
 
     const retryCommitRes = await callTracerApi({
       apiOrigin,
@@ -2674,25 +3061,27 @@ async function runLoop3({
       token,
     });
     const versionsAfterIdempotentRetry = versionsAfterRetryRes.data?.versions?.length ?? 0;
+    loopState.versionCounts.versionsAfterIdempotentRetry = versionsAfterIdempotentRetry;
 
     if (
       v2Version !== 2 ||
-      lookupAfterReconnect.data?.outcome !== "committed" ||
-      lookupAfterReconnect.data?.version !== 2 ||
-      lookupAfterReconnect.data?.version_id !== v2VersionId ||
+      lookupAfterReconnect.outcome !== "committed" ||
+      lookupAfterReconnect.version !== 2 ||
+      lookupAfterReconnect.versionId !== v2VersionId ||
       retryCommitRes.data?.version?.id !== v2VersionId ||
       versionsAfterIdempotentRetry !== 2
     ) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `G5-06 offline reconnect receipt reconciliation failed (v2Version=${v2Version}, outcome=${lookupAfterReconnect.data?.outcome}, versionsAfterRetry=${versionsAfterIdempotentRetry})`,
-        details: {
-          commit: commitRes.data,
-          lookupAfterReconnect: lookupAfterReconnect.data,
-          versionsAfterIdempotentRetry,
+      loopState.steps.protocolReconnectDiagnostic = { source: "protocol", status: "FAIL" };
+      loopState.details.commit = commitRes.data;
+      return finalizeLoopOutcome(
+        {
+          exitCode: 1,
+          status: "FAIL",
+          owner: UPSTREAM_BLOCKED_OWNER,
+          reason: `G5-06 offline reconnect receipt reconciliation failed (v2Version=${v2Version}, outcome=${lookupAfterReconnect.outcome}, versionsAfterRetry=${versionsAfterIdempotentRetry})`,
         },
-      };
+        loopState,
+      );
     }
 
     const protocolDiagnosticSegment = {
@@ -2703,6 +3092,8 @@ async function runLoop3({
       revision: v2Revision,
       versionsAfterIdempotentRetry,
     };
+    loopState.steps.protocolReconnectDiagnostic = { source: "protocol", status: "PASS" };
+    loopState.details.protocolDiagnosticSegment = protocolDiagnosticSegment;
 
     const decision = decideLoop3Outcome({
       appSignedIn: Boolean(appCtrl.signedIn),
@@ -2715,26 +3106,35 @@ async function runLoop3({
       appSignInFailureReason: appCtrl.signInFailureReason || "",
       desktopBlockReason: appCtrl.blockerReason || "",
     });
-
-    return {
-      ...decision,
-      details: {
-        loop: "3",
-        fixtureId: "fx-docx-report-vi",
-        documentId,
-        workspaceId,
-        protocolDiagnosticSegment,
-        appReceiptSegment: {
-          status: decision.status,
-          source: "app",
-          reason: decision.reason,
-        },
-      },
+    loopState.details.appReceiptSegment = {
+      status: decision.status,
+      source: "app",
+      reason: decision.reason,
     };
+
+    return finalizeLoopOutcome(decision, loopState);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (loopState.steps[currentStep]) {
+      loopState.steps[currentStep] = {
+        ...loopState.steps[currentStep],
+        status: "FAIL",
+        reason: errMsg,
+      };
+    }
+    return finalizeLoopOutcome(
+      {
+        exitCode: 1,
+        status: "FAIL",
+        owner: UPSTREAM_BLOCKED_OWNER,
+        reason: errMsg,
+      },
+      loopState,
+    );
   } finally {
     setAppApiProxyOnline(runDir, true);
     if (typeof appCtrl?.close === "function") await appCtrl.close();
-    await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded, runDir });
+    if (seeded) await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded, runDir });
   }
 }
 
@@ -2791,6 +3191,7 @@ export async function runTracerLoop({
   cdpConnector = null,
   deepLinkDeliverer = deliverDeepLink,
 }) {
+  const normalized = LOOP_ALIASES[String(loop)] ?? String(loop);
   const startStatus = readStartStatus(runDir);
   const gate = startGate(startStatus);
   if (gate.gate !== "proceed") {
@@ -2798,8 +3199,11 @@ export async function runTracerLoop({
     return {
       exitCode: blocked ? BLOCKED_EXIT : 1,
       status: blocked ? "BLOCKED" : "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: gate.reason,
-      details: { loop, startStatus },
+      steps: {},
+      versionCounts: {},
+      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized, startStatus },
     };
   }
 
@@ -2808,8 +3212,11 @@ export async function runTracerLoop({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `no ports.env in ${runDir} (run scripts/office/g5g6g7/harness/start.sh first)`,
-      details: { loop },
+      steps: {},
+      versionCounts: {},
+      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized },
     };
   }
   const portsEnv = parseEnvFile(readFileSync(portsEnvPath, "utf8"));
@@ -2818,12 +3225,14 @@ export async function runTracerLoop({
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `API_ORIGIN missing from ${portsEnvPath}`,
-      details: { loop },
+      steps: {},
+      versionCounts: {},
+      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized },
     };
   }
 
-  const normalized = LOOP_ALIASES[String(loop)] ?? String(loop);
   try {
     if (normalized === "1") {
       return await runLoop1({
@@ -2869,15 +3278,21 @@ export async function runTracerLoop({
     return {
       exitCode: 2,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: `unsupported loop "${loop}"`,
-      details: {},
+      steps: {},
+      versionCounts: {},
+      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized },
     };
   } catch (err) {
     return {
       exitCode: 1,
       status: "FAIL",
+      owner: UPSTREAM_BLOCKED_OWNER,
       reason: err instanceof Error ? err.message : String(err),
-      details: { loop: normalized },
+      steps: {},
+      versionCounts: {},
+      details: { owner: UPSTREAM_BLOCKED_OWNER, loop: normalized },
     };
   }
 }

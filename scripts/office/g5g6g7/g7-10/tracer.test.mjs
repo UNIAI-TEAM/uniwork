@@ -47,13 +47,18 @@ import {
   BLOCKED_EXIT,
   TRACER_API_CALLS,
   UPSTREAM_BLOCKED_REASON,
+  WEB_SHEETS_HOST_SELECTOR,
+  WEB_SHEETS_IFRAME_SELECTOR,
+  WEB_SHEETS_READY_SELECTOR,
   buildEditedDocxFixtureBytes,
   buildXlsxRevenueWithXyzBytes,
+  classifyAiResponse,
   connectAppController,
   decideAppSignInOutcome,
   decideLoop1Outcome,
   decideLoop2Outcome,
   decideLoop3Outcome,
+  interpretCommitIntentLookup,
   listAppSyncIntentFiles,
   parseArgs,
   runTracerLoop,
@@ -141,7 +146,14 @@ function createMockDServer({
     if (method === "POST" && path === `/api/v1/orgs/${state.orgId}/workspaces`) {
       return json(201, { workspace: { id: state.wsId, slug: "w-g710" } });
     }
+    if (method === "POST" && path === "/api/v1/me/onboarding/complete") {
+      state.onboarded = true;
+      return json(200, { user: { id: userId, onboarding_completed_at: "2026-10-14T19:00:00Z" } });
+    }
     if (method === "POST" && path === `/api/v1/workspaces/${state.wsId}/documents/files`) {
+      if (state.failUpload500) {
+        return json(500, { error: { code: "internal_error", message: "simulated server error" } });
+      }
       const form = init.body;
       const file = form.get("file");
       const bytes = Buffer.from(await file.arrayBuffer());
@@ -247,8 +259,8 @@ function createMockDServer({
           revision: "01JREVBUGGYAUTOSAVE0000002",
         });
       }
-      if (aiMode === "disabled") {
-        return json(403, { error: { code: "ai_disabled", message: "UniWork AI is disabled" } });
+      if (aiMode === "disabled" || aiMode === "503-disabled") {
+        return json(503, { error: { code: "ai_disabled", message: "AI chưa được cấu hình trên server" } });
       }
       const content =
         aiMode === "real-xyz"
@@ -273,6 +285,9 @@ function createMockDServer({
       (path === `/api/v1/office-frame/documents/${state.docId}/uploads` ||
         path === `/api/v1/documents/${state.docId}/uploads`)
     ) {
+      if (state.failSecondUpload) {
+        return json(500, { error: { code: "storage_error", message: "simulated upload failure" } });
+      }
       const form = init.body;
       const file = form.get("file");
       const bytes = Buffer.from(await file.arrayBuffer());
@@ -334,23 +349,37 @@ function createMockDServer({
         },
       };
       if (idemKey) {
-        state.intents.set(idemKey, { version: nextVer, response });
+        state.intents.set(idemKey, { state: "committed", version: nextVer, response });
       }
       return json(200, response);
     }
     if (method === "GET" && path === `/api/v1/documents/${state.docId}/versions/commit`) {
       const idemKey = init.headers?.["Idempotency-Key"] ?? init.headers?.["idempotency-key"] ?? "";
       if (idemKey && state.intents.has(idemKey)) {
-        const hit = state.intents.get(idemKey).version;
+        const entry = state.intents.get(idemKey);
+        if (entry.state === "in_flight") {
+          return json(200, { outcome: "in_flight" });
+        }
+        if (entry.state === "not_committed") {
+          return json(200, { outcome: "not_committed" });
+        }
+        const hit = entry.version;
         return json(200, {
           outcome: "committed",
           version_id: hit.id,
           version: hit.version,
           revision: hit.revision,
-          checksum_sha256: hit.checksum_sha256,
         });
       }
-      return json(200, { outcome: "not_committed" });
+      // G5-07 contract (server/internal/service/document_commit_intent.go:193-197):
+      // A key the server holds no intent for answers 410 commit_intent_unknown with fields.outcome="unknown".
+      return json(410, {
+        error: {
+          code: "commit_intent_unknown",
+          message: "máy chủ không còn thông tin về lần lưu này",
+          fields: { outcome: "unknown" },
+        },
+      });
     }
     if (method === "GET" && path === `/api/v1/workspaces/${state.wsId}/documents/changes`) {
       const cursor = url.searchParams.get("cursor");
@@ -422,10 +451,6 @@ describe("G7-10 tracer API call contract against server/internal/handler", () =>
     join(REPO_ROOT, "server/internal/handler/router/office_frame_ai.go"),
     "utf8",
   );
-  const officeLaunchSdi = readFileSync(
-    join(REPO_ROOT, "server/internal/handler/dto/sdi/office_launch.go"),
-    "utf8",
-  );
   const baseMatch = officeFrameAiRouter.match(/const\s+base\s*=\s*"([^"]+)"/);
   if (baseMatch) {
     for (const m of officeFrameAiRouter.matchAll(
@@ -463,10 +488,7 @@ describe("G7-10 tracer API call contract against server/internal/handler", () =>
           assert.ok(key in fields, `${name}: ${call.sdi} has no json field "${key}"`);
         }
         for (const [key, { required }] of Object.entries(fields)) {
-          const isOptionalOmitempty =
-            call.sdi === "CreateOfficeLaunchSessionSDI" &&
-            officeLaunchSdi.includes(`json:"${key},omitempty"`);
-          if (required && !isOptionalOmitempty) {
+          if (required) {
             assert.ok((call.body ?? []).includes(key), `${name}: ${call.sdi} requires "${key}"`);
           }
         }
@@ -1540,4 +1562,243 @@ describe("G7-10 evidence.mjs run + verify integration across all 3 loops", () =>
     }
   });
 });
+
+describe("G7-10 ADDENDUM r3 fixes (C1-C5)", () => {
+  it("C2: seeds completeOnboarding so web navigation never redirects to /onboarding, and uses real OfficeModuleFrame selectors from e2e/office-modules-web.spec.ts", async () => {
+    const frameHostSource = readFileSync(
+      join(REPO_ROOT, "packages/views/office/frame/office-module-frame.tsx"),
+      "utf8",
+    );
+    const e2eFixturesSource = readFileSync(
+      join(REPO_ROOT, "e2e/office-module-web-fixtures.ts"),
+      "utf8",
+    );
+    const e2eSpecSource = readFileSync(
+      join(REPO_ROOT, "e2e/office-modules-web.spec.ts"),
+      "utf8",
+    );
+    assert.equal(WEB_SHEETS_HOST_SELECTOR, '[data-office-docs-frame][data-office-module="sheets"]');
+    assert.equal(
+      WEB_SHEETS_READY_SELECTOR,
+      '[data-office-docs-frame][data-office-module="sheets"][data-state="ready"]',
+    );
+    assert.equal(WEB_SHEETS_IFRAME_SELECTOR, 'iframe[src*="/office-frame/sheets/"]');
+    assert.match(frameHostSource, /data-office-docs-frame/);
+    assert.match(frameHostSource, /data-office-module=\{module\}/);
+    assert.match(frameHostSource, /data-state=\{session\.status\}/);
+    assert.match(e2eFixturesSource, /\[data-office-docs-frame\]\[data-office-module="\$\{module\}"\]/);
+    assert.match(e2eSpecSource, /iframe\[src\*="\/office-frame\/\$\{c\.module\}\/"\]/);
+
+    assert.ok("completeOnboarding" in TRACER_API_CALLS, "TRACER_API_CALLS must include completeOnboarding");
+
+    const scratch = makeScratchRunDir({ startState: "up", skipApp: true });
+    const mock = createMockDServer({ aiMode: "fake" });
+    try {
+      await runTracerLoop({
+        loop: "1",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+      });
+      assert.equal(mock.state.onboarded, true, "seedFixtureDocument must call POST /api/v1/me/onboarding/complete");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("C3: interpretCommitIntentLookup handles 410 commit_intent_unknown (outcome=unknown), 200 not_committed, 200 in_flight, and 200 committed per G5-07 contract", () => {
+    const unknown410 = interpretCommitIntentLookup({
+      status: 410,
+      ok: false,
+      data: {
+        error: {
+          code: "commit_intent_unknown",
+          message: "máy chủ không còn thông tin về lần lưu này",
+          fields: { outcome: "unknown" },
+        },
+      },
+    });
+    assert.deepEqual(unknown410, {
+      httpStatus: 410,
+      code: "commit_intent_unknown",
+      outcome: "unknown",
+      hasCommitted: false,
+      hasClaim: false,
+    });
+
+    const notCommitted200 = interpretCommitIntentLookup({
+      status: 200,
+      ok: true,
+      data: { outcome: "not_committed" },
+    });
+    assert.deepEqual(notCommitted200, {
+      httpStatus: 200,
+      code: null,
+      outcome: "not_committed",
+      hasCommitted: false,
+      hasClaim: true,
+    });
+
+    const inFlight200 = interpretCommitIntentLookup({
+      status: 200,
+      ok: true,
+      data: { outcome: "in_flight" },
+    });
+    assert.deepEqual(inFlight200, {
+      httpStatus: 200,
+      code: null,
+      outcome: "in_flight",
+      hasCommitted: false,
+      hasClaim: true,
+    });
+
+    const committed200 = interpretCommitIntentLookup({
+      status: 200,
+      ok: true,
+      data: {
+        outcome: "committed",
+        version_id: "01JVER0002",
+        version: 2,
+        revision: "2",
+      },
+    });
+    assert.deepEqual(committed200, {
+      httpStatus: 200,
+      code: null,
+      outcome: "committed",
+      hasCommitted: true,
+      hasClaim: true,
+      versionId: "01JVER0002",
+      version: 2,
+      revision: "2",
+    });
+  });
+
+  it("C4: POST /api/v1/documents/{id}/ai/uniwork/chat/completions answering 503 ai_disabled on fake deployment is BLOCKED (reason + owner), not FAIL, and G6-A03 version/intent counts still run", async () => {
+    const classified = classifyAiResponse({
+      status: 503,
+      ok: false,
+      data: { error: { code: "ai_disabled", message: "AI chưa được cấu hình trên server" } },
+    });
+    assert.equal(classified.status, "BLOCKED");
+    assert.equal(classified.owner, "g7-qa");
+    assert.equal(classified.reason, UPSTREAM_BLOCKED_REASON);
+    assert.equal(classified.httpStatus, 503);
+    assert.equal(classified.errorCode, "ai_disabled");
+
+    const scratch = makeScratchRunDir({ startState: "up", skipApp: true });
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      const res = await runTracerLoop({
+        loop: "2",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+      });
+      assert.equal(res.exitCode, BLOCKED_EXIT);
+      assert.equal(res.status, "BLOCKED");
+      assert.equal(res.owner, "g7-qa");
+      assert.match(res.reason, new RegExp(UPSTREAM_BLOCKED_REASON));
+      assert.equal(res.details.versionsBeforeTurn, 1);
+      assert.equal(res.details.versionsAfterTurn, 1);
+      assert.equal(res.details.versionsAfterSave, 2);
+      assert.equal(res.details.commitIntentBeforeSave.httpStatus, 410);
+      assert.equal(res.details.commitIntentBeforeSave.outcome, "unknown");
+      assert.equal(res.details.commitIntentOutcome, "committed");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("C5: on every exit path (FAIL included) the loop JSON carries owner, reason, per-step source (web/app/protocol), and version counts collected so far", async () => {
+    // 1. Loop 1 FAIL when web UI fails on live WEB_ORIGIN: still carries owner, steps (web/app/protocol), and versionCounts
+    const scratch1 = makeScratchRunDir({ startState: "up", skipApp: true });
+    const mock1 = createMockDServer({ aiMode: "real-xyz" });
+    try {
+      const res1 = await runTracerLoop({
+        loop: "1",
+        runDir: scratch1.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock1.fetchImpl,
+        webDriver: async () => ({
+          driven: true,
+          saved: false,
+          source: "web",
+          error: "Playwright timeout on sheets frame",
+          reason: "Playwright timeout on sheets frame",
+        }),
+      });
+      assert.equal(res1.exitCode, 1);
+      assert.equal(res1.status, "FAIL");
+      assert.equal(res1.owner, "g7-qa");
+      assert.match(res1.reason, /Playwright timeout on sheets frame/);
+      assert.ok(res1.steps, "FAIL JSON must carry top-level steps");
+      assert.equal(res1.steps.webSave.source, "web");
+      assert.equal(res1.steps.webSave.status, "FAIL");
+      assert.equal(res1.steps.aiTurn.source, "protocol");
+      assert.equal(res1.steps.appReloadV2.source, "protocol");
+      assert.ok(res1.versionCounts, "FAIL JSON must carry top-level versionCounts");
+      assert.equal(res1.versionCounts.versionsBeforeTurn, 1);
+      assert.equal(res1.versionCounts.versionsAfterTurn, 1);
+      assert.equal(res1.details.owner, "g7-qa");
+      assert.equal(res1.details.webSaveSource, "web");
+    } finally {
+      scratch1.cleanup();
+    }
+
+    // 2. Loop 2 FAIL when an API call throws mid-loop (after AI turn, during upload): still carries owner, steps, and versionCounts collected so far
+    const scratch2 = makeScratchRunDir({ startState: "up", skipApp: true });
+    const mock2 = createMockDServer({ aiMode: "503-disabled" });
+    mock2.state.failSecondUpload = true;
+    try {
+      const res2 = await runTracerLoop({
+        loop: "2",
+        runDir: scratch2.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock2.fetchImpl,
+      });
+      assert.equal(res2.exitCode, 1);
+      assert.equal(res2.status, "FAIL");
+      assert.equal(res2.owner, "g7-qa");
+      assert.match(res2.reason, /uploads -> 500/);
+      assert.ok(res2.steps, "Loop 2 FAIL JSON must carry steps");
+      assert.equal(res2.steps.aiTurn.source, "protocol");
+      assert.equal(res2.steps.saveV2.source, "protocol");
+      assert.equal(res2.steps.saveV2.status, "FAIL");
+      assert.ok(res2.versionCounts, "Loop 2 FAIL JSON must carry versionCounts");
+      assert.equal(res2.versionCounts.versionsBeforeTurn, 1);
+      assert.equal(res2.versionCounts.versionsAfterTurn, 1);
+      assert.equal(res2.details.versionsBeforeTurn, 1);
+      assert.equal(res2.details.versionsAfterTurn, 1);
+    } finally {
+      scratch2.cleanup();
+    }
+
+    // 3. Loop 3 FAIL when an API call throws mid-loop: still carries owner, steps, and versionCounts collected so far
+    const scratch3 = makeScratchRunDir({ startState: "up", skipApp: true });
+    const mock3 = createMockDServer({ aiMode: "fake" });
+    mock3.state.failSecondUpload = true;
+    try {
+      const res3 = await runTracerLoop({
+        loop: "3",
+        runDir: scratch3.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock3.fetchImpl,
+      });
+      assert.equal(res3.exitCode, 1);
+      assert.equal(res3.status, "FAIL");
+      assert.equal(res3.owner, "g7-qa");
+      assert.match(res3.reason, /uploads -> 500/);
+      assert.ok(res3.steps, "Loop 3 FAIL JSON must carry steps");
+      assert.equal(res3.steps.appOfflineSave.source, "app");
+      assert.equal(res3.steps.protocolReconnectDiagnostic.source, "protocol");
+      assert.equal(res3.steps.protocolReconnectDiagnostic.status, "FAIL");
+      assert.ok(res3.versionCounts, "Loop 3 FAIL JSON must carry versionCounts");
+      assert.equal(res3.versionCounts.versionsBeforeCut, 1);
+    } finally {
+      scratch3.cleanup();
+    }
+  });
+});
+
 
