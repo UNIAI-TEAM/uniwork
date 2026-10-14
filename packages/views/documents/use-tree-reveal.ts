@@ -35,22 +35,6 @@ function isRowVisible(el: HTMLElement, visible: boolean): boolean {
         return false;
       }
     }
-    if (
-      cur.classList?.contains("hidden") &&
-      !/(?:^|\s)(?:sm|md|lg|xl|2xl):(?!hidden\b)\S+/.test(cur.className)
-    ) {
-      return false;
-    }
-  }
-  if (typeof el.getBoundingClientRect === "function") {
-    const bodyHasLayout =
-      typeof document !== "undefined" &&
-      Boolean(document.body && document.body.getBoundingClientRect().width > 0);
-    const hasOwnRect = Object.prototype.hasOwnProperty.call(el, "getBoundingClientRect");
-    if (bodyHasLayout || hasOwnRect) {
-      const rect = el.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) return false;
-    }
   }
   return true;
 }
@@ -156,7 +140,6 @@ export function useTreeReveal({
     if (pendingScrollForRef.current !== currentId) return undefined;
 
     let rafId: number | null = null;
-    let observer: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
 
     const cleanup = () => {
@@ -164,8 +147,6 @@ export function useTreeReveal({
         window.cancelAnimationFrame(rafId);
         rafId = null;
       }
-      observer?.disconnect();
-      observer = null;
       resizeObserver?.disconnect();
       resizeObserver = null;
     };
@@ -181,11 +162,12 @@ export function useTreeReveal({
       deferredWhileHiddenRef.current = false;
       pendingScrollForRef.current = null;
       if (typeof target.scrollIntoView !== "function") return;
-      const bodyWasActive =
-        typeof document !== "undefined" &&
-        (!document.activeElement || document.activeElement === document.body);
+      const tree = target.closest('[role="tree"]');
+      const activeEl = typeof document !== "undefined" ? document.activeElement : null;
+      const bodyWasActive = !activeEl || activeEl === document.body;
+      const focusInTree = Boolean(tree && activeEl && tree.contains(activeEl));
       target.scrollIntoView({ block: "nearest" });
-      if (inDialog || (deferredWhileHidden && !bodyWasActive)) {
+      if (inDialog || (deferredWhileHidden && (bodyWasActive || focusInTree))) {
         target.focus({ preventScroll: true });
         return;
       }
@@ -213,8 +195,6 @@ export function useTreeReveal({
         pendingScrollForRef.current = currentId;
       }
       if (pendingScrollForRef.current !== currentId) return;
-      observer?.disconnect();
-      observer = null;
       resizeObserver?.disconnect();
       resizeObserver = null;
       if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
@@ -230,22 +210,12 @@ export function useTreeReveal({
       return cleanup;
     }
 
-    if (typeof MutationObserver !== "undefined" && typeof document !== "undefined" && document.body) {
-      observer = new MutationObserver(() => {
-        scheduleReveal();
-      });
-      observer.observe(document.body, {
-        attributes: true,
-        subtree: true,
-        attributeFilter: ["hidden", "style", "class", "aria-hidden"],
-      });
-    }
-
-    if (typeof ResizeObserver !== "undefined") {
+    if (visible && typeof ResizeObserver !== "undefined") {
+      const container = el.closest("nav") ?? el.closest('[role="tree"]') ?? el;
       resizeObserver = new ResizeObserver(() => {
         scheduleReveal();
       });
-      resizeObserver.observe(el);
+      resizeObserver.observe(container);
     }
 
     return cleanup;
