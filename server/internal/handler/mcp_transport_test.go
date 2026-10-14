@@ -19,6 +19,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
@@ -190,7 +191,11 @@ func TestMcpToolListCarriesAnnotationsAndSchemas(t *testing.T) {
 		tool := raw.(map[string]any)
 		names[tool["name"].(string)] = true
 		ann := tool["annotations"].(map[string]any)
-		if ann["readOnlyHint"] != true || ann["destructiveHint"] != false || ann["openWorldHint"] != false {
+		def, ok := service.McpTools(&service.McpToolService{}).Get(tool["name"].(string))
+		if !ok {
+			t.Fatalf("listed tool %v is not in the registry", tool["name"])
+		}
+		if ann["readOnlyHint"] != (def.Kind == ai.ToolRead) || ann["destructiveHint"] != def.Destructive || ann["openWorldHint"] != false {
 			t.Errorf("%v annotations = %v", tool["name"], ann)
 		}
 		// The title sits in both places a client looks for it: the tool's own

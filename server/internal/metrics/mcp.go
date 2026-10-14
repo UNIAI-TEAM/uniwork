@@ -18,7 +18,7 @@ func NewMcp() *Mcp {
 	return &Mcp{
 		ToolCalls: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_mcp_tool_calls_total",
-			Help: "MCP tool calls by tool and outcome (ok, invalid, not_found, cancelled, error).",
+			Help: "MCP tool calls by tool and outcome (ok, invalid, refused, not_found, cancelled, error).",
 		}, []string{"tool", "outcome"}),
 		ToolDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "uniwork_mcp_tool_duration_seconds",

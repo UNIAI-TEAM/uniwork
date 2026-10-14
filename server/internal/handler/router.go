@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 
@@ -160,7 +161,7 @@ func New(d Deps) http.Handler {
 	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
 	if d.McpAuth != nil && d.McpTools != nil {
-		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), d.Log)
+		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), mw.NewCounter(d.Redis, "mcp-write", 30, time.Minute), d.Log)
 	}
 	aiMount := h.aiMountable(sessionAIActor)
 	frameAI := h.aiMountable(h.frameAIActor)
