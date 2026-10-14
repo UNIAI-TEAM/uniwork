@@ -123,16 +123,23 @@ export function LibraryRowView({
       : null;
   const level = rowLevel(doc);
 
+  // A trashed folder is not browsable: its primary action is Restore when the
+  // viewer may restore it, and without that the name is plain text, not a link.
+  const trashedFolder = Boolean(doc) && folder && archived;
+  const canRestore = Boolean(handlers.onRestore) && canArchiveRow(level);
+
   const primary = () => {
-    if (doc && folder) handlers.onFolder(doc.id);
+    if (doc && trashedFolder) {
+      if (canRestore) handlers.onRestore?.(doc);
+    } else if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id);
     else if (row.type === "source") handlers.onGoToSource(row);
   };
 
   const actions: RowAction[] = [];
   // A trashed folder is not browsable: its menu offers Restore instead of Open.
-  if (doc && folder && archived) {
-    if (handlers.onRestore && canArchiveRow(level)) {
+  if (doc && trashedFolder) {
+    if (canRestore) {
       actions.push({ id: "restore", label: t("documents.actions.restore"), icon: ArchiveRestore, run: () => handlers.onRestore?.(doc) });
     }
   } else if (doc && folder) {
@@ -199,6 +206,23 @@ export function LibraryRowView({
     </Button>
   ) : null;
 
+  const nameCell = (
+    <>
+      <DocumentTypeIcon format={folder ? "folder" : format} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="truncate text-body text-foreground">{title}</span>
+          {archived || doc?.archived_at ? (
+            <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
+          ) : null}
+        </span>
+        <span className="block truncate text-caption text-muted-foreground md:hidden">
+          {[editor, updated, size].filter(Boolean).join(" · ")}
+        </span>
+      </span>
+    </>
+  );
+
   return (
     <ContextMenu>
       <ContextMenuTrigger
@@ -207,20 +231,13 @@ export function LibraryRowView({
         className="group/row border-b border-border transition-colors last:border-b-0 hover:bg-accent/40"
       >
         <td className="px-3 py-2">
-          <button type="button" onClick={primary} className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">
-            <DocumentTypeIcon format={folder ? "folder" : format} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
-            <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-2">
-                <span className="truncate text-body text-foreground">{title}</span>
-                {archived || doc?.archived_at ? (
-                  <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
-                ) : null}
-              </span>
-              <span className="block truncate text-caption text-muted-foreground md:hidden">
-                {[editor, updated, size].filter(Boolean).join(" · ")}
-              </span>
-            </span>
-          </button>
+          {trashedFolder && !canRestore ? (
+            <div className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">{nameCell}</div>
+          ) : (
+            <button type="button" onClick={primary} className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">
+              {nameCell}
+            </button>
+          )}
         </td>
         {typeCell !== undefined ? (
           <td className="hidden px-3 py-2 text-caption text-muted-foreground md:table-cell">{typeCell}</td>

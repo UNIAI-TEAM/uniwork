@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -424,6 +425,9 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
   }
 
+  /** The name button of the row's first cell (the row's primary action), or null when the cell is inert. */
+  const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td:first-child button");
+
   async function openMenu(title: string) {
     const row = await rowOf(title);
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
@@ -444,6 +448,40 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
     expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
+  });
+
+  it("opens the restore dialog, and does not navigate, on click of a trashed folder row", async () => {
+    route({ list: archivedList([archivedFolder()]) });
+    const adapter = renderView();
+    await openArchiveScope();
+    const row = await rowOf("Dự án CCB");
+    fireEvent.click(primaryOf(row)!);
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(t("documents.archive.restore_title"))).toBeInTheDocument();
+    expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
+  });
+
+  it("opens the restore dialog, and does not navigate, on Enter over a trashed folder row", async () => {
+    route({ list: archivedList([archivedFolder()]) });
+    const adapter = renderView();
+    await openArchiveScope();
+    const row = await rowOf("Dự án CCB");
+    const open = primaryOf(row)!;
+    open.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
+  });
+
+  it("makes a trashed folder row inert for a viewer who cannot manage it: no link, no dialog, no navigation", async () => {
+    route({ list: archivedList([archivedFolder({ my_level: "edit" })]) });
+    const adapter = renderView();
+    await openArchiveScope();
+    const row = await rowOf("Dự án CCB");
+    expect(primaryOf(row)).toBeNull();
+    fireEvent.click(within(row).getByText("Dự án CCB"));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
   });
 
   it("keeps an archived document's menu as it was: Open on the web, no Restore", async () => {
