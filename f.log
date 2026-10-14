@@ -1,0 +1,7 @@
+$ pnpm --filter @uniwork/web exec vitest run features/landing 2>&1 | tail -5; echo "LANDING_EXIT=${PIPESTATUS[0]}"
+ Test Files  2 passed (2)
+      Tests  19 passed (19)
+   Start at  10:11:09
+   Duration  2.20s (transform 1.13s, setup 407ms, import 1.55s, tests 1.01s, environment 663ms)
+
+LANDING_EXIT=0

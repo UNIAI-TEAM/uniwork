@@ -1,0 +1,6 @@
+$ pnpm --filter @uniwork/web lint 2>&1 | tail -5; echo "LINT_EXIT=${PIPESTATUS[0]}"
+
+> @uniwork/web@0.0.0 lint /workspace/apps/web
+> eslint . --max-warnings 0
+
+LINT_EXIT=0
