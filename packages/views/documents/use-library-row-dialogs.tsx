@@ -12,13 +12,21 @@ import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
 import { loadMoveRevision, moveRefused, moveTooDeep } from "./document-tree-model";
+import { FolderNameDialog } from "./folder-name-dialog";
 import { FolderPickerDialog } from "./folder-picker-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
 
 type SourceRow = { type: "source"; id: string; source: DocumentSourceFile };
 
+type NameDialogState =
+  | { mode: "create"; parentId: string | null; parentTitle?: string }
+  | { mode: "rename"; doc: DocumentSummaryRow };
+
 export interface LibraryRowDialogs {
   onSaveSource: (row: SourceRow) => void;
+  onCreateFolder: () => void;
+  onNewSubfolder: (doc: DocumentSummaryRow) => void;
+  onRename: (doc: DocumentSummaryRow) => void;
   onMove: (doc: DocumentSummaryRow) => void;
   onArchive: (doc: DocumentSummaryRow) => void;
   dialogs: ReactNode;
@@ -26,25 +34,31 @@ export interface LibraryRowDialogs {
 
 /**
  * The library row commands that need a dialog: save a file from another
- * module into a folder, move a document to another folder, archive one.
- * Each awaits the server; a refusal stays in the dialog (move, save) or the
- * archive dialog's own message, and nothing on screen moves before that.
+ * module into a folder, create a folder / subfolder, rename a folder or
+ * document, move a document to another folder, archive one.
+ * Each awaits the server; a refusal stays in the dialog (create, rename,
+ * move, save) or the archive dialog's own message, and nothing on screen
+ * moves before that.
  */
 export function useLibraryRowDialogs({
   wsId,
   tree,
   folderId,
+  folderTitle,
 }: {
   wsId: string;
   tree: DocumentTreeNode[];
   /** The folder the library has open, preselected in the pickers. */
   folderId: string | null;
+  /** Title of the open folder for the "New -> Folder" dialog header. */
+  folderTitle?: string;
 }): LibraryRowDialogs {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const saveSource = useSaveSourceToFolder(wsId);
   const move = useMoveDocument(wsId);
   const [saving, setSaving] = useState<SourceRow | null>(null);
+  const [naming, setNaming] = useState<NameDialogState | null>(null);
   const [moving, setMoving] = useState<DocumentSummaryRow | null>(null);
   const [archiving, setArchiving] = useState<DocumentSummaryRow | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +95,20 @@ export function useLibraryRowDialogs({
 
   const dialogs = (
     <>
+      <FolderNameDialog
+        open={naming !== null}
+        onOpenChange={(next) => {
+          if (!next) setNaming(null);
+        }}
+        mode={naming?.mode ?? "create"}
+        parentId={naming?.mode === "create" ? naming.parentId : null}
+        parentTitle={naming?.mode === "create" ? naming.parentTitle : undefined}
+        folderId={naming?.mode === "rename" ? naming.doc.id : ""}
+        initialName={naming?.mode === "rename" ? naming.doc.title : ""}
+        kind={naming?.mode === "rename" ? naming.doc.kind : "folder"}
+        revision={naming?.mode === "rename" ? naming.doc.revision : undefined}
+        wsId={wsId}
+      />
       <FolderPickerDialog
         open={saving !== null}
         onOpenChange={(next) => {
@@ -151,6 +179,9 @@ export function useLibraryRowDialogs({
       setError(null);
       setSaving(row);
     },
+    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle }),
+    onNewSubfolder: (doc) => setNaming({ mode: "create", parentId: doc.id, parentTitle: doc.title }),
+    onRename: (doc) => setNaming({ mode: "rename", doc }),
     onMove: (doc) => {
       setError(null);
       setMoving(doc);

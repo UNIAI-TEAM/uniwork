@@ -9,7 +9,8 @@ import {
   StaticProvider,
 } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
-import { requestMock, wrapWithNav } from "../test/api-mock";
+import { defaultStorage } from "@uniwork/core/platform";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import type { OfficeLaunchSessionFactory } from "../office";
 import { DocumentsPageView } from "./documents-page-view";
 
@@ -18,11 +19,13 @@ const { t } = initI18n();
 const WS = "ws1";
 const TREE_URL = `/api/v1/workspaces/${WS}/documents/tree`;
 const LIST_BASE = `/api/v1/workspaces/${WS}/documents`;
+const FOLDER_SORT_KEY = "uniwork_documents_folder_sort";
+const userFolderSortKey = (userId: string) => `${FOLDER_SORT_KEY}:${userId}`;
 
 /** The screen is gated by `documents`; the flag has to be on to see anything. */
-function withFlag(ui: React.ReactElement, on: boolean) {
+function withFlag(ui: React.ReactElement, on: boolean, initialUrl?: string) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: on } }));
-  return wrapWithNav(<FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>);
+  return wrapWithNav(<FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>, fakeNav(initialUrl));
 }
 
 function summary(over: Record<string, unknown> = {}) {
@@ -49,13 +52,15 @@ function renderView(
     | {
         desktopOpen?: React.ComponentProps<typeof DocumentsPageView>["desktopOpen"];
         officeHome?: React.ComponentProps<typeof DocumentsPageView>["officeHome"];
+        initialUrl?: string;
       } = true,
 ) {
   const on = typeof opts === "boolean" ? opts : true;
   const desktopOpen = typeof opts === "boolean" ? undefined : opts.desktopOpen;
   const officeHome = typeof opts === "boolean" ? undefined : opts.officeHome;
+  const initialUrl = typeof opts === "boolean" ? undefined : opts.initialUrl;
   return render(
-    withFlag(<DocumentsPageView wsId={WS} onOpen={onOpen} desktopOpen={desktopOpen} officeHome={officeHome} />, on),
+    withFlag(<DocumentsPageView wsId={WS} onOpen={onOpen} desktopOpen={desktopOpen} officeHome={officeHome} />, on, initialUrl),
   );
 }
 
@@ -72,6 +77,9 @@ function postCall(method: string) {
 beforeEach(() => {
   requestMock.mockReset();
   resetAuthStoreForTests();
+  defaultStorage.removeItem(FOLDER_SORT_KEY);
+  defaultStorage.removeItem(userFolderSortKey("u1"));
+  defaultStorage.removeItem(userFolderSortKey("u2"));
   setSessionUser({
     id: "u1",
     email: "an@example.com",
@@ -773,6 +781,443 @@ describe("DocumentsPageView", () => {
     fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [dropped] } });
 
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === `${LIST_BASE}/files`)).toBe(true));
+  });
+
+  describe("folder contents list (FD-08)", () => {
+    const rowOrder = () =>
+      Array.from(document.querySelectorAll("[data-library-row]")).map((tr) =>
+        tr.getAttribute("data-library-row"),
+      );
+
+    async function selectFolderSort(optionLabel: string) {
+      fireEvent.click(screen.getByRole("combobox", { name: t("documents.home.sort.label") }));
+      const option = within(await screen.findByRole("listbox")).getByText(optionLabel);
+      fireEvent.pointerDown(option);
+      fireEvent.click(option);
+    }
+
+    it("keeps folders before documents in both sorts", async () => {
+      route({
+        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
+        list: (path) =>
+          queryOf(path).get("parent_id") === "fo1"
+            ? [
+                summary({ id: "doc-new", parent_id: "fo1", kind: "page", title: "An", updated_at: "2026-10-10T00:00:00Z" }),
+                summary({ id: "fol-old", parent_id: "fo1", kind: "folder", title: "Zebra", updated_at: "2026-01-01T00:00:00Z" }),
+                file("doc-old", "Báo cáo.docx", { parent_id: "fo1", updated_at: "2026-02-01T00:00:00Z" }),
+                summary({ id: "fol-new", parent_id: "fo1", kind: "folder", title: "Alpha", updated_at: "2026-09-01T00:00:00Z" }),
+              ]
+            : [],
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+
+      await screen.findByText("Zebra");
+      expect(rowOrder()).toEqual(["fol-new", "fol-old", "doc-new", "doc-old"]);
+
+      await selectFolderSort(t("documents.home.sort.name"));
+      await waitFor(() => expect(rowOrder()).toEqual(["fol-new", "fol-old", "doc-new", "doc-old"]));
+    });
+
+    it("sorts by Name using Vietnamese collation ('Ă' after 'A')", async () => {
+      route({
+        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
+        list: (path) =>
+          queryOf(path).get("parent_id") === "fo1"
+            ? [
+                summary({ id: "binh", parent_id: "fo1", kind: "page", title: "Bình", updated_at: "2026-10-04T00:00:00Z" }),
+                summary({ id: "an-circumflex", parent_id: "fo1", kind: "page", title: "Ân", updated_at: "2026-10-03T00:00:00Z" }),
+                summary({ id: "an-breve", parent_id: "fo1", kind: "page", title: "Ăn", updated_at: "2026-10-02T00:00:00Z" }),
+                summary({ id: "an-plain", parent_id: "fo1", kind: "page", title: "An", updated_at: "2026-10-01T00:00:00Z" }),
+              ]
+            : [],
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+      await screen.findByText("Bình");
+
+      await selectFolderSort(t("documents.home.sort.name"));
+      await waitFor(() => expect(rowOrder()).toEqual(["an-plain", "an-breve", "an-circumflex", "binh"]));
+    });
+
+    it("keeps the chosen sort on the control and in storage after going to root (control unmounts) and opening another folder (V-F1)", async () => {
+      const setItemSpy = vi.spyOn(defaultStorage, "setItem");
+      route({
+        tree: () => [
+          treeNode({ id: "fo1", title: "Thư mục A", kind: "folder" }),
+          treeNode({ id: "fo2", title: "Thư mục B", kind: "folder" }),
+        ],
+        detail: (id) =>
+          id === "fo1"
+            ? folderDetail({ id: "fo1", title: "Thư mục A" })
+            : id === "fo2"
+              ? folderDetail({ id: "fo2", title: "Thư mục B" })
+              : null,
+        list: (path) => {
+          const pid = queryOf(path).get("parent_id");
+          if (pid === "fo1") {
+            return [
+              summary({ id: "a-z", parent_id: "fo1", title: "Zeta", updated_at: "2026-10-10T00:00:00Z" }),
+              summary({ id: "a-a", parent_id: "fo1", title: "Alpha", updated_at: "2026-01-01T00:00:00Z" }),
+            ];
+          }
+          if (pid === "fo2") {
+            return [
+              summary({ id: "b-an-breve", parent_id: "fo2", title: "Ăn", updated_at: "2026-10-10T00:00:00Z" }),
+              summary({ id: "b-an", parent_id: "fo2", title: "An", updated_at: "2026-01-01T00:00:00Z" }),
+            ];
+          }
+          return [summary({ id: "root-doc", title: "Tài liệu gốc" })];
+        },
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+      await screen.findByText("Zeta");
+      expect(rowOrder()).toEqual(["a-z", "a-a"]);
+
+      await selectFolderSort(t("documents.home.sort.name"));
+      await waitFor(() => expect(rowOrder()).toEqual(["a-a", "a-z"]));
+
+      // Go to root so the sort Select unmounts and Group by mounts, then open another folder.
+      const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+      fireEvent.click(within(crumbs).getByRole("button", { name: t("documents.page.title") }));
+      await screen.findByText("Tài liệu gốc");
+      expect(screen.queryByRole("combobox", { name: t("documents.home.sort.label") })).toBeNull();
+      expect(screen.getByRole("combobox", { name: t("documents.home.group_by.label") })).toBeInTheDocument();
+
+      setItemSpy.mockClear();
+      fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục B/ }));
+      await screen.findByText("Ăn");
+      expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toHaveTextContent(
+        t("documents.home.sort.name"),
+      );
+      expect(rowOrder()).toEqual(["b-an", "b-an-breve"]);
+      expect(setItemSpy).not.toHaveBeenCalled();
+      expect(defaultStorage.getItem(userFolderSortKey("u1"))).toBe("name");
+      setItemSpy.mockRestore();
+    });
+
+    it("persists the sort choice under one per-viewer key (uniwork_documents_folder_sort:<userId>), isolates viewers, and does not write without a user (F2)", async () => {
+      const setItemSpy = vi.spyOn(defaultStorage, "setItem");
+      route({
+        tree: () => [
+          treeNode({ id: "fo1", title: "Thư mục A", kind: "folder" }),
+          treeNode({ id: "fo2", title: "Thư mục B", kind: "folder" }),
+        ],
+        detail: (id) =>
+          id === "fo1"
+            ? folderDetail({ id: "fo1", title: "Thư mục A" })
+            : id === "fo2"
+              ? folderDetail({ id: "fo2", title: "Thư mục B" })
+              : null,
+        list: (path) => {
+          const pid = queryOf(path).get("parent_id");
+          if (pid === "fo1") {
+            return [
+              summary({ id: "a-z", parent_id: "fo1", title: "Zeta", updated_at: "2026-10-10T00:00:00Z" }),
+              summary({ id: "a-a", parent_id: "fo1", title: "Alpha", updated_at: "2026-01-01T00:00:00Z" }),
+            ];
+          }
+          if (pid === "fo2") {
+            return [
+              summary({ id: "b-an-breve", parent_id: "fo2", title: "Ăn", updated_at: "2026-10-10T00:00:00Z" }),
+              summary({ id: "b-an", parent_id: "fo2", title: "An", updated_at: "2026-01-01T00:00:00Z" }),
+            ];
+          }
+          return [];
+        },
+      });
+      const { unmount } = renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+      await screen.findByText("Zeta");
+      await selectFolderSort(t("documents.home.sort.name"));
+      await waitFor(() => expect(rowOrder()).toEqual(["a-a", "a-z"]));
+      expect(defaultStorage.getItem(userFolderSortKey("u1"))).toBe("name");
+      expect(setItemSpy).toHaveBeenCalledWith(userFolderSortKey("u1"), "name");
+
+      fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục B/ }));
+      await screen.findByText("Ăn");
+      expect(rowOrder()).toEqual(["b-an", "b-an-breve"]);
+
+      // A second viewer on the same browser does not share u1's choice, and no user neither reads nor writes.
+      unmount();
+      setSessionUser({
+        id: "u2",
+        email: "binh@example.com",
+        display_name: "Bình",
+        onboarded_at: "2026-08-25T00:00:00Z",
+        email_verified_at: "2026-08-25T00:00:00Z",
+        onboarding_questionnaire: {},
+        locale: "vi",
+      });
+      const second = renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo2` });
+      await screen.findByText("Ăn");
+      expect(rowOrder()).toEqual(["b-an-breve", "b-an"]);
+      expect(defaultStorage.getItem(userFolderSortKey("u2"))).toBeNull();
+      second.unmount();
+
+      resetAuthStoreForTests();
+      setItemSpy.mockClear();
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo2` });
+      await screen.findByText("Ăn");
+      expect(rowOrder()).toEqual(["b-an-breve", "b-an"]);
+      await selectFolderSort(t("documents.home.sort.name"));
+      await waitFor(() => expect(rowOrder()).toEqual(["b-an", "b-an-breve"]));
+      expect(setItemSpy).not.toHaveBeenCalled();
+      setItemSpy.mockRestore();
+    });
+
+    it("loads all pages of an open folder before applying folders-first and sort, and respects the 1000-row cap (F4)", async () => {
+      const urls: string[] = [];
+      route({
+        tree: () => [
+          treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" }),
+          treeNode({ id: "fo-cap", title: "Thư mục lớn", kind: "folder" }),
+        ],
+        detail: (id) =>
+          id === "fo1"
+            ? folderDetail({ id: "fo1", title: "Dự án CCB" })
+            : id === "fo-cap"
+              ? folderDetail({ id: "fo-cap", title: "Thư mục lớn" })
+              : null,
+        list: (path) => {
+          urls.push(path);
+          const pid = queryOf(path).get("parent_id");
+          const cur = queryOf(path).get("cursor");
+          if (pid === "fo1") {
+            if (cur === "c2") {
+              return [
+                summary({ id: "fol-p2", parent_id: "fo1", kind: "folder", title: "Thư mục trang 2", updated_at: "2026-01-01T00:00:00Z" }),
+                summary({ id: "doc-p2", parent_id: "fo1", kind: "page", title: "Bình", updated_at: "2026-05-01T00:00:00Z" }),
+              ];
+            }
+            return [
+              summary({ id: "doc-p1-new", parent_id: "fo1", kind: "page", title: "Zeta", updated_at: "2026-10-10T00:00:00Z" }),
+              summary({ id: "doc-p1-old", parent_id: "fo1", kind: "page", title: "An", updated_at: "2026-08-01T00:00:00Z" }),
+            ];
+          }
+          if (pid === "fo-cap") {
+            const batch = cur === "cap2" ? 500 : cur === "cap3" ? 1000 : 0;
+            return Array.from({ length: 500 }, (_, i) => {
+              const n = batch + i + 1;
+              return n === 1000
+                ? file("cap-1000", "Tài liệu 1000.docx", { parent_id: "fo-cap", updated_at: "2026-10-01T00:00:00Z" })
+                : summary({
+                    id: `cap-${n}`,
+                    parent_id: "fo-cap",
+                    kind: "page",
+                    title: `Tài liệu ${n}`,
+                    updated_at: "2026-10-01T00:00:00Z",
+                  });
+            });
+          }
+          return [];
+        },
+        cursor: (path) => {
+          const pid = queryOf(path).get("parent_id");
+          const cur = queryOf(path).get("cursor");
+          if (pid === "fo1") return cur === "c2" ? null : "c2";
+          if (pid === "fo-cap") return !cur ? "cap2" : cur === "cap2" ? "cap3" : null;
+          return null;
+        },
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+
+      // Without clicking Load more, page 2 is auto-loaded and its folder precedes page 1's documents.
+      await screen.findByText("Thư mục trang 2");
+      expect(rowOrder()).toEqual(["fol-p2", "doc-p1-new", "doc-p1-old", "doc-p2"]);
+      expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull();
+
+      await selectFolderSort(t("documents.home.sort.name"));
+      await waitFor(() => expect(rowOrder()).toEqual(["fol-p2", "doc-p1-old", "doc-p2", "doc-p1-new"]));
+
+      // Cap at 1000 rows: auto-loads page 1 (500) + page 2 (500) = 1000, stops before cap3, and keeps "Tải thêm".
+      fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.docx") }));
+      fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục lớn/ }));
+      await screen.findByText("Tài liệu 1000.docx");
+      expect(urls.some((u) => queryOf(u).get("parent_id") === "fo-cap" && queryOf(u).get("cursor") === "cap2")).toBe(true);
+      expect(urls.some((u) => queryOf(u).get("parent_id") === "fo-cap" && queryOf(u).get("cursor") === "cap3")).toBe(false);
+      expect(screen.getByRole("button", { name: t("documents.library.load_more") })).toBeInTheDocument();
+    });
+
+    it("lists direct children only and excludes grandchildren or root documents", async () => {
+      const urls: string[] = [];
+      route({
+        tree: () => [
+          treeNode({
+            id: "fo1",
+            title: "Dự án CCB",
+            kind: "folder",
+            children: [treeNode({ id: "sub1", title: "Con trực tiếp", kind: "folder", parent_id: "fo1" })],
+          }),
+        ],
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
+        list: (path) => {
+          urls.push(path);
+          return [
+            summary({ id: "sub1", parent_id: "fo1", kind: "folder", title: "Con trực tiếp" }),
+            file("direct-doc", "Tài liệu con.docx", { parent_id: "fo1" }),
+            file("grandchild-doc", "Tài liệu cháu.docx", { parent_id: "sub1" }),
+            summary({ id: "root-doc", parent_id: null, title: "Tài liệu gốc" }),
+          ];
+        },
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+
+      const table = await screen.findByRole("table");
+      expect(await within(table).findByText("Con trực tiếp")).toBeInTheDocument();
+      expect(within(table).getByText("Tài liệu con.docx")).toBeInTheDocument();
+      expect(within(table).queryByText("Tài liệu cháu.docx")).toBeNull();
+      expect(within(table).queryByText("Tài liệu gốc")).toBeNull();
+      expect(urls.some((u) => queryOf(u).get("parent_id") === "fo1")).toBe(true);
+    });
+
+    it("keeps the root page unchanged per FD-D9 (no sort control, no Type column, folder grouping kept)", async () => {
+      route({
+        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
+        list: (path) =>
+          queryOf(path).get("parent_id") === "fo1"
+            ? [file("f1", "Báo giá.docx", { parent_id: "fo1" })]
+            : [summary({ id: "d1", title: "Kế hoạch Q4" }), file("f1", "Báo giá.docx", { parent_id: "fo1" })],
+      });
+      renderView(vi.fn());
+      await screen.findByText("Báo giá.docx");
+
+      expect(screen.queryByRole("combobox", { name: t("documents.home.sort.label") })).toBeNull();
+      expect(screen.getByRole("combobox", { name: t("documents.home.group_by.label") })).toBeInTheDocument();
+      expect(screen.queryByRole("columnheader", { name: t("documents.home.columns.type") })).toBeNull();
+      const groupHeaders = () => Array.from(document.querySelectorAll("[data-library-group]")).map((c) => c.textContent);
+      expect(groupHeaders()).toEqual([`${t("documents.home.groups.unfiled")}1`, "Dự án CCB1"]);
+
+      fireEvent.click(screen.getByRole("treeitem", { name: /Dự án CCB/ }));
+      expect(await screen.findByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
+      expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
+      expect(await screen.findByRole("columnheader", { name: t("documents.home.columns.type") })).toBeInTheDocument();
+      expect(groupHeaders()).toEqual([]);
+    });
+
+    it("renders CollectionPageState when an open folder is empty and offers a New folder action when the viewer can create (V-F3)", async () => {
+      route({
+        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
+        list: () => [],
+        post: () => ({ document: folderDetail({ id: "fo-sub", parent_id: "fo1", title: "Thư mục con mới" }) }),
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+
+      const emptyTitle = await screen.findByText(t("documents.home.empty.folder_title"));
+      expect(emptyTitle).toBeInTheDocument();
+      const status = emptyTitle.closest("[role='status']") as HTMLElement;
+      expect(status).toHaveTextContent(t("documents.home.empty.description"));
+      expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
+      expect(screen.queryByRole("table")).toBeNull();
+
+      const createFolderBtn = within(status).getByRole("button", { name: t("documents.home.folders.create_title") });
+      fireEvent.click(createFolderBtn);
+      const dialog = await screen.findByRole("dialog", {
+        name: t("documents.home.folders.create_sub_title", { parent: "Dự án CCB" }),
+      });
+      const input = within(dialog).getByLabelText(t("documents.home.folders.rename_label"));
+      fireEvent.change(input, { target: { value: "Thư mục con mới" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
+      await waitFor(() => {
+        expect((postCall("POST")?.[1] as { body?: unknown }).body).toEqual({
+          kind: "folder",
+          title: "Thư mục con mới",
+          parent_id: "fo1",
+        });
+      });
+    });
+
+    it("renders the Type column ('Loại') with a localized label per kind in an open folder", async () => {
+      route({
+        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
+        list: (path) =>
+          queryOf(path).get("parent_id") === "fo1"
+            ? [
+                summary({ id: "sub1", parent_id: "fo1", kind: "folder", title: "Thư mục con" }),
+                summary({ id: "p1", parent_id: "fo1", kind: "page", title: "Ghi chú họp" }),
+                file("f1", "Hợp đồng.docx", { parent_id: "fo1" }),
+              ]
+            : [],
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+
+      const table = await screen.findByRole("table");
+      expect(within(table).getByRole("columnheader", { name: t("documents.home.columns.type") })).toBeInTheDocument();
+      expect(within(await rowOf("Thư mục con")).getByText(t("documents.file_types.folder"))).toBeInTheDocument();
+      expect(within(await rowOf("Ghi chú họp")).getByText(t("documents.file_types.page"))).toBeInTheDocument();
+      expect(within(await rowOf("Hợp đồng.docx")).getByText(t("documents.file_types.docx"))).toBeInTheDocument();
+    });
+
+    it("defaults sort without crashing when platform storage throws", async () => {
+      const getSpy = vi.spyOn(defaultStorage, "getItem").mockImplementation(() => {
+        throw new Error("SecurityError");
+      });
+      const setSpy = vi.spyOn(defaultStorage, "setItem").mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+      route({
+        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
+        list: (path) =>
+          queryOf(path).get("parent_id") === "fo1"
+            ? [
+                summary({ id: "d-old", parent_id: "fo1", title: "An", updated_at: "2026-01-01T00:00:00Z" }),
+                summary({ id: "d-new", parent_id: "fo1", title: "Zeta", updated_at: "2026-10-10T00:00:00Z" }),
+              ]
+            : [],
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
+
+      await screen.findByText("Zeta");
+      expect(rowOrder()).toEqual(["d-new", "d-old"]);
+
+      await selectFolderSort(t("documents.home.sort.name"));
+      await waitFor(() => expect(rowOrder()).toEqual(["d-old", "d-new"]));
+
+      getSpy.mockRestore();
+      setSpy.mockRestore();
+    });
+
+    it("gives every toolbar chip and scope tab a 44x44 coarse-pointer floor while keeping fine-pointer chip sizing (V-F6 / N3)", async () => {
+      route({
+        tree: () => [
+          treeNode({
+            id: "fo1",
+            title: "An",
+            kind: "folder",
+            children: [treeNode({ id: "fo2", title: "Dự án CCB", kind: "folder", parent_id: "fo1" })],
+          }),
+        ],
+        detail: (id) =>
+          id === "fo2"
+            ? folderDetail({ id: "fo2", title: "Dự án CCB", parent_id: "fo1", breadcrumbs: [{ id: "fo1", title: "An" }] })
+            : null,
+        list: () => [summary({ id: "d1", parent_id: "fo2", title: "Kế hoạch Q4" })],
+      });
+      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo2` });
+      await screen.findByText("Kế hoạch Q4");
+
+      const chipGroup = screen.getByRole("group", { name: t("documents.home.chips_label") });
+      const chips = within(chipGroup).getAllByRole("button");
+      expect(chips.length).toBeGreaterThan(0);
+      for (const chip of chips) {
+        expect(chip).toHaveClass("h-7", "px-3", "pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
+      }
+
+      const tabList = screen.getByRole("tablist", { name: t("documents.home.scope_label") });
+      const tabs = within(tabList).getAllByRole("tab");
+      expect(tabs.length).toBeGreaterThan(0);
+      for (const tab of tabs) {
+        expect(tab).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
+      }
+
+      const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+      for (const btn of within(crumbs).getAllByRole("button")) {
+        expect(btn).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
+      }
+    });
   });
 });
 
