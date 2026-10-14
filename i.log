@@ -1,0 +1,282 @@
+$ git checkout -q 498186ec -- . ; npm exec -w @genoffice/ai-provider -- vitest run tests/ai-notice.test.ts; a=$?; npm exec -w @genoffice/ui -- vitest run tests/ai-composer-uniwork.test.tsx tests/uniwork-ack-store.test.ts tests/strings-ai-uniwork.test.ts; b=$?; npx vitest run --root web/modules shared/ai/ai.test.ts; c=$?; git checkout -q HEAD -- . ; echo "RED_WB ai-notice=$a ui=$b web=$c"; [ $a -ne 0 ] && [ $b -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ai-provider
+
+ ❯ tests/ai-notice.test.ts (13 tests | 3 failed) 12ms
+     × maps each single condition to its note kind, key and action 4ms
+     × enforces priority: signed-out > off > not-entitled > subscription-inactive > credits-exhausted > unavailable 2ms
+     × viewOnly never suppresses or replaces the composer note 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ai-notice.test.ts > composerNoteFor (G6-05u S7/S11) > maps each single condition to its note kind, key and action
+AssertionError: expected null to deeply equal { kind: 'signed-out', …(2) }
+
+- Expected:
+{
+  "action": "sign-in",
+  "key": "aiUniworkSignedOut",
+  "kind": "signed-out",
+}
+
++ Received:
+null
+
+ ❯ tests/ai-notice.test.ts:137:82
+    135|
+    136|   it('maps each single condition to its note kind, key and action', ()…
+    137|     expect(composerNoteFor({ uniworkSelected: true, cloudState: 'signe…
+       |                                                                                  ^
+    138|       kind: 'signed-out',
+    139|       key: 'aiUniworkSignedOut',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/ai-notice.test.ts > composerNoteFor (G6-05u S7/S11) > enforces priority: signed-out > off > not-entitled > subscription-inactive > credits-exhausted > unavailable
+AssertionError: expected undefined to be 'signed-out' // Object.is equality
+
+- Expected:
+"signed-out"
+
++ Received:
+undefined
+
+ ❯ tests/ai-notice.test.ts:206:7
+    204|         off: true,
+    205|       })?.kind,
+    206|     ).toBe('signed-out')
+       |       ^
+    207|
+    208|     expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/ai-notice.test.ts > composerNoteFor (G6-05u S7/S11) > viewOnly never suppresses or replaces the composer note
+AssertionError: expected null to deeply equal { kind: 'credits-exhausted', …(2) }
+
+- Expected:
+{
+  "action": "choose-provider",
+  "key": "credits_exhausted",
+  "kind": "credits-exhausted",
+}
+
++ Received:
+null
+
+ ❯ tests/ai-notice.test.ts:252:7
+    250|         viewOnly: true,
+    251|       }),
+    252|     ).toEqual({
+       |       ^
+    253|       kind: 'credits-exhausted',
+    254|       key: 'credits_exhausted',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 10 passed (13)
+   Start at  10:01:25
+   Duration  175ms (transform 56ms, setup 0ms, import 67ms, tests 12ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+ ❯ tests/strings-ai-uniwork.test.ts (112 tests | 2 failed) 24ms
+     × fills the placeholders through aiUniworkText 4ms
+     × includes the G6-05u cloud, account, local-file restart, sheet meta and web 413 keys in all locales 1ms
+ ❯ tests/uniwork-ack-store.test.ts (5 tests | 5 failed) 18ms
+     × returns false before ack and true after ack for a { account, org, document } tuple 5ms
+     × scopes acknowledgements per { account, org, document | "local" } and re-prompts when document, org or account changes 1ms
+     × remembers the "local" bucket across local files in the same account and organization 1ms
+     × persists acknowledgements in localStorage and survives corrupted storage entries 1ms
+     × notifies subscribers and updates useUniworkDisclosureAck when acked or cleared 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > fills the placeholders through aiUniworkText
+AssertionError: expected '10 / 100 left' to be '10 of 100 left' // Object.is equality
+
+Expected: "10 of 100 left"
+Received: "10 / 100 left"
+
+ ❯ tests/strings-ai-uniwork.test.ts:143:84
+    141|       'Bạn đang gửi quá nhanh. Thử lại sau 30 giây.',
+    142|     )
+    143|     expect(aiUniworkText('en', 'cloudCreditsLeft', { remaining: 10, li…
+       |                                                                                    ^
+    144|       '10 of 100 left',
+    145|     )
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > includes the G6-05u cloud, account, local-file restart, sheet meta and web 413 keys in all locales
+AssertionError: expected 'Sign in' to be 'Sign in to UniWork' // Object.is equality
+
+Expected: "Sign in to UniWork"
+Received: "Sign in"
+
+ ❯ tests/strings-ai-uniwork.test.ts:155:47
+    153|
+    154|   it('includes the G6-05u cloud, account, local-file restart, sheet me…
+    155|     expect(aiUniworkText('en', 'acctSignIn')).toBe('Sign in to UniWork…
+       |                                               ^
+    156|     expect(aiUniworkText('vi', 'acctSignIn')).toBe('Đăng nhập UniWork')
+    157|     expect(aiUniworkText('en', 'acctSignInAgain')).toBe('Sign in again…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/uniwork-ack-store.test.ts > UniWork AI disclosure acknowledgement store (G6-05u S8) > returns false before ack and true after ack for a { account, org, document } tuple
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/uniwork-ack-store.test.ts:31:26
+     29|     expect(isAcked(key)).toBe(false)
+     30|     ack(key)
+     31|     expect(isAcked(key)).toBe(true)
+       |                          ^
+     32|   })
+     33|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/uniwork-ack-store.test.ts > UniWork AI disclosure acknowledgement store (G6-05u S8) > scopes acknowledgements per { account, org, document | "local" } and re-prompts when document, org or account changes
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/uniwork-ack-store.test.ts:38:27
+     36|     ack(base)
+     37|
+     38|     expect(isAcked(base)).toBe(true)
+       |                           ^
+     39|     expect(isAcked({ account: 'acc-1', org: 'org-1', document: 'doc-2'…
+     40|     expect(isAcked({ account: 'acc-1', org: 'org-1', document: 'local'…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/uniwork-ack-store.test.ts > UniWork AI disclosure acknowledgement store (G6-05u S8) > remembers the "local" bucket across local files in the same account and organization
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/uniwork-ack-store.test.ts:49:76
+     47|     expect(isAcked(localKey)).toBe(false)
+     48|     ack(localKey)
+     49|     expect(isAcked({ account: 'acc-1', org: 'org-1', document: 'local'…
+       |                                                                            ^
+     50|     expect(isAcked({ account: 'acc-1', org: 'org-2', document: 'local'…
+     51|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/uniwork-ack-store.test.ts > UniWork AI disclosure acknowledgement store (G6-05u S8) > persists acknowledgements in localStorage and survives corrupted storage entries
+AssertionError: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ tests/uniwork-ack-store.test.ts:57:17
+     55|     ack(key)
+     56|     const raw = localStorage.getItem('uniwork.office.ai.disclosure.ack…
+     57|     expect(raw).toBeTruthy()
+       |                 ^
+     58|     expect(isAcked(key)).toBe(true)
+     59|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/uniwork-ack-store.test.ts > UniWork AI disclosure acknowledgement store (G6-05u S8) > notifies subscribers and updates useUniworkDisclosureAck when acked or cleared
+TypeError: latest.ackNow is not a function
+ ❯ tests/uniwork-ack-store.test.ts:82:22
+     80|     expect(latest.acked).toBe(false)
+     81|
+     82|     act(() => latest.ackNow())
+       |                      ^
+     83|     expect(latest.acked).toBe(true)
+     84|     expect(listener).toHaveBeenCalledTimes(1)
+ ❯ process.env.NODE_ENV.exports.act ../../node_modules/react/cjs/react.development.js:814:22
+ ❯ tests/uniwork-ack-store.test.ts:82:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  7 failed | 110 passed (117)
+   Start at  10:01:26
+   Duration  586ms (transform 184ms, setup 0ms, import 269ms, tests 42ms, environment 400ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+ ❯ shared/ai/ai.test.ts (131 tests | 2 failed) 1315ms
+       × maps payload_too_large to aiErrWorkbookTooLarge in uniworkFailureKey (G6-05u) 5ms
+       × exposes uniworkIdentity from session and GET cloud org_id / org_name 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > maps payload_too_large to aiErrWorkbookTooLarge in uniworkFailureKey (G6-05u)
+AssertionError: expected 'aiErrCapabilityOff' to be 'aiErrAccessRevoked' // Object.is equality
+
+Expected: "aiErrAccessRevoked"
+Received: "aiErrCapabilityOff"
+
+ ❯ shared/ai/ai.test.ts:2297:84
+    2295|       expect(uniworkFailureKey({ code: 'payload_too_large' })).toBe('a…
+    2296|       expect(uniworkFailureKey({ code: 'office_capability_off' })).toB…
+    2297|       expect(uniworkFailureKey({ code: 'office_capability_off', runId:…
+       |                                                                                    ^
+    2298|         'aiErrAccessRevoked',
+    2299|       )
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > exposes uniworkIdentity from session and GET cloud org_id / org_name
+AssertionError: expected null to deeply equal { account: 'user-7', …(3) }
+
+- Expected:
+{
+  "account": "user-7",
+  "document": "doc-42",
+  "org": "org-cloud-1",
+  "orgName": "UniWork Org",
+}
+
++ Received:
+null
+
+ ❯ shared/ai/ai.test.ts:2326:36
+    2324|       })
+    2325|       await ai.state(true)
+    2326|       expect(ai.uniworkIdentity()).toEqual({
+       |                                    ^
+    2327|         account: 'user-7',
+    2328|         org: 'org-cloud-1',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 129 passed (131)
+   Start at  10:01:27
+   Duration  2.25s (transform 733ms, setup 0ms, import 512ms, tests 1.32s, environment 319ms)
+
+RED_WB ai-notice=1 ui=1 web=1
+RED_OK

@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -6; git merge-base --is-ancestor origin/main HEAD && echo SYNCED_OK
+a79313ca678a2addd54a6d817b1f12f038751ccb
+0f3f42bc22df209fb3b2fa1566da1000f960bf94
+a79313ca merge: fork main 0f3f42bc (PR #4 settings redesign) into the lane branch
+c74dc16f merge: WI-C result chip, thread ARIA and six-panel wiring (3e7ee92d) into the lane branch
+3e7ee92d feat(ai): wire UniWork AI result chip, thread ARIA, and composer in html, markdown, pdf
+34c6ea39 feat(ai): implement resultChip and wire UniWork AI result chip, ARIA, and composer in docs, sheets, slides
+4e9c9eaa merge: WI-A picker S7 + editor cloud-status bridge (551e3b2e) into the lane branch
+551e3b2e feat(ui): implement S7 model picker credits, footer and listbox ARIA
+SYNCED_OK

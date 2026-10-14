@@ -1,0 +1,14 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/electron-utils -- vitest run tests/uniwork-cloud-status.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/electron-utils
+
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status bridge > registers the pull channel in standalone mode and answers null (before first server read) 1ms
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status bridge > parses valid cloud status snapshots and distinguishes cloud_unavailable from failed first reads 1ms
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status bridge > wires get, onChange, openAccountSettings and signIn through the preload bridge 1ms
+ ✓ tests/uniwork-cloud-status.test.ts > uniwork-cloud-status bridge > every editor preload and the shell preload install the cloud status bridge 1ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  10:02:26
+   Duration  147ms (transform 44ms, setup 0ms, import 56ms, tests 6ms, environment 0ms)
+

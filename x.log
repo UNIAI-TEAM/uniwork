@@ -1,0 +1,341 @@
+$ npm run build:all
+
+> genoffice@0.1.0 build:all
+> npm run build -w @genoffice/docs && npm run build -w @genoffice/sheets && npm run build -w @genoffice/slides && npm run build -w @genoffice/pdf && npm run build -w @genoffice/markdown && npm run build -w @genoffice/html && npm run build -w @genoffice/cli && npm run build -w @genoffice/shell
+
+
+> @genoffice/docs@0.1.0 build
+> electron-vite build
+
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 863 modules transformed.
+rendering chunks...
+out/main/ppt-BHIGZr4q.js     42.29 kB
+out/main/index.js         4,575.95 kB
+✓ built in 4.46s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 37 modules transformed.
+rendering chunks...
+out/preload/index.js  37.14 kB
+✓ built in 76ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 618 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                                                  0.71 kB
+../../out/renderer/assets/send-enter-off-B0IfWMyy.png                          4.25 kB
+../../out/renderer/assets/GenOfficeCheLatinKR-CFVfemg_.woff2                   8.30 kB
+../../out/renderer/assets/GenOfficePoppins-Bold-subset-CLJyStaw.woff2         14.13 kB
+../../out/renderer/assets/GenOfficePoppins-Regular-subset-RElVmxhA.woff2      14.16 kB
+../../out/renderer/assets/GenOfficeUIKanaJP-Regular-Bj_7JzTT.woff2            25.29 kB
+../../out/renderer/assets/GenOfficeUIKanaJP-Bold-DbcaglVT.woff2               26.20 kB
+../../out/renderer/assets/GenOfficeDMSans-Bold-subset-DVFBF4J5.woff2          28.43 kB
+../../out/renderer/assets/GenOfficeDMSans-Regular-subset-DEQZCK4K.woff2       28.63 kB
+../../out/renderer/assets/GenOfficeTamil-Regular-DLISHPmH.woff2               33.07 kB
+../../out/renderer/assets/Caladea-Bold-D8qQyaGr.ttf                           58.89 kB
+../../out/renderer/assets/Caladea-Regular-BTbwo_Qo.ttf                        58.96 kB
+../../out/renderer/assets/Caladea-BoldItalic-wZEKqfeH.ttf                     61.83 kB
+../../out/renderer/assets/Caladea-Italic-B_Jy4Zu6.ttf                         61.86 kB
+../../out/renderer/assets/NotoSansArabic-Regular-subset-D207GVuU.woff2        63.67 kB
+../../out/renderer/assets/NotoNaskhArabic-Regular-subset-DQSqx2ZA.woff2       69.62 kB
+../../out/renderer/assets/GenOfficeSansKR-Regular-subset-CVxxonE8.woff2      266.13 kB
+../../out/renderer/assets/LiberationMono-Italic-BaW6sbi8.ttf                 281.54 kB
+../../out/renderer/assets/GenOfficeGothicKR-Regular-subset-Bkvj_MFZ.woff2    281.98 kB
+../../out/renderer/assets/LiberationMono-BoldItalic-CW50-m9W.ttf             284.07 kB
+../../out/renderer/assets/LiberationMono-Bold-JpIqZVyK.ttf                   308.00 kB
+../../out/renderer/assets/LiberationMono-Regular-CscJ8ftk.ttf                319.51 kB
+../../out/renderer/assets/LiberationSerif-Bold-CT7WGLoV.ttf                  370.10 kB
+../../out/renderer/assets/LiberationSerif-Italic-Bwtmn-ni.ttf                375.63 kB
+../../out/renderer/assets/LiberationSerif-BoldItalic-DHf5skZ4.ttf            376.77 kB
+../../out/renderer/assets/LiberationSerif-Regular-DREh6cMU.ttf               393.58 kB
+../../out/renderer/assets/LiberationSans-BoldItalic-BC07J_j6.ttf             409.00 kB
+../../out/renderer/assets/LiberationSans-Regular-CqxnOoBp.ttf                410.71 kB
+../../out/renderer/assets/LiberationSans-Bold-CAnzDFU4.ttf                   414.46 kB
+../../out/renderer/assets/LiberationSans-Italic-D6GtLuAT.ttf                 415.82 kB
+../../out/renderer/assets/GenOfficeSerifKR-Regular-subset-BkQyd75u.woff2     512.44 kB
+../../out/renderer/assets/Carlito-Italic-KkZUqxJW.ttf                        619.05 kB
+../../out/renderer/assets/Carlito-Regular-Cbe9FLjp.ttf                       631.71 kB
+../../out/renderer/assets/Carlito-Bold-BhbXr__n.ttf                          686.24 kB
+../../out/renderer/assets/Carlito-BoldItalic-0dXjwGA0.ttf                    812.34 kB
+../../out/renderer/assets/pdf.worker.min-CLrFZWeq.mjs                      1,312.45 kB
+../../out/renderer/assets/parse-worker-BvZ2Avxv.js                         1,319.25 kB
+../../out/renderer/assets/NotoSansCJKsc-Regular-subset-BuHGXxnc.woff2      2,533.16 kB
+../../out/renderer/assets/NotoSerifCJKsc-Regular-subset-CLPB6QGT.woff2     3,495.93 kB
+../../out/renderer/assets/index-D0Le-sYg.css                                 440.37 kB
+../../out/renderer/assets/pdf.worker.min-C-u9zQLr.js                           0.13 kB
+../../out/renderer/assets/pdf-B8NFvxwz.js                                  1,011.92 kB
+../../out/renderer/assets/index-f81hBspG.js                                8,086.71 kB
+✓ built in 7.43s
+
+> @genoffice/sheets@0.1.0 build
+> npm run native:build && electron-vite build
+
+
+> @genoffice/sheets@0.1.0 native:build
+> cargo build --release --manifest-path native/xlsx-engine/Cargo.toml --config native/xlsx-engine/.cargo/config.toml
+
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded approx v0.5.1
+  Downloaded adler2 v2.0.1
+  Downloaded equivalent v1.0.2
+  Downloaded zopfli v0.8.3
+  Downloaded codepage v0.1.2
+  Downloaded zstd v0.11.2+zstd.1.5.2
+  Downloaded version_check v0.9.5
+  Downloaded zstd-safe v5.0.2+zstd.1.5.2
+  Downloaded cfg-if v1.0.4
+  Downloaded cpufeatures v0.2.17
+  Downloaded time-core v0.1.9
+  Downloaded siphasher v1.0.3
+  Downloaded generic-array v0.14.7
+  Downloaded inout v0.1.4
+  Downloaded zmij v1.0.23
+  Downloaded thiserror v1.0.69
+  Downloaded thiserror-impl v1.0.69
+  Downloaded ryu v1.0.23
+  Downloaded zip v0.6.6
+  Downloaded uuid v1.24.0
+  Downloaded zip v4.6.1
+  Downloaded zip v8.6.0
+  Downloaded typed-path v0.12.3
+  Downloaded statrs v0.18.0
+  Downloaded serde_json v1.0.150
+  Downloaded zlib-rs v0.6.6
+  Downloaded quick-xml v0.38.4
+  Downloaded aho-corasick v1.1.4
+  Downloaded quick-xml v0.41.0
+  Downloaded chrono v0.4.45
+  Downloaded zerocopy v0.8.55
+  Downloaded syn v2.0.119
+  Downloaded time v0.3.54
+  Downloaded ironcalc_base v0.7.1
+  Downloaded regex-syntax v0.8.11
+  Downloaded calamine v0.36.0
+  Downloaded regex v1.13.1
+  Downloaded itertools v0.12.1
+  Downloaded hashbrown v0.17.1
+  Downloaded aes v0.8.4
+  Downloaded indexmap v2.14.0
+  Downloaded bumpalo v3.20.3
+  Downloaded typenum v1.20.1
+  Downloaded rand v0.8.7
+  Downloaded memchr v2.8.3
+  Downloaded base64 v0.22.1
+  Downloaded serde v1.0.228
+  Downloaded bzip2-sys v0.1.13+1.0.8
+  Downloaded regex-automata v0.4.16
+  Downloaded miniz_oxide v0.8.9
+  Downloaded getrandom v0.2.17
+  Downloaded flate2 v1.1.9
+  Downloaded cc v1.4.0
+  Downloaded bitcode v0.6.9
+  Downloaded unicode-ident v1.0.24
+  Downloaded serde_derive v1.0.228
+  Downloaded chrono-tz v0.10.4
+  Downloaded serde_core v1.0.228
+  Downloaded zstd-sys v2.0.16+zstd.1.5.7
+  Downloaded roxmltree v0.19.0
+  Downloaded libc v0.2.186
+  Downloaded glam v0.33.2
+  Downloaded proc-macro2 v1.0.106
+  Downloaded csv v1.4.0
+  Downloaded phf v0.12.1
+  Downloaded num-traits v0.2.19
+  Downloaded log v0.4.33
+  Downloaded hmac v0.12.1
+  Downloaded getrandom v0.4.3
+  Downloaded fast-float2 v0.2.3
+  Downloaded bytemuck v1.25.2
+  Downloaded arrayvec v0.7.8
+  Downloaded roxmltree v0.21.1
+  Downloaded quote v1.0.46
+  Downloaded itoa v1.0.18
+  Downloaded iana-time-zone v0.1.65
+  Downloaded crc32fast v1.5.0
+  Downloaded bzip2 v0.4.4
+  Downloaded shlex v2.0.1
+  Downloaded sha2 v0.10.9
+  Downloaded rustversion v1.0.23
+  Downloaded rand_core v0.6.4
+  Downloaded ppv-lite86 v0.2.21
+  Downloaded powerfmt v0.2.0
+  Downloaded pkg-config v0.3.33
+  Downloaded pbkdf2 v0.11.0
+  Downloaded password-hash v0.4.2
+  Downloaded find-msvc-tools v0.1.9
+  Downloaded encoding_rs v0.8.35
+  Downloaded digest v0.10.7
+  Downloaded csv-core v0.1.13
+  Downloaded cipher v0.4.4
+  Downloaded byteorder v1.5.0
+  Downloaded block-buffer v0.10.4
+  Downloaded autocfg v1.5.1
+  Downloaded atoi_simd v0.18.1
+  Downloaded simd-adler32 v0.3.10
+  Downloaded phf_shared v0.12.1
+  Downloaded num-conv v0.2.2
+  Downloaded jobserver v0.1.35
+  Downloaded deranged v0.5.8
+  Downloaded bitcode_derive v0.6.9
+  Downloaded either v1.17.0
+  Downloaded debug_unsafe v0.1.4
+  Downloaded constant_time_eq v0.1.5
+  Downloaded ironcalc v0.7.1
+  Downloaded base64ct v1.8.3
+  Downloaded subtle v2.6.1
+  Downloaded rand_chacha v0.3.1
+  Downloaded crypto-common v0.1.7
+  Downloaded sha1 v0.10.7
+   Compiling libc v0.2.186
+   Compiling cfg-if v1.0.4
+   Compiling version_check v0.9.5
+   Compiling memchr v2.8.3
+   Compiling typenum v1.20.1
+   Compiling generic-array v0.14.7
+   Compiling shlex v2.0.1
+   Compiling proc-macro2 v1.0.106
+   Compiling find-msvc-tools v0.1.9
+   Compiling quote v1.0.46
+   Compiling pkg-config v0.3.33
+   Compiling jobserver v0.1.35
+   Compiling unicode-ident v1.0.24
+   Compiling crypto-common v0.1.7
+   Compiling cc v1.4.0
+   Compiling crc32fast v1.5.0
+   Compiling autocfg v1.5.1
+   Compiling syn v2.0.119
+   Compiling num-traits v0.2.19
+   Compiling getrandom v0.2.17
+   Compiling simd-adler32 v0.3.10
+   Compiling serde_core v1.0.228
+   Compiling subtle v2.6.1
+   Compiling rand_core v0.6.4
+   Compiling block-buffer v0.10.4
+   Compiling zerocopy v0.8.55
+   Compiling adler2 v2.0.1
+   Compiling zstd-sys v2.0.16+zstd.1.5.7
+   Compiling miniz_oxide v0.8.9
+   Compiling digest v0.10.7
+   Compiling cpufeatures v0.2.17
+   Compiling zlib-rs v0.6.6
+   Compiling bzip2-sys v0.1.13+1.0.8
+   Compiling serde v1.0.228
+   Compiling zstd-safe v5.0.2+zstd.1.5.2
+   Compiling siphasher v1.0.3
+   Compiling flate2 v1.1.9
+   Compiling phf_shared v0.12.1
+   Compiling ppv-lite86 v0.2.21
+   Compiling serde_derive v1.0.228
+   Compiling inout v0.1.4
+   Compiling aho-corasick v1.1.4
+   Compiling encoding_rs v0.8.35
+   Compiling equivalent v1.0.2
+   Compiling log v0.4.33
+   Compiling base64ct v1.8.3
+   Compiling hashbrown v0.17.1
+   Compiling chrono-tz v0.10.4
+   Compiling iana-time-zone v0.1.65
+   Compiling bumpalo v3.20.3
+   Compiling regex-syntax v0.8.11
+   Compiling itoa v1.0.18
+   Compiling rustversion v1.0.23
+   Compiling zmij v1.0.23
+   Compiling regex-automata v0.4.16
+   Compiling zopfli v0.8.3
+   Compiling chrono v0.4.45
+   Compiling indexmap v2.14.0
+   Compiling password-hash v0.4.2
+   Compiling cipher v0.4.4
+   Compiling rand_chacha v0.3.1
+   Compiling phf v0.12.1
+   Compiling sha2 v0.10.9
+   Compiling bitcode_derive v0.6.9
+   Compiling approx v0.5.1
+   Compiling hmac v0.12.1
+   Compiling csv-core v0.1.13
+   Compiling num-conv v0.2.2
+   Compiling getrandom v0.4.3
+   Compiling ryu v1.0.23
+   Compiling time-core v0.1.9
+   Compiling powerfmt v0.2.0
+   Compiling bytemuck v1.25.2
+   Compiling deranged v0.5.8
+   Compiling serde_json v1.0.150
+   Compiling byteorder v1.5.0
+   Compiling thiserror v1.0.69
+   Compiling bitcode v0.6.9
+   Compiling time v0.3.54
+   Compiling csv v1.4.0
+   Compiling pbkdf2 v0.11.0
+   Compiling statrs v0.18.0
+   Compiling rand v0.8.7
+   Compiling aes v0.8.4
+   Compiling bzip2 v0.4.4
+   Compiling regex v1.13.1
+   Compiling sha1 v0.10.7
+   Compiling thiserror-impl v1.0.69
+   Compiling either v1.17.0
+   Compiling debug_unsafe v0.1.4
+   Compiling typed-path v0.12.3
+   Compiling constant_time_eq v0.1.5
+   Compiling atoi_simd v0.18.1
+   Compiling ironcalc_base v0.7.1
+   Compiling zip v8.6.0
+   Compiling itertools v0.12.1
+   Compiling zstd v0.11.2+zstd.1.5.2
+   Compiling quick-xml v0.41.0
+   Compiling zip v0.6.6
+   Compiling codepage v0.1.2
+   Compiling fast-float2 v0.2.3
+   Compiling roxmltree v0.19.0
+   Compiling calamine v0.36.0
+   Compiling uuid v1.24.0
+   Compiling ironcalc v0.7.1
+   Compiling zip v4.6.1
+   Compiling quick-xml v0.38.4
+   Compiling roxmltree v0.21.1
+   Compiling base64 v0.22.1
+   Compiling xlsx-sidecar v0.1.0 (/home/ubuntu/work/uniwork-office/apps/sheets/native/xlsx-engine)
+    Finished `release` profile [optimized] target(s) in 45.62s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 607 modules transformed.
+rendering chunks...
+out/main/ppt-BHIGZr4q.js            42.29 kB
+out/main/index-D2L-LUW1.js         750.47 kB
+out/main/pdf-B6l8FRA5.js         1,013.76 kB
+out/main/pdf.worker-NB1PBVQH.js  2,340.46 kB
+out/main/index.js                3,009.43 kB
+✓ built in 5.56s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 11 modules transformed.
+rendering chunks...
+out/preload/index.js  149.33 kB
+✓ built in 126ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 3386 modules transformed.
+✗ Build failed in 3.94s
+error during build:
+[commonjs--resolver] Missing "./ai-uniwork" specifier in "@genoffice/i18n" package
+    at e (file:///home/ubuntu/work/uniwork-office/node_modules/vite/dist/node/chunks/config.js:6667:8)
+    at n (file:///home/ubuntu/work/uniwork-office/node_modules/vite/dist/node/chunks/config.js:6679:14)
+    at o (file:///home/ubuntu/work/uniwork-office/node_modules/vite/dist/node/chunks/config.js:6707:10)
+    at resolveExportsOrImports (file:///home/ubuntu/work/uniwork-office/node_modules/vite/dist/node/chunks/config.js:32907:45)
+    at resolveDeepImport (file:///home/ubuntu/work/uniwork-office/node_modules/vite/dist/node/chunks/config.js:32921:22)
+    at tryNodeResolve (file:///home/ubuntu/work/uniwork-office/node_modules/vite/dist/node/chunks/config.js:32796:70)
+    at Object.handler (file:///home/ubuntu/work/uniwork-office/node_modules/vite/dist/node/chunks/config.js:32635:16)
+    at Object.handler (file:///home/ubuntu/work/uniwork-office/node_modules/vite/dist/node/chunks/config.js:33786:13)
+    at file:///home/ubuntu/work/uniwork-office/node_modules/rollup/dist/es/shared/node-entry.js:23026:40
+    at async PluginDriver.hookFirstAndGetPlugin (file:///home/ubuntu/work/uniwork-office/node_modules/rollup/dist/es/shared/node-entry.js:22908:28)
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path /home/ubuntu/work/uniwork-office/apps/sheets
+npm error workspace @genoffice/sheets@0.1.0
+npm error location /home/ubuntu/work/uniwork-office/apps/sheets
+npm error command failed
+npm error command sh -c npm run native:build && electron-vite build

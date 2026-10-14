@@ -1,0 +1,7 @@
+$ npm run typecheck:web
+
+> genoffice@0.1.0 typecheck:web
+> tsc -p web/docs/protocol/tsconfig.json && tsc -p web/docs/bridge/tsconfig.json && tsc -p web/docs/build/tsconfig.json && tsc -p web/modules/tsconfig.json
+
+packages/ai-provider/src/ai-notice.ts(175,13): error TS2339: Property 'signedIn' does not exist on type 'ComposerNoteInput'.
+web/modules/shared/ai/errors.ts(226,3): error TS2322: Type 'string' is not assignable to type '"aiErrRateLimited" | "aiConversationRestarted" | "aiConversationBoundary" | "aiErrViewOnlyEdit" | "aiErrUnsupported" | "aiUniworkOff" | "aiUniworkProvider" | "aiUniworkImagesNotSent" | ... 54 more ... | "aiUniworkLocalFileRestart"'.

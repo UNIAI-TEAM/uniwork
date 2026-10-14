@@ -1,0 +1,370 @@
+$ git checkout -q b7a4b3c4 -- . ; npm exec -w @genoffice/ui -- vitest run tests/ai-model-picker-s7.test.ts; a=$?; git checkout -q HEAD -- . ; echo "RED_WA3 picker-s7=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+ ❯ tests/ai-model-picker-s7.test.ts (14 tests | 12 failed) 126ms
+     × desktop: shows UniWork AI name + aria-hidden credits sub-line and exposes aiUniworkCreditsAria via aria-describedby 25ms
+     × desktop: shows cloudCreditsUnlimited when credits.limit is null 20ms
+     × signed-out: renders aiUniworkFooterSignIn + Đăng nhập outside listbox, after Quản lý 6ms
+     × state not-entitled: renders cloudState* label + Chi tiết / Details and calls openAccountSettings 7ms
+     × state subscription-inactive: renders cloudState* label + Chi tiết / Details and calls openAccountSettings 7ms
+     × state credits-exhausted: renders cloudState* label + Chi tiết / Details and calls openAccountSettings 5ms
+     × unavailable: shows footer ONLY when cloudUnavailable is true (cloud_unavailable), not on network/timeout 6ms
+     × reads window.uniworkCloudStatus on desktop when bridge does not pass getCloudStatus, and ignores it on web 5ms
+     × moves role=listbox + aria-label to .ai-model-pop-list, sets role=group on .ai-model-pop and each .ai-model-group, and wires aria-controls on chip while open 8ms
+     × implements roving tabindex (single Tab stop on selected option) and ArrowUp/ArrowDown/Home/End navigation across groups 8ms
+     × closes and returns focus to chip on Escape, option pick, Manage click, and footer action (unless focus moved to another surface); outside click leaves focus where clicked 10ms
+     × enforces focus-ring exception and 44px coarse pointer targets in ai-model-picker.css 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — row UniWork AI & credits sub-line > desktop: shows UniWork AI name + aria-hidden credits sub-line and exposes aiUniworkCreditsAria via aria-describedby
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+ ❯ tests/ai-model-picker-s7.test.ts:127:28
+    125|     const { getChip, getOptions } = await mountPicker({ getCloudStatus…
+    126|     expect(getChip().textContent).toBe('UniWork AI')
+    127|     expect(getCloudStatus).toHaveBeenCalledTimes(1)
+       |                            ^
+    128|
+    129|     await openPopup(getChip())
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — row UniWork AI & credits sub-line > desktop: shows cloudCreditsUnlimited when credits.limit is null
+AssertionError: expected null not to be null
+ ❯ tests/ai-model-picker-s7.test.ts:171:25
+    169|     const uniworkOpt = getOptions()[0]!
+    170|     const subLine = uniworkOpt.querySelector<HTMLElement>('.ai-model-i…
+    171|     expect(subLine).not.toBeNull()
+       |                         ^
+    172|     expect(subLine!.getAttribute('aria-hidden')).toBe('true')
+    173|     expect(subLine!.textContent).toBe('Unlimited')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > signed-out: renders aiUniworkFooterSignIn + Đăng nhập outside listbox, after Quản lý
+AssertionError: expected null not to be null
+ ❯ tests/ai-model-picker-s7.test.ts:252:24
+    250|     await openPopup(getChip())
+    251|     const footer = getFooter()
+    252|     expect(footer).not.toBeNull()
+       |                        ^
+    253|     expect(getListbox()!.contains(footer)).toBe(false)
+    254|     // Placed after Manage button
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > state not-entitled: renders cloudState* label + Chi tiết / Details and calls openAccountSettings
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > state subscription-inactive: renders cloudState* label + Chi tiết / Details and calls openAccountSettings
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > state credits-exhausted: renders cloudState* label + Chi tiết / Details and calls openAccountSettings
+TypeError: Cannot read properties of null (reading 'textContent')
+ ❯ tests/ai-model-picker-s7.test.ts:288:24
+    286|       )
+    287|       await openPopup(getChip())
+    288|       expect(getFooter()!.textContent).toContain(viLabel)
+       |                        ^
+    289|       expect(getFooterBtn()!.textContent).toBe('Chi tiết')
+    290|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > unavailable: shows footer ONLY when cloudUnavailable is true (cloud_unavailable), not on network/timeout
+AssertionError: expected null not to be null
+ ❯ tests/ai-model-picker-s7.test.ts:349:29
+    347|       })
+    348|     })
+    349|     expect(getFooter()).not.toBeNull()
+       |                             ^
+    350|     expect(getFooter()!.textContent).toContain('Tạm thời không dùng đư…
+    351|     expect(getFooterBtn()!.textContent).toBe('Chi tiết')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > reads window.uniworkCloudStatus on desktop when bridge does not pass getCloudStatus, and ignores it on web
+AssertionError: expected null not to be null
+ ❯ tests/ai-model-picker-s7.test.ts:367:37
+    365|     const desktop = await mountPicker({}, 'vi', buildSettings({ provid…
+    366|     await openPopup(desktop.getChip())
+    367|     expect(desktop.getFooter()).not.toBeNull()
+       |                                     ^
+    368|     expect(desktop.getFooter()!.textContent).toContain('Đã hết tín dụn…
+    369|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — Accessibility Floor ARIA & keyboard > moves role=listbox + aria-label to .ai-model-pop-list, sets role=group on .ai-model-pop and each .ai-model-group, and wires aria-controls on chip while open
+AssertionError: expected '' to be truthy
+
+- Expected:
+true
+
++ Received:
+""
+
+ ❯ tests/ai-model-picker-s7.test.ts:397:24
+    395|     const listbox = getListbox()!
+    396|     expect(chip.getAttribute('aria-expanded')).toBe('true')
+    397|     expect(listbox.id).toBeTruthy()
+       |                        ^
+    398|     expect(chip.getAttribute('aria-controls')).toBe(listbox.id)
+    399|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/12]⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — Accessibility Floor ARIA & keyboard > implements roving tabindex (single Tab stop on selected option) and ArrowUp/ArrowDown/Home/End navigation across groups
+AssertionError: expected [ <button …(4)>…(1)</button>, …(15) ] to have a length of 3 but got 16
+
+- Expected
++ Received
+
+- 3
++ 16
+
+ ❯ tests/ai-model-picker-s7.test.ts:443:21
+    441|     await openPopup(getChip())
+    442|     const options = getOptions()
+    443|     expect(options).toHaveLength(3) // UniWork AI, claude-sonnet-4-6, …
+       |                     ^
+    444|
+    445|     // Roving tabindex enters on the selected option (index 1: claude-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/12]⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — Accessibility Floor ARIA & keyboard > closes and returns focus to chip on Escape, option pick, Manage click, and footer action (unless focus moved to another surface); outside click leaves focus where clicked
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/ai-model-picker-s7.test.ts:488:39
+    486|     act(() => opts1[0]!.focus())
+    487|     const escEvent = pressKey(opts1[0]!, 'Escape')
+    488|     expect(escEvent.defaultPrevented).toBe(true)
+       |                                       ^
+    489|     expect(getPop()).toBeNull()
+    490|     expect(document.activeElement).toBe(chip)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/12]⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — Accessibility Floor ARIA & keyboard > enforces focus-ring exception and 44px coarse pointer targets in ai-model-picker.css
+AssertionError: expected '/* Composer model chip + its upward p…' to match /\.ai-model-item\.selected:focus-visib…/
+
+- Expected:
+/\.ai-model-item\.selected:focus-visible/
+
++ Received:
+"/* Composer model chip + its upward popover (AiModelPicker). Chrome tokens only;
+ * each app imports this next to its other @genoffice/ui sheets. */
+
+.ai-model-picker {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.ai-model-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  max-width: 200px;
+  padding: 0 7px 0 6px;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-30);
+  background: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.ai-model-chip:hover,
+.ai-model-chip.open {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.ai-model-chip:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.ai-model-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-model-chip-caret {
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+.gs-provider-logo {
+  flex-shrink: 0;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  color: var(--text);
+}
+
+.gs-provider-logo svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ai-model-pop {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  max-height: min(420px, 70vh);
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-8);
+  box-shadow: var(--shadow-menu);
+  font-size: 12px;
+}
+
+.ai-model-pop-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ai-model-group + .ai-model-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ai-model-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 3px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ai-model-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px 5px 28px;
+  border: none;
+  border-radius: var(--radius-6);
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ai-model-item:hover,
+.ai-model-item:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+
+.ai-model-item.selected {
+  background: var(--accent-soft);
+}
+
+.ai-model-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-model-manage {
+  flex-shrink: 0;
+  margin-top: 4px;
+  padding-left: 8px;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0 0 var(--radius-6) var(--radius-6);
+  color: var(--text-secondary);
+}
+
+/* a disabled Send button (nothing typed, or \"Choose a model to send\"): its brand art is a pale
+ * square, which on a dark surface reads as the active control; the token dims it in dark themes */
+.ai-send-btn:disabled img {
+  filter: var(--ai-send-off-filter, none);
+}
+
+/* icon-only composer: the no-key / no-model hint above the footer (send is off meanwhile) */
+.ai-input-need {
+  padding: 0 4px 4px;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+/* the add-a-key action is a link: the app's accent, underlined (the same pattern as the other
+ * in-panel text links), with a visible keyboard focus */
+.ai-input-need-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  text-align: start;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.ai-input-need-link:hover {
+  color: var(--accent-dark, var(--accent));
+}
+
+.ai-input-need-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* view-only document: the assistant reads and answers, it never edits. One note style in every
+ * module (docs, sheets, slides, markdown, html, pdf): a soft pill above the composer. */
+.ai-readonly-notice {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-16);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  background: var(--hover);
+}
+"
+
+ ❯ tests/ai-model-picker-s7.test.ts:545:17
+    543|     const css = readFileSync(resolve(__dirname, '../src/ai-model-picke…
+    544|     expect(css).toMatch(/\.ai-model-item:focus-visible/)
+    545|     expect(css).toMatch(/\.ai-model-item\.selected:focus-visible/)
+       |                 ^
+    546|     expect(css).toMatch(/outline:\s*2px\s+solid\s+var\(--accent\)/)
+    547|     expect(css).toMatch(/outline-offset:\s*-2px/)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/12]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  12 failed | 2 passed (14)
+   Start at  10:01:31
+   Duration  1.03s (transform 331ms, setup 0ms, import 446ms, tests 126ms, environment 368ms)
+
+RED_WA3 picker-s7=1
+RED_OK

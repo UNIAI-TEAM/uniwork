@@ -1,0 +1,75 @@
+$ git checkout -q 63bcbfdb -- . ; npm exec -w @genoffice/ui -- vitest run tests/ai-model-picker-options.test.ts tests/ai-model-picker-uniwork.test.ts; a=$?; git checkout -q HEAD -- . ; echo "RED_WA2 picker-uniwork=$a"; [ $a -ne 0 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+ ❯ tests/ai-model-picker-options.test.ts (12 tests | 1 failed) 11ms
+     × lists UniWork AI when the availability flag is on and hides it when off 4ms
+ ❯ tests/ai-model-picker-uniwork.test.ts (3 tests | 2 failed) 49ms
+     × shows "UniWork AI" on the chip when the flag is on (desktop) 35ms
+     × does not resolve needModel on web when UniWork AI is offered and selected 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ai-model-picker-options.test.ts > UniWork AI provider (uniwork) > lists UniWork AI when the availability flag is on and hides it when off
+AssertionError: expected [] to deep equally contain { id: 'uniwork', …(2) }
+
+- Expected:
+{
+  "id": "uniwork",
+  "label": "UniWork AI",
+  "models": [],
+}
+
++ Received:
+[]
+
+ ❯ tests/ai-model-picker-options.test.ts:128:20
+    126|     setUniworkAiAvailable(true)
+    127|     const groups = aiModelPickerGroups(settings, false)
+    128|     expect(groups).toContainEqual({ id: 'uniwork', label: 'UniWork AI'…
+       |                    ^
+    129|
+    130|     settings.provider = 'uniwork'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/ai-model-picker-uniwork.test.ts > AiModelPicker with UniWork AI selected > shows "UniWork AI" on the chip when the flag is on (desktop)
+AssertionError: expected 'Choose model' to be 'UniWork AI' // Object.is equality
+
+Expected: "UniWork AI"
+Received: "Choose model"
+
+ ❯ tests/ai-model-picker-uniwork.test.ts:70:18
+     68|     }
+     69|     const { chip, send, hint } = await mountPickerAndComposer(settings…
+     70|     expect(chip).toBe('UniWork AI')
+       |                  ^
+     71|     expect(send.disabled).toBe(false)
+     72|     expect(hint).toBe('Enter to send')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/ai-model-picker-uniwork.test.ts > AiModelPicker with UniWork AI selected > does not resolve needModel on web when UniWork AI is offered and selected
+AssertionError: expected 'Choose model' to be 'UniWork AI' // Object.is equality
+
+Expected: "UniWork AI"
+Received: "Choose model"
+
+ ❯ tests/ai-model-picker-uniwork.test.ts:84:18
+     82|     settings.providers.uniwork = { apiKey: '…uw', model: '' }
+     83|     const { chip, send, hint } = await mountPickerAndComposer(settings…
+     84|     expect(chip).toBe('UniWork AI')
+       |                  ^
+     85|     expect(hint).not.toBe(AI_MODEL_PICKER_STRINGS.en.needModel)
+     86|     expect(send.disabled).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  3 failed | 12 passed (15)
+   Start at  10:01:30
+   Duration  761ms (transform 452ms, setup 0ms, import 596ms, tests 60ms, environment 339ms)
+
+RED_WA2 picker-uniwork=1
+RED_OK

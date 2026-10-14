@@ -1,0 +1,213 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/ui -- vitest run tests/ai-composer-uniwork.test.tsx tests/uniwork-ack-store.test.ts tests/strings-ai-uniwork.test.ts tests/ai-model-picker-options.test.ts tests/ai-model-picker-uniwork.test.ts tests/ai-model-picker-s7.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > covers every UI language 2ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh has exactly the zh key set, no empty values 1ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale en has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ja has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ko has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale fr has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale de has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale es has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale th has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale id has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ru has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ar has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pt has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale it has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pl has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale cs has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale nl has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ms has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale he has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale hi has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh-TW has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale vi has exactly the zh key set, no empty values 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale en keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ja keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ko keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale fr keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale de keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale es keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale th keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale id keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ru keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ar keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pt keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale it keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pl keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale cs keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale nl keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ms keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale he keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale hi keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh-TW keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale vi keeps the zh placeholders 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale en has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ja has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ko has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale fr has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale de has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale es has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale th has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale id has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ru has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ar has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pt has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale it has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pl has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale cs has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale nl has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ms has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale he has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale hi has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh-TW has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale vi has no upstream brand or internal codes 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale en keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ja keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ko keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale fr keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale de keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale es keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale th keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale id keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ru keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ar keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pt keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale it keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale pl keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale cs keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale nl keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale ms keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale he keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale hi keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale zh-TW keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > locale vi keeps the provider name untranslated 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > uses one key per counted string: no plural-form keys and no ICU plural 1ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > says what the catalogue says in vi and en 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > pins the run-notice copy of the adapter, loop and panels in vi and en (G6-05 S2) 1ms
+ × tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > fills the placeholders through aiUniworkText 4ms
+   → expected '10 / 100 left' to be '10 of 100 left' // Object.is equality
+ × tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > includes the G6-05u cloud, account, local-file restart, sheet meta and web 413 keys in all locales 1ms
+   → expected 'Sign in' to be 'Sign in to UniWork' // Object.is equality
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of zh 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of en 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of ja 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of ko 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of fr 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of de 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of es 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of th 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of id 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of ru 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of ar 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of pt 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of it 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of pl 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of cs 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of nl 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of ms 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of he 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of hi 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of zh-TW 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > knows the two refusal messages of vi 0ms
+ ✓ tests/strings-ai-uniwork.test.ts > isUniworkQuestionRefusal > is false for every other message and for nothing 0ms
+ ✓ tests/uniwork-ack-store.test.ts > UniWork AI disclosure acknowledgement store (G6-05u S8) > returns false before ack and true after ack for a { account, org, document } tuple 2ms
+ ✓ tests/uniwork-ack-store.test.ts > UniWork AI disclosure acknowledgement store (G6-05u S8) > scopes acknowledgements per { account, org, document | "local" } and re-prompts when document, org or account changes 0ms
+ ✓ tests/uniwork-ack-store.test.ts > UniWork AI disclosure acknowledgement store (G6-05u S8) > remembers the "local" bucket across local files in the same account and organization 0ms
+ ✓ tests/uniwork-ack-store.test.ts > UniWork AI disclosure acknowledgement store (G6-05u S8) > persists acknowledgements in localStorage and survives corrupted storage entries 1ms
+ ✓ tests/uniwork-ack-store.test.ts > UniWork AI disclosure acknowledgement store (G6-05u S8) > notifies subscribers and updates useUniworkDisclosureAck when acked or cleared 14ms
+ ✓ tests/ai-model-picker-uniwork.test.ts > AiModelPicker with UniWork AI selected > shows "UniWork AI" on the chip when the flag is on (desktop) 31ms
+ ✓ tests/ai-model-picker-uniwork.test.ts > AiModelPicker with UniWork AI selected > does not resolve needModel on web when UniWork AI is offered and selected 6ms
+ ✓ tests/ai-model-picker-uniwork.test.ts > AiModelPicker with UniWork AI selected > shows "Choose model" when the UniWork AI flag is off 5ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — row UniWork AI & credits sub-line > desktop: shows UniWork AI name + aria-hidden credits sub-line and exposes aiUniworkCreditsAria via aria-describedby 48ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — row UniWork AI & credits sub-line > desktop: shows cloudCreditsUnlimited when credits.limit is null 11ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — row UniWork AI & credits sub-line > web (requireModel: true): shows UniWork AI name only, no credits sub-line and no aria-describedby 10ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > shows no footer before the first server read (status null or hasCompletedRead false) and when ready 15ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > signed-out: renders aiUniworkFooterSignIn + Đăng nhập outside listbox, after Quản lý 12ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > state not-entitled: renders cloudState* label + Chi tiết / Details and calls openAccountSettings 15ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > state subscription-inactive: renders cloudState* label + Chi tiết / Details and calls openAccountSettings 19ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > state credits-exhausted: renders cloudState* label + Chi tiết / Details and calls openAccountSettings 13ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > unavailable: shows footer ONLY when cloudUnavailable is true (cloud_unavailable), not on network/timeout 8ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — picker footer per cloud state (desktop only) > reads window.uniworkCloudStatus on desktop when bridge does not pass getCloudStatus, and ignores it on web 10ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — Accessibility Floor ARIA & keyboard > moves role=listbox + aria-label to .ai-model-pop-list, sets role=group on .ai-model-pop and each .ai-model-group, and wires aria-controls on chip while open 10ms
+ × tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — Accessibility Floor ARIA & keyboard > implements roving tabindex (single Tab stop on selected option) and ArrowUp/ArrowDown/Home/End navigation across groups 12ms
+   → expected [ <button …(5)>…(1)</button>, …(15) ] to have a length of 3 but got 16
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — Accessibility Floor ARIA & keyboard > closes and returns focus to chip on Escape, option pick, Manage click, and footer action (unless focus moved to another surface); outside click leaves focus where clicked 36ms
+ ✓ tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — Accessibility Floor ARIA & keyboard > enforces focus-ring exception and 44px coarse pointer targets in ai-model-picker.css 1ms
+ ✓ tests/ai-model-picker-options.test.ts > aiModelPickerGroups > lists nothing while signed out with no keys 2ms
+ ✓ tests/ai-model-picker-options.test.ts > aiModelPickerGroups > lists UniAI when signed in 0ms
+ ✓ tests/ai-model-picker-options.test.ts > aiModelPickerGroups > lists UniAI once a Token Hub key is set, from either key slot 1ms
+ ✓ tests/ai-model-picker-options.test.ts > aiModelPickerGroups > adds a vendor once its key is set and puts an off-catalog model first 0ms
+ ✓ tests/ai-model-picker-options.test.ts > aiModelPickerGroups > needs a base URL for custom endpoints 0ms
+ ✓ tests/ai-model-picker-options.test.ts > hosts without the UniAI pool (web frames) > never lists UniAI nor names openrouter/auto, even while the cloud sign-in is reported 0ms
+ ✓ tests/ai-model-picker-options.test.ts > hosts without the UniAI pool (web frames) > lists the viewer provider that carries a (masked) key and selects its model 0ms
+ ✓ tests/ai-model-picker-options.test.ts > hosts without the UniAI pool (web frames) > no stored key: the selection stays on the chosen vendor and nothing is listed, so the chip says Choose model 0ms
+ ✓ tests/ai-model-picker-options.test.ts > selection round trip > switches provider and model in one write and reads back 0ms
+ ✓ tests/ai-model-picker-options.test.ts > selection round trip > keeps an unusable stored provider selected instead of falling back to UniAI 0ms
+ ✓ tests/ai-model-picker-options.test.ts > CLI vendors > lists Codex only after the settings page stored a path or model 0ms
+ ✓ tests/ai-model-picker-options.test.ts > UniWork AI provider (uniwork) > lists UniWork AI when the availability flag is on and hides it when off 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ai-model-picker-s7.test.ts > AiModelPicker S7 — Accessibility Floor ARIA & keyboard > implements roving tabindex (single Tab stop on selected option) and ArrowUp/ArrowDown/Home/End navigation across groups
+AssertionError: expected [ <button …(5)>…(1)</button>, …(15) ] to have a length of 3 but got 16
+
+- Expected
++ Received
+
+- 3
++ 16
+
+ ❯ tests/ai-model-picker-s7.test.ts:443:21
+    441|     await openPopup(getChip())
+    442|     const options = getOptions()
+    443|     expect(options).toHaveLength(3) // UniWork AI, claude-sonnet-4-6, …
+       |                     ^
+    444|
+    445|     // Roving tabindex enters on the selected option (index 1: claude-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > fills the placeholders through aiUniworkText
+AssertionError: expected '10 / 100 left' to be '10 of 100 left' // Object.is equality
+
+Expected: "10 of 100 left"
+Received: "10 / 100 left"
+
+ ❯ tests/strings-ai-uniwork.test.ts:143:84
+    141|       'Bạn đang gửi quá nhanh. Thử lại sau 30 giây.',
+    142|     )
+    143|     expect(aiUniworkText('en', 'cloudCreditsLeft', { remaining: 10, li…
+       |                                                                                    ^
+    144|       '10 of 100 left',
+    145|     )
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/strings-ai-uniwork.test.ts > ai-uniwork string shards > includes the G6-05u cloud, account, local-file restart, sheet meta and web 413 keys in all locales
+AssertionError: expected 'Sign in' to be 'Sign in to UniWork' // Object.is equality
+
+Expected: "Sign in to UniWork"
+Received: "Sign in"
+
+ ❯ tests/strings-ai-uniwork.test.ts:155:47
+    153|
+    154|   it('includes the G6-05u cloud, account, local-file restart, sheet me…
+    155|     expect(aiUniworkText('en', 'acctSignIn')).toBe('Sign in to UniWork…
+       |                                               ^
+    156|     expect(aiUniworkText('vi', 'acctSignIn')).toBe('Đăng nhập UniWork')
+    157|     expect(aiUniworkText('en', 'acctSignInAgain')).toBe('Sign in again…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  2 failed | 3 passed (5)
+      Tests  3 failed | 143 passed (146)
+   Start at  10:02:27
+   Duration  1.35s (transform 1.12s, setup 0ms, import 1.66s, tests 314ms, environment 1.19s)
+

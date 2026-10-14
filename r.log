@@ -1,0 +1,51 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/agent-core -- vitest run tests/result-chip.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/agent-core
+
+ ✓ tests/result-chip.test.ts > notice-surface structured dropped reasons > classifies view_only and not_allowlisted reasons while staying backward compatible 2ms
+ ✓ tests/result-chip.test.ts > resultChip deterministic priority table > (1) edited wins when >=1 editor write tool succeeded in the turn 1ms
+ ✓ tests/result-chip.test.ts > resultChip deterministic priority table > (1) edited + later error -> chip is still edited AND S9 error line is returned with its action 1ms
+ ✓ tests/result-chip.test.ts > resultChip deterministic priority table > (2) unsupported from x_uniwork.dropped_tool_calls when no write ran: view_only -> aiErrViewOnlyEdit 0ms
+ ✓ tests/result-chip.test.ts > resultChip deterministic priority table > (2) unsupported from x_uniwork.dropped_tool_calls when no write ran: not_allowlisted -> aiErrUnsupported {module} 0ms
+ ✓ tests/result-chip.test.ts > resultChip deterministic priority table > (3) clarify only when allowlisted ask_clarification was called and no write or dropped tool calls 0ms
+ ✓ tests/result-chip.test.ts > resultChip deterministic priority table > (4) error when the turn ended in an S9 error and no write/unsupported/clarify happened 1ms
+ ✓ tests/result-chip.test.ts > resultChip deterministic priority table > (5) answer for normal read/reply turns 0ms
+ ✓ tests/result-chip.test.ts > resultChip deterministic priority table > stop rules: stopped with text -> answer chip + aiRunStopped; stopped with no text -> no chip, only aiRunStopped; stopped after write -> edited chip + aiRunStopped 1ms
+ ✓ tests/result-chip.test.ts > resultChip deterministic priority table > engine cannot compute (§6.5) -> answer chip with warning in the meta line 2ms
+ ✓ tests/result-chip.test.ts > resultChip deterministic priority table > returns null chip when provider is BYOK (isUniwork === false) 0ms
+ × tests/result-chip.test.ts > resultChip deterministic priority table > extractSheetsCellsMeta extracts range and cell counts from tool summaries/outputs 8ms
+   → expected { …(4) } to match object { range: 'Sheet1!B4:C9', …(2) }
+(1 matching property omitted from actual)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/result-chip.test.ts > resultChip deterministic priority table > extractSheetsCellsMeta extracts range and cell counts from tool summaries/outputs
+AssertionError: expected { …(4) } to match object { range: 'Sheet1!B4:C9', …(2) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "overwritten": 4,
+-   "range": "Sheet1!B4:C9",
++   "range": "Wrote 12 cells in Sheet1!B4:C9",
+    "written": 12,
+  }
+
+ ❯ tests/result-chip.test.ts:249:18
+    247|       },
+    248|     ]);
+    249|     expect(meta).toMatchObject({
+       |                  ^
+    250|       range: 'Sheet1!B4:C9',
+    251|       written: 12,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  10:02:29
+   Duration  244ms (transform 115ms, setup 0ms, import 135ms, tests 19ms, environment 0ms)
+

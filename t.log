@@ -1,0 +1,161 @@
+$ AI_PROVIDER=fake npx vitest run --root web/modules shared/ai/ai.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+ ✓ shared/ai/ai.test.ts > routes > puts the frame-token AI mount on the frame origin, from either apiBase spelling 7ms
+ ✓ shared/ai/ai.test.ts > client > sends the frame token as Bearer, never cookies, and reads the contract shapes 4ms
+ ✓ shared/ai/ai.test.ts > client > refreshes the token once after a 401 and retries 1ms
+ ✓ shared/ai/ai.test.ts > client > a second 401 is the typed `unauthorized` state 2ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 402 credits_exhausted to credits_exhausted 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 403 entitlement_required to entitlement_required 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 404 credential_missing to credential_missing 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 424 provider_auth_failed to provider_auth_failed 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 502 provider_unreachable to provider_unreachable 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 503 cloud_unavailable to cloud_unavailable 1ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 400 base_url_refused to base_url_refused 0ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 400 provider_not_supported to provider_not_supported 0ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 400 invalid_request to bad_request 0ms
+ ✓ shared/ai/ai.test.ts > client > maps HTTP 500 internal to unknown 0ms
+ ✓ shared/ai/ai.test.ts > client > maps 429 with retry-after (seconds or date) 1ms
+ ✓ shared/ai/ai.test.ts > client > credential PUT / DELETE: write-only key, masked hint back 1ms
+ ✓ shared/ai/ai.test.ts > client > refuses to send the token outside the AI mount 0ms
+ ✓ shared/ai/ai.test.ts > client > refuses path traversal, encoded slashes and other origins that still start with the mount string 1ms
+ ✓ shared/ai/ai.test.ts > client > reads a sparse cloud status leniently 0ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > keeps chat/completions, maps Anthropic /v1/messages, drops vendor keys and the user agent 1ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > wraps a Gemini call into /generate {model, stream, request} 1ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > refuses any vendor URL (the frame never calls a provider directly) 0ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > refuses a proxy URL that leaves the byok mount after normalisation 0ms
+ ✓ shared/ai/ai.test.ts > proxy transport (ai-provider wire format -> BYOK routes) > throws contract failures, passes a provider 404 / 400 through to ai-provider 2ms
+ ✓ shared/ai/ai.test.ts > streams > streams an openai-compatible turn through the proxy (native wire format, no key) 8ms
+ ✓ shared/ai/ai.test.ts > streams > a chat stream is a running turn until it ends: aiRun running, then one idle (X-02, S6) 1ms
+ ✓ shared/ai/ai.test.ts > streams > a stream that cannot start (no model) is not a running turn; a stopped one ends the run 3ms
+ ✓ shared/ai/ai.test.ts > streams > a provider with no model sends nothing and says to choose one (never the generic refusal) 1ms
+ ✓ shared/ai/ai.test.ts > streams > streams an Anthropic turn on /messages 2ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 402 ends the turn with the typed credits_exhausted state 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 403 ends the turn with the typed entitlement_required state 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 404 ends the turn with the typed credential_missing state 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 424 ends the turn with the typed provider_auth_failed state 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 429 ends the turn with the typed rate_limited state 1ms
+ ✓ shared/ai/ai.test.ts > streams > openai: a proxy 502 ends the turn with the typed provider_unreachable state 1ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 402 ends the turn with the typed credits_exhausted state 1ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 403 ends the turn with the typed entitlement_required state 1ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 404 ends the turn with the typed credential_missing state 1ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 424 ends the turn with the typed provider_auth_failed state 1ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 429 ends the turn with the typed rate_limited state 0ms
+ ✓ shared/ai/ai.test.ts > streams > anthropic: a proxy 502 ends the turn with the typed provider_unreachable state 1ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 402 ends the turn with the typed credits_exhausted state 1ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 403 ends the turn with the typed entitlement_required state 1ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 404 ends the turn with the typed credential_missing state 1ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 424 ends the turn with the typed provider_auth_failed state 0ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 429 ends the turn with the typed rate_limited state 0ms
+ ✓ shared/ai/ai.test.ts > streams > gemini: a proxy 502 ends the turn with the typed provider_unreachable state 0ms
+ ✓ shared/ai/ai.test.ts > streams > a typed chat turn never raises the card; a typed one-shot aiChat does (no transcript to show it) 1ms
+ ✓ shared/ai/ai.test.ts > streams > reads the code and message from the wrapped and the flat error body 0ms
+ ✓ shared/ai/ai.test.ts > streams > maps a vendor adapter failure text to a typed state, never the raw payload 1ms
+ ✓ shared/ai/ai.test.ts > streams > a provider without a server route is credential_missing (no request sent) 0ms
+ ✓ shared/ai/ai.test.ts > streams > aiChat (one-shot) uses the same route without stream 1ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > aiHostGrants: tools need ai too; nothing without the ai grant 0ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > without the ai grant every member is the module stub and no request is made 1ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > a port without a frame token (headless) keeps AI off even with the grant 0ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > with the grant: settings from stored credentials (no key), cloud switches, search shapes 3ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > a cloud failure returns the module error shape with the typed text and shows the card 8ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > a typed stream failure reaches the panel once: one error chunk, no floating card 3ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > the model chip manage row opens the AI settings while AI is on (module stub when off) 54ms
+ ✓ shared/ai/ai.test.ts > members (off = as today, on = UniWork routes) > reads data: URLs as media bytes only 0ms
+ ✓ shared/ai/ai.test.ts > in-frame UI > one typed state card at a time; key states offer AI settings 3ms
+ ✓ shared/ai/ai.test.ts > in-frame UI > the key-state copy names no vendor, so it cannot disagree with the model chip, in any locale 2ms
+ ✓ shared/ai/ai.test.ts > in-frame UI > every error code has its own text 1ms
+ ✓ shared/ai/ai.test.ts > in-frame UI > settings dialog: masked hint, write-only key, save + remove through the client 110ms
+ ✓ shared/ai/ai.test.ts > in-frame UI > the settings dialog is the frame dialog: scrim, close X, filled primary, no gs-imgdlg chrome 56ms
+ ✓ shared/ai/ai.test.ts > installModuleBridge wiring > AI members only on globals that have them; the ai grant turns the keys on 485ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > the settings the chip reads carry the viewer provider with a masked key and no UniAI 1ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > no stored key: no provider carries a key, so the chip has nothing to name 1ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > a key added after the frame booted is picked up after the TTL, without a dialog save 1ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > a key removed in UniWork stops being offered on the next read after the TTL 1ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > window focus re-fetches at once and tells the chips (onAiSettingsChanged) about a change 54ms
+ ✓ shared/ai/ai.test.ts > model chip source and credential refresh (UNI-1232 A4) > choosing a model notifies the chips and a failed refresh keeps the last answer 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > reads model and model_updated_at leniently: an older server omits both 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > a model-only PUT sends exactly {"model"} and reads the model back 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > no choice in this browser: the server default (latest model_updated_at) is the provider and model 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > a tie on model_updated_at goes to the provider id order 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > a provider with a key but no saved model is not the default 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > this browser has a provider that no longer has a key: the server default is used 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > the local cache wins while its provider has a key 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > an older server (no model field): nothing changes, the provider default model runs 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > choosing a model sends PUT {"model"} to that provider and updates the cache 51ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > a failed PUT keeps the local choice, shows nothing and does not block chatting 53ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > two quick picks reach the server one at a time, the last pick wins and an old answer never overwrites it 105ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > picks that return to the model the server already holds send nothing more, and a failed first PUT still sends the last pick 154ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > a key list that failed to load is not "no key": the settings say the keys are unknown, and a later read recovers 1ms
+ ✓ shared/ai/ai.test.ts > the chosen model is saved on the server (UNI-1240 4b) > nothing is sent for a provider without a stored key, or for the model the server already holds 2ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a provider with a default model runs on it with nothing picked in this browser 1ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a model-less provider that lists exactly one model runs on it 50ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a model-less provider that lists several keeps the model empty (the panel asks for a pick) 2ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a pick made in this browser wins over the listing 1ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a failed listing is silent 1ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a send without a model answers with a tagged notice, the typed text intact 2ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > a send with no key stored answers with a tagged notice too, a real failure stays an error 3ms
+ ✓ shared/ai/ai.test.ts > the model of a provider with a key (UNI-1232 FX2: N3-01 / G-N1) > reads the model ids of the three wire formats 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > Grant formula > aiHostGrants: uniworkAi alone opens the panel, no credentials, no cloud tools 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > Grant formula > the frame claims uniworkAi 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > client.uniworkChat > posts to the frame route with the frame token and returns the raw Response 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > client.uniworkChat > refreshes the token once after a 401 and retries the same turn 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > goes through the frame route, never the BYOK proxy, and reports the server run id 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > hands the adapter the frame scope, the loop history, the module tools and the cloud policy 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a summary request (not an agent turn) is refused with unsupported before any request 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a one-shot request (not an agent turn) is refused with unsupported before any request 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > passes the adapter notices and a turn reset on to the panel, in order 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a run_limit_reached failure (409) is one error chunk with the code, in the failure text 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a credits_exhausted failure (402) is one error chunk with the code, in the failure text 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a entitlement_required failure (403) is one error chunk with the code, in the failure text 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a ai_provider_error failure (502) is one error chunk with the code, in the failure text 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a rate_limited failure (429) is one error chunk with the code, in the failure text 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > UniWork AI off before any run: hides the entry, asks the panel for no error chip 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > a frame without the UniWork scope answers as off, sends nothing 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork 503 then a BYOK turn completes (G6-A08) 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > done 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > error 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > 401 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > disconnect 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > 429 give-up 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > wait, then 429 give-up 3ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > session lost after a wait 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > session lost mid-stream (sign-out) 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > UniWork AI off before a run id (a note, then a quiet done) 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > Stop ends the run with one idle and a done 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > aiStream uniwork branch > uniwork turn: one idle per ending path > a Retry-After wait inside the adapter keeps the run running, one idle at the end 2ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > uniworkAi alone: active, no credential list read, an unlocked UniWork AI entry chosen by default 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > the grant sets the availability flag (the entry in AI_PROVIDERS); off clears it 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > a BYOK turn between two UniWork turns ends the UniWork conversation; a lost session clears them 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > with ai and uniworkAi both: BYOK stays the default, UniWork AI is chosen on request 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > without the uniworkAi grant there is no UniWork AI entry, and a stored choice of it is ignored 1ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > the scope carries the document and the module of the session as the format token 0ms
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > office_capability_off before any run: the entry hides, the key goes off, no error chip, BYOK untouched 1ms
+ × shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > maps payload_too_large to aiErrWorkbookTooLarge in uniworkFailureKey (G6-05u) 5ms
+   → expected 'aiErrCapabilityOff' to be 'aiErrAccessRevoked' // Object.is equality
+ ✓ shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > exposes uniworkIdentity from session and GET cloud org_id / org_name 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  shared/ai/ai.test.ts > UniWork AI on the web (G6-05) > createWebAi with uniworkAi > maps payload_too_large to aiErrWorkbookTooLarge in uniworkFailureKey (G6-05u)
+AssertionError: expected 'aiErrCapabilityOff' to be 'aiErrAccessRevoked' // Object.is equality
+
+Expected: "aiErrAccessRevoked"
+Received: "aiErrCapabilityOff"
+
+ ❯ shared/ai/ai.test.ts:2297:84
+    2295|       expect(uniworkFailureKey({ code: 'payload_too_large' })).toBe('a…
+    2296|       expect(uniworkFailureKey({ code: 'office_capability_off' })).toB…
+    2297|       expect(uniworkFailureKey({ code: 'office_capability_off', runId:…
+       |                                                                                    ^
+    2298|         'aiErrAccessRevoked',
+    2299|       )
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 130 passed (131)
+   Start at  10:03:07
+   Duration  2.27s (transform 741ms, setup 0ms, import 528ms, tests 1.31s, environment 337ms)
+

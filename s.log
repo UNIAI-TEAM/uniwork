@@ -1,0 +1,505 @@
+$ f=0; for app in docs sheets slides html markdown pdf; do AI_PROVIDER=fake npm exec -w @genoffice/$app -- vitest run tests/uniwork-ai-notice.test.ts tests/uniwork-view-only-ai.test.ts --reporter=verbose || f=$((f+1)); done; echo "APPS_FAILED=$f"; [ $f -eq 0 ]
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave switch > is hidden for a UniWork document, shown for a local file 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave switch > stays hidden where the platform has no local path to autosave to 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > keeps only read-only tools 70ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > refuses an edit tool call and leaves the document untouched 17ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > keeps the full tool set on an editable document 10ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI agent on a view-only document > only allowlists tools that exist 0ms
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > shows the reason, drops the track-changes toggle and the edit starters for BYOK
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > replaces ai-readonly-notice above composer with ai-uniwork-view-only sub-line under composer when UniWork AI is selected
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > keeps the edit affordances on an editable document
+The current testing environment is not configured to support act(...)
+
+ × tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > shows the reason, drops the track-changes toggle and the edit starters for BYOK 27ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > replaces ai-readonly-notice above composer with ai-uniwork-view-only sub-line under composer when UniWork AI is selected 15ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > keeps the edit affordances on an editable document 8ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is English in en and Vietnamese in vi 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is translated in every shipped locale 1ms
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > waiting shows Stop only, no Retry 1693ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a wait that gives up ends as an error with one idle, and Retry IS offered 1618ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a wait after an earlier failed turn still shows Stop only (the old error keeps no Retry live) 1615ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it 1618ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a restarted conversation shows its note and not an empty-reply line 1616ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a question_too_long refusal shows its error, offers no Retry or regenerate, and puts the question back in the composer 1612ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a question_rejected refusal shows its error, offers no Retry or regenerate, and puts the question back in the composer 1612ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a refused question does not overwrite a newer draft typed while the turn ran 1614ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > another failure still offers regenerate and leaves the composer alone (control) 1619ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > the images-not-sent note shows above the answer and the turn is no error 1622ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line 1614ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a provider boundary and dropped calls become notes above the answer 1614ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > when UniWork AI is selected, renders result chip as first words of answer node and announces once in panel live region 1614ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 16 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > waiting shows Stop only, no Retry
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a wait that gives up ends as an error with one idle, and Retry IS offered
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a wait after an earlier failed turn still shows Stop only (the old error keeps no Retry live)
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a restarted conversation shows its note and not an empty-reply line
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a question_too_long refusal shows its error, offers no Retry or regenerate, and puts the question back in the composer
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a question_rejected refusal shows its error, offers no Retry or regenerate, and puts the question back in the composer
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a refused question does not overwrite a newer draft typed while the turn ran
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > another failure still offers regenerate and leaves the composer alone (control)
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > the images-not-sent note shows above the answer and the turn is no error
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > a provider boundary and dropped calls become notes above the answer
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (docs panel) > when UniWork AI is selected, renders result chip as first words of answer node and announces once in panel live region
+ FAIL  tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > shows the reason, drops the track-changes toggle and the edit starters for BYOK
+ FAIL  tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > replaces ai-readonly-notice above composer with ai-uniwork-view-only sub-line under composer when UniWork AI is selected
+ FAIL  tests/uniwork-view-only-ai.test.ts > AI panel on a view-only document > keeps the edit affordances on an editable document
+TypeError: Cannot read properties of null (reading 'uniworkSelected')
+ ❯ composerNoteFor ../../packages/ai-provider/src/ai-notice.ts:173:26
+    171|  */
+    172| export function composerNoteFor(input: ComposerNoteInput): ComposerNot…
+    173|   const selected = input.uniworkSelected ?? input.provider === 'uniwor…
+       |                          ^
+    174|   if (!selected) return null
+    175|   if (input.signedIn === false || input.cloudState === 'signed-out') {
+ ❯ AiPanel src/renderer/ai/AiPanel.tsx:1405:29
+ ❯ Object.react_stack_bottom_frame ../../node_modules/react-dom/cjs/react-dom-client.development.js:25904:20
+ ❯ renderWithHooks ../../node_modules/react-dom/cjs/react-dom-client.development.js:7662:22
+ ❯ updateFunctionComponent ../../node_modules/react-dom/cjs/react-dom-client.development.js:10166:19
+ ❯ beginWork ../../node_modules/react-dom/cjs/react-dom-client.development.js:11778:18
+ ❯ runWithFiberInDEV ../../node_modules/react-dom/cjs/react-dom-client.development.js:874:13
+ ❯ performUnitOfWork ../../node_modules/react-dom/cjs/react-dom-client.development.js:17641:22
+ ❯ workLoopSync ../../node_modules/react-dom/cjs/react-dom-client.development.js:17469:41
+ ❯ renderRootSync ../../node_modules/react-dom/cjs/react-dom-client.development.js:17450:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/16]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  16 failed | 8 passed (24)
+   Start at  10:02:29
+   Duration  24.47s (transform 3.83s, setup 0ms, import 5.73s, tests 21.24s, environment 683ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/sheets
+
+ ✓ tests/uniwork-view-only-ai.test.ts > isUniworkViewOnly > is true only for a bound, read-only workbook 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only workbook: the AI can read but not edit > offers only reading tools and notes the workbook is view-only 2ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only workbook: the AI can read but not edit > refuses an edit tool the model calls anyway and never reaches the workbook 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only workbook: the AI can read but not edit > keeps the full tool set for an editable (or unbound) workbook 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only workbook: the AI can read but not edit > has a reason in en and vi that every locale carries 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only wiring > restricts every skill of the loop and refuses auto-applied plans 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only wiring > disables the editing ribbon AI action and shows the composer notice for BYOK and viewOnly sub-line for UniWork AI 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave toggle of a UniWork workbook > is not rendered when the workbook is bound or view-only 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave toggle of a UniWork workbook > never ticks the autosave timer for a locked workbook 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-ai-notice.test.ts [ tests/uniwork-ai-notice.test.ts ]
+Error: Missing "./ai-uniwork" specifier in "@genoffice/i18n" package
+  Plugin: vite:import-analysis
+  File: /home/ubuntu/work/uniwork-office/apps/sheets/src/renderer/ai/AiChatPanel.tsx:13:30
+  11 |  import { aiNoticeBody, aiNoticeKind } from "@genoffice/ai-provider/browser";
+  12 |  import { resultChip } from "@genoffice/agent-core";
+  13 |  import { aiUniworkText } from "@genoffice/i18n/ai-uniwork";
+     |                                 ^
+  14 |  import { cap, platform } from "../capabilities";
+  15 |  import { ATTACHMENT_IMAGE_EXTS } from "../../shared/desktop-api";
+ ❯ e ../../node_modules/vite/dist/node/chunks/config.js:6667:8
+ ❯ n ../../node_modules/vite/dist/node/chunks/config.js:6679:14
+ ❯ o ../../node_modules/vite/dist/node/chunks/config.js:6707:10
+ ❯ resolveExportsOrImports ../../node_modules/vite/dist/node/chunks/config.js:32907:45
+ ❯ resolveDeepImport ../../node_modules/vite/dist/node/chunks/config.js:32921:22
+ ❯ tryNodeResolve ../../node_modules/vite/dist/node/chunks/config.js:32796:70
+ ❯ ResolveIdContext.handler ../../node_modules/vite/dist/node/chunks/config.js:32635:16
+ ❯ EnvironmentPluginContainer.resolveId ../../node_modules/vite/dist/node/chunks/config.js:28797:56
+ ❯ TransformPluginContext.resolve ../../node_modules/vite/dist/node/chunks/config.js:29009:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  9 passed (9)
+   Start at  10:02:54
+   Duration  1.70s (transform 1.96s, setup 0ms, import 1.59s, tests 7ms, environment 343ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/slides
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > waiting shows Stop only, no Retry
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > another failure still offers regenerate and leaves the composer alone (control)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a provider boundary and dropped calls become notes
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > when UniWork AI is selected, renders result chip as first words of answer node and announces once in panel live node
+The current testing environment is not configured to support act(...)
+
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > waiting shows Stop only, no Retry 23ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered 3ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it 6ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer 1ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > another failure still offers regenerate and leaves the composer alone (control) 1ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line 3ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a provider boundary and dropped calls become notes 1ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > when UniWork AI is selected, renders result chip as first words of answer node and announces once in panel live node 1ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a plain local deck shows it
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a plain local deck shows it
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a UniWork-bound deck shows no AutoSave toggle at all
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a plain local deck shows it 81ms
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a UniWork-bound deck shows no AutoSave toggle at all
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a view-only UniWork deck shows no AutoSave toggle either
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a view-only UniWork deck shows no AutoSave toggle either
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > an editable deck has the AI edit entries enabled
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > an editable deck has the AI edit entries enabled
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > a view-only deck turns every AI edit entry off and gives the reason
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > a view-only deck turns every AI edit entry off and gives the reason
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > Review > spell check and translate are off for a view-only deck
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a UniWork-bound deck shows no AutoSave toggle at all 28ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AutoSave toggle (slides) > a view-only UniWork deck shows no AutoSave toggle either 28ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > an editable deck has the AI edit entries enabled 25ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > a view-only deck turns every AI edit entry off and gives the reason 29ms
+stderr | tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > Review > spell check and translate are off for a view-only deck
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel of a view-only deck > shows the reason and no edit starters; an editable deck shows starters and no reason
+The current testing environment is not configured to support act(...)
+
+stderr | tests/uniwork-view-only-ai.test.ts > AI panel of a view-only deck > shows the reason and no edit starters; an editable deck shows starters and no reason
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI actions of a view-only deck > Review > spell check and translate are off for a view-only deck 33ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI skill of a view-only deck > an editable deck keeps the editing tools 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI skill of a view-only deck > a view-only deck offers read-only tools only 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI skill of a view-only deck > the tool list follows the live predicate 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI skill of a view-only deck > the executor refuses an editing tool a model still asks for, and changes nothing 2ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AI skill of a view-only deck > read_slide still runs on a view-only deck 1ms
+ × tests/uniwork-view-only-ai.test.ts > AI panel of a view-only deck > shows the reason and no edit starters; an editable deck shows starters and no reason 15ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > is English in en and Vietnamese in vi 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > is translated in every shipped locale, not the English fallback 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > waiting shows Stop only, no Retry
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait that gives up ends as an error and Retry IS offered
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a wait after an earlier failed turn still shows Stop only
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a restarted conversation keeps its note and no empty-reply line
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > another failure still offers regenerate and leaves the composer alone (control)
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > a provider boundary and dropped calls become notes
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (slides panel) > when UniWork AI is selected, renders result chip as first words of answer node and announces once in panel live node
+ FAIL  tests/uniwork-view-only-ai.test.ts > AI panel of a view-only deck > shows the reason and no edit starters; an editable deck shows starters and no reason
+TypeError: Cannot read properties of null (reading 'uniworkSelected')
+ ❯ composerNoteFor ../../packages/ai-provider/src/ai-notice.ts:173:26
+    171|  */
+    172| export function composerNoteFor(input: ComposerNoteInput): ComposerNot…
+    173|   const selected = input.uniworkSelected ?? input.provider === 'uniwor…
+       |                          ^
+    174|   if (!selected) return null
+    175|   if (input.signedIn === false || input.cloudState === 'signed-out') {
+ ❯ AiPanel src/renderer/ai/AiPanel.tsx:2150:29
+ ❯ Object.react_stack_bottom_frame ../../node_modules/react-dom/cjs/react-dom-client.development.js:25904:20
+ ❯ renderWithHooks ../../node_modules/react-dom/cjs/react-dom-client.development.js:7662:22
+ ❯ updateFunctionComponent ../../node_modules/react-dom/cjs/react-dom-client.development.js:10166:19
+ ❯ beginWork ../../node_modules/react-dom/cjs/react-dom-client.development.js:11778:18
+ ❯ runWithFiberInDEV ../../node_modules/react-dom/cjs/react-dom-client.development.js:874:13
+ ❯ performUnitOfWork ../../node_modules/react-dom/cjs/react-dom-client.development.js:17641:22
+ ❯ workLoopSync ../../node_modules/react-dom/cjs/react-dom-client.development.js:17469:41
+ ❯ renderRootSync ../../node_modules/react-dom/cjs/react-dom-client.development.js:17450:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  12 failed | 13 passed (25)
+   Start at  10:02:56
+   Duration  3.29s (transform 2.86s, setup 0ms, import 4.60s, tests 296ms, environment 760ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > waiting shows Stop only, no Retry 20ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a wait that gives up ends as an error and Retry IS offered 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a wait after an earlier failed turn still shows Stop only 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > the notice line has its own style rule (set apart from the reply, no raw colours) 1ms
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a restarted conversation keeps its note and no empty-reply line 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer 1ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer 1ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > another failure still offers Retry and leaves the composer alone (control) 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a provider boundary and dropped calls become notes 1ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > when UniWork AI is selected, renders result chip as first words of answer node and announces once in panel live node 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > exposes only the reading tools 4ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > tells the model the document is view-only 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > keeps the full catalogue on an editable document 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > refuses every editing tool and leaves the document untouched 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > still runs the reading tools 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > reads the predicate live: lifting view-only restores editing 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AutoSave switch > shows it for a local file 38ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AutoSave switch > hides it for a UniWork copy, editable or view-only 22ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI buttons on a view-only copy > keeps summarize and turns the editing presets off with the reason as tooltip 14ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI buttons on a view-only copy > leaves every preset on for an editable copy 10ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > is real text in English and Vietnamese 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > exists in every locale and is translated outside English 1ms
+ × tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows the notice and no edit queue for BYOK, and viewOnly sub-line for UniWork AI 13ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+ × tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows no notice and keeps the edit queue on an editable copy 2ms
+   → Cannot read properties of null (reading 'uniworkSelected')
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 13 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > waiting shows Stop only, no Retry
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a wait that gives up ends as an error and Retry IS offered
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a wait after an earlier failed turn still shows Stop only
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a restarted conversation keeps its note and no empty-reply line
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > another failure still offers Retry and leaves the composer alone (control)
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > a provider boundary and dropped calls become notes
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (html panel) > when UniWork AI is selected, renders result chip as first words of answer node and announces once in panel live node
+ FAIL  tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows the notice and no edit queue for BYOK, and viewOnly sub-line for UniWork AI
+ FAIL  tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows no notice and keeps the edit queue on an editable copy
+TypeError: Cannot read properties of null (reading 'uniworkSelected')
+ ❯ composerNoteFor ../../packages/ai-provider/src/ai-notice.ts:173:26
+    171|  */
+    172| export function composerNoteFor(input: ComposerNoteInput): ComposerNot…
+    173|   const selected = input.uniworkSelected ?? input.provider === 'uniwor…
+       |                          ^
+    174|   if (!selected) return null
+    175|   if (input.signedIn === false || input.cloudState === 'signed-out') {
+ ❯ AiPanel src/renderer/ai/AiPanel.tsx:1245:29
+ ❯ Object.react_stack_bottom_frame ../../node_modules/react-dom/cjs/react-dom-client.development.js:25904:20
+ ❯ renderWithHooks ../../node_modules/react-dom/cjs/react-dom-client.development.js:7662:22
+ ❯ updateFunctionComponent ../../node_modules/react-dom/cjs/react-dom-client.development.js:10166:19
+ ❯ beginWork ../../node_modules/react-dom/cjs/react-dom-client.development.js:11778:18
+ ❯ runWithFiberInDEV ../../node_modules/react-dom/cjs/react-dom-client.development.js:874:13
+ ❯ performUnitOfWork ../../node_modules/react-dom/cjs/react-dom-client.development.js:17641:22
+ ❯ workLoopSync ../../node_modules/react-dom/cjs/react-dom-client.development.js:17469:41
+ ❯ renderRootSync ../../node_modules/react-dom/cjs/react-dom-client.development.js:17450:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/13]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  13 failed | 13 passed (26)
+   Start at  10:03:00
+   Duration  1.80s (transform 1.40s, setup 0ms, import 1.96s, tests 157ms, environment 655ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/markdown
+
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > exposes only the reading tools 3ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > tells the model the document is view-only 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > keeps the full catalogue on an editable document 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > refuses every editing tool and leaves the document untouched 72ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > still runs the reading tools 14ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only skill (UniWork copy the user may only read) > reads the predicate live: lifting view-only restores editing 0ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > waiting shows Stop only, no Retry 116ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a wait that gives up ends as an error and Retry IS offered 40ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a wait after an earlier failed turn still shows Stop only 37ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > the notice line has its own style rule (set apart from the reply, no raw colours) 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AutoSave switch > shows it for a local file 44ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AutoSave switch > hides it for a UniWork copy, editable or view-only 43ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI buttons on a view-only copy > keeps summarize and turns the editing presets off with the reason as tooltip 24ms
+ ✓ tests/uniwork-view-only-ai.test.ts > Ribbon AI buttons on a view-only copy > leaves every preset on for an editable copy 28ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > is real text in English and Vietnamese 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only notice copy > exists in every locale and is translated outside English 1ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows the notice and no edit queue for BYOK, and viewOnly sub-line for UniWork AI 42ms
+ ✓ tests/uniwork-view-only-ai.test.ts > AiPanel on a view-only copy > shows no notice and keeps the edit queue on an editable copy 16ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it 35ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a restarted conversation keeps its note and no empty-reply line 27ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer 28ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer 24ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > another failure still offers Retry and leaves the composer alone (control) 23ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line 24ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > a provider boundary and dropped calls become notes 23ms
+ × tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > when UniWork AI is selected, renders result chip as first words of answer node and announces once in panel live node 28ms
+   → expected null not to be null
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-ai-notice.test.ts > UniWork AI notices (markdown panel) > when UniWork AI is selected, renders result chip as first words of answer node and announces once in panel live node
+AssertionError: expected null not to be null
+ ❯ tests/uniwork-ai-notice.test.ts:307:24
+    305|     expect(chatEl?.hasAttribute('aria-busy')).toBe(false)
+    306|     const chipEl = container!.querySelector('.ai-result-chip')
+    307|     expect(chipEl).not.toBeNull()
+       |                        ^
+    308|     expect(chipEl?.textContent).toBe(ui('aiResultAnswer'))
+    309|     const answerNode = chipEl?.parentElement
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 25 passed (26)
+   Start at  10:03:02
+   Duration  1.80s (transform 1.23s, setup 0ms, import 1.94s, tests 699ms, environment 676ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/pdf
+
+stderr | tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only for BYOK, and sub-line under composer for UniWork AI
+The current testing environment is not configured to support act(...)
+
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > keeps only read-only tools and says the document is view-only 2ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > refuses an edit tool call before it reaches the document 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > keeps the full tool set on an editable document 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > assistant tools on a view-only document > only allowlists tools that exist 0ms
+ × tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only for BYOK, and sub-line under composer for UniWork AI 38ms
+   → Cannot read properties of undefined (reading 'getAiSettings')
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is English in en and Vietnamese in vi 0ms
+ ✓ tests/uniwork-view-only-ai.test.ts > view-only AI notice strings > is translated in every shipped locale 1ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > waiting shows Stop only, no Retry 53ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a wait that gives up ends as an error and Retry IS offered 14ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a wait after an earlier failed turn still shows Stop only 19ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > the notice line has its own style rule (set apart from the reply, no raw colours) 1ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > one persistent aria-live region is mounted before the notice, and the note lands inside it 19ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a restarted conversation keeps its note and no empty-reply line 12ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a refused question (aiErrQuestionTooLong) shows its error, offers no Retry or regenerate, and puts the question back in the composer 10ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a refused question (aiErrQuestionRejected) shows its error, offers no Retry or regenerate, and puts the question back in the composer 10ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > another failure still offers Retry and leaves the composer alone (control) 9ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > UniWork AI off: one note, no error line, no Retry or regenerate, no empty-reply line 14ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > a provider boundary and dropped calls become notes 10ms
+ ✓ tests/uniwork-ai-notice.test.ts > UniWork AI notices (pdf panel) > when UniWork AI is selected, renders result chip as first words of answer node and announces once in panel live node 14ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-view-only-ai.test.ts > assistant panel notice > shows the reason above the composer only when view-only for BYOK, and sub-line under composer for UniWork AI
+TypeError: Cannot read properties of undefined (reading 'getAiSettings')
+ ❯ sync src/renderer/ai/AiPanel.tsx:645:10
+    643|     const sync = () => {
+    644|       void window.pdfApi
+    645|         .getAiSettings()
+       |          ^
+    646|         .then((s) => {
+    647|           if (!alive) return
+ ❯ src/renderer/ai/AiPanel.tsx:653:5
+ ❯ Object.react_stack_bottom_frame ../../node_modules/react-dom/cjs/react-dom-client.development.js:25989:20
+ ❯ runWithFiberInDEV ../../node_modules/react-dom/cjs/react-dom-client.development.js:874:13
+ ❯ commitHookEffectListMount ../../node_modules/react-dom/cjs/react-dom-client.development.js:13249:29
+ ❯ commitHookPassiveMountEffects ../../node_modules/react-dom/cjs/react-dom-client.development.js:13336:11
+ ❯ commitPassiveMountOnFiber ../../node_modules/react-dom/cjs/react-dom-client.development.js:15484:13
+ ❯ recursivelyTraversePassiveMountEffects ../../node_modules/react-dom/cjs/react-dom-client.development.js:15439:11
+ ❯ commitPassiveMountOnFiber ../../node_modules/react-dom/cjs/react-dom-client.development.js:15519:11
+ ❯ flushPassiveEffects ../../node_modules/react-dom/cjs/react-dom-client.development.js:18432:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 18 passed (19)
+   Start at  10:03:05
+   Duration  1.55s (transform 1.40s, setup 182ms, import 1.68s, tests 231ms, environment 681ms)
+
+APPS_FAILED=6

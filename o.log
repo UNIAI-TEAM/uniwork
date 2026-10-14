@@ -1,0 +1,23 @@
+$ AI_PROVIDER=fake npm exec -w @genoffice/ai-provider -- vitest run tests/ai-notice.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ai-provider
+
+ ✓ tests/ai-notice.test.ts > ai notices > recognizes every notice text again, in both languages 2ms
+ ✓ tests/ai-notice.test.ts > ai notices > does not take a real error or an empty message for a notice 0ms
+ ✓ tests/ai-notice.test.ts > ai notices > never talks about buying a plan in the app or an Office account 1ms
+ ✓ tests/ai-notice.test.ts > ai notices > maps the cloud state to why there is no model 0ms
+ ✓ tests/ai-notice.test.ts > ai notices > picks the notice for en and vi, tagged with its code 0ms
+ ✓ tests/ai-notice.test.ts > ai notices > every locale gets a recognized notice: its own no-key text, English for plan states 0ms
+ ✓ tests/ai-notice.test.ts > ai notices > the code, not the wording, marks a notice; the body drops the tag 0ms
+ ✓ tests/ai-notice.test.ts > ai notices > reads the cloud state this process holds 0ms
+ ✓ tests/ai-notice.test.ts > composerNoteFor (G6-05u S7/S11) > returns null when UniWork AI is not selected 0ms
+ ✓ tests/ai-notice.test.ts > composerNoteFor (G6-05u S7/S11) > returns null when UniWork AI is ready and enabled 0ms
+ ✓ tests/ai-notice.test.ts > composerNoteFor (G6-05u S7/S11) > maps each single condition to its note kind, key and action 1ms
+ ✓ tests/ai-notice.test.ts > composerNoteFor (G6-05u S7/S11) > enforces priority: signed-out > off > not-entitled > subscription-inactive > credits-exhausted > unavailable 1ms
+ ✓ tests/ai-notice.test.ts > composerNoteFor (G6-05u S7/S11) > viewOnly never suppresses or replaces the composer note 0ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  10:02:26
+   Duration  163ms (transform 53ms, setup 0ms, import 64ms, tests 8ms, environment 0ms)
+
