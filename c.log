@@ -1,0 +1,16 @@
+$ npx eslint apps/shell $(git diff --name-only 41f1d661 HEAD -- 'apps/docs/src' 'apps/sheets/src' 'apps/slides/src' 'apps/pdf/src' 'apps/markdown/src' 'apps/html/src' 'apps/*/tests' | grep -E '\.(ts|tsx)$' | grep -v '^apps/shell' | tr '\n' ' ')
+
+/home/ubuntu/work/uniwork-office/apps/shell/src/renderer/src/AgentIntentBanner.tsx
+  37:6  warning  React Hook useEffect has a missing dependency: 'runApply'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/shell/src/renderer/src/NewChatPane.tsx
+   512:5  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+   513:5  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+  1776:6  warning  React Hook useEffect has a missing dependency: 'submit'. Either include it or remove the dependency array                                 react-hooks/exhaustive-deps
+
+/home/ubuntu/work/uniwork-office/apps/shell/src/renderer/src/PracticeHome.tsx
+  195:6  warning  React Hook useEffect has missing dependencies: 'practice.facets', 'practice.materialRoles', and 'practice.titleFacetId'. Either include them or remove the dependency array. If 'setAddRole' needs the current value of 'practice.materialRoles', you can also switch to useReducer instead of useState and read 'practice.materialRoles' in the reducer  react-hooks/exhaustive-deps
+  289:6  warning  React Hook useEffect has a missing dependency: 'meta'. Either include it or remove the dependency array                                                                                                                                                                                                                                                   react-hooks/exhaustive-deps
+
+✖ 6 problems (0 errors, 6 warnings)
+
