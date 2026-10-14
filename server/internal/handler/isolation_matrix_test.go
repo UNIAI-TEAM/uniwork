@@ -560,10 +560,6 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "room")
 	case "{messageID}":
 		switch {
-		case strings.HasSuffix(pattern, "/file"):
-			return tn.get(t, "fileMessage")
-		case strings.HasSuffix(pattern, "/voice"):
-			return tn.get(t, "voiceMessage")
 		case strings.HasSuffix(pattern, "/poll/vote"):
 			return tn.get(t, "pollMessage")
 		case strings.HasSuffix(pattern, "/task-sync"):
