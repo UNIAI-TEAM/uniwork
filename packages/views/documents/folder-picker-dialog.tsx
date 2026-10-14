@@ -352,7 +352,7 @@ export function FolderPickerDialog({
                     {row.label}
                   </span>
                   {row.reason ? (
-                    <span id={reasonId} className="block truncate text-caption text-muted-foreground">
+                    <span id={reasonId} title={row.reason} className="block truncate text-caption text-muted-foreground">
                       {row.reason}
                     </span>
                   ) : null}

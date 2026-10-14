@@ -52,6 +52,20 @@ function renderPicker(over: Partial<React.ComponentProps<typeof FolderPickerDial
 }
 
 describe("FolderPickerDialog", () => {
+  it("gives a disabled row's full reason as a title so a truncated one stays readable", () => {
+    renderPicker({ currentFolderId: "f2", initialFolderId: "f2", movingId: "f1" });
+    const reasons: Array<[string, string]> = [
+      ["Tài chính", t("documents.home.move.reason_current")],
+      ["Hợp đồng", t("documents.home.move.reason_self")],
+    ];
+    for (const [name, reason] of reasons) {
+      const row = screen.getByRole("treeitem", { name });
+      const text = within(row).getByText(reason);
+      expect(text).toHaveAttribute("title", reason);
+      expect(row).toHaveAccessibleDescription(reason);
+    }
+  });
+
   it("renders a tree with treeitems, marks the picked target with aria-selected, and submits it", () => {
     const props = renderPicker();
     const pickerTree = screen.getByRole("tree", { name: t("documents.home.move.picker_label") });

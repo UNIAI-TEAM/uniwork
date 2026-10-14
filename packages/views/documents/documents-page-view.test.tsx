@@ -553,7 +553,7 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     const row = await rowOf("Kế hoạch Q4");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("treeitem", { name: "Hợp đồng" }));
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
@@ -580,7 +580,7 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     const row = await rowOf("Hợp đồng");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("treeitem", { name: "Hợp đồng" })).toHaveAttribute("aria-disabled", "true");
     expect(within(dialog).getByRole("treeitem", { name: "Con" })).toHaveAttribute("aria-disabled", "true");
@@ -600,7 +600,7 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     const row = await rowOf("Hợp đồng");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.archive") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.delete") }));
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(t("documents.archive.delete_title"))).toBeInTheDocument();
     expect(
@@ -620,7 +620,7 @@ describe("DocumentsPageView", () => {
     const row = await rowOf("Kế hoạch Q4");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
     await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
   });
 
@@ -639,7 +639,7 @@ describe("DocumentsPageView", () => {
       fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
       await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
       const has = (key: string) => screen.queryByRole("menuitem", { name: t(key) }) !== null;
-      const out = { move: has("documents.home.row.move"), archive: has("documents.home.row.archive") };
+      const out = { move: has("documents.tree.menu.move_to"), archive: has("documents.home.row.archive") };
       fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
       await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeNull());
       return out;
@@ -729,7 +729,7 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     const row = await rowOf("Kế hoạch Q4");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") }));
     const dialog = await screen.findByRole("dialog");
     // A page with one child takes two levels: TREE_MAX_LEVEL - 2 is the deepest enabled target.
     expect(within(dialog).getByRole("treeitem", { name: `Cấp ${TREE_MAX_LEVEL - 2}` })).not.toHaveAttribute("aria-disabled");
@@ -757,7 +757,7 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     const row = await rowOf("Hợp đồng");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.archive") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.delete") }));
     const dialog = await screen.findByRole("alertdialog");
     const confirm = within(dialog).getByRole("button", { name: t("documents.archive.delete_confirm") });
     await waitFor(() => expect(confirm).toBeEnabled());

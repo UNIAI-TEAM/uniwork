@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff } from "lucide-react";
+import { Archive, ArchiveRestore, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -59,6 +59,8 @@ export interface LibraryRowHandlers {
   onRename?: (doc: DocumentSummaryRow) => void;
   onMove?: (doc: DocumentSummaryRow) => void;
   onArchive?: (doc: DocumentSummaryRow) => void;
+  /** Restore a trashed folder from the Archive scope (manage); absent hides it. */
+  onRestore?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
   desktopOpen?: LibraryDesktopOpen;
@@ -128,7 +130,12 @@ export function LibraryRowView({
   };
 
   const actions: RowAction[] = [];
-  if (doc && folder) {
+  // A trashed folder is not browsable: its menu offers Restore instead of Open.
+  if (doc && folder && archived) {
+    if (handlers.onRestore && canArchiveRow(level)) {
+      actions.push({ id: "restore", label: t("documents.actions.restore"), icon: ArchiveRestore, run: () => handlers.onRestore?.(doc) });
+    }
+  } else if (doc && folder) {
     actions.push({ id: "open-folder", label: t("documents.home.row.open_folder"), icon: FolderOpen, run: primary });
   } else if (doc) {
     actions.push({ id: "open", label: t("documents.home.row.open_web"), icon: ExternalLink, run: primary });
@@ -155,10 +162,15 @@ export function LibraryRowView({
       actions.push({ id: "rename", label: t("documents.home.row.rename"), icon: Pencil, run: () => handlers.onRename?.(doc) });
     }
     if (handlers.onMove && canMoveRow(level)) {
-      actions.push({ id: "move", label: t("documents.home.row.move"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
+      actions.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
     }
     if (handlers.onArchive && canArchiveRow(level)) {
-      actions.push({ id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) });
+      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words and icon.
+      actions.push(
+        folder
+          ? { id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) }
+          : { id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) },
+      );
     }
   }
   if (row.type === "source") {
