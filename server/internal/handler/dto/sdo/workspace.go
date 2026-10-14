@@ -17,6 +17,10 @@ type WorkspaceDTO struct {
 	OrganizationID   string `json:"organization_id" example:"01J8X4ORG0N1P2Q3R4S5T6U7V"`
 	OrganizationSlug string `json:"organization_slug" example:"acme"`
 	OrganizationName string `json:"organization_name" example:"Acme"`
+	Description      string `json:"description" description:"Mô tả workspace, rỗng nếu chưa có" example:"Nhóm làm sản phẩm"`
+	IconEmoji        string `json:"icon_emoji" description:"Emoji icon, rỗng nếu không dùng" example:"🚀"`
+	IconURL          string `json:"icon_url" description:"URL ảnh icon đã ký, rỗng nếu không có ảnh" example:"https://cdn.example.com/workspace-icons/01J8X4.png"`
+	TaskPrefix       string `json:"task_prefix" description:"Tiền tố mã task, ví dụ TASK trong TASK-12" example:"TASK"`
 }
 
 type MembershipDTO struct {

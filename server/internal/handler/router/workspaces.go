@@ -34,9 +34,24 @@ func registerWorkspaces(r api, h Routes) {
 	})
 	r.Patch("/workspaces/{workspaceID}", h.PatchWorkspace, apiOp{
 		summary:     "Update workspace",
-		description: "Đổi tên workspace. Cần admin workspace (hoặc owner/admin tổ chức).",
+		description: "Đổi tên, mô tả hoặc icon emoji của workspace; trường không gửi giữ nguyên. Cần admin workspace (hoặc owner/admin tổ chức).",
 		tags:        []string{"workspaces"},
 		sdi:         sdi.PatchWorkspaceSDI{},
+		sdo:         sdo.WorkspaceSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/icon", h.UploadWorkspaceIcon, apiOp{
+		summary:     "Upload workspace icon",
+		description: "Đặt ảnh làm icon workspace, bỏ emoji nếu có. Tên field multipart là file. PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB. Cần admin workspace.",
+		tags:        []string{"workspaces"},
+		sdi:         sdi.UploadWorkspaceIconSDI{},
+		sdo:         sdo.WorkspaceSDO{},
+		auth:        true,
+	})
+	r.Delete("/workspaces/{workspaceID}/icon", h.RemoveWorkspaceIcon, apiOp{
+		summary:     "Remove workspace icon",
+		description: "Bỏ icon workspace (emoji hoặc ảnh); workspace hiện lại chữ cái đầu của tên. Cần admin workspace.",
+		tags:        []string{"workspaces"},
 		sdo:         sdo.WorkspaceSDO{},
 		auth:        true,
 	})
