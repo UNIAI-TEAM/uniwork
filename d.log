@@ -1,0 +1,461 @@
+$ export OFFICE_FORK_SHA=ab12238f HARNESS_RUN_DIR=/tmp/g7-10-run; bash scripts/office/g5g6g7/harness/keyring-session.sh --exec bash -c 'M=/tmp/g710-markers.txt; trap "HARNESS_RUN_DIR=$HARNESS_RUN_DIR bash scripts/office/g5g6g7/harness/stop.sh; echo G710_STOP_EXIT \$? | tee -a $M" EXIT; bash scripts/office/g5g6g7/harness/start.sh; echo "G710_START_EXIT $?" | tee -a $M; grep -v -i -E "key|secret|password|token" "$HARNESS_RUN_DIR/ports.env"; for spec in "1 G5-A03 fx-xlsx-revenue-xyz" "2 G6-A03 fx-docx-report-vi" "3 G5-A05 fx-docx-report-vi"; do set -- $spec; node scripts/office/g5g6g7/evidence.mjs run --req $2 --fixture $3 --out "$HARNESS_RUN_DIR" --checker harness:g7-10/tracer.mjs -- node scripts/office/g5g6g7/g7-10/tracer.mjs --loop $1 --run-dir "$HARNESS_RUN_DIR"; echo "G710_LOOP$1_EXIT $?" | tee -a $M; done; node scripts/office/g5g6g7/evidence.mjs verify --out "$HARNESS_RUN_DIR"; echo "G710_VERIFY_EXIT $?" | tee -a $M; for f in "$HARNESS_RUN_DIR"/tracer-loop-*.json; do echo "=== $f"; cat "$f"; echo; done'; echo "G710_KEYRING_EXEC_EXIT $?" | tee -a /tmp/g710-markers.txt; true
+KEYRING_DAEMON secrets=yes unlocked=yes
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /tmp/g7-10-run
+harness: D server  http://localhost:42553 (metrics 127.0.0.1:37083)
+harness: D web     http://localhost:38451
+harness: fork      ab12238f
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:42553 ...
+harness: the fork is already built at ab12238f; skipping build:all
+harness: starting the fork Electron app under xvfb...
+dbus-daemon[27961]: [session uid=1000 pid=27961] Activating service name='org.a11y.Bus' requested by ':1.5' (uid=1000 pid=28738 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[27961]: [session uid=1000 pid=27961] Successfully activated service 'org.a11y.Bus'
+harness: app on :99 (pid 28725)
+harness: up
+  D server  http://localhost:42553
+  D web     http://localhost:38451
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-ab12238f @ ab12238f
+  pids      /tmp/g7-10-run/pids
+  next      OFFICE_FORK_SHA=ab12238f HARNESS_RUN_DIR=/tmp/g7-10-run node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /tmp/g7-10-run
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=ab12238f HARNESS_RUN_DIR=/tmp/g7-10-run \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /tmp/g7-10-run
+G710_START_EXIT 0
+# Written by scripts/office/g5g6g7/harness/lib.mjs (start.sh) - one run's ports and origins.
+HARNESS_RUN_DIR=/tmp/g7-10-run
+API_PORT=42553
+WEB_PORT=38451
+METRICS_PORT=37083
+PREVIEW_PORT=46299
+APP_PROXY_PORT=43645
+APP_CDP_PORT=40819
+API_ORIGIN=http://localhost:42553
+APP_API_ORIGIN=http://127.0.0.1:43645
+WEB_ORIGIN=http://localhost:38451
+OFFICE_FORK_SHA=ab12238f
+D_SHA=4c889a53071a07e0da802c53a1b3f9ccb3030b97
+DISPLAY=:99
+XAUTHORITY=/tmp/g7-10-run/xauthority
+UNIWORK_USER_DATA=/tmp/g7-10-run/userdata
+ELECTRON_BIN=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-ab12238f/node_modules/electron/dist/electron
+SHELL_APP_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-ab12238f/apps/shell
+OFFICE_FORK_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-ab12238f
+HARNESS_DEPLOYMENT_ID=default
+{"evidenceId":"ev-g5-a03-0002","requirementId":"G5-A03","dSha":"4c889a53071a07e0da802c53a1b3f9ccb3030b97","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","1","--run-dir","/tmp/g7-10-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g7-10-run/artifacts/ev-g5-a03-0002.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T19:53:06.598Z","finishedAt":"2026-10-14T19:54:54.910Z"}
+evidence: ev-g5-a03-0002 FAIL; last 40 line(s) of ../tmp/g7-10-run/artifacts/ev-g5-a03-0002.log:
+  |     },
+  |     "versionsBeforeTurn": 1,
+  |     "versionsAfterTurn": 1,
+  |     "versionsAfterSave": 2,
+  |     "steps": {
+  |       "appOpenV1": {
+  |         "source": "app",
+  |         "status": "PASS"
+  |       },
+  |       "webFrameOpen": {
+  |         "source": "protocol",
+  |         "status": "PASS"
+  |       },
+  |       "aiTurn": {
+  |         "source": "protocol",
+  |         "status": "BLOCKED",
+  |         "httpStatus": 503,
+  |         "reason": "no real upstream on this runner; contract-p0 §8"
+  |       },
+  |       "webSave": {
+  |         "source": "web",
+  |         "status": "PASS"
+  |       },
+  |       "changeFeed": {
+  |         "source": "protocol",
+  |         "status": "FAIL"
+  |       },
+  |       "appReloadV2": {
+  |         "source": "app",
+  |         "status": "FAIL"
+  |       }
+  |     },
+  |     "versionCounts": {
+  |       "versionsBeforeTurn": 1,
+  |       "versionsAfterTurn": 1,
+  |       "versionsAfterSave": 2
+  |     }
+  |   }
+  | }
+  | FAILED: workspace change feed did not report v2 after Save
+G710_LOOP1_EXIT 1
+{"evidenceId":"ev-g6-a03-0002","requirementId":"G6-A03","dSha":"4c889a53071a07e0da802c53a1b3f9ccb3030b97","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 2 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","2","--run-dir","/tmp/g7-10-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g7-10-run/artifacts/ev-g6-a03-0002.log","checker":"harness:g7-10/tracer.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-14T19:54:54.948Z","finishedAt":"2026-10-14T19:55:00.557Z"}
+evidence: ev-g6-a03-0002 BLOCKED; last 40 line(s) of ../tmp/g7-10-run/artifacts/ev-g6-a03-0002.log:
+  |       "outcome": "unknown",
+  |       "hasCommitted": false,
+  |       "hasClaim": false
+  |     },
+  |     "appIntentsAfterTurn": 0,
+  |     "noAutoSaveSegment": {
+  |       "source": "protocol",
+  |       "status": "PASS",
+  |       "summary": "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save creates version 2"
+  |     },
+  |     "commitIntentOutcome": "committed",
+  |     "saveSource": "app",
+  |     "appSavedV2": true,
+  |     "versionsBeforeTurn": 1,
+  |     "versionsAfterTurn": 1,
+  |     "versionsAfterSave": 2,
+  |     "steps": {
+  |       "appOpenV1": {
+  |         "source": "app",
+  |         "status": "PASS"
+  |       },
+  |       "aiTurn": {
+  |         "source": "protocol",
+  |         "status": "BLOCKED",
+  |         "httpStatus": 503,
+  |         "reason": "no real upstream on this runner; contract-p0 §8"
+  |       },
+  |       "saveV2": {
+  |         "source": "app",
+  |         "status": "PASS"
+  |       }
+  |     },
+  |     "versionCounts": {
+  |       "versionsBeforeTurn": 1,
+  |       "versionsAfterTurn": 1,
+  |       "versionsAfterSave": 2
+  |     }
+  |   }
+  | }
+  | BLOCKED: no real upstream on this runner; contract-p0 §8; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) verified
+G710_LOOP2_EXIT 77
+{"evidenceId":"ev-g5-a05-0002","requirementId":"G5-A05","dSha":"4c889a53071a07e0da802c53a1b3f9ccb3030b97","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 3 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","3","--run-dir","/tmp/g7-10-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g7-10-run/artifacts/ev-g5-a05-0002.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T19:55:00.586Z","finishedAt":"2026-10-14T19:55:06.900Z"}
+G710_LOOP3_EXIT 0
+evidence verify: OK (6 records)
+G710_VERIFY_EXIT 0
+=== /tmp/g7-10-run/tracer-loop-1.json
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('[data-testid=\"office-sheets-frame\"]') to be visible\n",
+  "details": {
+    "loop": "1"
+  }
+}
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "owner": "g7-qa",
+  "reason": "workspace change feed did not report v2 after Save",
+  "steps": {
+    "appOpenV1": {
+      "source": "app",
+      "status": "PASS"
+    },
+    "webFrameOpen": {
+      "source": "protocol",
+      "status": "PASS"
+    },
+    "aiTurn": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "httpStatus": 503,
+      "reason": "no real upstream on this runner; contract-p0 §8"
+    },
+    "webSave": {
+      "source": "web",
+      "status": "PASS"
+    },
+    "changeFeed": {
+      "source": "protocol",
+      "status": "FAIL"
+    },
+    "appReloadV2": {
+      "source": "app",
+      "status": "FAIL"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2
+  },
+  "details": {
+    "owner": "g7-qa",
+    "loop": "1",
+    "fixtureId": "fx-xlsx-revenue-xyz",
+    "documentId": "01M4XZKGYC4KST006CW88GM648",
+    "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+    "v1Sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "appV1Binding": {
+      "schema": 2,
+      "documentId": "01M4XZKGYC4KST006CW88GM648",
+      "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+      "orgId": "01M4XZKGXDFMWYBXP8XTTQV2Z9",
+      "title": "fx-xlsx-revenue-xyz.xlsx",
+      "filename": "fx-xlsx-revenue-xyz.xlsx",
+      "format": "xlsx",
+      "access": "edit",
+      "baseRevision": "1",
+      "baseVersion": 1,
+      "baseChecksum": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "state": "ready",
+      "level": "manage",
+      "baseVersionId": "01M4XZKGYC4KST006CW8QYFCVC",
+      "min_store_level": 2,
+      "min_app_version": "0.11.0"
+    },
+    "aiSegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "v2Sha256": "13c41409bfac3af90dd15bc0f5fb9e545febb15ea2c4d6ff012ee68b30096bcc",
+    "webUiDriven": true,
+    "webSaveSource": "web",
+    "changeFeedDeliveredV2": false,
+    "protocolDiagnosticSegment": {
+      "source": "protocol",
+      "status": "FAIL",
+      "summary": "Protocol-level 0-version AI turn + v2 commit + workspace change feed check"
+    },
+    "appObservedV2ViaFeed": false,
+    "appObservedV2Source": "app",
+    "appV2Binding": {
+      "schema": 2,
+      "documentId": "01M4XZKGYC4KST006CW88GM648",
+      "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+      "orgId": "01M4XZKGXDFMWYBXP8XTTQV2Z9",
+      "title": "fx-xlsx-revenue-xyz.xlsx",
+      "filename": "fx-xlsx-revenue-xyz.xlsx",
+      "format": "xlsx",
+      "access": "edit",
+      "baseRevision": "1",
+      "baseVersion": 1,
+      "baseChecksum": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "state": "ready",
+      "level": "manage",
+      "baseVersionId": "01M4XZKGYC4KST006CW8QYFCVC",
+      "min_store_level": 2,
+      "min_app_version": "0.11.0"
+    },
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "webFrameOpen": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "webSave": {
+        "source": "web",
+        "status": "PASS"
+      },
+      "changeFeed": {
+        "source": "protocol",
+        "status": "FAIL"
+      },
+      "appReloadV2": {
+        "source": "app",
+        "status": "FAIL"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+
+=== /tmp/g7-10-run/tracer-loop-2.json
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "GET /api/v1/documents/01M4XWFP0DG9MKR916381Q059F/versions/commit -> 410: {\"error\":{\"code\":\"commit_intent_unknown\",\"message\":\"máy chủ không còn thông tin về lần lưu này\",\"fields\":{\"outcome\":\"unknown\"}}}\n",
+  "details": {
+    "loop": "2"
+  }
+}
+{
+  "exitCode": 77,
+  "status": "BLOCKED",
+  "owner": "g7-qa",
+  "reason": "no real upstream on this runner; contract-p0 §8; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) verified",
+  "steps": {
+    "appOpenV1": {
+      "source": "app",
+      "status": "PASS"
+    },
+    "aiTurn": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "httpStatus": 503,
+      "reason": "no real upstream on this runner; contract-p0 §8"
+    },
+    "saveV2": {
+      "source": "app",
+      "status": "PASS"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2
+  },
+  "details": {
+    "owner": "g7-qa",
+    "loop": "2",
+    "fixtureId": "fx-docx-report-vi",
+    "documentId": "01M4XZPTNGR817939VXGXD29FR",
+    "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+    "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "v2Sha256": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "aiEditQualitySegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "commitIntentBeforeSave": {
+      "httpStatus": 410,
+      "code": "commit_intent_unknown",
+      "outcome": "unknown",
+      "hasCommitted": false,
+      "hasClaim": false
+    },
+    "appIntentsAfterTurn": 0,
+    "noAutoSaveSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "summary": "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save creates version 2"
+    },
+    "commitIntentOutcome": "committed",
+    "saveSource": "app",
+    "appSavedV2": true,
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "saveV2": {
+        "source": "app",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+
+=== /tmp/g7-10-run/tracer-loop-3.json
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "GET /api/v1/documents/01M4XWFPH1NN62R5RYVTZ1M888/versions/commit -> 410: {\"error\":{\"code\":\"commit_intent_unknown\",\"message\":\"máy chủ không còn thông tin về lần lưu này\",\"fields\":{\"outcome\":\"unknown\"}}}\n",
+  "details": {
+    "loop": "3"
+  }
+}
+{
+  "exitCode": 0,
+  "status": "PASS",
+  "owner": "g7-qa",
+  "reason": "Loop 3 passed: app opened v1, held offline save intent while cut (server at v1), and settled binding.json to v2 saved receipt on reconnect",
+  "steps": {
+    "appOfflineSave": {
+      "source": "app",
+      "status": "PASS"
+    },
+    "protocolReconnectDiagnostic": {
+      "source": "protocol",
+      "status": "SKIPPED",
+      "reason": "app offline save was driven directly"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeCut": 1,
+    "serverVersionsWhileCut": 1,
+    "serverVersionsAfterReconnect": 2,
+    "versionsAfterIdempotentRetry": null
+  },
+  "details": {
+    "owner": "g7-qa",
+    "loop": "3",
+    "fixtureId": "fx-docx-report-vi",
+    "documentId": "01M4XZQ058J528T0C3AKKXDZVZ",
+    "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "serverVersionsWhileCut": 1,
+    "appHeldOfflineIntentWhileCut": true,
+    "intentFilesWhileCut": [
+      "e028dc7025b80f6aad90b47b567793a0886d0a4696721e6a61a73af8aa139e87.rec"
+    ],
+    "serverVersionsAfterReconnect": 2,
+    "appReceiptSegment": {
+      "status": "PASS",
+      "source": "app",
+      "baseVersion": 2,
+      "baseRevision": "2",
+      "baseVersionId": "01M4XZQ67QKZFP2PVKS5DWKA1A",
+      "baseChecksum": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "state": "saved"
+    },
+    "versionsBeforeCut": 1,
+    "versionsAfterIdempotentRetry": null,
+    "steps": {
+      "appOfflineSave": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "protocolReconnectDiagnostic": {
+        "source": "protocol",
+        "status": "SKIPPED",
+        "reason": "app offline save was driven directly"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeCut": 1,
+      "serverVersionsWhileCut": 1,
+      "serverVersionsAfterReconnect": 2,
+      "versionsAfterIdempotentRetry": null
+    }
+  }
+}
+
+harness: stopped 4 process group(s) from /tmp/g7-10-run
+G710_STOP_EXIT 0
+G710_KEYRING_EXEC_EXIT 0

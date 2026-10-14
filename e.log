@@ -1,0 +1,672 @@
+$ ls -R /tmp/g7-10-run 2>/dev/null | head -120; for f in /tmp/g7-10-run/tracer-loop-*.json; do echo "=== $f"; cat "$f"; echo; done; find /tmp/g7-10-run test-results -name 'evidence.jsonl' 2>/dev/null -exec sh -c 'echo "=== $1"; cat "$1"' _ {} \; ; for f in /tmp/g7-10-run/artifacts/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 60 "$f"; }; done; true
+/tmp/g7-10-run:
+app-proxy.state
+artifacts
+display
+evidence.jsonl
+logs
+ports.env
+server.env
+start-status.json
+tracer-loop-1.json
+tracer-loop-2.json
+tracer-loop-3.json
+userdata
+
+/tmp/g7-10-run/artifacts:
+ev-g5-a03-0001.log
+ev-g5-a03-0002.log
+ev-g5-a05-0001.log
+ev-g5-a05-0002.log
+ev-g6-a03-0001.log
+ev-g6-a03-0002.log
+
+/tmp/g7-10-run/logs:
+app.log
+app-proxy.log
+fork-build.log
+fork-clone.log
+fork-install.log
+lib.log
+migrate.log
+readyz.json
+server-build.log
+server.log
+web.log
+
+/tmp/g7-10-run/userdata:
+app-settings.json
+blob_storage
+Cache
+Code Cache
+control.json
+Crashpad
+DawnGraphiteCache
+DawnWebGPUCache
+deployment-profile.json
+dev-instance.pid
+DevToolsActivePort
+Dictionaries
+DIPS
+file-index.db
+GPUCache
+IndexedDB
+Local State
+Local Storage
+mcp-log.txt
+Network Persistent State
+open-documents.json
+originals
+Preferences
+projects
+recent.json
+Session Storage
+Shared Dictionary
+SharedStorage
+sheets-autosave
+spell-diag.log
+Trust Tokens
+Trust Tokens-journal
+uniwork-auth
+uniwork-documents
+uniwork-sync
+WebStorage
+workbench
+
+/tmp/g7-10-run/userdata/blob_storage:
+8c8afafb-40d6-4769-8aba-2624765fbf2c
+
+/tmp/g7-10-run/userdata/blob_storage/8c8afafb-40d6-4769-8aba-2624765fbf2c:
+
+/tmp/g7-10-run/userdata/Cache:
+Cache_Data
+No_Vary_Search
+
+/tmp/g7-10-run/userdata/Cache/Cache_Data:
+1ce2eeaa6f09c825_0
+5283edf90cf4ab50_0
+8e02820f234dc689_0
+index
+index-dir
+
+/tmp/g7-10-run/userdata/Cache/Cache_Data/index-dir:
+the-real-index
+
+/tmp/g7-10-run/userdata/Cache/No_Vary_Search:
+journal.baj
+snapshot.baf
+
+/tmp/g7-10-run/userdata/Code Cache:
+electron-preload
+js
+wasm
+
+/tmp/g7-10-run/userdata/Code Cache/electron-preload:
+11ABA5E5346C720A21F83EC10A5AC8848745B06EAF2D83583ED14BA901649E23-046EE14B76106E2E39DCF4D74A8AEE393DEDA01000D21673491EB8D652BB29D2.cache
+154C1CDE823087EBB8781D2CB126C56CDA933B6292ED1376841EEFFE8BFAD888-348C6C2F7CBCB488DE2C012192E26BECDA850C249180049503ED086B08C5BF00.cache
+6C217412DA779E716D34B79789EDDEB1030E228BF0B8E98D6C295F6DA3792030-445F9D0E7CB48AFFBD78C0BD672C3439B4F4FC428C7436A1490F2A19108976E6.cache
+
+/tmp/g7-10-run/userdata/Code Cache/js:
+1385a4ed072abff0_0
+7bc95a05a5e4dab0_0
+a43238aca8aed4e8_0
+f5651416eb6cab7f_0
+feb082bfc7a4312c_0
+index
+index-dir
+
+/tmp/g7-10-run/userdata/Code Cache/js/index-dir:
+the-real-index
+
+/tmp/g7-10-run/userdata/Code Cache/wasm:
+=== /tmp/g7-10-run/tracer-loop-1.json
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('[data-testid=\"office-sheets-frame\"]') to be visible\n",
+  "details": {
+    "loop": "1"
+  }
+}
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "owner": "g7-qa",
+  "reason": "workspace change feed did not report v2 after Save",
+  "steps": {
+    "appOpenV1": {
+      "source": "app",
+      "status": "PASS"
+    },
+    "webFrameOpen": {
+      "source": "protocol",
+      "status": "PASS"
+    },
+    "aiTurn": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "httpStatus": 503,
+      "reason": "no real upstream on this runner; contract-p0 §8"
+    },
+    "webSave": {
+      "source": "web",
+      "status": "PASS"
+    },
+    "changeFeed": {
+      "source": "protocol",
+      "status": "FAIL"
+    },
+    "appReloadV2": {
+      "source": "app",
+      "status": "FAIL"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2
+  },
+  "details": {
+    "owner": "g7-qa",
+    "loop": "1",
+    "fixtureId": "fx-xlsx-revenue-xyz",
+    "documentId": "01M4XZKGYC4KST006CW88GM648",
+    "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+    "v1Sha256": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "appV1Binding": {
+      "schema": 2,
+      "documentId": "01M4XZKGYC4KST006CW88GM648",
+      "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+      "orgId": "01M4XZKGXDFMWYBXP8XTTQV2Z9",
+      "title": "fx-xlsx-revenue-xyz.xlsx",
+      "filename": "fx-xlsx-revenue-xyz.xlsx",
+      "format": "xlsx",
+      "access": "edit",
+      "baseRevision": "1",
+      "baseVersion": 1,
+      "baseChecksum": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "state": "ready",
+      "level": "manage",
+      "baseVersionId": "01M4XZKGYC4KST006CW8QYFCVC",
+      "min_store_level": 2,
+      "min_app_version": "0.11.0"
+    },
+    "aiSegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "v2Sha256": "13c41409bfac3af90dd15bc0f5fb9e545febb15ea2c4d6ff012ee68b30096bcc",
+    "webUiDriven": true,
+    "webSaveSource": "web",
+    "changeFeedDeliveredV2": false,
+    "protocolDiagnosticSegment": {
+      "source": "protocol",
+      "status": "FAIL",
+      "summary": "Protocol-level 0-version AI turn + v2 commit + workspace change feed check"
+    },
+    "appObservedV2ViaFeed": false,
+    "appObservedV2Source": "app",
+    "appV2Binding": {
+      "schema": 2,
+      "documentId": "01M4XZKGYC4KST006CW88GM648",
+      "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+      "orgId": "01M4XZKGXDFMWYBXP8XTTQV2Z9",
+      "title": "fx-xlsx-revenue-xyz.xlsx",
+      "filename": "fx-xlsx-revenue-xyz.xlsx",
+      "format": "xlsx",
+      "access": "edit",
+      "baseRevision": "1",
+      "baseVersion": 1,
+      "baseChecksum": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "state": "ready",
+      "level": "manage",
+      "baseVersionId": "01M4XZKGYC4KST006CW8QYFCVC",
+      "min_store_level": 2,
+      "min_app_version": "0.11.0"
+    },
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "webFrameOpen": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "webSave": {
+        "source": "web",
+        "status": "PASS"
+      },
+      "changeFeed": {
+        "source": "protocol",
+        "status": "FAIL"
+      },
+      "appReloadV2": {
+        "source": "app",
+        "status": "FAIL"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+
+=== /tmp/g7-10-run/tracer-loop-2.json
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "GET /api/v1/documents/01M4XWFP0DG9MKR916381Q059F/versions/commit -> 410: {\"error\":{\"code\":\"commit_intent_unknown\",\"message\":\"máy chủ không còn thông tin về lần lưu này\",\"fields\":{\"outcome\":\"unknown\"}}}\n",
+  "details": {
+    "loop": "2"
+  }
+}
+{
+  "exitCode": 77,
+  "status": "BLOCKED",
+  "owner": "g7-qa",
+  "reason": "no real upstream on this runner; contract-p0 §8; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) verified",
+  "steps": {
+    "appOpenV1": {
+      "source": "app",
+      "status": "PASS"
+    },
+    "aiTurn": {
+      "source": "protocol",
+      "status": "BLOCKED",
+      "httpStatus": 503,
+      "reason": "no real upstream on this runner; contract-p0 §8"
+    },
+    "saveV2": {
+      "source": "app",
+      "status": "PASS"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2
+  },
+  "details": {
+    "owner": "g7-qa",
+    "loop": "2",
+    "fixtureId": "fx-docx-report-vi",
+    "documentId": "01M4XZPTNGR817939VXGXD29FR",
+    "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+    "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "v2Sha256": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "aiEditQualitySegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "commitIntentBeforeSave": {
+      "httpStatus": 410,
+      "code": "commit_intent_unknown",
+      "outcome": "unknown",
+      "hasCommitted": false,
+      "hasClaim": false
+    },
+    "appIntentsAfterTurn": 0,
+    "noAutoSaveSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "summary": "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save creates version 2"
+    },
+    "commitIntentOutcome": "committed",
+    "saveSource": "app",
+    "appSavedV2": true,
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "saveV2": {
+        "source": "app",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+
+=== /tmp/g7-10-run/tracer-loop-3.json
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "GET /api/v1/documents/01M4XWFPH1NN62R5RYVTZ1M888/versions/commit -> 410: {\"error\":{\"code\":\"commit_intent_unknown\",\"message\":\"máy chủ không còn thông tin về lần lưu này\",\"fields\":{\"outcome\":\"unknown\"}}}\n",
+  "details": {
+    "loop": "3"
+  }
+}
+{
+  "exitCode": 0,
+  "status": "PASS",
+  "owner": "g7-qa",
+  "reason": "Loop 3 passed: app opened v1, held offline save intent while cut (server at v1), and settled binding.json to v2 saved receipt on reconnect",
+  "steps": {
+    "appOfflineSave": {
+      "source": "app",
+      "status": "PASS"
+    },
+    "protocolReconnectDiagnostic": {
+      "source": "protocol",
+      "status": "SKIPPED",
+      "reason": "app offline save was driven directly"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeCut": 1,
+    "serverVersionsWhileCut": 1,
+    "serverVersionsAfterReconnect": 2,
+    "versionsAfterIdempotentRetry": null
+  },
+  "details": {
+    "owner": "g7-qa",
+    "loop": "3",
+    "fixtureId": "fx-docx-report-vi",
+    "documentId": "01M4XZQ058J528T0C3AKKXDZVZ",
+    "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "serverVersionsWhileCut": 1,
+    "appHeldOfflineIntentWhileCut": true,
+    "intentFilesWhileCut": [
+      "e028dc7025b80f6aad90b47b567793a0886d0a4696721e6a61a73af8aa139e87.rec"
+    ],
+    "serverVersionsAfterReconnect": 2,
+    "appReceiptSegment": {
+      "status": "PASS",
+      "source": "app",
+      "baseVersion": 2,
+      "baseRevision": "2",
+      "baseVersionId": "01M4XZQ67QKZFP2PVKS5DWKA1A",
+      "baseChecksum": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "state": "saved"
+    },
+    "versionsBeforeCut": 1,
+    "versionsAfterIdempotentRetry": null,
+    "steps": {
+      "appOfflineSave": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "protocolReconnectDiagnostic": {
+        "source": "protocol",
+        "status": "SKIPPED",
+        "reason": "app offline save was driven directly"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeCut": 1,
+      "serverVersionsWhileCut": 1,
+      "serverVersionsAfterReconnect": 2,
+      "versionsAfterIdempotentRetry": null
+    }
+  }
+}
+
+=== /tmp/g7-10-run/evidence.jsonl
+{"evidenceId":"ev-g5-a03-0001","requirementId":"G5-A03","dSha":"51b075d99f0a8b91e59eb4329cf540caa34217fc","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","1","--run-dir","/tmp/g7-10-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g7-10-run/artifacts/ev-g5-a03-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T18:57:49.193Z","finishedAt":"2026-10-14T18:58:34.919Z"}
+{"evidenceId":"ev-g6-a03-0001","requirementId":"G6-A03","dSha":"51b075d99f0a8b91e59eb4329cf540caa34217fc","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 2 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","2","--run-dir","/tmp/g7-10-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g7-10-run/artifacts/ev-g6-a03-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T18:58:34.985Z","finishedAt":"2026-10-14T18:58:35.469Z"}
+{"evidenceId":"ev-g5-a05-0001","requirementId":"G5-A05","dSha":"51b075d99f0a8b91e59eb4329cf540caa34217fc","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 3 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","3","--run-dir","/tmp/g7-10-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g7-10-run/artifacts/ev-g5-a05-0001.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T18:58:35.522Z","finishedAt":"2026-10-14T18:58:36.002Z"}
+{"evidenceId":"ev-g5-a03-0002","requirementId":"G5-A03","dSha":"4c889a53071a07e0da802c53a1b3f9ccb3030b97","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","1","--run-dir","/tmp/g7-10-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g7-10-run/artifacts/ev-g5-a03-0002.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T19:53:06.598Z","finishedAt":"2026-10-14T19:54:54.910Z"}
+{"evidenceId":"ev-g6-a03-0002","requirementId":"G6-A03","dSha":"4c889a53071a07e0da802c53a1b3f9ccb3030b97","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 2 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","2","--run-dir","/tmp/g7-10-run"],"exitCode":77,"result":"BLOCKED","artifact":"../tmp/g7-10-run/artifacts/ev-g6-a03-0002.log","checker":"harness:g7-10/tracer.mjs","blocker":"command reported skip (exit 77)","startedAt":"2026-10-14T19:54:54.948Z","finishedAt":"2026-10-14T19:55:00.557Z"}
+{"evidenceId":"ev-g5-a05-0002","requirementId":"G5-A05","dSha":"4c889a53071a07e0da802c53a1b3f9ccb3030b97","fSha":"ab12238f","pin":"0.1.0-05fd209","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 3 --run-dir /tmp/g7-10-run","argv":["node","scripts/office/g5g6g7/g7-10/tracer.mjs","--loop","3","--run-dir","/tmp/g7-10-run"],"exitCode":0,"result":"PASS","artifact":"../tmp/g7-10-run/artifacts/ev-g5-a05-0002.log","checker":"harness:g7-10/tracer.mjs","blocker":null,"startedAt":"2026-10-14T19:55:00.586Z","finishedAt":"2026-10-14T19:55:06.900Z"}
+=== /tmp/g7-10-run/artifacts/ev-g5-a03-0001.log
+$ node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 1 --run-dir /tmp/g7-10-run
+
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('[data-testid=\"office-sheets-frame\"]') to be visible\n",
+  "details": {
+    "loop": "1"
+  }
+}
+FAILED: locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="office-sheets-frame"]') to be visible
+
+=== /tmp/g7-10-run/artifacts/ev-g5-a03-0002.log
+    },
+    "appObservedV2ViaFeed": false,
+    "appObservedV2Source": "app",
+    "appV2Binding": {
+      "schema": 2,
+      "documentId": "01M4XZKGYC4KST006CW88GM648",
+      "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+      "orgId": "01M4XZKGXDFMWYBXP8XTTQV2Z9",
+      "title": "fx-xlsx-revenue-xyz.xlsx",
+      "filename": "fx-xlsx-revenue-xyz.xlsx",
+      "format": "xlsx",
+      "access": "edit",
+      "baseRevision": "1",
+      "baseVersion": 1,
+      "baseChecksum": "a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446",
+      "state": "ready",
+      "level": "manage",
+      "baseVersionId": "01M4XZKGYC4KST006CW8QYFCVC",
+      "min_store_level": 2,
+      "min_app_version": "0.11.0"
+    },
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "webFrameOpen": {
+        "source": "protocol",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "webSave": {
+        "source": "web",
+        "status": "PASS"
+      },
+      "changeFeed": {
+        "source": "protocol",
+        "status": "FAIL"
+      },
+      "appReloadV2": {
+        "source": "app",
+        "status": "FAIL"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+FAILED: workspace change feed did not report v2 after Save
+=== /tmp/g7-10-run/artifacts/ev-g5-a05-0001.log
+$ node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 3 --run-dir /tmp/g7-10-run
+
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "GET /api/v1/documents/01M4XWFPH1NN62R5RYVTZ1M888/versions/commit -> 410: {\"error\":{\"code\":\"commit_intent_unknown\",\"message\":\"máy chủ không còn thông tin về lần lưu này\",\"fields\":{\"outcome\":\"unknown\"}}}\n",
+  "details": {
+    "loop": "3"
+  }
+}
+FAILED: GET /api/v1/documents/01M4XWFPH1NN62R5RYVTZ1M888/versions/commit -> 410: {"error":{"code":"commit_intent_unknown","message":"máy chủ không còn thông tin về lần lưu này","fields":{"outcome":"unknown"}}}
+
+=== /tmp/g7-10-run/artifacts/ev-g5-a05-0002.log
+    "appOfflineSave": {
+      "source": "app",
+      "status": "PASS"
+    },
+    "protocolReconnectDiagnostic": {
+      "source": "protocol",
+      "status": "SKIPPED",
+      "reason": "app offline save was driven directly"
+    }
+  },
+  "versionCounts": {
+    "versionsBeforeCut": 1,
+    "serverVersionsWhileCut": 1,
+    "serverVersionsAfterReconnect": 2,
+    "versionsAfterIdempotentRetry": null
+  },
+  "details": {
+    "owner": "g7-qa",
+    "loop": "3",
+    "fixtureId": "fx-docx-report-vi",
+    "documentId": "01M4XZQ058J528T0C3AKKXDZVZ",
+    "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "serverVersionsWhileCut": 1,
+    "appHeldOfflineIntentWhileCut": true,
+    "intentFilesWhileCut": [
+      "e028dc7025b80f6aad90b47b567793a0886d0a4696721e6a61a73af8aa139e87.rec"
+    ],
+    "serverVersionsAfterReconnect": 2,
+    "appReceiptSegment": {
+      "status": "PASS",
+      "source": "app",
+      "baseVersion": 2,
+      "baseRevision": "2",
+      "baseVersionId": "01M4XZQ67QKZFP2PVKS5DWKA1A",
+      "baseChecksum": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+      "state": "saved"
+    },
+    "versionsBeforeCut": 1,
+    "versionsAfterIdempotentRetry": null,
+    "steps": {
+      "appOfflineSave": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "protocolReconnectDiagnostic": {
+        "source": "protocol",
+        "status": "SKIPPED",
+        "reason": "app offline save was driven directly"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeCut": 1,
+      "serverVersionsWhileCut": 1,
+      "serverVersionsAfterReconnect": 2,
+      "versionsAfterIdempotentRetry": null
+    }
+  }
+}
+=== /tmp/g7-10-run/artifacts/ev-g6-a03-0001.log
+$ node scripts/office/g5g6g7/g7-10/tracer.mjs --loop 2 --run-dir /tmp/g7-10-run
+
+{
+  "exitCode": 1,
+  "status": "FAIL",
+  "reason": "GET /api/v1/documents/01M4XWFP0DG9MKR916381Q059F/versions/commit -> 410: {\"error\":{\"code\":\"commit_intent_unknown\",\"message\":\"máy chủ không còn thông tin về lần lưu này\",\"fields\":{\"outcome\":\"unknown\"}}}\n",
+  "details": {
+    "loop": "2"
+  }
+}
+FAILED: GET /api/v1/documents/01M4XWFP0DG9MKR916381Q059F/versions/commit -> 410: {"error":{"code":"commit_intent_unknown","message":"máy chủ không còn thông tin về lần lưu này","fields":{"outcome":"unknown"}}}
+
+=== /tmp/g7-10-run/artifacts/ev-g6-a03-0002.log
+  "details": {
+    "owner": "g7-qa",
+    "loop": "2",
+    "fixtureId": "fx-docx-report-vi",
+    "documentId": "01M4XZPTNGR817939VXGXD29FR",
+    "workspaceId": "01M4XZKGXPJ7GCKSA2QYWG027E",
+    "v1Sha256": "5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c",
+    "v2Sha256": "035331b4d54f7946c6d7ecbf6152a46dc6aec3e1c62d483ea55a2ee8de70c3be",
+    "appDesktopPrecondition": "signed_in",
+    "appOpenedV1": true,
+    "aiEditQualitySegment": {
+      "status": "BLOCKED",
+      "reason": "no real upstream on this runner; contract-p0 §8",
+      "owner": "g7-qa",
+      "httpStatus": 503,
+      "errorCode": "ai_disabled"
+    },
+    "commitIntentBeforeSave": {
+      "httpStatus": 410,
+      "code": "commit_intent_unknown",
+      "outcome": "unknown",
+      "hasCommitted": false,
+      "hasClaim": false
+    },
+    "appIntentsAfterTurn": 0,
+    "noAutoSaveSegment": {
+      "source": "protocol",
+      "status": "PASS",
+      "summary": "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save creates version 2"
+    },
+    "commitIntentOutcome": "committed",
+    "saveSource": "app",
+    "appSavedV2": true,
+    "versionsBeforeTurn": 1,
+    "versionsAfterTurn": 1,
+    "versionsAfterSave": 2,
+    "steps": {
+      "appOpenV1": {
+        "source": "app",
+        "status": "PASS"
+      },
+      "aiTurn": {
+        "source": "protocol",
+        "status": "BLOCKED",
+        "httpStatus": 503,
+        "reason": "no real upstream on this runner; contract-p0 §8"
+      },
+      "saveV2": {
+        "source": "app",
+        "status": "PASS"
+      }
+    },
+    "versionCounts": {
+      "versionsBeforeTurn": 1,
+      "versionsAfterTurn": 1,
+      "versionsAfterSave": 2
+    }
+  }
+}
+BLOCKED: no real upstream on this runner; contract-p0 §8; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) verified
