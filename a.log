@@ -1,0 +1,2 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; for p in 18480 13400 13401; do fuser -k -n tcp $p 2>/dev/null; done; pkill -f "next start" 2>/dev/null; pkill -f "uniwork-server|cmd/server" 2>/dev/null; sleep 3; ss -ltnp | grep -E ":(18480|13400) " || echo PORTS_FREE
+c05390ec1fb86dd52c4f43ae1a690ffd025be11c
