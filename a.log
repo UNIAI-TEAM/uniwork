@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+e53819ce9c775eeb3bd6db4bbf4713221e5db163
+49b239b108f86cc7f81e29333f5662ba7aa7a9fe
+e53819ce9 docs(office): support matrix per channel with N-prime and metric ownership
+66685e94d docs(ops): runbook for Office sync, offline lease and UniWork AI operations
+cb9c2dcc4 test(ops): fail an alert on a metric the server never registers
+38176f1dd docs(ops): alert on Office sync and UniWork AI server metrics
+49b239b10 chore: merge G5-01b incremental change feed (UNI-1346) into the G5-G7 root
+0fdba3f2a chore: merge G6-03b UniWork AI runs (UNI-1370) into the G5-G7 root

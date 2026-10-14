@@ -1,0 +1,5 @@
+$ mkdir -p .prom && curl -fsSL https://github.com/prometheus/prometheus/releases/download/v2.53.2/prometheus-2.53.2.linux-amd64.tar.gz | tar xz -C .prom --strip-components=1 prometheus-2.53.2.linux-amd64/promtool && ./.prom/promtool check rules deploy/alerts.yml; echo "PROMTOOL_EXIT=$?"
+Checking deploy/alerts.yml
+  SUCCESS: 28 rules found
+
+PROMTOOL_EXIT=0
