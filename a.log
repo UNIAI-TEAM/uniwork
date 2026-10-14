@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+27b3c6b0ac8f285a0a97cbe822a66b8fdccd29f4
+27b3c6b0a test(e2e): ungate FD-09 folder tests and apply review fixes R1-R14 to FD-12
+2bf509342 chore: merge the G5-G7 root (595eb764e) into FD-12
+e06c817bf test(e2e): seed FD-A03 Word upload with its .docx extension so the row icon resolves
+595eb764e fix(documents): primary action of a trashed folder row opens Restore, never navigates
