@@ -1,0 +1,245 @@
+$ for i in 1 2 3; do NODE_ENV=test AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-docs-remote-newer-service.test.ts tests/uniwork-docs-save-coordinator.test.ts --reporter=verbose || echo "RACE_FAIL_RUN_$i"; done; echo RACE_LOOP_DONE
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > crash at each step, timeout after commit, cancel race 35ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel race: uploading / committing refuse it, a won cancel stops the pass 34ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > one receipt/version: a replayed intent commits exactly one version 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a migrated intent replays exactly once, with its own key 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > 409 -> conflict with the same intent id, durable across a restart 11ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a dirty working copy keeps its bytes and base; bar newer-dirty, pill remote-newer 59ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > expired upload -> reconciling, exactly one lookup, no byte re-upload 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup unknown -> reconciling-stuck, no new attempt, "check again" only looks up 11ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup 401 / 403 by code / 410 -> the right reason 30ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > N+1 stays dirty behind the pending intent 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two windows on one Document -> the second is read-only 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a window without the lock never writes the record: it publishes other_window, the holder commits 14ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > mint ages the generation over a stored record; cleanup is compare-then-delete 20ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a clean copy reloads to the noticed head: bytes sha256 = detail checksum, base revision/version = head, reloadPath once, bar updated 54ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > no download while aiRunning (bar newer-ai, the copy stays) 53ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two consecutive inline saves age the generation; the first cleanup leaves the second 12ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > in-flight records at rest: validating/uploading requeue and re-send, committing settles by lookup (AC-4) 29ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > G506-be-d1-1: an in-flight record at rest runs under the lock and canCommit (no write, no lookup) 11ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lock holder crash -> the other window acquires after goneMs 18ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > stalled holder resumes after hand-off -> read-only, no write 10ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > sync_write off / office_capability_off -> paused_admin, no new request, queue kept 11ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > flag off during uploading -> stop before commit, same intent paused_admin, no request after 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > canCommit false between upload and commit -> no commit, the record is not damaged 8ms
+stderr | tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a fetched head that is not newer than the open base is dropped silently
+uniwork docs: a fetched version of 01J8X4DOC0N1P2Q3R4S5T6U7 is not newer than the open base; dropped
+
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > an AI turn starting during the fetch (aiEpoch moves) drops the result: no write, no reloadPath, bar newer-ai 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > an AI turn starting after the write restores the previous bytes and binding 10ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a transient fetch failure shows reload-failed, and Retry reloads once it works 55ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a 429 with Retry-After schedules the retry at now + the 300 s clamp 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two orgs with different sync_write -> each intent follows its org 12ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > concurrency caps documents across ALL org lanes of one pass 19ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > offline 2 h (past capability TTL) -> Ctrl/Cmd+S -> paused_offline, not paused_admin 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > keystore_locked / store_full -> refused with a reason, no intent 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel when the document is closed -> the snapshot becomes a kept draft 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel or discard at 3 drafts or a full store -> refused, intent kept 19ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > user pause + offline -> online -> paused_user, no dispatch 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > the store locks while reconciling -> unlock -> still reconciling 10ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > "Luu lai" on failed -> the old intent is superseded before the new one 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a tombstone stops replay 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > queue/budget limit -> refused with a code 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > startup does not read the drafts folder 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > writes a record and reads it back without plaintext at rest 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a sign-out locks every handle and wipes the scope 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > an account switch locks only the switched-out scope 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record that requires a newer store level and keeps it 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > counts the budget in encrypted bytes and refuses past it 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 2ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a fetched head that is not newer than the open base is dropped silently 43ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 403 on reload -> locked revoked: isReadOnly true, module save refused, bytes kept, bar revoked 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 403 on the metadata read locks the copy too 3ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 410 on reload -> deleted 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a bare (envelope-less) 403 is transient: reload-failed, never a lock 53ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > feed-gone: a dropped open bound document is classified 404 -> revoked, 410 -> deleted, 200 -> nothing 7ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a successful resync that drops an open bound document locks it (runtime onFeedGone) 14ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a re-granted copy is editable again after the reopen: lock, bar and binding agree 58ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > the account boundary forgets the lock with its bar, so no verdict answers for the next session 4ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the bar through the real runtime (wiring onFeedChange) > a newer snapshot reaches the bar of a dirty copy through onFeedChange alone 10ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the bar through the real runtime (wiring onFeedChange) > a newer snapshot reloads a clean copy through onFeedChange alone: updated bar 59ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice during committing is held and dropped when the receipt matches 89ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > later keeps remote (pill stays), close clears it 102ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a second notice replaces the version: one bar, no stacking 103ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a restart rebuilds the newer-* bar from serverRevision/serverVersion 2ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > close hides the info bar for this session 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice for a document that is not open is ignored 41ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > the feed off ignores the notice 44ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice for another document never touches this copy 43ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > newer-ai: the poll sees the turn end, the rule runs again and a clean copy reloads 104ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > newer-dirty: the copy is clean again → now-clean (no auto reload) 53ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > reload opens the conflict dialog and “open the latest” replaces the copy 58ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > reload cancel (decide later) keeps the bar and the copy 52ms
+
+ Test Files  2 passed (2)
+      Tests  69 passed (69)
+   Start at  07:15:23
+   Duration  1.80s (transform 467ms, setup 0ms, import 594ms, tests 1.81s, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > crash at each step, timeout after commit, cancel race 41ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel race: uploading / committing refuse it, a won cancel stops the pass 18ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > one receipt/version: a replayed intent commits exactly one version 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a migrated intent replays exactly once, with its own key 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > 409 -> conflict with the same intent id, durable across a restart 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > expired upload -> reconciling, exactly one lookup, no byte re-upload 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup unknown -> reconciling-stuck, no new attempt, "check again" only looks up 9ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a dirty working copy keeps its bytes and base; bar newer-dirty, pill remote-newer 58ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup 401 / 403 by code / 410 -> the right reason 25ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > N+1 stays dirty behind the pending intent 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two windows on one Document -> the second is read-only 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a window without the lock never writes the record: it publishes other_window, the holder commits 12ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > mint ages the generation over a stored record; cleanup is compare-then-delete 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two consecutive inline saves age the generation; the first cleanup leaves the second 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > in-flight records at rest: validating/uploading requeue and re-send, committing settles by lookup (AC-4) 27ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > G506-be-d1-1: an in-flight record at rest runs under the lock and canCommit (no write, no lookup) 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lock holder crash -> the other window acquires after goneMs 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > stalled holder resumes after hand-off -> read-only, no write 5ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a clean copy reloads to the noticed head: bytes sha256 = detail checksum, base revision/version = head, reloadPath once, bar updated 54ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > no download while aiRunning (bar newer-ai, the copy stays) 52ms
+stderr | tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a fetched head that is not newer than the open base is dropped silently
+uniwork docs: a fetched version of 01J8X4DOC0N1P2Q3R4S5T6U7 is not newer than the open base; dropped
+
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > sync_write off / office_capability_off -> paused_admin, no new request, queue kept 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > flag off during uploading -> stop before commit, same intent paused_admin, no request after 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > canCommit false between upload and commit -> no commit, the record is not damaged 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a 429 with Retry-After schedules the retry at now + the 300 s clamp 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two orgs with different sync_write -> each intent follows its org 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > concurrency caps documents across ALL org lanes of one pass 18ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > offline 2 h (past capability TTL) -> Ctrl/Cmd+S -> paused_offline, not paused_admin 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > keystore_locked / store_full -> refused with a reason, no intent 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel when the document is closed -> the snapshot becomes a kept draft 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel or discard at 3 drafts or a full store -> refused, intent kept 16ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > user pause + offline -> online -> paused_user, no dispatch 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > the store locks while reconciling -> unlock -> still reconciling 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > "Luu lai" on failed -> the old intent is superseded before the new one 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a tombstone stops replay 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > queue/budget limit -> refused with a code 1ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > startup does not read the drafts folder 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > writes a record and reads it back without plaintext at rest 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a sign-out locks every handle and wipes the scope 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > an account switch locks only the switched-out scope 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > counts the budget in encrypted bytes and refuses past it 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 2ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > an AI turn starting during the fetch (aiEpoch moves) drops the result: no write, no reloadPath, bar newer-ai 53ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > an AI turn starting after the write restores the previous bytes and binding 7ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a transient fetch failure shows reload-failed, and Retry reloads once it works 55ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a fetched head that is not newer than the open base is dropped silently 43ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 403 on reload -> locked revoked: isReadOnly true, module save refused, bytes kept, bar revoked 53ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 403 on the metadata read locks the copy too 4ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 410 on reload -> deleted 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a bare (envelope-less) 403 is transient: reload-failed, never a lock 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > feed-gone: a dropped open bound document is classified 404 -> revoked, 410 -> deleted, 200 -> nothing 7ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a successful resync that drops an open bound document locks it (runtime onFeedGone) 14ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a re-granted copy is editable again after the reopen: lock, bar and binding agree 57ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > the account boundary forgets the lock with its bar, so no verdict answers for the next session 4ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the bar through the real runtime (wiring onFeedChange) > a newer snapshot reaches the bar of a dirty copy through onFeedChange alone 9ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the bar through the real runtime (wiring onFeedChange) > a newer snapshot reloads a clean copy through onFeedChange alone: updated bar 59ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice during committing is held and dropped when the receipt matches 89ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > later keeps remote (pill stays), close clears it 103ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a second notice replaces the version: one bar, no stacking 101ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a restart rebuilds the newer-* bar from serverRevision/serverVersion 3ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > close hides the info bar for this session 53ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice for a document that is not open is ignored 42ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > the feed off ignores the notice 42ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice for another document never touches this copy 44ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > newer-ai: the poll sees the turn end, the rule runs again and a clean copy reloads 104ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > newer-dirty: the copy is clean again → now-clean (no auto reload) 54ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > reload opens the conflict dialog and “open the latest” replaces the copy 59ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > reload cancel (decide later) keeps the bar and the copy 52ms
+
+ Test Files  2 passed (2)
+      Tests  69 passed (69)
+   Start at  07:15:25
+   Duration  1.78s (transform 473ms, setup 0ms, import 575ms, tests 1.72s, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > crash at each step, timeout after commit, cancel race 33ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel race: uploading / committing refuse it, a won cancel stops the pass 23ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > one receipt/version: a replayed intent commits exactly one version 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a migrated intent replays exactly once, with its own key 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > 409 -> conflict with the same intent id, durable across a restart 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > expired upload -> reconciling, exactly one lookup, no byte re-upload 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup unknown -> reconciling-stuck, no new attempt, "check again" only looks up 10ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a dirty working copy keeps its bytes and base; bar newer-dirty, pill remote-newer 59ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lookup 401 / 403 by code / 410 -> the right reason 30ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > N+1 stays dirty behind the pending intent 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two windows on one Document -> the second is read-only 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a window without the lock never writes the record: it publishes other_window, the holder commits 10ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > mint ages the generation over a stored record; cleanup is compare-then-delete 14ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two consecutive inline saves age the generation; the first cleanup leaves the second 11ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > in-flight records at rest: validating/uploading requeue and re-send, committing settles by lookup (AC-4) 30ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > G506-be-d1-1: an in-flight record at rest runs under the lock and canCommit (no write, no lookup) 13ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > lock holder crash -> the other window acquires after goneMs 9ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a clean copy reloads to the noticed head: bytes sha256 = detail checksum, base revision/version = head, reloadPath once, bar updated 54ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > no download while aiRunning (bar newer-ai, the copy stays) 52ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > stalled holder resumes after hand-off -> read-only, no write 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > sync_write off / office_capability_off -> paused_admin, no new request, queue kept 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > flag off during uploading -> stop before commit, same intent paused_admin, no request after 8ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > canCommit false between upload and commit -> no commit, the record is not damaged 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a 429 with Retry-After schedules the retry at now + the 300 s clamp 7ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > two orgs with different sync_write -> each intent follows its org 14ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > concurrency caps documents across ALL org lanes of one pass 20ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > offline 2 h (past capability TTL) -> Ctrl/Cmd+S -> paused_offline, not paused_admin 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > keystore_locked / store_full -> refused with a reason, no intent 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel when the document is closed -> the snapshot becomes a kept draft 5ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > cancel or discard at 3 drafts or a full store -> refused, intent kept 15ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > user pause + offline -> online -> paused_user, no dispatch 6ms
+stderr | tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a fetched head that is not newer than the open base is dropped silently
+uniwork docs: a fetched version of 01J8X4DOC0N1P2Q3R4S5T6U7 is not newer than the open base; dropped
+
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > an AI turn starting during the fetch (aiEpoch moves) drops the result: no write, no reloadPath, bar newer-ai 51ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > an AI turn starting after the write restores the previous bytes and binding 16ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a transient fetch failure shows reload-failed, and Retry reloads once it works 54ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > the store locks while reconciling -> unlock -> still reconciling 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > "Luu lai" on failed -> the old intent is superseded before the new one 9ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > a tombstone stops replay 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > queue/budget limit -> refused with a code 1ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > startup does not read the drafts folder 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > writes a record and reads it back without plaintext at rest 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a sign-out locks every handle and wipes the scope 3ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > an account switch locks only the switched-out scope 4ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record that requires a newer store level and keeps it 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > counts the budget in encrypted bytes and refuses past it 6ms
+ ✓ tests/uniwork-docs-save-coordinator.test.ts > G5-06 W4a save queue (fakes) > uniwork sync save-queue stores — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 5ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a fetched head that is not newer than the open base is dropped silently 44ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 403 on reload -> locked revoked: isReadOnly true, module save refused, bytes kept, bar revoked 53ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 403 on the metadata read locks the copy too 5ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 410 on reload -> deleted 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a bare (envelope-less) 403 is transient: reload-failed, never a lock 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > feed-gone: a dropped open bound document is classified 404 -> revoked, 410 -> deleted, 200 -> nothing 6ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a successful resync that drops an open bound document locks it (runtime onFeedGone) 17ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a re-granted copy is editable again after the reopen: lock, bar and binding agree 57ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > the account boundary forgets the lock with its bar, so no verdict answers for the next session 3ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the bar through the real runtime (wiring onFeedChange) > a newer snapshot reaches the bar of a dirty copy through onFeedChange alone 7ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the bar through the real runtime (wiring onFeedChange) > a newer snapshot reloads a clean copy through onFeedChange alone: updated bar 57ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice during committing is held and dropped when the receipt matches 91ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > later keeps remote (pill stays), close clears it 102ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a second notice replaces the version: one bar, no stacking 102ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a restart rebuilds the newer-* bar from serverRevision/serverVersion 4ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > close hides the info bar for this session 53ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice for a document that is not open is ignored 42ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > the feed off ignores the notice 42ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice for another document never touches this copy 44ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > newer-ai: the poll sees the turn end, the rule runs again and a clean copy reloads 105ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > newer-dirty: the copy is clean again → now-clean (no auto reload) 55ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > reload opens the conflict dialog and “open the latest” replaces the copy 59ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > reload cancel (decide later) keeps the bar and the copy 52ms
+
+ Test Files  2 passed (2)
+      Tests  69 passed (69)
+   Start at  07:15:27
+   Duration  1.79s (transform 480ms, setup 0ms, import 582ms, tests 1.76s, environment 0ms)
+
+RACE_LOOP_DONE
