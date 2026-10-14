@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+5c31d04cc9a02f65755189b55ab7b34c6fa0f897
+0f3f42bc22df209fb3b2fa1566da1000f960bf94
+5c31d04c fix(markdown,html): keep Vietnamese marks right in the hide-from-model preview font stack
+9a01b253 test(slides): re-pin the session characterisation save bytes after the blank-theme font port
+52cb7094 fix(shell): offer .txt and .json as alternate handlers like every other type
