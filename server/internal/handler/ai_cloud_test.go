@@ -313,4 +313,34 @@ func TestAICloudStatusChatNeedsTheGateway(t *testing.T) {
 	if chatOf(out) != false || out["tools"].(map[string]any)["web_search"] != true || out["enabled"] != true {
 		t.Fatalf("gateway off: %v, want chat false with web_search on", out)
 	}
+	if got := out["uniwork_model"]; got != "" {
+		t.Fatalf("gateway off: uniwork_model=%v, want \"\"", got)
+	}
+}
+
+// G6-05m: the status carries the model the Gateway serves for UniWork AI in
+// Office. It is the policy model while UniWork AI is on for the caller, an
+// allowlisted AI_MODEL_OFFICE_UNIWORK_AI override wins over it, an override
+// outside the allowlist leaves the default, and it is "" while UniWork AI is
+// off.
+func TestAICloudStatusCarriesTheUniworkModel(t *testing.T) {
+	setCloudEnv(t, "fake", "fake", "fake")
+	w := newAICloudWorld(t, "cloud-model")
+
+	if got := w.statusOf(t, w.member)["uniwork_model"]; got != "" {
+		t.Fatalf("UniWork AI off: uniwork_model=%v, want \"\"", got)
+	}
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeGlobal, "", true)
+	// The fake provider's office_uniwork_ai policy model is "fake".
+	if got := w.statusOf(t, w.member)["uniwork_model"]; got != "fake" {
+		t.Fatalf("policy model: uniwork_model=%v, want fake", got)
+	}
+	t.Setenv("AI_MODEL_OFFICE_UNIWORK_AI", "claude-sonnet-5")
+	if got := w.statusOf(t, w.member)["uniwork_model"]; got != "claude-sonnet-5" {
+		t.Fatalf("allowlisted override: uniwork_model=%v, want claude-sonnet-5", got)
+	}
+	t.Setenv("AI_MODEL_OFFICE_UNIWORK_AI", "dev-model")
+	if got := w.statusOf(t, w.member)["uniwork_model"]; got != "fake" {
+		t.Fatalf("override outside the allowlist: uniwork_model=%v, want the default fake", got)
+	}
 }
