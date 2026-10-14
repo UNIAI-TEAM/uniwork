@@ -754,6 +754,7 @@ func New(d Deps) http.Handler {
 		DocumentTree:             h.getDocumentTree,
 		MoveDocument:             h.moveDocument,
 		ArchiveDocument:          h.archiveDocument,
+		ArchiveImpact:            h.archiveImpact,
 		RestoreDocument:          h.restoreDocument,
 		ListDocumentShares:       h.listDocumentShares,
 		CreateDocumentShare:      h.createDocumentShare,

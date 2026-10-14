@@ -275,6 +275,103 @@ func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, docu
 	})
 }
 
+// documentArchiveImpactTx is the FD-04 test seam: it runs inside the impact
+// read transaction, after the subtree walk and before the bound check, the
+// manage gate and the count, so a test can read the transaction's own
+// isolation and access mode (SHOW transaction_isolation / transaction_read_only)
+// or commit a writer in between and pin that the numbers still describe the
+// one snapshot the walk opened. Never set in production.
+var documentArchiveImpactTx func(ctx context.Context, tx pgx.Tx)
+
+// DocumentArchiveImpact is what one ArchiveDocument of a subtree would move
+// (FD-04, addendum §3.4): the shape the delete dialog warns with.
+type DocumentArchiveImpact struct {
+	// Folders and Documents count the live subtree WITHOUT the root, by kind:
+	// a page inside a page counts as a document.
+	Folders   int
+	Documents int
+	// Total is the rows the archive would stamp, the root included.
+	Total int
+	// MaxNodes is the bound one archive accepts.
+	MaxNodes int
+	// TooLarge replaces the counts when the subtree passes the bound; the
+	// walk stopped after the bound, so no count is known and none is claimed.
+	TooLarge bool
+}
+
+// ArchiveImpact answers what ArchiveDocument would do to a subtree without
+// doing it. The checks run in the archive command's order, so the read is
+// neither more expensive nor more revealing than the command: manage on the
+// root first, then the same bounded subtree walk, then the same manage gate on
+// every node of that id set, then the count. All three steps after the root
+// check run in ONE REPEATABLE READ, read-only transaction: under READ
+// COMMITTED each statement takes its own snapshot, and the promise that the
+// ids, the access check and the numbers describe one moment would not hold.
+// Reading writes nothing - no audit row, no event.
+func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, documentID string) (DocumentArchiveImpact, error) {
+	if !validActor(actor) || documentID == "" {
+		return DocumentArchiveImpact{}, ErrNotFound
+	}
+	bound := s.archiveBound()
+	out := DocumentArchiveImpact{MaxNodes: bound}
+	// (1) manage on the root, exactly as the archive command's gate decides it:
+	// an id the caller cannot see is not found, a readable node they cannot
+	// manage is forbidden.
+	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelManage)
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	// (2) the same bounded walk as the archive command, one row past the
+	// bound: the walk stops early, so an oversized subtree is refused before
+	// any per-node work or count.
+	live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
+		MaxRows: int32(bound) + 1, MaxLevel: subtreeMaxLevel(),
+	})
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	if documentArchiveImpactTx != nil {
+		documentArchiveImpactTx(ctx, tx)
+	}
+	if len(live) > bound {
+		out.TooLarge = true
+		return out, nil
+	}
+	// The walk cannot sort (that would evaluate the whole CTE): sorting here
+	// keeps the gate's refusal order as stable as the command's.
+	sort.Strings(live)
+	// (3) the archive command's own gate on exactly this id set: one node the
+	// caller cannot manage refuses the whole read, and the body never carries
+	// a number.
+	if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	// (4) count on exactly that id set. page and file are both "documents" to
+	// the dialog; the root is counted only in the total.
+	rows, err := q.CountLiveDocumentSubtreeByKind(ctx, db.CountLiveDocumentSubtreeByKindParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, Ids: live, RootID: doc.ID,
+	})
+	if err != nil {
+		return DocumentArchiveImpact{}, err
+	}
+	for _, row := range rows {
+		if row.Kind == DocumentKindFolder {
+			out.Folders += int(row.N)
+			continue
+		}
+		out.Documents += int(row.N)
+	}
+	out.Total = out.Folders + out.Documents + 1
+	return out, nil
+}
+
 // RestoreDocument brings back exactly the batch the archive stamped. A node
 // whose parent stayed in the trash (or was purged) re-roots itself so it is
 // reachable again.
