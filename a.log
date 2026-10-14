@@ -1,0 +1,6 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3
+ad6a9981e6a265c6e2ab525a537fee83338680c8
+1b8c09aa04d224bced15ebda1293f96224880d7d
+ad6a9981 test(ai): pin the images-not-sent note in the docs and Sheets notice tests
+ef7986a6 fix(ai): no Retry on a refused UniWork AI question; the question goes back to the composer
+5c5670d8 fix(ai): refuse a blank UniWork AI question before it is sent

@@ -1,0 +1,107 @@
+$ npm run test:web; rc=$?; echo "TEST_WEB_EXIT=$rc"; (exit $rc)
+
+> genoffice@0.1.0 test:web
+> vitest run --root web/docs/protocol && vitest run --root web/docs/bridge --environment jsdom && vitest run --root web/docs/build && vitest run --root web/modules && vitest run --root web/modules/slides && vitest run --root web/modules/pdf
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/protocol
+
+
+ Test Files  4 passed (4)
+      Tests  174 passed (174)
+   Start at  06:10:16
+   Duration  412ms (transform 424ms, setup 0ms, import 507ms, tests 163ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/bridge
+
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+
+ Test Files  14 passed (14)
+      Tests  259 passed (259)
+   Start at  06:10:16
+   Duration  4.41s (transform 2.12s, setup 0ms, import 2.46s, tests 3.48s, environment 5.39s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/build
+
+
+ Test Files  6 passed (6)
+      Tests  56 passed (56)
+   Start at  06:10:21
+   Duration  541ms (transform 380ms, setup 0ms, import 521ms, tests 226ms, environment 0ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+
+ Test Files  26 passed | 1 skipped (27)
+      Tests  683 passed | 23 skipped (706)
+   Start at  06:10:22
+   Duration  9.17s (transform 3.76s, setup 0ms, import 6.69s, tests 5.92s, environment 11.35s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules/slides
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+
+ Test Files  5 passed (5)
+      Tests  92 passed (92)
+   Start at  06:10:32
+   Duration  7.14s (transform 3.28s, setup 0ms, import 4.38s, tests 4.77s, environment 1.85s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules/pdf
+
+
+ Test Files  5 passed (5)
+      Tests  59 passed (59)
+   Start at  06:10:39
+   Duration  2.67s (transform 1.42s, setup 0ms, import 1.52s, tests 1.72s, environment 1.65s)
+
+TEST_WEB_EXIT=0
