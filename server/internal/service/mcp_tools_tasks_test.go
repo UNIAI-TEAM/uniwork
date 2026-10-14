@@ -536,16 +536,28 @@ func TestMcpWriteToolErrorsNameNothingTheCallerCannotSee(t *testing.T) {
 		_, err := callMcpTool(t, x.tools, x.p, "add_comment", `{"workspace_id":"`+workspaceID+`","task_id":"`+taskID+`","body":"Nội dung"`+extra+`}`)
 		return err
 	}
+	revision := strconv.FormatInt(x.revision(t, x.taskID), 10)
+	update := func(workspaceID, taskID, extra string) error {
+		_, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+workspaceID+`","task_id":"`+taskID+`","revision":`+revision+`,"title":"Đổi tên"`+extra+`}`)
+		return err
+	}
 	absent := map[string]error{
-		"parent of another organization":             create(`,"parent_task_id":"` + taskC.ID + `"`),
-		"parent of another workspace":                create(`,"parent_task_id":"` + task2.ID + `"`),
-		"project of another organization":            create(`,"project_id":"` + projectC.ID + `"`),
-		"project of another workspace":               create(`,"project_id":"` + project2.ID + `"`),
-		"comment on a task of another organization":  comment(wsC.ID, taskC.ID, ""),
-		"comment on a task under the grant's own id": comment(x.w.ID, taskC.ID, ""),
-		"comment on a task of another workspace":     comment(x.w.ID, task2.ID, ""),
-		"reply to a comment of another organization": comment(x.w.ID, x.taskID, `,"reply_to":"`+commentC.ID+`"`),
-		"reply to a comment of another workspace":    comment(x.w.ID, x.taskID, `,"reply_to":"`+comment2.ID+`"`),
+		"update a task of another organization":       update(wsC.ID, taskC.ID, ""),
+		"update a task under the grant's own id":      update(x.w.ID, taskC.ID, ""),
+		"update a task of another workspace":          update(x.w.ID, task2.ID, ""),
+		"update to a parent of another organization":  update(x.w.ID, x.taskID, `,"parent_task_id":"`+taskC.ID+`"`),
+		"update to a parent of another workspace":     update(x.w.ID, x.taskID, `,"parent_task_id":"`+task2.ID+`"`),
+		"update to a project of another organization": update(x.w.ID, x.taskID, `,"project_id":"`+projectC.ID+`"`),
+		"update to a project of another workspace":    update(x.w.ID, x.taskID, `,"project_id":"`+project2.ID+`"`),
+		"parent of another organization":              create(`,"parent_task_id":"` + taskC.ID + `"`),
+		"parent of another workspace":                 create(`,"parent_task_id":"` + task2.ID + `"`),
+		"project of another organization":             create(`,"project_id":"` + projectC.ID + `"`),
+		"project of another workspace":                create(`,"project_id":"` + project2.ID + `"`),
+		"comment on a task of another organization":   comment(wsC.ID, taskC.ID, ""),
+		"comment on a task under the grant's own id":  comment(x.w.ID, taskC.ID, ""),
+		"comment on a task of another workspace":      comment(x.w.ID, task2.ID, ""),
+		"reply to a comment of another organization":  comment(x.w.ID, x.taskID, `,"reply_to":"`+commentC.ID+`"`),
+		"reply to a comment of another workspace":     comment(x.w.ID, x.taskID, `,"reply_to":"`+comment2.ID+`"`),
 	}
 	_, err = callMcpTool(t, x.tools, x.p, "create_task", `{"workspace_id":"`+wsC.ID+`","title":"Việc mới"}`)
 	absent["create in a workspace of another organization"] = err
@@ -573,13 +585,44 @@ func TestMcpWriteToolErrorsNameNothingTheCallerCannotSee(t *testing.T) {
 	if !errors.As(errOther, &badLabel2) || badLabel2.Msg != noLabel.Msg {
 		t.Errorf("label of another workspace: %v, want the same refusal as a nonexistent label", errOther)
 	}
+	// update_task refuses the same rows with the same answers.
+	var teUpdate McpToolError
+	if err := update(x.w.ID, x.taskID, `,"assignee_id":"`+x.ub.ID+`"`); !errors.As(err, &teUpdate) || teUpdate.Code != "assignee_not_member" {
+		t.Errorf("update to an assignee of another organization: %v, want assignee_not_member", err)
+	}
+	var addNone, addC, add2, removeNone, removeC McpInvalidArgs
+	for _, c := range []struct {
+		into  *McpInvalidArgs
+		extra string
+	}{
+		{&addNone, `,"add_label_ids":["01NOSUCHLABEL"]`},
+		{&addC, `,"add_label_ids":["` + labelC.ID + `"]`},
+		{&add2, `,"add_label_ids":["` + label2.ID + `"]`},
+		{&removeNone, `,"remove_label_ids":["01NOSUCHLABEL"]`},
+		{&removeC, `,"remove_label_ids":["` + labelC.ID + `"]`},
+	} {
+		if err := update(x.w.ID, x.taskID, c.extra); !errors.As(err, c.into) {
+			t.Errorf("update %s: %v, want McpInvalidArgs", c.extra, err)
+		}
+	}
+	if addC.Msg != addNone.Msg || add2.Msg != addNone.Msg || removeC.Msg != removeNone.Msg {
+		t.Errorf("a foreign label reads unlike a missing one: %q %q %q / %q %q", addNone.Msg, addC.Msg, add2.Msg, removeNone.Msg, removeC.Msg)
+	}
+	var stale McpToolError
+	if _, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":0,"title":"Đổi tên"}`); !errors.As(err, &stale) || stale.Code != "revision_conflict" || !strings.Contains(stale.Msg, revision) {
+		t.Errorf("stale revision: %v, want revision_conflict naming the task's own revision %s", err, revision)
+	}
+	if got := strconv.FormatInt(x.revision(t, x.taskID), 10); got != revision {
+		t.Errorf("refused updates moved the task from revision %s to %s", revision, got)
+	}
+
 	var bad McpInvalidArgs
 	err = comment(x.w.ID, x.taskID, `,"reply_to":"`+commentOther.ID+`"`)
 	if !errors.As(err, &bad) || !strings.Contains(bad.Msg, "reply_to") || strings.Contains(bad.Msg, "parent_id") {
 		t.Errorf("reply to a comment of another task: %v, want McpInvalidArgs naming reply_to", err)
 	}
 
-	refusals := []error{te, bad, badLabel, badLabel2, noLabel}
+	refusals := []error{te, bad, badLabel, badLabel2, noLabel, teUpdate, addNone, addC, add2, removeNone, removeC, stale}
 	for _, err := range absent {
 		refusals = append(refusals, err)
 	}
@@ -752,6 +795,178 @@ func TestMcpWriteToolsRecordTheViaOnTheirAuditRows(t *testing.T) {
 		}
 		if (audit.Via{Kind: kind, ClientID: client, GrantID: grant, ClientName: name}) != via {
 			t.Errorf("%s audit via = %q/%q/%q/%q, want %+v", row.what, kind, client, grant, name, via)
+		}
+	}
+}
+
+func (x *mcpToolWorld) revision(t *testing.T, taskID string) int64 {
+	t.Helper()
+	task, err := x.tools.ask.tasks.Get(context.Background(), x.ua.ID, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return task.Revision
+}
+
+func TestMcpUpdateTask(t *testing.T) {
+	x := newMcpToolWorld(t)
+	rev := strconv.FormatInt(x.revision(t, x.taskID), 10)
+	raw, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+`,"title":"Báo cáo quý III","status":"in_progress"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	if item["title"] != "Báo cáo quý III" || res.Revision <= x.revision(t, x.taskID)-1 {
+		t.Fatalf("update_task = %s", raw)
+	}
+	onlyKeys(t, "update_task item", item, "kind", "id", "workspace_id", "title", "excerpt", "url", "status", "due_date", "revision", "priority", "assignee_id", "project_id", "parent_task_id", "start_date", "labels")
+	fields := map[string]McpChange{}
+	for _, c := range res.Changes {
+		fields[c.Field] = c
+	}
+	if fields["title"].From != "Chuẩn bị báo cáo quý" || fields["status"].To != "in_progress" {
+		t.Fatalf("changes = %+v", res.Changes)
+	}
+	if _, ok := fields["priority"]; ok {
+		t.Fatal("an untouched field is reported as changed")
+	}
+}
+
+// The revision is required, and a stale one writes nothing.
+func TestMcpUpdateTaskNeedsAFreshRevision(t *testing.T) {
+	x := newMcpToolWorld(t)
+	_, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","title":"X"}`)
+	var bad McpInvalidArgs
+	if !errors.As(err, &bad) || !strings.Contains(bad.Msg, "revision") {
+		t.Fatalf("no revision: %v", err)
+	}
+	stale := strconv.FormatInt(x.revision(t, x.taskID)-1, 10)
+	_, err = callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+stale+`,"title":"X"}`)
+	var te McpToolError
+	if !errors.As(err, &te) || te.Code != "revision_conflict" {
+		t.Fatalf("stale revision: %v", err)
+	}
+	if task, _ := x.tools.ask.tasks.Get(context.Background(), x.ua.ID, x.taskID); task.Title == "X" {
+		t.Fatal("a stale update wrote")
+	}
+}
+
+// Review Focus 2: an absent due_date keeps the date, null clears it.
+func TestMcpUpdateTaskTellsAbsentFromNull(t *testing.T) {
+	x := newMcpToolWorld(t)
+	call := func(extra string) {
+		t.Helper()
+		rev := strconv.FormatInt(x.revision(t, x.taskID), 10)
+		if _, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+extra+`}`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	call(`,"title":"Đổi tên thôi"`)
+	if task, _ := x.tools.ask.tasks.Get(context.Background(), x.ua.ID, x.taskID); !task.DueDate.Valid {
+		t.Fatal("an update without due_date cleared it")
+	}
+	call(`,"due_date":null`)
+	if task, _ := x.tools.ask.tasks.Get(context.Background(), x.ua.ID, x.taskID); task.DueDate.Valid {
+		t.Fatal("due_date null did not clear it")
+	}
+	rev := strconv.FormatInt(x.revision(t, x.taskID), 10)
+	for _, extra := range []string{`"title":null`, `"title":"   "`, `"assignee_id":""`, `"parent_task_id":" "`, `"due_date":"23/10/2026"`, `"priority":"asap"`} {
+		_, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+`,`+extra+`}`)
+		var bad McpInvalidArgs
+		if !errors.As(err, &bad) {
+			t.Errorf("%s: %v, want McpInvalidArgs", extra, err)
+		}
+	}
+	if strconv.FormatInt(x.revision(t, x.taskID), 10) != rev {
+		t.Fatal("a refused update wrote")
+	}
+}
+
+// Labels and parent change in the same call; a bad parent is refused before
+// anything is written.
+func TestMcpUpdateTaskLabelsAndParent(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	label, err := x.tools.ask.tasks.CreateTaskLabel(ctx, Human(x.ua.ID), x.w.ID, CreateTaskLabelInput{Name: "Khách hàng", Color: "#3b82f6"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := x.task(t, x.ua.ID, x.w.ID, "Dự án ACME")
+	rev := strconv.FormatInt(x.revision(t, x.taskID), 10)
+	raw, err := callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+rev+`,"add_label_ids":["`+label.ID+`"],"parent_task_id":"`+parent.ID+`"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "Khách hàng") || !strings.Contains(string(raw), parent.ID) {
+		t.Fatalf("update_task = %s", raw)
+	}
+	before := x.revision(t, x.taskID)
+	_, err = callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+strconv.FormatInt(before, 10)+`,"title":"Y","parent_task_id":"NOPE-1"}`)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown parent: %v", err)
+	}
+	if x.revision(t, x.taskID) != before {
+		t.Fatal("a refused parent still wrote the title")
+	}
+
+	// A parent that would make a cycle, and a label not on the task, are
+	// refused before anything is written too.
+	parentRev := x.revision(t, parent.ID)
+	_, err = callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+parent.ID+`","revision":`+strconv.FormatInt(parentRev, 10)+`,"title":"Y","parent_task_id":"`+x.taskID+`"}`)
+	var te McpToolError
+	if !errors.As(err, &te) || te.Code != "parent_cycle" {
+		t.Fatalf("parent cycle: %v, want parent_cycle", err)
+	}
+	_, err = callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+strconv.FormatInt(before, 10)+`,"title":"Y","parent_task_id":"`+x.taskID+`"}`)
+	if !errors.As(err, &te) || te.Code != "parent_cycle" {
+		t.Fatalf("own parent: %v, want parent_cycle", err)
+	}
+	other, err := x.tools.ask.tasks.CreateTaskLabel(ctx, Human(x.ua.ID), x.w.ID, CreateTaskLabelInput{Name: "Nội bộ", Color: "#ef4444"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+strconv.FormatInt(before, 10)+`,"title":"Y","remove_label_ids":["`+other.ID+`"]}`)
+	var bad McpInvalidArgs
+	if !errors.As(err, &bad) || !strings.Contains(bad.Msg, "remove_label_ids") {
+		t.Fatalf("removing a label the task does not carry: %v, want McpInvalidArgs about remove_label_ids", err)
+	}
+	if x.revision(t, x.taskID) != before || x.revision(t, parent.ID) != parentRev {
+		t.Fatal("a refused update still wrote")
+	}
+
+	// Removing the label and clearing the parent reports both, with the old
+	// values a model needs to put them back.
+	raw, err = callMcpTool(t, x.tools, x.p, "update_task", `{"workspace_id":"`+x.w.ID+`","task_id":"`+x.taskID+`","revision":`+strconv.FormatInt(before, 10)+`,"remove_label_ids":["`+label.ID+`","`+label.ID+`"],"parent_task_id":null}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, item := writeResult(t, raw)
+	fields := map[string]McpChange{}
+	for _, c := range res.Changes {
+		fields[c.Field] = c
+	}
+	if item["parent_task_id"] != nil || item["labels"] != nil || res.Note != "" || fields["parent_task_id"].From != parent.ID || !strings.Contains(fmt.Sprint(fields["labels"].From), label.ID) {
+		t.Fatalf("remove label, clear parent = %s", raw)
+	}
+	if res.Revision != x.revision(t, x.taskID) {
+		t.Fatalf("revision %d, task is at %d", res.Revision, x.revision(t, x.taskID))
+	}
+}
+
+// A step that fails after the field update committed is named in the note the
+// way the transport would name it: never with the service's own text.
+func TestMcpStepErrorSaysOnlyWhatATransportWould(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		want string
+	}{
+		{ErrNotFound, "not found or not accessible"},
+		{ErrForbidden, "not found or not accessible"},
+		{errors.New("pq: relation leaked"), "temporarily unavailable"},
+		{CodedError{Code: "parent_cycle", Msg: "quan hệ cha/con tạo chu trình"}, "parent_cycle: " + mcpToolMessages["parent_cycle"]},
+	} {
+		if got := mcpStepError(c.err); got != c.want {
+			t.Errorf("mcpStepError(%v) = %q, want %q", c.err, got, c.want)
 		}
 	}
 }

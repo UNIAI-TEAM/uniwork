@@ -33,6 +33,7 @@ var mcpToolCatalogue = []mcpCatalogueEntry{
 	{"task_options", "Task options", ai.ToolRead, false},
 	{"list_tasks", "List tasks", ai.ToolRead, false},
 	{"create_task", "Create task", ai.ToolWrite, false},
+	{"update_task", "Update task", ai.ToolWrite, true},
 	{"add_comment", "Add comment", ai.ToolWrite, false},
 }
 

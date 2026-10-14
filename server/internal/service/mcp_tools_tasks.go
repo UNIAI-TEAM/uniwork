@@ -389,11 +389,246 @@ func (s *McpToolService) AddComment(ctx context.Context, p McpPrincipal, in mcpA
 	return McpWriteResult{Item: McpComment{ID: c.ID, TaskID: t.ID, Body: capRunes(c.Body, mcpMaxHitRunes, mcpHitCut), URL: s.frontend + base + "/tasks/" + t.ID}}, nil
 }
 
+type mcpUpdateTaskIn struct {
+	WorkspaceID    string         `json:"workspace_id"`
+	TaskID         string         `json:"task_id"`
+	Revision       *int64         `json:"revision"`
+	Title          mcpOpt[string] `json:"title"`
+	Description    mcpOpt[string] `json:"description"`
+	Status         mcpOpt[string] `json:"status"`
+	Priority       mcpOpt[string] `json:"priority"`
+	AssigneeID     mcpOpt[string] `json:"assignee_id"`
+	StartDate      mcpOpt[string] `json:"start_date"`
+	DueDate        mcpOpt[string] `json:"due_date"`
+	ProjectID      mcpOpt[string] `json:"project_id"`
+	ParentTaskID   mcpOpt[string] `json:"parent_task_id"`
+	AddLabelIDs    []string       `json:"add_label_ids"`
+	RemoveLabelIDs []string       `json:"remove_label_ids"`
+}
+
+// check refuses what the services would misread: no revision, null for a
+// field that cannot be empty, and a blank id, which they take for "clear".
+func (in mcpUpdateTaskIn) check() error {
+	if in.Revision == nil {
+		return McpInvalidArgs{Msg: "revision is required; read the task first and send its revision"}
+	}
+	type field struct {
+		name string
+		o    mcpOpt[string]
+	}
+	for _, f := range []field{{"title", in.Title}, {"description", in.Description}, {"status", in.Status}, {"priority", in.Priority}} {
+		if f.o.Null {
+			return McpInvalidArgs{Msg: f.name + " cannot be null; send a value (an empty description clears it)"}
+		}
+	}
+	if title := strings.TrimSpace(in.Title.Value); in.Title.Set && (title == "" || utf8.RuneCountInString(title) > mcpMaxTitleRunes) {
+		return McpInvalidArgs{Msg: fmt.Sprintf("title must be 1-%d characters", mcpMaxTitleRunes)}
+	}
+	if in.Priority.Set && !validPriority[in.Priority.Value] {
+		return McpInvalidArgs{Msg: "priority must be one of " + strings.Join(mcpPriorities, ", ")}
+	}
+	for _, f := range []field{{"start_date", in.StartDate}, {"due_date", in.DueDate}} {
+		if f.o.Set && !f.o.Null {
+			if err := mcpDate(f.name, f.o.Value); err != nil {
+				return err
+			}
+		}
+	}
+	for _, f := range []field{{"assignee_id", in.AssigneeID}, {"project_id", in.ProjectID}, {"parent_task_id", in.ParentTaskID}} {
+		if f.o.Set && !f.o.Null && strings.TrimSpace(f.o.Value) == "" {
+			return McpInvalidArgs{Msg: f.name + " must not be blank; send null to clear it"}
+		}
+	}
+	if len(in.AddLabelIDs) > mcpMaxLabels || len(in.RemoveLabelIDs) > mcpMaxLabels {
+		return McpInvalidArgs{Msg: fmt.Sprintf("add_label_ids and remove_label_ids hold at most %d labels each", mcpMaxLabels)}
+	}
+	return nil
+}
+
+// mcpPick keeps each id once and refuses one outside known. The message names
+// the field, never the id, so a label of another workspace reads as a missing one.
+func mcpPick(field string, ids []string, known map[string]bool, why string) ([]string, error) {
+	seen := map[string]bool{}
+	var out []string
+	for _, id := range ids {
+		if !known[id] {
+			return nil, McpInvalidArgs{Msg: field + " holds a label that " + why}
+		}
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out, nil
+}
+
+// mcpNullable is an optional field as a change shows it: null when unset, the
+// value a model sends back to undo.
+func mcpNullable(v string) any {
+	if v == "" {
+		return nil
+	}
+	return v
+}
+
+// mcpStepError is a step that failed after the update was saved, as the note
+// names it: what the transport would show for it, never the service's text.
+func mcpStepError(err error) string {
+	err = mcpMapError(err)
+	var te McpToolError
+	var bad McpInvalidArgs
+	switch {
+	case errors.As(err, &te), errors.As(err, &bad):
+		return err.Error()
+	case errors.Is(err, ErrNotFound):
+		return "not found or not accessible"
+	}
+	return "temporarily unavailable"
+}
+
+// newParent resolves parent_task_id: nil leaves the parent as it is, a pointer
+// to nil clears it. A parent that would make a cycle is refused here, before
+// anything is written.
+func (s *McpToolService) newParent(ctx context.Context, p McpPrincipal, workspaceID string, o mcpOpt[string], task db.Task) (**string, error) {
+	switch {
+	case !o.Set:
+		return nil, nil
+	case o.Null:
+		if !task.ParentTaskID.Valid {
+			return nil, nil
+		}
+		return o.ptr2(), nil
+	}
+	parent, err := s.task(ctx, p, workspaceID, o.Value)
+	if err != nil {
+		return nil, err
+	}
+	if parent.ID == task.ID {
+		return nil, McpToolError{Code: "parent_cycle", Msg: mcpToolMessages["parent_cycle"]}
+	}
+	if parent.ID == task.ParentTaskID.String {
+		return nil, nil
+	}
+	if err := s.ask.tasks.detectParentCycle(ctx, task.ID, parent.ID); err != nil {
+		return nil, err
+	}
+	id := &parent.ID
+	return &id, nil
+}
+
+// UpdateTask changes one task. Every reference is checked before anything is
+// written; the field update carries the revision and runs first, then parent
+// and labels, each its own command. A later step that fails is named in Note
+// beside what was already saved.
+func (s *McpToolService) UpdateTask(ctx context.Context, p McpPrincipal, in mcpUpdateTaskIn) (McpWriteResult, error) {
+	if err := in.check(); err != nil {
+		return McpWriteResult{}, err
+	}
+	before, err := s.task(ctx, p, in.WorkspaceID, in.TaskID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	// Refused here, the from values of the result are the task the model read.
+	if err := CheckTaskRevision(*in.Revision, before.Revision); err != nil {
+		return McpWriteResult{}, err
+	}
+	base, err := s.ask.base(ctx, in.WorkspaceID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	parent, err := s.newParent(ctx, p, in.WorkspaceID, in.ParentTaskID, before)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	labelsBefore, err := s.labelsOf(ctx, p, before.ID)
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	open, on := map[string]bool{}, map[string]bool{}
+	if len(in.AddLabelIDs) > 0 {
+		all, err := s.ask.tasks.ListTaskLabels(ctx, Human(p.UserID), in.WorkspaceID, false)
+		if err != nil {
+			return McpWriteResult{}, err
+		}
+		for _, l := range all {
+			open[l.ID] = true
+		}
+	}
+	for _, l := range labelsBefore {
+		on[l.ID] = true
+	}
+	add, err := mcpPick("add_label_ids", in.AddLabelIDs, open, "is not a label of this workspace; call task_options for them")
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	remove, err := mcpPick("remove_label_ids", in.RemoveLabelIDs, on, "is not on this task")
+	if err != nil {
+		return McpWriteResult{}, err
+	}
+	actor := Human(p.UserID)
+	if _, err := s.ask.tasks.Update(ctx, actor, before.ID, UpdateTaskInput{
+		ExpectedRevision: in.Revision,
+		Title:            in.Title.ptr(), Description: in.Description.ptr(), Status: in.Status.ptr(), Priority: in.Priority.ptr(),
+		AssigneeID: in.AssigneeID.ptr2(), StartDate: in.StartDate.ptr2(), DueDate: in.DueDate.ptr2(), ProjectID: in.ProjectID.ptr2(),
+	}); err != nil {
+		return McpWriteResult{}, err
+	}
+	// The update is saved. From here a failure is named in the note, never
+	// returned: a model that read "failed" would apply the rest twice.
+	var failed []string
+	if parent != nil {
+		if _, err := s.ask.tasks.SetParent(ctx, actor, before.ID, *parent); err != nil {
+			failed = append(failed, "parent_task_id ("+mcpStepError(err)+")")
+		}
+	}
+	for _, id := range add {
+		if err := s.ask.tasks.AttachTaskLabel(ctx, actor, before.ID, id); err != nil {
+			failed = append(failed, "add label "+id+" ("+mcpStepError(err)+")")
+		}
+	}
+	for _, id := range remove {
+		if err := s.ask.tasks.DetachTaskLabel(ctx, actor, before.ID, id); err != nil {
+			failed = append(failed, "remove label "+id+" ("+mcpStepError(err)+")")
+		}
+	}
+	after, err := s.ask.tasks.Get(ctx, p.UserID, before.ID)
+	var labelsAfter []McpLabel
+	if err == nil {
+		labelsAfter, err = s.labelsOf(ctx, p, before.ID)
+	}
+	if err != nil {
+		note := "the update was saved, but the task could not be read back; call get_task for what it holds now and its revision"
+		if len(failed) > 0 {
+			note += "; these did not go through: " + strings.Join(failed, "; ")
+		}
+		return McpWriteResult{Note: note}, nil
+	}
+	b, a := s.taskOf(base, before), s.taskOf(base, after)
+	a.Labels = labelsAfter
+	res := McpWriteResult{Item: a, Revision: after.Revision, Changes: mcpChanges(
+		McpChange{"title", before.Title, after.Title},
+		McpChange{"description", before.Description, after.Description},
+		McpChange{"status", before.Status, after.Status},
+		McpChange{"priority", before.Priority, after.Priority},
+		McpChange{"assignee_id", mcpNullable(b.AssigneeID), mcpNullable(a.AssigneeID)},
+		McpChange{"start_date", mcpNullable(b.StartDate), mcpNullable(a.StartDate)},
+		McpChange{"due_date", mcpNullable(b.DueDate), mcpNullable(a.DueDate)},
+		McpChange{"project_id", mcpNullable(b.ProjectID), mcpNullable(a.ProjectID)},
+		McpChange{"parent_task_id", mcpNullable(b.ParentTaskID), mcpNullable(a.ParentTaskID)},
+		McpChange{"labels", labelsBefore, labelsAfter},
+	)}
+	if len(failed) > 0 {
+		res.Note = "the fields in changes were saved; these did not go through: " + strings.Join(failed, "; ")
+	}
+	return res, nil
+}
+
 var (
 	mcpSchemaWorkspace   = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"}},"required":["workspace_id"],"additionalProperties":false}`)
 	mcpSchemaListMembers = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"query":{"type":"string","maxLength":200,"description":"Optional. Part of a name, any case."}},"required":["workspace_id"],"additionalProperties":false}`)
 	mcpSchemaListTasks   = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"status":{"type":"string","description":"A status key from task_options."},"project_id":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},"required":["workspace_id"],"additionalProperties":false}`)
 	mcpSchemaCreateTask  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"title":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","description":"Markdown."},"status":{"type":"string","description":"A status key from task_options. Omit for the default open status."},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"assignee_id":{"type":"string","description":"A user_id from list_members."},"start_date":{"type":"string","description":"YYYY-MM-DD"},"due_date":{"type":"string","description":"YYYY-MM-DD"},"project_id":{"type":"string"},"parent_task_id":{"type":"string","description":"Id or PREFIX-N of the parent task."},"label_ids":{"type":"array","items":{"type":"string"},"maxItems":20}},"required":["workspace_id","title"],"additionalProperties":false}`)
+	mcpSchemaUpdateTask  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"task_id":{"type":"string","description":"Id or PREFIX-N."},"revision":{"type":"integer","description":"The revision you read with get_task or list_tasks."},"title":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","description":"Markdown; replaces the whole description."},"status":{"type":"string","description":"A status key from task_options."},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"assignee_id":{"type":["string","null"],"description":"A user_id from list_members; null unassigns."},"start_date":{"type":["string","null"],"description":"YYYY-MM-DD; null clears it."},"due_date":{"type":["string","null"],"description":"YYYY-MM-DD; null clears it."},"project_id":{"type":["string","null"],"description":"null takes the task out of its project."},"parent_task_id":{"type":["string","null"],"description":"Id or PREFIX-N of the parent task; null clears it."},"add_label_ids":{"type":"array","items":{"type":"string"},"maxItems":20,"description":"Label ids from task_options."},"remove_label_ids":{"type":"array","items":{"type":"string"},"maxItems":20,"description":"Ids of labels on the task."}},"required":["workspace_id","task_id","revision"],"additionalProperties":false}`)
 	mcpSchemaAddComment  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"task_id":{"type":"string","description":"Id or PREFIX-N."},"body":{"type":"string","minLength":1,"maxLength":20000,"description":"Markdown."},"reply_to":{"type":"string","description":"Id of the comment this answers."}},"required":["workspace_id","task_id","body"],"additionalProperties":false}`)
 )
 
@@ -417,7 +652,10 @@ func mcpTaskTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpCreateTaskIn) (any, error) {
 				return s.CreateTask(ctx, p, in)
 			}),
-		// add_comment moves behind update_task when that tool lands.
+		mcpWriteTool("update_task", "Update task", "Changes one task as the user: omitted fields stay as they are, null clears one. revision must be the one you read; if the task changed since, nothing is written and the call fails with revision_conflict. Everyone in the workspace sees the change; a new assignee is notified, and a status change notifies the task's assignee and creator.", "call update_task again with the from values in changes (a from value cut short with … is not the whole old text)", true, mcpSchemaUpdateTask,
+			func(ctx context.Context, p McpPrincipal, in mcpUpdateTaskIn) (any, error) {
+				return s.UpdateTask(ctx, p, in)
+			}),
 		mcpWriteTool("add_comment", "Add comment", "Adds a comment to a task as the user. Everyone who can see the task sees it; subscribers are notified.", "the user deletes the comment in UniWork", false, mcpSchemaAddComment,
 			func(ctx context.Context, p McpPrincipal, in mcpAddCommentIn) (any, error) {
 				return s.AddComment(ctx, p, in)
