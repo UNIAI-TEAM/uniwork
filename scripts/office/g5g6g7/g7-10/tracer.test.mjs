@@ -454,6 +454,7 @@ function createMockDServer({
     }
     return json(404, { error: { code: "not_found", path } });
   };
+  fetchImpl.allowRealAiUpstream = aiMode === "real-xyz";
 
   return { state, fetchImpl };
 }
@@ -1050,7 +1051,9 @@ describe("G7-10 Loop 1 (fx-xlsx-revenue-xyz: web open -> AI turn -> editor X/Y/Z
               { method: "GET", headers: { Authorization: `Bearer ${token}` } },
             );
             const feed = await feedRes.json();
-            const hit = (feed.changes ?? []).find((c) => c.document_id === mock.state.docId && c.current_version === 2);
+            const hit = [...(feed.feed ?? []), ...(feed.changes ?? [])].find(
+              (c) => c.document_id === mock.state.docId && c.current_version === 2,
+            );
             if (!hit) return { reloaded: false, binding: null };
             const v2 = mock.state.versions.at(-1);
             const bindingV2 = {
@@ -1987,34 +1990,34 @@ describe("G7-10 r4 cloud r2 findings (F1-F4)", () => {
     }
   });
 
-  it("F2: Loop 1 steps.webSave.detail accurately records whether cell edits in the sheet editor were driven and verified vs only host frame save messages", async () => {
+  it("F2 / G710-BE-3 / G710-BE-4: Loop 1 verifies committed v2 bytes + sha256 contain X/Y/Z, passes real v2ContainsExpectedXyz to decideLoop1Outcome (FAIL if missing), and words steps.webSave.detail as page-level Control+s", async () => {
     const scratch = makeScratchRunDir({ startState: "up", skipApp: true });
-    const mock = createMockDServer({ aiMode: "503-disabled" });
+    const mockMissingXyz = createMockDServer({ aiMode: "503-disabled" });
     try {
       const v1Bytes = Buffer.from("v1-xlsx-bytes-without-xyz");
-      // Case 1: webDriver saves v1 bytes (no X/Y/Z cell edit in the sheet editor)
-      const resHostOnly = await runTracerLoop({
+      // Case 1 (G710-BE-3): webDriver saves v2 bytes that DO NOT contain X/Y/Z -> must FAIL (exit 1), never hardcoded true!
+      const resMissingXyz = await runTracerLoop({
         loop: "1",
         runDir: scratch.dir,
         repoRoot: REPO_ROOT,
-        fetchImpl: mock.fetchImpl,
+        fetchImpl: mockMissingXyz.fetchImpl,
         webDriver: async ({ token, documentId }) => {
-          const v1Revision = mock.state.versions[0].revision;
+          const v1Revision = mockMissingXyz.state.versions[0].revision;
           const uploadForm = new FormData();
           uploadForm.append("file", new Blob([v1Bytes]), "revenue-q1-q2.xlsx");
-          const upRes = await mock.fetchImpl(
+          const upRes = await mockMissingXyz.fetchImpl(
             `http://127.0.0.1:18080/api/v1/office-frame/documents/${documentId}/uploads`,
             { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: uploadForm },
           );
           const upData = await upRes.json();
-          await mock.fetchImpl(
+          await mockMissingXyz.fetchImpl(
             `http://127.0.0.1:18080/api/v1/office-frame/documents/${documentId}/versions/commit`,
             {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
-                "Idempotency-Key": `web-ui-f2-host-${documentId}`,
+                "Idempotency-Key": `web-ui-f2-no-xyz-${documentId}`,
               },
               body: JSON.stringify({ upload_id: upData.upload_id, base_revision: v1Revision }),
             },
@@ -2022,12 +2025,12 @@ describe("G7-10 r4 cloud r2 findings (F1-F4)", () => {
           return { driven: true, saved: true, source: "web", editorCellsTyped: false };
         },
       });
-      assert.equal(
-        resHostOnly.steps.webSave.detail,
-        "host save path driven with frame protocol messages; cell edit in the editor not driven",
-      );
+      assert.equal(resMissingXyz.exitCode, 1, "G710-BE-3: Loop 1 must FAIL when committed v2 bytes lack X/Y/Z");
+      assert.equal(resMissingXyz.status, "FAIL");
+      assert.equal(resMissingXyz.details.v2ContainsExpectedXyz, false);
+      assert.match(resMissingXyz.reason, /committed v2 workbook bytes do not contain the expected X\/Y\/Z values/);
 
-      // Case 2: webDriver types X/Y/Z cells in editor and commits v2 workbook containing X/Y/Z
+      // Case 2 (G710-BE-4 / F2): webDriver types X/Y/Z cells in editor and saves v2 via page-level Control+s
       const mockEdited = createMockDServer({ aiMode: "503-disabled" });
       const resCellEdited = await runTracerLoop({
         loop: "1",
@@ -2061,9 +2064,10 @@ describe("G7-10 r4 cloud r2 findings (F1-F4)", () => {
       });
       assert.equal(
         resCellEdited.steps.webSave.detail,
-        "Playwright typed X/Y/Z cells (E1:G4) in the sheets iframe editor and saved v2 with Control+s; verified in committed workbook",
+        "Playwright typed X/Y/Z cells (E1:G4) through the sheets frame name box and saved v2 via page-level Control+s with focus in the frame; committed v2 bytes and sha256 verified",
       );
-      assert.equal(resCellEdited.details.webSaveVerifiedXyzInV2, true);
+      assert.equal(resCellEdited.details.v2ContainsExpectedXyz, true);
+      assert.equal(resCellEdited.details.v2BytesSha256Verified, true);
     } finally {
       scratch.cleanup();
     }
@@ -2153,6 +2157,131 @@ describe("G7-10 r4 cloud r2 findings (F1-F4)", () => {
       assert.equal(parsed.details?.loop, "2");
     } finally {
       await new Promise((r) => server.close(r));
+      scratch.cleanup();
+    }
+  });
+
+  it("G710-BE-5: classifyAiResponse refuses provider==='upstream' unless allowRealUpstream / HARNESS_ALLOW_REAL_AI_UPSTREAM=1 is explicitly enabled", () => {
+    const fakeAnsweringUpstream = {
+      ok: true,
+      status: 200,
+      data: {
+        provider: "upstream",
+        model: "uniwork-real",
+        choices: [{ message: { content: "270 30 175 15 460 40" } }],
+      },
+    };
+    const withoutOverride = classifyAiResponse(fakeAnsweringUpstream, null, { allowRealUpstream: false });
+    assert.equal(withoutOverride.status, "BLOCKED", "provider=upstream without explicit allowRealUpstream must be BLOCKED");
+    assert.equal(withoutOverride.owner, "g7-qa");
+
+    const withOverride = classifyAiResponse(fakeAnsweringUpstream, null, { allowRealUpstream: true });
+    assert.equal(withOverride.status, "PASS", "provider=upstream with explicit allowRealUpstream=true may PASS");
+  });
+
+  it("G710-BE-7: Loop 2 performs a real G5-07 lookupCommitIntent (GET /documents/{id}/versions/commit) on the app path when an idempotencyKey is available", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      const appIdemKey = "app-save-idem-key-g710-be7";
+      const res = await runTracerLoop({
+        loop: "2",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        appDriver: {
+          signedIn: true,
+          driven: true,
+          openDocumentV1: async () => ({ opened: true, binding: { baseVersion: 1, state: "ready" } }),
+          saveOnlineInApp: async ({ documentId, v2Bytes }) => {
+            const v1Revision = mock.state.versions[0].revision;
+            const uploadForm = new FormData();
+            uploadForm.append("file", new Blob([v2Bytes]), "report.docx");
+            const upRes = await mock.fetchImpl(
+              `http://127.0.0.1:18080/api/v1/documents/${documentId}/uploads`,
+              { method: "POST", headers: { Authorization: "Bearer tok-session-01" }, body: uploadForm },
+            );
+            const upData = await upRes.json();
+            await mock.fetchImpl(
+              `http://127.0.0.1:18080/api/v1/documents/${documentId}/versions/commit`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer tok-session-01",
+                  "Content-Type": "application/json",
+                  "Idempotency-Key": appIdemKey,
+                },
+                body: JSON.stringify({ upload_id: upData.upload_id, base_revision: v1Revision }),
+              },
+            );
+            return {
+              saved: true,
+              binding: { baseVersion: 2, state: "saved" },
+              idempotencyKey: appIdemKey,
+            };
+          },
+        },
+      });
+      assert.ok(res.details.commitIntentAfterSave, "Loop 2 app path with idempotencyKey must record commitIntentAfterSave from GET /versions/commit");
+      assert.equal(res.details.commitIntentAfterSave.httpStatus, 200);
+      assert.equal(res.details.commitIntentAfterSave.outcome, "committed");
+      assert.equal(res.details.commitIntentAfterSave.version, 2);
+      assert.equal(res.details.commitIntentReceiptSource, "endpoint_lookup");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("G710-BE-9: Loop 3 appHeldOfflineIntentWhileCut requires bindingWhileCut at baseVersion === 1 (cannot be satisfied by intentFilesWhileCut alone when binding is missing or already at v2)", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+    const mock = createMockDServer({ aiMode: "503-disabled" });
+    try {
+      const res = await runTracerLoop({
+        loop: "3",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        appDriver: {
+          signedIn: true,
+          driven: true,
+          openDocumentV1: async () => ({ opened: true, binding: { baseVersion: 1, state: "ready" } }),
+          saveOfflineWhileCut: async () => ({
+            // Stub writes a .rec file but bindingWhileCut is already at baseVersion 2 (or null)
+            bindingWhileCut: { baseVersion: 2, state: "saved" },
+            intentFilesWhileCut: ["harness-writable-stub.rec"],
+          }),
+          reconnectAndFlushSave: async ({ documentId, v2Bytes }) => {
+            const v1Revision = mock.state.versions[0].revision;
+            const uploadForm = new FormData();
+            uploadForm.append("file", new Blob([v2Bytes]), "report.docx");
+            const upRes = await mock.fetchImpl(
+              `http://127.0.0.1:18080/api/v1/documents/${documentId}/uploads`,
+              { method: "POST", headers: { Authorization: "Bearer tok-session-01" }, body: uploadForm },
+            );
+            const upData = await upRes.json();
+            await mock.fetchImpl(
+              `http://127.0.0.1:18080/api/v1/documents/${documentId}/versions/commit`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer tok-session-01",
+                  "Content-Type": "application/json",
+                  "Idempotency-Key": "loop3-be9",
+                },
+                body: JSON.stringify({ upload_id: upData.upload_id, base_revision: v1Revision }),
+              },
+            );
+            return {
+              bindingAfterReconnect: { baseVersion: 2, state: "saved" },
+              intentFilesAfterReconnect: [],
+            };
+          },
+        },
+      });
+      assert.equal(res.details.appHeldOfflineIntentWhileCut, false, "intentFilesWhileCut alone without bindingWhileCut at v1 must not satisfy appHeldOfflineIntentWhileCut");
+      assert.equal(res.exitCode, 1);
+      assert.equal(res.status, "FAIL");
+    } finally {
       scratch.cleanup();
     }
   });

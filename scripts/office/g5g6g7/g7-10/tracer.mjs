@@ -586,7 +586,7 @@ export function verifyXlsxContainsExpectedXyz(xlsxBytes, expectedXyz = []) {
  */
 export function matchDocumentVersionInChangeFeed(
   feedPages,
-  { documentId, expectedVersion = 2, previousRevision = "" },
+  { documentId, expectedVersion = 2, expectedVersionId = "", previousRevision = "" },
 ) {
   const pages = Array.isArray(feedPages) ? feedPages : [feedPages];
   for (const pageData of pages) {
@@ -600,6 +600,7 @@ export function matchDocumentVersionInChangeFeed(
       if (item.archived === true) continue;
       const itemVersion = Number(item.current_version ?? item.version ?? 0);
       if (itemVersion !== expectedVersion) continue;
+      if (expectedVersionId && item.version_id && item.version_id !== expectedVersionId) continue;
       if (previousRevision && item.revision && String(item.revision) === String(previousRevision)) {
         continue;
       }
@@ -882,7 +883,7 @@ async function cleanupSeededOrganization({ apiOrigin, fetchImpl = fetch, seeded,
  * (or answers 503 `ai_disabled` when the fake deployment has AI disabled) and must
  * report `BLOCKED` (exit 77, owner `g7-qa`, reason `UPSTREAM_BLOCKED_REASON`), NEVER `PASS` or `FAIL`.
  */
-export function classifyAiResponse(aiTurnResult, expectedXyz = null) {
+export function classifyAiResponse(aiTurnResult, expectedXyz = null, options = {}) {
   if (!aiTurnResult.ok) {
     return {
       status: "BLOCKED",
@@ -895,9 +896,17 @@ export function classifyAiResponse(aiTurnResult, expectedXyz = null) {
   const provider = String(aiTurnResult.data?.provider ?? "");
   const model = String(aiTurnResult.data?.model ?? "");
   const content = String(aiTurnResult.data?.choices?.[0]?.message?.content ?? "");
-  const allowReal = process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM === "1" || provider === "upstream";
+  const allowReal = Boolean(
+    options?.allowRealUpstream ?? (process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM === "1"),
+  );
 
-  if (!allowReal || provider === "fake" || model.includes("fake") || content.includes("[fake")) {
+  if (
+    !allowReal ||
+    process.env.AI_PROVIDER === "fake" ||
+    provider === "fake" ||
+    model.includes("fake") ||
+    content.includes("[fake")
+  ) {
     return {
       status: "BLOCKED",
       reason: UPSTREAM_BLOCKED_REASON,
@@ -1503,6 +1512,7 @@ export async function driveWebXlsxSave({
         await page.waitForTimeout(200);
       }
     }
+    await canvas.click({ position: { x: 300, y: 200 } });
     const nameInput = frame.locator('[data-u-comp="defined-name"] input').first();
     await nameInput.waitFor({ state: "visible", timeout: 15_000 });
 
@@ -1524,13 +1534,14 @@ export async function driveWebXlsxSave({
       await nameInput.click();
       await nameInput.fill(ref);
       await nameInput.press("Enter");
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(300);
       await page.keyboard.type(val);
       await page.keyboard.press("Enter");
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(200);
     }
 
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(400);
+    await canvas.click({ position: { x: 120, y: 80 } });
     await page.keyboard.press("Control+s");
 
     const deadline = Date.now() + 30_000;
@@ -2388,7 +2399,11 @@ async function runLoop1({
     }
 
     const v2Workbook = buildXlsxRevenueWithXyzBytes(repoRoot);
-    const aiSegment = classifyAiResponse(aiTurnRes, v2Workbook.expectedXyz);
+    const aiSegment = classifyAiResponse(aiTurnRes, v2Workbook.expectedXyz, {
+      allowRealUpstream: Boolean(
+        fetchImpl?.allowRealAiUpstream || process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM === "1",
+      ),
+    });
     loopState.details.aiSegment = aiSegment;
     loopState.steps.aiTurn = {
       source: "protocol",
@@ -2513,7 +2528,10 @@ async function runLoop1({
       v2Checksum = latestDoc.data?.file?.checksum_sha256 ?? v2Workbook.sha256;
     }
 
-    // Check whether the committed v2 workbook bytes actually contain the X/Y/Z cell values (F2).
+    // G710-BE-3 / G710-BE-4 / F2: Fetch the committed v2 workbook bytes from the server,
+    // verify the sha256 matches v2Checksum (and differs from v1), and verify the saved XLSX
+    // actually contains the expected X/Y/Z cell values before passing v2ContainsExpectedXyz
+    // into decideLoop1Outcome.
     const v2ContentRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -2522,16 +2540,25 @@ async function runLoop1({
       token: frameToken,
       expectBinary: true,
     });
+    const v2ContentSha256 = sha256Hex(v2ContentRes.bytes);
+    const v2BytesSha256Verified = Boolean(
+      v2Checksum && v2ContentSha256 === v2Checksum && v2ContentSha256 !== fixture.sha256,
+    );
     const editorCellsVerifiedInV2 = verifyXlsxContainsExpectedXyz(
       v2ContentRes.bytes,
       v2Workbook.expectedXyz,
     );
+    const v2ContainsExpectedXyz = Boolean(v2BytesSha256Verified && editorCellsVerifiedInV2);
+    loopState.details.v2BytesSha256Verified = v2BytesSha256Verified;
     loopState.details.editorCellsVerifiedInV2 = editorCellsVerifiedInV2;
+    loopState.details.v2ContainsExpectedXyz = v2ContainsExpectedXyz;
     if (webUiAttempted) {
-      loopState.steps.webSave.detail =
-        webUiDriven && webUiRes?.editorCellsTyped !== false && editorCellsVerifiedInV2
-          ? "Playwright typed X/Y/Z cells (E1:G4) in the sheets iframe editor and saved v2 with Control+s; verified in committed workbook"
-          : "host save path driven with frame protocol messages; cell edit in the editor not driven";
+      loopState.steps.webSave.detail = v2ContainsExpectedXyz
+        ? "Playwright typed X/Y/Z cells (E1:G4) through the sheets frame name box and saved v2 via page-level Control+s with focus in the frame; committed v2 bytes and sha256 verified"
+        : "page-level Control+s saved v2, but committed v2 bytes did not contain expected X/Y/Z cell values";
+      if (webUiDriven && !v2ContainsExpectedXyz) {
+        loopState.steps.webSave.status = "FAIL";
+      }
     }
 
     const versionsAfterSaveRes = await callTracerApi({
@@ -2541,18 +2568,21 @@ async function runLoop1({
       params: { documentID: documentId },
       token,
     });
-    const versionsAfterSave = versionsAfterSaveRes.data?.versions?.length ?? 0;
+    const versionsListAfterSave = versionsAfterSaveRes.data?.versions ?? [];
+    const versionsAfterSave = versionsListAfterSave.length;
+    const v2VersionEntry = versionsListAfterSave.find((v) => Number(v.version) === 2) ?? null;
     loopState.versionCounts.versionsAfterSave = versionsAfterSave;
     loopState.details.v2Sha256 = v2Checksum;
     loopState.details.webUiDriven = webUiDriven;
     loopState.details.webSaveSource = webSaveSource;
     if (webUiError) loopState.details.webUiError = webUiError;
 
-    // 6. Verify workspace change feed (G5-01b/G5-02) delivers the new v2 version (protocol check, F1a).
+    // 6. Verify workspace change feed (G5-01b/G5-02) delivers the new v2 version (protocol check, F1a / G710-BE-1).
     //    `DocumentChangeListSDO` (`server/internal/handler/document_changes.go:42-70`,
     //    `server/internal/handler/dto/sdo/document_changes.go:7-47`) serializes
     //    `current_version`, `change_kind: "upsert"`, `kind: "file"`, `revision`, `version_id`
-    //    (with no `version` or `checksum_sha256` field).
+    //    (with no `version` or `checksum_sha256` field). We match the SDO fields and cross-check
+    //    `version_id` against `listDocumentVersions` v2.
     currentStep = "changeFeed";
     const feedPages = [];
     let feedCursor = initialCursor;
@@ -2573,6 +2603,7 @@ async function runLoop1({
     const hitInFeed = matchDocumentVersionInChangeFeed(feedPages, {
       documentId,
       expectedVersion: 2,
+      expectedVersionId: v2VersionEntry?.id ?? "",
       previousRevision: v1Revision,
     });
     const changeFeedDeliveredV2 = Boolean(hitInFeed);
@@ -2588,7 +2619,7 @@ async function runLoop1({
       summary: "Protocol-level 0-version AI turn + v2 commit + workspace change feed check",
     };
 
-    // 7. Observe the app's own working copy / binding.json reload to v2 via SyncRuntime (G710-L3).
+    // 7. Observe the app's own working copy / binding.json reload to v2 via SyncRuntime (G710-L3 / G710-BE-2).
     currentStep = "appReloadV2";
     let appObservedV2ViaFeed = false;
     let appObservedV2Source = "protocol";
@@ -2628,7 +2659,7 @@ async function runLoop1({
       versionsBeforeTurn,
       versionsAfterTurn,
       versionsAfterSave,
-      v2ContainsExpectedXyz: true,
+      v2ContainsExpectedXyz,
       changeFeedDeliveredV2,
       aiRealUpstream: aiSegment.status === "PASS",
       aiFailureReason: aiSegment.status === "FAIL" ? aiSegment.reason : "",
@@ -2804,7 +2835,11 @@ async function runLoop2({
       },
       allowStatuses: [403, 503],
     });
-    const aiEditQualitySegment = classifyAiResponse(aiTurnRes);
+    const aiEditQualitySegment = classifyAiResponse(aiTurnRes, null, {
+      allowRealUpstream: Boolean(
+        fetchImpl?.allowRealAiUpstream || process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM === "1",
+      ),
+    });
     loopState.details.aiEditQualitySegment = aiEditQualitySegment;
 
     // 3. G6-A03 early evidence: verify the AI turn created 0 server versions,
@@ -2900,8 +2935,28 @@ async function runLoop2({
         expectedSha256: docxPair.v2Sha256,
       });
       appSavedV2 = Boolean(saved?.saved && Number(saved?.binding?.baseVersion ?? 0) === 2);
-      commitIntentOutcome = appSavedV2 ? "committed" : "not_committed";
-      loopState.steps.saveV2 = { source: "app", status: appSavedV2 ? "PASS" : "FAIL" };
+      if (saved?.idempotencyKey) {
+        const intentAfterAppSaveRes = await callTracerApi({
+          apiOrigin,
+          fetchImpl,
+          name: "lookupCommitIntent",
+          params: { documentID: documentId },
+          token,
+          headers: { "Idempotency-Key": saved.idempotencyKey },
+          allowStatuses: [410],
+        });
+        const commitIntentAfterSave = interpretCommitIntentLookup(intentAfterAppSaveRes);
+        loopState.details.commitIntentAfterSave = commitIntentAfterSave;
+        loopState.details.commitIntentReceiptSource = "endpoint_lookup";
+        commitIntentOutcome = commitIntentAfterSave.outcome;
+      } else {
+        loopState.details.commitIntentReceiptSource = "binding_and_version_read";
+        commitIntentOutcome = appSavedV2 ? "committed" : "not_committed";
+      }
+      loopState.steps.saveV2 = {
+        source: "app",
+        status: appSavedV2 && commitIntentOutcome === "committed" ? "PASS" : "FAIL",
+      };
     } else {
       saveSource = "protocol";
       loopState.steps.saveV2 = { source: "protocol", status: "PENDING" };
@@ -3158,11 +3213,14 @@ async function runLoop3({
       loopState.versionCounts.serverVersionsWhileCut = serverVersionsWhileCut;
       const bindingWhileCut = cutRes?.bindingWhileCut ?? null;
       const intentFilesWhileCut = cutRes?.intentFilesWhileCut ?? [];
+      const bindingAtV1WhileCut = Boolean(
+        bindingWhileCut && Number(bindingWhileCut.baseVersion ?? 0) === 1,
+      );
       const appHeldOfflineIntentWhileCut = Boolean(
-        (bindingWhileCut &&
-          (bindingWhileCut.state === "offline" || bindingWhileCut.state === "paused_offline") &&
-          Number(bindingWhileCut.baseVersion ?? 0) === 1) ||
-          intentFilesWhileCut.length > 0,
+        bindingAtV1WhileCut &&
+          (bindingWhileCut.state === "offline" ||
+            bindingWhileCut.state === "paused_offline" ||
+            intentFilesWhileCut.length > 0),
       );
       loopState.details.serverVersionsWhileCut = serverVersionsWhileCut;
       loopState.details.appHeldOfflineIntentWhileCut = appHeldOfflineIntentWhileCut;
