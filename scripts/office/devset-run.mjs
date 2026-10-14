@@ -1118,7 +1118,11 @@ async function proveRealPanelEndToEnd({
   xlsxMount,
   docxMount,
   docxOracle,
+  // Debug aid: run only the first N combinations (0 = all four). The measured
+  // runs use all four; the assert below counts whatever was asked for.
+  panelLimit = 0,
 }) {
+  const panelSpecs = panelLimit > 0 ? PANEL_CASE_SPECS.slice(0, panelLimit) : PANEL_CASE_SPECS;
   const viteBin = path.join(frameDir, 'node_modules/vite/bin/vite.js');
   if (!fs.existsSync(viteBin)) {
     throw new Error(`Missing ${viteBin} in fork worktree ${frameDir}`);
@@ -1646,12 +1650,17 @@ main().catch((err) => {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     const panelProofs = [];
     try {
-      for (const spec of PANEL_CASE_SPECS) {
+      for (const spec of panelSpecs) {
         const caseDoc = cases.find((c) => c.id === spec.caseId);
         if (!caseDoc) {
           throw new Error(`dev set has no case ${spec.caseId} for the panel run`);
         }
         const page = await browser.newPage();
+        const diagnostics = [];
+        page.on('pageerror', (err) => diagnostics.push(`pageerror: ${err}`));
+        page.on('console', (msg) => {
+          if (msg.type() === 'error') diagnostics.push(`console: ${msg.text()}`);
+        });
         const beforeCount = proxyRequests.length;
         const t0 = performance.now();
         const sel = spec.selectedBlockIndex === undefined ? '' : `&sel=${spec.selectedBlockIndex}`;
@@ -1676,18 +1685,35 @@ main().catch((err) => {
         await box.fill(caseDoc.prompt);
         await box.press('Enter');
 
-        await page.waitForFunction(
-          () => {
-            const msgs = document.querySelectorAll('.ai-msg-assistant');
-            if (!msgs || msgs.length === 0) return false;
-            const last = msgs[msgs.length - 1];
-            if (last.classList.contains('ai-msg-streaming')) return false;
-            const txt = (last.textContent ?? '').trim();
-            return txt.length > 0;
-          },
-          null,
-          { timeout: 240000 },
-        );
+        try {
+          await page.waitForFunction(
+            () => {
+              const msgs = document.querySelectorAll('.ai-msg-assistant');
+              if (!msgs || msgs.length === 0) return false;
+              const last = msgs[msgs.length - 1];
+              if (last.classList.contains('ai-msg-streaming')) return false;
+              const txt = (last.textContent ?? '').trim();
+              return txt.length > 0;
+            },
+            null,
+            { timeout: 240000 },
+          );
+        } catch (err) {
+          // A panel that never answers is the failure this proof exists for:
+          // report what the page showed and what the proxy saw, so the run
+          // log explains it without a second reproduction.
+          const bodyText = await page
+            .locator('body')
+            .innerText()
+            .catch(() => '<no body>');
+          const seen = proxyRequests.slice(beforeCount);
+          throw new Error(
+            `panel run ${spec.caseId} (${spec.module}/${spec.lang}) produced no assistant answer: ${err?.message ?? err}\n` +
+              `facade calls: ${seen.filter((r) => r.path.endsWith('/ai/uniwork/chat/completions')).length} of ${seen.length} proxied requests\n` +
+              `page text: ${bodyText.trim().slice(0, 1200)}\n` +
+              `diagnostics: ${diagnostics.slice(0, 8).join(' | ') || 'none'}`,
+          );
+        }
         const replyText = await page
           .locator('.ai-msg-assistant')
           .last()
@@ -1749,9 +1775,9 @@ main().catch((err) => {
     }
 
     const unreached = panelProofs.filter((p) => !p.facadeRouteCalled || !p.allAuthBearer);
-    if (panelProofs.length !== PANEL_CASE_SPECS.length || unreached.length > 0) {
+    if (panelProofs.length !== panelSpecs.length || unreached.length > 0) {
       throw new Error(
-        `panel proof failed: ${panelProofs.length}/${PANEL_CASE_SPECS.length} combinations ran; ` +
+        `panel proof failed: ${panelProofs.length}/${panelSpecs.length} combinations ran; ` +
           `without a bearer-authenticated façade call: ${unreached.map((p) => p.caseId).join(', ') || 'none'}`,
       );
     }
@@ -1870,7 +1896,8 @@ async function main() {
       'Usage: node scripts/office/devset-run.mjs (--server-url <origin> | --server-sha <commit> --db-url <postgres-url>) ' +
         '[--server-port <port>] [--db-url <postgres-url>] [--frame-dir <path>] [--out <file.json>]\n' +
         '  --server-sha builds, migrates and starts the server at that commit in a temporary worktree\n' +
-        '  (the @1 baseline is 4df589a37, the last commit before the office_uniwork_ai@2 pack), then removes it.\n',
+        '  (the @1 baseline is 4df589a37, the last commit before the office_uniwork_ai@2 pack), then removes it.\n' +
+        '  --panel-limit <n> and --panel-only are debugging aids for the panel harness; the measured runs use neither.\n',
     );
     return;
   }
@@ -1885,6 +1912,10 @@ async function main() {
   const dbUrl = getArg('--db-url');
   const frameDir = getArg('--frame-dir');
   const outPath = getArg('--out');
+  // Debug aid for the panel harness: 0 (default) runs all four combinations.
+  const panelLimit = Number(getArg('--panel-limit') || '0');
+  // Debug aid: measure only the panel combinations, skip the 20 case runs.
+  const panelOnly = args.includes('--panel-only');
 
   let serverUrl = getArg('--server-url').replace(/\/+$/, '');
   let shaServer = null;
@@ -1940,6 +1971,7 @@ async function main() {
         xlsxMount,
         docxMount,
         docxOracle,
+        panelLimit,
       });
       process.stdout.write(
         `Panel UI proof complete: ${panelProofs.length} case runs through the panel, ` +
@@ -1948,7 +1980,7 @@ async function main() {
     }
 
     const caseResults = [];
-    for (const c of cases) {
+    for (const c of panelOnly ? [] : cases) {
       const docMount = c.format === 'xlsx' ? xlsxMount : docxMount;
       const res = await runCaseOnFacade({
         caseDoc: c,
