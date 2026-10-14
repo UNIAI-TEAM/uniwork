@@ -9,9 +9,11 @@ import (
 )
 
 // Counter budgets events that are not one HTTP request each, such as the
-// write tools one MCP call runs (ADR 0033). It shares the limiter's script,
-// timeout and in-flight cap, and fails open the same way: it slows a runaway
-// loop, it does not authorize anything.
+// write tools one MCP call runs (ADR 0033). It counts through the limiter's
+// script and timeout, caps its own outstanding Redis calls at the limiter's
+// size (rateLimitMaxInFlight) with a channel it does not share with any
+// limiter, and fails open the same way: it slows a runaway loop, it does not
+// authorize anything.
 type Counter struct {
 	rdb      *redis.Client
 	bucket   string
