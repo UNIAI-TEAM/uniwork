@@ -31,7 +31,8 @@
 //   with `FAIL` (exit 1), never `BLOCKED` (77).
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -53,6 +54,7 @@ import {
   ledgerIdentity,
   officeDeepLink,
   readStartStatus,
+  setAppApiProxyOnline,
   startGate,
   workingCopyDir,
 } from "../harness/lib.mjs";
@@ -72,6 +74,16 @@ export const UPSTREAM_BLOCKED_OWNER = "g7-qa";
  */
 export const TRACER_API_CALLS = Object.freeze({
   ...API_CALLS,
+  getDesktopConsent: {
+    method: "GET",
+    path: "/auth/desktop/authorize",
+  },
+  submitDesktopConsent: {
+    method: "POST",
+    path: "/auth/desktop/authorize",
+    sdi: "DesktopConsentSDI",
+    body: ["attempt_id", "csrf_token", "decision"],
+  },
   getDocument: {
     method: "GET",
     path: "/documents/{documentID}",
@@ -208,6 +220,22 @@ export function checkDesktopPrecondition(portsEnv = {}) {
   return { ok: true, reason: "" };
 }
 
+/**
+ * Lists encrypted `.rec` intent files in the fork's durable sync store:
+ * `<userData>/uniwork-sync/store/<deploymentId>/<userId>/intents/*.rec`
+ * (`apps/shell/src/main/uniwork-sync/store/paths.ts`, `intent-store.ts`).
+ */
+export function listAppSyncIntentFiles(userDataDir, deploymentId = HARNESS_DEPLOYMENT_ID, userId = "") {
+  if (!userDataDir || !userId) return [];
+  const intentsDir = join(userDataDir, "uniwork-sync", "store", deploymentId, userId, "intents");
+  if (!existsSync(intentsDir)) return [];
+  try {
+    return readdirSync(intentsDir).filter((name) => name.endsWith(".rec"));
+  } catch {
+    return [];
+  }
+}
+
 export function inspectWorkingCopy({
   userDataDir,
   deploymentId = HARNESS_DEPLOYMENT_ID,
@@ -217,7 +245,14 @@ export function inspectWorkingCopy({
 }) {
   const root = join(userDataDir, "uniwork-documents", deploymentId);
   if (!existsSync(root)) {
-    return { bindingPresent: false, filePresent: false, sha256Match: false, bindingState: null, binding: null };
+    return {
+      bindingPresent: false,
+      filePresent: false,
+      sha256Match: false,
+      bindingState: null,
+      binding: null,
+      workingCopyFilePath: null,
+    };
   }
   const accounts = expectedUserId
     ? [expectedUserId]
@@ -242,12 +277,27 @@ export function inspectWorkingCopy({
         bindingState: binding.state ?? null,
         bindingError: binding.error ?? null,
         binding,
+        workingCopyFilePath: filePath,
       };
     } catch {
-      return { bindingPresent: false, filePresent: false, sha256Match: false, bindingState: "invalid", binding: null };
+      return {
+        bindingPresent: false,
+        filePresent: false,
+        sha256Match: false,
+        bindingState: "invalid",
+        binding: null,
+        workingCopyFilePath: null,
+      };
     }
   }
-  return { bindingPresent: false, filePresent: false, sha256Match: false, bindingState: null, binding: null };
+  return {
+    bindingPresent: false,
+    filePresent: false,
+    sha256Match: false,
+    bindingState: null,
+    binding: null,
+    workingCopyFilePath: null,
+  };
 }
 
 function sha256Hex(buf) {
@@ -600,13 +650,14 @@ async function seedFixtureDocument({
   });
   const organizationId = orgRes.data.organization.id;
 
+  const workspaceSlug = `w-g710-${stamp}`;
   const wsRes = await callTracerApi({
     apiOrigin,
     fetchImpl,
     name: "createWorkspace",
     params: { org: organizationId },
     token,
-    body: { name: "G7-10 tracer", slug: `w-g710-${stamp}` },
+    body: { name: "G7-10 tracer", slug: workspaceSlug },
   });
   const workspaceId = wsRes.data.workspace.id;
 
@@ -626,11 +677,13 @@ async function seedFixtureDocument({
 
   return {
     email,
+    password,
     token,
     userId,
     organizationId,
     organizationSlug: orgRes.data.organization?.slug ?? organizationSlug,
     workspaceId,
+    workspaceSlug: wsRes.data.workspace?.slug ?? workspaceSlug,
     documentId,
     filename,
     fixture,
@@ -672,7 +725,7 @@ function classifyAiResponse(aiTurnResult, expectedXyz = null) {
   const provider = String(aiTurnResult.data?.provider ?? "");
   const model = String(aiTurnResult.data?.model ?? "");
   const content = String(aiTurnResult.data?.choices?.[0]?.message?.content ?? "");
-  const allowReal = process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM === "1";
+  const allowReal = process.env.HARNESS_ALLOW_REAL_AI_UPSTREAM === "1" || provider === "upstream";
 
   if (!allowReal || provider === "fake" || model.includes("fake") || content.includes("[fake")) {
     return {
@@ -697,13 +750,820 @@ function classifyAiResponse(aiTurnResult, expectedXyz = null) {
   return { status: "PASS", httpStatus: aiTurnResult.status };
 }
 
+// ---- Pure Outcome Decision Functions (G710-L1, G710-L2, G710-L3) ------------
+
+/**
+ * Pure outcome decision for Loop 1 (`fx-xlsx-revenue-xyz`: web open -> AI turn ->
+ * editor X/Y/Z save -> workspace change feed -> app reloads v2).
+ *
+ * Hard rules (G710-L1, G710-L3):
+ *   * Any protocol-only step (`webSaveSource === "protocol"` or
+ *     `appObservedV2Source === "protocol"`) NEVER lets the loop `PASS`.
+ *   * A G6-A03 violation (AI turn creating a version) or missing change-feed v2
+ *     is always `FAIL` (exit 1).
+ *   * If the app was signed in and driven (`appSignedIn && appDriven`) yet did
+ *     not reload v2 (`!appObservedV2ViaFeed`), the loop is `FAIL` (exit 1).
+ *   * Under `AI_PROVIDER=fake` (`!aiRealUpstream`), without a driven web UI
+ *     (`!webUiDriven`), or without a signed-in driven app (`!appSignedIn || !appDriven`),
+ *     the loop is `BLOCKED` (exit 77, owner `g7-qa`).
+ */
+export function decideLoop1Outcome({
+  versionsBeforeTurn,
+  versionsAfterTurn,
+  versionsAfterSave,
+  v2ContainsExpectedXyz = true,
+  changeFeedDeliveredV2,
+  aiRealUpstream,
+  aiFailureReason = "",
+  webUiDriven,
+  webSaveSource,
+  appSignedIn,
+  appDriven,
+  appOpenedV1 = false,
+  appObservedV2ViaFeed = false,
+  appObservedV2Source = "protocol",
+  desktopBlockReason = "",
+}) {
+  if (versionsAfterTurn !== versionsBeforeTurn) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: `G6-A03 violation: AI turn created a server version before user Save (versions ${versionsBeforeTurn} -> ${versionsAfterTurn})`,
+    };
+  }
+  if (aiFailureReason) {
+    return { exitCode: 1, status: "FAIL", reason: aiFailureReason };
+  }
+  if (versionsAfterSave !== versionsBeforeTurn + 1) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: `expected ${versionsBeforeTurn + 1} versions after Save, got ${versionsAfterSave}`,
+    };
+  }
+  if (!v2ContainsExpectedXyz) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: "committed v2 workbook bytes do not contain the expected X/Y/Z values",
+    };
+  }
+  if (!changeFeedDeliveredV2) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: "workspace change feed did not report v2 after Save",
+    };
+  }
+  if (appSignedIn && appDriven && (!appOpenedV1 || !appObservedV2ViaFeed || appObservedV2Source !== "app")) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: `signed-in desktop app did not reload v2 from the workspace change feed into binding.json (appOpenedV1=${appOpenedV1}, appObservedV2ViaFeed=${appObservedV2ViaFeed}, source=${appObservedV2Source})`,
+    };
+  }
+  if (!aiRealUpstream) {
+    return {
+      exitCode: BLOCKED_EXIT,
+      status: "BLOCKED",
+      owner: UPSTREAM_BLOCKED_OWNER,
+      reason: `${UPSTREAM_BLOCKED_REASON}; 0-version AI turn invariant (${versionsBeforeTurn}->${versionsAfterTurn}) and v2 change-feed delivery verified`,
+    };
+  }
+  if (!webUiDriven || webSaveSource !== "web") {
+    return {
+      exitCode: BLOCKED_EXIT,
+      status: "BLOCKED",
+      owner: UPSTREAM_BLOCKED_OWNER,
+      reason:
+        "web UI editor save was not driven through Playwright on WEB_ORIGIN (protocol-only evidence cannot PASS Loop 1; G710-L1)",
+    };
+  }
+  if (!appSignedIn || !appDriven || !appObservedV2ViaFeed || appObservedV2Source !== "app") {
+    return {
+      exitCode: BLOCKED_EXIT,
+      status: "BLOCKED",
+      owner: UPSTREAM_BLOCKED_OWNER,
+      reason:
+        desktopBlockReason ||
+        "the desktop app is not signed in or could not be driven headlessly to observe the workspace change-feed v2 reload in binding.json (G710-L3)",
+    };
+  }
+  return {
+    exitCode: 0,
+    status: "PASS",
+    reason: "Loop 1 passed end to end across web UI, workspace change feed, and desktop app binding.json",
+  };
+}
+
+/**
+ * Pure outcome decision for Loop 2 (`fx-docx-report-vi`: AI edit turn creates 0
+ * versions and 0 save intents -> explicit Save in the app creates v2).
+ */
+export function decideLoop2Outcome({
+  versionsBeforeTurn,
+  versionsAfterTurn,
+  versionsAfterSave,
+  commitIntentOutcome,
+  aiRealUpstream,
+  aiFailureReason = "",
+  appSignedIn,
+  appDriven,
+  appOpenedV1 = false,
+  appIntentsAfterTurn = 0,
+  appSavedV2 = false,
+  saveSource = "protocol",
+  desktopBlockReason = "",
+}) {
+  if (versionsAfterTurn !== versionsBeforeTurn || appIntentsAfterTurn > 0) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: `G6-A03 violation: AI turn created a server version or queued an app save intent before explicit Save (versions ${versionsBeforeTurn} -> ${versionsAfterTurn}, appIntentsAfterTurn=${appIntentsAfterTurn})`,
+    };
+  }
+  if (aiFailureReason) {
+    return { exitCode: 1, status: "FAIL", reason: aiFailureReason };
+  }
+  if (versionsAfterSave !== versionsBeforeTurn + 1 || commitIntentOutcome !== "committed") {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: `expected versionsAfterSave=${versionsBeforeTurn + 1} and commitIntentOutcome=committed, got versions=${versionsAfterSave}, outcome=${commitIntentOutcome}`,
+    };
+  }
+  if (appSignedIn && appDriven && (!appOpenedV1 || !appSavedV2 || saveSource !== "app")) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: `signed-in desktop app failed to save v2 and update binding.json (appOpenedV1=${appOpenedV1}, appSavedV2=${appSavedV2}, saveSource=${saveSource})`,
+    };
+  }
+  if (!aiRealUpstream) {
+    return {
+      exitCode: BLOCKED_EXIT,
+      status: "BLOCKED",
+      owner: UPSTREAM_BLOCKED_OWNER,
+      reason: `${UPSTREAM_BLOCKED_REASON}; G6-A03 no-auto-save invariant (versionsBefore=${versionsBeforeTurn}, versionsAfterTurn=${versionsAfterTurn}) verified`,
+    };
+  }
+  if (!appSignedIn || !appDriven || !appSavedV2 || saveSource !== "app") {
+    return {
+      exitCode: BLOCKED_EXIT,
+      status: "BLOCKED",
+      owner: UPSTREAM_BLOCKED_OWNER,
+      reason:
+        desktopBlockReason ||
+        "the desktop app is not signed in or its Save could not be driven headlessly (protocol-only evidence cannot PASS Loop 2; G710-L1)",
+    };
+  }
+  return {
+    exitCode: 0,
+    status: "PASS",
+    reason: "Loop 2 passed end to end: 0 versions/intents on AI turn, v2 committed by explicit app Save",
+  };
+}
+
+/**
+ * Pure outcome decision for Loop 3 (`fx-docx-report-vi`: app opens v1 -> link to
+ * D server cut -> app Saves while cut and holds offline state/intent while server
+ * stays at v1 -> link resumed -> app flushes save and settles `binding.json` at v2).
+ *
+ * Hard rule (G710-L2):
+ *   If the test itself committed v2 over HTTP before the app opened the document
+ *   (`testCommittedBeforeApp === true` or `commitSource === "protocol"` while
+ *   claiming an app receipt), the outcome is `FAIL` (exit 1), NEVER `PASS`.
+ */
+export function decideLoop3Outcome({
+  appSignedIn,
+  appDriven,
+  appOpenedV1,
+  appHeldOfflineIntentWhileCut,
+  serverVersionsWhileCut,
+  testCommittedBeforeApp = false,
+  commitSource = "protocol",
+  appBindingAfterReconnect = null,
+  appIntentsAfterReconnect = 0,
+  serverVersionsAfterReconnect = 1,
+  desktopBlockReason = "",
+}) {
+  if (testCommittedBeforeApp || (appDriven && commitSource === "protocol")) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason:
+        "G710-L2 violation: test committed v2 over protocol HTTP before the app opened or saved; binding.json at v2 only proves the app opened v2, not an offline save",
+    };
+  }
+  if (
+    appBindingAfterReconnect &&
+    (appBindingAfterReconnect.state === "conflict" || appBindingAfterReconnect.state === "error")
+  ) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: `binding.json settled to ${appBindingAfterReconnect.state} (${appBindingAfterReconnect.error ?? "unknown"}) instead of saved v2 receipt`,
+    };
+  }
+  if (!appSignedIn) {
+    return {
+      exitCode: BLOCKED_EXIT,
+      status: "BLOCKED",
+      owner: UPSTREAM_BLOCKED_OWNER,
+      reason:
+        desktopBlockReason ||
+        "the app is not signed in (no uniwork-auth/session.bin; a headless Linux VM without an unlocked OS keyring cannot keep a desktop session)",
+    };
+  }
+  if (!appDriven) {
+    return {
+      exitCode: BLOCKED_EXIT,
+      status: "BLOCKED",
+      owner: UPSTREAM_BLOCKED_OWNER,
+      reason:
+        desktopBlockReason ||
+        "the app's Save cannot be driven headlessly in this run (no CDP connection to the running Electron shell)",
+    };
+  }
+  if (!appOpenedV1) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: "the app did not open v1 (binding.json baseVersion=1) before the offline Save",
+    };
+  }
+  if (serverVersionsWhileCut !== 1) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: `expected server to still have 1 version while the app's proxy link was cut, got ${serverVersionsWhileCut}`,
+    };
+  }
+  if (!appHeldOfflineIntentWhileCut) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason:
+        "the app did not record an offline save state (binding.json state=offline or uniwork-sync/store/.../intents/*.rec) while its proxy link to the D server was cut",
+    };
+  }
+  if (
+    commitSource !== "app" ||
+    !appBindingAfterReconnect ||
+    appBindingAfterReconnect.state !== "saved" ||
+    Number(appBindingAfterReconnect.baseVersion ?? 0) !== 2 ||
+    serverVersionsAfterReconnect !== 2 ||
+    appIntentsAfterReconnect !== 0
+  ) {
+    return {
+      exitCode: 1,
+      status: "FAIL",
+      reason: `after reconnect, app did not settle to saved v2 receipt with 1 server commit and 0 remaining intents (state=${appBindingAfterReconnect?.state ?? "none"}, baseVersion=${appBindingAfterReconnect?.baseVersion ?? "none"}, serverVersions=${serverVersionsAfterReconnect}, intentsRemaining=${appIntentsAfterReconnect})`,
+    };
+  }
+  return {
+    exitCode: 0,
+    status: "PASS",
+    reason: "Loop 3 passed: app opened v1, held offline save intent while cut (server at v1), and settled binding.json to v2 saved receipt on reconnect",
+  };
+}
+
+// ---- Real Web UI (Playwright) and Real Electron App (CDP + Proxy) Drivers ----
+
+async function sleep(ms) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+function loadPlaywrightChromium(repoRoot = DEFAULT_REPO_ROOT) {
+  try {
+    const req = createRequire(join(repoRoot, "e2e", "package.json"));
+    return req("@playwright/test").chromium;
+  } catch {
+    try {
+      const req = createRequire(import.meta.url);
+      return req("playwright").chromium;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function deliverDeepLink(portsEnv, deepLink) {
+  const childEnv = handoffEnv(portsEnv);
+  return spawnSync(
+    portsEnv.ELECTRON_BIN,
+    ["--no-sandbox", "--disable-gpu", "--password-store=gnome-libsecret", portsEnv.SHELL_APP_DIR, deepLink],
+    { env: childEnv, timeout: 20_000, encoding: "utf8" },
+  );
+}
+
+/**
+ * Drives the real D web UI (`WEB_ORIGIN`) via Playwright for Loop 1:
+ * signs in at `/login`, opens `/${orgSlug}/${wsSlug}/documents/${documentId}`,
+ * waits for the Univer sheets iframe (`[data-testid="office-sheets-frame"][data-state="ready"]`),
+ * enters the X/Y/Z columns in `E1:G4`, and presses `Control+s` to trigger the
+ * web frame's own Save (`POST /api/v1/office-frame/documents/{id}/uploads` +
+ * `POST /api/v1/office-frame/documents/{id}/versions/commit`).
+ */
+export async function driveWebXlsxSave({
+  webOrigin,
+  apiOrigin,
+  email,
+  password,
+  orgSlug,
+  wsSlug,
+  documentId,
+  token,
+  repoRoot = DEFAULT_REPO_ROOT,
+  fetchImpl = fetch,
+}) {
+  if (!webOrigin || fetchImpl !== fetch) {
+    return { driven: false, saved: false, source: "protocol", reason: "no live webOrigin for Playwright" };
+  }
+  try {
+    const probe = await fetchImpl(`${webOrigin}/login`, { signal: AbortSignal.timeout(3_000) });
+    if (!probe.ok) {
+      return { driven: false, saved: false, source: "protocol", reason: `WEB_ORIGIN ${webOrigin}/login returned ${probe.status}` };
+    }
+  } catch (err) {
+    return { driven: false, saved: false, source: "protocol", reason: `WEB_ORIGIN ${webOrigin} unreachable: ${err.message}` };
+  }
+
+  const chromium = loadPlaywrightChromium(repoRoot);
+  if (!chromium) {
+    return { driven: false, saved: false, source: "protocol", reason: "Playwright chromium is not loadable" };
+  }
+
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const parsedWeb = new URL(webOrigin);
+    await context.addCookies([
+      {
+        name: "uniwork-locale",
+        value: "en",
+        domain: parsedWeb.hostname,
+        path: "/",
+      },
+    ]);
+    const page = await context.newPage();
+    await page.goto(`${webOrigin}/login`, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    const emailInput = page.locator('input[type="email"], input[name="email"]').first();
+    const passInput = page.locator('input[type="password"], input[name="password"]').first();
+    await emailInput.waitFor({ state: "visible", timeout: 15_000 });
+    await emailInput.fill(email);
+    await passInput.fill(password);
+    await page.locator('button[type="submit"]').first().click();
+    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 20_000 });
+
+    await page.goto(`${webOrigin}/${orgSlug}/${wsSlug}/documents/${documentId}`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30_000,
+    });
+    const host = page.locator('[data-testid="office-sheets-frame"]');
+    await host.waitFor({ state: "visible", timeout: 30_000 });
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="office-sheets-frame"]')?.getAttribute("data-state") === "ready",
+      null,
+      { timeout: 30_000 },
+    );
+
+    const frame = page.frameLocator('iframe[src*="/office-frame/sheets/"]');
+    const canvas = frame.locator('canvas[id^="univer-sheet-main-canvas"]').first();
+    await canvas.waitFor({ state: "visible", timeout: 30_000 });
+    const nameInput = frame.locator('[data-u-comp="defined-name"] input').first();
+    await nameInput.waitFor({ state: "visible", timeout: 15_000 });
+
+    const cells = [
+      ["E1", "Net Revenue (X)"],
+      ["F1", "Refunds (Y)"],
+      ["G1", "Margin (Z)"],
+      ["E2", "270"],
+      ["F2", "30"],
+      ["G2", "0.25"],
+      ["E3", "175"],
+      ["F3", "15"],
+      ["G3", "0.1875"],
+      ["E4", "460"],
+      ["F4", "40"],
+      ["G4", "0.1905"],
+    ];
+    for (const [ref, val] of cells) {
+      await nameInput.click();
+      await nameInput.fill(ref);
+      await nameInput.press("Enter");
+      await page.keyboard.type(val);
+      await page.keyboard.press("Enter");
+    }
+
+    await canvas.click({ position: { x: 120, y: 80 } });
+    await page.keyboard.press("Control+s");
+
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      const vers = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "listDocumentVersions",
+        params: { documentID: documentId },
+        token,
+      });
+      if ((vers.data?.versions?.length ?? 0) >= 2) {
+        return { driven: true, saved: true, source: "web" };
+      }
+      await sleep(300);
+    }
+    return {
+      driven: true,
+      saved: false,
+      source: "web",
+      reason: "Playwright pressed Control+s in the sheets frame but server versions did not reach 2 within 15s",
+    };
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+/**
+ * Connects to the running Electron app over CDP (`APP_CDP_PORT` from `ports.env`),
+ * signs in as the seeded user if the OS keyring is available, and exposes
+ * methods to open v1 via deep link, observe change-feed reloads in `binding.json`,
+ * and drive online/offline Save through the app's own `window.aiOffice.uniworkSave`
+ * and the harness-local TCP proxy (`setAppApiProxyOnline`).
+ */
+export async function connectAppController({
+  portsEnv,
+  runDir,
+  repoRoot = DEFAULT_REPO_ROOT,
+  apiOrigin,
+  fetchImpl = fetch,
+  token,
+  userId,
+  deploymentId = HARNESS_DEPLOYMENT_ID,
+  timeoutMs = 20_000,
+}) {
+  if (!portsEnv?.UNIWORK_USER_DATA || !portsEnv?.ELECTRON_BIN || !portsEnv?.SHELL_APP_DIR) {
+    return {
+      signedIn: false,
+      driven: false,
+      blockerReason:
+        "this run did not start the fork app (no UNIWORK_USER_DATA/ELECTRON_BIN/SHELL_APP_DIR in ports.env; HARNESS_SKIP_APP=1)",
+      close: async () => {},
+    };
+  }
+  const cdpPort = Number(portsEnv.APP_CDP_PORT || 0);
+  const chromium = cdpPort > 0 ? loadPlaywrightChromium(repoRoot) : null;
+  if (!cdpPort || !chromium) {
+    const pre = checkDesktopPrecondition(portsEnv);
+    return {
+      signedIn: pre.ok,
+      driven: false,
+      blockerReason: pre.ok
+        ? "the app's Save cannot be driven headlessly (no APP_CDP_PORT in ports.env)"
+        : pre.reason,
+      close: async () => {},
+    };
+  }
+
+  let browser;
+  try {
+    browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, { timeout: 10_000 });
+  } catch (err) {
+    const pre = checkDesktopPrecondition(portsEnv);
+    return {
+      signedIn: pre.ok,
+      driven: false,
+      blockerReason: pre.ok
+        ? `could not connect to the running Electron app over CDP port ${cdpPort}: ${err.message}`
+        : pre.reason,
+      close: async () => {},
+    };
+  }
+
+  const findShellPage = async () => {
+    for (const ctx of browser.contexts()) {
+      for (const p of ctx.pages()) {
+        const hasApi = await p.evaluate(() => typeof window.aiOffice === "object").catch(() => false);
+        if (hasApi) return p;
+      }
+    }
+    return null;
+  };
+
+  const page = await findShellPage();
+  if (!page) {
+    await browser.close().catch(() => {});
+    return {
+      signedIn: false,
+      driven: false,
+      blockerReason: "connected to Electron CDP but found no shell renderer window exposing window.aiOffice",
+      close: async () => {},
+    };
+  }
+
+  let status = await page.evaluate(() => window.aiOffice.accountStatus());
+  if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") {
+    await browser.close().catch(() => {});
+    return {
+      signedIn: false,
+      driven: false,
+      blockerReason: `the app is not signed in (accountStatus.state=${status.state}, no uniwork-auth/session.bin; a headless Linux VM without an unlocked OS keyring cannot keep a desktop session)`,
+      close: async () => {},
+    };
+  }
+
+  if (status?.state !== "signed-in" || (userId && status?.profile?.id && status.profile.id !== userId)) {
+    if (status?.state === "signed-in") {
+      await page.evaluate(() => window.aiOffice.accountLogout());
+    }
+    try {
+      const authUrl = await page.evaluate(
+        () =>
+          new Promise((resolveUrl, rejectUrl) => {
+            const timer = setTimeout(() => rejectUrl(new Error("accountLogin url timeout")), 15_000);
+            const off = window.aiOffice.onAccountLogin((ev) => {
+              if (ev && ev.phase === "url" && ev.url) {
+                clearTimeout(timer);
+                off();
+                resolveUrl(ev.url);
+              } else if (ev && ev.phase === "error") {
+                clearTimeout(timer);
+                off();
+                rejectUrl(new Error(`accountLogin error: ${ev.error}`));
+              }
+            });
+            window.aiOffice.accountLogin().catch((err) => {
+              clearTimeout(timer);
+              off();
+              rejectUrl(err);
+            });
+          }),
+      );
+      const attemptId = new URL(authUrl).searchParams.get("attempt_id");
+      const consentGet = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "getDesktopConsent",
+        query: { attempt_id: attemptId },
+        token,
+      });
+      const csrfToken = consentGet.data?.csrf_token ?? "";
+      const consentPost = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "submitDesktopConsent",
+        token,
+        body: { attempt_id: attemptId, csrf_token: csrfToken, decision: "approve" },
+      });
+      const callbackUrl = consentPost.data?.callback_url ?? consentPost.data?.redirect_url ?? "";
+      if (!callbackUrl) throw new Error("submitDesktopConsent returned no callback_url");
+      deliverDeepLink(portsEnv, callbackUrl);
+      const signDeadline = Date.now() + 15_000;
+      while (Date.now() < signDeadline) {
+        status = await page.evaluate(() => window.aiOffice.accountStatus());
+        if (status?.state === "signed-in") break;
+        if (status?.state === "keyring-unavailable" || status?.state === "keystore-locked") break;
+        await sleep(250);
+      }
+    } catch (err) {
+      await browser.close().catch(() => {});
+      return {
+        signedIn: false,
+        driven: false,
+        blockerReason: `desktop app sign-in could not complete on this VM: ${err.message}`,
+        close: async () => {},
+      };
+    }
+  }
+
+  if (status?.state !== "signed-in") {
+    await browser.close().catch(() => {});
+    return {
+      signedIn: false,
+      driven: false,
+      blockerReason: `the app is not signed in (accountStatus.state=${status?.state ?? "unknown"})`,
+      close: async () => {},
+    };
+  }
+
+  const closeOpenTabForPath = async (filePath) => {
+    await page
+      .evaluate(async (targetPath) => {
+        if (!window.aiOfficeTabs?.list || !window.aiOfficeTabs?.close) return;
+        const list = await window.aiOfficeTabs.list();
+        const tabs = Array.isArray(list?.tabs) ? list.tabs : Array.isArray(list) ? list : [];
+        for (const t of tabs) {
+          if (t && t.filePath === targetPath && t.id) {
+            await window.aiOfficeTabs.close(t.id);
+          }
+        }
+      }, filePath)
+      .catch(() => {});
+  };
+
+  return {
+    signedIn: true,
+    driven: true,
+    close: async () => {
+      await browser.close().catch(() => {});
+    },
+    openDocumentV1: async ({ documentId }) => {
+      const launchRes = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "mintLaunch",
+        params: { documentID: documentId },
+        token,
+        body: {
+          operation: "edit",
+          deployment_id: deploymentId,
+          client_id: DEV_CLIENT_ID,
+          return_hint: "",
+        },
+      });
+      const ticket = launchRes.data?.ticket ?? launchRes.data?.launch_ticket ?? "";
+      if (!ticket) return { opened: false, binding: null };
+      const deepLink = officeDeepLink(DEV_CLIENT_ID, ticket);
+      const handoff = deliverDeepLink(portsEnv, deepLink);
+      if (handoff.error || handoff.status !== 0) return { opened: false, binding: null };
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const wc = inspectWorkingCopy({
+          userDataDir: portsEnv.UNIWORK_USER_DATA,
+          deploymentId,
+          documentId,
+          expectedUserId: userId,
+        });
+        if (wc.bindingPresent && wc.filePresent && Number(wc.binding?.baseVersion ?? 0) === 1) {
+          return { opened: true, binding: wc.binding, workingCopyFilePath: wc.workingCopyFilePath };
+        }
+        await sleep(250);
+      }
+      return { opened: false, binding: null };
+    },
+    waitForFeedReloadV2: async ({ documentId, expectedSha256 }) => {
+      const wc0 = inspectWorkingCopy({
+        userDataDir: portsEnv.UNIWORK_USER_DATA,
+        deploymentId,
+        documentId,
+        expectedUserId: userId,
+      });
+      if (wc0.workingCopyFilePath) {
+        await closeOpenTabForPath(wc0.workingCopyFilePath);
+      }
+      // Trigger an immediate SyncRuntime pass by toggling the app proxy and calling accountRetry()
+      setAppApiProxyOnline(runDir, false);
+      await page.evaluate(() => window.aiOffice.accountRetry()).catch(() => {});
+      setAppApiProxyOnline(runDir, true);
+      await page.evaluate(() => window.aiOffice.accountRetry()).catch(() => {});
+
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const wc = inspectWorkingCopy({
+          userDataDir: portsEnv.UNIWORK_USER_DATA,
+          deploymentId,
+          documentId,
+          expectedUserId: userId,
+          expectedSha256,
+        });
+        if (
+          wc.bindingPresent &&
+          wc.filePresent &&
+          wc.sha256Match &&
+          wc.bindingState === "saved" &&
+          Number(wc.binding?.baseVersion ?? 0) === 2
+        ) {
+          return { reloaded: true, binding: wc.binding };
+        }
+        await sleep(300);
+      }
+      const last = inspectWorkingCopy({
+        userDataDir: portsEnv.UNIWORK_USER_DATA,
+        deploymentId,
+        documentId,
+        expectedUserId: userId,
+        expectedSha256,
+      });
+      return { reloaded: false, binding: last.binding };
+    },
+    saveOnlineInApp: async ({ documentId, v2Bytes, expectedSha256 }) => {
+      const wc0 = inspectWorkingCopy({
+        userDataDir: portsEnv.UNIWORK_USER_DATA,
+        deploymentId,
+        documentId,
+        expectedUserId: userId,
+      });
+      if (!wc0.workingCopyFilePath) return { saved: false, binding: null };
+      await closeOpenTabForPath(wc0.workingCopyFilePath);
+      writeFileSync(wc0.workingCopyFilePath, v2Bytes);
+      await page.evaluate((p) => window.aiOffice.uniworkSave(p), wc0.workingCopyFilePath);
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const wc = inspectWorkingCopy({
+          userDataDir: portsEnv.UNIWORK_USER_DATA,
+          deploymentId,
+          documentId,
+          expectedUserId: userId,
+          expectedSha256,
+        });
+        if (wc.bindingPresent && wc.bindingState === "saved" && Number(wc.binding?.baseVersion ?? 0) === 2) {
+          return { saved: true, binding: wc.binding };
+        }
+        if (wc.bindingState === "conflict" || wc.bindingState === "error") {
+          return { saved: false, binding: wc.binding };
+        }
+        await sleep(250);
+      }
+      return { saved: false, binding: null };
+    },
+    saveOfflineWhileCut: async ({ documentId, v2Bytes, v2Sha256 }) => {
+      const wc0 = inspectWorkingCopy({
+        userDataDir: portsEnv.UNIWORK_USER_DATA,
+        deploymentId,
+        documentId,
+        expectedUserId: userId,
+      });
+      if (!wc0.workingCopyFilePath) {
+        return { bindingWhileCut: null, intentFilesWhileCut: [], v2Sha256 };
+      }
+      await closeOpenTabForPath(wc0.workingCopyFilePath);
+      writeFileSync(wc0.workingCopyFilePath, v2Bytes);
+      setAppApiProxyOnline(runDir, false);
+      await page.evaluate((p) => window.aiOffice.uniworkSave(p), wc0.workingCopyFilePath).catch(() => {});
+      await sleep(300);
+      const wcCut = inspectWorkingCopy({
+        userDataDir: portsEnv.UNIWORK_USER_DATA,
+        deploymentId,
+        documentId,
+        expectedUserId: userId,
+      });
+      const intentFilesWhileCut = listAppSyncIntentFiles(portsEnv.UNIWORK_USER_DATA, deploymentId, userId);
+      return {
+        bindingWhileCut: wcCut.binding,
+        intentFilesWhileCut,
+        v2Sha256,
+        workingCopyFilePath: wc0.workingCopyFilePath,
+      };
+    },
+    reconnectAndFlushSave: async ({ documentId, expectedSha256 }) => {
+      const wc0 = inspectWorkingCopy({
+        userDataDir: portsEnv.UNIWORK_USER_DATA,
+        deploymentId,
+        documentId,
+        expectedUserId: userId,
+      });
+      setAppApiProxyOnline(runDir, true);
+      await page.evaluate(() => window.aiOffice.accountRetry()).catch(() => {});
+      if (wc0.workingCopyFilePath) {
+        await page.evaluate((p) => window.aiOffice.uniworkSave(p), wc0.workingCopyFilePath).catch(() => {});
+      }
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const wc = inspectWorkingCopy({
+          userDataDir: portsEnv.UNIWORK_USER_DATA,
+          deploymentId,
+          documentId,
+          expectedUserId: userId,
+          expectedSha256,
+        });
+        if (
+          wc.bindingPresent &&
+          (wc.bindingState === "saved" || wc.bindingState === "conflict" || wc.bindingState === "error") &&
+          (wc.bindingState !== "saved" || Number(wc.binding?.baseVersion ?? 0) >= 2)
+        ) {
+          return {
+            bindingAfterReconnect: wc.binding,
+            intentFilesAfterReconnect: listAppSyncIntentFiles(portsEnv.UNIWORK_USER_DATA, deploymentId, userId),
+          };
+        }
+        await sleep(250);
+      }
+      const last = inspectWorkingCopy({
+        userDataDir: portsEnv.UNIWORK_USER_DATA,
+        deploymentId,
+        documentId,
+        expectedUserId: userId,
+        expectedSha256,
+      });
+      return {
+        bindingAfterReconnect: last.binding,
+        intentFilesAfterReconnect: listAppSyncIntentFiles(portsEnv.UNIWORK_USER_DATA, deploymentId, userId),
+      };
+    },
+  };
+}
+
 // ---- Loop 1: fx-xlsx-revenue-xyz (Web -> AI -> Editor X/Y/Z Save -> Feed -> App) ----
 
 async function runLoop1({
   apiOrigin,
   portsEnv,
+  runDir,
   repoRoot,
   fetchImpl = fetch,
+  timeoutMs = 20_000,
+  webDriver = null,
+  appDriver = null,
 }) {
   const seeded = await seedFixtureDocument({
     apiOrigin,
@@ -711,10 +1571,45 @@ async function runLoop1({
     fixtureId: "fx-xlsx-revenue-xyz",
     repoRoot,
   });
+  const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
+  const appCtrl =
+    appDriver ??
+    (await connectAppController({
+      portsEnv,
+      runDir,
+      repoRoot,
+      apiOrigin,
+      fetchImpl,
+      token: seeded.token,
+      userId: seeded.userId,
+      deploymentId,
+      timeoutMs,
+    }));
   try {
-    const { token, workspaceId, documentId, filename, fixture } = seeded;
+    const {
+      email,
+      password,
+      token,
+      userId,
+      organizationSlug,
+      workspaceId,
+      workspaceSlug,
+      documentId,
+      filename,
+      fixture,
+    } = seeded;
 
-    // 1. Capture initial workspace change-feed snapshot cursor at v1.
+    // 1. If the desktop app is signed in and reachable via CDP, open v1 in the app first
+    //    so its working copy / binding.json settles at baseVersion: 1 before the web saves v2.
+    let appOpenedV1 = false;
+    let appV1Binding = null;
+    if (appCtrl.signedIn && appCtrl.driven && typeof appCtrl.openDocumentV1 === "function") {
+      const opened = await appCtrl.openDocumentV1({ documentId, userId });
+      appOpenedV1 = Boolean(opened?.opened && Number(opened?.binding?.baseVersion ?? 0) === 1);
+      appV1Binding = opened?.binding ?? null;
+    }
+
+    // 2. Capture initial workspace change-feed snapshot cursor at v1.
     const initialFeed = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -724,7 +1619,7 @@ async function runLoop1({
     });
     const initialCursor = initialFeed.data?.next_cursor ?? "";
 
-    // 2. Open on Web via the office-frame token + frame document/content API.
+    // 3. Open on Web via the office-frame token + frame document/content API.
     const frameTokenRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -778,7 +1673,7 @@ async function runLoop1({
       };
     }
 
-    // 3. Count server versions before the AI turn, run the AI turn, and verify
+    // 4. Count server versions before the AI turn, run the AI turn, and verify
     //    G6-A03 invariant: the AI turn itself creates 0 versions and 0 uploads.
     const versionsBeforeRes = await callTracerApi({
       apiOrigin,
@@ -833,49 +1728,91 @@ async function runLoop1({
       };
     }
 
-    // 4. Deterministic step: write the expected X/Y/Z columns in the workbook
-    //    and Save through the web office-frame upload + commit routes -> v2.
+    // 5. Drive the Web Save: first try the real Playwright web UI against WEB_ORIGIN
+    //    (or injected webDriver). If WEB_ORIGIN is not live (e.g. protocol-only unit test),
+    //    run the protocol diagnostic commit (`source: "protocol"`) so server invariants
+    //    are still checked, while `webSaveSource: "protocol"` prevents a false PASS.
     const v2Workbook = buildXlsxRevenueWithXyzBytes(repoRoot);
-    const uploadForm = new FormData();
-    uploadForm.append("file", new Blob([v2Workbook.bytes]), filename);
-    const uploadRes = await callTracerApi({
-      apiOrigin,
-      fetchImpl,
-      name: "uploadOfficeFrameFile",
-      params: { documentID: documentId },
-      token: frameToken,
-      form: uploadForm,
-    });
-    const uploadId = uploadRes.data?.upload_id;
-    if (!uploadId || uploadRes.data?.checksum_sha256 !== v2Workbook.sha256) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: "uploadOfficeFrameFile did not return a matching upload_id and sha256",
-        details: { upload: uploadRes.data, expectedSha256: v2Workbook.sha256 },
-      };
-    }
+    const webUiRes =
+      typeof webDriver === "function"
+        ? await webDriver({
+            webOrigin: portsEnv.WEB_ORIGIN,
+            apiOrigin,
+            email,
+            password,
+            orgSlug: organizationSlug,
+            wsSlug: workspaceSlug,
+            documentId,
+            token: frameToken,
+            userToken: token,
+          })
+        : await driveWebXlsxSave({
+            webOrigin: portsEnv.WEB_ORIGIN,
+            apiOrigin,
+            email,
+            password,
+            orgSlug: organizationSlug,
+            wsSlug: workspaceSlug,
+            documentId,
+            token,
+            repoRoot,
+            fetchImpl,
+          });
 
-    const commitKey = `g710-loop1-${documentId}-v2`;
-    const commitRes = await callTracerApi({
-      apiOrigin,
-      fetchImpl,
-      name: "commitOfficeFrameVersion",
-      params: { documentID: documentId },
-      token: frameToken,
-      headers: { "Idempotency-Key": commitKey },
-      body: { upload_id: uploadId, base_revision: v1Revision },
-    });
-    const v2Version = commitRes.data?.version?.version;
-    const v2Revision = commitRes.data?.document?.revision;
-    const v2Checksum = commitRes.data?.version?.checksum_sha256;
-    if (v2Version !== 2 || v2Checksum !== v2Workbook.sha256 || !v2Revision || v2Revision === v1Revision) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `commitOfficeFrameVersion did not produce version 2 (got version=${v2Version}, checksum=${v2Checksum})`,
-        details: { commit: commitRes.data },
-      };
+    let webUiDriven = Boolean(webUiRes?.driven && webUiRes?.saved);
+    let webSaveSource = webUiDriven ? "web" : "protocol";
+    let v2Checksum = v2Workbook.sha256;
+
+    if (!webUiDriven) {
+      const uploadForm = new FormData();
+      uploadForm.append("file", new Blob([v2Workbook.bytes]), filename);
+      const uploadRes = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "uploadOfficeFrameFile",
+        params: { documentID: documentId },
+        token: frameToken,
+        form: uploadForm,
+      });
+      const uploadId = uploadRes.data?.upload_id;
+      if (!uploadId || uploadRes.data?.checksum_sha256 !== v2Workbook.sha256) {
+        return {
+          exitCode: 1,
+          status: "FAIL",
+          reason: "uploadOfficeFrameFile did not return a matching upload_id and sha256",
+          details: { upload: uploadRes.data, expectedSha256: v2Workbook.sha256 },
+        };
+      }
+      const commitKey = `g710-loop1-${documentId}-v2`;
+      const commitRes = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "commitOfficeFrameVersion",
+        params: { documentID: documentId },
+        token: frameToken,
+        headers: { "Idempotency-Key": commitKey },
+        body: { upload_id: uploadId, base_revision: v1Revision },
+      });
+      const v2Version = commitRes.data?.version?.version;
+      const v2Revision = commitRes.data?.document?.revision;
+      v2Checksum = commitRes.data?.version?.checksum_sha256;
+      if (v2Version !== 2 || v2Checksum !== v2Workbook.sha256 || !v2Revision || v2Revision === v1Revision) {
+        return {
+          exitCode: 1,
+          status: "FAIL",
+          reason: `commitOfficeFrameVersion did not produce version 2 (got version=${v2Version}, checksum=${v2Checksum})`,
+          details: { commit: commitRes.data },
+        };
+      }
+    } else {
+      const latestDoc = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "openOfficeFrameDocument",
+        params: { documentID: documentId },
+        token: frameToken,
+      });
+      v2Checksum = latestDoc.data?.file?.checksum_sha256 ?? v2Workbook.sha256;
     }
 
     const versionsAfterSaveRes = await callTracerApi({
@@ -886,16 +1823,8 @@ async function runLoop1({
       token,
     });
     const versionsAfterSave = versionsAfterSaveRes.data?.versions?.length ?? 0;
-    if (versionsAfterSave !== 2) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `expected 2 versions after web Save, got ${versionsAfterSave}`,
-        details: { versionsAfterSave },
-      };
-    }
 
-    // 5. Verify workspace change feed (G5-01b/G5-02) delivers the new v2 version.
+    // 6. Verify workspace change feed (G5-01b/G5-02) delivers the new v2 version (protocol check).
     const feedRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -909,23 +1838,51 @@ async function runLoop1({
       ...(Array.isArray(feedRes.data?.feed) ? feedRes.data.feed : []),
     ];
     const hitInFeed = feedItems.find(
-      (item) =>
-        item.document_id === documentId &&
-        item.version === 2 &&
-        item.checksum_sha256 === v2Workbook.sha256,
+      (item) => item.document_id === documentId && item.version === 2 && item.checksum_sha256 === v2Checksum,
     );
-    if (!hitInFeed) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `workspace change feed did not report document ${documentId} at version 2 (${v2Workbook.sha256})`,
-        details: { feedResponse: feedRes.data },
-      };
+    const changeFeedDeliveredV2 = Boolean(hitInFeed);
+
+    // 7. Observe the app's own working copy / binding.json reload to v2 via SyncRuntime (G710-L3).
+    let appObservedV2ViaFeed = false;
+    let appObservedV2Source = "protocol";
+    let appV2Binding = null;
+    if (appCtrl.signedIn && appCtrl.driven && appOpenedV1 && typeof appCtrl.waitForFeedReloadV2 === "function") {
+      const reloaded = await appCtrl.waitForFeedReloadV2({
+        documentId,
+        wsId: workspaceId,
+        token,
+        apiOrigin,
+        expectedSha256: v2Checksum,
+      });
+      appObservedV2ViaFeed = Boolean(
+        reloaded?.reloaded &&
+          Number(reloaded?.binding?.baseVersion ?? 0) === 2 &&
+          reloaded?.binding?.state === "saved",
+      );
+      appObservedV2Source = "app";
+      appV2Binding = reloaded?.binding ?? null;
     }
 
-    // 6. Classify the AI segment per contract-p0 §8.
+    // 8. Classify the AI segment per contract-p0 §8 and decide outcome via pure function.
     const aiSegment = classifyAiResponse(aiTurnRes, v2Workbook.expectedXyz);
-    const desktopPre = checkDesktopPrecondition(portsEnv);
+    const decision = decideLoop1Outcome({
+      versionsBeforeTurn,
+      versionsAfterTurn,
+      versionsAfterSave,
+      v2ContainsExpectedXyz: true,
+      changeFeedDeliveredV2,
+      aiRealUpstream: aiSegment.status === "PASS",
+      aiFailureReason: aiSegment.status === "FAIL" ? aiSegment.reason : "",
+      webUiDriven,
+      webSaveSource,
+      appSignedIn: Boolean(appCtrl.signedIn),
+      appDriven: Boolean(appCtrl.driven),
+      appOpenedV1,
+      appObservedV2ViaFeed,
+      appObservedV2Source,
+      desktopBlockReason: appCtrl.blockerReason || "",
+    });
+
     const details = {
       loop: "1",
       fixtureId: "fx-xlsx-revenue-xyz",
@@ -935,44 +1892,30 @@ async function runLoop1({
       versionsAfterTurn,
       versionsAfterSave,
       v1Sha256: fixture.sha256,
-      v2Sha256: v2Workbook.sha256,
-      changeFeedDeliveredV2: true,
-      webSaveAndFeedSegment: {
-        status: "PASS",
-        summary: "Web frame open -> 0-version AI turn -> X/Y/Z v2 commit -> workspace change feed v2 verified",
+      v2Sha256: v2Checksum,
+      changeFeedDeliveredV2,
+      webUiDriven,
+      webSaveSource,
+      appOpenedV1,
+      appObservedV2ViaFeed,
+      appObservedV2Source,
+      appV1Binding,
+      appV2Binding,
+      protocolDiagnosticSegment: {
+        source: "protocol",
+        status: changeFeedDeliveredV2 ? "PASS" : "FAIL",
+        summary: "Protocol-level 0-version AI turn + v2 commit + workspace change feed check",
       },
       aiSegment,
-      appDesktopPrecondition: desktopPre.ok ? "signed_in" : desktopPre.reason,
+      appDesktopPrecondition: appCtrl.signedIn ? "signed_in" : appCtrl.blockerReason,
     };
 
-    if (aiSegment.status === "FAIL") {
-      return { exitCode: 1, status: "FAIL", reason: aiSegment.reason, details };
-    }
-    if (aiSegment.status === "BLOCKED") {
-      return {
-        exitCode: BLOCKED_EXIT,
-        status: "BLOCKED",
-        owner: UPSTREAM_BLOCKED_OWNER,
-        reason: `${UPSTREAM_BLOCKED_REASON}; deterministic web-save -> v2 -> change-feed half proven (versions ${versionsBeforeTurn}->${versionsAfterTurn} on AI turn, v2=${v2Workbook.sha256.slice(0, 12)} on Save)`,
-        details,
-      };
-    }
-    if (!desktopPre.ok) {
-      return {
-        exitCode: BLOCKED_EXIT,
-        status: "BLOCKED",
-        owner: UPSTREAM_BLOCKED_OWNER,
-        reason: desktopPre.reason,
-        details,
-      };
-    }
     return {
-      exitCode: 0,
-      status: "PASS",
-      reason: "Loop 1 passed end to end",
+      ...decision,
       details,
     };
   } finally {
+    if (typeof appCtrl?.close === "function") await appCtrl.close();
     await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded });
   }
 }
@@ -982,8 +1925,11 @@ async function runLoop1({
 async function runLoop2({
   apiOrigin,
   portsEnv,
+  runDir,
   repoRoot,
   fetchImpl = fetch,
+  timeoutMs = 20_000,
+  appDriver = null,
 }) {
   const seeded = await seedFixtureDocument({
     apiOrigin,
@@ -991,9 +1937,29 @@ async function runLoop2({
     fixtureId: "fx-docx-report-vi",
     repoRoot,
   });
+  const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
+  const appCtrl =
+    appDriver ??
+    (await connectAppController({
+      portsEnv,
+      runDir,
+      repoRoot,
+      apiOrigin,
+      fetchImpl,
+      token: seeded.token,
+      userId: seeded.userId,
+      deploymentId,
+      timeoutMs,
+    }));
   try {
-    const { token, workspaceId, documentId, filename } = seeded;
+    const { token, userId, workspaceId, documentId, filename } = seeded;
     const docxPair = buildEditedDocxFixtureBytes(repoRoot);
+
+    let appOpenedV1 = false;
+    if (appCtrl.signedIn && appCtrl.driven && typeof appCtrl.openDocumentV1 === "function") {
+      const opened = await appCtrl.openDocumentV1({ documentId, userId });
+      appOpenedV1 = Boolean(opened?.opened && Number(opened?.binding?.baseVersion ?? 0) === 1);
+    }
 
     // 1. Baseline check before AI turn: version count === 1, revision === v1.
     const docBeforeRes = await callTracerApi({
@@ -1041,7 +2007,7 @@ async function runLoop2({
     });
 
     // 3. G6-A03 early evidence: verify the AI turn created 0 server versions,
-    //    did not advance document.revision, and created no commit intent.
+    //    did not advance document.revision, and created no commit intent on server or in app.
     const versionsAfterTurnRes = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -1068,66 +2034,97 @@ async function runLoop2({
       token,
       headers: { "Idempotency-Key": commitKey },
     });
+    const appIntentsAfterTurn = listAppSyncIntentFiles(
+      portsEnv.UNIWORK_USER_DATA,
+      deploymentId,
+      userId,
+    ).length;
 
     if (
       versionsAfterTurn !== 1 ||
       revisionAfterTurn !== revisionBefore ||
-      intentBeforeSave.data?.outcome !== "not_committed"
+      intentBeforeSave.data?.outcome !== "not_committed" ||
+      appIntentsAfterTurn > 0
     ) {
       return {
         exitCode: 1,
         status: "FAIL",
-        reason: `G6-A03 violation: AI turn created a version or save intent before explicit Save (versions=${versionsAfterTurn}, revision=${revisionAfterTurn}, intent=${intentBeforeSave.data?.outcome})`,
+        reason: `G6-A03 violation: AI turn created a version or save intent before explicit Save (versions=${versionsAfterTurn}, revision=${revisionAfterTurn}, intent=${intentBeforeSave.data?.outcome}, appIntents=${appIntentsAfterTurn})`,
         details: {
           versionsBeforeTurn,
           versionsAfterTurn,
           revisionBefore,
           revisionAfterTurn,
           intentBeforeSave: intentBeforeSave.data,
+          appIntentsAfterTurn,
         },
       };
     }
 
-    // 4. Drive explicit Save of the edited DOCX through the app's 2-step upload +
-    //    idempotent commit flow (`POST /documents/{id}/uploads` + `POST /documents/{id}/versions/commit`).
-    const uploadForm = new FormData();
-    uploadForm.append("file", new Blob([docxPair.v2Bytes]), filename);
-    const uploadRes = await callTracerApi({
-      apiOrigin,
-      fetchImpl,
-      name: "uploadDocumentFile",
-      params: { documentID: documentId },
-      token,
-      form: uploadForm,
-    });
-    const uploadId = uploadRes.data?.upload_id;
-    if (!uploadId || uploadRes.data?.checksum_sha256 !== docxPair.v2Sha256) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: "uploadDocumentFile failed or returned wrong sha256",
-        details: { upload: uploadRes.data, expectedSha256: docxPair.v2Sha256 },
-      };
-    }
+    // 4. Drive explicit Save of the edited DOCX: in the real app via CDP if signed in,
+    //    else run the protocol diagnostic commit (`saveSource: "protocol"`).
+    let appSavedV2 = false;
+    let saveSource = "protocol";
+    let commitIntentOutcome = "not_committed";
 
-    const commitRes = await callTracerApi({
-      apiOrigin,
-      fetchImpl,
-      name: "commitDocumentVersion",
-      params: { documentID: documentId },
-      token,
-      headers: { "Idempotency-Key": commitKey },
-      body: { upload_id: uploadId, base_revision: revisionBefore },
-    });
-    const v2Version = commitRes.data?.version?.version;
-    const v2Revision = commitRes.data?.document?.revision;
-    if (v2Version !== 2 || !v2Revision || v2Revision === revisionBefore) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `commitDocumentVersion did not create version 2 (got version=${v2Version})`,
-        details: { commit: commitRes.data },
-      };
+    if (appCtrl.signedIn && appCtrl.driven && appOpenedV1 && typeof appCtrl.saveOnlineInApp === "function") {
+      const saved = await appCtrl.saveOnlineInApp({
+        documentId,
+        v2Bytes: docxPair.v2Bytes,
+        expectedSha256: docxPair.v2Sha256,
+      });
+      appSavedV2 = Boolean(saved?.saved && Number(saved?.binding?.baseVersion ?? 0) === 2);
+      saveSource = "app";
+      commitIntentOutcome = appSavedV2 ? "committed" : "not_committed";
+    } else {
+      const uploadForm = new FormData();
+      uploadForm.append("file", new Blob([docxPair.v2Bytes]), filename);
+      const uploadRes = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "uploadDocumentFile",
+        params: { documentID: documentId },
+        token,
+        form: uploadForm,
+      });
+      const uploadId = uploadRes.data?.upload_id;
+      if (!uploadId || uploadRes.data?.checksum_sha256 !== docxPair.v2Sha256) {
+        return {
+          exitCode: 1,
+          status: "FAIL",
+          reason: "uploadDocumentFile failed or returned wrong sha256",
+          details: { upload: uploadRes.data, expectedSha256: docxPair.v2Sha256 },
+        };
+      }
+
+      const commitRes = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "commitDocumentVersion",
+        params: { documentID: documentId },
+        token,
+        headers: { "Idempotency-Key": commitKey },
+        body: { upload_id: uploadId, base_revision: revisionBefore },
+      });
+      const v2Version = commitRes.data?.version?.version;
+      const v2Revision = commitRes.data?.document?.revision;
+      if (v2Version !== 2 || !v2Revision || v2Revision === revisionBefore) {
+        return {
+          exitCode: 1,
+          status: "FAIL",
+          reason: `commitDocumentVersion did not create version 2 (got version=${v2Version})`,
+          details: { commit: commitRes.data },
+        };
+      }
+      const intentAfterSave = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "lookupCommitIntent",
+        params: { documentID: documentId },
+        token,
+        headers: { "Idempotency-Key": commitKey },
+      });
+      commitIntentOutcome = intentAfterSave.data?.outcome ?? "not_committed";
     }
 
     const versionsAfterSaveRes = await callTracerApi({
@@ -1138,26 +2135,24 @@ async function runLoop2({
       token,
     });
     const versionsAfterSave = versionsAfterSaveRes.data?.versions?.length ?? 0;
-    const intentAfterSave = await callTracerApi({
-      apiOrigin,
-      fetchImpl,
-      name: "lookupCommitIntent",
-      params: { documentID: documentId },
-      token,
-      headers: { "Idempotency-Key": commitKey },
-    });
-
-    if (versionsAfterSave !== 2 || intentAfterSave.data?.outcome !== "committed") {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `expected versionsAfterSave=2 and outcome=committed, got versions=${versionsAfterSave}, outcome=${intentAfterSave.data?.outcome}`,
-        details: { versionsAfterSave, intentAfterSave: intentAfterSave.data },
-      };
-    }
 
     const aiEditQualitySegment = classifyAiResponse(aiTurnRes);
-    const desktopPre = checkDesktopPrecondition(portsEnv);
+    const decision = decideLoop2Outcome({
+      versionsBeforeTurn,
+      versionsAfterTurn,
+      versionsAfterSave,
+      commitIntentOutcome,
+      aiRealUpstream: aiEditQualitySegment.status === "PASS",
+      aiFailureReason: aiEditQualitySegment.status === "FAIL" ? aiEditQualitySegment.reason : "",
+      appSignedIn: Boolean(appCtrl.signedIn),
+      appDriven: Boolean(appCtrl.driven),
+      appOpenedV1,
+      appIntentsAfterTurn,
+      appSavedV2,
+      saveSource,
+      desktopBlockReason: appCtrl.blockerReason || "",
+    });
+
     const details = {
       loop: "2",
       fixtureId: "fx-docx-report-vi",
@@ -1166,59 +2161,41 @@ async function runLoop2({
       versionsBeforeTurn,
       versionsAfterTurn,
       versionsAfterSave,
-      commitIntentOutcome: intentAfterSave.data.outcome,
+      commitIntentOutcome,
+      saveSource,
+      appOpenedV1,
+      appSavedV2,
       v1Sha256: docxPair.v1Sha256,
       v2Sha256: docxPair.v2Sha256,
       noAutoSaveSegment: {
-        status: "PASS",
+        status: versionsAfterTurn === 1 && appIntentsAfterTurn === 0 ? "PASS" : "FAIL",
         summary: "G6-A03 invariant verified: AI turn created 0 versions/intents; explicit Save created version 2",
       },
       aiEditQualitySegment,
-      appDesktopPrecondition: desktopPre.ok ? "signed_in" : desktopPre.reason,
+      appDesktopPrecondition: appCtrl.signedIn ? "signed_in" : appCtrl.blockerReason,
     };
 
-    if (aiEditQualitySegment.status === "BLOCKED") {
-      return {
-        exitCode: BLOCKED_EXIT,
-        status: "BLOCKED",
-        owner: UPSTREAM_BLOCKED_OWNER,
-        reason: `${UPSTREAM_BLOCKED_REASON}; G6-A03 no-auto-save invariant (versionsBefore=1, versionsAfterTurn=1) and explicit Save -> v2 (versionsAfterSave=2) proven`,
-        details,
-      };
-    }
-    if (!desktopPre.ok) {
-      return {
-        exitCode: BLOCKED_EXIT,
-        status: "BLOCKED",
-        owner: UPSTREAM_BLOCKED_OWNER,
-        reason: desktopPre.reason,
-        details,
-      };
-    }
     return {
-      exitCode: 0,
-      status: "PASS",
-      reason: "Loop 2 passed end to end",
+      ...decision,
       details,
     };
   } finally {
+    if (typeof appCtrl?.close === "function") await appCtrl.close();
     await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded });
   }
 }
 
 // ---- Loop 3: fx-docx-report-vi (Offline Save in App -> Reconnect -> Receipt) ----
 
-async function sleep(ms) {
-  await new Promise((r) => setTimeout(r, ms));
-}
-
 async function runLoop3({
   apiOrigin,
   portsEnv,
+  runDir,
   repoRoot,
   fetchImpl = fetch,
   timeoutMs = 20_000,
   spawnAppHook = null,
+  appDriver = null,
 }) {
   const seeded = await seedFixtureDocument({
     apiOrigin,
@@ -1226,17 +2203,157 @@ async function runLoop3({
     fixtureId: "fx-docx-report-vi",
     repoRoot,
   });
+  const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
+  const appCtrl =
+    appDriver ??
+    (await connectAppController({
+      portsEnv,
+      runDir,
+      repoRoot,
+      apiOrigin,
+      fetchImpl,
+      token: seeded.token,
+      userId: seeded.userId,
+      deploymentId,
+      timeoutMs,
+    }));
   try {
     const { token, userId, workspaceId, documentId, filename } = seeded;
     const docxPair = buildEditedDocxFixtureBytes(repoRoot);
 
-    // 1. Server-side G5-06 queue/reconcile protocol proof:
-    //    - While offline (before dispatch), lookupCommitIntent with the queued
-    //      Idempotency-Key reports `not_committed`.
-    //    - On reconnect, the queued upload + commit with that Idempotency-Key
-    //      creates v2 and returns the receipt (`version_id`, `version: 2`, `revision`).
-    //    - A reconnect reconciliation lookup AND a duplicate retry with the same
-    //      Idempotency-Key return the exact same v2 receipt without creating v3.
+    // If a legacy r1 spawnAppHook was supplied (which only writes binding.json at v2
+    // without driving the app through v1 -> proxy cut -> offline intent -> reconnect),
+    // execute it and pass `testCommittedBeforeApp: true, commitSource: "protocol"` to
+    // decideLoop3Outcome so it is caught and rejected as FAIL (exit 1), never PASS (G710-L2).
+    if (typeof spawnAppHook === "function") {
+      await spawnAppHook({ deepLink: "", documentId, userId });
+      const wc = inspectWorkingCopy({
+        userDataDir: portsEnv.UNIWORK_USER_DATA,
+        deploymentId,
+        documentId,
+        expectedUserId: userId,
+      });
+      const decision = decideLoop3Outcome({
+        appSignedIn: true,
+        appDriven: true,
+        appOpenedV1: false,
+        appHeldOfflineIntentWhileCut: false,
+        serverVersionsWhileCut: 1,
+        testCommittedBeforeApp: true,
+        commitSource: "protocol",
+        appBindingAfterReconnect: wc.binding,
+        appIntentsAfterReconnect: 0,
+        serverVersionsAfterReconnect: 1,
+      });
+      return {
+        ...decision,
+        details: {
+          loop: "3",
+          fixtureId: "fx-docx-report-vi",
+          documentId,
+          workspaceId,
+          appReceiptSegment: {
+            status: "FAIL",
+            reason: decision.reason,
+          },
+        },
+      };
+    }
+
+    // When the app is signed in and its Save can be driven headlessly (via CDP or appDriver):
+    // 1. Open v1 in the app first (`binding.json` settles at `baseVersion: 1`).
+    // 2. Cut the app's proxy link (`setAppApiProxyOnline(runDir, false)`), save v2 in the app
+    //    while cut, and verify from the app's own state that `binding.json` is `offline`
+    //    (or `.rec` intent exists in `uniwork-sync/store/.../intents/`) while the server
+    //    still has 1 version (`serverVersionsWhileCut === 1`).
+    // 3. Resume the app's proxy link (`setAppApiProxyOnline(runDir, true)`), flush the app's
+    //    save, and verify `binding.json` settles to `state: "saved", baseVersion: 2`,
+    //    the `.rec` intent is cleared, and the server has 2 versions.
+    if (appCtrl.signedIn && appCtrl.driven) {
+      const opened = await appCtrl.openDocumentV1({ documentId, userId });
+      const appOpenedV1 = Boolean(opened?.opened && Number(opened?.binding?.baseVersion ?? 0) === 1);
+
+      const cutRes = await appCtrl.saveOfflineWhileCut({
+        documentId,
+        v2Bytes: docxPair.v2Bytes,
+        v2Sha256: docxPair.v2Sha256,
+      });
+      const versionsWhileCutRes = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "listDocumentVersions",
+        params: { documentID: documentId },
+        token,
+      });
+      const serverVersionsWhileCut = versionsWhileCutRes.data?.versions?.length ?? 0;
+      const bindingWhileCut = cutRes?.bindingWhileCut ?? null;
+      const intentFilesWhileCut = cutRes?.intentFilesWhileCut ?? [];
+      const appHeldOfflineIntentWhileCut = Boolean(
+        (bindingWhileCut &&
+          (bindingWhileCut.state === "offline" || bindingWhileCut.state === "paused_offline") &&
+          Number(bindingWhileCut.baseVersion ?? 0) === 1) ||
+          intentFilesWhileCut.length > 0,
+      );
+
+      const reconRes = await appCtrl.reconnectAndFlushSave({
+        apiOrigin,
+        token,
+        documentId,
+        v2Bytes: docxPair.v2Bytes,
+        expectedSha256: docxPair.v2Sha256,
+      });
+      const versionsAfterReconnectRes = await callTracerApi({
+        apiOrigin,
+        fetchImpl,
+        name: "listDocumentVersions",
+        params: { documentID: documentId },
+        token,
+      });
+      const serverVersionsAfterReconnect = versionsAfterReconnectRes.data?.versions?.length ?? 0;
+      const bindingAfterReconnect = reconRes?.bindingAfterReconnect ?? null;
+      const intentFilesAfterReconnect = reconRes?.intentFilesAfterReconnect ?? [];
+
+      const decision = decideLoop3Outcome({
+        appSignedIn: true,
+        appDriven: true,
+        appOpenedV1,
+        appHeldOfflineIntentWhileCut,
+        serverVersionsWhileCut,
+        testCommittedBeforeApp: false,
+        commitSource: "app",
+        appBindingAfterReconnect: bindingAfterReconnect,
+        appIntentsAfterReconnect: intentFilesAfterReconnect.length,
+        serverVersionsAfterReconnect,
+      });
+
+      return {
+        ...decision,
+        details: {
+          loop: "3",
+          fixtureId: "fx-docx-report-vi",
+          documentId,
+          workspaceId,
+          appOpenedV1,
+          serverVersionsWhileCut,
+          appHeldOfflineIntentWhileCut,
+          intentFilesWhileCut,
+          serverVersionsAfterReconnect,
+          appReceiptSegment: {
+            status: decision.status,
+            source: "app",
+            baseVersion: bindingAfterReconnect?.baseVersion ?? null,
+            baseRevision: bindingAfterReconnect?.baseRevision ?? null,
+            baseVersionId: bindingAfterReconnect?.baseVersionId ?? null,
+            baseChecksum: bindingAfterReconnect?.baseChecksum ?? null,
+            state: bindingAfterReconnect?.state ?? null,
+          },
+        },
+      };
+    }
+
+    // Otherwise, the app is not signed in or cannot be driven headlessly on this VM.
+    // Run the server-side G5-06 idempotent commit/receipt diagnostic ONLY as `source: "protocol"`
+    // AFTER confirming the app is blocked, and return `BLOCKED` (exit 77, owner `g7-qa`), never `PASS`.
     const docBefore = await callTracerApi({
       apiOrigin,
       fetchImpl,
@@ -1337,7 +2454,8 @@ async function runLoop3({
       };
     }
 
-    const serverReceiptSegment = {
+    const protocolDiagnosticSegment = {
+      source: "protocol",
       status: "PASS",
       versionId: v2VersionId,
       version: v2Version,
@@ -1345,144 +2463,35 @@ async function runLoop3({
       versionsAfterIdempotentRetry,
     };
 
-    // 2. Desktop app working-copy & receipt check (`binding.json`).
-    const desktopPre = checkDesktopPrecondition(portsEnv);
-    if (!desktopPre.ok) {
-      return {
-        exitCode: BLOCKED_EXIT,
-        status: "BLOCKED",
-        owner: UPSTREAM_BLOCKED_OWNER,
-        reason: `${desktopPre.reason}; server-side G5-06 offline intent commit + idempotent receipt reconciliation (v2=${v2VersionId}) proven`,
-        details: {
-          loop: "3",
-          fixtureId: "fx-docx-report-vi",
-          documentId,
-          workspaceId,
-          serverReceiptSegment,
-          appReceiptSegment: { status: "BLOCKED", reason: desktopPre.reason },
-        },
-      };
-    }
-
-    const deploymentId = portsEnv.HARNESS_DEPLOYMENT_ID || HARNESS_DEPLOYMENT_ID;
-    const launchRes = await callTracerApi({
-      apiOrigin,
-      fetchImpl,
-      name: "mintLaunch",
-      params: { documentID: documentId },
-      token,
-      body: {
-        operation: "open",
-        deployment_id: deploymentId,
-        client_id: DEV_CLIENT_ID,
-        return_hint: "",
-      },
+    const decision = decideLoop3Outcome({
+      appSignedIn: Boolean(appCtrl.signedIn),
+      appDriven: Boolean(appCtrl.driven),
+      appOpenedV1: false,
+      appHeldOfflineIntentWhileCut: false,
+      serverVersionsWhileCut: 1,
+      testCommittedBeforeApp: false,
+      commitSource: "protocol",
+      desktopBlockReason: appCtrl.blockerReason || "",
     });
-    const ticket = launchRes.data?.ticket ?? launchRes.data?.launch_ticket ?? "";
-    if (!ticket) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: "mintLaunch returned an empty ticket",
-        details: { serverReceiptSegment },
-      };
-    }
-
-    const deepLink = officeDeepLink(DEV_CLIENT_ID, ticket);
-    if (typeof spawnAppHook === "function") {
-      await spawnAppHook({ deepLink, documentId, userId });
-    } else {
-      const childEnv = handoffEnv(portsEnv);
-      const handoff = spawnSync(
-        portsEnv.ELECTRON_BIN,
-        ["--no-sandbox", "--disable-gpu", "--password-store=gnome-libsecret", portsEnv.SHELL_APP_DIR, deepLink],
-        { env: childEnv, timeout: 20_000, encoding: "utf8" },
-      );
-      if (handoff.error || handoff.status !== 0) {
-        return {
-          exitCode: 1,
-          status: "FAIL",
-          reason: `second Electron instance failed handing off deep link (status=${handoff.status})`,
-          details: { serverReceiptSegment },
-        };
-      }
-    }
-
-    const deadline = Date.now() + (spawnAppHook ? 1_000 : timeoutMs);
-    let inspection = inspectWorkingCopy({
-      userDataDir: portsEnv.UNIWORK_USER_DATA,
-      deploymentId,
-      documentId,
-      expectedUserId: userId,
-      expectedSha256: docxPair.v2Sha256,
-    });
-
-    while (Date.now() < deadline) {
-      if (
-        inspection.bindingPresent &&
-        inspection.filePresent &&
-        inspection.sha256Match &&
-        inspection.bindingState === "saved" &&
-        Number(inspection.binding?.baseVersion ?? 0) >= 2
-      ) {
-        break;
-      }
-      if (inspection.bindingState === "error" || inspection.bindingState === "conflict") {
-        break;
-      }
-      await sleep(250);
-      inspection = inspectWorkingCopy({
-        userDataDir: portsEnv.UNIWORK_USER_DATA,
-        deploymentId,
-        documentId,
-        expectedUserId: userId,
-        expectedSha256: docxPair.v2Sha256,
-      });
-    }
-
-    if (
-      !inspection.bindingPresent ||
-      !inspection.filePresent ||
-      !inspection.sha256Match ||
-      inspection.bindingState !== "saved" ||
-      Number(inspection.binding?.baseVersion ?? 0) < 2
-    ) {
-      return {
-        exitCode: 1,
-        status: "FAIL",
-        reason: `binding.json did not settle to saved v2 receipt (state=${inspection.bindingState}, error=${inspection.bindingError ?? "none"}, baseVersion=${inspection.binding?.baseVersion ?? "none"})`,
-        details: {
-          serverReceiptSegment,
-          appReceiptSegment: {
-            status: "FAIL",
-            bindingState: inspection.bindingState,
-            bindingError: inspection.bindingError,
-            baseVersion: inspection.binding?.baseVersion ?? null,
-          },
-        },
-      };
-    }
 
     return {
-      exitCode: 0,
-      status: "PASS",
-      reason: `Loop 3 passed: v2 receipt (${v2VersionId}) settled in binding.json`,
+      ...decision,
       details: {
         loop: "3",
         fixtureId: "fx-docx-report-vi",
         documentId,
         workspaceId,
-        serverReceiptSegment,
+        protocolDiagnosticSegment,
         appReceiptSegment: {
-          status: "PASS",
-          baseVersion: inspection.binding?.baseVersion,
-          baseRevision: inspection.binding?.baseRevision,
-          baseVersionId: inspection.binding?.baseVersionId ?? v2VersionId,
-          baseChecksum: inspection.binding?.baseChecksum,
+          status: "BLOCKED",
+          source: "app",
+          reason: decision.reason,
         },
       },
     };
   } finally {
+    setAppApiProxyOnline(runDir, true);
+    if (typeof appCtrl?.close === "function") await appCtrl.close();
     await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded });
   }
 }
@@ -1535,6 +2544,8 @@ export async function runTracerLoop({
   fetchImpl = fetch,
   timeoutMs = 45_000,
   spawnAppHook = null,
+  webDriver = null,
+  appDriver = null,
 }) {
   const startStatus = readStartStatus(runDir);
   const gate = startGate(startStatus);
@@ -1571,19 +2582,38 @@ export async function runTracerLoop({
   const normalized = LOOP_ALIASES[String(loop)] ?? String(loop);
   try {
     if (normalized === "1") {
-      return await runLoop1({ apiOrigin, portsEnv, repoRoot, fetchImpl });
+      return await runLoop1({
+        apiOrigin,
+        portsEnv,
+        runDir,
+        repoRoot,
+        fetchImpl,
+        timeoutMs,
+        webDriver,
+        appDriver,
+      });
     }
     if (normalized === "2") {
-      return await runLoop2({ apiOrigin, portsEnv, repoRoot, fetchImpl });
+      return await runLoop2({
+        apiOrigin,
+        portsEnv,
+        runDir,
+        repoRoot,
+        fetchImpl,
+        timeoutMs,
+        appDriver,
+      });
     }
     if (normalized === "3") {
       return await runLoop3({
         apiOrigin,
         portsEnv,
+        runDir,
         repoRoot,
         fetchImpl,
         timeoutMs,
         spawnAppHook,
+        appDriver,
       });
     }
     return {

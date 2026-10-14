@@ -49,6 +49,10 @@ import {
   UPSTREAM_BLOCKED_REASON,
   buildEditedDocxFixtureBytes,
   buildXlsxRevenueWithXyzBytes,
+  decideLoop1Outcome,
+  decideLoop2Outcome,
+  decideLoop3Outcome,
+  listAppSyncIntentFiles,
   parseArgs,
   runTracerLoop,
 } from "./tracer.mjs";
@@ -506,8 +510,121 @@ describe("G7-10 tracer CLI args and start-gate propagation", () => {
   });
 });
 
+describe("G7-10 pure outcome decision functions (G710-L1..L3)", () => {
+  it("decideLoop1Outcome refuses PASS when web save or app feed observation is protocol-only, and PASSes only when web UI + app + real AI all hold", () => {
+    const valid = {
+      versionsBeforeTurn: 1,
+      versionsAfterTurn: 1,
+      versionsAfterSave: 2,
+      v2ContainsExpectedXyz: true,
+      changeFeedDeliveredV2: true,
+      aiRealUpstream: true,
+      webUiDriven: true,
+      webSaveSource: "web",
+      appSignedIn: true,
+      appDriven: true,
+      appOpenedV1: true,
+      appObservedV2ViaFeed: true,
+      appObservedV2Source: "app",
+    };
+    assert.equal(decideLoop1Outcome(valid).status, "PASS");
+    assert.equal(decideLoop1Outcome(valid).exitCode, 0);
+
+    // G710-L1: protocol-only web save or feed poll must never PASS
+    assert.notEqual(decideLoop1Outcome({ ...valid, webUiDriven: false, webSaveSource: "protocol" }).status, "PASS");
+    assert.equal(decideLoop1Outcome({ ...valid, webUiDriven: false, webSaveSource: "protocol" }).status, "BLOCKED");
+    assert.notEqual(
+      decideLoop1Outcome({ ...valid, appObservedV2ViaFeed: false, appObservedV2Source: "protocol" }).status,
+      "PASS",
+    );
+    // G710-L3: signed-in driven app that fails to reload v2 from the change feed is FAIL
+    assert.equal(
+      decideLoop1Outcome({ ...valid, appObservedV2ViaFeed: false, appObservedV2Source: "app" }).status,
+      "FAIL",
+    );
+    // Without a signed-in app, Loop 1 is BLOCKED (77)
+    assert.equal(
+      decideLoop1Outcome({ ...valid, appSignedIn: false, appDriven: false, appObservedV2ViaFeed: false }).status,
+      "BLOCKED",
+    );
+    // G6-A03: AI turn creating a version is always FAIL (1)
+    assert.equal(decideLoop1Outcome({ ...valid, versionsAfterTurn: 2 }).status, "FAIL");
+  });
+
+  it("decideLoop2Outcome refuses PASS when save is protocol-only, FAILs on auto-save or queued intent during AI turn, and PASSes only when app saves + real AI", () => {
+    const valid = {
+      versionsBeforeTurn: 1,
+      versionsAfterTurn: 1,
+      versionsAfterSave: 2,
+      commitIntentOutcome: "committed",
+      aiRealUpstream: true,
+      appSignedIn: true,
+      appDriven: true,
+      appOpenedV1: true,
+      appIntentsAfterTurn: 0,
+      appSavedV2: true,
+      saveSource: "app",
+    };
+    assert.equal(decideLoop2Outcome(valid).status, "PASS");
+    assert.equal(decideLoop2Outcome(valid).exitCode, 0);
+
+    // G710-L1: protocol-only save must never PASS
+    assert.equal(
+      decideLoop2Outcome({ ...valid, appSignedIn: false, appDriven: false, appSavedV2: false, saveSource: "protocol" }).status,
+      "BLOCKED",
+    );
+    // G6-A03: AI turn queueing an app intent or creating a version before Save is FAIL
+    assert.equal(decideLoop2Outcome({ ...valid, appIntentsAfterTurn: 1 }).status, "FAIL");
+    assert.equal(decideLoop2Outcome({ ...valid, versionsAfterTurn: 2 }).status, "FAIL");
+  });
+
+  it("decideLoop3Outcome FAILs the r1 false-PASS path (test-made HTTP commit + app opens v2) and PASSes only when app opens v1, holds offline intent while cut, and commits v2 on reconnect (G710-L2)", () => {
+    const valid = {
+      appSignedIn: true,
+      appDriven: true,
+      appOpenedV1: true,
+      appHeldOfflineIntentWhileCut: true,
+      serverVersionsWhileCut: 1,
+      testCommittedBeforeApp: false,
+      commitSource: "app",
+      appBindingAfterReconnect: { state: "saved", baseVersion: 2 },
+      appIntentsAfterReconnect: 0,
+      serverVersionsAfterReconnect: 2,
+    };
+    assert.equal(decideLoop3Outcome(valid).status, "PASS");
+    assert.equal(decideLoop3Outcome(valid).exitCode, 0);
+
+    // G710-L2: the r1 false-PASS path (test committed v2 over HTTP before handing app the deep link) MUST be FAIL (1), never PASS
+    const r1FalsePass = decideLoop3Outcome({
+      ...valid,
+      appOpenedV1: false,
+      appHeldOfflineIntentWhileCut: false,
+      testCommittedBeforeApp: true,
+      commitSource: "protocol",
+      appBindingAfterReconnect: { state: "saved", baseVersion: 2 },
+    });
+    assert.equal(r1FalsePass.status, "FAIL");
+    assert.equal(r1FalsePass.exitCode, 1);
+    assert.match(r1FalsePass.reason, /protocol|test committed|v1/i);
+
+    // Server already having v2 while the app link is cut means the cut failed or test committed early -> FAIL
+    assert.equal(decideLoop3Outcome({ ...valid, serverVersionsWhileCut: 2 }).status, "FAIL");
+    // App not holding offline state/intent while cut -> FAIL
+    assert.equal(decideLoop3Outcome({ ...valid, appHeldOfflineIntentWhileCut: false }).status, "FAIL");
+    // App not signed in or Save cannot be driven headlessly -> BLOCKED (77, owner g7-qa)
+    const blockedNoApp = decideLoop3Outcome({
+      ...valid,
+      appSignedIn: false,
+      appDriven: false,
+      commitSource: "protocol",
+    });
+    assert.equal(blockedNoApp.status, "BLOCKED");
+    assert.equal(blockedNoApp.exitCode, BLOCKED_EXIT);
+  });
+});
+
 describe("G7-10 Loop 1 (fx-xlsx-revenue-xyz: web open -> AI turn -> editor X/Y/Z save -> change feed -> app)", () => {
-  it("proves 0-version AI turn + web frame v2 save + change feed delivery, and reports BLOCKED (77) under AI_PROVIDER=fake", async () => {
+  it("proves 0-version AI turn + protocol diagnostic under AI_PROVIDER=fake and reports BLOCKED (77), never PASS", async () => {
     const scratch = makeScratchRunDir({ startState: "up", skipApp: true });
     const mock = createMockDServer({ aiMode: "fake" });
     try {
@@ -526,7 +643,109 @@ describe("G7-10 Loop 1 (fx-xlsx-revenue-xyz: web open -> AI turn -> editor X/Y/Z
       assert.equal(res.details.versionsAfterSave, 2);
       assert.equal(res.details.changeFeedDeliveredV2, true);
       assert.equal(res.details.aiSegment.status, "BLOCKED");
-      assert.equal(res.details.webSaveAndFeedSegment.status, "PASS");
+      assert.equal(res.details.protocolDiagnosticSegment.source, "protocol");
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("PASSes (exit 0) when app opens v1, web UI saves v2 with X/Y/Z, and app's SyncRuntime reloads binding.json to v2 (G710-L3)", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+    const mock = createMockDServer({ aiMode: "real-xyz" });
+    try {
+      const docDir = join(
+        scratch.userData,
+        "uniwork-documents",
+        "default",
+        scratch.userId,
+        mock.state.docId,
+      );
+      const res = await runTracerLoop({
+        loop: "1",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        webDriver: async ({ apiOrigin, token, documentId }) => {
+          // Simulates the real Playwright web frame saving v2 after editing X/Y/Z
+          const v1 = mock.state.versions[0];
+          const { bytes } = buildXlsxRevenueWithXyzBytes();
+          const form = new FormData();
+          form.set("file", new Blob([bytes]), "fx-xlsx-revenue-xyz.xlsx");
+          const upRes = await mock.fetchImpl(`${apiOrigin}/api/v1/office-frame/documents/${documentId}/uploads`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: form,
+          });
+          const up = await upRes.json();
+          await mock.fetchImpl(`${apiOrigin}/api/v1/office-frame/documents/${documentId}/versions/commit`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ base_revision: v1.revision, upload_id: up.upload_id }),
+          });
+          return { driven: true, saved: true, source: "web" };
+        },
+        appDriver: {
+          signedIn: true,
+          driven: true,
+          openDocumentV1: async () => {
+            mkdirSync(docDir, { recursive: true });
+            const v1 = mock.state.versions[0];
+            const bindingV1 = {
+              schema: 2,
+              documentId: mock.state.docId,
+              workspaceId: mock.state.wsId,
+              orgId: mock.state.orgId,
+              title: "fx-xlsx-revenue-xyz.xlsx",
+              filename: "fx-xlsx-revenue-xyz.xlsx",
+              format: "xlsx",
+              access: "edit",
+              baseRevision: v1.revision,
+              baseVersion: 1,
+              baseVersionId: v1.id,
+              baseChecksum: v1.checksum_sha256,
+              state: "ready",
+            };
+            writeFileSync(join(docDir, "binding.json"), JSON.stringify(bindingV1));
+            writeFileSync(join(docDir, "fx-xlsx-revenue-xyz.xlsx"), v1.bytes);
+            return { opened: true, binding: bindingV1 };
+          },
+          waitForFeedReloadV2: async ({ wsId, token, apiOrigin }) => {
+            // App's SyncRuntime polls the workspace change feed and guardedReload updates binding.json to v2
+            const feedRes = await mock.fetchImpl(
+              `${apiOrigin}/api/v1/workspaces/${wsId}/documents/changes?cursor=cur-v1&limit=50`,
+              { method: "GET", headers: { Authorization: `Bearer ${token}` } },
+            );
+            const feed = await feedRes.json();
+            const hit = (feed.changes ?? []).find((c) => c.document_id === mock.state.docId && c.version === 2);
+            if (!hit) return { reloaded: false, binding: null };
+            const v2 = mock.state.versions.at(-1);
+            const bindingV2 = {
+              schema: 2,
+              documentId: mock.state.docId,
+              workspaceId: mock.state.wsId,
+              orgId: mock.state.orgId,
+              title: "fx-xlsx-revenue-xyz.xlsx",
+              filename: "fx-xlsx-revenue-xyz.xlsx",
+              format: "xlsx",
+              access: "edit",
+              baseRevision: v2.revision,
+              baseVersion: 2,
+              baseVersionId: v2.id,
+              baseChecksum: v2.checksum_sha256,
+              state: "saved",
+            };
+            writeFileSync(join(docDir, "binding.json"), JSON.stringify(bindingV2));
+            writeFileSync(join(docDir, "fx-xlsx-revenue-xyz.xlsx"), v2.bytes);
+            return { reloaded: true, binding: bindingV2 };
+          },
+        },
+      });
+      assert.equal(res.exitCode, 0);
+      assert.equal(res.status, "PASS");
+      assert.equal(res.details.appOpenedV1, true);
+      assert.equal(res.details.appObservedV2ViaFeed, true);
+      assert.equal(res.details.webSaveSource, "web");
+      assert.equal(res.details.appObservedV2Source, "app");
     } finally {
       scratch.cleanup();
     }
@@ -615,7 +834,7 @@ describe("G7-10 Loop 2 (fx-docx-report-vi: AI edit turn creates 0 versions -> ex
 });
 
 describe("G7-10 Loop 3 (fx-docx-report-vi: offline Save in app -> reconnect -> receipt)", () => {
-  it("verifies server idempotent commit + receipt reconciliation, and blocks (77) when the VM has no desktop sign-in", async () => {
+  it("blocks (77) when the VM has no desktop sign-in and records server receipt check as protocol-only", async () => {
     const scratch = makeScratchRunDir({ startState: "up", signedIn: false });
     const mock = createMockDServer();
     try {
@@ -627,15 +846,16 @@ describe("G7-10 Loop 3 (fx-docx-report-vi: offline Save in app -> reconnect -> r
       });
       assert.equal(res.exitCode, BLOCKED_EXIT);
       assert.equal(res.status, "BLOCKED");
+      assert.equal(res.owner, "g7-qa");
       assert.match(res.reason, /signed in|session\.bin|keyring/i);
-      assert.equal(res.details.serverReceiptSegment.status, "PASS");
-      assert.equal(res.details.serverReceiptSegment.versionsAfterIdempotentRetry, 2);
+      assert.equal(res.details.protocolDiagnosticSegment.source, "protocol");
+      assert.equal(res.details.protocolDiagnosticSegment.versionsAfterIdempotentRetry, 2);
     } finally {
       scratch.cleanup();
     }
   });
 
-  it("passes (exit 0) when desktop app is signed in and binding.json settles to the v2 saved receipt", async () => {
+  it("FAILs (exit 1, never PASS) on the r1 false-PASS path where a hook only writes binding.json at v2 without v1 open and offline intent while cut (G710-L2)", async () => {
     const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
     const mock = createMockDServer();
     try {
@@ -653,7 +873,7 @@ describe("G7-10 Loop 3 (fx-docx-report-vi: offline Save in app -> reconnect -> r
         fetchImpl: mock.fetchImpl,
         spawnAppHook: () => {
           mkdirSync(docDir, { recursive: true });
-          const v2 = mock.state.versions.at(-1);
+          const v1 = mock.state.versions[0];
           writeFileSync(
             join(docDir, "binding.json"),
             JSON.stringify({
@@ -665,27 +885,163 @@ describe("G7-10 Loop 3 (fx-docx-report-vi: offline Save in app -> reconnect -> r
               filename: "fx-docx-report-vi.docx",
               format: "docx",
               access: "edit",
-              baseRevision: v2.revision,
-              baseVersion: v2.version,
-              baseVersionId: v2.id,
-              baseChecksum: v2.checksum_sha256,
+              baseRevision: v1.revision,
+              baseVersion: 2,
+              baseVersionId: v1.id,
+              baseChecksum: v1.checksum_sha256,
               state: "saved",
               lastSavedAt: new Date().toISOString(),
             }),
           );
-          writeFileSync(join(docDir, "fx-docx-report-vi.docx"), v2.bytes);
+          writeFileSync(join(docDir, "fx-docx-report-vi.docx"), v1.bytes);
         },
       });
-      assert.equal(res.exitCode, 0);
-      assert.equal(res.status, "PASS");
-      assert.equal(res.details.appReceiptSegment.status, "PASS");
-      assert.equal(res.details.appReceiptSegment.baseVersion, 2);
+      assert.notEqual(res.status, "PASS");
+      assert.equal(res.exitCode, 1);
+      assert.equal(res.status, "FAIL");
     } finally {
       scratch.cleanup();
     }
   });
 
-  it("fails (exit 1) when desktop app is signed in and binding.json settles to conflict/error", async () => {
+  it("PASSes (exit 0) when the app opens v1, saves while the harness proxy cuts the app link (holding offline state + .rec intent while server stays at v1), and commits v2 on reconnect (G710-L2)", async () => {
+    const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
+    const mock = createMockDServer();
+    try {
+      const docDir = join(
+        scratch.userData,
+        "uniwork-documents",
+        "default",
+        scratch.userId,
+        mock.state.docId,
+      );
+      const intentsDir = join(
+        scratch.userData,
+        "uniwork-sync",
+        "store",
+        "default",
+        scratch.userId,
+        "intents",
+      );
+      const res = await runTracerLoop({
+        loop: "3",
+        runDir: scratch.dir,
+        repoRoot: REPO_ROOT,
+        fetchImpl: mock.fetchImpl,
+        appDriver: {
+          signedIn: true,
+          driven: true,
+          openDocumentV1: async () => {
+            mkdirSync(docDir, { recursive: true });
+            const v1 = mock.state.versions[0];
+            const bindingV1 = {
+              schema: 2,
+              documentId: mock.state.docId,
+              workspaceId: mock.state.wsId,
+              orgId: mock.state.orgId,
+              title: "fx-docx-report-vi.docx",
+              filename: "fx-docx-report-vi.docx",
+              format: "docx",
+              access: "edit",
+              baseRevision: v1.revision,
+              baseVersion: 1,
+              baseVersionId: v1.id,
+              baseChecksum: v1.checksum_sha256,
+              state: "ready",
+            };
+            writeFileSync(join(docDir, "binding.json"), JSON.stringify(bindingV1));
+            writeFileSync(join(docDir, "fx-docx-report-vi.docx"), v1.bytes);
+            return { opened: true, binding: bindingV1 };
+          },
+          saveOfflineWhileCut: async ({ v2Bytes, v2Sha256 }) => {
+            // App writes local working copy and queues encrypted .rec intent while proxy is cut
+            const v1 = mock.state.versions[0];
+            mkdirSync(intentsDir, { recursive: true });
+            writeFileSync(join(intentsDir, "01JINTENT00000000000000001.rec"), "encrypted-intent");
+            const bindingOffline = {
+              schema: 2,
+              documentId: mock.state.docId,
+              workspaceId: mock.state.wsId,
+              orgId: mock.state.orgId,
+              title: "fx-docx-report-vi.docx",
+              filename: "fx-docx-report-vi.docx",
+              format: "docx",
+              access: "edit",
+              baseRevision: v1.revision,
+              baseVersion: 1,
+              baseVersionId: v1.id,
+              baseChecksum: v1.checksum_sha256,
+              state: "offline",
+              error: "network",
+            };
+            writeFileSync(join(docDir, "binding.json"), JSON.stringify(bindingOffline));
+            writeFileSync(join(docDir, "fx-docx-report-vi.docx"), v2Bytes);
+            return {
+              bindingWhileCut: bindingOffline,
+              intentFilesWhileCut: listAppSyncIntentFiles(scratch.userData, "default", scratch.userId),
+              v2Sha256,
+            };
+          },
+          reconnectAndFlushSave: async ({ apiOrigin, token, documentId, v2Bytes }) => {
+            // Proxy is back online; app's SaveCoordinator uploads + commits with Idempotency-Key and clears .rec
+            const v1 = mock.state.versions[0];
+            const form = new FormData();
+            form.set("file", new Blob([v2Bytes]), "fx-docx-report-vi.docx");
+            const upRes = await mock.fetchImpl(`${apiOrigin}/api/v1/documents/${documentId}/uploads`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: form,
+            });
+            const up = await upRes.json();
+            await mock.fetchImpl(`${apiOrigin}/api/v1/documents/${documentId}/versions/commit`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "Idempotency-Key": "01JINTENT00000000000000001",
+              },
+              body: JSON.stringify({ base_revision: v1.revision, upload_id: up.upload_id }),
+            });
+            rmSync(join(intentsDir, "01JINTENT00000000000000001.rec"), { force: true });
+            const v2 = mock.state.versions.at(-1);
+            const bindingSaved = {
+              schema: 2,
+              documentId: mock.state.docId,
+              workspaceId: mock.state.wsId,
+              orgId: mock.state.orgId,
+              title: "fx-docx-report-vi.docx",
+              filename: "fx-docx-report-vi.docx",
+              format: "docx",
+              access: "edit",
+              baseRevision: v2.revision,
+              baseVersion: 2,
+              baseVersionId: v2.id,
+              baseChecksum: v2.checksum_sha256,
+              state: "saved",
+              lastSavedAt: new Date().toISOString(),
+            };
+            writeFileSync(join(docDir, "binding.json"), JSON.stringify(bindingSaved));
+            return {
+              bindingAfterReconnect: bindingSaved,
+              intentFilesAfterReconnect: listAppSyncIntentFiles(scratch.userData, "default", scratch.userId),
+            };
+          },
+        },
+      });
+      assert.equal(res.exitCode, 0);
+      assert.equal(res.status, "PASS");
+      assert.equal(res.details.appOpenedV1, true);
+      assert.equal(res.details.serverVersionsWhileCut, 1);
+      assert.equal(res.details.appHeldOfflineIntentWhileCut, true);
+      assert.equal(res.details.appReceiptSegment.status, "PASS");
+      assert.equal(res.details.appReceiptSegment.baseVersion, 2);
+      assert.equal(res.details.serverVersionsAfterReconnect, 2);
+    } finally {
+      scratch.cleanup();
+    }
+  });
+
+  it("fails (exit 1) when desktop app is signed in and binding.json settles to conflict/error after reconnect", async () => {
     const scratch = makeScratchRunDir({ startState: "up", signedIn: true });
     const mock = createMockDServer();
     try {
@@ -701,11 +1057,37 @@ describe("G7-10 Loop 3 (fx-docx-report-vi: offline Save in app -> reconnect -> r
         runDir: scratch.dir,
         repoRoot: REPO_ROOT,
         fetchImpl: mock.fetchImpl,
-        spawnAppHook: () => {
-          mkdirSync(docDir, { recursive: true });
-          writeFileSync(
-            join(docDir, "binding.json"),
-            JSON.stringify({
+        appDriver: {
+          signedIn: true,
+          driven: true,
+          openDocumentV1: async () => {
+            mkdirSync(docDir, { recursive: true });
+            const v1 = mock.state.versions[0];
+            const bindingV1 = {
+              schema: 2,
+              documentId: mock.state.docId,
+              baseRevision: v1.revision,
+              baseVersion: 1,
+              baseChecksum: v1.checksum_sha256,
+              state: "ready",
+            };
+            writeFileSync(join(docDir, "binding.json"), JSON.stringify(bindingV1));
+            return { opened: true, binding: bindingV1 };
+          },
+          saveOfflineWhileCut: async () => {
+            const bindingOffline = {
+              schema: 2,
+              documentId: mock.state.docId,
+              baseRevision: "01JREV00000000000000000001",
+              baseVersion: 1,
+              baseChecksum: "deadbeef",
+              state: "offline",
+            };
+            writeFileSync(join(docDir, "binding.json"), JSON.stringify(bindingOffline));
+            return { bindingWhileCut: bindingOffline, intentFilesWhileCut: ["intent.rec"] };
+          },
+          reconnectAndFlushSave: async () => {
+            const bindingConflict = {
               schema: 2,
               documentId: mock.state.docId,
               baseRevision: "01JREV00000000000000000001",
@@ -713,9 +1095,10 @@ describe("G7-10 Loop 3 (fx-docx-report-vi: offline Save in app -> reconnect -> r
               baseChecksum: "deadbeef",
               state: "conflict",
               error: "revision_conflict",
-            }),
-          );
-          writeFileSync(join(docDir, "fx-docx-report-vi.docx"), Buffer.from("conflict"));
+            };
+            writeFileSync(join(docDir, "binding.json"), JSON.stringify(bindingConflict));
+            return { bindingAfterReconnect: bindingConflict, intentFilesAfterReconnect: [] };
+          },
         },
       });
       assert.equal(res.exitCode, 1);
