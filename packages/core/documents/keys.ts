@@ -36,8 +36,16 @@ export const documentKeys = {
   sourcesRoot: (wsId: string) => [...documentKeys.workspace(wsId), "sources"] as const,
   recent: (wsId: string) => [...documentKeys.workspace(wsId), "recent"] as const,
   sharedWithMe: (wsId: string) => [...documentKeys.workspace(wsId), "shared"] as const,
-  tree: (wsId: string, root: string = "") =>
-    [...documentKeys.workspace(wsId), "tree", root] as const,
+  // The folders-only tree appends a segment, so the full tree's key stays
+  // its prefix and one tree invalidation refreshes both.
+  tree: (wsId: string, root: string = "", foldersOnly: boolean = false) =>
+    foldersOnly
+      ? ([...documentKeys.workspace(wsId), "tree", root, "folders_only"] as const)
+      : ([...documentKeys.workspace(wsId), "tree", root] as const),
+  // What archiving a subtree would move (FD-06). Under the workspace root so
+  // a `document.moved`/`archived`/`restored` frame refreshes open counts.
+  archiveImpact: (wsId: string, documentId: string) =>
+    [...documentKeys.workspace(wsId), "archive-impact", documentId] as const,
   shares: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "shares"] as const,
   accessLogs: (wsId: string, documentId: string, action: string = "") =>

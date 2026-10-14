@@ -129,9 +129,9 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
   Không đụng tới flag `documents`; người dùng vẫn đọc/tải bản đã commit. Job
   `running` quá deadline tự `timed_out` qua reconciler; không có commit muộn.
 - **Purge/cleanup nghi xóa sai:** có công tắc riêng của FileService GC
-  (`FileGCConfig.Mode=dry_run|off`, mặc định dry_run; destructive cần người
-  quyết) — dừng ở đó, **không** xóa hàng lỗi thủ công để làm đẹp metric
-  (plan §8.2).
+  (`FILE_GC_MODE=dry_run|off` rồi khởi động lại server; mặc định
+  `destructive` từ 2026-10-14, xem [`RUNBOOK_FILE_GC.md`](RUNBOOK_FILE_GC.md))
+  — dừng ở đó, **không** xóa hàng lỗi thủ công để làm đẹp metric (plan §8.2).
 - **Backup/restore (metadata + blob, cùng một mốc):**
   1. Metadata: dump Postgres (`pg_dump`), gồm `documents`, `document_versions`,
      `document_assets`, `document_shares`, `document_access_logs`.
@@ -141,7 +141,7 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
   3. Khôi phục cả hai vào môi trường đích, chạy migration tới phiên bản của
      dump, rồi kiểm bước 6: checksum khớp, `asset://` phân giải được, version
      tải được.
-  4. Trong lúc khôi phục: để GC ở `dry_run`/`off`; sau khôi phục kiểm
+  4. Trong lúc khôi phục: đặt `FILE_GC_MODE=dry_run` (hoặc `off`); sau khôi phục kiểm
      `file_jobs`/`files` không có `deleting` mồ côi trước khi bật lại.
   5. Rollback tính năng là **tắt flag** `documents` (org override/`FF_DOCUMENTS`),
      giữ nguyên DB/object; không chạy down migration hay purge dữ liệu như thao

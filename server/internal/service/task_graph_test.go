@@ -166,10 +166,8 @@ func TestSetDependencyCrossWorkspaceRejected(t *testing.T) {
 
 	orgs := NewOrganizationService(s.pool, s.q)
 	wsSvc := NewWorkspaceService(s.pool, s.q, orgs, s.ws.render, &fakeOutbox{})
-	org2, err := orgs.Create(ctx, ua.ID, "Org Two", "org-two")
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The same person in a second organization (pre-ADR 0032 account).
+	org2 := createLegacyOrganization(t, orgs, ua.ID, "Org Two", "org-two")
 	v2, err := wsSvc.CreateInOrg(ctx, ua.ID, org2.ID, "Beta", "beta")
 	if err != nil {
 		t.Fatal(err)

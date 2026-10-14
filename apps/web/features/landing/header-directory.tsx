@@ -5,12 +5,17 @@ import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { PRODUCT_FEATURES, PRODUCT_GROUPS } from "./showcase";
 import { ANCHORS, href } from "./anchors";
-export type HeaderDirectoryKey = "products" | "solutions" | "learn";
+import { OFFICE_BUSINESS_ANCHOR } from "./office-data";
+export type HeaderDirectoryKey = "products" | "solutions" | "office" | "learn";
 
 export function HeaderDirectory({ kind, onNavigate }: { kind: HeaderDirectoryKey; onNavigate: () => void }) {
   const { t } = useTranslation();
+  if (kind === "office") return <div className="header-editorial-links header-office-links">
+    <Link href={`${paths.office()}#${OFFICE_BUSINESS_ANCHOR}`} onClick={onNavigate}><span><strong>{t("landing.office.editions.business")}</strong><small>{t("landing.office.editions.businessDescription")}</small></span><ArrowRight aria-hidden /></Link>
+    <div className="header-office-coming" data-office-personal><strong>{t("landing.office.editions.personal")}</strong><small>{t("landing.office.editions.development")}</small></div>
+  </div>;
   if (kind === "products") return <>
-    <div className="header-product-columns">{PRODUCT_GROUPS.map(group => <section key={group.key}><h2>{t(`landing.catalog.groups.${group.key}`)}</h2>{PRODUCT_FEATURES.filter(item => item.group === group.key).map(item => <Link key={item.key} href={paths.feature(item.key)} onClick={onNavigate}><item.icon aria-hidden /><span>{t(item.label)}</span></Link>)}</section>)}</div>
+    <div className="header-product-columns">{PRODUCT_GROUPS.map(group => <section key={group.key}><h2>{t(`landing.catalog.groups.${group.key}`)}</h2>{PRODUCT_FEATURES.filter(item => item.group === group.key).map(item => <Link key={item.key} href={paths.feature(item.key)} onClick={onNavigate}><item.icon aria-hidden /><span>{t(item.key === "agents" ? "landing.workforce.badge" : item.label)}</span></Link>)}</section>)}</div>
     <div className="header-directory-footer"><Link href={href(ANCHORS.businessOs)} onClick={onNavigate}><Layers aria-hidden />{t("landing.businessOs.title")}</Link><Link href={paths.features()} onClick={onNavigate}>{t("landing.productPages.allFeatures")}<ArrowRight aria-hidden /></Link><Link href="/#platform" onClick={onNavigate}><Play aria-hidden />{t("landing.productPages.watchDemo")}</Link></div>
   </>;
   const entries = kind === "solutions" ? [
@@ -22,5 +27,5 @@ export function HeaderDirectory({ kind, onNavigate }: { kind: HeaderDirectoryKey
     { to: paths.whyUniwork(), title: "landing.nav.why", description: "landing.studio.platformTitle", icon: Layers },
     { to: `${paths.learn()}#questions`, title: "landing.productPages.faqTitle", description: "landing.productPages.menuFoot", icon: CircleQuestionMark },
   ];
-  return <><div className="header-editorial-links">{entries.map(item => <Link key={item.to} href={item.to} onClick={onNavigate}><item.icon aria-hidden /><span><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span><ArrowRight aria-hidden /></Link>)}</div><div className="header-directory-footer"><Link href={kind === "solutions" ? paths.solutions.root() : paths.learn()} onClick={onNavigate}>{t(kind === "solutions" ? "landing.productPages.allSolutions" : "landing.productPages.resourcesLabel")}<ArrowRight aria-hidden /></Link><span>{t("landing.productPages.menuFoot")}</span></div></>;
+  return <><div className="header-editorial-links">{entries.map(item => <Link key={item.to} href={item.to} onClick={onNavigate}><item.icon aria-hidden /><span><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span><ArrowRight aria-hidden /></Link>)}</div><div className="header-directory-footer"><Link href={kind === "solutions" ? paths.solutions.root() : paths.learn()} onClick={onNavigate}>{t(kind === "solutions" ? "landing.productPages.allSolutions" : "landing.productPages.resourcesLabel")}<ArrowRight aria-hidden /></Link>{kind === "learn" && <Link href={paths.changelog()} onClick={onNavigate}>{t("changelog.title")}<ArrowRight aria-hidden /></Link>}<span>{t("landing.productPages.menuFoot")}</span></div></>;
 }

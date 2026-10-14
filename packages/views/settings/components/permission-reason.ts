@@ -33,6 +33,8 @@ export function decisionReason(t: TFunction, decision: Decision, action?: "leave
       return t("org.reasons.not_owner_role");
     case "not_resource_owner":
       return t("org.reasons.not_resource_owner");
+    case "organization_has_members":
+      return t("org.reasons.organization_has_members");
     default:
       return t("org.reasons.fallback");
   }

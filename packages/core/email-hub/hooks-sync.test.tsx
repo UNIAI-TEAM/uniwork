@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/http";
-import { useEmailHubLiveSync } from "./hooks-sync";
+import { useEmailHubLazyFolderSync, useEmailHubLiveSync } from "./hooks-sync";
+import { emailHubKeys } from "./query-cache";
 
 vi.mock("../api/endpoints/email-hub", () => ({
   subscribeEmailHubInboxWatch: vi.fn(() => Promise.resolve({ subscribed: true })),
@@ -18,7 +19,74 @@ function wrapperFor(qc: QueryClient) {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => vi.clearAllMocks());
+
+describe("useEmailHubLazyFolderSync", () => {
+  it.each([
+    ["SPAM", "SPAM"],
+    ["SNOOZED", "INBOX"],
+  ])("clears syncing for %s when filters skip an in-flight request", async (folder, syncedFolder) => {
+    const pending = deferred<{ synced: boolean }>();
+    vi.mocked(api.syncEmailHub).mockReturnValueOnce(pending.promise);
+    const qc = new QueryClient();
+    const { result, rerender } = renderHook(
+      ({ skip }: { skip: boolean }) =>
+        useEmailHubLazyFolderSync("ws1", "acc1", folder, { listFetched: true, listTotal: 1, skip }),
+      { wrapper: wrapperFor(qc), initialProps: { skip: false } },
+    );
+
+    expect(result.current).toBe(true);
+    expect(api.syncEmailHub).toHaveBeenCalledWith("ws1", "acc1", syncedFolder, false, false, false);
+
+    rerender({ skip: true });
+    await act(async () => {
+      pending.resolve({ synced: false });
+      await pending.promise;
+    });
+
+    expect(result.current).toBe(false);
+  });
+
+  it("clears syncing when a pending empty-folder force sync is no longer needed", async () => {
+    const initial = deferred<{ synced: boolean }>();
+    vi.mocked(api.syncEmailHub).mockReturnValueOnce(initial.promise);
+    const qc = new QueryClient();
+    const { result, rerender } = renderHook(
+      ({ listFetched, listTotal }: { listFetched: boolean; listTotal: number }) =>
+        useEmailHubLazyFolderSync("ws1", "acc1", "SENT", { listFetched, listTotal }),
+      { wrapper: wrapperFor(qc), initialProps: { listFetched: false, listTotal: 0 } },
+    );
+
+    expect(result.current).toBe(true);
+    await act(async () => {
+      initial.resolve({ synced: false });
+      await initial.promise;
+    });
+    await waitFor(() => expect(result.current).toBe(false));
+
+    const forced = deferred<{ synced: boolean }>();
+    vi.mocked(api.syncEmailHub).mockReturnValueOnce(forced.promise);
+    rerender({ listFetched: true, listTotal: 0 });
+    expect(result.current).toBe(true);
+    expect(api.syncEmailHub).toHaveBeenLastCalledWith("ws1", "acc1", "SENT", true, false, false);
+
+    rerender({ listFetched: true, listTotal: 1 });
+    await act(async () => {
+      forced.resolve({ synced: false });
+      await forced.promise;
+    });
+
+    expect(result.current).toBe(false);
+  });
+});
 
 describe("useEmailHubLiveSync", () => {
   it("keeps the server watch when the reader opens a message, and drops it on unmount", () => {
@@ -41,6 +109,22 @@ describe("useEmailHubLiveSync", () => {
     renderHook(() => useEmailHubLiveSync("ws1", "acc1", false), { wrapper: wrapperFor(qc) });
     expect(api.subscribeEmailHubInboxWatch).not.toHaveBeenCalled();
     expect(api.syncEmailHub).not.toHaveBeenCalled();
+  });
+
+  it("invalidates unread and scoped sidebar counts after a successful live sync", async () => {
+    vi.mocked(api.syncEmailHub).mockResolvedValueOnce({ synced: true });
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    renderHook(() => useEmailHubLiveSync("ws1", "acc1"), { wrapper: wrapperFor(qc) });
+
+    await waitFor(() => expect(api.syncEmailHub).toHaveBeenCalledWith("ws1", "acc1", "INBOX", false, true, false));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: emailHubKeys.sidebarCounts("ws1", "acc1") }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: emailHubKeys.unread("ws1") });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: emailHubKeys.unread("ws2") });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: emailHubKeys.sidebarCounts("ws1", "acc2") });
   });
 
   it("refetches the account list once when the mailbox needs reconnecting", async () => {
@@ -73,5 +157,26 @@ describe("useEmailHubLiveSync", () => {
     await Promise.allSettled(calls);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe("useEmailHubLazyFolderSync", () => {
+  it("invalidates unread and scoped sidebar counts after a successful SNOOZED refresh", async () => {
+    vi.mocked(api.syncEmailHub).mockResolvedValueOnce({ synced: true });
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    renderHook(
+      () => useEmailHubLazyFolderSync("ws1", "acc1", "SNOOZED", { listFetched: true, listTotal: 1 }),
+      { wrapper: wrapperFor(qc) },
+    );
+
+    await waitFor(() => expect(api.syncEmailHub).toHaveBeenCalledWith("ws1", "acc1", "INBOX", false, false, false));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: emailHubKeys.sidebarCounts("ws1", "acc1") }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: emailHubKeys.unread("ws1") });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: emailHubKeys.unread("ws2") });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: emailHubKeys.sidebarCounts("ws1", "acc2") });
   });
 });

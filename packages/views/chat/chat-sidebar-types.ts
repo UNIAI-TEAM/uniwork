@@ -1,7 +1,6 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
-import type { Workspace } from "@uniwork/core/types";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 
@@ -24,8 +23,6 @@ export interface ChatSidebarProps {
   creatingGroup?: boolean;
   createGroupOpen?: boolean;
   onCreateGroupOpenChange?: (open: boolean) => void;
-  /** A pending invitation was accepted; `workspace` is null for an organization-only invite. */
-  onJoinedWorkspace?: (workspace: Workspace | null) => void;
   workspaceRoomId?: string | null;
   unreadByRoomId?: Record<string, number>;
   mentionUnreadByRoomId?: Record<string, number>;

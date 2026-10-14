@@ -102,6 +102,8 @@ export interface DesktopOpenActionProps {
   /** `view` asks for a read-only session (a viewer, or a file the caller may
    * not change); the server still decides and never upgrades it. */
   operation?: "edit" | "view";
+  /** The comment a `?comment=` link named: the ticket carries it so the app reveals that thread. */
+  commentId?: string;
 }
 
 function isAccepted(outcome: unknown): outcome is OfficeSaveOutcome & { accepted: true } {
@@ -144,6 +146,7 @@ export function DesktopOpenAction({
   requestRef,
   placement = "header",
   operation = "edit",
+  commentId,
 }: DesktopOpenActionProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.desktop" });
   const [coordinatorState, setCoordinatorState] = useState(() => saveCoordinator?.getState() ?? null);
@@ -221,6 +224,7 @@ export function DesktopOpenAction({
       // the editor knows what it is handing off.
       const session = await createSession(documentId, {
         operation, deployment_id: deploymentId, client_id: clientId, return_hint: "office",
+        ...(commentId ? { comment_id: commentId } : {}),
       });
       if (!session) {
         setError(t("ticket_failed"));

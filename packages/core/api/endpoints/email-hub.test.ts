@@ -298,14 +298,33 @@ describe("email hub endpoints", () => {
     expect(await unsubscribeEmailHubInboxWatch("ws1", "acc1")).toEqual({ subscribed: false });
   });
 
-  it("listEmailHubThreads passes search filters", async () => {
+  it("listEmailHubThreads passes search filters and the abort signal", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ threads: [thread], counts: { total: 1, unread: 0 }, next_cursor: "th2" }),
     );
-    const page = await listEmailHubThreads("ws1", "acc1", "INBOX", { q: "hello", unreadOnly: true }, undefined, 25);
+    const signal = new AbortController().signal;
+    const page = await listEmailHubThreads(
+      "ws1",
+      "acc1",
+      "INBOX",
+      { q: "hello", unreadOnly: true },
+      undefined,
+      25,
+      signal,
+    );
     expect(page.next_cursor).toBe("th2");
     expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("q=hello");
     expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("unread=1");
+    expect(vi.mocked(fetch).mock.calls[0]![1]?.signal).toBe(signal);
+  });
+
+  it("listEmailHubThreads degrades to an empty page when malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ threads: "not-a-list", counts: null }));
+    await expect(listEmailHubThreads("ws1", "acc1")).resolves.toEqual({
+      threads: [],
+      counts: { total: 0, unread: 0 },
+      next_cursor: "",
+    });
   });
 
   it("syncEmailHub passes folder query when provided", async () => {

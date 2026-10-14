@@ -118,6 +118,19 @@ func pathParamSDI(path string) any {
 		return struct {
 			Org string `path:"org" description:"Slug tổ chức" example:"acme"`
 		}{}
+	case "attemptID":
+		return struct {
+			AttemptID string `path:"attemptID" description:"ULID yêu cầu kết nối MCP" example:"01J8X4ATT0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "grantID":
+		return struct {
+			GrantID string `path:"grantID" description:"ULID quyền truy cập của ứng dụng AI" example:"01J8X4GRT0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "org,grantID":
+		return struct {
+			Org     string `path:"org" description:"Slug tổ chức" example:"acme"`
+			GrantID string `path:"grantID" description:"ULID quyền truy cập của ứng dụng AI" example:"01J8X4GRT0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "org,wsSlug":
 		return struct {
 			Org    string `path:"org" description:"Slug tổ chức" example:"acme"`
@@ -211,6 +224,10 @@ func pathParamSDI(path string) any {
 	case "deviceSessionID":
 		return struct {
 			DeviceSessionID string `path:"deviceSessionID" description:"ULID phiên thiết bị native" example:"01J8X4DEVN1P2Q3R4S5T6U7V8"`
+		}{}
+	case "demoRequestID":
+		return struct {
+			DemoRequestID string `path:"demoRequestID" description:"ULID yêu cầu demo"`
 		}{}
 	case "taskID":
 		return struct {

@@ -19,6 +19,7 @@ import { ComposeEmailToolbar, type ComposeDraftAttachment } from "./compose-emai
 import {
   buildForwardBody,
   buildReplyAllRecipients,
+  buildReplyRecipients,
   composeModeDescriptionKey,
   composeModeTitleKey,
   composeSendErrorKey,
@@ -69,7 +70,7 @@ function initialDraft(
   forwardLabels: ForwardLabels | null,
 ): Draft {
   if (source && mode === "reply") {
-    return { to: [source.from_addr], cc: [], bcc: [], subject: replySubject(source.subject), body: "" };
+    return { to: buildReplyRecipients(source, fromEmail), cc: [], bcc: [], subject: replySubject(source.subject), body: "" };
   }
   if (source && mode === "replyAll") {
     const recipients = buildReplyAllRecipients(source, fromEmail);

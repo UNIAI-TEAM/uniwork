@@ -321,8 +321,10 @@ func TestOfficeFrameFlagIsEvaluatedPerOrganization(t *testing.T) {
 		t.Fatalf("save under the org override = %d", code)
 	}
 
-	// Another organization, same server, its override off: closed.
-	other := w.outsiderToken(t)
+	// Another organization, same server, its override off: closed. Its own
+	// founder: the world's outsider already belongs to this organization, and
+	// an account holds one organization at a time (ADR 0032).
+	other, _ := filesRegister(t, w.srv, "office-other-founder@example.com")
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/orgs", other, map[string]string{"name": "Other Org", "slug": "other-org"})
 	if res.StatusCode != 201 {
 		t.Fatalf("create other org: %d %v", res.StatusCode, out)

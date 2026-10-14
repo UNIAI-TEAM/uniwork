@@ -67,6 +67,7 @@ var catalogue = []Flag{
 	{Key: "office_ai_uniwork_html", Description: "UniWork AI per-format capability for HTML; needs office_ai_uniwork on. Hides the capability only; grants nothing", Default: false, Public: true, Owner: "office", ReviewAt: day(2027, 3, 31)},
 	{Key: "graph", Description: "Work Graph: marker đánh dấu node bẩn cho tổ chức này, worker chiếu (C-11). Bật rồi chạy graph-rebuild --org", Default: false, Public: false, Owner: "graph", ReviewAt: day(2027, 1, 31)},
 	{Key: "graph_ui", Description: "Work Graph: section Liên quan và dòng thời gian trên trang việc (C-11)", Default: false, Public: true, Owner: "graph", ReviewAt: day(2027, 1, 31)},
+	{Key: "mcp_connector", Description: "Connector MCP: client AI bên ngoài (Claude, ChatGPT, Gemini) đọc task và cuộc họp (UNI-1308)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 1, 31)},
 }
 
 // Catalogue returns a copy of the declared flags.

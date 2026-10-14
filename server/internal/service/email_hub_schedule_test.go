@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -115,6 +117,130 @@ func TestEmailHubScheduledSendBatchSMTPFailureMarksFailed(t *testing.T) {
 	}
 }
 
+func TestEmailHubScheduledSendClassifiesOutboundResult(t *testing.T) {
+	tests := []struct {
+		name          string
+		sendErr       error
+		wantStatus    string
+		wantLastError string
+	}{
+		{
+			name:       "sent but not cached is final success",
+			sendErr:    fmt.Errorf("cache insert: %w", errEmailHubSentNotCached),
+			wantStatus: "sent",
+		},
+		{
+			name:          "ordinary send failure remains failed",
+			sendErr:       errors.New("smtp unavailable"),
+			wantStatus:    "failed",
+			wantLastError: "smtp unavailable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, q, user, ws, pool := emailHubFixture(t)
+			ctx := context.Background()
+			acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+			payload, err := json.Marshal(scheduledSendPayload{
+				To: []string{"dest@example.com"}, Subject: "Later", BodyText: "Hello",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := util.NewID()
+			if _, err := q.CreateEmailHubScheduledSend(ctx, db.CreateEmailHubScheduledSendParams{
+				ID: id, WorkspaceID: ws.ID, AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+				UserID: user.ID, Payload: payload,
+				SendAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(-time.Minute), Valid: true},
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			var sends atomic.Int32
+			svc.testHookScheduledSend = func(context.Context, db.EmailHubAccount, string, SendEmailHubInput) error {
+				sends.Add(1)
+				return tt.sendErr
+			}
+			if n := svc.runScheduledSendOnce(ctx); n != 1 {
+				t.Fatalf("claimed %d rows, want 1", n)
+			}
+
+			var (
+				status  string
+				lastErr pgtype.Text
+			)
+			if err := pool.QueryRow(ctx,
+				`SELECT status, last_error FROM email_hub_scheduled_sends WHERE id=$1`, id,
+			).Scan(&status, &lastErr); err != nil {
+				t.Fatal(err)
+			}
+			if status != tt.wantStatus {
+				t.Fatalf("status = %q, want %q", status, tt.wantStatus)
+			}
+			if got := lastErr.String; lastErr.Valid != (tt.wantLastError != "") || got != tt.wantLastError {
+				t.Fatalf("last_error = %+v, want %q", lastErr, tt.wantLastError)
+			}
+
+			// Neither a final sent row nor a terminal failed row is picked up again
+			// without an explicit user retry.
+			if n := svc.runScheduledSendOnce(ctx); n != 0 {
+				t.Fatalf("second run claimed %d rows, want 0", n)
+			}
+			if got := sends.Load(); got != 1 {
+				t.Fatalf("outbound calls = %d, want 1", got)
+			}
+		})
+	}
+}
+
+func TestEmailHubScheduledSendRealCacheFailureStaysSent(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	payload, err := json.Marshal(scheduledSendPayload{
+		To: []string{"dest@example.com"}, Subject: "Later", BodyText: "Hello",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := util.NewID()
+	if _, err := q.CreateEmailHubScheduledSend(ctx, db.CreateEmailHubScheduledSendParams{
+		ID: id, WorkspaceID: ws.ID, AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		UserID: user.ID, Payload: payload,
+		SendAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(-time.Minute), Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var sends atomic.Int32
+	svc.testHookSMTPSend = func(context.Context, smtpclient.Credentials, smtpclient.Message) (string, []byte, error) {
+		sends.Add(1)
+		cancel() // SMTP accepted the message; force the following cache write to fail.
+		return "<scheduled@example.com>", []byte("accepted"), nil
+	}
+	if n := svc.runScheduledSendOnce(ctx); n != 1 {
+		t.Fatalf("claimed %d rows, want 1", n)
+	}
+
+	var (
+		status  string
+		lastErr pgtype.Text
+	)
+	if err := pool.QueryRow(context.Background(),
+		`SELECT status, last_error FROM email_hub_scheduled_sends WHERE id=$1`, id,
+	).Scan(&status, &lastErr); err != nil {
+		t.Fatal(err)
+	}
+	if status != "sent" || lastErr.Valid {
+		t.Fatalf("status=%q last_error=%+v, want sent with no error", status, lastErr)
+	}
+	if got := sends.Load(); got != 1 {
+		t.Fatalf("SMTP sends = %d, want 1", got)
+	}
+}
+
 // A row whose mailbox is gone is never claimed: the worker sends only from a
 // connected mailbox whose owner still passes the membership gates (UNI-1106).
 func TestEmailHubScheduledSendBatchSkipsMissingAccount(t *testing.T) {
@@ -164,6 +290,82 @@ func TestEmailHubScheduleSendWithAttachment(t *testing.T) {
 	list, err := svc.ListScheduledSends(ctx, actor, ws.ID, acc.ID)
 	if err != nil || len(list) != 1 || list[0].ID != created.ID {
 		t.Fatalf("list: err=%v list=%+v created=%+v", err, list, created)
+	}
+}
+
+// UNI-1624: a settled scheduled send (sent or cancelled) no longer carries its
+// attachments; a failed one keeps them for the retry.
+func TestEmailHubSettledScheduledSendDropsAttachments(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	schedule := func() string {
+		t.Helper()
+		created, err := svc.ScheduleSend(ctx, actor, ws.ID, SendEmailHubInput{
+			AccountID: acc.ID, To: []string{"dest@example.com"}, Subject: "Files", BodyText: "See attached",
+			Attachments: []SendEmailHubAttachmentInput{{
+				Filename: "note.txt", ContentType: "text/plain", Data: []byte("hello"),
+			}},
+		}, time.Now().UTC().Add(2*time.Minute))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return created.ID
+	}
+	hasAttachments := func(id string) bool {
+		t.Helper()
+		var has bool
+		if err := pool.QueryRow(ctx,
+			`SELECT payload ? 'attachments' FROM email_hub_scheduled_sends WHERE id=$1`, id,
+		).Scan(&has); err != nil {
+			t.Fatal(err)
+		}
+		return has
+	}
+
+	cancelled := schedule()
+	if !hasAttachments(cancelled) {
+		t.Fatal("a pending send must keep its attachments")
+	}
+	if err := svc.CancelScheduledSend(ctx, actor, ws.ID, acc.ID, cancelled); err != nil {
+		t.Fatal(err)
+	}
+	if hasAttachments(cancelled) {
+		t.Fatal("a cancelled send still carries its attachments")
+	}
+
+	sent := schedule()
+	if _, err := pool.Exec(ctx,
+		`UPDATE email_hub_scheduled_sends SET status='sending', lease_owner='w1' WHERE id=$1`, sent,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := q.MarkEmailHubScheduledSendSent(ctx, db.MarkEmailHubScheduledSendSentParams{
+		ID: sent, LeaseOwner: pgtype.Text{String: "w1", Valid: true},
+	}); err != nil || n != 1 {
+		t.Fatalf("mark sent: n=%d err=%v", n, err)
+	}
+	if hasAttachments(sent) {
+		t.Fatal("a sent send still carries its attachments")
+	}
+
+	failed := schedule()
+	if n, err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
+		ID: failed, LastError: pgtype.Text{String: "smtp", Valid: true}, LeaseOwner: pgtype.Text{Valid: true},
+	}); err != nil || n != 1 {
+		t.Fatalf("mark failed: n=%d err=%v", n, err)
+	}
+	if !hasAttachments(failed) {
+		t.Fatal("a failed send must keep its attachments for the retry")
+	}
+
+	// a disconnected mailbox cancels its queue, the failed send included
+	if err := svc.Disconnect(ctx, actor, ws.ID, acc.ID); err != nil {
+		t.Fatal(err)
+	}
+	if hasAttachments(failed) {
+		t.Fatal("the disconnect-cancelled send still carries its attachments")
 	}
 }
 

@@ -45,11 +45,11 @@ import "./hero-nexus.css";
  * then inspect governance and planned work before creating an account.
  * REFERENCE: User-supplied ClickUp feature-rail composition; claims checked
  * against develop 26e56c4b. Demos stay local, with configuration caveats.
- * FIRST VIEWPORT: A floating navigation dock above a compact, naturally wrapped
- * headline and one CTA. A small live work core connects four concise context labels.
+ * FIRST VIEWPORT: A floating navigation dock above a centered, two-line
+ * headline and one CTA. Real product screens connect four concise context labels.
  * Feature disclosure opens a compact directory; mobile keeps a native link menu.
- * FORM: User-pinned ClickUp/Motion product-led canon overrides seed 277f981e;
- * code-led, no approved visual comp. User chose an AI horse illustration
+ * FORM: The supplied hero comp guides the opening; the ClickUp/Motion canon
+ * guides the product story. User chose an AI horse illustration
  * with 2.5D motion over a 360-degree mesh, based on their supplied reference.
  * MOTION: Five source-backed local storyboards demonstrate explicit actions;
  * assignment never completes work, and planned entries never autoplay.

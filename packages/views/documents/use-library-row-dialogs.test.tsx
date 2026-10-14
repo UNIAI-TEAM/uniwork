@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
+import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { requestMock, wrap } from "../test/api-mock";
@@ -99,11 +100,11 @@ describe("move", () => {
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Hợp đồng" }));
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
-    expect(await within(dialog).findByText(t("documents.errors.document_too_deep"))).toBeInTheDocument();
+    expect(await within(dialog).findByText(t("documents.errors.document_too_deep", { max: TREE_MAX_LEVEL }))).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledOnce());
-    expect(within(dialog).queryByText(t("documents.errors.document_too_deep"))).toBeNull();
+    expect(within(dialog).queryByText(t("documents.errors.document_too_deep", { max: TREE_MAX_LEVEL }))).toBeNull();
   });
 
   it.each([
