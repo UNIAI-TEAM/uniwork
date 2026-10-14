@@ -76,7 +76,11 @@ type AICloudStatus struct {
 	// UniworkAIFormats are the formats whose office_ai_uniwork_<format> is on
 	// for the caller, set only with Chat (the X-03 evaluation).
 	UniworkAIFormats []string
-	Credits          CloudCredits
+	// UniworkModel is the model the Gateway serves for UniWork AI in the
+	// Office editors (G6-05m, the chip's UniWork AI row); "" while UniWork AI
+	// is off for the caller or the server has no provider for it.
+	UniworkModel string
+	Credits      CloudCredits
 }
 
 // Status never refuses a member: a plan without office.ai_cloud reads as
@@ -108,6 +112,7 @@ func (s *AICloudService) Status(ctx context.Context, userID, orgID string, caps 
 			if c, err := caps.Get(ctx, userID, orgID); err == nil && c.AIUniwork {
 				out.Chat = true
 				out.UniworkAIFormats = c.AIUniworkFormats
+				out.UniworkModel = s.gw.UniworkAIModel()
 			}
 		}
 	}

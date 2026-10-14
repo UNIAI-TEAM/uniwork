@@ -108,12 +108,22 @@ func (g *Gateway) CloudAvailability() CloudAvailability {
 // model on it. A provider without a default for the capability (ollama) is
 // not configured. The fake provider qualifies so CI and e2e can run; rollout
 // keeps it off for real organizations.
-func (g *Gateway) UniworkAIConfigured() bool {
+func (g *Gateway) UniworkAIConfigured() bool { return g.UniworkAIModel() != "" }
+
+// UniworkAIModel is the model the gateway serves for the Office UniWork AI
+// (G6-05m): ResolveModel's answer for CapOfficeUniworkAI on the configured
+// provider, an allowlisted AI_MODEL_OFFICE_UNIWORK_AI override winning over
+// the policy default. "" when the gateway has no provider or the capability
+// has no model there. The cloud status shows it as uniwork_model.
+func (g *Gateway) UniworkAIModel() string {
 	if !g.Enabled() {
-		return false
+		return ""
 	}
-	_, _, err := ResolveModel(CapOfficeUniworkAI, g.p.Name(), g.opts.Env, g.opts.ExtraAllow)
-	return err == nil
+	_, model, err := ResolveModel(CapOfficeUniworkAI, g.p.Name(), g.opts.Env, g.opts.ExtraAllow)
+	if err != nil {
+		return ""
+	}
+	return model
 }
 
 // CloudCall is who pays: the actor and the organization whose credits the
