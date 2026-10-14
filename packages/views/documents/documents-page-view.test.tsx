@@ -1113,7 +1113,9 @@ describe("DocumentsPageView", () => {
 
       const createFolderBtn = within(status).getByRole("button", { name: t("documents.home.folders.create_title") });
       fireEvent.click(createFolderBtn);
-      const dialog = await screen.findByRole("dialog", { name: t("documents.home.folders.create_title") });
+      const dialog = await screen.findByRole("dialog", {
+        name: t("documents.home.folders.create_sub_title", { parent: "Dự án CCB" }),
+      });
       const input = within(dialog).getByLabelText(t("documents.home.folders.rename_label"));
       fireEvent.change(input, { target: { value: "Thư mục con mới" } });
       fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
