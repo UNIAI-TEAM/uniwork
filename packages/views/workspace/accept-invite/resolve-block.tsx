@@ -73,7 +73,7 @@ function DestructiveNotice({ children }: { children: ReactNode }) {
   return (
     <Alert variant="destructiveSoft" role="note">
       <CircleAlert aria-hidden />
-      <AlertDescription className="text-pretty">{children}</AlertDescription>
+      <AlertDescription className="text-pretty [overflow-wrap:anywhere]">{children}</AlertDescription>
     </Alert>
   );
 }
@@ -91,7 +91,7 @@ function BlockBody(props: BlockProps) {
     case "blocked":
       return <DestructiveNotice>{t("invitations.switch.blocked", { name })}</DestructiveNotice>;
     default:
-      return <p className="text-body text-foreground">{t("invitations.switch.unknown", { name })}</p>;
+      return <p className="text-pretty text-body text-foreground [overflow-wrap:anywhere]">{t("invitations.switch.unknown", { name })}</p>;
   }
 }
 
@@ -101,7 +101,7 @@ function LeaveBlock({ conflict, draft, onChange }: BlockProps) {
   const id = `switch-${conflict.organization.id}-leave`;
   return (
     <>
-      <p className="text-pretty text-body text-muted-foreground">{t("invitations.switch.leave_body", { name })}</p>
+      <p className="text-pretty text-body text-muted-foreground [overflow-wrap:anywhere]">{t("invitations.switch.leave_body", { name })}</p>
       {/* The whole row is the label, so the target is the row on a touch screen, not the 16px box. */}
       <Field orientation="horizontal" className="min-h-11">
         <Checkbox
@@ -109,7 +109,7 @@ function LeaveBlock({ conflict, draft, onChange }: BlockProps) {
           checked={draft.leaveConfirmed}
           onCheckedChange={(checked) => onChange({ leaveConfirmed: checked === true })}
         />
-        <FieldLabel htmlFor={id} className="min-h-11 items-center text-body">
+        <FieldLabel htmlFor={id} className="min-h-11 min-w-0 items-center text-body [overflow-wrap:anywhere]">
           {t("invitations.switch.leave_confirm", { name })}
         </FieldLabel>
       </Field>
@@ -130,7 +130,7 @@ function TransferBlock({ conflict, draft, onChange, passwordError, passwordless 
   };
   return (
     <>
-      <p className="text-pretty text-body text-muted-foreground">{t("invitations.switch.transfer_body", { name })}</p>
+      <p className="text-pretty text-body text-muted-foreground [overflow-wrap:anywhere]">{t("invitations.switch.transfer_body", { name })}</p>
       <TransferCandidateField
         id={`${prefix}-target`}
         candidates={candidates}
@@ -163,7 +163,7 @@ function CloseBlock({ conflict, draft, onChange }: BlockProps) {
   const mismatch = typed !== "" && typed !== slug && !slug.startsWith(typed);
   return (
     <>
-      <p className="text-pretty text-body text-muted-foreground">{t("invitations.switch.close_body", { name })}</p>
+      <p className="text-pretty text-body text-muted-foreground [overflow-wrap:anywhere]">{t("invitations.switch.close_body", { name })}</p>
       <DestructiveNotice>{t("org.close.confirm_body", { name })}</DestructiveNotice>
       <Field>
         <FieldLabel htmlFor={id}>{t("org.close.confirm_label")}</FieldLabel>

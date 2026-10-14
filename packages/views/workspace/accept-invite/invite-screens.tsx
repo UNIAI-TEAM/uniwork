@@ -125,7 +125,7 @@ export function InvitationGoneBody({ reason }: { reason: GoneReason }) {
         {held ? (
           <Alert variant="success" role="status" className="rounded-xl p-4">
             <CircleCheck aria-hidden />
-            <AlertDescription className="text-pretty font-medium">
+            <AlertDescription className="text-pretty font-medium [overflow-wrap:anywhere]">
               {t("invitations.gone.still_in", { name: held.name })}
             </AlertDescription>
           </Alert>
