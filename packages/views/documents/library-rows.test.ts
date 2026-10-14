@@ -4,16 +4,22 @@ import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { greetingPart } from "./documents-home-create";
 import {
   byUpdatedDesc,
+  DEFAULT_FOLDER_SORT,
   documentRow,
+  FOLDER_SORT_STORAGE_KEY,
   folderPath,
   formatBytes,
   groupRows,
   indexTree,
   matchesChip,
   mergeNewestFirst,
+  readFolderSort,
   rowOrigin,
   rowSizeBytes,
+  rowTypeKey,
+  sortFolderRows,
   sourceRow,
+  writeFolderSort,
   type DocumentSummaryRow,
 } from "./library-rows";
 
@@ -146,4 +152,86 @@ describe("library rows", () => {
     expect(greetingPart(21)).toBe("evening");
     expect(greetingPart(2)).toBe("evening");
   });
+
+  it("places folders before documents in both sorts", () => {
+    const rows = [
+      documentRow(doc({ id: "doc-new", kind: "page", title: "An", updated_at: "2026-10-10T00:00:00Z" })),
+      documentRow(doc({ id: "fol-old", kind: "folder", title: "Zebra", updated_at: "2026-01-01T00:00:00Z" })),
+      documentRow(doc({ id: "doc-old", kind: "file", title: "Báo cáo.docx", updated_at: "2026-02-01T00:00:00Z" })),
+      documentRow(doc({ id: "fol-new", kind: "folder", title: "Alpha", updated_at: "2026-09-01T00:00:00Z" })),
+    ];
+    expect(sortFolderRows(rows, "updated").map((r) => r.id)).toEqual([
+      "fol-new",
+      "fol-old",
+      "doc-new",
+      "doc-old",
+    ]);
+    expect(sortFolderRows(rows, "name").map((r) => r.id)).toEqual([
+      "fol-new",
+      "fol-old",
+      "doc-new",
+      "doc-old",
+    ]);
+  });
+
+  it("sorts by Name using Vietnamese collation ('Ă' after 'A')", () => {
+    const rows = [
+      documentRow(doc({ id: "binh", kind: "page", title: "Bình" })),
+      documentRow(doc({ id: "an-circumflex", kind: "page", title: "Ân" })),
+      documentRow(doc({ id: "an-breve", kind: "page", title: "Ăn" })),
+      documentRow(doc({ id: "an-plain", kind: "page", title: "An" })),
+      documentRow(doc({ id: "fol-breve", kind: "folder", title: "Ăn uống" })),
+      documentRow(doc({ id: "fol-plain", kind: "folder", title: "An toàn" })),
+    ];
+    expect(sortFolderRows(rows, "name").map((r) => r.id)).toEqual([
+      "fol-plain",
+      "fol-breve",
+      "an-plain",
+      "an-breve",
+      "an-circumflex",
+      "binh",
+    ]);
+  });
+
+  it("maps each row kind and extension to its Type column translation key", () => {
+    expect(rowTypeKey(documentRow(doc({ kind: "folder", title: "Hợp đồng" })))).toBe("documents.file_types.folder");
+    expect(rowTypeKey(documentRow(doc({ kind: "page", title: "Ghi chú" })))).toBe("documents.file_types.page");
+    expect(rowTypeKey(documentRow(doc({ kind: "file", title: "Báo giá.docx" })))).toBe("documents.file_types.docx");
+    expect(rowTypeKey(documentRow(doc({ kind: "file", title: "Số liệu.xlsx" })))).toBe("documents.file_types.xlsx");
+    expect(rowTypeKey(documentRow(doc({ kind: "file", title: "archive.zip" })))).toBe("documents.file_types.file");
+  });
+
+  it("persists folder sort under one StorageAdapter key and defaults when storage is missing or throws", () => {
+    const map = new Map<string, string>();
+    const adapter = {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        map.set(k, v);
+      },
+      removeItem: (k: string) => {
+        map.delete(k);
+      },
+    };
+    expect(readFolderSort(adapter)).toBe(DEFAULT_FOLDER_SORT);
+    writeFolderSort("name", adapter);
+    expect(map.get(FOLDER_SORT_STORAGE_KEY)).toBe("name");
+    expect(readFolderSort(adapter)).toBe("name");
+
+    const throwing = {
+      getItem: (): string | null => {
+        throw new Error("SecurityError");
+      },
+      setItem: () => {
+        throw new Error("QuotaExceededError");
+      },
+      removeItem: () => {
+        throw new Error("SecurityError");
+      },
+    };
+    expect(readFolderSort(throwing)).toBe(DEFAULT_FOLDER_SORT);
+    expect(readFolderSort(null)).toBe(DEFAULT_FOLDER_SORT);
+    expect(() => writeFolderSort("name", throwing)).not.toThrow();
+    expect(() => writeFolderSort("name", null)).not.toThrow();
+  });
 });
+
