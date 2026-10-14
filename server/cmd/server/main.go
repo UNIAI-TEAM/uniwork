@@ -316,14 +316,16 @@ func main() {
 	peopleSvc := service.NewPeopleService(pool, q, orgSvc)
 	// One FileService for the process. Every writer below is wired in the
 	// same step as the reference provider that covers it: the collector must
-	// never meet a file_id column it cannot ask about. GC stays at its zero
-	// value (dry_run): it reports and never deletes.
+	// never meet a file_id column it cannot ask about. The collector runs in
+	// FILE_GC_MODE, destructive unless the environment says dry_run or off
+	// (user decision 2026-10-14; docs/ops/RUNBOOK_FILE_GC.md).
 	fileSvc, err := service.NewFileService(service.FileServiceOptions{
 		Pool: pool, Store: objectStore, Bucket: storageCfg.Bucket(), KeyRoot: storageCfg.KeyRoot,
 		ReferenceProviders: service.FileReferenceProviders(chatSvc, meetingSvc),
 		// storage.bytes reservations for the Document purposes (G1-03): the
 		// hook ignores every other purpose.
 		Quota: service.NewEntitlementService(pool, q),
+		GC:    service.FileGCConfig{Mode: service.FileGCMode(cfg.FileGCMode)},
 	})
 	if err != nil {
 		log.Error("file service", "err", err)
