@@ -1,0 +1,475 @@
+$ NODE_ENV=test AI_PROVIDER=fake npx vitest run --root apps/shell tests/uniwork-docs-remote-newer-service.test.ts tests/uniwork-docs-remote-newer.test.ts tests/uniwork-remote-bar.test.ts tests/uniwork-docs-ui.test.ts tests/uniwork-docs-export-lock.test.ts tests/uniwork-docs-remote-fixture.test.ts tests/ai-run-registry.test.ts tests/detached-windows.test.ts tests/tab-manager.test.ts tests/uniwork-docs-editor-state-poll.test.ts tests/uniwork-sync-feed.test.ts tests/uniwork-sync-runtime.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ✓ tests/tab-manager.test.ts > initial state > starts with only the non-closable, active Home tab 2ms
+ ✓ tests/tab-manager.test.ts > opening tabs > opens a docs tab, activates it, and attaches its view to the window 2ms
+ ✓ tests/tab-manager.test.ts > opening tabs > titles file-backed tabs with the file basename 1ms
+ ✓ tests/tab-manager.test.ts > opening tabs > uses module default titles for pathless tabs 1ms
+ ✓ tests/tab-manager.test.ts > opening tabs > assigns unique, monotonic tab ids 1ms
+ ✓ tests/tab-manager.test.ts > opening tabs > forwards the new-blank flag to the module 0ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > does not warm Sheets during Home or Docs sessions 2ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > warms a spare while Sheets is active and hands it to the next open 2ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > creates a fresh view when no spare is ready and does not nudge it 1ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > starts a new blank view without the opening state 0ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > drops a spare whose renderer died instead of handing it out 1ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > cancels a pending spare and closes an existing spare on leaving Sheets 1ms
+ ✓ tests/tab-manager.test.ts > spare sheets view > stays off under GENOFFICE_NO_SPARE_VIEW 1ms
+ ✓ tests/tab-manager.test.ts > activation > shows only the activated tab view and lays it out below the tab strip 1ms
+ ✓ tests/tab-manager.test.ts > activation > hands keyboard focus to the activated view so typing works right after open/switch 1ms
+ ✓ tests/tab-manager.test.ts > activation > does not steal OS focus for a background open (window unfocused) 1ms
+ ✓ tests/tab-manager.test.ts > activation > ignores activation of unknown tab ids 0ms
+ ✓ tests/tab-manager.test.ts > activation > routes the active webContents to the matching module 1ms
+ ✓ tests/tab-manager.test.ts > activation > lets the active view cover the tab strip during HTML fullscreen 1ms
+ ✓ tests/tab-manager.test.ts > window resize layout > re-lays out after resize bounds settle (Linux/X11 stale getContentBounds) 1ms
+ ✓ tests/tab-manager.test.ts > window resize layout > skips deferred layout after the shell window is destroyed 2ms
+ ✓ tests/tab-manager.test.ts > closing tabs > never closes the Home tab 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > closes the active sheets tab without the menu accelerator 53ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > also takes Cmd+W, and Ctrl+W under a non-Latin layout 102ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > ignores other chords, key repeat and key-up 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > closes the active tab when the shell chrome holds keyboard focus 52ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > closes the active tab of any kind, whichever view of the window has focus 57ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > leaves the chord alone on Home 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > does nothing from a view that moved to a detached window 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > closes a workbook opened by a launch link while the window was in the background 53ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > takes focus back from a spare that grabs it on its first load 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > Ctrl/Cmd+W key event > never leaves keyboard focus on a hidden tab view 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > removes a clean tab and falls back to the previous tab 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > keeps the current tab active when closing a background tab 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > detaches and destroys non-docs views on close 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > detaches docs views without destroying the webContents (freeze workaround) 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > closes a clean docs tab after the async dirty query says clean 3ms
+ ✓ tests/tab-manager.test.ts > closing tabs > keeps a dirty docs tab open when the user cancels the close guard 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > confirmCloseTabsShowing runs the prompts and removes nothing; closeTabsShowingNow then closes without asking (GOA9-r4-02) 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > confirmCloseTabsShowing is false when the user cancels, and the tab stays 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > activates a dirty background tab before showing its close guard 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > closes a dirty sheets tab when the guard resolves true 1ms
+ ✓ tests/tab-manager.test.ts > closing tabs > does not stack close guards while one prompt is pending 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > updates the tab title when a module opens a file in an existing tab 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > ignores setTabFileFor for unknown webContents 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > renames matching tabs and reports the affected views 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > returns no affected views when nothing matches a rename 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > re-titles an open tab by path without moving its file 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > re-titles the same path only once, and reports nothing when it matches none 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'docs' view 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'sheets' view 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'slides' view 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'pdf' view 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'markdown' view 2ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename reports the 'html' view 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'docs' tab 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'sheets' tab 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'slides' tab 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'pdf' tab 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'markdown' tab 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > a rename retitles and repaths the 'html' tab 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > never claims the home tab, which has no file on disk 0ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > covers every kind the manager can open 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > finds tabs by kind and path 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > finds every document family by a canonicalized path alias 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reloads an existing pdf tab so a re-export rereads the file from disk 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reloading a sheets tab queues its workbook again (the reloaded renderer opens it) 1ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reloading an untitled sheets tab queues nothing 2ms
+ ✓ tests/tab-manager.test.ts > file path bookkeeping > reports the active pdf tab with its id (so callers can re-activate it) 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > lists only tabs whose module reports unsaved changes 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > lists dirty pdf and slides tabs 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > reports the editor state of the tabs showing wanted files (the UniWork chip) 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > reports aiRunning for every editor kind from the AI run registry 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > a crashed renderer (render-process-gone) reads aiRunning false 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > a tab closed mid-run (even while its dirty query yields) reads aiRunning false 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > a closed docs tab (blanked, not destroyed) reads aiRunning false 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > a Present tab adds no entry; its owner tab reports the run 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > a present view's AI turn is attributed to its owner's document 1ms
+ ✓ tests/tab-manager.test.ts > dirty-tab queries (shell close guard) > lists every live docs tab for the async dirtiness sweep 3ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > lifts a tab out without closing its renderer and hands the live view back 1ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > every document kind can be detached; Home and Present tabs cannot 1ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > attaches a view back as a new, active tab at the requested slot 2ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > keeps Home pinned: slot 0 and negative slots land right after it, out-of-range appends 2ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > appends when no slot is given 1ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > installs the HTML-fullscreen listeners once per view across detach and re-attach 1ms
+ ✓ tests/tab-manager.test.ts > detach / attach (Open in New Window, tear-off, dock) > a re-attached docs tab closes through the docs teardown path like any docs tab 1ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > takes the clamped panel width off the right edge and restores it on close 1ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > re-applies on tab switch and on window resize 1ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > a full-bleed view (slideshow, HTML fullscreen) ignores the panel 1ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > bounds are computed for the tab being shown, not the one being left (W11A-3) 1ms
+ ✓ tests/tab-manager.test.ts > the Discussion panel narrows the active editor view (G8-11 D1) > a malformed width closes nothing open by accident and narrows nothing 1ms
+ ✓ tests/tab-manager.test.ts > the S6 bar inset moves the active editor view down (G5-03a) > insets the active view under the tab strip and restores it at 0 1ms
+ ✓ tests/tab-manager.test.ts > the S6 bar inset moves the active editor view down (G5-03a) > clamps the inset to 0..200 and rounds to an integer 1ms
+ ✓ tests/tab-manager.test.ts > the S6 bar inset moves the active editor view down (G5-03a) > re-applies on tab switch and on window resize 1ms
+ ✓ tests/tab-manager.test.ts > the S6 bar inset moves the active editor view down (G5-03a) > combines with the Discussion panel and is ignored by a full-bleed view 1ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a dirty working copy keeps its bytes and base; bar newer-dirty, pill remote-newer 58ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a clean copy reloads to the noticed head: bytes sha256 = detail checksum, base revision/version = head, reloadPath once, bar updated 54ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > no download while aiRunning (bar newer-ai, the copy stays) 52ms
+stderr | tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a fetched head that is not newer than the open base is dropped silently
+uniwork docs: a fetched version of 01J8X4DOC0N1P2Q3R4S5T6U7 is not newer than the open base; dropped
+
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > an AI turn starting during the fetch (aiEpoch moves) drops the result: no write, no reloadPath, bar newer-ai 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > an AI turn starting after the write restores the previous bytes and binding 24ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a transient fetch failure shows reload-failed, and Retry reloads once it works 57ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > pulls every (org, workspace) whose capability says sync_feed, and nothing else 24ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a crash mid-page keeps the cursor on the applied page; the replay is idempotent 20ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a full resync keeps drafts and evicts documents the snapshot no longer lists 18ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a torn page commit keeps the previous page whole: no orphan row (G504-be-2) 14ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a store_full page apply never moves the cursor, and the page is retried (G504-be-1) 13ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the guarded clean reload > a fetched head that is not newer than the open base is dropped silently 43ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 403 on reload -> locked revoked: isReadOnly true, module save refused, bytes kept, bar revoked 54ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 403 on the metadata read locks the copy too 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > another account or deployment never sees this stream 13ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a locked keychain or an off capability never asks the feed server 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > a capability 401 is handed to the session 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > start polls on the injected schedule and stop cancels it 6ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the feed runtime > stop() ends the pass in flight and the next start runs at once (G504-be-7) 6ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the full resync keeps drafts through the real hasLocalDraft (wiring keepDraft) > keeps dirty, saving, intent-held and editor-dirty copies; evicts a clean unlisted one 15ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the full resync keeps drafts through the real hasLocalDraft (wiring keepDraft) > keeps a copy whose editor turns dirty while the intent store is answering (R5-be-1) 8ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > writes a record and reads it back without plaintext at rest 6ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > a sign-out locks every handle and wipes the scope 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > an account switch locks only the switched-out scope 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > refuses a record that requires a newer store level and keeps it 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > refuses a record older than the store minimum 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > counts the budget in encrypted bytes and refuses past it 9ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync feed cursors — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > writes a record and reads it back without plaintext at rest 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > a sign-out locks every handle and wipes the scope 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > an account switch locks only the switched-out scope 5ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > refuses a record that requires a newer store level and keeps it 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > refuses a record older than the store minimum 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > counts the budget in encrypted bytes and refuses past it 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > uniwork-sync doc index — store compliance > a write in flight at sign-out resolves interrupted and leaves nothing readable 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > G506-be-3: only a failed feed round trip reports the queue offline > a pass with no org to feed (nothing attempted) reports no verdict 2ms
+ ✓ tests/uniwork-sync-runtime.test.ts > G506-be-3: only a failed feed round trip reports the queue offline > a failed feed round trip parks the queue offline 3ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces every document of a page the doc cache committed, exactly once 6ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces a document with two changes in one page exactly once 4ms
+ ✓ tests/uniwork-sync-runtime.test.ts > the S18 change notice (G8-17) > announces nothing when the cache refuses the page 2ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > 410 on reload -> deleted 52ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a bare (envelope-less) 403 is transient: reload-failed, never a lock 53ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > feed-gone: a dropped open bound document is classified 404 -> revoked, 410 -> deleted, 200 -> nothing 6ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a successful resync that drops an open bound document locks it (runtime onFeedGone) 18ms
+ ✓ tests/detached-windows.test.ts > detachedOpenDocuments > lists live windows 19ms
+ ✓ tests/detached-windows.test.ts > detachedOpenDocuments > skips windows destroyed during the async dirty check 2ms
+ ✓ tests/detached-windows.test.ts > detachedOpenDocuments > reports dirtiness for every kind through its own family 2ms
+ ✓ tests/detached-windows.test.ts > detachedEditorStates (AI run signal) > reports aiRunning for every kind from the same registry as tabs 2ms
+ ✓ tests/detached-windows.test.ts > detachedEditorStates (AI run signal) > carries the AI epoch of each window and never rolls it back 1ms
+ ✓ tests/detached-windows.test.ts > detachedEditorStates (AI run signal) > a window closed mid-turn clears aiRunning 3ms
+ ✓ tests/detached-windows.test.ts > detachedEditorStates (AI run signal) > a window closed while its dirty query yields reads nothing 1ms
+ ✓ tests/detached-windows.test.ts > detachedEditorStates (AI run signal) > a window closed mid-run drops out; files not wanted are skipped 1ms
+ ✓ tests/detached-windows.test.ts > close guard > closes a clean window of any kind without a prompt and releases the renderer 2ms
+ ✓ tests/detached-windows.test.ts > close guard > asks the owning family when the document is dirty and keeps the window on cancel 4ms
+ ✓ tests/detached-windows.test.ts > close guard > docs never has its webContents closed: the teardown path owns it 2ms
+ ✓ tests/detached-windows.test.ts > close by path in two steps (GOA9-r4-02) > the prompt step closes nothing; the second step closes without asking 2ms
+ ✓ tests/detached-windows.test.ts > focused window as menu target > resolves the focused detached document with its kind and file 1ms
+ ✓ tests/detached-windows.test.ts > focused window as menu target > claims the slides menu target on focus 1ms
+ ✓ tests/detached-windows.test.ts > tear-off > creates the window under the pointer without focus and steers it with the pointer 1ms
+ ✓ tests/detached-windows.test.ts > tear-off > keeps the window on the pointer display 1ms
+ ✓ tests/detached-windows.test.ts > tear-off > takeTornTab hands the live view back and destroys the window without a prompt 1ms
+ ✓ tests/detached-windows.test.ts > tear-off > a torn-off window does not dock through the native-drag path 1ms
+ ✓ tests/detached-windows.test.ts > docking a natively dragged window > previews the slot while the cursor is over the strip and docks after the dwell 3ms
+ ✓ tests/detached-windows.test.ts > docking a natively dragged window > clears the preview and the pending dock when the cursor leaves the strip 2ms
+ ✓ tests/detached-windows.test.ts > docking a natively dragged window > does not dock when the cursor left the strip before the dwell elapsed 3ms
+ ✓ tests/detached-windows.test.ts > docking a natively dragged window > ignores moves when there is no shell to dock into 1ms
+ ✓ tests/detached-windows.test.ts > dockBandFor > is the strip band of a visible shell window, null otherwise 1ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > a re-granted copy is editable again after the reopen: lock, bar and binding agree 56ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the lock > the account boundary forgets the lock with its bar, so no verdict answers for the next session 4ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the bar through the real runtime (wiring onFeedChange) > a newer snapshot reaches the bar of a dirty copy through onFeedChange alone 12ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the bar through the real runtime (wiring onFeedChange) > a newer snapshot reloads a clean copy through onFeedChange alone: updated bar 13ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice during committing is held and dropped when the receipt matches 93ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > later keeps remote (pill stays), close clears it 109ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a second notice replaces the version: one bar, no stacking 107ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a restart rebuilds the newer-* bar from serverRevision/serverVersion 2ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > close hides the info bar for this session 56ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice for a document that is not open is ignored 42ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > the feed off ignores the notice 41ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: hold, later and the persisted rebuild > a notice for another document never touches this copy 42ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > newer-ai: the poll sees the turn end, the rule runs again and a clean copy reloads 104ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > has no bar without a remote 9ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > updated: the no-revision sentence until author and time exist, then the full one 2ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > newer-dirty: Reload + Later; a save in flight or a stuck one disables Reload with its reason 1ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > newer-ai: Reload is disabled until a stop channel exists (D3) 1ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > now-clean, reload-failed, revoked and deleted 1ms
+ ✓ tests/uniwork-remote-bar.test.ts > remoteBarModelOf > every key the bar uses has a vi and an en sentence 55ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > updated (en): region label, sentence, buttons 27ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > ready -> "Saved to UniWork" (ok, action undefined) 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > saved -> "Saved to UniWork" (ok, action undefined) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > dirty -> "Unsaved changes" (neutral, action undefined) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > saving -> "Saving…" (busy, action undefined) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > offline -> "Not saved: offline" (warn, action retry) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > signed-out -> "Sign in again to save" (warn, action sign-in) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > conflict -> "Version conflict" (warn, action resolve) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > error -> "Couldn’t save" (error, action retry) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > shows View only for a read-only document that is idle, never "Saved" 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > lets a failure state win over View only (a downgraded document that was refused) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with forbidden reads "Blocked: no permission" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with not_found reads "Blocked: document missing" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with deleted reads "Blocked: document deleted" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with quota_exceeded reads "Blocked: storage full" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with too_large reads "Blocked: file too large" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > blocked with server_error reads "Blocked: unavailable" and keeps the local copy promise 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > says "offline" only when the network is the problem 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > a server_error while the network is fine reads as UniWork being unreachable, not offline 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > a timeout while the network is fine reads as UniWork being unreachable, not offline 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > a malformed_response while the network is fine reads as UniWork being unreachable, not offline 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > offers a browser sign-in while signed out, and Retry once the account is signed in again 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > leads the error tooltip with the sentence for the code 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > puts the last save time into the saved tooltip only when there is one 10ms
+ ✓ tests/uniwork-docs-ui.test.ts > chipModelOf: save state -> chip > never shows an internal code or a bare state name 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > keystore_locked reason > maps to the keychain-locked reason, not the generic one 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > keystore_locked reason > keeps the existing reasons unchanged 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > store_full reason > maps to the store-full reason and the full-store sentence 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > store_full reason > has a sentence for keystore_locked and store_full in every shipped table 5ms
+ ✓ tests/uniwork-docs-ui.test.ts > store_full reason > shows the blocked chip with the keychain / full-store reason 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > queued -> uwChipQueued / uwTipQueued (neutral) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > paused_offline -> uwChipQueued / uwTipQueued (neutral) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > paused_user -> uwChipQueued / uwTipPausedUser (neutral) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > paused_admin -> uwChipPausedAdmin / uwTipPausedAdmin (neutral) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > reconciling -> uwChipReconciling / uwTipReconciling (warn) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > reconciling-stuck -> uwChipReconcileStuck / uwTipReconciling (warn) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > failed reads as the error chip with the reused quota / too-large / other fragment 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > queued with an unsent N+1 switches to the "queued newer" chip 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > fills the queued tooltip with the time of the waiting save 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > a queue state wins over View only (the intent was created before access dropped) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 save queue: states -> chip > never shows an internal code or a placeholder 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > reads "newer version on UniWork" (warn, Resolve -> reload) for a newer-dirty / newer-ai bar 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > beats paused_admin 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > beats queued 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > beats paused_offline 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > beats paused_user 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > beats dirty 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > beats saving 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > beats offline 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > beats saved 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > beats ready 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > beats View only 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > loses to reconciling 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > loses to reconciling-stuck 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > loses to conflict 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > loses to blocked 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > loses to error 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > loses to failed 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > loses to signed-out 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > S6 remote-newer chip priority > only a newer-* bar changes the chip 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > capability_off -> sentence uwTipPausedAdmin, blocked reason uwReasonOther 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > intent_unknown -> sentence uwChipReconcileStuck, blocked reason uwReasonOther 2ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > document_deleted -> sentence uwErrDeleted, blocked reason uwReasonDeleted 2ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > permission_revoked -> sentence uwErrForbidden, blocked reason uwReasonForbidden 2ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > member_deactivated -> sentence uwLockDeactivated, blocked reason uwReasonDeactivated 5ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > organization_suspended -> sentence uwLockSuspended, blocked reason uwReasonSuspended 2ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > drafts_full -> sentence uwConflictDraftCapReached, blocked reason uwReasonOther 6ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > other_window -> sentence uwLockOtherWindow, blocked reason uwReasonOther 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > reuses the existing deleted / forbidden / suspended / deactivated reasons in the blocked chip 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > G5-06 error codes -> sentence and reason > gives the account-side blocks no retry action (a re-check is the Queue row’s) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > errorActionOf > sign in for an expired session, retry for transport trouble, nothing for a verdict 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > launchNoticeOf > shows progress while opening, with the title when known 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > launchNoticeOf > clears once the document opened 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > launchNoticeOf > asks to sign in and stays until acted on 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > launchNoticeOf > has copy per failure code; the expired link says to open it again from UniWork 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > signed-in -> picker 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > refreshing -> picker 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > server-unreachable -> picker 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > loading -> picker 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > signed-out -> sign-in 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > session-expired -> sign-in 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > session-revoked -> sign-in 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > signing-in -> none 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > not-configured -> settings 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > wrong-deployment -> settings 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > keyring-unavailable -> settings 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > keystore-locked -> settings 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openCardOf: the card is always there, the call to action follows the account > says what to do in each unsigned state 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > starts loading, selects the first workspace and starts the first list fetch 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > shows the no-workspaces state when the account has none 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > lists documents and highlights the first one that can be opened 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > drops an answer for an older request (workspace switched while loading) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a new search starts a fresh list and distinguishes empty from no results 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > ignores a search that did not change the committed text 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > appends the next page, keeps the highlight, and clears the cursor at the end 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a failed Load more keeps the rows and reports the error under them 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a list failure with network offers retry 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a list failure with server_error offers retry 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a list failure with session_expired offers sign-in 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > a list failure with forbidden offers none 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > Retry reloads the list; after a workspace-list failure it reloads the workspaces 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > opening is one at a time; a failure is kept inline and can be cleared 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > picker reducer > keeps the same workspace when the workspace list reloads 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > keyboard navigation skips documents that cannot be opened > moves over openable rows only 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > keyboard navigation skips documents that cannot be opened > has no highlight when nothing can be opened 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > keyboard navigation skips documents that cannot be opened > classifies formats: only the six office formats open 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > keyboard navigation skips documents that cannot be opened > debounces the search long enough to ride out typing 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > time and path helpers > formats today as a time and other days as a date; empty when unusable 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > time and path helpers > names who updated a document when the server says 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > time and path helpers > compares Windows paths regardless of slash direction and drive-letter case 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > time and path helpers > is the one shared implementation, so main and the renderer key a path alike (R1-be-10) 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openRecentEntry > opens a local file by path, exactly as before, with no UniWork call 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > openRecentEntry > opens a UniWork recent through UniWork by document id, never by its path 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > openRecentEntry > reports a refusal and a rejected call as failures the person can read 1ms
+ ✓ tests/uniwork-docs-ui.test.ts > openUniworkDocument > opens a cloud document by id and reports progress in the notice 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recentRowPolicy > a local row keeps every file action exactly as before 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recentRowPolicy > a UniWork row has a badge and none of Show in folder, rename, delete, move, drag or bulk select 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > a UniWork recent whose working copy is gone > is not "missing": opening it downloads the document again 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > a UniWork recent whose working copy is gone > a click on it opens it (a fresh download), a local missing file asks first 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > a UniWork recent whose working copy is gone > shows no Modified time: the working copy's file time is the download time 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recents refresh after a UniWork document opens > refreshes when the picker or a recents row reports an opened document 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recents refresh after a UniWork document opens > refreshes when main reports a document opened from the web 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recents refresh after a UniWork document opens > ignores opening, sign-in and failure events 0ms
+ ✓ tests/uniwork-docs-ui.test.ts > recents refresh after a UniWork document opens > stops listening once unsubscribed 0ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > newer-dirty: the copy is clean again → now-clean (no auto reload) 54ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > reload opens the conflict dialog and “open the latest” replaces the copy 58ms
+ ✓ tests/uniwork-docs-remote-newer-service.test.ts > G5-03a S6 service: the poll edges and the reload action > reload cancel (decide later) keeps the bar and the copy 52ms
+stderr | tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > {"kind":"newer-dirty","version":2,"wait":"commit"}: Reload is aria-disabled, focusable, and the reason is its description
+An update to UniworkRemoteBar inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > newer-dirty (en): region label, sentence, buttons 10ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > newer-ai (en): region label, sentence, buttons 7ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > now-clean (en): region label, sentence, buttons 7ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > reload-failed (en): region label, sentence, buttons 9ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > revoked (en): region label, sentence, buttons 5ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > deleted (en): region label, sentence, buttons 7ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > updated (vi): region label, sentence, buttons 5ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > newer-dirty (vi): region label, sentence, buttons 9ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > newer-ai (vi): region label, sentence, buttons 6ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > now-clean (vi): region label, sentence, buttons 8ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > reload-failed (vi): region label, sentence, buttons 8ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > revoked (vi): region label, sentence, buttons 4ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > deleted (vi): region label, sentence, buttons 7ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > shows no bar for a status without a remote, or no status 5ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: what each bar shows > one bar only: a newer notice replaces the version, another kind replaces the bar 5ms
+stderr | tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > {"kind":"newer-dirty","version":2,"wait":"stuck"}: Reload is aria-disabled, focusable, and the reason is its description
+An update to UniworkRemoteBar inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > {"kind":"newer-dirty","version":2,"wait":"commit"}: Reload is aria-disabled, focusable, and the reason is its description 10ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > {"kind":"newer-dirty","version":2,"wait":"stuck"}: Reload is aria-disabled, focusable, and the reason is its description 5ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > newer-ai: Reload is aria-disabled and described by the sentence of the bar 3ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: disabled actions > an enabled Reload (dirty, nothing in flight) calls the bridge 7ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > Later calls the bridge, hides the bar at once and takes the status main answers with 7ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > Later holds for the notice, not for its wait: a settled commit keeps the bar hidden, a newer version brings it back 8ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > Close (updated, revoked) calls the bridge and hides the bar 6ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > a closed bar shows again when the same kind comes back after the bar was gone 5ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > Retry (reload failed) and Reload (now clean) call the bridge and keep the bar until main answers 6ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > the bar region is aria-busy while an action is in flight, buttons aria-disabled 4ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: actions > a bridge that rejects leaves the bar as it was 4ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: announcements > a newer version is announced once, politely 5ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: announcements > switching tabs away and back does not announce the same bar again 11ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: announcements > a newer version of the same notice is announced again, and the live text is cleared when the bar hides 6ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: announcements > an error kind is announced as an alert 3ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: announcements > the live nodes are in the DOM before any bar shows 1ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: auto-hide of the information bar > hides after 8 s and tells main it was closed 5ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: auto-hide of the information bar > hover holds the bar; leaving restarts the full 8 s 5ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: auto-hide of the information bar > focus inside the bar holds it; moving the focus out restarts the timer 5ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: auto-hide of the information bar > warn, error and now-clean bars never hide on their own 7ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > reports the rendered height, then 0 when the bar goes away 2ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > reports 0 for no document tab (Home) and again for every tab switch 4ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > follows a resize of the bar (wrapping at a narrow width) and rounds up 5ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > reports 0 when the bar is closed, and on unmount 8ms
+ ✓ tests/uniwork-remote-bar.test.ts > UniworkRemoteBar: the inset under the tab strip > survives a host without the inset channel 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 410 change_cursor_expired is a cursor verdict, never deleted (also through errorFromResponse) 4ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 400 change_cursor_invalid is a cursor verdict, never deleted 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 401 -> session_expired; anything else -> the documents mapping 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed errors > 501 unsupported_operation is the feed cursor verdict (errChangeFeedPending), never deleted 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > keeps an int64 revision exact (past 2^53) and compares it as bigint 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > a malformed page is malformed_response 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > reads a G5-01b feed page from `feed` (its `changes` is empty), revision exact 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > a feed removal never enters the change stream as a document state 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > a feed page without its `feed` array is malformed, never silently empty 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed client > sends the cursor in the query only, clamps the limit, and maps the final 401 to session_expired 13ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > cold start: full snapshot, then the feed cursor is saved 3ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a G5-01b feed page delivers its upserts to the cache and moves the cursor 5ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > crash between page apply and cursor save -> the same page replays, one effect 3ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a page the store refused keeps the cursor, surfaces the error and is retried (G504-be-1) 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a refused commit keeps store_unavailable its own code, never keystore_locked (R2-be-2) 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a cancelled run stops before the next request and moves no cursor (G504-be-7) 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > a replayed page is idempotent, and an older revision never overwrites a newer one 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > crash mid-resync saves no cursor; the next run starts the snapshot over 2ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > A -> B and a deployment switch never touch the other scope cursor or cache 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 410 change_cursor_expired -> full resync, nothing marked deleted 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 400 change_cursor_invalid -> cursor cleared, exactly one full resync, nothing deleted 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > an invalid cursor whose resync is refused again backs off instead of a second resync 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 on a saved feed cursor clears it and resyncs once in the same pass (G5-01a) 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 on a later incremental page earns exactly one fallback, never a loop 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 during the fallback is a failure, not a second resync 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 501 on a cursorless snapshot request stays a failure 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > full resync evicts lost-permission cache entries and keeps drafts 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > resync hitting 410 again -> capped exponential backoff on the clock 4ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > sync_feed off -> no feed request 0ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > an unknown phase is applied as changes and logged once 1ms
+ ✓ tests/uniwork-sync-feed.test.ts > feed consumer > 401 -> session_expired, cursor and cache untouched 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > docs: locks only the path the policy names 2ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > sheets: locks only the path the policy names 1ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > slides: locks only the path the policy names 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > pdf: locks only the path the policy names 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > markdown: locks only the path the policy names 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > html: locks only the path the policy names 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > docs: unlocked bound and plain local never refuse; a missing or throwing isLocked reads as unlocked 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > sheets: unlocked bound and plain local never refuse; a missing or throwing isLocked reads as unlocked 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > slides: unlocked bound and plain local never refuse; a missing or throwing isLocked reads as unlocked 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > pdf: unlocked bound and plain local never refuse; a missing or throwing isLocked reads as unlocked 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > markdown: unlocked bound and plain local never refuse; a missing or throwing isLocked reads as unlocked 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > uniworkIsLocked (one helper per module) > html: unlocked bound and plain local never refuse; a missing or throwing isLocked reads as unlocked 0ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > installUniworkModuleSeams forwards the lock answer > every module policy asks the seam through isLocked 2ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > installUniworkModuleSeams forwards the lock answer > a seam without isLocked never locks, and modules.ts installs the forwarding 2ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > service.isLocked (the shell answer the modules ask) > a revoked or deleted binding is locked; a healthy copy and a plain file are not 4ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > every export / Save As / print entry point refuses a locked source > docs: save-as, export-pdf/html, print, the buffered/merged PDF paths and the image exports 3ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > every export / Save As / print entry point refuses a locked source > sheets: export-pdf, print, export-csv and a Save As ask every session the tab holds 3ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > every export / Save As / print entry point refuses a locked source > slides: export-pdf, print, export-images, save-picture and save-as ask the session path 1ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > every export / Save As / print entry point refuses a locked source > pdf: Save As (and the redaction copy), print, export-images and a save-as target 1ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > every export / Save As / print entry point refuses a locked source > markdown: export-docx/pdf, image export, save-image-as, save-as and the menu entries 1ms
+ ✓ tests/uniwork-docs-export-lock.test.ts > every export / Save As / print entry point refuses a locked source > html: export-docx/pdf/html, print-html, save-as and the menu entries 1ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores a malformed revision before anything else 2ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores a notice for another document 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores every notice while the feed is off (capability sync_feed) 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores a notice for a locked document (revoked or deleted) 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > '10' is newer than '9' (BigInt), '9223372036854775807' newer than '9223372036854775806' 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores a notice that is not newer than the base (equal or lower) 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — rule order > ignores the echo of this app’s own commit (receipt revision / selfRenamed) 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > holds while an intent is validating, uploading or committing 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > reconciling → bar newer-dirty wait commit; reconciling-stuck → wait stuck 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > any other live queue state → bar newer-dirty without a wait reason 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > a terminal record (committed/cancelled) counts as no intent 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > a dirty working copy → bar newer-dirty, never reload 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > dirty wins over a running AI turn (the bar says dirty) 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > aiRunning → bar newer-ai, never reload 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > a clean, idle, intent-free copy reloads 0ms
+ ✓ tests/uniwork-docs-remote-newer.test.ts > decideRemote — queue, editor and AI rows > carries the notice version into every bar 0ms
+ ✓ tests/uniwork-docs-remote-fixture.test.ts > the dev-only remote fixture (D4 = a) > dev + env: overlays remote per path, display only 11ms
+ ✓ tests/uniwork-docs-remote-fixture.test.ts > the dev-only remote fixture (D4 = a) > packaged + env: inert, and the fixture file is never read 2ms
+ ✓ tests/uniwork-docs-remote-fixture.test.ts > the dev-only remote fixture (D4 = a) > a bad JSON file or a missing one is ignored, never thrown 3ms
+ ✓ tests/uniwork-docs-remote-fixture.test.ts > the dev-only remote fixture (D4 = a) > an unset env is inert even when a fixture file exists 2ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > registers one listener on the channel and keys the flag by sender 3ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > ignores a malformed payload null 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > ignores a malformed payload "running" 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > ignores a malformed payload undefined 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > ignores a malformed payload {} 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > ignores a malformed payload {"state":"busy"} 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > ignores a malformed payload {"state":"running","runId":7} 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > ignores a malformed payload {"state":"running","runId":""} 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > ignores a malformed payload {"state":"running","runId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"} 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > an idle naming an older turn does not end the current one 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > a reload, a crashed renderer, a destroyed view or clearAiRun drops the flag 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > the AI epoch counts every accepted running report and never decreases 0ms
+ ✓ tests/ai-run-registry.test.ts > AI run registry > closing a tab mid-turn clears aiRunning and the epoch with the destroyed view 0ms
+ ✓ tests/uniwork-docs-editor-state-poll.test.ts > UniWork editor state poll > asks only for bound paths and forwards answered states 2ms
+ ✓ tests/uniwork-docs-editor-state-poll.test.ts > UniWork editor state poll > never overlaps a pass that waits on a busy editor, and survives a failing read 1ms
+ ✓ tests/uniwork-docs-editor-state-poll.test.ts > UniWork editor state poll > reads the save mark before it asks the editors 0ms
+ ✓ tests/uniwork-docs-editor-state-poll.test.ts > UniWork editor state poll > merges the same path from several views: dirty any, aiRunning any, aiEpoch sum 0ms
+ ✓ tests/uniwork-docs-editor-state-poll.test.ts > UniWork editor state poll > a path only answered null by every view stays null (the service keeps its last answer) 0ms
+
+ Test Files  12 passed (12)
+      Tests  438 passed (438)
+   Start at  08:25:20
+   Duration  2.56s (transform 2.49s, setup 0ms, import 3.42s, tests 2.57s, environment 415ms)
+
