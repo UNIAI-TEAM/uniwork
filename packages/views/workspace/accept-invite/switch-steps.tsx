@@ -26,7 +26,8 @@ const SWITCH_STEPS = ["conflict", "resolve", "confirm"] as const;
 /**
  * Where the person is in the switch. Progress, not navigation: steps are not
  * tabs (you only go forward through the current step's checks), so the
- * Stepper is a labelled group and the current step carries aria-current.
+ * Stepper is a labelled group, its row is a plain element rather than a
+ * navigation landmark, and the current step carries aria-current.
  * Drawn like onboarding's rail: a done step is filled with a check, the
  * current one is a hollow brand ring, an upcoming one a control-weight ring.
  */
@@ -34,7 +35,7 @@ export function SwitchProgress({ step }: { step: number }) {
   const { t } = useTranslation();
   return (
     <Stepper value={step} role="group" aria-label={t("invitations.switch.steps_label")} className="w-full min-w-0 flex-1">
-      <StepperNav className="w-full">
+      <StepperNav as="div" className="w-full">
         {SWITCH_STEPS.map((id, index) => {
           const number = index + 1;
           const done = number < step;

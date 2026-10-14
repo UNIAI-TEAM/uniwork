@@ -396,7 +396,10 @@ describe("AcceptInviteView", () => {
       expect(to).toHaveTextContent("Beta");
       expect(within(to!).getByText("Vai trò: Thành viên")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Bạn sẽ không còn vào được Acme" })).toBeInTheDocument();
-      expect(screen.getByRole("group", { name: "Các bước chuyển tổ chức" })).toBeInTheDocument();
+      const progress = screen.getByRole("group", { name: "Các bước chuyển tổ chức" });
+      // Progress, not navigation: no landmark, and no aria-orientation (not allowed on group).
+      expect(progress).not.toHaveAttribute("aria-orientation");
+      expect(screen.queryByRole("navigation")).toBeNull();
       expect(acceptCalls()).toHaveLength(0);
     });
 
