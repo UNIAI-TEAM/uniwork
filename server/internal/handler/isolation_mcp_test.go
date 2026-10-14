@@ -59,6 +59,19 @@ func swapIDs(t *testing.T, args map[string]any, standIns map[string]string) map[
 	return out
 }
 
+// writeAnswer is the part of a write tool's result a control reads.
+type writeAnswer struct {
+	Item struct {
+		ID string `json:"id"`
+	} `json:"item"`
+	Changes []writeChange `json:"changes"`
+	Note    string        `json:"note"`
+}
+
+type writeChange struct {
+	Field string `json:"field"`
+}
+
 // taskRef is the PREFIX-N a person reads for a task.
 func (w *isoWorld) taskRef(t *testing.T, id string) string {
 	t.Helper()
@@ -131,8 +144,17 @@ func TestIsolationMCP(t *testing.T) {
 	aTask3 := isoID(t, w.call(t, "POST", "/api/v1/workspaces/"+a.wsID+"/tasks", a.token, map[string]any{"title": a.marker + " Third Task"}), "task")
 	a.ids["task3"] = aTask3
 	aRef, aRef3, bRef := w.taskRef(t, aTask), w.taskRef(t, aTask3), w.taskRef(t, bTask)
-	// B's task changes nowhere in this test, so its revision is read once.
-	bRev := w.taskRevision(t, bTask)
+	// liveRevision is the revision a task holds now, for the task an
+	// update_task call names (an id, or A's third task by its ref): the revision
+	// check must pass, so only the tenant gate can refuse the call.
+	liveRevision := func(t *testing.T, task any) int64 {
+		t.Helper()
+		id := fmt.Sprint(task)
+		if id == aRef3 {
+			id = aTask3
+		}
+		return w.taskRevision(t, id)
+	}
 
 	attacks := []struct {
 		tool string
@@ -158,9 +180,10 @@ func TestIsolationMCP(t *testing.T) {
 	// is refused with the answer an id that never existed gets (want is its
 	// prefix; the not-found text when empty) and changes none of A's rows.
 	// control is the same call by A's own grant on A's rows, which must
-	// succeed; it carries no revision (update_task) and no title (create_task):
-	// the control run reads the first and makes up the second. Phases 2-4 add
-	// their rows here.
+	// succeed. An update_task row carries no revision, in the attack or the
+	// control: the run sends the live one of the task named, so a missing
+	// tenant gate would write and not stop at a revision conflict. A create_task
+	// control carries no title, the run makes one up. Phases 2-4 add their rows here.
 	writeAttacks := []struct {
 		tool    string
 		args    map[string]any
@@ -180,23 +203,23 @@ func TestIsolationMCP(t *testing.T) {
 		{"create_task", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "assignee_id": a.userID},
 			map[string]any{"workspace_id": a.wsID, "assignee_id": a.userID}, "assignee_not_member:"},
 		{"create_task", map[string]any{"workspace_id": b.wsID, "title": "iso-write", "label_ids": []string{aLabel}},
-			map[string]any{"workspace_id": a.wsID, "label_ids": []string{aLabel}}, "invalid arguments: "},
-		{"update_task", map[string]any{"workspace_id": a.wsID, "task_id": aTask, "revision": 1, "title": "iso"},
+			map[string]any{"workspace_id": a.wsID, "label_ids": []string{aLabel}}, "invalid arguments: label không hợp lệ"},
+		{"update_task", map[string]any{"workspace_id": a.wsID, "task_id": aTask, "title": "iso"},
 			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "title": "iso-control"}, ""},
-		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": aTask, "revision": 1, "title": "iso"},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": aTask, "title": "iso"},
 			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "title": "iso-control"}, ""},
-		{"update_task", map[string]any{"workspace_id": a.wsID, "task_id": aRef3, "revision": 1, "title": "iso"},
+		{"update_task", map[string]any{"workspace_id": a.wsID, "task_id": aRef3, "title": "iso"},
 			map[string]any{"workspace_id": a.wsID, "task_id": aRef3, "title": "iso-control"}, ""},
-		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "revision": bRev, "parent_task_id": aTask},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "parent_task_id": aTask},
 			map[string]any{"workspace_id": a.wsID, "task_id": aTask2, "parent_task_id": aTask}, ""},
-		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "revision": bRev, "project_id": aProject},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "project_id": aProject},
 			map[string]any{"workspace_id": a.wsID, "task_id": aTask2, "project_id": aProject}, ""},
-		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "revision": bRev, "assignee_id": a.userID},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "assignee_id": a.userID},
 			map[string]any{"workspace_id": a.wsID, "task_id": aTask2, "assignee_id": a.userID}, "assignee_not_member:"},
-		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "revision": bRev, "add_label_ids": []string{aLabel}},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "add_label_ids": []string{aLabel}},
 			map[string]any{"workspace_id": a.wsID, "task_id": aTask2, "add_label_ids": []string{aLabel}}, "invalid arguments: add_label_ids"},
 		// A's task has A's label on it, so the control can take it off.
-		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "revision": bRev, "remove_label_ids": []string{aLabel}},
+		{"update_task", map[string]any{"workspace_id": b.wsID, "task_id": bTask, "remove_label_ids": []string{aLabel}},
 			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "remove_label_ids": []string{aLabel}}, "invalid arguments: remove_label_ids"},
 		{"add_comment", map[string]any{"workspace_id": a.wsID, "task_id": aTask, "body": "iso"},
 			map[string]any{"workspace_id": a.wsID, "task_id": aTask, "body": "iso-control"}, ""},
@@ -267,22 +290,26 @@ func TestIsolationMCP(t *testing.T) {
 		}
 
 		for _, at := range writeAttacks {
-			status, raw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, at.args)
+			args := maps.Clone(at.args)
+			if at.tool == "update_task" {
+				args["revision"] = liveRevision(t, args["task_id"])
+			}
+			status, raw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, args)
 			text := toolText(raw)
 			want, ok := at.want, strings.HasPrefix(text, at.want)
 			if want == "" {
 				want, ok = mcpNotFoundText, text == mcpNotFoundText
 			}
 			if status != http.StatusOK || !isToolError(raw) || !ok {
-				t.Errorf("%s %s %v: status %d, not refused with %q: %s", label, at.tool, at.args, status, want, raw)
+				t.Errorf("%s %s %v: status %d, not refused with %q: %s", label, at.tool, args, status, want, raw)
 			}
 			if leak := a.leakIn(raw, ""); leak != "" {
-				t.Errorf("%s %s %v leaked %s: %s", label, at.tool, at.args, leak, raw)
+				t.Errorf("%s %s %v leaked %s: %s", label, at.tool, args, leak, raw)
 			}
 			// The same call naming ids that never existed reads the same.
-			twin := swapIDs(t, at.args, missing)
+			twin := swapIDs(t, args, missing)
 			if tStatus, tRaw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, twin); tStatus != status || toolText(tRaw) != text {
-				t.Errorf("%s %s %v: A's rows answer %q, rows that do not exist answer %q", label, at.tool, at.args, text, toolText(tRaw))
+				t.Errorf("%s %s %v: A's rows answer %q, rows that do not exist answer %q", label, at.tool, args, text, toolText(tRaw))
 			}
 		}
 		if changed := isoDiff(before, w.tenantDigest(t, a)); len(changed) > 0 {
@@ -343,24 +370,32 @@ func TestIsolationMCP(t *testing.T) {
 				args["title"] = fmt.Sprintf("iso-control-%s-%d", a.tag, i)
 			}
 			if at.tool == "update_task" {
-				task := fmt.Sprint(args["task_id"])
-				if task == aRef3 {
-					task = aTask3
-				}
-				args["revision"] = w.taskRevision(t, task)
+				args["revision"] = liveRevision(t, args["task_id"])
 			}
 			status, raw := mcpCallToolJSON(t, w, a.ids["mcpAccess"], at.tool, args)
 			var done struct {
 				Result struct {
-					StructuredContent struct {
-						Item struct {
-							ID string `json:"id"`
-						} `json:"item"`
-					} `json:"structuredContent"`
+					StructuredContent writeAnswer `json:"structuredContent"`
 				} `json:"result"`
 			}
 			if status != http.StatusOK || isToolError(raw) || json.Unmarshal(raw, &done) != nil || done.Result.StructuredContent.Item.ID == "" {
 				t.Errorf("A's own %s %v through MCP: %d %s", at.tool, args, status, raw)
+				continue
+			}
+			if at.tool != "update_task" {
+				continue
+			}
+			// An update that saved its fields but failed a later step (parent,
+			// labels) still answers 200 with an item: it must have no note, and
+			// every field the call names must show in changes.
+			sc := done.Result.StructuredContent
+			if sc.Note != "" {
+				t.Errorf("A's own %s %v came back with a note: %s", at.tool, args, raw)
+			}
+			for key, field := range map[string]string{"title": "title", "project_id": "project_id", "assignee_id": "assignee_id", "parent_task_id": "parent_task_id", "add_label_ids": "labels", "remove_label_ids": "labels"} {
+				if _, named := args[key]; named && !slices.ContainsFunc(sc.Changes, func(c writeChange) bool { return c.Field == field }) {
+					t.Errorf("A's own %s %v does not change %s: %s", at.tool, args, field, raw)
+				}
 			}
 		}
 		// The digest sees these writes, so "unchanged" in refused means something.
