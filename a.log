@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -6
+c7ab0183c28c791ee819bfd57f8c7513ab67ef47
+c7ab0183c chore: merge FD-10 unified documents search (UNI-1470) into the G5-G7 root
+6ec437603 chore: merge the G5-G7 root (9d987d353) into FD-08
+65f24c2b3 chore: merge the G5-G7 root (9d987d353) into FD-10
+9d987d353 chore: merge the G5-G7 root (0d767e164) into FD-04
+6d62397b7 fix(documents): resolve FD-10 visual, touch, filter cache, and locale findings (V-F1..V-F5, V-F7, V-F8, FE-R2-N1, FE-R2-N2)
+71bb938c6 fix(documents): use typed document icons and title-first priority in ⌘K search (V-F6)

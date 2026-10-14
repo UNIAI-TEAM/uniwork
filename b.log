@@ -1,0 +1,17 @@
+$ pnpm --filter @uniwork/views exec vitest run documents/documents-search.test.tsx search/search-command.test.tsx documents/documents-page-view.test.tsx documents/documents-page-view-actions.test.tsx documents/documents-home-fixes.test.tsx; echo "E6_TARGETED_EXIT=$?"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+
+
+ Test Files  5 passed (5)
+      Tests  103 passed (103)
+   Start at  17:30:30
+   Duration  8.51s (transform 2.66s, setup 1.42s, import 5.00s, tests 16.94s, environment 1.34s)
+
+E6_TARGETED_EXIT=0
