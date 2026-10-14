@@ -163,7 +163,7 @@ describe("move", () => {
     expect(currentFolder).toHaveAttribute("aria-disabled", "true");
     expect(currentFolder).toHaveAccessibleDescription(t("documents.home.move.reason_current"));
     currentFolder.focus();
-    expect(document.activeElement).toBe(currentFolder);
+    expect(currentFolder).toHaveFocus();
     fireEvent.click(currentFolder);
     expect(currentFolder).toHaveAttribute("aria-selected", "false");
 
@@ -194,7 +194,7 @@ describe("move", () => {
       expect(row).toHaveAccessibleDescription(t("documents.home.move.reason_self"));
       expect(row).toHaveTextContent(t("documents.home.move.reason_self"));
       row.focus();
-      expect(document.activeElement).toBe(row);
+      expect(row).toHaveFocus();
       fireEvent.click(row);
       expect(row).toHaveAttribute("aria-selected", "false");
     }
